@@ -125,7 +125,7 @@ pub unsafe fn dc_receive_imf(
         }
     };
 
-    if let Some(field) = lookup_field(&mime_parser, "Date", MAILIMF_FIELD_ORIG_DATE) {
+    if let Some(field) = mime_parser.lookup_field_typ("Date", MAILIMF_FIELD_ORIG_DATE) {
         let orig_date = (*field).fld_data.fld_orig_date;
         if !orig_date.is_null() {
             // is not yet checked against bad times! we do this later if we have the database information.
@@ -136,7 +136,7 @@ pub unsafe fn dc_receive_imf(
     // get From: and check if it is known (for known From:'s we add the other To:/Cc: in the 3rd pass)
     // or if From: is equal to SELF (in this case, it is any outgoing messages,
     // we do not check Return-Path any more as this is unreliable, see issue #150
-    if let Some(field) = lookup_field(&mime_parser, "From", MAILIMF_FIELD_FROM) {
+    if let Some(field) = mime_parser.lookup_field_typ("From", MAILIMF_FIELD_FROM) {
         let fld_from = (*field).fld_data.fld_from;
         if !fld_from.is_null() {
             let mut check_self = 0;
@@ -164,7 +164,7 @@ pub unsafe fn dc_receive_imf(
     }
 
     // Make sure, to_ids starts with the first To:-address (Cc: is added in the loop below pass)
-    if let Some(field) = lookup_field(&mime_parser, "To", MAILIMF_FIELD_TO) {
+    if let Some(field) = mime_parser.lookup_field_typ("To", MAILIMF_FIELD_TO) {
         let fld_to = (*field).fld_data.fld_to;
         if !fld_to.is_null() {
             dc_add_or_lookup_contacts_by_address_list(
@@ -321,7 +321,7 @@ unsafe fn add_parts(
     // collect the rest information, CC: is added to the to-list, BCC: is ignored
     // (we should not add BCC to groups as this would split groups. We could add them as "known contacts",
     // however, the benefit is very small and this may leak data that is expected to be hidden)
-    if let Some(field) = lookup_field(mime_parser, "Cc", MAILIMF_FIELD_CC) {
+    if let Some(field) = mime_parser.lookup_field_typ("Cc", MAILIMF_FIELD_CC) {
         let fld_cc = (*field).fld_data.fld_cc;
         if !fld_cc.is_null() {
             dc_add_or_lookup_contacts_by_address_list(
@@ -344,7 +344,7 @@ unsafe fn add_parts(
     // change. (missing Message-IDs may come if the mail was set from this account with another
     // client that relies in the SMTP server to generate one.
     // true eg. for the Webmailer used in all-inkl-KAS)
-    if let Some(field) = lookup_field(mime_parser, "Message-ID", MAILIMF_FIELD_MESSAGE_ID) {
+    if let Some(field) = mime_parser.lookup_field_typ("Message-ID", MAILIMF_FIELD_MESSAGE_ID) {
         let fld_message_id = (*field).fld_data.fld_message_id;
         if !fld_message_id.is_null() {
             rfc724_mid = dc_strdup((*fld_message_id).mid_value)
@@ -606,7 +606,7 @@ unsafe fn add_parts(
         .sql
         .get_config_int(context, "save_mime_headers")
         .unwrap_or_default();
-    if let Some(field) = lookup_field(mime_parser, "In-Reply-To", MAILIMF_FIELD_IN_REPLY_TO) {
+    if let Some(field) = mime_parser.lookup_field_typ("In-Reply-To", MAILIMF_FIELD_IN_REPLY_TO) {
         let fld_in_reply_to = (*field).fld_data.fld_in_reply_to;
         if !fld_in_reply_to.is_null() {
             mime_in_reply_to = dc_str_from_clist(
@@ -616,7 +616,7 @@ unsafe fn add_parts(
         }
     }
 
-    if let Some(field) = lookup_field(mime_parser, "References", MAILIMF_FIELD_REFERENCES) {
+    if let Some(field) = mime_parser.lookup_field_typ("References", MAILIMF_FIELD_REFERENCES) {
         let fld_references = (*field).fld_data.fld_references;
         if !fld_references.is_null() {
             mime_references = dc_str_from_clist(
@@ -760,19 +760,6 @@ unsafe fn add_parts(
     cleanup(mime_in_reply_to, mime_references, txt_raw);
 
     Ok(())
-}
-
-/// Lookup a mime field given its name and type.
-fn lookup_field(parser: &MimeParser, name: &str, typ: u32) -> Option<*const mailimf_field> {
-    if let Some(field) = parser.lookup_field(name) {
-        if unsafe { (*field).fld_type } == typ as libc::c_int {
-            Some(field)
-        } else {
-            None
-        }
-    } else {
-        None
-    }
 }
 
 // Handle reports (mainly MDNs)
@@ -1051,25 +1038,20 @@ unsafe fn create_or_lookup_group(
     let mut chat_id = 0;
     let mut chat_id_blocked = Blocked::Not;
     let mut grpid = "".to_string();
-    let mut grpname = std::ptr::null_mut();
+    let mut grpname = None;
     let to_ids_cnt = to_ids.len();
     let mut recreate_member_list = 0;
     let mut send_EVENT_CHAT_MODIFIED = 0;
-    // pointer somewhere into mime_parser, must not be freed
-    let mut X_MrRemoveFromGrp = std::ptr::null_mut();
-    // pointer somewhere into mime_parser, must not be freed
-    let mut X_MrAddToGrp = std::ptr::null_mut();
+    let mut X_MrRemoveFromGrp = None;
+    let mut X_MrAddToGrp = None;
     let mut X_MrGrpNameChanged = 0;
     let mut X_MrGrpImageChanged = "".to_string();
     let mut better_msg: String = From::from("");
 
-    let cleanup = |grpname: *mut libc::c_char,
-                   ret_chat_id: *mut u32,
+    let cleanup = |ret_chat_id: *mut u32,
                    ret_chat_id_blocked: &mut Blocked,
                    chat_id: u32,
                    chat_id_blocked: Blocked| {
-        free(grpname.cast());
-
         if !ret_chat_id.is_null() {
             *ret_chat_id = chat_id;
         }
@@ -1087,11 +1069,11 @@ unsafe fn create_or_lookup_group(
     set_better_msg(mime_parser, &better_msg);
 
     if let Some(optional_field) = mime_parser.lookup_optional_field("Chat-Group-ID") {
-        grpid = to_string((*optional_field).fld_value);
+        grpid = optional_field;
     }
 
     if grpid.is_empty() {
-        if let Some(field) = lookup_field(mime_parser, "Message-ID", MAILIMF_FIELD_MESSAGE_ID) {
+        if let Some(field) = mime_parser.lookup_field_typ("Message-ID", MAILIMF_FIELD_MESSAGE_ID) {
             let fld_message_id = (*field).fld_data.fld_message_id;
             if !fld_message_id.is_null() {
                 if let Some(extracted_grpid) =
@@ -1104,7 +1086,8 @@ unsafe fn create_or_lookup_group(
             }
         }
         if grpid.is_empty() {
-            if let Some(field) = lookup_field(mime_parser, "In-Reply-To", MAILIMF_FIELD_IN_REPLY_TO)
+            if let Some(field) =
+                mime_parser.lookup_field_typ("In-Reply-To", MAILIMF_FIELD_IN_REPLY_TO)
             {
                 let fld_in_reply_to = (*field).fld_data.fld_in_reply_to;
                 if !fld_in_reply_to.is_null() {
@@ -1115,7 +1098,7 @@ unsafe fn create_or_lookup_group(
             }
             if grpid.is_empty() {
                 if let Some(field) =
-                    lookup_field(mime_parser, "References", MAILIMF_FIELD_REFERENCES)
+                    mime_parser.lookup_field_typ("References", MAILIMF_FIELD_REFERENCES)
                 {
                     let fld_references = (*field).fld_data.fld_references;
                     if !fld_references.is_null() {
@@ -1136,13 +1119,7 @@ unsafe fn create_or_lookup_group(
                         &mut chat_id,
                         &mut chat_id_blocked,
                     );
-                    cleanup(
-                        grpname,
-                        ret_chat_id,
-                        ret_chat_id_blocked,
-                        chat_id,
-                        chat_id_blocked,
-                    );
+                    cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
                     return;
                 }
             }
@@ -1150,12 +1127,12 @@ unsafe fn create_or_lookup_group(
     }
 
     if let Some(optional_field) = mime_parser.lookup_optional_field("Chat-Group-Name") {
-        grpname = dc_decode_header_words((*optional_field).fld_value);
+        grpname = Some(dc_decode_header_words_safe(&optional_field));
     }
     if let Some(optional_field) = mime_parser.lookup_optional_field("Chat-Group-Member-Removed") {
-        X_MrRemoveFromGrp = (*optional_field).fld_value;
+        X_MrRemoveFromGrp = Some(optional_field);
         mime_parser.is_system_message = SystemMessage::MemberRemovedFromGroup;
-        let left_group = (Contact::lookup_id_by_addr(context, as_str(X_MrRemoveFromGrp))
+        let left_group = (Contact::lookup_id_by_addr(context, X_MrRemoveFromGrp.as_ref().unwrap())
             == from_id as u32) as libc::c_int;
         better_msg = context.stock_system_msg(
             if 0 != left_group {
@@ -1163,21 +1140,20 @@ unsafe fn create_or_lookup_group(
             } else {
                 StockMessage::MsgDelMember
             },
-            as_str(X_MrRemoveFromGrp),
+            X_MrRemoveFromGrp.as_ref().unwrap(),
             "",
             from_id as u32,
         )
     } else {
         if let Some(optional_field) = mime_parser.lookup_optional_field("Chat-Group-Member-Added") {
-            X_MrAddToGrp = (*optional_field).fld_value;
+            X_MrAddToGrp = Some(optional_field);
             mime_parser.is_system_message = SystemMessage::MemberAddedToGroup;
             if let Some(optional_field) = mime_parser.lookup_optional_field("Chat-Group-Image") {
-                // fld_value is a pointer somewhere into mime_parser, must not be freed
-                X_MrGrpImageChanged = as_str((*optional_field).fld_value).to_string();
+                X_MrGrpImageChanged = optional_field;
             }
             better_msg = context.stock_system_msg(
                 StockMessage::MsgAddMember,
-                as_str(X_MrAddToGrp),
+                X_MrAddToGrp.as_ref().unwrap(),
                 "",
                 from_id as u32,
             )
@@ -1189,15 +1165,19 @@ unsafe fn create_or_lookup_group(
                 mime_parser.is_system_message = SystemMessage::GroupNameChanged;
                 better_msg = context.stock_system_msg(
                     StockMessage::MsgGrpName,
-                    as_str((*optional_field).fld_value),
-                    as_str(grpname),
+                    &optional_field,
+                    if let Some(ref name) = grpname {
+                        name
+                    } else {
+                        ""
+                    },
                     from_id as u32,
                 )
             } else {
                 if let Some(optional_field) = mime_parser.lookup_optional_field("Chat-Group-Image")
                 {
                     // fld_value is a pointer somewhere into mime_parser, must not be freed
-                    X_MrGrpImageChanged = as_str((*optional_field).fld_value).to_string();
+                    X_MrGrpImageChanged = optional_field;
                     mime_parser.is_system_message = SystemMessage::GroupImageChanged;
                     better_msg = context.stock_system_msg(
                         if X_MrGrpImageChanged == "0" {
@@ -1251,12 +1231,12 @@ unsafe fn create_or_lookup_group(
     if chat_id == 0
             && !mime_parser.is_mailinglist_message()
             && !grpid.is_empty()
-            && !grpname.is_null()
+            && grpname.is_some()
             // otherwise, a pending "quit" message may pop up
-            && X_MrRemoveFromGrp.is_null()
+            && X_MrRemoveFromGrp.is_none()
             // re-create explicitly left groups only if ourself is re-added
             && (!group_explicitly_left
-                || !X_MrAddToGrp.is_null() && addr_cmp(&self_addr, as_str(X_MrAddToGrp)))
+                || X_MrAddToGrp.is_some() && addr_cmp(&self_addr, X_MrAddToGrp.as_ref().unwrap()))
     {
         let mut create_verified = VerifiedStatus::Unverified;
         if mime_parser.lookup_field("Chat-Verified").is_some() {
@@ -1275,16 +1255,16 @@ unsafe fn create_or_lookup_group(
             free(failure_reason.cast());
         }
         if 0 == allow_creation {
-            cleanup(
-                grpname,
-                ret_chat_id,
-                ret_chat_id_blocked,
-                chat_id,
-                chat_id_blocked,
-            );
+            cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
             return;
         }
-        chat_id = create_group_record(context, &grpid, grpname, create_blocked, create_verified);
+        chat_id = create_group_record(
+            context,
+            &grpid,
+            grpname.as_ref().unwrap(),
+            create_blocked,
+            create_verified,
+        );
         chat_id_blocked = create_blocked;
         recreate_member_list = 1;
     }
@@ -1306,30 +1286,28 @@ unsafe fn create_or_lookup_group(
                 &mut chat_id_blocked,
             );
         }
-        cleanup(
-            grpname,
-            ret_chat_id,
-            ret_chat_id_blocked,
-            chat_id,
-            chat_id_blocked,
-        );
+        cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
         return;
     }
 
     // execute group commands
-    if !X_MrAddToGrp.is_null() || !X_MrRemoveFromGrp.is_null() {
+    if X_MrAddToGrp.is_some() || X_MrRemoveFromGrp.is_some() {
         recreate_member_list = 1;
-    } else if 0 != X_MrGrpNameChanged && !grpname.is_null() && strlen(grpname) < 200 {
-        info!(context, "updating grpname for chat {}", chat_id);
-        if sql::execute(
-            context,
-            &context.sql,
-            "UPDATE chats SET name=? WHERE id=?;",
-            params![as_str(grpname), chat_id as i32],
-        )
-        .is_ok()
-        {
-            context.call_cb(Event::ChatModified(chat_id));
+    } else if 0 != X_MrGrpNameChanged {
+        if let Some(ref grpname) = grpname {
+            if grpname.len() < 200 {
+                info!(context, "updating grpname for chat {}", chat_id);
+                if sql::execute(
+                    context,
+                    &context.sql,
+                    "UPDATE chats SET name=? WHERE id=?;",
+                    params![grpname, chat_id as i32],
+                )
+                .is_ok()
+                {
+                    context.call_cb(Event::ChatModified(chat_id));
+                }
+            }
         }
     }
     if !X_MrGrpImageChanged.is_empty() {
@@ -1375,11 +1353,7 @@ unsafe fn create_or_lookup_group(
         // than the one that is responsible for the current member list, see
         // https://github.com/deltachat/deltachat-core/issues/127
 
-        let skip = if !X_MrRemoveFromGrp.is_null() {
-            X_MrRemoveFromGrp
-        } else {
-            ptr::null_mut()
-        };
+        let skip = X_MrRemoveFromGrp.as_ref();
         sql::execute(
             context,
             &context.sql,
@@ -1387,21 +1361,20 @@ unsafe fn create_or_lookup_group(
             params![chat_id as i32],
         )
         .ok();
-        if skip.is_null() || !addr_cmp(&self_addr, as_str(skip)) {
+        if skip.is_none() || !addr_cmp(&self_addr, skip.unwrap()) {
             chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF);
         }
         if from_id > DC_CHAT_ID_LAST_SPECIAL {
             if !Contact::addr_equals_contact(context, &self_addr, from_id as u32)
-                && (skip.is_null()
-                    || !Contact::addr_equals_contact(context, to_string(skip), from_id as u32))
+                && (skip.is_none()
+                    || !Contact::addr_equals_contact(context, skip.unwrap(), from_id as u32))
             {
                 chat::add_to_chat_contacts_table(context, chat_id, from_id as u32);
             }
         }
         for &to_id in to_ids.iter() {
             if !Contact::addr_equals_contact(context, &self_addr, to_id)
-                && (skip.is_null()
-                    || !Contact::addr_equals_contact(context, to_string(skip), to_id))
+                && (skip.is_none() || !Contact::addr_equals_contact(context, skip.unwrap(), to_id))
             {
                 chat::add_to_chat_contacts_table(context, chat_id, to_id);
             }
@@ -1435,13 +1408,7 @@ unsafe fn create_or_lookup_group(
         }
     }
 
-    cleanup(
-        grpname,
-        ret_chat_id,
-        ret_chat_id_blocked,
-        chat_id,
-        chat_id_blocked,
-    );
+    cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
 }
 
 /// Handle groups for received messages
@@ -1459,15 +1426,11 @@ unsafe fn create_or_lookup_adhoc_group(
     // group matching the to-list or if we can create one
     let mut chat_id = 0;
     let mut chat_id_blocked = Blocked::Not;
-    let mut grpname = ptr::null_mut();
 
-    let cleanup = |grpname: *mut libc::c_char,
-                   ret_chat_id: *mut u32,
+    let cleanup = |ret_chat_id: *mut u32,
                    ret_chat_id_blocked: &mut Blocked,
                    chat_id: u32,
                    chat_id_blocked: Blocked| {
-        free(grpname as *mut libc::c_void);
-
         if !ret_chat_id.is_null() {
             *ret_chat_id = chat_id;
         }
@@ -1477,13 +1440,7 @@ unsafe fn create_or_lookup_adhoc_group(
     // build member list from the given ids
     if to_ids.is_empty() || mime_parser.is_mailinglist_message() {
         // too few contacts or a mailinglist
-        cleanup(
-            grpname,
-            ret_chat_id,
-            ret_chat_id_blocked,
-            chat_id,
-            chat_id_blocked,
-        );
+        cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
         return;
     }
 
@@ -1496,13 +1453,7 @@ unsafe fn create_or_lookup_adhoc_group(
     }
     if member_ids.len() < 3 {
         // too few contacts given
-        cleanup(
-            grpname,
-            ret_chat_id,
-            ret_chat_id_blocked,
-            chat_id,
-            chat_id_blocked,
-        );
+        cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
         return;
     }
 
@@ -1525,25 +1476,13 @@ unsafe fn create_or_lookup_adhoc_group(
             chat_id = id as u32;
             chat_id_blocked = id_blocked;
             /* success, chat found */
-            cleanup(
-                grpname,
-                ret_chat_id,
-                ret_chat_id_blocked,
-                chat_id,
-                chat_id_blocked,
-            );
+            cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
             return;
         }
     }
 
     if 0 == allow_creation {
-        cleanup(
-            grpname,
-            ret_chat_id,
-            ret_chat_id_blocked,
-            chat_id,
-            chat_id_blocked,
-        );
+        cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
         return;
     }
     // we do not check if the message is a reply to another group, this may result in
@@ -1553,24 +1492,16 @@ unsafe fn create_or_lookup_adhoc_group(
     // - there is no need to check if this group exists; otherwise we would have caught it above
     let grpid = create_adhoc_grp_id(context, &member_ids);
     if grpid.is_empty() {
-        cleanup(
-            grpname,
-            ret_chat_id,
-            ret_chat_id_blocked,
-            chat_id,
-            chat_id_blocked,
-        );
+        cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
         return;
     }
 
     // use subject as initial chat name
-    if let Some(subject) = mime_parser.subject.as_ref().filter(|s| !s.is_empty()) {
-        grpname = subject.strdup();
+    let grpname = if let Some(subject) = mime_parser.subject.as_ref().filter(|s| !s.is_empty()) {
+        subject.to_string()
     } else {
-        grpname = context
-            .stock_string_repl_int(StockMessage::Member, member_ids.len() as libc::c_int)
-            .strdup();
-    }
+        context.stock_string_repl_int(StockMessage::Member, member_ids.len() as libc::c_int)
+    };
 
     // create group record
     chat_id = create_group_record(
@@ -1587,19 +1518,13 @@ unsafe fn create_or_lookup_adhoc_group(
 
     context.call_cb(Event::ChatModified(chat_id));
 
-    cleanup(
-        grpname,
-        ret_chat_id,
-        ret_chat_id_blocked,
-        chat_id,
-        chat_id_blocked,
-    );
+    cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
 }
 
 fn create_group_record(
     context: &Context,
     grpid: impl AsRef<str>,
-    grpname: *const libc::c_char,
+    grpname: impl AsRef<str>,
     create_blocked: Blocked,
     create_verified: VerifiedStatus,
 ) -> u32 {
@@ -1613,7 +1538,7 @@ fn create_group_record(
             } else {
                 Chattype::Group
             },
-            as_str(grpname),
+            grpname.as_ref(),
             grpid.as_ref(),
             create_blocked,
         ],
@@ -1850,7 +1775,8 @@ unsafe fn dc_is_reply_to_known_message(context: &Context, mime_parser: &MimePars
     /* check if the message is a reply to a known message; the replies are identified by the Message-ID from
     `In-Reply-To`/`References:` (to support non-Delta-Clients) or from `Chat-Predecessor:` (Delta clients, see comment in dc_chat.c) */
     if let Some(optional_field) = mime_parser.lookup_optional_field("Chat-Predecessor") {
-        if 0 != is_known_rfc724_mid(context, (*optional_field).fld_value) {
+        let optional_field_c = CString::new(optional_field).unwrap();
+        if 0 != is_known_rfc724_mid(context, optional_field_c.as_ptr()) {
             return 1;
         }
     }
