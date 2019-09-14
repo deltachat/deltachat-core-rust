@@ -686,7 +686,7 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: u32) -> libc::c_int {
                 .param
                 .get_int(Param::GuranteeE2ee)
                 .unwrap_or_default()
-            && 0 == mimefactory.out_encrypted
+            && !mimefactory.out_encrypted
         {
             warn!(
                 context,
@@ -713,7 +713,7 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: u32) -> libc::c_int {
                     dc_strdup(mimefactory.from_addr) as *mut libc::c_void,
                 );
             }
-            if 0 != mimefactory.out_gossiped {
+            if mimefactory.out_gossiped {
                 chat::set_gossiped_timestamp(context, mimefactory.msg.chat_id, time());
             }
             if 0 != mimefactory.out_last_added_location_id {
@@ -732,7 +732,7 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: u32) -> libc::c_int {
                     }
                 }
             }
-            if 0 != mimefactory.out_encrypted
+            if mimefactory.out_encrypted
                 && mimefactory
                     .msg
                     .param
