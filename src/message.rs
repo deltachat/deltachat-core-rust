@@ -353,7 +353,10 @@ pub fn dc_msg_get_filemime(msg: &Message) -> String {
     "application/octet-stream".to_string()
 }
 
-pub fn dc_msg_guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
+pub fn dc_msg_guess_msgtype_from_suffix<T>(path: T) -> Option<(Viewtype, &'static str)>
+    where
+        T: AsRef<Path>
+{
     static KNOWN: phf::Map<&'static str, (Viewtype, &'static str)> = phf_map! {
         "mp3"   => (Viewtype::Audio, "audio/mpeg"),
         "aac"   => (Viewtype::Audio, "audio/aac"),
@@ -366,7 +369,7 @@ pub fn dc_msg_guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)>
         "vcf"   => (Viewtype::File,  "text/vcard"),
         "vcard" => (Viewtype::File,  "text/vcard"),
     };
-    let extension: &str = &path.extension()?.to_str()?.to_lowercase();
+    let extension: &str = &path.as_ref().extension()?.to_str()?.to_lowercase();
 
     KNOWN.get(extension).map(|x| *x)
 }

@@ -1054,12 +1054,6 @@ unsafe fn build_body_file(
     let content: *mut mailmime_content;
     let path_filename = msg.param.get(Param::File);
 
-    let mut mimetype = msg
-        .param
-        .get(Param::MimeType)
-        .map(|s| s.strdup())
-        .unwrap_or_else(|| std::ptr::null_mut());
-
     let mut filename_to_send = ptr::null_mut();
     let mut filename_encoded = ptr::null_mut();
 
@@ -1105,25 +1099,13 @@ unsafe fn build_body_file(
         } else {
             filename_to_send = dc_get_filename(path_filename)
         }
-        if mimetype.is_null() {
-            if suffix.is_null() {
-                mimetype =
-                    dc_strdup(b"application/octet-stream\x00" as *const u8 as *const libc::c_char)
-            } else if strcmp(suffix, b"png\x00" as *const u8 as *const libc::c_char) == 0 {
-                mimetype = dc_strdup(b"image/png\x00" as *const u8 as *const libc::c_char)
-            } else if strcmp(suffix, b"jpg\x00" as *const u8 as *const libc::c_char) == 0
-                || strcmp(suffix, b"jpeg\x00" as *const u8 as *const libc::c_char) == 0
-                || strcmp(suffix, b"jpe\x00" as *const u8 as *const libc::c_char) == 0
-            {
-                mimetype = dc_strdup(b"image/jpeg\x00" as *const u8 as *const libc::c_char)
-            } else if strcmp(suffix, b"gif\x00" as *const u8 as *const libc::c_char) == 0 {
-                mimetype = dc_strdup(b"image/gif\x00" as *const u8 as *const libc::c_char)
-            } else {
-                mimetype =
-                    dc_strdup(b"application/octet-stream\x00" as *const u8 as *const libc::c_char)
-            }
-        }
-        if !mimetype.is_null() {
+        let mimetype = msg
+            .param
+            .get(Param::MimeType)
+            .or_else(|| dc_msg_guess_msgtype_from_suffix(path_filename).map(|(_t, m)| m ))
+            .unwrap_or("application/octet-stream");
+
+        // if !mimetype.is_null() {
             /* create mime part, for Content-Disposition, see RFC 2183.
             `Content-Disposition: attachment` seems not to make a difference to `Content-Disposition: inline` at least on tested Thunderbird and Gma'l in 2017.
             But I've heard about problems with inline and outl'k, so we just use the attachment-type until we run into other problems ... */
@@ -1185,7 +1167,10 @@ unsafe fn build_body_file(
                     }
                 }
             }
-            content = mailmime_content_new_with_str(mimetype);
+            content = {
+                let mimetype_c = CString::yolo(mimetype);
+                mailmime_content_new_with_str(mimetype_c.as_ptr())
+            };
             filename_encoded = dc_encode_header_words(filename_to_send);
             clist_insert_after(
                 (*content).ct_parameters,
@@ -1203,10 +1188,9 @@ unsafe fn build_body_file(
             if !ret_file_name_as_sent.is_null() {
                 *ret_file_name_as_sent = dc_strdup(filename_to_send)
             }
-        }
+        //}
     }
 
-    free(mimetype as *mut libc::c_void);
     free(filename_to_send as *mut libc::c_void);
     free(filename_encoded as *mut libc::c_void);
 
