@@ -1,6 +1,7 @@
 use quick_xml;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
+use crate::constants::*;
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::login_param::LoginParam;
@@ -167,9 +168,9 @@ unsafe fn outlk_autodiscover_endtag_cb(event: &BytesEnd, outlk_ad: &mut outlk_au
                 outlk_ad.out.mail_server = to_string(outlk_ad.config[2]);
                 outlk_ad.out.mail_port = port;
                 if 0 != ssl_on {
-                    outlk_ad.out.server_flags |= 0x200
+                    outlk_ad.out.server_flags |= DC_LP_IMAP_SOCKET_SSL as i32
                 } else if 0 != ssl_off {
-                    outlk_ad.out.server_flags |= 0x400
+                    outlk_ad.out.server_flags |= DC_LP_IMAP_SOCKET_PLAIN as i32
                 }
                 outlk_ad.out_imap_set = 1
             } else if strcasecmp(
@@ -181,9 +182,9 @@ unsafe fn outlk_autodiscover_endtag_cb(event: &BytesEnd, outlk_ad: &mut outlk_au
                 outlk_ad.out.send_server = to_string(outlk_ad.config[2]);
                 outlk_ad.out.send_port = port;
                 if 0 != ssl_on {
-                    outlk_ad.out.server_flags |= 0x20000
+                    outlk_ad.out.server_flags |= DC_LP_SMTP_SOCKET_SSL as i32
                 } else if 0 != ssl_off {
-                    outlk_ad.out.server_flags |= 0x40000
+                    outlk_ad.out.server_flags |= DC_LP_SMTP_SOCKET_PLAIN as i32
                 }
                 outlk_ad.out_smtp_set = 1
             }
