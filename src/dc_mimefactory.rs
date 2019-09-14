@@ -49,7 +49,7 @@ pub struct MimeFactory<'a> {
     pub chat: Option<Chat>,
     pub increation: bool,
     pub in_reply_to: *mut libc::c_char,
-    pub references: *mut libc::c_char,
+    pub references: Vec<String>,
     pub req_mdn: bool,
     pub out: *mut MMAPString,
     pub out_encrypted: bool,
@@ -76,7 +76,7 @@ impl<'a> MimeFactory<'a> {
             chat: None,
             increation: false,
             in_reply_to: ptr::null_mut(),
-            references: ptr::null_mut(),
+            references: vec![],
             req_mdn: false,
             out: ptr::null_mut(),
             out_encrypted: false,
@@ -86,6 +86,17 @@ impl<'a> MimeFactory<'a> {
             context,
         }
     }
+}
+
+pub unsafe fn slice_to_clist(items: &[String]) -> *mut clist {
+    let list = clist_new();
+    assert!(!list.is_null());
+
+    for item in items {
+        clist_insert_after(list, (*list).last, item.strdup().cast());
+    }
+
+    list
 }
 
 impl<'a> Drop for MimeFactory<'a> {
@@ -102,7 +113,6 @@ impl<'a> Drop for MimeFactory<'a> {
             }
 
             free(self.in_reply_to as *mut libc::c_void);
-            free(self.references as *mut libc::c_void);
             if !self.out.is_null() {
                 mmap_string_free(self.out);
             }
@@ -225,7 +235,7 @@ pub unsafe fn dc_mimefactory_load_msg(
     match row {
         Ok((in_reply_to, references)) => {
             factory.in_reply_to = in_reply_to.strdup();
-            factory.references = references.strdup();
+            factory.references = references.split(" ").map(|s| s.to_string()).collect();
         }
         Err(err) => {
             error!(
@@ -379,11 +389,8 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
             }
         }
         let mut references_list: *mut clist = ptr::null_mut();
-        if !factory.references.is_null() && 0 != *factory.references.offset(0isize) as libc::c_int {
-            references_list = dc_str_to_clist(
-                factory.references,
-                b" \x00" as *const u8 as *const libc::c_char,
-            )
+        if !factory.references.is_empty() {
+            references_list = slice_to_clist(&factory.references);
         }
         let mut in_reply_to_list: *mut clist = ptr::null_mut();
         if !factory.in_reply_to.is_null() && 0 != *factory.in_reply_to.offset(0isize) as libc::c_int
@@ -1205,4 +1212,26 @@ unsafe fn is_file_size_okay(context: &Context, msg: &Message) -> bool {
     }
 
     file_size_okay
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_slice_to_clist() {
+        unsafe {
+            let input = vec!["foo".into(), "bar".into()];
+            let clist = slice_to_clist(&input[..]);
+
+            assert!(!clist.is_null());
+            assert_eq!((*clist).count, 2);
+
+            for data in &*clist {
+                free(data);
+            }
+
+            clist_free(clist);
+        }
+    }
 }
