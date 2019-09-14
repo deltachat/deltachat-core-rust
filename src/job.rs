@@ -1003,7 +1003,7 @@ fn send_mdn(context: &Context, msg_id: u32) {
 }
 
 #[allow(non_snake_case)]
-fn add_smtp_job(context: &Context, action: Action, mimefactory: &dc_mimefactory_t) -> libc::c_int {
+fn add_smtp_job(context: &Context, action: Action, mimefactory: &MimeFactory) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut recipients: *mut libc::c_char = ptr::null_mut();
     let mut param = Params::new();
