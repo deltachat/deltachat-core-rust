@@ -55,7 +55,7 @@ pub struct MimeFactory<'a> {
     pub out_encrypted: bool,
     pub out_gossiped: bool,
     pub out_last_added_location_id: u32,
-    pub error: *mut libc::c_char,
+    pub error: Option<String>,
     pub context: &'a Context,
 }
 
@@ -82,7 +82,7 @@ impl<'a> MimeFactory<'a> {
             out_encrypted: false,
             out_gossiped: false,
             out_last_added_location_id: 0,
-            error: ptr::null_mut(),
+            error: None,
             context,
         }
     }
@@ -106,7 +106,6 @@ impl<'a> Drop for MimeFactory<'a> {
             if !self.out.is_null() {
                 mmap_string_free(self.out);
             }
-            free(self.error as *mut libc::c_void);
         }
     }
 }
@@ -316,11 +315,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
     let mut e2ee_helper = E2eeHelper::default();
 
     if factory.loaded == Loaded::Nothing || !factory.out.is_null() {
-        /*call empty() before*/
-        set_error(
-            factory,
-            b"Invalid use of mimefactory-object.\x00" as *const u8 as *const libc::c_char,
-        );
+        factory.error = Some("Invalid use of mimefactory-object.".into());
     } else {
         let from: *mut mailimf_mailbox_list = mailimf_mailbox_list_new_empty();
         mailimf_mailbox_list_add(
@@ -768,13 +763,8 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
             /* add attachment part */
             if chat::msgtype_has_file(factory.msg.type_0) {
                 if !is_file_size_okay(context, &factory.msg) {
-                    let error: *mut libc::c_char = dc_mprintf(
-                        b"Message exceeds the recommended %i MB.\x00" as *const u8
-                            as *const libc::c_char,
-                        24 * 1024 * 1024 / 4 * 3 / 1000 / 1000,
-                    );
-                    set_error(factory, error);
-                    free(error as *mut libc::c_void);
+                    let limit = 24 * 1024 * 1024 / 4 * 3 / 1000 / 1000;
+                    factory.error = Some(format!("Message exceeds the recommended {} MB.", limit));
                     ok_to_continue = false;
                 } else {
                     let file_part: *mut mailmime =
@@ -787,10 +777,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
             }
             if ok_to_continue {
                 if parts == 0 {
-                    set_error(
-                        factory,
-                        b"Empty message.\x00" as *const u8 as *const libc::c_char,
-                    );
+                    factory.error = Some("Empty message".into());
                     ok_to_continue = false;
                 } else {
                     if !meta_part.is_null() {
@@ -910,10 +897,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
             mailmime_add_part(multipart, mach_mime_part);
             force_plaintext = 2;
         } else {
-            set_error(
-                factory,
-                b"No message loaded.\x00" as *const u8 as *const libc::c_char,
-            );
+            factory.error = Some("No message loaded".into());
             ok_to_continue = false;
         }
 
@@ -1035,14 +1019,6 @@ unsafe fn get_subject(
     free(raw_subject as *mut libc::c_void);
 
     ret
-}
-
-unsafe fn set_error(factory: *mut MimeFactory, text: *const libc::c_char) {
-    if factory.is_null() {
-        return;
-    }
-    free((*factory).error as *mut libc::c_void);
-    (*factory).error = dc_strdup_keep_null(text);
 }
 
 unsafe fn build_body_text(text: *mut libc::c_char) -> *mut mailmime {

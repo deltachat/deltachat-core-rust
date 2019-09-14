@@ -681,7 +681,7 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: u32) -> libc::c_int {
         }
         /* create message */
         if !dc_mimefactory_render(context, &mut mimefactory) {
-            dc_set_msg_failed(context, msg_id, as_opt_str(mimefactory.error));
+            dc_set_msg_failed(context, msg_id, mimefactory.error.as_ref());
         } else if 0
             != mimefactory
                 .msg
