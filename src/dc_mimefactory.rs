@@ -37,7 +37,7 @@ pub enum Loaded {
 #[allow(non_camel_case_types)]
 pub struct dc_mimefactory_t<'a> {
     pub from_addr: Option<String>,
-    pub from_displayname: *mut libc::c_char,
+    from_displayname: Option<String>,
     pub selfstatus: *mut libc::c_char,
     pub recipients_names: *mut clist,
     pub recipients_addr: *mut clist,
@@ -61,7 +61,6 @@ pub struct dc_mimefactory_t<'a> {
 impl<'a> Drop for dc_mimefactory_t<'a> {
     fn drop(&mut self) {
         unsafe {
-            free(self.from_displayname as *mut libc::c_void);
             free(self.selfstatus as *mut libc::c_void);
             free(self.rfc724_mid as *mut libc::c_void);
             if !self.recipients_names.is_null() {
@@ -93,7 +92,7 @@ pub unsafe fn dc_mimefactory_load_msg(
     let chat = Chat::load_from_db(context, msg.chat_id)?;
     let mut factory = dc_mimefactory_t {
         from_addr: None,
-        from_displayname: ptr::null_mut(),
+        from_displayname: None,
         selfstatus: ptr::null_mut(),
         recipients_names: clist_new(),
         recipients_addr: clist_new(),
@@ -123,7 +122,10 @@ pub unsafe fn dc_mimefactory_load_msg(
         clist_insert_after(
             factory.recipients_names,
             (*factory.recipients_names).last,
-            dc_strdup_keep_null(factory.from_displayname) as *mut libc::c_void,
+            factory
+                .from_displayname
+                .as_ref()
+                .map_or(ptr::null_mut(), |s| s.strdup().cast()),
         );
         clist_insert_after(
             factory.recipients_addr,
@@ -241,12 +243,7 @@ pub unsafe fn dc_mimefactory_load_msg(
 unsafe fn load_from(factory: &mut dc_mimefactory_t) {
     let context = factory.context;
     factory.from_addr = context.sql.get_config(context, "configured_addr");
-
-    factory.from_displayname = context
-        .sql
-        .get_config(context, "displayname")
-        .unwrap_or_default()
-        .strdup();
+    factory.from_displayname = context.sql.get_config(context, "displayname");
 
     factory.selfstatus = context
         .sql
@@ -277,7 +274,7 @@ pub unsafe fn dc_mimefactory_load_mdn<'a>(
 
     let mut factory = dc_mimefactory_t {
         from_addr: None,
-        from_displayname: ptr::null_mut(),
+        from_displayname: None,
         selfstatus: ptr::null_mut(),
         recipients_names: clist_new(),
         recipients_addr: clist_new(),
@@ -362,8 +359,9 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut dc_mimefact
         mailimf_mailbox_list_add(
             from,
             mailimf_mailbox_new(
-                if !factory.from_displayname.is_null() {
-                    dc_encode_header_words(factory.from_displayname)
+                if let Some(ref displayname) = factory.from_displayname {
+                    let displayname_c = CString::yolo(displayname.as_str());
+                    dc_encode_header_words(displayname_c.as_ptr().cast())
                 } else {
                     ptr::null_mut()
                 },
