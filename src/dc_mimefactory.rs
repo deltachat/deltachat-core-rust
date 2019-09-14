@@ -13,6 +13,7 @@ use mmime::mmapstring::*;
 use mmime::other::*;
 
 use crate::chat::{self, Chat};
+use crate::config::*;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::{get_version_str, Context};
@@ -38,7 +39,7 @@ pub enum Loaded {
 pub struct MimeFactory<'a> {
     pub from_addr: Option<String>,
     from_displayname: Option<String>,
-    selfstatus: Option<String>,
+    selfstatus: String,
     pub recipients_names: *mut clist,
     pub recipients_addr: *mut clist,
     pub timestamp: i64,
@@ -61,9 +62,11 @@ pub struct MimeFactory<'a> {
 impl<'a> MimeFactory<'a> {
     fn new(context: &'a Context, msg: Message) -> Self {
         MimeFactory {
-            from_addr: None,
-            from_displayname: None,
-            selfstatus: None,
+            from_addr: context.get_config(Config::ConfiguredAddr),
+            from_displayname: context.get_config(Config::Displayname),
+            selfstatus: context
+                .get_config(Config::Selfstatus)
+                .unwrap_or_else(|| context.stock_str(StockMessage::StatusLine).to_string()),
             recipients_names: unsafe { clist_new() },
             recipients_addr: unsafe { clist_new() },
             timestamp: 0,
@@ -118,8 +121,6 @@ pub unsafe fn dc_mimefactory_load_msg(
     let chat = Chat::load_from_db(context, msg.chat_id)?;
     let mut factory = MimeFactory::new(context, msg);
     factory.chat = Some(chat);
-
-    load_from(&mut factory);
 
     // just set the chat above
     let chat = factory.chat.as_ref().unwrap();
@@ -246,22 +247,6 @@ pub unsafe fn dc_mimefactory_load_msg(
     Ok(factory)
 }
 
-unsafe fn load_from(factory: &mut MimeFactory) {
-    let context = factory.context;
-    factory.from_addr = context.sql.get_config(context, "configured_addr");
-    factory.from_displayname = context.sql.get_config(context, "displayname");
-
-    factory.selfstatus = context.sql.get_config(context, "selfstatus");
-    if factory.selfstatus.is_none() {
-        factory.selfstatus = Some(
-            factory
-                .context
-                .stock_str(StockMessage::StatusLine)
-                .to_string(),
-        );
-    };
-}
-
 pub unsafe fn dc_mimefactory_load_mdn<'a>(
     context: &'a Context,
     msg_id: u32,
@@ -305,7 +290,6 @@ pub unsafe fn dc_mimefactory_load_mdn<'a>(
         (*factory.recipients_addr).last,
         contact.get_addr().strdup() as *mut libc::c_void,
     );
-    load_from(&mut factory);
     factory.timestamp = dc_create_smeared_timestamp(factory.context);
     let from_addr = &factory.from_addr.as_ref().unwrap();
     factory.rfc724_mid = dc_create_outgoing_rfc724_mid_safe(None, from_addr).strdup();
@@ -771,17 +755,13 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
                     "".into()
                 }
             };
-            let (separator, footer) = if let Some(ref status) = factory.selfstatus {
-                let separator = if final_text.is_empty() {
-                    "-- \r\n"
-                } else {
-                    "\r\n\r\n-- \r\n"
-                };
-                (separator, status.as_str())
-            } else {
-                ("", "")
-            };
 
+            let footer = &factory.selfstatus;
+            let separator = if final_text.is_empty() {
+                "-- \r\n"
+            } else {
+                "\r\n\r\n-- \r\n"
+            };
             let message_text = format!("{}{}{}{}", fwdhint, final_text, separator, footer).strdup();
             let text_part: *mut mailmime = build_body_text(message_text);
             mailmime_smart_add_part(message, text_part);
