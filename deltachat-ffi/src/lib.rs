@@ -52,6 +52,9 @@ pub struct ContextWrapper {
     inner: RwLock<Option<context::Context>>,
 }
 
+unsafe impl Send for ContextWrapper {}
+unsafe impl Sync for ContextWrapper {}
+
 /// Callback function that should be given to [dc_context_new].
 ///
 /// @memberof [dc_context_t]
@@ -169,13 +172,13 @@ pub unsafe extern "C" fn dc_open(
         eprintln!("ignoring careless call to dc_open()");
         return 0;
     }
-    let rust_cb = move |_ctx: &Context, evt: Event, d0: uintptr_t, d1: uintptr_t| {
-        let ffi_context = &*context;
-        match ffi_context.cb {
+    let ffi_context = &*context;
+
+    let rust_cb =
+        move |_ctx: &Context, evt: Event, d0: uintptr_t, d1: uintptr_t| match ffi_context.cb {
             Some(ffi_cb) => ffi_cb(ffi_context, evt, d0, d1),
             None => 0,
-        }
-    };
+        };
     let ffi_context = &mut *context;
     let ctx = if blobdir.is_null() {
         Context::new(
@@ -233,7 +236,7 @@ pub unsafe extern "C" fn dc_get_blobdir(context: *mut dc_context_t) -> *mut libc
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| context::dc_get_blobdir(ctx))
+        .with_inner(|ctx| ctx.get_blobdir().to_string_lossy().strdup())
         .unwrap_or_else(|_| "".strdup())
 }
 
@@ -1413,7 +1416,7 @@ pub unsafe extern "C" fn dc_imex(
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| dc_imex::dc_imex(ctx, what, param1, param2))
+        .with_inner(|ctx| dc_imex::dc_imex(ctx, what, as_opt_str(param1), param2))
         .ok();
 }
 
@@ -1428,7 +1431,7 @@ pub unsafe extern "C" fn dc_imex_has_backup(
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| dc_imex::dc_imex_has_backup(ctx, dir))
+        .with_inner(|ctx| dc_imex::dc_imex_has_backup(ctx, as_str(dir)))
         .unwrap_or_else(|_| ptr::null_mut())
 }
 

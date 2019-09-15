@@ -53,16 +53,13 @@ unsafe fn stress_functions(context: &Context) {
         7i32 as libc::c_ulonglong
     );
 
-    let abs_path: *mut libc::c_char = dc_mprintf(
-        b"%s/%s\x00" as *const u8 as *const libc::c_char,
-        context.get_blobdir(),
-        b"foobar\x00" as *const u8 as *const libc::c_char,
-    );
-    assert!(dc_is_blobdir_path(context, as_str(abs_path)));
+    let abs_path = format!("{}/foobar", context.get_blobdir().to_string_lossy());
+
+    assert!(dc_is_blobdir_path(context, &abs_path));
     assert!(dc_is_blobdir_path(context, "$BLOBDIR/fofo",));
     assert!(!dc_is_blobdir_path(context, "/BLOBDIR/fofo",));
-    assert!(dc_file_exist(context, as_path(abs_path)));
-    free(abs_path as *mut libc::c_void);
+    assert!(dc_file_exist(context, &abs_path));
+
     assert!(dc_copy_file(context, "$BLOBDIR/foobar", "$BLOBDIR/dada",));
     assert_eq!(dc_get_filebytes(context, "$BLOBDIR/dada",), 7);
 

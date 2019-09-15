@@ -35,12 +35,11 @@ use crate::x::*;
 ///
 /// This callback must return 0 unless stated otherwise in the event
 /// description at [Event].
-pub type ContextCallback = dyn Fn(&Context, Event, uintptr_t, uintptr_t) -> uintptr_t;
+pub type ContextCallback = dyn Fn(&Context, Event, uintptr_t, uintptr_t) -> uintptr_t + Send + Sync;
 
 pub struct Context {
-    pub userdata: *mut libc::c_void,
-    pub dbfile: Arc<RwLock<Option<PathBuf>>>,
-    pub blobdir: Arc<RwLock<*mut libc::c_char>>,
+    pub dbfile: Arc<RwLock<PathBuf>>,
+    pub blobdir: Arc<RwLock<PathBuf>>,
     pub sql: Sql,
     pub inbox: Arc<RwLock<Imap>>,
     pub perform_inbox_jobs_needed: Arc<RwLock<bool>>,
@@ -59,9 +58,6 @@ pub struct Context {
     /// Mutex to avoid generating the key for the user more than once.
     pub generating_key_mutex: Mutex<()>,
 }
-
-unsafe impl std::marker::Send for Context {}
-unsafe impl std::marker::Sync for Context {}
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct RunningState {
@@ -92,10 +88,9 @@ impl Context {
             "Blobdir does not exist: {}",
             blobdir.display()
         );
-        let blobdir_c = blobdir.to_c_string()?;
         let ctx = Context {
-            blobdir: Arc::new(RwLock::new(unsafe { dc_strdup(blobdir_c.as_ptr()) })),
-            dbfile: Arc::new(RwLock::new(Some(dbfile))),
+            blobdir: Arc::new(RwLock::new(blobdir)),
+            dbfile: Arc::new(RwLock::new(dbfile)),
             inbox: Arc::new(RwLock::new({
                 Imap::new(
                     cb_get_config,
@@ -104,7 +99,6 @@ impl Context {
                     cb_receive_imf,
                 )
             })),
-            userdata: std::ptr::null_mut(),
             cb,
             os_name: Some(os_name),
             running_state: Arc::new(RwLock::new(Default::default())),
@@ -139,31 +133,18 @@ impl Context {
             perform_inbox_jobs_needed: Arc::new(RwLock::new(false)),
             generating_key_mutex: Mutex::new(()),
         };
-        if !ctx
-            .sql
-            .open(&ctx, &ctx.dbfile.read().unwrap().as_ref().unwrap(), 0)
-        {
+        if !ctx.sql.open(&ctx, &ctx.dbfile.read().unwrap(), 0) {
             return Err(format_err!("Failed opening sqlite database"));
         }
         Ok(ctx)
     }
 
-    pub fn has_dbfile(&self) -> bool {
-        self.get_dbfile().is_some()
+    pub fn get_dbfile(&self) -> PathBuf {
+        self.dbfile.clone().read().unwrap().clone()
     }
 
-    pub fn has_blobdir(&self) -> bool {
-        !self.get_blobdir().is_null()
-    }
-
-    pub fn get_dbfile(&self) -> Option<PathBuf> {
-        (*self.dbfile.clone().read().unwrap())
-            .as_ref()
-            .map(|x| x.clone())
-    }
-
-    pub fn get_blobdir(&self) -> *const libc::c_char {
-        *self.blobdir.clone().read().unwrap()
+    pub fn get_blobdir(&self) -> PathBuf {
+        self.blobdir.clone().read().unwrap().clone()
     }
 
     pub fn call_cb(&self, event: Event, data1: uintptr_t, data2: uintptr_t) -> uintptr_t {
@@ -173,19 +154,15 @@ impl Context {
 
 impl Drop for Context {
     fn drop(&mut self) {
-        unsafe {
-            info!(self, "disconnecting INBOX-watch",);
-            self.inbox.read().unwrap().disconnect(self);
-            info!(self, "disconnecting sentbox-thread",);
-            self.sentbox_thread.read().unwrap().imap.disconnect(self);
-            info!(self, "disconnecting mvbox-thread",);
-            self.mvbox_thread.read().unwrap().imap.disconnect(self);
-            info!(self, "disconnecting SMTP");
-            self.smtp.clone().lock().unwrap().disconnect();
-            self.sql.close(self);
-            let blobdir = self.blobdir.write().unwrap();
-            free(*blobdir as *mut libc::c_void);
-        }
+        info!(self, "disconnecting INBOX-watch",);
+        self.inbox.read().unwrap().disconnect(self);
+        info!(self, "disconnecting sentbox-thread",);
+        self.sentbox_thread.read().unwrap().imap.disconnect(self);
+        info!(self, "disconnecting mvbox-thread",);
+        self.mvbox_thread.read().unwrap().imap.disconnect(self);
+        info!(self, "disconnecting SMTP");
+        self.smtp.clone().lock().unwrap().disconnect();
+        self.sql.close(self);
     }
 }
 
@@ -295,14 +272,6 @@ fn cb_set_config(context: &Context, key: &str, value: Option<&str>) {
  */
 fn cb_get_config(context: &Context, key: &str) -> Option<String> {
     context.sql.get_config(context, key)
-}
-
-pub unsafe fn dc_get_userdata(context: &mut Context) -> *mut libc::c_void {
-    context.userdata as *mut _
-}
-
-pub unsafe fn dc_get_blobdir(context: &Context) -> *mut libc::c_char {
-    dc_strdup(*context.blobdir.clone().read().unwrap())
 }
 
 /* ******************************************************************************
@@ -421,16 +390,9 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
         real_msgs,
         deaddrop_msgs,
         contacts,
-        context
-            .get_dbfile()
-            .as_ref()
-            .map_or(unset, |p| p.to_str().unwrap()),
+        context.get_dbfile().to_str().unwrap(),
         dbversion,
-        if context.has_blobdir() {
-            as_str(context.get_blobdir())
-        } else {
-            unset
-        },
+        context.get_blobdir().to_str().unwrap(),
         displayname.unwrap_or_else(|| unset.into()),
         is_configured,
         l,

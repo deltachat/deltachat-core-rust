@@ -791,7 +791,7 @@ fn open(
 
             let repl_from = sql
                 .get_config(context, "backup_for")
-                .unwrap_or_else(|| to_string(context.get_blobdir()));
+                .unwrap_or_else(|| context.get_blobdir().to_string_lossy().into());
 
             let repl_from = dc_ensure_no_slash_safe(&repl_from);
             sql.execute(
@@ -990,7 +990,7 @@ pub fn housekeeping(context: &Context) {
 
     info!(context, "{} files in use.", files_in_use.len(),);
     /* go through directory and delete unused files */
-    let p = std::path::Path::new(as_str(context.get_blobdir()));
+    let p = context.get_blobdir();
     match std::fs::read_dir(p) {
         Ok(dir_handle) => {
             /* avoid deletion of files that are just created to build a message object */
@@ -1050,7 +1050,7 @@ pub fn housekeeping(context: &Context) {
             warn!(
                 context,
                 "Housekeeping: Cannot open {}. ({})",
-                as_str(context.get_blobdir()),
+                context.get_blobdir().display(),
                 err
             );
         }

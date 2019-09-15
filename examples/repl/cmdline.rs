@@ -491,17 +491,17 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             }
         }
         "export-backup" => {
-            dc_imex(context, 11, context.get_blobdir(), ptr::null());
+            dc_imex(context, 11, Some(context.get_blobdir()), ptr::null());
         }
         "import-backup" => {
             ensure!(!arg1.is_empty(), "Argument <backup-file> missing.");
-            dc_imex(context, 12, arg1_c, ptr::null());
+            dc_imex(context, 12, Some(arg1), ptr::null());
         }
         "export-keys" => {
-            dc_imex(context, 1, context.get_blobdir(), ptr::null());
+            dc_imex(context, 1, Some(context.get_blobdir()), ptr::null());
         }
         "import-keys" => {
-            dc_imex(context, 2, context.get_blobdir(), ptr::null());
+            dc_imex(context, 2, Some(context.get_blobdir()), ptr::null());
         }
         "export-setup" => {
             let setup_code = dc_create_setup_code(context);
