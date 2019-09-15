@@ -440,13 +440,10 @@ impl Imap {
 
                 emit_event!(
                     context,
-                    Event::ErrorNetwork(
-                        0,
-                        format!(
-                            "Could not connect to IMAP-server {}:{}. ({})",
-                            imap_server, imap_port, err
-                        )
-                    )
+                    Event::ErrorNetwork(format!(
+                        "Could not connect to IMAP-server {}:{}. ({})",
+                        imap_server, imap_port, err
+                    ))
                 );
 
                 return false;
@@ -464,7 +461,7 @@ impl Imap {
             Err((err, _)) => {
                 emit_event!(
                     context,
-                    Event::ErrorNetwork(0, format!("Cannot login ({})", err))
+                    Event::ErrorNetwork(format!("Cannot login ({})", err))
                 );
                 self.unsetup_handle(context);
 

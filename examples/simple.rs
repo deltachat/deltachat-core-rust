@@ -23,10 +23,7 @@ fn cb(_ctx: &Context, event: Event) -> usize {
             print!("  progress: {}\n", progress);
             0
         }
-        Event::Info(msg)
-        | Event::Warning(msg)
-        | Event::Error(msg)
-        | Event::ErrorNetwork(_, msg) => {
+        Event::Info(msg) | Event::Warning(msg) | Event::Error(msg) | Event::ErrorNetwork(msg) => {
             print!("  {}\n", msg);
             0
         }
