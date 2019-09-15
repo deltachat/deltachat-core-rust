@@ -1106,4 +1106,25 @@ mod tests {
         assert_eq!(setupcode.chars().nth(34).unwrap(), '-');
         assert_eq!(setupcode.chars().nth(39).unwrap(), '-');
     }
+
+    #[test]
+    fn test_export_key_to_asc_file() {
+        unsafe {
+            let context = dummy_context();
+            let base64 = include_str!("../test-data/key/public.asc");
+            let key = Key::from_base64(base64, KeyType::Public).unwrap();
+            let blobdir = CString::yolo("$BLOBDIR");
+            assert!(export_key_to_asc_file(
+                &context.ctx,
+                blobdir.as_ptr(),
+                None,
+                &key
+            ));
+            let blobdir = context.ctx.get_blobdir().to_str().unwrap();
+            let filename = format!("{}/public-key-default.asc", blobdir);
+            let bytes = std::fs::read(&filename).unwrap();
+
+            assert_eq!(bytes, key.to_asc(None).into_bytes());
+        }
+    }
 }
