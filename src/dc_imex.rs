@@ -804,7 +804,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> bool {
                             .set_config_int(context, "backup_time", now as i32)
                             .is_ok()
                         {
-                            context.call_cb(Event::ImexFileWritten(&dest_path_filename));
+                            context.call_cb(Event::ImexFileWritten(dest_path_filename.clone()));
                             success = true;
                         }
                     }
@@ -840,10 +840,8 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
     (currently, the last imported key is the standard key unless it contains the string "legacy" in its name) */
     let mut imported_cnt: libc::c_int = 0;
     let mut suffix: *mut libc::c_char = ptr::null_mut();
-    let mut path_plus_name: *mut libc::c_char = ptr::null_mut();
     let mut set_default: libc::c_int;
     let mut buf: *mut libc::c_char = ptr::null_mut();
-    let mut buf_bytes: libc::size_t = 0;
     // a pointer inside buf, MUST NOT be free()'d
     let mut private_key: *const libc::c_char;
     let mut buf2: *mut libc::c_char = ptr::null_mut();
@@ -866,25 +864,21 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                 {
                     continue;
                 }
-                free(path_plus_name as *mut libc::c_void);
-                path_plus_name = dc_mprintf(
-                    b"%s/%s\x00" as *const u8 as *const libc::c_char,
-                    dir_name,
-                    name_c.as_ptr(),
-                );
-                info!(context, "Checking: {}", as_str(path_plus_name));
-                free(buf as *mut libc::c_void);
+                let path_plus_name = dir.join(entry.file_name());
+                info!(context, "Checking: {}", path_plus_name.display());
+
+                free(buf.cast());
                 buf = ptr::null_mut();
-                if 0 == dc_read_file(
-                    context,
-                    path_plus_name,
-                    &mut buf as *mut *mut libc::c_char as *mut *mut libc::c_void,
-                    &mut buf_bytes,
-                ) || buf_bytes < 50
-                {
+
+                if let Some(buf_r) = dc_read_file_safe(context, &path_plus_name) {
+                    buf = buf_r.as_ptr() as *mut _;
+                    std::mem::forget(buf_r);
+                } else {
                     continue;
-                }
+                };
+
                 private_key = buf;
+
                 free(buf2 as *mut libc::c_void);
                 buf2 = dc_strdup(buf);
                 if dc_split_armored_data(
@@ -917,7 +911,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                     info!(
                         context,
                         "Treating \"{}\" as a legacy private key.",
-                        as_str(path_plus_name),
+                        path_plus_name.display(),
                     );
                     set_default = 0i32
                 }
@@ -943,7 +937,6 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
     }
 
     free(suffix as *mut libc::c_void);
-    free(path_plus_name as *mut libc::c_void);
     free(buf as *mut libc::c_void);
     free(buf2 as *mut libc::c_void);
 
@@ -1006,38 +999,31 @@ unsafe fn export_key_to_asc_file(
     is_default: libc::c_int,
 ) -> bool {
     let mut success = false;
-    let file_name;
-    if 0 != is_default {
-        file_name = dc_mprintf(
-            b"%s/%s-key-default.asc\x00" as *const u8 as *const libc::c_char,
-            dir,
-            if key.is_public() {
-                b"public\x00" as *const u8 as *const libc::c_char
-            } else {
-                b"private\x00" as *const u8 as *const libc::c_char
-            },
-        )
+    let dir = as_path(dir);
+
+    let file_name = if 0 != is_default {
+        let name = format!(
+            "{}-key-default.asc",
+            if key.is_public() { "public" } else { "private" },
+        );
+        dir.join(name)
     } else {
-        file_name = dc_mprintf(
-            b"%s/%s-key-%i.asc\x00" as *const u8 as *const libc::c_char,
-            dir,
-            if key.is_public() {
-                b"public\x00" as *const u8 as *const libc::c_char
-            } else {
-                b"private\x00" as *const u8 as *const libc::c_char
-            },
-            id,
-        )
-    }
-    info!(context, "Exporting key {}", as_str(file_name),);
-    dc_delete_file(context, as_path(file_name));
-    if !key.write_asc_to_file(as_path(file_name), context) {
-        error!(context, "Cannot write key to {}", as_str(file_name),);
+        let name = format!(
+            "{}-key-{}.asc",
+            if key.is_public() { "public" } else { "private" },
+            id
+        );
+        dir.join(name)
+    };
+    info!(context, "Exporting key {}", file_name.display());
+    dc_delete_file(context, &file_name);
+
+    if !key.write_asc_to_file(&file_name, context) {
+        error!(context, "Cannot write key to {}", file_name.display());
     } else {
-        context.call_cb(Event::ImexFileWritten(as_path(file_name).to_path_buf()));
+        context.call_cb(Event::ImexFileWritten(file_name.clone()));
         success = true;
     }
-    free(file_name as *mut libc::c_void);
 
     success
 }
