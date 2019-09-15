@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 use std::ptr;
 
 use charset::Charset;
@@ -241,18 +241,14 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
                 .trim();
 
                 if !subj.is_empty() {
-                    let subj_c = CString::yolo(subj);
                     for part in mimeparser.parts.iter_mut() {
                         if part.type_0 == Viewtype::Text {
-                            let msg_c = part.msg.as_ref().unwrap().strdup();
-                            let new_txt: *mut libc::c_char = dc_mprintf(
-                                b"%s \xe2\x80\x93 %s\x00" as *const u8 as *const libc::c_char,
-                                subj_c.as_ptr(),
-                                msg_c,
+                            let new_txt = format!(
+                                "{} – {}",
+                                subj,
+                                part.msg.as_ref().expect("missing msg part")
                             );
-                            free(msg_c.cast());
-                            part.msg = Some(to_string_lossy(new_txt));
-                            free(new_txt.cast());
+                            part.msg = Some(new_txt);
                             break;
                         }
                     }
@@ -1213,10 +1209,11 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                             if !(*mime).mm_content_type.is_null()
                                 && !(*(*mime).mm_content_type).ct_subtype.is_null()
                             {
-                                desired_filename = dc_mprintf(
-                                    b"file.%s\x00" as *const u8 as *const libc::c_char,
-                                    (*(*mime).mm_content_type).ct_subtype,
-                                );
+                                desired_filename = format!(
+                                    "file.{}",
+                                    as_str((*(*mime).mm_content_type).ct_subtype)
+                                )
+                                .strdup();
                             } else {
                                 ok_to_continue = false;
                             }
