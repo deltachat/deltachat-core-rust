@@ -354,8 +354,8 @@ pub fn dc_msg_get_filemime(msg: &Message) -> String {
 }
 
 pub fn dc_msg_guess_msgtype_from_suffix<T>(path: T) -> Option<(Viewtype, &'static str)>
-    where
-        T: AsRef<Path>
+where
+    T: AsRef<Path>,
 {
     static KNOWN: phf::Map<&'static str, (Viewtype, &'static str)> = phf_map! {
         "mp3"   => (Viewtype::Audio, "audio/mpeg"),
