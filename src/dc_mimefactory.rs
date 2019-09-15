@@ -2,6 +2,7 @@ use std::ffi::CString;
 use std::ptr;
 
 use chrono::TimeZone;
+use mmime::clist::*;
 use mmime::mailimf_types::*;
 use mmime::mailimf_types_helper::*;
 use mmime::mailmime_disposition::*;
@@ -23,7 +24,6 @@ use crate::location;
 use crate::message::*;
 use crate::param::*;
 use crate::stock::StockMessage;
-use crate::types::*;
 use crate::x::*;
 
 #[derive(Clone)]
@@ -46,7 +46,7 @@ pub struct dc_mimefactory_t<'a> {
     pub out: *mut MMAPString,
     pub out_encrypted: libc::c_int,
     pub out_gossiped: libc::c_int,
-    pub out_last_added_location_id: uint32_t,
+    pub out_last_added_location_id: u32,
     pub error: *mut libc::c_char,
     pub context: &'a Context,
 }
@@ -264,7 +264,7 @@ unsafe fn load_from(factory: &mut dc_mimefactory_t) {
 
 pub unsafe fn dc_mimefactory_load_mdn<'a>(
     context: &'a Context,
-    msg_id: uint32_t,
+    msg_id: u32,
 ) -> Result<dc_mimefactory_t, Error> {
     if 0 == context
         .sql
@@ -1248,7 +1248,7 @@ unsafe fn build_body_file(
                                     ptr::null_mut(),
                                     ptr::null_mut(),
                                     ptr::null_mut(),
-                                    0 as size_t,
+                                    0 as libc::size_t,
                                     mailmime_parameter_new(
                                         strdup(
                                             b"filename*\x00" as *const u8 as *const libc::c_char,

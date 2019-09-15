@@ -2,6 +2,8 @@ use std::ffi::CString;
 use std::ptr;
 
 use itertools::join;
+use libc::uintptr_t;
+use mmime::clist::*;
 use mmime::mailimf::*;
 use mmime::mailimf_types::*;
 use mmime::mailmime::*;
@@ -27,14 +29,13 @@ use crate::peerstate::*;
 use crate::securejoin::handle_securejoin_handshake;
 use crate::sql;
 use crate::stock::StockMessage;
-use crate::types::*;
 use crate::x::*;
 
 /// Receive a message and add it to the database.
 pub unsafe fn dc_receive_imf(
     context: &Context,
     imf_raw_not_terminated: *const libc::c_char,
-    imf_raw_bytes: size_t,
+    imf_raw_bytes: libc::size_t,
     server_folder: impl AsRef<str>,
     server_uid: u32,
     flags: u32,
@@ -260,7 +261,7 @@ unsafe fn add_parts(
     context: &Context,
     mut mime_parser: &mut dc_mimeparser_t,
     imf_raw_not_terminated: *const libc::c_char,
-    imf_raw_bytes: size_t,
+    imf_raw_bytes: libc::size_t,
     incoming: i32,
     incoming_origin: &mut Origin,
     server_folder: impl AsRef<str>,
@@ -1028,7 +1029,7 @@ unsafe fn create_or_lookup_group(
     create_blocked: Blocked,
     from_id: u32,
     to_ids: &mut Vec<u32>,
-    ret_chat_id: *mut uint32_t,
+    ret_chat_id: *mut u32,
     ret_chat_id_blocked: &mut Blocked,
 ) {
     let group_explicitly_left: bool;
@@ -1050,7 +1051,7 @@ unsafe fn create_or_lookup_group(
 
     let cleanup = |grpname: *mut libc::c_char,
                    failure_reason: *mut libc::c_char,
-                   ret_chat_id: *mut uint32_t,
+                   ret_chat_id: *mut u32,
                    ret_chat_id_blocked: &mut Blocked,
                    chat_id: u32,
                    chat_id_blocked: Blocked| {
@@ -1218,7 +1219,7 @@ unsafe fn create_or_lookup_group(
             && 0 == check_verified_properties(
                 context,
                 mime_parser,
-                from_id as uint32_t,
+                from_id as u32,
                 to_ids,
                 &mut failure_reason,
             )
@@ -1256,7 +1257,7 @@ unsafe fn create_or_lookup_group(
             if 0 == check_verified_properties(
                 context,
                 mime_parser,
-                from_id as uint32_t,
+                from_id as u32,
                 to_ids,
                 &mut failure_reason,
             ) {
@@ -1444,7 +1445,7 @@ unsafe fn create_or_lookup_adhoc_group(
     create_blocked: Blocked,
     from_id: u32,
     to_ids: &mut Vec<u32>,
-    ret_chat_id: *mut uint32_t,
+    ret_chat_id: *mut u32,
     ret_chat_id_blocked: &mut Blocked,
 ) {
     // if we're here, no grpid was found, check there is an existing ad-hoc
@@ -1454,7 +1455,7 @@ unsafe fn create_or_lookup_adhoc_group(
     let mut grpname = ptr::null_mut();
 
     let cleanup = |grpname: *mut libc::c_char,
-                   ret_chat_id: *mut uint32_t,
+                   ret_chat_id: *mut u32,
                    ret_chat_id_blocked: &mut Blocked,
                    chat_id: u32,
                    chat_id_blocked: Blocked| {

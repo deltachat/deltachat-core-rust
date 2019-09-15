@@ -4,6 +4,7 @@ use crate::configure::*;
 use crate::context::Context;
 use crate::imap::Imap;
 
+#[derive(Debug)]
 pub struct JobThread {
     pub name: &'static str,
     pub folder_config_name: &'static str,

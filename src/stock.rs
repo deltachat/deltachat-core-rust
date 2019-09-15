@@ -238,7 +238,7 @@ mod tests {
     use crate::test_utils::*;
 
     use crate::constants::DC_CONTACT_ID_SELF;
-    use crate::types::uintptr_t;
+    use libc::uintptr_t;
 
     use num_traits::ToPrimitive;
 

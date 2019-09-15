@@ -3,6 +3,8 @@ use std::ptr;
 use std::time::Duration;
 
 use deltachat_derive::{FromSql, ToSql};
+use libc::uintptr_t;
+use mmime::clist::*;
 use rand::{thread_rng, Rng};
 
 use crate::chat;
@@ -18,7 +20,6 @@ use crate::login_param::LoginParam;
 use crate::message::*;
 use crate::param::*;
 use crate::sql;
-use crate::types::*;
 use crate::x::*;
 
 /// Thread IDs
@@ -642,7 +643,7 @@ pub fn job_action_exists(context: &Context, action: Action) -> bool {
 
 /* special case for DC_JOB_SEND_MSG_TO_SMTP */
 #[allow(non_snake_case)]
-pub unsafe fn job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_int {
+pub unsafe fn job_send_msg(context: &Context, msg_id: u32) -> libc::c_int {
     let mut success = 0;
 
     /* load message data */
@@ -988,7 +989,7 @@ fn connect_to_inbox(context: &Context, inbox: &Imap) -> libc::c_int {
     ret_connected
 }
 
-fn send_mdn(context: &Context, msg_id: uint32_t) {
+fn send_mdn(context: &Context, msg_id: u32) {
     if let Ok(mut mimefactory) = unsafe { dc_mimefactory_load_mdn(context, msg_id) } {
         if unsafe { dc_mimefactory_render(context, &mut mimefactory) } {
             add_smtp_job(context, Action::SendMdn, &mut mimefactory);

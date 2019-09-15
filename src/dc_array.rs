@@ -1,8 +1,7 @@
 use crate::location::Location;
-use crate::types::*;
 
 /* * the structure behind dc_array_t */
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 #[allow(non_camel_case_types)]
 pub enum dc_array_t {
     Locations(Vec<Location>),
@@ -19,7 +18,7 @@ impl dc_array_t {
         dc_array_t::Locations(Vec::with_capacity(capacity))
     }
 
-    pub fn add_id(&mut self, item: uint32_t) {
+    pub fn add_id(&mut self, item: u32) {
         if let Self::Uint(array) = self {
             array.push(item);
         } else {
@@ -35,10 +34,10 @@ impl dc_array_t {
         }
     }
 
-    pub fn get_id(&self, index: usize) -> uint32_t {
+    pub fn get_id(&self, index: usize) -> u32 {
         match self {
             Self::Locations(array) => array[index].location_id,
-            Self::Uint(array) => array[index] as uint32_t,
+            Self::Uint(array) => array[index] as u32,
         }
     }
 

@@ -20,7 +20,6 @@ use deltachat::message::*;
 use deltachat::peerstate::*;
 use deltachat::qr::*;
 use deltachat::sql;
-use deltachat::types::*;
 use deltachat::x::*;
 use num_traits::FromPrimitive;
 
@@ -96,7 +95,7 @@ unsafe fn dc_poke_eml_file(context: &Context, filename: *const libc::c_char) -> 
     /* mainly for testing, may be called by dc_import_spec() */
     let mut success: libc::c_int = 0i32;
     let mut data: *mut libc::c_char = ptr::null_mut();
-    let mut data_bytes: size_t = 0;
+    let mut data_bytes = 0;
     if !(dc_read_file(
         context,
         filename,
@@ -199,7 +198,11 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
                 as_str(real_spec)
             );
             if read_cnt > 0 {
-                context.call_cb(Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
+                context.call_cb(
+                    Event::MSGS_CHANGED,
+                    0 as libc::uintptr_t,
+                    0 as libc::uintptr_t,
+                );
             }
             success = 1
         }
@@ -615,7 +618,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                     );
                 }
             }
-            if location::is_sending_locations_to_chat(context, 0 as uint32_t) {
+            if location::is_sending_locations_to_chat(context, 0) {
                 info!(context, "Location streaming enabled.");
             }
             println!("{} chats", cnt);
@@ -664,7 +667,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         "createchat" => {
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
             let contact_id: libc::c_int = arg1.parse()?;
-            let chat_id = chat::create_by_contact_id(context, contact_id as uint32_t)?;
+            let chat_id = chat::create_by_contact_id(context, contact_id as u32)?;
 
             println!("Single#{} created successfully.", chat_id,);
         }
@@ -696,7 +699,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             if chat::add_contact_to_chat(
                 context,
                 sel_chat.as_ref().unwrap().get_id(),
-                contact_id_0 as uint32_t,
+                contact_id_0 as u32,
             ) {
                 println!("Contact added to chat.");
             } else {
@@ -710,7 +713,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             chat::remove_contact_from_chat(
                 context,
                 sel_chat.as_ref().unwrap().get_id(),
-                contact_id_1 as uint32_t,
+                contact_id_1 as u32,
             )?;
 
             println!("Contact added to chat.");
@@ -1017,7 +1020,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(!arg1.is_empty(), "Argument <id> missing.");
             let event = arg1.parse()?;
             let event = Event::from_u32(event).ok_or(format_err!("Event::from_u32({})", event))?;
-            let r = context.call_cb(event, 0 as uintptr_t, 0 as uintptr_t);
+            let r = context.call_cb(event, 0 as libc::uintptr_t, 0 as libc::uintptr_t);
             println!(
                 "Sending event {:?}({}), received value {}.",
                 event, event as usize, r as libc::c_int,

@@ -1,4 +1,4 @@
-#![deny(clippy::correctness)]
+#![deny(clippy::correctness, missing_debug_implementations)]
 // TODO: make all of these errors, such that clippy actually passes.
 #![warn(clippy::all, clippy::perf, clippy::not_unsafe_ptr_arg_deref)]
 // This is nice, but for now just annoying.
@@ -18,6 +18,8 @@ extern crate strum;
 extern crate strum_macros;
 #[macro_use]
 extern crate jetscii;
+#[macro_use]
+extern crate debug_stub_derive;
 
 #[macro_use]
 mod log;
@@ -49,7 +51,6 @@ pub mod qr;
 mod smtp;
 pub mod sql;
 mod stock;
-pub mod types;
 pub mod x;
 
 pub mod dc_array;

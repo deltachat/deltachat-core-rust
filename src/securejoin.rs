@@ -21,7 +21,6 @@ use crate::peerstate::*;
 use crate::qr::check_qr;
 use crate::stock::StockMessage;
 use crate::token;
-use crate::types::*;
 
 pub const NON_ALPHANUMERIC_WITHOUT_DOT: &AsciiSet = &NON_ALPHANUMERIC.remove(b'.');
 
@@ -31,7 +30,11 @@ macro_rules! progress {
             $progress >= 0 && $progress <= 1000,
             "value in range 0..1000 expected with: 0=error, 1..999=progress, 1000=success"
         );
-        $context.call_cb($event, $contact_id as uintptr_t, $progress as uintptr_t);
+        $context.call_cb(
+            $event,
+            $contact_id as libc::uintptr_t,
+            $progress as libc::uintptr_t,
+        );
     };
 }
 
@@ -72,7 +75,7 @@ macro_rules! get_qr_attr {
     };
 }
 
-pub fn dc_get_securejoin_qr(context: &Context, group_chat_id: uint32_t) -> Option<String> {
+pub fn dc_get_securejoin_qr(context: &Context, group_chat_id: u32) -> Option<String> {
     /* =========================================================
     ====             Alice - the inviter side            ====
     ====   Step 1 in "Setup verified contact" protocol   ====
@@ -148,7 +151,7 @@ fn get_self_fingerprint(context: &Context) -> Option<String> {
     None
 }
 
-pub fn dc_join_securejoin(context: &Context, qr: &str) -> uint32_t {
+pub fn dc_join_securejoin(context: &Context, qr: &str) -> u32 {
     let cleanup =
         |context: &Context, contact_chat_id: u32, ongoing_allocated: bool, join_vg: bool| {
             let mut bob = context.bob.write().unwrap();
@@ -171,13 +174,13 @@ pub fn dc_join_securejoin(context: &Context, qr: &str) -> uint32_t {
             if ongoing_allocated {
                 dc_free_ongoing(context);
             }
-            ret_chat_id as uint32_t
+            ret_chat_id as u32
         };
     /* ==========================================================
     ====             Bob - the joiner's side             =====
     ====   Step 2 in "Setup verified contact" protocol   =====
     ========================================================== */
-    let mut contact_chat_id: uint32_t = 0;
+    let mut contact_chat_id: u32 = 0;
     let mut join_vg: bool = false;
 
     info!(context, "Requesting secure-join ...",);
@@ -269,7 +272,7 @@ fn check_exit(context: &Context) -> bool {
 
 fn send_handshake_msg(
     context: &Context,
-    contact_chat_id: uint32_t,
+    contact_chat_id: u32,
     step: &str,
     param2: impl AsRef<str>,
     fingerprint: Option<String>,
@@ -306,7 +309,7 @@ fn send_handshake_msg(
     chat::send_msg(context, contact_chat_id, &mut msg).unwrap();
 }
 
-fn chat_id_2_contact_id(context: &Context, contact_chat_id: uint32_t) -> uint32_t {
+fn chat_id_2_contact_id(context: &Context, contact_chat_id: u32) -> u32 {
     let contacts = chat::get_chat_contacts(context, contact_chat_id);
     if contacts.len() == 1 {
         contacts[0]
@@ -342,7 +345,7 @@ fn fingerprint_equals_sender(
 pub fn handle_securejoin_handshake(
     context: &Context,
     mimeparser: &dc_mimeparser_t,
-    contact_id: uint32_t,
+    contact_id: u32,
 ) -> libc::c_int {
     let own_fingerprint: String;
 
@@ -644,8 +647,8 @@ fn end_bobs_joining(context: &Context, status: libc::c_int) {
     dc_stop_ongoing_process(context);
 }
 
-fn secure_connection_established(context: &Context, contact_chat_id: uint32_t) {
-    let contact_id: uint32_t = chat_id_2_contact_id(context, contact_chat_id);
+fn secure_connection_established(context: &Context, contact_chat_id: u32) {
+    let contact_id: u32 = chat_id_2_contact_id(context, contact_chat_id);
     let contact = Contact::get_by_id(context, contact_id);
     let addr = if let Ok(ref contact) = contact {
         contact.get_addr()
@@ -675,11 +678,7 @@ fn lookup_field(mimeparser: &dc_mimeparser_t, key: &str) -> Option<String> {
     }
 }
 
-fn could_not_establish_secure_connection(
-    context: &Context,
-    contact_chat_id: uint32_t,
-    details: &str,
-) {
+fn could_not_establish_secure_connection(context: &Context, contact_chat_id: u32, details: &str) {
     let contact_id = chat_id_2_contact_id(context, contact_chat_id);
     let contact = Contact::get_by_id(context, contact_id);
     let msg = context.stock_string_repl_str(

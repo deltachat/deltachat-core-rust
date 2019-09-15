@@ -1,7 +1,9 @@
+use std::path::PathBuf;
+
 use deltachat_derive::*;
 use itertools::Itertools;
+use libc::uintptr_t;
 use rusqlite;
-use std::path::PathBuf;
 
 use crate::aheader::EncryptPreference;
 use crate::config::Config;
@@ -16,7 +18,6 @@ use crate::message::MessageState;
 use crate::peerstate::*;
 use crate::sql;
 use crate::stock::StockMessage;
-use crate::types::*;
 
 /// Contacts with at least this origin value are shown in the contact list.
 const DC_ORIGIN_MIN_CONTACT_LIST: i32 = 0x100;
@@ -31,6 +32,7 @@ const DC_ORIGIN_MIN_CONTACT_LIST: i32 = 0x100;
 /// For this purpose, internally, two names are tracked -
 /// authorized-name and given-name.
 /// By default, these names are equal, but functions working with contact names
+#[derive(Debug)]
 pub struct Contact {
     /// The contact ID.
     ///

@@ -2,6 +2,7 @@ use std::ffi::CString;
 use std::path::Path;
 use std::ptr;
 
+use libc::uintptr_t;
 use mmime::mailmime_content::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
@@ -22,7 +23,6 @@ use crate::param::*;
 use crate::pgp::*;
 use crate::sql::{self, Sql};
 use crate::stock::StockMessage;
-use crate::types::*;
 use crate::x::*;
 
 // import/export and tools
@@ -242,7 +242,7 @@ pub fn dc_render_setup_file(context: &Context, passphrase: &str) -> Result<Strin
 }
 
 pub fn dc_create_setup_code(_context: &Context) -> String {
-    let mut random_val: uint16_t;
+    let mut random_val: u16;
     let mut rng = thread_rng();
     let mut ret = String::new();
 
@@ -253,7 +253,7 @@ pub fn dc_create_setup_code(_context: &Context) -> String {
                 break;
             }
         }
-        random_val = (random_val as libc::c_int % 10000) as uint16_t;
+        random_val = (random_val as libc::c_int % 10000) as u16;
         ret += &format!(
             "{}{:04}",
             if 0 != i { "-" } else { "" },
@@ -266,7 +266,7 @@ pub fn dc_create_setup_code(_context: &Context) -> String {
 
 pub unsafe fn dc_continue_key_transfer(
     context: &Context,
-    msg_id: uint32_t,
+    msg_id: u32,
     setup_code: *const libc::c_char,
 ) -> bool {
     let mut success = false;
@@ -405,8 +405,8 @@ pub unsafe fn dc_decrypt_setup_file(
     let mut fc_headerline: *const libc::c_char = ptr::null();
     let mut fc_base64: *const libc::c_char = ptr::null();
     let mut binary: *mut libc::c_char = ptr::null_mut();
-    let mut binary_bytes: size_t = 0i32 as size_t;
-    let mut indx: size_t = 0i32 as size_t;
+    let mut binary_bytes: libc::size_t = 0;
+    let mut indx: libc::size_t = 0;
 
     let mut payload: *mut libc::c_char = ptr::null_mut();
     fc_buf = dc_strdup(filecontent);
@@ -872,7 +872,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
     let mut path_plus_name: *mut libc::c_char = ptr::null_mut();
     let mut set_default: libc::c_int;
     let mut buf: *mut libc::c_char = ptr::null_mut();
-    let mut buf_bytes: size_t = 0 as size_t;
+    let mut buf_bytes: libc::size_t = 0;
     // a pointer inside buf, MUST NOT be free()'d
     let mut private_key: *const libc::c_char;
     let mut buf2: *mut libc::c_char = ptr::null_mut();

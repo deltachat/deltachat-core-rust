@@ -15,7 +15,6 @@ use deltachat::dc_tools::*;
 use deltachat::keyring::*;
 use deltachat::oauth2::*;
 use deltachat::pgp::*;
-use deltachat::types::*;
 use deltachat::x::*;
 use libc;
 
@@ -44,14 +43,11 @@ unsafe fn stress_functions(context: &Context) {
         context,
         b"$BLOBDIR/foobar\x00" as *const u8 as *const libc::c_char,
         b"content\x00" as *const u8 as *const libc::c_char as *const libc::c_void,
-        7i32 as size_t,
+        7,
     );
     assert!(dc_file_exist(context, "$BLOBDIR/foobar",));
     assert!(!dc_file_exist(context, "$BLOBDIR/foobarx"));
-    assert_eq!(
-        dc_get_filebytes(context, "$BLOBDIR/foobar",),
-        7i32 as libc::c_ulonglong
-    );
+    assert_eq!(dc_get_filebytes(context, "$BLOBDIR/foobar",), 7);
 
     let abs_path = context
         .get_blobdir()
@@ -68,7 +64,7 @@ unsafe fn stress_functions(context: &Context) {
     assert_eq!(dc_get_filebytes(context, "$BLOBDIR/dada",), 7);
 
     let mut buf: *mut libc::c_void = ptr::null_mut();
-    let mut buf_bytes: size_t = 0;
+    let mut buf_bytes: libc::size_t = 0;
 
     assert_eq!(
         dc_read_file(
@@ -108,7 +104,7 @@ unsafe fn stress_functions(context: &Context) {
         context,
         fn0,
         b"content\x00" as *const u8 as *const libc::c_char as *const libc::c_void,
-        7i32 as size_t,
+        7,
     );
     let fn1: *mut libc::c_char = dc_get_fine_pathNfilename(
         context,
@@ -566,7 +562,12 @@ fn test_encryption_decryption() {
     assert_eq!(plain, original_text);
 }
 
-fn cb(_context: &Context, _event: Event, _data1: uintptr_t, _data2: uintptr_t) -> uintptr_t {
+fn cb(
+    _context: &Context,
+    _event: Event,
+    _data1: libc::uintptr_t,
+    _data2: libc::uintptr_t,
+) -> libc::uintptr_t {
     0
 }
 

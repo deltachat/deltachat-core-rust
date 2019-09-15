@@ -28,7 +28,6 @@ use deltachat::dc_tools::*;
 use deltachat::job::*;
 use deltachat::oauth2::*;
 use deltachat::securejoin::*;
-use deltachat::types::*;
 use deltachat::x::*;
 use rustyline::completion::{Completer, FilenameCompleter, Pair};
 use rustyline::config::OutputStreamType;
@@ -47,9 +46,9 @@ use self::cmdline::*;
 fn receive_event(
     _context: &Context,
     event: Event,
-    data1: uintptr_t,
-    data2: uintptr_t,
-) -> uintptr_t {
+    data1: libc::uintptr_t,
+    data2: libc::uintptr_t,
+) -> libc::uintptr_t {
     match event {
         Event::GET_STRING => {}
         Event::INFO => {
