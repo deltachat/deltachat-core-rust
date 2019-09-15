@@ -45,10 +45,9 @@ fn main() {
         let ctx =
             Context::new(Box::new(cb), "FakeOs".into(), dbfile).expect("Failed to create context");
         let running = Arc::new(RwLock::new(true));
-        let info = dc_get_info(&ctx);
-        let info_s = CStr::from_ptr(info);
+        let info = ctx.get_info();
         let duration = time::Duration::from_millis(4000);
-        println!("info: {}", info_s.to_str().unwrap());
+        println!("info: {:#?}", info);
 
         let ctx = Arc::new(ctx);
         let ctx1 = ctx.clone();

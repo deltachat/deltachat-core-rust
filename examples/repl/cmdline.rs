@@ -546,7 +546,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             println!("{}={:?}", key, val);
         }
         "info" => {
-            println!("{}", to_string(dc_get_info(context)));
+            println!("{:#?}", context.get_info());
         }
         "maybenetwork" => {
             maybe_network(context);
@@ -847,7 +847,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 0 as libc::c_uint
             };
 
-            let msglist = dc_search_msgs(context, chat, arg1_c);
+            let msglist = context.search_msgs(chat, arg1);
 
             log_msglist(context, &msglist)?;
             println!("{} messages.", msglist.len());
@@ -910,7 +910,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             println!("{}", as_str(res));
         }
         "listfresh" => {
-            let msglist = dc_get_fresh_msgs(context);
+            let msglist = context.get_fresh_msgs();
 
             log_msglist(context, &msglist)?;
             print!("{} fresh messages.", msglist.len());

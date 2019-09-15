@@ -1,12 +1,13 @@
-use libc::uintptr_t;
+use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 
+use libc::uintptr_t;
+
 use crate::chat::*;
 use crate::constants::*;
 use crate::contact::*;
-use crate::dc_tools::*;
 use crate::error::*;
 use crate::imap::*;
 use crate::job::*;
@@ -135,6 +136,247 @@ impl Context {
     pub fn call_cb(&self, event: Event, data1: uintptr_t, data2: uintptr_t) -> uintptr_t {
         (*self.cb)(self, event, data1, data2)
     }
+
+    pub fn get_info(&self) -> HashMap<&'static str, String> {
+        let unset = "0";
+        let l = LoginParam::from_database(self, "");
+        let l2 = LoginParam::from_database(self, "configured_");
+        let displayname = self.sql.get_config(self, "displayname");
+        let chats = get_chat_cnt(self) as usize;
+        let real_msgs = dc_get_real_msg_cnt(self) as usize;
+        let deaddrop_msgs = dc_get_deaddrop_msg_cnt(self) as usize;
+        let contacts = Contact::get_real_cnt(self) as usize;
+        let is_configured = self
+            .sql
+            .get_config_int(self, "configured")
+            .unwrap_or_default();
+        let dbversion = self
+            .sql
+            .get_config_int(self, "dbversion")
+            .unwrap_or_default();
+        let e2ee_enabled = self
+            .sql
+            .get_config_int(self, "e2ee_enabled")
+            .unwrap_or_else(|| 1);
+        let mdns_enabled = self
+            .sql
+            .get_config_int(self, "mdns_enabled")
+            .unwrap_or_else(|| 1);
+
+        let prv_key_cnt: Option<isize> =
+            self.sql
+                .query_get_value(self, "SELECT COUNT(*) FROM keypairs;", rusqlite::NO_PARAMS);
+
+        let pub_key_cnt: Option<isize> = self.sql.query_get_value(
+            self,
+            "SELECT COUNT(*) FROM acpeerstates;",
+            rusqlite::NO_PARAMS,
+        );
+
+        let fingerprint_str = if let Some(key) = Key::from_self_public(self, &l2.addr, &self.sql) {
+            key.fingerprint()
+        } else {
+            "<Not yet calculated>".into()
+        };
+
+        let inbox_watch = self
+            .sql
+            .get_config_int(self, "inbox_watch")
+            .unwrap_or_else(|| 1);
+        let sentbox_watch = self
+            .sql
+            .get_config_int(self, "sentbox_watch")
+            .unwrap_or_else(|| 1);
+        let mvbox_watch = self
+            .sql
+            .get_config_int(self, "mvbox_watch")
+            .unwrap_or_else(|| 1);
+        let mvbox_move = self
+            .sql
+            .get_config_int(self, "mvbox_move")
+            .unwrap_or_else(|| 1);
+        let folders_configured = self
+            .sql
+            .get_config_int(self, "folders_configured")
+            .unwrap_or_default();
+        let configured_sentbox_folder = self
+            .sql
+            .get_config(self, "configured_sentbox_folder")
+            .unwrap_or_else(|| "<unset>".to_string());
+        let configured_mvbox_folder = self
+            .sql
+            .get_config(self, "configured_mvbox_folder")
+            .unwrap_or_else(|| "<unset>".to_string());
+
+        let mut res = HashMap::new();
+        res.insert("deltachat_core_version", format!("v{}", &*DC_VERSION_STR));
+        res.insert("sqlite_version", rusqlite::version().to_string());
+        res.insert(
+            "sqlite_thread_safe",
+            unsafe { rusqlite::ffi::sqlite3_threadsafe() }.to_string(),
+        );
+        res.insert(
+            "arch",
+            (::std::mem::size_of::<*mut libc::c_void>())
+                .wrapping_mul(8)
+                .to_string(),
+        );
+        res.insert("number_of_chats", chats.to_string());
+        res.insert("number_of_chat_messages", real_msgs.to_string());
+        res.insert("messages_in_contact_requests", deaddrop_msgs.to_string());
+        res.insert("number_of_contacts", contacts.to_string());
+        res.insert("database_dir", self.get_dbfile().display().to_string());
+        res.insert("database_version", dbversion.to_string());
+        res.insert("blobdir", self.get_blobdir().display().to_string());
+        res.insert("display_name", displayname.unwrap_or_else(|| unset.into()));
+        res.insert("is_configured", is_configured.to_string());
+        res.insert("entered_account_settings", l.to_string());
+        res.insert("used_account_settings", l2.to_string());
+        res.insert("inbox_watch", inbox_watch.to_string());
+        res.insert("sentbox_watch", sentbox_watch.to_string());
+        res.insert("mvbox_watch", mvbox_watch.to_string());
+        res.insert("mvbox_move", mvbox_move.to_string());
+        res.insert("folders_configured", folders_configured.to_string());
+        res.insert("configured_sentbox_folder", configured_sentbox_folder);
+        res.insert("configured_mvbox_folder", configured_mvbox_folder);
+        res.insert("mdns_enabled", mdns_enabled.to_string());
+        res.insert("e2ee_enabled", e2ee_enabled.to_string());
+        res.insert(
+            "private_key_count",
+            prv_key_cnt.unwrap_or_default().to_string(),
+        );
+        res.insert(
+            "public_key_count",
+            pub_key_cnt.unwrap_or_default().to_string(),
+        );
+        res.insert("fingerprint", fingerprint_str);
+        res.insert("level", "awesome".into());
+
+        res
+    }
+
+    pub fn get_fresh_msgs(&self) -> Vec<u32> {
+        let show_deaddrop = 0;
+
+        self.sql
+            .query_map(
+                "SELECT m.id FROM msgs m LEFT JOIN contacts ct \
+                 ON m.from_id=ct.id LEFT JOIN chats c ON m.chat_id=c.id WHERE m.state=?   \
+                 AND m.hidden=0   \
+                 AND m.chat_id>?   \
+                 AND ct.blocked=0   \
+                 AND (c.blocked=0 OR c.blocked=?) ORDER BY m.timestamp DESC,m.id DESC;",
+                &[10, 9, if 0 != show_deaddrop { 2 } else { 0 }],
+                |row| row.get(0),
+                |rows| {
+                    let mut ret = Vec::new();
+                    for row in rows {
+                        let id: u32 = row?;
+                        ret.push(id);
+                    }
+                    Ok(ret)
+                },
+            )
+            .unwrap()
+    }
+
+    #[allow(non_snake_case)]
+    pub fn search_msgs(&self, chat_id: u32, query: impl AsRef<str>) -> Vec<u32> {
+        let real_query = query.as_ref().trim();
+        if real_query.is_empty() {
+            return Vec::new();
+        }
+        let strLikeInText = format!("%{}%", real_query);
+        let strLikeBeg = format!("{}%", real_query);
+
+        let query = if 0 != chat_id {
+            "SELECT m.id, m.timestamp FROM msgs m LEFT JOIN contacts ct ON m.from_id=ct.id WHERE m.chat_id=?  \
+         AND m.hidden=0  \
+         AND ct.blocked=0 AND (txt LIKE ? OR ct.name LIKE ?) ORDER BY m.timestamp,m.id;"
+        } else {
+            "SELECT m.id, m.timestamp FROM msgs m LEFT JOIN contacts ct ON m.from_id=ct.id \
+         LEFT JOIN chats c ON m.chat_id=c.id WHERE m.chat_id>9 AND m.hidden=0  \
+         AND (c.blocked=0 OR c.blocked=?) \
+         AND ct.blocked=0 AND (m.txt LIKE ? OR ct.name LIKE ?) ORDER BY m.timestamp DESC,m.id DESC;"
+        };
+
+        self.sql
+            .query_map(
+                query,
+                params![chat_id as i32, &strLikeInText, &strLikeBeg],
+                |row| row.get::<_, i32>(0),
+                |rows| {
+                    let mut ret = Vec::new();
+                    for id in rows {
+                        ret.push(id? as u32);
+                    }
+                    Ok(ret)
+                },
+            )
+            .unwrap_or_default()
+    }
+
+    pub fn is_inbox(&self, folder_name: impl AsRef<str>) -> bool {
+        folder_name.as_ref() == "INBOX"
+    }
+
+    pub fn is_sentbox(&self, folder_name: impl AsRef<str>) -> bool {
+        let sentbox_name = self.sql.get_config(self, "configured_sentbox_folder");
+        if let Some(name) = sentbox_name {
+            name == folder_name.as_ref()
+        } else {
+            false
+        }
+    }
+
+    pub fn is_mvbox(&self, folder_name: impl AsRef<str>) -> bool {
+        let mvbox_name = self.sql.get_config(self, "configured_mvbox_folder");
+
+        if let Some(name) = mvbox_name {
+            name == folder_name.as_ref()
+        } else {
+            false
+        }
+    }
+
+    pub fn do_heuristics_moves(&self, folder: &str, msg_id: u32) {
+        if self
+            .sql
+            .get_config_int(self, "mvbox_move")
+            .unwrap_or_else(|| 1)
+            == 0
+        {
+            return;
+        }
+
+        if !self.is_inbox(folder) && !self.is_sentbox(folder) {
+            return;
+        }
+
+        if let Ok(msg) = dc_msg_new_load(self, msg_id) {
+            if dc_msg_is_setupmessage(&msg) {
+                // do not move setup messages;
+                // there may be a non-delta device that wants to handle it
+                return;
+            }
+
+            if self.is_mvbox(folder) {
+                dc_update_msg_move_state(self, msg.rfc724_mid, MoveState::Stay);
+            }
+
+            // 1 = dc message, 2 = reply to dc message
+            if 0 != msg.is_dc_message {
+                job_add(
+                    self,
+                    Action::MoveMsg,
+                    msg.id as libc::c_int,
+                    Params::new(),
+                    0,
+                );
+                dc_update_msg_move_state(self, msg.rfc724_mid, MoveState::Moving);
+            }
+        }
+    }
 }
 
 impl Drop for Context {
@@ -176,277 +418,8 @@ pub struct SmtpState {
     pub probe_network: bool,
 }
 
-/* ******************************************************************************
- * INI-handling, Information
- ******************************************************************************/
-
-pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
-    let unset = "0";
-    let l = LoginParam::from_database(context, "");
-    let l2 = LoginParam::from_database(context, "configured_");
-    let displayname = context.sql.get_config(context, "displayname");
-    let chats = get_chat_cnt(context) as usize;
-    let real_msgs = dc_get_real_msg_cnt(context) as usize;
-    let deaddrop_msgs = dc_get_deaddrop_msg_cnt(context) as usize;
-    let contacts = Contact::get_real_cnt(context) as usize;
-    let is_configured = context
-        .sql
-        .get_config_int(context, "configured")
-        .unwrap_or_default();
-    let dbversion = context
-        .sql
-        .get_config_int(context, "dbversion")
-        .unwrap_or_default();
-    let e2ee_enabled = context
-        .sql
-        .get_config_int(context, "e2ee_enabled")
-        .unwrap_or_else(|| 1);
-    let mdns_enabled = context
-        .sql
-        .get_config_int(context, "mdns_enabled")
-        .unwrap_or_else(|| 1);
-
-    let prv_key_cnt: Option<isize> = context.sql.query_get_value(
-        context,
-        "SELECT COUNT(*) FROM keypairs;",
-        rusqlite::NO_PARAMS,
-    );
-
-    let pub_key_cnt: Option<isize> = context.sql.query_get_value(
-        context,
-        "SELECT COUNT(*) FROM acpeerstates;",
-        rusqlite::NO_PARAMS,
-    );
-
-    let fingerprint_str = if let Some(key) = Key::from_self_public(context, &l2.addr, &context.sql)
-    {
-        key.fingerprint()
-    } else {
-        "<Not yet calculated>".into()
-    };
-
-    let inbox_watch = context
-        .sql
-        .get_config_int(context, "inbox_watch")
-        .unwrap_or_else(|| 1);
-    let sentbox_watch = context
-        .sql
-        .get_config_int(context, "sentbox_watch")
-        .unwrap_or_else(|| 1);
-    let mvbox_watch = context
-        .sql
-        .get_config_int(context, "mvbox_watch")
-        .unwrap_or_else(|| 1);
-    let mvbox_move = context
-        .sql
-        .get_config_int(context, "mvbox_move")
-        .unwrap_or_else(|| 1);
-    let folders_configured = context
-        .sql
-        .get_config_int(context, "folders_configured")
-        .unwrap_or_default();
-    let configured_sentbox_folder = context
-        .sql
-        .get_config(context, "configured_sentbox_folder")
-        .unwrap_or_else(|| "<unset>".to_string());
-    let configured_mvbox_folder = context
-        .sql
-        .get_config(context, "configured_mvbox_folder")
-        .unwrap_or_else(|| "<unset>".to_string());
-
-    let res = format!(
-        "deltachat_core_version=v{}\n\
-         sqlite_version={}\n\
-         sqlite_thread_safe={}\n\
-         arch={}\n\
-         number_of_chats={}\n\
-         number_of_chat_messages={}\n\
-         messages_in_contact_requests={}\n\
-         number_of_contacts={}\n\
-         database_dir={}\n\
-         database_version={}\n\
-         blobdir={}\n\
-         display_name={}\n\
-         is_configured={}\n\
-         entered_account_settings={}\n\
-         used_account_settings={}\n\
-         inbox_watch={}\n\
-         sentbox_watch={}\n\
-         mvbox_watch={}\n\
-         mvbox_move={}\n\
-         folders_configured={}\n\
-         configured_sentbox_folder={}\n\
-         configured_mvbox_folder={}\n\
-         mdns_enabled={}\n\
-         e2ee_enabled={}\n\
-         private_key_count={}\n\
-         public_key_count={}\n\
-         fingerprint={}\n\
-         level=awesome\n",
-        &*DC_VERSION_STR,
-        rusqlite::version(),
-        rusqlite::ffi::sqlite3_threadsafe(),
-        // arch
-        (::std::mem::size_of::<*mut libc::c_void>()).wrapping_mul(8),
-        chats,
-        real_msgs,
-        deaddrop_msgs,
-        contacts,
-        context.get_dbfile().display(),
-        dbversion,
-        context.get_blobdir().display(),
-        displayname.unwrap_or_else(|| unset.into()),
-        is_configured,
-        l,
-        l2,
-        inbox_watch,
-        sentbox_watch,
-        mvbox_watch,
-        mvbox_move,
-        folders_configured,
-        configured_sentbox_folder,
-        configured_mvbox_folder,
-        mdns_enabled,
-        e2ee_enabled,
-        prv_key_cnt.unwrap_or_default(),
-        pub_key_cnt.unwrap_or_default(),
-        fingerprint_str,
-    );
-
-    res.strdup()
-}
-
-pub unsafe fn dc_get_version_str() -> *mut libc::c_char {
-    (&*DC_VERSION_STR).strdup()
-}
-
-pub fn dc_get_fresh_msgs(context: &Context) -> Vec<u32> {
-    let show_deaddrop = 0;
-
-    context
-        .sql
-        .query_map(
-            "SELECT m.id FROM msgs m LEFT JOIN contacts ct \
-             ON m.from_id=ct.id LEFT JOIN chats c ON m.chat_id=c.id WHERE m.state=?   \
-             AND m.hidden=0   \
-             AND m.chat_id>?   \
-             AND ct.blocked=0   \
-             AND (c.blocked=0 OR c.blocked=?) ORDER BY m.timestamp DESC,m.id DESC;",
-            &[10, 9, if 0 != show_deaddrop { 2 } else { 0 }],
-            |row| row.get(0),
-            |rows| {
-                let mut ret = Vec::new();
-                for row in rows {
-                    let id: u32 = row?;
-                    ret.push(id);
-                }
-                Ok(ret)
-            },
-        )
-        .unwrap()
-}
-
-#[allow(non_snake_case)]
-pub fn dc_search_msgs(context: &Context, chat_id: u32, query: *const libc::c_char) -> Vec<u32> {
-    if query.is_null() {
-        return Vec::new();
-    }
-
-    let real_query = as_str(query).trim();
-    if real_query.is_empty() {
-        return Vec::new();
-    }
-    let strLikeInText = format!("%{}%", real_query);
-    let strLikeBeg = format!("{}%", real_query);
-
-    let query = if 0 != chat_id {
-        "SELECT m.id, m.timestamp FROM msgs m LEFT JOIN contacts ct ON m.from_id=ct.id WHERE m.chat_id=?  \
-         AND m.hidden=0  \
-         AND ct.blocked=0 AND (txt LIKE ? OR ct.name LIKE ?) ORDER BY m.timestamp,m.id;"
-    } else {
-        "SELECT m.id, m.timestamp FROM msgs m LEFT JOIN contacts ct ON m.from_id=ct.id \
-         LEFT JOIN chats c ON m.chat_id=c.id WHERE m.chat_id>9 AND m.hidden=0  \
-         AND (c.blocked=0 OR c.blocked=?) \
-         AND ct.blocked=0 AND (m.txt LIKE ? OR ct.name LIKE ?) ORDER BY m.timestamp DESC,m.id DESC;"
-    };
-
-    context
-        .sql
-        .query_map(
-            query,
-            params![chat_id as libc::c_int, &strLikeInText, &strLikeBeg],
-            |row| row.get::<_, i32>(0),
-            |rows| {
-                let mut ret = Vec::new();
-                for id in rows {
-                    ret.push(id? as u32);
-                }
-                Ok(ret)
-            },
-        )
-        .unwrap_or_default()
-}
-
-pub fn dc_is_inbox(_context: &Context, folder_name: impl AsRef<str>) -> bool {
-    folder_name.as_ref() == "INBOX"
-}
-
-pub fn dc_is_sentbox(context: &Context, folder_name: impl AsRef<str>) -> bool {
-    let sentbox_name = context.sql.get_config(context, "configured_sentbox_folder");
-    if let Some(name) = sentbox_name {
-        name == folder_name.as_ref()
-    } else {
-        false
-    }
-}
-
-pub fn dc_is_mvbox(context: &Context, folder_name: impl AsRef<str>) -> bool {
-    let mvbox_name = context.sql.get_config(context, "configured_mvbox_folder");
-
-    if let Some(name) = mvbox_name {
-        name == folder_name.as_ref()
-    } else {
-        false
-    }
-}
-
-pub fn do_heuristics_moves(context: &Context, folder: &str, msg_id: u32) {
-    if context
-        .sql
-        .get_config_int(context, "mvbox_move")
-        .unwrap_or_else(|| 1)
-        == 0
-    {
-        return;
-    }
-
-    if !dc_is_inbox(context, folder) && !dc_is_sentbox(context, folder) {
-        return;
-    }
-
-    if let Ok(msg) = dc_msg_new_load(context, msg_id) {
-        if dc_msg_is_setupmessage(&msg) {
-            // do not move setup messages;
-            // there may be a non-delta device that wants to handle it
-            return;
-        }
-
-        if dc_is_mvbox(context, folder) {
-            dc_update_msg_move_state(context, msg.rfc724_mid, MoveState::Stay);
-        }
-
-        // 1 = dc message, 2 = reply to dc message
-        if 0 != msg.is_dc_message {
-            job_add(
-                context,
-                Action::MoveMsg,
-                msg.id as libc::c_int,
-                Params::new(),
-                0,
-            );
-            dc_update_msg_move_state(context, msg.rfc724_mid, MoveState::Moving);
-        }
-    }
+pub fn get_version_str() -> &'static str {
+    &DC_VERSION_STR
 }
 
 #[cfg(test)]
@@ -507,5 +480,13 @@ mod tests {
     fn no_crashes_on_context_deref() {
         let t = dummy_context();
         std::mem::drop(t.ctx);
+    }
+
+    #[test]
+    fn test_get_info() {
+        let t = dummy_context();
+
+        let info = t.ctx.get_info();
+        assert_eq!(info.get("level").unwrap(), "awesome");
     }
 }

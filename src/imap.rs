@@ -8,7 +8,7 @@ use std::sync::{
 use std::time::{Duration, SystemTime};
 
 use crate::constants::*;
-use crate::context::{do_heuristics_moves, Context};
+use crate::context::Context;
 use crate::dc_receive_imf::dc_receive_imf;
 use crate::dc_tools::CStringExt;
 use crate::dc_tools::*;
@@ -1680,7 +1680,7 @@ unsafe fn precheck_imf(
         if as_str(old_server_folder) != server_folder || old_server_uid != server_uid {
             dc_update_server_uid(context, rfc724_mid, server_folder, server_uid);
         }
-        do_heuristics_moves(context, server_folder, msg_id);
+        context.do_heuristics_moves(server_folder, msg_id);
         if 0 != mark_seen {
             job_add(
                 context,
