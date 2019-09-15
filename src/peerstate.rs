@@ -499,7 +499,11 @@ mod tests {
         let ctx = crate::test_utils::dummy_context();
         let addr = "hello@mail.com";
 
-        let pub_key = crate::key::Key::from_base64("xsBNBFztUVkBCADYaQl/UOUpRPd32nLRzx8eU0eI+jQEnG+g5anjYA+3oct1rROGl5SygjMULDKdaUy27O3o9Srsti0YjA7uxZnavIqhSopJhFidqY1M1wA9JZa/duucZdNwUGbjGIRsS/4Cjr5+3svscK24hVYub1dvDWXpwUTnj3K6xOEnJdoM+MhCqtSD5+zcJhFc9vyZm9ZTGWUxAhKh0iJTcCD8V6CQ3XZ2z9GruwzZT/FTFovWrz7m3TUI2OdSSHh0eZLRGEoxMCT/vzflAFGAr8ijCaRsEIfqP6FW8uQWnFTqkjxEUCZG6XkeFHB84aj5jqYG/1KCLjL5vEKwfl1tz/WnPhY7ABEBAAHNEDxoZWxsb0BtYWlsLmNvbT7CwIkEEAEIADMCGQEFAlztUVoCGwMECwkIBwYVCAkKCwIDFgIBFiEEgMjHGVbvLXe6ioRROg8oKCvye7gACgkQOg8oKCvye7ijAwf+PTsuawUax9cNPn1bN90H+g9qyHZJMEwKXtUnNaXJxPW3iB7ThhpCiCzsZwP7+l7ArS8tmLeNDw2bENtcf1XCv4wovP2fdXOP3QOUUFX/GdakcTwv7DzC7CO0grB1HtaPhGw/6UX2o2cx2i9xiUf4Givq2MfCbgAW5zloH6WXGPb6yLQYJXxqDIphr4+uZDb+bMAyWHN/DUkAjHrV8nnVki7PMHqzzZpwglalxMX8RGeiGZE39ALJKL/Og87DMFah87/yoxQWGoS7Wqv0XDcCPKoTCPrpk8pOe2KEsq/lz215nefHd4aRpfUX5YCYa8HPvvfPQbGF73uvyQw5w7qjis7ATQRc7VFZAQgAt8ONdnX6KEEQ5Jw6ilJ+LBtY44SP5t0I3eK+goKepgIiKhjGDa+Mntyi4jdhH+HO6kvK5SHMh2sPp4rRO/WKHJwWFySyM1OdyiywhyH0J9R5rBY4vPHsJjf6vSKJdWLWT+ho1fNet2IIC+jVCYli91MAMbRvk6EKVj1nCc+67giOahXEkHt6xxkeCGlOvbw8hxGj1A8+AC1BLms/OR3oc4JMi9O3kq6uG0z9tlUEerac9HVwcjoO1XLe+hJhoT5H+TbnGjPuhuURP3pFiIKHpbRYgUfdSAY0dTObO7t4I5y/drPOrCTnWrBUg2wXAECUhpRKow9/ai2YemLv9KqhhwARAQABwsB2BBgBCAAgBQJc7VFaAhsMFiEEgMjHGVbvLXe6ioRROg8oKCvye7gACgkQOg8oKCvye7jmyggAhs4QzCzIbT2OsAReBxkxtm0AI+g1HZ1KFKof5NDHfgv9C/Qu1I8mKEjlZzA4qFyPmLqntgwJ0RuFy6gLbljZBNCFO7vB478AhYtnWjuKZmA40HUPwcB1hEJ31c42akzfUbioY1TLLepngdsJg7Cm8O+rhI9+1WRA66haJDgFs793SVUDyJh8f9NX50l5zR87/bsV30CFSw0q4OSSy9VI/z+2g5khn1LnuuOrCfFnYIPYtJED1BfkXkosxGlgbzy79VvGmI9d23x4atDK7oBPCzIj+lP8sytJ0u3HOguXi9OgDitKy+Pt1r8gH8frdktMJr5Ts6DW+tIn2vR23KR8aA==", KeyType::Public).unwrap();
+        let pub_key = crate::key::Key::from_base64(
+            include_str!("../test-data/key/public.asc"),
+            KeyType::Public,
+        )
+        .unwrap();
 
         let mut peerstate = Peerstate {
             context: &ctx.ctx,
@@ -537,7 +541,11 @@ mod tests {
         let ctx = crate::test_utils::dummy_context();
         let addr = "hello@mail.com";
 
-        let pub_key = crate::key::Key::from_base64("xsBNBFztUVkBCADYaQl/UOUpRPd32nLRzx8eU0eI+jQEnG+g5anjYA+3oct1rROGl5SygjMULDKdaUy27O3o9Srsti0YjA7uxZnavIqhSopJhFidqY1M1wA9JZa/duucZdNwUGbjGIRsS/4Cjr5+3svscK24hVYub1dvDWXpwUTnj3K6xOEnJdoM+MhCqtSD5+zcJhFc9vyZm9ZTGWUxAhKh0iJTcCD8V6CQ3XZ2z9GruwzZT/FTFovWrz7m3TUI2OdSSHh0eZLRGEoxMCT/vzflAFGAr8ijCaRsEIfqP6FW8uQWnFTqkjxEUCZG6XkeFHB84aj5jqYG/1KCLjL5vEKwfl1tz/WnPhY7ABEBAAHNEDxoZWxsb0BtYWlsLmNvbT7CwIkEEAEIADMCGQEFAlztUVoCGwMECwkIBwYVCAkKCwIDFgIBFiEEgMjHGVbvLXe6ioRROg8oKCvye7gACgkQOg8oKCvye7ijAwf+PTsuawUax9cNPn1bN90H+g9qyHZJMEwKXtUnNaXJxPW3iB7ThhpCiCzsZwP7+l7ArS8tmLeNDw2bENtcf1XCv4wovP2fdXOP3QOUUFX/GdakcTwv7DzC7CO0grB1HtaPhGw/6UX2o2cx2i9xiUf4Givq2MfCbgAW5zloH6WXGPb6yLQYJXxqDIphr4+uZDb+bMAyWHN/DUkAjHrV8nnVki7PMHqzzZpwglalxMX8RGeiGZE39ALJKL/Og87DMFah87/yoxQWGoS7Wqv0XDcCPKoTCPrpk8pOe2KEsq/lz215nefHd4aRpfUX5YCYa8HPvvfPQbGF73uvyQw5w7qjis7ATQRc7VFZAQgAt8ONdnX6KEEQ5Jw6ilJ+LBtY44SP5t0I3eK+goKepgIiKhjGDa+Mntyi4jdhH+HO6kvK5SHMh2sPp4rRO/WKHJwWFySyM1OdyiywhyH0J9R5rBY4vPHsJjf6vSKJdWLWT+ho1fNet2IIC+jVCYli91MAMbRvk6EKVj1nCc+67giOahXEkHt6xxkeCGlOvbw8hxGj1A8+AC1BLms/OR3oc4JMi9O3kq6uG0z9tlUEerac9HVwcjoO1XLe+hJhoT5H+TbnGjPuhuURP3pFiIKHpbRYgUfdSAY0dTObO7t4I5y/drPOrCTnWrBUg2wXAECUhpRKow9/ai2YemLv9KqhhwARAQABwsB2BBgBCAAgBQJc7VFaAhsMFiEEgMjHGVbvLXe6ioRROg8oKCvye7gACgkQOg8oKCvye7jmyggAhs4QzCzIbT2OsAReBxkxtm0AI+g1HZ1KFKof5NDHfgv9C/Qu1I8mKEjlZzA4qFyPmLqntgwJ0RuFy6gLbljZBNCFO7vB478AhYtnWjuKZmA40HUPwcB1hEJ31c42akzfUbioY1TLLepngdsJg7Cm8O+rhI9+1WRA66haJDgFs793SVUDyJh8f9NX50l5zR87/bsV30CFSw0q4OSSy9VI/z+2g5khn1LnuuOrCfFnYIPYtJED1BfkXkosxGlgbzy79VvGmI9d23x4atDK7oBPCzIj+lP8sytJ0u3HOguXi9OgDitKy+Pt1r8gH8frdktMJr5Ts6DW+tIn2vR23KR8aA==", KeyType::Public).unwrap();
+        let pub_key = crate::key::Key::from_base64(
+            include_str!("../test-data/key/public.asc"),
+            KeyType::Public,
+        )
+        .unwrap();
 
         let mut peerstate = Peerstate {
             context: &ctx.ctx,
