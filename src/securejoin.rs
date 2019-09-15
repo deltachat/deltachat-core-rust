@@ -13,6 +13,7 @@ use crate::dc_mimeparser::*;
 use crate::dc_tools::*;
 use crate::e2ee::*;
 use crate::error::Error;
+use crate::events::Event;
 use crate::key::*;
 use crate::lot::LotState;
 use crate::message::*;
@@ -24,39 +25,29 @@ use crate::token;
 
 pub const NON_ALPHANUMERIC_WITHOUT_DOT: &AsciiSet = &NON_ALPHANUMERIC.remove(b'.');
 
-macro_rules! progress {
-    ($context:tt, $event:expr, $contact_id:expr, $progress:expr) => {
+macro_rules! joiner_progress {
+    ($context:tt, $contact_id:expr, $progress:expr) => {
         assert!(
             $progress >= 0 && $progress <= 1000,
             "value in range 0..1000 expected with: 0=error, 1..999=progress, 1000=success"
         );
-        $context.call_cb(
-            $event,
-            $contact_id as libc::uintptr_t,
-            $progress as libc::uintptr_t,
-        );
-    };
-}
-
-macro_rules! joiner_progress {
-    ($context:tt, $contact_id:expr, $progress:expr) => {
-        progress!(
-            $context,
-            Event::SECUREJOIN_JOINER_PROGRESS,
-            $contact_id,
-            $progress
-        );
+        $context.call_cb($crate::events::Event::SecurejoinJoinerProgress {
+            contact_id: $contact_id,
+            progress: $progress,
+        });
     };
 }
 
 macro_rules! inviter_progress {
     ($context:tt, $contact_id:expr, $progress:expr) => {
-        progress!(
-            $context,
-            Event::SECUREJOIN_INVITER_PROGRESS,
-            $contact_id,
-            $progress
+        assert!(
+            $progress >= 0 && $progress <= 1000,
+            "value in range 0..1000 expected with: 0=error, 1..999=progress, 1000=success"
         );
+        $context.call_cb($crate::events::Event::SecurejoinInviterProgress {
+            contact_id: $contact_id,
+            progress: $progress,
+        });
     };
 }
 
@@ -523,7 +514,7 @@ pub fn handle_securejoin_handshake(
             Contact::scaleup_origin_by_id(context, contact_id, Origin::SecurejoinInvited);
             info!(context, "Auth verified.",);
             secure_connection_established(context, contact_chat_id);
-            emit_event!(context, Event::CONTACTS_CHANGED, contact_id, 0);
+            emit_event!(context, Event::ContactsChanged(Some(contact_id)));
             inviter_progress!(context, contact_id, 600);
             if join_vg {
                 let field_grpid = lookup_field(mimeparser, "Secure-Join-Group").unwrap_or_default();
@@ -594,7 +585,7 @@ pub fn handle_securejoin_handshake(
                 return ret;
             }
             Contact::scaleup_origin_by_id(context, contact_id, Origin::SecurejoinJoined);
-            emit_event!(context, Event::CONTACTS_CHANGED, 0, 0);
+            emit_event!(context, Event::ContactsChanged(None));
             let cg_member_added =
                 lookup_field(mimeparser, "Chat-Group-Member-Added").unwrap_or_default();
             if join_vg && !addr_equals_self(context, cg_member_added) {
@@ -657,7 +648,7 @@ fn secure_connection_established(context: &Context, contact_chat_id: u32) {
     };
     let msg = context.stock_string_repl_str(StockMessage::ContactVerified, addr);
     chat::add_device_msg(context, contact_chat_id, msg);
-    emit_event!(context, Event::CHAT_MODIFIED, contact_chat_id, 0);
+    emit_event!(context, Event::ChatModified(contact_chat_id));
 }
 
 fn lookup_field(mimeparser: &dc_mimeparser_t, key: &str) -> Option<String> {
@@ -771,7 +762,7 @@ pub fn handle_degrade_event(context: &Context, peerstate: &Peerstate) {
             let msg = context.stock_string_repl_str(StockMessage::ContactSetupChanged, peeraddr);
 
             chat::add_device_msg(context, contact_chat_id, msg);
-            emit_event!(context, Event::CHAT_MODIFIED, contact_chat_id, 0);
+            emit_event!(context, Event::ChatModified(contact_chat_id));
         }
     }
 }

@@ -3,10 +3,10 @@ use std::borrow::Cow;
 use strum::EnumProperty;
 use strum_macros::EnumProperty;
 
-use crate::constants::Event;
 use crate::contact::*;
 use crate::context::Context;
 use crate::dc_tools::*;
+use crate::events::Event;
 use libc::free;
 
 /// Stock strings
@@ -128,7 +128,7 @@ impl Context {
     /// translation, then this string will be returned.  Otherwise a
     /// default (English) string is returned.
     pub fn stock_str(&self, id: StockMessage) -> Cow<str> {
-        let ptr = self.call_cb(Event::GET_STRING, id as usize, 0) as *mut libc::c_char;
+        let ptr = self.call_cb(Event::GetString { id, count: 0 }) as *mut libc::c_char;
         if ptr.is_null() {
             Cow::Borrowed(id.fallback())
         } else {
@@ -259,16 +259,13 @@ mod tests {
         assert_eq!(t.ctx.stock_str(StockMessage::NoMessages), "No messages.");
     }
 
-    fn test_stock_str_no_fallback_cb(
-        _ctx: &Context,
-        evt: Event,
-        d1: uintptr_t,
-        _d2: uintptr_t,
-    ) -> uintptr_t {
-        if evt == Event::GET_STRING && d1 == StockMessage::NoMessages.to_usize().unwrap() {
-            unsafe { "Hello there".strdup() as usize }
-        } else {
-            0
+    fn test_stock_str_no_fallback_cb(_ctx: &Context, evt: Event) -> uintptr_t {
+        match evt {
+            Event::GetString {
+                id: StockMessage::NoMessages,
+                ..
+            } => unsafe { "Hello there".strdup() as usize },
+            _ => 0,
         }
     }
 

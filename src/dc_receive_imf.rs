@@ -2,7 +2,6 @@ use std::ffi::CString;
 use std::ptr;
 
 use itertools::join;
-use libc::uintptr_t;
 use mmime::clist::*;
 use mmime::mailimf::*;
 use mmime::mailimf_types::*;
@@ -21,6 +20,7 @@ use crate::dc_mimeparser::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
 use crate::error::Result;
+use crate::events::Event;
 use crate::job::*;
 use crate::location;
 use crate::message::*;
@@ -30,6 +30,12 @@ use crate::securejoin::handle_securejoin_handshake;
 use crate::sql;
 use crate::stock::StockMessage;
 use crate::x::*;
+
+#[derive(Debug, PartialEq, Eq)]
+enum CreateEvent {
+    MsgsChanged,
+    IncomingMsg,
+}
 
 /// Receive a message and add it to the database.
 pub unsafe fn dc_receive_imf(
@@ -82,7 +88,7 @@ pub unsafe fn dc_receive_imf(
     let rfc724_mid = std::ptr::null_mut();
     let mut sent_timestamp = 0;
     let mut created_db_entries = Vec::new();
-    let mut create_event_to_send = Some(Event::MSGS_CHANGED);
+    let mut create_event_to_send = Some(CreateEvent::MsgsChanged);
     let mut rr_event_to_send = Vec::new();
 
     let mut to_ids = Vec::with_capacity(16);
@@ -90,18 +96,31 @@ pub unsafe fn dc_receive_imf(
     // helper method to handle early exit and memory cleanup
     let cleanup = |context: &Context,
                    rfc724_mid: *mut libc::c_char,
-                   create_event_to_send: &Option<Event>,
+                   create_event_to_send: &Option<CreateEvent>,
                    created_db_entries: &Vec<(usize, usize)>,
                    rr_event_to_send: &Vec<(u32, u32)>| {
         free(rfc724_mid.cast());
 
         if let Some(create_event_to_send) = create_event_to_send {
             for (msg_id, insert_id) in created_db_entries {
-                context.call_cb(*create_event_to_send, *msg_id, *insert_id);
+                let event = match create_event_to_send {
+                    CreateEvent::MsgsChanged => Event::MsgsChanged {
+                        msg_id: *msg_id as u32,
+                        chat_id: *insert_id as u32,
+                    },
+                    CreateEvent::IncomingMsg => Event::IncomingMsg {
+                        msg_id: *msg_id as u32,
+                        chat_id: *insert_id as u32,
+                    },
+                };
+                context.call_cb(event);
             }
         }
         for (chat_id, msg_id) in rr_event_to_send {
-            context.call_cb(Event::MSG_READ, *chat_id as uintptr_t, *msg_id as uintptr_t);
+            context.call_cb(Event::MsgRead {
+                chat_id: *chat_id,
+                msg_id: *msg_id,
+            });
         }
     };
 
@@ -279,7 +298,7 @@ unsafe fn add_parts(
     to_self: i32,
     insert_msg_id: &mut u32,
     created_db_entries: &mut Vec<(usize, usize)>,
-    create_event_to_send: &mut Option<Event>,
+    create_event_to_send: &mut Option<CreateEvent>,
 ) -> Result<()> {
     let mut state: MessageState;
     let mut msgrmsg: libc::c_int;
@@ -730,9 +749,9 @@ unsafe fn add_parts(
         if 0 != from_id_blocked {
             *create_event_to_send = None;
         } else if Blocked::Not != chat_id_blocked {
-            *create_event_to_send = Some(Event::MSGS_CHANGED);
+            *create_event_to_send = Some(CreateEvent::MsgsChanged);
         } else {
-            *create_event_to_send = Some(Event::INCOMING_MSG);
+            *create_event_to_send = Some(CreateEvent::IncomingMsg);
         }
     }
 
@@ -967,11 +986,7 @@ fn save_locations(
         }
     }
     if send_event {
-        context.call_cb(
-            Event::LOCATION_CHANGED,
-            from_id as uintptr_t,
-            0 as uintptr_t,
-        );
+        context.call_cb(Event::LocationChanged(Some(from_id)));
     }
 }
 
@@ -1321,7 +1336,7 @@ unsafe fn create_or_lookup_group(
         )
         .is_ok()
         {
-            context.call_cb(Event::CHAT_MODIFIED, chat_id as uintptr_t, 0);
+            context.call_cb(Event::ChatModified(chat_id));
         }
     }
     if !X_MrGrpImageChanged.is_empty() {
@@ -1403,7 +1418,7 @@ unsafe fn create_or_lookup_group(
     }
 
     if 0 != send_EVENT_CHAT_MODIFIED {
-        context.call_cb(Event::CHAT_MODIFIED, chat_id as uintptr_t, 0 as uintptr_t);
+        context.call_cb(Event::ChatModified(chat_id));
     }
 
     // check the number of receivers -
@@ -1578,7 +1593,7 @@ unsafe fn create_or_lookup_adhoc_group(
         chat::add_to_chat_contacts_table(context, chat_id, member_id);
     }
 
-    context.call_cb(Event::CHAT_MODIFIED, chat_id as uintptr_t, 0 as uintptr_t);
+    context.call_cb(Event::ChatModified(chat_id));
 
     cleanup(
         grpname,

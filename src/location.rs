@@ -1,14 +1,13 @@
 use bitflags::bitflags;
-use libc::uintptr_t;
 use quick_xml;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
 use crate::chat;
-use crate::constants::Event;
 use crate::constants::*;
 use crate::context::*;
 use crate::dc_tools::*;
 use crate::error::Error;
+use crate::events::Event;
 use crate::job::*;
 use crate::message::*;
 use crate::param::*;
@@ -225,11 +224,7 @@ pub fn send_locations_to_chat(context: &Context, chat_id: u32, seconds: i64) {
                     context.stock_system_msg(StockMessage::MsgLocationDisabled, "", "", 0);
                 chat::add_device_msg(context, chat_id, stock_str);
             }
-            context.call_cb(
-                Event::CHAT_MODIFIED,
-                chat_id as uintptr_t,
-                0i32 as uintptr_t,
-            );
+            context.call_cb(Event::ChatModified(chat_id));
             if 0 != seconds {
                 schedule_MAYBE_SEND_LOCATIONS(context, 0i32);
                 job_add(
@@ -292,7 +287,7 @@ pub fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64) -> l
             }
         }
         if continue_streaming {
-            context.call_cb(Event::LOCATION_CHANGED, 1, 0);
+            context.call_cb(Event::LocationChanged(Some(1)));
         };
         schedule_MAYBE_SEND_LOCATIONS(context, 0);
     }
@@ -369,7 +364,7 @@ fn is_marker(txt: &str) -> bool {
 
 pub fn delete_all(context: &Context) -> Result<(), Error> {
     sql::execute(context, &context.sql, "DELETE FROM locations;", params![])?;
-    context.call_cb(Event::LOCATION_CHANGED, 0, 0);
+    context.call_cb(Event::LocationChanged(None));
     Ok(())
 }
 
@@ -653,11 +648,7 @@ pub fn job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context: &Context, job: &mut Job) {
                 ).is_ok() {
                     let stock_str = context.stock_system_msg(StockMessage::MsgLocationDisabled, "", "", 0);
                     chat::add_device_msg(context, chat_id, stock_str);
-                    context.call_cb(
-                        Event::CHAT_MODIFIED,
-                        chat_id as usize,
-                        0,
-                    );
+                    context.call_cb(Event::ChatModified(chat_id));
                 }
             }
         }

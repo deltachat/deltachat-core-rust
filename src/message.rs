@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 use std::ptr;
 
 use deltachat_derive::{FromSql, ToSql};
-use libc::uintptr_t;
 use phf::phf_map;
 
 use crate::chat::{self, Chat};
@@ -12,6 +11,7 @@ use crate::contact::*;
 use crate::context::*;
 use crate::dc_tools::*;
 use crate::error::Error;
+use crate::events::Event;
 use crate::job::*;
 use crate::lot::{Lot, LotState, Meaning};
 use crate::param::*;
@@ -518,7 +518,10 @@ pub unsafe fn dc_delete_msgs(context: &Context, msg_ids: *const u32, msg_cnt: li
     }
 
     if 0 != msg_cnt {
-        context.call_cb(Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
+        context.call_cb(Event::MsgsChanged {
+            chat_id: 0,
+            msg_id: 0,
+        });
         job_kill_action(context, Action::Housekeeping);
         job_add(context, Action::Housekeeping, 0, Params::new(), 10);
     };
@@ -586,7 +589,10 @@ pub fn dc_markseen_msgs(context: &Context, msg_ids: *const u32, msg_cnt: usize) 
     }
 
     if send_event {
-        context.call_cb(Event::MSGS_CHANGED, 0, 0);
+        context.call_cb(Event::MsgsChanged {
+            chat_id: 0,
+            msg_id: 0,
+        });
     }
 
     true
@@ -1023,11 +1029,10 @@ pub fn dc_set_msg_failed(context: &Context, msg_id: u32, error: Option<impl AsRe
         )
         .is_ok()
         {
-            context.call_cb(
-                Event::MSG_FAILED,
-                msg.chat_id as uintptr_t,
-                msg_id as uintptr_t,
-            );
+            context.call_cb(Event::MsgFailed {
+                chat_id: msg.chat_id,
+                msg_id,
+            });
         }
     }
 }

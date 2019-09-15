@@ -2,7 +2,6 @@ use std::ffi::CString;
 use std::path::Path;
 use std::ptr;
 
-use libc::uintptr_t;
 use mmime::mailmime_content::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
@@ -16,6 +15,7 @@ use crate::context::Context;
 use crate::dc_tools::*;
 use crate::e2ee;
 use crate::error::*;
+use crate::events::Event;
 use crate::job::*;
 use crate::key::*;
 use crate::message::*;
@@ -502,7 +502,8 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: &Job) {
             error!(context, "No Import/export dir/file given.",);
         } else {
             info!(context, "Import/export process started.",);
-            context.call_cb(Event::IMEX_PROGRESS, 10 as uintptr_t, 0 as uintptr_t);
+            context.call_cb(Event::ImexProgress(10));
+
             if !context.sql.is_open() {
                 error!(context, "Import/export: Database not opened.",);
             } else {
@@ -551,11 +552,7 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: &Job) {
         }
         dc_free_ongoing(context);
     }
-    context.call_cb(
-        Event::IMEX_PROGRESS,
-        (if 0 != success { 1000 } else { 0 }) as uintptr_t,
-        0 as uintptr_t,
-    );
+    context.call_cb(Event::ImexProgress(if 0 != success { 1000 } else { 0 }));
 }
 
 /*******************************************************************************
@@ -637,7 +634,7 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
                 if permille > 990 {
                     permille = 990
                 }
-                context.call_cb(Event::IMEX_PROGRESS, permille as uintptr_t, 0);
+                context.call_cb(Event::ImexProgress(permille));
                 if file_blob.is_empty() {
                     continue;
                 }
@@ -773,11 +770,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> bool {
                                                 if permille > 990 {
                                                     permille = 990;
                                                 }
-                                                context.call_cb(
-                                                    Event::IMEX_PROGRESS,
-                                                    permille as uintptr_t,
-                                                    0 as uintptr_t,
-                                                );
+                                                context.call_cb(Event::ImexProgress(permille));
 
                                                 let name_f = entry.file_name();
                                                 let name = name_f.to_string_lossy();
@@ -828,11 +821,9 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> bool {
                             .set_config_int(context, "backup_time", now as i32)
                             .is_ok()
                         {
-                            context.call_cb(
-                                Event::IMEX_FILE_WRITTEN,
-                                dest_pathNfilename as uintptr_t,
-                                0,
-                            );
+                            context.call_cb(Event::ImexFileWritten(
+                                as_path(dest_pathNfilename).to_path_buf(),
+                            ));
                             success = true;
                         }
                     }
@@ -1063,11 +1054,7 @@ unsafe fn export_key_to_asc_file(
     if !key.write_asc_to_file(as_path(file_name), context) {
         error!(context, "Cannot write key to {}", as_str(file_name),);
     } else {
-        context.call_cb(
-            Event::IMEX_FILE_WRITTEN,
-            file_name as uintptr_t,
-            0i32 as uintptr_t,
-        );
+        context.call_cb(Event::ImexFileWritten(as_path(file_name).to_path_buf()));
         success = true;
     }
     free(file_name as *mut libc::c_void);
@@ -1078,8 +1065,6 @@ unsafe fn export_key_to_asc_file(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use num_traits::ToPrimitive;
 
     use crate::test_utils::*;
 
@@ -1103,11 +1088,13 @@ mod tests {
         assert!(msg.contains("-----END PGP MESSAGE-----\n"));
     }
 
-    fn ac_setup_msg_cb(ctx: &Context, evt: Event, d1: uintptr_t, d2: uintptr_t) -> uintptr_t {
-        if evt == Event::GET_STRING && d1 == StockMessage::AcSetupMsgBody.to_usize().unwrap() {
-            unsafe { "hello\r\nthere".strdup() as usize }
-        } else {
-            logging_cb(ctx, evt, d1, d2)
+    fn ac_setup_msg_cb(ctx: &Context, evt: Event) -> libc::uintptr_t {
+        match evt {
+            Event::GetString {
+                id: StockMessage::AcSetupMsgBody,
+                ..
+            } => unsafe { "hello\r\nthere".strdup() as usize },
+            _ => logging_cb(ctx, evt),
         }
     }
 

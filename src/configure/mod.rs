@@ -1,4 +1,3 @@
-use libc::uintptr_t;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use crate::constants::*;
@@ -19,14 +18,10 @@ use auto_mozilla::moz_autoconfigure;
 macro_rules! progress {
     ($context:tt, $progress:expr) => {
         assert!(
-            $progress >= 0 && $progress <= 1000,
+            $progress > 0 && $progress <= 1000,
             "value in range 0..1000 expected with: 0=error, 1..999=progress, 1000=success"
         );
-        $context.call_cb(
-            Event::CONFIGURE_PROGRESS,
-            $progress as uintptr_t,
-            0 as uintptr_t,
-        );
+        $context.call_cb($crate::events::Event::ConfigureProgress($progress));
     };
 }
 
@@ -567,7 +562,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
         dc_free_ongoing(context);
     }
 
-    progress!(context, (if success { 1000 } else { 0 }));
+    progress!(context, if success { 1000 } else { 0 });
 }
 
 /*******************************************************************************

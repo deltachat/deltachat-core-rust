@@ -4,7 +4,8 @@ macro_rules! info {
         info!($ctx, $msg,)
     };
     ($ctx:expr, $msg:expr, $($args:expr),* $(,)?) => {
-        log_event!($ctx, $crate::constants::Event::INFO, 0, $msg, $($args),*);
+        let formatted = format!($msg, $($args),*);
+        emit_event!($ctx, $crate::Event::Info(formatted));
     };
 }
 
@@ -14,7 +15,8 @@ macro_rules! warn {
         warn!($ctx, $msg,)
     };
     ($ctx:expr, $msg:expr, $($args:expr),* $(,)?) => {
-        log_event!($ctx, $crate::constants::Event::WARNING, 0, $msg, $($args),*);
+        let formatted = format!($msg, $($args),*);
+        emit_event!($ctx, $crate::Event::Warning(formatted));
     };
 }
 
@@ -24,26 +26,14 @@ macro_rules! error {
         error!($ctx, $msg,)
     };
     ($ctx:expr, $msg:expr, $($args:expr),* $(,)?) => {
-        log_event!($ctx, $crate::constants::Event::ERROR, 0, $msg, $($args),*);
-    };
-}
-
-#[macro_export]
-macro_rules! log_event {
-    ($ctx:expr, $data1:expr, $msg:expr) => {
-        log_event!($ctx, $data1, $msg,)
-    };
-    ($ctx:expr, $event:expr, $data1:expr, $msg:expr, $($args:expr),* $(,)?) => {
         let formatted = format!($msg, $($args),*);
-        let formatted_c = std::ffi::CString::new(formatted).unwrap();
-        $ctx.call_cb($event, $data1 as libc::uintptr_t,
-                     formatted_c.as_ptr() as libc::uintptr_t);
+        emit_event!($ctx, $crate::Event::Error(formatted));
     };
 }
 
 #[macro_export]
 macro_rules! emit_event {
-    ($ctx:expr, $event:expr, $data1:expr, $data2:expr) => {
-        $ctx.call_cb($event, $data1 as libc::uintptr_t, $data2 as libc::uintptr_t);
+    ($ctx:expr, $event:expr) => {
+        $ctx.call_cb($event);
     };
 }

@@ -22,13 +22,13 @@ use std::sync::{Arc, Mutex, RwLock};
 
 use deltachat::config;
 use deltachat::configure::*;
-use deltachat::constants::*;
 use deltachat::context::*;
 use deltachat::dc_tools::*;
 use deltachat::job::*;
 use deltachat::oauth2::*;
 use deltachat::securejoin::*;
 use deltachat::x::*;
+use deltachat::Event;
 use rustyline::completion::{Completer, FilenameCompleter, Pair};
 use rustyline::config::OutputStreamType;
 use rustyline::error::ReadlineError;
@@ -43,96 +43,78 @@ use self::cmdline::*;
 
 // Event Handler
 
-fn receive_event(
-    _context: &Context,
-    event: Event,
-    data1: libc::uintptr_t,
-    data2: libc::uintptr_t,
-) -> libc::uintptr_t {
+fn receive_event(_context: &Context, event: Event) -> libc::uintptr_t {
     match event {
-        Event::GET_STRING => {}
-        Event::INFO => {
+        Event::GetString { .. } => {}
+        Event::Info(msg) => {
             /* do not show the event as this would fill the screen */
-            println!("{}", to_string(data2 as *const _),);
+            println!("{}", msg);
         }
-        Event::SMTP_CONNECTED => {
-            println!("[DC_EVENT_SMTP_CONNECTED] {}", to_string(data2 as *const _));
+        Event::SmtpConnected(msg) => {
+            println!("[DC_EVENT_SMTP_CONNECTED] {}", msg);
         }
-        Event::IMAP_CONNECTED => {
-            println!("[DC_EVENT_IMAP_CONNECTED] {}", to_string(data2 as *const _),);
+        Event::ImapConnected(msg) => {
+            println!("[DC_EVENT_IMAP_CONNECTED] {}", msg);
         }
-        Event::SMTP_MESSAGE_SENT => {
-            println!(
-                "[DC_EVENT_SMTP_MESSAGE_SENT] {}",
-                to_string(data2 as *const _),
-            );
+        Event::SmtpMessageSent(msg) => {
+            println!("[DC_EVENT_SMTP_MESSAGE_SENT] {}", msg);
         }
-        Event::WARNING => {
-            println!("[Warning] {}", to_string(data2 as *const _),);
+        Event::Warning(msg) => {
+            println!("[Warning] {}", msg);
         }
-        Event::ERROR => {
-            println!(
-                "\x1b[31m[DC_EVENT_ERROR] {}\x1b[0m",
-                to_string(data2 as *const _),
-            );
+        Event::Error(msg) => {
+            println!("\x1b[31m[DC_EVENT_ERROR] {}\x1b[0m", msg);
         }
-        Event::ERROR_NETWORK => {
+        Event::ErrorNetwork(c, msg) => {
             println!(
                 "\x1b[31m[DC_EVENT_ERROR_NETWORK] first={}, msg={}\x1b[0m",
-                data1 as usize,
-                to_string(data2 as *const _),
+                c, msg
             );
         }
-        Event::ERROR_SELF_NOT_IN_GROUP => {
-            println!(
-                "\x1b[31m[DC_EVENT_ERROR_SELF_NOT_IN_GROUP] {}\x1b[0m",
-                to_string(data2 as *const _),
-            );
+        Event::ErrorSelfNotInGroup(msg) => {
+            println!("\x1b[31m[DC_EVENT_ERROR_SELF_NOT_IN_GROUP] {}\x1b[0m", msg);
         }
-        Event::MSGS_CHANGED => {
+        Event::MsgsChanged { chat_id, msg_id } => {
             print!(
-                "\x1b[33m{{Received DC_EVENT_MSGS_CHANGED({}, {})}}\n\x1b[0m",
-                data1 as usize, data2 as usize,
+                "\x1b[33m{{Received DC_EVENT_MSGS_CHANGED(chat_id={}, msg_id={})}}\n\x1b[0m",
+                chat_id, msg_id,
             );
         }
-        Event::CONTACTS_CHANGED => {
+        Event::ContactsChanged(_) => {
             print!("\x1b[33m{{Received DC_EVENT_CONTACTS_CHANGED()}}\n\x1b[0m");
         }
-        Event::LOCATION_CHANGED => {
+        Event::LocationChanged(contact) => {
             print!(
-                "\x1b[33m{{Received DC_EVENT_LOCATION_CHANGED(contact={})}}\n\x1b[0m",
-                data1 as usize,
+                "\x1b[33m{{Received DC_EVENT_LOCATION_CHANGED(contact={:?})}}\n\x1b[0m",
+                contact,
             );
         }
-        Event::CONFIGURE_PROGRESS => {
+        Event::ConfigureProgress(progress) => {
             print!(
                 "\x1b[33m{{Received DC_EVENT_CONFIGURE_PROGRESS({} ‰)}}\n\x1b[0m",
-                data1 as usize,
+                progress,
             );
         }
-        Event::IMEX_PROGRESS => {
+        Event::ImexProgress(progress) => {
             print!(
                 "\x1b[33m{{Received DC_EVENT_IMEX_PROGRESS({} ‰)}}\n\x1b[0m",
-                data1 as usize,
+                progress,
             );
         }
-        Event::IMEX_FILE_WRITTEN => {
+        Event::ImexFileWritten(file) => {
             print!(
                 "\x1b[33m{{Received DC_EVENT_IMEX_FILE_WRITTEN({})}}\n\x1b[0m",
-                to_string(data1 as *const _)
+                file.display()
             );
         }
-        Event::CHAT_MODIFIED => {
+        Event::ChatModified(chat) => {
             print!(
                 "\x1b[33m{{Received DC_EVENT_CHAT_MODIFIED({})}}\n\x1b[0m",
-                data1 as usize,
+                chat
             );
         }
         _ => {
-            print!(
-                "\x1b[33m{{Received {:?}({}, {})}}\n\x1b[0m",
-                event, data1 as usize, data2 as usize,
-            );
+            print!("\x1b[33m{{Received {:?}}}\n\x1b[0m", event);
         }
     }
 

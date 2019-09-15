@@ -2,7 +2,6 @@ use std::path::PathBuf;
 
 use deltachat_derive::*;
 use itertools::Itertools;
-use libc::uintptr_t;
 use rusqlite;
 
 use crate::aheader::EncryptPreference;
@@ -12,6 +11,7 @@ use crate::context::Context;
 use crate::dc_tools::*;
 use crate::e2ee;
 use crate::error::Result;
+use crate::events::Event;
 use crate::key::*;
 use crate::login_param::LoginParam;
 use crate::message::MessageState;
@@ -214,15 +214,13 @@ impl Contact {
         let (contact_id, sth_modified) =
             Contact::add_or_lookup(context, name, addr, Origin::ManuallyCreated)?;
         let blocked = Contact::is_blocked_load(context, contact_id);
-        context.call_cb(
-            Event::CONTACTS_CHANGED,
-            (if sth_modified == Modifier::Created {
-                contact_id
+        context.call_cb(Event::ContactsChanged(
+            if sth_modified == Modifier::Created {
+                Some(contact_id)
             } else {
-                0
-            }) as uintptr_t,
-            0 as uintptr_t,
-        );
+                None
+            },
+        ));
         if blocked {
             Contact::unblock(context, contact_id);
         }
@@ -243,7 +241,10 @@ impl Contact {
         )
         .is_ok()
         {
-            context.call_cb(Event::MSGS_CHANGED, 0, 0);
+            context.call_cb(Event::MsgsChanged {
+                chat_id: 0,
+                msg_id: 0,
+            });
         }
     }
 
@@ -436,7 +437,7 @@ impl Contact {
             }
         }
         if modify_cnt > 0 {
-            context.call_cb(Event::CONTACTS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
+            context.call_cb(Event::ContactsChanged(None));
         }
 
         Ok(modify_cnt)
@@ -673,7 +674,7 @@ impl Contact {
                 params![contact_id as i32],
             ) {
                 Ok(_) => {
-                    context.call_cb(Event::CONTACTS_CHANGED, 0, 0);
+                    context.call_cb(Event::ContactsChanged(None));
                     return Ok(());
                 }
                 Err(err) => {
@@ -938,11 +939,7 @@ fn set_block_contact(context: &Context, contact_id: u32, new_blocking: bool) {
                     params![new_blocking, 100, contact_id as i32],
                 ).is_ok() {
                     Contact::mark_noticed(context, contact_id);
-                    context.call_cb(
-                        Event::CONTACTS_CHANGED,
-                        0,
-                        0,
-                    );
+                    context.call_cb(Event::ContactsChanged(None));
                 }
             }
         }

@@ -2,14 +2,13 @@
 //!
 //! This module is only compiled for test runs.
 
-use std::ffi::CStr;
-
 use libc::uintptr_t;
 use tempfile::{tempdir, TempDir};
 
 use crate::config::Config;
-use crate::constants::{Event, KeyType};
+use crate::constants::KeyType;
 use crate::context::{Context, ContextCallback};
+use crate::events::Event;
 use crate::key;
 
 /// A Context and temporary directory.
@@ -32,7 +31,7 @@ pub fn test_context(callback: Option<Box<ContextCallback>>) -> TestContext {
     let dbfile = dir.path().join("db.sqlite");
     let cb: Box<ContextCallback> = match callback {
         Some(cb) => cb,
-        None => Box::new(|_, _, _, _| 0),
+        None => Box::new(|_, _| 0),
     };
     let ctx = Context::new(cb, "FakeOs".into(), dbfile).unwrap();
     TestContext { ctx: ctx, dir: dir }
@@ -47,12 +46,11 @@ pub fn dummy_context() -> TestContext {
     test_context(None)
 }
 
-pub fn logging_cb(_ctx: &Context, evt: Event, _d1: uintptr_t, d2: uintptr_t) -> uintptr_t {
-    let to_str = unsafe { |x| CStr::from_ptr(x as *const libc::c_char).to_str().unwrap() };
+pub fn logging_cb(_ctx: &Context, evt: Event) -> uintptr_t {
     match evt {
-        Event::INFO => println!("I: {}", to_str(d2)),
-        Event::WARNING => println!("W: {}", to_str(d2)),
-        Event::ERROR => println!("E: {}", to_str(d2)),
+        Event::Info(msg) => println!("I: {}", msg),
+        Event::Warning(msg) => println!("W: {}", msg),
+        Event::Error(msg) => println!("E: {}", msg),
         _ => (),
     }
     0

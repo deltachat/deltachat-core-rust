@@ -2,8 +2,6 @@ use std::ffi::CString;
 use std::path::{Path, PathBuf};
 use std::ptr;
 
-use libc::uintptr_t;
-
 use crate::chatlist::*;
 use crate::config::*;
 use crate::constants::*;
@@ -11,6 +9,7 @@ use crate::contact::*;
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::error::Error;
+use crate::events::Event;
 use crate::job::*;
 use crate::message::*;
 use crate::param::*;
@@ -259,11 +258,9 @@ impl Chat {
         if (self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup)
             && 0 == is_contact_in_chat(context, self.id, 1 as u32)
         {
-            log_event!(
+            emit_event!(
                 context,
-                Event::ERROR_SELF_NOT_IN_GROUP,
-                0,
-                "Cannot send message; self not in group.",
+                Event::ErrorSelfNotInGroup("Cannot send message; self not in group.".into())
             );
             return Ok(0);
         }
@@ -502,7 +499,10 @@ pub fn create_by_msg_id(context: &Context, msg_id: u32) -> Result<u32, Error> {
     }
 
     if send_event {
-        context.call_cb(Event::MSGS_CHANGED, 0, 0);
+        context.call_cb(Event::MsgsChanged {
+            chat_id: 0,
+            msg_id: 0,
+        });
     }
 
     ensure!(chat_id > 0, "failed to load create chat");
@@ -542,7 +542,10 @@ pub fn create_by_contact_id(context: &Context, contact_id: u32) -> Result<u32, E
         }
     };
 
-    context.call_cb(Event::MSGS_CHANGED, 0i32 as uintptr_t, 0i32 as uintptr_t);
+    context.call_cb(Event::MsgsChanged {
+        chat_id: 0,
+        msg_id: 0,
+    });
 
     Ok(chat_id)
 }
@@ -635,11 +638,10 @@ pub fn prepare_msg<'a>(
 
     msg.state = MessageState::OutPreparing;
     let msg_id = prepare_msg_common(context, chat_id, msg)?;
-    context.call_cb(
-        Event::MSGS_CHANGED,
-        msg.chat_id as uintptr_t,
-        msg.id as uintptr_t,
-    );
+    context.call_cb(Event::MsgsChanged {
+        chat_id: msg.chat_id,
+        msg_id: msg.id,
+    });
 
     Ok(msg_id)
 }
@@ -790,14 +792,13 @@ pub fn send_msg(context: &Context, chat_id: u32, msg: &mut Message) -> Result<u3
         "Failed to initiate send job"
     );
 
-    context.call_cb(
-        Event::MSGS_CHANGED,
-        msg.chat_id as uintptr_t,
-        msg.id as uintptr_t,
-    );
+    context.call_cb(Event::MsgsChanged {
+        chat_id: msg.chat_id,
+        msg_id: msg.id,
+    });
 
     if msg.param.exists(Param::SetLatitude) {
-        context.call_cb(Event::LOCATION_CHANGED, DC_CONTACT_ID_SELF as usize, 0);
+        context.call_cb(Event::LocationChanged(Some(DC_CONTACT_ID_SELF)));
     }
 
     if 0 == chat_id {
@@ -845,7 +846,7 @@ pub unsafe fn set_draft(context: &Context, chat_id: u32, msg: Option<&mut Messag
         return;
     }
     if set_draft_raw(context, chat_id, msg) {
-        context.call_cb(Event::MSGS_CHANGED, chat_id as uintptr_t, 0i32 as uintptr_t);
+        context.call_cb(Event::MsgsChanged { chat_id, msg_id: 0 });
     };
 }
 
@@ -1042,7 +1043,10 @@ pub fn marknoticed_chat(context: &Context, chat_id: u32) -> Result<(), Error> {
         params![chat_id as i32],
     )?;
 
-    context.call_cb(Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
+    context.call_cb(Event::MsgsChanged {
+        chat_id: 0,
+        msg_id: 0,
+    });
 
     Ok(())
 }
@@ -1064,7 +1068,10 @@ pub fn marknoticed_all_chats(context: &Context) -> Result<(), Error> {
         params![],
     )?;
 
-    context.call_cb(Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
+    context.call_cb(Event::MsgsChanged {
+        msg_id: 0,
+        chat_id: 0,
+    });
 
     Ok(())
 }
@@ -1169,7 +1176,10 @@ pub fn archive(context: &Context, chat_id: u32, archive: bool) -> Result<(), Err
         params![archive, chat_id as i32],
     )?;
 
-    context.call_cb(Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
+    context.call_cb(Event::MsgsChanged {
+        msg_id: 0,
+        chat_id: 0,
+    });
 
     Ok(())
 }
@@ -1211,7 +1221,10 @@ pub fn delete(context: &Context, chat_id: u32) -> Result<(), Error> {
         params![chat_id as i32],
     )?;
 
-    context.call_cb(Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
+    context.call_cb(Event::MsgsChanged {
+        msg_id: 0,
+        chat_id: 0,
+    });
 
     job_kill_action(context, Action::Housekeeping);
     job_add(context, Action::Housekeeping, 0, Params::new(), 10);
@@ -1279,7 +1292,10 @@ pub unsafe fn create_group_chat(
             set_draft_raw(context, chat_id, Some(&mut draft_msg));
         }
 
-        context.call_cb(Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
+        context.call_cb(Event::MsgsChanged {
+            msg_id: 0,
+            chat_id: 0,
+        });
     }
 
     Ok(chat_id)
@@ -1328,11 +1344,11 @@ pub fn add_contact_to_chat_ex(
             || !Contact::real_exists_by_id(context, contact_id) && contact_id != DC_CONTACT_ID_SELF)
         {
             if !(is_contact_in_chat(context, chat_id, 1 as u32) == 1) {
-                log_event!(
+                emit_event!(
                     context,
-                    Event::ERROR_SELF_NOT_IN_GROUP,
-                    0,
-                    "Cannot add contact to group; self not in group.",
+                    Event::ErrorSelfNotInGroup(
+                        "Cannot add contact to group; self not in group.".into()
+                    )
                 );
             } else {
                 /* we should respect this - whatever we send to the group, it gets discarded anyway! */
@@ -1385,13 +1401,12 @@ pub fn add_contact_to_chat_ex(
                             msg.param.set(Param::Arg, contact.get_addr());
                             msg.param.set_int(Param::Arg2, flags);
                             msg.id = send_msg(context, chat_id, &mut msg).unwrap_or_default();
-                            context.call_cb(
-                                Event::MSGS_CHANGED,
-                                chat_id as uintptr_t,
-                                msg.id as uintptr_t,
-                            );
+                            context.call_cb(Event::MsgsChanged {
+                                chat_id,
+                                msg_id: msg.id,
+                            });
                         }
-                        context.call_cb(Event::MSGS_CHANGED, chat_id as uintptr_t, 0 as uintptr_t);
+                        context.call_cb(Event::MsgsChanged { chat_id, msg_id: 0 });
                         success = true;
                     }
                 }
@@ -1474,11 +1489,11 @@ pub unsafe fn remove_contact_from_chat(
     if let Ok(chat) = Chat::load_from_db(context, chat_id) {
         if real_group_exists(context, chat_id) {
             if !(is_contact_in_chat(context, chat_id, 1 as u32) == 1) {
-                log_event!(
+                emit_event!(
                     context,
-                    Event::ERROR_SELF_NOT_IN_GROUP,
-                    0,
-                    "Cannot remove contact from chat; self not in group.",
+                    Event::ErrorSelfNotInGroup(
+                        "Cannot remove contact from chat; self not in group.".into()
+                    )
                 );
             } else {
                 /* we should respect this - whatever we send to the group, it gets discarded anyway! */
@@ -1504,11 +1519,10 @@ pub unsafe fn remove_contact_from_chat(
                         msg.param.set_int(Param::Cmd, 5);
                         msg.param.set(Param::Arg, contact.get_addr());
                         msg.id = send_msg(context, chat_id, &mut msg).unwrap_or_default();
-                        context.call_cb(
-                            Event::MSGS_CHANGED,
-                            chat_id as uintptr_t,
-                            msg.id as uintptr_t,
-                        );
+                        context.call_cb(Event::MsgsChanged {
+                            chat_id,
+                            msg_id: msg.id,
+                        });
                     }
                 }
                 if sql::execute(
@@ -1519,7 +1533,7 @@ pub unsafe fn remove_contact_from_chat(
                 )
                 .is_ok()
                 {
-                    context.call_cb(Event::CHAT_MODIFIED, chat_id as uintptr_t, 0 as uintptr_t);
+                    context.call_cb(Event::ChatModified(chat_id));
                     success = true;
                 }
             }
@@ -1571,11 +1585,9 @@ pub unsafe fn set_chat_name(
         if &chat.name == new_name.as_ref() {
             success = true;
         } else if !(is_contact_in_chat(context, chat_id, 1) == 1) {
-            log_event!(
+            emit_event!(
                 context,
-                Event::ERROR_SELF_NOT_IN_GROUP,
-                0,
-                "Cannot set chat name; self not in group",
+                Event::ErrorSelfNotInGroup("Cannot set chat name; self not in group".into())
             );
         } else {
             /* we should respect this - whatever we send to the group, it gets discarded anyway! */
@@ -1604,17 +1616,12 @@ pub unsafe fn set_chat_name(
                         msg.param.set(Param::Arg, &chat.name);
                     }
                     msg.id = send_msg(context, chat_id, &mut msg).unwrap_or_default();
-                    context.call_cb(
-                        Event::MSGS_CHANGED,
-                        chat_id as uintptr_t,
-                        msg.id as uintptr_t,
-                    );
+                    context.call_cb(Event::MsgsChanged {
+                        chat_id,
+                        msg_id: msg.id,
+                    });
                 }
-                context.call_cb(
-                    Event::CHAT_MODIFIED,
-                    chat_id as uintptr_t,
-                    0i32 as uintptr_t,
-                );
+                context.call_cb(Event::ChatModified(chat_id));
                 success = true;
             }
         }
@@ -1640,11 +1647,11 @@ pub fn set_chat_profile_image(
     if real_group_exists(context, chat_id) {
         /* we should respect this - whatever we send to the group, it gets discarded anyway! */
         if !(is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF) == 1i32) {
-            log_event!(
+            emit_event!(
                 context,
-                Event::ERROR_SELF_NOT_IN_GROUP,
-                0,
-                "Cannot set chat profile image; self not in group.",
+                Event::ErrorSelfNotInGroup(
+                    "Cannot set chat profile image; self not in group.".into()
+                )
             );
             bail!("Failed to set profile image");
         }
@@ -1677,9 +1684,15 @@ pub fn set_chat_profile_image(
                     DC_CONTACT_ID_SELF,
                 ));
                 msg.id = send_msg(context, chat_id, &mut msg).unwrap_or_default();
-                emit_event!(context, Event::MSGS_CHANGED, chat_id, msg.id);
+                emit_event!(
+                    context,
+                    Event::MsgsChanged {
+                        chat_id,
+                        msg_id: msg.id
+                    }
+                );
             }
-            emit_event!(context, Event::CHAT_MODIFIED, chat_id, 0);
+            emit_event!(context, Event::ChatModified(chat_id));
             return Ok(());
         }
     }
@@ -1773,11 +1786,10 @@ pub unsafe fn forward_msgs(
     }
 
     for i in (0..created_db_entries.len()).step_by(2) {
-        context.call_cb(
-            Event::MSGS_CHANGED,
-            created_db_entries[i] as uintptr_t,
-            created_db_entries[i + 1] as uintptr_t,
-        );
+        context.call_cb(Event::MsgsChanged {
+            chat_id: created_db_entries[i],
+            msg_id: created_db_entries[i + 1],
+        });
     }
 }
 
@@ -1858,11 +1870,7 @@ pub fn add_device_msg(context: &Context, chat_id: u32, text: impl AsRef<str>) {
         as_str(rfc724_mid),
     );
     unsafe { free(rfc724_mid as *mut libc::c_void) };
-    context.call_cb(
-        Event::MSGS_CHANGED,
-        chat_id as uintptr_t,
-        msg_id as uintptr_t,
-    );
+    context.call_cb(Event::MsgsChanged { chat_id, msg_id });
 }
 
 #[cfg(test)]

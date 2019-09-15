@@ -12,6 +12,7 @@ use crate::context::Context;
 use crate::dc_receive_imf::dc_receive_imf;
 use crate::dc_tools::CStringExt;
 use crate::dc_tools::*;
+use crate::events::Event;
 use crate::job::{job_add, Action};
 use crate::login_param::LoginParam;
 use crate::message::{dc_rfc724_mid_exists, dc_update_msg_move_state, dc_update_server_uid};
@@ -437,14 +438,15 @@ impl Imap {
                 let imap_server: &str = config.imap_server.as_ref();
                 let imap_port = config.imap_port;
 
-                log_event!(
+                emit_event!(
                     context,
-                    Event::ERROR_NETWORK,
-                    0,
-                    "Could not connect to IMAP-server {}:{}. ({})",
-                    imap_server,
-                    imap_port,
-                    err
+                    Event::ErrorNetwork(
+                        0,
+                        format!(
+                            "Could not connect to IMAP-server {}:{}. ({})",
+                            imap_server, imap_port, err
+                        )
+                    )
                 );
 
                 return false;
@@ -460,7 +462,10 @@ impl Imap {
                 true
             }
             Err((err, _)) => {
-                log_event!(context, Event::ERROR_NETWORK, 0, "Cannot login ({})", err);
+                emit_event!(
+                    context,
+                    Event::ErrorNetwork(0, format!("Cannot login ({})", err))
+                );
                 self.unsetup_handle(context);
 
                 false
@@ -553,13 +558,12 @@ impl Imap {
                         let caps_list = caps
                             .iter()
                             .fold(String::new(), |s, c| s + &format!(" {:?}", c));
-                        log_event!(
+                        emit_event!(
                             context,
-                            Event::IMAP_CONNECTED,
-                            0,
-                            "IMAP-LOGIN as {}, capabilities: {}",
-                            lp.mail_user,
-                            caps_list,
+                            Event::ImapConnected(format!(
+                                "IMAP-LOGIN as {}, capabilities: {}",
+                                lp.mail_user, caps_list,
+                            ))
                         );
                         (false, can_idle, has_xlist)
                     }
