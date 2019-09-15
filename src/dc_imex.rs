@@ -1005,20 +1005,17 @@ unsafe fn export_key_to_asc_file(
     let mut success = false;
     let file_name = {
         let kind = if key.is_public() { "public" } else { "private" };
-        let dir = as_str(dir);
-        if let Some(id) = id {
-            format!("{}/{}-key-{}.asc", dir, kind, id)
-        } else {
-            format!("{}/{}-key-default.asc", dir, kind)
-        }
+        let id = id.map_or("default".into(), |i| i.to_string());
+
+        as_path(dir).join(format!("{}-key-{}.asc", kind, &id))
     };
-    info!(context, "Exporting key {}", &file_name);
+    info!(context, "Exporting key {}", file_name.display());
     dc_delete_file(context, &file_name);
 
     if !key.write_asc_to_file(&file_name, context) {
-        error!(context, "Cannot write key to {}", file_name);
+        error!(context, "Cannot write key to {}", file_name.display());
     } else {
-        context.call_cb(Event::ImexFileWritten(file_name.into()));
+        context.call_cb(Event::ImexFileWritten(file_name));
         success = true;
     }
 
@@ -1083,5 +1080,26 @@ mod tests {
         assert_eq!(setupcode.chars().nth(29).unwrap(), '-');
         assert_eq!(setupcode.chars().nth(34).unwrap(), '-');
         assert_eq!(setupcode.chars().nth(39).unwrap(), '-');
+    }
+
+    #[test]
+    fn test_export_key_to_asc_file() {
+        unsafe {
+            let context = dummy_context();
+            let base64 = include_str!("../test-data/key/public.asc");
+            let key = Key::from_base64(base64, KeyType::Public).unwrap();
+            let blobdir = CString::yolo("$BLOBDIR");
+            assert!(export_key_to_asc_file(
+                &context.ctx,
+                blobdir.as_ptr(),
+                None,
+                &key
+            ));
+            let blobdir = context.ctx.get_blobdir().to_str().unwrap();
+            let filename = format!("{}/public-key-default.asc", blobdir);
+            let bytes = std::fs::read(&filename).unwrap();
+
+            assert_eq!(bytes, key.to_asc(None).into_bytes());
+        }
     }
 }
