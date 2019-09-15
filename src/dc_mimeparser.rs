@@ -1714,6 +1714,7 @@ pub unsafe fn mailimf_find_optional_field(
 mod tests {
     use super::*;
     use crate::test_utils::*;
+    use proptest::prelude::*;
     use std::ffi::CStr;
 
     #[test]
@@ -1796,6 +1797,14 @@ mod tests {
         let mimeparser = unsafe { dc_mimeparser_parse(&context.ctx, &raw[..]) };
         assert_eq!(mimeparser.subject, None);
         assert_eq!(mimeparser.parts.len(), 1);
+    }
+
+    proptest! {
+        #[test]
+        fn test_dc_mailmime_parse_crash_fuzzy(data in "[!-~\t ]{2000,}") {
+            let context = dummy_context();
+            unsafe { dc_mimeparser_parse(&context.ctx, data.as_bytes()) }
+        }
     }
 
     #[test]
