@@ -1,6 +1,5 @@
 extern crate deltachat;
 
-use std::ffi::CStr;
 use std::sync::{Arc, RwLock};
 use std::{thread, time};
 use tempfile::tempdir;
@@ -9,31 +8,32 @@ use deltachat::chat;
 use deltachat::chatlist::*;
 use deltachat::config;
 use deltachat::configure::*;
-use deltachat::constants::Event;
 use deltachat::contact::*;
 use deltachat::context::*;
 use deltachat::job::{
     perform_imap_fetch, perform_imap_idle, perform_imap_jobs, perform_smtp_idle, perform_smtp_jobs,
 };
+use deltachat::Event;
 
-fn cb(_ctx: &Context, event: Event, data1: usize, data2: usize) -> usize {
-    println!("[{:?}]", event);
+fn cb(_ctx: &Context, event: Event) -> usize {
+    print!("[{:?}]", event);
 
     match event {
-        Event::CONFIGURE_PROGRESS => {
-            println!("  progress: {}", data1);
+        Event::ConfigureProgress(progress) => {
+            print!("  progress: {}\n", progress);
             0
         }
-        Event::INFO | Event::WARNING | Event::ERROR | Event::ERROR_NETWORK => {
-            println!(
-                "  {}",
-                unsafe { CStr::from_ptr(data2 as *const _) }
-                    .to_str()
-                    .unwrap()
-            );
+        Event::Info(msg)
+        | Event::Warning(msg)
+        | Event::Error(msg)
+        | Event::ErrorNetwork(_, msg) => {
+            print!("  {}\n", msg);
             0
         }
-        _ => 0,
+        _ => {
+            print!("\n");
+            0
+        }
     }
 }
 

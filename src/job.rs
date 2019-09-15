@@ -3,7 +3,6 @@ use std::ptr;
 use std::time::Duration;
 
 use deltachat_derive::{FromSql, ToSql};
-use libc::uintptr_t;
 use mmime::clist::*;
 use rand::{thread_rng, Rng};
 
@@ -14,6 +13,7 @@ use crate::context::Context;
 use crate::dc_imex::*;
 use crate::dc_mimefactory::*;
 use crate::dc_tools::*;
+use crate::events::Event;
 use crate::imap::*;
 use crate::location;
 use crate::login_param::LoginParam;
@@ -189,11 +189,10 @@ impl Job {
                                     params![self.foreign_id as i32],
                                 )
                                 .unwrap_or_default();
-                            context.call_cb(
-                                Event::MSG_DELIVERED,
-                                chat_id as uintptr_t,
-                                self.foreign_id as uintptr_t,
-                            );
+                            context.call_cb(Event::MsgDelivered {
+                                chat_id: chat_id as u32,
+                                msg_id: self.foreign_id,
+                            });
                         }
                     }
                 } else {

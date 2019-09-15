@@ -7,7 +7,6 @@ use tempfile::{tempdir, TempDir};
 
 use deltachat::chat::{self, Chat};
 use deltachat::config;
-use deltachat::constants::*;
 use deltachat::contact::*;
 use deltachat::context::*;
 use deltachat::dc_imex::*;
@@ -16,6 +15,7 @@ use deltachat::keyring::*;
 use deltachat::oauth2::*;
 use deltachat::pgp::*;
 use deltachat::x::*;
+use deltachat::Event;
 use libc;
 
 /* some data used for testing
@@ -562,12 +562,7 @@ fn test_encryption_decryption() {
     assert_eq!(plain, original_text);
 }
 
-fn cb(
-    _context: &Context,
-    _event: Event,
-    _data1: libc::uintptr_t,
-    _data2: libc::uintptr_t,
-) -> libc::uintptr_t {
+fn cb(_context: &Context, _event: Event) -> libc::uintptr_t {
     0
 }
 

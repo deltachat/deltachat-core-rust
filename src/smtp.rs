@@ -1,9 +1,9 @@
 use lettre::smtp::client::net::*;
 use lettre::*;
 
-use crate::constants::Event;
 use crate::constants::*;
 use crate::context::Context;
+use crate::events::Event;
 use crate::login_param::LoginParam;
 use crate::oauth2::*;
 
@@ -52,7 +52,7 @@ impl Smtp {
         }
 
         if lp.send_server.is_empty() || lp.send_port == 0 {
-            log_event!(context, Event::ERROR_NETWORK, 0, "SMTP bad parameters.",);
+            context.call_cb(Event::ErrorNetwork(0, "SMTP bad parameters.".into()));
         }
 
         self.from = if let Ok(addr) = EmailAddress::new(lp.addr.clone()) {
@@ -111,13 +111,10 @@ impl Smtp {
                     .credentials(creds)
                     .connection_reuse(lettre::smtp::ConnectionReuseParameters::ReuseUnlimited);
                 self.transport = Some(client.transport());
-                log_event!(
-                    context,
-                    Event::SMTP_CONNECTED,
-                    0,
+                context.call_cb(Event::SmtpConnected(format!(
                     "SMTP-LOGIN as {} ok",
                     lp.send_user,
-                );
+                )));
                 true
             }
             Err(err) => {
@@ -143,12 +140,9 @@ impl Smtp {
 
             match transport.send(mail) {
                 Ok(_) => {
-                    log_event!(
-                        context,
-                        Event::SMTP_MESSAGE_SENT,
-                        0,
-                        "Message was sent to SMTP server",
-                    );
+                    context.call_cb(Event::SmtpMessageSent(
+                        "Message was sent to SMTP server".into(),
+                    ));
                     self.transport_connected = true;
                     1
                 }

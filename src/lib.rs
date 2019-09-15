@@ -26,6 +26,9 @@ mod log;
 #[macro_use]
 pub mod error;
 
+pub(crate) mod events;
+pub use events::*;
+
 mod aheader;
 pub mod chat;
 pub mod chatlist;

@@ -21,7 +21,7 @@ use deltachat::peerstate::*;
 use deltachat::qr::*;
 use deltachat::sql;
 use deltachat::x::*;
-use num_traits::FromPrimitive;
+use deltachat::Event;
 
 /// Reset database tables. This function is called from Core cmdline.
 /// Argument is a bitmask, executing single or multiple actions in one call.
@@ -86,7 +86,10 @@ pub unsafe fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
         info!(context, "(8) Rest but server config reset.");
     }
 
-    context.call_cb(Event::MSGS_CHANGED, 0, 0);
+    context.call_cb(Event::MsgsChanged {
+        chat_id: 0,
+        msg_id: 0,
+    });
 
     1
 }
@@ -198,11 +201,10 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
                 as_str(real_spec)
             );
             if read_cnt > 0 {
-                context.call_cb(
-                    Event::MSGS_CHANGED,
-                    0 as libc::uintptr_t,
-                    0 as libc::uintptr_t,
-                );
+                context.call_cb(Event::MsgsChanged {
+                    chat_id: 0,
+                    msg_id: 0,
+                });
             }
             success = 1
         }
@@ -1016,16 +1018,17 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 res.get_text2()
             );
         }
-        "event" => {
-            ensure!(!arg1.is_empty(), "Argument <id> missing.");
-            let event = arg1.parse()?;
-            let event = Event::from_u32(event).ok_or(format_err!("Event::from_u32({})", event))?;
-            let r = context.call_cb(event, 0 as libc::uintptr_t, 0 as libc::uintptr_t);
-            println!(
-                "Sending event {:?}({}), received value {}.",
-                event, event as usize, r as libc::c_int,
-            );
-        }
+        // TODO: implement this again, unclear how to match this through though, without writing a parser.
+        // "event" => {
+        //     ensure!(!arg1.is_empty(), "Argument <id> missing.");
+        //     let event = arg1.parse()?;
+        //     let event = Event::from_u32(event).ok_or(format_err!("Event::from_u32({})", event))?;
+        //     let r = context.call_cb(event, 0 as libc::uintptr_t, 0 as libc::uintptr_t);
+        //     println!(
+        //         "Sending event {:?}({}), received value {}.",
+        //         event, event as usize, r as libc::c_int,
+        //     );
+        // }
         "fileinfo" => {
             ensure!(!arg1.is_empty(), "Argument <file> missing.");
 
