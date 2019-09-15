@@ -1,4 +1,5 @@
 use std::ffi::CString;
+use std::path::Path;
 use std::ptr;
 
 use mmime::mailmime_content::*;
@@ -32,13 +33,13 @@ use crate::x::*;
 pub fn dc_imex(
     context: &Context,
     what: libc::c_int,
-    param1: *const libc::c_char,
+    param1: Option<impl AsRef<Path>>,
     param2: *const libc::c_char,
 ) {
     let mut param = Params::new();
     param.set_int(Param::Cmd, what as i32);
-    if !param1.is_null() {
-        param.set(Param::Arg, as_str(param1));
+    if let Some(param1) = param1 {
+        param.set(Param::Arg, param1.as_ref().to_string_lossy());
     }
     if !param2.is_null() {
         param.set(Param::Arg2, as_str(param2));
@@ -51,9 +52,9 @@ pub fn dc_imex(
 /// Returns the filename of the backup if found, nullptr otherwise.
 pub unsafe fn dc_imex_has_backup(
     context: &Context,
-    dir_name: *const libc::c_char,
+    dir_name: impl AsRef<Path>,
 ) -> *mut libc::c_char {
-    let dir_name = as_path(dir_name);
+    let dir_name = dir_name.as_ref();
     let dir_iter = std::fs::read_dir(dir_name);
     if dir_iter.is_err() {
         info!(
@@ -567,10 +568,7 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
         context,
         "Import \"{}\" to \"{}\".",
         as_str(backup_to_import),
-        context
-            .get_dbfile()
-            .as_ref()
-            .map_or("<<None>>", |p| p.to_str().unwrap())
+        context.get_dbfile().display()
     );
 
     if dc_is_configured(context) {
@@ -578,8 +576,8 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
         return false;
     }
     &context.sql.close(&context);
-    dc_delete_file(context, context.get_dbfile().unwrap());
-    if dc_file_exist(context, context.get_dbfile().unwrap()) {
+    dc_delete_file(context, context.get_dbfile());
+    if dc_file_exist(context, context.get_dbfile()) {
         error!(
             context,
             "Cannot import backups: Cannot delete the old file.",
@@ -587,19 +585,12 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
         return false;
     }
 
-    if !dc_copy_file(
-        context,
-        as_path(backup_to_import),
-        context.get_dbfile().unwrap(),
-    ) {
+    if !dc_copy_file(context, as_path(backup_to_import), context.get_dbfile()) {
         return false;
     }
     /* error already logged */
     /* re-open copied database file */
-    if !context
-        .sql
-        .open(&context, &context.get_dbfile().unwrap(), 0)
-    {
+    if !context.sql.open(&context, &context.get_dbfile(), 0) {
         return false;
     }
 
@@ -651,14 +642,14 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
                     continue;
                 }
 
-                let pathNfilename = format!("{}/{}", as_str(context.get_blobdir()), file_name);
+                let pathNfilename = context.get_blobdir().join(file_name);
                 if dc_write_file_safe(context, &pathNfilename, &file_blob) {
                     continue;
                 }
                 error!(
                     context,
                     "Storage full? Cannot write file {} with {} bytes.",
-                    &pathNfilename,
+                    pathNfilename.display(),
                     file_blob.len(),
                 );
                 // otherwise the user may believe the stuff is imported correctly, but there are files missing ...
@@ -715,20 +706,11 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> bool {
     info!(
         context,
         "Backup \"{}\" to \"{}\".",
-        context
-            .get_dbfile()
-            .as_ref()
-            .map_or("<<None>>", |p| p.to_str().unwrap()),
+        context.get_dbfile().display(),
         as_str(dest_pathNfilename),
     );
-    if dc_copy_file(
-        context,
-        context.get_dbfile().unwrap(),
-        as_path(dest_pathNfilename),
-    ) {
-        context
-            .sql
-            .open(&context, &context.get_dbfile().unwrap(), 0);
+    if dc_copy_file(context, context.get_dbfile(), as_path(dest_pathNfilename)) {
+        context.sql.open(&context, &context.get_dbfile(), 0);
         closed = false;
         /* add all files as blobs to the database copy (this does not require the source to be locked, neigher the destination as it is used only here) */
         /*for logging only*/
@@ -753,14 +735,14 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> bool {
             }
             if ok_to_continue {
                 let mut total_files_cnt = 0;
-                let dir = std::path::Path::new(as_str(context.get_blobdir()));
-                if let Ok(dir_handle) = std::fs::read_dir(dir) {
+                let dir = context.get_blobdir();
+                if let Ok(dir_handle) = std::fs::read_dir(&dir) {
                     total_files_cnt += dir_handle.filter(|r| r.is_ok()).count();
 
                     info!(context, "EXPORT: total_files_cnt={}", total_files_cnt);
                     if total_files_cnt > 0 {
                         // scan directory, pass 2: copy files
-                        if let Ok(dir_handle) = std::fs::read_dir(dir) {
+                        if let Ok(dir_handle) = std::fs::read_dir(&dir) {
                             sql.prepare(
                                     "INSERT INTO backup_blobs (file_name, file_content) VALUES (?, ?);",
                                     move |mut stmt, _| {
@@ -804,12 +786,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> bool {
                                                     continue;
                                                 } else {
                                                     info!(context, "EXPORTing filename={}", name);
-                                                    let curr_pathNfilename = format!(
-                                                        "{}/{}",
-                                                        as_str(context.get_blobdir()),
-                                                        name
-                                                    );
-
+                                                    let curr_pathNfilename = context.get_blobdir().join(entry.file_name());
                                                     if let Some(buf) =
                                                         dc_read_file_safe(context, &curr_pathNfilename)
                                                     {
@@ -820,7 +797,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> bool {
                                                             error!(
                                                                 context,
                                                                 "Disk full? Cannot add file \"{}\" to backup.",
-                                                                &curr_pathNfilename,
+                                                                curr_pathNfilename.display(),
                                                             );
                                                             /* this is not recoverable! writing to the sqlite database should work! */
                                                             ok_to_continue = false;
@@ -839,7 +816,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> bool {
                             error!(
                                 context,
                                 "Backup: Cannot copy from blob-directory \"{}\".",
-                                as_str(context.get_blobdir()),
+                                context.get_blobdir().display(),
                             );
                         }
                     } else {
@@ -863,16 +840,14 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> bool {
                     error!(
                         context,
                         "Backup: Cannot get info for blob-directory \"{}\".",
-                        as_str(context.get_blobdir())
+                        context.get_blobdir().display(),
                     );
                 };
             }
         }
     }
     if closed {
-        context
-            .sql
-            .open(&context, &context.get_dbfile().unwrap(), 0);
+        context.sql.open(&context, &context.get_dbfile(), 0);
     }
     if 0 != delete_dest_file {
         dc_delete_file(context, as_path(dest_pathNfilename));

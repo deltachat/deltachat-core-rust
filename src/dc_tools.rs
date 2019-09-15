@@ -798,11 +798,7 @@ pub fn dc_get_abs_path<P: AsRef<std::path::Path>>(
 ) -> std::path::PathBuf {
     let p: &std::path::Path = path.as_ref();
     if let Ok(p) = p.strip_prefix("$BLOBDIR") {
-        assert!(
-            context.has_blobdir(),
-            "Expected context to have blobdir to substitute $BLOBDIR",
-        );
-        std::path::PathBuf::from(as_str(context.get_blobdir())).join(p)
+        context.get_blobdir().join(p)
     } else {
         p.into()
     }
@@ -1001,13 +997,22 @@ pub unsafe fn dc_get_fine_pathNfilename(
 }
 
 pub fn dc_is_blobdir_path(context: &Context, path: impl AsRef<str>) -> bool {
-    path.as_ref().starts_with(as_str(context.get_blobdir()))
+    context
+        .get_blobdir()
+        .to_str()
+        .map(|s| path.as_ref().starts_with(s))
+        .unwrap_or_default()
         || path.as_ref().starts_with("$BLOBDIR")
 }
 
 fn dc_make_rel_path(context: &Context, path: &mut String) {
-    if path.starts_with(as_str(context.get_blobdir())) {
-        *path = path.replace("$BLOBDIR", as_str(context.get_blobdir()));
+    if context
+        .get_blobdir()
+        .to_str()
+        .map(|s| path.starts_with(s))
+        .unwrap_or_default()
+    {
+        *path = path.replace("$BLOBDIR", context.get_blobdir().to_str().unwrap());
     }
 }
 
