@@ -1788,6 +1788,16 @@ mod tests {
             mailmime_free(mime);
         }
     }
+
+    #[test]
+    fn test_dc_mimeparser_crash() {
+        let context = dummy_context();
+        let raw = include_bytes!("../test-data/message/issue_523.txt");
+        let mimeparser = unsafe { dc_mimeparser_parse(&context.ctx, &raw[..]) };
+        assert_eq!(mimeparser.subject, None);
+        assert_eq!(mimeparser.parts.len(), 1);
+    }
+
     #[test]
     fn test_dc_mimeparser_with_context() {
         unsafe {
