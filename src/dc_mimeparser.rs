@@ -111,6 +111,7 @@ impl<'a> MimeParser<'a> {
             if self.lookup_optional_field("Chat-Version").is_some() {
                 self.is_send_by_messenger = true
             }
+
             if self.lookup_field("Autocrypt-Setup-Message").is_some() {
                 let has_setup_file = self
                     .parts
@@ -326,14 +327,12 @@ impl<'a> MimeParser<'a> {
     }
 
     pub fn lookup_optional_field(&self, field_name: &str) -> Option<String> {
-        if let Some(field) = self.lookup_field(field_name) {
-            if unsafe { (*field).fld_type } == MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int {
-                let val = unsafe { (*field).fld_data.fld_optional_field };
-                if val.is_null() {
-                    return None;
-                } else {
-                    return Some(unsafe { to_string_lossy((*val).fld_value) });
-                }
+        if let Some(field) = self.lookup_field_typ(field_name, MAILIMF_FIELD_OPTIONAL_FIELD) {
+            let val = unsafe { (*field).fld_data.fld_optional_field };
+            if val.is_null() {
+                return None;
+            } else {
+                return Some(unsafe { to_string_lossy((*val).fld_value) });
             }
         }
 
@@ -1063,22 +1062,28 @@ unsafe fn hash_header(out: &mut HashMap<String, *mut mailimf_field>, in_0: *cons
         let field = cur as *mut mailimf_field;
         // TODO match on enums /rtn
 
-        let key = match (*field).fld_type {
-            1 => Some("Return-Path".to_string()),
-            9 => Some("Date".to_string()),
-            10 => Some("From".to_string()),
-            11 => Some("Sender".to_string()),
-            12 => Some("Reply-To".to_string()),
-            13 => Some("To".to_string()),
-            14 => Some("Cc".to_string()),
-            15 => Some("Bcc".to_string()),
-            16 => Some("Message-ID".to_string()),
-            17 => Some("In-Reply-To".to_string()),
-            18 => Some("References".to_string()),
-            19 => Some("Subject".to_string()),
-            22 => {
+        let key = match (*field).fld_type as libc::c_uint {
+            MAILIMF_FIELD_RETURN_PATH => Some("Return-Path".to_string()),
+            MAILIMF_FIELD_ORIG_DATE => Some("Date".to_string()),
+            MAILIMF_FIELD_FROM => Some("From".to_string()),
+            MAILIMF_FIELD_SENDER => Some("Sender".to_string()),
+            MAILIMF_FIELD_REPLY_TO => Some("Reply-To".to_string()),
+            MAILIMF_FIELD_TO => Some("To".to_string()),
+            MAILIMF_FIELD_CC => Some("Cc".to_string()),
+            MAILIMF_FIELD_BCC => Some("Bcc".to_string()),
+            MAILIMF_FIELD_MESSAGE_ID => Some("Message-ID".to_string()),
+            MAILIMF_FIELD_IN_REPLY_TO => Some("In-Reply-To".to_string()),
+            MAILIMF_FIELD_REFERENCES => Some("References".to_string()),
+            MAILIMF_FIELD_SUBJECT => Some("Subject".to_string()),
+            MAILIMF_FIELD_OPTIONAL_FIELD => {
                 // MAILIMF_FIELD_OPTIONAL_FIELD
                 let optional_field = (*field).fld_data.fld_optional_field;
+                // XXX the optional field sometimes contains invalid UTF8
+                // which should not happen (according to the mime standard).
+                // This might point to a bug in our mime parsing/processing
+                // logic. As mmime/dc_mimeparser is scheduled fore replacement
+                // anyway we just use a lossy conversion.
+
                 if !optional_field.is_null() {
                     Some(to_string_lossy((*optional_field).fld_name))
                 } else {
@@ -1088,12 +1093,6 @@ unsafe fn hash_header(out: &mut HashMap<String, *mut mailimf_field>, in_0: *cons
             _ => None,
         };
         if let Some(key) = key {
-            // XXX the optional field sometimes contains invalid UTF8
-            // which should not happen (according to the mime standard).
-            // This might point to a bug in our mime parsing/processing
-            // logic. As mmime/dc_mimeparser is scheduled fore replacement
-            // anyway we just use a lossy conversion.
-
             if !out.contains_key(&key) || // key already exists, only overwrite known types (protected headers)
                 (*field).fld_type != MAILIMF_FIELD_OPTIONAL_FIELD as i32 || key.starts_with("Chat-")
             {
