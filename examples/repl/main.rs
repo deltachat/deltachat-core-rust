@@ -65,11 +65,8 @@ fn receive_event(_context: &Context, event: Event) -> libc::uintptr_t {
         Event::Error(msg) => {
             println!("\x1b[31m[DC_EVENT_ERROR] {}\x1b[0m", msg);
         }
-        Event::ErrorNetwork(c, msg) => {
-            println!(
-                "\x1b[31m[DC_EVENT_ERROR_NETWORK] first={}, msg={}\x1b[0m",
-                c, msg
-            );
+        Event::ErrorNetwork(msg) => {
+            println!("\x1b[31m[DC_EVENT_ERROR_NETWORK] msg={}\x1b[0m", msg);
         }
         Event::ErrorSelfNotInGroup(msg) => {
             println!("\x1b[31m[DC_EVENT_ERROR_SELF_NOT_IN_GROUP] {}\x1b[0m", msg);

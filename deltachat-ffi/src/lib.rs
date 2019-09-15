@@ -22,7 +22,6 @@ use std::sync::RwLock;
 use libc::uintptr_t;
 use num_traits::{FromPrimitive, ToPrimitive};
 
-use deltachat::constants::Event;
 use deltachat::contact::Contact;
 use deltachat::context::Context;
 use deltachat::dc_tools::{as_path, as_str, dc_strdup, to_string, OsStrExt, StrExt};
@@ -66,7 +65,7 @@ unsafe impl Sync for ContextWrapper {}
 /// @param data2 depends on the event parameter
 /// @return return 0 unless stated otherwise in the event parameter documentation
 pub type dc_callback_t =
-    unsafe extern "C" fn(_: &dc_context_t, _: Event, _: uintptr_t, _: uintptr_t) -> uintptr_t;
+    unsafe extern "C" fn(_: &dc_context_t, _: i32, _: uintptr_t, _: uintptr_t) -> uintptr_t;
 
 /// Struct representing the deltachat context.
 ///
@@ -81,12 +80,8 @@ impl ContextWrapper {
     /// called and an actual [Context] exists.
     ///
     /// This function makes it easy to log an error.
-    fn error(&self, msg: &str) {
-        if let Some(cb) = self.cb {
-            let msg_c =
-                CString::new(msg).unwrap_or(CString::new("[invalid error message]").unwrap());
-            unsafe { cb(self, Event::ERROR, 0, msg_c.as_ptr() as libc::uintptr_t) };
-        }
+    unsafe fn error(&self, msg: &str) {
+        self.translate_cb(Event::Error(msg.to_string()));
     }
 
     /// Unlock the context and execute a closure with it.
@@ -112,9 +107,70 @@ impl ContextWrapper {
         match guard.as_ref() {
             Some(ref ctx) => Ok(ctxfn(ctx)),
             None => {
-                self.error("context not open");
+                unsafe { self.error("context not open") };
                 Err(())
             }
+        }
+    }
+
+    /// Translates the callback from the rust style to the C-style version.
+    unsafe fn translate_cb(&self, event: Event) -> uintptr_t {
+        match self.cb {
+            Some(ffi_cb) => {
+                let event_id = event.as_id();
+                match event {
+                    Event::Info(msg)
+                    | Event::SmtpConnected(msg)
+                    | Event::ImapConnected(msg)
+                    | Event::SmtpMessageSent(msg)
+                    | Event::Warning(msg)
+                    | Event::Error(msg)
+                    | Event::ErrorNetwork(msg)
+                    | Event::ErrorSelfNotInGroup(msg) => {
+                        let data2 = CString::new(msg).unwrap();
+                        ffi_cb(self, event_id, 0, data2.as_ptr() as uintptr_t)
+                    }
+                    Event::MsgsChanged { chat_id, msg_id }
+                    | Event::IncomingMsg { chat_id, msg_id }
+                    | Event::MsgDelivered { chat_id, msg_id }
+                    | Event::MsgFailed { chat_id, msg_id }
+                    | Event::MsgRead { chat_id, msg_id } => {
+                        ffi_cb(self, event_id, chat_id as uintptr_t, msg_id as uintptr_t)
+                    }
+                    Event::ChatModified(chat_id) => ffi_cb(self, event_id, chat_id as uintptr_t, 0),
+                    Event::ContactsChanged(id) | Event::LocationChanged(id) => {
+                        let id = id.unwrap_or_default();
+                        ffi_cb(self, event_id, id as uintptr_t, 0)
+                    }
+                    Event::ConfigureProgress(progress) | Event::ImexProgress(progress) => {
+                        ffi_cb(self, event_id, progress as uintptr_t, 0)
+                    }
+                    Event::ImexFileWritten(file) => {
+                        let data1 = file.to_c_string().unwrap();
+                        ffi_cb(self, event_id, data1.as_ptr() as uintptr_t, 0)
+                    }
+                    Event::SecurejoinInviterProgress {
+                        contact_id,
+                        progress,
+                    }
+                    | Event::SecurejoinJoinerProgress {
+                        contact_id,
+                        progress,
+                    } => ffi_cb(
+                        self,
+                        event_id,
+                        contact_id as uintptr_t,
+                        progress as uintptr_t,
+                    ),
+                    Event::GetString { id, count } => ffi_cb(
+                        self,
+                        event_id,
+                        id.to_u32().unwrap_or_default() as uintptr_t,
+                        count as uintptr_t,
+                    ),
+                }
+            }
+            None => 0,
         }
     }
 }
@@ -175,13 +231,8 @@ pub unsafe extern "C" fn dc_open(
         return 0;
     }
     let ffi_context = &*context;
+    let rust_cb = move |_ctx: &Context, evt: Event| ffi_context.translate_cb(evt);
 
-    let rust_cb =
-        move |_ctx: &Context, evt: Event, d0: uintptr_t, d1: uintptr_t| match ffi_context.cb {
-            Some(ffi_cb) => ffi_cb(ffi_context, evt, d0, d1),
-            None => 0,
-        };
-    let ffi_context = &mut *context;
     let ctx = if blobdir.is_null() {
         Context::new(
             Box::new(rust_cb),

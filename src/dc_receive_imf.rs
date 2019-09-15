@@ -102,15 +102,15 @@ pub unsafe fn dc_receive_imf(
         free(rfc724_mid.cast());
 
         if let Some(create_event_to_send) = create_event_to_send {
-            for (msg_id, insert_id) in created_db_entries {
+            for (chat_id, msg_id) in created_db_entries {
                 let event = match create_event_to_send {
                     CreateEvent::MsgsChanged => Event::MsgsChanged {
                         msg_id: *msg_id as u32,
-                        chat_id: *insert_id as u32,
+                        chat_id: *chat_id as u32,
                     },
                     CreateEvent::IncomingMsg => Event::IncomingMsg {
                         msg_id: *msg_id as u32,
-                        chat_id: *insert_id as u32,
+                        chat_id: *chat_id as u32,
                     },
                 };
                 context.call_cb(event);

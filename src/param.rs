@@ -94,7 +94,7 @@ impl fmt::Display for Params {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (i, (key, value)) in self.inner.iter().enumerate() {
             if i > 0 {
-                write!(f, "\n")?;
+                writeln!(f)?;
             }
             write!(f, "{}={}", *key as u8 as char, value)?;
         }

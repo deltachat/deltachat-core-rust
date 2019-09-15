@@ -81,12 +81,9 @@ pub enum Event {
     /// it is probably more useful to report this to the user
     /// instead of the string from data2.
     ///
-    /// @param data1 (usize) 1=first/new network error, should be reported the user;
-    ///     0=subsequent network error, should be logged only
-    /// @param data2 (String) string
     /// @return 0
     #[strum(props(id = "401"))]
-    ErrorNetwork(usize, String),
+    ErrorNetwork(String),
 
     /// An action cannot be performed because the user is not in the group.
     /// Reported eg. after a call to

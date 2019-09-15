@@ -52,7 +52,7 @@ impl Smtp {
         }
 
         if lp.send_server.is_empty() || lp.send_port == 0 {
-            context.call_cb(Event::ErrorNetwork(0, "SMTP bad parameters.".into()));
+            context.call_cb(Event::ErrorNetwork("SMTP bad parameters.".into()));
         }
 
         self.from = if let Ok(addr) = EmailAddress::new(lp.addr.clone()) {
