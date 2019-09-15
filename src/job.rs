@@ -998,38 +998,23 @@ fn send_mdn(context: &Context, msg_id: u32) {
 
 #[allow(non_snake_case)]
 fn add_smtp_job(context: &Context, action: Action, mimefactory: &dc_mimefactory_t) -> libc::c_int {
-    let pathNfilename: *mut libc::c_char;
     let mut success: libc::c_int = 0i32;
     let mut recipients: *mut libc::c_char = ptr::null_mut();
     let mut param = Params::new();
-    pathNfilename = unsafe {
-        dc_get_fine_pathNfilename(
-            context,
-            b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
-            mimefactory.rfc724_mid,
+    let path_filename =
+        dc_get_fine_path_filename(context, "$BLOBDIR", as_str(mimefactory.rfc724_mid));
+    let bytes = unsafe {
+        std::slice::from_raw_parts(
+            (*mimefactory.out).str_0 as *const u8,
+            (*mimefactory.out).len,
         )
     };
-    if pathNfilename.is_null() {
-        error!(
-            context,
-            "Could not find free file name for message with ID <{}>.",
-            to_string(mimefactory.rfc724_mid),
-        );
-    } else if 0
-        == unsafe {
-            dc_write_file(
-                context,
-                pathNfilename,
-                (*mimefactory.out).str_0 as *const libc::c_void,
-                (*mimefactory.out).len,
-            )
-        }
-    {
+    if !dc_write_file(context, &path_filename, bytes) {
         error!(
             context,
             "Could not write message <{}> to \"{}\".",
             to_string(mimefactory.rfc724_mid),
-            as_str(pathNfilename),
+            path_filename.display(),
         );
     } else {
         recipients = unsafe {
@@ -1038,7 +1023,7 @@ fn add_smtp_job(context: &Context, action: Action, mimefactory: &dc_mimefactory_
                 b"\x1e\x00" as *const u8 as *const libc::c_char,
             )
         };
-        param.set(Param::File, as_str(pathNfilename));
+        param.set(Param::File, path_filename.to_string_lossy());
         param.set(Param::Recipients, as_str(recipients));
         job_add(
             context,
@@ -1057,7 +1042,6 @@ fn add_smtp_job(context: &Context, action: Action, mimefactory: &dc_mimefactory_
     }
     unsafe {
         free(recipients.cast());
-        free(pathNfilename.cast());
     }
     success
 }

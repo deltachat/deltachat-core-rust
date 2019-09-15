@@ -101,7 +101,6 @@ pub unsafe fn dc_imex_has_backup(
 }
 
 pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
-    let mut setup_file_name: *mut libc::c_char = ptr::null_mut();
     let mut msg: Message;
     if !dc_alloc_ongoing(context) {
         return std::ptr::null_mut();
@@ -115,8 +114,7 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
         .unwrap()
         .shall_stop_ongoing
     {
-        if let Ok(setup_file_content) = dc_render_setup_file(context, &setup_code) {
-            let setup_file_content_c = CString::yolo(setup_file_content.as_str());
+        if let Ok(ref setup_file_content) = dc_render_setup_file(context, &setup_code) {
             /* encrypting may also take a while ... */
             if !context
                 .running_state
@@ -125,23 +123,14 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
                 .unwrap()
                 .shall_stop_ongoing
             {
-                setup_file_name = dc_get_fine_pathNfilename(
-                    context,
-                    b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
-                    b"autocrypt-setup-message.html\x00" as *const u8 as *const libc::c_char,
-                );
-                if !(setup_file_name.is_null()
-                    || 0 == dc_write_file(
-                        context,
-                        setup_file_name,
-                        setup_file_content_c.as_ptr() as *const libc::c_void,
-                        setup_file_content_c.as_bytes().len(),
-                    ))
-                {
+                let setup_file_name =
+                    dc_get_fine_path_filename(context, "$BLOBDIR", "autocrypt-setup-message.html");
+                if dc_write_file(context, &setup_file_name, setup_file_content.as_bytes()) {
                     if let Ok(chat_id) = chat::create_by_contact_id(context, 1) {
                         msg = dc_msg_new_untyped();
                         msg.type_0 = Viewtype::File;
-                        msg.param.set(Param::File, as_str(setup_file_name));
+                        msg.param
+                            .set(Param::File, setup_file_name.to_string_lossy());
 
                         msg.param
                             .set(Param::MimeType, "application/autocrypt-setup");
@@ -182,7 +171,6 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
             }
         }
     }
-    free(setup_file_name as *mut libc::c_void);
     dc_free_ongoing(context);
 
     setup_code.strdup()
@@ -640,7 +628,7 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
                 }
 
                 let pathNfilename = context.get_blobdir().join(file_name);
-                if dc_write_file_safe(context, &pathNfilename, &file_blob) {
+                if dc_write_file(context, &pathNfilename, &file_blob) {
                     continue;
                 }
                 error!(
@@ -687,13 +675,8 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> bool {
     let res = chrono::NaiveDateTime::from_timestamp(now as i64, 0)
         .format("delta-chat-%Y-%m-%d.bak")
         .to_string();
-    let buffer = CString::yolo(res);
-    let dest_pathNfilename = dc_get_fine_pathNfilename(context, dir, buffer.as_ptr());
-    if dest_pathNfilename.is_null() {
-        error!(context, "Cannot get backup file name.",);
 
-        return success;
-    }
+    let dest_path_filename = dc_get_fine_path_filename(context, as_path(dir), res);
 
     sql::housekeeping(context);
 
@@ -704,15 +687,15 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> bool {
         context,
         "Backup \"{}\" to \"{}\".",
         context.get_dbfile().display(),
-        as_str(dest_pathNfilename),
+        dest_path_filename.display(),
     );
-    if dc_copy_file(context, context.get_dbfile(), as_path(dest_pathNfilename)) {
+    if dc_copy_file(context, context.get_dbfile(), &dest_path_filename) {
         context.sql.open(&context, &context.get_dbfile(), 0);
         closed = false;
         /* add all files as blobs to the database copy (this does not require the source to be locked, neigher the destination as it is used only here) */
         /*for logging only*/
         let sql = Sql::new();
-        if sql.open(context, as_path(dest_pathNfilename), 0) {
+        if sql.open(context, &dest_path_filename, 0) {
             if !sql.table_exists("backup_blobs") {
                 if sql::execute(
                     context,
@@ -821,9 +804,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> bool {
                             .set_config_int(context, "backup_time", now as i32)
                             .is_ok()
                         {
-                            context.call_cb(Event::ImexFileWritten(
-                                as_path(dest_pathNfilename).to_path_buf(),
-                            ));
+                            context.call_cb(Event::ImexFileWritten(&dest_path_filename));
                             success = true;
                         }
                     }
@@ -841,9 +822,8 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> bool {
         context.sql.open(&context, &context.get_dbfile(), 0);
     }
     if 0 != delete_dest_file {
-        dc_delete_file(context, as_path(dest_pathNfilename));
+        dc_delete_file(context, &dest_path_filename);
     }
-    free(dest_pathNfilename as *mut libc::c_void);
 
     success
 }

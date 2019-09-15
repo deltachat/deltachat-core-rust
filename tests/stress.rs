@@ -1,6 +1,7 @@
 //! Stress some functions for testing; if used as a lib, this file is obsolete.
 
 use std::collections::HashSet;
+use std::path::PathBuf;
 use std::ptr;
 
 use tempfile::{tempdir, TempDir};
@@ -39,15 +40,10 @@ unsafe fn stress_functions(context: &Context) {
         dc_delete_file(context, "$BLOBDIR/foobar.dadada");
         dc_delete_file(context, "$BLOBDIR/foobar-folder");
     }
-    dc_write_file(
-        context,
-        b"$BLOBDIR/foobar\x00" as *const u8 as *const libc::c_char,
-        b"content\x00" as *const u8 as *const libc::c_char as *const libc::c_void,
-        7,
-    );
+    assert!(dc_write_file(context, "$BLOBDIR/foobar", b"content"));
     assert!(dc_file_exist(context, "$BLOBDIR/foobar",));
     assert!(!dc_file_exist(context, "$BLOBDIR/foobarx"));
-    assert_eq!(dc_get_filebytes(context, "$BLOBDIR/foobar",), 7);
+    assert_eq!(dc_get_filebytes(context, "$BLOBDIR/foobar"), 7);
 
     let abs_path = context
         .get_blobdir()
@@ -87,41 +83,14 @@ unsafe fn stress_functions(context: &Context) {
     assert!(dc_create_folder(context, "$BLOBDIR/foobar-folder"));
     assert!(dc_file_exist(context, "$BLOBDIR/foobar-folder",));
     assert!(!dc_delete_file(context, "$BLOBDIR/foobar-folder"));
-    let fn0: *mut libc::c_char = dc_get_fine_pathNfilename(
-        context,
-        b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
-        b"foobar.dadada\x00" as *const u8 as *const libc::c_char,
-    );
-    assert!(!fn0.is_null());
-    assert_eq!(
-        strcmp(
-            fn0,
-            b"$BLOBDIR/foobar.dadada\x00" as *const u8 as *const libc::c_char,
-        ),
-        0
-    );
-    dc_write_file(
-        context,
-        fn0,
-        b"content\x00" as *const u8 as *const libc::c_char as *const libc::c_void,
-        7,
-    );
-    let fn1: *mut libc::c_char = dc_get_fine_pathNfilename(
-        context,
-        b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
-        b"foobar.dadada\x00" as *const u8 as *const libc::c_char,
-    );
-    assert!(!fn1.is_null());
-    assert_eq!(
-        strcmp(
-            fn1,
-            b"$BLOBDIR/foobar-1.dadada\x00" as *const u8 as *const libc::c_char,
-        ),
-        0
-    );
-    assert!(dc_delete_file(context, as_path(fn0)));
-    free(fn0 as *mut libc::c_void);
-    free(fn1 as *mut libc::c_void);
+    let fn0 = dc_get_fine_path_filename(context, "$BLOBDIR", "foobar.dadada");
+    assert_eq!(fn0, PathBuf::from("$BLOBDIR/foobar.dadada"));
+
+    assert!(dc_write_file(context, &fn0, b"content"));
+    let fn1 = dc_get_fine_path_filename(context, "$BLOBDIR", "foobar.dadada");
+    assert_eq!(fn1, PathBuf::from("$BLOBDIR/foobar-1.dadada"));
+
+    assert!(dc_delete_file(context, &fn0));
 
     let res = context.get_config(config::Config::SysConfigKeys).unwrap();
 

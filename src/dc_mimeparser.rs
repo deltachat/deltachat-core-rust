@@ -1301,44 +1301,30 @@ unsafe fn do_add_single_file_part(
     decoded_data_bytes: libc::size_t,
     desired_filename: *const libc::c_char,
 ) {
-    let pathNfilename: *mut libc::c_char;
-    /* create a free file name to use */
-    pathNfilename = dc_get_fine_pathNfilename(
-        (*parser).context,
-        b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
-        desired_filename,
-    );
-    if !pathNfilename.is_null() {
-        /* copy data to file */
-        if !(dc_write_file(
-            (*parser).context,
-            pathNfilename,
-            decoded_data as *const libc::c_void,
-            decoded_data_bytes,
-        ) == 0i32)
-        {
-            let mut part = dc_mimepart_new();
-            part.type_0 = msg_type;
-            part.int_mimetype = mime_type;
-            part.bytes = decoded_data_bytes as libc::c_int;
-            part.param.set(Param::File, as_str(pathNfilename));
-            part.param.set(Param::MimeType, raw_mime);
-            if mime_type == 80 {
-                assert!(!decoded_data.is_null(), "invalid image data");
-                let data = std::slice::from_raw_parts(
-                    decoded_data as *const u8,
-                    decoded_data_bytes as usize,
-                );
+    let path_filename =
+        dc_get_fine_path_filename((*parser).context, "$BLOBDIR", as_str(desired_filename));
+    let bytes = std::slice::from_raw_parts(decoded_data as *const u8, decoded_data_bytes);
 
-                if let Ok((width, height)) = dc_get_filemeta(data) {
-                    part.param.set_int(Param::Width, width as i32);
-                    part.param.set_int(Param::Height, height as i32);
-                }
+    /* copy data to file */
+    if dc_write_file((*parser).context, &path_filename, bytes) {
+        let mut part = dc_mimepart_new();
+        part.type_0 = msg_type;
+        part.int_mimetype = mime_type;
+        part.bytes = decoded_data_bytes as libc::c_int;
+        part.param.set(Param::File, path_filename.to_string_lossy());
+        part.param.set(Param::MimeType, raw_mime);
+        if mime_type == 80 {
+            assert!(!decoded_data.is_null(), "invalid image data");
+            let data =
+                std::slice::from_raw_parts(decoded_data as *const u8, decoded_data_bytes as usize);
+
+            if let Ok((width, height)) = dc_get_filemeta(data) {
+                part.param.set_int(Param::Width, width as i32);
+                part.param.set_int(Param::Height, height as i32);
             }
-            do_add_single_part(parser, part);
         }
+        do_add_single_part(parser, part);
     }
-    free(pathNfilename as *mut libc::c_void);
 }
 
 unsafe fn do_add_single_part(parser: &mut dc_mimeparser_t, mut part: dc_mimepart_t) {
