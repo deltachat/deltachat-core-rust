@@ -36,8 +36,8 @@ pub type ContextCallback = dyn Fn(&Context, Event, uintptr_t, uintptr_t) -> uint
 
 #[derive(DebugStub)]
 pub struct Context {
-    pub(crate) dbfile: PathBuf,
-    pub(crate) blobdir: PathBuf,
+    dbfile: PathBuf,
+    blobdir: PathBuf,
     pub sql: Sql,
     pub inbox: Arc<RwLock<Imap>>,
     pub perform_inbox_jobs_needed: Arc<RwLock<bool>>,
@@ -292,9 +292,9 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
         real_msgs,
         deaddrop_msgs,
         contacts,
-        context.get_dbfile().to_str().unwrap(),
+        context.get_dbfile().display(),
         dbversion,
-        context.get_blobdir().to_str().unwrap(),
+        context.get_blobdir().display(),
         displayname.unwrap_or_else(|| unset.into()),
         is_configured,
         l,
