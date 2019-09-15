@@ -1,12 +1,11 @@
+use libc::uintptr_t;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::ptr;
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 
 use crate::chat::*;
 use crate::constants::*;
 use crate::contact::*;
-use crate::dc_receive_imf::*;
 use crate::dc_tools::*;
 use crate::error::*;
 use crate::imap::*;
@@ -19,8 +18,6 @@ use crate::message::*;
 use crate::param::Params;
 use crate::smtp::*;
 use crate::sql::Sql;
-use crate::types::*;
-use crate::x::*;
 
 /// Callback function type for [Context]
 ///
@@ -37,6 +34,7 @@ use crate::x::*;
 /// description at [Event].
 pub type ContextCallback = dyn Fn(&Context, Event, uintptr_t, uintptr_t) -> uintptr_t + Send + Sync;
 
+#[derive(DebugStub)]
 pub struct Context {
     pub(crate) dbfile: PathBuf,
     pub(crate) blobdir: PathBuf,
@@ -49,6 +47,7 @@ pub struct Context {
     pub smtp: Arc<Mutex<Smtp>>,
     pub smtp_state: Arc<(Mutex<SmtpState>, Condvar)>,
     pub oauth2_critical: Arc<Mutex<()>>,
+    #[debug_stub = "Callback"]
     pub cb: Box<ContextCallback>,
     pub os_name: Option<String>,
     pub cmdline_sel_chat_id: Arc<RwLock<u32>>,
@@ -91,14 +90,7 @@ impl Context {
         let ctx = Context {
             blobdir,
             dbfile,
-            inbox: Arc::new(RwLock::new({
-                Imap::new(
-                    cb_get_config,
-                    cb_set_config,
-                    cb_precheck_imf,
-                    cb_receive_imf,
-                )
-            })),
+            inbox: Arc::new(RwLock::new(Imap::new())),
             cb,
             os_name: Some(os_name),
             running_state: Arc::new(RwLock::new(Default::default())),
@@ -112,22 +104,12 @@ impl Context {
             sentbox_thread: Arc::new(RwLock::new(JobThread::new(
                 "SENTBOX",
                 "configured_sentbox_folder",
-                Imap::new(
-                    cb_get_config,
-                    cb_set_config,
-                    cb_precheck_imf,
-                    cb_receive_imf,
-                ),
+                Imap::new(),
             ))),
             mvbox_thread: Arc::new(RwLock::new(JobThread::new(
                 "MVBOX",
                 "configured_mvbox_folder",
-                Imap::new(
-                    cb_get_config,
-                    cb_set_config,
-                    cb_precheck_imf,
-                    cb_receive_imf,
-                ),
+                Imap::new(),
             ))),
             probe_imap_network: Arc::new(RwLock::new(false)),
             perform_inbox_jobs_needed: Arc::new(RwLock::new(false)),
@@ -178,7 +160,7 @@ impl Default for RunningState {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct BobStatus {
     pub expects: i32,
     pub status: i32,
@@ -192,89 +174,6 @@ pub struct SmtpState {
     pub doing_jobs: bool,
     pub perform_jobs_needed: i32,
     pub probe_network: bool,
-}
-
-unsafe fn cb_receive_imf(
-    context: &Context,
-    imf_raw_not_terminated: *const libc::c_char,
-    imf_raw_bytes: size_t,
-    server_folder: &str,
-    server_uid: uint32_t,
-    flags: uint32_t,
-) {
-    dc_receive_imf(
-        context,
-        imf_raw_not_terminated,
-        imf_raw_bytes,
-        server_folder,
-        server_uid,
-        flags,
-    );
-}
-
-unsafe fn cb_precheck_imf(
-    context: &Context,
-    rfc724_mid: *const libc::c_char,
-    server_folder: &str,
-    server_uid: uint32_t,
-) -> libc::c_int {
-    let mut rfc724_mid_exists: libc::c_int = 0i32;
-    let msg_id: uint32_t;
-    let mut old_server_folder: *mut libc::c_char = ptr::null_mut();
-    let mut old_server_uid: uint32_t = 0i32 as uint32_t;
-    let mut mark_seen: libc::c_int = 0i32;
-    msg_id = dc_rfc724_mid_exists(
-        context,
-        rfc724_mid,
-        &mut old_server_folder,
-        &mut old_server_uid,
-    );
-    if msg_id != 0i32 as libc::c_uint {
-        rfc724_mid_exists = 1i32;
-        if *old_server_folder.offset(0isize) as libc::c_int == 0i32
-            && old_server_uid == 0i32 as libc::c_uint
-        {
-            info!(context, "[move] detected bbc-self {}", as_str(rfc724_mid),);
-            mark_seen = 1i32
-        } else if as_str(old_server_folder) != server_folder {
-            info!(
-                context,
-                "[move] detected moved message {}",
-                as_str(rfc724_mid),
-            );
-            dc_update_msg_move_state(context, rfc724_mid, MoveState::Stay);
-        }
-        if as_str(old_server_folder) != server_folder || old_server_uid != server_uid {
-            dc_update_server_uid(context, rfc724_mid, server_folder, server_uid);
-        }
-        do_heuristics_moves(context, server_folder, msg_id);
-        if 0 != mark_seen {
-            job_add(
-                context,
-                Action::MarkseenMsgOnImap,
-                msg_id as libc::c_int,
-                Params::new(),
-                0,
-            );
-        }
-    }
-    free(old_server_folder as *mut libc::c_void);
-    rfc724_mid_exists
-}
-
-fn cb_set_config(context: &Context, key: &str, value: Option<&str>) {
-    context.sql.set_config(context, key, value).ok();
-}
-
-/* *
- * The following three callback are given to dc_imap_new() to read/write configuration
- * and to handle received messages. As the imap-functions are typically used in
- * a separate user-thread, also these functions may be called from a different thread.
- *
- * @private @memberof Context
- */
-fn cb_get_config(context: &Context, key: &str) -> Option<String> {
-    context.sql.get_config(context, key)
 }
 
 /* ******************************************************************************
@@ -386,7 +285,7 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
          level=awesome\n",
         &*DC_VERSION_STR,
         rusqlite::version(),
-        sqlite3_threadsafe(),
+        rusqlite::ffi::sqlite3_threadsafe(),
         // arch
         (::std::mem::size_of::<*mut libc::c_void>()).wrapping_mul(8),
         chats,
@@ -448,11 +347,7 @@ pub fn dc_get_fresh_msgs(context: &Context) -> Vec<u32> {
 }
 
 #[allow(non_snake_case)]
-pub fn dc_search_msgs(
-    context: &Context,
-    chat_id: uint32_t,
-    query: *const libc::c_char,
-) -> Vec<u32> {
+pub fn dc_search_msgs(context: &Context, chat_id: u32, query: *const libc::c_char) -> Vec<u32> {
     if query.is_null() {
         return Vec::new();
     }

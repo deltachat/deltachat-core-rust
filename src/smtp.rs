@@ -7,7 +7,9 @@ use crate::context::Context;
 use crate::login_param::LoginParam;
 use crate::oauth2::*;
 
+#[derive(DebugStub)]
 pub struct Smtp {
+    #[debug_stub(some = "SmtpTransport")]
     transport: Option<lettre::smtp::SmtpTransport>,
     transport_connected: bool,
     /// Email address we are sending from.

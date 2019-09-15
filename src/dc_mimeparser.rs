@@ -3,6 +3,7 @@ use std::ffi::{CStr, CString};
 use std::ptr;
 
 use charset::Charset;
+use mmime::clist::*;
 use mmime::mailimf::*;
 use mmime::mailimf_types::*;
 use mmime::mailmime::*;
@@ -22,13 +23,12 @@ use crate::e2ee::*;
 use crate::location;
 use crate::param::*;
 use crate::stock::StockMessage;
-use crate::types::*;
 use crate::x::*;
 
 /* Parse MIME body; this is the text part of an IMF, see https://tools.ietf.org/html/rfc5322
 dc_mimeparser_t has no deep dependencies to Context or to the database
 (Context is used for logging only). */
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 #[repr(C)]
 pub struct dc_mimepart_t {
     pub type_0: Viewtype,
@@ -43,7 +43,7 @@ pub struct dc_mimepart_t {
 /* *
  * @class dc_mimeparser_t
  */
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, missing_debug_implementations)]
 pub struct dc_mimeparser_t<'a> {
     pub parts: Vec<dc_mimepart_t>,
     pub mimeroot: *mut mailmime,
@@ -114,7 +114,7 @@ const DC_MIMETYPE_AC_SETUP_FILE: i32 = 111;
 
 pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_mimeparser_t<'a> {
     let r: libc::c_int;
-    let mut index: size_t = 0i32 as size_t;
+    let mut index: libc::size_t = 0;
     let optional_field: *mut mailimf_optional_field;
     let mut mimeparser = dc_mimeparser_new(context);
 
@@ -294,7 +294,7 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
             );
             if !dn_field.is_null() && dc_mimeparser_get_last_nonmeta(&mut mimeparser).is_some() {
                 let mut mb_list: *mut mailimf_mailbox_list = ptr::null_mut();
-                let mut index_0: size_t = 0i32 as size_t;
+                let mut index_0: libc::size_t = 0;
                 if mailimf_mailbox_list_parse(
                     (*dn_field).fld_value,
                     strlen((*dn_field).fld_value),
@@ -459,7 +459,7 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
             return 0i32;
         }
         if mimeparser.header_protected.is_null() {
-            let mut dummy: size_t = 0i32 as size_t;
+            let mut dummy: libc::size_t = 0;
             if mailimf_envelope_and_optional_fields_parse(
                 (*mime).mm_mime_start,
                 (*mime).mm_length,
@@ -1298,7 +1298,7 @@ unsafe fn do_add_single_file_part(
     mime_type: libc::c_int,
     raw_mime: &str,
     decoded_data: *const libc::c_char,
-    decoded_data_bytes: size_t,
+    decoded_data_bytes: libc::size_t,
     desired_filename: *const libc::c_char,
 ) {
     let pathNfilename: *mut libc::c_char;
@@ -1353,14 +1353,14 @@ unsafe fn do_add_single_part(parser: &mut dc_mimeparser_t, mut part: dc_mimepart
 pub unsafe fn mailmime_transfer_decode(
     mime: *mut mailmime,
     ret_decoded_data: *mut *const libc::c_char,
-    ret_decoded_data_bytes: *mut size_t,
+    ret_decoded_data_bytes: *mut libc::size_t,
     ret_to_mmap_string_unref: *mut *mut libc::c_char,
 ) -> bool {
     let mut mime_transfer_encoding: libc::c_int = MAILMIME_MECHANISM_BINARY as libc::c_int;
     let mime_data: *mut mailmime_data;
     /* must not be free()'d */
     let decoded_data: *const libc::c_char;
-    let mut decoded_data_bytes: size_t = 0i32 as size_t;
+    let mut decoded_data_bytes: libc::size_t = 0;
     /* mmap_string_unref()'d if set */
     let mut transfer_decoding_buffer: *mut libc::c_char = ptr::null_mut();
     if mime.is_null()
@@ -1409,7 +1409,7 @@ pub unsafe fn mailmime_transfer_decode(
         }
     } else {
         let r: libc::c_int;
-        let mut current_index: size_t = 0i32 as size_t;
+        let mut current_index = 0;
         r = mailmime_part_parse(
             (*mime_data).dt_data.dt_text.dt_data,
             (*mime_data).dt_data.dt_text.dt_length,
@@ -1722,7 +1722,7 @@ mod tests {
             let txt: *const libc::c_char =
                 b"FieldA: ValueA\nFieldB: ValueB\n\x00" as *const u8 as *const libc::c_char;
             let mut mime: *mut mailmime = ptr::null_mut();
-            let mut dummy: size_t = 0i32 as size_t;
+            let mut dummy = 0;
             let res = mailmime_parse(txt, strlen(txt), &mut dummy, &mut mime);
 
             assert_eq!(res, MAIL_NO_ERROR as libc::c_int);

@@ -30,10 +30,9 @@ use crate::keyring::*;
 use crate::peerstate::*;
 use crate::pgp::*;
 use crate::securejoin::handle_degrade_event;
-use crate::types::*;
 use crate::x::*;
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct E2eeHelper {
     pub encryption_successfull: bool,
     cdata_to_free: Option<Box<dyn Any>>,
@@ -166,7 +165,7 @@ impl E2eeHelper {
                             let message_to_encrypt: *mut mailmime = mailmime_new(
                                 MAILMIME_MESSAGE as libc::c_int,
                                 ptr::null(),
-                                0i32 as size_t,
+                                0 as libc::size_t,
                                 mailmime_fields_new_empty(),
                                 mailmime_get_content_message(),
                                 ptr::null_mut(),
@@ -312,7 +311,7 @@ impl E2eeHelper {
                                     /* create MIME-structure that will contain the encrypted text */
                                     let mut encrypted_part: *mut mailmime = new_data_part(
                                         ptr::null_mut(),
-                                        0i32 as size_t,
+                                        0 as libc::size_t,
                                         b"multipart/encrypted\x00" as *const u8
                                             as *const libc::c_char
                                             as *mut libc::c_char,
@@ -494,7 +493,7 @@ impl E2eeHelper {
 
 unsafe fn new_data_part(
     data: *mut libc::c_void,
-    data_bytes: size_t,
+    data_bytes: libc::size_t,
     default_content_type: *mut libc::c_char,
     default_encoding: libc::c_int,
 ) -> *mut mailmime {
@@ -745,7 +744,7 @@ unsafe fn decrypt_recursive(
                     &mut decrypted_mime,
                 ) {
                     if (*ret_gossip_headers).is_null() && ret_valid_signatures.len() > 0 {
-                        let mut dummy: size_t = 0i32 as size_t;
+                        let mut dummy: libc::size_t = 0i32 as libc::size_t;
                         let mut test: *mut mailimf_fields = ptr::null_mut();
                         if mailimf_envelope_and_optional_fields_parse(
                             (*decrypted_mime).mm_mime_start,
@@ -832,7 +831,7 @@ unsafe fn decrypt_part(
     let mut transfer_decoding_buffer: *mut libc::c_char = ptr::null_mut();
     /* must not be free()'d */
     let mut decoded_data: *const libc::c_char = ptr::null_mut();
-    let mut decoded_data_bytes: size_t = 0i32 as size_t;
+    let mut decoded_data_bytes: libc::size_t = 0;
     let mut sth_decrypted = false;
 
     *ret_decrypted_mime = ptr::null_mut();
@@ -878,7 +877,7 @@ unsafe fn decrypt_part(
             }
         } else {
             let r: libc::c_int;
-            let mut current_index: size_t = 0i32 as size_t;
+            let mut current_index: libc::size_t = 0;
             r = mailmime_part_parse(
                 (*mime_data).dt_data.dt_text.dt_data,
                 (*mime_data).dt_data.dt_text.dt_length,
@@ -915,7 +914,7 @@ unsafe fn decrypt_part(
                     let plain_bytes = plain.len();
                     let plain_buf = plain.as_ptr() as *const libc::c_char;
 
-                    let mut index: size_t = 0i32 as size_t;
+                    let mut index: libc::size_t = 0;
                     let mut decrypted_mime: *mut mailmime = ptr::null_mut();
                     if mailmime_parse(
                         plain_buf as *const _,

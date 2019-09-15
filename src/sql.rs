@@ -13,8 +13,10 @@ use crate::peerstate::*;
 const DC_OPEN_READONLY: usize = 0x01;
 
 /// A wrapper around the underlying Sqlite3 object.
+#[derive(DebugStub)]
 pub struct Sql {
     pool: RwLock<Option<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>>>,
+    #[debug_stub = "ThreadLocal<String>"]
     in_use: Arc<ThreadLocal<String>>,
 }
 

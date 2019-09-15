@@ -1,3 +1,4 @@
+use libc::uintptr_t;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use crate::constants::*;
@@ -9,7 +10,6 @@ use crate::job::*;
 use crate::login_param::LoginParam;
 use crate::oauth2::*;
 use crate::param::Params;
-use crate::types::*;
 
 mod auto_outlook;
 use auto_outlook::outlk_autodiscover;

@@ -1,5 +1,8 @@
 use std::ffi::CString;
 use std::path::{Path, PathBuf};
+use std::ptr;
+
+use libc::uintptr_t;
 
 use crate::chatlist::*;
 use crate::config::*;
@@ -13,15 +16,13 @@ use crate::message::*;
 use crate::param::*;
 use crate::sql::{self, Sql};
 use crate::stock::StockMessage;
-use crate::types::*;
 use crate::x::*;
-use std::ptr;
 
 /// An object representing a single chat in memory.
 /// Chat objects are created using eg. `Chat::load_from_db`
 /// and are not updated on database changes;
 /// if you want an update, you have to recreate the object.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Chat {
     pub id: u32,
     pub typ: Chattype,

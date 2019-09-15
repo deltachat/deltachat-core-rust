@@ -6,15 +6,15 @@ use std::time::SystemTime;
 use std::{fmt, fs, ptr};
 
 use chrono::{Local, TimeZone};
+use itertools::max;
+use libc::uintptr_t;
+use mmime::clist::*;
 use mmime::mailimf_types::*;
 use rand::{thread_rng, Rng};
 
 use crate::context::Context;
 use crate::error::Error;
-use crate::types::*;
 use crate::x::*;
-
-use itertools::max;
 
 /* Some tools and enhancements to the used libraries, there should be
 no references to Context and other "larger" classes here. */
@@ -98,7 +98,7 @@ pub unsafe fn dc_str_replace(
 }
 
 unsafe fn dc_ltrim(buf: *mut libc::c_char) {
-    let mut len: size_t;
+    let mut len: libc::size_t;
     let mut cur: *const libc::c_uchar;
     if !buf.is_null() && 0 != *buf as libc::c_int {
         len = strlen(buf);
@@ -118,7 +118,7 @@ unsafe fn dc_ltrim(buf: *mut libc::c_char) {
 }
 
 unsafe fn dc_rtrim(buf: *mut libc::c_char) {
-    let mut len: size_t;
+    let mut len: libc::size_t;
     let mut cur: *mut libc::c_uchar;
     if !buf.is_null() && 0 != *buf as libc::c_int {
         len = strlen(buf);
@@ -301,9 +301,9 @@ pub unsafe fn dc_truncate_n_unwrap_str(
         if *p1 as libc::c_int > ' ' as i32 {
             lastIsCharacter = 1
         } else if 0 != lastIsCharacter {
-            let used_bytes: size_t = (p1 as uintptr_t).wrapping_sub(buf as uintptr_t) as size_t;
+            let used_bytes = (p1 as uintptr_t).wrapping_sub(buf as uintptr_t) as libc::size_t;
             if dc_utf8_strnlen(buf, used_bytes) >= approx_characters as usize {
-                let buf_bytes: size_t = strlen(buf);
+                let buf_bytes = strlen(buf);
                 if buf_bytes.wrapping_sub(used_bytes) >= strlen(ellipse_utf8) {
                     strcpy(p1 as *mut libc::c_char, ellipse_utf8);
                 }
@@ -324,12 +324,12 @@ pub unsafe fn dc_truncate_n_unwrap_str(
     };
 }
 
-unsafe fn dc_utf8_strnlen(s: *const libc::c_char, n: size_t) -> size_t {
+unsafe fn dc_utf8_strnlen(s: *const libc::c_char, n: libc::size_t) -> libc::size_t {
     if s.is_null() {
         return 0;
     }
 
-    let mut j: size_t = 0;
+    let mut j: libc::size_t = 0;
     for i in 0..n {
         if *s.add(i) as libc::c_int & 0xc0 != 0x80 {
             j = j.wrapping_add(1)
@@ -543,7 +543,7 @@ pub fn dc_create_id() -> String {
     - the group-id should be a string with the characters [a-zA-Z0-9\-_] */
 
     let mut rng = thread_rng();
-    let buf: [uint32_t; 3] = [rng.gen(), rng.gen(), rng.gen()];
+    let buf: [u32; 3] = [rng.gen(), rng.gen(), rng.gen()];
 
     encode_66bits_as_base64(buf[0usize], buf[1usize], buf[2usize])
 }
@@ -808,10 +808,10 @@ pub fn dc_file_exist(context: &Context, path: impl AsRef<std::path::Path>) -> bo
     dc_get_abs_path(context, &path).exists()
 }
 
-pub fn dc_get_filebytes(context: &Context, path: impl AsRef<std::path::Path>) -> uint64_t {
+pub fn dc_get_filebytes(context: &Context, path: impl AsRef<std::path::Path>) -> u64 {
     let path_abs = dc_get_abs_path(context, &path);
     match fs::metadata(&path_abs) {
-        Ok(meta) => meta.len() as uint64_t,
+        Ok(meta) => meta.len() as u64,
         Err(_err) => 0,
     }
 }
@@ -881,7 +881,7 @@ pub unsafe fn dc_write_file(
     context: &Context,
     pathNfilename: *const libc::c_char,
     buf: *const libc::c_void,
-    buf_bytes: size_t,
+    buf_bytes: libc::size_t,
 ) -> libc::c_int {
     let bytes = std::slice::from_raw_parts(buf as *const u8, buf_bytes);
 
@@ -912,7 +912,7 @@ pub unsafe fn dc_read_file(
     context: &Context,
     pathNfilename: *const libc::c_char,
     buf: *mut *mut libc::c_void,
-    buf_bytes: *mut size_t,
+    buf_bytes: *mut libc::size_t,
 ) -> libc::c_int {
     if pathNfilename.is_null() {
         return 0;

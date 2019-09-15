@@ -31,6 +31,7 @@ use crate::stock::StockMessage;
 /// first entry and only present on new messages, there is the rough idea that it can be optionally always
 /// present and sorted into the list by date. Rendering the deaddrop in the described way
 /// would not add extra work in the UI then.
+#[derive(Debug)]
 pub struct Chatlist {
     /// Stores pairs of `chat_id, message_id`
     ids: Vec<(u32, u32)>,

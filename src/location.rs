@@ -1,4 +1,5 @@
 use bitflags::bitflags;
+use libc::uintptr_t;
 use quick_xml;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
@@ -13,7 +14,6 @@ use crate::message::*;
 use crate::param::*;
 use crate::sql;
 use crate::stock::StockMessage;
-use crate::types::*;
 
 // location handling
 #[derive(Debug, Clone, Default)]

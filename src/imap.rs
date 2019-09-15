@@ -1,5 +1,6 @@
 use std::ffi::CString;
 use std::net;
+use std::ptr;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc, Condvar, Mutex, RwLock,
@@ -7,11 +8,15 @@ use std::sync::{
 use std::time::{Duration, SystemTime};
 
 use crate::constants::*;
-use crate::context::Context;
+use crate::context::{do_heuristics_moves, Context};
+use crate::dc_receive_imf::dc_receive_imf;
 use crate::dc_tools::CStringExt;
+use crate::dc_tools::*;
+use crate::job::{job_add, Action};
 use crate::login_param::LoginParam;
+use crate::message::{dc_rfc724_mid_exists, dc_update_msg_move_state, dc_update_server_uid};
 use crate::oauth2::dc_get_oauth2_access_token;
-use crate::types::*;
+use crate::param::Params;
 
 const DC_IMAP_SEEN: usize = 0x0001;
 const DC_REGENERATE: usize = 0x01;
@@ -25,14 +30,10 @@ const PREFETCH_FLAGS: &str = "(UID ENVELOPE)";
 const BODY_FLAGS: &str = "(FLAGS BODY.PEEK[])";
 const FETCH_FLAGS: &str = "(FLAGS)";
 
+#[derive(Debug)]
 pub struct Imap {
     config: Arc<RwLock<ImapConfig>>,
     watch: Arc<(Mutex<bool>, Condvar)>,
-
-    get_config: dc_get_config_t,
-    set_config: dc_set_config_t,
-    precheck_imf: dc_precheck_imf_t,
-    receive_imf: dc_receive_imf_t,
 
     session: Arc<Mutex<Option<Session>>>,
     stream: Arc<RwLock<Option<net::TcpStream>>>,
@@ -41,6 +42,7 @@ pub struct Imap {
     should_reconnect: AtomicBool,
 }
 
+#[derive(Debug)]
 struct OAuth2 {
     user: String,
     access_token: String,
@@ -65,6 +67,7 @@ enum FolderMeaning {
     Other,
 }
 
+#[derive(Debug)]
 enum Client {
     Secure(
         imap::Client<native_tls::TlsStream<net::TcpStream>>,
@@ -73,11 +76,13 @@ enum Client {
     Insecure(imap::Client<net::TcpStream>, net::TcpStream),
 }
 
+#[derive(Debug)]
 enum Session {
     Secure(imap::Session<native_tls::TlsStream<net::TcpStream>>),
     Insecure(imap::Session<net::TcpStream>),
 }
 
+#[derive(Debug)]
 enum IdleHandle<'a> {
     Secure(imap::extensions::idle::Handle<'a, native_tls::TlsStream<net::TcpStream>>),
     Insecure(imap::extensions::idle::Handle<'a, net::TcpStream>),
@@ -307,6 +312,7 @@ impl Session {
     }
 }
 
+#[derive(Debug)]
 struct ImapConfig {
     pub addr: String,
     pub imap_server: String,
@@ -346,21 +352,12 @@ impl Default for ImapConfig {
 }
 
 impl Imap {
-    pub fn new(
-        get_config: dc_get_config_t,
-        set_config: dc_set_config_t,
-        precheck_imf: dc_precheck_imf_t,
-        receive_imf: dc_receive_imf_t,
-    ) -> Self {
+    pub fn new() -> Self {
         Imap {
             session: Arc::new(Mutex::new(None)),
             stream: Arc::new(RwLock::new(None)),
             config: Arc::new(RwLock::new(ImapConfig::default())),
             watch: Arc::new((Mutex::new(false), Condvar::new())),
-            get_config,
-            set_config,
-            precheck_imf,
-            receive_imf,
             connected: Arc::new(Mutex::new(false)),
             should_reconnect: AtomicBool::new(false),
         }
@@ -694,7 +691,7 @@ impl Imap {
 
     fn get_config_last_seen_uid<S: AsRef<str>>(&self, context: &Context, folder: S) -> (u32, u32) {
         let key = format!("imap.mailbox.{}", folder.as_ref());
-        if let Some(entry) = (self.get_config)(context, &key) {
+        if let Some(entry) = context.sql.get_config(context, &key) {
             // the entry has the format `imap.mailbox.<folder>=<uidvalidity>:<lastseenuid>`
             let mut parts = entry.split(':');
             (
@@ -828,7 +825,7 @@ impl Imap {
 
                 if 0 == unsafe {
                     let message_id_c = CString::yolo(message_id);
-                    (self.precheck_imf)(context, message_id_c.as_ptr(), folder.as_ref(), cur_uid)
+                    precheck_imf(context, message_id_c.as_ptr(), folder.as_ref(), cur_uid)
                 } {
                     // check passed, go fetch the rest
                     if self.fetch_single_msg(context, &folder, cur_uid) == 0 {
@@ -892,7 +889,7 @@ impl Imap {
         let key = format!("imap.mailbox.{}", folder.as_ref());
         let val = format!("{}:{}", uidvalidity, lastseenuid);
 
-        (self.set_config)(context, &key, Some(&val));
+        context.sql.set_config(context, &key, Some(&val)).ok();
     }
 
     fn fetch_single_msg<S: AsRef<str>>(
@@ -962,7 +959,7 @@ impl Imap {
             if !is_deleted && msg.body().is_some() {
                 let body = msg.body().unwrap();
                 unsafe {
-                    (self.receive_imf)(
+                    dc_receive_imf(
                         context,
                         body.as_ptr() as *const libc::c_char,
                         body.len(),
@@ -1646,4 +1643,54 @@ fn get_folder_meaning(folder_name: &imap::types::Name) -> FolderMeaning {
         FolderMeaning::Unknown => get_folder_meaning_by_name(folder_name),
         _ => res,
     }
+}
+
+unsafe fn precheck_imf(
+    context: &Context,
+    rfc724_mid: *const libc::c_char,
+    server_folder: &str,
+    server_uid: u32,
+) -> libc::c_int {
+    let mut rfc724_mid_exists: libc::c_int = 0i32;
+    let msg_id: u32;
+    let mut old_server_folder: *mut libc::c_char = ptr::null_mut();
+    let mut old_server_uid: u32 = 0i32 as u32;
+    let mut mark_seen: libc::c_int = 0i32;
+    msg_id = dc_rfc724_mid_exists(
+        context,
+        rfc724_mid,
+        &mut old_server_folder,
+        &mut old_server_uid,
+    );
+    if msg_id != 0i32 as libc::c_uint {
+        rfc724_mid_exists = 1i32;
+        if *old_server_folder.offset(0isize) as libc::c_int == 0i32
+            && old_server_uid == 0i32 as libc::c_uint
+        {
+            info!(context, "[move] detected bbc-self {}", as_str(rfc724_mid),);
+            mark_seen = 1i32
+        } else if as_str(old_server_folder) != server_folder {
+            info!(
+                context,
+                "[move] detected moved message {}",
+                as_str(rfc724_mid),
+            );
+            dc_update_msg_move_state(context, rfc724_mid, MoveState::Stay);
+        }
+        if as_str(old_server_folder) != server_folder || old_server_uid != server_uid {
+            dc_update_server_uid(context, rfc724_mid, server_folder, server_uid);
+        }
+        do_heuristics_moves(context, server_folder, msg_id);
+        if 0 != mark_seen {
+            job_add(
+                context,
+                Action::MarkseenMsgOnImap,
+                msg_id as libc::c_int,
+                Params::new(),
+                0,
+            );
+        }
+    }
+    libc::free(old_server_folder as *mut libc::c_void);
+    rfc724_mid_exists
 }

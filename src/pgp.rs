@@ -14,7 +14,6 @@ use rand::thread_rng;
 use crate::dc_tools::*;
 use crate::key::*;
 use crate::keyring::*;
-use crate::types::*;
 use crate::x::*;
 
 pub unsafe fn dc_split_armored_data(
@@ -25,7 +24,7 @@ pub unsafe fn dc_split_armored_data(
     ret_base64: *mut *const libc::c_char,
 ) -> bool {
     let mut success = false;
-    let mut line_chars: size_t = 0i32 as size_t;
+    let mut line_chars: libc::size_t = 0;
     let mut line: *mut libc::c_char = buf;
     let mut p1: *mut libc::c_char = buf;
     let mut p2: *mut libc::c_char;
@@ -105,7 +104,7 @@ pub unsafe fn dc_split_armored_data(
                 }
                 p1 = p1.offset(1isize);
                 line = p1;
-                line_chars = 0i32 as size_t
+                line_chars = 0;
             } else {
                 p1 = p1.offset(1isize);
                 line_chars = line_chars.wrapping_add(1)

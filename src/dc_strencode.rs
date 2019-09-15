@@ -9,7 +9,6 @@ use mmime::other::*;
 use percent_encoding::{percent_decode, utf8_percent_encode, AsciiSet, CONTROLS};
 
 use crate::dc_tools::*;
-use crate::types::*;
 use crate::x::*;
 
 /**
@@ -66,7 +65,7 @@ pub unsafe fn dc_encode_header_words(to_encode: *const libc::c_char) -> *mut lib
                         b"utf-8\x00" as *const u8 as *const libc::c_char,
                         mmapstr,
                         begin,
-                        end.wrapping_offset_from(begin) as size_t,
+                        end.wrapping_offset_from(begin) as libc::size_t,
                     ) {
                         ok_to_continue = false;
                         continue;
@@ -82,7 +81,7 @@ pub unsafe fn dc_encode_header_words(to_encode: *const libc::c_char) -> *mut lib
                         if mmap_string_append_len(
                             mmapstr,
                             end,
-                            cur.wrapping_offset_from(end) as size_t,
+                            cur.wrapping_offset_from(end) as libc::size_t,
                         )
                         .is_null()
                         {
@@ -93,7 +92,7 @@ pub unsafe fn dc_encode_header_words(to_encode: *const libc::c_char) -> *mut lib
                 } else if mmap_string_append_len(
                     mmapstr,
                     begin,
-                    cur.wrapping_offset_from(begin) as size_t,
+                    cur.wrapping_offset_from(begin) as libc::size_t,
                 )
                 .is_null()
                 {
@@ -122,10 +121,10 @@ unsafe fn quote_word(
     display_charset: *const libc::c_char,
     mmapstr: *mut MMAPString,
     word: *const libc::c_char,
-    size: size_t,
+    size: libc::size_t,
 ) -> bool {
     let mut cur: *const libc::c_char;
-    let mut i: size_t = 0i32 as size_t;
+    let mut i = 0;
     let mut hex: [libc::c_char; 4] = [0; 4];
     // let mut col: libc::c_int = 0i32;
     if mmap_string_append(mmapstr, b"=?\x00" as *const u8 as *const libc::c_char).is_null() {
@@ -188,7 +187,7 @@ unsafe fn get_word(
     {
         cur = cur.offset(1isize)
     }
-    *pto_be_quoted = to_be_quoted(begin, cur.wrapping_offset_from(begin) as size_t);
+    *pto_be_quoted = to_be_quoted(begin, cur.wrapping_offset_from(begin) as libc::size_t);
     *pend = cur;
 }
 
@@ -197,9 +196,9 @@ unsafe fn get_word(
  ******************************************************************************/
 
 /* see comment below */
-unsafe fn to_be_quoted(word: *const libc::c_char, size: size_t) -> bool {
+unsafe fn to_be_quoted(word: *const libc::c_char, size: libc::size_t) -> bool {
     let mut cur: *const libc::c_char = word;
-    let mut i: size_t = 0i32 as size_t;
+    let mut i = 0;
     while i < size {
         match *cur as libc::c_int {
             44 | 58 | 33 | 34 | 35 | 36 | 64 | 91 | 92 | 93 | 94 | 96 | 123 | 124 | 125 | 126
@@ -222,7 +221,7 @@ pub unsafe fn dc_decode_header_words(in_0: *const libc::c_char) -> *mut libc::c_
         return ptr::null_mut();
     }
     let mut out: *mut libc::c_char = ptr::null_mut();
-    let mut cur_token: size_t = 0i32 as size_t;
+    let mut cur_token = 0;
     let r: libc::c_int = mailmime_encoded_phrase_parse(
         b"iso-8859-1\x00" as *const u8 as *const libc::c_char,
         in_0,

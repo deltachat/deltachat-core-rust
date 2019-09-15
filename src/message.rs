@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::ptr;
 
 use deltachat_derive::{FromSql, ToSql};
+use libc::uintptr_t;
 use phf::phf_map;
 
 use crate::chat::{self, Chat};
@@ -17,7 +18,6 @@ use crate::param::*;
 use crate::pgp::*;
 use crate::sql;
 use crate::stock::StockMessage;
-use crate::types::*;
 use crate::x::*;
 
 /// In practice, the user additionally cuts the string himself pixel-accurate.
@@ -136,7 +136,7 @@ impl Lot {
 /// to check if a mail was sent, use dc_msg_is_sent()
 /// approx. max. length returned by dc_msg_get_text()
 /// approx. max. length returned by dc_get_msg_info()
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Message {
     pub id: u32,
     pub from_id: u32,
@@ -680,7 +680,7 @@ pub unsafe fn dc_msg_get_filename(msg: &Message) -> *mut libc::c_char {
     }
 }
 
-pub fn dc_msg_get_filebytes(context: &Context, msg: &Message) -> uint64_t {
+pub fn dc_msg_get_filebytes(context: &Context, msg: &Message) -> u64 {
     if let Some(file) = msg.param.get(Param::File) {
         return dc_get_filebytes(context, &file);
     }
@@ -1146,7 +1146,7 @@ pub fn dc_get_real_msg_cnt(context: &Context) -> libc::c_int {
     }
 }
 
-pub fn dc_get_deaddrop_msg_cnt(context: &Context) -> size_t {
+pub fn dc_get_deaddrop_msg_cnt(context: &Context) -> libc::size_t {
     match context.sql.query_row(
         "SELECT COUNT(*) \
          FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id \
@@ -1154,7 +1154,7 @@ pub fn dc_get_deaddrop_msg_cnt(context: &Context) -> size_t {
         rusqlite::NO_PARAMS,
         |row| row.get::<_, isize>(0),
     ) {
-        Ok(res) => res as size_t,
+        Ok(res) => res as libc::size_t,
         Err(err) => {
             error!(context, "dc_get_deaddrop_msg_cnt() failed. {}", err);
             0
