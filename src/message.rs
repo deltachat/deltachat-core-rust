@@ -9,6 +9,7 @@ use crate::chat::{self, Chat};
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::*;
+use crate::dc_mimeparser::SystemMessage;
 use crate::dc_tools::*;
 use crate::error::Error;
 use crate::events::Event;
@@ -767,7 +768,7 @@ pub fn dc_msg_get_summarytext_by_raw(
         Viewtype::Video => context.stock_str(StockMessage::Video).into_owned(),
         Viewtype::Voice => context.stock_str(StockMessage::VoiceMessage).into_owned(),
         Viewtype::Audio | Viewtype::File => {
-            if param.get_int(Param::Cmd) == Some(6) {
+            if param.get_cmd() == SystemMessage::AutocryptSetupMessage {
                 append_text = false;
                 context
                     .stock_str(StockMessage::AcSetupMsgSubject)
@@ -793,7 +794,7 @@ pub fn dc_msg_get_summarytext_by_raw(
             }
         }
         _ => {
-            if param.get_int(Param::Cmd) != Some(9) {
+            if param.get_cmd() != SystemMessage::LocationOnly {
                 "".to_string()
             } else {
                 append_text = false;
@@ -839,10 +840,10 @@ pub fn dc_msg_is_forwarded(msg: &Message) -> bool {
 }
 
 pub fn dc_msg_is_info(msg: &Message) -> bool {
-    let cmd = msg.param.get_int(Param::Cmd).unwrap_or_default();
+    let cmd = msg.param.get_cmd();
     msg.from_id == 2i32 as libc::c_uint
         || msg.to_id == 2i32 as libc::c_uint
-        || 0 != cmd && cmd != 6i32
+        || cmd != SystemMessage::Unknown && cmd != SystemMessage::AutocryptSetupMessage
 }
 
 pub fn dc_msg_is_increation(msg: &Message) -> bool {
@@ -854,7 +855,7 @@ pub fn dc_msg_is_setupmessage(msg: &Message) -> bool {
         return false;
     }
 
-    msg.param.get_int(Param::Cmd) == Some(6)
+    msg.param.get_cmd() == SystemMessage::AutocryptSetupMessage
 }
 
 pub unsafe fn dc_msg_get_setupcodebegin(context: &Context, msg: &Message) -> *mut libc::c_char {

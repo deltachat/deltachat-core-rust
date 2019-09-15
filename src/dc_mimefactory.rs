@@ -11,7 +11,6 @@ use mmime::mailmime_types_helper::*;
 use mmime::mailmime_write_mem::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
-use num_traits::FromPrimitive;
 
 use crate::chat::{self, Chat};
 use crate::constants::*;
@@ -172,10 +171,10 @@ pub unsafe fn dc_mimefactory_load_msg(
             )
             .unwrap();
 
-        let command = factory.msg.param.get_int(Param::Cmd).unwrap_or_default();
+        let command = factory.msg.param.get_cmd();
         let msg = &factory.msg;
 
-        if command == 5 {
+        if command == SystemMessage::MemberRemovedFromGroup {
             let email_to_remove = msg.param.get(Param::Arg).unwrap_or_default();
             let email_to_remove_c = email_to_remove.strdup();
 
@@ -199,8 +198,8 @@ pub unsafe fn dc_mimefactory_load_msg(
                 }
             }
         }
-        if command != 6
-            && command != 7
+        if command != SystemMessage::AutocryptSetupMessage
+            && command != SystemMessage::SecurejoinMessage
             && 0 != context
                 .sql
                 .get_config_int(context, "mdns_enabled")
@@ -531,12 +530,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut dc_mimefact
             }
 
             /* build header etc. */
-            let command = factory
-                .msg
-                .param
-                .get_int(Param::Cmd)
-                .and_then(SystemMessage::from_i32)
-                .unwrap_or_default();
+            let command = factory.msg.param.get_cmd();
             if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
                 mailimf_fields_add(
                     imf_fields,
@@ -554,197 +548,179 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut dc_mimefact
                     ),
                 );
 
-                match command {
-                    SystemMessage::Unknown | SystemMessage::LocationOnly => {}
-                    SystemMessage::MemberRemovedFromGroup => {
-                        let email_to_remove = factory
-                            .msg
-                            .param
-                            .get(Param::Arg)
-                            .unwrap_or_default()
-                            .strdup();
-                        if strlen(email_to_remove) > 0 {
-                            mailimf_fields_add(
-                                imf_fields,
-                                mailimf_field_new_custom(
-                                    strdup(
-                                        b"Chat-Group-Member-Removed\x00" as *const u8
-                                            as *const libc::c_char,
-                                    ),
-                                    email_to_remove,
+                if command == SystemMessage::MemberRemovedFromGroup {
+                    let email_to_remove = factory
+                        .msg
+                        .param
+                        .get(Param::Arg)
+                        .unwrap_or_default()
+                        .strdup();
+                    if strlen(email_to_remove) > 0 {
+                        mailimf_fields_add(
+                            imf_fields,
+                            mailimf_field_new_custom(
+                                strdup(
+                                    b"Chat-Group-Member-Removed\x00" as *const u8
+                                        as *const libc::c_char,
                                 ),
-                            );
-                        }
+                                email_to_remove,
+                            ),
+                        );
                     }
-                    SystemMessage::MemberAddedToGroup => {
-                        let msg = &factory.msg;
-                        do_gossip = 1;
-                        let email_to_add = msg.param.get(Param::Arg).unwrap_or_default().strdup();
-                        if strlen(email_to_add) > 0 {
-                            mailimf_fields_add(
-                                imf_fields,
-                                mailimf_field_new_custom(
-                                    strdup(
-                                        b"Chat-Group-Member-Added\x00" as *const u8
-                                            as *const libc::c_char,
-                                    ),
-                                    email_to_add,
+                } else if command == SystemMessage::MemberAddedToGroup {
+                    let msg = &factory.msg;
+                    do_gossip = 1;
+                    let email_to_add = msg.param.get(Param::Arg).unwrap_or_default().strdup();
+                    if strlen(email_to_add) > 0 {
+                        mailimf_fields_add(
+                            imf_fields,
+                            mailimf_field_new_custom(
+                                strdup(
+                                    b"Chat-Group-Member-Added\x00" as *const u8
+                                        as *const libc::c_char,
                                 ),
-                            );
-                            grpimage = chat.param.get(Param::ProfileImage);
-                        }
-                        if 0 != msg.param.get_int(Param::Arg2).unwrap_or_default() & 0x1 {
-                            info!(
-                                context,
-                                "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>",
-                                "vg-member-added",
-                            );
-                            mailimf_fields_add(
-                                imf_fields,
-                                mailimf_field_new_custom(
-                                    strdup(b"Secure-Join\x00" as *const u8 as *const libc::c_char),
-                                    strdup(
-                                        b"vg-member-added\x00" as *const u8 as *const libc::c_char,
-                                    ),
-                                ),
-                            );
-                        }
+                                email_to_add,
+                            ),
+                        );
+                        grpimage = chat.param.get(Param::ProfileImage);
                     }
-                    SystemMessage::GroupNameChanged => {
-                        let msg = &factory.msg;
+                    if 0 != msg.param.get_int(Param::Arg2).unwrap_or_default() & 0x1 {
+                        info!(
+                            context,
+                            "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>",
+                            "vg-member-added",
+                        );
+                        mailimf_fields_add(
+                            imf_fields,
+                            mailimf_field_new_custom(
+                                strdup(b"Secure-Join\x00" as *const u8 as *const libc::c_char),
+                                strdup(b"vg-member-added\x00" as *const u8 as *const libc::c_char),
+                            ),
+                        );
+                    }
+                } else if command == SystemMessage::GroupNameChanged {
+                    let msg = &factory.msg;
 
-                        let value_to_add = msg.param.get(Param::Arg).unwrap_or_default().strdup();
+                    let value_to_add = msg.param.get(Param::Arg).unwrap_or_default().strdup();
+                    mailimf_fields_add(
+                        imf_fields,
+                        mailimf_field_new_custom(
+                            strdup(
+                                b"Chat-Group-Name-Changed\x00" as *const u8 as *const libc::c_char,
+                            ),
+                            value_to_add,
+                        ),
+                    );
+                } else if command == SystemMessage::GroupImageChanged {
+                    let msg = &factory.msg;
+                    grpimage = msg.param.get(Param::Arg);
+                    if grpimage.is_none() {
                         mailimf_fields_add(
                             imf_fields,
                             mailimf_field_new_custom(
-                                strdup(
-                                    b"Chat-Group-Name-Changed\x00" as *const u8
-                                        as *const libc::c_char,
-                                ),
-                                value_to_add,
+                                strdup(b"Chat-Group-Image\x00" as *const u8 as *const libc::c_char),
+                                dc_strdup(b"0\x00" as *const u8 as *const libc::c_char),
                             ),
                         );
                     }
-                    SystemMessage::GroupImageChanged => {
-                        let msg = &factory.msg;
-                        grpimage = msg.param.get(Param::Arg);
-                        if grpimage.is_none() {
-                            mailimf_fields_add(
-                                imf_fields,
-                                mailimf_field_new_custom(
-                                    strdup(
-                                        b"Chat-Group-Image\x00" as *const u8 as *const libc::c_char,
-                                    ),
-                                    dc_strdup(b"0\x00" as *const u8 as *const libc::c_char),
-                                ),
-                            );
-                        }
-                    }
-                    SystemMessage::LocationStreamingEnabled => {
+                }
+            }
+
+            if command == SystemMessage::LocationStreamingEnabled {
+                mailimf_fields_add(
+                    imf_fields,
+                    mailimf_field_new_custom(
+                        strdup(b"Chat-Content\x00" as *const u8 as *const libc::c_char),
+                        strdup(
+                            b"location-streaming-enabled\x00" as *const u8 as *const libc::c_char,
+                        ),
+                    ),
+                );
+            }
+            if command == SystemMessage::AutocryptSetupMessage {
+                mailimf_fields_add(
+                    imf_fields,
+                    mailimf_field_new_custom(
+                        strdup(b"Autocrypt-Setup-Message\x00" as *const u8 as *const libc::c_char),
+                        strdup(b"v1\x00" as *const u8 as *const libc::c_char),
+                    ),
+                );
+                placeholdertext = factory
+                    .context
+                    .stock_str(StockMessage::AcSetupMsgBody)
+                    .strdup();
+            }
+            if command == SystemMessage::SecurejoinMessage {
+                let msg = &factory.msg;
+                let step = msg.param.get(Param::Arg).unwrap_or_default().strdup();
+                if strlen(step) > 0 {
+                    info!(
+                        context,
+                        "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>",
+                        as_str(step),
+                    );
+                    mailimf_fields_add(
+                        imf_fields,
+                        mailimf_field_new_custom(
+                            strdup(b"Secure-Join\x00" as *const u8 as *const libc::c_char),
+                            step,
+                        ),
+                    );
+                    let param2 = msg.param.get(Param::Arg2).unwrap_or_default().strdup();
+                    if strlen(param2) > 0 {
                         mailimf_fields_add(
                             imf_fields,
                             mailimf_field_new_custom(
-                                strdup(b"Chat-Content\x00" as *const u8 as *const libc::c_char),
-                                strdup(
-                                    b"location-streaming-enabled\x00" as *const u8
-                                        as *const libc::c_char,
-                                ),
-                            ),
-                        );
-                    }
-                    SystemMessage::AutocryptSetupMessage => {
-                        mailimf_fields_add(
-                            imf_fields,
-                            mailimf_field_new_custom(
-                                strdup(
-                                    b"Autocrypt-Setup-Message\x00" as *const u8
-                                        as *const libc::c_char,
-                                ),
-                                strdup(b"v1\x00" as *const u8 as *const libc::c_char),
-                            ),
-                        );
-                        placeholdertext = factory
-                            .context
-                            .stock_str(StockMessage::AcSetupMsgBody)
-                            .strdup();
-                    }
-                    SystemMessage::SecurejoinMessage => {
-                        let msg = &factory.msg;
-                        let step = msg.param.get(Param::Arg).unwrap_or_default().strdup();
-                        if strlen(step) > 0 {
-                            info!(
-                                context,
-                                "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>",
-                                as_str(step),
-                            );
-                            mailimf_fields_add(
-                                imf_fields,
-                                mailimf_field_new_custom(
-                                    strdup(b"Secure-Join\x00" as *const u8 as *const libc::c_char),
+                                if strcmp(
                                     step,
+                                    b"vg-request-with-auth\x00" as *const u8 as *const libc::c_char,
+                                ) == 0
+                                    || strcmp(
+                                        step,
+                                        b"vc-request-with-auth\x00" as *const u8
+                                            as *const libc::c_char,
+                                    ) == 0
+                                {
+                                    strdup(
+                                        b"Secure-Join-Auth\x00" as *const u8 as *const libc::c_char,
+                                    )
+                                } else {
+                                    strdup(
+                                        b"Secure-Join-Invitenumber\x00" as *const u8
+                                            as *const libc::c_char,
+                                    )
+                                },
+                                param2,
+                            ),
+                        );
+                    }
+                    let fingerprint = msg.param.get(Param::Arg3).unwrap_or_default().strdup();
+                    if strlen(fingerprint) > 0 {
+                        mailimf_fields_add(
+                            imf_fields,
+                            mailimf_field_new_custom(
+                                strdup(
+                                    b"Secure-Join-Fingerprint\x00" as *const u8
+                                        as *const libc::c_char,
                                 ),
-                            );
-                            let param2 = msg.param.get(Param::Arg2).unwrap_or_default().strdup();
-                            if strlen(param2) > 0 {
-                                mailimf_fields_add(
-                                    imf_fields,
-                                    mailimf_field_new_custom(
-                                        if strcmp(
-                                            step,
-                                            b"vg-request-with-auth\x00" as *const u8
-                                                as *const libc::c_char,
-                                        ) == 0
-                                            || strcmp(
-                                                step,
-                                                b"vc-request-with-auth\x00" as *const u8
-                                                    as *const libc::c_char,
-                                            ) == 0
-                                        {
-                                            strdup(
-                                                b"Secure-Join-Auth\x00" as *const u8
-                                                    as *const libc::c_char,
-                                            )
-                                        } else {
-                                            strdup(
-                                                b"Secure-Join-Invitenumber\x00" as *const u8
-                                                    as *const libc::c_char,
-                                            )
-                                        },
-                                        param2,
-                                    ),
-                                );
-                            }
-                            let fingerprint =
-                                msg.param.get(Param::Arg3).unwrap_or_default().strdup();
-                            if strlen(fingerprint) > 0 {
-                                mailimf_fields_add(
-                                    imf_fields,
-                                    mailimf_field_new_custom(
-                                        strdup(
-                                            b"Secure-Join-Fingerprint\x00" as *const u8
-                                                as *const libc::c_char,
-                                        ),
-                                        fingerprint,
-                                    ),
-                                );
-                            }
-                            let grpid = match msg.param.get(Param::Arg4) {
-                                Some(id) => id.strdup(),
-                                None => std::ptr::null_mut(),
-                            };
-                            if !grpid.is_null() {
-                                mailimf_fields_add(
-                                    imf_fields,
-                                    mailimf_field_new_custom(
-                                        strdup(
-                                            b"Secure-Join-Group\x00" as *const u8
-                                                as *const libc::c_char,
-                                        ),
-                                        grpid,
-                                    ),
-                                );
-                            }
-                        }
+                                fingerprint,
+                            ),
+                        );
+                    }
+                    let grpid = match msg.param.get(Param::Arg4) {
+                        Some(id) => id.strdup(),
+                        None => std::ptr::null_mut(),
+                    };
+                    if !grpid.is_null() {
+                        mailimf_fields_add(
+                            imf_fields,
+                            mailimf_field_new_custom(
+                                strdup(
+                                    b"Secure-Join-Group\x00" as *const u8 as *const libc::c_char,
+                                ),
+                                grpid,
+                            ),
+                        );
                     }
                 }
             }
@@ -1107,13 +1083,7 @@ unsafe fn get_subject(
     } else {
         b"\x00" as *const u8 as *const libc::c_char
     };
-    if msg
-        .param
-        .get_int(Param::Cmd)
-        .and_then(SystemMessage::from_i32)
-        .unwrap_or_default()
-        == SystemMessage::AutocryptSetupMessage
-    {
+    if msg.param.get_cmd() == SystemMessage::AutocryptSetupMessage {
         ret = context.stock_str(StockMessage::AcSetupMsgSubject).strdup()
     } else if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
         ret = format!(

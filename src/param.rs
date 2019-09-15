@@ -4,6 +4,7 @@ use std::str;
 
 use num_traits::FromPrimitive;
 
+use crate::dc_mimeparser::SystemMessage;
 use crate::error;
 
 /// Available param keys.
@@ -176,6 +177,13 @@ impl Params {
     /// Get the given parameter and parse as `i32`.
     pub fn get_int(&self, key: Param) -> Option<i32> {
         self.get(key).and_then(|s| s.parse().ok())
+    }
+
+    /// Get the parameter behind `Param::Cmd` interpreted as `SystemMessage`.
+    pub fn get_cmd(&self) -> SystemMessage {
+        self.get_int(Param::Cmd)
+            .and_then(SystemMessage::from_i32)
+            .unwrap_or_default()
     }
 
     /// Get the given parameter and parse as `f64`.
