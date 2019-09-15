@@ -53,7 +53,11 @@ unsafe fn stress_functions(context: &Context) {
         7i32 as libc::c_ulonglong
     );
 
-    let abs_path = format!("{}/foobar", context.get_blobdir().to_string_lossy());
+    let abs_path = context
+        .get_blobdir()
+        .join("foobar")
+        .to_string_lossy()
+        .to_string();
 
     assert!(dc_is_blobdir_path(context, &abs_path));
     assert!(dc_is_blobdir_path(context, "$BLOBDIR/fofo",));
