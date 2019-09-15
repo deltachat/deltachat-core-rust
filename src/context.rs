@@ -1,5 +1,5 @@
 use std::ffi::OsString;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::ptr;
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 
@@ -38,8 +38,8 @@ use crate::x::*;
 pub type ContextCallback = dyn Fn(&Context, Event, uintptr_t, uintptr_t) -> uintptr_t + Send + Sync;
 
 pub struct Context {
-    pub dbfile: Arc<RwLock<PathBuf>>,
-    pub blobdir: Arc<RwLock<PathBuf>>,
+    pub(crate) dbfile: PathBuf,
+    pub(crate) blobdir: PathBuf,
     pub sql: Sql,
     pub inbox: Arc<RwLock<Imap>>,
     pub perform_inbox_jobs_needed: Arc<RwLock<bool>>,
@@ -89,8 +89,8 @@ impl Context {
             blobdir.display()
         );
         let ctx = Context {
-            blobdir: Arc::new(RwLock::new(blobdir)),
-            dbfile: Arc::new(RwLock::new(dbfile)),
+            blobdir,
+            dbfile,
             inbox: Arc::new(RwLock::new({
                 Imap::new(
                     cb_get_config,
@@ -133,18 +133,21 @@ impl Context {
             perform_inbox_jobs_needed: Arc::new(RwLock::new(false)),
             generating_key_mutex: Mutex::new(()),
         };
-        if !ctx.sql.open(&ctx, &ctx.dbfile.read().unwrap(), 0) {
-            return Err(format_err!("Failed opening sqlite database"));
-        }
+
+        ensure!(
+            ctx.sql.open(&ctx, &ctx.dbfile, 0),
+            "Failed opening sqlite database"
+        );
+
         Ok(ctx)
     }
 
-    pub fn get_dbfile(&self) -> PathBuf {
-        self.dbfile.clone().read().unwrap().clone()
+    pub fn get_dbfile(&self) -> &Path {
+        self.dbfile.as_path()
     }
 
-    pub fn get_blobdir(&self) -> PathBuf {
-        self.blobdir.clone().read().unwrap().clone()
+    pub fn get_blobdir(&self) -> &Path {
+        self.blobdir.as_path()
     }
 
     pub fn call_cb(&self, event: Event, data1: uintptr_t, data2: uintptr_t) -> uintptr_t {
