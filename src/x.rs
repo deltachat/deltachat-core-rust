@@ -33,13 +33,6 @@ pub fn strndup(s: *const libc::c_char, n: libc::c_ulong) -> *mut libc::c_char {
     }
 }
 
-extern "C" {
-    pub fn clock() -> libc::clock_t;
-
-    // -- DC Methods
-    pub fn dc_mprintf(format: *const libc::c_char, _: ...) -> *mut libc::c_char;
-}
-
 pub(crate) unsafe fn strcasecmp(s1: *const libc::c_char, s2: *const libc::c_char) -> libc::c_int {
     let s1 = std::ffi::CStr::from_ptr(s1)
         .to_string_lossy()
