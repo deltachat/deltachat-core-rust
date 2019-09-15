@@ -510,18 +510,14 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "export-setup" => {
             let setup_code = dc_create_setup_code(context);
-            let file_name: *mut libc::c_char = dc_mprintf(
-                b"%s/autocrypt-setup-message.html\x00" as *const u8 as *const libc::c_char,
-                context.get_blobdir(),
-            );
+            let file_name = context.get_blobdir().join("autocrypt-setup-message.html");
             let file_content = dc_render_setup_file(context, &setup_code)?;
-            std::fs::write(as_str(file_name), file_content)?;
+            std::fs::write(&file_name, file_content)?;
             println!(
                 "Setup message written to: {}\nSetup code: {}",
-                as_str(file_name),
+                file_name.display(),
                 &setup_code,
             );
-            free(file_name as *mut libc::c_void);
         }
         "poke" => {
             ensure!(0 != poke_spec(context, arg1_c), "Poke failed");
