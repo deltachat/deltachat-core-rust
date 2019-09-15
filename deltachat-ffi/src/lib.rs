@@ -11,14 +11,16 @@
 extern crate human_panic;
 extern crate num_traits;
 
-use libc::uintptr_t;
-use num_traits::{FromPrimitive, ToPrimitive};
-
+use std::collections::HashMap;
 use std::convert::TryInto;
 use std::ffi::CString;
+use std::fmt::Write;
 use std::ptr;
 use std::str::FromStr;
 use std::sync::RwLock;
+
+use libc::uintptr_t;
+use num_traits::{FromPrimitive, ToPrimitive};
 
 use deltachat::constants::Event;
 use deltachat::contact::Contact;
@@ -293,8 +295,19 @@ pub unsafe extern "C" fn dc_get_info(context: *mut dc_context_t) -> *mut libc::c
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| context::dc_get_info(ctx))
+        .with_inner(|ctx| render_info(ctx.get_info()).unwrap_or_default().strdup())
         .unwrap_or_else(|_| "".strdup())
+}
+
+fn render_info(
+    info: HashMap<&'static str, String>,
+) -> std::result::Result<String, std::fmt::Error> {
+    let mut res = String::new();
+    for (key, value) in &info {
+        write!(&mut res, "{}={}\n", key, value)?;
+    }
+
+    Ok(res)
 }
 
 #[no_mangle]
@@ -320,7 +333,7 @@ pub unsafe extern "C" fn dc_get_oauth2_url(
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_get_version_str() -> *mut libc::c_char {
-    context::dc_get_version_str()
+    context::get_version_str().strdup()
 }
 
 #[no_mangle]
@@ -761,7 +774,7 @@ pub unsafe extern "C" fn dc_get_fresh_msgs(
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| {
-            let arr = dc_array_t::from(context::dc_get_fresh_msgs(ctx));
+            let arr = dc_array_t::from(ctx.get_fresh_msgs());
             Box::into_raw(Box::new(arr))
         })
         .unwrap_or_else(|_| ptr::null_mut())
@@ -927,7 +940,7 @@ pub unsafe extern "C" fn dc_search_msgs(
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| {
-            let arr = dc_array_t::from(context::dc_search_msgs(ctx, chat_id, query));
+            let arr = dc_array_t::from(ctx.search_msgs(chat_id, as_str(query)));
             Box::into_raw(Box::new(arr))
         })
         .unwrap_or_else(|_| ptr::null_mut())
