@@ -361,6 +361,7 @@ where
         "mp3"   => (Viewtype::Audio, "audio/mpeg"),
         "aac"   => (Viewtype::Audio, "audio/aac"),
         "mp4"   => (Viewtype::Video, "video/mp4"),
+        "jpe"   => (Viewtype::Image, "image/jpeg"),
         "jpg"   => (Viewtype::Image, "image/jpeg"),
         "jpeg"  => (Viewtype::Image, "image/jpeg"),
         "png"   => (Viewtype::Image, "image/png"),
