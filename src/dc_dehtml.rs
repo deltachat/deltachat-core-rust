@@ -165,3 +165,28 @@ fn dehtml_starttag_cb<B: std::io::BufRead>(
         _ => {}
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_dc_dehtml() {
+        let cases = vec![
+            (
+                "<a href='https://example.com'> Foo </a>",
+                "[ Foo ](https://example.com)",
+            ),
+            ("<img href='/foo.png'>", ""),
+            ("<b> bar </b>", "* bar *"),
+            ("<b> bar <i> foo", "* bar _ foo"),
+            ("&amp; bar", "& bar"),
+            // Note missing '
+            ("<a href='/foo.png>Hi</a> ", ""),
+            ("", ""),
+        ];
+        for (input, output) in cases {
+            assert_eq!(dc_dehtml(input), output);
+        }
+    }
+}
