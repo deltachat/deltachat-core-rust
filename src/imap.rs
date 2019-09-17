@@ -19,10 +19,10 @@ use crate::param::Params;
 
 const DC_IMAP_SEEN: usize = 0x0001;
 
-const DC_SUCCESS: usize = 3;
-const DC_ALREADY_DONE: usize = 2;
-const DC_RETRY_LATER: usize = 1;
-const DC_FAILED: usize = 0;
+pub const DC_SUCCESS: usize = 3;
+pub const DC_ALREADY_DONE: usize = 2;
+pub const DC_RETRY_LATER: usize = 1;
+pub const DC_FAILED: usize = 0;
 
 const PREFETCH_FLAGS: &str = "(UID ENVELOPE)";
 const BODY_FLAGS: &str = "(FLAGS BODY.PEEK[])";

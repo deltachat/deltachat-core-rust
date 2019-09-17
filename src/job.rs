@@ -246,15 +246,14 @@ impl Job {
                         msg.server_uid,
                         &dest_folder,
                         &mut dest_uid,
-                    ) as libc::c_uint
-                    {
-                        1 => {
+                    ) {
+                        DC_RETRY_LATER => {
                             self.try_again_later(3i32, None);
                         }
-                        3 => {
+                        DC_SUCCESS => {
                             dc_update_server_uid(context, &msg.rfc724_mid, &dest_folder, dest_uid);
                         }
-                        0 | 2 | _ => {}
+                        DC_FAILED | DC_ALREADY_DONE | _ => {}
                     }
                 }
             }
