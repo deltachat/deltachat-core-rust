@@ -50,7 +50,7 @@ pub struct Context {
     pub smtp_state: Arc<(Mutex<SmtpState>, Condvar)>,
     pub oauth2_critical: Arc<Mutex<()>>,
     #[debug_stub = "Callback"]
-    pub cb: Box<ContextCallback>,
+    cb: Box<ContextCallback>,
     pub os_name: Option<String>,
     pub cmdline_sel_chat_id: Arc<RwLock<u32>>,
     pub bob: Arc<RwLock<BobStatus>>,
