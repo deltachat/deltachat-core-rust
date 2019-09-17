@@ -25,12 +25,15 @@ use crate::x::*;
  * @return Returns the encoded string which must be free()'d when no longed needed.
  *     On errors, NULL is returned.
  */
-pub unsafe fn dc_encode_header_words(to_encode: *const libc::c_char) -> *mut libc::c_char {
+pub unsafe fn dc_encode_header_words(to_encode_r: impl AsRef<str>) -> *mut libc::c_char {
+    let to_encode =
+        CString::new(to_encode_r.as_ref().as_bytes()).expect("invalid cstring to_encode");
+
     let mut ok_to_continue = true;
     let mut ret_str: *mut libc::c_char = ptr::null_mut();
-    let mut cur: *const libc::c_char = to_encode;
+    let mut cur: *const libc::c_char = to_encode.as_ptr();
     let mmapstr: *mut MMAPString = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
-    if to_encode.is_null() || mmapstr.is_null() {
+    if mmapstr.is_null() {
         ok_to_continue = false;
     }
     loop {
@@ -355,12 +358,13 @@ mod tests {
             assert_eq!(CStr::from_ptr(buf1).to_str().unwrap(), "just ascii test");
             free(buf1 as *mut libc::c_void);
 
-            buf1 = dc_encode_header_words(b"abcdef\x00" as *const u8 as *const libc::c_char);
+            buf1 = dc_encode_header_words("abcdef");
             assert_eq!(CStr::from_ptr(buf1).to_str().unwrap(), "abcdef");
             free(buf1 as *mut libc::c_void);
 
             buf1 = dc_encode_header_words(
-                b"test\xc3\xa4\xc3\xb6\xc3\xbc.txt\x00" as *const u8 as *const libc::c_char,
+                std::string::String::from_utf8(b"test\xc3\xa4\xc3\xb6\xc3\xbc.txt".to_vec())
+                    .unwrap(),
             );
             assert_eq!(
                 strncmp(buf1, b"=?utf-8\x00" as *const u8 as *const libc::c_char, 7),

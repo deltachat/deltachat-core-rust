@@ -218,7 +218,7 @@ impl Key {
     pub fn write_asc_to_file(&self, file: impl AsRef<Path>, context: &Context) -> bool {
         let file_content = self.to_asc(None).into_bytes();
 
-        if dc_write_file_safe(context, &file, &file_content) {
+        if dc_write_file(context, &file, &file_content) {
             return true;
         } else {
             error!(context, "Cannot write key to {}", file.as_ref().display());

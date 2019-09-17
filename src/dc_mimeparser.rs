@@ -207,18 +207,14 @@ impl<'a> MimeParser<'a> {
                     .trim();
 
                     if !subj.is_empty() {
-                        let subj_c = CString::yolo(subj);
                         for part in self.parts.iter_mut() {
                             if part.typ == Viewtype::Text {
-                                let msg_c = part.msg.as_ref().unwrap().strdup();
-                                let new_txt: *mut libc::c_char = dc_mprintf(
-                                    b"%s \xe2\x80\x93 %s\x00" as *const u8 as *const libc::c_char,
-                                    subj_c.as_ptr(),
-                                    msg_c,
+                                let new_txt = format!(
+                                    "{} – {}",
+                                    subj,
+                                    part.msg.as_ref().expect("missing msg part")
                                 );
-                                free(msg_c.cast());
-                                part.msg = Some(to_string_lossy(new_txt));
-                                free(new_txt.cast());
+                                part.msg = Some(new_txt);
                                 break;
                             }
                         }
@@ -311,7 +307,7 @@ impl<'a> MimeParser<'a> {
         self.parts.iter_mut().rev().find(|part| !part.is_meta)
     }
 
-    /* the following functions can be used only after a call to dc_mimeparser_parse() */
+    /* the following functions can be used only after a call to parse() */
 
     pub fn lookup_field(&self, field_name: &str) -> Option<*mut mailimf_field> {
         match self.header.get(field_name) {
@@ -805,10 +801,11 @@ impl<'a> MimeParser<'a> {
                                 if !(*mime).mm_content_type.is_null()
                                     && !(*(*mime).mm_content_type).ct_subtype.is_null()
                                 {
-                                    desired_filename = dc_mprintf(
-                                        b"file.%s\x00" as *const u8 as *const libc::c_char,
-                                        (*(*mime).mm_content_type).ct_subtype,
-                                    );
+                                    desired_filename = format!(
+                                        "file.{}",
+                                        as_str((*(*mime).mm_content_type).ct_subtype)
+                                    )
+                                    .strdup();
                                 } else {
                                     ok_to_continue = false;
                                 }
@@ -896,44 +893,32 @@ impl<'a> MimeParser<'a> {
         desired_filename: *const libc::c_char,
     ) {
         /* create a free file name to use */
-        let path_n_filename = dc_get_fine_pathNfilename(
-            self.context,
-            b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
-            desired_filename,
-        );
-        if !path_n_filename.is_null() {
-            /* copy data to file */
-            if dc_write_file(
-                self.context,
-                path_n_filename,
-                decoded_data as *const libc::c_void,
-                decoded_data_bytes,
-            ) != 0
-            {
-                let mut part = Part::default();
-                part.typ = msg_type;
-                part.mimetype = mime_type;
-                part.bytes = decoded_data_bytes as libc::c_int;
-                part.param.set(Param::File, as_str(path_n_filename));
-                part.param.set(Param::MimeType, raw_mime);
+        let path_filename =
+            dc_get_fine_path_filename(self.context, "$BLOBDIR", as_str(desired_filename));
+        let bytes = std::slice::from_raw_parts(decoded_data as *const u8, decoded_data_bytes);
 
-                if mime_type == 80 {
-                    assert!(!decoded_data.is_null(), "invalid image data");
-                    let data = std::slice::from_raw_parts(
-                        decoded_data as *const u8,
-                        decoded_data_bytes as usize,
-                    );
+        /* copy data to file */
+        if dc_write_file(self.context, &path_filename, bytes) {
+            let mut part = Part::default();
+            part.typ = msg_type;
+            part.mimetype = mime_type;
+            part.bytes = decoded_data_bytes as libc::c_int;
+            part.param.set(Param::File, path_filename.to_string_lossy());
+            part.param.set(Param::MimeType, raw_mime);
+            if mime_type == 80 {
+                assert!(!decoded_data.is_null(), "invalid image data");
+                let data = std::slice::from_raw_parts(
+                    decoded_data as *const u8,
+                    decoded_data_bytes as usize,
+                );
 
-                    if let Ok((width, height)) = dc_get_filemeta(data) {
-                        part.param.set_int(Param::Width, width as i32);
-                        part.param.set_int(Param::Height, height as i32);
-                    }
+                if let Ok((width, height)) = dc_get_filemeta(data) {
+                    part.param.set_int(Param::Width, width as i32);
+                    part.param.set_int(Param::Height, height as i32);
                 }
-                self.do_add_single_part(part);
             }
+            self.do_add_single_part(part);
         }
-
-        free(path_n_filename as *mut libc::c_void);
     }
 
     fn do_add_single_part(&mut self, mut part: Part) {

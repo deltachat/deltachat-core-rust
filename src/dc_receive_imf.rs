@@ -308,14 +308,10 @@ unsafe fn add_parts(
     let mut rcvd_timestamp = 0;
     let mut mime_in_reply_to = std::ptr::null_mut();
     let mut mime_references = std::ptr::null_mut();
-    let mut txt_raw = std::ptr::null_mut();
 
-    let cleanup = |mime_in_reply_to: *mut libc::c_char,
-                   mime_references: *mut libc::c_char,
-                   txt_raw: *mut libc::c_char| {
+    let cleanup = |mime_in_reply_to: *mut libc::c_char, mime_references: *mut libc::c_char| {
         free(mime_in_reply_to.cast());
         free(mime_references.cast());
-        free(txt_raw.cast());
     };
 
     // collect the rest information, CC: is added to the to-list, BCC: is ignored
@@ -354,7 +350,7 @@ unsafe fn add_parts(
     if rfc724_mid.is_null() {
         rfc724_mid = dc_create_incoming_rfc724_mid(*sent_timestamp, *from_id, to_ids);
         if rfc724_mid.is_null() {
-            cleanup(mime_in_reply_to, mime_references, txt_raw);
+            cleanup(mime_in_reply_to, mime_references);
             bail!("Cannot create Message-ID");
         }
     }
@@ -376,7 +372,7 @@ unsafe fn add_parts(
         }
 
         free(old_server_folder.cast());
-        cleanup(mime_in_reply_to, mime_references, txt_raw);
+        cleanup(mime_in_reply_to, mime_references);
         bail!("Message already in DB");
     }
 
@@ -631,6 +627,8 @@ unsafe fn add_parts(
     // into only one message; mails sent by other clients may result in several messages
     // (eg. one per attachment))
     let icnt = mime_parser.parts.len();
+    let mut txt_raw = None;
+
     let is_ok = context
         .sql
         .prepare(
@@ -658,20 +656,13 @@ unsafe fn add_parts(
                         }
                     }
                     if part.typ == Viewtype::Text {
-                        let msg_raw =
-                            CString::yolo(part.msg_raw.as_ref().cloned().unwrap_or_default());
-                        let subject_c = CString::yolo(
-                            mime_parser
-                                .subject
-                                .as_ref()
-                                .map(|s| s.to_string())
-                                .unwrap_or("".into()),
-                        );
-                        txt_raw = dc_mprintf(
-                            b"%s\n\n%s\x00" as *const u8 as *const libc::c_char,
-                            subject_c.as_ptr(),
-                            msg_raw.as_ptr(),
-                        )
+                        let msg_raw = part.msg_raw.as_ref().cloned().unwrap_or_default();
+                        let subject = mime_parser
+                            .subject
+                            .as_ref()
+                            .map(|s| s.to_string())
+                            .unwrap_or("".into());
+                        txt_raw = Some(format!("{}\n\n{}", subject, msg_raw));
                     }
                     if mime_parser.is_system_message != SystemMessage::Unknown {
                         part.param
@@ -693,11 +684,7 @@ unsafe fn add_parts(
                         msgrmsg,
                         part.msg.as_ref().map_or("", String::as_str),
                         // txt_raw might contain invalid utf8
-                        if !txt_raw.is_null() {
-                            to_string_lossy(txt_raw)
-                        } else {
-                            String::new()
-                        },
+                        txt_raw.unwrap_or_default(),
                         part.param.to_string(),
                         part.bytes,
                         *hidden,
@@ -716,8 +703,7 @@ unsafe fn add_parts(
                         to_string(mime_references),
                     ])?;
 
-                    free(txt_raw as *mut libc::c_void);
-                    txt_raw = ptr::null_mut();
+                    txt_raw = None;
                     *insert_msg_id = sql::get_rowid_with_conn(
                         context,
                         conn,
@@ -734,7 +720,7 @@ unsafe fn add_parts(
 
     if !is_ok {
         // i/o error - there is nothing more we can do - in other cases, we try to write at least an empty record
-        cleanup(mime_in_reply_to, mime_references, txt_raw);
+        cleanup(mime_in_reply_to, mime_references);
         bail!("Cannot write DB.");
     }
 
@@ -757,7 +743,7 @@ unsafe fn add_parts(
     }
 
     context.do_heuristics_moves(server_folder.as_ref(), *insert_msg_id);
-    cleanup(mime_in_reply_to, mime_references, txt_raw);
+    cleanup(mime_in_reply_to, mime_references);
 
     Ok(())
 }
