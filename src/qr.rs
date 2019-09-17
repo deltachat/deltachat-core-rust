@@ -70,19 +70,14 @@ fn decode_openpgp(context: &Context, qr: &str) -> Lot {
         None => return format_err!("Invalid OPENPGP4FPR found").into(),
     };
 
-    dbg!(fingerprint);
-    dbg!(fragment);
-
     // replace & with \n to match expected param format
     let fragment = fragment.replace('&', "\n");
-    dbg!(&fragment);
 
     // Then parse the parameters
     let param: Params = match fragment.parse() {
         Ok(params) => params,
         Err(err) => return err.into(),
     };
-    dbg!(&param);
 
     let addr = if let Some(addr) = param.get(Param::Forwarded) {
         match normalize_address(addr) {
