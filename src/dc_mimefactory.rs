@@ -16,6 +16,7 @@ use crate::chat::{self, Chat};
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::{get_version_str, Context};
+use crate::dc_mimeparser::SystemMessage;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
 use crate::e2ee::*;
@@ -169,10 +170,10 @@ pub unsafe fn dc_mimefactory_load_msg(
             )
             .unwrap();
 
-        let command = factory.msg.param.get_int(Param::Cmd).unwrap_or_default();
+        let command = factory.msg.param.get_cmd();
         let msg = &factory.msg;
 
-        if command == 5 {
+        if command == SystemMessage::MemberRemovedFromGroup {
             let email_to_remove = msg.param.get(Param::Arg).unwrap_or_default();
             let email_to_remove_c = email_to_remove.strdup();
 
@@ -196,8 +197,8 @@ pub unsafe fn dc_mimefactory_load_msg(
                 }
             }
         }
-        if command != 6
-            && command != 7
+        if command != SystemMessage::AutocryptSetupMessage
+            && command != SystemMessage::SecurejoinMessage
             && 0 != context
                 .sql
                 .get_config_int(context, "mdns_enabled")
@@ -525,7 +526,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut dc_mimefact
             }
 
             /* build header etc. */
-            let command = factory.msg.param.get_int(Param::Cmd).unwrap_or_default();
+            let command = factory.msg.param.get_cmd();
             if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
                 mailimf_fields_add(
                     imf_fields,
@@ -541,7 +542,8 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut dc_mimefact
                         dc_encode_header_words(&chat.name),
                     ),
                 );
-                if command == DC_CMD_MEMBER_REMOVED_FROM_GROUP {
+
+                if command == SystemMessage::MemberRemovedFromGroup {
                     let email_to_remove = factory
                         .msg
                         .param
@@ -560,7 +562,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut dc_mimefact
                             ),
                         );
                     }
-                } else if command == DC_CMD_MEMBER_ADDED_TO_GROUP {
+                } else if command == SystemMessage::MemberAddedToGroup {
                     let msg = &factory.msg;
                     do_gossip = 1;
                     let email_to_add = msg.param.get(Param::Arg).unwrap_or_default().strdup();
@@ -591,7 +593,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut dc_mimefact
                             ),
                         );
                     }
-                } else if command == DC_CMD_GROUPNAME_CHANGED {
+                } else if command == SystemMessage::GroupNameChanged {
                     let msg = &factory.msg;
 
                     let value_to_add = msg.param.get(Param::Arg).unwrap_or_default().strdup();
@@ -604,7 +606,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut dc_mimefact
                             value_to_add,
                         ),
                     );
-                } else if command == DC_CMD_GROUPIMAGE_CHANGED {
+                } else if command == SystemMessage::GroupImageChanged {
                     let msg = &factory.msg;
                     grpimage = msg.param.get(Param::Arg);
                     if grpimage.is_none() {
@@ -618,7 +620,8 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut dc_mimefact
                     }
                 }
             }
-            if command == DC_CMD_LOCATION_STREAMING_ENABLED {
+
+            if command == SystemMessage::LocationStreamingEnabled {
                 mailimf_fields_add(
                     imf_fields,
                     mailimf_field_new_custom(
@@ -629,7 +632,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut dc_mimefact
                     ),
                 );
             }
-            if command == DC_CMD_AUTOCRYPT_SETUP_MESSAGE {
+            if command == SystemMessage::AutocryptSetupMessage {
                 mailimf_fields_add(
                     imf_fields,
                     mailimf_field_new_custom(
@@ -644,8 +647,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut dc_mimefact
                         .to_string(),
                 );
             }
-
-            if command == DC_CMD_SECUREJOIN_MESSAGE {
+            if command == SystemMessage::SecurejoinMessage {
                 let msg = &factory.msg;
                 let step = msg.param.get(Param::Arg).unwrap_or_default().strdup();
                 if strlen(step) > 0 {
@@ -719,6 +721,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut dc_mimefact
                     }
                 }
             }
+
             if let Some(grpimage) = grpimage {
                 info!(factory.context, "setting group image '{}'", grpimage);
                 let mut meta = dc_msg_new_untyped();
@@ -1061,7 +1064,7 @@ unsafe fn get_subject(
         dc_msg_get_summarytext_by_raw(msg.type_0, msg.text.as_ref(), &mut msg.param, 32, context);
 
     let fwd = if 0 != afwd_email { "Fwd: " } else { "" };
-    if msg.param.get_int(Param::Cmd).unwrap_or_default() == DC_CMD_AUTOCRYPT_SETUP_MESSAGE {
+    if msg.param.get_cmd() == SystemMessage::AutocryptSetupMessage {
         ret = context.stock_str(StockMessage::AcSetupMsgSubject).strdup()
     } else if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
         ret = format!("Chat: {}: {}{}", chat.name, fwd, raw_subject,).strdup();

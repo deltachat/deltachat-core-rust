@@ -478,10 +478,9 @@ pub unsafe fn dc_normalize_setup_code(
 pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: &Job) {
     let mut ok_to_continue = true;
     let mut success: libc::c_int = 0;
-    let what: libc::c_int;
 
     if dc_alloc_ongoing(context) {
-        what = job.param.get_int(Param::Cmd).unwrap_or_default();
+        let what = job.param.get_int(Param::Cmd).unwrap_or_default();
         let param1_s = job.param.get(Param::Arg).unwrap_or_default();
         let param1 = CString::yolo(param1_s);
         let _param2 = CString::yolo(job.param.get(Param::Arg2).unwrap_or_default());

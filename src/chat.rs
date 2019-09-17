@@ -7,6 +7,7 @@ use crate::config::*;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
+use crate::dc_mimeparser::SystemMessage;
 use crate::dc_tools::*;
 use crate::error::Error;
 use crate::events::Event;
@@ -1669,7 +1670,8 @@ pub fn set_chat_profile_image(
         if chat.update_param(context).is_ok() {
             if chat.is_promoted() {
                 let mut msg = dc_msg_new_untyped();
-                msg.param.set_int(Param::Cmd, DC_CMD_GROUPIMAGE_CHANGED);
+                msg.param
+                    .set_int(Param::Cmd, SystemMessage::GroupImageChanged as i32);
                 msg.type_0 = Viewtype::Text;
                 msg.text = Some(context.stock_system_msg(
                     if new_image_rel == "" {
