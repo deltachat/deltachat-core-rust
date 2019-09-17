@@ -439,6 +439,13 @@ mod tests {
     }
 
     #[test]
+    fn test_get_fresh_msgs() {
+        let t = dummy_context();
+        let fresh = t.ctx.get_fresh_msgs();
+        assert!(fresh.is_empty())
+    }
+
+    #[test]
     fn test_blobdir_exists() {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
