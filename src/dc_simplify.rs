@@ -211,6 +211,16 @@ fn is_plain_quote(buf: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        // proptest does not support [[:graphical:][:space:]] regex.
+        fn test_simplify_plain_text_fuzzy(input in "[!-~\t \n]+") {
+            let output = Simplify::new().simplify_plain_text(&input, true);
+            assert!(output.split('\n').all(|s| s != "-- "));
+        }
+    }
 
     #[test]
     fn test_simplify_trim() {
