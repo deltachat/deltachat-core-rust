@@ -138,7 +138,7 @@ jobs:
       - *restore-cache
       - run:
           name: build docs, run tests and build wheels
-          command: ci_scripts/ci_run.sh
+          command: ci_scripts/run_all.sh
           environment:
             TESTS: 1
             DOCS: 1
