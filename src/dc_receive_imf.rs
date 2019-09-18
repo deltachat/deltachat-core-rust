@@ -598,10 +598,7 @@ unsafe fn add_parts(
 
     // if the mime-headers should be saved, find out its size
     // (the mime-header ends with an empty line)
-    let save_mime_headers = context
-        .sql
-        .get_config_int(context, "save_mime_headers")
-        .unwrap_or_default();
+    let save_mime_headers = context.sql.get_config_bool(context, "save_mime_headers");
     if let Some(field) = mime_parser.lookup_field_typ("In-Reply-To", MAILIMF_FIELD_IN_REPLY_TO) {
         let fld_in_reply_to = (*field).fld_data.fld_in_reply_to;
         if !fld_in_reply_to.is_null() {
@@ -688,11 +685,11 @@ unsafe fn add_parts(
                         part.param.to_string(),
                         part.bytes,
                         *hidden,
-                        if 0 != save_mime_headers {
-                            Some(std::slice::from_raw_parts(
+                        if save_mime_headers {
+                            Some(String::from_utf8_lossy(std::slice::from_raw_parts(
                                 imf_raw_not_terminated as *const u8,
                                 imf_raw_bytes,
-                            ))
+                            )))
                         } else {
                             None
                         },
