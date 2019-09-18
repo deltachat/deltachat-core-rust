@@ -125,13 +125,17 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig):
                 fin = self._finalizers.pop()
                 fin()
 
+        def make_account(self, path, logid):
+            ac = Account(path, logid=logid)
+            self._finalizers.append(ac.shutdown)
+            return ac
+
         def get_unconfigured_account(self):
             self.offline_count += 1
             tmpdb = tmpdir.join("offlinedb%d" % self.offline_count)
-            ac = Account(tmpdb.strpath, logid="ac{}".format(self.offline_count))
+            ac = self.make_account(tmpdb.strpath, logid="ac{}".format(self.offline_count))
             ac._evlogger.init_time = self.init_time
             ac._evlogger.set_timeout(2)
-            self._finalizers.append(ac.shutdown)
             return ac
 
         def get_configured_offline_account(self):
@@ -154,23 +158,30 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig):
             if "e2ee_enabled" not in configdict:
                 configdict["e2ee_enabled"] = "1"
             tmpdb = tmpdir.join("livedb%d" % self.live_count)
-            ac = Account(tmpdb.strpath, logid="ac{}".format(self.live_count))
+            ac = self.make_account(tmpdb.strpath, logid="ac{}".format(self.live_count))
             ac._evlogger.init_time = self.init_time
             ac._evlogger.set_timeout(30)
             ac.configure(**configdict)
             ac.start_threads()
-            self._finalizers.append(ac.shutdown)
             return ac
+
+        def get_two_online_accounts(self):
+            ac1 = self.get_online_configuring_account()
+            ac2 = self.get_online_configuring_account()
+            wait_successful_IMAP_SMTP_connection(ac1)
+            wait_configuration_progress(ac1, 1000)
+            wait_successful_IMAP_SMTP_connection(ac2)
+            wait_configuration_progress(ac2, 1000)
+            return ac1, ac2
 
         def clone_online_account(self, account):
             self.live_count += 1
             tmpdb = tmpdir.join("livedb%d" % self.live_count)
-            ac = Account(tmpdb.strpath, logid="ac{}".format(self.live_count))
+            ac = self.make_account(tmpdb.strpath, logid="ac{}".format(self.live_count))
             ac._evlogger.init_time = self.init_time
             ac._evlogger.set_timeout(30)
             ac.configure(addr=account.get_config("addr"), mail_pw=account.get_config("mail_pw"))
             ac.start_threads()
-            self._finalizers.append(ac.shutdown)
             return ac
 
     am = AccountMaker()
