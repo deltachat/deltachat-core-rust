@@ -476,6 +476,15 @@ mod tests {
     }
 
     #[test]
+    fn test_with_empty_blobdir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dbfile = tmp.path().join("db.sqlite");
+        let blobdir = PathBuf::new();
+        let res = Context::with_blobdir(Box::new(|_, _| 0), "FakeOS".into(), dbfile, blobdir);
+        assert!(res.is_err());
+    }
+
+    #[test]
     fn test_with_blobdir_not_exists() {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
