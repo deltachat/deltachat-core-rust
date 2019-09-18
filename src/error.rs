@@ -24,6 +24,8 @@ pub enum Error {
     Utf8(std::str::Utf8Error),
     #[fail(display = "{:?}", _0)]
     CStringError(crate::dc_tools::CStringError),
+    #[fail(display = "PGP: {:?}", _0)]
+    Pgp(pgp::errors::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -67,6 +69,12 @@ impl From<image_meta::ImageError> for Error {
 impl From<crate::dc_tools::CStringError> for Error {
     fn from(err: crate::dc_tools::CStringError) -> Error {
         Error::CStringError(err)
+    }
+}
+
+impl From<pgp::errors::Error> for Error {
+    fn from(err: pgp::errors::Error) -> Error {
+        Error::Pgp(err)
     }
 }
 

@@ -296,7 +296,7 @@ impl E2eeHelper {
                             if (*plain).str_0.is_null() || (*plain).len <= 0 {
                                 ok_to_continue = false;
                             } else {
-                                if let Some(ctext_v) = dc_pgp_pk_encrypt(
+                                if let Ok(ctext_v) = dc_pgp_pk_encrypt(
                                     std::slice::from_raw_parts(
                                         (*plain).str_0 as *const u8,
                                         (*plain).len,
@@ -908,7 +908,7 @@ unsafe fn decrypt_part(
                 };
 
                 /*if we already have fingerprints, do not add more; this ensures, only the fingerprints from the outer-most part are collected */
-                if let Some(plain) = dc_pgp_pk_decrypt(
+                if let Ok(plain) = dc_pgp_pk_decrypt(
                     std::slice::from_raw_parts(decoded_data as *const u8, decoded_data_bytes),
                     &private_keyring,
                     &public_keyring_for_validate,
