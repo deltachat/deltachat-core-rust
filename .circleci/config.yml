@@ -186,8 +186,8 @@ workflows:
     jobs:
       - cargo_fetch
       - build_test_docs_wheel
-        requires:
-          - cargo_fetch
+          requires:
+            - cargo_fetch
       - upload_docs_wheels:
           requires:
             - build_test_docs_wheel
