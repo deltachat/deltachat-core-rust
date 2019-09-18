@@ -396,7 +396,7 @@ class Account(object):
     def shutdown(self, wait=True):
         """ stop threads and close and remove underlying dc_context and callbacks. """
         if hasattr(self, "_dc_context") and hasattr(self, "_threads"):
-            print("SHUTDOWN", self)
+            # print("SHUTDOWN", self)
             self.stop_threads(wait=False)
             lib.dc_close(self._dc_context)
             self.stop_threads(wait=wait)  # to wait for threads

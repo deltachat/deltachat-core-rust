@@ -334,10 +334,11 @@ class TestOfflineChat:
 
 
 class TestOnlineAccount:
-    def test_one_account_init(self, acfactory):
-        ac1 = acfactory.get_online_configuring_account()
-        wait_successful_IMAP_SMTP_connection(ac1)
-        wait_configuration_progress(ac1, 1000)
+    def get_chat(self, ac1, ac2):
+        c2 = ac1.create_contact(email=ac2.get_config("addr"))
+        chat = ac1.create_chat_by_contact(c2)
+        assert chat.id >= const.DC_CHAT_ID_LAST_SPECIAL
+        return chat
 
     def test_one_account_send(self, acfactory):
         ac1 = acfactory.get_online_configuring_account()
@@ -353,15 +354,8 @@ class TestOnlineAccount:
         assert ev[1] == msg_out.id
 
     def test_two_accounts_send_receive(self, acfactory):
-        ac1 = acfactory.get_online_configuring_account()
-        ac2 = acfactory.get_online_configuring_account()
-        c2 = ac1.create_contact(email=ac2.get_config("addr"))
-        chat = ac1.create_chat_by_contact(c2)
-        assert chat.id >= const.DC_CHAT_ID_LAST_SPECIAL
-        wait_successful_IMAP_SMTP_connection(ac1)
-        wait_configuration_progress(ac1, 1000)
-        wait_successful_IMAP_SMTP_connection(ac2)
-        wait_configuration_progress(ac2, 1000)
+        ac1, ac2 = acfactory.get_two_online_accounts()
+        chat = self.get_chat(ac1, ac2)
 
         msg_out = chat.send_text("message1")
 
@@ -372,15 +366,8 @@ class TestOnlineAccount:
         assert msg_in.text == "message1"
 
     def test_forward_messages(self, acfactory):
-        ac1 = acfactory.get_online_configuring_account()
-        ac2 = acfactory.get_online_configuring_account()
-        c2 = ac1.create_contact(email=ac2.get_config("addr"))
-        chat = ac1.create_chat_by_contact(c2)
-        assert chat.id >= const.DC_CHAT_ID_LAST_SPECIAL
-        wait_successful_IMAP_SMTP_connection(ac1)
-        wait_configuration_progress(ac1, 1000)
-        wait_successful_IMAP_SMTP_connection(ac2)
-        wait_configuration_progress(ac2, 1000)
+        ac1, ac2 = acfactory.get_two_online_accounts()
+        chat = self.get_chat(ac1, ac2)
 
         msg_out = chat.send_text("message2")
 
@@ -404,15 +391,10 @@ class TestOnlineAccount:
         assert not chat3.get_messages()
 
     def test_send_and_receive_message(self, acfactory, lp):
-        lp.sec("starting accounts, waiting for configuration")
-        ac1 = acfactory.get_online_configuring_account()
-        ac2 = acfactory.get_online_configuring_account()
-        c2 = ac1.create_contact(email=ac2.get_config("addr"))
-        chat = ac1.create_chat_by_contact(c2)
-        assert chat.id >= const.DC_CHAT_ID_LAST_SPECIAL
+        ac1, ac2 = acfactory.get_two_online_accounts()
 
-        wait_configuration_progress(ac1, 1000)
-        wait_configuration_progress(ac2, 1000)
+        lp.sec("ac1: create chat with ac2")
+        chat = self.get_chat(ac1, ac2)
 
         lp.sec("sending text message from ac1 to ac2")
         msg_out = chat.send_text("message1")
@@ -454,15 +436,10 @@ class TestOnlineAccount:
         assert msg_out.is_out_mdn_received()
 
     def test_send_and_receive_will_encrypt_decrypt(self, acfactory, lp):
-        lp.sec("starting accounts, waiting for configuration")
-        ac1 = acfactory.get_online_configuring_account()
-        ac2 = acfactory.get_online_configuring_account()
-        c2 = ac1.create_contact(email=ac2.get_config("addr"))
-        chat = ac1.create_chat_by_contact(c2)
-        assert chat.id >= const.DC_CHAT_ID_LAST_SPECIAL
+        ac1, ac2 = acfactory.get_two_online_accounts()
 
-        wait_configuration_progress(ac1, 1000)
-        wait_configuration_progress(ac2, 1000)
+        lp.sec("ac1: create chat with ac2")
+        chat = self.get_chat(ac1, ac2)
 
         lp.sec("sending text message from ac1 to ac2")
         msg_out = chat.send_text("message1")
@@ -485,14 +462,12 @@ class TestOnlineAccount:
         assert msg_back.text == "message-back"
 
     def test_saved_mime_on_received_message(self, acfactory, lp):
-        lp.sec("starting accounts, waiting for configuration")
-        ac1 = acfactory.get_online_configuring_account()
-        ac2 = acfactory.get_online_configuring_account()
+        ac1, ac2 = acfactory.get_two_online_accounts()
+
+        lp.sec("configure ac2 to save mime headers, create ac1/ac2 chat")
         ac2.set_config("save_mime_headers", "1")
-        c2 = ac1.create_contact(email=ac2.get_config("addr"))
-        chat = ac1.create_chat_by_contact(c2)
-        wait_configuration_progress(ac1, 1000)
-        wait_configuration_progress(ac2, 1000)
+        chat = self.get_chat(ac1, ac2)
+
         lp.sec("sending text message from ac1 to ac2")
         msg_out = chat.send_text("message1")
         ac1._evlogger.get_matching("DC_EVENT_MSG_DELIVERED")
@@ -506,14 +481,8 @@ class TestOnlineAccount:
         assert mime.get_all("Received")
 
     def test_send_and_receive_image(self, acfactory, lp, data):
-        lp.sec("starting accounts, waiting for configuration")
-        ac1 = acfactory.get_online_configuring_account()
-        ac2 = acfactory.get_online_configuring_account()
-        c2 = ac1.create_contact(email=ac2.get_config("addr"))
-        chat = ac1.create_chat_by_contact(c2)
-
-        wait_configuration_progress(ac1, 1000)
-        wait_configuration_progress(ac2, 1000)
+        ac1, ac2 = acfactory.get_two_online_accounts()
+        chat = self.get_chat(ac1, ac2)
 
         lp.sec("sending image message from ac1 to ac2")
         path = data.get_path("d.png")
@@ -533,13 +502,13 @@ class TestOnlineAccount:
         assert os.stat(msg_in.filename).st_size == os.stat(path).st_size
 
     def test_import_export_online(self, acfactory, tmpdir):
-        backupdir = tmpdir.mkdir("backup")
         ac1 = acfactory.get_online_configuring_account()
         wait_configuration_progress(ac1, 1000)
 
         contact1 = ac1.create_contact("some1@hello.com", name="some1")
         chat = ac1.create_chat_by_contact(contact1)
         chat.send_text("msg1")
+        backupdir = tmpdir.mkdir("backup")
         path = ac1.export_to_dir(backupdir.strpath)
         assert os.path.exists(path)
 
@@ -574,10 +543,7 @@ class TestOnlineAccount:
         assert ac1.get_info()["fingerprint"] == ac2.get_info()["fingerprint"]
 
     def test_qr_setup_contact(self, acfactory, lp):
-        ac1 = acfactory.get_online_configuring_account()
-        ac2 = acfactory.get_online_configuring_account()
-        wait_configuration_progress(ac2, 1000)
-        wait_configuration_progress(ac1, 1000)
+        ac1, ac2 = acfactory.get_two_online_accounts()
         lp.sec("ac1: create QR code and let ac2 scan it, starting the securejoin")
         qr = ac1.get_setup_contact_qr()
         lp.sec("ac2: start QR-code based setup contact protocol")
@@ -586,12 +552,8 @@ class TestOnlineAccount:
         wait_securejoin_inviter_progress(ac1, 1000)
 
     def test_qr_join_chat(self, acfactory, lp):
-        ac1 = acfactory.get_online_configuring_account()
-        ac2 = acfactory.get_online_configuring_account()
-        wait_configuration_progress(ac2, 1000)
-        wait_configuration_progress(ac1, 1000)
+        ac1, ac2 = acfactory.get_two_online_accounts()
         lp.sec("ac1: create QR code and let ac2 scan it, starting the securejoin")
-
         chat = ac1.create_group_chat("hello")
         qr = chat.get_join_qr()
         lp.sec("ac2: start QR-code based join-group protocol")
@@ -600,10 +562,7 @@ class TestOnlineAccount:
         wait_securejoin_inviter_progress(ac1, 1000)
 
     def test_set_get_profile_image(self, acfactory, data, lp):
-        ac1 = acfactory.get_online_configuring_account()
-        ac2 = acfactory.get_online_configuring_account()
-        wait_configuration_progress(ac2, 1000)
-        wait_configuration_progress(ac1, 1000)
+        ac1, ac2 = acfactory.get_two_online_accounts()
 
         lp.sec("create unpromoted group chat")
         chat = ac1.create_group_chat("hello")
