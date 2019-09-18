@@ -116,10 +116,10 @@ jobs:
     docker:
       - image: deltachat/coredeps
         environment:
-          DCC_PY_LIFECONFIG: 1
-          BRANCH: 1
-          TESTS: 1
-          DOCS: 1
+            DCC_PY_LIFECONFIG: 1
+            BRANCH: 1
+            TESTS: 1
+            DOCS: 1
     working_directory: /mnt/crate
     steps:
       - *restore-workspace
@@ -127,9 +127,6 @@ jobs:
       - run:
           name: build docs, run tests and build wheels
           command: ci_scripts/run_all.sh
-          environment:
-            TESTS: 1
-            DOCS: 1
       - run:
            name: copying docs and wheels to workspace
            command: |
@@ -150,7 +147,7 @@ jobs:
     working_directory: /mnt/crate
     steps:
       - *restore-workspace
-      - *restore-cache-python
+      - *restore-cache
       - attach_workspace:
           at: workspace
       - run: pyenv global 3.5.2
