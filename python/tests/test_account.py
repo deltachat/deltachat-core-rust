@@ -810,6 +810,35 @@ class TestOnlineAccount:
         assert chat1b.get_profile_image() is None
         assert chat.get_profile_image() is None
 
+    def test_send_receive_locations(self, acfactory, lp):
+        ac1, ac2 = acfactory.get_two_online_accounts()
+
+        lp.sec("ac1: create chat with ac2")
+        chat1 = self.get_chat(ac1, ac2)
+        chat2 = self.get_chat(ac2, ac1)
+
+        assert not chat1.is_sending_locations()
+        with pytest.raises(ValueError):
+            ac1.set_location(latitude=0.0, longitude=10.0)
+
+        ac1._evlogger.consume_events()
+        ac2._evlogger.consume_events()
+        lp.sec("ac1: enable location sending in chat")
+        chat1.enable_sending_locations(seconds=100)
+        assert chat1.is_sending_locations()
+        ac1.set_location(latitude=1.0, longitude=2.0)
+        ac1._evlogger.get_matching("DC_EVENT_LOCATION_CHANGED")
+        chat1.send_text("hello")
+        ac1._evlogger.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
+        ac1._evlogger.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
+
+        lp.sec("ac2: wait for incoming location message")
+        ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG")
+        ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG")
+        # contact = ac2.create_contact(ac1.get_config("addr"))
+        locations = chat2.get_locations()  # XXX per contact
+        assert len(locations) >= 1
+
 
 class TestOnlineConfigureFails:
     def test_invalid_password(self, acfactory):

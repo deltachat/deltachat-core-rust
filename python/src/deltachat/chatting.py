@@ -1,6 +1,8 @@
 """ chatting related objects: Contact, Chat, Message. """
 
 import mimetypes
+import calendar
+from datetime import datetime
 import os
 from . import props
 from .cutil import as_dc_charpointer, from_dc_charpointer, iter_array
@@ -365,3 +367,58 @@ class Chat(object):
         if dc_res == ffi.NULL:
             return None
         return from_dc_charpointer(dc_res)
+
+    def is_sending_locations(self):
+        """return True if this chat has location-sending enabled currently.
+        :returns: True if location sending is enabled.
+        """
+        return lib.dc_is_sending_locations_to_chat(self._dc_context, self.id)
+
+    def enable_sending_locations(self, seconds):
+        """enable sending locations for this chat.
+
+        all subsequent messages will carry a location with them.
+        """
+        lib.dc_send_locations_to_chat(self._dc_context, self.id, seconds)
+
+    def get_locations(self, contact=None, timestamp_from=None, timestamp_to=None):
+        """return list of locations for the given contact in the given timespan.
+
+        :param contact: the contact for which locations shall be returned.
+        :param timespan_from: a datetime object or None (indicating "since beginning")
+        :param timespan_to: a datetime object or None (indicating up till now)
+        :returns: list of :class:`deltachat.chatting.Location` objects.
+        """
+        if timestamp_from is None:
+            time_from = 0
+        else:
+            time_from = calendar.timegm(timestamp_from.utctimetuple())
+        if timestamp_to is None:
+            time_to = 0
+        else:
+            time_to = calendar.timegm(timestamp_to.utctimetuple())
+
+        if contact is None:
+            contact_id = 0
+        else:
+            contact_id = contact.id
+
+        dc_array = lib.dc_get_locations(self._dc_context, self.id, contact_id, time_from, time_to)
+        locations = []
+        for i in range(0, lib.dc_array_get_cnt(dc_array)):
+            locations.append(Location(
+                latitude=lib.dc_array_get_latitude(dc_array, i),
+                longitude=lib.dc_array_get_longitude(dc_array, i),
+                accuracy=lib.dc_array_get_accuracy(dc_array, i),
+                timestamp=datetime.utcfromtimestamp(lib.dc_array_get_accuracy(dc_array, i)),
+            ))
+        return locations
+
+
+class Location:
+    def __init__(self, latitude, longitude, accuracy, timestamp):
+        assert isinstance(timestamp, datetime.datetime)
+        self.latitude = latitude
+        self.longitude = longitude
+        self.accuracy = accuracy
+        self.timestamp = timestamp

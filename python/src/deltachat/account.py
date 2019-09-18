@@ -492,6 +492,19 @@ class Account(object):
     def on_dc_event_imex_file_written(self, data1, data2):
         self._imex_events.put(data1)
 
+    def set_location(self, latitude=0.0, longitude=0.0, accuracy=0.0):
+        """set location for this chat.
+
+        :param latitude: float (use 0.0 if not known)
+        :param longitude: float (use 0.0 if not known)
+        :param accuracy: float (use 0.0 if not known)
+        :raises: ValueError if no chat is currently streaming locations
+        :returns: None
+        """
+        dc_res = lib.dc_set_location(self._dc_context, latitude, longitude, accuracy)
+        if dc_res == 0:
+            raise ValueError("no chat is streaming locations")
+
 
 class IOThreads:
     def __init__(self, dc_context, log_event=lambda *args: None):
