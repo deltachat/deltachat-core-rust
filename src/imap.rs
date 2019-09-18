@@ -20,7 +20,6 @@ use crate::oauth2::dc_get_oauth2_access_token;
 use crate::param::Params;
 
 const DC_IMAP_SEEN: usize = 0x0001;
-const DC_REGENERATE: usize = 0x01;
 
 const DC_SUCCESS: usize = 3;
 const DC_ALREADY_DONE: usize = 2;
@@ -418,9 +417,7 @@ impl Imap {
                 if (server_flags & DC_LP_AUTH_OAUTH2) != 0 {
                     let addr: &str = config.addr.as_ref();
 
-                    if let Some(token) =
-                        dc_get_oauth2_access_token(context, addr, imap_pw, DC_REGENERATE as usize)
-                    {
+                    if let Some(token) = dc_get_oauth2_access_token(context, addr, imap_pw, true) {
                         let auth = OAuth2 {
                             user: imap_user.into(),
                             access_token: token,
