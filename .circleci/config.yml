@@ -50,7 +50,8 @@ jobs:
       - run: cargo fetch
       - run: rustc +stable --version
       - run: rustc +$(cat rust-toolchain) --version
-      - run: rm -rf .git
+      # make sure this git repo doesn't grow too big
+      - run: git gc
       - persist_to_workspace:
           root: /mnt
           paths:
@@ -60,6 +61,7 @@ jobs:
           paths:
             - "~/.cargo"
             - "~/.rustup"
+            - ".git"
 
   rustfmt:
     executor: default
