@@ -289,10 +289,11 @@ pub fn dc_pgp_symm_decrypt(passphrase: &str, ctext: &[u8]) -> Option<Vec<u8>> {
 
     enc_msg
         .and_then(|msg| {
-            let mut decryptor = msg
-                .decrypt_with_password(|| passphrase.into())
-                .expect("failed decryption");
-            decryptor.next().expect("no message")
+            let mut decryptor = msg.decrypt_with_password(|| passphrase.into())?;
+            match decryptor.next() {
+                Some(x) => x,
+                None => Err(pgp::errors::Error::InvalidInput),
+            }
         })
         .and_then(|msg| msg.get_content())
         .ok()

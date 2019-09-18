@@ -110,7 +110,13 @@ class Message(object):
 
     def continue_key_transfer(self, setup_code):
         """ extract key and use it as primary key for this account. """
-        lib.dc_continue_key_transfer(self._dc_context, self.id, as_dc_charpointer(setup_code))
+        res = lib.dc_continue_key_transfer(
+                self._dc_context,
+                self.id,
+                as_dc_charpointer(setup_code)
+        )
+        if res == 0:
+            raise ValueError("could not decrypt")
 
     @props.with_doc
     def time_sent(self):
