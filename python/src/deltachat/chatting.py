@@ -305,7 +305,6 @@ class Chat(object):
     def get_contacts(self):
         """ get all contacts for this chat.
         :params: contact object.
-        :raises ValueError: if contact could not be added
         :returns: list of :class:`deltachat.chatting.Contact` objects for this chat
 
         """

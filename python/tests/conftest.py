@@ -24,17 +24,6 @@ def pytest_configure(config):
             config.option.liveconfig = cfg
 
 
-@pytest.hookimpl(trylast=True)
-def pytest_runtest_call(item):
-    # perform early finalization because we otherwise get cloberred
-    # output from concurrent threads printing between execution
-    # of the test function and the teardown phase of that test function
-    if "acfactory" in item.funcargs:
-        print("*"*30, "finalizing", "*"*30)
-        acfactory = item.funcargs["acfactory"]
-        acfactory.finalize()
-
-
 def pytest_report_header(config, startdir):
     summary = []
 
@@ -184,7 +173,9 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig):
             self._finalizers.append(ac.shutdown)
             return ac
 
-    return AccountMaker()
+    am = AccountMaker()
+    request.addfinalizer(am.finalize)
+    return am
 
 
 @pytest.fixture
