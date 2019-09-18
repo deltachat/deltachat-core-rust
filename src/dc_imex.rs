@@ -196,8 +196,8 @@ pub fn dc_render_setup_file(context: &Context, passphrase: &str) -> Result<Strin
         _ => Some(("Autocrypt-Prefer-Encrypt", "mutual")),
     };
     let private_key_asc = private_key.to_asc(ac_headers);
-    let encr = dc_pgp_symm_encrypt(&passphrase, private_key_asc.as_bytes())
-        .ok_or(format_err!("Failed to encrypt private key."))?;
+    let encr = dc_pgp_symm_encrypt(&passphrase, private_key_asc.as_bytes())?;
+
     let replacement = format!(
         concat!(
             "-----BEGIN PGP MESSAGE-----\r\n",
@@ -385,7 +385,7 @@ fn set_self_key(
 }
 
 pub unsafe fn dc_decrypt_setup_file(
-    _context: &Context,
+    context: &Context,
     passphrase: *const libc::c_char,
     filecontent: *const libc::c_char,
 ) -> *mut libc::c_char {
@@ -424,12 +424,17 @@ pub unsafe fn dc_decrypt_setup_file(
             || binary_bytes == 0)
         {
             /* decrypt symmetrically */
-            if let Some(plain) = dc_pgp_symm_decrypt(
+            match dc_pgp_symm_decrypt(
                 as_str(passphrase),
                 std::slice::from_raw_parts(binary as *const u8, binary_bytes),
             ) {
-                let payload_c = CString::new(plain).unwrap();
-                payload = strdup(payload_c.as_ptr());
+                Ok(plain) => {
+                    let payload_c = CString::new(plain).unwrap();
+                    payload = strdup(payload_c.as_ptr());
+                }
+                Err(err) => {
+                    error!(context, "Failed to decrypt message: {:?}", err);
+                }
             }
         }
     }

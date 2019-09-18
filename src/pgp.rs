@@ -12,6 +12,7 @@ use pgp::types::{CompressionAlgorithm, KeyTrait, SecretKeyTrait, StringToKey};
 use rand::thread_rng;
 
 use crate::dc_tools::*;
+use crate::error::Error;
 use crate::key::*;
 use crate::keyring::*;
 use crate::x::*;
@@ -189,7 +190,7 @@ pub fn dc_pgp_pk_encrypt(
     plain: &[u8],
     public_keys_for_encryption: &Keyring,
     private_key_for_signing: Option<&Key>,
-) -> Option<String> {
+) -> Result<String, Error> {
     let lit_msg = Message::new_literal_bytes("", plain);
     let pkeys: Vec<&SignedPublicKey> = public_keys_for_encryption
         .keys()
@@ -203,9 +204,10 @@ pub fn dc_pgp_pk_encrypt(
     let mut rng = thread_rng();
 
     // TODO: measure time
-    // TODO: better error handling
     let encrypted_msg = if let Some(private_key) = private_key_for_signing {
-        let skey: &SignedSecretKey = private_key.try_into().unwrap();
+        let skey: &SignedSecretKey = private_key
+            .try_into()
+            .map_err(|_| format_err!("Invalid private key"))?;
 
         lit_msg
             .sign(skey, || "".into(), Default::default())
@@ -215,9 +217,10 @@ pub fn dc_pgp_pk_encrypt(
         lit_msg.encrypt_to_keys(&mut rng, Default::default(), &pkeys)
     };
 
-    encrypted_msg
-        .and_then(|msg| msg.to_armored_string(None))
-        .ok()
+    let msg = encrypted_msg?;
+    let encoded_msg = msg.to_armored_string(None)?;
+
+    Ok(encoded_msg)
 }
 
 pub fn dc_pgp_pk_decrypt(
@@ -225,77 +228,73 @@ pub fn dc_pgp_pk_decrypt(
     private_keys_for_decryption: &Keyring,
     public_keys_for_validation: &Keyring,
     ret_signature_fingerprints: Option<&mut HashSet<String>>,
-) -> Option<Vec<u8>> {
-    // TODO: proper error handling
-    if let Ok((msg, _)) = Message::from_armor_single(Cursor::new(ctext)) {
-        let skeys: Vec<&SignedSecretKey> = private_keys_for_decryption
-            .keys()
-            .iter()
-            .filter_map(|key| {
-                let k: &Key = &key;
-                k.try_into().ok()
-            })
-            .collect();
+) -> Result<Vec<u8>, Error> {
+    let (msg, _) = Message::from_armor_single(Cursor::new(ctext))?;
+    let skeys: Vec<&SignedSecretKey> = private_keys_for_decryption
+        .keys()
+        .iter()
+        .filter_map(|key| {
+            let k: &Key = &key;
+            k.try_into().ok()
+        })
+        .collect();
 
-        msg.decrypt(|| "".into(), || "".into(), &skeys[..])
-            .and_then(|(mut decryptor, _)| {
-                // TODO: how to handle the case when we detect multiple messages?
-                decryptor.next().expect("no message")
-            })
-            .and_then(|dec_msg| {
-                if let Some(ret_signature_fingerprints) = ret_signature_fingerprints {
-                    if !public_keys_for_validation.keys().is_empty() {
-                        let pkeys: Vec<&SignedPublicKey> = public_keys_for_validation
-                            .keys()
-                            .iter()
-                            .filter_map(|key| {
-                                let k: &Key = &key;
-                                k.try_into().ok()
-                            })
-                            .collect();
+    let (decryptor, _) = msg.decrypt(|| "".into(), || "".into(), &skeys[..])?;
+    let msgs = decryptor.collect::<Result<Vec<_>, _>>()?;
+    ensure!(!msgs.is_empty(), "No valid messages found");
 
-                        for pkey in &pkeys {
-                            if dec_msg.verify(&pkey.primary_key).is_ok() {
-                                let fp = hex::encode_upper(pkey.fingerprint());
-                                ret_signature_fingerprints.insert(fp);
-                            }
-                        }
-                    }
+    let dec_msg = &msgs[0];
+
+    if let Some(ret_signature_fingerprints) = ret_signature_fingerprints {
+        if !public_keys_for_validation.keys().is_empty() {
+            let pkeys: Vec<&SignedPublicKey> = public_keys_for_validation
+                .keys()
+                .iter()
+                .filter_map(|key| {
+                    let k: &Key = &key;
+                    k.try_into().ok()
+                })
+                .collect();
+
+            for pkey in &pkeys {
+                if dec_msg.verify(&pkey.primary_key).is_ok() {
+                    let fp = hex::encode_upper(pkey.fingerprint());
+                    ret_signature_fingerprints.insert(fp);
                 }
-                dec_msg.get_content()
-            })
-            .ok()
-            .and_then(|content| content)
-    } else {
-        None
+            }
+        }
+    }
+
+    match dec_msg.get_content()? {
+        Some(content) => Ok(content),
+        None => bail!("Decrypted message is empty"),
     }
 }
 
 /// Symmetric encryption.
-pub fn dc_pgp_symm_encrypt(passphrase: &str, plain: &[u8]) -> Option<String> {
+pub fn dc_pgp_symm_encrypt(passphrase: &str, plain: &[u8]) -> Result<String, Error> {
     let mut rng = thread_rng();
     let lit_msg = Message::new_literal_bytes("", plain);
 
     let s2k = StringToKey::new_default(&mut rng);
     let msg =
-        lit_msg.encrypt_with_password(&mut rng, s2k, Default::default(), || passphrase.into());
+        lit_msg.encrypt_with_password(&mut rng, s2k, Default::default(), || passphrase.into())?;
 
-    msg.and_then(|msg| msg.to_armored_string(None)).ok()
+    let encoded_msg = msg.to_armored_string(None)?;
+
+    Ok(encoded_msg)
 }
 
 /// Symmetric decryption.
-pub fn dc_pgp_symm_decrypt(passphrase: &str, ctext: &[u8]) -> Option<Vec<u8>> {
-    let enc_msg = Message::from_bytes(Cursor::new(ctext));
+pub fn dc_pgp_symm_decrypt(passphrase: &str, ctext: &[u8]) -> Result<Vec<u8>, Error> {
+    let enc_msg = Message::from_bytes(Cursor::new(ctext))?;
+    let decryptor = enc_msg.decrypt_with_password(|| passphrase.into())?;
 
-    enc_msg
-        .and_then(|msg| {
-            let mut decryptor = msg.decrypt_with_password(|| passphrase.into())?;
-            match decryptor.next() {
-                Some(x) => x,
-                None => Err(pgp::errors::Error::InvalidInput),
-            }
-        })
-        .and_then(|msg| msg.get_content())
-        .ok()
-        .and_then(|content| content)
+    let msgs = decryptor.collect::<Result<Vec<_>, _>>()?;
+    ensure!(!msgs.is_empty(), "No valid messages found");
+
+    match msgs[0].get_content()? {
+        Some(content) => Ok(content),
+        None => bail!("Decrypted message is empty"),
+    }
 }
