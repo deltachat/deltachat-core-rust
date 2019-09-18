@@ -50,9 +50,8 @@ class Account(object):
         self._configkeys = self.get_config("sys.config_keys").split()
         self._imex_completed = threading.Event()
 
-    # XXX this can cause "illegal instructions" at test ends so we omit it for now
-    # def __del__(self):
-    #    self.shutdown()
+    def __del__(self):
+        self.shutdown()
 
     def _check_config_key(self, name):
         if name not in self._configkeys:
@@ -397,7 +396,8 @@ class Account(object):
     def shutdown(self, wait=True):
         """ stop threads and close and remove underlying dc_context and callbacks. """
         if hasattr(self, "_dc_context") and hasattr(self, "_threads"):
-            self.stop_threads(wait=False)  # to interrupt idle and tell python threads to stop
+            print("SHUTDOWN", self)
+            self.stop_threads(wait=False)
             lib.dc_close(self._dc_context)
             self.stop_threads(wait=wait)  # to wait for threads
             deltachat.clear_context_callback(self._dc_context)
