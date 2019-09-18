@@ -1626,7 +1626,8 @@ mod tests {
     fn test_dc_mimeparser_crash() {
         let context = dummy_context();
         let raw = include_bytes!("../test-data/message/issue_523.txt");
-        let mimeparser = unsafe { dc_mimeparser_parse(&context.ctx, &raw[..]) };
+        let mut mimeparser = MimeParser::new(&context.ctx);
+        unsafe { mimeparser.parse(&raw[..]) };
         assert_eq!(mimeparser.subject, None);
         assert_eq!(mimeparser.parts.len(), 1);
     }
@@ -1635,7 +1636,8 @@ mod tests {
         #[test]
         fn test_dc_mailmime_parse_crash_fuzzy(data in "[!-~\t ]{2000,}") {
             let context = dummy_context();
-            unsafe { dc_mimeparser_parse(&context.ctx, data.as_bytes()) }
+            let mut mimeparser = MimeParser::new(&context.ctx);
+            unsafe { mimeparser.parse(data.as_bytes()) };
         }
     }
 
