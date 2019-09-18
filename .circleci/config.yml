@@ -15,12 +15,6 @@ restore-cache: &restore-cache
       - cargo-v1-{{ checksum "rust-toolchain" }}-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}-{{ arch }}
       - repo-source-{{ .Branch }}-{{ .Revision }}
 
-restore-cache-python: &restore-cache-python
-  restore_cache:
-    keys:
-      - cargo-v1-python-{{ checksum "rust-toolchain" }}-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}-{{ arch }}
-      - repo-source-{{ .Branch }}-{{ .Revision }}
-
 commands:
   test_target:
     parameters:
@@ -29,17 +23,6 @@ commands:
     steps:
       - *restore-workspace
       - *restore-cache
-      - setup_remote_docker:
-          docker_layer_caching: true
-      # TODO: move into image
-      - run:
-          name: Install Docker client
-          command: |
-            set -x
-            VER="18.09.2"
-            curl -L -o /tmp/docker-$VER.tgz https://download.docker.com/linux/static/stable/x86_64/docker-$VER.tgz
-            tar -xz -C /tmp -f /tmp/docker-$VER.tgz
-            mv /tmp/docker/* /usr/bin
       - run:
           name: Test (<< parameters.target >>)
           command: TARGET=<< parameters.target >> ci/run.sh
@@ -132,6 +115,11 @@ jobs:
   build_test_docs_wheel:
     docker:
       - image: deltachat/coredeps
+        environment:
+          DCC_PY_LIFECONFIG: 1
+          BRANCH: 1
+          TESTS: 1
+          DOCS: 1
     working_directory: /mnt/crate
     steps:
       - *restore-workspace
