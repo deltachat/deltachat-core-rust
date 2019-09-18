@@ -135,7 +135,7 @@ jobs:
     working_directory: /mnt/crate
     steps:
       - *restore-workspace
-      - *restore-cache-python
+      - *restore-cache
       - run:
           name: build docs, run tests and build wheels
           command: ci_scripts/ci_run.sh
@@ -185,6 +185,9 @@ workflows:
   test:
     jobs:
       - build_test_docs_wheel
+          requires:
+            - cargo_fetch
+
       - upload_docs_wheels:
           requires:
             - build_test_docs_wheel
