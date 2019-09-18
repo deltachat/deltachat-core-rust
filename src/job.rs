@@ -247,13 +247,13 @@ impl Job {
                         &dest_folder,
                         &mut dest_uid,
                     ) {
-                        DC_RETRY_LATER => {
+                        ImapResult::RetryLater => {
                             self.try_again_later(3i32, None);
                         }
-                        DC_SUCCESS => {
+                        ImapResult::Success => {
                             dc_update_server_uid(context, &msg.rfc724_mid, &dest_folder, dest_uid);
                         }
-                        DC_FAILED | DC_ALREADY_DONE | _ => {}
+                        ImapResult::Failed | ImapResult::AlreadyDone => {}
                     }
                 }
             }
@@ -401,8 +401,8 @@ impl Job {
                 }
                 let dest_folder = context.sql.get_config(context, "configured_mvbox_folder");
                 if let Some(dest_folder) = dest_folder {
-                    if 1 == inbox.mv(context, folder, uid, dest_folder, &mut dest_uid)
-                        as libc::c_uint
+                    if ImapResult::RetryLater
+                        == inbox.mv(context, folder, uid, dest_folder, &mut dest_uid)
                     {
                         self.try_again_later(3, None);
                     }

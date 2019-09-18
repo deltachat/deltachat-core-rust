@@ -19,6 +19,14 @@ use crate::param::Params;
 
 const DC_IMAP_SEEN: usize = 0x0001;
 
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq)]
+pub enum ImapResult {
+    Failed,
+    RetryLater,
+    AlreadyDone,
+    Success,
+}
+
 pub const DC_SUCCESS: usize = 3;
 pub const DC_ALREADY_DONE: usize = 2;
 pub const DC_RETRY_LATER: usize = 1;
@@ -1130,12 +1138,12 @@ impl Imap {
         uid: u32,
         dest_folder: S2,
         dest_uid: &mut u32,
-    ) -> usize {
-        let mut res = DC_RETRY_LATER;
+    ) -> ImapResult {
+        let mut res = ImapResult::RetryLater;
         let set = format!("{}", uid);
 
         if uid == 0 {
-            res = DC_FAILED;
+            res = ImapResult::Failed;
         } else if folder.as_ref() == dest_folder.as_ref() {
             info!(
                 context,
@@ -1145,7 +1153,7 @@ impl Imap {
                 dest_folder.as_ref()
             );
 
-            res = DC_ALREADY_DONE;
+            res = ImapResult::AlreadyDone;
         } else {
             info!(
                 context,
@@ -1165,7 +1173,7 @@ impl Imap {
                 let moved = if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
                     match session.uid_mv(&set, &dest_folder) {
                         Ok(_) => {
-                            res = DC_SUCCESS;
+                            res = ImapResult::Success;
                             true
                         }
                         Err(err) => {
@@ -1205,22 +1213,22 @@ impl Imap {
                             warn!(context, "Cannot mark message as \"Deleted\".",);
                         }
                         self.config.write().unwrap().selected_folder_needs_expunge = true;
-                        res = DC_SUCCESS;
+                        res = ImapResult::Success;
                     }
                 }
             }
         }
 
-        if res == DC_SUCCESS {
+        if res == ImapResult::Success {
             // TODO: is this correct?
             *dest_uid = uid;
         }
 
-        if res == DC_RETRY_LATER {
+        if res == ImapResult::RetryLater {
             if self.should_reconnect() {
-                DC_RETRY_LATER
+                ImapResult::RetryLater
             } else {
-                DC_FAILED
+                ImapResult::Failed
             }
         } else {
             res
