@@ -233,7 +233,7 @@ pub unsafe extern "C" fn dc_open(
     let ffi_context = &*context;
     let rust_cb = move |_ctx: &Context, evt: Event| ffi_context.translate_cb(evt);
 
-    let ctx = if blobdir.is_null() {
+    let ctx = if blobdir.is_null() || *blobdir == 0 {
         Context::new(
             Box::new(rust_cb),
             ffi_context.os_name.clone(),
