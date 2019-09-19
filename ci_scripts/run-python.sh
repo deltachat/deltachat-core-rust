@@ -42,14 +42,15 @@ if [ -n "$TESTS" ]; then
 
     tox --workdir "$TOXWORKDIR" -e py37 
     unset DCC_PY_LIVECONFIG
-    tox --workdir "$TOXWORKDIR" -e lint,py35,py36,auditwheels
+    tox --workdir "$TOXWORKDIR" -p4 -e lint,py35,py36,doc
+    tox --workdir "$TOXWORKDIR" -e auditwheels
     popd
 fi
 
 
-if [ -n "$DOCS" ]; then
-    echo -----------------------
-    echo generating python docs
-    echo -----------------------
-    (cd python && tox --workdir "$TOXWORKDIR" -e doc)
-fi
+# if [ -n "$DOCS" ]; then
+#     echo -----------------------
+#     echo generating python docs
+#     echo -----------------------
+#     (cd python && tox --workdir "$TOXWORKDIR" -e doc)
+# fi
