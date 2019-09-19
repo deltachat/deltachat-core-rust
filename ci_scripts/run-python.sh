@@ -39,8 +39,12 @@ if [ -n "$TESTS" ]; then
     # run tox. The circle-ci project env-var-setting DCC_PY_LIVECONFIG 
     # allows running of "liveconfig" tests but for speed reasons
     # we run them only for the highest python version we support
-
-    tox --workdir "$TOXWORKDIR" -e py37 
+    
+    # we split out qr-tests run to minimize likelyness of flaky tests
+    # (some qr tests are pretty heavy in terms of send/received
+    # messages and rust's imap code likely has concurrency problems) 
+    tox --workdir "$TOXWORKDIR" -e py37 -- -k "not qr"
+    tox --workdir "$TOXWORKDIR" -e py37 -- -k "qr"
     unset DCC_PY_LIVECONFIG
     tox --workdir "$TOXWORKDIR" -p4 -e lint,py35,py36,doc
     tox --workdir "$TOXWORKDIR" -e auditwheels
