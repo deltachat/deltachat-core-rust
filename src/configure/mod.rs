@@ -46,17 +46,23 @@ pub fn dc_is_configured(context: &Context) -> bool {
 // the other dc_job_do_DC_JOB_*() functions are declared static in the c-file
 #[allow(non_snake_case, unused_must_use)]
 pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
-    let mut success = false;
-    let mut imap_connected_here = false;
-    let mut smtp_connected_here = false;
-    let mut ongoing_allocated_here = false;
 
-    let mut param_autoconfig: Option<LoginParam> = None;
-    if dc_alloc_ongoing(context) {
-        ongoing_allocated_here = true;
-        if !context.sql.is_open() {
-            error!(context, "Cannot configure, database not opened.",);
-        } else {
+
+    if !dc_alloc_ongoing(context) {
+        progress!(context, 0);
+        return;
+    }
+    if !context.sql.is_open() {
+        error!(context, "Cannot configure, database not opened.",);
+        progress!(context, 0);
+        return;
+    }
+
+        let mut success = false;
+        let mut imap_connected_here = false;
+        let mut smtp_connected_here = false;
+        let mut param_autoconfig: Option<LoginParam> = None;
+
             context.inbox.read().unwrap().disconnect(context);
             context
                 .sentbox_thread
@@ -339,26 +345,18 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                         progress!(context, 600);
                         /* try to connect to IMAP - if we did not got an autoconfig,
                         do some further tries with different settings and username variations */
-                        let ok_to_continue8;
-                        let mut username_variation = 0;
-                        loop {
-                            if !(username_variation <= 1) {
-                                ok_to_continue8 = true;
-                                break;
-                            }
+                        for username_variation in 0..2 {
                             info!(context, "Trying: {}", &param);
 
                             if context.inbox.read().unwrap().connect(context, &param) {
-                                ok_to_continue8 = true;
+                                imap_connected_here = true;
                                 break;
                             }
-                            if !param_autoconfig.is_none() {
-                                ok_to_continue8 = false;
+                            if param_autoconfig.is_some() {
                                 break;
                             }
                             // probe STARTTLS/993
                             if s.shall_stop_ongoing {
-                                ok_to_continue8 = false;
                                 break;
                             }
                             progress!(context, 650 + username_variation * 30);
@@ -367,12 +365,11 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                             info!(context, "Trying: {}", &param);
 
                             if context.inbox.read().unwrap().connect(context, &param) {
-                                ok_to_continue8 = true;
+                                imap_connected_here = true;
                                 break;
                             }
                             // probe STARTTLS/143
                             if s.shall_stop_ongoing {
-                                ok_to_continue8 = false;
                                 break;
                             }
                             progress!(context, 660 + username_variation * 30);
@@ -380,16 +377,14 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                             info!(context, "Trying: {}", &param);
 
                             if context.inbox.read().unwrap().connect(context, &param) {
-                                ok_to_continue8 = true;
+                                imap_connected_here = true;
                                 break;
                             }
-                            if 0 != username_variation {
-                                ok_to_continue8 = false;
+                            if username_variation > 0 {
                                 break;
                             }
                             // next probe round with only the localpart of the email-address as the loginname
                             if s.shall_stop_ongoing {
-                                ok_to_continue8 = false;
                                 break;
                             }
                             progress!(context, 670 + username_variation * 30);
@@ -403,18 +398,11 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                             if let Some(at) = param.send_user.find('@') {
                                 param.send_user = param.send_user.split_at(at).0.to_string();
                             }
-
-                            username_variation += 1
                         }
-                        if ok_to_continue8 {
-                            // success, so we are connected and should disconnect in cleanup
-                            imap_connected_here = true;
-                        }
-                        ok_to_continue8
+                        imap_connected_here
                     }
                     15 => {
                         progress!(context, 800);
-                        let success;
                         /* try to connect to SMTP - if we did not got an autoconfig, the first try was SSL-465 and we do a second try with STARTTLS-587 */
                         if !context
                             .smtp
@@ -423,11 +411,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                             .unwrap()
                             .connect(context, &param)
                         {
-                            if !param_autoconfig.is_none() {
-                                success = false;
-                            } else if s.shall_stop_ongoing {
-                                success = false;
-                            } else {
+                            if param_autoconfig.is_none() && !s.shall_stop_ongoing {
                                 progress!(context, 850);
                                 param.server_flags &= !(DC_LP_SMTP_SOCKET_FLAGS as i32);
                                 param.server_flags |= DC_LP_SMTP_SOCKET_STARTTLS as i32;
@@ -441,38 +425,31 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                                     .unwrap()
                                     .connect(context, &param)
                                 {
-                                    if s.shall_stop_ongoing {
-                                        success = false;
-                                    } else {
+                                    if !s.shall_stop_ongoing {
                                         progress!(context, 860);
                                         param.server_flags &= !(DC_LP_SMTP_SOCKET_FLAGS as i32);
                                         param.server_flags |= DC_LP_SMTP_SOCKET_STARTTLS as i32;
                                         param.send_port = 25;
                                         info!(context, "Trying: {}", &param);
 
-                                        if !context
+                                        if context
                                             .smtp
                                             .clone()
                                             .lock()
                                             .unwrap()
                                             .connect(context, &param)
                                         {
-                                            success = false;
-                                        } else {
-                                            success = true;
+                                            smtp_connected_here = true;
                                         }
                                     }
                                 } else {
-                                    success = true;
+                                    smtp_connected_here = true;
                                 }
                             }
                         } else {
-                            success = true;
-                        }
-                        if success {
                             smtp_connected_here = true;
                         }
-                        success
+                        smtp_connected_here
                     }
                     16 => {
                         progress!(context, 900);
@@ -532,8 +509,6 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                     break;
                 }
             }
-        }
-    }
     if imap_connected_here {
         context.inbox.read().unwrap().disconnect(context);
     }
@@ -558,9 +533,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
         );
     }
     */
-    if ongoing_allocated_here {
-        dc_free_ongoing(context);
-    }
+    dc_free_ongoing(context);
 
     progress!(context, if success { 1000 } else { 0 });
 }
