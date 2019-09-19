@@ -1001,8 +1001,7 @@ fn add_smtp_job(context: &Context, action: Action, mimefactory: &dc_mimefactory_
     let mut success: libc::c_int = 0i32;
     let mut recipients: *mut libc::c_char = ptr::null_mut();
     let mut param = Params::new();
-    let path_filename =
-        dc_get_fine_path_filename(context, "$BLOBDIR", as_str(mimefactory.rfc724_mid));
+    let path_filename = dc_get_fine_path_filename(context, "$BLOBDIR", &mimefactory.rfc724_mid);
     let bytes = unsafe {
         std::slice::from_raw_parts(
             (*mimefactory.out).str_0 as *const u8,
@@ -1013,7 +1012,7 @@ fn add_smtp_job(context: &Context, action: Action, mimefactory: &dc_mimefactory_
         error!(
             context,
             "Could not write message <{}> to \"{}\".",
-            to_string(mimefactory.rfc724_mid),
+            mimefactory.rfc724_mid,
             path_filename.display(),
         );
     } else {

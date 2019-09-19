@@ -36,7 +36,7 @@ pub struct dc_mimefactory_t<'a> {
     pub recipients_names: *mut clist,
     pub recipients_addr: *mut clist,
     pub timestamp: i64,
-    pub rfc724_mid: *mut libc::c_char,
+    pub rfc724_mid: String,
     pub loaded: dc_mimefactory_loaded_t,
     pub msg: Message,
     pub chat: Option<Chat>,
@@ -57,7 +57,6 @@ impl<'a> Drop for dc_mimefactory_t<'a> {
         unsafe {
             free(self.from_addr as *mut libc::c_void);
             free(self.from_displayname as *mut libc::c_void);
-            free(self.rfc724_mid as *mut libc::c_void);
             if !self.recipients_names.is_null() {
                 clist_free_content(self.recipients_names);
                 clist_free(self.recipients_names);
@@ -98,7 +97,7 @@ pub unsafe fn dc_mimefactory_load_msg(
         recipients_names: clist_new(),
         recipients_addr: clist_new(),
         timestamp: 0,
-        rfc724_mid: ptr::null_mut(),
+        rfc724_mid: String::default(),
         loaded: DC_MF_NOTHING_LOADED,
         msg,
         chat: Some(chat),
@@ -232,7 +231,7 @@ pub unsafe fn dc_mimefactory_load_msg(
 
     factory.loaded = DC_MF_MSG_LOADED;
     factory.timestamp = factory.msg.timestamp_sort;
-    factory.rfc724_mid = dc_strdup(factory.msg.rfc724_mid);
+    factory.rfc724_mid = as_str(factory.msg.rfc724_mid).to_string();
     factory.increation = dc_msg_is_increation(&factory.msg);
 
     Ok(factory)
@@ -288,7 +287,7 @@ pub unsafe fn dc_mimefactory_load_mdn<'a>(
         recipients_names: clist_new(),
         recipients_addr: clist_new(),
         timestamp: 0,
-        rfc724_mid: ptr::null_mut(),
+        rfc724_mid: String::default(),
         loaded: DC_MF_NOTHING_LOADED,
         msg,
         chat: None,
@@ -330,7 +329,7 @@ pub unsafe fn dc_mimefactory_load_mdn<'a>(
     );
     load_from(&mut factory);
     factory.timestamp = dc_create_smeared_timestamp(factory.context);
-    factory.rfc724_mid = dc_create_outgoing_rfc724_mid(None, as_str(factory.from_addr)).strdup();
+    factory.rfc724_mid = dc_create_outgoing_rfc724_mid(None, as_str(factory.from_addr));
     factory.loaded = DC_MF_MDN_LOADED;
 
     Ok(factory)
@@ -447,7 +446,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut dc_mimefact
             to,
             ptr::null_mut(),
             ptr::null_mut(),
-            dc_strdup(factory.rfc724_mid),
+            factory.rfc724_mid.strdup(),
             in_reply_to_list,
             references_list,
             ptr::null_mut(),
