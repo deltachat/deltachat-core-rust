@@ -664,16 +664,18 @@ pub fn read_autoconf_file(context: &Context, url: &str) -> *mut libc::c_char {
 #[cfg(test)]
 mod tests {
 
-    use crate::test_utils::*;
     use crate::config::*;
     use crate::configure::dc_job_do_DC_JOB_CONFIGURE_IMAP;
     use crate::job::*;
     use crate::param::*;
+    use crate::test_utils::*;
 
     #[test]
     fn test_no_panic_on_bad_credentials() {
         let t = dummy_context();
-        t.ctx.set_config(Config::Addr, Some("probably@unexistant.addr")).unwrap();
+        t.ctx
+            .set_config(Config::Addr, Some("probably@unexistant.addr"))
+            .unwrap();
         t.ctx.set_config(Config::MailPw, Some("123456")).unwrap();
         let job = Job {
             job_id: 1,
@@ -686,6 +688,8 @@ mod tests {
             try_again: 0,
             pending_error: None,
         };
-        unsafe { dc_job_do_DC_JOB_CONFIGURE_IMAP(&t.ctx, &job); }
+        unsafe {
+            dc_job_do_DC_JOB_CONFIGURE_IMAP(&t.ctx, &job);
+        }
     }
 }
