@@ -12,7 +12,7 @@ restore-workspace: &restore-workspace
 restore-cache: &restore-cache
   restore_cache:
     keys:
-      - cargo-v1-{{ checksum "rust-toolchain" }}-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}-{{ arch }}
+      - cargo-v2-{{ checksum "rust-toolchain" }}-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}-{{ arch }}
       - repo-source-{{ .Branch }}-{{ .Revision }}
 
 commands:
@@ -23,20 +23,9 @@ commands:
     steps:
       - *restore-workspace
       - *restore-cache
-      - setup_remote_docker:
-          docker_layer_caching: true
-      # TODO: move into image
-      - run:
-          name: Install Docker client
-          command: |
-            set -x
-            VER="18.09.2"
-            curl -L -o /tmp/docker-$VER.tgz https://download.docker.com/linux/static/stable/x86_64/docker-$VER.tgz
-            tar -xz -C /tmp -f /tmp/docker-$VER.tgz
-            mv /tmp/docker/* /usr/bin
       - run:
           name: Test (<< parameters.target >>)
-          command: TARGET=<< parameters.target >> ci/run.sh
+          command: TARGET=<< parameters.target >> ci_scripts/run-rust-test.sh
           no_output_timeout: 15m
 
 jobs:
@@ -52,7 +41,7 @@ jobs:
           command: cargo generate-lockfile
       - restore_cache:
           keys:
-            - cargo-v1-{{ checksum "rust-toolchain" }}-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}-{{ arch }}
+            - cargo-v2-{{ checksum "rust-toolchain" }}-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}-{{ arch }}
       - run: rustup install $(cat rust-toolchain)
       - run: rustup default $(cat rust-toolchain)
       - run: rustup component add --toolchain $(cat rust-toolchain) rustfmt
@@ -61,13 +50,14 @@ jobs:
       - run: cargo fetch
       - run: rustc +stable --version
       - run: rustc +$(cat rust-toolchain) --version
-      - run: rm -rf .git
+      # make sure this git repo doesn't grow too big
+      - run: git gc
       - persist_to_workspace:
           root: /mnt
           paths:
             - crate
       - save_cache:
-          key: cargo-v1-{{ checksum "rust-toolchain" }}-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}-{{ arch }}
+          key: cargo-v2-{{ checksum "rust-toolchain" }}-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}-{{ arch }}
           paths:
             - "~/.cargo"
             - "~/.rustup"
@@ -102,7 +92,7 @@ jobs:
       - run: cargo fetch
       - run:
           name: Test
-          command: TARGET=x86_64-apple-darwin ci/run.sh
+          command: TARGET=x86_64-apple-darwin ci_scripts/run-rust-test.sh
 
   test_x86_64-unknown-linux-gnu:
     executor: default
@@ -124,18 +114,18 @@ jobs:
 
 
   build_test_docs_wheel:
-    machine: True
-    steps:
-      - checkout
-      # - run: docker pull deltachat/doxygen
-      - run: docker pull deltachat/coredeps
-      - run:
-          name: build docs, run tests and build wheels
-          command: ci_scripts/ci_run.sh
-          environment:
+    docker:
+      - image: deltachat/coredeps
+        environment:
             TESTS: 1
             DOCS: 1
-
+    working_directory: /mnt/crate
+    steps:
+      - *restore-workspace
+      - *restore-cache
+      - run:
+          name: build docs, run tests and build wheels
+          command: ci_scripts/run-python.sh
       - run:
            name: copying docs and wheels to workspace
            command: |
@@ -143,7 +133,6 @@ jobs:
              # cp -av docs workspace/c-docs
              cp -av python/.docker-tox/wheelhouse workspace/
              cp -av python/doc/_build/ workspace/py-docs
-
       - persist_to_workspace:
           root: workspace
           paths:
@@ -176,15 +165,16 @@ workflows:
 
   test:
     jobs:
-      - build_test_docs_wheel
+      - cargo_fetch
+      - build_test_docs_wheel:
+          requires:
+            - cargo_fetch
       - upload_docs_wheels:
           requires:
             - build_test_docs_wheel
-      - cargo_fetch
       - rustfmt:
           requires:
             - cargo_fetch
-
       - clippy:
           requires:
             - cargo_fetch

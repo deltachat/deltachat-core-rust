@@ -36,20 +36,21 @@ if [ -n "$TESTS" ]; then
     rm -rf src/deltachat/__pycache__
     export PYTHONDONTWRITEBYTECODE=1
 
-    # run tox
-    # XXX we don't run liveconfig tests because they hang sometimes
-    # see https://github.com/deltachat/deltachat-core-rust/issues/331
-    # unset DCC_PY_LIVECONFIG
+    # run tox. The circle-ci project env-var-setting DCC_PY_LIVECONFIG 
+    # allows running of "liveconfig" tests but for speed reasons
+    # we run them only for the highest python version we support
 
-    tox --workdir "$TOXWORKDIR" -e lint,py35,py36,py37,auditwheels -- -k "not qr"
-    tox --workdir "$TOXWORKDIR" -e py35,py36,py37 -- -k "qr"
+    tox --workdir "$TOXWORKDIR" -e py37 
+    unset DCC_PY_LIVECONFIG
+    tox --workdir "$TOXWORKDIR" -p4 -e lint,py35,py36,doc
+    tox --workdir "$TOXWORKDIR" -e auditwheels
     popd
 fi
 
 
-if [ -n "$DOCS" ]; then
-    echo -----------------------
-    echo generating python docs
-    echo -----------------------
-    (cd python && tox --workdir "$TOXWORKDIR" -e doc)
-fi
+# if [ -n "$DOCS" ]; then
+#     echo -----------------------
+#     echo generating python docs
+#     echo -----------------------
+#     (cd python && tox --workdir "$TOXWORKDIR" -e doc)
+# fi
