@@ -161,7 +161,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig):
             ac = self.make_account(tmpdb.strpath, logid="ac{}".format(self.live_count))
             ac._evlogger.init_time = self.init_time
             ac._evlogger.set_timeout(30)
-            return ac, configdict
+            return ac, dict(configdict)
 
         def get_online_configuring_account(self):
             ac, configdict = self.get_online_config()
