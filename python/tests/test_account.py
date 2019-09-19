@@ -621,9 +621,7 @@ class TestOnlineAccount:
 class TestOnlineConfigureFails:
     def test_invalid_password(self, acfactory):
         ac1, configdict = acfactory.get_online_config()
-        pw = configdict["mail_pw"]
-        configdict["mail_pw"] = pw[:-1]  # wrong password
-        ac1.configure(**configdict)
+        ac1.configure(addr=configdict["addr"], mail_pw="123")
         ac1.start_threads()
         wait_configuration_progress(ac1, 500)
         ev1 = ac1._evlogger.get_matching("DC_EVENT_ERROR_NETWORK")
@@ -632,9 +630,7 @@ class TestOnlineConfigureFails:
 
     def test_invalid_user(self, acfactory):
         ac1, configdict = acfactory.get_online_config()
-        addr = configdict["addr"]
-        configdict["addr"] = "x" + addr # wrong user
-        ac1.configure(**configdict)
+        ac1.configure(addr="x" + configdict["addr"], mail_pw=configdict["mail_pw"])
         ac1.start_threads()
         wait_configuration_progress(ac1, 500)
         ev1 = ac1._evlogger.get_matching("DC_EVENT_ERROR_NETWORK")
@@ -643,9 +639,7 @@ class TestOnlineConfigureFails:
 
     def test_invalid_domain(self, acfactory):
         ac1, configdict = acfactory.get_online_config()
-        addr = configdict["addr"]
-        configdict["addr"] = addr + "x"
-        ac1.configure(**configdict)
+        ac1.configure(addr=configdict["addr"] + "x", mail_pw=configdict["mail_pw"])
         ac1.start_threads()
         wait_configuration_progress(ac1, 500)
         ev1 = ac1._evlogger.get_matching("DC_EVENT_ERROR_NETWORK")
