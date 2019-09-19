@@ -36,13 +36,13 @@ if [ -n "$TESTS" ]; then
     rm -rf src/deltachat/__pycache__
     export PYTHONDONTWRITEBYTECODE=1
 
-    # run tox -- the cricle-ci project envvar setting DCC_PY_LIVECONFIG 
-    # triggers running of "liveconfig" tests but for speed reasons
+    # run tox. The circle-ci project env-var-setting DCC_PY_LIVECONFIG 
+    # allows running of "liveconfig" tests but for speed reasons
     # we run them only for the highest python version we support
 
-    tox --workdir "$TOXWORKDIR" -e py37 -- -k "Online"
+    tox --workdir "$TOXWORKDIR" -e py37 
     unset DCC_PY_LIVECONFIG
-    tox --workdir "$TOXWORKDIR" -e lint,py35,py36,py37,auditwheels -- -k "not Online"
+    tox --workdir "$TOXWORKDIR" -e lint,py35,py36,auditwheels
     popd
 fi
 
