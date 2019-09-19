@@ -1,6 +1,5 @@
 use std::ffi::CString;
 use std::path::{Path, PathBuf};
-use std::ptr;
 
 use crate::chatlist::*;
 use crate::config::*;
@@ -16,7 +15,6 @@ use crate::message::*;
 use crate::param::*;
 use crate::sql::{self, Sql};
 use crate::stock::StockMessage;
-use crate::x::*;
 
 /// An object representing a single chat in memory.
 /// Chat objects are created using eg. `Chat::load_from_db`
@@ -272,7 +270,7 @@ impl Chat {
                     Chattype::Group | Chattype::VerifiedGroup => Some(self.grpid.as_str()),
                     _ => None,
                 };
-                dc_create_outgoing_rfc724_mid_safe(grpid, &from)
+                dc_create_outgoing_rfc724_mid(grpid, &from)
             };
 
             if self.typ == Chattype::Single {
@@ -1840,12 +1838,7 @@ pub fn get_chat_id_by_grpid(context: &Context, grpid: impl AsRef<str>) -> (u32, 
 }
 
 pub fn add_device_msg(context: &Context, chat_id: u32, text: impl AsRef<str>) {
-    let rfc724_mid = unsafe {
-        dc_create_outgoing_rfc724_mid(
-            ptr::null(),
-            b"@device\x00" as *const u8 as *const libc::c_char,
-        )
-    };
+    let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
 
     if context.sql.execute(
         "INSERT INTO msgs (chat_id,from_id,to_id, timestamp,type,state, txt,rfc724_mid) VALUES (?,?,?, ?,?,?, ?,?);",
@@ -1857,21 +1850,13 @@ pub fn add_device_msg(context: &Context, chat_id: u32, text: impl AsRef<str>) {
             Viewtype::Text,
             MessageState::InNoticed,
             text.as_ref(),
-            as_str(rfc724_mid),
+            rfc724_mid,
         ]
     ).is_err() {
-        unsafe { free(rfc724_mid as *mut libc::c_void) };
         return;
     }
 
-    let msg_id = sql::get_rowid(
-        context,
-        &context.sql,
-        "msgs",
-        "rfc724_mid",
-        as_str(rfc724_mid),
-    );
-    unsafe { free(rfc724_mid as *mut libc::c_void) };
+    let msg_id = sql::get_rowid(context, &context.sql, "msgs", "rfc724_mid", &rfc724_mid);
     context.call_cb(Event::MsgsChanged { chat_id, msg_id });
 }
 

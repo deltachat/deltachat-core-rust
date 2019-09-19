@@ -590,30 +590,8 @@ pub fn dc_create_incoming_rfc724_mid(
 /// Function generates a Message-ID that can be used for a new outgoing message.
 /// - this function is called for all outgoing messages.
 /// - the message ID should be globally unique
-/// - do not add a counter or any private data as as this may give unneeded information to the receiver
-pub unsafe fn dc_create_outgoing_rfc724_mid(
-    grpid: *const libc::c_char,
-    from_addr: *const libc::c_char,
-) -> *mut libc::c_char {
-    let rand2 = dc_create_id();
-
-    let at_hostname = as_opt_str(strchr(from_addr, '@' as i32)).unwrap_or_else(|| "@nohost");
-
-    let ret = if !grpid.is_null() {
-        format!("Gr.{}.{}{}", as_str(grpid), rand2, at_hostname,)
-    } else {
-        let rand1 = dc_create_id();
-        format!("Mr.{}.{}{}", rand1, rand2, at_hostname)
-    };
-
-    ret.strdup()
-}
-
-/// Generate globally-unique message-id for a new outgoing message.
-///
-/// Note: Do not add a counter or any private data as as this may give
-/// unneeded information to the receiver
-pub fn dc_create_outgoing_rfc724_mid_safe(grpid: Option<&str>, from_addr: &str) -> String {
+/// - do not add a counter or any private data as this leaks information unncessarily
+pub fn dc_create_outgoing_rfc724_mid(grpid: Option<&str>, from_addr: &str) -> String {
     let hostname = from_addr
         .find('@')
         .map(|k| &from_addr[k..])
