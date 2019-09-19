@@ -25,7 +25,7 @@ commands:
       - *restore-cache
       - run:
           name: Test (<< parameters.target >>)
-          command: TARGET=<< parameters.target >> ci/run.sh
+          command: TARGET=<< parameters.target >> ci_scripts/run-rust-test.sh
           no_output_timeout: 15m
 
 jobs:
@@ -92,7 +92,7 @@ jobs:
       - run: cargo fetch
       - run:
           name: Test
-          command: TARGET=x86_64-apple-darwin ci/run.sh
+          command: TARGET=x86_64-apple-darwin ci_scripts/run-rust-test.sh
 
   test_x86_64-unknown-linux-gnu:
     executor: default
@@ -125,7 +125,7 @@ jobs:
       - *restore-cache
       - run:
           name: build docs, run tests and build wheels
-          command: ci_scripts/run_all.sh
+          command: ci_scripts/run-python.sh
       - run:
            name: copying docs and wheels to workspace
            command: |
