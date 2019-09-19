@@ -387,7 +387,7 @@ class Account(object):
         ev = self._evlogger.get_matching("DC_EVENT_INCOMING_MSG")
         return self.get_message_by_id(ev[2])
 
-    def start_threads(self):
+    def start_threads(self, mvbox=False, sentbox=False):
         """ start IMAP/SMTP threads (and configure account if it hasn't happened).
 
         :raises: ValueError if 'addr' or 'mail_pw' are not configured.
@@ -395,7 +395,7 @@ class Account(object):
         """
         if not self.is_configured():
             self.configure()
-        self._threads.start()
+        self._threads.start(mvbox=mvbox, sentbox=sentbox)
 
     def stop_threads(self, wait=True):
         """ stop IMAP/SMTP threads. """
@@ -436,10 +436,14 @@ class IOThreads:
     def is_started(self):
         return len(self._name2thread) > 0
 
-    def start(self, imap=True, smtp=True):
+    def start(self, imap=True, smtp=True, mvbox=False, sentbox=False):
         assert not self.is_started()
         if imap:
-            self._start_one_thread("imap", self.imap_thread_run)
+            self._start_one_thread("inbox", self.imap_thread_run)
+        if mvbox:
+            self._start_one_thread("mvbox", self.mvbox_thread_run)
+        if sentbox:
+            self._start_one_thread("sentbox", self.sentbox_thread_run)
         if smtp:
             self._start_one_thread("smtp", self.smtp_thread_run)
 
@@ -452,17 +456,35 @@ class IOThreads:
         self._thread_quitflag = True
         lib.dc_interrupt_imap_idle(self._dc_context)
         lib.dc_interrupt_smtp_idle(self._dc_context)
+        lib.dc_interrupt_mvbox_idle(self._dc_context)
+        lib.dc_interrupt_sentbox_idle(self._dc_context)
         if wait:
             for name, thread in self._name2thread.items():
                 thread.join()
 
     def imap_thread_run(self):
-        self._log_event("py-bindings-info", 0, "IMAP THREAD START")
+        self._log_event("py-bindings-info", 0, "INBOX THREAD START")
         while not self._thread_quitflag:
             lib.dc_perform_imap_jobs(self._dc_context)
             lib.dc_perform_imap_fetch(self._dc_context)
             lib.dc_perform_imap_idle(self._dc_context)
-        self._log_event("py-bindings-info", 0, "IMAP THREAD FINISHED")
+        self._log_event("py-bindings-info", 0, "INBOX THREAD FINISHED")
+
+    def mvbox_thread_run(self):
+        self._log_event("py-bindings-info", 0, "MVBOX THREAD START")
+        while not self._thread_quitflag:
+            lib.dc_perform_mvbox_jobs(self._dc_context)
+            lib.dc_perform_mvbox_fetch(self._dc_context)
+            lib.dc_perform_mvbox_idle(self._dc_context)
+        self._log_event("py-bindings-info", 0, "MVBOX THREAD FINISHED")
+
+    def sentbox_thread_run(self):
+        self._log_event("py-bindings-info", 0, "SENTBOX THREAD START")
+        while not self._thread_quitflag:
+            lib.dc_perform_sentbox_jobs(self._dc_context)
+            lib.dc_perform_sentbox_fetch(self._dc_context)
+            lib.dc_perform_sentbox_idle(self._dc_context)
+        self._log_event("py-bindings-info", 0, "SENTBOX THREAD FINISHED")
 
     def smtp_thread_run(self):
         self._log_event("py-bindings-info", 0, "SMTP THREAD START")

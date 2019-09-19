@@ -163,10 +163,10 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig):
             ac._evlogger.set_timeout(30)
             return ac, dict(configdict)
 
-        def get_online_configuring_account(self):
+        def get_online_configuring_account(self, mvbox=False, sentbox=False):
             ac, configdict = self.get_online_config()
             ac.configure(**configdict)
-            ac.start_threads()
+            ac.start_threads(mvbox=mvbox, sentbox=sentbox)
             return ac
 
         def get_two_online_accounts(self):

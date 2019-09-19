@@ -761,6 +761,14 @@ pub fn perform_imap_jobs(context: &Context) {
     info!(context, "dc_perform_imap_jobs ended.",);
 }
 
+pub fn perform_mvbox_jobs(context: &Context) {
+    info!(context, "dc_perform_mbox_jobs EMPTY (for now).",);
+}
+
+pub fn perform_sentbox_jobs(context: &Context) {
+    info!(context, "dc_perform_sentbox_jobs EMPTY (for now).",);
+}
+
 fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
     let query = if !probe_network {
         // processing for first-try and after backoff-timeouts:

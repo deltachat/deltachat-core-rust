@@ -610,12 +610,8 @@ void            dc_interrupt_imap_idle       (dc_context_t* context);
 
 
 /**
- * Fetch new messages from the MVBOX, if any.
- * The MVBOX is a folder on the account where chat messages are moved to.
- * The moving is done to not disturb shared accounts that are used by both,
- * Delta Chat and a classical MUA.
- *
- * This function and dc_perform_mvbox_idle()
+ * Execute pending mvbox-jobs.
+ * This function and dc_perform_mvbox_fetch() and dc_perform_mvbox_idle()
  * must be called from the same thread, typically in a loop.
  *
  * Example:
@@ -623,6 +619,7 @@ void            dc_interrupt_imap_idle       (dc_context_t* context);
  *     void* mvbox_thread_func(void* context)
  *     {
  *         while (true) {
+ *             dc_perform_mvbox_jobs(context);
  *             dc_perform_mvbox_fetch(context);
  *             dc_perform_mvbox_idle(context);
  *         }
@@ -636,8 +633,21 @@ void            dc_interrupt_imap_idle       (dc_context_t* context);
  *
  *     // network becomes available again -
  *     // the interrupt causes dc_perform_mvbox_idle() in the thread above
- *     // to return so that and messages are fetched.
+ *     // to return so that jobs are executed and messages are fetched.
  *     dc_maybe_network(context);
+ *
+ * @memberof dc_context_t
+ * @param context The context as created by dc_context_new().
+ * @return None.
+ */
+void            dc_perform_mvbox_jobs         (dc_context_t* context);
+
+
+/**
+ * Fetch new messages from the MVBOX, if any.
+ * The MVBOX is a folder on the account where chat messages are moved to.
+ * The moving is done to not disturb shared accounts that are used by both,
+ * Delta Chat and a classical MUA.
  *
  * @memberof dc_context_t
  * @param context The context as created by dc_context_new().
@@ -678,6 +688,39 @@ void            dc_perform_mvbox_idle        (dc_context_t* context);
  * @return None.
  */
 void            dc_interrupt_mvbox_idle      (dc_context_t* context);
+
+/**
+ * Execute pending sentbox-jobs.
+ * This function and dc_perform_sentbox_fetch() and dc_perform_sentbox_idle()
+ * must be called from the same thread, typically in a loop.
+ *
+ * Example:
+ *
+ *     void* sentbox_thread_func(void* context)
+ *     {
+ *         while (true) {
+ *             dc_perform_sentbox_jobs(context);
+ *             dc_perform_sentbox_fetch(context);
+ *             dc_perform_sentbox_idle(context);
+ *         }
+ *     }
+ *
+ *     // start sentbox-thread that runs forever
+ *     pthread_t sentbox_thread;
+ *     pthread_create(&sentbox_thread, NULL, sentbox_thread_func, context);
+ *
+ *     ... program runs ...
+ *
+ *     // network becomes available again -
+ *     // the interrupt causes dc_perform_sentbox_idle() in the thread above
+ *     // to return so that jobs are executed and messages are fetched.
+ *     dc_maybe_network(context);
+ *
+ * @memberof dc_context_t
+ * @param context The context as created by dc_context_new().
+ * @return None.
+ */
+void            dc_perform_sentbox_jobs         (dc_context_t* context);
 
 
 /**
