@@ -150,7 +150,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig):
             lib.dc_set_config(ac._dc_context, b"configured", b"1")
             return ac
 
-        def get_online_configuring_account(self):
+        def get_online_config(self):
             if not session_liveconfig:
                 pytest.skip("specify DCC_PY_LIVECONFIG or --liveconfig")
             configdict = session_liveconfig.get(self.live_count)
@@ -161,6 +161,10 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig):
             ac = self.make_account(tmpdb.strpath, logid="ac{}".format(self.live_count))
             ac._evlogger.init_time = self.init_time
             ac._evlogger.set_timeout(30)
+            return ac, configdict
+
+        def get_online_configuring_account(self):
+            ac, configdict = self.get_online_config()
             ac.configure(**configdict)
             ac.start_threads()
             return ac
@@ -206,12 +210,13 @@ def lp():
     return Printer()
 
 
-def wait_configuration_progress(account, target):
+def wait_configuration_progress(account, min_target, max_target=1001):
+    min_target = min(min_target, max_target)
     while 1:
         evt_name, data1, data2 = \
             account._evlogger.get_matching("DC_EVENT_CONFIGURE_PROGRESS")
-        if data1 >= target:
-            print("** CONFIG PROGRESS {}".format(target), account)
+        if data1 >= min_target and data1 <= max_target:
+            print("** CONFIG PROGRESS {}".format(min_target), account)
             break
 
 

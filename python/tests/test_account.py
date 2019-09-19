@@ -616,3 +616,38 @@ class TestOnlineAccount:
         chat1b = ac1.create_chat_by_message(ev[2])
         assert chat1b.get_profile_image() is None
         assert chat.get_profile_image() is None
+
+
+class TestOnlineConfigureFails:
+    def test_invalid_password(self, acfactory):
+        ac1, configdict = acfactory.get_online_config()
+        pw = configdict["mail_pw"]
+        configdict["mail_pw"] = pw[:-1]  # wrong password
+        ac1.configure(**configdict)
+        ac1.start_threads()
+        wait_configuration_progress(ac1, 500)
+        ev1 = ac1._evlogger.get_matching("DC_EVENT_ERROR_NETWORK")
+        assert "authentication failed" in ev1[2].lower()
+        wait_configuration_progress(ac1, 0, 0)
+
+    def test_invalid_user(self, acfactory):
+        ac1, configdict = acfactory.get_online_config()
+        addr = configdict["addr"]
+        configdict["addr"] = "x" + addr # wrong user
+        ac1.configure(**configdict)
+        ac1.start_threads()
+        wait_configuration_progress(ac1, 500)
+        ev1 = ac1._evlogger.get_matching("DC_EVENT_ERROR_NETWORK")
+        assert "authentication failed" in ev1[2].lower()
+        wait_configuration_progress(ac1, 0, 0)
+
+    def test_invalid_domain(self, acfactory):
+        ac1, configdict = acfactory.get_online_config()
+        addr = configdict["addr"]
+        configdict["addr"] = addr + "x"
+        ac1.configure(**configdict)
+        ac1.start_threads()
+        wait_configuration_progress(ac1, 500)
+        ev1 = ac1._evlogger.get_matching("DC_EVENT_ERROR_NETWORK")
+        assert "could not connect" in ev1[2].lower()
+        wait_configuration_progress(ac1, 0, 0)
