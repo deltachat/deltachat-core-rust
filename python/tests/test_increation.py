@@ -4,7 +4,7 @@ from deltachat import const
 from conftest import wait_configuration_progress, wait_msgs_changed
 
 
-class TestInCreation:
+class TestOnlineInCreation:
     def test_forward_increation(self, acfactory, data, lp):
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.get_online_configuring_account()

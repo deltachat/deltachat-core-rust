@@ -36,13 +36,13 @@ if [ -n "$TESTS" ]; then
     rm -rf src/deltachat/__pycache__
     export PYTHONDONTWRITEBYTECODE=1
 
-    # run tox
-    # XXX we don't run liveconfig tests because they hang sometimes
-    # see https://github.com/deltachat/deltachat-core-rust/issues/331
-    # unset DCC_PY_LIVECONFIG
+    # run tox -- the cricle-ci project envvar setting DCC_PY_LIVECONFIG 
+    # triggers running of "liveconfig" tests but for speed reasons
+    # we run them only for the highest python version we support
 
-    tox --workdir "$TOXWORKDIR" -e lint,py35,py36,py37,auditwheels -- -k "not qr"
-    tox --workdir "$TOXWORKDIR" -e py35,py36,py37 -- -k "qr"
+    tox --workdir "$TOXWORKDIR" -e py37 -- -k "Online"
+    unset DCC_PY_LIVECONFIG
+    tox --workdir "$TOXWORKDIR" -e lint,py35,py36,py37,auditwheels -- -k "not Online"
     popd
 fi
 
