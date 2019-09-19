@@ -995,6 +995,19 @@ impl<'a> MimeParser<'a> {
 
         assert_eq!(self.parts.len(), 1);
     }
+
+    pub fn get_rfc724_mid(&mut self) -> Option<String> {
+        // get Message-ID from header
+        if let Some(field) = self.lookup_field_typ("Message-ID", MAILIMF_FIELD_MESSAGE_ID) {
+            unsafe {
+                let fld_message_id = (*field).fld_data.fld_message_id;
+                if !fld_message_id.is_null() {
+                    return Some(as_str((*fld_message_id).mid_value).to_string());
+                }
+            }
+        }
+        None
+    }
 }
 
 impl<'a> Drop for MimeParser<'a> {
@@ -1639,6 +1652,27 @@ mod tests {
             let mut mimeparser = MimeParser::new(&context.ctx);
             unsafe { mimeparser.parse(data.as_bytes()) };
         }
+    }
+
+    #[test]
+    fn test_get_rfc724_mid_exists() {
+        let context = dummy_context();
+        let raw = include_bytes!("../test-data/message/mail_with_message_id.txt");
+        let mut mimeparser = MimeParser::new(&context.ctx);
+        unsafe { mimeparser.parse(&raw[..]) };
+        assert_eq!(
+            mimeparser.get_rfc724_mid(),
+            Some("2dfdbde7@example.org".into())
+        );
+    }
+
+    #[test]
+    fn test_get_rfc724_mid_not_exists() {
+        let context = dummy_context();
+        let raw = include_bytes!("../test-data/message/issue_523.txt");
+        let mut mimeparser = MimeParser::new(&context.ctx);
+        unsafe { mimeparser.parse(&raw[..]) };
+        assert_eq!(mimeparser.get_rfc724_mid(), None);
     }
 
     #[test]
