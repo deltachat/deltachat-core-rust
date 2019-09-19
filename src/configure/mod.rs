@@ -18,7 +18,7 @@ use auto_mozilla::moz_autoconfigure;
 macro_rules! progress {
     ($context:tt, $progress:expr) => {
         assert!(
-            $progress > 0 && $progress <= 1000,
+            $progress <= 1000,
             "value in range 0..1000 expected with: 0=error, 1..999=progress, 1000=success"
         );
         $context.call_cb($crate::events::Event::ConfigureProgress($progress));
