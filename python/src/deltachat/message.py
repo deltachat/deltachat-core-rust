@@ -101,6 +101,10 @@ class Message(object):
         """ return True if this message is a setup message. """
         return lib.dc_msg_is_setupmessage(self._dc_msg)
 
+    def is_encrypted(self):
+        """ return True if this message was encrypted. """
+        return bool(lib.dc_msg_get_showpadlock(self._dc_msg))
+
     def get_message_info(self):
         """ Return informational text for a single message.
 
