@@ -59,6 +59,16 @@ def test_wrong_db(tmpdir):
     assert not lib.dc_open(dc_context, p.strpath.encode("ascii"), ffi.NULL)
 
 
+def test_empty_blobdir(tmpdir):
+    # Apparently some client code expects this to be the same as passing NULL.
+    ctx = ffi.gc(
+        lib.dc_context_new(lib.py_dc_callback, ffi.NULL, ffi.NULL),
+        lib.dc_context_unref,
+    )
+    db_fname = tmpdir.join("hello.db")
+    assert lib.dc_open(ctx, db_fname.strpath.encode("ascii"), b"")
+
+
 def test_event_defines():
     assert const.DC_EVENT_INFO == 100
     assert const.DC_CONTACT_ID_SELF
