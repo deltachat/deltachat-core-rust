@@ -16,7 +16,7 @@ crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 deltachat = { path = "../", default-features = false }
-deltachat-provider-overview = { git = "https://github.com/deltachat/provider-overview", rev = "366b41a7503973e4ffac3aa5173b419f2f03c211" }
+deltachat-provider-overview = "0.1.0"
 libc = "0.2"
 human-panic = "1.0.1"
 num-traits = "0.2.6"
