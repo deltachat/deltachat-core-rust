@@ -85,8 +85,6 @@ pub unsafe fn dc_receive_imf(
     let mut add_delete_job: libc::c_int = 0;
     let mut insert_msg_id = 0;
 
-    // Message-ID from the header
-    let rfc724_mid = std::ptr::null_mut();
     let mut sent_timestamp = 0;
     let mut created_db_entries = Vec::new();
     let mut create_event_to_send = Some(CreateEvent::MsgsChanged);
@@ -96,12 +94,9 @@ pub unsafe fn dc_receive_imf(
 
     // helper method to handle early exit and memory cleanup
     let cleanup = |context: &Context,
-                   rfc724_mid: *mut libc::c_char,
                    create_event_to_send: &Option<CreateEvent>,
                    created_db_entries: &Vec<(usize, usize)>,
                    rr_event_to_send: &Vec<(u32, u32)>| {
-        free(rfc724_mid.cast());
-
         if let Some(create_event_to_send) = create_event_to_send {
             for (chat_id, msg_id) in created_db_entries {
                 let event = match create_event_to_send {
@@ -184,6 +179,28 @@ pub unsafe fn dc_receive_imf(
     }
 
     // Add parts
+
+    let rfc724_mid = match mime_parser.get_rfc724_mid() {
+        Some(x) => x,
+        None => {
+            // missing Message-IDs may come if the mail was set from this account with another
+            // client that relies in the SMTP server to generate one.
+            // true eg. for the Webmailer used in all-inkl-KAS
+            match dc_create_incoming_rfc724_mid(sent_timestamp, from_id, &to_ids) {
+                Some(x) => x.to_string(),
+                None => {
+                    error!(context, "can not create incoming rfc724_mid");
+                    cleanup(
+                        context,
+                        &create_event_to_send,
+                        &created_db_entries,
+                        &rr_event_to_send,
+                    );
+                    return;
+                }
+            }
+        }
+    };
     if mime_parser.get_last_nonmeta().is_some() {
         if let Err(err) = add_parts(
             context,
@@ -195,7 +212,7 @@ pub unsafe fn dc_receive_imf(
             server_folder.as_ref(),
             server_uid,
             &mut to_ids,
-            rfc724_mid,
+            &rfc724_mid,
             &mut sent_timestamp,
             &mut from_id,
             from_id_blocked,
@@ -213,7 +230,6 @@ pub unsafe fn dc_receive_imf(
 
             cleanup(
                 context,
-                rfc724_mid,
                 &create_event_to_send,
                 &created_db_entries,
                 &rr_event_to_send,
@@ -263,14 +279,11 @@ pub unsafe fn dc_receive_imf(
 
     info!(
         context,
-        "received message {} has Message-Id: {}",
-        server_uid,
-        to_string(rfc724_mid)
+        "received message {} has Message-Id: {}", server_uid, rfc724_mid
     );
 
     cleanup(
         context,
-        rfc724_mid,
         &create_event_to_send,
         &created_db_entries,
         &rr_event_to_send,
@@ -287,7 +300,7 @@ unsafe fn add_parts(
     server_folder: impl AsRef<str>,
     server_uid: u32,
     to_ids: &mut Vec<u32>,
-    mut rfc724_mid: *mut libc::c_char,
+    rfc724_mid: &str,
     sent_timestamp: &mut i64,
     from_id: &mut u32,
     from_id_blocked: i32,
@@ -336,40 +349,20 @@ unsafe fn add_parts(
         }
     }
 
-    // get Message-ID; if the header is lacking one, generate one based on fields that do never
-    // change. (missing Message-IDs may come if the mail was set from this account with another
-    // client that relies in the SMTP server to generate one.
-    // true eg. for the Webmailer used in all-inkl-KAS)
-    if let Some(field) = mime_parser.lookup_field_typ("Message-ID", MAILIMF_FIELD_MESSAGE_ID) {
-        let fld_message_id = (*field).fld_data.fld_message_id;
-        if !fld_message_id.is_null() {
-            rfc724_mid = dc_strdup((*fld_message_id).mid_value)
-        }
-    }
-
-    if rfc724_mid.is_null() {
-        rfc724_mid = dc_create_incoming_rfc724_mid(*sent_timestamp, *from_id, to_ids);
-        if rfc724_mid.is_null() {
-            cleanup(mime_in_reply_to, mime_references);
-            bail!("Cannot create Message-ID");
-        }
-    }
-
     // check, if the mail is already in our database - if so, just update the folder/uid
     // (if the mail was moved around) and finish. (we may get a mail twice eg. if it is
     // moved between folders. make sure, this check is done eg. before securejoin-processing) */
     let mut old_server_folder = std::ptr::null_mut();
     let mut old_server_uid = 0;
 
-    let rfc724_mid_s = as_str(rfc724_mid);
     if 0 != dc_rfc724_mid_exists(
         context,
-        &rfc724_mid_s,
+        &rfc724_mid,
         &mut old_server_folder,
         &mut old_server_uid,
     ) {
         if as_str(old_server_folder) != server_folder.as_ref() || old_server_uid != server_uid {
-            dc_update_server_uid(context, &rfc724_mid_s, server_folder.as_ref(), server_uid);
+            dc_update_server_uid(context, &rfc724_mid, server_folder.as_ref(), server_uid);
         }
 
         free(old_server_folder.cast());
@@ -668,7 +661,7 @@ unsafe fn add_parts(
                     }
 
                     stmt.execute(params![
-                        as_str(rfc724_mid),
+                        rfc724_mid,
                         server_folder.as_ref(),
                         server_uid as libc::c_int,
                         *chat_id as libc::c_int,
@@ -699,13 +692,8 @@ unsafe fn add_parts(
                     ])?;
 
                     txt_raw = None;
-                    *insert_msg_id = sql::get_rowid_with_conn(
-                        context,
-                        conn,
-                        "msgs",
-                        "rfc724_mid",
-                        as_str(rfc724_mid),
-                    );
+                    *insert_msg_id =
+                        sql::get_rowid_with_conn(context, conn, "msgs", "rfc724_mid", &rfc724_mid);
                     created_db_entries.push((*chat_id as usize, *insert_msg_id as usize));
                 }
                 Ok(())
@@ -1871,11 +1859,11 @@ unsafe fn is_msgrmsg_rfc724_mid_in_list(context: &Context, mid_list: *const clis
         while !cur.is_null() {
             if 0 != is_msgrmsg_rfc724_mid(
                 context,
-                (if !cur.is_null() {
-                    (*cur).data
+                if !cur.is_null() {
+                    as_str((*cur).data as *const libc::c_char)
                 } else {
-                    ptr::null_mut()
-                }) as *const libc::c_char,
+                    ""
+                },
             ) {
                 return 1;
             }
@@ -1890,15 +1878,15 @@ unsafe fn is_msgrmsg_rfc724_mid_in_list(context: &Context, mid_list: *const clis
 }
 
 /// Check if a message is a reply to any messenger message.
-fn is_msgrmsg_rfc724_mid(context: &Context, rfc724_mid: *const libc::c_char) -> libc::c_int {
-    if rfc724_mid.is_null() {
+fn is_msgrmsg_rfc724_mid(context: &Context, rfc724_mid: &str) -> libc::c_int {
+    if rfc724_mid.is_empty() {
         return 0;
     }
     context
         .sql
         .exists(
             "SELECT id FROM msgs  WHERE rfc724_mid=?  AND msgrmsg!=0  AND chat_id>9;",
-            params![as_str(rfc724_mid)],
+            params![rfc724_mid],
         )
         .unwrap_or_default() as libc::c_int
 }

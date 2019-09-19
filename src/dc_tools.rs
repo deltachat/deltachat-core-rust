@@ -572,9 +572,9 @@ pub fn dc_create_incoming_rfc724_mid(
     message_timestamp: i64,
     contact_id_from: u32,
     contact_ids_to: &Vec<u32>,
-) -> *mut libc::c_char {
+) -> Option<String> {
     if contact_ids_to.is_empty() {
-        return ptr::null_mut();
+        return None;
     }
     /* find out the largest receiver ID (we could also take the smallest, but it should be unique) */
     let largest_id_to = contact_ids_to.iter().max().copied().unwrap_or_default();
@@ -583,8 +583,7 @@ pub fn dc_create_incoming_rfc724_mid(
         "{}-{}-{}@stub",
         message_timestamp, contact_id_from, largest_id_to
     );
-
-    unsafe { result.strdup() }
+    Some(result)
 }
 
 /// Function generates a Message-ID that can be used for a new outgoing message.
@@ -1791,10 +1790,6 @@ mod tests {
     #[test]
     fn test_dc_create_incoming_rfc724_mid() {
         let res = dc_create_incoming_rfc724_mid(123, 45, &vec![6, 7]);
-        assert_eq!(as_str(res), "123-45-7@stub");
-
-        unsafe {
-            free(res.cast());
-        }
+        assert_eq!(res, Some("123-45-7@stub".into()));
     }
 }
