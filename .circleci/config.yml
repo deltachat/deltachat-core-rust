@@ -117,8 +117,6 @@ jobs:
     docker:
       - image: deltachat/coredeps
         environment:
-            DCC_PY_LIFECONFIG: 1
-            BRANCH: 1
             TESTS: 1
             DOCS: 1
     working_directory: /mnt/crate
