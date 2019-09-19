@@ -231,7 +231,7 @@ pub unsafe fn dc_mimefactory_load_msg(
 
     factory.loaded = DC_MF_MSG_LOADED;
     factory.timestamp = factory.msg.timestamp_sort;
-    factory.rfc724_mid = as_str(factory.msg.rfc724_mid).to_string();
+    factory.rfc724_mid = factory.msg.rfc724_mid.clone();
     factory.increation = dc_msg_is_increation(&factory.msg);
 
     Ok(factory)
@@ -950,7 +950,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut dc_mimefact
                 version,
                 as_str(factory.from_addr),
                 as_str(factory.from_addr),
-                as_str(factory.msg.rfc724_mid)
+                factory.msg.rfc724_mid
             ).strdup();
 
             let content_type_0: *mut mailmime_content = mailmime_content_new_with_str(
