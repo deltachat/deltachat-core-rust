@@ -472,6 +472,18 @@ pub unsafe extern "C" fn dc_perform_mvbox_fetch(context: *mut dc_context_t) {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_perform_mvbox_jobs(context: *mut dc_context_t) {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_perform_mvbox_jobs()");
+        return;
+    }
+    let ffi_context = &*context;
+    ffi_context
+        .with_inner(|ctx| job::perform_mvbox_jobs(ctx))
+        .unwrap_or(())
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_perform_mvbox_idle(context: *mut dc_context_t) {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_perform_mvbox_idle()");
@@ -504,6 +516,18 @@ pub unsafe extern "C" fn dc_perform_sentbox_fetch(context: *mut dc_context_t) {
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| job::perform_sentbox_fetch(ctx))
+        .unwrap_or(())
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_perform_sentbox_jobs(context: *mut dc_context_t) {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_perform_sentbox_jobs()");
+        return;
+    }
+    let ffi_context = &*context;
+    ffi_context
+        .with_inner(|ctx| job::perform_sentbox_jobs(ctx))
         .unwrap_or(())
 }
 

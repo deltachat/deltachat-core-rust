@@ -106,7 +106,7 @@ class TestOfflineChat:
     def chat1(self, ac1):
         contact1 = ac1.create_contact("some1@hello.com", name="some1")
         chat = ac1.create_chat_by_contact(contact1)
-        assert chat.id >= const.DC_CHAT_ID_LAST_SPECIAL, chat.id
+        assert chat.id > const.DC_CHAT_ID_LAST_SPECIAL, chat.id
         return chat
 
     def test_display(self, chat1):
@@ -337,14 +337,14 @@ class TestOnlineAccount:
     def get_chat(self, ac1, ac2):
         c2 = ac1.create_contact(email=ac2.get_config("addr"))
         chat = ac1.create_chat_by_contact(c2)
-        assert chat.id >= const.DC_CHAT_ID_LAST_SPECIAL
+        assert chat.id > const.DC_CHAT_ID_LAST_SPECIAL
         return chat
 
     def test_one_account_send(self, acfactory):
         ac1 = acfactory.get_online_configuring_account()
         c2 = ac1.create_contact(email=ac1.get_config("addr"))
         chat = ac1.create_chat_by_contact(c2)
-        assert chat.id >= const.DC_CHAT_ID_LAST_SPECIAL
+        assert chat.id > const.DC_CHAT_ID_LAST_SPECIAL
         wait_successful_IMAP_SMTP_connection(ac1)
         wait_configuration_progress(ac1, 1000)
 
@@ -364,6 +364,16 @@ class TestOnlineAccount:
         assert ev[2] == msg_out.id
         msg_in = ac2.get_message_by_id(msg_out.id)
         assert msg_in.text == "message1"
+
+    def test_mvbox_sentbox_threads(self, acfactory):
+        ac1 = acfactory.get_online_configuring_account(mvbox=True, sentbox=True)
+        ac2 = acfactory.get_online_configuring_account()
+        wait_configuration_progress(ac2, 1000)
+        wait_configuration_progress(ac1, 1000)
+        chat = self.get_chat(ac1, ac2)
+        chat.send_text("message1")
+        ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
+        assert ev[2] > const.DC_CHAT_ID_LAST_SPECIAL
 
     def test_forward_messages(self, acfactory):
         ac1, ac2 = acfactory.get_two_online_accounts()
@@ -430,8 +440,8 @@ class TestOnlineAccount:
         ac2.mark_seen_messages([msg_in])
         lp.step("1")
         ev = ac1._evlogger.get_matching("DC_EVENT_MSG_READ")
-        assert ev[1] >= const.DC_CHAT_ID_LAST_SPECIAL
-        assert ev[2] >= const.DC_MSG_ID_LAST_SPECIAL
+        assert ev[1] > const.DC_CHAT_ID_LAST_SPECIAL
+        assert ev[2] > const.DC_MSG_ID_LAST_SPECIAL
         lp.step("2")
         assert msg_out.is_out_mdn_received()
 
