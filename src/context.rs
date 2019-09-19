@@ -362,7 +362,7 @@ impl Context {
             }
 
             if self.is_mvbox(folder) {
-                dc_update_msg_move_state(self, msg.rfc724_mid, MoveState::Stay);
+                dc_update_msg_move_state(self, &msg.rfc724_mid, MoveState::Stay);
             }
 
             // 1 = dc message, 2 = reply to dc message
@@ -374,7 +374,7 @@ impl Context {
                     Params::new(),
                     0,
                 );
-                dc_update_msg_move_state(self, msg.rfc724_mid, MoveState::Moving);
+                dc_update_msg_move_state(self, &msg.rfc724_mid, MoveState::Moving);
             }
         }
     }

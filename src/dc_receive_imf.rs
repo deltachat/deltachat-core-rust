@@ -361,14 +361,15 @@ unsafe fn add_parts(
     let mut old_server_folder = std::ptr::null_mut();
     let mut old_server_uid = 0;
 
+    let rfc724_mid_s = as_str(rfc724_mid);
     if 0 != dc_rfc724_mid_exists(
         context,
-        rfc724_mid,
+        &rfc724_mid_s,
         &mut old_server_folder,
         &mut old_server_uid,
     ) {
         if as_str(old_server_folder) != server_folder.as_ref() || old_server_uid != server_uid {
-            dc_update_server_uid(context, rfc724_mid, server_folder.as_ref(), server_uid);
+            dc_update_server_uid(context, &rfc724_mid_s, server_folder.as_ref(), server_uid);
         }
 
         free(old_server_folder.cast());
@@ -867,7 +868,7 @@ unsafe fn handle_reports(
                                         if 0 != dc_mdn_from_ext(
                                             context,
                                             from_id,
-                                            rfc724_mid_0,
+                                            as_str(rfc724_mid_0),
                                             sent_timestamp,
                                             &mut chat_id_0,
                                             &mut msg_id,

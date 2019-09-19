@@ -1,4 +1,3 @@
-use std::ffi::CString;
 use std::net;
 use std::ptr;
 use std::sync::{
@@ -10,7 +9,6 @@ use std::time::{Duration, SystemTime};
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_receive_imf::dc_receive_imf;
-use crate::dc_tools::CStringExt;
 use crate::dc_tools::*;
 use crate::events::Event;
 use crate::job::{job_add, Action};
@@ -821,10 +819,7 @@ impl Imap {
                     .message_id
                     .expect("missing message id");
 
-                if 0 == unsafe {
-                    let message_id_c = CString::yolo(message_id);
-                    precheck_imf(context, message_id_c.as_ptr(), folder.as_ref(), cur_uid)
-                } {
+                if 0 == unsafe { precheck_imf(context, &message_id, folder.as_ref(), cur_uid) } {
                     // check passed, go fetch the rest
                     if self.fetch_single_msg(context, &folder, cur_uid) == 0 {
                         info!(
@@ -1645,7 +1640,7 @@ fn get_folder_meaning(folder_name: &imap::types::Name) -> FolderMeaning {
 
 unsafe fn precheck_imf(
     context: &Context,
-    rfc724_mid: *const libc::c_char,
+    rfc724_mid: &str,
     server_folder: &str,
     server_uid: u32,
 ) -> libc::c_int {
@@ -1656,7 +1651,7 @@ unsafe fn precheck_imf(
     let mut mark_seen: libc::c_int = 0i32;
     msg_id = dc_rfc724_mid_exists(
         context,
-        rfc724_mid,
+        &rfc724_mid,
         &mut old_server_folder,
         &mut old_server_uid,
     );
@@ -1665,18 +1660,14 @@ unsafe fn precheck_imf(
         if *old_server_folder.offset(0isize) as libc::c_int == 0i32
             && old_server_uid == 0i32 as libc::c_uint
         {
-            info!(context, "[move] detected bbc-self {}", as_str(rfc724_mid),);
+            info!(context, "[move] detected bbc-self {}", rfc724_mid,);
             mark_seen = 1i32
         } else if as_str(old_server_folder) != server_folder {
-            info!(
-                context,
-                "[move] detected moved message {}",
-                as_str(rfc724_mid),
-            );
-            dc_update_msg_move_state(context, rfc724_mid, MoveState::Stay);
+            info!(context, "[move] detected moved message {}", rfc724_mid,);
+            dc_update_msg_move_state(context, &rfc724_mid, MoveState::Stay);
         }
         if as_str(old_server_folder) != server_folder || old_server_uid != server_uid {
-            dc_update_server_uid(context, rfc724_mid, server_folder, server_uid);
+            dc_update_server_uid(context, &rfc724_mid, server_folder, server_uid);
         }
         context.do_heuristics_moves(server_folder, msg_id);
         if 0 != mark_seen {

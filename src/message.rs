@@ -151,7 +151,7 @@ pub struct Message {
     pub timestamp_sent: i64,
     pub timestamp_rcvd: i64,
     pub text: Option<String>,
-    pub rfc724_mid: *mut libc::c_char,
+    pub rfc724_mid: String,
     pub in_reply_to: Option<String>,
     pub server_folder: Option<String>,
     pub server_uid: u32,
@@ -292,8 +292,8 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
     if !rawtxt.is_empty() {
         ret += &format!("\n{}\n", rawtxt);
     }
-    if !msg.rfc724_mid.is_null() && 0 != *msg.rfc724_mid.offset(0) as libc::c_int {
-        ret += &format!("\nMessage-ID: {}", as_str(msg.rfc724_mid));
+    if !msg.rfc724_mid.is_empty() {
+        ret += &format!("\nMessage-ID: {}", msg.rfc724_mid);
     }
     if let Some(ref server_folder) = msg.server_folder {
         if server_folder != "" {
@@ -322,7 +322,7 @@ pub fn dc_msg_new(viewtype: Viewtype) -> Message {
         timestamp_sent: 0,
         timestamp_rcvd: 0,
         text: None,
-        rfc724_mid: std::ptr::null_mut(),
+        rfc724_mid: String::default(),
         in_reply_to: None,
         server_folder: None,
         server_uid: 0,
@@ -331,14 +331,6 @@ pub fn dc_msg_new(viewtype: Viewtype) -> Message {
         chat_blocked: Blocked::Not,
         location_id: 0,
         param: Params::new(),
-    }
-}
-
-impl Drop for Message {
-    fn drop(&mut self) {
-        unsafe {
-            free(self.rfc724_mid.cast());
-        }
     }
 }
 
@@ -438,7 +430,7 @@ pub fn dc_msg_load_from_db(context: &Context, id: u32) -> Result<Message, Error>
             unsafe {
                 let mut msg = dc_msg_new_untyped();
                 msg.id = row.get::<_, i32>(0)? as u32;
-                msg.rfc724_mid = row.get::<_, String>(1)?.strdup();
+                msg.rfc724_mid = row.get::<_, String>(1)?;
                 msg.in_reply_to = row.get::<_, Option<String>>(2)?;
                 msg.server_folder = row.get::<_, Option<String>>(3)?;
                 msg.server_uid = row.get(4)?;
@@ -996,18 +988,14 @@ pub fn dc_msg_exists(context: &Context, msg_id: u32) -> bool {
     }
 }
 
-pub fn dc_update_msg_move_state(
-    context: &Context,
-    rfc724_mid: *const libc::c_char,
-    state: MoveState,
-) -> bool {
+pub fn dc_update_msg_move_state(context: &Context, rfc724_mid: &str, state: MoveState) -> bool {
     // we update the move_state for all messages belonging to a given Message-ID
     // so that the state stay intact when parts are deleted
     sql::execute(
         context,
         &context.sql,
         "UPDATE msgs SET move_state=? WHERE rfc724_mid=?;",
-        params![state as i32, as_str(rfc724_mid)],
+        params![state as i32, rfc724_mid],
     )
     .is_ok()
 }
@@ -1042,13 +1030,13 @@ pub fn dc_set_msg_failed(context: &Context, msg_id: u32, error: Option<impl AsRe
 pub unsafe fn dc_mdn_from_ext(
     context: &Context,
     from_id: u32,
-    rfc724_mid: *const libc::c_char,
+    rfc724_mid: &str,
     timestamp_sent: i64,
     ret_chat_id: *mut u32,
     ret_msg_id: *mut u32,
 ) -> libc::c_int {
     if from_id <= 9
-        || rfc724_mid.is_null()
+        || rfc724_mid.is_empty()
         || ret_chat_id.is_null()
         || ret_msg_id.is_null()
         || *ret_chat_id != 0
@@ -1064,7 +1052,7 @@ pub unsafe fn dc_mdn_from_ext(
          LEFT JOIN chats c ON m.chat_id=c.id  \
          WHERE rfc724_mid=? AND from_id=1  \
          ORDER BY m.id;",
-        params![as_str(rfc724_mid)],
+        params![rfc724_mid],
         |row| {
             Ok((
                 row.get::<_, i32>(0)?,
@@ -1168,11 +1156,11 @@ pub fn dc_get_deaddrop_msg_cnt(context: &Context) -> libc::size_t {
     }
 }
 
-pub fn dc_rfc724_mid_cnt(context: &Context, rfc724_mid: *const libc::c_char) -> libc::c_int {
+pub fn dc_rfc724_mid_cnt(context: &Context, rfc724_mid: &str) -> libc::c_int {
     /* check the number of messages with the same rfc724_mid */
     match context.sql.query_row(
         "SELECT COUNT(*) FROM msgs WHERE rfc724_mid=?;",
-        &[as_str(rfc724_mid)],
+        &[rfc724_mid],
         |row| row.get(0),
     ) {
         Ok(res) => res,
@@ -1185,16 +1173,16 @@ pub fn dc_rfc724_mid_cnt(context: &Context, rfc724_mid: *const libc::c_char) -> 
 
 pub fn dc_rfc724_mid_exists(
     context: &Context,
-    rfc724_mid: *const libc::c_char,
+    rfc724_mid: &str,
     ret_server_folder: *mut *mut libc::c_char,
     ret_server_uid: *mut u32,
 ) -> u32 {
-    if rfc724_mid.is_null() || unsafe { *rfc724_mid.offset(0) as libc::c_int } == 0 {
+    if rfc724_mid.is_empty() {
         return 0;
     }
     match context.sql.query_row(
         "SELECT server_folder, server_uid, id FROM msgs WHERE rfc724_mid=?",
-        &[as_str(rfc724_mid)],
+        &[rfc724_mid],
         |row| {
             if !ret_server_folder.is_null() {
                 unsafe { *ret_server_folder = row.get::<_, String>(0)?.strdup() };
@@ -1221,13 +1209,13 @@ pub fn dc_rfc724_mid_exists(
 
 pub fn dc_update_server_uid(
     context: &Context,
-    rfc724_mid: *const libc::c_char,
+    rfc724_mid: &str,
     server_folder: impl AsRef<str>,
     server_uid: u32,
 ) {
     match context.sql.execute(
         "UPDATE msgs SET server_folder=?, server_uid=? WHERE rfc724_mid=?;",
-        params![server_folder.as_ref(), server_uid, as_str(rfc724_mid)],
+        params![server_folder.as_ref(), server_uid, rfc724_mid],
     ) {
         Ok(_) => {}
         Err(err) => {

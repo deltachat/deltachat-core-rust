@@ -1,4 +1,3 @@
-use std::ffi::CStr;
 use std::ptr;
 use std::time::Duration;
 
@@ -253,7 +252,7 @@ impl Job {
                             self.try_again_later(3i32, None);
                         }
                         3 => {
-                            dc_update_server_uid(context, msg.rfc724_mid, &dest_folder, dest_uid);
+                            dc_update_server_uid(context, &msg.rfc724_mid, &dest_folder, dest_uid);
                         }
                         0 | 2 | _ => {}
                     }
@@ -268,12 +267,10 @@ impl Job {
         let inbox = context.inbox.read().unwrap();
 
         if let Ok(mut msg) = dc_msg_load_from_db(context, self.foreign_id) {
-            if !(msg.rfc724_mid.is_null()
-                || unsafe { *msg.rfc724_mid.offset(0isize) as libc::c_int == 0 })
-            {
+            if !msg.rfc724_mid.is_empty() {
                 let ok_to_continue1;
                 /* eg. device messages have no Message-ID */
-                if dc_rfc724_mid_cnt(context, msg.rfc724_mid) != 1 {
+                if dc_rfc724_mid_cnt(context, &msg.rfc724_mid) != 1 {
                     info!(
                         context,
                         "The message is deleted from the server when all parts are deleted.",
@@ -295,9 +292,10 @@ impl Job {
                         ok_to_continue = true;
                     }
                     if ok_to_continue {
-                        let mid = unsafe { CStr::from_ptr(msg.rfc724_mid).to_str().unwrap() };
+                        let mid = msg.rfc724_mid;
                         let server_folder = msg.server_folder.as_ref().unwrap();
-                        if 0 == inbox.delete_msg(context, mid, server_folder, &mut msg.server_uid) {
+                        if 0 == inbox.delete_msg(context, &mid, server_folder, &mut msg.server_uid)
+                        {
                             self.try_again_later(-1i32, None);
                             ok_to_continue1 = false;
                         } else {
