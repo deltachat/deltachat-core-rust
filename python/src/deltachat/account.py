@@ -231,7 +231,7 @@ class Account(object):
         :returns: a :class:`deltachat.chatting.Chat` object.
         """
         bytes_name = name.encode("utf8")
-        chat_id = lib.dc_create_group_chat(self._dc_context, verified, bytes_name)
+        chat_id = lib.dc_create_group_chat(self._dc_context, int(verified), bytes_name)
         return Chat(self, chat_id)
 
     def get_chats(self):
@@ -377,6 +377,15 @@ class Account(object):
         if chat_id == 0:
             raise ValueError("could not join group")
         return Chat(self, chat_id)
+
+    #
+    # meta API for start/stop and event based processing
+    #
+
+    def wait_next_incoming_message(self):
+        """ wait for and return next incoming message. """
+        ev = self._evlogger.get_matching("DC_EVENT_INCOMING_MSG")
+        return self.get_message_by_id(ev[2])
 
     def start_threads(self):
         """ start IMAP/SMTP threads (and configure account if it hasn't happened).

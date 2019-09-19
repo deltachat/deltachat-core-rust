@@ -443,6 +443,7 @@ class TestOnlineAccount:
 
         lp.sec("sending text message from ac1 to ac2")
         msg_out = chat.send_text("message1")
+        assert not msg_out.is_encrypted()
 
         lp.sec("wait for ac2 to receive message")
         ev = ac2._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
@@ -460,6 +461,7 @@ class TestOnlineAccount:
         assert ev[2] > msg_out.id
         msg_back = ac1.get_message_by_id(ev[2])
         assert msg_back.text == "message-back"
+        assert msg_back.is_encrypted()
 
     def test_saved_mime_on_received_message(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
@@ -563,6 +565,38 @@ class TestOnlineAccount:
         ch = ac2.qr_join_chat(qr)
         assert ch.id >= 10
         wait_securejoin_inviter_progress(ac1, 1000)
+
+    def test_qr_verified_group_and_chatting(self, acfactory, lp):
+        ac1, ac2 = acfactory.get_two_online_accounts()
+        lp.sec("ac1: create verified-group QR, ac2 scans and joins")
+        chat1 = ac1.create_group_chat("hello", verified=True)
+        assert chat1.is_verified()
+        qr = chat1.get_join_qr()
+        lp.sec("ac2: start QR-code based join-group protocol")
+        chat2 = ac2.qr_join_chat(qr)
+        assert chat2.id >= 10
+        wait_securejoin_inviter_progress(ac1, 1000)
+
+        lp.sec("ac2: read member added message")
+        msg = ac2.wait_next_incoming_message()
+        assert msg.is_encrypted()
+        assert "added" in msg.text.lower()
+
+        lp.sec("ac1: send message")
+        msg_out = chat1.send_text("hello")
+        assert msg_out.is_encrypted()
+
+        lp.sec("ac2: read message and check it's verified chat")
+        msg = ac2.wait_next_incoming_message()
+        assert msg.text == "hello"
+        assert msg.chat.is_verified()
+        assert msg.is_encrypted()
+
+        lp.sec("ac2: send message and let ac1 read it")
+        chat2.send_text("world")
+        msg = ac1.wait_next_incoming_message()
+        assert msg.text == "world"
+        assert msg.is_encrypted()
 
     def test_set_get_profile_image(self, acfactory, data, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
