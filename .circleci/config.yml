@@ -151,7 +151,7 @@ jobs:
       - *restore-cache
       - attach_workspace:
           at: workspace
-      - run: pyenv global 3.5.2
+      # - run: pyenv global 3.5.2
       - run: ls -laR workspace
       - run: ci_scripts/ci_upload.sh workspace/py-docs workspace/wheelhouse
 
