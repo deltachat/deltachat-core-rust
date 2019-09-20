@@ -19,10 +19,13 @@ use crate::param::Params;
 
 const DC_IMAP_SEEN: usize = 0x0001;
 
-const DC_SUCCESS: usize = 3;
-const DC_ALREADY_DONE: usize = 2;
-const DC_RETRY_LATER: usize = 1;
-const DC_FAILED: usize = 0;
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq)]
+pub enum ImapResult {
+    Failed,
+    RetryLater,
+    AlreadyDone,
+    Success,
+}
 
 const PREFETCH_FLAGS: &str = "(UID ENVELOPE)";
 const BODY_FLAGS: &str = "(FLAGS BODY.PEEK[])";
@@ -1130,12 +1133,12 @@ impl Imap {
         uid: u32,
         dest_folder: S2,
         dest_uid: &mut u32,
-    ) -> usize {
-        let mut res = DC_RETRY_LATER;
+    ) -> ImapResult {
+        let mut res = ImapResult::RetryLater;
         let set = format!("{}", uid);
 
         if uid == 0 {
-            res = DC_FAILED;
+            res = ImapResult::Failed;
         } else if folder.as_ref() == dest_folder.as_ref() {
             info!(
                 context,
@@ -1145,7 +1148,7 @@ impl Imap {
                 dest_folder.as_ref()
             );
 
-            res = DC_ALREADY_DONE;
+            res = ImapResult::AlreadyDone;
         } else {
             info!(
                 context,
@@ -1165,7 +1168,7 @@ impl Imap {
                 let moved = if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
                     match session.uid_mv(&set, &dest_folder) {
                         Ok(_) => {
-                            res = DC_SUCCESS;
+                            res = ImapResult::Success;
                             true
                         }
                         Err(err) => {
@@ -1205,22 +1208,22 @@ impl Imap {
                             warn!(context, "Cannot mark message as \"Deleted\".",);
                         }
                         self.config.write().unwrap().selected_folder_needs_expunge = true;
-                        res = DC_SUCCESS;
+                        res = ImapResult::Success;
                     }
                 }
             }
         }
 
-        if res == DC_SUCCESS {
+        if res == ImapResult::Success {
             // TODO: is this correct?
             *dest_uid = uid;
         }
 
-        if res == DC_RETRY_LATER {
+        if res == ImapResult::RetryLater {
             if self.should_reconnect() {
-                DC_RETRY_LATER
+                ImapResult::RetryLater
             } else {
-                DC_FAILED
+                ImapResult::Failed
             }
         } else {
             res
@@ -1254,11 +1257,11 @@ impl Imap {
         }
     }
 
-    pub fn set_seen<S: AsRef<str>>(&self, context: &Context, folder: S, uid: u32) -> usize {
-        let mut res = DC_RETRY_LATER;
+    pub fn set_seen<S: AsRef<str>>(&self, context: &Context, folder: S, uid: u32) -> ImapResult {
+        let mut res = ImapResult::RetryLater;
 
         if uid == 0 {
-            res = DC_FAILED
+            res = ImapResult::Failed
         } else if self.is_connected() {
             info!(
                 context,
@@ -1276,28 +1279,28 @@ impl Imap {
             } else if self.add_flag(context, uid, "\\Seen") == 0 {
                 warn!(context, "Cannot mark message as seen.",);
             } else {
-                res = DC_SUCCESS
+                res = ImapResult::Success
             }
         }
 
-        if res == DC_RETRY_LATER {
+        if res == ImapResult::RetryLater {
             if self.should_reconnect() {
-                DC_RETRY_LATER
+                ImapResult::RetryLater
             } else {
-                DC_FAILED
+                ImapResult::Failed
             }
         } else {
             res
         }
     }
 
-    pub fn set_mdnsent<S: AsRef<str>>(&self, context: &Context, folder: S, uid: u32) -> usize {
+    pub fn set_mdnsent<S: AsRef<str>>(&self, context: &Context, folder: S, uid: u32) -> ImapResult {
         // returns 0=job should be retried later, 1=job done, 2=job done and flag just set
-        let mut res = DC_RETRY_LATER;
+        let mut res = ImapResult::RetryLater;
         let set = format!("{}", uid);
 
         if uid == 0 {
-            res = DC_FAILED;
+            res = ImapResult::Failed;
         } else if self.is_connected() {
             info!(
                 context,
@@ -1367,21 +1370,21 @@ impl Imap {
                             .unwrap_or_else(|| false);
 
                         res = if flag_set {
-                            DC_ALREADY_DONE
+                            ImapResult::AlreadyDone
                         } else if self.add_flag(context, uid, "$MDNSent") != 0 {
-                            DC_SUCCESS
+                            ImapResult::Success
                         } else {
                             res
                         };
 
-                        if res == DC_SUCCESS {
+                        if res == ImapResult::Success {
                             info!(context, "$MDNSent just set and MDN will be sent.");
                         } else {
                             info!(context, "$MDNSent already set and MDN already sent.");
                         }
                     }
                 } else {
-                    res = DC_SUCCESS;
+                    res = ImapResult::Success;
                     info!(
                         context,
                         "Cannot store $MDNSent flags, risk sending duplicate MDN.",
@@ -1390,11 +1393,11 @@ impl Imap {
             }
         }
 
-        if res == DC_RETRY_LATER {
+        if res == ImapResult::RetryLater {
             if self.should_reconnect() {
-                DC_RETRY_LATER
+                ImapResult::RetryLater
             } else {
-                DC_FAILED
+                ImapResult::Failed
             }
         } else {
             res

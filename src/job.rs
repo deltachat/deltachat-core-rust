@@ -246,15 +246,14 @@ impl Job {
                         msg.server_uid,
                         &dest_folder,
                         &mut dest_uid,
-                    ) as libc::c_uint
-                    {
-                        1 => {
+                    ) {
+                        ImapResult::RetryLater => {
                             self.try_again_later(3i32, None);
                         }
-                        3 => {
+                        ImapResult::Success => {
                             dc_update_server_uid(context, &msg.rfc724_mid, &dest_folder, dest_uid);
                         }
-                        0 | 2 | _ => {}
+                        ImapResult::Failed | ImapResult::AlreadyDone => {}
                     }
                 }
             }
@@ -333,9 +332,9 @@ impl Job {
         if ok_to_continue {
             if let Ok(msg) = dc_msg_load_from_db(context, self.foreign_id) {
                 let server_folder = msg.server_folder.as_ref().unwrap();
-                match inbox.set_seen(context, server_folder, msg.server_uid) as libc::c_uint {
-                    0 => {}
-                    1 => {
+                match inbox.set_seen(context, server_folder, msg.server_uid) {
+                    ImapResult::Failed => {}
+                    ImapResult::RetryLater => {
                         self.try_again_later(3i32, None);
                     }
                     _ => {
@@ -347,15 +346,14 @@ impl Job {
                         {
                             let folder = msg.server_folder.as_ref().unwrap();
 
-                            match inbox.set_mdnsent(context, folder, msg.server_uid) as libc::c_uint
-                            {
-                                1 => {
+                            match inbox.set_mdnsent(context, folder, msg.server_uid) {
+                                ImapResult::RetryLater => {
                                     self.try_again_later(3i32, None);
                                 }
-                                3 => {
+                                ImapResult::Success => {
                                     send_mdn(context, msg.id);
                                 }
-                                0 | 2 | _ => {}
+                                ImapResult::Failed | ImapResult::AlreadyDone => {}
                             }
                         }
                     }
@@ -388,7 +386,7 @@ impl Job {
             ok_to_continue = true;
         }
         if ok_to_continue {
-            if inbox.set_seen(context, &folder, uid) == 0 {
+            if inbox.set_seen(context, &folder, uid) == ImapResult::Failed {
                 self.try_again_later(3i32, None);
             }
             if 0 != self.param.get_int(Param::AlsoMove).unwrap_or_default() {
@@ -402,8 +400,8 @@ impl Job {
                 }
                 let dest_folder = context.sql.get_config(context, "configured_mvbox_folder");
                 if let Some(dest_folder) = dest_folder {
-                    if 1 == inbox.mv(context, folder, uid, dest_folder, &mut dest_uid)
-                        as libc::c_uint
+                    if ImapResult::RetryLater
+                        == inbox.mv(context, folder, uid, dest_folder, &mut dest_uid)
                     {
                         self.try_again_later(3, None);
                     }
