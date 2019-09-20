@@ -324,9 +324,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
     let mut ok_to_continue = true;
     let imf_fields: *mut mailimf_fields;
     let mut message: *mut mailmime = ptr::null_mut();
-    let mut message_text: *mut libc::c_char = ptr::null_mut();
-    let mut message_text2: *mut libc::c_char = ptr::null_mut();
-    let mut afwd_email: libc::c_int = 0;
+    let mut afwd_email = false;
     let mut col: libc::c_int = 0;
     let mut success = false;
     let mut parts: libc::c_int = 0;
@@ -440,25 +438,20 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
         mailimf_fields_add(
             imf_fields,
             mailimf_field_new_custom(
-                strdup(b"X-Mailer\x00" as *const u8 as *const libc::c_char),
+                "X-Mailer".strdup(),
                 format!("Delta Chat Core {}{}", version, os_part).strdup(),
             ),
         );
 
         mailimf_fields_add(
             imf_fields,
-            mailimf_field_new_custom(
-                strdup(b"Chat-Version\x00" as *const u8 as *const libc::c_char),
-                strdup(b"1.0\x00" as *const u8 as *const libc::c_char),
-            ),
+            mailimf_field_new_custom("Chat-Version".strdup(), "1.0".strdup()),
         );
         if 0 != factory.req_mdn {
             mailimf_fields_add(
                 imf_fields,
                 mailimf_field_new_custom(
-                    strdup(
-                        b"Chat-Disposition-Notification-To\x00" as *const u8 as *const libc::c_char,
-                    ),
+                    "Chat-Disposition-Notification-To".strdup(),
                     strdup(factory.from_addr),
                 ),
             );
@@ -475,10 +468,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
             if chat.typ == Chattype::VerifiedGroup {
                 mailimf_fields_add(
                     imf_fields,
-                    mailimf_field_new_custom(
-                        strdup(b"Chat-Verified\x00" as *const u8 as *const libc::c_char),
-                        strdup(b"1\x00" as *const u8 as *const libc::c_char),
-                    ),
+                    mailimf_field_new_custom("Chat-Verified".strdup(), "1".strdup()),
                 );
                 force_plaintext = 0;
                 e2ee_guaranteed = true;
@@ -509,51 +499,37 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
             if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
                 mailimf_fields_add(
                     imf_fields,
-                    mailimf_field_new_custom(
-                        strdup(b"Chat-Group-ID\x00" as *const u8 as *const libc::c_char),
-                        chat.grpid.strdup(),
-                    ),
+                    mailimf_field_new_custom("Chat-Group-ID".strdup(), chat.grpid.strdup()),
                 );
                 mailimf_fields_add(
                     imf_fields,
                     mailimf_field_new_custom(
-                        strdup(b"Chat-Group-Name\x00" as *const u8 as *const libc::c_char),
+                        "Chat-Group-Name".strdup(),
                         dc_encode_header_words(&chat.name),
                     ),
                 );
 
                 if command == SystemMessage::MemberRemovedFromGroup {
-                    let email_to_remove = factory
-                        .msg
-                        .param
-                        .get(Param::Arg)
-                        .unwrap_or_default()
-                        .strdup();
-                    if strlen(email_to_remove) > 0 {
+                    let email_to_remove = factory.msg.param.get(Param::Arg).unwrap_or_default();
+                    if !email_to_remove.is_empty() {
                         mailimf_fields_add(
                             imf_fields,
                             mailimf_field_new_custom(
-                                strdup(
-                                    b"Chat-Group-Member-Removed\x00" as *const u8
-                                        as *const libc::c_char,
-                                ),
-                                email_to_remove,
+                                "Chat-Group-Member-Removed".strdup(),
+                                email_to_remove.strdup(),
                             ),
                         );
                     }
                 } else if command == SystemMessage::MemberAddedToGroup {
                     let msg = &factory.msg;
                     do_gossip = 1;
-                    let email_to_add = msg.param.get(Param::Arg).unwrap_or_default().strdup();
-                    if strlen(email_to_add) > 0 {
+                    let email_to_add = msg.param.get(Param::Arg).unwrap_or_default();
+                    if !email_to_add.is_empty() {
                         mailimf_fields_add(
                             imf_fields,
                             mailimf_field_new_custom(
-                                strdup(
-                                    b"Chat-Group-Member-Added\x00" as *const u8
-                                        as *const libc::c_char,
-                                ),
-                                email_to_add,
+                                "Chat-Group-Member-Added".strdup(),
+                                email_to_add.strdup(),
                             ),
                         );
                         grpimage = chat.param.get(Param::ProfileImage);
@@ -567,22 +543,20 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
                         mailimf_fields_add(
                             imf_fields,
                             mailimf_field_new_custom(
-                                strdup(b"Secure-Join\x00" as *const u8 as *const libc::c_char),
-                                strdup(b"vg-member-added\x00" as *const u8 as *const libc::c_char),
+                                "Secure-Join".strdup(),
+                                "vg-member-added".strdup(),
                             ),
                         );
                     }
                 } else if command == SystemMessage::GroupNameChanged {
                     let msg = &factory.msg;
 
-                    let value_to_add = msg.param.get(Param::Arg).unwrap_or_default().strdup();
+                    let value_to_add = msg.param.get(Param::Arg).unwrap_or_default();
                     mailimf_fields_add(
                         imf_fields,
                         mailimf_field_new_custom(
-                            strdup(
-                                b"Chat-Group-Name-Changed\x00" as *const u8 as *const libc::c_char,
-                            ),
-                            value_to_add,
+                            "Chat-Group-Name-Changed".strdup(),
+                            value_to_add.strdup(),
                         ),
                     );
                 } else if command == SystemMessage::GroupImageChanged {
@@ -591,10 +565,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
                     if grpimage.is_none() {
                         mailimf_fields_add(
                             imf_fields,
-                            mailimf_field_new_custom(
-                                strdup(b"Chat-Group-Image\x00" as *const u8 as *const libc::c_char),
-                                dc_strdup(b"0\x00" as *const u8 as *const libc::c_char),
-                            ),
+                            mailimf_field_new_custom("Chat-Group-Image".strdup(), "0".strdup()),
                         );
                     }
                 }
@@ -604,20 +575,15 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
                 mailimf_fields_add(
                     imf_fields,
                     mailimf_field_new_custom(
-                        strdup(b"Chat-Content\x00" as *const u8 as *const libc::c_char),
-                        strdup(
-                            b"location-streaming-enabled\x00" as *const u8 as *const libc::c_char,
-                        ),
+                        "Chat-Content".strdup(),
+                        "location-streaming-enabled".strdup(),
                     ),
                 );
             }
             if command == SystemMessage::AutocryptSetupMessage {
                 mailimf_fields_add(
                     imf_fields,
-                    mailimf_field_new_custom(
-                        strdup(b"Autocrypt-Setup-Message\x00" as *const u8 as *const libc::c_char),
-                        strdup(b"v1\x00" as *const u8 as *const libc::c_char),
-                    ),
+                    mailimf_field_new_custom("Autocrypt-Setup-Message".strdup(), "v1".strdup()),
                 );
                 placeholdertext = Some(
                     factory
@@ -628,58 +594,38 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
             }
             if command == SystemMessage::SecurejoinMessage {
                 let msg = &factory.msg;
-                let step = msg.param.get(Param::Arg).unwrap_or_default().strdup();
-                if strlen(step) > 0 {
+                let step = msg.param.get(Param::Arg).unwrap_or_default();
+                if !step.is_empty() {
                     info!(
                         context,
-                        "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>",
-                        as_str(step),
+                        "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>", step,
                     );
                     mailimf_fields_add(
                         imf_fields,
-                        mailimf_field_new_custom(
-                            strdup(b"Secure-Join\x00" as *const u8 as *const libc::c_char),
-                            step,
-                        ),
+                        mailimf_field_new_custom("Secure-Join".strdup(), step.strdup()),
                     );
-                    let param2 = msg.param.get(Param::Arg2).unwrap_or_default().strdup();
-                    if strlen(param2) > 0 {
+                    let param2 = msg.param.get(Param::Arg2).unwrap_or_default();
+                    if !param2.is_empty() {
                         mailimf_fields_add(
                             imf_fields,
                             mailimf_field_new_custom(
-                                if strcmp(
-                                    step,
-                                    b"vg-request-with-auth\x00" as *const u8 as *const libc::c_char,
-                                ) == 0
-                                    || strcmp(
-                                        step,
-                                        b"vc-request-with-auth\x00" as *const u8
-                                            as *const libc::c_char,
-                                    ) == 0
+                                if step == "vg-request-with-auth" || step == "vc-request-with-auth"
                                 {
-                                    strdup(
-                                        b"Secure-Join-Auth\x00" as *const u8 as *const libc::c_char,
-                                    )
+                                    "Secure-Join-Auth".strdup()
                                 } else {
-                                    strdup(
-                                        b"Secure-Join-Invitenumber\x00" as *const u8
-                                            as *const libc::c_char,
-                                    )
+                                    "Secure-Join-Invitenumber".strdup()
                                 },
-                                param2,
+                                param2.strdup(),
                             ),
                         );
                     }
-                    let fingerprint = msg.param.get(Param::Arg3).unwrap_or_default().strdup();
-                    if strlen(fingerprint) > 0 {
+                    let fingerprint = msg.param.get(Param::Arg3).unwrap_or_default();
+                    if !fingerprint.is_empty() {
                         mailimf_fields_add(
                             imf_fields,
                             mailimf_field_new_custom(
-                                strdup(
-                                    b"Secure-Join-Fingerprint\x00" as *const u8
-                                        as *const libc::c_char,
-                                ),
-                                fingerprint,
+                                "Secure-Join-Fingerprint".strdup(),
+                                fingerprint.strdup(),
                             ),
                         );
                     }
@@ -690,12 +636,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
                     if !grpid.is_null() {
                         mailimf_fields_add(
                             imf_fields,
-                            mailimf_field_new_custom(
-                                strdup(
-                                    b"Secure-Join-Group\x00" as *const u8 as *const libc::c_char,
-                                ),
-                                grpid,
-                            ),
+                            mailimf_field_new_custom("Secure-Join-Group".strdup(), grpid),
                         );
                     }
                 }
@@ -708,19 +649,11 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
                 meta.param.set(Param::File, grpimage);
 
                 let mut filename_as_sent = ptr::null_mut();
-                meta_part = build_body_file(
-                    context,
-                    &meta,
-                    b"group-image\x00" as *const u8 as *const libc::c_char,
-                    &mut filename_as_sent,
-                );
+                meta_part = build_body_file(context, &meta, "group-image", &mut filename_as_sent);
                 if !meta_part.is_null() {
                     mailimf_fields_add(
                         imf_fields,
-                        mailimf_field_new_custom(
-                            strdup(b"Chat-Group-Image\x00" as *const u8 as *const libc::c_char),
-                            filename_as_sent,
-                        ),
+                        mailimf_field_new_custom("Chat-Group-Image".strdup(), filename_as_sent),
                     );
                 }
             }
@@ -732,10 +665,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
                 if factory.msg.type_0 == Viewtype::Voice {
                     mailimf_fields_add(
                         imf_fields,
-                        mailimf_field_new_custom(
-                            strdup(b"Chat-Voice-Message\x00" as *const u8 as *const libc::c_char),
-                            strdup(b"1\x00" as *const u8 as *const libc::c_char),
-                        ),
+                        mailimf_field_new_custom("Chat-Voice-Message".strdup(), "1".strdup()),
                     );
                 }
                 let duration_ms = factory
@@ -747,14 +677,14 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
                     mailimf_fields_add(
                         imf_fields,
                         mailimf_field_new_custom(
-                            strdup(b"Chat-Duration\x00" as *const u8 as *const libc::c_char),
+                            "Chat-Duration".strdup(),
                             duration_ms.to_string().strdup(),
                         ),
                     );
                 }
             }
-            afwd_email = factory.msg.param.exists(Param::Forwarded) as libc::c_int;
-            let fwdhint = if 0 != afwd_email {
+            afwd_email = factory.msg.param.exists(Param::Forwarded);
+            let fwdhint = if afwd_email {
                 Some(
                     "---------- Forwarded message ----------\r\nFrom: Delta Chat\r\n\r\n"
                         .to_string(),
@@ -774,14 +704,9 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
             };
 
             let footer = factory.selfstatus.as_ref();
-
-            message_text = format!(
+            let message_text = format!(
                 "{}{}{}{}{}",
-                if let Some(ref hint) = fwdhint {
-                    hint
-                } else {
-                    ""
-                },
+                fwdhint.unwrap_or_default(),
                 &final_text,
                 if !final_text.is_empty() && footer.is_some() {
                     "\r\n\r\n"
@@ -789,14 +714,12 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
                     ""
                 },
                 if footer.is_some() { "-- \r\n" } else { "" },
-                if let Some(footer) = footer {
-                    footer
-                } else {
-                    ""
-                },
-            )
-            .strdup();
-            let text_part: *mut mailmime = build_body_text(message_text);
+                match footer {
+                    Some(x) => x,
+                    None => "",
+                }
+            );
+            let text_part = build_body_text(&message_text);
             mailmime_smart_add_part(message, text_part);
             parts += 1;
 
@@ -811,7 +734,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
                     ok_to_continue = false;
                 } else {
                     let file_part: *mut mailmime =
-                        build_body_file(context, &factory.msg, ptr::null(), ptr::null_mut());
+                        build_body_file(context, &factory.msg, "", ptr::null_mut());
                     if !file_part.is_null() {
                         mailmime_smart_add_part(message, file_part);
                         parts += 1
@@ -848,11 +771,11 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
                         );
                         let mime_fields = mailmime_fields_new_filename(
                             MAILMIME_DISPOSITION_TYPE_ATTACHMENT as libc::c_int,
-                            dc_strdup(b"message.kml\x00" as *const u8 as *const libc::c_char),
+                            "message.kml".strdup(),
                             MAILMIME_MECHANISM_8BIT as libc::c_int,
                         );
                         let kml_mime_part = mailmime_new_empty(content_type, mime_fields);
-                        mailmime_set_body_text(kml_mime_part, kml_file.strdup(), kml_file.len());
+                        set_body_text(kml_mime_part, &kml_file);
                         mailmime_smart_add_part(message, kml_mime_part);
                     }
 
@@ -866,15 +789,11 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
                             );
                             let mime_fields = mailmime_fields_new_filename(
                                 MAILMIME_DISPOSITION_TYPE_ATTACHMENT as libc::c_int,
-                                dc_strdup(b"location.kml\x00" as *const u8 as *const libc::c_char),
+                                "location.kml".strdup(),
                                 MAILMIME_MECHANISM_8BIT as libc::c_int,
                             );
                             let kml_mime_part = mailmime_new_empty(content_type, mime_fields);
-                            mailmime_set_body_text(
-                                kml_mime_part,
-                                kml_file.strdup(),
-                                kml_file.len(),
-                            );
+                            set_body_text(kml_mime_part, &kml_file);
                             mailmime_smart_add_part(message, kml_mime_part);
                             if !factory.msg.param.exists(Param::SetLatitude) {
                                 // otherwise, the independent location is already filed
@@ -915,17 +834,17 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
             let p2 = factory
                 .context
                 .stock_string_repl_str(StockMessage::ReadRcptMailBody, p1);
-            message_text = format!("{}\r\n", p2).strdup();
-            let human_mime_part: *mut mailmime = build_body_text(message_text);
+            let message_text = format!("{}\r\n", p2);
+            let human_mime_part: *mut mailmime = build_body_text(&message_text);
             mailmime_add_part(multipart, human_mime_part);
             let version = get_version_str();
-            message_text2 = format!(
+            let message_text2 = format!(
                 "Reporting-UA: Delta Chat {}\r\nOriginal-Recipient: rfc822;{}\r\nFinal-Recipient: rfc822;{}\r\nOriginal-Message-ID: <{}>\r\nDisposition: manual-action/MDN-sent-automatically; displayed\r\n",
                 version,
                 as_str(factory.from_addr),
                 as_str(factory.from_addr),
                 factory.msg.rfc724_mid
-            ).strdup();
+            );
 
             let content_type_0: *mut mailmime_content = mailmime_content_new_with_str(
                 b"message/disposition-notification\x00" as *const u8 as *const libc::c_char,
@@ -933,7 +852,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
             let mime_fields_0: *mut mailmime_fields =
                 mailmime_fields_new_encoding(MAILMIME_MECHANISM_8BIT as libc::c_int);
             let mach_mime_part: *mut mailmime = mailmime_new_empty(content_type_0, mime_fields_0);
-            mailmime_set_body_text(mach_mime_part, message_text2, strlen(message_text2));
+            set_body_text(mach_mime_part, &message_text2);
             mailmime_add_part(multipart, mach_mime_part);
             force_plaintext = 2;
         } else {
@@ -946,12 +865,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
                 let e = factory.context.stock_str(StockMessage::ReadRcpt);
                 format!("Chat: {}", e)
             } else {
-                to_string(get_subject(
-                    context,
-                    factory.chat.as_ref(),
-                    &mut factory.msg,
-                    afwd_email,
-                ))
+                get_subject(context, factory.chat.as_ref(), &mut factory.msg, afwd_email)
             };
 
             subject = mailimf_subject_new(dc_encode_header_words(subject_str));
@@ -1010,9 +924,6 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
         mailmime_free(message);
     }
     e2ee_helper.thanks();
-    free(message_text as *mut libc::c_void);
-    free(message_text2 as *mut libc::c_void);
-
     success
 }
 
@@ -1020,28 +931,28 @@ unsafe fn get_subject(
     context: &Context,
     chat: Option<&Chat>,
     msg: &mut Message,
-    afwd_email: libc::c_int,
-) -> *mut libc::c_char {
+    afwd_email: bool,
+) -> String {
     if chat.is_none() {
-        return std::ptr::null_mut();
+        return String::default();
     }
 
     let chat = chat.unwrap();
-    let ret: *mut libc::c_char;
 
     let raw_subject =
         message::get_summarytext_by_raw(msg.type_0, msg.text.as_ref(), &mut msg.param, 32, context);
 
-    let fwd = if 0 != afwd_email { "Fwd: " } else { "" };
-    if msg.param.get_cmd() == SystemMessage::AutocryptSetupMessage {
-        ret = context.stock_str(StockMessage::AcSetupMsgSubject).strdup()
-    } else if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
-        ret = format!("Chat: {}: {}{}", chat.name, fwd, raw_subject,).strdup();
-    } else {
-        ret = format!("Chat: {}{}", fwd, raw_subject).strdup();
-    }
+    let fwd = if afwd_email { "Fwd: " } else { "" };
 
-    ret
+    if msg.param.get_cmd() == SystemMessage::AutocryptSetupMessage {
+        context
+            .stock_str(StockMessage::AcSetupMsgSubject)
+            .into_owned()
+    } else if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
+        format!("Chat: {}: {}{}", chat.name, fwd, raw_subject,)
+    } else {
+        format!("Chat: {}{}", fwd, raw_subject)
+    }
 }
 
 unsafe fn set_error(factory: *mut MimeFactory, text: &str) {
@@ -1052,7 +963,7 @@ unsafe fn set_error(factory: *mut MimeFactory, text: &str) {
     (*factory).error = text.strdup();
 }
 
-unsafe fn build_body_text(text: *mut libc::c_char) -> *mut mailmime {
+unsafe fn build_body_text(text: &str) -> *mut mailmime {
     let mime_fields: *mut mailmime_fields;
     let message_part: *mut mailmime;
     let content: *mut mailmime_content;
@@ -1067,16 +978,20 @@ unsafe fn build_body_text(text: *mut libc::c_char) -> *mut mailmime {
     );
     mime_fields = mailmime_fields_new_encoding(MAILMIME_MECHANISM_8BIT as libc::c_int);
     message_part = mailmime_new_empty(content, mime_fields);
-    mailmime_set_body_text(message_part, text, strlen(text));
+    set_body_text(message_part, text);
 
     message_part
+}
+
+unsafe fn set_body_text(part: *mut mailmime, text: &str) {
+    mailmime_set_body_text(part, text.strdup(), text.len());
 }
 
 #[allow(non_snake_case)]
 unsafe fn build_body_file(
     context: &Context,
     msg: &Message,
-    mut base_name: *const libc::c_char,
+    base_name: &str,
     ret_file_name_as_sent: *mut *mut libc::c_char,
 ) -> *mut mailmime {
     let needs_ext: bool;
@@ -1112,12 +1027,13 @@ unsafe fn build_body_file(
                 .map(|c| c.to_string_lossy().to_string())
                 .unwrap_or_default()
         } else if msg.type_0 == Viewtype::Image || msg.type_0 == Viewtype::Gif {
-            if base_name.is_null() {
-                base_name = b"image\x00" as *const u8 as *const libc::c_char
-            }
             format!(
                 "{}.{}",
-                as_str(base_name),
+                if base_name.is_empty() {
+                    "image"
+                } else {
+                    base_name
+                },
                 if !suffix.is_null() {
                     as_str(suffix)
                 } else {
@@ -1142,20 +1058,18 @@ unsafe fn build_body_file(
 
         if mimetype.is_null() {
             if suffix.is_null() {
-                mimetype =
-                    dc_strdup(b"application/octet-stream\x00" as *const u8 as *const libc::c_char)
+                mimetype = "application/octet-stream".strdup();
             } else if strcmp(suffix, b"png\x00" as *const u8 as *const libc::c_char) == 0 {
-                mimetype = dc_strdup(b"image/png\x00" as *const u8 as *const libc::c_char)
+                mimetype = "image/png".strdup();
             } else if strcmp(suffix, b"jpg\x00" as *const u8 as *const libc::c_char) == 0
                 || strcmp(suffix, b"jpeg\x00" as *const u8 as *const libc::c_char) == 0
                 || strcmp(suffix, b"jpe\x00" as *const u8 as *const libc::c_char) == 0
             {
-                mimetype = dc_strdup(b"image/jpeg\x00" as *const u8 as *const libc::c_char)
+                mimetype = "image/jpeg".strdup();
             } else if strcmp(suffix, b"gif\x00" as *const u8 as *const libc::c_char) == 0 {
-                mimetype = dc_strdup(b"image/gif\x00" as *const u8 as *const libc::c_char)
+                mimetype = "image/gif".strdup();
             } else {
-                mimetype =
-                    dc_strdup(b"application/octet-stream\x00" as *const u8 as *const libc::c_char)
+                mimetype = "application/octet-stream".strdup();
             }
         }
         if !mimetype.is_null() {
