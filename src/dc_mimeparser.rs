@@ -362,11 +362,11 @@ impl<'a> MimeParser<'a> {
         }
     }
 
-    unsafe fn parse_mime_recursive(&mut self, mime: *mut mailmime) -> libc::c_int {
+    unsafe fn parse_mime_recursive(&mut self, mime: *mut mailmime) -> bool {
         if mime.is_null() {
-            return 0;
+            return false;
         }
-        let mut any_part_added = 0;
+        let mut any_part_added = false;
         let mut cur: *mut clistiter;
 
         if !mailmime_find_ct_parameter(
@@ -393,7 +393,7 @@ impl<'a> MimeParser<'a> {
                     self.context,
                     "Protected headers found in text/rfc822-headers attachment: Will be ignored.",
                 );
-                return 0i32;
+                return false;
             }
             if self.header_protected.is_null() {
                 /* use the most outer protected header - this is typically
@@ -448,7 +448,7 @@ impl<'a> MimeParser<'a> {
                                 }
                             }
                         }
-                        if 0 == any_part_added {
+                        if !any_part_added {
                             /* search for text/plain and add this */
                             cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
                             while !cur.is_null() {
@@ -475,7 +475,7 @@ impl<'a> MimeParser<'a> {
                                 }
                             }
                         }
-                        if 0 == any_part_added {
+                        if !any_part_added {
                             /* `text/plain` not found - use the first part */
                             cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
                             while !cur.is_null() {
@@ -506,13 +506,7 @@ impl<'a> MimeParser<'a> {
                         however, most times it seems okay. */
                         cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
                         if !cur.is_null() {
-                            any_part_added = self.parse_mime_recursive(
-                                (if !cur.is_null() {
-                                    (*cur).data
-                                } else {
-                                    ptr::null_mut()
-                                }) as *mut mailmime,
-                            )
+                            any_part_added = self.parse_mime_recursive((*cur).data as *mut mailmime);
                         }
                     }
                     DC_MIMETYPE_MP_NOT_DECRYPTABLE => {
@@ -525,7 +519,7 @@ impl<'a> MimeParser<'a> {
                         part.msg = Some(txt);
 
                         self.parts.push(part);
-                        any_part_added = 1i32;
+                        any_part_added = true;
                         self.decrypting_failed = true;
                     }
                     DC_MIMETYPE_MP_SIGNED => {
@@ -632,8 +626,8 @@ impl<'a> MimeParser<'a> {
                                 ptr::null_mut()
                             }) as *mut mailmime;
                             if childmime_2 != skip_part {
-                                if 0 != self.parse_mime_recursive(childmime_2) {
-                                    any_part_added = 1i32
+                                if self.parse_mime_recursive(childmime_2) {
+                                    any_part_added = true;
                                 }
                             }
                             cur = if !cur.is_null() {
@@ -660,7 +654,7 @@ impl<'a> MimeParser<'a> {
         any_part_added
     }
 
-    unsafe fn add_single_part_if_known(&mut self, mime: *mut mailmime) -> libc::c_int {
+    unsafe fn add_single_part_if_known(&mut self, mime: *mut mailmime) -> bool {
         let mut ok_to_continue = true;
         let old_part_count = self.parts.len();
         let mime_type: libc::c_int;
@@ -772,6 +766,7 @@ impl<'a> MimeParser<'a> {
                         DC_MIMETYPE_IMAGE
                         | DC_MIMETYPE_AUDIO
                         | DC_MIMETYPE_VIDEO
+                        | DC_MIMETYPE_FILE
                         | DC_MIMETYPE_AC_SETUP_FILE => {
                             /* try to get file name from
                                `Content-Disposition: ... filename*=...`
@@ -925,7 +920,7 @@ impl<'a> MimeParser<'a> {
         }
         free(desired_filename as *mut libc::c_void);
         free(raw_mime as *mut libc::c_void);
-        (self.parts.len() > old_part_count) as libc::c_int
+        self.parts.len() > old_part_count
     }
 
     unsafe fn do_add_single_file_part(
