@@ -8,7 +8,6 @@ use mmime::mailimf_types::*;
 use mmime::mailmime::*;
 use mmime::mailmime_content::*;
 use mmime::mailmime_types::*;
-use mmime::mmapstring::*;
 use mmime::other::*;
 use sha2::{Digest, Sha256};
 
@@ -800,22 +799,13 @@ unsafe fn handle_reports(
                         b"disposition-notification\x00" as *const u8 as *const libc::c_char,
                     ) == 0
                 {
-                    let mut report_body = std::ptr::null();
-                    let mut report_body_bytes = 0;
-                    let mut to_mmap_string_unref = std::ptr::null_mut();
-
-                    if mailmime_transfer_decode(
-                        report_data,
-                        &mut report_body,
-                        &mut report_body_bytes,
-                        &mut to_mmap_string_unref,
-                    ) {
+                    if let Ok(report_body) = mailmime_transfer_decode(report_data) {
                         let mut report_parsed = std::ptr::null_mut();
                         let mut dummy = 0;
 
                         if mailmime_parse(
-                            report_body,
-                            report_body_bytes,
+                            report_body.as_ptr() as *const _,
+                            report_body.len(),
                             &mut dummy,
                             &mut report_parsed,
                         ) == MAIL_NO_ERROR as libc::c_int
@@ -866,9 +856,6 @@ unsafe fn handle_reports(
                                 }
                             }
                             mailmime_free(report_parsed);
-                        }
-                        if !to_mmap_string_unref.is_null() {
-                            mmap_string_unref(to_mmap_string_unref);
                         }
                     }
                 }
