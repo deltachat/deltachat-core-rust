@@ -749,10 +749,7 @@ unsafe fn handle_reports(
     for report_root in &mime_parser.reports {
         let report_root = *report_root;
         let mut mdn_consumed = 0;
-        let report_type = mailmime_find_ct_parameter(
-            report_root,
-            b"report-type\x00" as *const u8 as *const libc::c_char,
-        );
+        let report_type = mailmime_find_ct_parameter(report_root, "report-type");
 
         if report_root.is_null() || report_type.is_null() || (*report_type).pa_value.is_null() {
             continue;

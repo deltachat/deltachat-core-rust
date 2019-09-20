@@ -366,27 +366,17 @@ impl<'a> MimeParser<'a> {
         if mime.is_null() {
             return false;
         }
-        let mut any_part_added = false;
 
-        if !mailmime_find_ct_parameter(
-            mime,
-            b"protected-headers\x00" as *const u8 as *const libc::c_char,
-        )
-        .is_null()
-        {
-            if (*mime).mm_type == MAILMIME_SINGLE as libc::c_int
-                && (*(*(*mime).mm_content_type).ct_type).tp_type
+        if !mailmime_find_ct_parameter(mime, "protected-headers").is_null() {
+            let mime = *mime;
+
+            if mime.mm_type == MAILMIME_SINGLE as libc::c_int
+                && (*(*mime.mm_content_type).ct_type).tp_type
                     == MAILMIME_TYPE_DISCRETE_TYPE as libc::c_int
-                && (*(*(*(*mime).mm_content_type).ct_type)
-                    .tp_data
-                    .tp_discrete_type)
-                    .dt_type
+                && (*(*(*mime.mm_content_type).ct_type).tp_data.tp_discrete_type).dt_type
                     == MAILMIME_DISCRETE_TYPE_TEXT as libc::c_int
-                && !(*(*mime).mm_content_type).ct_subtype.is_null()
-                && strcmp(
-                    (*(*mime).mm_content_type).ct_subtype,
-                    b"rfc822-headers\x00" as *const u8 as *const libc::c_char,
-                ) == 0i32
+                && !(*mime.mm_content_type).ct_subtype.is_null()
+                && &to_string_lossy((*mime.mm_content_type).ct_subtype) == "rfc822-headers"
             {
                 info!(
                     self.context,
@@ -394,13 +384,14 @@ impl<'a> MimeParser<'a> {
                 );
                 return false;
             }
+
             if self.header_protected.is_null() {
                 /* use the most outer protected header - this is typically
                 created in sync with the normal, unprotected header */
                 let mut dummy = 0;
                 if mailimf_envelope_and_optional_fields_parse(
-                    (*mime).mm_mime_start,
-                    (*mime).mm_length,
+                    mime.mm_mime_start,
+                    mime.mm_length,
                     &mut dummy,
                     &mut self.header_protected,
                 ) != MAILIMF_NO_ERROR as libc::c_int
@@ -412,182 +403,175 @@ impl<'a> MimeParser<'a> {
                 }
             } else {
                 info!(
-                self.context,
-                "Protected headers found in MIME header: Will be ignored as we already found an outer one."
-            );
+                    self.context,
+                    "Protected headers found in MIME header: Will be ignored as we already found an outer one."
+                );
             }
         }
+
         match (*mime).mm_type as u32 {
-            MAILMIME_SINGLE => any_part_added = self.add_single_part_if_known(mime),
-            MAILMIME_MULTIPLE => {
-                match mailmime_get_mime_type(mime, ptr::null_mut(), ptr::null_mut()) {
-                    /* Most times, mutlipart/alternative contains true alternatives
-                    as text/plain and text/html.  If we find a multipart/mixed
-                    inside mutlipart/alternative, we use this (happens eg in
-                    apple mail: "plaintext" as an alternative to "html+PDF attachment") */
-                    DC_MIMETYPE_MP_ALTERNATIVE => {
-                        for cur_data in (*(*mime).mm_data.mm_multipart.mm_mp_list).into_iter() {
-                            if mailmime_get_mime_type(
-                                cur_data as *mut _,
-                                ptr::null_mut(),
-                                ptr::null_mut(),
-                            ) == DC_MIMETYPE_MP_MIXED
-                            {
-                                any_part_added = self.parse_mime_recursive(cur_data as *mut _);
-                                break;
-                            }
-                        }
-                        if !any_part_added {
-                            /* search for text/plain and add this */
-                            for cur_data in (*(*mime).mm_data.mm_multipart.mm_mp_list).into_iter() {
-                                if mailmime_get_mime_type(
-                                    cur_data as *mut _,
-                                    ptr::null_mut(),
-                                    ptr::null_mut(),
-                                ) == DC_MIMETYPE_TEXT_PLAIN
-                                {
-                                    any_part_added = self.parse_mime_recursive(cur_data as *mut _);
-                                    break;
-                                }
-                            }
-                        }
-                        if !any_part_added {
-                            /* `text/plain` not found - use the first part */
-                            for cur_data in (*(*mime).mm_data.mm_multipart.mm_mp_list).into_iter() {
-                                if self.parse_mime_recursive(cur_data as *mut _) {
-                                    any_part_added = true;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    DC_MIMETYPE_MP_RELATED => {
-                        /* add the "root part" - the other parts may be referenced which is
-                        not interesting for us (eg. embedded images) we assume he "root part"
-                        being the first one, which may not be always true ...
-                        however, most times it seems okay. */
-                        let cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
-                        if !cur.is_null() {
-                            any_part_added =
-                                self.parse_mime_recursive((*cur).data as *mut mailmime);
-                        }
-                    }
-                    DC_MIMETYPE_MP_NOT_DECRYPTABLE => {
-                        let mut part = Part::default();
-                        part.typ = Viewtype::Text;
-                        let msg_body = self.context.stock_str(StockMessage::CantDecryptMsgBody);
-
-                        let txt = format!("[{}]", msg_body);
-                        part.msg_raw = Some(txt.clone());
-                        part.msg = Some(txt);
-
-                        self.parts.push(part);
-                        any_part_added = true;
-                        self.decrypting_failed = true;
-                    }
-                    DC_MIMETYPE_MP_SIGNED => {
-                        /* RFC 1847: "The multipart/signed content type
-                        contains exactly two body parts.  The first body
-                        part is the body part over which the digital signature was created [...]
-                        The second body part contains the control information necessary to
-                        verify the digital signature." We simpliy take the first body part and
-                        skip the rest.  (see
-                        https://k9mail.github.io/2016/11/24/OpenPGP-Considerations-Part-I.html
-                        for background information why we use encrypted+signed) */
-                        let cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
-                        if !cur.is_null() {
-                            any_part_added =
-                                self.parse_mime_recursive((*cur).data as *mut mailmime);
-                        }
-                    }
-                    DC_MIMETYPE_MP_REPORT => {
-                        /* RFC 6522: the first part is for humans, the second for machines */
-                        if (*(*mime).mm_data.mm_multipart.mm_mp_list).count >= 2i32 {
-                            let report_type = mailmime_find_ct_parameter(
-                                mime,
-                                b"report-type\x00" as *const u8 as *const libc::c_char,
-                            );
-                            if !report_type.is_null()
-                                && !(*report_type).pa_value.is_null()
-                                && strcmp(
-                                    (*report_type).pa_value,
-                                    b"disposition-notification\x00" as *const u8
-                                        as *const libc::c_char,
-                                ) == 0i32
-                            {
-                                self.reports.push(mime);
-                            } else {
-                                /* eg. `report-type=delivery-status`;
-                                maybe we should show them as a little error icon */
-                                any_part_added = self.parse_mime_recursive(
-                                    (if !(*(*mime).mm_data.mm_multipart.mm_mp_list).first.is_null()
-                                    {
-                                        (*(*(*mime).mm_data.mm_multipart.mm_mp_list).first).data
-                                    } else {
-                                        ptr::null_mut()
-                                    }) as *mut mailmime,
-                                )
-                            }
-                        }
-                    }
-                    _ => {
-                        /* eg. DC_MIMETYPE_MP_MIXED - add all parts (in fact,
-                        AddSinglePartIfKnown() later check if the parts are really supported)
-                        HACK: the following lines are a hack for clients who use
-                        multipart/mixed instead of multipart/alternative for
-                        combined text/html messages (eg. Stock Android "Mail" does so).
-                        So, if we detect such a message below, we skip the HTML
-                        part.  However, not sure, if there are useful situations to use
-                        plain+html in multipart/mixed - if so, we should disable the hack. */
-                        let mut skip_part = ptr::null_mut();
-                        let mut html_part = ptr::null_mut();
-                        let mut plain_cnt = 0i32;
-                        let mut html_cnt = 0i32;
-                        for cur_data in (*(*mime).mm_data.mm_multipart.mm_mp_list).into_iter() {
-                            match mailmime_get_mime_type(
-                                cur_data as *mut _,
-                                ptr::null_mut(),
-                                ptr::null_mut(),
-                            ) {
-                                DC_MIMETYPE_TEXT_PLAIN => {
-                                    plain_cnt += 1;
-                                }
-                                DC_MIMETYPE_TEXT_HTML => {
-                                    html_part = cur_data as *mut mailmime;
-                                    html_cnt += 1;
-                                }
-                                _ => {}
-                            }
-                        }
-                        if plain_cnt == 1 && html_cnt == 1 {
-                            warn!(
-                            self.context,
-                            "HACK: multipart/mixed message found with PLAIN and HTML, we\'ll skip the HTML part as this seems to be unwanted."
-                        );
-                            skip_part = html_part
-                        }
-                        for cur_data in (*(*mime).mm_data.mm_multipart.mm_mp_list).into_iter() {
-                            if cur_data as *mut _ != skip_part {
-                                if self.parse_mime_recursive(cur_data as *mut _) {
-                                    any_part_added = true;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            MAILMIME_SINGLE => self.add_single_part_if_known(mime),
+            MAILMIME_MULTIPLE => self.handle_multiple(mime),
             MAILMIME_MESSAGE => {
                 if self.header_root.is_null() {
                     self.header_root = (*mime).mm_data.mm_message.mm_fields;
                     hash_header(&mut self.header, self.header_root);
                 }
-                if !(*mime).mm_data.mm_message.mm_msg_mime.is_null() {
-                    any_part_added =
-                        self.parse_mime_recursive((*mime).mm_data.mm_message.mm_msg_mime);
+                if (*mime).mm_data.mm_message.mm_msg_mime.is_null() {
+                    return false;
+                }
+
+                self.parse_mime_recursive((*mime).mm_data.mm_message.mm_msg_mime)
+            }
+            _ => false,
+        }
+    }
+
+    unsafe fn handle_multiple(&mut self, mime: *mut mailmime) -> bool {
+        let mut any_part_added = false;
+        match mailmime_get_mime_type(mime, ptr::null_mut(), ptr::null_mut()) {
+            /* Most times, mutlipart/alternative contains true alternatives
+            as text/plain and text/html.  If we find a multipart/mixed
+            inside mutlipart/alternative, we use this (happens eg in
+            apple mail: "plaintext" as an alternative to "html+PDF attachment") */
+            DC_MIMETYPE_MP_ALTERNATIVE => {
+                for cur_data in (*(*mime).mm_data.mm_multipart.mm_mp_list).into_iter() {
+                    if mailmime_get_mime_type(cur_data as *mut _, ptr::null_mut(), ptr::null_mut())
+                        == DC_MIMETYPE_MP_MIXED
+                    {
+                        any_part_added = self.parse_mime_recursive(cur_data as *mut _);
+                        break;
+                    }
+                }
+                if !any_part_added {
+                    /* search for text/plain and add this */
+                    for cur_data in (*(*mime).mm_data.mm_multipart.mm_mp_list).into_iter() {
+                        if mailmime_get_mime_type(
+                            cur_data as *mut _,
+                            ptr::null_mut(),
+                            ptr::null_mut(),
+                        ) == DC_MIMETYPE_TEXT_PLAIN
+                        {
+                            any_part_added = self.parse_mime_recursive(cur_data as *mut _);
+                            break;
+                        }
+                    }
+                }
+                if !any_part_added {
+                    /* `text/plain` not found - use the first part */
+                    for cur_data in (*(*mime).mm_data.mm_multipart.mm_mp_list).into_iter() {
+                        if self.parse_mime_recursive(cur_data as *mut _) {
+                            any_part_added = true;
+                            break;
+                        }
+                    }
                 }
             }
-            _ => {}
+            DC_MIMETYPE_MP_RELATED => {
+                /* add the "root part" - the other parts may be referenced which is
+                not interesting for us (eg. embedded images) we assume he "root part"
+                being the first one, which may not be always true ...
+                however, most times it seems okay. */
+                let cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
+                if !cur.is_null() {
+                    any_part_added = self.parse_mime_recursive((*cur).data as *mut mailmime);
+                }
+            }
+            DC_MIMETYPE_MP_NOT_DECRYPTABLE => {
+                let mut part = Part::default();
+                part.typ = Viewtype::Text;
+                let msg_body = self.context.stock_str(StockMessage::CantDecryptMsgBody);
+
+                let txt = format!("[{}]", msg_body);
+                part.msg_raw = Some(txt.clone());
+                part.msg = Some(txt);
+
+                self.parts.push(part);
+                any_part_added = true;
+                self.decrypting_failed = true;
+            }
+            DC_MIMETYPE_MP_SIGNED => {
+                /* RFC 1847: "The multipart/signed content type
+                contains exactly two body parts.  The first body
+                part is the body part over which the digital signature was created [...]
+                The second body part contains the control information necessary to
+                verify the digital signature." We simpliy take the first body part and
+                skip the rest.  (see
+                https://k9mail.github.io/2016/11/24/OpenPGP-Considerations-Part-I.html
+                for background information why we use encrypted+signed) */
+                let cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
+                if !cur.is_null() {
+                    any_part_added = self.parse_mime_recursive((*cur).data as *mut _);
+                }
+            }
+            DC_MIMETYPE_MP_REPORT => {
+                /* RFC 6522: the first part is for humans, the second for machines */
+                if (*(*mime).mm_data.mm_multipart.mm_mp_list).count >= 2 {
+                    let report_type = mailmime_find_ct_parameter(mime, "report-type");
+                    if !report_type.is_null()
+                        && !(*report_type).pa_value.is_null()
+                        && &to_string_lossy((*report_type).pa_value) == "disposition-notification"
+                    {
+                        self.reports.push(mime);
+                    } else {
+                        /* eg. `report-type=delivery-status`;
+                        maybe we should show them as a little error icon */
+                        if !(*(*mime).mm_data.mm_multipart.mm_mp_list).first.is_null() {
+                            any_part_added = self.parse_mime_recursive(
+                                (*(*(*mime).mm_data.mm_multipart.mm_mp_list).first).data as *mut _,
+                            );
+                        }
+                    }
+                }
+            }
+            _ => {
+                /* eg. DC_MIMETYPE_MP_MIXED - add all parts (in fact,
+                AddSinglePartIfKnown() later check if the parts are really supported)
+                HACK: the following lines are a hack for clients who use
+                multipart/mixed instead of multipart/alternative for
+                combined text/html messages (eg. Stock Android "Mail" does so).
+                So, if we detect such a message below, we skip the HTML
+                part.  However, not sure, if there are useful situations to use
+                plain+html in multipart/mixed - if so, we should disable the hack. */
+                let mut skip_part = ptr::null_mut();
+                let mut html_part = ptr::null_mut();
+                let mut plain_cnt = 0;
+                let mut html_cnt = 0;
+
+                for cur_data in (*(*mime).mm_data.mm_multipart.mm_mp_list).into_iter() {
+                    match mailmime_get_mime_type(
+                        cur_data as *mut _,
+                        ptr::null_mut(),
+                        ptr::null_mut(),
+                    ) {
+                        DC_MIMETYPE_TEXT_PLAIN => {
+                            plain_cnt += 1;
+                        }
+                        DC_MIMETYPE_TEXT_HTML => {
+                            html_part = cur_data as *mut mailmime;
+                            html_cnt += 1;
+                        }
+                        _ => {}
+                    }
+                }
+                if plain_cnt == 1 && html_cnt == 1 {
+                    warn!(
+                        self.context,
+                        "HACK: multipart/mixed message found with PLAIN and HTML, we\'ll skip the HTML part as this seems to be unwanted."
+                    );
+                    skip_part = html_part;
+                }
+
+                for cur_data in (*(*mime).mm_data.mm_multipart.mm_mp_list).into_iter() {
+                    if cur_data as *mut _ != skip_part {
+                        if self.parse_mime_recursive(cur_data as *mut _) {
+                            any_part_added = true;
+                        }
+                    }
+                }
+            }
         }
+
         any_part_added
     }
 
@@ -763,10 +747,7 @@ impl<'a> MimeParser<'a> {
                                     dc_decode_ext_header(filename_parts.as_bytes()).strdup();
                             }
                             if desired_filename.is_null() {
-                                let param = mailmime_find_ct_parameter(
-                                    mime,
-                                    b"name\x00" as *const u8 as *const libc::c_char,
-                                );
+                                let param = mailmime_find_ct_parameter(mime, "name");
                                 if !param.is_null()
                                     && !(*param).pa_value.is_null()
                                     && 0 != *(*param).pa_value.offset(0isize) as libc::c_int
@@ -1274,10 +1255,9 @@ unsafe fn mailmime_is_attachment_disposition(mime: *mut mailmime) -> bool {
 /* low-level-tools for working with mailmime structures directly */
 pub unsafe fn mailmime_find_ct_parameter(
     mime: *mut mailmime,
-    name: *const libc::c_char,
+    name: &str,
 ) -> *mut mailmime_parameter {
     if mime.is_null()
-        || name.is_null()
         || (*mime).mm_content_type.is_null()
         || (*(*mime).mm_content_type).ct_parameters.is_null()
     {
@@ -1287,7 +1267,7 @@ pub unsafe fn mailmime_find_ct_parameter(
     for cur in (*(*(*mime).mm_content_type).ct_parameters).into_iter() {
         let param = cur as *mut mailmime_parameter;
         if !param.is_null() && !(*param).pa_name.is_null() {
-            if strcmp((*param).pa_name, name) == 0i32 {
+            if &to_string_lossy((*param).pa_name) == name {
                 return param;
             }
         }
