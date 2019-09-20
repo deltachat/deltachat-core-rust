@@ -65,6 +65,21 @@ impl Default for SystemMessage {
     }
 }
 
+const DC_MIMETYPE_MP_ALTERNATIVE: i32 = 10;
+const DC_MIMETYPE_MP_RELATED: i32 = 20;
+const DC_MIMETYPE_MP_MIXED: i32 = 30;
+const DC_MIMETYPE_MP_NOT_DECRYPTABLE: i32 = 40;
+const DC_MIMETYPE_MP_REPORT: i32 = 45;
+const DC_MIMETYPE_MP_SIGNED: i32 = 46;
+const DC_MIMETYPE_MP_OTHER: i32 = 50;
+const DC_MIMETYPE_TEXT_PLAIN: i32 = 60;
+const DC_MIMETYPE_TEXT_HTML: i32 = 70;
+const DC_MIMETYPE_IMAGE: i32 = 80;
+const DC_MIMETYPE_AUDIO: i32 = 90;
+const DC_MIMETYPE_VIDEO: i32 = 100;
+const DC_MIMETYPE_FILE: i32 = 110;
+const DC_MIMETYPE_AC_SETUP_FILE: i32 = 111;
+
 impl<'a> MimeParser<'a> {
     pub fn new(context: &'a Context) -> Self {
         MimeParser {
@@ -381,6 +396,8 @@ impl<'a> MimeParser<'a> {
                 return 0i32;
             }
             if self.header_protected.is_null() {
+                /* use the most outer protected header - this is typically
+                created in sync with the normal, unprotected header */
                 let mut dummy = 0;
                 if mailimf_envelope_and_optional_fields_parse(
                     (*mime).mm_mime_start,
@@ -401,12 +418,15 @@ impl<'a> MimeParser<'a> {
             );
             }
         }
-        match (*mime).mm_type {
-            // TODO match on enums /rtn
-            1 => any_part_added = self.add_single_part_if_known(mime),
-            2 => {
+        match (*mime).mm_type as u32 {
+            MAILMIME_SINGLE => any_part_added = self.add_single_part_if_known(mime),
+            MAILMIME_MULTIPLE => {
                 match mailmime_get_mime_type(mime, ptr::null_mut(), ptr::null_mut()) {
-                    10 => {
+                    /* Most times, mutlipart/alternative contains true alternatives
+                    as text/plain and text/html.  If we find a multipart/mixed
+                    inside mutlipart/alternative, we use this (happens eg in
+                    apple mail: "plaintext" as an alternative to "html+PDF attachment") */
+                    DC_MIMETYPE_MP_ALTERNATIVE => {
                         cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
                         while !cur.is_null() {
                             let childmime: *mut mailmime = (if !cur.is_null() {
@@ -416,7 +436,7 @@ impl<'a> MimeParser<'a> {
                             })
                                 as *mut mailmime;
                             if mailmime_get_mime_type(childmime, ptr::null_mut(), ptr::null_mut())
-                                == 30i32
+                                == DC_MIMETYPE_MP_MIXED
                             {
                                 any_part_added = self.parse_mime_recursive(childmime);
                                 break;
@@ -429,6 +449,7 @@ impl<'a> MimeParser<'a> {
                             }
                         }
                         if 0 == any_part_added {
+                            /* search for text/plain and add this */
                             cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
                             while !cur.is_null() {
                                 let childmime_0: *mut mailmime = (if !cur.is_null() {
@@ -441,7 +462,7 @@ impl<'a> MimeParser<'a> {
                                     childmime_0,
                                     ptr::null_mut(),
                                     ptr::null_mut(),
-                                ) == 60i32
+                                ) == DC_MIMETYPE_TEXT_PLAIN
                                 {
                                     any_part_added = self.parse_mime_recursive(childmime_0);
                                     break;
@@ -455,6 +476,7 @@ impl<'a> MimeParser<'a> {
                             }
                         }
                         if 0 == any_part_added {
+                            /* `text/plain` not found - use the first part */
                             cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
                             while !cur.is_null() {
                                 if 0 != self.parse_mime_recursive(
@@ -477,7 +499,11 @@ impl<'a> MimeParser<'a> {
                             }
                         }
                     }
-                    20 => {
+                    DC_MIMETYPE_MP_RELATED => {
+                        /* add the "root part" - the other parts may be referenced which is
+                        not interesting for us (eg. embedded images) we assume he "root part"
+                        being the first one, which may not be always true ...
+                        however, most times it seems okay. */
                         cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
                         if !cur.is_null() {
                             any_part_added = self.parse_mime_recursive(
@@ -489,7 +515,7 @@ impl<'a> MimeParser<'a> {
                             )
                         }
                     }
-                    40 => {
+                    DC_MIMETYPE_MP_NOT_DECRYPTABLE => {
                         let mut part = Part::default();
                         part.typ = Viewtype::Text;
                         let msg_body = self.context.stock_str(StockMessage::CantDecryptMsgBody);
@@ -502,7 +528,15 @@ impl<'a> MimeParser<'a> {
                         any_part_added = 1i32;
                         self.decrypting_failed = true;
                     }
-                    46 => {
+                    DC_MIMETYPE_MP_SIGNED => {
+                        /* RFC 1847: "The multipart/signed content type
+                        contains exactly two body parts.  The first body
+                        part is the body part over which the digital signature was created [...]
+                        The second body part contains the control information necessary to
+                        verify the digital signature." We simpliy take the first body part and
+                        skip the rest.  (see
+                        https://k9mail.github.io/2016/11/24/OpenPGP-Considerations-Part-I.html
+                        for background information why we use encrypted+signed) */
                         cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
                         if !cur.is_null() {
                             any_part_added = self.parse_mime_recursive(
@@ -514,7 +548,8 @@ impl<'a> MimeParser<'a> {
                             )
                         }
                     }
-                    45 => {
+                    DC_MIMETYPE_MP_REPORT => {
+                        /* RFC 6522: the first part is for humans, the second for machines */
                         if (*(*mime).mm_data.mm_multipart.mm_mp_list).count >= 2i32 {
                             let report_type = mailmime_find_ct_parameter(
                                 mime,
@@ -530,6 +565,8 @@ impl<'a> MimeParser<'a> {
                             {
                                 self.reports.push(mime);
                             } else {
+                                /* eg. `report-type=delivery-status`;
+                                maybe we should show them as a little error icon */
                                 any_part_added = self.parse_mime_recursive(
                                     (if !(*(*mime).mm_data.mm_multipart.mm_mp_list).first.is_null()
                                     {
@@ -542,6 +579,14 @@ impl<'a> MimeParser<'a> {
                         }
                     }
                     _ => {
+                        /* eg. DC_MIMETYPE_MP_MIXED - add all parts (in fact,
+                        AddSinglePartIfKnown() later check if the parts are really supported)
+                        HACK: the following lines are a hack for clients who use
+                        multipart/mixed instead of multipart/alternative for
+                        combined text/html messages (eg. Stock Android "Mail" does so).
+                        So, if we detect such a message below, we skip the HTML
+                        part.  However, not sure, if there are useful situations to use
+                        plain+html in multipart/mixed - if so, we should disable the hack. */
                         let mut skip_part = ptr::null_mut();
                         let mut html_part = ptr::null_mut();
                         let mut plain_cnt = 0i32;
@@ -554,14 +599,14 @@ impl<'a> MimeParser<'a> {
                                 ptr::null_mut()
                             }) as *mut mailmime;
                             if mailmime_get_mime_type(childmime_1, ptr::null_mut(), ptr::null_mut())
-                                == 60i32
+                                == DC_MIMETYPE_TEXT_PLAIN
                             {
                                 plain_cnt += 1
                             } else if mailmime_get_mime_type(
                                 childmime_1,
                                 ptr::null_mut(),
                                 ptr::null_mut(),
-                            ) == 70i32
+                            ) == DC_MIMETYPE_TEXT_HTML
                             {
                                 html_part = childmime_1;
                                 html_cnt += 1
@@ -600,7 +645,7 @@ impl<'a> MimeParser<'a> {
                     }
                 }
             }
-            3 => {
+            MAILMIME_MESSAGE => {
                 if self.header_root.is_null() {
                     self.header_root = (*mime).mm_data.mm_message.mm_fields;
                     hash_header(&mut self.header, self.header_root);
@@ -612,7 +657,6 @@ impl<'a> MimeParser<'a> {
             }
             _ => {}
         }
-
         any_part_added
     }
 
@@ -1022,8 +1066,6 @@ impl<'a> Drop for MimeParser<'a> {
     }
 }
 
-const DC_MIMETYPE_AC_SETUP_FILE: i32 = 111;
-
 #[derive(Default, Debug, Clone)]
 pub struct Part {
     pub typ: Viewtype,
@@ -1127,7 +1169,7 @@ unsafe fn mailmime_get_mime_type(
                     ) == 0i32
                     {
                         *msg_type = Viewtype::Text;
-                        return 60i32;
+                        return DC_MIMETYPE_TEXT_PLAIN;
                     } else {
                         if strcmp(
                             (*c).ct_subtype,
@@ -1135,7 +1177,7 @@ unsafe fn mailmime_get_mime_type(
                         ) == 0i32
                         {
                             *msg_type = Viewtype::Text;
-                            return 70i32;
+                            return DC_MIMETYPE_TEXT_HTML;
                         }
                     }
                 }
@@ -1143,7 +1185,7 @@ unsafe fn mailmime_get_mime_type(
                 if !raw_mime.is_null() {
                     *raw_mime = reconcat_mime(Some("text"), as_opt_str((*c).ct_subtype)).strdup();
                 }
-                return 110i32;
+                return DC_MIMETYPE_FILE;
             }
             2 => {
                 if strcmp(
@@ -1162,28 +1204,28 @@ unsafe fn mailmime_get_mime_type(
                         *raw_mime =
                             reconcat_mime(Some("image"), as_opt_str((*c).ct_subtype)).strdup();
                     }
-                    return 110i32;
+                    return DC_MIMETYPE_FILE;
                 } else {
                     *msg_type = Viewtype::Image;
                 }
                 if !raw_mime.is_null() {
                     *raw_mime = reconcat_mime(Some("image"), as_opt_str((*c).ct_subtype)).strdup();
                 }
-                return 80i32;
+                return DC_MIMETYPE_IMAGE;
             }
             3 => {
                 *msg_type = Viewtype::Audio;
                 if !raw_mime.is_null() {
                     *raw_mime = reconcat_mime(Some("audio"), as_opt_str((*c).ct_subtype)).strdup();
                 }
-                return 90i32;
+                return DC_MIMETYPE_AUDIO;
             }
             4 => {
                 *msg_type = Viewtype::Video;
                 if !raw_mime.is_null() {
                     *raw_mime = reconcat_mime(Some("video"), as_opt_str((*c).ct_subtype)).strdup();
                 }
-                return 100i32;
+                return DC_MIMETYPE_VIDEO;
             }
             _ => {
                 *msg_type = Viewtype::File;
@@ -1197,7 +1239,7 @@ unsafe fn mailmime_get_mime_type(
                     if !raw_mime.is_null() {
                         *raw_mime = reconcat_mime(None, as_opt_str((*c).ct_subtype)).strdup();
                     }
-                    return 111i32;
+                    return DC_MIMETYPE_AC_SETUP_FILE;
                 }
                 if !raw_mime.is_null() {
                     *raw_mime = reconcat_mime(
@@ -1206,7 +1248,7 @@ unsafe fn mailmime_get_mime_type(
                     )
                     .strdup();
                 }
-                return 110i32;
+                return DC_MIMETYPE_FILE;
             }
         },
         2 => {
@@ -1218,39 +1260,39 @@ unsafe fn mailmime_get_mime_type(
                     b"alternative\x00" as *const u8 as *const libc::c_char,
                 ) == 0i32
                 {
-                    return 10i32;
+                    return DC_MIMETYPE_MP_ALTERNATIVE;
                 } else if strcmp(
                     (*c).ct_subtype,
                     b"related\x00" as *const u8 as *const libc::c_char,
                 ) == 0i32
                 {
-                    return 20i32;
+                    return DC_MIMETYPE_MP_RELATED;
                 } else if strcmp(
                     (*c).ct_subtype,
                     b"encrypted\x00" as *const u8 as *const libc::c_char,
                 ) == 0i32
                 {
-                    return 40i32;
+                    return DC_MIMETYPE_MP_NOT_DECRYPTABLE;
                 } else if strcmp(
                     (*c).ct_subtype,
                     b"signed\x00" as *const u8 as *const libc::c_char,
                 ) == 0i32
                 {
-                    return 46i32;
+                    return DC_MIMETYPE_MP_SIGNED;
                 } else if strcmp(
                     (*c).ct_subtype,
                     b"mixed\x00" as *const u8 as *const libc::c_char,
                 ) == 0i32
                 {
-                    return 30i32;
+                    return DC_MIMETYPE_MP_MIXED;
                 } else if strcmp(
                     (*c).ct_subtype,
                     b"report\x00" as *const u8 as *const libc::c_char,
                 ) == 0i32
                 {
-                    return 45i32;
+                    return DC_MIMETYPE_MP_REPORT;
                 } else {
-                    return 50i32;
+                    return DC_MIMETYPE_MP_OTHER;
                 }
             } else {
                 if (*(*(*c).ct_type).tp_data.tp_composite_type).ct_type
