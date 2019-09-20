@@ -332,9 +332,9 @@ impl Job {
         if ok_to_continue {
             if let Ok(msg) = dc_msg_load_from_db(context, self.foreign_id) {
                 let server_folder = msg.server_folder.as_ref().unwrap();
-                match inbox.set_seen(context, server_folder, msg.server_uid) as libc::c_uint {
-                    0 => {}
-                    1 => {
+                match inbox.set_seen(context, server_folder, msg.server_uid) {
+                    ImapResult::Failed => {}
+                    ImapResult::RetryLater => {
                         self.try_again_later(3i32, None);
                     }
                     _ => {
@@ -387,7 +387,7 @@ impl Job {
             ok_to_continue = true;
         }
         if ok_to_continue {
-            if inbox.set_seen(context, &folder, uid) == 0 {
+            if inbox.set_seen(context, &folder, uid) == ImapResult::Failed {
                 self.try_again_later(3i32, None);
             }
             if 0 != self.param.get_int(Param::AlsoMove).unwrap_or_default() {

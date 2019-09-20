@@ -1262,11 +1262,11 @@ impl Imap {
         }
     }
 
-    pub fn set_seen<S: AsRef<str>>(&self, context: &Context, folder: S, uid: u32) -> usize {
-        let mut res = DC_RETRY_LATER;
+    pub fn set_seen<S: AsRef<str>>(&self, context: &Context, folder: S, uid: u32) -> ImapResult {
+        let mut res = ImapResult::RetryLater;
 
         if uid == 0 {
-            res = DC_FAILED
+            res = ImapResult::Failed
         } else if self.is_connected() {
             info!(
                 context,
@@ -1284,15 +1284,15 @@ impl Imap {
             } else if self.add_flag(context, uid, "\\Seen") == 0 {
                 warn!(context, "Cannot mark message as seen.",);
             } else {
-                res = DC_SUCCESS
+                res = ImapResult::Success
             }
         }
 
-        if res == DC_RETRY_LATER {
+        if res == ImapResult::RetryLater {
             if self.should_reconnect() {
-                DC_RETRY_LATER
+                ImapResult::RetryLater
             } else {
-                DC_FAILED
+                ImapResult::Failed
             }
         } else {
             res
