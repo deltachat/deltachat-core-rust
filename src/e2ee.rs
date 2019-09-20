@@ -55,7 +55,7 @@ impl E2eeHelper {
         context: &Context,
         recipients_addr: *const clist,
         force_unencrypted: libc::c_int,
-        e2ee_guaranteed: libc::c_int,
+        e2ee_guaranteed: bool,
         min_verified: libc::c_int,
         do_gossip: libc::c_int,
         mut in_out_message: *mut mailmime,
@@ -95,7 +95,7 @@ impl E2eeHelper {
                 });
                 if let Ok(public_key) = pubkey_ret {
                     /*only for random-seed*/
-                    if prefer_encrypt == EncryptPreference::Mutual || 0 != e2ee_guaranteed {
+                    if prefer_encrypt == EncryptPreference::Mutual || e2ee_guaranteed {
                         do_encrypt = 1i32;
                         let mut iter1: *mut clistiter;
                         iter1 = (*recipients_addr).first;
@@ -107,7 +107,7 @@ impl E2eeHelper {
                                 if peerstate.is_some()
                                     && (peerstate.as_ref().unwrap().prefer_encrypt
                                         == EncryptPreference::Mutual
-                                        || 0 != e2ee_guaranteed)
+                                        || e2ee_guaranteed)
                                 {
                                     let peerstate = peerstate.unwrap();
                                     info!(

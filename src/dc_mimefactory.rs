@@ -330,7 +330,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
     let mut col: libc::c_int = 0;
     let mut success = false;
     let mut parts: libc::c_int = 0;
-    let mut e2ee_guaranteed: libc::c_int = 0;
+    let mut e2ee_guaranteed = false;
     let mut min_verified: libc::c_int = 0;
     // 1=add Autocrypt-header (needed eg. for handshaking), 2=no Autocrypte-header (used for MDN)
     let mut force_plaintext: libc::c_int = 0;
@@ -340,10 +340,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
 
     if factory.loaded == Loaded::Nothing || !factory.out.is_null() {
         /*call empty() before*/
-        set_error(
-            factory,
-            b"Invalid use of mimefactory-object.\x00" as *const u8 as *const libc::c_char,
-        );
+        set_error(factory, "Invalid use of mimefactory-object.");
     } else {
         let from: *mut mailimf_mailbox_list = mailimf_mailbox_list_new_empty();
         mailimf_mailbox_list_add(
@@ -484,7 +481,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
                     ),
                 );
                 force_plaintext = 0;
-                e2ee_guaranteed = 1;
+                e2ee_guaranteed = true;
                 min_verified = 2
             } else {
                 force_plaintext = factory
@@ -498,6 +495,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
                         .param
                         .get_int(Param::GuranteeE2ee)
                         .unwrap_or_default()
+                        != 0;
                 }
             }
             if chat.gossiped_timestamp == 0
@@ -808,10 +806,8 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
                     let error = format!(
                         "Message exceeds the recommended {} MB.",
                         24 * 1024 * 1024 / 4 * 3 / 1000 / 1000,
-                    )
-                    .strdup();
-                    set_error(factory, error);
-                    free(error.cast());
+                    );
+                    set_error(factory, &error);
                     ok_to_continue = false;
                 } else {
                     let file_part: *mut mailmime =
@@ -824,10 +820,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
             }
             if ok_to_continue {
                 if parts == 0 {
-                    set_error(
-                        factory,
-                        b"Empty message.\x00" as *const u8 as *const libc::c_char,
-                    );
+                    set_error(factory, "Empty message.");
                     ok_to_continue = false;
                 } else {
                     if !meta_part.is_null() {
@@ -944,10 +937,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
             mailmime_add_part(multipart, mach_mime_part);
             force_plaintext = 2;
         } else {
-            set_error(
-                factory,
-                b"No message loaded.\x00" as *const u8 as *const libc::c_char,
-            );
+            set_error(factory, "No message loaded.");
             ok_to_continue = false;
         }
 
@@ -1054,12 +1044,12 @@ unsafe fn get_subject(
     ret
 }
 
-unsafe fn set_error(factory: *mut MimeFactory, text: *const libc::c_char) {
+unsafe fn set_error(factory: *mut MimeFactory, text: &str) {
     if factory.is_null() {
         return;
     }
     free((*factory).error as *mut libc::c_void);
-    (*factory).error = dc_strdup_keep_null(text);
+    (*factory).error = text.strdup();
 }
 
 unsafe fn build_body_text(text: *mut libc::c_char) -> *mut mailmime {
