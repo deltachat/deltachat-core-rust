@@ -1299,13 +1299,13 @@ impl Imap {
         }
     }
 
-    pub fn set_mdnsent<S: AsRef<str>>(&self, context: &Context, folder: S, uid: u32) -> usize {
+    pub fn set_mdnsent<S: AsRef<str>>(&self, context: &Context, folder: S, uid: u32) -> ImapResult {
         // returns 0=job should be retried later, 1=job done, 2=job done and flag just set
-        let mut res = DC_RETRY_LATER;
+        let mut res = ImapResult::RetryLater;
         let set = format!("{}", uid);
 
         if uid == 0 {
-            res = DC_FAILED;
+            res = ImapResult::Failed;
         } else if self.is_connected() {
             info!(
                 context,
@@ -1375,21 +1375,21 @@ impl Imap {
                             .unwrap_or_else(|| false);
 
                         res = if flag_set {
-                            DC_ALREADY_DONE
+                            ImapResult::AlreadyDone
                         } else if self.add_flag(context, uid, "$MDNSent") != 0 {
-                            DC_SUCCESS
+                            ImapResult::Success
                         } else {
                             res
                         };
 
-                        if res == DC_SUCCESS {
+                        if res == ImapResult::Success {
                             info!(context, "$MDNSent just set and MDN will be sent.");
                         } else {
                             info!(context, "$MDNSent already set and MDN already sent.");
                         }
                     }
                 } else {
-                    res = DC_SUCCESS;
+                    res = ImapResult::Success;
                     info!(
                         context,
                         "Cannot store $MDNSent flags, risk sending duplicate MDN.",
@@ -1398,11 +1398,11 @@ impl Imap {
             }
         }
 
-        if res == DC_RETRY_LATER {
+        if res == ImapResult::RetryLater {
             if self.should_reconnect() {
-                DC_RETRY_LATER
+                ImapResult::RetryLater
             } else {
-                DC_FAILED
+                ImapResult::Failed
             }
         } else {
             res

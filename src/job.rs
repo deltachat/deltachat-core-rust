@@ -346,15 +346,14 @@ impl Job {
                         {
                             let folder = msg.server_folder.as_ref().unwrap();
 
-                            match inbox.set_mdnsent(context, folder, msg.server_uid) as libc::c_uint
-                            {
-                                1 => {
+                            match inbox.set_mdnsent(context, folder, msg.server_uid) {
+                                ImapResult::RetryLater => {
                                     self.try_again_later(3i32, None);
                                 }
-                                3 => {
+                                ImapResult::Success => {
                                     send_mdn(context, msg.id);
                                 }
-                                0 | 2 | _ => {}
+                                ImapResult::Failed | ImapResult::AlreadyDone => {}
                             }
                         }
                     }
