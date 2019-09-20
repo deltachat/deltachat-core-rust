@@ -380,7 +380,6 @@ impl E2eeHelper {
     }
 
     pub unsafe fn decrypt(&mut self, context: &Context, in_out_message: *mut mailmime) {
-        let mut iterations: libc::c_int;
         /* return values: 0=nothing to decrypt/cannot decrypt, 1=sth. decrypted
         (to detect parts that could not be decrypted, simply look for left "multipart/encrypted" MIME types */
         /*just a pointer into mailmime structure, must not be freed*/
@@ -455,8 +454,7 @@ impl E2eeHelper {
                             public_keyring_for_validate.add_ref(key);
                         }
                     }
-                    iterations = 0i32;
-                    while iterations < 10i32 {
+                    for iterations in 0..10 {
                         let mut has_unencrypted_parts: libc::c_int = 0i32;
                         if decrypt_recursive(
                             context,
@@ -471,11 +469,15 @@ impl E2eeHelper {
                         {
                             break;
                         }
-                        if iterations == 0i32 && 0 == has_unencrypted_parts {
+                        /* if we're here, sth. was encrypted. if we're on top-level,
+                        and there are no additional unencrypted parts in the message
+                        the encryption was fine (signature is handled separately and
+                        returned as `signatures`) */
+                        if iterations == 0 && 0 == has_unencrypted_parts {
                             self.encrypted = true;
                         }
-                        iterations += 1;
                     }
+                    /* check for Autocrypt-Gossip */
                     if !gossip_headers.is_null() {
                         self.gossipped_addr = update_gossip_peerstates(
                             context,
