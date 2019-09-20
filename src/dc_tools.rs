@@ -843,8 +843,9 @@ pub fn dc_get_fine_path_filename(
     let now = time();
 
     let folder = PathBuf::from(folder.as_ref());
+    // XXX sanitize desired_filename eg using 
+    // https://github.com/kardeiz/sanitize-filename/blob/master/src/lib.rs 
     let suffix = validate_filename(desired_filename_suffix.as_ref());
-
     let file_name = PathBuf::from(suffix);
     let extension = file_name.extension().map(|c| c.clone());
 
