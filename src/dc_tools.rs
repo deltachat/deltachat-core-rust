@@ -179,72 +179,6 @@ pub unsafe fn dc_remove_cr_chars(buf: *mut libc::c_char) {
     *p2 = 0 as libc::c_char;
 }
 
-/* replace bad UTF-8 characters by sequences of `_` (to avoid problems in filenames, we do not use eg. `?`) the function is useful if strings are unexpectingly encoded eg. as ISO-8859-1 */
-#[allow(non_snake_case)]
-pub unsafe fn dc_replace_bad_utf8_chars(buf: *mut libc::c_char) {
-    let mut OK_TO_CONTINUE = true;
-    if buf.is_null() {
-        return;
-    }
-    /* force unsigned - otherwise the `> ' '` comparison will fail */
-    let mut p1: *mut libc::c_uchar = buf as *mut libc::c_uchar;
-    let p1len: libc::c_int = strlen(buf) as libc::c_int;
-    let mut c: libc::c_int;
-    let mut i: libc::c_int;
-    let ix: libc::c_int;
-    let mut n: libc::c_int;
-    let mut j: libc::c_int;
-    i = 0;
-    ix = p1len;
-    's_36: loop {
-        if !(i < ix) {
-            break;
-        }
-        c = *p1.offset(i as isize) as libc::c_int;
-        if c > 0 && c <= 0x7f {
-            n = 0
-        } else if c & 0xe0 == 0xc0 {
-            n = 1
-        } else if c == 0xed
-            && i < ix - 1
-            && *p1.offset((i + 1) as isize) as libc::c_int & 0xa0 == 0xa0
-        {
-            /* U+d800 to U+dfff */
-            OK_TO_CONTINUE = false;
-            break;
-        } else if c & 0xf0 == 0xe0 {
-            n = 2
-        } else if c & 0xf8 == 0xf0 {
-            n = 3
-        } else {
-            //else if ((c & 0xFC) == 0xF8)                          { n=4; }        /* 111110bb - not valid in https://tools.ietf.org/html/rfc3629 */
-            //else if ((c & 0xFE) == 0xFC)                          { n=5; }        /* 1111110b - not valid in https://tools.ietf.org/html/rfc3629 */
-            OK_TO_CONTINUE = false;
-            break;
-        }
-        j = 0;
-        while j < n && i < ix {
-            /* n bytes matching 10bbbbbb follow ? */
-            i += 1;
-            if i == ix || *p1.offset(i as isize) as libc::c_int & 0xc0 != 0x80 {
-                OK_TO_CONTINUE = false;
-                break 's_36;
-            }
-            j += 1
-        }
-        i += 1
-    }
-    if OK_TO_CONTINUE == false {
-        while 0 != *p1 {
-            if *p1 as libc::c_int > 0x7f {
-                *p1 = '_' as i32 as libc::c_uchar
-            }
-            p1 = p1.offset(1isize)
-        }
-        return;
-    }
-}
-
 /// Shortens a string to a specified length and adds "..." or "[...]" to the end of
 /// the shortened string.
 ///
@@ -1514,63 +1448,6 @@ mod tests {
             clist_free_content(list);
             clist_free(list);
             free(str as *mut libc::c_void);
-        }
-    }
-
-    #[test]
-    fn test_dc_replace_bad_utf8_chars_1() {
-        unsafe {
-            let buf1 = strdup(b"ol\xc3\xa1 mundo <>\"\'& \xc3\xa4\xc3\x84\xc3\xb6\xc3\x96\xc3\xbc\xc3\x9c\xc3\x9f foo\xc3\x86\xc3\xa7\xc3\x87 \xe2\x99\xa6&noent;\x00" as *const u8 as *const libc::c_char);
-            let buf2 = strdup(buf1);
-
-            dc_replace_bad_utf8_chars(buf2);
-
-            assert_eq!(strcmp(buf1, buf2), 0);
-
-            free(buf1 as *mut libc::c_void);
-            free(buf2 as *mut libc::c_void);
-        }
-    }
-
-    #[test]
-    fn test_dc_replace_bad_utf8_chars_2() {
-        unsafe {
-            let buf1 = strdup(b"ISO-String with Ae: \xc4\x00" as *const u8 as *const libc::c_char);
-            let buf2 = strdup(buf1);
-
-            dc_replace_bad_utf8_chars(buf2);
-
-            assert_eq!(
-                CStr::from_ptr(buf2 as *const libc::c_char)
-                    .to_str()
-                    .unwrap(),
-                "ISO-String with Ae: _"
-            );
-
-            free(buf1 as *mut libc::c_void);
-            free(buf2 as *mut libc::c_void);
-        }
-    }
-
-    #[test]
-    fn test_dc_replace_bad_utf8_chars_3() {
-        unsafe {
-            let buf1 = strdup(b"\x00" as *const u8 as *const libc::c_char);
-            let buf2 = strdup(buf1);
-
-            dc_replace_bad_utf8_chars(buf2);
-
-            assert_eq!(*buf2.offset(0), 0);
-
-            free(buf1 as *mut libc::c_void);
-            free(buf2 as *mut libc::c_void);
-        }
-    }
-
-    #[test]
-    fn test_dc_replace_bad_utf8_chars_4() {
-        unsafe {
-            dc_replace_bad_utf8_chars(ptr::null_mut());
         }
     }
 
