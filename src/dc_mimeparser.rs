@@ -367,7 +367,6 @@ impl<'a> MimeParser<'a> {
             return false;
         }
         let mut any_part_added = false;
-        let mut cur: *mut clistiter;
 
         if !mailmime_find_ct_parameter(
             mime,
@@ -427,74 +426,37 @@ impl<'a> MimeParser<'a> {
                     inside mutlipart/alternative, we use this (happens eg in
                     apple mail: "plaintext" as an alternative to "html+PDF attachment") */
                     DC_MIMETYPE_MP_ALTERNATIVE => {
-                        cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
-                        while !cur.is_null() {
-                            let childmime: *mut mailmime = (if !cur.is_null() {
-                                (*cur).data
-                            } else {
-                                ptr::null_mut()
-                            })
-                                as *mut mailmime;
-                            if mailmime_get_mime_type(childmime, ptr::null_mut(), ptr::null_mut())
-                                == DC_MIMETYPE_MP_MIXED
+                        for cur_data in (*(*mime).mm_data.mm_multipart.mm_mp_list).into_iter() {
+                            if mailmime_get_mime_type(
+                                cur_data as *mut _,
+                                ptr::null_mut(),
+                                ptr::null_mut(),
+                            ) == DC_MIMETYPE_MP_MIXED
                             {
-                                any_part_added = self.parse_mime_recursive(childmime);
+                                any_part_added = self.parse_mime_recursive(cur_data as *mut _);
                                 break;
-                            } else {
-                                cur = if !cur.is_null() {
-                                    (*cur).next
-                                } else {
-                                    ptr::null_mut()
-                                }
                             }
                         }
                         if !any_part_added {
                             /* search for text/plain and add this */
-                            cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
-                            while !cur.is_null() {
-                                let childmime_0: *mut mailmime = (if !cur.is_null() {
-                                    (*cur).data
-                                } else {
-                                    ptr::null_mut()
-                                })
-                                    as *mut mailmime;
+                            for cur_data in (*(*mime).mm_data.mm_multipart.mm_mp_list).into_iter() {
                                 if mailmime_get_mime_type(
-                                    childmime_0,
+                                    cur_data as *mut _,
                                     ptr::null_mut(),
                                     ptr::null_mut(),
                                 ) == DC_MIMETYPE_TEXT_PLAIN
                                 {
-                                    any_part_added = self.parse_mime_recursive(childmime_0);
+                                    any_part_added = self.parse_mime_recursive(cur_data as *mut _);
                                     break;
-                                } else {
-                                    cur = if !cur.is_null() {
-                                        (*cur).next
-                                    } else {
-                                        ptr::null_mut()
-                                    }
                                 }
                             }
                         }
                         if !any_part_added {
                             /* `text/plain` not found - use the first part */
-                            cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
-                            while !cur.is_null() {
-                                if 0 != self.parse_mime_recursive(
-                                    (if !cur.is_null() {
-                                        (*cur).data
-                                    } else {
-                                        ptr::null_mut()
-                                    }) as *mut mailmime,
-                                ) {
-                                    any_part_added = 1i32;
-                                    /* out of for() */
+                            for cur_data in (*(*mime).mm_data.mm_multipart.mm_mp_list).into_iter() {
+                                if self.parse_mime_recursive(cur_data as *mut _) {
+                                    any_part_added = true;
                                     break;
-                                } else {
-                                    cur = if !cur.is_null() {
-                                        (*cur).next
-                                    } else {
-                                        ptr::null_mut()
-                                    }
                                 }
                             }
                         }
@@ -504,9 +466,10 @@ impl<'a> MimeParser<'a> {
                         not interesting for us (eg. embedded images) we assume he "root part"
                         being the first one, which may not be always true ...
                         however, most times it seems okay. */
-                        cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
+                        let cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
                         if !cur.is_null() {
-                            any_part_added = self.parse_mime_recursive((*cur).data as *mut mailmime);
+                            any_part_added =
+                                self.parse_mime_recursive((*cur).data as *mut mailmime);
                         }
                     }
                     DC_MIMETYPE_MP_NOT_DECRYPTABLE => {
@@ -531,15 +494,10 @@ impl<'a> MimeParser<'a> {
                         skip the rest.  (see
                         https://k9mail.github.io/2016/11/24/OpenPGP-Considerations-Part-I.html
                         for background information why we use encrypted+signed) */
-                        cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
+                        let cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
                         if !cur.is_null() {
-                            any_part_added = self.parse_mime_recursive(
-                                (if !cur.is_null() {
-                                    (*cur).data
-                                } else {
-                                    ptr::null_mut()
-                                }) as *mut mailmime,
-                            )
+                            any_part_added =
+                                self.parse_mime_recursive((*cur).data as *mut mailmime);
                         }
                     }
                     DC_MIMETYPE_MP_REPORT => {
@@ -585,55 +543,34 @@ impl<'a> MimeParser<'a> {
                         let mut html_part = ptr::null_mut();
                         let mut plain_cnt = 0i32;
                         let mut html_cnt = 0i32;
-                        cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
-                        while !cur.is_null() {
-                            let childmime_1 = (if !cur.is_null() {
-                                (*cur).data
-                            } else {
-                                ptr::null_mut()
-                            }) as *mut mailmime;
-                            if mailmime_get_mime_type(childmime_1, ptr::null_mut(), ptr::null_mut())
-                                == DC_MIMETYPE_TEXT_PLAIN
-                            {
-                                plain_cnt += 1
-                            } else if mailmime_get_mime_type(
-                                childmime_1,
+                        for cur_data in (*(*mime).mm_data.mm_multipart.mm_mp_list).into_iter() {
+                            match mailmime_get_mime_type(
+                                cur_data as *mut _,
                                 ptr::null_mut(),
                                 ptr::null_mut(),
-                            ) == DC_MIMETYPE_TEXT_HTML
-                            {
-                                html_part = childmime_1;
-                                html_cnt += 1
-                            }
-                            cur = if !cur.is_null() {
-                                (*cur).next
-                            } else {
-                                ptr::null_mut()
+                            ) {
+                                DC_MIMETYPE_TEXT_PLAIN => {
+                                    plain_cnt += 1;
+                                }
+                                DC_MIMETYPE_TEXT_HTML => {
+                                    html_part = cur_data as *mut mailmime;
+                                    html_cnt += 1;
+                                }
+                                _ => {}
                             }
                         }
-                        if plain_cnt == 1i32 && html_cnt == 1i32 {
+                        if plain_cnt == 1 && html_cnt == 1 {
                             warn!(
                             self.context,
                             "HACK: multipart/mixed message found with PLAIN and HTML, we\'ll skip the HTML part as this seems to be unwanted."
                         );
                             skip_part = html_part
                         }
-                        cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
-                        while !cur.is_null() {
-                            let childmime_2 = (if !cur.is_null() {
-                                (*cur).data
-                            } else {
-                                ptr::null_mut()
-                            }) as *mut mailmime;
-                            if childmime_2 != skip_part {
-                                if self.parse_mime_recursive(childmime_2) {
+                        for cur_data in (*(*mime).mm_data.mm_multipart.mm_mp_list).into_iter() {
+                            if cur_data as *mut _ != skip_part {
+                                if self.parse_mime_recursive(cur_data as *mut _) {
                                     any_part_added = true;
                                 }
-                            }
-                            cur = if !cur.is_null() {
-                                (*cur).next
-                            } else {
-                                ptr::null_mut()
                             }
                         }
                     }
@@ -1533,22 +1470,10 @@ pub unsafe fn mailmime_find_mailimf_fields(mime: *mut mailmime) -> *mut mailimf_
 
     match (*mime).mm_type as _ {
         MAILMIME_MULTIPLE => {
-            let mut cur: *mut clistiter = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
-            while !cur.is_null() {
-                let header: *mut mailimf_fields = mailmime_find_mailimf_fields(
-                    (if !cur.is_null() {
-                        (*cur).data
-                    } else {
-                        ptr::null_mut()
-                    }) as *mut mailmime,
-                );
+            for cur_data in (*(*mime).mm_data.mm_multipart.mm_mp_list).into_iter() {
+                let header = mailmime_find_mailimf_fields(cur_data as *mut _);
                 if !header.is_null() {
                     return header;
-                }
-                cur = if !cur.is_null() {
-                    (*cur).next
-                } else {
-                    ptr::null_mut()
                 }
             }
         }
@@ -1566,14 +1491,10 @@ pub unsafe fn mailimf_find_optional_field(
     if header.is_null() || (*header).fld_list.is_null() {
         return ptr::null_mut();
     }
-    let mut cur1: *mut clistiter = (*(*header).fld_list).first;
-    while !cur1.is_null() {
-        let field: *mut mailimf_field = (if !cur1.is_null() {
-            (*cur1).data
-        } else {
-            ptr::null_mut()
-        }) as *mut mailimf_field;
-        if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int {
+    for cur_data in (*(*header).fld_list).into_iter() {
+        let field: *mut mailimf_field = cur_data as *mut _;
+
+        if (*field).fld_type == MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int {
             let optional_field: *mut mailimf_optional_field = (*field).fld_data.fld_optional_field;
             if !optional_field.is_null()
                 && !(*optional_field).fld_name.is_null()
@@ -1582,11 +1503,6 @@ pub unsafe fn mailimf_find_optional_field(
             {
                 return optional_field;
             }
-        }
-        cur1 = if !cur1.is_null() {
-            (*cur1).next
-        } else {
-            ptr::null_mut()
         }
     }
 
