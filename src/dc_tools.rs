@@ -895,7 +895,7 @@ fn dc_make_rel_path(context: &Context, path: &mut String) {
         .map(|s| path.starts_with(s))
         .unwrap_or_default()
     {
-        *path = path.replace("$BLOBDIR", context.get_blobdir().to_str().unwrap());
+        *path = path.replace(context.get_blobdir().to_str().unwrap(), "$BLOBDIR");
     }
 }
 
@@ -1246,7 +1246,10 @@ pub fn listflags_has(listflags: u32, bitindex: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use std::ffi::CStr;
+
+    use crate::test_utils::*;
 
     #[test]
     fn test_dc_strdup() {
@@ -1791,5 +1794,18 @@ mod tests {
     fn test_dc_create_incoming_rfc724_mid() {
         let res = dc_create_incoming_rfc724_mid(123, 45, &vec![6, 7]);
         assert_eq!(res, Some("123-45-7@stub".into()));
+    }
+
+    #[test]
+    fn test_dc_make_rel_path() {
+        let t = dummy_context();
+        let mut foo: String = t
+            .ctx
+            .get_blobdir()
+            .join("foo")
+            .to_string_lossy()
+            .into_owned();
+        dc_make_rel_path(&t.ctx, &mut foo);
+        assert_eq!(foo, format!("$BLOBDIR{}foo", std::path::MAIN_SEPARATOR));
     }
 }
