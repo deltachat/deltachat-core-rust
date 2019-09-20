@@ -27,9 +27,15 @@ use crate::param::*;
 use crate::stock::StockMessage;
 use crate::x::*;
 
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub enum Loaded {
+    Nothing,
+    Message,
+    MDN, // TODO: invent more descriptive name
+}
+
 #[derive(Clone)]
-#[allow(non_camel_case_types)]
-pub struct dc_mimefactory_t<'a> {
+pub struct MimeFactory<'a> {
     pub from_addr: *mut libc::c_char,
     pub from_displayname: *mut libc::c_char,
     pub selfstatus: Option<String>,
@@ -37,7 +43,7 @@ pub struct dc_mimefactory_t<'a> {
     pub recipients_addr: *mut clist,
     pub timestamp: i64,
     pub rfc724_mid: String,
-    pub loaded: dc_mimefactory_loaded_t,
+    pub loaded: Loaded,
     pub msg: Message,
     pub chat: Option<Chat>,
     pub increation: bool,
@@ -45,14 +51,14 @@ pub struct dc_mimefactory_t<'a> {
     pub references: *mut libc::c_char,
     pub req_mdn: libc::c_int,
     pub out: *mut MMAPString,
-    pub out_encrypted: libc::c_int,
-    pub out_gossiped: libc::c_int,
+    pub out_encrypted: bool,
+    pub out_gossiped: bool,
     pub out_last_added_location_id: u32,
     pub error: *mut libc::c_char,
     pub context: &'a Context,
 }
 
-impl<'a> Drop for dc_mimefactory_t<'a> {
+impl<'a> Drop for MimeFactory<'a> {
     fn drop(&mut self) {
         unsafe {
             free(self.from_addr as *mut libc::c_void);
@@ -76,21 +82,15 @@ impl<'a> Drop for dc_mimefactory_t<'a> {
     }
 }
 
-#[allow(non_camel_case_types)]
-type dc_mimefactory_loaded_t = libc::c_uint;
-const DC_MF_MDN_LOADED: dc_mimefactory_loaded_t = 2;
-pub const DC_MF_MSG_LOADED: dc_mimefactory_loaded_t = 1;
-pub const DC_MF_NOTHING_LOADED: dc_mimefactory_loaded_t = 0;
-
 pub unsafe fn dc_mimefactory_load_msg(
     context: &Context,
     msg_id: u32,
-) -> Result<dc_mimefactory_t, Error> {
+) -> Result<MimeFactory, Error> {
     ensure!(msg_id > DC_CHAT_ID_LAST_SPECIAL, "Invalid chat id");
 
     let msg = dc_msg_load_from_db(context, msg_id)?;
     let chat = Chat::load_from_db(context, msg.chat_id)?;
-    let mut factory = dc_mimefactory_t {
+    let mut factory = MimeFactory {
         from_addr: ptr::null_mut(),
         from_displayname: ptr::null_mut(),
         selfstatus: None,
@@ -98,7 +98,7 @@ pub unsafe fn dc_mimefactory_load_msg(
         recipients_addr: clist_new(),
         timestamp: 0,
         rfc724_mid: String::default(),
-        loaded: DC_MF_NOTHING_LOADED,
+        loaded: Loaded::Nothing,
         msg,
         chat: Some(chat),
         increation: false,
@@ -106,8 +106,8 @@ pub unsafe fn dc_mimefactory_load_msg(
         references: ptr::null_mut(),
         req_mdn: 0,
         out: ptr::null_mut(),
-        out_encrypted: 0,
-        out_gossiped: 0,
+        out_encrypted: false,
+        out_gossiped: false,
         out_last_added_location_id: 0,
         error: ptr::null_mut(),
         context,
@@ -229,7 +229,7 @@ pub unsafe fn dc_mimefactory_load_msg(
         }
     }
 
-    factory.loaded = DC_MF_MSG_LOADED;
+    factory.loaded = Loaded::Message;
     factory.timestamp = factory.msg.timestamp_sort;
     factory.rfc724_mid = factory.msg.rfc724_mid.clone();
     factory.increation = dc_msg_is_increation(&factory.msg);
@@ -237,7 +237,7 @@ pub unsafe fn dc_mimefactory_load_msg(
     Ok(factory)
 }
 
-unsafe fn load_from(factory: &mut dc_mimefactory_t) {
+unsafe fn load_from(factory: &mut MimeFactory) {
     let context = factory.context;
     factory.from_addr = context
         .sql
@@ -266,7 +266,7 @@ unsafe fn load_from(factory: &mut dc_mimefactory_t) {
 pub unsafe fn dc_mimefactory_load_mdn<'a>(
     context: &'a Context,
     msg_id: u32,
-) -> Result<dc_mimefactory_t, Error> {
+) -> Result<MimeFactory, Error> {
     if 0 == context
         .sql
         .get_config_int(context, "mdns_enabled")
@@ -280,7 +280,7 @@ pub unsafe fn dc_mimefactory_load_mdn<'a>(
 
     let msg = dc_msg_load_from_db(context, msg_id)?;
 
-    let mut factory = dc_mimefactory_t {
+    let mut factory = MimeFactory {
         from_addr: ptr::null_mut(),
         from_displayname: ptr::null_mut(),
         selfstatus: None,
@@ -288,7 +288,7 @@ pub unsafe fn dc_mimefactory_load_mdn<'a>(
         recipients_addr: clist_new(),
         timestamp: 0,
         rfc724_mid: String::default(),
-        loaded: DC_MF_NOTHING_LOADED,
+        loaded: Loaded::Nothing,
         msg,
         chat: None,
         increation: false,
@@ -296,8 +296,8 @@ pub unsafe fn dc_mimefactory_load_mdn<'a>(
         references: ptr::null_mut(),
         req_mdn: 0,
         out: ptr::null_mut(),
-        out_encrypted: 0,
-        out_gossiped: 0,
+        out_encrypted: false,
+        out_gossiped: false,
         out_last_added_location_id: 0,
         error: ptr::null_mut(),
         context,
@@ -330,12 +330,12 @@ pub unsafe fn dc_mimefactory_load_mdn<'a>(
     load_from(&mut factory);
     factory.timestamp = dc_create_smeared_timestamp(factory.context);
     factory.rfc724_mid = dc_create_outgoing_rfc724_mid(None, as_str(factory.from_addr));
-    factory.loaded = DC_MF_MDN_LOADED;
+    factory.loaded = Loaded::MDN;
 
     Ok(factory)
 }
 
-pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut dc_mimefactory_t) -> bool {
+pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory) -> bool {
     let subject: *mut mailimf_subject;
     let mut ok_to_continue = true;
     let imf_fields: *mut mailimf_fields;
@@ -354,9 +354,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut dc_mimefact
     let mut grpimage = None;
     let mut e2ee_helper = E2eeHelper::default();
 
-    if factory.loaded as libc::c_uint == DC_MF_NOTHING_LOADED as libc::c_int as libc::c_uint
-        || !factory.out.is_null()
-    {
+    if factory.loaded == Loaded::Nothing || !factory.out.is_null() {
         /*call empty() before*/
         set_error(
             factory,
@@ -486,7 +484,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut dc_mimefact
         }
         message = mailmime_new_message_data(0 as *mut mailmime);
         mailmime_set_imf_fields(message, imf_fields);
-        if factory.loaded as libc::c_uint == DC_MF_MSG_LOADED as libc::c_int as libc::c_uint {
+        if factory.loaded == Loaded::Message {
             /* Render a normal message
              *********************************************************************/
             let chat = factory.chat.as_ref().unwrap();
@@ -909,8 +907,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut dc_mimefact
                     }
                 }
             }
-        } else if factory.loaded as libc::c_uint == DC_MF_MDN_LOADED as libc::c_int as libc::c_uint
-        {
+        } else if factory.loaded == Loaded::MDN {
             let multipart: *mut mailmime =
                 mailmime_multiple_new(b"multipart/report\x00" as *const u8 as *const libc::c_char);
             let content: *mut mailmime_content = (*multipart).mm_content_type;
@@ -971,8 +968,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut dc_mimefact
         }
 
         if ok_to_continue {
-            let subject_str = if factory.loaded as libc::c_uint == DC_MF_MDN_LOADED as libc::c_uint
-            {
+            let subject_str = if factory.loaded == Loaded::MDN {
                 let e = factory.context.stock_str(StockMessage::ReadRcpt);
                 format!("Chat: {}", e)
             } else {
@@ -1025,9 +1021,9 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut dc_mimefact
                 );
             }
             if e2ee_helper.encryption_successfull {
-                factory.out_encrypted = 1;
+                factory.out_encrypted = true;
                 if 0 != do_gossip {
-                    factory.out_gossiped = 1
+                    factory.out_gossiped = true;
                 }
             }
             factory.out = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
@@ -1074,7 +1070,7 @@ unsafe fn get_subject(
     ret
 }
 
-unsafe fn set_error(factory: *mut dc_mimefactory_t, text: *const libc::c_char) {
+unsafe fn set_error(factory: *mut MimeFactory, text: *const libc::c_char) {
     if factory.is_null() {
         return;
     }

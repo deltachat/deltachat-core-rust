@@ -686,7 +686,7 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: u32) -> libc::c_int {
                 .param
                 .get_int(Param::GuranteeE2ee)
                 .unwrap_or_default()
-            && 0 == mimefactory.out_encrypted
+            && !mimefactory.out_encrypted
         {
             warn!(
                 context,
@@ -713,7 +713,7 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: u32) -> libc::c_int {
                     dc_strdup(mimefactory.from_addr) as *mut libc::c_void,
                 );
             }
-            if 0 != mimefactory.out_gossiped {
+            if mimefactory.out_gossiped {
                 chat::set_gossiped_timestamp(context, mimefactory.msg.chat_id, time());
             }
             if 0 != mimefactory.out_last_added_location_id {
@@ -732,7 +732,7 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: u32) -> libc::c_int {
                     }
                 }
             }
-            if 0 != mimefactory.out_encrypted
+            if mimefactory.out_encrypted
                 && mimefactory
                     .msg
                     .param
@@ -1003,7 +1003,7 @@ fn send_mdn(context: &Context, msg_id: u32) {
 }
 
 #[allow(non_snake_case)]
-fn add_smtp_job(context: &Context, action: Action, mimefactory: &dc_mimefactory_t) -> libc::c_int {
+fn add_smtp_job(context: &Context, action: Action, mimefactory: &MimeFactory) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut recipients: *mut libc::c_char = ptr::null_mut();
     let mut param = Params::new();
@@ -1033,9 +1033,7 @@ fn add_smtp_job(context: &Context, action: Action, mimefactory: &dc_mimefactory_
         job_add(
             context,
             action,
-            (if mimefactory.loaded as libc::c_uint
-                == DC_MF_MSG_LOADED as libc::c_int as libc::c_uint
-            {
+            (if mimefactory.loaded == Loaded::Message {
                 mimefactory.msg.id
             } else {
                 0
