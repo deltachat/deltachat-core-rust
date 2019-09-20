@@ -587,7 +587,8 @@ impl<'a> MimeParser<'a> {
         if (*mime_data).dt_type != MAILMIME_DATA_TEXT as libc::c_int
             /* MAILMIME_DATA_FILE indicates, the data is in a file; AFAIK this is not used on parsing */
             || (*mime_data).dt_data.dt_text.dt_data.is_null()
-            || (*mime_data).dt_data.dt_text.dt_length <= 0 {
+            || (*mime_data).dt_data.dt_text.dt_length <= 0
+        {
             return false;
         }
 
@@ -597,226 +598,199 @@ impl<'a> MimeParser<'a> {
         let mut decoded_data: *const libc::c_char = ptr::null();
         let mut decoded_data_bytes = 0;
 
-                if !mailmime_transfer_decode(
-                    mime,
-                    &mut decoded_data,
-                    &mut decoded_data_bytes,
-                    &mut transfer_decoding_buffer,
-                ) {
-                    /* mailmime_transfer_decode does not allocate when it returns false.
-                    Note that it's now always an error - might be no data */
-                    return false;
-                }
+        if !mailmime_transfer_decode(
+            mime,
+            &mut decoded_data,
+            &mut decoded_data_bytes,
+            &mut transfer_decoding_buffer,
+        ) {
+            /* mailmime_transfer_decode does not allocate when it returns false.
+            Note that it's now always an error - might be no data */
+            return false;
+        }
         let old_part_count = self.parts.len();
 
-                    /* regard `Content-Transfer-Encoding:` */
-                    let mut ok_to_continue = true;
-                    let mut desired_filename = String::default();
-                    let mut simplifier: Option<Simplify> = None;
-                    match mime_type {
-                        DC_MIMETYPE_TEXT_PLAIN | DC_MIMETYPE_TEXT_HTML => {
-                            if simplifier.is_none() {
-                                simplifier = Some(Simplify::new());
-                            }
-                            /* get from `Content-Type: text/...; charset=utf-8`; must not be free()'d */
-                            let charset = mailmime_content_charset_get((*mime).mm_content_type);
-                            if !charset.is_null()
-                                && strcmp(charset, b"utf-8\x00" as *const u8 as *const libc::c_char)
-                                    != 0i32
-                                && strcmp(charset, b"UTF-8\x00" as *const u8 as *const libc::c_char)
-                                    != 0i32
-                            {
-                                if let Some(encoding) = Charset::for_label(
-                                    CStr::from_ptr(charset).to_str().unwrap().as_bytes(),
-                                ) {
-                                    let data = std::slice::from_raw_parts(
-                                        decoded_data as *const u8,
-                                        decoded_data_bytes,
-                                    );
+        /* regard `Content-Transfer-Encoding:` */
+        let mut ok_to_continue = true;
+        let mut desired_filename = String::default();
+        let mut simplifier: Option<Simplify> = None;
+        match mime_type {
+            DC_MIMETYPE_TEXT_PLAIN | DC_MIMETYPE_TEXT_HTML => {
+                if simplifier.is_none() {
+                    simplifier = Some(Simplify::new());
+                }
+                /* get from `Content-Type: text/...; charset=utf-8`; must not be free()'d */
+                let charset = mailmime_content_charset_get((*mime).mm_content_type);
+                if !charset.is_null()
+                    && strcmp(charset, b"utf-8\x00" as *const u8 as *const libc::c_char) != 0i32
+                    && strcmp(charset, b"UTF-8\x00" as *const u8 as *const libc::c_char) != 0i32
+                {
+                    if let Some(encoding) =
+                        Charset::for_label(CStr::from_ptr(charset).to_str().unwrap().as_bytes())
+                    {
+                        let data = std::slice::from_raw_parts(
+                            decoded_data as *const u8,
+                            decoded_data_bytes,
+                        );
 
-                                    let (res, _, _) = encoding.decode(data);
-                                    if res.is_empty() {
-                                        /* no error - but nothing to add */
-                                        ok_to_continue = false;
-                                    } else {
-                                        let b = res.as_bytes();
-                                        decoded_data = b.as_ptr() as *const libc::c_char;
-                                        decoded_data_bytes = b.len();
-                                        std::mem::forget(res);
-                                    }
-                                } else {
-                                    warn!(
-                                        self.context,
-                                        "Cannot convert {} bytes from \"{}\" to \"utf-8\".",
-                                        decoded_data_bytes as libc::c_int,
-                                        as_str(charset),
-                                    );
-                                }
-                            }
-                            if ok_to_continue {
-                                /* check header directly as is_send_by_messenger is not yet set up */
-                                let is_msgrmsg =
-                                    self.lookup_optional_field("Chat-Version").is_some();
-
-                                let simplified_txt = if decoded_data_bytes <= 0
-                                    || decoded_data.is_null()
-                                {
-                                    "".into()
-                                } else {
-                                    let input_c = strndup(decoded_data, decoded_data_bytes as _);
-                                    let input = to_string_lossy(input_c);
-                                    let is_html = mime_type == 70;
-                                    free(input_c as *mut _);
-
-                                    simplifier.unwrap().simplify(&input, is_html, is_msgrmsg)
-                                };
-                                if !simplified_txt.is_empty() {
-                                    let mut part = Part::default();
-                                    part.typ = Viewtype::Text;
-                                    part.mimetype = mime_type;
-                                    part.msg = Some(simplified_txt);
-                                    part.msg_raw = {
-                                        let raw_c = strndup(
-                                            decoded_data,
-                                            decoded_data_bytes as libc::c_ulong,
-                                        );
-                                        let raw = to_string_lossy(raw_c);
-                                        free(raw_c.cast());
-                                        Some(raw)
-                                    };
-                                    self.do_add_single_part(part);
-                                }
-
-                                if simplifier.unwrap().is_forwarded {
-                                    self.is_forwarded = true;
-                                }
-                            }
+                        let (res, _, _) = encoding.decode(data);
+                        if res.is_empty() {
+                            /* no error - but nothing to add */
+                            ok_to_continue = false;
+                        } else {
+                            let b = res.as_bytes();
+                            decoded_data = b.as_ptr() as *const libc::c_char;
+                            decoded_data_bytes = b.len();
+                            std::mem::forget(res);
                         }
-                        DC_MIMETYPE_IMAGE
-                        | DC_MIMETYPE_AUDIO
-                        | DC_MIMETYPE_VIDEO
-                        | DC_MIMETYPE_FILE
-                        | DC_MIMETYPE_AC_SETUP_FILE => {
-                            /* try to get file name from
-                               `Content-Disposition: ... filename*=...`
-                            or `Content-Disposition: ... filename*0*=... filename*1*=... filename*2*=...`
-                            or `Content-Disposition: ... filename=...` */
-                            let mut filename_parts = String::new();
-
-                            for cur1 in (*(*(*mime).mm_mime_fields).fld_list).into_iter() {
-                                let field = cur1 as *mut mailmime_field;
-                                if !field.is_null()
-                                    && (*field).fld_type
-                                        == MAILMIME_FIELD_DISPOSITION as libc::c_int
-                                    && !(*field).fld_data.fld_disposition.is_null()
-                                {
-                                    let file_disposition: *mut mailmime_disposition =
-                                        (*field).fld_data.fld_disposition;
-                                    if !file_disposition.is_null() {
-                                        for cur2 in (*(*file_disposition).dsp_parms).into_iter() {
-                                            let dsp_param = cur2 as *mut mailmime_disposition_parm;
-                                            if !dsp_param.is_null() {
-                                                if (*dsp_param).pa_type
-                                                    == MAILMIME_DISPOSITION_PARM_PARAMETER
-                                                        as libc::c_int
-                                                    && !(*dsp_param).pa_data.pa_parameter.is_null()
-                                                    && !(*(*dsp_param).pa_data.pa_parameter)
-                                                        .pa_name
-                                                        .is_null()
-                                                    && strncmp(
-                                                        (*(*dsp_param).pa_data.pa_parameter)
-                                                            .pa_name,
-                                                        b"filename*\x00" as *const u8
-                                                            as *const libc::c_char,
-                                                        9,
-                                                    ) == 0i32
-                                                {
-                                                    // we assume the filename*?* parts are in order, not seen anything else yet
-                                                    filename_parts += &to_string_lossy(
-                                                        (*(*dsp_param).pa_data.pa_parameter)
-                                                            .pa_value,
-                                                    );
-                                                } else if (*dsp_param).pa_type
-                                                    == MAILMIME_DISPOSITION_PARM_FILENAME
-                                                        as libc::c_int
-                                                {
-                                                    // might be a wrongly encoded filename
-                                                    let s = to_string_lossy((*dsp_param).pa_data.pa_filename);
-										            // this is used only if the parts buffer stays empty
-                                                    desired_filename = dc_decode_header_words_safe(
-                                                        &s
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                    break;
-                                }
-                            }
-                            if !filename_parts.is_empty() {
-                                desired_filename =
-                                    dc_decode_ext_header(filename_parts.as_bytes()).into_owned();
-                            }
-                            if desired_filename.is_empty() {
-                                let param = mailmime_find_ct_parameter(mime, "name");
-                                if !param.is_null()
-                                    && !(*param).pa_value.is_null()
-                                    && 0 != *(*param).pa_value.offset(0isize) as libc::c_int
-                                {
-                                    // might be a wrongly encoded filename
-                                    desired_filename = to_string_lossy((*param).pa_value);
-                                }
-                            }
-                            /* if there is still no filename, guess one */
-                            if desired_filename.is_empty() {
-                                if !(*mime).mm_content_type.is_null()
-                                    && !(*(*mime).mm_content_type).ct_subtype.is_null()
-                                {
-                                    desired_filename = format!(
-                                        "file.{}",
-                                        as_str((*(*mime).mm_content_type).ct_subtype)
-                                    );
-                                } else {
-                                    ok_to_continue = false;
-                                }
-                            }
-                            if ok_to_continue {
-                                if desired_filename.starts_with("location") 
-                                   && desired_filename.ends_with(".kml") {
-                                    if !decoded_data.is_null() && decoded_data_bytes > 0 {
-                                        let d = dc_null_terminate(
-                                            decoded_data,
-                                            decoded_data_bytes as i32,
-                                        );
-                                        self.location_kml =
-                                            location::Kml::parse(self.context, as_str(d)).ok();
-                                        free(d.cast());
-                                    }
-                                } else if desired_filename.starts_with("message") 
-                                          && desired_filename.ends_with(".kml") {
-                                    if !decoded_data.is_null() && decoded_data_bytes > 0 {
-                                        let d = dc_null_terminate(
-                                            decoded_data,
-                                            decoded_data_bytes as i32,
-                                        );
-                                        self.message_kml =
-                                            location::Kml::parse(self.context, as_str(d)).ok();
-                                        free(d.cast());
-                                    }
-                                } else {
-                                    self.do_add_single_file_part(
-                                        msg_type,
-                                        mime_type,
-                                        as_str(raw_mime),
-                                        decoded_data,
-                                        decoded_data_bytes,
-                                        &desired_filename,
-                                    );
-                                }
-                            }
-                        }
-                        _ => {}
+                    } else {
+                        warn!(
+                            self.context,
+                            "Cannot convert {} bytes from \"{}\" to \"utf-8\".",
+                            decoded_data_bytes as libc::c_int,
+                            as_str(charset),
+                        );
                     }
+                }
+                if ok_to_continue {
+                    /* check header directly as is_send_by_messenger is not yet set up */
+                    let is_msgrmsg = self.lookup_optional_field("Chat-Version").is_some();
+
+                    let simplified_txt = if decoded_data_bytes <= 0 || decoded_data.is_null() {
+                        "".into()
+                    } else {
+                        let input_c = strndup(decoded_data, decoded_data_bytes as _);
+                        let input = to_string_lossy(input_c);
+                        let is_html = mime_type == 70;
+                        free(input_c as *mut _);
+
+                        simplifier.unwrap().simplify(&input, is_html, is_msgrmsg)
+                    };
+                    if !simplified_txt.is_empty() {
+                        let mut part = Part::default();
+                        part.typ = Viewtype::Text;
+                        part.mimetype = mime_type;
+                        part.msg = Some(simplified_txt);
+                        part.msg_raw = {
+                            let raw_c = strndup(decoded_data, decoded_data_bytes as libc::c_ulong);
+                            let raw = to_string_lossy(raw_c);
+                            free(raw_c.cast());
+                            Some(raw)
+                        };
+                        self.do_add_single_part(part);
+                    }
+
+                    if simplifier.unwrap().is_forwarded {
+                        self.is_forwarded = true;
+                    }
+                }
+            }
+            DC_MIMETYPE_IMAGE
+            | DC_MIMETYPE_AUDIO
+            | DC_MIMETYPE_VIDEO
+            | DC_MIMETYPE_FILE
+            | DC_MIMETYPE_AC_SETUP_FILE => {
+                /* try to get file name from
+                   `Content-Disposition: ... filename*=...`
+                or `Content-Disposition: ... filename*0*=... filename*1*=... filename*2*=...`
+                or `Content-Disposition: ... filename=...` */
+                let mut filename_parts = String::new();
+
+                for cur1 in (*(*(*mime).mm_mime_fields).fld_list).into_iter() {
+                    let field = cur1 as *mut mailmime_field;
+                    if !field.is_null()
+                        && (*field).fld_type == MAILMIME_FIELD_DISPOSITION as libc::c_int
+                        && !(*field).fld_data.fld_disposition.is_null()
+                    {
+                        let file_disposition: *mut mailmime_disposition =
+                            (*field).fld_data.fld_disposition;
+                        if !file_disposition.is_null() {
+                            for cur2 in (*(*file_disposition).dsp_parms).into_iter() {
+                                let dsp_param = cur2 as *mut mailmime_disposition_parm;
+                                if !dsp_param.is_null() {
+                                    if (*dsp_param).pa_type
+                                        == MAILMIME_DISPOSITION_PARM_PARAMETER as libc::c_int
+                                        && !(*dsp_param).pa_data.pa_parameter.is_null()
+                                        && !(*(*dsp_param).pa_data.pa_parameter).pa_name.is_null()
+                                        && strncmp(
+                                            (*(*dsp_param).pa_data.pa_parameter).pa_name,
+                                            b"filename*\x00" as *const u8 as *const libc::c_char,
+                                            9,
+                                        ) == 0i32
+                                    {
+                                        // we assume the filename*?* parts are in order, not seen anything else yet
+                                        filename_parts += &to_string_lossy(
+                                            (*(*dsp_param).pa_data.pa_parameter).pa_value,
+                                        );
+                                    } else if (*dsp_param).pa_type
+                                        == MAILMIME_DISPOSITION_PARM_FILENAME as libc::c_int
+                                    {
+                                        // might be a wrongly encoded filename
+                                        let s = to_string_lossy((*dsp_param).pa_data.pa_filename);
+                                        // this is used only if the parts buffer stays empty
+                                        desired_filename = dc_decode_header_words_safe(&s)
+                                    }
+                                }
+                            }
+                        }
+                        break;
+                    }
+                }
+                if !filename_parts.is_empty() {
+                    desired_filename = dc_decode_ext_header(filename_parts.as_bytes()).into_owned();
+                }
+                if desired_filename.is_empty() {
+                    let param = mailmime_find_ct_parameter(mime, "name");
+                    if !param.is_null()
+                        && !(*param).pa_value.is_null()
+                        && 0 != *(*param).pa_value.offset(0isize) as libc::c_int
+                    {
+                        // might be a wrongly encoded filename
+                        desired_filename = to_string_lossy((*param).pa_value);
+                    }
+                }
+                /* if there is still no filename, guess one */
+                if desired_filename.is_empty() {
+                    if !(*mime).mm_content_type.is_null()
+                        && !(*(*mime).mm_content_type).ct_subtype.is_null()
+                    {
+                        desired_filename =
+                            format!("file.{}", as_str((*(*mime).mm_content_type).ct_subtype));
+                    } else {
+                        ok_to_continue = false;
+                    }
+                }
+                if ok_to_continue {
+                    if desired_filename.starts_with("location")
+                        && desired_filename.ends_with(".kml")
+                    {
+                        if !decoded_data.is_null() && decoded_data_bytes > 0 {
+                            let d = dc_null_terminate(decoded_data, decoded_data_bytes as i32);
+                            self.location_kml = location::Kml::parse(self.context, as_str(d)).ok();
+                            free(d.cast());
+                        }
+                    } else if desired_filename.starts_with("message")
+                        && desired_filename.ends_with(".kml")
+                    {
+                        if !decoded_data.is_null() && decoded_data_bytes > 0 {
+                            let d = dc_null_terminate(decoded_data, decoded_data_bytes as i32);
+                            self.message_kml = location::Kml::parse(self.context, as_str(d)).ok();
+                            free(d.cast());
+                        }
+                    } else {
+                        self.do_add_single_file_part(
+                            msg_type,
+                            mime_type,
+                            as_str(raw_mime),
+                            decoded_data,
+                            decoded_data_bytes,
+                            &desired_filename,
+                        );
+                    }
+                }
+            }
+            _ => {}
+        }
         /* add object? (we do not add all objects, eg. signatures etc. are ignored) */
         if !transfer_decoding_buffer.is_null() {
             mmap_string_unref(transfer_decoding_buffer);
@@ -832,11 +806,10 @@ impl<'a> MimeParser<'a> {
         raw_mime: &str,
         decoded_data: *const libc::c_char,
         decoded_data_bytes: libc::size_t,
-        desired_filename: &str, 
+        desired_filename: &str,
     ) {
         /* create a free file name to use */
-        let path_filename =
-            dc_get_fine_path_filename(self.context, "$BLOBDIR", desired_filename);
+        let path_filename = dc_get_fine_path_filename(self.context, "$BLOBDIR", desired_filename);
         let bytes = std::slice::from_raw_parts(decoded_data as *const u8, decoded_data_bytes);
 
         /* copy data to file */
