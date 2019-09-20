@@ -665,7 +665,6 @@ impl<'a> MimeParser<'a> {
         let old_part_count = self.parts.len();
         let mime_type: libc::c_int;
         let mime_data: *mut mailmime_data;
-        let file_suffix: *mut libc::c_char = ptr::null_mut();
         let mut desired_filename: *mut libc::c_char = ptr::null_mut();
         let mut msg_type = Viewtype::Unknown;
         let mut raw_mime: *mut libc::c_char = ptr::null_mut();
@@ -692,7 +691,7 @@ impl<'a> MimeParser<'a> {
                 ) {
                     /* no always error - but no data */
                     match mime_type {
-                        60 | 70 => {
+                        DC_MIMETYPE_TEXT_PLAIN | DC_MIMETYPE_TEXT_HTML => {
                             if simplifier.is_none() {
                                 simplifier = Some(Simplify::new());
                             }
@@ -770,7 +769,10 @@ impl<'a> MimeParser<'a> {
                                 }
                             }
                         }
-                        80 | 90 | 100 | 110 | 111 => {
+                        DC_MIMETYPE_IMAGE
+                        | DC_MIMETYPE_AUDIO
+                        | DC_MIMETYPE_VIDEO
+                        | DC_MIMETYPE_AC_SETUP_FILE => {
                             /* try to get file name from
                                `Content-Disposition: ... filename*=...`
                             or `Content-Disposition: ... filename*0*=... filename*1*=... filename*2*=...`
@@ -921,7 +923,6 @@ impl<'a> MimeParser<'a> {
         if !transfer_decoding_buffer.is_null() {
             mmap_string_unref(transfer_decoding_buffer);
         }
-        free(file_suffix as *mut libc::c_void);
         free(desired_filename as *mut libc::c_void);
         free(raw_mime as *mut libc::c_void);
         (self.parts.len() > old_part_count) as libc::c_int
