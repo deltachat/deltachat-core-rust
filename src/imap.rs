@@ -27,11 +27,6 @@ pub enum ImapResult {
     Success,
 }
 
-pub const DC_SUCCESS: usize = 3;
-pub const DC_ALREADY_DONE: usize = 2;
-pub const DC_RETRY_LATER: usize = 1;
-pub const DC_FAILED: usize = 0;
-
 const PREFETCH_FLAGS: &str = "(UID ENVELOPE)";
 const BODY_FLAGS: &str = "(FLAGS BODY.PEEK[])";
 const FETCH_FLAGS: &str = "(FLAGS)";
