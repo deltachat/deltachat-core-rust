@@ -21,6 +21,7 @@ use crate::dc_simplify::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
 use crate::e2ee::*;
+use crate::error::Error;
 use crate::location;
 use crate::param::*;
 use crate::stock::StockMessage;
@@ -580,9 +581,11 @@ impl<'a> MimeParser<'a> {
         if mime.is_null() || (*mime).mm_data.mm_single.is_null() {
             return false;
         }
-        let mut raw_mime: *mut libc::c_char = ptr::null_mut();
+
+        let mut raw_mime = ptr::null_mut();
         let mut msg_type = Viewtype::Unknown;
         let mime_type = mailmime_get_mime_type(mime, &mut msg_type, &mut raw_mime);
+
         let mime_data = (*mime).mm_data.mm_single;
         if (*mime_data).dt_type != MAILMIME_DATA_TEXT as libc::c_int
             /* MAILMIME_DATA_FILE indicates, the data is in a file; AFAIK this is not used on parsing */
@@ -592,22 +595,14 @@ impl<'a> MimeParser<'a> {
             return false;
         }
 
-        /* mmap_string_unref()'d if set */
-        let mut transfer_decoding_buffer: *mut libc::c_char = ptr::null_mut();
-        /* must not be free()'d */
-        let mut decoded_data: *const libc::c_char = ptr::null();
-        let mut decoded_data_bytes = 0;
+        let mut decoded_data = match mailmime_transfer_decode(mime) {
+            Ok(decoded_data) => decoded_data,
+            Err(_) => {
+                // Note that it's now always an error - might be no data
+                return false;
+            }
+        };
 
-        if !mailmime_transfer_decode(
-            mime,
-            &mut decoded_data,
-            &mut decoded_data_bytes,
-            &mut transfer_decoding_buffer,
-        ) {
-            /* mailmime_transfer_decode does not allocate when it returns false.
-            Note that it's now always an error - might be no data */
-            return false;
-        }
         let old_part_count = self.parts.len();
 
         /* regard `Content-Transfer-Encoding:` */
@@ -628,26 +623,18 @@ impl<'a> MimeParser<'a> {
                     if let Some(encoding) =
                         Charset::for_label(CStr::from_ptr(charset).to_str().unwrap().as_bytes())
                     {
-                        let data = std::slice::from_raw_parts(
-                            decoded_data as *const u8,
-                            decoded_data_bytes,
-                        );
-
-                        let (res, _, _) = encoding.decode(data);
+                        let (res, _, _) = encoding.decode(&decoded_data);
                         if res.is_empty() {
                             /* no error - but nothing to add */
                             ok_to_continue = false;
                         } else {
-                            let b = res.as_bytes();
-                            decoded_data = b.as_ptr() as *const libc::c_char;
-                            decoded_data_bytes = b.len();
-                            std::mem::forget(res);
+                            decoded_data = res.as_bytes().to_vec()
                         }
                     } else {
                         warn!(
                             self.context,
                             "Cannot convert {} bytes from \"{}\" to \"utf-8\".",
-                            decoded_data_bytes as libc::c_int,
+                            decoded_data.len(),
                             as_str(charset),
                         );
                     }
@@ -656,13 +643,11 @@ impl<'a> MimeParser<'a> {
                     /* check header directly as is_send_by_messenger is not yet set up */
                     let is_msgrmsg = self.lookup_optional_field("Chat-Version").is_some();
 
-                    let simplified_txt = if decoded_data_bytes <= 0 || decoded_data.is_null() {
+                    let simplified_txt = if decoded_data.is_empty() {
                         "".into()
                     } else {
-                        let input_c = strndup(decoded_data, decoded_data_bytes as _);
-                        let input = to_string_lossy(input_c);
+                        let input = std::string::String::from_utf8_lossy(&decoded_data);
                         let is_html = mime_type == 70;
-                        free(input_c as *mut _);
 
                         simplifier.unwrap().simplify(&input, is_html, is_msgrmsg)
                     };
@@ -671,12 +656,8 @@ impl<'a> MimeParser<'a> {
                         part.typ = Viewtype::Text;
                         part.mimetype = mime_type;
                         part.msg = Some(simplified_txt);
-                        part.msg_raw = {
-                            let raw_c = strndup(decoded_data, decoded_data_bytes as libc::c_ulong);
-                            let raw = to_string_lossy(raw_c);
-                            free(raw_c.cast());
-                            Some(raw)
-                        };
+                        part.msg_raw =
+                            Some(std::string::String::from_utf8_lossy(&decoded_data).to_string());
                         self.do_add_single_part(part);
                     }
 
@@ -764,26 +745,23 @@ impl<'a> MimeParser<'a> {
                     if desired_filename.starts_with("location")
                         && desired_filename.ends_with(".kml")
                     {
-                        if !decoded_data.is_null() && decoded_data_bytes > 0 {
-                            let d = dc_null_terminate(decoded_data, decoded_data_bytes as i32);
-                            self.location_kml = location::Kml::parse(self.context, as_str(d)).ok();
-                            free(d.cast());
+                        if !decoded_data.is_empty() {
+                            let d = std::string::String::from_utf8_lossy(&decoded_data);
+                            self.location_kml = location::Kml::parse(self.context, &d).ok();
                         }
                     } else if desired_filename.starts_with("message")
                         && desired_filename.ends_with(".kml")
                     {
-                        if !decoded_data.is_null() && decoded_data_bytes > 0 {
-                            let d = dc_null_terminate(decoded_data, decoded_data_bytes as i32);
-                            self.message_kml = location::Kml::parse(self.context, as_str(d)).ok();
-                            free(d.cast());
+                        if !decoded_data.is_empty() {
+                            let d = std::string::String::from_utf8_lossy(&decoded_data);
+                            self.message_kml = location::Kml::parse(self.context, &d).ok();
                         }
                     } else {
                         self.do_add_single_file_part(
                             msg_type,
                             mime_type,
                             as_str(raw_mime),
-                            decoded_data,
-                            decoded_data_bytes,
+                            &decoded_data,
                             &desired_filename,
                         );
                     }
@@ -792,9 +770,7 @@ impl<'a> MimeParser<'a> {
             _ => {}
         }
         /* add object? (we do not add all objects, eg. signatures etc. are ignored) */
-        if !transfer_decoding_buffer.is_null() {
-            mmap_string_unref(transfer_decoding_buffer);
-        }
+
         free(raw_mime as *mut libc::c_void);
         self.parts.len() > old_part_count
     }
@@ -804,30 +780,24 @@ impl<'a> MimeParser<'a> {
         msg_type: Viewtype,
         mime_type: libc::c_int,
         raw_mime: &str,
-        decoded_data: *const libc::c_char,
-        decoded_data_bytes: libc::size_t,
+        decoded_data: &[u8],
         desired_filename: &str,
     ) {
         /* create a free file name to use */
         let path_filename = dc_get_fine_path_filename(self.context, "$BLOBDIR", desired_filename);
-        let bytes = std::slice::from_raw_parts(decoded_data as *const u8, decoded_data_bytes);
 
         /* copy data to file */
-        if dc_write_file(self.context, &path_filename, bytes) {
+        if dc_write_file(self.context, &path_filename, decoded_data) {
             let mut part = Part::default();
             part.typ = msg_type;
             part.mimetype = mime_type;
-            part.bytes = decoded_data_bytes as libc::c_int;
+            part.bytes = decoded_data.len() as libc::c_int;
             part.param.set(Param::File, path_filename.to_string_lossy());
             part.param.set(Param::MimeType, raw_mime);
             if mime_type == 80 {
-                assert!(!decoded_data.is_null(), "invalid image data");
-                let data = std::slice::from_raw_parts(
-                    decoded_data as *const u8,
-                    decoded_data_bytes as usize,
-                );
+                assert!(!decoded_data.is_empty(), "invalid image data");
 
-                if let Ok((width, height)) = dc_get_filemeta(data) {
+                if let Ok((width, height)) = dc_get_filemeta(decoded_data) {
                     part.param.set_int(Param::Width, width as i32);
                     part.param.set_int(Param::Height, height as i32);
                 }
@@ -1233,32 +1203,12 @@ pub unsafe fn mailmime_find_ct_parameter(
     ptr::null_mut()
 }
 
-pub unsafe fn mailmime_transfer_decode(
-    mime: *mut mailmime,
-    ret_decoded_data: *mut *const libc::c_char,
-    ret_decoded_data_bytes: *mut libc::size_t,
-    ret_to_mmap_string_unref: *mut *mut libc::c_char,
-) -> bool {
+pub unsafe fn mailmime_transfer_decode(mime: *mut mailmime) -> Result<Vec<u8>, Error> {
+    ensure!(!mime.is_null(), "invalid inputs");
+
     let mut mime_transfer_encoding = MAILMIME_MECHANISM_BINARY as libc::c_int;
-    let mime_data: *mut mailmime_data;
 
-    /* must not be free()'d */
-    let decoded_data: *const libc::c_char;
-    let mut decoded_data_bytes = 0;
-
-    /* mmap_string_unref()'d if set */
-    let mut transfer_decoding_buffer: *mut libc::c_char = ptr::null_mut();
-    if mime.is_null()
-        || ret_decoded_data.is_null()
-        || ret_decoded_data_bytes.is_null()
-        || ret_to_mmap_string_unref.is_null()
-        || !(*ret_decoded_data).is_null()
-        || *ret_decoded_data_bytes != 0
-        || !(*ret_to_mmap_string_unref).is_null()
-    {
-        return false;
-    }
-    mime_data = (*mime).mm_data.mm_single;
+    let mime_data = (*mime).mm_data.mm_single;
     if !(*mime).mm_mime_fields.is_null() {
         for cur in (*(*(*mime).mm_mime_fields).fld_list).into_iter() {
             let field = cur as *mut mailmime_field;
@@ -1277,35 +1227,42 @@ pub unsafe fn mailmime_transfer_decode(
         || mime_transfer_encoding == MAILMIME_MECHANISM_8BIT as libc::c_int
         || mime_transfer_encoding == MAILMIME_MECHANISM_BINARY as libc::c_int
     {
-        decoded_data = (*mime_data).dt_data.dt_text.dt_data;
-        decoded_data_bytes = (*mime_data).dt_data.dt_text.dt_length;
+        let decoded_data = (*mime_data).dt_data.dt_text.dt_data;
+        let decoded_data_bytes = (*mime_data).dt_data.dt_text.dt_length;
+
         if decoded_data.is_null() || decoded_data_bytes <= 0 {
-            return false;
+            bail!("No data to decode found");
+        } else {
+            let result = std::slice::from_raw_parts(decoded_data as *const u8, decoded_data_bytes);
+            return Ok(result.to_vec());
         }
-    } else {
-        let mut current_index = 0;
-        let r = mailmime_part_parse(
-            (*mime_data).dt_data.dt_text.dt_data,
-            (*mime_data).dt_data.dt_text.dt_length,
-            &mut current_index,
-            mime_transfer_encoding,
-            &mut transfer_decoding_buffer,
-            &mut decoded_data_bytes,
-        );
-        if r != MAILIMF_NO_ERROR as libc::c_int
-            || transfer_decoding_buffer.is_null()
-            || decoded_data_bytes <= 0
-        {
-            return false;
-        }
-        decoded_data = transfer_decoding_buffer;
     }
 
-    *ret_decoded_data = decoded_data;
-    *ret_decoded_data_bytes = decoded_data_bytes;
-    *ret_to_mmap_string_unref = transfer_decoding_buffer;
+    let mut current_index = 0;
+    let mut transfer_decoding_buffer = ptr::null_mut();
+    let mut decoded_data_bytes = 0;
 
-    true
+    let r = mailmime_part_parse(
+        (*mime_data).dt_data.dt_text.dt_data,
+        (*mime_data).dt_data.dt_text.dt_length,
+        &mut current_index,
+        mime_transfer_encoding,
+        &mut transfer_decoding_buffer,
+        &mut decoded_data_bytes,
+    );
+
+    if r == MAILIMF_NO_ERROR as libc::c_int
+        && !transfer_decoding_buffer.is_null()
+        && decoded_data_bytes > 0
+    {
+        let result =
+            std::slice::from_raw_parts(transfer_decoding_buffer as *const u8, decoded_data_bytes);
+        mmap_string_unref(transfer_decoding_buffer);
+
+        return Ok(result.to_vec());
+    }
+
+    Err(format_err!("Failed to to decode"))
 }
 
 pub unsafe fn mailimf_get_recipients(imffields: *mut mailimf_fields) -> HashSet<String> {

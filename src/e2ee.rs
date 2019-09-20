@@ -1093,25 +1093,8 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         };
         unsafe {
             let msg1 = (*decrypted_mime).mm_data.mm_message.mm_msg_mime;
-            let mut decoded_data = ptr::null();
-            let mut decoded_data_bytes = 0;
-            let mut transfer_decoding_buffer: *mut libc::c_char = ptr::null_mut();
-
-            assert!(mailmime_transfer_decode(
-                msg1,
-                &mut decoded_data,
-                &mut decoded_data_bytes,
-                &mut transfer_decoding_buffer,
-            ));
-            println!(
-                "{:?}",
-                String::from_utf8_lossy(std::slice::from_raw_parts(
-                    decoded_data as *const u8,
-                    decoded_data_bytes as usize,
-                ))
-            );
-
-            free(decoded_data as *mut _);
+            let data = mailmime_transfer_decode(msg1).unwrap();
+            println!("{:?}", String::from_utf8_lossy(&data));
         }
 
         assert_eq!(res, 0);
