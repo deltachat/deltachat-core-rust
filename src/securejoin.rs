@@ -522,7 +522,7 @@ pub fn handle_securejoin_handshake(
                     error!(context, "Chat {} not found.", &field_grpid);
                     return ret;
                 } else {
-                    chat::add_contact_to_chat_ex(context, group_chat_id, contact_id, 0x1i32);
+                    chat::add_contact_to_chat_ex(context, group_chat_id, contact_id, true);
                 }
             } else {
                 send_handshake_msg(context, contact_chat_id, "vc-contact-confirm", "", None, "");

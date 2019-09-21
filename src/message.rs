@@ -1005,14 +1005,14 @@ pub fn mdn_from_ext(
                 read_by_all = true;
             } else {
                 // send event about new state
-                let ist_cnt: i32 = context
+                let ist_cnt = context
                     .sql
-                    .query_get_value(
+                    .query_get_value::<_, isize>(
                         context,
                         "SELECT COUNT(*) FROM msgs_mdns WHERE msg_id=?;",
                         params![*ret_msg_id as i32],
                     )
-                    .unwrap_or_default();
+                    .unwrap_or_default() as usize;
                 /*
                 Groupsize:  Min. MDNs
 
