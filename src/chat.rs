@@ -844,66 +844,81 @@ pub unsafe fn set_draft(context: &Context, chat_id: u32, msg: Option<&mut Messag
     if chat_id <= DC_CHAT_ID_LAST_SPECIAL {
         return;
     }
-    if set_draft_raw(context, chat_id, msg) {
-        context.call_cb(Event::MsgsChanged { chat_id, msg_id: 0 });
+
+    let changed = match msg {
+        None => maybe_delete_draft(context, chat_id),
+        Some(msg) => set_draft_raw(context, chat_id, msg),
     };
+
+    if changed {
+        context.call_cb(Event::MsgsChanged { chat_id, msg_id: 0 });
+    }
+}
+
+/// Delete draft message in specified chat, if there is one.
+///
+/// Return {true}, if message was deleted, {false} otherwise.
+fn maybe_delete_draft(context: &Context, chat_id: u32) -> bool {
+    let draft = get_draft_msg_id(context, chat_id);
+    if draft != 0 {
+        dc_delete_msg_from_db(context, draft);
+        return true;
+    }
+    false
+}
+
+/// Set provided message as draft message for specified chat.
+///
+/// Return true on success, false on database error.
+fn do_set_draft(context: &Context, chat_id: u32, msg: &mut Message) -> bool {
+    match msg.type_0 {
+        Viewtype::Unknown => return false,
+        Viewtype::Text => {
+            if msg.text.as_ref().map_or(false, |s| s.is_empty()) {
+                return false;
+            }
+        }
+        _ => {
+            if let Some(path_filename) = msg.param.get(Param::File) {
+                let mut path_filename = path_filename.to_string();
+                if dc_msg_is_increation(msg) && !dc_is_blobdir_path(context, &path_filename) {
+                    return false;
+                }
+                if !dc_make_rel_and_copy(context, &mut path_filename) {
+                    return false;
+                }
+                msg.param.set(Param::File, path_filename);
+            }
+        }
+    }
+
+    sql::execute(
+        context,
+        &context.sql,
+        "INSERT INTO msgs (chat_id, from_id, timestamp, type, state, txt, param, hidden) \
+         VALUES (?,?,?, ?,?,?,?,?);",
+        params![
+            chat_id as i32,
+            1,
+            time(),
+            msg.type_0,
+            MessageState::OutDraft,
+            msg.text.as_ref().map(String::as_str).unwrap_or(""),
+            msg.param.to_string(),
+            1,
+        ],
+    )
+    .is_ok()
 }
 
 // similar to as dc_set_draft() but does not emit an event
 #[allow(non_snake_case)]
-unsafe fn set_draft_raw(context: &Context, chat_id: u32, mut msg: Option<&mut Message>) -> bool {
-    let mut OK_TO_CONTINUE = true;
+unsafe fn set_draft_raw(context: &Context, chat_id: u32, msg: &mut Message) -> bool {
+    let deleted = maybe_delete_draft(context, chat_id);
+    let set = do_set_draft(context, chat_id, msg);
 
-    let mut sth_changed = false;
-
-    let prev_draft_msg_id = get_draft_msg_id(context, chat_id);
-    if 0 != prev_draft_msg_id {
-        dc_delete_msg_from_db(context, prev_draft_msg_id);
-        sth_changed = true;
-    }
-
-    if let Some(ref mut msg) = msg {
-        // save new draft
-        if msg.type_0 == Viewtype::Text {
-            OK_TO_CONTINUE = msg.text.as_ref().map_or(false, |s| !s.is_empty());
-        } else if msgtype_has_file(msg.type_0) {
-            if let Some(path_filename) = msg.param.get(Param::File) {
-                let mut path_filename = path_filename.to_string();
-                if dc_msg_is_increation(msg) && !dc_is_blobdir_path(context, &path_filename) {
-                    OK_TO_CONTINUE = false;
-                } else if !dc_make_rel_and_copy(context, &mut path_filename) {
-                    OK_TO_CONTINUE = false;
-                } else {
-                    msg.param.set(Param::File, path_filename);
-                }
-            }
-        } else {
-            OK_TO_CONTINUE = false;
-        }
-        if OK_TO_CONTINUE {
-            if sql::execute(
-                context,
-                &context.sql,
-                "INSERT INTO msgs (chat_id, from_id, timestamp, type, state, txt, param, hidden) \
-                 VALUES (?,?,?, ?,?,?,?,?);",
-                params![
-                    chat_id as i32,
-                    1,
-                    time(),
-                    msg.type_0,
-                    MessageState::OutDraft,
-                    msg.text.as_ref().map(String::as_str).unwrap_or(""),
-                    msg.param.to_string(),
-                    1,
-                ],
-            )
-            .is_ok()
-            {
-                sth_changed = true;
-            }
-        }
-    }
-    sth_changed
+    // Can't inline. Both functions above must be called, no shortcut!
+    deleted || set
 }
 
 fn get_draft_msg_id(context: &Context, chat_id: u32) -> u32 {
@@ -1288,7 +1303,7 @@ pub unsafe fn create_group_chat(
         if add_to_chat_contacts_table(context, chat_id, 1) {
             let mut draft_msg = dc_msg_new(Viewtype::Text);
             dc_msg_set_text(&mut draft_msg, draft_txt.as_ptr());
-            set_draft_raw(context, chat_id, Some(&mut draft_msg));
+            set_draft_raw(context, chat_id, &mut draft_msg);
         }
 
         context.call_cb(Event::MsgsChanged {
