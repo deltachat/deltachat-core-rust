@@ -871,27 +871,27 @@ fn maybe_delete_draft(context: &Context, chat_id: u32) -> bool {
 ///
 /// Return true on success, false on database error.
 fn do_set_draft(context: &Context, chat_id: u32, msg: &mut Message) -> bool {
-    let mut OK_TO_CONTINUE = true;
     let mut sth_changed = false;
 
-    // save new draft
-    if msg.type_0 == Viewtype::Text {
-        OK_TO_CONTINUE = msg.text.as_ref().map_or(false, |s| !s.is_empty());
-    } else if msgtype_has_file(msg.type_0) {
+    match msg.type_0 {
+        Viewtype::Unknown => return false,
+        Viewtype::Text => if msg.text.as_ref().map_or(false, |s| s.is_empty()) {
+            return false;
+        },
+        _ =>
         if let Some(path_filename) = msg.param.get(Param::File) {
             let mut path_filename = path_filename.to_string();
             if dc_msg_is_increation(msg) && !dc_is_blobdir_path(context, &path_filename) {
-                OK_TO_CONTINUE = false;
-            } else if !dc_make_rel_and_copy(context, &mut path_filename) {
-                OK_TO_CONTINUE = false;
-            } else {
-                msg.param.set(Param::File, path_filename);
+                return false;
             }
+            if !dc_make_rel_and_copy(context, &mut path_filename) {
+                return false;
+            }
+            msg.param.set(Param::File, path_filename);
         }
-    } else {
-        OK_TO_CONTINUE = false;
     }
-    if OK_TO_CONTINUE {
+
+    {
         if sql::execute(
             context,
             &context.sql,
