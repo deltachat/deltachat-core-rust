@@ -47,7 +47,12 @@ pub unsafe fn dc_split_armored_data(
     if !ret_base64.is_null() {
         *ret_base64 = ptr::null();
     }
-    if !(buf.is_null() || ret_headerline.is_null()) {
+
+    if buf.is_null() || ret_headerline.is_null() {
+        return false;
+    }
+
+    {
         dc_remove_cr_chars(buf);
         while 0 != *p1 {
             if *p1 as libc::c_int == '\n' as i32 {
