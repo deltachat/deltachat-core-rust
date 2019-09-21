@@ -24,8 +24,433 @@ use crate::x::*;
 /// In practice, the user additionally cuts the string himself pixel-accurate.
 const SUMMARY_CHARACTERS: usize = 160;
 
-#[repr(i32)]
+/// An object representing a single message in memory.
+/// The message object is not updated.
+/// If you want an update, you have to recreate the object.
+///
+/// to check if a mail was sent, use dc_msg_is_sent()
+/// approx. max. length returned by dc_msg_get_text()
+/// approx. max. length returned by dc_get_msg_info()
+#[derive(Debug, Clone, Default)]
+pub struct Message {
+    pub(crate) id: u32,
+    pub(crate) from_id: u32,
+    pub(crate) to_id: u32,
+    pub(crate) chat_id: u32,
+    pub(crate) move_state: MoveState,
+    pub(crate) type_0: Viewtype,
+    pub(crate) state: MessageState,
+    pub(crate) hidden: bool,
+    pub(crate) timestamp_sort: i64,
+    pub(crate) timestamp_sent: i64,
+    pub(crate) timestamp_rcvd: i64,
+    pub(crate) text: Option<String>,
+    pub(crate) rfc724_mid: String,
+    pub(crate) in_reply_to: Option<String>,
+    pub(crate) server_folder: Option<String>,
+    pub(crate) server_uid: u32,
+    // TODO: enum
+    pub(crate) is_dc_message: u32,
+    pub(crate) starred: bool,
+    pub(crate) chat_blocked: Blocked,
+    pub(crate) location_id: u32,
+    pub(crate) param: Params,
+}
+
+impl Message {
+    pub fn new(viewtype: Viewtype) -> Self {
+        let mut msg = Message::default();
+        msg.type_0 = viewtype;
+
+        msg
+    }
+
+    pub fn load_from_db(context: &Context, id: u32) -> Result<Message, Error> {
+        context.sql.query_row(
+        "SELECT  \
+         m.id,rfc724_mid,m.mime_in_reply_to,m.server_folder,m.server_uid,m.move_state,m.chat_id,  \
+         m.from_id,m.to_id,m.timestamp,m.timestamp_sent,m.timestamp_rcvd, m.type,m.state,m.msgrmsg,m.txt,  \
+         m.param,m.starred,m.hidden,m.location_id, c.blocked  \
+         FROM msgs m \
+         LEFT JOIN chats c ON c.id=m.chat_id WHERE m.id=?;",
+        params![id as i32],
+        |row| {
+            let mut msg = Message::default();
+            msg.id = row.get::<_, i32>(0)? as u32;
+            msg.rfc724_mid = row.get::<_, String>(1)?;
+            msg.in_reply_to = row.get::<_, Option<String>>(2)?;
+            msg.server_folder = row.get::<_, Option<String>>(3)?;
+            msg.server_uid = row.get(4)?;
+            msg.move_state = row.get(5)?;
+            msg.chat_id = row.get(6)?;
+            msg.from_id = row.get(7)?;
+            msg.to_id = row.get(8)?;
+            msg.timestamp_sort = row.get(9)?;
+            msg.timestamp_sent = row.get(10)?;
+            msg.timestamp_rcvd = row.get(11)?;
+            msg.type_0 = row.get(12)?;
+            msg.state = row.get(13)?;
+            msg.is_dc_message = row.get(14)?;
+
+            let text;
+            if let rusqlite::types::ValueRef::Text(buf) = row.get_raw(15) {
+                if let Ok(t) = String::from_utf8(buf.to_vec()) {
+                    text = t;
+                } else {
+                    warn!(context, "dc_msg_load_from_db: could not get text column as non-lossy utf8 id {}", id);
+                    text = String::from_utf8_lossy(buf).into_owned();
+                }
+            } else {
+                text = "".to_string();
+            }
+            msg.text = Some(text);
+
+            msg.param = row.get::<_, String>(16)?.parse().unwrap_or_default();
+            msg.starred = row.get(17)?;
+            msg.hidden = row.get(18)?;
+            msg.location_id = row.get(19)?;
+            msg.chat_blocked = row.get::<_, Option<Blocked>>(20)?.unwrap_or_default();
+            if msg.chat_blocked == Blocked::Deaddrop {
+                if let Some(ref text) = msg.text {
+                    unsafe {
+                        let ptr = text.strdup();
+
+                        dc_truncate_n_unwrap_str(ptr, 256, 0);
+
+                        msg.text = Some(to_string(ptr));
+                        free(ptr.cast());
+                    }
+                }
+            };
+            Ok(msg)
+        })
+    }
+
+    pub fn delete_from_db(context: &Context, msg_id: u32) {
+        if let Ok(msg) = Message::load_from_db(context, msg_id) {
+            sql::execute(
+                context,
+                &context.sql,
+                "DELETE FROM msgs WHERE id=?;",
+                params![msg.id as i32],
+            )
+            .ok();
+            sql::execute(
+                context,
+                &context.sql,
+                "DELETE FROM msgs_mdns WHERE msg_id=?;",
+                params![msg.id as i32],
+            )
+            .ok();
+        }
+    }
+
+    pub fn get_filemime(&self) -> String {
+        if let Some(m) = self.param.get(Param::MimeType) {
+            return m.to_string();
+        } else if let Some(file) = self.param.get(Param::File) {
+            if let Some((_, mime)) = guess_msgtype_from_suffix(Path::new(file)) {
+                return mime.to_string();
+            }
+        }
+
+        "application/octet-stream".to_string()
+    }
+
+    pub fn get_file(&self, context: &Context) -> Option<PathBuf> {
+        self.param
+            .get(Param::File)
+            .map(|f| dc_get_abs_path(context, f))
+    }
+
+    /// Check if a message has a location bound to it.
+    /// These messages are also returned by dc_get_locations()
+    /// and the UI may decide to display a special icon beside such messages,
+    ///
+    /// @memberof Message
+    /// @param msg The message object.
+    /// @return 1=Message has location bound to it, 0=No location bound to message.
+    pub fn has_location(&self) -> bool {
+        self.location_id != 0
+    }
+
+    /// Set any location that should be bound to the message object.
+    /// The function is useful to add a marker to the map
+    /// at a position different from the self-location.
+    /// You should not call this function
+    /// if you want to bind the current self-location to a message;
+    /// this is done by dc_set_location() and dc_send_locations_to_chat().
+    ///
+    /// Typically results in the event #DC_EVENT_LOCATION_CHANGED with
+    /// contact_id set to DC_CONTACT_ID_SELF.
+    ///
+    /// @param latitude North-south position of the location.
+    /// @param longitude East-west position of the location.
+    pub fn set_location(&mut self, latitude: f64, longitude: f64) {
+        if latitude == 0.0 && longitude == 0.0 {
+            return;
+        }
+
+        self.param.set_float(Param::SetLatitude, latitude);
+        self.param.set_float(Param::SetLongitude, longitude);
+    }
+
+    pub fn get_timestamp(&self) -> i64 {
+        if 0 != self.timestamp_sent {
+            self.timestamp_sent
+        } else {
+            self.timestamp_sort
+        }
+    }
+
+    pub fn get_id(&self) -> u32 {
+        self.id
+    }
+
+    pub fn get_from_id(&self) -> u32 {
+        self.from_id
+    }
+
+    pub fn get_chat_id(&self) -> u32 {
+        if self.chat_blocked != Blocked::Not {
+            1
+        } else {
+            self.chat_id
+        }
+    }
+
+    pub fn get_viewtype(&self) -> Viewtype {
+        self.type_0
+    }
+
+    pub fn get_state(&self) -> MessageState {
+        self.state
+    }
+
+    pub fn get_received_timestamp(&self) -> i64 {
+        self.timestamp_rcvd
+    }
+
+    pub fn get_sort_timestamp(&self) -> i64 {
+        self.timestamp_sort
+    }
+
+    pub unsafe fn get_text(&self) -> *mut libc::c_char {
+        if let Some(ref text) = self.text {
+            dc_truncate(text, 30000, false).strdup()
+        } else {
+            ptr::null_mut()
+        }
+    }
+
+    #[allow(non_snake_case)]
+    pub unsafe fn get_filename(&self) -> *mut libc::c_char {
+        let mut ret = ptr::null_mut();
+
+        if let Some(file) = self.param.get(Param::File) {
+            ret = dc_get_filename(file);
+        }
+        if !ret.is_null() {
+            ret
+        } else {
+            dc_strdup(0 as *const libc::c_char)
+        }
+    }
+
+    pub fn get_filebytes(&self, context: &Context) -> u64 {
+        if let Some(file) = self.param.get(Param::File) {
+            return dc_get_filebytes(context, &file);
+        }
+        0
+    }
+
+    pub fn get_width(&self) -> libc::c_int {
+        self.param.get_int(Param::Width).unwrap_or_default()
+    }
+
+    pub fn get_height(&self) -> libc::c_int {
+        self.param.get_int(Param::Height).unwrap_or_default()
+    }
+
+    pub fn get_duration(&self) -> libc::c_int {
+        self.param.get_int(Param::Duration).unwrap_or_default()
+    }
+
+    pub fn get_showpadlock(&self) -> bool {
+        self.param.get_int(Param::GuranteeE2ee).unwrap_or_default() != 0
+    }
+
+    pub fn get_summary(&mut self, context: &Context, chat: Option<&Chat>) -> Lot {
+        let mut ret = Lot::new();
+
+        let chat_loaded: Chat;
+        let chat = if let Some(chat) = chat {
+            chat
+        } else {
+            if let Ok(chat) = Chat::load_from_db(context, self.chat_id) {
+                chat_loaded = chat;
+                &chat_loaded
+            } else {
+                return ret;
+            }
+        };
+
+        let contact = if self.from_id != DC_CONTACT_ID_SELF as libc::c_uint
+            && ((*chat).typ == Chattype::Group || (*chat).typ == Chattype::VerifiedGroup)
+        {
+            Contact::get_by_id(context, self.from_id).ok()
+        } else {
+            None
+        };
+
+        ret.fill(self, chat, contact.as_ref(), context);
+
+        ret
+    }
+
+    pub unsafe fn get_summarytext(
+        &mut self,
+        context: &Context,
+        approx_characters: usize,
+    ) -> *mut libc::c_char {
+        get_summarytext_by_raw(
+            self.type_0,
+            self.text.as_ref(),
+            &mut self.param,
+            approx_characters,
+            context,
+        )
+        .strdup()
+    }
+
+    pub unsafe fn has_deviating_timestamp(&self) -> libc::c_int {
+        let cnv_to_local = dc_gm2local_offset();
+        let sort_timestamp = self.get_sort_timestamp() as i64 + cnv_to_local;
+        let send_timestamp = self.get_timestamp() as i64 + cnv_to_local;
+
+        (sort_timestamp / 86400 != send_timestamp / 86400) as libc::c_int
+    }
+
+    pub fn is_sent(&self) -> bool {
+        self.state as i32 >= MessageState::OutDelivered as i32
+    }
+
+    pub fn is_starred(&self) -> bool {
+        self.starred
+    }
+
+    pub fn is_forwarded(&self) -> bool {
+        0 != self.param.get_int(Param::Forwarded).unwrap_or_default()
+    }
+
+    pub fn is_info(&self) -> bool {
+        let cmd = self.param.get_cmd();
+        self.from_id == 2i32 as libc::c_uint
+            || self.to_id == 2i32 as libc::c_uint
+            || cmd != SystemMessage::Unknown && cmd != SystemMessage::AutocryptSetupMessage
+    }
+
+    pub fn is_increation(&self) -> bool {
+        chat::msgtype_has_file(self.type_0) && self.state == MessageState::OutPreparing
+    }
+
+    pub fn is_setupmessage(&self) -> bool {
+        if self.type_0 != Viewtype::File {
+            return false;
+        }
+
+        self.param.get_cmd() == SystemMessage::AutocryptSetupMessage
+    }
+
+    pub unsafe fn get_setupcodebegin(&self, context: &Context) -> *mut libc::c_char {
+        // just a pointer inside buf, MUST NOT be free()'d
+        let mut buf_headerline: *const libc::c_char = ptr::null();
+        // just a pointer inside buf, MUST NOT be free()'d
+        let mut buf_setupcodebegin: *const libc::c_char = ptr::null();
+        let mut ret: *mut libc::c_char = ptr::null_mut();
+        if self.is_setupmessage() {
+            if let Some(filename) = self.get_file(context) {
+                if let Some(mut buf) = dc_read_file_safe(context, filename) {
+                    if dc_split_armored_data(
+                        buf.as_mut_ptr().cast(),
+                        &mut buf_headerline,
+                        &mut buf_setupcodebegin,
+                        ptr::null_mut(),
+                        ptr::null_mut(),
+                    ) && strcmp(
+                        buf_headerline,
+                        b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
+                    ) == 0
+                        && !buf_setupcodebegin.is_null()
+                    {
+                        ret = dc_strdup(buf_setupcodebegin)
+                    }
+                }
+            }
+        }
+        if !ret.is_null() {
+            ret
+        } else {
+            dc_strdup(0 as *const libc::c_char)
+        }
+    }
+
+    pub fn set_text(&mut self, text: *const libc::c_char) {
+        self.text = if text.is_null() {
+            None
+        } else {
+            Some(to_string(text))
+        };
+    }
+
+    pub fn set_file(&mut self, file: *const libc::c_char, filemime: *const libc::c_char) {
+        if !file.is_null() {
+            self.param.set(Param::File, as_str(file));
+        }
+        if !filemime.is_null() {
+            self.param.set(Param::MimeType, as_str(filemime));
+        }
+    }
+
+    pub fn set_dimension(&mut self, width: libc::c_int, height: libc::c_int) {
+        self.param.set_int(Param::Width, width);
+        self.param.set_int(Param::Height, height);
+    }
+
+    pub fn set_duration(&mut self, duration: libc::c_int) {
+        self.param.set_int(Param::Duration, duration);
+    }
+
+    pub fn latefiling_mediasize(
+        &mut self,
+        context: &Context,
+        width: libc::c_int,
+        height: libc::c_int,
+        duration: libc::c_int,
+    ) {
+        if width > 0 && height > 0 {
+            self.param.set_int(Param::Width, width);
+            self.param.set_int(Param::Height, height);
+        }
+        if duration > 0 {
+            self.param.set_int(Param::Duration, duration);
+        }
+        self.save_param_to_disk(context);
+    }
+
+    pub fn save_param_to_disk(&mut self, context: &Context) -> bool {
+        sql::execute(
+            context,
+            &context.sql,
+            "UPDATE msgs SET param=? WHERE id=?;",
+            params![self.param.to_string(), self.id as i32],
+        )
+        .is_ok()
+    }
+}
+
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql)]
+#[repr(i32)]
 pub enum MessageState {
     Undefined = 0,
     InFresh = 10,
@@ -88,7 +513,7 @@ impl Lot {
             self.text1 = Some(context.stock_str(StockMessage::Draft).to_owned().into());
             self.text1_meaning = Meaning::Text1Draft;
         } else if msg.from_id == DC_CONTACT_ID_SELF {
-            if dc_msg_is_info(msg) || chat.is_self_talk() {
+            if msg.is_info() || chat.is_self_talk() {
                 self.text1 = None;
                 self.text1_meaning = Meaning::None;
             } else {
@@ -96,7 +521,7 @@ impl Lot {
                 self.text1_meaning = Meaning::Text1Self;
             }
         } else if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
-            if dc_msg_is_info(msg) || contact.is_none() {
+            if msg.is_info() || contact.is_none() {
                 self.text1 = None;
                 self.text1_meaning = Meaning::None;
             } else {
@@ -117,7 +542,7 @@ impl Lot {
             }
         }
 
-        self.text2 = Some(dc_msg_get_summarytext_by_raw(
+        self.text2 = Some(get_summarytext_by_raw(
             msg.type_0,
             msg.text.as_ref(),
             &mut msg.param,
@@ -125,49 +550,15 @@ impl Lot {
             context,
         ));
 
-        self.timestamp = dc_msg_get_timestamp(msg);
+        self.timestamp = msg.get_timestamp();
         self.state = msg.state.into();
     }
 }
 
-/// An object representing a single message in memory.
-/// The message object is not updated.
-/// If you want an update, you have to recreate the object.
-///
-/// to check if a mail was sent, use dc_msg_is_sent()
-/// approx. max. length returned by dc_msg_get_text()
-/// approx. max. length returned by dc_get_msg_info()
-#[derive(Debug, Clone)]
-pub struct Message {
-    pub id: u32,
-    pub from_id: u32,
-    pub to_id: u32,
-    pub chat_id: u32,
-    pub move_state: MoveState,
-    pub type_0: Viewtype,
-    pub state: MessageState,
-    pub hidden: bool,
-    pub timestamp_sort: i64,
-    pub timestamp_sent: i64,
-    pub timestamp_rcvd: i64,
-    pub text: Option<String>,
-    pub rfc724_mid: String,
-    pub in_reply_to: Option<String>,
-    pub server_folder: Option<String>,
-    pub server_uid: u32,
-    // TODO: enum
-    pub is_dc_message: u32,
-    pub starred: bool,
-    pub chat_blocked: Blocked,
-    pub location_id: u32,
-    pub param: Params,
-}
-
-// handle messages
-pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_char {
+pub unsafe fn get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_char {
     let mut ret = String::new();
 
-    let msg = dc_msg_load_from_db(context, msg_id);
+    let msg = Message::load_from_db(context, msg_id);
     if msg.is_err() {
         return ptr::null_mut();
     }
@@ -187,7 +578,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
     let rawtxt = rawtxt.unwrap();
     let rawtxt = dc_truncate(rawtxt.trim(), 100000, false);
 
-    let fts = dc_timestamp_to_str(dc_msg_get_timestamp(&msg));
+    let fts = dc_timestamp_to_str(msg.get_timestamp());
     ret += &format!("Sent: {}", fts);
 
     let name = Contact::load_from_db(context, msg.from_id)
@@ -249,7 +640,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
         _ => ret += &format!("{}", msg.state),
     }
 
-    if dc_msg_has_location(&msg) {
+    if msg.has_location() {
         ret += ", Location sent";
     }
 
@@ -269,7 +660,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
         _ => {}
     }
 
-    if let Some(path) = dc_msg_get_file(context, &msg) {
+    if let Some(path) = msg.get_file(context) {
         let bytes = dc_get_filebytes(context, &path);
         ret += &format!("\nFile: {}, {}, bytes\n", path.display(), bytes);
     }
@@ -278,7 +669,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
         ret += "Type: ";
         ret += &format!("{}", msg.type_0);
         ret += "\n";
-        ret += &format!("Mimetype: {}\n", &dc_msg_get_filemime(&msg));
+        ret += &format!("Mimetype: {}\n", &msg.get_filemime());
     }
     let w = msg.param.get_int(Param::Width).unwrap_or_default();
     let h = msg.param.get_int(Param::Height).unwrap_or_default();
@@ -304,49 +695,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
     ret.strdup()
 }
 
-pub fn dc_msg_new_untyped() -> Message {
-    dc_msg_new(Viewtype::Unknown)
-}
-
-pub fn dc_msg_new(viewtype: Viewtype) -> Message {
-    Message {
-        id: 0,
-        from_id: 0,
-        to_id: 0,
-        chat_id: 0,
-        move_state: MoveState::Undefined,
-        type_0: viewtype,
-        state: MessageState::Undefined,
-        hidden: false,
-        timestamp_sort: 0,
-        timestamp_sent: 0,
-        timestamp_rcvd: 0,
-        text: None,
-        rfc724_mid: String::default(),
-        in_reply_to: None,
-        server_folder: None,
-        server_uid: 0,
-        is_dc_message: 0,
-        starred: false,
-        chat_blocked: Blocked::Not,
-        location_id: 0,
-        param: Params::new(),
-    }
-}
-
-pub fn dc_msg_get_filemime(msg: &Message) -> String {
-    if let Some(m) = msg.param.get(Param::MimeType) {
-        return m.to_string();
-    } else if let Some(file) = msg.param.get(Param::File) {
-        if let Some((_, mime)) = dc_msg_guess_msgtype_from_suffix(Path::new(file)) {
-            return mime.to_string();
-        }
-    }
-
-    "application/octet-stream".to_string()
-}
-
-pub fn dc_msg_guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
+pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
     static KNOWN: phf::Map<&'static str, (Viewtype, &'static str)> = phf_map! {
         "mp3"   => (Viewtype::Audio, "audio/mpeg"),
         "aac"   => (Viewtype::Audio, "audio/aac"),
@@ -364,121 +713,7 @@ pub fn dc_msg_guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)>
     KNOWN.get(extension).map(|x| *x)
 }
 
-pub unsafe fn dc_msg_get_file(context: &Context, msg: &Message) -> Option<PathBuf> {
-    msg.param
-        .get(Param::File)
-        .map(|f| dc_get_abs_path(context, f))
-}
-
-/**
- * Check if a message has a location bound to it.
- * These messages are also returned by dc_get_locations()
- * and the UI may decide to display a special icon beside such messages,
- *
- * @memberof Message
- * @param msg The message object.
- * @return 1=Message has location bound to it, 0=No location bound to message.
- */
-pub fn dc_msg_has_location(msg: &Message) -> bool {
-    msg.location_id != 0
-}
-
-/**
- * Set any location that should be bound to the message object.
- * The function is useful to add a marker to the map
- * at a position different from the self-location.
- * You should not call this function
- * if you want to bind the current self-location to a message;
- * this is done by dc_set_location() and dc_send_locations_to_chat().
- *
- * Typically results in the event #DC_EVENT_LOCATION_CHANGED with
- * contact_id set to DC_CONTACT_ID_SELF.
- *
- * @memberof Message
- * @param msg The message object.
- * @param latitude North-south position of the location.
- * @param longitude East-west position of the location.
- * @return None.
- */
-pub fn dc_msg_set_location(msg: &mut Message, latitude: libc::c_double, longitude: libc::c_double) {
-    if latitude == 0.0 && longitude == 0.0 {
-        return;
-    }
-
-    msg.param.set_float(Param::SetLatitude, latitude);
-    msg.param.set_float(Param::SetLongitude, longitude);
-}
-
-pub fn dc_msg_get_timestamp(msg: &Message) -> i64 {
-    if 0 != msg.timestamp_sent {
-        msg.timestamp_sent
-    } else {
-        msg.timestamp_sort
-    }
-}
-
-pub fn dc_msg_load_from_db(context: &Context, id: u32) -> Result<Message, Error> {
-    context.sql.query_row(
-        "SELECT  \
-         m.id,rfc724_mid,m.mime_in_reply_to,m.server_folder,m.server_uid,m.move_state,m.chat_id,  \
-         m.from_id,m.to_id,m.timestamp,m.timestamp_sent,m.timestamp_rcvd, m.type,m.state,m.msgrmsg,m.txt,  \
-         m.param,m.starred,m.hidden,m.location_id, c.blocked  \
-         FROM msgs m \
-         LEFT JOIN chats c ON c.id=m.chat_id WHERE m.id=?;",
-        params![id as i32],
-        |row| {
-            unsafe {
-                let mut msg = dc_msg_new_untyped();
-                msg.id = row.get::<_, i32>(0)? as u32;
-                msg.rfc724_mid = row.get::<_, String>(1)?;
-                msg.in_reply_to = row.get::<_, Option<String>>(2)?;
-                msg.server_folder = row.get::<_, Option<String>>(3)?;
-                msg.server_uid = row.get(4)?;
-                msg.move_state = row.get(5)?;
-                msg.chat_id = row.get(6)?;
-                msg.from_id = row.get(7)?;
-                msg.to_id = row.get(8)?;
-                msg.timestamp_sort = row.get(9)?;
-                msg.timestamp_sent = row.get(10)?;
-                msg.timestamp_rcvd = row.get(11)?;
-                msg.type_0 = row.get(12)?;
-                msg.state = row.get(13)?;
-                msg.is_dc_message = row.get(14)?;
-
-                let text;
-                if let rusqlite::types::ValueRef::Text(buf) = row.get_raw(15) {
-                    if let Ok(t) = String::from_utf8(buf.to_vec()) {
-                        text = t;
-                    } else {
-                        warn!(context, "dc_msg_load_from_db: could not get text column as non-lossy utf8 id {}", id);
-                        text = String::from_utf8_lossy(buf).into_owned();
-                    }
-                } else {
-                    text = "".to_string();
-                }
-                msg.text = Some(text);
-
-                msg.param = row.get::<_, String>(16)?.parse().unwrap_or_default();
-                msg.starred = row.get(17)?;
-                msg.hidden = row.get(18)?;
-                msg.location_id = row.get(19)?;
-                msg.chat_blocked = row.get::<_, Option<Blocked>>(20)?.unwrap_or_default();
-                if msg.chat_blocked == Blocked::Deaddrop {
-                    if let Some(ref text) = msg.text {
-                        let ptr = text.strdup();
-
-                        dc_truncate_n_unwrap_str(ptr, 256, 0);
-
-                        msg.text = Some(to_string(ptr));
-                        free(ptr.cast());
-                    }
-                };
-                Ok(msg)
-            }
-        })
-}
-
-pub unsafe fn dc_get_mime_headers(context: &Context, msg_id: u32) -> *mut libc::c_char {
+pub unsafe fn get_mime_headers(context: &Context, msg_id: u32) -> *mut libc::c_char {
     let headers: Option<String> = context.sql.query_get_value(
         context,
         "SELECT mime_headers FROM msgs WHERE id=?;",
@@ -493,13 +728,13 @@ pub unsafe fn dc_get_mime_headers(context: &Context, msg_id: u32) -> *mut libc::
     }
 }
 
-pub unsafe fn dc_delete_msgs(context: &Context, msg_ids: *const u32, msg_cnt: libc::c_int) {
+pub unsafe fn delete_msgs(context: &Context, msg_ids: *const u32, msg_cnt: libc::c_int) {
     if msg_ids.is_null() || msg_cnt <= 0i32 {
         return;
     }
     let mut i: libc::c_int = 0i32;
     while i < msg_cnt {
-        dc_update_msg_chat_id(context, *msg_ids.offset(i as isize), 3i32 as u32);
+        update_msg_chat_id(context, *msg_ids.offset(i as isize), 3i32 as u32);
         job_add(
             context,
             Action::DeleteMsgOnImap,
@@ -520,7 +755,7 @@ pub unsafe fn dc_delete_msgs(context: &Context, msg_ids: *const u32, msg_cnt: li
     };
 }
 
-fn dc_update_msg_chat_id(context: &Context, msg_id: u32, chat_id: u32) -> bool {
+fn update_msg_chat_id(context: &Context, msg_id: u32, chat_id: u32) -> bool {
     sql::execute(
         context,
         &context.sql,
@@ -530,7 +765,7 @@ fn dc_update_msg_chat_id(context: &Context, msg_id: u32, chat_id: u32) -> bool {
     .is_ok()
 }
 
-pub fn dc_markseen_msgs(context: &Context, msg_ids: *const u32, msg_cnt: usize) -> bool {
+pub fn markseen_msgs(context: &Context, msg_ids: *const u32, msg_cnt: usize) -> bool {
     if msg_ids.is_null() || msg_cnt <= 0 {
         return false;
     }
@@ -563,7 +798,7 @@ pub fn dc_markseen_msgs(context: &Context, msg_ids: *const u32, msg_cnt: usize) 
     for (id, curr_state, curr_blocked) in msgs.into_iter() {
         if curr_blocked == Blocked::Not {
             if curr_state == MessageState::InFresh || curr_state == MessageState::InNoticed {
-                dc_update_msg_state(context, id, MessageState::InSeen);
+                update_msg_state(context, id, MessageState::InSeen);
                 info!(context, "Seen message #{}.", id);
 
                 job_add(
@@ -576,7 +811,7 @@ pub fn dc_markseen_msgs(context: &Context, msg_ids: *const u32, msg_cnt: usize) 
                 send_event = true;
             }
         } else if curr_state == MessageState::InFresh {
-            dc_update_msg_state(context, id, MessageState::InNoticed);
+            update_msg_state(context, id, MessageState::InNoticed);
             send_event = true;
         }
     }
@@ -591,7 +826,7 @@ pub fn dc_markseen_msgs(context: &Context, msg_ids: *const u32, msg_cnt: usize) 
     true
 }
 
-pub fn dc_update_msg_state(context: &Context, msg_id: u32, state: MessageState) -> bool {
+pub fn update_msg_state(context: &Context, msg_id: u32, state: MessageState) -> bool {
     sql::execute(
         context,
         &context.sql,
@@ -601,7 +836,7 @@ pub fn dc_update_msg_state(context: &Context, msg_id: u32, state: MessageState) 
     .is_ok()
 }
 
-pub fn dc_star_msgs(
+pub fn star_msgs(
     context: &Context,
     msg_ids: *const u32,
     msg_cnt: libc::c_int,
@@ -621,132 +856,8 @@ pub fn dc_star_msgs(
         .is_ok()
 }
 
-pub fn dc_get_msg(context: &Context, msg_id: u32) -> Result<Message, Error> {
-    dc_msg_load_from_db(context, msg_id)
-}
-
-pub fn dc_msg_get_id(msg: &Message) -> u32 {
-    msg.id
-}
-
-pub fn dc_msg_get_from_id(msg: &Message) -> u32 {
-    msg.from_id
-}
-
-pub fn dc_msg_get_chat_id(msg: &Message) -> u32 {
-    if msg.chat_blocked != Blocked::Not {
-        1
-    } else {
-        msg.chat_id
-    }
-}
-
-pub fn dc_msg_get_viewtype(msg: &Message) -> Viewtype {
-    msg.type_0
-}
-
-pub fn dc_msg_get_state(msg: &Message) -> MessageState {
-    msg.state
-}
-
-pub fn dc_msg_get_received_timestamp(msg: &Message) -> i64 {
-    msg.timestamp_rcvd
-}
-
-pub fn dc_msg_get_sort_timestamp(msg: &Message) -> i64 {
-    msg.timestamp_sort
-}
-
-pub unsafe fn dc_msg_get_text(msg: &Message) -> *mut libc::c_char {
-    if let Some(ref text) = msg.text {
-        dc_truncate(text, 30000, false).strdup()
-    } else {
-        ptr::null_mut()
-    }
-}
-
-#[allow(non_snake_case)]
-pub unsafe fn dc_msg_get_filename(msg: &Message) -> *mut libc::c_char {
-    let mut ret = ptr::null_mut();
-
-    if let Some(file) = msg.param.get(Param::File) {
-        ret = dc_get_filename(file);
-    }
-    if !ret.is_null() {
-        ret
-    } else {
-        dc_strdup(0 as *const libc::c_char)
-    }
-}
-
-pub fn dc_msg_get_filebytes(context: &Context, msg: &Message) -> u64 {
-    if let Some(file) = msg.param.get(Param::File) {
-        return dc_get_filebytes(context, &file);
-    }
-    0
-}
-
-pub fn dc_msg_get_width(msg: &Message) -> libc::c_int {
-    msg.param.get_int(Param::Width).unwrap_or_default()
-}
-
-pub fn dc_msg_get_height(msg: &Message) -> libc::c_int {
-    msg.param.get_int(Param::Height).unwrap_or_default()
-}
-
-pub fn dc_msg_get_duration(msg: &Message) -> libc::c_int {
-    msg.param.get_int(Param::Duration).unwrap_or_default()
-}
-
-pub fn dc_msg_get_showpadlock(msg: &Message) -> bool {
-    msg.param.get_int(Param::GuranteeE2ee).unwrap_or_default() != 0
-}
-
-pub fn dc_msg_get_summary(context: &Context, msg: &mut Message, chat: Option<&Chat>) -> Lot {
-    let mut ret = Lot::new();
-
-    let chat_loaded: Chat;
-    let chat = if let Some(chat) = chat {
-        chat
-    } else {
-        if let Ok(chat) = Chat::load_from_db(context, msg.chat_id) {
-            chat_loaded = chat;
-            &chat_loaded
-        } else {
-            return ret;
-        }
-    };
-
-    let contact = if msg.from_id != DC_CONTACT_ID_SELF as libc::c_uint
-        && ((*chat).typ == Chattype::Group || (*chat).typ == Chattype::VerifiedGroup)
-    {
-        Contact::get_by_id(context, msg.from_id).ok()
-    } else {
-        None
-    };
-
-    ret.fill(msg, chat, contact.as_ref(), context);
-
-    ret
-}
-
-pub unsafe fn dc_msg_get_summarytext(
-    context: &Context,
-    msg: &mut Message,
-    approx_characters: usize,
-) -> *mut libc::c_char {
-    dc_msg_get_summarytext_by_raw(
-        msg.type_0,
-        msg.text.as_ref(),
-        &mut msg.param,
-        approx_characters,
-        context,
-    )
-    .strdup()
-}
-
 /// Returns a summary test.
-pub fn dc_msg_get_summarytext_by_raw(
+pub fn get_summarytext_by_raw(
     viewtype: Viewtype,
     text: Option<impl AsRef<str>>,
     param: &mut Params,
@@ -811,166 +922,14 @@ pub fn dc_msg_get_summarytext_by_raw(
     }
 }
 
-pub unsafe fn dc_msg_has_deviating_timestamp(msg: &Message) -> libc::c_int {
-    let cnv_to_local = dc_gm2local_offset();
-    let sort_timestamp = dc_msg_get_sort_timestamp(msg) as i64 + cnv_to_local;
-    let send_timestamp = dc_msg_get_timestamp(msg) as i64 + cnv_to_local;
-
-    (sort_timestamp / 86400 != send_timestamp / 86400) as libc::c_int
-}
-
-pub fn dc_msg_is_sent(msg: &Message) -> bool {
-    msg.state as i32 >= MessageState::OutDelivered as i32
-}
-
-pub fn dc_msg_is_starred(msg: &Message) -> bool {
-    msg.starred
-}
-
-pub fn dc_msg_is_forwarded(msg: &Message) -> bool {
-    0 != msg.param.get_int(Param::Forwarded).unwrap_or_default()
-}
-
-pub fn dc_msg_is_info(msg: &Message) -> bool {
-    let cmd = msg.param.get_cmd();
-    msg.from_id == 2i32 as libc::c_uint
-        || msg.to_id == 2i32 as libc::c_uint
-        || cmd != SystemMessage::Unknown && cmd != SystemMessage::AutocryptSetupMessage
-}
-
-pub fn dc_msg_is_increation(msg: &Message) -> bool {
-    chat::msgtype_has_file(msg.type_0) && msg.state == MessageState::OutPreparing
-}
-
-pub fn dc_msg_is_setupmessage(msg: &Message) -> bool {
-    if msg.type_0 != Viewtype::File {
-        return false;
-    }
-
-    msg.param.get_cmd() == SystemMessage::AutocryptSetupMessage
-}
-
-pub unsafe fn dc_msg_get_setupcodebegin(context: &Context, msg: &Message) -> *mut libc::c_char {
-    // just a pointer inside buf, MUST NOT be free()'d
-    let mut buf_headerline: *const libc::c_char = ptr::null();
-    // just a pointer inside buf, MUST NOT be free()'d
-    let mut buf_setupcodebegin: *const libc::c_char = ptr::null();
-    let mut ret: *mut libc::c_char = ptr::null_mut();
-    if dc_msg_is_setupmessage(msg) {
-        if let Some(filename) = dc_msg_get_file(context, msg) {
-            if let Some(mut buf) = dc_read_file_safe(context, filename) {
-                if dc_split_armored_data(
-                    buf.as_mut_ptr().cast(),
-                    &mut buf_headerline,
-                    &mut buf_setupcodebegin,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                ) && strcmp(
-                    buf_headerline,
-                    b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-                ) == 0
-                    && !buf_setupcodebegin.is_null()
-                {
-                    ret = dc_strdup(buf_setupcodebegin)
-                }
-            }
-        }
-    }
-    if !ret.is_null() {
-        ret
-    } else {
-        dc_strdup(0 as *const libc::c_char)
-    }
-}
-
-pub fn dc_msg_set_text(msg: &mut Message, text: *const libc::c_char) {
-    msg.text = if text.is_null() {
-        None
-    } else {
-        Some(to_string(text))
-    };
-}
-
-pub fn dc_msg_set_file(
-    msg: &mut Message,
-    file: *const libc::c_char,
-    filemime: *const libc::c_char,
-) {
-    if !file.is_null() {
-        msg.param.set(Param::File, as_str(file));
-    }
-    if !filemime.is_null() {
-        msg.param.set(Param::MimeType, as_str(filemime));
-    }
-}
-
-pub fn dc_msg_set_dimension(msg: &mut Message, width: libc::c_int, height: libc::c_int) {
-    msg.param.set_int(Param::Width, width);
-    msg.param.set_int(Param::Height, height);
-}
-
-pub fn dc_msg_set_duration(msg: &mut Message, duration: libc::c_int) {
-    msg.param.set_int(Param::Duration, duration);
-}
-
-pub fn dc_msg_latefiling_mediasize(
-    context: &Context,
-    msg: &mut Message,
-    width: libc::c_int,
-    height: libc::c_int,
-    duration: libc::c_int,
-) {
-    if width > 0 && height > 0 {
-        msg.param.set_int(Param::Width, width);
-        msg.param.set_int(Param::Height, height);
-    }
-    if duration > 0 {
-        msg.param.set_int(Param::Duration, duration);
-    }
-    dc_msg_save_param_to_disk(context, msg);
-}
-
-pub fn dc_msg_save_param_to_disk(context: &Context, msg: &mut Message) -> bool {
-    sql::execute(
-        context,
-        &context.sql,
-        "UPDATE msgs SET param=? WHERE id=?;",
-        params![msg.param.to_string(), msg.id as i32],
-    )
-    .is_ok()
-}
-
-pub fn dc_msg_new_load(context: &Context, msg_id: u32) -> Result<Message, Error> {
-    dc_msg_load_from_db(context, msg_id)
-}
-
-pub fn dc_delete_msg_from_db(context: &Context, msg_id: u32) {
-    if let Ok(msg) = dc_msg_load_from_db(context, msg_id) {
-        sql::execute(
-            context,
-            &context.sql,
-            "DELETE FROM msgs WHERE id=?;",
-            params![msg.id as i32],
-        )
-        .ok();
-        sql::execute(
-            context,
-            &context.sql,
-            "DELETE FROM msgs_mdns WHERE msg_id=?;",
-            params![msg.id as i32],
-        )
-        .ok();
-    }
-}
-
-/* as we do not cut inside words, this results in about 32-42 characters.
-Do not use too long subjects - we add a tag after the subject which gets truncated by the clients otherwise.
-It should also be very clear, the subject is _not_ the whole message.
-The value is also used for CC:-summaries */
+// as we do not cut inside words, this results in about 32-42 characters.
+// Do not use too long subjects - we add a tag after the subject which gets truncated by the clients otherwise.
+// It should also be very clear, the subject is _not_ the whole message.
+// The value is also used for CC:-summaries
 
 // Context functions to work with messages
 
-pub fn dc_msg_exists(context: &Context, msg_id: u32) -> bool {
+pub fn exists(context: &Context, msg_id: u32) -> bool {
     if msg_id <= DC_CHAT_ID_LAST_SPECIAL {
         return false;
     }
@@ -988,7 +947,7 @@ pub fn dc_msg_exists(context: &Context, msg_id: u32) -> bool {
     }
 }
 
-pub fn dc_update_msg_move_state(context: &Context, rfc724_mid: &str, state: MoveState) -> bool {
+pub fn update_msg_move_state(context: &Context, rfc724_mid: &str, state: MoveState) -> bool {
     // we update the move_state for all messages belonging to a given Message-ID
     // so that the state stay intact when parts are deleted
     sql::execute(
@@ -1000,8 +959,8 @@ pub fn dc_update_msg_move_state(context: &Context, rfc724_mid: &str, state: Move
     .is_ok()
 }
 
-pub fn dc_set_msg_failed(context: &Context, msg_id: u32, error: Option<impl AsRef<str>>) {
-    if let Ok(mut msg) = dc_msg_load_from_db(context, msg_id) {
+pub fn set_msg_failed(context: &Context, msg_id: u32, error: Option<impl AsRef<str>>) {
+    if let Ok(mut msg) = Message::load_from_db(context, msg_id) {
         if msg.state.can_fail() {
             msg.state = MessageState::OutFailed;
         }
@@ -1026,8 +985,8 @@ pub fn dc_set_msg_failed(context: &Context, msg_id: u32, error: Option<impl AsRe
     }
 }
 
-/* returns 1 if an event should be send */
-pub unsafe fn dc_mdn_from_ext(
+///returns 1 if an event should be send
+pub unsafe fn mdn_from_ext(
     context: &Context,
     from_id: u32,
     rfc724_mid: &str,
@@ -1065,9 +1024,9 @@ pub unsafe fn dc_mdn_from_ext(
         *ret_msg_id = msg_id as u32;
         *ret_chat_id = chat_id as u32;
 
-        /* if already marked as MDNS_RCVD msgstate_can_fail() returns false.
-        however, it is important, that ret_msg_id is set above as this
-        will allow the caller eg. to move the message away */
+        // if already marked as MDNS_RCVD msgstate_can_fail() returns false.
+        // however, it is important, that ret_msg_id is set above as this
+        // will allow the caller eg. to move the message away
         if msg_state.can_fail() {
             let mdn_already_in_table = context
                 .sql
@@ -1086,10 +1045,10 @@ pub unsafe fn dc_mdn_from_ext(
 
             // Normal chat? that's quite easy.
             if chat_type == Chattype::Single {
-                dc_update_msg_state(context, *ret_msg_id, MessageState::OutMdnRcvd);
+                update_msg_state(context, *ret_msg_id, MessageState::OutMdnRcvd);
                 read_by_all = 1;
             } else {
-                /* send event about new state */
+                // send event about new state
                 let ist_cnt: i32 = context
                     .sql
                     .query_get_value(
@@ -1113,9 +1072,9 @@ pub unsafe fn dc_mdn_from_ext(
                 // for rounding, SELF is already included!
                 let soll_cnt = (chat::get_chat_contact_cnt(context, *ret_chat_id) + 1) / 2;
                 if ist_cnt >= soll_cnt {
-                    dc_update_msg_state(context, *ret_msg_id, MessageState::OutMdnRcvd);
+                    update_msg_state(context, *ret_msg_id, MessageState::OutMdnRcvd);
                     read_by_all = 1;
-                } /* else wait for more receipts */
+                } // else wait for more receipts
             }
         }
     }
@@ -1123,8 +1082,8 @@ pub unsafe fn dc_mdn_from_ext(
     read_by_all
 }
 
-/* the number of messages assigned to real chat (!=deaddrop, !=trash) */
-pub fn dc_get_real_msg_cnt(context: &Context) -> libc::c_int {
+/// The number of messages assigned to real chat (!=deaddrop, !=trash)
+pub fn get_real_msg_cnt(context: &Context) -> libc::c_int {
     match context.sql.query_row(
         "SELECT COUNT(*) \
          FROM msgs m  LEFT JOIN chats c ON c.id=m.chat_id \
@@ -1140,7 +1099,7 @@ pub fn dc_get_real_msg_cnt(context: &Context) -> libc::c_int {
     }
 }
 
-pub fn dc_get_deaddrop_msg_cnt(context: &Context) -> libc::size_t {
+pub fn get_deaddrop_msg_cnt(context: &Context) -> libc::size_t {
     match context.sql.query_row(
         "SELECT COUNT(*) \
          FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id \
@@ -1156,8 +1115,8 @@ pub fn dc_get_deaddrop_msg_cnt(context: &Context) -> libc::size_t {
     }
 }
 
-pub fn dc_rfc724_mid_cnt(context: &Context, rfc724_mid: &str) -> libc::c_int {
-    /* check the number of messages with the same rfc724_mid */
+pub fn rfc724_mid_cnt(context: &Context, rfc724_mid: &str) -> libc::c_int {
+    // check the number of messages with the same rfc724_mid
     match context.sql.query_row(
         "SELECT COUNT(*) FROM msgs WHERE rfc724_mid=?;",
         &[rfc724_mid],
@@ -1171,7 +1130,7 @@ pub fn dc_rfc724_mid_cnt(context: &Context, rfc724_mid: &str) -> libc::c_int {
     }
 }
 
-pub fn dc_rfc724_mid_exists(
+pub fn rfc724_mid_exists(
     context: &Context,
     rfc724_mid: &str,
     ret_server_folder: *mut *mut libc::c_char,
@@ -1207,7 +1166,7 @@ pub fn dc_rfc724_mid_exists(
     }
 }
 
-pub fn dc_update_server_uid(
+pub fn update_server_uid(
     context: &Context,
     rfc724_mid: &str,
     server_folder: impl AsRef<str>,
@@ -1230,9 +1189,9 @@ mod tests {
     use crate::test_utils as test;
 
     #[test]
-    fn test_dc_msg_guess_msgtype_from_suffix() {
+    fn test_guess_msgtype_from_suffix() {
         assert_eq!(
-            dc_msg_guess_msgtype_from_suffix(Path::new("foo/bar-sth.mp3")),
+            guess_msgtype_from_suffix(Path::new("foo/bar-sth.mp3")),
             Some((Viewtype::Audio, "audio/mpeg"))
         );
     }
@@ -1252,10 +1211,10 @@ mod tests {
 
         let chat = chat::create_by_contact_id(ctx, contact).unwrap();
 
-        let mut msg = dc_msg_new(Viewtype::Text);
+        let mut msg = Message::new(Viewtype::Text);
 
         let msg_id = chat::prepare_msg(ctx, chat, &mut msg).unwrap();
 
-        let _msg2 = dc_get_msg(ctx, msg_id).unwrap();
+        let _msg2 = Message::load_from_db(ctx, msg_id).unwrap();
     }
 }

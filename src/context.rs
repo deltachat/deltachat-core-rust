@@ -16,7 +16,7 @@ use crate::job_thread::JobThread;
 use crate::key::*;
 use crate::login_param::LoginParam;
 use crate::lot::Lot;
-use crate::message::*;
+use crate::message::{self, Message};
 use crate::param::Params;
 use crate::smtp::*;
 use crate::sql::Sql;
@@ -144,8 +144,8 @@ impl Context {
         let l2 = LoginParam::from_database(self, "configured_");
         let displayname = self.sql.get_config(self, "displayname");
         let chats = get_chat_cnt(self) as usize;
-        let real_msgs = dc_get_real_msg_cnt(self) as usize;
-        let deaddrop_msgs = dc_get_deaddrop_msg_cnt(self) as usize;
+        let real_msgs = message::get_real_msg_cnt(self) as usize;
+        let deaddrop_msgs = message::get_deaddrop_msg_cnt(self) as usize;
         let contacts = Contact::get_real_cnt(self) as usize;
         let is_configured = self
             .sql
@@ -354,15 +354,15 @@ impl Context {
             return;
         }
 
-        if let Ok(msg) = dc_msg_new_load(self, msg_id) {
-            if dc_msg_is_setupmessage(&msg) {
+        if let Ok(msg) = Message::load_from_db(self, msg_id) {
+            if msg.is_setupmessage() {
                 // do not move setup messages;
                 // there may be a non-delta device that wants to handle it
                 return;
             }
 
             if self.is_mvbox(folder) {
-                dc_update_msg_move_state(self, &msg.rfc724_mid, MoveState::Stay);
+                message::update_msg_move_state(self, &msg.rfc724_mid, MoveState::Stay);
             }
 
             // 1 = dc message, 2 = reply to dc message
@@ -374,7 +374,7 @@ impl Context {
                     Params::new(),
                     0,
                 );
-                dc_update_msg_move_state(self, &msg.rfc724_mid, MoveState::Moving);
+                message::update_msg_move_state(self, &msg.rfc724_mid, MoveState::Moving);
             }
         }
     }

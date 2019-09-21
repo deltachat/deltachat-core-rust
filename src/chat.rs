@@ -11,7 +11,7 @@ use crate::dc_tools::*;
 use crate::error::Error;
 use crate::events::Event;
 use crate::job::*;
-use crate::message::*;
+use crate::message::{self, Message, MessageState};
 use crate::param::*;
 use crate::sql::{self, Sql};
 use crate::stock::StockMessage;
@@ -484,7 +484,7 @@ pub fn create_by_msg_id(context: &Context, msg_id: u32) -> Result<u32, Error> {
     let mut chat_id = 0;
     let mut send_event = false;
 
-    if let Ok(msg) = dc_msg_load_from_db(context, msg_id) {
+    if let Ok(msg) = Message::load_from_db(context, msg_id) {
         if let Ok(chat) = Chat::load_from_db(context, msg.chat_id) {
             if chat.id > DC_CHAT_ID_LAST_SPECIAL {
                 chat_id = chat.id;
@@ -691,13 +691,13 @@ fn prepare_msg_common(context: &Context, chat_id: u32, msg: &mut Message) -> Res
             // - from FILE to AUDIO/VIDEO/IMAGE
             // - from FILE/IMAGE to GIF */
             if let Some((better_type, better_mime)) =
-                dc_msg_guess_msgtype_from_suffix(Path::new(&path_filename))
+                message::guess_msgtype_from_suffix(Path::new(&path_filename))
             {
                 msg.type_0 = better_type;
                 msg.param.set(Param::MimeType, better_mime);
             }
         } else if !msg.param.exists(Param::MimeType) {
-            if let Some((_, mime)) = dc_msg_guess_msgtype_from_suffix(Path::new(&path_filename)) {
+            if let Some((_, mime)) = message::guess_msgtype_from_suffix(Path::new(&path_filename)) {
                 msg.param.set(Param::MimeType, mime);
             }
         }
@@ -783,7 +783,7 @@ pub fn send_msg(context: &Context, chat_id: u32, msg: &mut Message) -> Result<u3
             chat_id == 0 || chat_id == msg.chat_id,
             "Inconsistent chat ID"
         );
-        dc_update_msg_state(context, msg.id, MessageState::OutPending);
+        message::update_msg_state(context, msg.id, MessageState::OutPending);
     }
 
     ensure!(
@@ -809,14 +809,14 @@ pub fn send_msg(context: &Context, chat_id: u32, msg: &mut Message) -> Result<u3
                     // avoid hanging if user tampers with db
                     break;
                 } else {
-                    if let Ok(mut copy) = dc_get_msg(context, id as u32) {
+                    if let Ok(mut copy) = Message::load_from_db(context, id as u32) {
                         // TODO: handle cleanup and return early instead
                         send_msg(context, 0, &mut copy).unwrap();
                     }
                 }
             }
             msg.param.remove(Param::PrepForwards);
-            dc_msg_save_param_to_disk(context, msg);
+            msg.save_param_to_disk(context);
         }
     }
 
@@ -834,7 +834,7 @@ pub unsafe fn send_text_msg(
         chat_id
     );
 
-    let mut msg = dc_msg_new(Viewtype::Text);
+    let mut msg = Message::new(Viewtype::Text);
     msg.text = Some(text_to_send);
     send_msg(context, chat_id, &mut msg)
 }
@@ -861,7 +861,7 @@ pub unsafe fn set_draft(context: &Context, chat_id: u32, msg: Option<&mut Messag
 fn maybe_delete_draft(context: &Context, chat_id: u32) -> bool {
     let draft = get_draft_msg_id(context, chat_id);
     if draft != 0 {
-        dc_delete_msg_from_db(context, draft);
+        Message::delete_from_db(context, draft);
         return true;
     }
     false
@@ -881,7 +881,7 @@ fn do_set_draft(context: &Context, chat_id: u32, msg: &mut Message) -> bool {
         _ => {
             if let Some(path_filename) = msg.param.get(Param::File) {
                 let mut path_filename = path_filename.to_string();
-                if dc_msg_is_increation(msg) && !dc_is_blobdir_path(context, &path_filename) {
+                if msg.is_increation() && !dc_is_blobdir_path(context, &path_filename) {
                     return false;
                 }
                 if !dc_make_rel_and_copy(context, &mut path_filename) {
@@ -938,7 +938,7 @@ pub fn get_draft(context: &Context, chat_id: u32) -> Result<Option<Message>, Err
     if draft_msg_id == 0 {
         return Ok(None);
     }
-    Ok(Some(dc_msg_load_from_db(context, draft_msg_id)?))
+    Ok(Some(Message::load_from_db(context, draft_msg_id)?))
 }
 
 pub fn get_chat_msgs(context: &Context, chat_id: u32, flags: u32, marker1before: u32) -> Vec<u32> {
@@ -1133,7 +1133,7 @@ pub unsafe fn get_next_media(
 ) -> u32 {
     let mut ret = 0;
 
-    if let Ok(msg) = dc_msg_load_from_db(context, curr_msg_id) {
+    if let Ok(msg) = Message::load_from_db(context, curr_msg_id) {
         let list = get_chat_media(
             context,
             msg.chat_id,
@@ -1301,8 +1301,8 @@ pub unsafe fn create_group_chat(
 
     if chat_id != 0 {
         if add_to_chat_contacts_table(context, chat_id, 1) {
-            let mut draft_msg = dc_msg_new(Viewtype::Text);
-            dc_msg_set_text(&mut draft_msg, draft_txt.as_ptr());
+            let mut draft_msg = Message::new(Viewtype::Text);
+            draft_msg.set_text(draft_txt.as_ptr());
             set_draft_raw(context, chat_id, &mut draft_msg);
         }
 
@@ -1347,7 +1347,7 @@ pub fn add_contact_to_chat_ex(
     if contact.is_err() || chat_id <= DC_CHAT_ID_LAST_SPECIAL {
         return false;
     }
-    let mut msg = dc_msg_new_untyped();
+    let mut msg = Message::default();
 
     reset_gossiped_timestamp(context, chat_id);
     let contact = contact.unwrap();
@@ -1495,7 +1495,7 @@ pub unsafe fn remove_contact_from_chat(
         "Cannot remove special contact"
     );
 
-    let mut msg = dc_msg_new_untyped();
+    let mut msg = Message::default();
     let mut success = false;
 
     /* we do not check if "contact_id" exists but just delete all records with the id from chats_contacts */
@@ -1593,7 +1593,7 @@ pub unsafe fn set_chat_name(
     ensure!(chat_id > DC_CHAT_ID_LAST_SPECIAL, "Invalid chat ID");
 
     let chat = Chat::load_from_db(context, chat_id)?;
-    let mut msg = dc_msg_new_untyped();
+    let mut msg = Message::default();
 
     if real_group_exists(context, chat_id) {
         if &chat.name == new_name.as_ref() {
@@ -1682,7 +1682,7 @@ pub fn set_chat_profile_image(
         chat.param.set(Param::ProfileImage, &new_image_rel);
         if chat.update_param(context).is_ok() {
             if chat.is_promoted() {
-                let mut msg = dc_msg_new_untyped();
+                let mut msg = Message::default();
                 msg.param
                     .set_int(Param::Cmd, SystemMessage::GroupImageChanged as i32);
                 msg.type_0 = Viewtype::Text;
@@ -1753,7 +1753,7 @@ pub unsafe fn forward_msgs(
 
         for id in ids {
             let src_msg_id = id;
-            let msg = dc_msg_load_from_db(context, src_msg_id as u32);
+            let msg = Message::load_from_db(context, src_msg_id as u32);
             if msg.is_err() {
                 break;
             }
@@ -1784,7 +1784,7 @@ pub unsafe fn forward_msgs(
                     msg.param.set(Param::PrepForwards, new_msg_id.to_string());
                 }
 
-                dc_msg_save_param_to_disk(context, &mut msg);
+                msg.save_param_to_disk(context);
                 msg.param = save_param;
             } else {
                 msg.state = MessageState::OutPending;
@@ -1910,12 +1910,12 @@ mod tests {
         unsafe {
             let t = dummy_context();
             let chat_id = create_by_contact_id(&t.ctx, DC_CONTACT_ID_SELF).unwrap();
-            let mut msg = dc_msg_new(Viewtype::Text);
-            dc_msg_set_text(&mut msg, b"hello\x00" as *const u8 as *const libc::c_char);
+            let mut msg = Message::new(Viewtype::Text);
+            msg.set_text(b"hello\x00" as *const u8 as *const libc::c_char);
             set_draft(&t.ctx, chat_id, Some(&mut msg));
             let draft = get_draft(&t.ctx, chat_id).unwrap().unwrap();
-            let msg_text = dc_msg_get_text(&msg);
-            let draft_text = dc_msg_get_text(&draft);
+            let msg_text = msg.get_text();
+            let draft_text = draft.get_text();
             assert_eq!(as_str(msg_text), as_str(draft_text));
         }
     }

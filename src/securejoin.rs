@@ -13,7 +13,7 @@ use crate::error::Error;
 use crate::events::Event;
 use crate::key::*;
 use crate::lot::LotState;
-use crate::message::*;
+use crate::message::Message;
 use crate::param::*;
 use crate::peerstate::*;
 use crate::qr::check_qr;
@@ -266,7 +266,7 @@ fn send_handshake_msg(
     fingerprint: Option<String>,
     grpid: impl AsRef<str>,
 ) {
-    let mut msg = dc_msg_new_untyped();
+    let mut msg = Message::default();
     msg.type_0 = Viewtype::Text;
     msg.text = Some(format!("Secure-Join: {}", step));
     msg.hidden = true;

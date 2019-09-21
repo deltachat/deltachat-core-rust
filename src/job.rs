@@ -16,7 +16,7 @@ use crate::events::Event;
 use crate::imap::*;
 use crate::location;
 use crate::login_param::LoginParam;
-use crate::message::*;
+use crate::message::{self, Message, MessageState};
 use crate::param::*;
 use crate::sql;
 use crate::x::*;
@@ -156,7 +156,7 @@ impl Job {
                     /* if there is a msg-id and it does not exist in the db, cancel sending.
                     this happends if dc_delete_msgs() was called
                     before the generated mime was sent out */
-                    if 0 != self.foreign_id && !dc_msg_exists(context, self.foreign_id) {
+                    if 0 != self.foreign_id && !message::exists(context, self.foreign_id) {
                         warn!(
                             context,
                             "Message {} for job {} does not exist", self.foreign_id, self.job_id,
@@ -175,7 +175,7 @@ impl Job {
                     } else {
                         dc_delete_file(context, filename);
                         if 0 != self.foreign_id {
-                            dc_update_msg_state(
+                            message::update_msg_state(
                                 context,
                                 self.foreign_id,
                                 MessageState::OutDelivered,
@@ -226,7 +226,7 @@ impl Job {
             ok_to_continue = true;
         }
         if ok_to_continue {
-            if let Ok(msg) = dc_msg_load_from_db(context, self.foreign_id) {
+            if let Ok(msg) = Message::load_from_db(context, self.foreign_id) {
                 if context
                     .sql
                     .get_config_int(context, "folders_configured")
@@ -251,7 +251,12 @@ impl Job {
                             self.try_again_later(3i32, None);
                         }
                         ImapResult::Success => {
-                            dc_update_server_uid(context, &msg.rfc724_mid, &dest_folder, dest_uid);
+                            message::update_server_uid(
+                                context,
+                                &msg.rfc724_mid,
+                                &dest_folder,
+                                dest_uid,
+                            );
                         }
                         ImapResult::Failed | ImapResult::AlreadyDone => {}
                     }
@@ -265,11 +270,11 @@ impl Job {
         let mut delete_from_server = 1;
         let inbox = context.inbox.read().unwrap();
 
-        if let Ok(mut msg) = dc_msg_load_from_db(context, self.foreign_id) {
+        if let Ok(mut msg) = Message::load_from_db(context, self.foreign_id) {
             if !msg.rfc724_mid.is_empty() {
                 let ok_to_continue1;
                 /* eg. device messages have no Message-ID */
-                if dc_rfc724_mid_cnt(context, &msg.rfc724_mid) != 1 {
+                if message::rfc724_mid_cnt(context, &msg.rfc724_mid) != 1 {
                     info!(
                         context,
                         "The message is deleted from the server when all parts are deleted.",
@@ -307,7 +312,7 @@ impl Job {
                     ok_to_continue1 = true;
                 }
                 if ok_to_continue1 {
-                    dc_delete_msg_from_db(context, msg.id);
+                    Message::delete_from_db(context, msg.id);
                 }
             }
         }
@@ -330,7 +335,7 @@ impl Job {
             ok_to_continue = true;
         }
         if ok_to_continue {
-            if let Ok(msg) = dc_msg_load_from_db(context, self.foreign_id) {
+            if let Ok(msg) = Message::load_from_db(context, self.foreign_id) {
                 let server_folder = msg.server_folder.as_ref().unwrap();
                 match inbox.set_seen(context, server_folder, msg.server_uid) {
                     ImapResult::Failed => {}
@@ -671,13 +676,13 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: u32) -> libc::c_int {
                             mimefactory.msg.param.set_int(Param::Height, height as i32);
                         }
                     }
-                    dc_msg_save_param_to_disk(context, &mut mimefactory.msg);
+                    mimefactory.msg.save_param_to_disk(context);
                 }
             }
         }
         /* create message */
         if !dc_mimefactory_render(context, &mut mimefactory) {
-            dc_set_msg_failed(context, msg_id, as_opt_str(mimefactory.error));
+            message::set_msg_failed(context, msg_id, as_opt_str(mimefactory.error));
         } else if 0
             != mimefactory
                 .msg
@@ -692,7 +697,7 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: u32) -> libc::c_int {
                 msg_id,
                 mimefactory.msg.param.get_int(Param::GuranteeE2ee),
             );
-            dc_set_msg_failed(
+            message::set_msg_failed(
                 context,
                 msg_id,
                 Some("End-to-end-encryption unavailable unexpectedly."),
@@ -739,7 +744,7 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: u32) -> libc::c_int {
                     == 0
             {
                 mimefactory.msg.param.set_int(Param::GuranteeE2ee, 1);
-                dc_msg_save_param_to_disk(context, &mut mimefactory.msg);
+                mimefactory.msg.save_param_to_disk(context);
             }
             success = add_smtp_job(context, Action::SendMsgToSmtp, &mut mimefactory);
         }
@@ -940,7 +945,7 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                 }
             } else {
                 if job.action == Action::SendMsgToSmtp {
-                    dc_set_msg_failed(context, job.foreign_id, job.pending_error.as_ref());
+                    message::set_msg_failed(context, job.foreign_id, job.pending_error.as_ref());
                 }
                 job.delete(context);
             }

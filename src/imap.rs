@@ -13,7 +13,7 @@ use crate::dc_tools::*;
 use crate::events::Event;
 use crate::job::{job_add, Action};
 use crate::login_param::LoginParam;
-use crate::message::{dc_rfc724_mid_exists, dc_update_msg_move_state, dc_update_server_uid};
+use crate::message::{self, update_msg_move_state, update_server_uid};
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::param::Params;
 
@@ -1652,7 +1652,7 @@ unsafe fn precheck_imf(
     let mut old_server_folder: *mut libc::c_char = ptr::null_mut();
     let mut old_server_uid: u32 = 0i32 as u32;
     let mut mark_seen: libc::c_int = 0i32;
-    msg_id = dc_rfc724_mid_exists(
+    msg_id = message::rfc724_mid_exists(
         context,
         &rfc724_mid,
         &mut old_server_folder,
@@ -1667,10 +1667,10 @@ unsafe fn precheck_imf(
             mark_seen = 1i32
         } else if as_str(old_server_folder) != server_folder {
             info!(context, "[move] detected moved message {}", rfc724_mid,);
-            dc_update_msg_move_state(context, &rfc724_mid, MoveState::Stay);
+            update_msg_move_state(context, &rfc724_mid, MoveState::Stay);
         }
         if as_str(old_server_folder) != server_folder || old_server_uid != server_uid {
-            dc_update_server_uid(context, &rfc724_mid, server_folder, server_uid);
+            update_server_uid(context, &rfc724_mid, server_folder, server_uid);
         }
         context.do_heuristics_moves(server_folder, msg_id);
         if 0 != mark_seen {

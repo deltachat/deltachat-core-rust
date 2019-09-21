@@ -16,7 +16,7 @@ use deltachat::error::Error;
 use deltachat::job::*;
 use deltachat::location;
 use deltachat::lot::LotState;
-use deltachat::message::*;
+use deltachat::message::{self, Message, MessageState};
 use deltachat::peerstate::*;
 use deltachat::qr::*;
 use deltachat::sql;
@@ -216,44 +216,40 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
 }
 
 unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
-    let contact = Contact::get_by_id(context, dc_msg_get_from_id(msg)).expect("invalid contact");
+    let contact = Contact::get_by_id(context, msg.get_from_id()).expect("invalid contact");
     let contact_name = contact.get_name();
     let contact_id = contact.get_id();
 
-    let statestr = match dc_msg_get_state(msg) {
+    let statestr = match msg.get_state() {
         MessageState::OutPending => " o",
         MessageState::OutDelivered => " √",
         MessageState::OutMdnRcvd => " √√",
         MessageState::OutFailed => " !!",
         _ => "",
     };
-    let temp2 = dc_timestamp_to_str(dc_msg_get_timestamp(msg));
-    let msgtext = dc_msg_get_text(msg);
+    let temp2 = dc_timestamp_to_str(msg.get_timestamp());
+    let msgtext = msg.get_text();
     info!(
         context,
         "{}#{}{}{}: {} (Contact#{}): {} {}{}{}{} [{}]",
         prefix.as_ref(),
-        dc_msg_get_id(msg) as libc::c_int,
-        if dc_msg_get_showpadlock(msg) {
-            "🔒"
-        } else {
-            ""
-        },
-        if dc_msg_has_location(msg) { "📍" } else { "" },
+        msg.get_id() as libc::c_int,
+        if msg.get_showpadlock() { "🔒" } else { "" },
+        if msg.has_location() { "📍" } else { "" },
         &contact_name,
         contact_id,
         as_str(msgtext),
-        if dc_msg_is_starred(msg) { "★" } else { "" },
-        if dc_msg_get_from_id(msg) == 1 as libc::c_uint {
+        if msg.is_starred() { "★" } else { "" },
+        if msg.get_from_id() == 1 as libc::c_uint {
             ""
-        } else if dc_msg_get_state(msg) == MessageState::InSeen {
+        } else if msg.get_state() == MessageState::InSeen {
             "[SEEN]"
-        } else if dc_msg_get_state(msg) == MessageState::InNoticed {
+        } else if msg.get_state() == MessageState::InNoticed {
             "[NOTICED]"
         } else {
             "[FRESH]"
         },
-        if dc_msg_is_info(msg) { "[INFO]" } else { "" },
+        if msg.is_info() { "[INFO]" } else { "" },
         statestr,
         &temp2,
     );
@@ -278,7 +274,7 @@ unsafe fn log_msglist(context: &Context, msglist: &Vec<u32>) -> Result<(), Error
                 );
                 lines_out += 1
             }
-            let msg = dc_get_msg(context, msg_id)?;
+            let msg = Message::load_from_db(context, msg_id)?;
             log_msg(context, "Msg", &msg);
         }
     }
@@ -467,9 +463,9 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         "get-setupcodebegin" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
             let msg_id: u32 = arg1.parse()?;
-            let msg = dc_get_msg(context, msg_id)?;
-            if dc_msg_is_setupmessage(&msg) {
-                let setupcodebegin = dc_msg_get_setupcodebegin(context, &msg);
+            let msg = Message::load_from_db(context, msg_id)?;
+            if msg.is_setupmessage() {
+                let setupcodebegin = msg.get_setupcodebegin(context);
                 println!(
                     "The setup code for setup message Msg#{} starts with: {}",
                     msg_id,
@@ -825,14 +821,14 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(sel_chat.is_some(), "No chat selected.");
             ensure!(!arg1.is_empty(), "No file given.");
 
-            let mut msg = dc_msg_new(if arg0 == "sendimage" {
+            let mut msg = Message::new(if arg0 == "sendimage" {
                 Viewtype::Image
             } else {
                 Viewtype::File
             });
-            dc_msg_set_file(&mut msg, arg1_c, ptr::null());
+            msg.set_file(arg1_c, ptr::null());
             if !arg2.is_empty() {
-                dc_msg_set_text(&mut msg, arg2_c);
+                msg.set_text(arg2_c);
             }
             chat::send_msg(context, sel_chat.as_ref().unwrap().get_id(), &mut msg)?;
         }
@@ -854,8 +850,8 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(sel_chat.is_some(), "No chat selected.");
 
             if !arg1.is_empty() {
-                let mut draft = dc_msg_new(Viewtype::Text);
-                dc_msg_set_text(&mut draft, arg1_c);
+                let mut draft = Message::new(Viewtype::Text);
+                draft.set_text(arg1_c);
                 chat::set_draft(
                     context,
                     sel_chat.as_ref().unwrap().get_id(),
@@ -904,7 +900,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         "msginfo" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
             let id = arg1.parse()?;
-            let res = dc_get_msg_info(context, id);
+            let res = message::get_msg_info(context, id);
             println!("{}", as_str(res));
         }
         "listfresh" => {
@@ -928,13 +924,13 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
             let mut msg_ids = [0; 1];
             msg_ids[0] = arg1.parse()?;
-            dc_markseen_msgs(context, msg_ids.as_mut_ptr(), 1);
+            message::markseen_msgs(context, msg_ids.as_mut_ptr(), 1);
         }
         "star" | "unstar" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
             let mut msg_ids = [0; 1];
             msg_ids[0] = arg1.parse()?;
-            dc_star_msgs(
+            message::star_msgs(
                 context,
                 msg_ids.as_mut_ptr(),
                 1,
@@ -945,7 +941,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
             let mut ids = [0; 1];
             ids[0] = arg1.parse()?;
-            dc_delete_msgs(context, ids.as_mut_ptr(), 1);
+            message::delete_msgs(context, ids.as_mut_ptr(), 1);
         }
         "listcontacts" | "contacts" | "listverified" => {
             let contacts = Contact::get_all(
