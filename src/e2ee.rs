@@ -97,10 +97,8 @@ impl E2eeHelper {
                     /*only for random-seed*/
                     if prefer_encrypt == EncryptPreference::Mutual || e2ee_guaranteed {
                         do_encrypt = 1i32;
-                        let mut iter1: *mut clistiter;
-                        iter1 = (*recipients_addr).first;
-                        while !iter1.is_null() {
-                            let recipient_addr = to_string((*iter1).data as *const libc::c_char);
+                        for cur_data in (*recipients_addr).into_iter() {
+                            let recipient_addr = to_string(cur_data as *const libc::c_char);
                             if recipient_addr != addr {
                                 let peerstate =
                                     Peerstate::from_addr(context, &context.sql, &recipient_addr);
@@ -129,11 +127,6 @@ impl E2eeHelper {
                                     /* if we cannot encrypt to a single recipient, we cannot encrypt the message at all */
                                     break;
                                 }
-                            }
-                            iter1 = if !iter1.is_null() {
-                                (*iter1).next
-                            } else {
-                                ptr::null_mut()
                             }
                         }
                     }
@@ -197,63 +190,39 @@ impl E2eeHelper {
                                 }
                             }
                             /* memoryhole headers */
+                            // XXX we can't use clist's into_iter()
+                            // because the loop body also removes items
                             let mut cur: *mut clistiter =
                                 (*(*imffields_unprotected).fld_list).first;
                             while !cur.is_null() {
-                                let mut move_to_encrypted: libc::c_int = 0i32;
-                                let field: *mut mailimf_field = (if !cur.is_null() {
-                                    (*cur).data
-                                } else {
-                                    ptr::null_mut()
-                                })
-                                    as *mut mailimf_field;
+                                let field: *mut mailimf_field = (*cur).data as *mut mailimf_field;
+                                let mut move_to_encrypted = false;
                                 if !field.is_null() {
                                     if (*field).fld_type == MAILIMF_FIELD_SUBJECT as libc::c_int {
-                                        move_to_encrypted = 1i32
+                                        move_to_encrypted = true;
                                     } else if (*field).fld_type
                                         == MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int
                                     {
-                                        let opt_field: *mut mailimf_optional_field =
-                                            (*field).fld_data.fld_optional_field;
+                                        let opt_field = (*field).fld_data.fld_optional_field;
                                         if !opt_field.is_null() && !(*opt_field).fld_name.is_null()
                                         {
-                                            if strncmp(
-                                                (*opt_field).fld_name,
-                                                b"Secure-Join\x00" as *const u8
-                                                    as *const libc::c_char,
-                                                11,
-                                            ) == 0
-                                                || strncmp(
-                                                    (*opt_field).fld_name,
-                                                    b"Chat-\x00" as *const u8
-                                                        as *const libc::c_char,
-                                                    5,
-                                                ) == 0
-                                                    && strcmp(
-                                                        (*opt_field).fld_name,
-                                                        b"Chat-Version\x00" as *const u8
-                                                            as *const libc::c_char,
-                                                    ) != 0
+                                            let fld_name = to_string_lossy((*opt_field).fld_name);
+                                            if fld_name.starts_with("Secure-Join")
+                                                || fld_name.starts_with("Chat-")
                                             {
-                                                move_to_encrypted = 1
+                                                move_to_encrypted = true;
                                             }
                                         }
                                     }
                                 }
-                                if 0 != move_to_encrypted {
+                                if move_to_encrypted {
                                     mailimf_fields_add(imffields_encrypted, field);
-                                    cur = clist_delete((*imffields_unprotected).fld_list, cur)
+                                    cur = clist_delete((*imffields_unprotected).fld_list, cur);
                                 } else {
-                                    cur = if !cur.is_null() {
-                                        (*cur).next
-                                    } else {
-                                        ptr::null_mut()
-                                    }
+                                    cur = (*cur).next;
                                 }
                             }
-                            let subject: *mut mailimf_subject = mailimf_subject_new(dc_strdup(
-                                b"...\x00" as *const u8 as *const libc::c_char,
-                            ));
+                            let subject: *mut mailimf_subject = mailimf_subject_new("...".strdup());
                             mailimf_fields_add(
                                 imffields_unprotected,
                                 mailimf_field_new(
@@ -645,19 +614,13 @@ unsafe fn update_gossip_peerstates(
     imffields: *mut mailimf_fields,
     gossip_headers: *const mailimf_fields,
 ) -> HashSet<String> {
-    let mut cur1: *mut clistiter;
     let mut recipients: Option<HashSet<String>> = None;
     let mut gossipped_addr: HashSet<String> = Default::default();
-    cur1 = (*(*gossip_headers).fld_list).first;
-    while !cur1.is_null() {
-        let field: *mut mailimf_field = (if !cur1.is_null() {
-            (*cur1).data
-        } else {
-            ptr::null_mut()
-        }) as *mut mailimf_field;
+
+    for cur_data in (*(*gossip_headers).fld_list).into_iter() {
+        let field: *mut mailimf_field = cur_data as *mut _;
         if (*field).fld_type == MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int {
-            let optional_field: *const mailimf_optional_field =
-                (*field).fld_data.fld_optional_field;
+            let optional_field = (*field).fld_data.fld_optional_field;
             if !optional_field.is_null()
                 && !(*optional_field).fld_name.is_null()
                 && strcasecmp(
@@ -701,11 +664,6 @@ unsafe fn update_gossip_peerstates(
                 }
             }
         }
-        cur1 = if !cur1.is_null() {
-            (*cur1).next
-        } else {
-            ptr::null_mut()
-        }
     }
 
     gossipped_addr
@@ -722,7 +680,6 @@ unsafe fn decrypt_recursive(
 ) -> Result<()> {
     ensure!(!mime.is_null(), "Invalid mime reference");
     let ct: *mut mailmime_content;
-    let mut cur: *mut clistiter;
 
     if (*mime).mm_type == MAILMIME_MULTIPLE as libc::c_int {
         ct = (*mime).mm_content_type;
@@ -733,23 +690,18 @@ unsafe fn decrypt_recursive(
                 b"encrypted\x00" as *const u8 as *const libc::c_char,
             ) == 0i32
         {
-            cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
-            while !cur.is_null() {
+            for cur_data in (*(*mime).mm_data.mm_multipart.mm_mp_list).into_iter() {
                 let mut decrypted_mime: *mut mailmime = ptr::null_mut();
                 if decrypt_part(
                     context,
-                    (if !cur.is_null() {
-                        (*cur).data
-                    } else {
-                        ptr::null_mut()
-                    }) as *mut mailmime,
+                    cur_data as *mut mailmime,
                     private_keyring,
                     public_keyring_for_validate,
                     ret_valid_signatures,
                     &mut decrypted_mime,
                 ) {
                     if (*ret_gossip_headers).is_null() && ret_valid_signatures.len() > 0 {
-                        let mut dummy: libc::size_t = 0i32 as libc::size_t;
+                        let mut dummy: libc::size_t = 0;
                         let mut test: *mut mailimf_fields = ptr::null_mut();
                         if mailimf_envelope_and_optional_fields_parse(
                             (*decrypted_mime).mm_mime_start,
@@ -766,23 +718,13 @@ unsafe fn decrypt_recursive(
                     mailmime_free(mime);
                     return Ok(());
                 }
-                cur = if !cur.is_null() {
-                    (*cur).next
-                } else {
-                    ptr::null_mut()
-                }
             }
             *ret_has_unencrypted_parts = 1i32
         } else {
-            cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
-            while !cur.is_null() {
+            for cur_data in (*(*mime).mm_data.mm_multipart.mm_mp_list).into_iter() {
                 if decrypt_recursive(
                     context,
-                    (if !cur.is_null() {
-                        (*cur).data
-                    } else {
-                        ptr::null_mut()
-                    }) as *mut mailmime,
+                    cur_data as *mut mailmime,
                     private_keyring,
                     public_keyring_for_validate,
                     ret_valid_signatures,
@@ -792,11 +734,6 @@ unsafe fn decrypt_recursive(
                 .is_ok()
                 {
                     return Ok(());
-                }
-                cur = if !cur.is_null() {
-                    (*cur).next
-                } else {
-                    ptr::null_mut()
                 }
             }
         }
@@ -847,25 +784,12 @@ unsafe fn decrypt_part(
         || (*mime_data).dt_data.dt_text.dt_length <= 0)
     {
         if !(*mime).mm_mime_fields.is_null() {
-            let mut cur: *mut clistiter;
-            cur = (*(*(*mime).mm_mime_fields).fld_list).first;
-            while !cur.is_null() {
-                let field: *mut mailmime_field = (if !cur.is_null() {
-                    (*cur).data
-                } else {
-                    ptr::null_mut()
-                }) as *mut mailmime_field;
-                if !field.is_null() {
-                    if (*field).fld_type == MAILMIME_FIELD_TRANSFER_ENCODING as libc::c_int
-                        && !(*field).fld_data.fld_encoding.is_null()
-                    {
-                        mime_transfer_encoding = (*(*field).fld_data.fld_encoding).enc_type
-                    }
-                }
-                cur = if !cur.is_null() {
-                    (*cur).next
-                } else {
-                    ptr::null_mut()
+            for cur_data in (*(*(*mime).mm_mime_fields).fld_list).into_iter() {
+                let field: *mut mailmime_field = cur_data as *mut _;
+                if (*field).fld_type == MAILMIME_FIELD_TRANSFER_ENCODING as libc::c_int
+                    && !(*field).fld_data.fld_encoding.is_null()
+                {
+                    mime_transfer_encoding = (*(*field).fld_data.fld_encoding).enc_type
                 }
             }
         }
@@ -992,22 +916,9 @@ unsafe fn contains_report(mime: *mut mailmime) -> bool {
         {
             return true;
         }
-        let mut cur: *mut clistiter;
-        cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
-        while !cur.is_null() {
-            if contains_report(
-                (if !cur.is_null() {
-                    (*cur).data
-                } else {
-                    ptr::null_mut()
-                }) as *mut mailmime,
-            ) {
+        for cur_data in (*(*(*mime).mm_mime_fields).fld_list).into_iter() {
+            if contains_report(cur_data as *mut mailmime) {
                 return true;
-            }
-            cur = if !cur.is_null() {
-                (*cur).next
-            } else {
-                ptr::null_mut()
             }
         }
     } else if (*mime).mm_type == MAILMIME_MESSAGE as libc::c_int {

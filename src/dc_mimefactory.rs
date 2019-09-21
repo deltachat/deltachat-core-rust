@@ -2,7 +2,7 @@ use std::path::Path;
 use std::ptr;
 
 use chrono::TimeZone;
-use libc::{free, strcmp, strlen};
+use libc::{free, strcmp};
 use mmime::clist::*;
 use mmime::mailimf_types::*;
 use mmime::mailimf_types_helper::*;
@@ -357,22 +357,12 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
             && !factory.recipients_addr.is_null()
             && (*factory.recipients_addr).count > 0
         {
-            let mut iter1: *mut clistiter;
-            let mut iter2: *mut clistiter;
+            let name_iter = (*factory.recipients_names).into_iter();
+            let addr_iter = (*factory.recipients_addr).into_iter();
             to = mailimf_address_list_new_empty();
-            iter1 = (*factory.recipients_names).first;
-            iter2 = (*factory.recipients_addr).first;
-            while !iter1.is_null() && !iter2.is_null() {
-                let name: *const libc::c_char = (if !iter1.is_null() {
-                    (*iter1).data
-                } else {
-                    ptr::null_mut()
-                }) as *const libc::c_char;
-                let addr: *const libc::c_char = (if !iter2.is_null() {
-                    (*iter2).data
-                } else {
-                    ptr::null_mut()
-                }) as *const libc::c_char;
+            for (name, addr) in name_iter.zip(addr_iter) {
+                let name = name as *const libc::c_char;
+                let addr = addr as *const libc::c_char;
                 mailimf_address_list_add(
                     to,
                     mailimf_address_new(
@@ -388,16 +378,6 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
                         ptr::null_mut(),
                     ),
                 );
-                iter1 = if !iter1.is_null() {
-                    (*iter1).next
-                } else {
-                    ptr::null_mut()
-                };
-                iter2 = if !iter2.is_null() {
-                    (*iter2).next
-                } else {
-                    ptr::null_mut()
-                }
             }
         }
         let mut references_list: *mut clist = ptr::null_mut();
@@ -1023,35 +1003,25 @@ unsafe fn build_body_file(
                 MAILMIME_MECHANISM_BASE64 as libc::c_int,
             );
             if needs_ext {
-                let mut cur1: *mut clistiter = (*(*mime_fields).fld_list).first;
-                while !cur1.is_null() {
-                    let field: *mut mailmime_field = (if !cur1.is_null() {
-                        (*cur1).data
-                    } else {
-                        ptr::null_mut()
-                    }) as *mut mailmime_field;
-                    if !field.is_null()
-                        && (*field).fld_type == MAILMIME_FIELD_DISPOSITION as libc::c_int
+                for cur_data in (*(*mime_fields).fld_list).into_iter() {
+                    let field: *mut mailmime_field = cur_data as *mut _;
+                    if (*field).fld_type == MAILMIME_FIELD_DISPOSITION as libc::c_int
                         && !(*field).fld_data.fld_disposition.is_null()
                     {
-                        let file_disposition: *mut mailmime_disposition =
-                            (*field).fld_data.fld_disposition;
+                        let file_disposition = (*field).fld_data.fld_disposition;
                         if !file_disposition.is_null() {
-                            let parm: *mut mailmime_disposition_parm =
-                                mailmime_disposition_parm_new(
-                                    MAILMIME_DISPOSITION_PARM_PARAMETER as libc::c_int,
-                                    ptr::null_mut(),
-                                    ptr::null_mut(),
-                                    ptr::null_mut(),
-                                    ptr::null_mut(),
-                                    0 as libc::size_t,
-                                    mailmime_parameter_new(
-                                        strdup(
-                                            b"filename*\x00" as *const u8 as *const libc::c_char,
-                                        ),
-                                        dc_encode_ext_header(&filename_to_send).strdup(),
-                                    ),
-                                );
+                            let parm = mailmime_disposition_parm_new(
+                                MAILMIME_DISPOSITION_PARM_PARAMETER as libc::c_int,
+                                ptr::null_mut(),
+                                ptr::null_mut(),
+                                ptr::null_mut(),
+                                ptr::null_mut(),
+                                0 as libc::size_t,
+                                mailmime_parameter_new(
+                                    strdup(b"filename*\x00" as *const u8 as *const libc::c_char),
+                                    dc_encode_ext_header(&filename_to_send).strdup(),
+                                ),
+                            );
                             if !parm.is_null() {
                                 clist_insert_after(
                                     (*file_disposition).dsp_parms,
@@ -1061,12 +1031,6 @@ unsafe fn build_body_file(
                             }
                         }
                         break;
-                    } else {
-                        cur1 = if !cur1.is_null() {
-                            (*cur1).next
-                        } else {
-                            ptr::null_mut()
-                        }
                     }
                 }
             }
