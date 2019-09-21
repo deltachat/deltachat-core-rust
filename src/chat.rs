@@ -849,18 +849,24 @@ pub unsafe fn set_draft(context: &Context, chat_id: u32, msg: Option<&mut Messag
     };
 }
 
+/// Delete draft message in specified chat, if there is one.
+///
+/// Return {true}, if message was deleted, {false} otherwise.
+fn maybe_delete_draft(context: &Context, chat_id: u32) -> bool {
+    let draft = get_draft_msg_id(context, chat_id);
+    if draft != 0 {
+        dc_delete_msg_from_db(context, draft);
+        return true;
+    }
+    false
+}
+
 // similar to as dc_set_draft() but does not emit an event
 #[allow(non_snake_case)]
 unsafe fn set_draft_raw(context: &Context, chat_id: u32, mut msg: Option<&mut Message>) -> bool {
     let mut OK_TO_CONTINUE = true;
 
-    let mut sth_changed = false;
-
-    let prev_draft_msg_id = get_draft_msg_id(context, chat_id);
-    if 0 != prev_draft_msg_id {
-        dc_delete_msg_from_db(context, prev_draft_msg_id);
-        sth_changed = true;
-    }
+    let mut sth_changed = maybe_delete_draft(context, chat_id);
 
     if let Some(ref mut msg) = msg {
         // save new draft
