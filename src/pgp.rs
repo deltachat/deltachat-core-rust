@@ -123,24 +123,22 @@ pub unsafe fn dc_split_armored_data(
         return false;
     }
 
+    /* now, line points to beginning of base64 data, search end */
+    /*the trailing space makes sure, this is not a normal base64 sequence*/
+    p1 = strstr(base64, b"-----END \x00" as *const u8 as *const libc::c_char);
+    if !(p1.is_null()
+        || strncmp(
+            p1.offset(9isize),
+            headerline.offset(11isize),
+            strlen(headerline.offset(11isize)),
+        ) != 0i32)
     {
-        /* now, line points to beginning of base64 data, search end */
-        /*the trailing space makes sure, this is not a normal base64 sequence*/
-        p1 = strstr(base64, b"-----END \x00" as *const u8 as *const libc::c_char);
-        if !(p1.is_null()
-            || strncmp(
-                p1.offset(9isize),
-                headerline.offset(11isize),
-                strlen(headerline.offset(11isize)),
-            ) != 0i32)
-        {
-            *p1 = 0i32 as libc::c_char;
-            dc_trim(base64);
-            if !ret_base64.is_null() {
-                *ret_base64 = base64
-            }
-            success = true;
+        *p1 = 0i32 as libc::c_char;
+        dc_trim(base64);
+        if !ret_base64.is_null() {
+            *ret_base64 = base64
         }
+        success = true;
     }
 
     success
