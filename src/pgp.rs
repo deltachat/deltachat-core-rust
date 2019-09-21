@@ -70,9 +70,7 @@ pub unsafe fn dc_split_armored_data(
                     ) == 0i32
                 {
                     headerline = line;
-                    if !ret_headerline.is_null() {
-                        *ret_headerline = headerline
-                    }
+                    *ret_headerline = headerline
                 }
             } else if strspn(line, b"\t\r\n \x00" as *const u8 as *const libc::c_char)
                 == strlen(line)
