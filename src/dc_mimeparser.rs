@@ -4,6 +4,7 @@ use std::ptr;
 
 use charset::Charset;
 use deltachat_derive::{FromSql, ToSql};
+use libc::{strcmp, strlen, strncmp};
 use mmime::clist::*;
 use mmime::mailimf::*;
 use mmime::mailimf_types::*;
@@ -25,7 +26,6 @@ use crate::error::Error;
 use crate::location;
 use crate::param::*;
 use crate::stock::StockMessage;
-use crate::x::*;
 
 #[derive(Debug)]
 pub struct MimeParser<'a> {

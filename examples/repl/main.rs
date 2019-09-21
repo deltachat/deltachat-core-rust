@@ -23,11 +23,9 @@ use std::sync::{Arc, Mutex, RwLock};
 use deltachat::config;
 use deltachat::configure::*;
 use deltachat::context::*;
-use deltachat::dc_tools::*;
 use deltachat::job::*;
 use deltachat::oauth2::*;
 use deltachat::securejoin::*;
-use deltachat::x::*;
 use deltachat::Event;
 use rustyline::completion::{Completer, FilenameCompleter, Pair};
 use rustyline::config::OutputStreamType;
@@ -441,11 +439,6 @@ unsafe fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult
     let mut args = line.splitn(2, ' ');
     let arg0 = args.next().unwrap_or_default();
     let arg1 = args.next().unwrap_or_default();
-    let arg1_c = if arg1.is_empty() {
-        std::ptr::null()
-    } else {
-        arg1.strdup()
-    };
 
     match arg0 {
         "connect" => {
@@ -520,8 +513,6 @@ unsafe fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult
         "exit" | "quit" => return Ok(ExitResult::Exit),
         _ => dc_cmdline(&ctx.read().unwrap(), line)?,
     }
-
-    free(arg1_c as *mut _);
 
     Ok(ExitResult::Continue)
 }

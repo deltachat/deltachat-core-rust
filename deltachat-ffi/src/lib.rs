@@ -24,7 +24,9 @@ use num_traits::{FromPrimitive, ToPrimitive};
 
 use deltachat::contact::Contact;
 use deltachat::context::Context;
-use deltachat::dc_tools::{as_path, as_str, dc_strdup, to_string, OsStrExt, StrExt};
+use deltachat::dc_tools::{
+    as_path, as_str, dc_strdup, to_string, to_string_lossy, OsStrExt, StrExt,
+};
 use deltachat::*;
 
 // as C lacks a good and portable error handling,
@@ -186,7 +188,7 @@ pub unsafe extern "C" fn dc_context_new(
     let os_name = if os_name.is_null() {
         String::from("DcFFI")
     } else {
-        dc_tools::to_string_lossy(os_name)
+        to_string_lossy(os_name)
     };
     let ffi_ctx = ContextWrapper {
         cb,
@@ -735,7 +737,7 @@ pub unsafe extern "C" fn dc_send_text_msg(
         return 0;
     }
     let ffi_context = &*context;
-    let text_to_send = dc_tools::to_string_lossy(text_to_send);
+    let text_to_send = to_string_lossy(text_to_send);
     ffi_context
         .with_inner(|ctx| {
             chat::send_text_msg(ctx, chat_id, text_to_send)
@@ -2861,7 +2863,7 @@ fn as_opt_str<'a>(s: *const libc::c_char) -> Option<&'a str> {
         return None;
     }
 
-    Some(dc_tools::as_str(s))
+    Some(as_str(s))
 }
 
 pub mod providers;

@@ -2,6 +2,7 @@ use std::ffi::CString;
 use std::path::Path;
 use std::ptr;
 
+use libc::{free, strcmp, strlen, strstr};
 use mmime::mailmime_content::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
@@ -23,7 +24,6 @@ use crate::param::*;
 use crate::pgp::*;
 use crate::sql::{self, Sql};
 use crate::stock::StockMessage;
-use crate::x::*;
 
 // import/export and tools
 // param1 is a directory where the keys are written to
@@ -276,7 +276,7 @@ pub unsafe fn dc_continue_key_transfer(
     }
 
     if let Some(filename) = msg.get_file(context) {
-        if let Some(buf) = dc_read_file_safe(context, filename) {
+        if let Ok(buf) = dc_read_file(context, filename) {
             norm_sc = dc_normalize_setup_code(context, setup_code);
             if norm_sc.is_null() {
                 warn!(context, "Cannot normalize Setup Code.",);
@@ -767,8 +767,8 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> bool {
                                                 } else {
                                                     info!(context, "EXPORTing filename={}", name);
                                                     let curr_pathNfilename = context.get_blobdir().join(entry.file_name());
-                                                    if let Some(buf) =
-                                                        dc_read_file_safe(context, &curr_pathNfilename)
+                                                    if let Ok(buf) =
+                                                        dc_read_file(context, &curr_pathNfilename)
                                                     {
                                                         if buf.is_empty() {
                                                             continue;
@@ -874,7 +874,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                 free(buf.cast());
                 buf = ptr::null_mut();
 
-                if let Some(buf_r) = dc_read_file_safe(context, &path_plus_name) {
+                if let Ok(buf_r) = dc_read_file(context, &path_plus_name) {
                     buf = buf_r.as_ptr() as *mut _;
                     std::mem::forget(buf_r);
                 } else {

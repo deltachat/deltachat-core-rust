@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::ptr;
 
 use deltachat_derive::{FromSql, ToSql};
+use libc::{free, strcmp};
 use phf::phf_map;
 
 use crate::chat::{self, Chat};
@@ -18,7 +19,6 @@ use crate::param::*;
 use crate::pgp::*;
 use crate::sql;
 use crate::stock::StockMessage;
-use crate::x::*;
 
 /// In practice, the user additionally cuts the string himself pixel-accurate.
 const SUMMARY_CHARACTERS: usize = 160;
@@ -351,7 +351,7 @@ impl Message {
         }
 
         if let Some(filename) = self.get_file(context) {
-            if let Some(mut buf) = dc_read_file_safe(context, filename) {
+            if let Ok(mut buf) = dc_read_file(context, filename) {
                 unsafe {
                     // just a pointer inside buf, MUST NOT be free()'d
                     let mut buf_headerline = ptr::null();

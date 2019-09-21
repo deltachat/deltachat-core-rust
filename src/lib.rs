@@ -54,7 +54,6 @@ pub mod qr;
 mod smtp;
 pub mod sql;
 mod stock;
-pub mod x;
 
 pub mod dc_array;
 mod dc_dehtml;

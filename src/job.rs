@@ -19,7 +19,6 @@ use crate::login_param::LoginParam;
 use crate::message::{self, Message, MessageState};
 use crate::param::*;
 use crate::sql;
-use crate::x::*;
 
 /// Thread IDs
 #[derive(Debug, Display, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql)]
@@ -140,7 +139,7 @@ impl Job {
         }
 
         if let Some(filename) = self.param.get(Param::File) {
-            if let Some(body) = dc_read_file_safe(context, filename) {
+            if let Ok(body) = dc_read_file(context, filename) {
                 if let Some(recipients) = self.param.get(Param::Recipients) {
                     let recipients_list = recipients
                         .split("\x1e")
@@ -670,7 +669,7 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: u32) -> libc::c_int {
                     mimefactory.msg.param.set_int(Param::Width, 0);
                     mimefactory.msg.param.set_int(Param::Height, 0);
 
-                    if let Some(buf) = dc_read_file_safe(context, pathNfilename) {
+                    if let Ok(buf) = dc_read_file(context, pathNfilename) {
                         if let Ok((width, height)) = dc_get_filemeta(&buf) {
                             mimefactory.msg.param.set_int(Param::Width, width as i32);
                             mimefactory.msg.param.set_int(Param::Height, height as i32);
@@ -1047,7 +1046,7 @@ fn add_smtp_job(context: &Context, action: Action, mimefactory: &MimeFactory) ->
         success = 1;
     }
     unsafe {
-        free(recipients.cast());
+        libc::free(recipients.cast());
     }
     success
 }
