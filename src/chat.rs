@@ -844,9 +844,15 @@ pub unsafe fn set_draft(context: &Context, chat_id: u32, msg: Option<&mut Messag
     if chat_id <= DC_CHAT_ID_LAST_SPECIAL {
         return;
     }
-    if set_draft_raw(context, chat_id, msg) {
-        context.call_cb(Event::MsgsChanged { chat_id, msg_id: 0 });
+
+    let changed = match msg {
+        None => maybe_delete_draft(context, chat_id),
+        Some(msg) => set_draft_raw(context, chat_id, msg),
     };
+
+    if changed {
+        context.call_cb(Event::MsgsChanged { chat_id, msg_id: 0 });
+    }
 }
 
 /// Delete draft message in specified chat, if there is one.
@@ -863,12 +869,12 @@ fn maybe_delete_draft(context: &Context, chat_id: u32) -> bool {
 
 // similar to as dc_set_draft() but does not emit an event
 #[allow(non_snake_case)]
-unsafe fn set_draft_raw(context: &Context, chat_id: u32, mut msg: Option<&mut Message>) -> bool {
+unsafe fn set_draft_raw(context: &Context, chat_id: u32, msg: &mut Message) -> bool {
     let mut OK_TO_CONTINUE = true;
 
     let mut sth_changed = maybe_delete_draft(context, chat_id);
 
-    if let Some(ref mut msg) = msg {
+    {
         // save new draft
         if msg.type_0 == Viewtype::Text {
             OK_TO_CONTINUE = msg.text.as_ref().map_or(false, |s| !s.is_empty());
@@ -1294,7 +1300,7 @@ pub unsafe fn create_group_chat(
         if add_to_chat_contacts_table(context, chat_id, 1) {
             let mut draft_msg = dc_msg_new(Viewtype::Text);
             dc_msg_set_text(&mut draft_msg, draft_txt.as_ptr());
-            set_draft_raw(context, chat_id, Some(&mut draft_msg));
+            set_draft_raw(context, chat_id, &mut draft_msg);
         }
 
         context.call_cb(Event::MsgsChanged {
