@@ -514,7 +514,7 @@ pub fn dc_create_smeared_timestamp(context: &Context) -> i64 {
     ret
 }
 
-pub fn dc_create_smeared_timestamps(context: &Context, count: libc::c_int) -> i64 {
+pub fn dc_create_smeared_timestamps(context: &Context, count: usize) -> i64 {
     /* get a range to timestamps that can be used uniquely */
     let now = time();
     let start = now + (if count < 5 { count } else { 5 }) as i64 - count as i64;

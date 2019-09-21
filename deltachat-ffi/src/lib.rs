@@ -936,6 +936,12 @@ pub unsafe extern "C" fn dc_get_next_media(
         eprintln!("ignoring careless call to dc_get_next_media()");
         return 0;
     }
+    let direction = if dir < 0 {
+        chat::Direction::Backward
+    } else {
+        chat::Direction::Forward
+    };
+
     let ffi_context = &*context;
     let msg_type = from_prim(msg_type).expect(&format!("invalid msg_type = {}", msg_type));
     let or_msg_type2 =
@@ -944,7 +950,7 @@ pub unsafe extern "C" fn dc_get_next_media(
         from_prim(or_msg_type3).expect(&format!("incorrect or_msg_type3 = {}", or_msg_type3));
     ffi_context
         .with_inner(|ctx| {
-            chat::get_next_media(ctx, msg_id, dir, msg_type, or_msg_type2, or_msg_type3)
+            chat::get_next_media(ctx, msg_id, direction, msg_type, or_msg_type2, or_msg_type3)
         })
         .unwrap_or(0)
 }
@@ -1076,7 +1082,8 @@ pub unsafe extern "C" fn dc_is_contact_in_chat(
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| chat::is_contact_in_chat(ctx, chat_id, contact_id))
-        .unwrap_or(0)
+        .unwrap_or_default()
+        .into()
 }
 
 #[no_mangle]
@@ -1229,9 +1236,11 @@ pub unsafe extern "C" fn dc_forward_msgs(
         eprintln!("ignoring careless call to dc_forward_msgs()");
         return;
     }
+    let ids = std::slice::from_raw_parts(msg_ids, msg_cnt as usize);
+
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| chat::forward_msgs(ctx, msg_ids, msg_cnt, chat_id))
+        .with_inner(|ctx| chat::forward_msgs(ctx, ids, chat_id))
         .unwrap_or(())
 }
 

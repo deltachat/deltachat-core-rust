@@ -1163,7 +1163,7 @@ unsafe fn create_or_lookup_group(
 
     // check if the sender is a member of the existing group -
     // if not, we'll recreate the group list
-    if chat_id != 0 && 0 == chat::is_contact_in_chat(context, chat_id, from_id as u32) {
+    if chat_id != 0 && !chat::is_contact_in_chat(context, chat_id, from_id as u32) {
         recreate_member_list = 1;
     }
 

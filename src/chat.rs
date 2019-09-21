@@ -153,7 +153,7 @@ impl Chat {
             }
             let cnt = get_chat_contact_cnt(context, self.id);
             return context
-                .stock_string_repl_int(StockMessage::Member, cnt)
+                .stock_string_repl_int(StockMessage::Member, cnt as i32)
                 .into();
         }
 
@@ -230,15 +230,14 @@ impl Chat {
         self.is_sending_locations
     }
 
-    #[allow(non_snake_case)]
-    unsafe fn prepare_msg_raw(
+    fn prepare_msg_raw(
         &mut self,
         context: &Context,
         msg: &mut Message,
         timestamp: i64,
     ) -> Result<u32, Error> {
-        let mut do_guarantee_e2ee: libc::c_int;
-        let e2ee_enabled: libc::c_int;
+        let mut do_guarantee_e2ee: bool;
+        let e2ee_enabled: bool;
         let mut new_references = "".into();
         let mut new_in_reply_to = "".into();
         let mut msg_id = 0;
@@ -254,7 +253,7 @@ impl Chat {
         }
 
         if (self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup)
-            && 0 == is_contact_in_chat(context, self.id, 1 as u32)
+            && !is_contact_in_chat(context, self.id, 1 as u32)
         {
             emit_event!(
                 context,
@@ -299,14 +298,13 @@ impl Chat {
             if we guarantee E2EE, and circumstances change
             so that E2EE is no longer available at a later point (reset, changed settings),
             we do not send the message out at all */
-            do_guarantee_e2ee = 0;
+            do_guarantee_e2ee = false;
             e2ee_enabled = context
                 .sql
                 .get_config_int(context, "e2ee_enabled")
-                .unwrap_or_else(|| 1);
-            if 0 != e2ee_enabled
-                && msg.param.get_int(Param::ForcePlaintext).unwrap_or_default() == 0
-            {
+                .unwrap_or_else(|| 1)
+                == 1;
+            if e2ee_enabled && msg.param.get_int(Param::ForcePlaintext).unwrap_or_default() == 0 {
                 let mut can_encrypt = 1;
                 let mut all_mutual = 1;
 
@@ -351,13 +349,13 @@ impl Chat {
 
                 if 0 != can_encrypt {
                     if 0 != all_mutual {
-                        do_guarantee_e2ee = 1;
+                        do_guarantee_e2ee = true;
                     } else if last_msg_in_chat_encrypted(context, &context.sql, self.id) {
-                        do_guarantee_e2ee = 1;
+                        do_guarantee_e2ee = true;
                     }
                 }
             }
-            if 0 != do_guarantee_e2ee {
+            if do_guarantee_e2ee {
                 msg.param.set_int(Param::GuranteeE2ee, 1);
             }
             msg.param.remove(Param::ErroneousE2ee);
@@ -715,7 +713,7 @@ fn prepare_msg_common(context: &Context, chat_id: u32, msg: &mut Message) -> Res
         msg.state = MessageState::OutPending;
     }
 
-    msg.id = unsafe { chat.prepare_msg_raw(context, msg, dc_create_smeared_timestamp(context))? };
+    msg.id = chat.prepare_msg_raw(context, msg, dc_create_smeared_timestamp(context))?;
     msg.chat_id = chat_id;
 
     Ok(msg.id)
@@ -743,7 +741,7 @@ fn last_msg_in_chat_encrypted(context: &Context, sql: &Sql, chat_id: u32) -> boo
     }
 }
 
-pub fn is_contact_in_chat(context: &Context, chat_id: u32, contact_id: u32) -> libc::c_int {
+pub fn is_contact_in_chat(context: &Context, chat_id: u32, contact_id: u32) -> bool {
     /* this function works for group and for normal chats, however, it is more useful for group chats.
     DC_CONTACT_ID_SELF may be used to check, if the user itself is in a group chat (DC_CONTACT_ID_SELF is not added to normal chats) */
 
@@ -753,7 +751,7 @@ pub fn is_contact_in_chat(context: &Context, chat_id: u32, contact_id: u32) -> l
             "SELECT contact_id FROM chats_contacts WHERE chat_id=? AND contact_id=?;",
             params![chat_id as i32, contact_id as i32],
         )
-        .unwrap_or_default() as libc::c_int
+        .unwrap_or_default()
 }
 
 // Should return Result
@@ -822,11 +820,7 @@ pub fn send_msg(context: &Context, chat_id: u32, msg: &mut Message) -> Result<u3
     Ok(msg.id)
 }
 
-pub unsafe fn send_text_msg(
-    context: &Context,
-    chat_id: u32,
-    text_to_send: String,
-) -> Result<u32, Error> {
+pub fn send_text_msg(context: &Context, chat_id: u32, text_to_send: String) -> Result<u32, Error> {
     ensure!(
         chat_id > DC_CHAT_ID_LAST_SPECIAL,
         "bad chat_id = {} <= 9",
@@ -839,7 +833,7 @@ pub unsafe fn send_text_msg(
 }
 
 // passing `None` as message jsut deletes the draft
-pub unsafe fn set_draft(context: &Context, chat_id: u32, msg: Option<&mut Message>) {
+pub fn set_draft(context: &Context, chat_id: u32, msg: Option<&mut Message>) {
     if chat_id <= DC_CHAT_ID_LAST_SPECIAL {
         return;
     }
@@ -911,8 +905,7 @@ fn do_set_draft(context: &Context, chat_id: u32, msg: &mut Message) -> bool {
 }
 
 // similar to as dc_set_draft() but does not emit an event
-#[allow(non_snake_case)]
-unsafe fn set_draft_raw(context: &Context, chat_id: u32, msg: &mut Message) -> bool {
+fn set_draft_raw(context: &Context, chat_id: u32, msg: &mut Message) -> bool {
     let deleted = maybe_delete_draft(context, chat_id);
     let set = do_set_draft(context, chat_id, msg);
 
@@ -955,7 +948,7 @@ pub fn get_chat_msgs(context: &Context, chat_id: u32, flags: u32, marker1before:
             }
             if 0 != flags & 0x1 {
                 let curr_local_timestamp = ts + cnv_to_local;
-                let curr_day = (curr_local_timestamp / 86400) as libc::c_int;
+                let curr_day = curr_local_timestamp / 86400;
                 if curr_day != last_day {
                     ret.push(DC_MSG_ID_LAST_SPECIAL);
                     last_day = curr_day;
@@ -1122,10 +1115,18 @@ pub fn get_chat_media(
     ).unwrap_or_default()
 }
 
-pub unsafe fn get_next_media(
+/// Indicates the direction over which to iterate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[repr(i32)]
+pub enum Direction {
+    Forward = 1,
+    Backward = -1,
+}
+
+pub fn get_next_media(
     context: &Context,
     curr_msg_id: u32,
-    dir: libc::c_int,
+    direction: Direction,
     msg_type: Viewtype,
     msg_type2: Viewtype,
     msg_type3: Viewtype,
@@ -1146,13 +1147,16 @@ pub unsafe fn get_next_media(
         );
         for i in 0..list.len() {
             if curr_msg_id == list[i] {
-                if dir > 0 {
-                    if i + 1 < list.len() {
-                        ret = list[i + 1]
+                match direction {
+                    Direction::Forward => {
+                        if i + 1 < list.len() {
+                            ret = list[i + 1]
+                        }
                     }
-                } else if dir < 0 {
-                    if i >= 1 {
-                        ret = list[i - 1];
+                    Direction::Backward => {
+                        if i >= 1 {
+                            ret = list[i - 1];
+                        }
                     }
                 }
                 break;
@@ -1269,7 +1273,7 @@ pub fn get_chat_contacts(context: &Context, chat_id: u32) -> Vec<u32> {
         .unwrap_or_default()
 }
 
-pub unsafe fn create_group_chat(
+pub fn create_group_chat(
     context: &Context,
     verified: VerifiedStatus,
     chat_name: impl AsRef<str>,
@@ -1326,16 +1330,16 @@ pub fn add_to_chat_contacts_table(context: &Context, chat_id: u32, contact_id: u
     .is_ok()
 }
 
-pub unsafe fn add_contact_to_chat(context: &Context, chat_id: u32, contact_id: u32) -> bool {
-    add_contact_to_chat_ex(context, chat_id, contact_id, 0)
+pub fn add_contact_to_chat(context: &Context, chat_id: u32, contact_id: u32) -> bool {
+    add_contact_to_chat_ex(context, chat_id, contact_id, false)
 }
 
 #[allow(non_snake_case)]
-pub fn add_contact_to_chat_ex(
+pub(crate) fn add_contact_to_chat_ex(
     context: &Context,
     chat_id: u32,
     contact_id: u32,
-    flags: libc::c_int,
+    from_handshake: bool,
 ) -> bool {
     let mut OK_TO_CONTINUE = true;
     let mut success = false;
@@ -1354,7 +1358,7 @@ pub fn add_contact_to_chat_ex(
         if !(!real_group_exists(context, chat_id)
             || !Contact::real_exists_by_id(context, contact_id) && contact_id != DC_CONTACT_ID_SELF)
         {
-            if !(is_contact_in_chat(context, chat_id, 1 as u32) == 1) {
+            if !is_contact_in_chat(context, chat_id, 1 as u32) {
                 emit_event!(
                     context,
                     Event::ErrorSelfNotInGroup(
@@ -1363,8 +1367,7 @@ pub fn add_contact_to_chat_ex(
                 );
             } else {
                 /* we should respect this - whatever we send to the group, it gets discarded anyway! */
-                if 0 != flags & 0x1
-                    && chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 1
+                if from_handshake && chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 1
                 {
                     chat.param.remove(Param::Unpromoted);
                     chat.update_param(context).unwrap();
@@ -1377,8 +1380,8 @@ pub fn add_contact_to_chat_ex(
                     // ourself is added using DC_CONTACT_ID_SELF, do not add it explicitly.
                     // if SELF is not in the group, members cannot be added at all.
 
-                    if 0 != is_contact_in_chat(context, chat_id, contact_id) {
-                        if 0 == flags & 0x1 {
+                    if is_contact_in_chat(context, chat_id, contact_id) {
+                        if !from_handshake {
                             success = true;
                             OK_TO_CONTINUE = false;
                         }
@@ -1410,7 +1413,7 @@ pub fn add_contact_to_chat_ex(
                             ));
                             msg.param.set_int(Param::Cmd, 4);
                             msg.param.set(Param::Arg, contact.get_addr());
-                            msg.param.set_int(Param::Arg2, flags);
+                            msg.param.set_int(Param::Arg2, from_handshake.into());
                             msg.id = send_msg(context, chat_id, &mut msg).unwrap_or_default();
                             context.call_cb(Event::MsgsChanged {
                                 chat_id,
@@ -1477,7 +1480,7 @@ pub fn set_gossiped_timestamp(context: &Context, chat_id: u32, timestamp: i64) {
     }
 }
 
-pub unsafe fn remove_contact_from_chat(
+pub fn remove_contact_from_chat(
     context: &Context,
     chat_id: u32,
     contact_id: u32,
@@ -1499,7 +1502,7 @@ pub unsafe fn remove_contact_from_chat(
     /* this allows to delete pending references to deleted contacts.  Of course, this should _not_ happen. */
     if let Ok(chat) = Chat::load_from_db(context, chat_id) {
         if real_group_exists(context, chat_id) {
-            if !(is_contact_in_chat(context, chat_id, 1 as u32) == 1) {
+            if !is_contact_in_chat(context, chat_id, 1 as u32) {
                 emit_event!(
                     context,
                     Event::ErrorSelfNotInGroup(
@@ -1578,7 +1581,7 @@ pub fn is_group_explicitly_left(context: &Context, grpid: impl AsRef<str>) -> Re
     )
 }
 
-pub unsafe fn set_chat_name(
+pub fn set_chat_name(
     context: &Context,
     chat_id: u32,
     new_name: impl AsRef<str>,
@@ -1595,7 +1598,7 @@ pub unsafe fn set_chat_name(
     if real_group_exists(context, chat_id) {
         if &chat.name == new_name.as_ref() {
             success = true;
-        } else if !(is_contact_in_chat(context, chat_id, 1) == 1) {
+        } else if !is_contact_in_chat(context, chat_id, 1) {
             emit_event!(
                 context,
                 Event::ErrorSelfNotInGroup("Cannot set chat name; self not in group".into())
@@ -1657,7 +1660,7 @@ pub fn set_chat_profile_image(
 
     if real_group_exists(context, chat_id) {
         /* we should respect this - whatever we send to the group, it gets discarded anyway! */
-        if !(is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF) == 1i32) {
+        if !is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF) {
             emit_event!(
                 context,
                 Event::ErrorSelfNotInGroup(
@@ -1711,13 +1714,8 @@ pub fn set_chat_profile_image(
     bail!("Failed to set profile image");
 }
 
-pub unsafe fn forward_msgs(
-    context: &Context,
-    msg_ids: *const u32,
-    msg_cnt: libc::c_int,
-    chat_id: u32,
-) {
-    if msg_ids.is_null() || msg_cnt <= 0 || chat_id <= DC_CHAT_ID_LAST_SPECIAL {
+pub fn forward_msgs(context: &Context, msg_ids: &[u32], chat_id: u32) {
+    if msg_ids.is_empty() || chat_id <= DC_CHAT_ID_LAST_SPECIAL {
         return;
     }
 
@@ -1726,14 +1724,13 @@ pub unsafe fn forward_msgs(
 
     unarchive(context, chat_id).unwrap();
     if let Ok(mut chat) = Chat::load_from_db(context, chat_id) {
-        curr_timestamp = dc_create_smeared_timestamps(context, msg_cnt);
-        let idsstr = std::slice::from_raw_parts(msg_ids, msg_cnt as usize)
-            .iter()
+        curr_timestamp = dc_create_smeared_timestamps(context, msg_ids.len());
+        let idsstr = msg_ids
+            .into_iter()
             .enumerate()
-            .fold(
-                String::with_capacity(2 * msg_cnt as usize),
-                |acc, (i, n)| (if i == 0 { acc } else { acc + "," }) + &n.to_string(),
-            );
+            .fold(String::with_capacity(2 * msg_ids.len()), |acc, (i, n)| {
+                (if i == 0 { acc } else { acc + "," }) + &n.to_string()
+            });
 
         let ids = context
             .sql
@@ -1790,7 +1787,7 @@ pub unsafe fn forward_msgs(
                 new_msg_id = chat
                     .prepare_msg_raw(context, &mut msg, fresh10)
                     .unwrap_or_default();
-                job_send_msg(context, new_msg_id);
+                unsafe { job_send_msg(context, new_msg_id) };
             }
             created_db_entries.push(chat_id);
             created_db_entries.push(new_msg_id);
@@ -1805,15 +1802,15 @@ pub unsafe fn forward_msgs(
     }
 }
 
-pub fn get_chat_contact_cnt(context: &Context, chat_id: u32) -> libc::c_int {
+pub fn get_chat_contact_cnt(context: &Context, chat_id: u32) -> usize {
     context
         .sql
-        .query_get_value(
+        .query_get_value::<_, isize>(
             context,
             "SELECT COUNT(*) FROM chats_contacts WHERE chat_id=?;",
             params![chat_id as i32],
         )
-        .unwrap_or_default()
+        .unwrap_or_default() as usize
 }
 
 pub fn get_chat_cnt(context: &Context) -> usize {
@@ -1904,16 +1901,14 @@ mod tests {
 
     #[test]
     fn test_get_draft() {
-        unsafe {
-            let t = dummy_context();
-            let chat_id = create_by_contact_id(&t.ctx, DC_CONTACT_ID_SELF).unwrap();
-            let mut msg = Message::new(Viewtype::Text);
-            msg.set_text(Some("hello".to_string()));
-            set_draft(&t.ctx, chat_id, Some(&mut msg));
-            let draft = get_draft(&t.ctx, chat_id).unwrap().unwrap();
-            let msg_text = msg.get_text();
-            let draft_text = draft.get_text();
-            assert_eq!(msg_text, draft_text);
-        }
+        let t = dummy_context();
+        let chat_id = create_by_contact_id(&t.ctx, DC_CONTACT_ID_SELF).unwrap();
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text(Some("hello".to_string()));
+        set_draft(&t.ctx, chat_id, Some(&mut msg));
+        let draft = get_draft(&t.ctx, chat_id).unwrap().unwrap();
+        let msg_text = msg.get_text();
+        let draft_text = draft.get_text();
+        assert_eq!(msg_text, draft_text);
     }
 }
