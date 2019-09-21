@@ -18,7 +18,7 @@ use crate::error::*;
 use crate::events::Event;
 use crate::job::*;
 use crate::key::*;
-use crate::message::*;
+use crate::message::Message;
 use crate::param::*;
 use crate::pgp::*;
 use crate::sql::{self, Sql};
@@ -127,7 +127,7 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
                     dc_get_fine_path_filename(context, "$BLOBDIR", "autocrypt-setup-message.html");
                 if dc_write_file(context, &setup_file_name, setup_file_content.as_bytes()) {
                     if let Ok(chat_id) = chat::create_by_contact_id(context, 1) {
-                        msg = dc_msg_new_untyped();
+                        msg = Message::default();
                         msg.type_0 = Viewtype::File;
                         msg.param
                             .set(Param::File, setup_file_name.to_string_lossy());
@@ -157,8 +157,8 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
                                         break;
                                     }
                                     std::thread::sleep(std::time::Duration::from_secs(1));
-                                    if let Ok(msg) = dc_get_msg(context, msg_id) {
-                                        if dc_msg_is_sent(&msg) {
+                                    if let Ok(msg) = Message::load_from_db(context, msg_id) {
+                                        if msg.is_sent() {
                                             info!(context, "... setup message sent.",);
                                             break;
                                         }
@@ -264,18 +264,18 @@ pub unsafe fn dc_continue_key_transfer(
         return false;
     }
 
-    let msg = dc_get_msg(context, msg_id);
+    let msg = Message::load_from_db(context, msg_id);
     if msg.is_err() {
         error!(context, "Message is no Autocrypt Setup Message.");
         return false;
     }
     let msg = msg.unwrap();
-    if !dc_msg_is_setupmessage(&msg) {
+    if !msg.is_setupmessage() {
         error!(context, "Message is no Autocrypt Setup Message.");
         return false;
     }
 
-    if let Some(filename) = dc_msg_get_file(context, &msg) {
+    if let Some(filename) = msg.get_file(context) {
         if let Some(buf) = dc_read_file_safe(context, filename) {
             norm_sc = dc_normalize_setup_code(context, setup_code);
             if norm_sc.is_null() {

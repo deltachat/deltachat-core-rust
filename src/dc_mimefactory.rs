@@ -22,7 +22,7 @@ use crate::dc_tools::*;
 use crate::e2ee::*;
 use crate::error::Error;
 use crate::location;
-use crate::message::*;
+use crate::message::{self, Message};
 use crate::param::*;
 use crate::stock::StockMessage;
 use crate::x::*;
@@ -115,7 +115,7 @@ pub unsafe fn dc_mimefactory_load_msg(
 ) -> Result<MimeFactory, Error> {
     ensure!(msg_id > DC_CHAT_ID_LAST_SPECIAL, "Invalid chat id");
 
-    let msg = dc_msg_load_from_db(context, msg_id)?;
+    let msg = Message::load_from_db(context, msg_id)?;
     let chat = Chat::load_from_db(context, msg.chat_id)?;
     let mut factory = MimeFactory::new(context, msg);
     factory.chat = Some(chat);
@@ -239,7 +239,7 @@ pub unsafe fn dc_mimefactory_load_msg(
     factory.loaded = Loaded::Message;
     factory.timestamp = factory.msg.timestamp_sort;
     factory.rfc724_mid = factory.msg.rfc724_mid.clone();
-    factory.increation = dc_msg_is_increation(&factory.msg);
+    factory.increation = factory.msg.is_increation();
 
     Ok(factory)
 }
@@ -285,7 +285,7 @@ pub unsafe fn dc_mimefactory_load_mdn<'a>(
         bail!("MDNs disabled ")
     }
 
-    let msg = dc_msg_load_from_db(context, msg_id)?;
+    let msg = Message::load_from_db(context, msg_id)?;
     let mut factory = MimeFactory::new(context, msg);
     let contact = Contact::load_from_db(factory.context, factory.msg.from_id)?;
 
@@ -705,7 +705,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
 
             if let Some(grpimage) = grpimage {
                 info!(factory.context, "setting group image '{}'", grpimage);
-                let mut meta = dc_msg_new_untyped();
+                let mut meta = Message::default();
                 meta.type_0 = Viewtype::Image;
                 meta.param.set(Param::File, grpimage);
 
@@ -917,7 +917,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
                     .stock_str(StockMessage::EncryptedMsg)
                     .into_owned()
             } else {
-                to_string(dc_msg_get_summarytext(context, &mut factory.msg, 32))
+                to_string(factory.msg.get_summarytext(context, 32))
             };
             let p2 = factory
                 .context
@@ -1040,7 +1040,7 @@ unsafe fn get_subject(
     let ret: *mut libc::c_char;
 
     let raw_subject =
-        dc_msg_get_summarytext_by_raw(msg.type_0, msg.text.as_ref(), &mut msg.param, 32, context);
+        message::get_summarytext_by_raw(msg.type_0, msg.text.as_ref(), &mut msg.param, 32, context);
 
     let fwd = if 0 != afwd_email { "Fwd: " } else { "" };
     if msg.param.get_cmd() == SystemMessage::AutocryptSetupMessage {

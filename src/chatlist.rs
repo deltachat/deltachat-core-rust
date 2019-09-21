@@ -4,7 +4,7 @@ use crate::contact::*;
 use crate::context::*;
 use crate::error::Result;
 use crate::lot::Lot;
-use crate::message::*;
+use crate::message::Message;
 use crate::stock::StockMessage;
 
 /// An object representing a single chatlist in memory.
@@ -271,7 +271,7 @@ impl Chatlist {
         let mut lastcontact = None;
 
         let lastmsg = if 0 != lastmsg_id {
-            if let Ok(lastmsg) = dc_msg_load_from_db(context, lastmsg_id) {
+            if let Ok(lastmsg) = Message::load_from_db(context, lastmsg_id) {
                 if lastmsg.from_id != 1 as libc::c_uint
                     && (chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup)
                 {

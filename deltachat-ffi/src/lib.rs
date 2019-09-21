@@ -1172,7 +1172,7 @@ pub unsafe extern "C" fn dc_get_msg_info(
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| message::dc_get_msg_info(ctx, msg_id))
+        .with_inner(|ctx| message::get_msg_info(ctx, msg_id))
         .unwrap_or_else(|_| ptr::null_mut())
 }
 
@@ -1187,7 +1187,7 @@ pub unsafe extern "C" fn dc_get_mime_headers(
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| message::dc_get_mime_headers(ctx, msg_id))
+        .with_inner(|ctx| message::get_mime_headers(ctx, msg_id))
         .unwrap_or_else(|_| ptr::null_mut())
 }
 
@@ -1203,7 +1203,7 @@ pub unsafe extern "C" fn dc_delete_msgs(
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| message::dc_delete_msgs(ctx, msg_ids, msg_cnt))
+        .with_inner(|ctx| message::delete_msgs(ctx, msg_ids, msg_cnt))
         .unwrap_or(())
 }
 
@@ -1252,7 +1252,7 @@ pub unsafe extern "C" fn dc_markseen_msgs(
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| message::dc_markseen_msgs(ctx, msg_ids, msg_cnt as usize))
+        .with_inner(|ctx| message::markseen_msgs(ctx, msg_ids, msg_cnt as usize))
         .ok();
 }
 
@@ -1269,7 +1269,7 @@ pub unsafe extern "C" fn dc_star_msgs(
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| message::dc_star_msgs(ctx, msg_ids, msg_cnt, star))
+        .with_inner(|ctx| message::star_msgs(ctx, msg_ids, msg_cnt, star))
         .ok();
 }
 
@@ -1282,7 +1282,7 @@ pub unsafe extern "C" fn dc_get_msg(context: *mut dc_context_t, msg_id: u32) -> 
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| {
-            let message = match message::dc_get_msg(ctx, msg_id) {
+            let message = match message::Message::load_from_db(ctx, msg_id) {
                 Ok(msg) => msg,
                 Err(e) => {
                     error!(ctx, "Error getting msg #{}: {}", msg_id, e);
@@ -2176,7 +2176,7 @@ pub unsafe extern "C" fn dc_msg_new(
     let viewtype = from_prim(viewtype).expect(&format!("invalid viewtype = {}", viewtype));
     let msg = MessageWrapper {
         context,
-        message: message::dc_msg_new(viewtype),
+        message: message::Message::new(viewtype),
     };
     Box::into_raw(Box::new(msg))
 }
@@ -2198,7 +2198,7 @@ pub unsafe extern "C" fn dc_msg_get_id(msg: *mut dc_msg_t) -> u32 {
         return 0;
     }
     let ffi_msg = &*msg;
-    message::dc_msg_get_id(&ffi_msg.message)
+    ffi_msg.message.get_id()
 }
 
 #[no_mangle]
@@ -2208,7 +2208,7 @@ pub unsafe extern "C" fn dc_msg_get_from_id(msg: *mut dc_msg_t) -> u32 {
         return 0;
     }
     let ffi_msg = &*msg;
-    message::dc_msg_get_from_id(&ffi_msg.message)
+    ffi_msg.message.get_from_id()
 }
 
 #[no_mangle]
@@ -2218,7 +2218,7 @@ pub unsafe extern "C" fn dc_msg_get_chat_id(msg: *mut dc_msg_t) -> u32 {
         return 0;
     }
     let ffi_msg = &*msg;
-    message::dc_msg_get_chat_id(&ffi_msg.message)
+    ffi_msg.message.get_chat_id()
 }
 
 #[no_mangle]
@@ -2228,7 +2228,9 @@ pub unsafe extern "C" fn dc_msg_get_viewtype(msg: *mut dc_msg_t) -> libc::c_int 
         return 0;
     }
     let ffi_msg = &*msg;
-    message::dc_msg_get_viewtype(&ffi_msg.message)
+    ffi_msg
+        .message
+        .get_viewtype()
         .to_i64()
         .expect("impossible: Viewtype -> i64 conversion failed") as libc::c_int
 }
@@ -2240,7 +2242,7 @@ pub unsafe extern "C" fn dc_msg_get_state(msg: *mut dc_msg_t) -> libc::c_int {
         return 0;
     }
     let ffi_msg = &*msg;
-    message::dc_msg_get_state(&ffi_msg.message) as libc::c_int
+    ffi_msg.message.get_state() as libc::c_int
 }
 
 #[no_mangle]
@@ -2250,7 +2252,7 @@ pub unsafe extern "C" fn dc_msg_get_timestamp(msg: *mut dc_msg_t) -> i64 {
         return 0;
     }
     let ffi_msg = &*msg;
-    message::dc_msg_get_timestamp(&ffi_msg.message)
+    ffi_msg.message.get_timestamp()
 }
 
 #[no_mangle]
@@ -2260,7 +2262,7 @@ pub unsafe extern "C" fn dc_msg_get_received_timestamp(msg: *mut dc_msg_t) -> i6
         return 0;
     }
     let ffi_msg = &*msg;
-    message::dc_msg_get_received_timestamp(&ffi_msg.message)
+    ffi_msg.message.get_received_timestamp()
 }
 
 #[no_mangle]
@@ -2270,7 +2272,7 @@ pub unsafe extern "C" fn dc_msg_get_sort_timestamp(msg: *mut dc_msg_t) -> i64 {
         return 0;
     }
     let ffi_msg = &*msg;
-    message::dc_msg_get_sort_timestamp(&ffi_msg.message)
+    ffi_msg.message.get_sort_timestamp()
 }
 
 #[no_mangle]
@@ -2280,7 +2282,7 @@ pub unsafe extern "C" fn dc_msg_get_text(msg: *mut dc_msg_t) -> *mut libc::c_cha
         return dc_strdup(ptr::null());
     }
     let ffi_msg = &*msg;
-    message::dc_msg_get_text(&ffi_msg.message)
+    ffi_msg.message.get_text()
 }
 
 #[no_mangle]
@@ -2293,7 +2295,9 @@ pub unsafe extern "C" fn dc_msg_get_file(msg: *mut dc_msg_t) -> *mut libc::c_cha
     let ffi_context = &*ffi_msg.context;
     ffi_context
         .with_inner(|ctx| {
-            message::dc_msg_get_file(ctx, &ffi_msg.message)
+            ffi_msg
+                .message
+                .get_file(ctx)
                 .and_then(|p| p.to_c_string().ok())
                 .map(|cs| dc_strdup(cs.as_ptr()))
                 .unwrap_or_else(|| "".strdup())
@@ -2308,7 +2312,7 @@ pub unsafe extern "C" fn dc_msg_get_filename(msg: *mut dc_msg_t) -> *mut libc::c
         return dc_strdup(ptr::null());
     }
     let ffi_msg = &*msg;
-    message::dc_msg_get_filename(&ffi_msg.message)
+    ffi_msg.message.get_filename()
 }
 
 #[no_mangle]
@@ -2318,7 +2322,7 @@ pub unsafe extern "C" fn dc_msg_get_filemime(msg: *mut dc_msg_t) -> *mut libc::c
         return dc_strdup(ptr::null());
     }
     let ffi_msg = &*msg;
-    message::dc_msg_get_filemime(&ffi_msg.message).strdup()
+    ffi_msg.message.get_filemime().strdup()
 }
 
 #[no_mangle]
@@ -2330,7 +2334,7 @@ pub unsafe extern "C" fn dc_msg_get_filebytes(msg: *mut dc_msg_t) -> u64 {
     let ffi_msg = &*msg;
     let ffi_context = &*ffi_msg.context;
     ffi_context
-        .with_inner(|ctx| message::dc_msg_get_filebytes(ctx, &ffi_msg.message))
+        .with_inner(|ctx| ffi_msg.message.get_filebytes(ctx))
         .unwrap_or(0)
 }
 
@@ -2341,7 +2345,7 @@ pub unsafe extern "C" fn dc_msg_get_width(msg: *mut dc_msg_t) -> libc::c_int {
         return 0;
     }
     let ffi_msg = &*msg;
-    message::dc_msg_get_width(&ffi_msg.message)
+    ffi_msg.message.get_width()
 }
 
 #[no_mangle]
@@ -2351,7 +2355,7 @@ pub unsafe extern "C" fn dc_msg_get_height(msg: *mut dc_msg_t) -> libc::c_int {
         return 0;
     }
     let ffi_msg = &*msg;
-    message::dc_msg_get_height(&ffi_msg.message)
+    ffi_msg.message.get_height()
 }
 
 #[no_mangle]
@@ -2361,7 +2365,7 @@ pub unsafe extern "C" fn dc_msg_get_duration(msg: *mut dc_msg_t) -> libc::c_int 
         return 0;
     }
     let ffi_msg = &*msg;
-    message::dc_msg_get_duration(&ffi_msg.message)
+    ffi_msg.message.get_duration()
 }
 
 #[no_mangle]
@@ -2371,7 +2375,7 @@ pub unsafe extern "C" fn dc_msg_get_showpadlock(msg: *mut dc_msg_t) -> libc::c_i
         return 0;
     }
     let ffi_msg = &*msg;
-    message::dc_msg_get_showpadlock(&ffi_msg.message) as libc::c_int
+    ffi_msg.message.get_showpadlock() as libc::c_int
 }
 
 #[no_mangle]
@@ -2393,7 +2397,7 @@ pub unsafe extern "C" fn dc_msg_get_summary(
     let ffi_context = &*ffi_msg.context;
     ffi_context
         .with_inner(|ctx| {
-            let lot = message::dc_msg_get_summary(ctx, &mut ffi_msg.message, maybe_chat);
+            let lot = ffi_msg.message.get_summary(ctx, maybe_chat);
             Box::into_raw(Box::new(lot))
         })
         .unwrap_or_else(|_| ptr::null_mut())
@@ -2412,11 +2416,9 @@ pub unsafe extern "C" fn dc_msg_get_summarytext(
     let ffi_context = &*ffi_msg.context;
     ffi_context
         .with_inner(|ctx| {
-            message::dc_msg_get_summarytext(
-                ctx,
-                &mut ffi_msg.message,
-                approx_characters.try_into().unwrap(),
-            )
+            ffi_msg
+                .message
+                .get_summarytext(ctx, approx_characters.try_into().unwrap())
         })
         .unwrap_or_else(|_| "".strdup())
 }
@@ -2428,7 +2430,7 @@ pub unsafe extern "C" fn dc_msg_has_deviating_timestamp(msg: *mut dc_msg_t) -> l
         return 0;
     }
     let ffi_msg = &*msg;
-    message::dc_msg_has_deviating_timestamp(&ffi_msg.message)
+    ffi_msg.message.has_deviating_timestamp()
 }
 
 #[no_mangle]
@@ -2438,7 +2440,7 @@ pub unsafe extern "C" fn dc_msg_has_location(msg: *mut dc_msg_t) -> libc::c_int 
         return 0;
     }
     let ffi_msg = &*msg;
-    message::dc_msg_has_location(&ffi_msg.message) as libc::c_int
+    ffi_msg.message.has_location() as libc::c_int
 }
 
 #[no_mangle]
@@ -2448,7 +2450,7 @@ pub unsafe extern "C" fn dc_msg_is_sent(msg: *mut dc_msg_t) -> libc::c_int {
         return 0;
     }
     let ffi_msg = &*msg;
-    message::dc_msg_is_sent(&ffi_msg.message).into()
+    ffi_msg.message.is_sent().into()
 }
 
 #[no_mangle]
@@ -2458,7 +2460,7 @@ pub unsafe extern "C" fn dc_msg_is_starred(msg: *mut dc_msg_t) -> libc::c_int {
         return 0;
     }
     let ffi_msg = &*msg;
-    message::dc_msg_is_starred(&ffi_msg.message).into()
+    ffi_msg.message.is_starred().into()
 }
 
 #[no_mangle]
@@ -2468,7 +2470,7 @@ pub unsafe extern "C" fn dc_msg_is_forwarded(msg: *mut dc_msg_t) -> libc::c_int 
         return 0;
     }
     let ffi_msg = &*msg;
-    message::dc_msg_is_forwarded(&ffi_msg.message).into()
+    ffi_msg.message.is_forwarded().into()
 }
 
 #[no_mangle]
@@ -2478,7 +2480,7 @@ pub unsafe extern "C" fn dc_msg_is_info(msg: *mut dc_msg_t) -> libc::c_int {
         return 0;
     }
     let ffi_msg = &*msg;
-    message::dc_msg_is_info(&ffi_msg.message).into()
+    ffi_msg.message.is_info().into()
 }
 
 #[no_mangle]
@@ -2488,7 +2490,7 @@ pub unsafe extern "C" fn dc_msg_is_increation(msg: *mut dc_msg_t) -> libc::c_int
         return 0;
     }
     let ffi_msg = &*msg;
-    message::dc_msg_is_increation(&ffi_msg.message).into()
+    ffi_msg.message.is_increation().into()
 }
 
 #[no_mangle]
@@ -2498,7 +2500,7 @@ pub unsafe extern "C" fn dc_msg_is_setupmessage(msg: *mut dc_msg_t) -> libc::c_i
         return 0;
     }
     let ffi_msg = &*msg;
-    message::dc_msg_is_setupmessage(&ffi_msg.message).into()
+    ffi_msg.message.is_setupmessage().into()
 }
 
 #[no_mangle]
@@ -2510,7 +2512,7 @@ pub unsafe extern "C" fn dc_msg_get_setupcodebegin(msg: *mut dc_msg_t) -> *mut l
     let ffi_msg = &*msg;
     let ffi_context = &*ffi_msg.context;
     ffi_context
-        .with_inner(|ctx| message::dc_msg_get_setupcodebegin(ctx, &ffi_msg.message))
+        .with_inner(|ctx| ffi_msg.message.get_setupcodebegin(ctx))
         .unwrap_or_else(|_| "".strdup())
 }
 
@@ -2522,7 +2524,7 @@ pub unsafe extern "C" fn dc_msg_set_text(msg: *mut dc_msg_t, text: *mut libc::c_
     }
     let ffi_msg = &mut *msg;
     // TODO: {text} equal to NULL is treated as "", which is strange. Does anyone rely on it?
-    message::dc_msg_set_text(&mut ffi_msg.message, text)
+    ffi_msg.message.set_text(text)
 }
 
 #[no_mangle]
@@ -2536,7 +2538,7 @@ pub unsafe extern "C" fn dc_msg_set_file(
         return;
     }
     let ffi_msg = &mut *msg;
-    message::dc_msg_set_file(&mut ffi_msg.message, file, filemime)
+    ffi_msg.message.set_file(file, filemime)
 }
 
 #[no_mangle]
@@ -2550,7 +2552,7 @@ pub unsafe extern "C" fn dc_msg_set_dimension(
         return;
     }
     let ffi_msg = &mut *msg;
-    message::dc_msg_set_dimension(&mut ffi_msg.message, width, height)
+    ffi_msg.message.set_dimension(width, height)
 }
 
 #[no_mangle]
@@ -2560,7 +2562,7 @@ pub unsafe extern "C" fn dc_msg_set_duration(msg: *mut dc_msg_t, duration: libc:
         return;
     }
     let ffi_msg = &mut *msg;
-    message::dc_msg_set_duration(&mut ffi_msg.message, duration)
+    ffi_msg.message.set_duration(duration)
 }
 
 #[no_mangle]
@@ -2574,7 +2576,7 @@ pub unsafe extern "C" fn dc_msg_set_location(
         return;
     }
     let ffi_msg = &mut *msg;
-    message::dc_msg_set_location(&mut ffi_msg.message, latitude, longitude)
+    ffi_msg.message.set_location(latitude, longitude)
 }
 
 #[no_mangle]
@@ -2592,7 +2594,9 @@ pub unsafe extern "C" fn dc_msg_latefiling_mediasize(
     let ffi_context = &*ffi_msg.context;
     ffi_context
         .with_inner(|ctx| {
-            message::dc_msg_latefiling_mediasize(ctx, &mut ffi_msg.message, width, height, duration)
+            ffi_msg
+                .message
+                .latefiling_mediasize(ctx, width, height, duration)
         })
         .ok();
 }

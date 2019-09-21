@@ -22,7 +22,7 @@ use crate::error::Result;
 use crate::events::Event;
 use crate::job::*;
 use crate::location;
-use crate::message::*;
+use crate::message::{self, MessageState};
 use crate::param::*;
 use crate::peerstate::*;
 use crate::securejoin::handle_securejoin_handshake;
@@ -354,14 +354,14 @@ unsafe fn add_parts(
     let mut old_server_folder = std::ptr::null_mut();
     let mut old_server_uid = 0;
 
-    if 0 != dc_rfc724_mid_exists(
+    if 0 != message::rfc724_mid_exists(
         context,
         &rfc724_mid,
         &mut old_server_folder,
         &mut old_server_uid,
     ) {
         if as_str(old_server_folder) != server_folder.as_ref() || old_server_uid != server_uid {
-            dc_update_server_uid(context, &rfc724_mid, server_folder.as_ref(), server_uid);
+            message::update_server_uid(context, &rfc724_mid, server_folder.as_ref(), server_uid);
         }
 
         free(old_server_folder.cast());
@@ -840,7 +840,7 @@ unsafe fn handle_reports(
                                         let mut chat_id_0 = 0;
                                         let mut msg_id = 0;
 
-                                        if 0 != dc_mdn_from_ext(
+                                        if 0 != message::mdn_from_ext(
                                             context,
                                             from_id,
                                             as_str(rfc724_mid_0),
