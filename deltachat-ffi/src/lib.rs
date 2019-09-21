@@ -1172,7 +1172,7 @@ pub unsafe extern "C" fn dc_get_msg_info(
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| message::get_msg_info(ctx, msg_id))
+        .with_inner(|ctx| message::get_msg_info(ctx, msg_id).strdup())
         .unwrap_or_else(|_| ptr::null_mut())
 }
 
@@ -1187,7 +1187,11 @@ pub unsafe extern "C" fn dc_get_mime_headers(
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| message::get_mime_headers(ctx, msg_id))
+        .with_inner(|ctx| {
+            message::get_mime_headers(ctx, msg_id)
+                .map(|s| s.strdup())
+                .unwrap_or_else(|| ptr::null_mut())
+        })
         .unwrap_or_else(|_| ptr::null_mut())
 }
 
@@ -1202,8 +1206,11 @@ pub unsafe extern "C" fn dc_delete_msgs(
         return;
     }
     let ffi_context = &*context;
+
+    let ids = std::slice::from_raw_parts(msg_ids, msg_cnt as usize);
+
     ffi_context
-        .with_inner(|ctx| message::delete_msgs(ctx, msg_ids, msg_cnt))
+        .with_inner(|ctx| message::delete_msgs(ctx, ids))
         .unwrap_or(())
 }
 
@@ -1250,9 +1257,11 @@ pub unsafe extern "C" fn dc_markseen_msgs(
         eprintln!("ignoring careless call to dc_markseen_msgs()");
         return;
     }
+    let ids = std::slice::from_raw_parts(msg_ids, msg_cnt as usize);
+
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| message::markseen_msgs(ctx, msg_ids, msg_cnt as usize))
+        .with_inner(|ctx| message::markseen_msgs(ctx, ids))
         .ok();
 }
 
@@ -1267,9 +1276,12 @@ pub unsafe extern "C" fn dc_star_msgs(
         eprintln!("ignoring careless call to dc_star_msgs()");
         return;
     }
+
+    let ids = std::slice::from_raw_parts(msg_ids, msg_cnt as usize);
+
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| message::star_msgs(ctx, msg_ids, msg_cnt, star))
+        .with_inner(|ctx| message::star_msgs(ctx, ids, star == 1))
         .ok();
 }
 

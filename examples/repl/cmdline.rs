@@ -899,7 +899,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
             let id = arg1.parse()?;
             let res = message::get_msg_info(context, id);
-            println!("{}", as_str(res));
+            println!("{}", res);
         }
         "listfresh" => {
             let msglist = context.get_fresh_msgs();
@@ -922,24 +922,19 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
             let mut msg_ids = [0; 1];
             msg_ids[0] = arg1.parse()?;
-            message::markseen_msgs(context, msg_ids.as_mut_ptr(), 1);
+            message::markseen_msgs(context, &msg_ids);
         }
         "star" | "unstar" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
             let mut msg_ids = [0; 1];
             msg_ids[0] = arg1.parse()?;
-            message::star_msgs(
-                context,
-                msg_ids.as_mut_ptr(),
-                1,
-                if arg0 == "star" { 1 } else { 0 },
-            );
+            message::star_msgs(context, &msg_ids, arg0 == "star");
         }
         "delmsg" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
             let mut ids = [0; 1];
             ids[0] = arg1.parse()?;
-            message::delete_msgs(context, ids.as_mut_ptr(), 1);
+            message::delete_msgs(context, &ids);
         }
         "listcontacts" | "contacts" | "listverified" => {
             let contacts = Contact::get_all(

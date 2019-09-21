@@ -1,4 +1,3 @@
-use std::ffi::CString;
 use std::path::{Path, PathBuf};
 use std::ptr;
 
@@ -355,9 +354,9 @@ impl Message {
             if let Some(mut buf) = dc_read_file_safe(context, filename) {
                 unsafe {
                     // just a pointer inside buf, MUST NOT be free()'d
-                    let mut buf_headerline: *const libc::c_char = ptr::null();
+                    let mut buf_headerline = ptr::null();
                     // just a pointer inside buf, MUST NOT be free()'d
-                    let mut buf_setupcodebegin: *const libc::c_char = ptr::null();
+                    let mut buf_setupcodebegin = ptr::null();
 
                     if dc_split_armored_data(
                         buf.as_mut_ptr().cast(),
@@ -534,12 +533,12 @@ impl Lot {
     }
 }
 
-pub unsafe fn get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_char {
+pub fn get_msg_info(context: &Context, msg_id: u32) -> String {
     let mut ret = String::new();
 
     let msg = Message::load_from_db(context, msg_id);
     if msg.is_err() {
-        return ptr::null_mut();
+        return ret;
     }
 
     let msg = msg.unwrap();
@@ -552,7 +551,7 @@ pub unsafe fn get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_char 
 
     if rawtxt.is_none() {
         ret += &format!("Cannot load message #{}.", msg_id as usize);
-        return ret.strdup();
+        return ret;
     }
     let rawtxt = rawtxt.unwrap();
     let rawtxt = dc_truncate(rawtxt.trim(), 100000, false);
@@ -579,7 +578,7 @@ pub unsafe fn get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_char 
 
     if msg.from_id == 2 || msg.to_id == 2 {
         // device-internal message, no further details needed
-        return ret.strdup();
+        return ret;
     }
 
     if let Ok(rows) = context.sql.query_map(
@@ -671,7 +670,7 @@ pub unsafe fn get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_char 
         }
     }
 
-    ret.strdup()
+    ret
 }
 
 pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
@@ -692,39 +691,27 @@ pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
     KNOWN.get(extension).map(|x| *x)
 }
 
-pub unsafe fn get_mime_headers(context: &Context, msg_id: u32) -> *mut libc::c_char {
-    let headers: Option<String> = context.sql.query_get_value(
+pub fn get_mime_headers(context: &Context, msg_id: u32) -> Option<String> {
+    context.sql.query_get_value(
         context,
         "SELECT mime_headers FROM msgs WHERE id=?;",
         params![msg_id as i32],
-    );
-
-    if let Some(headers) = headers {
-        let h = CString::yolo(headers);
-        dc_strdup_keep_null(h.as_ptr())
-    } else {
-        std::ptr::null_mut()
-    }
+    )
 }
 
-pub unsafe fn delete_msgs(context: &Context, msg_ids: *const u32, msg_cnt: libc::c_int) {
-    if msg_ids.is_null() || msg_cnt <= 0i32 {
-        return;
-    }
-    let mut i: libc::c_int = 0i32;
-    while i < msg_cnt {
-        update_msg_chat_id(context, *msg_ids.offset(i as isize), 3i32 as u32);
+pub fn delete_msgs(context: &Context, msg_ids: &[u32]) {
+    for msg_id in msg_ids.into_iter() {
+        update_msg_chat_id(context, *msg_id, DC_CHAT_ID_TRASH);
         job_add(
             context,
             Action::DeleteMsgOnImap,
-            *msg_ids.offset(i as isize) as libc::c_int,
+            *msg_id as libc::c_int,
             Params::new(),
             0,
         );
-        i += 1
     }
 
-    if 0 != msg_cnt {
+    if !msg_ids.is_empty() {
         context.call_cb(Event::MsgsChanged {
             chat_id: 0,
             msg_id: 0,
@@ -744,17 +731,17 @@ fn update_msg_chat_id(context: &Context, msg_id: u32, chat_id: u32) -> bool {
     .is_ok()
 }
 
-pub fn markseen_msgs(context: &Context, msg_ids: *const u32, msg_cnt: usize) -> bool {
-    if msg_ids.is_null() || msg_cnt <= 0 {
+pub fn markseen_msgs(context: &Context, msg_ids: &[u32]) -> bool {
+    if msg_ids.is_empty() {
         return false;
     }
+
     let msgs = context.sql.prepare(
         "SELECT m.state, c.blocked  FROM msgs m  LEFT JOIN chats c ON c.id=m.chat_id  WHERE m.id=? AND m.chat_id>9",
         |mut stmt, _| {
-            let mut res = Vec::with_capacity(msg_cnt);
-            for i in 0..msg_cnt {
-                let id = unsafe { *msg_ids.offset(i as isize) };
-                let query_res = stmt.query_row(params![id as i32], |row| {
+            let mut res = Vec::with_capacity(msg_ids.len());
+            for id in msg_ids.into_iter() {
+                let query_res = stmt.query_row(params![*id as i32], |row| {
                     Ok((row.get::<_, MessageState>(0)?, row.get::<_, Option<Blocked>>(1)?.unwrap_or_default()))
                 });
                 if let Err(rusqlite::Error::QueryReturnedNoRows) = query_res {
@@ -763,6 +750,7 @@ pub fn markseen_msgs(context: &Context, msg_ids: *const u32, msg_cnt: usize) -> 
                 let (state, blocked) = query_res?;
                 res.push((id, state, blocked));
             }
+
             Ok(res)
         }
     );
@@ -777,20 +765,20 @@ pub fn markseen_msgs(context: &Context, msg_ids: *const u32, msg_cnt: usize) -> 
     for (id, curr_state, curr_blocked) in msgs.into_iter() {
         if curr_blocked == Blocked::Not {
             if curr_state == MessageState::InFresh || curr_state == MessageState::InNoticed {
-                update_msg_state(context, id, MessageState::InSeen);
+                update_msg_state(context, *id, MessageState::InSeen);
                 info!(context, "Seen message #{}.", id);
 
                 job_add(
                     context,
                     Action::MarkseenMsgOnImap,
-                    id as i32,
+                    *id as i32,
                     Params::new(),
                     0,
                 );
                 send_event = true;
             }
         } else if curr_state == MessageState::InFresh {
-            update_msg_state(context, id, MessageState::InNoticed);
+            update_msg_state(context, *id, MessageState::InNoticed);
             send_event = true;
         }
     }
@@ -815,20 +803,15 @@ pub fn update_msg_state(context: &Context, msg_id: u32, state: MessageState) -> 
     .is_ok()
 }
 
-pub fn star_msgs(
-    context: &Context,
-    msg_ids: *const u32,
-    msg_cnt: libc::c_int,
-    star: libc::c_int,
-) -> bool {
-    if msg_ids.is_null() || msg_cnt <= 0 || star != 0 && star != 1 {
+pub fn star_msgs(context: &Context, msg_ids: &[u32], star: bool) -> bool {
+    if msg_ids.is_empty() {
         return false;
     }
     context
         .sql
         .prepare("UPDATE msgs SET starred=? WHERE id=?;", |mut stmt, _| {
-            for i in 0..msg_cnt {
-                stmt.execute(params![star, unsafe { *msg_ids.offset(i as isize) as i32 }])?;
+            for msg_id in msg_ids.into_iter() {
+                stmt.execute(params![star as i32, *msg_id as i32])?;
             }
             Ok(())
         })
@@ -964,26 +947,20 @@ pub fn set_msg_failed(context: &Context, msg_id: u32, error: Option<impl AsRef<s
     }
 }
 
-///returns 1 if an event should be send
-pub unsafe fn mdn_from_ext(
+/// returns true if an event should be send
+pub fn mdn_from_ext(
     context: &Context,
     from_id: u32,
     rfc724_mid: &str,
     timestamp_sent: i64,
-    ret_chat_id: *mut u32,
-    ret_msg_id: *mut u32,
-) -> libc::c_int {
-    if from_id <= 9
-        || rfc724_mid.is_empty()
-        || ret_chat_id.is_null()
-        || ret_msg_id.is_null()
-        || *ret_chat_id != 0
-        || *ret_msg_id != 0
-    {
-        return 0;
+    ret_chat_id: &mut u32,
+    ret_msg_id: &mut u32,
+) -> bool {
+    if from_id <= 9 || rfc724_mid.is_empty() || *ret_chat_id != 0 || *ret_msg_id != 0 {
+        return false;
     }
 
-    let mut read_by_all = 0;
+    let mut read_by_all = false;
 
     if let Ok((msg_id, chat_id, chat_type, msg_state)) = context.sql.query_row(
         "SELECT m.id, c.id, c.type, m.state FROM msgs m  \
@@ -1025,7 +1002,7 @@ pub unsafe fn mdn_from_ext(
             // Normal chat? that's quite easy.
             if chat_type == Chattype::Single {
                 update_msg_state(context, *ret_msg_id, MessageState::OutMdnRcvd);
-                read_by_all = 1;
+                read_by_all = true;
             } else {
                 // send event about new state
                 let ist_cnt: i32 = context
@@ -1052,7 +1029,7 @@ pub unsafe fn mdn_from_ext(
                 let soll_cnt = (chat::get_chat_contact_cnt(context, *ret_chat_id) + 1) / 2;
                 if ist_cnt >= soll_cnt {
                     update_msg_state(context, *ret_msg_id, MessageState::OutMdnRcvd);
-                    read_by_all = 1;
+                    read_by_all = true;
                 } // else wait for more receipts
             }
         }
@@ -1109,40 +1086,23 @@ pub fn rfc724_mid_cnt(context: &Context, rfc724_mid: &str) -> libc::c_int {
     }
 }
 
-pub fn rfc724_mid_exists(
+pub(crate) fn rfc724_mid_exists(
     context: &Context,
     rfc724_mid: &str,
-    ret_server_folder: *mut *mut libc::c_char,
-    ret_server_uid: *mut u32,
-) -> u32 {
-    if rfc724_mid.is_empty() {
-        return 0;
-    }
-    match context.sql.query_row(
+) -> Result<(String, u32, u32), Error> {
+    ensure!(!rfc724_mid.is_empty(), "empty rfc724_mid");
+
+    context.sql.query_row(
         "SELECT server_folder, server_uid, id FROM msgs WHERE rfc724_mid=?",
         &[rfc724_mid],
         |row| {
-            if !ret_server_folder.is_null() {
-                unsafe { *ret_server_folder = row.get::<_, String>(0)?.strdup() };
-            }
-            if !ret_server_uid.is_null() {
-                unsafe { *ret_server_uid = row.get(1)? };
-            }
-            row.get(2)
-        },
-    ) {
-        Ok(res) => res,
-        Err(_err) => {
-            if !ret_server_folder.is_null() {
-                unsafe { *ret_server_folder = ptr::null_mut() };
-            }
-            if !ret_server_uid.is_null() {
-                unsafe { *ret_server_uid = 0 };
-            }
+            let server_folder = row.get::<_, Option<String>>(0)?.unwrap_or_default();
+            let server_uid = row.get(1)?;
+            let msg_id = row.get(2)?;
 
-            0
-        }
-    }
+            Ok((server_folder, server_uid, msg_id))
+        },
+    )
 }
 
 pub fn update_server_uid(
