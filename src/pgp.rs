@@ -17,6 +17,10 @@ use crate::error::Error;
 use crate::key::*;
 use crate::keyring::*;
 
+/* Split data from PGP Armored Data as defined in https://tools.ietf.org/html/rfc4880#section-6.2.
+The given buffer is modified and the returned pointers just point inside the modified buffer,
+no additional data to free therefore.
+(NB: netpgp allows only parsing of Version, Comment, MessageID, Hash and Charset) */
 pub unsafe fn dc_split_armored_data(
     buf: *mut libc::c_char,
     ret_headerline: *mut *const libc::c_char,
