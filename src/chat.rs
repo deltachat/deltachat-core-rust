@@ -1,4 +1,3 @@
-use std::ffi::CString;
 use std::path::{Path, PathBuf};
 
 use crate::chatlist::*;
@@ -1277,9 +1276,7 @@ pub unsafe fn create_group_chat(
 ) -> Result<u32, Error> {
     ensure!(!chat_name.as_ref().is_empty(), "Invalid chat name");
 
-    let draft_txt =
-        CString::new(context.stock_string_repl_str(StockMessage::NewGroupDraft, &chat_name))
-            .unwrap();
+    let draft_txt = context.stock_string_repl_str(StockMessage::NewGroupDraft, &chat_name);
     let grpid = dc_create_id();
 
     sql::execute(
@@ -1302,7 +1299,7 @@ pub unsafe fn create_group_chat(
     if chat_id != 0 {
         if add_to_chat_contacts_table(context, chat_id, 1) {
             let mut draft_msg = Message::new(Viewtype::Text);
-            draft_msg.set_text(draft_txt.as_ptr());
+            draft_msg.set_text(Some(draft_txt));
             set_draft_raw(context, chat_id, &mut draft_msg);
         }
 
@@ -1911,12 +1908,12 @@ mod tests {
             let t = dummy_context();
             let chat_id = create_by_contact_id(&t.ctx, DC_CONTACT_ID_SELF).unwrap();
             let mut msg = Message::new(Viewtype::Text);
-            msg.set_text(b"hello\x00" as *const u8 as *const libc::c_char);
+            msg.set_text(Some("hello".to_string()));
             set_draft(&t.ctx, chat_id, Some(&mut msg));
             let draft = get_draft(&t.ctx, chat_id).unwrap().unwrap();
             let msg_text = msg.get_text();
             let draft_text = draft.get_text();
-            assert_eq!(as_str(msg_text), as_str(draft_text));
+            assert_eq!(msg_text, draft_text);
         }
     }
 }

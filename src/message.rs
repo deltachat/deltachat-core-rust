@@ -235,44 +235,35 @@ impl Message {
         self.timestamp_sort
     }
 
-    pub unsafe fn get_text(&self) -> *mut libc::c_char {
-        if let Some(ref text) = self.text {
-            dc_truncate(text, 30000, false).strdup()
-        } else {
-            ptr::null_mut()
-        }
+    pub fn get_text(&self) -> Option<String> {
+        self.text
+            .as_ref()
+            .map(|text| dc_truncate(text, 30000, false).to_string())
     }
 
-    #[allow(non_snake_case)]
-    pub unsafe fn get_filename(&self) -> *mut libc::c_char {
-        let mut ret = ptr::null_mut();
-
-        if let Some(file) = self.param.get(Param::File) {
-            ret = dc_get_filename(file);
-        }
-        if !ret.is_null() {
-            ret
-        } else {
-            dc_strdup(0 as *const libc::c_char)
-        }
+    pub fn get_filename(&self) -> Option<String> {
+        self.param
+            .get(Param::File)
+            .and_then(|file| Path::new(file).file_name())
+            .map(|name| name.to_string_lossy().to_string())
     }
 
     pub fn get_filebytes(&self, context: &Context) -> u64 {
-        if let Some(file) = self.param.get(Param::File) {
-            return dc_get_filebytes(context, &file);
-        }
-        0
+        self.param
+            .get(Param::File)
+            .map(|file| dc_get_filebytes(context, &file))
+            .unwrap_or_default()
     }
 
-    pub fn get_width(&self) -> libc::c_int {
+    pub fn get_width(&self) -> i32 {
         self.param.get_int(Param::Width).unwrap_or_default()
     }
 
-    pub fn get_height(&self) -> libc::c_int {
+    pub fn get_height(&self) -> i32 {
         self.param.get_int(Param::Height).unwrap_or_default()
     }
 
-    pub fn get_duration(&self) -> libc::c_int {
+    pub fn get_duration(&self) -> i32 {
         self.param.get_int(Param::Duration).unwrap_or_default()
     }
 
@@ -286,13 +277,11 @@ impl Message {
         let chat_loaded: Chat;
         let chat = if let Some(chat) = chat {
             chat
+        } else if let Ok(chat) = Chat::load_from_db(context, self.chat_id) {
+            chat_loaded = chat;
+            &chat_loaded
         } else {
-            if let Ok(chat) = Chat::load_from_db(context, self.chat_id) {
-                chat_loaded = chat;
-                &chat_loaded
-            } else {
-                return ret;
-            }
+            return ret;
         };
 
         let contact = if self.from_id != DC_CONTACT_ID_SELF as libc::c_uint
@@ -308,11 +297,7 @@ impl Message {
         ret
     }
 
-    pub unsafe fn get_summarytext(
-        &mut self,
-        context: &Context,
-        approx_characters: usize,
-    ) -> *mut libc::c_char {
+    pub fn get_summarytext(&mut self, context: &Context, approx_characters: usize) -> String {
         get_summarytext_by_raw(
             self.type_0,
             self.text.as_ref(),
@@ -320,15 +305,14 @@ impl Message {
             approx_characters,
             context,
         )
-        .strdup()
     }
 
-    pub unsafe fn has_deviating_timestamp(&self) -> libc::c_int {
+    pub fn has_deviating_timestamp(&self) -> bool {
         let cnv_to_local = dc_gm2local_offset();
         let sort_timestamp = self.get_sort_timestamp() as i64 + cnv_to_local;
         let send_timestamp = self.get_timestamp() as i64 + cnv_to_local;
 
-        (sort_timestamp / 86400 != send_timestamp / 86400) as libc::c_int
+        sort_timestamp / 86400 != send_timestamp / 86400
     }
 
     pub fn is_sent(&self) -> bool {
@@ -345,8 +329,8 @@ impl Message {
 
     pub fn is_info(&self) -> bool {
         let cmd = self.param.get_cmd();
-        self.from_id == 2i32 as libc::c_uint
-            || self.to_id == 2i32 as libc::c_uint
+        self.from_id == DC_CONTACT_ID_DEVICE as libc::c_uint
+            || self.to_id == DC_CONTACT_ID_DEVICE as libc::c_uint
             || cmd != SystemMessage::Unknown && cmd != SystemMessage::AutocryptSetupMessage
     }
 
@@ -362,15 +346,19 @@ impl Message {
         self.param.get_cmd() == SystemMessage::AutocryptSetupMessage
     }
 
-    pub unsafe fn get_setupcodebegin(&self, context: &Context) -> *mut libc::c_char {
-        // just a pointer inside buf, MUST NOT be free()'d
-        let mut buf_headerline: *const libc::c_char = ptr::null();
-        // just a pointer inside buf, MUST NOT be free()'d
-        let mut buf_setupcodebegin: *const libc::c_char = ptr::null();
-        let mut ret: *mut libc::c_char = ptr::null_mut();
+    pub fn get_setupcodebegin(&self, context: &Context) -> Option<String> {
         if self.is_setupmessage() {
-            if let Some(filename) = self.get_file(context) {
-                if let Some(mut buf) = dc_read_file_safe(context, filename) {
+            return None;
+        }
+
+        if let Some(filename) = self.get_file(context) {
+            if let Some(mut buf) = dc_read_file_safe(context, filename) {
+                unsafe {
+                    // just a pointer inside buf, MUST NOT be free()'d
+                    let mut buf_headerline: *const libc::c_char = ptr::null();
+                    // just a pointer inside buf, MUST NOT be free()'d
+                    let mut buf_setupcodebegin: *const libc::c_char = ptr::null();
+
                     if dc_split_armored_data(
                         buf.as_mut_ptr().cast(),
                         &mut buf_headerline,
@@ -383,50 +371,41 @@ impl Message {
                     ) == 0
                         && !buf_setupcodebegin.is_null()
                     {
-                        ret = dc_strdup(buf_setupcodebegin)
+                        return Some(to_string(buf_setupcodebegin));
                     }
                 }
             }
         }
-        if !ret.is_null() {
-            ret
-        } else {
-            dc_strdup(0 as *const libc::c_char)
+
+        None
+    }
+
+    pub fn set_text(&mut self, text: Option<String>) {
+        self.text = text;
+    }
+
+    pub fn set_file(&mut self, file: impl AsRef<str>, filemime: Option<&str>) {
+        self.param.set(Param::File, file);
+        if let Some(filemime) = filemime {
+            self.param.set(Param::MimeType, filemime);
         }
     }
 
-    pub fn set_text(&mut self, text: *const libc::c_char) {
-        self.text = if text.is_null() {
-            None
-        } else {
-            Some(to_string(text))
-        };
-    }
-
-    pub fn set_file(&mut self, file: *const libc::c_char, filemime: *const libc::c_char) {
-        if !file.is_null() {
-            self.param.set(Param::File, as_str(file));
-        }
-        if !filemime.is_null() {
-            self.param.set(Param::MimeType, as_str(filemime));
-        }
-    }
-
-    pub fn set_dimension(&mut self, width: libc::c_int, height: libc::c_int) {
+    pub fn set_dimension(&mut self, width: i32, height: i32) {
         self.param.set_int(Param::Width, width);
         self.param.set_int(Param::Height, height);
     }
 
-    pub fn set_duration(&mut self, duration: libc::c_int) {
+    pub fn set_duration(&mut self, duration: i32) {
         self.param.set_int(Param::Duration, duration);
     }
 
     pub fn latefiling_mediasize(
         &mut self,
         context: &Context,
-        width: libc::c_int,
-        height: libc::c_int,
-        duration: libc::c_int,
+        width: i32,
+        height: i32,
+        duration: i32,
     ) {
         if width > 0 && height > 0 {
             self.param.set_int(Param::Width, width);
