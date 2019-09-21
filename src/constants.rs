@@ -60,6 +60,10 @@ const DC_GCM_ADDDAYMARKER: usize = 0x01;
 pub const DC_GCL_VERIFIED_ONLY: usize = 0x01;
 pub const DC_GCL_ADD_SELF: usize = 0x02;
 
+// values for DC_PARAM_FORCE_PLAINTEXT
+pub(crate) const DC_FP_NO_AUTOCRYPT_HEADER: i32 = 2;
+pub(crate) const DC_FP_ADD_AUTOCRYPT_HEADER: i32 = 1;
+
 /// param1 is a directory where the keys are written to
 const DC_IMEX_EXPORT_SELF_KEYS: usize = 1;
 /// param1 is a directory where the keys are searched in and read from

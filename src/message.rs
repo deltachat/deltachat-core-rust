@@ -680,7 +680,7 @@ pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
         "mp4"   => (Viewtype::Video, "video/mp4"),
         "jpg"   => (Viewtype::Image, "image/jpeg"),
         "jpeg"  => (Viewtype::Image, "image/jpeg"),
-        "jpe"  => (Viewtype::Image, "image/jpeg"),
+        "jpe"   => (Viewtype::Image, "image/jpeg"),
         "png"   => (Viewtype::Image, "image/png"),
         "webp"  => (Viewtype::Image, "image/webp"),
         "gif"   => (Viewtype::Gif,   "image/gif"),
@@ -688,6 +688,7 @@ pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
         "vcard" => (Viewtype::File,  "text/vcard"),
     };
     let extension: &str = &path.extension()?.to_str()?.to_lowercase();
+
     KNOWN.get(extension).map(|x| *x)
 }
 

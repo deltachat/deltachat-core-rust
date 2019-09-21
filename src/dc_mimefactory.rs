@@ -49,12 +49,11 @@ pub struct MimeFactory<'a> {
     pub increation: bool,
     pub in_reply_to: *mut libc::c_char,
     pub references: *mut libc::c_char,
-    pub req_mdn: libc::c_int,
+    pub req_mdn: bool,
     pub out: *mut MMAPString,
     pub out_encrypted: bool,
     pub out_gossiped: bool,
     pub out_last_added_location_id: u32,
-    pub error: *mut libc::c_char,
     pub context: &'a Context,
 }
 
@@ -74,12 +73,11 @@ impl<'a> MimeFactory<'a> {
             increation: false,
             in_reply_to: ptr::null_mut(),
             references: ptr::null_mut(),
-            req_mdn: 0,
+            req_mdn: false,
             out: ptr::null_mut(),
             out_encrypted: false,
             out_gossiped: false,
             out_last_added_location_id: 0,
-            error: ptr::null_mut(),
             context,
         }
     }
@@ -104,7 +102,6 @@ impl<'a> Drop for MimeFactory<'a> {
             if !self.out.is_null() {
                 mmap_string_free(self.out);
             }
-            free(self.error as *mut libc::c_void);
         }
     }
 }
@@ -210,7 +207,7 @@ pub unsafe fn dc_mimefactory_load_msg(
                 .get_config_int(context, "mdns_enabled")
                 .unwrap_or_else(|| 1)
         {
-            factory.req_mdn = 1;
+            factory.req_mdn = true;
         }
     }
     let row = context.sql.query_row(
@@ -319,112 +316,111 @@ pub unsafe fn dc_mimefactory_load_mdn<'a>(
     Ok(factory)
 }
 
-pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory) -> bool {
-    let subject: *mut mailimf_subject;
-    let mut ok_to_continue = true;
-    let imf_fields: *mut mailimf_fields;
-    let mut message: *mut mailmime = ptr::null_mut();
-    let mut afwd_email = false;
-    let mut col: libc::c_int = 0;
-    let mut success = false;
-    let mut parts: libc::c_int = 0;
+pub unsafe fn dc_mimefactory_render(
+    context: &Context,
+    factory: &mut MimeFactory,
+) -> Result<(), Error> {
+    if factory.loaded == Loaded::Nothing || !factory.out.is_null() {
+        bail!("Invalid use of mimefactory-object.");
+    }
+    let from: *mut mailimf_mailbox_list = mailimf_mailbox_list_new_empty();
+    mailimf_mailbox_list_add(
+        from,
+        mailimf_mailbox_new(
+            if !factory.from_displayname.is_null() {
+                dc_encode_header_words(as_str(factory.from_displayname))
+            } else {
+                ptr::null_mut()
+            },
+            dc_strdup(factory.from_addr),
+        ),
+    );
+    let mut to: *mut mailimf_address_list = ptr::null_mut();
+    if !factory.recipients_names.is_null()
+        && !factory.recipients_addr.is_null()
+        && (*factory.recipients_addr).count > 0
+    {
+        let name_iter = (*factory.recipients_names).into_iter();
+        let addr_iter = (*factory.recipients_addr).into_iter();
+        to = mailimf_address_list_new_empty();
+        for (name, addr) in name_iter.zip(addr_iter) {
+            let name = name as *const libc::c_char;
+            let addr = addr as *const libc::c_char;
+            mailimf_address_list_add(
+                to,
+                mailimf_address_new(
+                    MAILIMF_ADDRESS_MAILBOX as libc::c_int,
+                    mailimf_mailbox_new(
+                        if !name.is_null() {
+                            dc_encode_header_words(as_str(name))
+                        } else {
+                            ptr::null_mut()
+                        },
+                        dc_strdup(addr),
+                    ),
+                    ptr::null_mut(),
+                ),
+            );
+        }
+    }
+    let mut references_list: *mut clist = ptr::null_mut();
+    if !factory.references.is_null() && 0 != *factory.references.offset(0isize) as libc::c_int {
+        references_list = dc_str_to_clist(
+            factory.references,
+            b" \x00" as *const u8 as *const libc::c_char,
+        )
+    }
+    let mut in_reply_to_list: *mut clist = ptr::null_mut();
+    if !factory.in_reply_to.is_null() && 0 != *factory.in_reply_to.offset(0isize) as libc::c_int {
+        in_reply_to_list = dc_str_to_clist(
+            factory.in_reply_to,
+            b" \x00" as *const u8 as *const libc::c_char,
+        )
+    }
+    let imf_fields = mailimf_fields_new_with_data_all(
+        mailimf_get_date(factory.timestamp as i64),
+        from,
+        ptr::null_mut(),
+        ptr::null_mut(),
+        to,
+        ptr::null_mut(),
+        ptr::null_mut(),
+        factory.rfc724_mid.strdup(),
+        in_reply_to_list,
+        references_list,
+        ptr::null_mut(),
+    );
+
+    let os_name = &factory.context.os_name;
+    let os_part = os_name
+        .as_ref()
+        .map(|s| format!("/{}", s))
+        .unwrap_or_default();
+    let version = get_version_str();
+    let headerval = format!("Delta Chat Core {}{}", version, os_part);
+    add_mailimf_field(imf_fields, "X-Mailer", &headerval);
+    add_mailimf_field(imf_fields, "Chat-Version", "1.0");
+    if factory.req_mdn {
+        let headerval = to_string(factory.from_addr);
+        add_mailimf_field(imf_fields, "Chat-Disposition-Notification-To", &headerval);
+    }
+
+    let cleanup = |message: *mut mailmime| {
+        if !message.is_null() {
+            mailmime_free(message);
+        }
+    };
+    let message = mailmime_new_message_data(0 as *mut mailmime);
+    mailmime_set_imf_fields(message, imf_fields);
+
+    // 1=add Autocrypt-header (needed eg. for handshaking), 2=no Autocrypte-header (used for MDN)
     let mut e2ee_guaranteed = false;
     let mut min_verified: libc::c_int = 0;
-    // 1=add Autocrypt-header (needed eg. for handshaking), 2=no Autocrypte-header (used for MDN)
-    let mut force_plaintext: libc::c_int = 0;
-    let mut do_gossip: libc::c_int = 0;
+    let mut do_gossip = false;
     let mut grpimage = None;
-    let mut e2ee_helper = E2eeHelper::default();
-
-    if factory.loaded == Loaded::Nothing || !factory.out.is_null() {
-        /*call empty() before*/
-        set_error(factory, "Invalid use of mimefactory-object.");
-    } else {
-        let from: *mut mailimf_mailbox_list = mailimf_mailbox_list_new_empty();
-        mailimf_mailbox_list_add(
-            from,
-            mailimf_mailbox_new(
-                if !factory.from_displayname.is_null() {
-                    dc_encode_header_words(as_str(factory.from_displayname))
-                } else {
-                    ptr::null_mut()
-                },
-                dc_strdup(factory.from_addr),
-            ),
-        );
-        let mut to: *mut mailimf_address_list = ptr::null_mut();
-        if !factory.recipients_names.is_null()
-            && !factory.recipients_addr.is_null()
-            && (*factory.recipients_addr).count > 0
-        {
-            let name_iter = (*factory.recipients_names).into_iter();
-            let addr_iter = (*factory.recipients_addr).into_iter();
-            to = mailimf_address_list_new_empty();
-            for (name, addr) in name_iter.zip(addr_iter) {
-                let name = name as *const libc::c_char;
-                let addr = addr as *const libc::c_char;
-                mailimf_address_list_add(
-                    to,
-                    mailimf_address_new(
-                        MAILIMF_ADDRESS_MAILBOX as libc::c_int,
-                        mailimf_mailbox_new(
-                            if !name.is_null() {
-                                dc_encode_header_words(as_str(name))
-                            } else {
-                                ptr::null_mut()
-                            },
-                            dc_strdup(addr),
-                        ),
-                        ptr::null_mut(),
-                    ),
-                );
-            }
-        }
-        let mut references_list: *mut clist = ptr::null_mut();
-        if !factory.references.is_null() && 0 != *factory.references.offset(0isize) as libc::c_int {
-            references_list = dc_str_to_clist(
-                factory.references,
-                b" \x00" as *const u8 as *const libc::c_char,
-            )
-        }
-        let mut in_reply_to_list: *mut clist = ptr::null_mut();
-        if !factory.in_reply_to.is_null() && 0 != *factory.in_reply_to.offset(0isize) as libc::c_int
-        {
-            in_reply_to_list = dc_str_to_clist(
-                factory.in_reply_to,
-                b" \x00" as *const u8 as *const libc::c_char,
-            )
-        }
-        imf_fields = mailimf_fields_new_with_data_all(
-            mailimf_get_date(factory.timestamp as i64),
-            from,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            to,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            factory.rfc724_mid.strdup(),
-            in_reply_to_list,
-            references_list,
-            ptr::null_mut(),
-        );
-
-        let os_name = &factory.context.os_name;
-        let os_part = os_name
-            .as_ref()
-            .map(|s| format!("/{}", s))
-            .unwrap_or_default();
-        let version = get_version_str();
-        let headerval = format!("Delta Chat Core {}{}", version, os_part);
-        add_mailimf_field(imf_fields, "X-Mailer", &headerval);
-        add_mailimf_field(imf_fields, "Chat-Version", "1.0");
-        if 0 != factory.req_mdn {
-            let headerval = to_string(factory.from_addr);
-            add_mailimf_field(imf_fields, "Chat-Disposition-Notification-To", &headerval);
-        }
-        message = mailmime_new_message_data(0 as *mut mailmime);
-        mailmime_set_imf_fields(message, imf_fields);
-        if factory.loaded == Loaded::Message {
+    let force_plaintext: libc::c_int;
+    let subject_str = match factory.loaded {
+        Loaded::Message => {
             /* Render a normal message
              *********************************************************************/
             let chat = factory.chat.as_ref().unwrap();
@@ -454,7 +450,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
             if chat.gossiped_timestamp == 0
                 || (chat.gossiped_timestamp + (2 * 24 * 60 * 60)) < time()
             {
-                do_gossip = 1
+                do_gossip = true
             }
 
             /* build header etc. */
@@ -475,89 +471,99 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
                 );
                 assert!(res == MAILIMF_NO_ERROR as i32);
 
-                if command == SystemMessage::MemberRemovedFromGroup {
-                    let email_to_remove = factory.msg.param.get(Param::Arg).unwrap_or_default();
-                    if !email_to_remove.is_empty() {
-                        add_mailimf_field(
-                            imf_fields,
-                            "Chat-Group-Member-Removed",
-                            &email_to_remove,
-                        );
+                match command {
+                    SystemMessage::MemberRemovedFromGroup => {
+                        let email_to_remove = factory.msg.param.get(Param::Arg).unwrap_or_default();
+                        if !email_to_remove.is_empty() {
+                            add_mailimf_field(
+                                imf_fields,
+                                "Chat-Group-Member-Removed",
+                                &email_to_remove,
+                            );
+                        }
                     }
-                } else if command == SystemMessage::MemberAddedToGroup {
+                    SystemMessage::MemberAddedToGroup => {
+                        let msg = &factory.msg;
+                        do_gossip = true;
+                        let email_to_add = msg.param.get(Param::Arg).unwrap_or_default();
+                        if !email_to_add.is_empty() {
+                            add_mailimf_field(imf_fields, "Chat-Group-Member-Added", &email_to_add);
+                            grpimage = chat.param.get(Param::ProfileImage);
+                        }
+                        if 0 != msg.param.get_int(Param::Arg2).unwrap_or_default() & 0x1 {
+                            info!(
+                                context,
+                                "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>",
+                                "vg-member-added",
+                            );
+                            add_mailimf_field(imf_fields, "Secure-Join", "vg-member-added");
+                        }
+                    }
+                    SystemMessage::GroupNameChanged => {
+                        let msg = &factory.msg;
+                        let value_to_add = msg.param.get(Param::Arg).unwrap_or_default();
+
+                        add_mailimf_field(imf_fields, "Chat-Group-Name-Changed", &value_to_add);
+                    }
+                    SystemMessage::GroupImageChanged => {
+                        let msg = &factory.msg;
+                        grpimage = msg.param.get(Param::Arg);
+                        if grpimage.is_none() {
+                            add_mailimf_field(imf_fields, "Chat-Group-Image", "0");
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            match command {
+                SystemMessage::LocationStreamingEnabled => {
+                    add_mailimf_field(imf_fields, "Chat-Content", "location-streaming-enabled");
+                }
+                SystemMessage::AutocryptSetupMessage => {
+                    add_mailimf_field(imf_fields, "Autocrypt-Setup-Message", "v1");
+                    placeholdertext = Some(
+                        factory
+                            .context
+                            .stock_str(StockMessage::AcSetupMsgBody)
+                            .to_string(),
+                    );
+                }
+                SystemMessage::SecurejoinMessage => {
                     let msg = &factory.msg;
-                    do_gossip = 1;
-                    let email_to_add = msg.param.get(Param::Arg).unwrap_or_default();
-                    if !email_to_add.is_empty() {
-                        add_mailimf_field(imf_fields, "Chat-Group-Member-Added", &email_to_add);
-                        grpimage = chat.param.get(Param::ProfileImage);
-                    }
-                    if 0 != msg.param.get_int(Param::Arg2).unwrap_or_default() & 0x1 {
+                    let step = msg.param.get(Param::Arg).unwrap_or_default();
+                    if !step.is_empty() {
                         info!(
                             context,
-                            "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>",
-                            "vg-member-added",
+                            "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>", step,
                         );
-                        add_mailimf_field(imf_fields, "Secure-Join", "vg-member-added");
-                    }
-                } else if command == SystemMessage::GroupNameChanged {
-                    let msg = &factory.msg;
-                    let value_to_add = msg.param.get(Param::Arg).unwrap_or_default();
-
-                    add_mailimf_field(imf_fields, "Chat-Group-Name-Changed", &value_to_add);
-                } else if command == SystemMessage::GroupImageChanged {
-                    let msg = &factory.msg;
-                    grpimage = msg.param.get(Param::Arg);
-                    if grpimage.is_none() {
-                        add_mailimf_field(imf_fields, "Chat-Group-Image", "0");
-                    }
-                }
-            }
-
-            if command == SystemMessage::LocationStreamingEnabled {
-                add_mailimf_field(imf_fields, "Chat-Content", "location-streaming-enabled");
-            }
-            if command == SystemMessage::AutocryptSetupMessage {
-                add_mailimf_field(imf_fields, "Autocrypt-Setup-Message", "v1");
-                placeholdertext = Some(
-                    factory
-                        .context
-                        .stock_str(StockMessage::AcSetupMsgBody)
-                        .to_string(),
-                );
-            }
-            if command == SystemMessage::SecurejoinMessage {
-                let msg = &factory.msg;
-                let step = msg.param.get(Param::Arg).unwrap_or_default();
-                if !step.is_empty() {
-                    info!(
-                        context,
-                        "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>", step,
-                    );
-                    add_mailimf_field(imf_fields, "Secure-Join", &step);
-                    let param2 = msg.param.get(Param::Arg2).unwrap_or_default();
-                    if !param2.is_empty() {
-                        add_mailimf_field(
-                            imf_fields,
-                            if step == "vg-request-with-auth" || step == "vc-request-with-auth" {
-                                "Secure-Join-Auth"
-                            } else {
-                                "Secure-Join-Invitenumber"
-                            },
-                            param2,
-                        )
-                    }
-                    let fingerprint = msg.param.get(Param::Arg3).unwrap_or_default();
-                    if !fingerprint.is_empty() {
-                        add_mailimf_field(imf_fields, "Secure-Join-Fingerprint", &fingerprint);
-                    }
-                    match msg.param.get(Param::Arg4) {
-                        Some(id) => {
-                            add_mailimf_field(imf_fields, "Secure-Join-Group", &id);
+                        add_mailimf_field(imf_fields, "Secure-Join", &step);
+                        let param2 = msg.param.get(Param::Arg2).unwrap_or_default();
+                        if !param2.is_empty() {
+                            add_mailimf_field(
+                                imf_fields,
+                                if step == "vg-request-with-auth" || step == "vc-request-with-auth"
+                                {
+                                    "Secure-Join-Auth"
+                                } else {
+                                    "Secure-Join-Invitenumber"
+                                },
+                                param2,
+                            )
                         }
-                        None => {}
-                    };
+                        let fingerprint = msg.param.get(Param::Arg3).unwrap_or_default();
+                        if !fingerprint.is_empty() {
+                            add_mailimf_field(imf_fields, "Secure-Join-Fingerprint", &fingerprint);
+                        }
+                        match msg.param.get(Param::Arg4) {
+                            Some(id) => {
+                                add_mailimf_field(imf_fields, "Secure-Join-Group", &id);
+                            }
+                            None => {}
+                        };
+                    }
                 }
+                _ => {}
             }
 
             if let Some(grpimage) = grpimage {
@@ -591,7 +597,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
                     add_mailimf_field(imf_fields, "Chat-Duration", &dur);
                 }
             }
-            afwd_email = factory.msg.param.exists(Param::Forwarded);
+            let afwd_email = factory.msg.param.exists(Param::Forwarded);
             let fwdhint = if afwd_email {
                 Some(
                     "---------- Forwarded message ----------\r\nFrom: Delta Chat\r\n\r\n"
@@ -629,88 +635,74 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
             );
             let text_part = build_body_text(&message_text);
             mailmime_smart_add_part(message, text_part);
-            parts += 1;
 
             /* add attachment part */
             if chat::msgtype_has_file(factory.msg.type_0) {
                 if !is_file_size_okay(context, &factory.msg) {
-                    let error = format!(
+                    cleanup(message);
+                    bail!(
                         "Message exceeds the recommended {} MB.",
                         24 * 1024 * 1024 / 4 * 3 / 1000 / 1000,
                     );
-                    set_error(factory, &error);
-                    ok_to_continue = false;
                 } else {
                     let (file_part, _) = build_body_file(context, &factory.msg, "");
                     if !file_part.is_null() {
                         mailmime_smart_add_part(message, file_part);
-                        parts += 1
                     }
                 }
             }
-            if ok_to_continue {
-                if parts == 0 {
-                    set_error(factory, "Empty message.");
-                    ok_to_continue = false;
-                } else {
-                    if !meta_part.is_null() {
-                        mailmime_smart_add_part(message, meta_part);
-                    }
-                    if factory.msg.param.exists(Param::SetLatitude) {
-                        let latitude = factory
-                            .msg
-                            .param
-                            .get_float(Param::SetLatitude)
-                            .unwrap_or_default();
-                        let longitude = factory
-                            .msg
-                            .param
-                            .get_float(Param::SetLongitude)
-                            .unwrap_or_default();
-                        let kml_file = location::get_message_kml(
-                            factory.msg.timestamp_sort,
-                            latitude,
-                            longitude,
-                        );
-                        let content_type = mailmime_content_new_with_str(
-                            b"application/vnd.google-earth.kml+xml\x00" as *const u8
-                                as *const libc::c_char,
-                        );
-                        let mime_fields = mailmime_fields_new_filename(
-                            MAILMIME_DISPOSITION_TYPE_ATTACHMENT as libc::c_int,
-                            "message.kml".strdup(),
-                            MAILMIME_MECHANISM_8BIT as libc::c_int,
-                        );
-                        let kml_mime_part = mailmime_new_empty(content_type, mime_fields);
-                        set_body_text(kml_mime_part, &kml_file);
-                        mailmime_smart_add_part(message, kml_mime_part);
-                    }
+            if !meta_part.is_null() {
+                mailmime_smart_add_part(message, meta_part);
+            }
+            if factory.msg.param.exists(Param::SetLatitude) {
+                let param = &factory.msg.param;
+                let kml_file = location::get_message_kml(
+                    factory.msg.timestamp_sort,
+                    param.get_float(Param::SetLatitude).unwrap_or_default(),
+                    param.get_float(Param::SetLongitude).unwrap_or_default(),
+                );
+                let content_type = mailmime_content_new_with_str(
+                    b"application/vnd.google-earth.kml+xml\x00" as *const u8 as *const libc::c_char,
+                );
+                let mime_fields = mailmime_fields_new_filename(
+                    MAILMIME_DISPOSITION_TYPE_ATTACHMENT as libc::c_int,
+                    "message.kml".strdup(),
+                    MAILMIME_MECHANISM_8BIT as libc::c_int,
+                );
+                let kml_mime_part = mailmime_new_empty(content_type, mime_fields);
+                set_body_text(kml_mime_part, &kml_file);
+                mailmime_smart_add_part(message, kml_mime_part);
+            }
 
-                    if location::is_sending_locations_to_chat(context, factory.msg.chat_id) {
-                        if let Ok((kml_file, last_added_location_id)) =
-                            location::get_kml(context, factory.msg.chat_id)
-                        {
-                            let content_type = mailmime_content_new_with_str(
-                                b"application/vnd.google-earth.kml+xml\x00" as *const u8
-                                    as *const libc::c_char,
-                            );
-                            let mime_fields = mailmime_fields_new_filename(
-                                MAILMIME_DISPOSITION_TYPE_ATTACHMENT as libc::c_int,
-                                "location.kml".strdup(),
-                                MAILMIME_MECHANISM_8BIT as libc::c_int,
-                            );
-                            let kml_mime_part = mailmime_new_empty(content_type, mime_fields);
-                            set_body_text(kml_mime_part, &kml_file);
-                            mailmime_smart_add_part(message, kml_mime_part);
-                            if !factory.msg.param.exists(Param::SetLatitude) {
-                                // otherwise, the independent location is already filed
-                                factory.out_last_added_location_id = last_added_location_id;
-                            }
-                        }
+            if location::is_sending_locations_to_chat(context, factory.msg.chat_id) {
+                if let Ok((kml_file, last_added_location_id)) =
+                    location::get_kml(context, factory.msg.chat_id)
+                {
+                    let content_type = mailmime_content_new_with_str(
+                        b"application/vnd.google-earth.kml+xml\x00" as *const u8
+                            as *const libc::c_char,
+                    );
+                    let mime_fields = mailmime_fields_new_filename(
+                        MAILMIME_DISPOSITION_TYPE_ATTACHMENT as libc::c_int,
+                        "location.kml".strdup(),
+                        MAILMIME_MECHANISM_8BIT as libc::c_int,
+                    );
+                    let kml_mime_part = mailmime_new_empty(content_type, mime_fields);
+                    set_body_text(kml_mime_part, &kml_file);
+                    mailmime_smart_add_part(message, kml_mime_part);
+                    if !factory.msg.param.exists(Param::SetLatitude) {
+                        // otherwise, the independent location is already filed
+                        factory.out_last_added_location_id = last_added_location_id;
                     }
                 }
             }
-        } else if factory.loaded == Loaded::MDN {
+            get_subject(context, factory.chat.as_ref(), &mut factory.msg, afwd_email)
+        }
+        Loaded::MDN => {
+            /* Render a MDN
+             *********************************************************************/
+            /* RFC 6522, this also requires the `report-type` parameter which is equal
+            to the MIME subtype of the second body part of the multipart/report */
             let multipart: *mut mailmime =
                 mailmime_multiple_new(b"multipart/report\x00" as *const u8 as *const libc::c_char);
             let content: *mut mailmime_content = (*multipart).mm_content_type;
@@ -761,77 +753,77 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
             let mach_mime_part: *mut mailmime = mailmime_new_empty(content_type_0, mime_fields_0);
             set_body_text(mach_mime_part, &message_text2);
             mailmime_add_part(multipart, mach_mime_part);
-            force_plaintext = 2;
-        } else {
-            set_error(factory, "No message loaded.");
-            ok_to_continue = false;
+            force_plaintext = DC_FP_NO_AUTOCRYPT_HEADER;
+            /* currently, we do not send MDNs encrypted:
+            - in a multi-device-setup that is not set up properly, MDNs would disturb the communication as they
+              are send automatically which may lead to spreading outdated Autocrypt headers.
+            - they do not carry any information but the Message-ID
+            - this save some KB
+            - in older versions, we did not encrypt messages to ourself when they to to SMTP - however, if these messages
+              are forwarded for any reasons (eg. gmail always forwards to IMAP), we have no chance to decrypt them;
+              this issue is fixed with 0.9.4 */
+            let e = factory.context.stock_str(StockMessage::ReadRcpt);
+            format!("Chat: {}", e).to_string()
         }
+        _ => {
+            cleanup(message);
+            bail!("No message loaded.");
+        }
+    };
 
-        if ok_to_continue {
-            let subject_str = if factory.loaded == Loaded::MDN {
-                let e = factory.context.stock_str(StockMessage::ReadRcpt);
-                format!("Chat: {}", e)
-            } else {
-                get_subject(context, factory.chat.as_ref(), &mut factory.msg, afwd_email)
-            };
-
-            subject = mailimf_subject_new(dc_encode_header_words(subject_str));
-            mailimf_fields_add(
-                imf_fields,
-                mailimf_field_new(
-                    MAILIMF_FIELD_SUBJECT as libc::c_int,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    subject,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                ),
-            );
-            if force_plaintext != 2 {
-                e2ee_helper.encrypt(
-                    factory.context,
-                    factory.recipients_addr,
-                    force_plaintext,
-                    e2ee_guaranteed,
-                    min_verified,
-                    do_gossip,
-                    message,
-                );
-            }
-            if e2ee_helper.encryption_successfull {
-                factory.out_encrypted = true;
-                if 0 != do_gossip {
-                    factory.out_gossiped = true;
-                }
-            }
-            factory.out = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
-            mailmime_write_mem(factory.out, &mut col, message);
-            success = true;
+    let subject = mailimf_subject_new(dc_encode_header_words(subject_str));
+    mailimf_fields_add(
+        imf_fields,
+        mailimf_field_new(
+            MAILIMF_FIELD_SUBJECT as libc::c_int,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            subject,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+        ),
+    );
+    let mut e2ee_helper = E2eeHelper::default();
+    if force_plaintext != DC_FP_NO_AUTOCRYPT_HEADER {
+        e2ee_helper.encrypt(
+            factory.context,
+            factory.recipients_addr,
+            force_plaintext == DC_FP_ADD_AUTOCRYPT_HEADER,
+            e2ee_guaranteed,
+            min_verified,
+            do_gossip,
+            message,
+        );
+    }
+    if e2ee_helper.encryption_successfull {
+        factory.out_encrypted = true;
+        if do_gossip {
+            factory.out_gossiped = true;
         }
     }
-
-    if !message.is_null() {
-        mailmime_free(message);
-    }
+    factory.out = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
+    let mut col: libc::c_int = 0;
+    mailmime_write_mem(factory.out, &mut col, message);
     e2ee_helper.thanks();
-    success
+    cleanup(message);
+    Ok(())
 }
 
 fn get_subject(
@@ -845,10 +837,8 @@ fn get_subject(
     }
 
     let chat = chat.unwrap();
-
     let raw_subject =
         message::get_summarytext_by_raw(msg.type_0, msg.text.as_ref(), &mut msg.param, 32, context);
-
     let fwd = if afwd_email { "Fwd: " } else { "" };
 
     if msg.param.get_cmd() == SystemMessage::AutocryptSetupMessage {
@@ -860,14 +850,6 @@ fn get_subject(
     } else {
         format!("Chat: {}{}", fwd, raw_subject)
     }
-}
-
-unsafe fn set_error(factory: *mut MimeFactory, text: &str) {
-    if factory.is_null() {
-        return;
-    }
-    free((*factory).error as *mut libc::c_void);
-    (*factory).error = text.strdup();
 }
 
 pub unsafe fn add_mailimf_field(fields: *mut mailimf_fields, name: &str, value: &str) {

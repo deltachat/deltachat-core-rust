@@ -680,8 +680,9 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: u32) -> libc::c_int {
             }
         }
         /* create message */
-        if !dc_mimefactory_render(context, &mut mimefactory) {
-            message::set_msg_failed(context, msg_id, as_opt_str(mimefactory.error));
+        if let Err(msg) = dc_mimefactory_render(context, &mut mimefactory) {
+            let e = msg.to_string();
+            message::set_msg_failed(context, msg_id, Some(e));
         } else if 0
             != mimefactory
                 .msg
@@ -998,7 +999,7 @@ fn connect_to_inbox(context: &Context, inbox: &Imap) -> libc::c_int {
 
 fn send_mdn(context: &Context, msg_id: u32) {
     if let Ok(mut mimefactory) = unsafe { dc_mimefactory_load_mdn(context, msg_id) } {
-        if unsafe { dc_mimefactory_render(context, &mut mimefactory) } {
+        if unsafe { dc_mimefactory_render(context, &mut mimefactory) }.is_ok() {
             add_smtp_job(context, Action::SendMdn, &mut mimefactory);
         }
     }
