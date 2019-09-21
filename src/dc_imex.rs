@@ -843,7 +843,6 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
     Maybe we should make the "default" key handlong also a little bit smarter
     (currently, the last imported key is the standard key unless it contains the string "legacy" in its name) */
     let mut imported_cnt: libc::c_int = 0;
-    let mut suffix: *mut libc::c_char = ptr::null_mut();
     let mut set_default: libc::c_int;
     let mut buf: *mut libc::c_char = ptr::null_mut();
     // a pointer inside buf, MUST NOT be free()'d
@@ -859,14 +858,18 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                     break;
                 }
                 let entry = entry.unwrap();
-                free(suffix as *mut libc::c_void);
                 let name_f = entry.file_name();
                 let name_c = name_f.to_c_string().unwrap();
-                suffix = dc_get_filesuffix_lc(name_f.to_string_lossy());
-                if suffix.is_null()
-                    || strcmp(suffix, b"asc\x00" as *const u8 as *const libc::c_char) != 0
-                {
-                    continue;
+
+                match dc_get_filesuffix_lc(name_f.to_string_lossy()) {
+                    Some(suffix) => {
+                        if suffix != ".asc" {
+                            continue;
+                        }
+                    }
+                    None => {
+                        continue;
+                    }
                 }
                 let path_plus_name = dir.join(entry.file_name());
                 info!(context, "Checking: {}", path_plus_name.display());
@@ -940,7 +943,6 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
         }
     }
 
-    free(suffix as *mut libc::c_void);
     free(buf as *mut libc::c_void);
     free(buf2 as *mut libc::c_void);
 

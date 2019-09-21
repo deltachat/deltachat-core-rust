@@ -118,17 +118,14 @@ fn dc_poke_eml_file(context: &Context, filename: impl AsRef<Path>) -> Result<(),
 /// @param context The context as created by dc_context_new().
 /// @param spec The file or directory to import. NULL for the last command.
 /// @return 1=success, 0=error.
-unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int {
+fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int {
     if !context.sql.is_open() {
         error!(context, "Import: Database not opened.");
         return 0;
     }
 
-    let ok_to_continue;
-    let mut success: libc::c_int = 0;
     let real_spec: String;
-    let mut suffix: *mut libc::c_char = ptr::null_mut();
-    let mut read_cnt: libc::c_int = 0;
+    let mut read_cnt = 0;
 
     /* if `spec` is given, remember it for later usage; if it is not given, try to use the last one */
     if !spec.is_null() {
@@ -137,71 +134,57 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
             .sql
             .set_config(context, "import_spec", Some(&real_spec))
             .unwrap();
-        ok_to_continue = true;
     } else {
         let rs = context.sql.get_config(context, "import_spec");
         if rs.is_none() {
             error!(context, "Import: No file or folder given.");
-            ok_to_continue = false;
-        } else {
-            ok_to_continue = true;
+            return 0;
         }
-        real_spec = rs.unwrap_or_default();
+        real_spec = rs.unwrap();
     }
-    if ok_to_continue {
-        let ok_to_continue2;
-        suffix = dc_get_filesuffix_lc(&real_spec);
-        if !suffix.is_null()
-            && libc::strcmp(suffix, b"eml\x00" as *const u8 as *const libc::c_char) == 0
-        {
+    if let Some(suffix) = dc_get_filesuffix_lc(&real_spec) {
+        if suffix == "eml" {
             if dc_poke_eml_file(context, &real_spec).is_ok() {
                 read_cnt += 1
             }
-            ok_to_continue2 = true;
+        }
+    } else {
+        /* import a directory */
+        let dir_name = std::path::Path::new(&real_spec);
+        let dir = std::fs::read_dir(dir_name);
+        if dir.is_err() {
+            error!(context, "Import: Cannot open directory \"{}\".", &real_spec,);
+            return 0;
         } else {
-            /* import a directory */
-            let dir_name = std::path::Path::new(&real_spec);
-            let dir = std::fs::read_dir(dir_name);
-            if dir.is_err() {
-                error!(context, "Import: Cannot open directory \"{}\".", &real_spec,);
-                ok_to_continue2 = false;
-            } else {
-                let dir = dir.unwrap();
-                for entry in dir {
-                    if entry.is_err() {
-                        break;
-                    }
-                    let entry = entry.unwrap();
-                    let name_f = entry.file_name();
-                    let name = name_f.to_string_lossy();
-                    if name.ends_with(".eml") {
-                        let path_plus_name = format!("{}/{}", &real_spec, name);
-                        info!(context, "Import: {}", path_plus_name);
-                        if dc_poke_eml_file(context, path_plus_name).is_ok() {
-                            read_cnt += 1
-                        }
+            let dir = dir.unwrap();
+            for entry in dir {
+                if entry.is_err() {
+                    break;
+                }
+                let entry = entry.unwrap();
+                let name_f = entry.file_name();
+                let name = name_f.to_string_lossy();
+                if name.ends_with(".eml") {
+                    let path_plus_name = format!("{}/{}", &real_spec, name);
+                    info!(context, "Import: {}", path_plus_name);
+                    if dc_poke_eml_file(context, path_plus_name).is_ok() {
+                        read_cnt += 1
                     }
                 }
-                ok_to_continue2 = true;
             }
-        }
-        if ok_to_continue2 {
-            info!(
-                context,
-                "Import: {} items read from \"{}\".", read_cnt, &real_spec
-            );
-            if read_cnt > 0 {
-                context.call_cb(Event::MsgsChanged {
-                    chat_id: 0,
-                    msg_id: 0,
-                });
-            }
-            success = 1
         }
     }
-
-    free(suffix as *mut libc::c_void);
-    success
+    info!(
+        context,
+        "Import: {} items read from \"{}\".", read_cnt, &real_spec
+    );
+    if read_cnt > 0 {
+        context.call_cb(Event::MsgsChanged {
+            chat_id: 0,
+            msg_id: 0,
+        });
+    }
+    1
 }
 
 unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {

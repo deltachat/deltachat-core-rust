@@ -548,11 +548,11 @@ fn validate_filename(filename: &str) -> String {
 
 // the returned suffix is lower-case
 #[allow(non_snake_case)]
-pub unsafe fn dc_get_filesuffix_lc(path_filename: impl AsRef<str>) -> *mut libc::c_char {
+pub fn dc_get_filesuffix_lc(path_filename: impl AsRef<str>) -> Option<String> {
     if let Some(p) = Path::new(path_filename.as_ref()).extension() {
-        p.to_string_lossy().to_lowercase().strdup()
+        Some(p.to_string_lossy().to_lowercase())
     } else {
-        ptr::null_mut()
+        None
     }
 }
 

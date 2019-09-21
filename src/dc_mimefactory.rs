@@ -2,7 +2,7 @@ use std::path::Path;
 use std::ptr;
 
 use chrono::TimeZone;
-use libc::{free, strcmp};
+use libc::free;
 use mmime::clist::*;
 use mmime::mailimf_types::*;
 use mmime::mailimf_types_helper::*;
@@ -904,164 +904,122 @@ unsafe fn set_body_text(part: *mut mailmime, text: &str) {
 }
 
 #[allow(non_snake_case)]
-unsafe fn build_body_file(
-    context: &Context,
-    msg: &Message,
-    base_name: &str,
-) -> (*mut mailmime, String) {
-    let needs_ext: bool;
-    let mime_fields: *mut mailmime_fields;
-    let mut mime_sub: *mut mailmime = ptr::null_mut();
-    let content: *mut mailmime_content;
-    let path_filename = msg.param.get(Param::File);
-    let mut filename_to_send = "".to_string();
-
-    let mut mimetype = msg
-        .param
-        .get(Param::MimeType)
-        .map(|s| s.strdup())
-        .unwrap_or_else(|| std::ptr::null_mut());
-
-    let mut filename_encoded = ptr::null_mut();
-
-    if let Some(ref path_filename) = path_filename {
-        let suffix = dc_get_filesuffix_lc(path_filename);
-
-        filename_to_send = if msg.type_0 == Viewtype::Voice {
-            let ts = chrono::Utc.timestamp(msg.timestamp_sort as i64, 0);
-
-            let suffix = if !suffix.is_null() {
-                to_string(suffix)
+fn build_body_file(context: &Context, msg: &Message, base_name: &str) -> (*mut mailmime, String) {
+    let path_filename = match msg.param.get(Param::File) {
+        None => {
+            return (ptr::null_mut(), "".to_string());
+        }
+        Some(path) => path,
+    };
+    let suffix = dc_get_filesuffix_lc(path_filename).unwrap_or_else(|| "dat".into());
+    let filename_to_send = match msg.type_0 {
+        Viewtype::Voice => chrono::Utc
+            .timestamp(msg.timestamp_sort as i64, 0)
+            .format(&format!("voice-message_%Y-%m-%d_%H-%M-%S.{}", suffix))
+            .to_string(),
+        Viewtype::Audio => Path::new(path_filename)
+            .file_name()
+            .map(|c| c.to_string_lossy().to_string())
+            .unwrap_or_default(),
+        Viewtype::Image | Viewtype::Gif => format!(
+            "{}.{}",
+            if base_name.is_empty() {
+                "image"
             } else {
-                "dat".into()
-            };
-            ts.format(&format!("voice-message_%Y-%m-%d_%H-%M-%S.{}", suffix))
-                .to_string()
-        } else if msg.type_0 == Viewtype::Audio {
-            Path::new(path_filename)
-                .file_name()
-                .map(|c| c.to_string_lossy().to_string())
-                .unwrap_or_default()
-        } else if msg.type_0 == Viewtype::Image || msg.type_0 == Viewtype::Gif {
-            format!(
-                "{}.{}",
-                if base_name.is_empty() {
-                    "image"
-                } else {
-                    base_name
-                },
-                if !suffix.is_null() {
-                    as_str(suffix)
-                } else {
-                    "dat"
-                },
-            )
-        } else if msg.type_0 == Viewtype::Video {
-            format!(
-                "video.{}",
-                if !suffix.is_null() {
-                    as_str(suffix)
-                } else {
-                    "dat"
-                },
-            )
-        } else {
-            Path::new(path_filename)
-                .file_name()
-                .map(|c| c.to_string_lossy().to_string())
-                .unwrap_or_default()
-        };
+                base_name
+            },
+            &suffix,
+        ),
+        Viewtype::Video => format!("video.{}", &suffix),
+        _ => Path::new(path_filename)
+            .file_name()
+            .map(|c| c.to_string_lossy().to_string())
+            .unwrap_or_default(),
+    };
 
-        if mimetype.is_null() {
-            if suffix.is_null() {
-                mimetype = "application/octet-stream".strdup();
-            } else if strcmp(suffix, b"png\x00" as *const u8 as *const libc::c_char) == 0 {
-                mimetype = "image/png".strdup();
-            } else if strcmp(suffix, b"jpg\x00" as *const u8 as *const libc::c_char) == 0
-                || strcmp(suffix, b"jpeg\x00" as *const u8 as *const libc::c_char) == 0
-                || strcmp(suffix, b"jpe\x00" as *const u8 as *const libc::c_char) == 0
-            {
-                mimetype = "image/jpeg".strdup();
-            } else if strcmp(suffix, b"gif\x00" as *const u8 as *const libc::c_char) == 0 {
-                mimetype = "image/gif".strdup();
+    let mimetype = match msg.param.get(Param::MimeType) {
+        Some(mtype) => mtype,
+        None => {
+            let path = Path::new(path_filename);
+            if let Some(res) = message::guess_msgtype_from_suffix(&path) {
+                res.1
             } else {
-                mimetype = "application/octet-stream".strdup();
+                "application/octet-stream"
             }
         }
-        if !mimetype.is_null() {
-            /* create mime part, for Content-Disposition, see RFC 2183.
-            `Content-Disposition: attachment` seems not to make a difference to `Content-Disposition: inline` at least on tested Thunderbird and Gma'l in 2017.
-            But I've heard about problems with inline and outl'k, so we just use the attachment-type until we run into other problems ... */
-            needs_ext = dc_needs_ext_header(&filename_to_send);
-            mime_fields = mailmime_fields_new_filename(
-                MAILMIME_DISPOSITION_TYPE_ATTACHMENT as libc::c_int,
-                if needs_ext {
-                    ptr::null_mut()
-                } else {
-                    filename_to_send.strdup()
-                },
-                MAILMIME_MECHANISM_BASE64 as libc::c_int,
-            );
+    };
+
+    let needs_ext = dc_needs_ext_header(&filename_to_send);
+
+    unsafe {
+        /* create mime part, for Content-Disposition, see RFC 2183.
+        `Content-Disposition: attachment` seems not to make a difference to `Content-Disposition: inline` at least on tested Thunderbird and Gma'l in 2017.
+        But I've heard about problems with inline and outl'k, so we just use the attachment-type until we run into other problems ... */
+        let mime_fields = mailmime_fields_new_filename(
+            MAILMIME_DISPOSITION_TYPE_ATTACHMENT as libc::c_int,
             if needs_ext {
-                for cur_data in (*(*mime_fields).fld_list).into_iter() {
-                    let field: *mut mailmime_field = cur_data as *mut _;
-                    if (*field).fld_type == MAILMIME_FIELD_DISPOSITION as libc::c_int
-                        && !(*field).fld_data.fld_disposition.is_null()
-                    {
-                        let file_disposition = (*field).fld_data.fld_disposition;
-                        if !file_disposition.is_null() {
-                            let parm = mailmime_disposition_parm_new(
-                                MAILMIME_DISPOSITION_PARM_PARAMETER as libc::c_int,
-                                ptr::null_mut(),
-                                ptr::null_mut(),
-                                ptr::null_mut(),
-                                ptr::null_mut(),
-                                0 as libc::size_t,
-                                mailmime_parameter_new(
-                                    strdup(b"filename*\x00" as *const u8 as *const libc::c_char),
-                                    dc_encode_ext_header(&filename_to_send).strdup(),
-                                ),
+                ptr::null_mut()
+            } else {
+                filename_to_send.strdup()
+            },
+            MAILMIME_MECHANISM_BASE64 as libc::c_int,
+        );
+        if needs_ext {
+            for cur_data in (*(*mime_fields).fld_list).into_iter() {
+                let field: *mut mailmime_field = cur_data as *mut _;
+                if (*field).fld_type == MAILMIME_FIELD_DISPOSITION as libc::c_int
+                    && !(*field).fld_data.fld_disposition.is_null()
+                {
+                    let file_disposition = (*field).fld_data.fld_disposition;
+                    if !file_disposition.is_null() {
+                        let parm = mailmime_disposition_parm_new(
+                            MAILMIME_DISPOSITION_PARM_PARAMETER as libc::c_int,
+                            ptr::null_mut(),
+                            ptr::null_mut(),
+                            ptr::null_mut(),
+                            ptr::null_mut(),
+                            0 as libc::size_t,
+                            mailmime_parameter_new(
+                                strdup(b"filename*\x00" as *const u8 as *const libc::c_char),
+                                dc_encode_ext_header(&filename_to_send).strdup(),
+                            ),
+                        );
+                        if !parm.is_null() {
+                            clist_insert_after(
+                                (*file_disposition).dsp_parms,
+                                (*(*file_disposition).dsp_parms).last,
+                                parm as *mut libc::c_void,
                             );
-                            if !parm.is_null() {
-                                clist_insert_after(
-                                    (*file_disposition).dsp_parms,
-                                    (*(*file_disposition).dsp_parms).last,
-                                    parm as *mut libc::c_void,
-                                );
-                            }
                         }
-                        break;
                     }
+                    break;
                 }
             }
-            content = mailmime_content_new_with_str(mimetype);
-            filename_encoded = dc_encode_header_words(&filename_to_send);
-            clist_insert_after(
-                (*content).ct_parameters,
-                (*(*content).ct_parameters).last,
-                mailmime_param_new_with_data(
-                    b"name\x00" as *const u8 as *const libc::c_char as *mut libc::c_char,
-                    filename_encoded,
-                ) as *mut libc::c_void,
-            );
-            mime_sub = mailmime_new_empty(content, mime_fields);
-            let abs_path = dc_get_abs_path(context, path_filename)
-                .to_c_string()
-                .unwrap();
-            mailmime_set_body_file(mime_sub, dc_strdup(abs_path.as_ptr()));
         }
+        let content = mailmime_content_new_with_str(mimetype.strdup());
+        let filename_encoded = dc_encode_header_words(&filename_to_send);
+        clist_insert_after(
+            (*content).ct_parameters,
+            (*(*content).ct_parameters).last,
+            mailmime_param_new_with_data(
+                b"name\x00" as *const u8 as *const libc::c_char as *mut libc::c_char,
+                filename_encoded,
+            ) as *mut libc::c_void,
+        );
+        free(filename_encoded as *mut libc::c_void);
+        let mime_sub = mailmime_new_empty(content, mime_fields);
+        let abs_path = dc_get_abs_path(context, path_filename)
+            .to_c_string()
+            .unwrap();
+        mailmime_set_body_file(mime_sub, dc_strdup(abs_path.as_ptr()));
+        (mime_sub, filename_to_send)
     }
-
-    free(mimetype as *mut libc::c_void);
-    free(filename_encoded as *mut libc::c_void);
-
-    (mime_sub, filename_to_send)
 }
 
 /*******************************************************************************
  * Render
  ******************************************************************************/
-unsafe fn is_file_size_okay(context: &Context, msg: &Message) -> bool {
+fn is_file_size_okay(context: &Context, msg: &Message) -> bool {
     let mut file_size_okay = true;
     let path = msg.param.get(Param::File).unwrap_or_default();
     let bytes = dc_get_filebytes(context, &path);
