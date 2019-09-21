@@ -1,10 +1,7 @@
 //! Stress some functions for testing; if used as a lib, this file is obsolete.
 
 use std::collections::HashSet;
-use std::path::PathBuf;
 use std::ptr;
-
-use tempfile::{tempdir, TempDir};
 
 use deltachat::chat::{self, Chat};
 use deltachat::config;
@@ -15,9 +12,9 @@ use deltachat::dc_tools::*;
 use deltachat::keyring::*;
 use deltachat::oauth2::*;
 use deltachat::pgp::*;
-use deltachat::x::*;
 use deltachat::Event;
-use libc;
+use libc::{free, strcmp, strdup, strlen, strncmp};
+use tempfile::{tempdir, TempDir};
 
 /* some data used for testing
  ******************************************************************************/
@@ -30,68 +27,6 @@ static mut S_EM_SETUPFILE: *const libc::c_char =
         as *const u8 as *const libc::c_char;
 
 unsafe fn stress_functions(context: &Context) {
-    if dc_file_exist(context, "$BLOBDIR/foobar")
-        || dc_file_exist(context, "$BLOBDIR/dada")
-        || dc_file_exist(context, "$BLOBDIR/foobar.dadada")
-        || dc_file_exist(context, "$BLOBDIR/foobar-folder")
-    {
-        dc_delete_file(context, "$BLOBDIR/foobar");
-        dc_delete_file(context, "$BLOBDIR/dada");
-        dc_delete_file(context, "$BLOBDIR/foobar.dadada");
-        dc_delete_file(context, "$BLOBDIR/foobar-folder");
-    }
-    assert!(dc_write_file(context, "$BLOBDIR/foobar", b"content"));
-    assert!(dc_file_exist(context, "$BLOBDIR/foobar",));
-    assert!(!dc_file_exist(context, "$BLOBDIR/foobarx"));
-    assert_eq!(dc_get_filebytes(context, "$BLOBDIR/foobar"), 7);
-
-    let abs_path = context
-        .get_blobdir()
-        .join("foobar")
-        .to_string_lossy()
-        .to_string();
-
-    assert!(dc_is_blobdir_path(context, &abs_path));
-    assert!(dc_is_blobdir_path(context, "$BLOBDIR/fofo",));
-    assert!(!dc_is_blobdir_path(context, "/BLOBDIR/fofo",));
-    assert!(dc_file_exist(context, &abs_path));
-
-    assert!(dc_copy_file(context, "$BLOBDIR/foobar", "$BLOBDIR/dada",));
-    assert_eq!(dc_get_filebytes(context, "$BLOBDIR/dada",), 7);
-
-    let mut buf: *mut libc::c_void = ptr::null_mut();
-    let mut buf_bytes: libc::size_t = 0;
-
-    assert_eq!(
-        dc_read_file(
-            context,
-            b"$BLOBDIR/dada\x00" as *const u8 as *const libc::c_char,
-            &mut buf,
-            &mut buf_bytes,
-        ),
-        1
-    );
-    assert_eq!(buf_bytes, 7);
-    assert_eq!(
-        std::str::from_utf8(std::slice::from_raw_parts(buf as *const u8, buf_bytes)).unwrap(),
-        "content"
-    );
-
-    free(buf as *mut _);
-    assert!(dc_delete_file(context, "$BLOBDIR/foobar"));
-    assert!(dc_delete_file(context, "$BLOBDIR/dada"));
-    assert!(dc_create_folder(context, "$BLOBDIR/foobar-folder"));
-    assert!(dc_file_exist(context, "$BLOBDIR/foobar-folder",));
-    assert!(!dc_delete_file(context, "$BLOBDIR/foobar-folder"));
-    let fn0 = dc_get_fine_path_filename(context, "$BLOBDIR", "foobar.dadada");
-    assert_eq!(fn0, PathBuf::from("$BLOBDIR/foobar.dadada"));
-
-    assert!(dc_write_file(context, &fn0, b"content"));
-    let fn1 = dc_get_fine_path_filename(context, "$BLOBDIR", "foobar.dadada");
-    assert_eq!(fn1, PathBuf::from("$BLOBDIR/foobar-1.dadada"));
-
-    assert!(dc_delete_file(context, &fn0));
-
     let res = context.get_config(config::Config::SysConfigKeys).unwrap();
 
     assert!(!res.contains(" probably_never_a_key "));

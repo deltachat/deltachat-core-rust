@@ -2,6 +2,7 @@ use std::path::Path;
 use std::ptr;
 
 use chrono::TimeZone;
+use libc::{free, strcmp, strlen};
 use mmime::clist::*;
 use mmime::mailimf_types::*;
 use mmime::mailimf_types_helper::*;
@@ -25,7 +26,6 @@ use crate::location;
 use crate::message::{self, Message};
 use crate::param::*;
 use crate::stock::StockMessage;
-use crate::x::*;
 
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub enum Loaded {

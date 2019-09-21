@@ -6,6 +6,7 @@ use std::ffi::CStr;
 use std::ptr;
 use std::str::FromStr;
 
+use libc::{free, strcmp, strlen, strncmp};
 use mmime::clist::*;
 use mmime::mailimf::*;
 use mmime::mailimf_types::*;
@@ -30,7 +31,6 @@ use crate::keyring::*;
 use crate::peerstate::*;
 use crate::pgp::*;
 use crate::securejoin::handle_degrade_event;
-use crate::x::*;
 
 #[derive(Debug, Default)]
 pub struct E2eeHelper {

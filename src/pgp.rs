@@ -3,6 +3,7 @@ use std::convert::TryInto;
 use std::io::Cursor;
 use std::ptr;
 
+use libc::{strchr, strlen, strncmp, strspn, strstr};
 use pgp::composed::{
     Deserializable, KeyType as PgpKeyType, Message, SecretKeyParamsBuilder, SignedPublicKey,
     SignedSecretKey, SubkeyParamsBuilder,
@@ -15,7 +16,6 @@ use crate::dc_tools::*;
 use crate::error::Error;
 use crate::key::*;
 use crate::keyring::*;
-use crate::x::*;
 
 pub unsafe fn dc_split_armored_data(
     buf: *mut libc::c_char,

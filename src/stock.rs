@@ -7,7 +7,6 @@ use crate::contact::*;
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::events::Event;
-use libc::free;
 
 /// Stock strings
 ///
@@ -133,7 +132,7 @@ impl Context {
             Cow::Borrowed(id.fallback())
         } else {
             let ret = to_string(ptr);
-            unsafe { free(ptr as *mut libc::c_void) };
+            unsafe { libc::free(ptr as *mut libc::c_void) };
             Cow::Owned(ret)
         }
     }

@@ -1,4 +1,4 @@
-use std::ffi::CString;
+use std::path::Path;
 use std::ptr;
 use std::str::FromStr;
 
@@ -20,8 +20,8 @@ use deltachat::message::{self, Message, MessageState};
 use deltachat::peerstate::*;
 use deltachat::qr::*;
 use deltachat::sql;
-use deltachat::x::*;
 use deltachat::Event;
+use libc::free;
 
 /// Reset database tables. This function is called from Core cmdline.
 /// Argument is a bitmask, executing single or multiple actions in one call.
@@ -94,24 +94,20 @@ pub unsafe fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
     1
 }
 
-unsafe fn dc_poke_eml_file(context: &Context, filename: *const libc::c_char) -> libc::c_int {
-    /* mainly for testing, may be called by dc_import_spec() */
-    let mut success: libc::c_int = 0i32;
-    let mut data: *mut libc::c_char = ptr::null_mut();
-    let mut data_bytes = 0;
-    if !(dc_read_file(
-        context,
-        filename,
-        &mut data as *mut *mut libc::c_char as *mut *mut libc::c_void,
-        &mut data_bytes,
-    ) == 0i32)
-    {
-        dc_receive_imf(context, data, data_bytes, "import", 0, 0);
-        success = 1;
-    }
-    free(data as *mut libc::c_void);
+fn dc_poke_eml_file(context: &Context, filename: impl AsRef<Path>) -> Result<(), Error> {
+    let data = dc_read_file(context, filename)?;
 
-    success
+    unsafe {
+        dc_receive_imf(
+            context,
+            data.as_ptr() as *const _,
+            data.len(),
+            "import",
+            0,
+            0,
+        )
+    };
+    Ok(())
 }
 
 /// Import a file to the database.
@@ -130,16 +126,16 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
 
     let ok_to_continue;
     let mut success: libc::c_int = 0;
-    let real_spec: *mut libc::c_char;
+    let real_spec: String;
     let mut suffix: *mut libc::c_char = ptr::null_mut();
     let mut read_cnt: libc::c_int = 0;
 
     /* if `spec` is given, remember it for later usage; if it is not given, try to use the last one */
     if !spec.is_null() {
-        real_spec = dc_strdup(spec);
+        real_spec = to_string(spec);
         context
             .sql
-            .set_config(context, "import_spec", Some(as_str(real_spec)))
+            .set_config(context, "import_spec", Some(&real_spec))
             .unwrap();
         ok_to_continue = true;
     } else {
@@ -150,27 +146,24 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
         } else {
             ok_to_continue = true;
         }
-        real_spec = rs.unwrap_or_default().strdup();
+        real_spec = rs.unwrap_or_default();
     }
     if ok_to_continue {
         let ok_to_continue2;
-        suffix = dc_get_filesuffix_lc(as_str(real_spec));
-        if !suffix.is_null() && strcmp(suffix, b"eml\x00" as *const u8 as *const libc::c_char) == 0
+        suffix = dc_get_filesuffix_lc(&real_spec);
+        if !suffix.is_null()
+            && libc::strcmp(suffix, b"eml\x00" as *const u8 as *const libc::c_char) == 0
         {
-            if 0 != dc_poke_eml_file(context, real_spec) {
+            if dc_poke_eml_file(context, &real_spec).is_ok() {
                 read_cnt += 1
             }
             ok_to_continue2 = true;
         } else {
             /* import a directory */
-            let dir_name = std::path::Path::new(as_str(real_spec));
+            let dir_name = std::path::Path::new(&real_spec);
             let dir = std::fs::read_dir(dir_name);
             if dir.is_err() {
-                error!(
-                    context,
-                    "Import: Cannot open directory \"{}\".",
-                    as_str(real_spec),
-                );
+                error!(context, "Import: Cannot open directory \"{}\".", &real_spec,);
                 ok_to_continue2 = false;
             } else {
                 let dir = dir.unwrap();
@@ -182,10 +175,9 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
                     let name_f = entry.file_name();
                     let name = name_f.to_string_lossy();
                     if name.ends_with(".eml") {
-                        let path_plus_name = format!("{}/{}", as_str(real_spec), name);
+                        let path_plus_name = format!("{}/{}", &real_spec, name);
                         info!(context, "Import: {}", path_plus_name);
-                        let path_plus_name_c = CString::yolo(path_plus_name);
-                        if 0 != dc_poke_eml_file(context, path_plus_name_c.as_ptr()) {
+                        if dc_poke_eml_file(context, path_plus_name).is_ok() {
                             read_cnt += 1
                         }
                     }
@@ -196,9 +188,7 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
         if ok_to_continue2 {
             info!(
                 context,
-                "Import: {} items read from \"{}\".",
-                read_cnt,
-                as_str(real_spec)
+                "Import: {} items read from \"{}\".", read_cnt, &real_spec
             );
             if read_cnt > 0 {
                 context.call_cb(Event::MsgsChanged {
@@ -210,7 +200,6 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
         }
     }
 
-    free(real_spec as *mut libc::c_void);
     free(suffix as *mut libc::c_void);
     success
 }
@@ -1017,7 +1006,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         "fileinfo" => {
             ensure!(!arg1.is_empty(), "Argument <file> missing.");
 
-            if let Some(buf) = dc_read_file_safe(context, &arg1) {
+            if let Ok(buf) = dc_read_file(context, &arg1) {
                 let (width, height) = dc_get_filemeta(&buf)?;
                 println!("width={}, height={}", width, height);
             } else {

@@ -2,6 +2,7 @@ use std::ffi::CString;
 use std::ptr;
 
 use itertools::join;
+use libc::{free, strcmp, strlen};
 use mmime::clist::*;
 use mmime::mailimf::*;
 use mmime::mailimf_types::*;
@@ -28,7 +29,6 @@ use crate::peerstate::*;
 use crate::securejoin::handle_securejoin_handshake;
 use crate::sql;
 use crate::stock::StockMessage;
-use crate::x::*;
 
 #[derive(Debug, PartialEq, Eq)]
 enum CreateEvent {

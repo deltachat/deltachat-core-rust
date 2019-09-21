@@ -1,3 +1,4 @@
+use libc::free;
 use quick_xml;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
@@ -5,7 +6,6 @@ use crate::constants::*;
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::login_param::LoginParam;
-use crate::x::*;
 
 use super::read_autoconf_file;
 /* ******************************************************************************

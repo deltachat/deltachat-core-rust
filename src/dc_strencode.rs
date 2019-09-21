@@ -3,13 +3,13 @@ use std::ffi::CString;
 use std::ptr;
 
 use charset::Charset;
+use libc::{free, strlen};
 use mmime::mailmime_decode::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
 use percent_encoding::{percent_decode, utf8_percent_encode, AsciiSet, CONTROLS};
 
 use crate::dc_tools::*;
-use crate::x::*;
 
 /**
  * Encode non-ascii-strings as `=?UTF-8?Q?Bj=c3=b6rn_Petersen?=`.
@@ -336,6 +336,8 @@ unsafe fn print_hex(target: *mut libc::c_char, cur: *const libc::c_char) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use libc::{strcmp, strncmp};
     use std::ffi::CStr;
 
     #[test]
