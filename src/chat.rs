@@ -871,42 +871,44 @@ fn maybe_delete_draft(context: &Context, chat_id: u32) -> bool {
 ///
 /// Return true on success, false on database error.
 fn do_set_draft(context: &Context, chat_id: u32, msg: &mut Message) -> bool {
-
     match msg.type_0 {
         Viewtype::Unknown => return false,
-        Viewtype::Text => if msg.text.as_ref().map_or(false, |s| s.is_empty()) {
-            return false;
-        },
-        _ =>
-        if let Some(path_filename) = msg.param.get(Param::File) {
-            let mut path_filename = path_filename.to_string();
-            if dc_msg_is_increation(msg) && !dc_is_blobdir_path(context, &path_filename) {
+        Viewtype::Text => {
+            if msg.text.as_ref().map_or(false, |s| s.is_empty()) {
                 return false;
             }
-            if !dc_make_rel_and_copy(context, &mut path_filename) {
-                return false;
+        }
+        _ => {
+            if let Some(path_filename) = msg.param.get(Param::File) {
+                let mut path_filename = path_filename.to_string();
+                if dc_msg_is_increation(msg) && !dc_is_blobdir_path(context, &path_filename) {
+                    return false;
+                }
+                if !dc_make_rel_and_copy(context, &mut path_filename) {
+                    return false;
+                }
+                msg.param.set(Param::File, path_filename);
             }
-            msg.param.set(Param::File, path_filename);
         }
     }
 
-        sql::execute(
-            context,
-            &context.sql,
-            "INSERT INTO msgs (chat_id, from_id, timestamp, type, state, txt, param, hidden) \
-             VALUES (?,?,?, ?,?,?,?,?);",
-            params![
-                chat_id as i32,
-                1,
-                time(),
-                msg.type_0,
-                MessageState::OutDraft,
-                msg.text.as_ref().map(String::as_str).unwrap_or(""),
-                msg.param.to_string(),
-                1,
-            ],
-        )
-        .is_ok()
+    sql::execute(
+        context,
+        &context.sql,
+        "INSERT INTO msgs (chat_id, from_id, timestamp, type, state, txt, param, hidden) \
+         VALUES (?,?,?, ?,?,?,?,?);",
+        params![
+            chat_id as i32,
+            1,
+            time(),
+            msg.type_0,
+            MessageState::OutDraft,
+            msg.text.as_ref().map(String::as_str).unwrap_or(""),
+            msg.param.to_string(),
+            1,
+        ],
+    )
+    .is_ok()
 }
 
 // similar to as dc_set_draft() but does not emit an event
