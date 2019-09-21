@@ -874,45 +874,43 @@ unsafe fn set_draft_raw(context: &Context, chat_id: u32, msg: &mut Message) -> b
 
     let mut sth_changed = maybe_delete_draft(context, chat_id);
 
-    {
-        // save new draft
-        if msg.type_0 == Viewtype::Text {
-            OK_TO_CONTINUE = msg.text.as_ref().map_or(false, |s| !s.is_empty());
-        } else if msgtype_has_file(msg.type_0) {
-            if let Some(path_filename) = msg.param.get(Param::File) {
-                let mut path_filename = path_filename.to_string();
-                if dc_msg_is_increation(msg) && !dc_is_blobdir_path(context, &path_filename) {
-                    OK_TO_CONTINUE = false;
-                } else if !dc_make_rel_and_copy(context, &mut path_filename) {
-                    OK_TO_CONTINUE = false;
-                } else {
-                    msg.param.set(Param::File, path_filename);
-                }
+    // save new draft
+    if msg.type_0 == Viewtype::Text {
+        OK_TO_CONTINUE = msg.text.as_ref().map_or(false, |s| !s.is_empty());
+    } else if msgtype_has_file(msg.type_0) {
+        if let Some(path_filename) = msg.param.get(Param::File) {
+            let mut path_filename = path_filename.to_string();
+            if dc_msg_is_increation(msg) && !dc_is_blobdir_path(context, &path_filename) {
+                OK_TO_CONTINUE = false;
+            } else if !dc_make_rel_and_copy(context, &mut path_filename) {
+                OK_TO_CONTINUE = false;
+            } else {
+                msg.param.set(Param::File, path_filename);
             }
-        } else {
-            OK_TO_CONTINUE = false;
         }
-        if OK_TO_CONTINUE {
-            if sql::execute(
-                context,
-                &context.sql,
-                "INSERT INTO msgs (chat_id, from_id, timestamp, type, state, txt, param, hidden) \
-                 VALUES (?,?,?, ?,?,?,?,?);",
-                params![
-                    chat_id as i32,
-                    1,
-                    time(),
-                    msg.type_0,
-                    MessageState::OutDraft,
-                    msg.text.as_ref().map(String::as_str).unwrap_or(""),
-                    msg.param.to_string(),
-                    1,
-                ],
-            )
-            .is_ok()
-            {
-                sth_changed = true;
-            }
+    } else {
+        OK_TO_CONTINUE = false;
+    }
+    if OK_TO_CONTINUE {
+        if sql::execute(
+            context,
+            &context.sql,
+            "INSERT INTO msgs (chat_id, from_id, timestamp, type, state, txt, param, hidden) \
+             VALUES (?,?,?, ?,?,?,?,?);",
+            params![
+                chat_id as i32,
+                1,
+                time(),
+                msg.type_0,
+                MessageState::OutDraft,
+                msg.text.as_ref().map(String::as_str).unwrap_or(""),
+                msg.param.to_string(),
+                1,
+            ],
+        )
+        .is_ok()
+        {
+            sth_changed = true;
         }
     }
     sth_changed
