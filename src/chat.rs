@@ -867,12 +867,12 @@ fn maybe_delete_draft(context: &Context, chat_id: u32) -> bool {
     false
 }
 
-// similar to as dc_set_draft() but does not emit an event
-#[allow(non_snake_case)]
-unsafe fn set_draft_raw(context: &Context, chat_id: u32, msg: &mut Message) -> bool {
+/// Set provided message as draft message for specified chat.
+///
+/// Return true on success, false on database error.
+fn do_set_draft(context: &Context, chat_id: u32, msg: &mut Message) -> bool {
     let mut OK_TO_CONTINUE = true;
-
-    let mut sth_changed = maybe_delete_draft(context, chat_id);
+    let mut sth_changed = false;
 
     // save new draft
     if msg.type_0 == Viewtype::Text {
@@ -914,6 +914,16 @@ unsafe fn set_draft_raw(context: &Context, chat_id: u32, msg: &mut Message) -> b
         }
     }
     sth_changed
+}
+
+// similar to as dc_set_draft() but does not emit an event
+#[allow(non_snake_case)]
+unsafe fn set_draft_raw(context: &Context, chat_id: u32, msg: &mut Message) -> bool {
+    let deleted = maybe_delete_draft(context, chat_id);
+    let set = do_set_draft(context, chat_id, msg);
+
+    // Can't inline. Both functions above must be called, no shortcut!
+    deleted || set
 }
 
 fn get_draft_msg_id(context: &Context, chat_id: u32) -> u32 {
