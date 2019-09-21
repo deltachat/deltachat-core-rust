@@ -54,10 +54,10 @@ impl E2eeHelper {
         &mut self,
         context: &Context,
         recipients_addr: *const clist,
-        force_unencrypted: libc::c_int,
+        force_unencrypted: bool,
         e2ee_guaranteed: bool,
         min_verified: libc::c_int,
-        do_gossip: libc::c_int,
+        do_gossip: bool,
         mut in_out_message: *mut mailmime,
     ) {
         let mut ok_to_continue = true;
@@ -141,7 +141,7 @@ impl E2eeHelper {
                     } else {
                         None
                     };
-                    if 0 != force_unencrypted {
+                    if force_unencrypted {
                         do_encrypt = 0i32
                     }
                     imffields_unprotected = mailmime_find_mailimf_fields(in_out_message);
@@ -168,7 +168,7 @@ impl E2eeHelper {
                                 imffields_encrypted,
                                 part_to_encrypt,
                             );
-                            if 0 != do_gossip {
+                            if do_gossip {
                                 let i_cnt = peerstates.len() as libc::c_int;
                                 if i_cnt > 1 {
                                     let mut i = 0;

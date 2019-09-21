@@ -135,7 +135,8 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
                         msg.param
                             .set(Param::MimeType, "application/autocrypt-setup");
                         msg.param.set_int(Param::Cmd, 6);
-                        msg.param.set_int(Param::ForcePlaintext, 2);
+                        msg.param
+                            .set_int(Param::ForcePlaintext, DC_FP_NO_AUTOCRYPT_HEADER);
 
                         if !context
                             .running_state
@@ -857,11 +858,10 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                 if entry.is_err() {
                     break;
                 }
-                let entry = entry.unwrap();
-                let name_f = entry.file_name();
-                let name_c = name_f.to_c_string().unwrap();
+                let entry_fn = entry.unwrap().file_name();
+                let name_f = entry_fn.to_string_lossy();
 
-                match dc_get_filesuffix_lc(name_f.to_string_lossy()) {
+                match dc_get_filesuffix_lc(&name_f) {
                     Some(suffix) => {
                         if suffix != ".asc" {
                             continue;
@@ -871,7 +871,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                         continue;
                     }
                 }
-                let path_plus_name = dir.join(entry.file_name());
+                let path_plus_name = dir.join(&entry_fn);
                 info!(context, "Checking: {}", path_plus_name.display());
 
                 free(buf.cast());
@@ -909,12 +909,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                     }
                 }
                 set_default = 1;
-                if !strstr(
-                    name_c.as_ptr(),
-                    b"legacy\x00" as *const u8 as *const libc::c_char,
-                )
-                .is_null()
-                {
+                if name_f.find("legacy").is_some() {
                     info!(
                         context,
                         "Treating \"{}\" as a legacy private key.",
