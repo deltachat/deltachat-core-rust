@@ -871,7 +871,6 @@ fn maybe_delete_draft(context: &Context, chat_id: u32) -> bool {
 ///
 /// Return true on success, false on database error.
 fn do_set_draft(context: &Context, chat_id: u32, msg: &mut Message) -> bool {
-    let mut sth_changed = false;
 
     match msg.type_0 {
         Viewtype::Unknown => return false,
@@ -891,8 +890,7 @@ fn do_set_draft(context: &Context, chat_id: u32, msg: &mut Message) -> bool {
         }
     }
 
-    {
-        if sql::execute(
+        sql::execute(
             context,
             &context.sql,
             "INSERT INTO msgs (chat_id, from_id, timestamp, type, state, txt, param, hidden) \
@@ -909,11 +907,6 @@ fn do_set_draft(context: &Context, chat_id: u32, msg: &mut Message) -> bool {
             ],
         )
         .is_ok()
-        {
-            sth_changed = true;
-        }
-    }
-    sth_changed
 }
 
 // similar to as dc_set_draft() but does not emit an event
