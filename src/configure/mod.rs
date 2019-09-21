@@ -45,7 +45,7 @@ pub fn dc_is_configured(context: &Context) -> bool {
  ******************************************************************************/
 // the other dc_job_do_DC_JOB_*() functions are declared static in the c-file
 #[allow(non_snake_case, unused_must_use)]
-pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
+pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
     let mut success = false;
     let mut imap_connected_here = false;
     let mut smtp_connected_here = false;
@@ -666,8 +666,6 @@ mod tests {
 
     use crate::config::*;
     use crate::configure::dc_job_do_DC_JOB_CONFIGURE_IMAP;
-    use crate::job::*;
-    use crate::param::*;
     use crate::test_utils::*;
 
     #[test]
@@ -677,19 +675,8 @@ mod tests {
             .set_config(Config::Addr, Some("probably@unexistant.addr"))
             .unwrap();
         t.ctx.set_config(Config::MailPw, Some("123456")).unwrap();
-        let job = Job {
-            job_id: 1,
-            action: Action::ConfigureImap,
-            foreign_id: 0,
-            desired_timestamp: 0,
-            added_timestamp: 0,
-            tries: 0,
-            param: Params::new(),
-            try_again: 0,
-            pending_error: None,
-        };
         unsafe {
-            dc_job_do_DC_JOB_CONFIGURE_IMAP(&t.ctx, &job);
+            dc_job_do_DC_JOB_CONFIGURE_IMAP(&t.ctx);
         }
     }
 }

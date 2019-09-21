@@ -869,7 +869,7 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                 Action::MarkseenMdnOnImap => job.do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context),
                 Action::MoveMsg => job.do_DC_JOB_MOVE_MSG(context),
                 Action::SendMdn => job.do_DC_JOB_SEND(context),
-                Action::ConfigureImap => unsafe { dc_job_do_DC_JOB_CONFIGURE_IMAP(context, &job) },
+                Action::ConfigureImap => unsafe { dc_job_do_DC_JOB_CONFIGURE_IMAP(context) },
                 Action::ImexImap => unsafe { dc_job_do_DC_JOB_IMEX_IMAP(context, &job) },
                 Action::MaybeSendLocations => {
                     location::job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context, &job)
