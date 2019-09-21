@@ -351,20 +351,13 @@ unsafe fn add_parts(
     // check, if the mail is already in our database - if so, just update the folder/uid
     // (if the mail was moved around) and finish. (we may get a mail twice eg. if it is
     // moved between folders. make sure, this check is done eg. before securejoin-processing) */
-    let mut old_server_folder = std::ptr::null_mut();
-    let mut old_server_uid = 0;
-
-    if 0 != message::rfc724_mid_exists(
-        context,
-        &rfc724_mid,
-        &mut old_server_folder,
-        &mut old_server_uid,
-    ) {
-        if as_str(old_server_folder) != server_folder.as_ref() || old_server_uid != server_uid {
+    if let Ok((old_server_folder, old_server_uid, _)) =
+        message::rfc724_mid_exists(context, &rfc724_mid)
+    {
+        if old_server_folder != server_folder.as_ref() || old_server_uid != server_uid {
             message::update_server_uid(context, &rfc724_mid, server_folder.as_ref(), server_uid);
         }
 
-        free(old_server_folder.cast());
         cleanup(mime_in_reply_to, mime_references);
         bail!("Message already in DB");
     }
@@ -840,7 +833,7 @@ unsafe fn handle_reports(
                                         let mut chat_id_0 = 0;
                                         let mut msg_id = 0;
 
-                                        if 0 != message::mdn_from_ext(
+                                        if message::mdn_from_ext(
                                             context,
                                             from_id,
                                             as_str(rfc724_mid_0),

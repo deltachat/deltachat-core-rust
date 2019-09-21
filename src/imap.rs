@@ -1,5 +1,4 @@
 use std::net;
-use std::ptr;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc, Condvar, Mutex, RwLock,
@@ -9,7 +8,6 @@ use std::time::{Duration, SystemTime};
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_receive_imf::dc_receive_imf;
-use crate::dc_tools::*;
 use crate::events::Event;
 use crate::job::{job_add, Action};
 use crate::login_param::LoginParam;
@@ -822,7 +820,7 @@ impl Imap {
                     .message_id
                     .expect("missing message id");
 
-                if 0 == unsafe { precheck_imf(context, &message_id, folder.as_ref(), cur_uid) } {
+                if !precheck_imf(context, &message_id, folder.as_ref(), cur_uid) {
                     // check passed, go fetch the rest
                     if self.fetch_single_msg(context, &folder, cur_uid) == 0 {
                         info!(
@@ -1641,39 +1639,28 @@ fn get_folder_meaning(folder_name: &imap::types::Name) -> FolderMeaning {
     }
 }
 
-unsafe fn precheck_imf(
-    context: &Context,
-    rfc724_mid: &str,
-    server_folder: &str,
-    server_uid: u32,
-) -> libc::c_int {
-    let mut rfc724_mid_exists: libc::c_int = 0i32;
-    let msg_id: u32;
-    let mut old_server_folder: *mut libc::c_char = ptr::null_mut();
-    let mut old_server_uid: u32 = 0i32 as u32;
-    let mut mark_seen: libc::c_int = 0i32;
-    msg_id = message::rfc724_mid_exists(
-        context,
-        &rfc724_mid,
-        &mut old_server_folder,
-        &mut old_server_uid,
-    );
-    if msg_id != 0i32 as libc::c_uint {
-        rfc724_mid_exists = 1i32;
-        if *old_server_folder.offset(0isize) as libc::c_int == 0i32
-            && old_server_uid == 0i32 as libc::c_uint
-        {
+fn precheck_imf(context: &Context, rfc724_mid: &str, server_folder: &str, server_uid: u32) -> bool {
+    let mut rfc724_mid_exists = false;
+    let mut mark_seen = false;
+
+    if let Ok((old_server_folder, old_server_uid, msg_id)) =
+        message::rfc724_mid_exists(context, &rfc724_mid)
+    {
+        rfc724_mid_exists = true;
+
+        if old_server_folder.is_empty() && old_server_uid == 0 {
             info!(context, "[move] detected bbc-self {}", rfc724_mid,);
-            mark_seen = 1i32
-        } else if as_str(old_server_folder) != server_folder {
+            mark_seen = true;
+        } else if old_server_folder != server_folder {
             info!(context, "[move] detected moved message {}", rfc724_mid,);
             update_msg_move_state(context, &rfc724_mid, MoveState::Stay);
         }
-        if as_str(old_server_folder) != server_folder || old_server_uid != server_uid {
+        if old_server_folder != server_folder || old_server_uid != server_uid {
             update_server_uid(context, &rfc724_mid, server_folder, server_uid);
         }
         context.do_heuristics_moves(server_folder, msg_id);
-        if 0 != mark_seen {
+
+        if mark_seen {
             job_add(
                 context,
                 Action::MarkseenMsgOnImap,
@@ -1683,6 +1670,6 @@ unsafe fn precheck_imf(
             );
         }
     }
-    libc::free(old_server_folder as *mut libc::c_void);
+
     rfc724_mid_exists
 }
