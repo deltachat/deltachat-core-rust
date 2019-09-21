@@ -119,7 +119,11 @@ pub unsafe fn dc_split_armored_data(
             line_chars = line_chars.wrapping_add(1)
         }
     }
-    if !(headerline.is_null() || base64.is_null()) {
+    if headerline.is_null() || base64.is_null() {
+        return false;
+    }
+
+    {
         /* now, line points to beginning of base64 data, search end */
         /*the trailing space makes sure, this is not a normal base64 sequence*/
         p1 = strstr(base64, b"-----END \x00" as *const u8 as *const libc::c_char);
