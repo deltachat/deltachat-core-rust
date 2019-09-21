@@ -61,7 +61,7 @@ pub unsafe fn dc_split_armored_data(
                 if strncmp(
                     line,
                     b"-----BEGIN \x00" as *const u8 as *const libc::c_char,
-                    1,
+                    11,
                 ) == 0i32
                     && strncmp(
                         &mut *line.offset(strlen(line).wrapping_sub(5) as isize),
