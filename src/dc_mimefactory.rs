@@ -917,7 +917,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
                     .stock_str(StockMessage::EncryptedMsg)
                     .into_owned()
             } else {
-                to_string(factory.msg.get_summarytext(context, 32))
+                factory.msg.get_summarytext(context, 32)
             };
             let p2 = factory
                 .context

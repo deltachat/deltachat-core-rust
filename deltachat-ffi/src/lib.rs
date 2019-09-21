@@ -2282,7 +2282,7 @@ pub unsafe extern "C" fn dc_msg_get_text(msg: *mut dc_msg_t) -> *mut libc::c_cha
         return dc_strdup(ptr::null());
     }
     let ffi_msg = &*msg;
-    ffi_msg.message.get_text()
+    ffi_msg.message.get_text().unwrap_or_default().strdup()
 }
 
 #[no_mangle]
@@ -2312,7 +2312,7 @@ pub unsafe extern "C" fn dc_msg_get_filename(msg: *mut dc_msg_t) -> *mut libc::c
         return dc_strdup(ptr::null());
     }
     let ffi_msg = &*msg;
-    ffi_msg.message.get_filename()
+    ffi_msg.message.get_filename().unwrap_or_default().strdup()
 }
 
 #[no_mangle]
@@ -2420,7 +2420,8 @@ pub unsafe extern "C" fn dc_msg_get_summarytext(
                 .message
                 .get_summarytext(ctx, approx_characters.try_into().unwrap())
         })
-        .unwrap_or_else(|_| "".strdup())
+        .unwrap_or_default()
+        .strdup()
 }
 
 #[no_mangle]
@@ -2430,7 +2431,7 @@ pub unsafe extern "C" fn dc_msg_has_deviating_timestamp(msg: *mut dc_msg_t) -> l
         return 0;
     }
     let ffi_msg = &*msg;
-    ffi_msg.message.has_deviating_timestamp()
+    ffi_msg.message.has_deviating_timestamp().into()
 }
 
 #[no_mangle]
@@ -2512,8 +2513,9 @@ pub unsafe extern "C" fn dc_msg_get_setupcodebegin(msg: *mut dc_msg_t) -> *mut l
     let ffi_msg = &*msg;
     let ffi_context = &*ffi_msg.context;
     ffi_context
-        .with_inner(|ctx| ffi_msg.message.get_setupcodebegin(ctx))
-        .unwrap_or_else(|_| "".strdup())
+        .with_inner(|ctx| ffi_msg.message.get_setupcodebegin(ctx).unwrap_or_default())
+        .unwrap_or_default()
+        .strdup()
 }
 
 #[no_mangle]
@@ -2524,7 +2526,7 @@ pub unsafe extern "C" fn dc_msg_set_text(msg: *mut dc_msg_t, text: *mut libc::c_
     }
     let ffi_msg = &mut *msg;
     // TODO: {text} equal to NULL is treated as "", which is strange. Does anyone rely on it?
-    ffi_msg.message.set_text(text)
+    ffi_msg.message.set_text(as_opt_str(text).map(Into::into))
 }
 
 #[no_mangle]
@@ -2533,12 +2535,12 @@ pub unsafe extern "C" fn dc_msg_set_file(
     file: *mut libc::c_char,
     filemime: *mut libc::c_char,
 ) {
-    if msg.is_null() {
+    if msg.is_null() || file.is_null() {
         eprintln!("ignoring careless call to dc_msg_set_file()");
         return;
     }
     let ffi_msg = &mut *msg;
-    ffi_msg.message.set_file(file, filemime)
+    ffi_msg.message.set_file(as_str(file), as_opt_str(filemime))
 }
 
 #[no_mangle]

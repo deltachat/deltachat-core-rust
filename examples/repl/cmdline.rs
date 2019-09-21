@@ -238,7 +238,7 @@ unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
         if msg.has_location() { "📍" } else { "" },
         &contact_name,
         contact_id,
-        as_str(msgtext),
+        msgtext.unwrap_or_default(),
         if msg.is_starred() { "★" } else { "" },
         if msg.get_from_id() == 1 as libc::c_uint {
             ""
@@ -253,7 +253,6 @@ unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
         statestr,
         &temp2,
     );
-    free(msgtext as *mut libc::c_void);
 }
 
 unsafe fn log_msglist(context: &Context, msglist: &Vec<u32>) -> Result<(), Error> {
@@ -469,9 +468,8 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 println!(
                     "The setup code for setup message Msg#{} starts with: {}",
                     msg_id,
-                    as_str(setupcodebegin),
+                    setupcodebegin.unwrap_or_default(),
                 );
-                free(setupcodebegin as *mut libc::c_void);
             } else {
                 bail!("Msg#{} is no setup message.", msg_id,);
             }
@@ -826,9 +824,9 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             } else {
                 Viewtype::File
             });
-            msg.set_file(arg1_c, ptr::null());
+            msg.set_file(arg1, None);
             if !arg2.is_empty() {
-                msg.set_text(arg2_c);
+                msg.set_text(Some(arg2.to_string()));
             }
             chat::send_msg(context, sel_chat.as_ref().unwrap().get_id(), &mut msg)?;
         }
@@ -851,7 +849,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
 
             if !arg1.is_empty() {
                 let mut draft = Message::new(Viewtype::Text);
-                draft.set_text(arg1_c);
+                draft.set_text(Some(arg1.to_string()));
                 chat::set_draft(
                     context,
                     sel_chat.as_ref().unwrap().get_id(),
