@@ -65,7 +65,6 @@ pub unsafe fn dc_encode_header_words(to_encode_r: impl AsRef<str>) -> *mut libc:
                 }
                 if 0 != quote_words {
                     if !quote_word(
-                        b"utf-8\x00" as *const u8 as *const libc::c_char,
                         mmapstr,
                         begin,
                         end.wrapping_offset_from(begin) as libc::size_t,
@@ -121,7 +120,6 @@ pub unsafe fn dc_encode_header_words(to_encode_r: impl AsRef<str>) -> *mut libc:
 }
 
 unsafe fn quote_word(
-    display_charset: *const libc::c_char,
     mmapstr: *mut MMAPString,
     word: *const libc::c_char,
     size: libc::size_t,
@@ -130,15 +128,10 @@ unsafe fn quote_word(
     let mut i = 0;
     let mut hex: [libc::c_char; 4] = [0; 4];
     // let mut col: libc::c_int = 0i32;
-    if mmap_string_append(mmapstr, b"=?\x00" as *const u8 as *const libc::c_char).is_null() {
+    if mmap_string_append(mmapstr, b"=?utf-8?Q?\x00".as_ptr().cast()).is_null() {
         return false;
     }
-    if mmap_string_append(mmapstr, display_charset).is_null() {
-        return false;
-    }
-    if mmap_string_append(mmapstr, b"?Q?\x00" as *const u8 as *const libc::c_char).is_null() {
-        return false;
-    }
+
     // col = (*mmapstr).len as libc::c_int;
     cur = word;
     while i < size {
