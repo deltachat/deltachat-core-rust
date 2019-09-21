@@ -1656,4 +1656,19 @@ mod tests {
         let listflags: u32 = DC_GCL_VERIFIED_ONLY.try_into().unwrap();
         assert!(listflags_has(listflags, DC_GCL_ADD_SELF) == false);
     }
+
+    #[test]
+    fn test_dc_remove_cr_chars() {
+        unsafe {
+            let input = "foo\r\nbar".strdup();
+            dc_remove_cr_chars(input);
+            assert_eq!("foo\nbar", to_string(input));
+            free(input.cast());
+
+            let input = "\rfoo\r\rbar\r".strdup();
+            dc_remove_cr_chars(input);
+            assert_eq!("foobar", to_string(input));
+            free(input.cast());
+        }
+    }
 }
