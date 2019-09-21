@@ -52,92 +52,90 @@ pub unsafe fn dc_split_armored_data(
         return false;
     }
 
-    {
-        dc_remove_cr_chars(buf);
-        while 0 != *p1 {
-            if *p1 as libc::c_int == '\n' as i32 {
-                *line.offset(line_chars as isize) = 0i32 as libc::c_char;
-                if headerline.is_null() {
-                    dc_trim(line);
-                    if strncmp(
-                        line,
-                        b"-----BEGIN \x00" as *const u8 as *const libc::c_char,
-                        1,
+    dc_remove_cr_chars(buf);
+    while 0 != *p1 {
+        if *p1 as libc::c_int == '\n' as i32 {
+            *line.offset(line_chars as isize) = 0i32 as libc::c_char;
+            if headerline.is_null() {
+                dc_trim(line);
+                if strncmp(
+                    line,
+                    b"-----BEGIN \x00" as *const u8 as *const libc::c_char,
+                    1,
+                ) == 0i32
+                    && strncmp(
+                        &mut *line.offset(strlen(line).wrapping_sub(5) as isize),
+                        b"-----\x00" as *const u8 as *const libc::c_char,
+                        5,
                     ) == 0i32
-                        && strncmp(
-                            &mut *line.offset(strlen(line).wrapping_sub(5) as isize),
-                            b"-----\x00" as *const u8 as *const libc::c_char,
-                            5,
-                        ) == 0i32
-                    {
-                        headerline = line;
-                        if !ret_headerline.is_null() {
-                            *ret_headerline = headerline
-                        }
-                    }
-                } else if strspn(line, b"\t\r\n \x00" as *const u8 as *const libc::c_char)
-                    == strlen(line)
                 {
-                    base64 = p1.offset(1isize);
+                    headerline = line;
+                    if !ret_headerline.is_null() {
+                        *ret_headerline = headerline
+                    }
+                }
+            } else if strspn(line, b"\t\r\n \x00" as *const u8 as *const libc::c_char)
+                == strlen(line)
+            {
+                base64 = p1.offset(1isize);
+                break;
+            } else {
+                p2 = strchr(line, ':' as i32);
+                if p2.is_null() {
+                    *line.offset(line_chars as isize) = '\n' as i32 as libc::c_char;
+                    base64 = line;
                     break;
                 } else {
-                    p2 = strchr(line, ':' as i32);
-                    if p2.is_null() {
-                        *line.offset(line_chars as isize) = '\n' as i32 as libc::c_char;
-                        base64 = line;
-                        break;
-                    } else {
-                        *p2 = 0i32 as libc::c_char;
-                        dc_trim(line);
-                        if strcasecmp(
-                            line,
-                            b"Passphrase-Begin\x00" as *const u8 as *const libc::c_char,
-                        ) == 0i32
-                        {
-                            p2 = p2.offset(1isize);
-                            dc_trim(p2);
-                            if !ret_setupcodebegin.is_null() {
-                                *ret_setupcodebegin = p2
-                            }
-                        } else if strcasecmp(
-                            line,
-                            b"Autocrypt-Prefer-Encrypt\x00" as *const u8 as *const libc::c_char,
-                        ) == 0i32
-                        {
-                            p2 = p2.offset(1isize);
-                            dc_trim(p2);
-                            if !ret_preferencrypt.is_null() {
-                                *ret_preferencrypt = p2
-                            }
+                    *p2 = 0i32 as libc::c_char;
+                    dc_trim(line);
+                    if strcasecmp(
+                        line,
+                        b"Passphrase-Begin\x00" as *const u8 as *const libc::c_char,
+                    ) == 0i32
+                    {
+                        p2 = p2.offset(1isize);
+                        dc_trim(p2);
+                        if !ret_setupcodebegin.is_null() {
+                            *ret_setupcodebegin = p2
+                        }
+                    } else if strcasecmp(
+                        line,
+                        b"Autocrypt-Prefer-Encrypt\x00" as *const u8 as *const libc::c_char,
+                    ) == 0i32
+                    {
+                        p2 = p2.offset(1isize);
+                        dc_trim(p2);
+                        if !ret_preferencrypt.is_null() {
+                            *ret_preferencrypt = p2
                         }
                     }
                 }
-                p1 = p1.offset(1isize);
-                line = p1;
-                line_chars = 0;
-            } else {
-                p1 = p1.offset(1isize);
-                line_chars = line_chars.wrapping_add(1)
             }
+            p1 = p1.offset(1isize);
+            line = p1;
+            line_chars = 0;
+        } else {
+            p1 = p1.offset(1isize);
+            line_chars = line_chars.wrapping_add(1)
         }
-        if !(headerline.is_null() || base64.is_null()) {
-            /* now, line points to beginning of base64 data, search end */
-            /*the trailing space makes sure, this is not a normal base64 sequence*/
-            p1 = strstr(base64, b"-----END \x00" as *const u8 as *const libc::c_char);
-            if !(p1.is_null()
-                || strncmp(
-                    p1.offset(9isize),
-                    headerline.offset(11isize),
-                    strlen(headerline.offset(11isize)),
-                ) != 0i32)
-            {
-                *p1 = 0i32 as libc::c_char;
-                dc_trim(base64);
-                if !ret_base64.is_null() {
-                    *ret_base64 = base64
-                }
-                success = true;
+    }
+    if !(headerline.is_null() || base64.is_null()) {
+        /* now, line points to beginning of base64 data, search end */
+        /*the trailing space makes sure, this is not a normal base64 sequence*/
+        p1 = strstr(base64, b"-----END \x00" as *const u8 as *const libc::c_char);
+        if !(p1.is_null()
+            || strncmp(
+                p1.offset(9isize),
+                headerline.offset(11isize),
+                strlen(headerline.offset(11isize)),
+            ) != 0i32)
+        {
+            *p1 = 0i32 as libc::c_char;
+            dc_trim(base64);
+            if !ret_base64.is_null() {
+                *ret_base64 = base64
             }
+            success = true;
         }
     }
 
