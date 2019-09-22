@@ -141,6 +141,7 @@ pub fn dc_mimefactory_load_msg(context: &Context, msg_id: u32) -> Result<MimeFac
         let command = factory.msg.param.get_cmd();
         let msg = &factory.msg;
 
+        /* for added members, the list is just fine */
         if command == SystemMessage::MemberRemovedFromGroup {
             let email_to_remove = msg.param.get(Param::Arg).unwrap_or_default();
 
@@ -244,6 +245,10 @@ pub unsafe fn dc_mimefactory_render(
     if factory.loaded == Loaded::Nothing || !factory.out.is_null() {
         bail!("Invalid use of mimefactory-object.");
     }
+
+    /* create basic mail
+     *************************************************************************/
+
     let from: *mut mailimf_mailbox_list = mailimf_mailbox_list_new_empty();
     mailimf_mailbox_list_add(
         from,
@@ -310,9 +315,16 @@ pub unsafe fn dc_mimefactory_render(
         .unwrap_or_default();
     let version = get_version_str();
     let headerval = format!("Delta Chat Core {}{}", version, os_part);
+
+    /* Add a X-Mailer header.
+    This is only informational for debugging and may be removed in the release.
+    We do not rely on this header as it may be removed by MTAs. */
     add_mailimf_field(imf_fields, "X-Mailer", &headerval);
     add_mailimf_field(imf_fields, "Chat-Version", "1.0");
     if factory.req_mdn {
+        /* we use "Chat-Disposition-Notification-To"
+        because replies to "Disposition-Notification-To" are weird in many cases
+        eg. are just freetext and/or do not follow any standard. */
         add_mailimf_field(
             imf_fields,
             "Chat-Disposition-Notification-To",
@@ -362,6 +374,8 @@ pub unsafe fn dc_mimefactory_render(
                         != 0;
                 }
             }
+
+            /* beside key- and member-changes, force re-gossip every 48 hours */
             if chat.gossiped_timestamp == 0
                 || (chat.gossiped_timestamp + (2 * 24 * 60 * 60)) < time()
             {
@@ -502,6 +516,11 @@ pub unsafe fn dc_mimefactory_render(
                     add_mailimf_field(imf_fields, "Chat-Duration", &dur);
                 }
             }
+
+            /* add text part - we even add empty text and force a MIME-multipart-message as:
+            - some Apps have problems with Non-text in the main part (eg. "Mail" from stock Android)
+            - we can add "forward hints" this way
+            - it looks better */
             let afwd_email = factory.msg.param.exists(Param::Forwarded);
             let fwdhint = if afwd_email {
                 Some(
@@ -618,6 +637,8 @@ pub unsafe fn dc_mimefactory_render(
                 ) as *mut libc::c_void,
             );
             mailmime_add_part(message, multipart);
+
+            /* first body part: always human-readable, always REQUIRED by RFC 6522 */
             let p1 = if 0
                 != factory
                     .msg
@@ -638,6 +659,8 @@ pub unsafe fn dc_mimefactory_render(
             let message_text = format!("{}\r\n", p2);
             let human_mime_part: *mut mailmime = build_body_text(&message_text);
             mailmime_add_part(multipart, human_mime_part);
+
+            /* second body part: machine-readable, always REQUIRED by RFC 6522 */
             let version = get_version_str();
             let message_text2 = format!(
                 "Reporting-UA: Delta Chat {}\r\nOriginal-Recipient: rfc822;{}\r\nFinal-Recipient: rfc822;{}\r\nOriginal-Message-ID: <{}>\r\nDisposition: manual-action/MDN-sent-automatically; displayed\r\n",
@@ -673,6 +696,9 @@ pub unsafe fn dc_mimefactory_render(
         }
     };
 
+    /* Encrypt the message
+     *************************************************************************/
+
     mailimf_fields_add(
         imf_fields,
         mailimf_field_new(
@@ -701,6 +727,7 @@ pub unsafe fn dc_mimefactory_render(
             ptr::null_mut(),
         ),
     );
+
     let mut e2ee_helper = E2eeHelper::default();
     if force_plaintext != DC_FP_NO_AUTOCRYPT_HEADER {
         e2ee_helper.encrypt(
@@ -743,6 +770,7 @@ fn get_subject(
     let fwd = if afwd_email { "Fwd: " } else { "" };
 
     if msg.param.get_cmd() == SystemMessage::AutocryptSetupMessage {
+        /* do not add the "Chat:" prefix for setup messages */
         context
             .stock_str(StockMessage::AcSetupMsgSubject)
             .into_owned()
@@ -804,6 +832,10 @@ fn build_body_file(context: &Context, msg: &Message, base_name: &str) -> (*mut m
         Some(path) => path,
     };
     let suffix = dc_get_filesuffix_lc(path_filename).unwrap_or_else(|| "dat".into());
+
+    /* get file name to use for sending
+    (for privacy purposes, we do not transfer the original filenames eg. for images;
+    these names are normally not needed and contain timestamps, running numbers etc.) */
     let filename_to_send = match msg.type_0 {
         Viewtype::Voice => chrono::Utc
             .timestamp(msg.timestamp_sort as i64, 0)
@@ -829,6 +861,7 @@ fn build_body_file(context: &Context, msg: &Message, base_name: &str) -> (*mut m
             .unwrap_or_default(),
     };
 
+    /* check mimetype */
     let mimetype = match msg.param.get(Param::MimeType) {
         Some(mtype) => mtype,
         None => {
