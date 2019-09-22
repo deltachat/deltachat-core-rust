@@ -26,6 +26,8 @@ use crate::location;
 use crate::message::{self, Message};
 use crate::param::*;
 use crate::stock::StockMessage;
+use crate::wrapmime;
+use crate::wrapmime::*;
 
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub enum Loaded {
@@ -319,13 +321,13 @@ pub unsafe fn dc_mimefactory_render(
     /* Add a X-Mailer header.
     This is only informational for debugging and may be removed in the release.
     We do not rely on this header as it may be removed by MTAs. */
-    add_mailimf_field(imf_fields, "X-Mailer", &headerval);
-    add_mailimf_field(imf_fields, "Chat-Version", "1.0");
+    new_custom_field(imf_fields, "X-Mailer", &headerval);
+    new_custom_field(imf_fields, "Chat-Version", "1.0");
     if factory.req_mdn {
         /* we use "Chat-Disposition-Notification-To"
         because replies to "Disposition-Notification-To" are weird in many cases
         eg. are just freetext and/or do not follow any standard. */
-        add_mailimf_field(
+        new_custom_field(
             imf_fields,
             "Chat-Disposition-Notification-To",
             &factory.from_addr,
@@ -355,7 +357,7 @@ pub unsafe fn dc_mimefactory_render(
             let mut placeholdertext = None;
 
             if chat.typ == Chattype::VerifiedGroup {
-                add_mailimf_field(imf_fields, "Chat-Verified", "1");
+                new_custom_field(imf_fields, "Chat-Verified", "1");
                 force_plaintext = 0;
                 e2ee_guaranteed = true;
                 min_verified = 2
@@ -385,16 +387,16 @@ pub unsafe fn dc_mimefactory_render(
             /* build header etc. */
             let command = factory.msg.param.get_cmd();
             if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
-                add_mailimf_field(imf_fields, "Chat-Group-ID", &chat.grpid);
+                new_custom_field(imf_fields, "Chat-Group-ID", &chat.grpid);
 
                 let encoded = dc_encode_header_words(&chat.name);
-                add_mailimf_field(imf_fields, "Chat-Group-Name", &encoded);
+                new_custom_field(imf_fields, "Chat-Group-Name", &encoded);
 
                 match command {
                     SystemMessage::MemberRemovedFromGroup => {
                         let email_to_remove = factory.msg.param.get(Param::Arg).unwrap_or_default();
                         if !email_to_remove.is_empty() {
-                            add_mailimf_field(
+                            new_custom_field(
                                 imf_fields,
                                 "Chat-Group-Member-Removed",
                                 &email_to_remove,
@@ -406,7 +408,7 @@ pub unsafe fn dc_mimefactory_render(
                         do_gossip = true;
                         let email_to_add = msg.param.get(Param::Arg).unwrap_or_default();
                         if !email_to_add.is_empty() {
-                            add_mailimf_field(imf_fields, "Chat-Group-Member-Added", &email_to_add);
+                            new_custom_field(imf_fields, "Chat-Group-Member-Added", &email_to_add);
                             grpimage = chat.param.get(Param::ProfileImage);
                         }
                         if 0 != msg.param.get_int(Param::Arg2).unwrap_or_default() & 0x1 {
@@ -415,20 +417,20 @@ pub unsafe fn dc_mimefactory_render(
                                 "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>",
                                 "vg-member-added",
                             );
-                            add_mailimf_field(imf_fields, "Secure-Join", "vg-member-added");
+                            new_custom_field(imf_fields, "Secure-Join", "vg-member-added");
                         }
                     }
                     SystemMessage::GroupNameChanged => {
                         let msg = &factory.msg;
                         let value_to_add = msg.param.get(Param::Arg).unwrap_or_default();
 
-                        add_mailimf_field(imf_fields, "Chat-Group-Name-Changed", &value_to_add);
+                        new_custom_field(imf_fields, "Chat-Group-Name-Changed", &value_to_add);
                     }
                     SystemMessage::GroupImageChanged => {
                         let msg = &factory.msg;
                         grpimage = msg.param.get(Param::Arg);
                         if grpimage.is_none() {
-                            add_mailimf_field(imf_fields, "Chat-Group-Image", "0");
+                            new_custom_field(imf_fields, "Chat-Group-Image", "0");
                         }
                     }
                     _ => {}
@@ -437,10 +439,10 @@ pub unsafe fn dc_mimefactory_render(
 
             match command {
                 SystemMessage::LocationStreamingEnabled => {
-                    add_mailimf_field(imf_fields, "Chat-Content", "location-streaming-enabled");
+                    new_custom_field(imf_fields, "Chat-Content", "location-streaming-enabled");
                 }
                 SystemMessage::AutocryptSetupMessage => {
-                    add_mailimf_field(imf_fields, "Autocrypt-Setup-Message", "v1");
+                    new_custom_field(imf_fields, "Autocrypt-Setup-Message", "v1");
                     placeholdertext = Some(
                         factory
                             .context
@@ -456,10 +458,10 @@ pub unsafe fn dc_mimefactory_render(
                             context,
                             "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>", step,
                         );
-                        add_mailimf_field(imf_fields, "Secure-Join", &step);
+                        new_custom_field(imf_fields, "Secure-Join", &step);
                         let param2 = msg.param.get(Param::Arg2).unwrap_or_default();
                         if !param2.is_empty() {
-                            add_mailimf_field(
+                            new_custom_field(
                                 imf_fields,
                                 if step == "vg-request-with-auth" || step == "vc-request-with-auth"
                                 {
@@ -472,11 +474,11 @@ pub unsafe fn dc_mimefactory_render(
                         }
                         let fingerprint = msg.param.get(Param::Arg3).unwrap_or_default();
                         if !fingerprint.is_empty() {
-                            add_mailimf_field(imf_fields, "Secure-Join-Fingerprint", &fingerprint);
+                            new_custom_field(imf_fields, "Secure-Join-Fingerprint", &fingerprint);
                         }
                         match msg.param.get(Param::Arg4) {
                             Some(id) => {
-                                add_mailimf_field(imf_fields, "Secure-Join-Group", &id);
+                                new_custom_field(imf_fields, "Secure-Join-Group", &id);
                             }
                             None => {}
                         };
@@ -495,7 +497,7 @@ pub unsafe fn dc_mimefactory_render(
                 meta_part = res.0;
                 let filename_as_sent = res.1;
                 if !meta_part.is_null() {
-                    add_mailimf_field(imf_fields, "Chat-Group-Image", &filename_as_sent)
+                    new_custom_field(imf_fields, "Chat-Group-Image", &filename_as_sent)
                 }
             }
 
@@ -504,7 +506,7 @@ pub unsafe fn dc_mimefactory_render(
                 || factory.msg.type_0 == Viewtype::Video
             {
                 if factory.msg.type_0 == Viewtype::Voice {
-                    add_mailimf_field(imf_fields, "Chat-Voice-Message", "1");
+                    new_custom_field(imf_fields, "Chat-Voice-Message", "1");
                 }
                 let duration_ms = factory
                     .msg
@@ -513,7 +515,7 @@ pub unsafe fn dc_mimefactory_render(
                     .unwrap_or_default();
                 if duration_ms > 0 {
                     let dur = duration_ms.to_string();
-                    add_mailimf_field(imf_fields, "Chat-Duration", &dur);
+                    new_custom_field(imf_fields, "Chat-Duration", &dur);
                 }
             }
 
@@ -554,7 +556,7 @@ pub unsafe fn dc_mimefactory_render(
                 if !footer.is_empty() { "-- \r\n" } else { "" },
                 footer
             );
-            let text_part = build_body_text(&message_text);
+            let text_part = build_body_text(&message_text)?;
             mailmime_smart_add_part(message, text_part);
 
             /* add attachment part */
@@ -582,35 +584,24 @@ pub unsafe fn dc_mimefactory_render(
                     param.get_float(Param::SetLatitude).unwrap_or_default(),
                     param.get_float(Param::SetLongitude).unwrap_or_default(),
                 );
-                let content_type = mailmime_content_new_with_str(
-                    b"application/vnd.google-earth.kml+xml\x00" as *const u8 as *const libc::c_char,
-                );
-                let mime_fields = mailmime_fields_new_filename(
-                    MAILMIME_DISPOSITION_TYPE_ATTACHMENT as libc::c_int,
-                    "message.kml".strdup(),
-                    MAILMIME_MECHANISM_8BIT as libc::c_int,
-                );
-                let kml_mime_part = mailmime_new_empty(content_type, mime_fields);
-                set_body_text(kml_mime_part, &kml_file);
-                mailmime_smart_add_part(message, kml_mime_part);
+                add_filename_part(
+                    message,
+                    "message.kml",
+                    "application/vnd.google-earth.kml+xml",
+                    &kml_file,
+                )?;
             }
 
             if location::is_sending_locations_to_chat(context, factory.msg.chat_id) {
                 if let Ok((kml_file, last_added_location_id)) =
                     location::get_kml(context, factory.msg.chat_id)
                 {
-                    let content_type = mailmime_content_new_with_str(
-                        b"application/vnd.google-earth.kml+xml\x00" as *const u8
-                            as *const libc::c_char,
-                    );
-                    let mime_fields = mailmime_fields_new_filename(
-                        MAILMIME_DISPOSITION_TYPE_ATTACHMENT as libc::c_int,
-                        "location.kml".strdup(),
-                        MAILMIME_MECHANISM_8BIT as libc::c_int,
-                    );
-                    let kml_mime_part = mailmime_new_empty(content_type, mime_fields);
-                    set_body_text(kml_mime_part, &kml_file);
-                    mailmime_smart_add_part(message, kml_mime_part);
+                    add_filename_part(
+                        message,
+                        "location.kml",
+                        "application/vnd.google-earth.kml+xml",
+                        &kml_file,
+                    )?;
                     if !factory.msg.param.exists(Param::SetLatitude) {
                         // otherwise, the independent location is already filed
                         factory.out_last_added_location_id = last_added_location_id;
@@ -624,18 +615,14 @@ pub unsafe fn dc_mimefactory_render(
              *********************************************************************/
             /* RFC 6522, this also requires the `report-type` parameter which is equal
             to the MIME subtype of the second body part of the multipart/report */
-            let multipart: *mut mailmime =
+            let multipart =
                 mailmime_multiple_new(b"multipart/report\x00" as *const u8 as *const libc::c_char);
-            let content: *mut mailmime_content = (*multipart).mm_content_type;
-            clist_insert_after(
-                (*content).ct_parameters,
-                (*(*content).ct_parameters).last,
-                mailmime_param_new_with_data(
-                    b"report-type\x00" as *const u8 as *const libc::c_char as *mut libc::c_char,
-                    b"disposition-notification\x00" as *const u8 as *const libc::c_char
-                        as *mut libc::c_char,
-                ) as *mut libc::c_void,
-            );
+            wrapmime::append_ct_param(
+                (*multipart).mm_content_type,
+                "report-type",
+                "disposition-notification",
+            )?;
+
             mailmime_add_part(message, multipart);
 
             /* first body part: always human-readable, always REQUIRED by RFC 6522 */
@@ -657,7 +644,7 @@ pub unsafe fn dc_mimefactory_render(
                 .context
                 .stock_string_repl_str(StockMessage::ReadRcptMailBody, p1);
             let message_text = format!("{}\r\n", p2);
-            let human_mime_part: *mut mailmime = build_body_text(&message_text);
+            let human_mime_part = build_body_text(&message_text)?;
             mailmime_add_part(multipart, human_mime_part);
 
             /* second body part: machine-readable, always REQUIRED by RFC 6522 */
@@ -670,13 +657,11 @@ pub unsafe fn dc_mimefactory_render(
                 factory.msg.rfc724_mid
             );
 
-            let content_type_0: *mut mailmime_content = mailmime_content_new_with_str(
-                b"message/disposition-notification\x00" as *const u8 as *const libc::c_char,
-            );
+            let content_type_0 = new_mailmime_content_type("message/disposition-notification");
             let mime_fields_0: *mut mailmime_fields =
                 mailmime_fields_new_encoding(MAILMIME_MECHANISM_8BIT as libc::c_int);
             let mach_mime_part: *mut mailmime = mailmime_new_empty(content_type_0, mime_fields_0);
-            set_body_text(mach_mime_part, &message_text2);
+            set_body_text(mach_mime_part, &message_text2)?;
             mailmime_add_part(multipart, mach_mime_part);
             force_plaintext = DC_FP_NO_AUTOCRYPT_HEADER;
             /* currently, we do not send MDNs encrypted:
@@ -730,7 +715,7 @@ pub unsafe fn dc_mimefactory_render(
 
     let mut e2ee_helper = E2eeHelper::default();
     if force_plaintext != DC_FP_NO_AUTOCRYPT_HEADER {
-        e2ee_helper.encrypt(
+        if e2ee_helper.encrypt(
             factory.context,
             &factory.recipients_addr,
             force_plaintext == DC_FP_ADD_AUTOCRYPT_HEADER,
@@ -738,12 +723,11 @@ pub unsafe fn dc_mimefactory_render(
             min_verified,
             do_gossip,
             message,
-        );
-    }
-    if e2ee_helper.encryption_successfull {
-        factory.out_encrypted = true;
-        if do_gossip {
-            factory.out_gossiped = true;
+        )? {
+            factory.out_encrypted = true;
+            if do_gossip {
+                factory.out_gossiped = true;
+            }
         }
     }
     factory.out = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
@@ -778,48 +762,6 @@ fn get_subject(
         format!("Chat: {}: {}{}", chat.name, fwd, raw_subject,)
     } else {
         format!("Chat: {}{}", fwd, raw_subject)
-    }
-}
-
-pub fn add_mailimf_field(fields: *mut mailimf_fields, name: &str, value: &str) {
-    unsafe {
-        let field = mailimf_field_new_custom(name.strdup(), value.strdup());
-        let res = mailimf_fields_add(fields, field);
-        assert!(
-            res as u32 == MAILIMF_NO_ERROR,
-            "could not create mailimf field"
-        );
-    }
-}
-
-fn build_body_text(text: &str) -> *mut mailmime {
-    let mime_fields: *mut mailmime_fields;
-    let message_part: *mut mailmime;
-    let content: *mut mailmime_content;
-    unsafe {
-        content =
-            mailmime_content_new_with_str(b"text/plain\x00" as *const u8 as *const libc::c_char);
-        clist_insert_after(
-            (*content).ct_parameters,
-            (*(*content).ct_parameters).last,
-            mailmime_param_new_with_data(
-                b"charset\x00" as *const u8 as *const libc::c_char as *mut libc::c_char,
-                b"utf-8\x00" as *const u8 as *const libc::c_char as *mut libc::c_char,
-            ) as *mut libc::c_void,
-        );
-        mime_fields = mailmime_fields_new_encoding(MAILMIME_MECHANISM_8BIT as libc::c_int);
-        message_part = mailmime_new_empty(content, mime_fields);
-    }
-    set_body_text(message_part, text);
-
-    message_part
-}
-
-fn set_body_text(part: *mut mailmime, text: &str) {
-    use libc::strlen;
-    unsafe {
-        let text_c = text.strdup();
-        mailmime_set_body_text(part, text_c, strlen(text_c));
     }
 }
 
@@ -921,7 +863,7 @@ fn build_body_file(context: &Context, msg: &Message, base_name: &str) -> (*mut m
                 }
             }
         }
-        let content = mailmime_content_new_with_str(mimetype.strdup());
+        let content = new_mailmime_content_type(&mimetype);
         let filename_encoded = dc_encode_header_words(&filename_to_send).strdup();
         clist_insert_after(
             (*content).ct_parameters,
