@@ -267,15 +267,6 @@ pub fn dc_decode_ext_header(to_decode: &[u8]) -> Cow<str> {
     String::from_utf8_lossy(to_decode)
 }
 
-unsafe fn print_hex(target: *mut libc::c_char, cur: *const libc::c_char) {
-    assert!(!target.is_null());
-    assert!(!cur.is_null());
-
-    let bytes = std::slice::from_raw_parts(cur as *const _, strlen(cur));
-    let raw = CString::yolo(format!("={}", &hex::encode_upper(bytes)[..2]));
-    libc::memcpy(target as *mut _, raw.as_ptr() as *const _, 4);
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -375,18 +366,6 @@ mod tests {
         assert_eq!(dc_needs_ext_header(""), false);
         assert_eq!(dc_needs_ext_header(" "), true);
         assert_eq!(dc_needs_ext_header("a b"), true);
-    }
-
-    #[test]
-    fn test_print_hex() {
-        let mut hex: [libc::c_char; 4] = [0; 4];
-        let cur = b"helloworld" as *const u8 as *const libc::c_char;
-        unsafe { print_hex(hex.as_mut_ptr(), cur) };
-        assert_eq!(to_string(hex.as_ptr() as *const _), "=68");
-
-        let cur = b":" as *const u8 as *const libc::c_char;
-        unsafe { print_hex(hex.as_mut_ptr(), cur) };
-        assert_eq!(to_string(hex.as_ptr() as *const _), "=3A");
     }
 
     use proptest::prelude::*;
