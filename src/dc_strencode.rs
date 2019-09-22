@@ -1,3 +1,4 @@
+use phf::phf_set;
 use std::borrow::Cow;
 use std::ffi::CString;
 use std::ptr;
@@ -95,42 +96,29 @@ pub unsafe fn dc_encode_header_words(to_encode_r: impl AsRef<str>) -> String {
     s
 }
 
-unsafe fn quote_word(dest: &mut String, word: *const libc::c_char, size: libc::size_t) {
-    let mut cur: *const libc::c_char;
-    let mut i = 0;
-    let mut hex: [libc::c_char; 4] = [0; 4];
-    // let mut col: libc::c_int = 0i32;
-    dest.push_str("=?utf-8?Q?");
+unsafe fn quote_word(dest: &mut String, word: *const libc::c_char, size: usize) {
+    let slice = std::slice::from_raw_parts(word.cast(), size);
+    dest.push_str(&quote_word_safe(slice))
+}
 
-    // col = (*dest).len as libc::c_int;
-    cur = word;
-    while i < size {
-        let mut do_quote_char = false;
-        match *cur as u8 as char {
-            ',' | ':' | '!' | '"' | '#' | '$' | '@' | '[' | '\\' | ']' | '^' | '`' | '{' | '|'
-            | '}' | '~' | '=' | '?' | '_' => do_quote_char = true,
-            _ => {
-                if *cur as u8 >= 128 {
-                    do_quote_char = true;
-                }
-            }
-        }
-        if do_quote_char {
-            print_hex(hex.as_mut_ptr(), cur);
-            dest.push_str(as_str(hex.as_ptr()));
-        // col += 3i32
+fn quote_word_safe(word: &[u8]) -> String {
+    static ENCODED: phf::Set<u8> = phf_set! {
+        b',' , b':' , b'!' , b'"' , b'#' , b'$' , b'@' , b'[' , b'\\' , b']',
+        b'^' , b'`' , b'{' , b'|', b'}' , b'~' , b'=' , b'?' , b'_' ,
+    };
+    let mut result: String = "=?utf-8?Q?".into();
+    for byte in word {
+        let byte = *byte;
+        if byte >= 128 || ENCODED.contains(&byte) {
+            result.push_str(&format!("={:2X}", byte))
+        } else if byte == b' ' {
+            result.push('_');
         } else {
-            if *cur as libc::c_int == ' ' as i32 {
-                dest.push('_');
-            } else {
-                dest.push(*cur as u8 as char);
-            }
-            // col += 3i32
+            result.push(byte as _);
         }
-        cur = cur.offset(1isize);
-        i = i.wrapping_add(1)
     }
-    dest.push_str("?=");
+    result.push_str("?=");
+    result
 }
 
 unsafe fn get_word(
