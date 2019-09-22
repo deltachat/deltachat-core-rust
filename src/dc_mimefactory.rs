@@ -788,8 +788,10 @@ fn build_body_text(text: &str) -> *mut mailmime {
 }
 
 fn set_body_text(part: *mut mailmime, text: &str) {
+    use libc::strlen;
     unsafe {
-        mailmime_set_body_text(part, text.strdup(), text.len());
+        let text_c = text.strdup();
+        mailmime_set_body_text(part, text_c, strlen(text_c));
     }
 }
 
@@ -909,7 +911,7 @@ fn build_body_file(context: &Context, msg: &Message, base_name: &str) -> (*mut m
 pub(crate) fn vec_contains_lowercase(vec: &Vec<String>, part: &str) -> bool {
     let partlc = part.to_lowercase();
     for cur in vec.iter() {
-        if (*cur).to_lowercase() == partlc {
+        if cur.to_lowercase() == partlc {
             return true;
         }
     }

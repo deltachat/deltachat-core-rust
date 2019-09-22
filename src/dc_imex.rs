@@ -909,7 +909,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                     }
                 }
                 set_default = 1;
-                if name_f.find("legacy").is_some() {
+                if name_f.contains("legacy") {
                     info!(
                         context,
                         "Treating \"{}\" as a legacy private key.",
