@@ -40,7 +40,7 @@ pub unsafe fn dc_encode_header_words(to_encode_r: impl AsRef<str>) -> String {
     let mut ok_to_continue = true;
     let mut ret_str: *mut libc::c_char = ptr::null_mut();
     let mut cur: *const libc::c_char = to_encode.as_ptr();
-    let mut mmapstr = "".into();
+    let mut result = "".into();
 
     loop {
         if !ok_to_continue {
@@ -67,24 +67,24 @@ pub unsafe fn dc_encode_header_words(to_encode_r: impl AsRef<str>) -> String {
                     }
                 }
                 if 0 != quote_words {
-                    quote_word(&mut mmapstr, begin, end.wrapping_offset_from(begin) as _);
+                    quote_word(&mut result, begin, end.wrapping_offset_from(begin) as _);
                     if *end as libc::c_int == ' ' as i32 || *end as libc::c_int == '\t' as i32 {
-                        mmapstr.push(*end as u8 as char);
+                        result.push(*end as u8 as char);
                         end = end.offset(1isize)
                     }
                     if *end as libc::c_int != '\u{0}' as i32 {
-                        append_buf(&mut mmapstr, end, cur.wrapping_offset_from(end) as _);
+                        append_buf(&mut result, end, cur.wrapping_offset_from(end) as _);
                     }
                 } else {
-                    append_buf(&mut mmapstr, begin, cur.wrapping_offset_from(begin) as _);
+                    append_buf(&mut result, begin, cur.wrapping_offset_from(begin) as _);
                 }
                 if !(*cur as libc::c_int == ' ' as i32 || *cur as libc::c_int == '\t' as i32) {
                     continue;
                 }
-                mmapstr.push(*cur as u8 as char);
+                result.push(*cur as u8 as char);
                 cur = cur.offset(1isize);
             } else {
-                ret_str = mmapstr.strdup();
+                ret_str = result.strdup();
                 ok_to_continue = false;
             }
         }
@@ -95,14 +95,14 @@ pub unsafe fn dc_encode_header_words(to_encode_r: impl AsRef<str>) -> String {
     s
 }
 
-unsafe fn quote_word(mmapstr: &mut String, word: *const libc::c_char, size: libc::size_t) {
+unsafe fn quote_word(dest: &mut String, word: *const libc::c_char, size: libc::size_t) {
     let mut cur: *const libc::c_char;
     let mut i = 0;
     let mut hex: [libc::c_char; 4] = [0; 4];
     // let mut col: libc::c_int = 0i32;
-    mmapstr.push_str("=?utf-8?Q?");
+    dest.push_str("=?utf-8?Q?");
 
-    // col = (*mmapstr).len as libc::c_int;
+    // col = (*dest).len as libc::c_int;
     cur = word;
     while i < size {
         let mut do_quote_char = false;
@@ -117,20 +117,20 @@ unsafe fn quote_word(mmapstr: &mut String, word: *const libc::c_char, size: libc
         }
         if do_quote_char {
             print_hex(hex.as_mut_ptr(), cur);
-            mmapstr.push_str(as_str(hex.as_ptr()));
+            dest.push_str(as_str(hex.as_ptr()));
         // col += 3i32
         } else {
             if *cur as libc::c_int == ' ' as i32 {
-                mmapstr.push('_');
+                dest.push('_');
             } else {
-                mmapstr.push(*cur as u8 as char);
+                dest.push(*cur as u8 as char);
             }
             // col += 3i32
         }
         cur = cur.offset(1isize);
         i = i.wrapping_add(1)
     }
-    mmapstr.push_str("?=");
+    dest.push_str("?=");
 }
 
 unsafe fn get_word(
