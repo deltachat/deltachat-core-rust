@@ -5,11 +5,19 @@ use std::ptr;
 use charset::Charset;
 use libc::{free, strlen};
 use mmime::mailmime::decode::mailmime_encoded_phrase_parse;
-use mmime::mmapstring::*;
 use mmime::other::*;
 use percent_encoding::{percent_decode, utf8_percent_encode, AsciiSet, CONTROLS};
 
 use crate::dc_tools::*;
+
+/// Append valid utf-8 string {buf} with size {len} to Rust string {s}.
+///
+/// {buf} is not expected to be null-terminated.
+unsafe fn append_buf(s: &mut String, buf: *const libc::c_char, len: usize) {
+    let slice = std::slice::from_raw_parts(buf.cast(), len);
+    let string = std::str::from_utf8(slice).expect("append_buf: invalid utf8");
+    s.push_str(string);
+}
 
 /**
  * Encode non-ascii-strings as `=?UTF-8?Q?Bj=c3=b6rn_Petersen?=`.
@@ -32,15 +40,10 @@ pub unsafe fn dc_encode_header_words(to_encode_r: impl AsRef<str>) -> String {
     let mut ok_to_continue = true;
     let mut ret_str: *mut libc::c_char = ptr::null_mut();
     let mut cur: *const libc::c_char = to_encode.as_ptr();
-    let mmapstr: *mut MMAPString = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
-    if mmapstr.is_null() {
-        ok_to_continue = false;
-    }
+    let mut mmapstr = "".into();
+
     loop {
         if !ok_to_continue {
-            if !mmapstr.is_null() {
-                mmap_string_free(mmapstr);
-            }
             break;
         } else {
             if *cur as libc::c_int != '\u{0}' as i32 {
@@ -64,53 +67,24 @@ pub unsafe fn dc_encode_header_words(to_encode_r: impl AsRef<str>) -> String {
                     }
                 }
                 if 0 != quote_words {
-                    if !quote_word(
-                        mmapstr,
-                        begin,
-                        end.wrapping_offset_from(begin) as libc::size_t,
-                    ) {
-                        ok_to_continue = false;
-                        continue;
-                    }
+                    quote_word(&mut mmapstr, begin, end.wrapping_offset_from(begin) as _);
                     if *end as libc::c_int == ' ' as i32 || *end as libc::c_int == '\t' as i32 {
-                        if mmap_string_append_c(mmapstr, *end).is_null() {
-                            ok_to_continue = false;
-                            continue;
-                        }
+                        mmapstr.push(*end as u8 as char);
                         end = end.offset(1isize)
                     }
                     if *end as libc::c_int != '\u{0}' as i32 {
-                        if mmap_string_append_len(
-                            mmapstr,
-                            end,
-                            cur.wrapping_offset_from(end) as libc::size_t,
-                        )
-                        .is_null()
-                        {
-                            ok_to_continue = false;
-                            continue;
-                        }
+                        append_buf(&mut mmapstr, end, cur.wrapping_offset_from(end) as _);
                     }
-                } else if mmap_string_append_len(
-                    mmapstr,
-                    begin,
-                    cur.wrapping_offset_from(begin) as libc::size_t,
-                )
-                .is_null()
-                {
-                    ok_to_continue = false;
-                    continue;
+                } else {
+                    append_buf(&mut mmapstr, begin, cur.wrapping_offset_from(begin) as _);
                 }
                 if !(*cur as libc::c_int == ' ' as i32 || *cur as libc::c_int == '\t' as i32) {
                     continue;
                 }
-                if mmap_string_append_c(mmapstr, *cur).is_null() {
-                    ok_to_continue = false;
-                    continue;
-                }
+                mmapstr.push(*cur as u8 as char);
                 cur = cur.offset(1isize);
             } else {
-                ret_str = strdup((*mmapstr).str_0);
+                ret_str = mmapstr.strdup();
                 ok_to_continue = false;
             }
         }
@@ -121,18 +95,12 @@ pub unsafe fn dc_encode_header_words(to_encode_r: impl AsRef<str>) -> String {
     s
 }
 
-unsafe fn quote_word(
-    mmapstr: *mut MMAPString,
-    word: *const libc::c_char,
-    size: libc::size_t,
-) -> bool {
+unsafe fn quote_word(mmapstr: &mut String, word: *const libc::c_char, size: libc::size_t) {
     let mut cur: *const libc::c_char;
     let mut i = 0;
     let mut hex: [libc::c_char; 4] = [0; 4];
     // let mut col: libc::c_int = 0i32;
-    if mmap_string_append(mmapstr, b"=?utf-8?Q?\x00".as_ptr().cast()).is_null() {
-        return false;
-    }
+    mmapstr.push_str("=?utf-8?Q?");
 
     // col = (*mmapstr).len as libc::c_int;
     cur = word;
@@ -149,28 +117,20 @@ unsafe fn quote_word(
         }
         if do_quote_char {
             print_hex(hex.as_mut_ptr(), cur);
-            if mmap_string_append(mmapstr, hex.as_mut_ptr()).is_null() {
-                return false;
-            }
+            mmapstr.push_str(as_str(hex.as_ptr()));
         // col += 3i32
         } else {
             if *cur as libc::c_int == ' ' as i32 {
-                if mmap_string_append_c(mmapstr, '_' as i32 as libc::c_char).is_null() {
-                    return false;
-                }
-            } else if mmap_string_append_c(mmapstr, *cur).is_null() {
-                return false;
+                mmapstr.push('_');
+            } else {
+                mmapstr.push(*cur as u8 as char);
             }
             // col += 3i32
         }
         cur = cur.offset(1isize);
         i = i.wrapping_add(1)
     }
-    if mmap_string_append(mmapstr, b"?=\x00" as *const u8 as *const libc::c_char).is_null() {
-        return false;
-    }
-
-    true
+    mmapstr.push_str("?=");
 }
 
 unsafe fn get_word(
