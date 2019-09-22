@@ -1,9 +1,8 @@
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::convert::TryInto;
 use std::io::Cursor;
-use std::ptr;
 
-use libc::{strchr, strlen, strncmp, strspn, strstr};
+use pgp::armor::BlockType;
 use pgp::composed::{
     Deserializable, KeyType as PgpKeyType, Message, SecretKeyParamsBuilder, SignedPublicKey,
     SignedSecretKey, SubkeyParamsBuilder,
@@ -12,122 +11,39 @@ use pgp::crypto::{HashAlgorithm, SymmetricKeyAlgorithm};
 use pgp::types::{CompressionAlgorithm, KeyTrait, SecretKeyTrait, StringToKey};
 use rand::thread_rng;
 
-use crate::dc_tools::*;
 use crate::error::Error;
 use crate::key::*;
 use crate::keyring::*;
 
-pub unsafe fn dc_split_armored_data(
-    buf: *mut libc::c_char,
-    ret_headerline: *mut String,
-    ret_setupcodebegin: *mut *const libc::c_char,
-    ret_preferencrypt: *mut *const libc::c_char,
-    ret_base64: *mut *const libc::c_char,
-) -> bool {
-    let mut success = false;
-    let mut line_chars: libc::size_t = 0;
-    let mut line: *mut libc::c_char = buf;
-    let mut p1: *mut libc::c_char = buf;
-    let mut p2: *mut libc::c_char;
-    let mut headerline: *mut libc::c_char = ptr::null_mut();
-    let mut base64: *mut libc::c_char = ptr::null_mut();
-    if !ret_setupcodebegin.is_null() {
-        *ret_setupcodebegin = ptr::null_mut();
-    }
-    if !ret_preferencrypt.is_null() {
-        *ret_preferencrypt = ptr::null();
-    }
-    if !ret_base64.is_null() {
-        *ret_base64 = ptr::null();
-    }
-    if !buf.is_null() {
-        dc_remove_cr_chars(buf);
-        while 0 != *p1 {
-            if i32::from(*p1) == '\n' as i32 {
-                *line.offset(line_chars as isize) = 0i32 as libc::c_char;
-                if headerline.is_null() {
-                    dc_trim(line);
-                    if strncmp(
-                        line,
-                        b"-----BEGIN \x00" as *const u8 as *const libc::c_char,
-                        1,
-                    ) == 0i32
-                        && strncmp(
-                            &mut *line.offset(strlen(line).wrapping_sub(5) as isize),
-                            b"-----\x00" as *const u8 as *const libc::c_char,
-                            5,
-                        ) == 0i32
-                    {
-                        headerline = line;
-                        *ret_headerline = as_str(headerline).to_string();
-                    }
-                } else if strspn(line, b"\t\r\n \x00" as *const u8 as *const libc::c_char)
-                    == strlen(line)
-                {
-                    base64 = p1.offset(1isize);
-                    break;
-                } else {
-                    p2 = strchr(line, ':' as i32);
-                    if p2.is_null() {
-                        *line.add(line_chars) = '\n' as i32 as libc::c_char;
-                        base64 = line;
-                        break;
-                    } else {
-                        *p2 = 0i32 as libc::c_char;
-                        dc_trim(line);
-                        if strcasecmp(
-                            line,
-                            b"Passphrase-Begin\x00" as *const u8 as *const libc::c_char,
-                        ) == 0i32
-                        {
-                            p2 = p2.offset(1isize);
-                            dc_trim(p2);
-                            if !ret_setupcodebegin.is_null() {
-                                *ret_setupcodebegin = p2
-                            }
-                        } else if strcasecmp(
-                            line,
-                            b"Autocrypt-Prefer-Encrypt\x00" as *const u8 as *const libc::c_char,
-                        ) == 0i32
-                        {
-                            p2 = p2.offset(1isize);
-                            dc_trim(p2);
-                            if !ret_preferencrypt.is_null() {
-                                *ret_preferencrypt = p2
-                            }
-                        }
-                    }
-                }
-                p1 = p1.offset(1isize);
-                line = p1;
-                line_chars = 0;
-            } else {
-                p1 = p1.offset(1isize);
-                line_chars = line_chars.wrapping_add(1)
-            }
-        }
-        if !(headerline.is_null() || base64.is_null()) {
-            /* now, line points to beginning of base64 data, search end */
-            /*the trailing space makes sure, this is not a normal base64 sequence*/
-            p1 = strstr(base64, b"-----END \x00" as *const u8 as *const libc::c_char);
-            if !(p1.is_null()
-                || strncmp(
-                    p1.offset(9isize),
-                    headerline.offset(11isize),
-                    strlen(headerline.offset(11isize)),
-                ) != 0i32)
-            {
-                *p1 = 0i32 as libc::c_char;
-                dc_trim(base64);
-                if !ret_base64.is_null() {
-                    *ret_base64 = base64
-                }
-                success = true;
-            }
-        }
-    }
+pub const HEADER_AUTOCRYPT: &str = "autocrypt-prefer-encrypt";
+pub const HEADER_SETUPCODE: &str = "passphrase-begin";
 
-    success
+/// Split data from PGP Armored Data as defined in https://tools.ietf.org/html/rfc4880#section-6.2.
+///
+/// Returns (type, headers, base64 encoded body).
+pub fn split_armored_data(
+    buf: &[u8],
+) -> Result<(BlockType, BTreeMap<String, String>, Vec<u8>), Error> {
+    use std::io::Read;
+
+    let cursor = Cursor::new(buf);
+    let mut dearmor = pgp::armor::Dearmor::new(cursor);
+
+    let mut bytes = Vec::with_capacity(buf.len());
+
+    dearmor.read_to_end(&mut bytes)?;
+    ensure!(dearmor.typ.is_some(), "Failed to parse type");
+
+    let typ = dearmor.typ.unwrap();
+
+    // normalize headers
+    let headers = dearmor
+        .headers
+        .into_iter()
+        .map(|(key, value)| (key.to_lowercase(), value))
+        .collect();
+
+    Ok((typ, headers, bytes))
 }
 
 /// Create a new key pair.
@@ -281,8 +197,11 @@ pub fn dc_pgp_symm_encrypt(passphrase: &str, plain: &[u8]) -> Result<String, Err
 }
 
 /// Symmetric decryption.
-pub fn dc_pgp_symm_decrypt(passphrase: &str, ctext: &[u8]) -> Result<Vec<u8>, Error> {
-    let enc_msg = Message::from_bytes(Cursor::new(ctext))?;
+pub fn dc_pgp_symm_decrypt<T: std::io::Read + std::io::Seek>(
+    passphrase: &str,
+    ctext: T,
+) -> Result<Vec<u8>, Error> {
+    let (enc_msg, _) = Message::from_armor_single(ctext)?;
     let decryptor = enc_msg.decrypt_with_password(|| passphrase.into())?;
 
     let msgs = decryptor.collect::<Result<Vec<_>, _>>()?;
@@ -291,5 +210,61 @@ pub fn dc_pgp_symm_decrypt(passphrase: &str, ctext: &[u8]) -> Result<Vec<u8>, Er
     match msgs[0].get_content()? {
         Some(content) => Ok(content),
         None => bail!("Decrypted message is empty"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_split_armored_data() {
+        let (typ, _headers, base64) = split_armored_data(
+            b"-----BEGIN PGP MESSAGE-----\nNoVal:\n\naGVsbG8gd29ybGQ=\n-----END PGP MESSAGE----",
+        )
+        .unwrap();
+
+        assert_eq!(typ, BlockType::Message);
+        assert!(!base64.is_empty());
+        assert_eq!(
+            std::string::String::from_utf8(base64).unwrap(),
+            "hello world"
+        );
+
+        let (typ, _headers, base64) =
+            split_armored_data(b"-----BEGIN PGP MESSAGE-----\n\ndat1\n-----END PGP MESSAGE-----\n-----BEGIN PGP MESSAGE-----\n\ndat2\n-----END PGP MESSAGE-----")
+                .unwrap();
+
+        assert_eq!(typ, BlockType::Message);
+        assert!(!base64.is_empty());
+
+        let (typ, _headers, base64) = split_armored_data(
+            b"foo \n -----BEGIN PGP MESSAGE----- \n base64-123 \n  -----END PGP MESSAGE-----",
+        )
+        .unwrap();
+
+        assert_eq!(typ, BlockType::Message);
+        assert!(!base64.is_empty());
+
+        assert!(split_armored_data(b"foo-----BEGIN PGP MESSAGE-----",).is_err());
+
+        let (typ, headers, base64) = split_armored_data(
+            b"foo \n -----BEGIN PGP MESSAGE-----\n  Passphrase-BeGIN  :  23 \n  \n base64-567 \r\n abc \n  -----END PGP MESSAGE-----\n\n\n",
+        )
+            .unwrap();
+
+        assert_eq!(typ, BlockType::Message);
+        assert!(!base64.is_empty());
+
+        assert_eq!(headers.get(HEADER_SETUPCODE), Some(&"23".to_string()));
+
+        let (typ, headers, base64) = split_armored_data(
+            b"-----BEGIN PGP PRIVATE KEY BLOCK-----\n Autocrypt-Prefer-Encrypt :  mutual \n\nbase64\n-----END PGP PRIVATE KEY BLOCK-----"
+        )
+            .unwrap();
+
+        assert_eq!(typ, BlockType::PrivateKey);
+        assert!(!base64.is_empty());
+        assert_eq!(headers.get(HEADER_AUTOCRYPT), Some(&"mutual".to_string()));
     }
 }
