@@ -1379,9 +1379,9 @@ pub unsafe fn mailimf_msg_id_parse(
                         res = r
                     } else {
                         r = mailimf_greater_parse(message, length, &mut cur_token);
-                        if r == MAILIMF_NO_ERROR as libc::c_int {
-                            current_block = 6450636197030046351;
-                        } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
+                        if r == MAILIMF_NO_ERROR as libc::c_int
+                            || r == MAILIMF_ERROR_PARSE as libc::c_int
+                        {
                             current_block = 6450636197030046351;
                         } else {
                             // ok

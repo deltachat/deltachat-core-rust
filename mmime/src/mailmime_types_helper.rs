@@ -849,7 +849,8 @@ pub unsafe fn mailmime_generate_boundary() -> *mut libc::c_char {
         hex::encode(&std::process::id().to_le_bytes()[..2])
     );
 
-    strdup(std::ffi::CString::new(raw).unwrap().as_ptr())
+    let c = std::ffi::CString::new(raw).unwrap();
+    strdup(c.as_ptr())
 }
 
 pub unsafe fn mailmime_new_with_content(
