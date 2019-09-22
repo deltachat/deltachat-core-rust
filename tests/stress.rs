@@ -1,18 +1,15 @@
 //! Stress some functions for testing; if used as a lib, this file is obsolete.
 
 use std::collections::HashSet;
-use std::ptr;
 
 use deltachat::chat::{self, Chat};
 use deltachat::config;
 use deltachat::contact::*;
 use deltachat::context::*;
-use deltachat::dc_tools::*;
 use deltachat::keyring::*;
 use deltachat::oauth2::*;
 use deltachat::pgp::*;
 use deltachat::Event;
-use libc::{free, strcmp, strdup};
 use tempfile::{tempdir, TempDir};
 
 /* some data used for testing
@@ -49,135 +46,6 @@ unsafe fn stress_functions(context: &Context) {
     assert!(res.contains(" configured_send_pw "));
     assert!(res.contains(" configured_send_port "));
     assert!(res.contains(" configured_server_flags "));
-
-    let mut buf_0: *mut libc::c_char;
-    let mut headerline = String::default();
-    let mut setupcodebegin: *const libc::c_char = ptr::null();
-    let mut preferencrypt: *const libc::c_char = ptr::null();
-    let mut base64: *const libc::c_char = ptr::null();
-    buf_0 = strdup(
-        b"-----BEGIN PGP MESSAGE-----\nNoVal:\n\ndata\n-----END PGP MESSAGE-----\x00" as *const u8
-            as *const libc::c_char,
-    );
-    let ok = dc_split_armored_data(
-        buf_0,
-        &mut headerline,
-        &mut setupcodebegin,
-        ptr::null_mut(),
-        &mut base64,
-    );
-    assert!(ok);
-    assert!(!headerline.is_empty());
-    assert_eq!(headerline, "-----BEGIN PGP MESSAGE-----");
-
-    assert!(!base64.is_null());
-    assert_eq!(as_str(base64 as *const libc::c_char), "data",);
-
-    free(buf_0 as *mut libc::c_void);
-
-    buf_0 =
-        strdup(b"-----BEGIN PGP MESSAGE-----\n\ndat1\n-----END PGP MESSAGE-----\n-----BEGIN PGP MESSAGE-----\n\ndat2\n-----END PGP MESSAGE-----\x00"
-                   as *const u8 as *const libc::c_char);
-    let ok = dc_split_armored_data(
-        buf_0,
-        &mut headerline,
-        &mut setupcodebegin,
-        ptr::null_mut(),
-        &mut base64,
-    );
-
-    assert!(ok);
-    assert_eq!(headerline, "-----BEGIN PGP MESSAGE-----");
-
-    assert!(!base64.is_null());
-    assert_eq!(as_str(base64 as *const libc::c_char), "dat1",);
-
-    free(buf_0 as *mut libc::c_void);
-
-    buf_0 = strdup(
-        b"foo \n -----BEGIN PGP MESSAGE----- \n base64-123 \n  -----END PGP MESSAGE-----\x00"
-            as *const u8 as *const libc::c_char,
-    );
-    let ok = dc_split_armored_data(
-        buf_0,
-        &mut headerline,
-        &mut setupcodebegin,
-        ptr::null_mut(),
-        &mut base64,
-    );
-
-    assert!(ok);
-    assert_eq!(headerline, "-----BEGIN PGP MESSAGE-----");
-    assert!(setupcodebegin.is_null());
-
-    assert!(!base64.is_null());
-    assert_eq!(as_str(base64 as *const libc::c_char), "base64-123",);
-
-    free(buf_0 as *mut libc::c_void);
-
-    buf_0 = strdup(b"foo-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char);
-    let ok = dc_split_armored_data(
-        buf_0,
-        &mut headerline,
-        &mut setupcodebegin,
-        ptr::null_mut(),
-        &mut base64,
-    );
-
-    assert!(!ok);
-    free(buf_0 as *mut libc::c_void);
-    buf_0 =
-        strdup(b"foo \n -----BEGIN PGP MESSAGE-----\n  Passphrase-BeGIN  :  23 \n  \n base64-567 \r\n abc \n  -----END PGP MESSAGE-----\n\n\n\x00"
-                   as *const u8 as *const libc::c_char);
-    let ok = dc_split_armored_data(
-        buf_0,
-        &mut headerline,
-        &mut setupcodebegin,
-        ptr::null_mut(),
-        &mut base64,
-    );
-    assert!(ok);
-    assert_eq!(headerline, "-----BEGIN PGP MESSAGE-----");
-
-    assert!(!setupcodebegin.is_null());
-    assert_eq!(
-        strcmp(
-            setupcodebegin,
-            b"23\x00" as *const u8 as *const libc::c_char,
-        ),
-        0
-    );
-
-    assert!(!base64.is_null());
-    assert_eq!(as_str(base64 as *const libc::c_char), "base64-567 \n abc",);
-
-    free(buf_0 as *mut libc::c_void);
-
-    buf_0 =
-        strdup(b"-----BEGIN PGP PRIVATE KEY BLOCK-----\n Autocrypt-Prefer-Encrypt :  mutual \n\nbase64\n-----END PGP PRIVATE KEY BLOCK-----\x00"
-                   as *const u8 as *const libc::c_char);
-    let ok = dc_split_armored_data(
-        buf_0,
-        &mut headerline,
-        ptr::null_mut(),
-        &mut preferencrypt,
-        &mut base64,
-    );
-    assert!(ok);
-    assert_eq!(headerline, "-----BEGIN PGP PRIVATE KEY BLOCK-----");
-    assert!(!preferencrypt.is_null());
-    assert_eq!(
-        strcmp(
-            preferencrypt,
-            b"mutual\x00" as *const u8 as *const libc::c_char,
-        ),
-        0
-    );
-
-    assert!(!base64.is_null());
-    assert_eq!(as_str(base64 as *const libc::c_char), "base64",);
-
-    free(buf_0 as *mut libc::c_void);
 
     // Cant check, no configured context
     // assert!(dc_is_configured(context) != 0, "Missing configured context");

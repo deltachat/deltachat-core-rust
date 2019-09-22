@@ -1,7 +1,5 @@
 use core::cmp::{max, min};
-use std::ffi::CString;
 use std::path::{Path, PathBuf};
-use std::ptr;
 
 use num_traits::FromPrimitive;
 use rand::{thread_rng, Rng};
@@ -241,18 +239,12 @@ pub fn continue_key_transfer(context: &Context, msg_id: u32, setup_code: &str) -
     );
 
     if let Some(filename) = msg.get_file(context) {
-        if let Ok(ref mut buf) = dc_read_file(context, filename) {
-            let sc = normalize_setup_code(setup_code);
-            if let Ok(armored_key) = decrypt_setup_file(context, sc, buf) {
-                set_self_key(context, &armored_key, true, true)?;
-            } else {
-                bail!("Bad setup code.")
-            }
+        let file = dc_open_file(context, filename)?;
+        let sc = normalize_setup_code(setup_code);
+        let armored_key = decrypt_setup_file(context, &sc, file)?;
+        set_self_key(context, &armored_key, true, true)?;
 
-            Ok(())
-        } else {
-            bail!("Cannot read Autocrypt Setup Message file.");
-        }
+        Ok(())
     } else {
         bail!("Message is no Autocrypt Setup Message.");
     }
@@ -326,53 +318,15 @@ fn set_self_key(
     Ok(())
 }
 
-fn decrypt_setup_file(
-    _context: &Context,
-    passphrase: impl AsRef<str>,
-    filecontent: &mut [u8],
+fn decrypt_setup_file<T: std::io::Read + std::io::Seek>(
+    context: &Context,
+    passphrase: &str,
+    file: T,
 ) -> Result<String> {
-    let mut fc_headerline = String::default();
-    let mut fc_base64: *const libc::c_char = ptr::null();
+    let plain_bytes = dc_pgp_symm_decrypt(passphrase, file)?;
+    let plain_text = std::string::String::from_utf8(plain_bytes)?;
 
-    let split_result = unsafe {
-        dc_split_armored_data(
-            filecontent.as_mut_ptr().cast(),
-            &mut fc_headerline,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            &mut fc_base64,
-        )
-    };
-
-    if !split_result || fc_headerline != "-----BEGIN PGP MESSAGE-----" || fc_base64.is_null() {
-        bail!("Invalid armored data");
-    }
-
-    // convert base64 to binary
-    let base64_encoded =
-        unsafe { std::slice::from_raw_parts(fc_base64 as *const u8, libc::strlen(fc_base64)) };
-
-    let data = base64_decode(&base64_encoded)?;
-
-    // decrypt symmetrically
-    let payload = dc_pgp_symm_decrypt(passphrase.as_ref(), &data)?;
-    let payload_str = String::from_utf8(payload)?;
-
-    Ok(payload_str)
-}
-
-/// Decode the base64 encoded slice. Handles line breaks.
-fn base64_decode(input: &[u8]) -> Result<Vec<u8>> {
-    use std::io::Read;
-    let c = std::io::Cursor::new(input);
-    let lr = pgp::line_reader::LineReader::new(c);
-    let br = pgp::base64_reader::Base64Reader::new(lr);
-    let mut reader = pgp::base64_decoder::Base64Decoder::new(br);
-
-    let mut data = Vec::new();
-    reader.read_to_end(&mut data)?;
-
-    Ok(data)
+    Ok(plain_text)
 }
 
 pub fn normalize_setup_code(s: &str) -> String {
@@ -663,40 +617,17 @@ fn import_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
                 continue;
             }
         }
-        let ccontent = if let Ok(content) = dc_read_file(context, &path_plus_name) {
-            key = String::from_utf8_lossy(&content).to_string();
-            CString::new(content).unwrap_or_default()
-        } else {
-            continue;
-        };
-
-        /* only import if we have a private key */
-        let mut buf2_headerline = String::default();
-        let split_res: bool;
-        unsafe {
-            let buf2 = dc_strdup(ccontent.as_ptr());
-            split_res = dc_split_armored_data(
-                buf2,
-                &mut buf2_headerline,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-            );
-            libc::free(buf2 as *mut libc::c_void);
+        match dc_read_file(context, &path_plus_name) {
+            Ok(buf) => {
+                let armored = std::string::String::from_utf8_lossy(&buf);
+                if let Err(err) = set_self_key(context, &armored, set_default, false) {
+                    error!(context, "set_self_key: {}", err);
+                    continue;
+                }
+            }
+            Err(_) => continue,
         }
-        if split_res
-            && buf2_headerline.contains("-----BEGIN PGP PUBLIC KEY BLOCK-----")
-            && !key.contains("-----BEGIN PGP PRIVATE KEY BLOCK")
-        {
-            info!(context, "ignoring public key file '{}", name_f);
-            // it's fine: DC exports public with private
-            continue;
-        }
-        if let Err(err) = set_self_key(context, &key, set_default, false) {
-            error!(context, "set_self_key: {}", err);
-            continue;
-        }
-        imported_cnt += 1
+        imported_cnt += 1;
     }
     ensure!(
         imported_cnt > 0,
@@ -784,6 +715,7 @@ mod tests {
     use super::*;
 
     use crate::test_utils::*;
+    use pgp::armor::BlockType;
 
     #[test]
     fn test_render_setup_file() {
@@ -866,50 +798,26 @@ mod tests {
         let ctx = dummy_context();
         let context = &ctx.ctx;
 
-        let mut headerline = String::default();
-        let mut setupcodebegin = ptr::null();
-        let mut preferencrypt = ptr::null();
+        let buf_1 = S_EM_SETUPFILE.as_bytes().to_vec();
+        let (typ, headers, base64) = split_armored_data(&buf_1).unwrap();
+        assert_eq!(typ, BlockType::Message);
+        assert!(S_EM_SETUPCODE.starts_with(headers.get(HEADER_SETUPCODE).unwrap()));
+        assert!(headers.get(HEADER_AUTOCRYPT).is_none());
 
-        unsafe {
-            let buf_1 = S_EM_SETUPFILE.strdup();
-            let res = dc_split_armored_data(
-                buf_1,
-                &mut headerline,
-                &mut setupcodebegin,
-                &mut preferencrypt,
-                ptr::null_mut(),
-            );
-            libc::free(buf_1 as *mut libc::c_void);
-            assert!(res);
-        }
-        assert_eq!(headerline, "-----BEGIN PGP MESSAGE-----");
-        assert!(!setupcodebegin.is_null());
-
-        // TODO: verify that this is the right check
-        assert!(S_EM_SETUPCODE.starts_with(as_str(setupcodebegin)));
-
-        assert!(preferencrypt.is_null());
+        assert!(!base64.is_empty());
 
         let mut setup_file = S_EM_SETUPFILE.to_string();
-        let decrypted = unsafe {
-            decrypt_setup_file(context, S_EM_SETUPCODE, setup_file.as_bytes_mut()).unwrap()
-        };
+        let decrypted = decrypt_setup_file(
+            context,
+            S_EM_SETUPCODE,
+            std::io::Cursor::new(setup_file.as_bytes()),
+        )
+        .unwrap();
 
-        unsafe {
-            let buf1 = decrypted.strdup();
-            assert!(dc_split_armored_data(
-                buf1,
-                &mut headerline,
-                &mut setupcodebegin,
-                &mut preferencrypt,
-                ptr::null_mut(),
-            ));
-            libc::free(buf1 as *mut libc::c_void);
-        }
+        let (typ, headers, base64) = split_armored_data(&buf_1).unwrap();
 
-        assert_eq!(headerline, "-----BEGIN PGP PRIVATE KEY BLOCK-----");
-        assert!(setupcodebegin.is_null());
-        assert!(!preferencrypt.is_null());
-        assert_eq!(as_str(preferencrypt), "mutual",);
+        assert_eq!(typ, BlockType::PrivateKey);
+        assert_eq!(headers.get(HEADER_AUTOCRYPT), Some(&"mutual".to_string()));
+        assert!(headers.get(HEADER_SETUPCODE).is_none());
     }
 }

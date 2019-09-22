@@ -70,12 +70,6 @@ impl From<std::str::Utf8Error> for Error {
     }
 }
 
-impl From<std::string::FromUtf8Error> for Error {
-    fn from(err: std::string::FromUtf8Error) -> Error {
-        Error::FromUtf8(err)
-    }
-}
-
 impl From<image_meta::ImageError> for Error {
     fn from(err: image_meta::ImageError) -> Error {
         Error::Image(err)
@@ -91,6 +85,12 @@ impl From<crate::dc_tools::CStringError> for Error {
 impl From<pgp::errors::Error> for Error {
     fn from(err: pgp::errors::Error) -> Error {
         Error::Pgp(err)
+    }
+}
+
+impl From<std::string::FromUtf8Error> for Error {
+    fn from(err: std::string::FromUtf8Error) -> Error {
+        Error::FromUtf8(err)
     }
 }
 

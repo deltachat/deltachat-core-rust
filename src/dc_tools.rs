@@ -593,7 +593,46 @@ pub fn dc_read_file<P: AsRef<std::path::Path>>(
     }
 }
 
+pub fn dc_open_file<P: AsRef<std::path::Path>>(
+    context: &Context,
+    path: P,
+) -> Result<std::fs::File, Error> {
+    let path_abs = dc_get_abs_path(context, &path);
+
+    match fs::File::open(&path_abs) {
+        Ok(bytes) => Ok(bytes),
+        Err(err) => {
+            warn!(
+                context,
+                "Cannot read \"{}\" or file is empty.",
+                path.as_ref().display()
+            );
+            Err(err.into())
+        }
+    }
+}
+
 pub(crate) fn dc_get_next_backup_path(
+    folder: impl AsRef<Path>,
+    backup_time: i64,
+) -> Result<PathBuf, Error> {
+    let folder = PathBuf::from(folder.as_ref());
+    let stem = chrono::NaiveDateTime::from_timestamp(backup_time, 0)
+        .format("delta-chat-%Y-%m-%d")
+        .to_string();
+
+    // 64 backup files per day should be enough for everyone
+    for i in 0..64 {
+        let mut path = folder.clone();
+        path.push(format!("{}-{}.bak", stem, i));
+        if !path.exists() {
+            return Ok(path);
+        }
+    }
+    bail!("could not create backup file, disk full?");
+}
+pub(crate) fn dc_get_fine_path_filename(
+    context: &Context,
     folder: impl AsRef<Path>,
     backup_time: i64,
 ) -> Result<PathBuf, Error> {

@@ -1,5 +1,4 @@
 use std::path::{Path, PathBuf};
-use std::ptr;
 
 use deltachat_derive::{FromSql, ToSql};
 
@@ -107,6 +106,7 @@ impl Message {
             msg.hidden = row.get(18)?;
             msg.location_id = row.get(19)?;
             msg.chat_blocked = row.get::<_, Option<Blocked>>(20)?.unwrap_or_default();
+
             Ok(msg)
         })
     }
@@ -339,23 +339,10 @@ impl Message {
         }
 
         if let Some(filename) = self.get_file(context) {
-            if let Ok(mut buf) = dc_read_file(context, filename) {
-                unsafe {
-                    // just a pointer inside buf, MUST NOT be free()'d
-                    let mut buf_headerline = String::default();
-                    // just a pointer inside buf, MUST NOT be free()'d
-                    let mut buf_setupcodebegin = ptr::null();
-
-                    if dc_split_armored_data(
-                        buf.as_mut_ptr().cast(),
-                        &mut buf_headerline,
-                        &mut buf_setupcodebegin,
-                        ptr::null_mut(),
-                        ptr::null_mut(),
-                    ) && buf_headerline == "-----BEGIN PGP MESSAGE-----"
-                        && !buf_setupcodebegin.is_null()
-                    {
-                        return Some(to_string_lossy(buf_setupcodebegin));
+            if let Ok(ref buf) = dc_read_file(context, filename) {
+                if let Ok((typ, headers, _)) = split_armored_data(buf) {
+                    if typ == pgp::armor::BlockType::Message {
+                        return headers.get(crate::pgp::HEADER_SETUPCODE).cloned();
                     }
                 }
             }
