@@ -49,15 +49,6 @@ pub unsafe fn dc_strdup(s: *const libc::c_char) -> *mut libc::c_char {
     ret
 }
 
-/// Duplicates a string, returns null if given string is null
-pub(crate) unsafe fn dc_strdup_keep_null(s: *const libc::c_char) -> *mut libc::c_char {
-    if !s.is_null() {
-        dc_strdup(s)
-    } else {
-        ptr::null_mut()
-    }
-}
-
 pub(crate) fn dc_atoi_null_is_0(s: *const libc::c_char) -> libc::c_int {
     if !s.is_null() {
         as_str(s).parse().unwrap_or_default()

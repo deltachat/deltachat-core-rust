@@ -36,9 +36,9 @@ pub enum Loaded {
 
 #[derive(Clone)]
 pub struct MimeFactory<'a> {
-    pub from_addr: *mut libc::c_char,
-    pub from_displayname: *mut libc::c_char,
-    pub selfstatus: Option<String>,
+    pub from_addr: String,
+    pub from_displayname: String,
+    pub selfstatus: String,
     pub recipients_names: *mut clist,
     pub recipients_addr: *mut clist,
     pub timestamp: i64,
@@ -59,10 +59,12 @@ pub struct MimeFactory<'a> {
 
 impl<'a> MimeFactory<'a> {
     fn new(context: &'a Context, msg: Message) -> Self {
+        let cget = |context: &Context, name: &str| context.sql.get_config(context, name);
         MimeFactory {
-            from_addr: ptr::null_mut(),
-            from_displayname: ptr::null_mut(),
-            selfstatus: None,
+            from_addr: cget(&context, "configured_addr").unwrap_or_default(),
+            from_displayname: cget(&context, "displayname").unwrap_or_default(),
+            selfstatus: cget(&context, "selfstatus")
+                .unwrap_or_else(|| context.stock_str(StockMessage::StatusLine).to_string()),
             recipients_names: clist_new(),
             recipients_addr: clist_new(),
             timestamp: 0,
@@ -86,8 +88,6 @@ impl<'a> MimeFactory<'a> {
 impl<'a> Drop for MimeFactory<'a> {
     fn drop(&mut self) {
         unsafe {
-            free(self.from_addr as *mut libc::c_void);
-            free(self.from_displayname as *mut libc::c_void);
             if !self.recipients_names.is_null() {
                 clist_free_content(self.recipients_names);
                 clist_free(self.recipients_names);
@@ -117,8 +117,6 @@ pub unsafe fn dc_mimefactory_load_msg(
     let mut factory = MimeFactory::new(context, msg);
     factory.chat = Some(chat);
 
-    load_from(&mut factory);
-
     // just set the chat above
     let chat = factory.chat.as_ref().unwrap();
 
@@ -126,12 +124,12 @@ pub unsafe fn dc_mimefactory_load_msg(
         clist_insert_after(
             factory.recipients_names,
             (*factory.recipients_names).last,
-            dc_strdup_keep_null(factory.from_displayname) as *mut libc::c_void,
+            factory.from_displayname.strdup().cast(),
         );
         clist_insert_after(
             factory.recipients_addr,
             (*factory.recipients_addr).last,
-            dc_strdup(factory.from_addr) as *mut libc::c_void,
+            factory.from_addr.strdup().cast(),
         );
     } else {
         context
@@ -241,32 +239,6 @@ pub unsafe fn dc_mimefactory_load_msg(
     Ok(factory)
 }
 
-unsafe fn load_from(factory: &mut MimeFactory) {
-    let context = factory.context;
-    factory.from_addr = context
-        .sql
-        .get_config(context, "configured_addr")
-        .unwrap_or_default()
-        .strdup();
-
-    factory.from_displayname = context
-        .sql
-        .get_config(context, "displayname")
-        .unwrap_or_default()
-        .strdup();
-
-    factory.selfstatus = context.sql.get_config(context, "selfstatus");
-
-    if factory.selfstatus.is_none() {
-        factory.selfstatus = Some(
-            factory
-                .context
-                .stock_str(StockMessage::StatusLine)
-                .to_string(),
-        );
-    }
-}
-
 pub unsafe fn dc_mimefactory_load_mdn<'a>(
     context: &'a Context,
     msg_id: u32,
@@ -308,9 +280,8 @@ pub unsafe fn dc_mimefactory_load_mdn<'a>(
         (*factory.recipients_addr).last,
         contact.get_addr().strdup() as *mut libc::c_void,
     );
-    load_from(&mut factory);
     factory.timestamp = dc_create_smeared_timestamp(factory.context);
-    factory.rfc724_mid = dc_create_outgoing_rfc724_mid(None, as_str(factory.from_addr));
+    factory.rfc724_mid = dc_create_outgoing_rfc724_mid(None, &factory.from_addr);
     factory.loaded = Loaded::MDN;
 
     Ok(factory)
@@ -327,12 +298,12 @@ pub unsafe fn dc_mimefactory_render(
     mailimf_mailbox_list_add(
         from,
         mailimf_mailbox_new(
-            if !factory.from_displayname.is_null() {
-                dc_encode_header_words(as_str(factory.from_displayname))
+            if !factory.from_displayname.is_empty() {
+                dc_encode_header_words(&factory.from_displayname)
             } else {
                 ptr::null_mut()
             },
-            dc_strdup(factory.from_addr),
+            factory.from_addr.strdup(),
         ),
     );
     let mut to: *mut mailimf_address_list = ptr::null_mut();
@@ -401,8 +372,11 @@ pub unsafe fn dc_mimefactory_render(
     add_mailimf_field(imf_fields, "X-Mailer", &headerval);
     add_mailimf_field(imf_fields, "Chat-Version", "1.0");
     if factory.req_mdn {
-        let headerval = to_string(factory.from_addr);
-        add_mailimf_field(imf_fields, "Chat-Disposition-Notification-To", &headerval);
+        add_mailimf_field(
+            imf_fields,
+            "Chat-Disposition-Notification-To",
+            &factory.from_addr,
+        );
     }
 
     let cleanup = |message: *mut mailmime| {
@@ -617,21 +591,18 @@ pub unsafe fn dc_mimefactory_render(
                 }
             };
 
-            let footer = factory.selfstatus.as_ref();
+            let footer = &factory.selfstatus;
             let message_text = format!(
                 "{}{}{}{}{}",
                 fwdhint.unwrap_or_default(),
                 &final_text,
-                if !final_text.is_empty() && footer.is_some() {
+                if !final_text.is_empty() && !footer.is_empty() {
                     "\r\n\r\n"
                 } else {
                     ""
                 },
-                if footer.is_some() { "-- \r\n" } else { "" },
-                match footer {
-                    Some(x) => x,
-                    None => "",
-                }
+                if !footer.is_empty() { "-- \r\n" } else { "" },
+                footer
             );
             let text_part = build_body_text(&message_text);
             mailmime_smart_add_part(message, text_part);
@@ -740,8 +711,8 @@ pub unsafe fn dc_mimefactory_render(
             let message_text2 = format!(
                 "Reporting-UA: Delta Chat {}\r\nOriginal-Recipient: rfc822;{}\r\nFinal-Recipient: rfc822;{}\r\nOriginal-Message-ID: <{}>\r\nDisposition: manual-action/MDN-sent-automatically; displayed\r\n",
                 version,
-                as_str(factory.from_addr),
-                as_str(factory.from_addr),
+                factory.from_addr,
+                factory.from_addr,
                 factory.msg.rfc724_mid
             );
 

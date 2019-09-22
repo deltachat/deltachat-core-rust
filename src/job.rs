@@ -647,7 +647,7 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: u32) -> libc::c_int {
 
     /* load message data */
     let mimefactory = dc_mimefactory_load_msg(context, msg_id);
-    if mimefactory.is_err() || mimefactory.as_ref().unwrap().from_addr.is_null() {
+    if mimefactory.is_err() {
         warn!(
             context,
             "Cannot load data to send, maybe the message is deleted in between.",
@@ -691,6 +691,7 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: u32) -> libc::c_int {
                 .unwrap_or_default()
             && !mimefactory.out_encrypted
         {
+            /* unrecoverable */
             warn!(
                 context,
                 "e2e encryption unavailable {} - {:?}",
@@ -703,8 +704,8 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: u32) -> libc::c_int {
                 Some("End-to-end-encryption unavailable unexpectedly."),
             );
         } else {
-            /* unrecoverable */
-            if !clist_search_string_nocase(mimefactory.recipients_addr, mimefactory.from_addr) {
+            let from_addr_c = mimefactory.from_addr.strdup();
+            if !clist_search_string_nocase(mimefactory.recipients_addr, from_addr_c) {
                 clist_insert_after(
                     mimefactory.recipients_names,
                     (*mimefactory.recipients_names).last,
@@ -713,9 +714,10 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: u32) -> libc::c_int {
                 clist_insert_after(
                     mimefactory.recipients_addr,
                     (*mimefactory.recipients_addr).last,
-                    dc_strdup(mimefactory.from_addr) as *mut libc::c_void,
+                    mimefactory.from_addr.strdup().cast(),
                 );
             }
+            libc::free(from_addr_c.cast());
             if mimefactory.out_gossiped {
                 chat::set_gossiped_timestamp(context, mimefactory.msg.chat_id, time());
             }
