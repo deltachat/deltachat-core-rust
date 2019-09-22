@@ -53,7 +53,7 @@ impl E2eeHelper {
     pub unsafe fn encrypt(
         &mut self,
         context: &Context,
-        recipients_addr: *const clist,
+        recipients_addr: &Vec<String>,
         force_unencrypted: bool,
         e2ee_guaranteed: bool,
         min_verified: libc::c_int,
@@ -69,10 +69,7 @@ impl E2eeHelper {
         let plain: *mut MMAPString = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
         let mut peerstates: Vec<Peerstate> = Vec::new();
 
-        if !(recipients_addr.is_null()
-            || in_out_message.is_null()
-            || !(*in_out_message).mm_parent.is_null()
-            || plain.is_null())
+        if !(in_out_message.is_null() || !(*in_out_message).mm_parent.is_null() || plain.is_null())
         {
             /* libEtPan's pgp_encrypt_mime() takes the parent as the new root. We just expect the root as being given to this function. */
             let prefer_encrypt = if 0
@@ -97,9 +94,8 @@ impl E2eeHelper {
                     /*only for random-seed*/
                     if prefer_encrypt == EncryptPreference::Mutual || e2ee_guaranteed {
                         do_encrypt = 1i32;
-                        for cur_data in (*recipients_addr).into_iter() {
-                            let recipient_addr = to_string(cur_data as *const libc::c_char);
-                            if recipient_addr != addr {
+                        for recipient_addr in recipients_addr.iter() {
+                            if *recipient_addr != addr {
                                 let peerstate =
                                     Peerstate::from_addr(context, &context.sql, &recipient_addr);
                                 if peerstate.is_some()

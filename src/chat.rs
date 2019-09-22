@@ -784,7 +784,7 @@ pub fn send_msg(context: &Context, chat_id: u32, msg: &mut Message) -> Result<u3
     }
 
     ensure!(
-        unsafe { job_send_msg(context, msg.id) } != 0,
+        job_send_msg(context, msg.id) != 0,
         "Failed to initiate send job"
     );
 
@@ -1787,7 +1787,7 @@ pub fn forward_msgs(context: &Context, msg_ids: &[u32], chat_id: u32) {
                 new_msg_id = chat
                     .prepare_msg_raw(context, &mut msg, fresh10)
                     .unwrap_or_default();
-                unsafe { job_send_msg(context, new_msg_id) };
+                job_send_msg(context, new_msg_id);
             }
             created_db_entries.push(chat_id);
             created_db_entries.push(new_msg_id);

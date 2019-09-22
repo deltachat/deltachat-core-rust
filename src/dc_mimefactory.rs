@@ -39,16 +39,16 @@ pub struct MimeFactory<'a> {
     pub from_addr: String,
     pub from_displayname: String,
     pub selfstatus: String,
-    pub recipients_names: *mut clist,
-    pub recipients_addr: *mut clist,
+    pub recipients_names: Vec<String>,
+    pub recipients_addr: Vec<String>,
     pub timestamp: i64,
     pub rfc724_mid: String,
     pub loaded: Loaded,
     pub msg: Message,
     pub chat: Option<Chat>,
     pub increation: bool,
-    pub in_reply_to: *mut libc::c_char,
-    pub references: *mut libc::c_char,
+    pub in_reply_to: String,
+    pub references: String,
     pub req_mdn: bool,
     pub out: *mut MMAPString,
     pub out_encrypted: bool,
@@ -65,16 +65,16 @@ impl<'a> MimeFactory<'a> {
             from_displayname: cget(&context, "displayname").unwrap_or_default(),
             selfstatus: cget(&context, "selfstatus")
                 .unwrap_or_else(|| context.stock_str(StockMessage::StatusLine).to_string()),
-            recipients_names: clist_new(),
-            recipients_addr: clist_new(),
+            recipients_names: Vec::with_capacity(5),
+            recipients_addr: Vec::with_capacity(5),
             timestamp: 0,
             rfc724_mid: String::default(),
             loaded: Loaded::Nothing,
             msg,
             chat: None,
             increation: false,
-            in_reply_to: ptr::null_mut(),
-            references: ptr::null_mut(),
+            in_reply_to: String::default(),
+            references: String::default(),
             req_mdn: false,
             out: ptr::null_mut(),
             out_encrypted: false,
@@ -88,17 +88,6 @@ impl<'a> MimeFactory<'a> {
 impl<'a> Drop for MimeFactory<'a> {
     fn drop(&mut self) {
         unsafe {
-            if !self.recipients_names.is_null() {
-                clist_free_content(self.recipients_names);
-                clist_free(self.recipients_names);
-            }
-            if !self.recipients_addr.is_null() {
-                clist_free_content(self.recipients_addr);
-                clist_free(self.recipients_addr);
-            }
-
-            free(self.in_reply_to as *mut libc::c_void);
-            free(self.references as *mut libc::c_void);
             if !self.out.is_null() {
                 mmap_string_free(self.out);
             }
@@ -106,10 +95,7 @@ impl<'a> Drop for MimeFactory<'a> {
     }
 }
 
-pub unsafe fn dc_mimefactory_load_msg(
-    context: &Context,
-    msg_id: u32,
-) -> Result<MimeFactory, Error> {
+pub fn dc_mimefactory_load_msg(context: &Context, msg_id: u32) -> Result<MimeFactory, Error> {
     ensure!(msg_id > DC_CHAT_ID_LAST_SPECIAL, "Invalid chat id");
 
     let msg = Message::load_from_db(context, msg_id)?;
@@ -121,16 +107,10 @@ pub unsafe fn dc_mimefactory_load_msg(
     let chat = factory.chat.as_ref().unwrap();
 
     if chat.is_self_talk() {
-        clist_insert_after(
-            factory.recipients_names,
-            (*factory.recipients_names).last,
-            factory.from_displayname.strdup().cast(),
-        );
-        clist_insert_after(
-            factory.recipients_addr,
-            (*factory.recipients_addr).last,
-            factory.from_addr.strdup().cast(),
-        );
+        factory
+            .recipients_names
+            .push(factory.from_displayname.to_string());
+        factory.recipients_addr.push(factory.from_addr.to_string());
     } else {
         context
             .sql
@@ -148,22 +128,9 @@ pub unsafe fn dc_mimefactory_load_msg(
                 |rows| {
                     for row in rows {
                         let (authname, addr) = row?;
-                        let addr_c = addr.strdup();
-                        if !clist_search_string_nocase(factory.recipients_addr, addr_c) {
-                            clist_insert_after(
-                                factory.recipients_names,
-                                (*factory.recipients_names).last,
-                                if !authname.is_empty() {
-                                    authname.strdup()
-                                } else {
-                                    std::ptr::null_mut()
-                                } as *mut libc::c_void,
-                            );
-                            clist_insert_after(
-                                factory.recipients_addr,
-                                (*factory.recipients_addr).last,
-                                addr_c as *mut libc::c_void,
-                            );
+                        if !vec_contains_lowercase(&factory.recipients_addr, &addr) {
+                            factory.recipients_addr.push(addr);
+                            factory.recipients_names.push(authname);
                         }
                     }
                     Ok(())
@@ -176,7 +143,6 @@ pub unsafe fn dc_mimefactory_load_msg(
 
         if command == SystemMessage::MemberRemovedFromGroup {
             let email_to_remove = msg.param.get(Param::Arg).unwrap_or_default();
-            let email_to_remove_c = email_to_remove.strdup();
 
             let self_addr = context
                 .sql
@@ -184,17 +150,9 @@ pub unsafe fn dc_mimefactory_load_msg(
                 .unwrap_or_default();
 
             if !email_to_remove.is_empty() && email_to_remove != self_addr {
-                if !clist_search_string_nocase(factory.recipients_addr, email_to_remove_c) {
-                    clist_insert_after(
-                        factory.recipients_names,
-                        (*factory.recipients_names).last,
-                        ptr::null_mut(),
-                    );
-                    clist_insert_after(
-                        factory.recipients_addr,
-                        (*factory.recipients_addr).last,
-                        email_to_remove_c as *mut libc::c_void,
-                    );
+                if !vec_contains_lowercase(&factory.recipients_addr, &email_to_remove) {
+                    factory.recipients_names.push("".to_string());
+                    factory.recipients_addr.push(email_to_remove.to_string());
                 }
             }
         }
@@ -220,8 +178,8 @@ pub unsafe fn dc_mimefactory_load_msg(
     );
     match row {
         Ok((in_reply_to, references)) => {
-            factory.in_reply_to = in_reply_to.strdup();
-            factory.references = references.strdup();
+            factory.in_reply_to = in_reply_to;
+            factory.references = references;
         }
         Err(err) => {
             error!(
@@ -239,7 +197,7 @@ pub unsafe fn dc_mimefactory_load_msg(
     Ok(factory)
 }
 
-pub unsafe fn dc_mimefactory_load_mdn<'a>(
+pub fn dc_mimefactory_load_mdn<'a>(
     context: &'a Context,
     msg_id: u32,
 ) -> Result<MimeFactory, Error> {
@@ -266,26 +224,18 @@ pub unsafe fn dc_mimefactory_load_mdn<'a>(
         "Invalid chat id"
     );
 
-    clist_insert_after(
-        factory.recipients_names,
-        (*factory.recipients_names).last,
-        (if !contact.get_authname().is_empty() {
-            contact.get_authname().strdup()
-        } else {
-            ptr::null_mut()
-        }) as *mut libc::c_void,
-    );
-    clist_insert_after(
-        factory.recipients_addr,
-        (*factory.recipients_addr).last,
-        contact.get_addr().strdup() as *mut libc::c_void,
-    );
+    factory
+        .recipients_names
+        .push(contact.get_authname().to_string());
+    factory.recipients_addr.push(contact.get_addr().to_string());
     factory.timestamp = dc_create_smeared_timestamp(factory.context);
     factory.rfc724_mid = dc_create_outgoing_rfc724_mid(None, &factory.from_addr);
     factory.loaded = Loaded::MDN;
 
     Ok(factory)
 }
+
+// XXX push down unsafe to only guard mailimf_* operations
 
 pub unsafe fn dc_mimefactory_render(
     context: &Context,
@@ -299,7 +249,7 @@ pub unsafe fn dc_mimefactory_render(
         from,
         mailimf_mailbox_new(
             if !factory.from_displayname.is_empty() {
-                dc_encode_header_words(&factory.from_displayname)
+                dc_encode_header_words(&factory.from_displayname).strdup()
             } else {
                 ptr::null_mut()
             },
@@ -307,47 +257,38 @@ pub unsafe fn dc_mimefactory_render(
         ),
     );
     let mut to: *mut mailimf_address_list = ptr::null_mut();
-    if !factory.recipients_names.is_null()
-        && !factory.recipients_addr.is_null()
-        && (*factory.recipients_addr).count > 0
-    {
-        let name_iter = (*factory.recipients_names).into_iter();
-        let addr_iter = (*factory.recipients_addr).into_iter();
+    if !factory.recipients_names.is_empty() && !factory.recipients_addr.is_empty() {
         to = mailimf_address_list_new_empty();
+        let name_iter = factory.recipients_names.iter();
+        let addr_iter = factory.recipients_addr.iter();
         for (name, addr) in name_iter.zip(addr_iter) {
-            let name = name as *const libc::c_char;
-            let addr = addr as *const libc::c_char;
             mailimf_address_list_add(
                 to,
                 mailimf_address_new(
                     MAILIMF_ADDRESS_MAILBOX as libc::c_int,
                     mailimf_mailbox_new(
-                        if !name.is_null() {
-                            dc_encode_header_words(as_str(name))
+                        if !name.is_empty() {
+                            dc_encode_header_words(&name).strdup()
                         } else {
                             ptr::null_mut()
                         },
-                        dc_strdup(addr),
+                        addr.strdup(),
                     ),
                     ptr::null_mut(),
                 ),
             );
         }
     }
-    let mut references_list: *mut clist = ptr::null_mut();
-    if !factory.references.is_null() && 0 != *factory.references.offset(0isize) as libc::c_int {
-        references_list = dc_str_to_clist(
-            factory.references,
-            b" \x00" as *const u8 as *const libc::c_char,
-        )
-    }
-    let mut in_reply_to_list: *mut clist = ptr::null_mut();
-    if !factory.in_reply_to.is_null() && 0 != *factory.in_reply_to.offset(0isize) as libc::c_int {
-        in_reply_to_list = dc_str_to_clist(
-            factory.in_reply_to,
-            b" \x00" as *const u8 as *const libc::c_char,
-        )
-    }
+    let references_list = if !factory.references.is_empty() {
+        dc_str_to_clist(&factory.references, " ")
+    } else {
+        ptr::null_mut()
+    };
+    let in_reply_to_list = if !factory.in_reply_to.is_empty() {
+        dc_str_to_clist(&factory.in_reply_to, " ")
+    } else {
+        ptr::null_mut()
+    };
     let imf_fields = mailimf_fields_new_with_data_all(
         mailimf_get_date(factory.timestamp as i64),
         from,
@@ -432,18 +373,8 @@ pub unsafe fn dc_mimefactory_render(
             if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
                 add_mailimf_field(imf_fields, "Chat-Group-ID", &chat.grpid);
 
-                // we can't use add_mailimf_field() because
-                // dc_encode_header_words returns char* and most of its call sites
-                // use it rather directly to pass something to the
-                // low-level mailimf_* API.
-                let res = mailimf_fields_add(
-                    imf_fields,
-                    mailimf_field_new_custom(
-                        "Chat-Group-Name".strdup(),
-                        dc_encode_header_words(&chat.name),
-                    ),
-                );
-                assert!(res == MAILIMF_NO_ERROR as i32);
+                let encoded = dc_encode_header_words(&chat.name);
+                add_mailimf_field(imf_fields, "Chat-Group-Name", &encoded);
 
                 match command {
                     SystemMessage::MemberRemovedFromGroup => {
@@ -742,7 +673,6 @@ pub unsafe fn dc_mimefactory_render(
         }
     };
 
-    let subject = mailimf_subject_new(dc_encode_header_words(subject_str));
     mailimf_fields_add(
         imf_fields,
         mailimf_field_new(
@@ -765,7 +695,7 @@ pub unsafe fn dc_mimefactory_render(
             ptr::null_mut(),
             ptr::null_mut(),
             ptr::null_mut(),
-            subject,
+            mailimf_subject_new(dc_encode_header_words(subject_str).strdup()),
             ptr::null_mut(),
             ptr::null_mut(),
             ptr::null_mut(),
@@ -775,7 +705,7 @@ pub unsafe fn dc_mimefactory_render(
     if force_plaintext != DC_FP_NO_AUTOCRYPT_HEADER {
         e2ee_helper.encrypt(
             factory.context,
-            factory.recipients_addr,
+            &factory.recipients_addr,
             force_plaintext == DC_FP_ADD_AUTOCRYPT_HEADER,
             e2ee_guaranteed,
             min_verified,
@@ -823,37 +753,44 @@ fn get_subject(
     }
 }
 
-pub unsafe fn add_mailimf_field(fields: *mut mailimf_fields, name: &str, value: &str) {
-    let field = mailimf_field_new_custom(name.strdup(), value.strdup());
-    let res = mailimf_fields_add(fields, field);
-    assert!(
-        res as u32 == MAILIMF_NO_ERROR,
-        "could not create mailimf field"
-    );
+pub fn add_mailimf_field(fields: *mut mailimf_fields, name: &str, value: &str) {
+    unsafe {
+        let field = mailimf_field_new_custom(name.strdup(), value.strdup());
+        let res = mailimf_fields_add(fields, field);
+        assert!(
+            res as u32 == MAILIMF_NO_ERROR,
+            "could not create mailimf field"
+        );
+    }
 }
 
-unsafe fn build_body_text(text: &str) -> *mut mailmime {
+fn build_body_text(text: &str) -> *mut mailmime {
     let mime_fields: *mut mailmime_fields;
     let message_part: *mut mailmime;
     let content: *mut mailmime_content;
-    content = mailmime_content_new_with_str(b"text/plain\x00" as *const u8 as *const libc::c_char);
-    clist_insert_after(
-        (*content).ct_parameters,
-        (*(*content).ct_parameters).last,
-        mailmime_param_new_with_data(
-            b"charset\x00" as *const u8 as *const libc::c_char as *mut libc::c_char,
-            b"utf-8\x00" as *const u8 as *const libc::c_char as *mut libc::c_char,
-        ) as *mut libc::c_void,
-    );
-    mime_fields = mailmime_fields_new_encoding(MAILMIME_MECHANISM_8BIT as libc::c_int);
-    message_part = mailmime_new_empty(content, mime_fields);
+    unsafe {
+        content =
+            mailmime_content_new_with_str(b"text/plain\x00" as *const u8 as *const libc::c_char);
+        clist_insert_after(
+            (*content).ct_parameters,
+            (*(*content).ct_parameters).last,
+            mailmime_param_new_with_data(
+                b"charset\x00" as *const u8 as *const libc::c_char as *mut libc::c_char,
+                b"utf-8\x00" as *const u8 as *const libc::c_char as *mut libc::c_char,
+            ) as *mut libc::c_void,
+        );
+        mime_fields = mailmime_fields_new_encoding(MAILMIME_MECHANISM_8BIT as libc::c_int);
+        message_part = mailmime_new_empty(content, mime_fields);
+    }
     set_body_text(message_part, text);
 
     message_part
 }
 
-unsafe fn set_body_text(part: *mut mailmime, text: &str) {
-    mailmime_set_body_text(part, text.strdup(), text.len());
+fn set_body_text(part: *mut mailmime, text: &str) {
+    unsafe {
+        mailmime_set_body_text(part, text.strdup(), text.len());
+    }
 }
 
 #[allow(non_snake_case)]
@@ -950,7 +887,7 @@ fn build_body_file(context: &Context, msg: &Message, base_name: &str) -> (*mut m
             }
         }
         let content = mailmime_content_new_with_str(mimetype.strdup());
-        let filename_encoded = dc_encode_header_words(&filename_to_send);
+        let filename_encoded = dc_encode_header_words(&filename_to_send).strdup();
         clist_insert_after(
             (*content).ct_parameters,
             (*(*content).ct_parameters).last,
@@ -967,6 +904,16 @@ fn build_body_file(context: &Context, msg: &Message, base_name: &str) -> (*mut m
         mailmime_set_body_file(mime_sub, dc_strdup(abs_path.as_ptr()));
         (mime_sub, filename_to_send)
     }
+}
+
+pub(crate) fn vec_contains_lowercase(vec: &Vec<String>, part: &str) -> bool {
+    let partlc = part.to_lowercase();
+    for cur in vec.iter() {
+        if (*cur).to_lowercase() == partlc {
+            return true;
+        }
+    }
+    false
 }
 
 /*******************************************************************************
