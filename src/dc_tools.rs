@@ -9,7 +9,7 @@ use std::time::SystemTime;
 use std::{fmt, fs, ptr};
 
 use chrono::{Local, TimeZone};
-use libc::{free, memcpy, strcpy, strlen, strstr, uintptr_t};
+use libc::{memcpy, strcpy, strlen, uintptr_t};
 use mmime::clist::*;
 use mmime::mailimf_types::*;
 use rand::{thread_rng, Rng};
@@ -241,32 +241,14 @@ pub(crate) unsafe fn dc_str_from_clist(
     res.strdup()
 }
 
-pub(crate) unsafe fn dc_str_to_clist(
-    str: *const libc::c_char,
-    delimiter: *const libc::c_char,
-) -> *mut clist {
-    let list: *mut clist = clist_new();
-    assert!(!list.is_null());
-
-    if !str.is_null() && !delimiter.is_null() && strlen(delimiter) >= 1 {
-        let mut p1: *const libc::c_char = str;
-        loop {
-            let p2: *const libc::c_char = strstr(p1, delimiter);
-            if p2.is_null() {
-                clist_insert_after(list, (*list).last, strdup(p1) as *mut libc::c_void);
-                break;
-            } else {
-                clist_insert_after(
-                    list,
-                    (*list).last,
-                    strndup(p1, p2.wrapping_offset_from(p1) as libc::c_ulong) as *mut libc::c_void,
-                );
-                p1 = p2.add(strlen(delimiter))
-            }
+pub(crate) fn dc_str_to_clist(str: &str, delimiter: &str) -> *mut clist {
+    unsafe {
+        let list: *mut clist = clist_new();
+        for cur in str.split(&delimiter) {
+            clist_insert_after(list, (*list).last, cur.strdup().cast());
         }
+        list
     }
-
-    list
 }
 
 /* the colors must fulfill some criterions as:
@@ -291,32 +273,6 @@ pub(crate) fn dc_str_to_color(s: impl AsRef<str>) -> u32 {
     let color_index = checksum % COLORS.len();
 
     COLORS[color_index]
-}
-
-/* clist tools */
-
-/* calls free() for each item content */
-pub(crate) unsafe fn clist_free_content(haystack: *const clist) {
-    let mut iter = (*haystack).first;
-
-    while !iter.is_null() {
-        free((*iter).data);
-        (*iter).data = ptr::null_mut();
-        iter = if !iter.is_null() {
-            (*iter).next
-        } else {
-            ptr::null_mut()
-        }
-    }
-}
-
-pub(crate) unsafe fn clist_search_string_nocase(
-    haystack: *const clist,
-    needle: *const libc::c_char,
-) -> bool {
-    (&*haystack)
-        .into_iter()
-        .any(|data| strcasecmp(data.cast(), needle) == 0)
 }
 
 /* date/time tools */
@@ -496,25 +452,15 @@ pub(crate) fn dc_extract_grpid_from_rfc724_mid(mid: &str) -> Option<&str> {
     None
 }
 
-pub(crate) unsafe fn dc_extract_grpid_from_rfc724_mid_list(
-    list: *const clist,
-) -> *mut libc::c_char {
+pub(crate) fn dc_extract_grpid_from_rfc724_mid_list(list: *const clist) -> *mut libc::c_char {
     if !list.is_null() {
-        let mut cur: *mut clistiter = (*list).first;
-        while !cur.is_null() {
-            let mid = if !cur.is_null() {
-                as_str((*cur).data as *const libc::c_char)
-            } else {
-                ""
-            };
+        unsafe {
+            for cur in (*list).into_iter() {
+                let mid = as_str(cur as *const libc::c_char);
 
-            if let Some(grpid) = dc_extract_grpid_from_rfc724_mid(mid) {
-                return grpid.strdup();
-            }
-            cur = if !cur.is_null() {
-                (*cur).next
-            } else {
-                ptr::null_mut()
+                if let Some(grpid) = dc_extract_grpid_from_rfc724_mid(mid) {
+                    return grpid.strdup();
+                }
             }
         }
     }
@@ -1082,21 +1028,6 @@ pub(crate) unsafe fn strdup(s: *const libc::c_char) -> *mut libc::c_char {
     result as *mut _
 }
 
-pub(crate) fn strndup(s: *const libc::c_char, n: libc::c_ulong) -> *mut libc::c_char {
-    if s.is_null() {
-        return std::ptr::null_mut();
-    }
-
-    let end = std::cmp::min(n as usize, unsafe { strlen(s) });
-    unsafe {
-        let result = libc::malloc(end + 1);
-        memcpy(result, s as *const _, end);
-        std::ptr::write_bytes(result.offset(end as isize), b'\x00', 1);
-
-        result as *mut _
-    }
-}
-
 pub(crate) unsafe fn strcasecmp(s1: *const libc::c_char, s2: *const libc::c_char) -> libc::c_int {
     let s1 = std::ffi::CStr::from_ptr(s1)
         .to_string_lossy()
@@ -1115,7 +1046,7 @@ pub(crate) unsafe fn strcasecmp(s1: *const libc::c_char, s2: *const libc::c_char
 mod tests {
     use super::*;
 
-    use libc::strcmp;
+    use libc::{free, strcmp};
     use std::convert::TryInto;
     use std::ffi::CStr;
 
@@ -1144,24 +1075,6 @@ mod tests {
                 CString::new("").unwrap().as_c_str()
             );
             assert_ne!(str_a, str_a_copy);
-        }
-    }
-
-    #[test]
-    fn test_dc_strdup_keep_null() {
-        unsafe {
-            let str_a = b"foobar\x00" as *const u8 as *const libc::c_char;
-            let str_a_copy = dc_strdup_keep_null(str_a);
-            assert_eq!(
-                CStr::from_ptr(str_a_copy),
-                CString::new("foobar").unwrap().as_c_str()
-            );
-            assert_ne!(str_a, str_a_copy);
-
-            let str_a = ptr::null();
-            let str_a_copy = dc_strdup_keep_null(str_a);
-            assert_eq!(str_a.is_null(), true);
-            assert_eq!(str_a_copy.is_null(), true);
         }
     }
 
@@ -1273,37 +1186,41 @@ mod tests {
         );
     }
 
+    /* calls free() for each item content */
+    unsafe fn clist_free_content(haystack: *const clist) {
+        let mut iter = (*haystack).first;
+
+        while !iter.is_null() {
+            free((*iter).data);
+            (*iter).data = ptr::null_mut();
+            iter = if !iter.is_null() {
+                (*iter).next
+            } else {
+                ptr::null_mut()
+            }
+        }
+    }
+
+    fn strndup(s: *const libc::c_char, n: libc::c_ulong) -> *mut libc::c_char {
+        if s.is_null() {
+            return std::ptr::null_mut();
+        }
+
+        let end = std::cmp::min(n as usize, unsafe { strlen(s) });
+        unsafe {
+            let result = libc::malloc(end + 1);
+            memcpy(result, s as *const _, end);
+            std::ptr::write_bytes(result.offset(end as isize), b'\x00', 1);
+
+            result as *mut _
+        }
+    }
+
     #[test]
     fn test_dc_str_to_clist_1() {
         unsafe {
-            let list = dc_str_to_clist(ptr::null(), b" \x00" as *const u8 as *const libc::c_char);
-            assert_eq!((*list).count, 0);
-            clist_free_content(list);
-            clist_free(list);
-        }
-    }
-
-    #[test]
-    fn test_dc_str_to_clist_2() {
-        unsafe {
-            let list: *mut clist = dc_str_to_clist(
-                b"\x00" as *const u8 as *const libc::c_char,
-                b" \x00" as *const u8 as *const libc::c_char,
-            );
+            let list = dc_str_to_clist("", " ");
             assert_eq!((*list).count, 1);
-            clist_free_content(list);
-            clist_free(list);
-        }
-    }
-
-    #[test]
-    fn test_dc_str_to_clist_3() {
-        unsafe {
-            let list: *mut clist = dc_str_to_clist(
-                b" \x00" as *const u8 as *const libc::c_char,
-                b" \x00" as *const u8 as *const libc::c_char,
-            );
-            assert_eq!((*list).count, 2);
             clist_free_content(list);
             clist_free(list);
         }
@@ -1312,10 +1229,7 @@ mod tests {
     #[test]
     fn test_dc_str_to_clist_4() {
         unsafe {
-            let list: *mut clist = dc_str_to_clist(
-                b"foo bar test\x00" as *const u8 as *const libc::c_char,
-                b" \x00" as *const u8 as *const libc::c_char,
-            );
+            let list: *mut clist = dc_str_to_clist("foo bar test", " ");
             assert_eq!((*list).count, 3);
             let str: *mut libc::c_char =
                 dc_str_from_clist(list, b" \x00" as *const u8 as *const libc::c_char);

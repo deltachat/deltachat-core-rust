@@ -1,8 +1,6 @@
-use std::ptr;
 use std::time::Duration;
 
 use deltachat_derive::{FromSql, ToSql};
-use mmime::clist::*;
 use rand::{thread_rng, Rng};
 
 use crate::chat;
@@ -642,7 +640,7 @@ pub fn job_action_exists(context: &Context, action: Action) -> bool {
 
 /* special case for DC_JOB_SEND_MSG_TO_SMTP */
 #[allow(non_snake_case)]
-pub unsafe fn job_send_msg(context: &Context, msg_id: u32) -> libc::c_int {
+pub fn job_send_msg(context: &Context, msg_id: u32) -> libc::c_int {
     let mut success = 0;
 
     /* load message data */
@@ -680,7 +678,7 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: u32) -> libc::c_int {
             }
         }
         /* create message */
-        if let Err(msg) = dc_mimefactory_render(context, &mut mimefactory) {
+        if let Err(msg) = unsafe { dc_mimefactory_render(context, &mut mimefactory) } {
             let e = msg.to_string();
             message::set_msg_failed(context, msg_id, Some(e));
         } else if 0
@@ -704,20 +702,12 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: u32) -> libc::c_int {
                 Some("End-to-end-encryption unavailable unexpectedly."),
             );
         } else {
-            let from_addr_c = mimefactory.from_addr.strdup();
-            if !clist_search_string_nocase(mimefactory.recipients_addr, from_addr_c) {
-                clist_insert_after(
-                    mimefactory.recipients_names,
-                    (*mimefactory.recipients_names).last,
-                    ptr::null_mut(),
-                );
-                clist_insert_after(
-                    mimefactory.recipients_addr,
-                    (*mimefactory.recipients_addr).last,
-                    mimefactory.from_addr.strdup().cast(),
-                );
+            if !vec_contains_lowercase(&mimefactory.recipients_addr, &mimefactory.from_addr) {
+                mimefactory.recipients_names.push("".to_string());
+                mimefactory
+                    .recipients_addr
+                    .push(mimefactory.from_addr.to_string());
             }
-            libc::free(from_addr_c.cast());
             if mimefactory.out_gossiped {
                 chat::set_gossiped_timestamp(context, mimefactory.msg.chat_id, time());
             }
@@ -1000,7 +990,7 @@ fn connect_to_inbox(context: &Context, inbox: &Imap) -> libc::c_int {
 }
 
 fn send_mdn(context: &Context, msg_id: u32) {
-    if let Ok(mut mimefactory) = unsafe { dc_mimefactory_load_mdn(context, msg_id) } {
+    if let Ok(mut mimefactory) = dc_mimefactory_load_mdn(context, msg_id) {
         if unsafe { dc_mimefactory_render(context, &mut mimefactory) }.is_ok() {
             add_smtp_job(context, Action::SendMdn, &mut mimefactory);
         }
@@ -1010,7 +1000,6 @@ fn send_mdn(context: &Context, msg_id: u32) {
 #[allow(non_snake_case)]
 fn add_smtp_job(context: &Context, action: Action, mimefactory: &MimeFactory) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
-    let mut recipients: *mut libc::c_char = ptr::null_mut();
     let mut param = Params::new();
     let path_filename = dc_get_fine_path_filename(context, "$BLOBDIR", &mimefactory.rfc724_mid);
     let bytes = unsafe {
@@ -1027,14 +1016,9 @@ fn add_smtp_job(context: &Context, action: Action, mimefactory: &MimeFactory) ->
             path_filename.display(),
         );
     } else {
-        recipients = unsafe {
-            dc_str_from_clist(
-                mimefactory.recipients_addr,
-                b"\x1e\x00" as *const u8 as *const libc::c_char,
-            )
-        };
+        let recipients = mimefactory.recipients_addr.join("\x1e");
         param.set(Param::File, path_filename.to_string_lossy());
-        param.set(Param::Recipients, as_str(recipients));
+        param.set(Param::Recipients, &recipients);
         job_add(
             context,
             action,
@@ -1047,9 +1031,6 @@ fn add_smtp_job(context: &Context, action: Action, mimefactory: &MimeFactory) ->
             0,
         );
         success = 1;
-    }
-    unsafe {
-        libc::free(recipients.cast());
     }
     success
 }

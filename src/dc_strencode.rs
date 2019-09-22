@@ -25,7 +25,7 @@ use crate::dc_tools::*;
  * @return Returns the encoded string which must be free()'d when no longed needed.
  *     On errors, NULL is returned.
  */
-pub unsafe fn dc_encode_header_words(to_encode_r: impl AsRef<str>) -> *mut libc::c_char {
+pub unsafe fn dc_encode_header_words(to_encode_r: impl AsRef<str>) -> String {
     let to_encode =
         CString::new(to_encode_r.as_ref().as_bytes()).expect("invalid cstring to_encode");
 
@@ -116,7 +116,9 @@ pub unsafe fn dc_encode_header_words(to_encode_r: impl AsRef<str>) -> *mut libc:
         }
     }
 
-    ret_str
+    let s = to_string(ret_str);
+    free(ret_str.cast());
+    s
 }
 
 unsafe fn quote_word(
@@ -330,7 +332,7 @@ unsafe fn print_hex(target: *mut libc::c_char, cur: *const libc::c_char) {
 mod tests {
     use super::*;
 
-    use libc::{strcmp, strncmp};
+    use libc::strcmp;
     use std::ffi::CStr;
 
     #[test]
@@ -353,19 +355,15 @@ mod tests {
             assert_eq!(CStr::from_ptr(buf1).to_str().unwrap(), "just ascii test");
             free(buf1 as *mut libc::c_void);
 
-            buf1 = dc_encode_header_words("abcdef");
-            assert_eq!(CStr::from_ptr(buf1).to_str().unwrap(), "abcdef");
-            free(buf1 as *mut libc::c_void);
+            assert_eq!(dc_encode_header_words("abcdef"), "abcdef");
 
-            buf1 = dc_encode_header_words(
+            let r = dc_encode_header_words(
                 std::string::String::from_utf8(b"test\xc3\xa4\xc3\xb6\xc3\xbc.txt".to_vec())
                     .unwrap(),
             );
-            assert_eq!(
-                strncmp(buf1, b"=?utf-8\x00" as *const u8 as *const libc::c_char, 7),
-                0
-            );
+            assert!(r.starts_with("=?utf-8"));
 
+            buf1 = r.strdup();
             let buf2: *mut libc::c_char = dc_decode_header_words(buf1);
             assert_eq!(
                 strcmp(
@@ -374,7 +372,6 @@ mod tests {
                 ),
                 0
             );
-            free(buf1 as *mut libc::c_void);
             free(buf2 as *mut libc::c_void);
 
             buf1 = dc_decode_header_words(
@@ -388,7 +385,6 @@ mod tests {
                 ),
                 0
             );
-            free(buf1 as *mut libc::c_void);
         }
     }
 
