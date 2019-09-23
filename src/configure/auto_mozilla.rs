@@ -1,10 +1,8 @@
-use libc::free;
 use quick_xml;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_tools::*;
 use crate::login_param::LoginParam;
 
 use super::read_autoconf_file;
@@ -24,26 +22,28 @@ struct moz_autoconfigure_t<'a> {
     pub tag_config: libc::c_int,
 }
 
-pub unsafe fn moz_autoconfigure(
+pub fn moz_autoconfigure(
     context: &Context,
     url: &str,
     param_in: &LoginParam,
 ) -> Option<LoginParam> {
-    let xml_raw = read_autoconf_file(context, url);
-    if xml_raw.is_null() {
-        return None;
-    }
+    let xml_raw = match read_autoconf_file(context, url) {
+        Err(err) => {
+            info!(context, "can't read file: {}", err);
+            return None;
+        }
+        Ok(content) => content,
+    };
 
     // Split address into local part and domain part.
     let p = param_in.addr.find("@");
     if p.is_none() {
-        free(xml_raw as *mut libc::c_void);
         return None;
     }
     let (in_emaillocalpart, in_emaildomain) = param_in.addr.split_at(p.unwrap());
     let in_emaildomain = &in_emaildomain[1..];
 
-    let mut reader = quick_xml::Reader::from_str(as_str(xml_raw));
+    let mut reader = quick_xml::Reader::from_str(&xml_raw);
     reader.trim_text(true);
 
     let mut buf = Vec::new();
@@ -88,11 +88,9 @@ pub unsafe fn moz_autoconfigure(
     {
         let r = moz_ac.out.to_string();
         warn!(context, "Bad or incomplete autoconfig: {}", r,);
-        free(xml_raw as *mut libc::c_void);
         return None;
     }
 
-    free(xml_raw as *mut libc::c_void);
     Some(moz_ac.out)
 }
 

@@ -5,6 +5,7 @@ use crate::constants::*;
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::e2ee;
+use crate::error::*;
 use crate::imap::*;
 use crate::job::*;
 use crate::login_param::LoginParam;
@@ -27,7 +28,7 @@ macro_rules! progress {
 }
 
 // connect
-pub unsafe fn configure(context: &Context) {
+pub fn configure(context: &Context) {
     if dc_has_ongoing(context) {
         warn!(context, "There is already another ongoing process running.",);
         return;
@@ -46,7 +47,7 @@ pub fn dc_is_configured(context: &Context) -> bool {
  ******************************************************************************/
 // the other dc_job_do_DC_JOB_*() functions are declared static in the c-file
 #[allow(non_snake_case, unused_must_use)]
-pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
+pub fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
     let mut success = false;
     let mut imap_connected_here = false;
     let mut smtp_connected_here = false;
@@ -633,7 +634,7 @@ pub fn dc_stop_ongoing_process(context: &Context) {
     };
 }
 
-pub fn read_autoconf_file(context: &Context, url: &str) -> *mut libc::c_char {
+pub fn read_autoconf_file(context: &Context, url: &str) -> Result<String> {
     info!(context, "Testing {} ...", url);
 
     match reqwest::Client::new()
@@ -641,12 +642,10 @@ pub fn read_autoconf_file(context: &Context, url: &str) -> *mut libc::c_char {
         .send()
         .and_then(|mut res| res.text())
     {
-        Ok(res) => unsafe { res.strdup() },
-        Err(_err) => {
-            info!(context, "Can\'t read file.",);
-
-            std::ptr::null_mut()
+        Err(err) => {
+            bail!("{}", err);
         }
+        Ok(res) => Ok(res.to_string()),
     }
 }
 
@@ -664,8 +663,6 @@ mod tests {
             .set_config(Config::Addr, Some("probably@unexistant.addr"))
             .unwrap();
         t.ctx.set_config(Config::MailPw, Some("123456")).unwrap();
-        unsafe {
-            dc_job_do_DC_JOB_CONFIGURE_IMAP(&t.ctx);
-        }
+        dc_job_do_DC_JOB_CONFIGURE_IMAP(&t.ctx);
     }
 }
