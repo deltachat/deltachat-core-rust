@@ -8,13 +8,13 @@ use crate::configure::*;
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_imex::*;
-use crate::dc_mimefactory::*;
 use crate::dc_tools::*;
 use crate::events::Event;
 use crate::imap::*;
 use crate::location;
 use crate::login_param::LoginParam;
 use crate::message::{self, Message, MessageState};
+use crate::mimefactory::{vec_contains_lowercase, Loaded, MimeFactory};
 use crate::param::*;
 use crate::sql;
 
@@ -644,7 +644,7 @@ pub fn job_send_msg(context: &Context, msg_id: u32) -> libc::c_int {
     let mut success = 0;
 
     /* load message data */
-    let mimefactory = dc_mimefactory_load_msg(context, msg_id);
+    let mimefactory = MimeFactory::load_msg(context, msg_id);
     if mimefactory.is_err() {
         warn!(
             context,
@@ -678,7 +678,7 @@ pub fn job_send_msg(context: &Context, msg_id: u32) -> libc::c_int {
             }
         }
         /* create message */
-        if let Err(msg) = unsafe { dc_mimefactory_render(context, &mut mimefactory) } {
+        if let Err(msg) = unsafe { mimefactory.render() } {
             let e = msg.to_string();
             message::set_msg_failed(context, msg_id, Some(e));
         } else if 0
@@ -990,8 +990,8 @@ fn connect_to_inbox(context: &Context, inbox: &Imap) -> libc::c_int {
 }
 
 fn send_mdn(context: &Context, msg_id: u32) {
-    if let Ok(mut mimefactory) = dc_mimefactory_load_mdn(context, msg_id) {
-        if unsafe { dc_mimefactory_render(context, &mut mimefactory) }.is_ok() {
+    if let Ok(mut mimefactory) = MimeFactory::load_mdn(context, msg_id) {
+        if unsafe { mimefactory.render() }.is_ok() {
             add_smtp_job(context, Action::SendMdn, &mut mimefactory);
         }
     }
