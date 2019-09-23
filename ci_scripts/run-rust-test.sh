@@ -31,7 +31,7 @@ fi
 if [[ $NORUN == "1" ]]; then
     export CARGO_SUBCMD="build"
 else
-    export CARGO_SUBCMD="test"
+    export CARGO_SUBCMD="test --all"
     export OPT="${OPT} "
     export OPT_RELEASE="${OPT_RELEASE} "
     export OPT_RELEASE_IGNORED="${OPT_RELEASE} -- --ignored"
@@ -39,4 +39,5 @@ fi
 
 # Run all the test configurations:
 $CARGO_CMD $CARGO_SUBCMD $OPT
+$CARGO_CMD $CARGO_SUBCMD $OPT_RELEASE
 $CARGO_CMD $CARGO_SUBCMD $OPT_RELEASE_IGNORED

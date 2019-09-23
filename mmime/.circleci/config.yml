@@ -1,0 +1,42 @@
+# copied from http://koushiro.me/2019/04/30/Building-and-Testing-Rust-projects-on-CircleCI/
+
+version: 2.1
+jobs:
+  build:
+    docker:
+      - image: ubuntu:18.04
+
+    working_directory: ~/deltachat-core-rust
+
+    steps:
+      - checkout
+
+      - run:
+          name: Setup build environment
+          command: |
+            apt update
+            apt install -y curl build-essential autoconf libtool git python pkg-config
+            # this will pick default toolchain from `rust-toolchain` file
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --no-modify-path --default-toolchain none -y;
+            source $HOME/.cargo/env
+          no_output_timeout: 1800s
+
+      - run:
+          name: Format
+          command: |
+            export PATH=~/.cargo/bin:$PATH
+            rustup component add rustfmt
+            cargo fmt -- --check
+
+      - run:
+          name: Test
+          command: |
+            export PATH=~/.cargo/bin:$PATH
+            export RUST_BACKTRACE=1
+            cargo test
+
+workflows:
+  version: 2.1
+  build:
+    jobs:
+      - build

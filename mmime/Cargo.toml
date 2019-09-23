@@ -1,0 +1,23 @@
+[package]
+name = "mmime"
+version = "0.1.2"
+authors = ["dignifiedquire <dignifiedquire@users.noreply.github.com>"]
+edition = "2018"
+license = "MIT OR Apache-2.0"
+homepage = "https://github.com/deltachat/deltachat-core-rust"
+repository = "https://github.com/deltachat/deltachat-core-rust"
+readme = "README.md"
+description = "Mime parsing for email"
+
+
+keywords = ["mail", "mim", "email", "imap", "smtp"]
+categories = ["std", "email"]
+
+[dependencies]
+libc = "0.2.54"
+charset = "0.1.2"
+memmap = "0.7.0"
+lazy_static = "1.3.0"
+rand = "0.6.5"
+chrono = "0.4.6"
+hex = "0.3.2"
