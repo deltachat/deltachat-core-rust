@@ -68,7 +68,7 @@ mod login_param;
 pub mod securejoin;
 mod token;
 #[macro_use]
-pub(crate) mod wrapmime;
+mod wrapmime;
 
 #[cfg(test)]
 mod test_utils;
