@@ -1,11 +1,6 @@
 #![deny(clippy::correctness)]
 // TODO: make all of these errors, such that clippy actually passes.
-#![warn(
-    clippy::all,
-    clippy::perf,
-    clippy::not_unsafe_ptr_arg_deref,
-    missing_debug_implementations
-)]
+#![warn(clippy::all, clippy::perf, clippy::not_unsafe_ptr_arg_deref)]
 // This is nice, but for now just annoying.
 #![allow(clippy::unreadable_literal)]
 #![feature(ptr_wrapping_offset_from)]
