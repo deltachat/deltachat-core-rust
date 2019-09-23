@@ -925,7 +925,9 @@ fn get_draft_msg_id(context: &Context, chat_id: u32) -> u32 {
 }
 
 pub fn get_draft(context: &Context, chat_id: u32) -> Result<Option<Message>, Error> {
-    ensure!(chat_id > DC_CHAT_ID_LAST_SPECIAL, "Invalid chat ID");
+    if chat_id <= DC_CHAT_ID_LAST_SPECIAL {
+        return Ok(None);
+    }
     let draft_msg_id = get_draft_msg_id(context, chat_id);
     if draft_msg_id == 0 {
         return Ok(None);
