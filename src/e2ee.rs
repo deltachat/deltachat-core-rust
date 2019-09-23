@@ -34,15 +34,15 @@ use crate::securejoin::handle_degrade_event;
 use crate::wrapmime;
 use crate::wrapmime::*;
 
-#[derive(Debug, Default)]
-pub struct E2eeHelper {
+#[derive(Debug)]
+pub struct EncryptHelper {
     cdata_to_free: Option<Box<dyn Any>>,
-    pub encrypted: bool,
-    pub signatures: HashSet<String>,
-    pub gossipped_addr: HashSet<String>,
+    pub prefer_encrypt: EncryptPreference,
+    pub addr: String,
+    pub public_key: Key,
 }
 
-impl E2eeHelper {
+impl EncryptHelper {
     /// Frees data referenced by "mailmime" but not freed by mailmime_free(). After calling this function,
     /// in_out_message cannot be used any longer!
     pub unsafe fn thanks(&mut self) {
@@ -51,99 +51,110 @@ impl E2eeHelper {
         }
     }
 
-    pub unsafe fn encrypt(
-        &mut self,
-        context: &Context,
-        recipients_addr: &Vec<String>,
-        force_unencrypted: bool,
-        e2ee_guaranteed: bool,
-        min_verified: libc::c_int,
-        do_gossip: bool,
-        mut in_out_message: *mut mailmime,
-    ) -> Result<bool> {
-        /* libEtPan's pgp_encrypt_mime() takes the parent as the new root. We just expect the root as being given to this function. */
-        if in_out_message.is_null() || !(*in_out_message).mm_parent.is_null() {
-            bail!("invalid inputs");
-        }
-
-        let addr = match context.get_config(Config::ConfiguredAddr) {
-            Some(addr) => addr,
-            None => {
-                bail!("addr not configured");
-            }
-        };
-
-        let public_key = match load_or_generate_self_public_key(context, &addr) {
-            Err(err) => {
-                bail!("Failed to load own public key: {}", err);
-            }
-            Ok(public_key) => public_key,
-        };
-
+    pub fn new(context: &Context) -> Result<EncryptHelper> {
         let e2ee = context.sql.get_config_int(&context, "e2ee_enabled");
-
         let prefer_encrypt = if 0 != e2ee.unwrap_or_default() {
             EncryptPreference::Mutual
         } else {
             EncryptPreference::NoPreference
         };
+        let addr = match context.get_config(Config::ConfiguredAddr) {
+            None => {
+                bail!("addr not configured!");
+            }
+            Some(addr) => addr,
+        };
 
-        let mut encryption_successfull = false;
-        let mut do_encrypt = false;
+        let public_key = match load_or_generate_self_public_key(context, &addr) {
+            Ok(res) => res,
+            Err(err) => {
+                bail!("failed to load own public key: {}", err);
+            }
+        };
+        Ok(EncryptHelper {
+            cdata_to_free: None,
+            prefer_encrypt: prefer_encrypt,
+            addr: addr,
+            public_key: public_key,
+        })
+    }
+
+    pub fn get_aheader(&self) -> Aheader {
+        let pk = self.public_key.clone();
+        let addr = self.addr.to_string();
+        Aheader::new(addr, pk, self.prefer_encrypt)
+    }
+
+    pub fn try_encrypt(
+        &mut self,
+        context: &Context,
+        recipients_addr: &Vec<String>,
+        e2ee_guaranteed: bool,
+        min_verified: libc::c_int,
+        do_gossip: bool,
+        mut in_out_message: *mut mailmime,
+        imffields_unprotected: *mut mailimf_fields,
+    ) -> Result<bool> {
+        /* libEtPan's pgp_encrypt_mime() takes the parent as the new root.
+        We just expect the root as being given to this function. */
+        if in_out_message.is_null() || unsafe { !(*in_out_message).mm_parent.is_null() } {
+            bail!("corrupted inputs");
+        }
+        if !(self.prefer_encrypt == EncryptPreference::Mutual || e2ee_guaranteed) {
+            return Ok(false);
+        }
+
         let mut keyring = Keyring::default();
-        let mut peerstates: Vec<Peerstate> = Vec::new();
+        let mut gossip_headers: Vec<String> = Vec::with_capacity(recipients_addr.len());
 
-        /*only for random-seed*/
-        if prefer_encrypt == EncryptPreference::Mutual || e2ee_guaranteed {
-            do_encrypt = true;
-            for recipient_addr in recipients_addr.iter() {
-                if *recipient_addr != addr {
-                    let peerstate = Peerstate::from_addr(context, &context.sql, &recipient_addr);
-                    if peerstate.is_some()
-                        && (peerstate.as_ref().unwrap().prefer_encrypt == EncryptPreference::Mutual
-                            || e2ee_guaranteed)
-                    {
-                        let peerstate = peerstate.unwrap();
-                        info!(context, "dc_e2ee_encrypt {} has peerstate", recipient_addr);
-                        if let Some(key) = peerstate.peek_key(min_verified as usize) {
-                            keyring.add_owned(key.clone());
-                            peerstates.push(peerstate);
-                        }
+        // determine if we can and should encrypt
+        for recipient_addr in recipients_addr.iter() {
+            if *recipient_addr == self.addr {
+                continue;
+            }
+            let peerstate = match Peerstate::from_addr(context, &context.sql, &recipient_addr) {
+                Some(peerstate) => peerstate,
+                None => {
+                    let msg = format!("peerstate for {} missing, cannot encrypt", recipient_addr);
+                    if e2ee_guaranteed {
+                        bail!("{}", msg);
                     } else {
-                        info!(
-                            context,
-                            "dc_e2ee_encrypt {} HAS NO peerstate {}",
-                            recipient_addr,
-                            peerstate.is_some()
-                        );
-                        do_encrypt = false;
-                        /* if we cannot encrypt to a single recipient, we cannot encrypt the message at all */
-                        break;
+                        info!(context, "{}", msg);
+                        return Ok(false);
                     }
                 }
+            };
+            if peerstate.prefer_encrypt != EncryptPreference::Mutual && !e2ee_guaranteed {
+                info!(context, "peerstate for {} is no-encrypt", recipient_addr);
+                return Ok(false);
+            }
+
+            if let Some(key) = peerstate.peek_key(min_verified as usize) {
+                keyring.add_owned(key.clone());
+                if do_gossip {
+                    if let Some(header) = peerstate.render_gossip_header(min_verified as usize) {
+                        gossip_headers.push(header.to_string());
+                    }
+                }
+            } else {
+                bail!(
+                    "proper enc-key for {} missing, cannot encrypt",
+                    recipient_addr
+                );
             }
         }
-        let sign_key = if do_encrypt {
-            keyring.add_ref(&public_key);
-            let key = Key::from_self_private(context, addr.clone(), &context.sql);
 
+        let sign_key = {
+            keyring.add_ref(&self.public_key);
+            let key = Key::from_self_private(context, self.addr.clone(), &context.sql);
             if key.is_none() {
-                do_encrypt = false;
+                bail!("no own private key found")
             }
             key
-        } else {
-            None
         };
-        if force_unencrypted {
-            do_encrypt = false;
-        }
-        /*just a pointer into mailmime structure, must not be freed*/
-        let imffields_unprotected = mailmime_find_mailimf_fields(in_out_message);
-        if imffields_unprotected.is_null() {
-            bail!("could not find mime fields");
-        }
-        /* encrypt message, if possible */
-        if do_encrypt {
+
+        /* encrypt message */
+        unsafe {
             mailprivacy_prepare_mime(in_out_message);
             let mut part_to_encrypt: *mut mailmime =
                 (*in_out_message).mm_data.mm_message.mm_msg_mime;
@@ -163,22 +174,13 @@ impl E2eeHelper {
                 imffields_encrypted,
                 part_to_encrypt,
             );
-            if do_gossip {
-                for peerstate in peerstates {
-                    peerstate
-                        .render_gossip_header(min_verified as usize)
-                        .map(|header| {
-                            wrapmime::new_custom_field(
-                                imffields_encrypted,
-                                "Autocrypt-Gossip",
-                                &header,
-                            )
-                        });
-                }
+
+            for header in gossip_headers {
+                wrapmime::new_custom_field(imffields_encrypted, "Autocrypt-Gossip", &header)
             }
-            /* memoryhole headers */
-            // XXX we can't use clist's into_iter()
-            // because the loop body also removes items
+
+            /* memoryhole headers: move some headers into encrypted part */
+            // XXX note we can't use clist's into_iter() because the loop body also removes items
             let mut cur: *mut clistiter = (*(*imffields_unprotected).fld_list).first;
             while !cur.is_null() {
                 let field: *mut mailimf_field = (*cur).data as *mut mailimf_field;
@@ -253,10 +255,6 @@ impl E2eeHelper {
             mmap_string_free(plain);
 
             if let Ok(ctext_v) = ctext {
-                let ctext_bytes = ctext_v.len();
-                let ctext = ctext_v.strdup();
-                self.cdata_to_free = Some(Box::new(ctext));
-
                 /* create MIME-structure that will contain the encrypted text */
                 let mut encrypted_part: *mut mailmime = new_data_part(
                     ptr::null_mut(),
@@ -275,6 +273,11 @@ impl E2eeHelper {
                     MAILMIME_MECHANISM_7BIT as i32,
                 );
                 mailmime_smart_add_part(encrypted_part, version_mime);
+
+                let ctext_bytes = ctext_v.len();
+                let ctext = ctext_v.strdup();
+                self.cdata_to_free = Some(Box::new(ctext));
+
                 let ctext_part: *mut mailmime = new_data_part(
                     ctext as *mut libc::c_void,
                     ctext_bytes,
@@ -285,12 +288,31 @@ impl E2eeHelper {
                 (*in_out_message).mm_data.mm_message.mm_msg_mime = encrypted_part;
                 (*encrypted_part).mm_parent = in_out_message;
                 mailmime_free(message_to_encrypt);
-                encryption_successfull = true;
+                Ok(true)
+            } else {
+                bail!("encryption failed")
             }
         }
-        let aheader = Aheader::new(addr, public_key, prefer_encrypt).to_string();
-        new_custom_field(imffields_unprotected, "Autocrypt", &aheader);
-        Ok(encryption_successfull)
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct E2eeHelper {
+    cdata_to_free: Option<Box<dyn Any>>,
+
+    // for decrypting only
+    pub encrypted: bool,
+    pub signatures: HashSet<String>,
+    pub gossipped_addr: HashSet<String>,
+}
+
+impl E2eeHelper {
+    /// Frees data referenced by "mailmime" but not freed by mailmime_free(). After calling this function,
+    /// in_out_message cannot be used any longer!
+    pub unsafe fn thanks(&mut self) {
+        if let Some(data) = self.cdata_to_free.take() {
+            free(Box::into_raw(data) as *mut _)
+        }
     }
 
     pub unsafe fn decrypt(&mut self, context: &Context, in_out_message: *mut mailmime) {

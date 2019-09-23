@@ -353,18 +353,6 @@ class TestOnlineAccount:
         ev = ac1._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
         assert ev[1] == msg_out.id
 
-    def test_two_accounts_send_receive(self, acfactory):
-        ac1, ac2 = acfactory.get_two_online_accounts()
-        chat = self.get_chat(ac1, ac2)
-
-        msg_out = chat.send_text("message1")
-
-        # wait for other account to receive
-        ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
-        assert ev[2] == msg_out.id
-        msg_in = ac2.get_message_by_id(msg_out.id)
-        assert msg_in.text == "message1"
-
     def test_mvbox_sentbox_threads(self, acfactory):
         ac1 = acfactory.get_online_configuring_account(mvbox=True, sentbox=True)
         ac2 = acfactory.get_online_configuring_account()
@@ -400,7 +388,7 @@ class TestOnlineAccount:
         ac2.delete_messages(messages)
         assert not chat3.get_messages()
 
-    def test_send_and_receive_message(self, acfactory, lp):
+    def test_send_and_receive_message_markseen(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
 
         lp.sec("ac1: create chat with ac2")

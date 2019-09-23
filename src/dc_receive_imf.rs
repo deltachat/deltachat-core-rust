@@ -652,6 +652,17 @@ unsafe fn add_parts(
                             .set_int(Param::Cmd, mime_parser.is_system_message as i32);
                     }
 
+                    /*
+                    info!(
+                        context,
+                        "received mime message {:?}",
+                        String::from_utf8_lossy(std::slice::from_raw_parts(
+                            imf_raw_not_terminated as *const u8,
+                            imf_raw_bytes,
+                        ))
+                    );
+                    */
+
                     stmt.execute(params![
                         rfc724_mid,
                         server_folder.as_ref(),
