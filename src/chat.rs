@@ -1332,7 +1332,7 @@ pub fn add_to_chat_contacts_table(context: &Context, chat_id: u32, contact_id: u
 
 pub fn add_contact_to_chat(context: &Context, chat_id: u32, contact_id: u32) -> bool {
     match add_contact_to_chat_ex(context, chat_id, contact_id, false) {
-        Ok(res) => res, 
+        Ok(res) => res,
         Err(err) => {
             error!(context, "failed to add contact: {}", err);
             false
@@ -1347,7 +1347,10 @@ pub(crate) fn add_contact_to_chat_ex(
     contact_id: u32,
     from_handshake: bool,
 ) -> Result<bool, Error> {
-    ensure!(chat_id > DC_CHAT_ID_LAST_SPECIAL, "can not add member to special chats");
+    ensure!(
+        chat_id > DC_CHAT_ID_LAST_SPECIAL,
+        "can not add member to special chats"
+    );
     let contact = Contact::get_by_id(context, contact_id)?;
     let mut msg = Message::default();
 
@@ -1355,74 +1358,77 @@ pub(crate) fn add_contact_to_chat_ex(
 
     /*this also makes sure, not contacts are added to special or normal chats*/
     let mut chat = Chat::load_from_db(context, chat_id)?;
-    ensure!(real_group_exists(context, chat_id), 
-            "chat_id {} is not a group where one can add members", chat_id);
-    ensure!(Contact::real_exists_by_id(context, contact_id) && contact_id != DC_CONTACT_ID_SELF,
-            "invalid contact_id {} for removal in group", contact_id);
+    ensure!(
+        real_group_exists(context, chat_id),
+        "chat_id {} is not a group where one can add members",
+        chat_id
+    );
+    ensure!(
+        Contact::real_exists_by_id(context, contact_id) && contact_id != DC_CONTACT_ID_SELF,
+        "invalid contact_id {} for removal in group",
+        contact_id
+    );
 
-            if !is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF as u32) {
-                /* we should respect this - whatever we send to the group, it gets discarded anyway! */
-                emit_event!(
+    if !is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF as u32) {
+        /* we should respect this - whatever we send to the group, it gets discarded anyway! */
+        emit_event!(
+            context,
+            Event::ErrorSelfNotInGroup("Cannot add contact to group; self not in group.".into())
+        );
+        bail!("can not add contact because our account is not part of it");
+    }
+    if from_handshake && chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 1 {
+        chat.param.remove(Param::Unpromoted);
+        chat.update_param(context).unwrap();
+    }
+    let self_addr = context
+        .sql
+        .get_config(context, "configured_addr")
+        .unwrap_or_default();
+    if contact.get_addr() == &self_addr {
+        bail!("invalid attempt to add self e-mail address to group");
+    }
+    // ourself is added using DC_CONTACT_ID_SELF, do not add it explicitly.
+    // if SELF is not in the group, members cannot be added at all.
+
+    if is_contact_in_chat(context, chat_id, contact_id) {
+        if !from_handshake {
+            return Ok(true);
+        }
+    } else {
+        // else continue and send status mail
+        if chat.typ == Chattype::VerifiedGroup {
+            if contact.is_verified(context) != VerifiedStatus::BidirectVerified {
+                error!(
                     context,
-                    Event::ErrorSelfNotInGroup(
-                        "Cannot add contact to group; self not in group.".into()
-                    )
+                    "Only bidirectional verified contacts can be added to verified groups."
                 );
-                bail!("can not add contact because our account is not part of it");
+                return Ok(false);
             }
-                if from_handshake && chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 1
-                {
-                    chat.param.remove(Param::Unpromoted);
-                    chat.update_param(context).unwrap();
-                }
-                let self_addr = context
-                    .sql
-                    .get_config(context, "configured_addr")
-                    .unwrap_or_default();
-                if contact.get_addr() == &self_addr {
-                    bail!("invalid attempt to add self e-mail address to group");
-                }
-                    // ourself is added using DC_CONTACT_ID_SELF, do not add it explicitly.
-                    // if SELF is not in the group, members cannot be added at all.
-
-                    if is_contact_in_chat(context, chat_id, contact_id) {
-                        if !from_handshake {
-                            return Ok(true);
-                        }
-                    } else {
-                        // else continue and send status mail
-                        if chat.typ == Chattype::VerifiedGroup {
-                            if contact.is_verified(context) != VerifiedStatus::BidirectVerified {
-                                error!(
-                                    context,
-                                    "Only bidirectional verified contacts can be added to verified groups."
-                                );
-                                return Ok(false);
-                            }
-                        }
-                            if !add_to_chat_contacts_table(context, chat_id, contact_id) {
-                                return Ok(false);
-                            }
-                    }
-                        if chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
-                            msg.type_0 = Viewtype::Text;
-                            msg.text = Some(context.stock_system_msg(
-                                StockMessage::MsgAddMember,
-                                contact.get_addr(),
-                                "",
-                                DC_CONTACT_ID_SELF as u32,
-                            ));
-                            msg.param.set_int(Param::Cmd, 4);
-                            msg.param.set(Param::Arg, contact.get_addr());
-                            msg.param.set_int(Param::Arg2, from_handshake.into());
-                            msg.id = send_msg(context, chat_id, &mut msg).unwrap_or_default();
-                            context.call_cb(Event::MsgsChanged {
-                                chat_id,
-                                msg_id: msg.id,
-                            });
-                        }
-                        context.call_cb(Event::MsgsChanged { chat_id, msg_id: 0 });
-                        return Ok(true);
+        }
+        if !add_to_chat_contacts_table(context, chat_id, contact_id) {
+            return Ok(false);
+        }
+    }
+    if chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
+        msg.type_0 = Viewtype::Text;
+        msg.text = Some(context.stock_system_msg(
+            StockMessage::MsgAddMember,
+            contact.get_addr(),
+            "",
+            DC_CONTACT_ID_SELF as u32,
+        ));
+        msg.param.set_int(Param::Cmd, 4);
+        msg.param.set(Param::Arg, contact.get_addr());
+        msg.param.set_int(Param::Arg2, from_handshake.into());
+        msg.id = send_msg(context, chat_id, &mut msg).unwrap_or_default();
+        context.call_cb(Event::MsgsChanged {
+            chat_id,
+            msg_id: msg.id,
+        });
+    }
+    context.call_cb(Event::MsgsChanged { chat_id, msg_id: 0 });
+    return Ok(true);
 }
 
 fn real_group_exists(context: &Context, chat_id: u32) -> bool {
