@@ -78,18 +78,16 @@ pub fn append_ct_param(
     value: &str,
 ) -> Result<(), Error> {
     unsafe {
-        let name_c = name.strdup();
-        let value_c = value.strdup();
+        let name_c = CString::new(name).unwrap();
+        let value_c = CString::new(value).unwrap();
 
         clist_append!(
             (*content).ct_parameters,
             mailmime_param_new_with_data(
-                name_c as *const u8 as *const libc::c_char as *mut libc::c_char,
-                value_c as *const u8 as *const libc::c_char as *mut libc::c_char
+                name_c.as_ptr() as *const u8 as *const libc::c_char as *mut libc::c_char,
+                value_c.as_ptr() as *const u8 as *const libc::c_char as *mut libc::c_char
             )
         );
-        libc::free(name_c as *mut libc::c_void);
-        libc::free(value_c as *mut libc::c_void);
     }
     Ok(())
 }

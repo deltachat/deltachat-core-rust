@@ -35,6 +35,10 @@ use crate::securejoin::handle_degrade_event;
 use crate::wrapmime;
 use crate::wrapmime::*;
 
+// standard mime-version header aka b"Version: 1\r\n\x00"
+static mut VERSION_CONTENT: [libc::c_char; 13] =
+    [86, 101, 114, 115, 105, 111, 110, 58, 32, 49, 13, 10, 0];
+
 #[derive(Debug)]
 pub struct EncryptHelper {
     pub prefer_encrypt: EncryptPreference,
@@ -57,16 +61,11 @@ impl EncryptHelper {
             Some(addr) => addr,
         };
 
-        let public_key = match load_or_generate_self_public_key(context, &addr) {
-            Ok(res) => res,
-            Err(err) => {
-                bail!("failed to load own public key: {}", err);
-            }
-        };
+        let public_key = load_or_generate_self_public_key(context, &addr)?;
         Ok(EncryptHelper {
-            prefer_encrypt: prefer_encrypt,
-            addr: addr,
-            public_key: public_key,
+            prefer_encrypt,
+            addr,
+            public_key,
         })
     }
 
@@ -100,10 +99,10 @@ impl EncryptHelper {
 
         // determine if we can and should encrypt
         for recipient_addr in factory.recipients_addr.iter() {
-            if *recipient_addr == self.addr {
+            if recipient_addr == &self.addr {
                 continue;
             }
-            let peerstate = match Peerstate::from_addr(context, &context.sql, &recipient_addr) {
+            let peerstate = match Peerstate::from_addr(context, &context.sql, recipient_addr) {
                 Some(peerstate) => peerstate,
                 None => {
                     let msg = format!("peerstate for {} missing, cannot encrypt", recipient_addr);
@@ -257,8 +256,6 @@ impl EncryptHelper {
                 );
                 let content: *mut mailmime_content = (*encrypted_part).mm_content_type;
                 wrapmime::append_ct_param(content, "protocol", "application/pgp-encrypted")?;
-                static mut VERSION_CONTENT: [libc::c_char; 13] =
-                    [86, 101, 114, 115, 105, 111, 110, 58, 32, 49, 13, 10, 0];
                 let version_mime: *mut mailmime = new_data_part(
                     VERSION_CONTENT.as_mut_ptr() as *mut libc::c_void,
                     strlen(VERSION_CONTENT.as_mut_ptr()),
