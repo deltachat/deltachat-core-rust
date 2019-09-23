@@ -5,6 +5,7 @@ use crate::error::Error;
 use mmime::clist::*;
 use mmime::mailimf_types::*;
 use mmime::mailimf_types_helper::*;
+use mmime::mailmime::*;
 use mmime::mailmime_disposition::*;
 use mmime::mailmime_types::*;
 use mmime::mailmime_types_helper::*;
@@ -60,7 +61,7 @@ pub fn build_body_text(text: &str) -> Result<*mut mailmime, Error> {
     let mime_fields: *mut mailmime_fields;
     let message_part: *mut mailmime;
 
-    let content = new_mailmime_content_type("text/plain");
+    let content = new_content_type("text/plain")?;
     append_ct_param(content, "charset", "utf-8")?;
 
     unsafe {
@@ -92,18 +93,15 @@ pub fn append_ct_param(
     Ok(())
 }
 
-pub fn new_mailmime_content_type(content_type: &str) -> *mut mailmime_content {
+pub fn new_content_type(content_type: &str) -> Result<*mut mailmime_content, Error> {
     let ct = CString::new(content_type).unwrap();
     let content: *mut mailmime_content;
     // mailmime_content_new_with_str only parses but does not retain/own ct
-    //
     unsafe {
         content = mailmime_content_new_with_str(ct.as_ptr());
     }
-    if content.is_null() {
-        panic!("mailimf failed to allocate");
-    }
-    content
+    ensure!(!content.is_null(), "mailimf failed to allocate");
+    Ok(content)
 }
 
 pub fn set_body_text(part: *mut mailmime, text: &str) -> Result<(), Error> {
@@ -115,4 +113,40 @@ pub fn set_body_text(part: *mut mailmime, text: &str) -> Result<(), Error> {
         }
     }
     Ok(())
+}
+
+pub fn content_type_needs_encoding(content: *const mailmime_content) -> bool {
+    unsafe {
+        if (*(*content).ct_type).tp_type == MAILMIME_TYPE_COMPOSITE_TYPE as libc::c_int {
+            let composite = (*(*content).ct_type).tp_data.tp_composite_type;
+            match (*composite).ct_type as u32 {
+                MAILMIME_COMPOSITE_TYPE_MESSAGE => as_str((*content).ct_subtype) != "rfc822",
+                MAILMIME_COMPOSITE_TYPE_MULTIPART => false,
+                _ => false,
+            }
+        } else {
+            true
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_needs_encoding() {
+        assert!(content_type_needs_encoding(
+            new_content_type("text/plain").unwrap()
+        ));
+        assert!(content_type_needs_encoding(
+            new_content_type("application/octect-stream").unwrap()
+        ));
+        assert!(!content_type_needs_encoding(
+            new_content_type("multipart/encrypted").unwrap()
+        ));
+        assert!(content_type_needs_encoding(
+            new_content_type("application/pgp-encrypted").unwrap()
+        ));
+    }
 }
