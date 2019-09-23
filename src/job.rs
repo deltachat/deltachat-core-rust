@@ -214,44 +214,44 @@ impl Job {
                 self.try_again_later(3, None);
                 return;
             }
-        } 
-            if let Ok(msg) = Message::load_from_db(context, self.foreign_id) {
-                if context
-                    .sql
-                    .get_config_int(context, "folders_configured")
-                    .unwrap_or_default()
-                    < 3
-                {
-                    inbox.configure_folders(context, 0x1i32);
-                }
-                let dest_folder = context.sql.get_config(context, "configured_mvbox_folder");
+        }
+        if let Ok(msg) = Message::load_from_db(context, self.foreign_id) {
+            if context
+                .sql
+                .get_config_int(context, "folders_configured")
+                .unwrap_or_default()
+                < 3
+            {
+                inbox.configure_folders(context, 0x1i32);
+            }
+            let dest_folder = context.sql.get_config(context, "configured_mvbox_folder");
 
-                if let Some(dest_folder) = dest_folder {
-                    let server_folder = msg.server_folder.as_ref().unwrap();
-                    let mut dest_uid = 0;
+            if let Some(dest_folder) = dest_folder {
+                let server_folder = msg.server_folder.as_ref().unwrap();
+                let mut dest_uid = 0;
 
-                    match inbox.mv(
-                        context,
-                        server_folder,
-                        msg.server_uid,
-                        &dest_folder,
-                        &mut dest_uid,
-                    ) {
-                        ImapResult::RetryLater => {
-                            self.try_again_later(3i32, None);
-                        }
-                        ImapResult::Success => {
-                            message::update_server_uid(
-                                context,
-                                &msg.rfc724_mid,
-                                &dest_folder,
-                                dest_uid,
-                            );
-                        }
-                        ImapResult::Failed | ImapResult::AlreadyDone => {}
+                match inbox.mv(
+                    context,
+                    server_folder,
+                    msg.server_uid,
+                    &dest_folder,
+                    &mut dest_uid,
+                ) {
+                    ImapResult::RetryLater => {
+                        self.try_again_later(3i32, None);
                     }
+                    ImapResult::Success => {
+                        message::update_server_uid(
+                            context,
+                            &msg.rfc724_mid,
+                            &dest_folder,
+                            dest_uid,
+                        );
+                    }
+                    ImapResult::Failed | ImapResult::AlreadyDone => {}
                 }
             }
+        }
     }
 
     #[allow(non_snake_case)]
@@ -276,17 +276,16 @@ impl Job {
                         if !inbox.is_connected() {
                             self.try_again_later(3i32, None);
                             return;
-                        } 
-                    } 
-                        let mid = msg.rfc724_mid;
-                        let server_folder = msg.server_folder.as_ref().unwrap();
-                        if 0 == inbox.delete_msg(context, &mid, server_folder, &mut msg.server_uid)
-                        {
-                            self.try_again_later(-1i32, None);
-                            return;
-                        } 
-                } 
-                    Message::delete_from_db(context, msg.id);
+                        }
+                    }
+                    let mid = msg.rfc724_mid;
+                    let server_folder = msg.server_folder.as_ref().unwrap();
+                    if 0 == inbox.delete_msg(context, &mid, server_folder, &mut msg.server_uid) {
+                        self.try_again_later(-1i32, None);
+                        return;
+                    }
+                }
+                Message::delete_from_db(context, msg.id);
             }
         }
     }
@@ -300,37 +299,37 @@ impl Job {
             if !inbox.is_connected() {
                 self.try_again_later(3i32, None);
                 return;
-            } 
-        } 
-            if let Ok(msg) = Message::load_from_db(context, self.foreign_id) {
-                let server_folder = msg.server_folder.as_ref().unwrap();
-                match inbox.set_seen(context, server_folder, msg.server_uid) {
-                    ImapResult::Failed => {}
-                    ImapResult::RetryLater => {
-                        self.try_again_later(3i32, None);
-                    }
-                    _ => {
-                        if 0 != msg.param.get_int(Param::WantsMdn).unwrap_or_default()
-                            && 0 != context
-                                .sql
-                                .get_config_int(context, "mdns_enabled")
-                                .unwrap_or_else(|| 1)
-                        {
-                            let folder = msg.server_folder.as_ref().unwrap();
+            }
+        }
+        if let Ok(msg) = Message::load_from_db(context, self.foreign_id) {
+            let server_folder = msg.server_folder.as_ref().unwrap();
+            match inbox.set_seen(context, server_folder, msg.server_uid) {
+                ImapResult::Failed => {}
+                ImapResult::RetryLater => {
+                    self.try_again_later(3i32, None);
+                }
+                _ => {
+                    if 0 != msg.param.get_int(Param::WantsMdn).unwrap_or_default()
+                        && 0 != context
+                            .sql
+                            .get_config_int(context, "mdns_enabled")
+                            .unwrap_or_else(|| 1)
+                    {
+                        let folder = msg.server_folder.as_ref().unwrap();
 
-                            match inbox.set_mdnsent(context, folder, msg.server_uid) {
-                                ImapResult::RetryLater => {
-                                    self.try_again_later(3i32, None);
-                                }
-                                ImapResult::Success => {
-                                    send_mdn(context, msg.id);
-                                }
-                                ImapResult::Failed | ImapResult::AlreadyDone => {}
+                        match inbox.set_mdnsent(context, folder, msg.server_uid) {
+                            ImapResult::RetryLater => {
+                                self.try_again_later(3i32, None);
                             }
+                            ImapResult::Success => {
+                                send_mdn(context, msg.id);
+                            }
+                            ImapResult::Failed | ImapResult::AlreadyDone => {}
                         }
                     }
                 }
             }
+        }
     }
 
     #[allow(non_snake_case)]
@@ -348,30 +347,30 @@ impl Job {
             if !inbox.is_connected() {
                 self.try_again_later(3, None);
                 return;
-            } 
+            }
         }
-            if inbox.set_seen(context, &folder, uid) == ImapResult::Failed {
-                self.try_again_later(3i32, None);
+        if inbox.set_seen(context, &folder, uid) == ImapResult::Failed {
+            self.try_again_later(3i32, None);
+        }
+        if 0 != self.param.get_int(Param::AlsoMove).unwrap_or_default() {
+            if context
+                .sql
+                .get_config_int(context, "folders_configured")
+                .unwrap_or_default()
+                < 3
+            {
+                inbox.configure_folders(context, 0x1i32);
             }
-            if 0 != self.param.get_int(Param::AlsoMove).unwrap_or_default() {
-                if context
-                    .sql
-                    .get_config_int(context, "folders_configured")
-                    .unwrap_or_default()
-                    < 3
+            let dest_folder = context.sql.get_config(context, "configured_mvbox_folder");
+            if let Some(dest_folder) = dest_folder {
+                let mut dest_uid = 0;
+                if ImapResult::RetryLater
+                    == inbox.mv(context, folder, uid, dest_folder, &mut dest_uid)
                 {
-                    inbox.configure_folders(context, 0x1i32);
-                }
-                let dest_folder = context.sql.get_config(context, "configured_mvbox_folder");
-                if let Some(dest_folder) = dest_folder {
-                    let mut dest_uid = 0;
-                    if ImapResult::RetryLater
-                        == inbox.mv(context, folder, uid, dest_folder, &mut dest_uid)
-                    {
-                        self.try_again_later(3, None);
-                    }
+                    self.try_again_later(3, None);
                 }
             }
+        }
     }
 }
 
