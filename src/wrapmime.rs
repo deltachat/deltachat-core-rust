@@ -56,7 +56,6 @@ pub fn new_custom_field(fields: *mut mailimf_fields, name: &str, value: &str) {
     }
 }
 
-
 pub fn build_body_text(text: &str) -> Result<*mut mailmime, Error> {
     let mime_fields: *mut mailmime_fields;
     let message_part: *mut mailmime;
