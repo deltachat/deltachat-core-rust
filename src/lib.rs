@@ -58,13 +58,13 @@ mod stock;
 pub mod dc_array;
 mod dc_dehtml;
 pub mod dc_imex;
-mod dc_mimefactory;
 pub mod dc_mimeparser;
 pub mod dc_receive_imf;
 mod dc_simplify;
 mod dc_strencode;
 pub mod dc_tools;
 mod login_param;
+mod mimefactory;
 pub mod securejoin;
 mod token;
 #[macro_use]
