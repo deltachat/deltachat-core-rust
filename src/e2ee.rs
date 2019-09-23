@@ -61,11 +61,7 @@ impl E2eeHelper {
         do_gossip: bool,
         mut in_out_message: *mut mailmime,
     ) -> Result<bool> {
-        let mut col: libc::c_int = 0i32;
-        let mut do_encrypt = false;
-        let mut keyring = Keyring::default();
-        let mut peerstates: Vec<Peerstate> = Vec::new();
-
+        /* libEtPan's pgp_encrypt_mime() takes the parent as the new root. We just expect the root as being given to this function. */
         if in_out_message.is_null() || !(*in_out_message).mm_parent.is_null() {
             bail!("invalid inputs");
         }
@@ -80,228 +76,221 @@ impl E2eeHelper {
         let public_key = match load_or_generate_self_public_key(context, &addr) {
             Err(err) => {
                 bail!("Failed to load own public key: {}", err);
-            } 
-            Ok(public_key) => public_key
+            }
+            Ok(public_key) => public_key,
         };
 
-        /* libEtPan's pgp_encrypt_mime() takes the parent as the new root. We just expect the root as being given to this function. */
-        let prefer_encrypt = if 0
-            != context
-                .sql
-                .get_config_int(context, "e2ee_enabled")
-                .unwrap_or_default()
-        {
+        let e2ee = context.sql.get_config_int(&context, "e2ee_enabled");
+
+        let prefer_encrypt = if 0 != e2ee.unwrap_or_default() {
             EncryptPreference::Mutual
         } else {
             EncryptPreference::NoPreference
         };
 
+        let mut encryption_successfull = false;
+        let mut do_encrypt = false;
+        let mut keyring = Keyring::default();
+        let mut peerstates: Vec<Peerstate> = Vec::new();
 
-        let plain: *mut MMAPString = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
-            /*only for random-seed*/
-            if prefer_encrypt == EncryptPreference::Mutual || e2ee_guaranteed {
-                do_encrypt = true;
-                for recipient_addr in recipients_addr.iter() {
-                    if *recipient_addr != addr {
-                        let peerstate =
-                            Peerstate::from_addr(context, &context.sql, &recipient_addr);
-                        if peerstate.is_some()
-                            && (peerstate.as_ref().unwrap().prefer_encrypt
-                                == EncryptPreference::Mutual
-                                || e2ee_guaranteed)
-                        {
-                            let peerstate = peerstate.unwrap();
-                            info!(context, "dc_e2ee_encrypt {} has peerstate", recipient_addr);
-                            if let Some(key) = peerstate.peek_key(min_verified as usize) {
-                                keyring.add_owned(key.clone());
-                                peerstates.push(peerstate);
-                            }
-                        } else {
-                            info!(
-                                context,
-                                "dc_e2ee_encrypt {} HAS NO peerstate {}",
-                                recipient_addr,
-                                peerstate.is_some()
-                            );
-                            do_encrypt = false;
-                            /* if we cannot encrypt to a single recipient, we cannot encrypt the message at all */
-                            break;
+        /*only for random-seed*/
+        if prefer_encrypt == EncryptPreference::Mutual || e2ee_guaranteed {
+            do_encrypt = true;
+            for recipient_addr in recipients_addr.iter() {
+                if *recipient_addr != addr {
+                    let peerstate = Peerstate::from_addr(context, &context.sql, &recipient_addr);
+                    if peerstate.is_some()
+                        && (peerstate.as_ref().unwrap().prefer_encrypt == EncryptPreference::Mutual
+                            || e2ee_guaranteed)
+                    {
+                        let peerstate = peerstate.unwrap();
+                        info!(context, "dc_e2ee_encrypt {} has peerstate", recipient_addr);
+                        if let Some(key) = peerstate.peek_key(min_verified as usize) {
+                            keyring.add_owned(key.clone());
+                            peerstates.push(peerstate);
                         }
+                    } else {
+                        info!(
+                            context,
+                            "dc_e2ee_encrypt {} HAS NO peerstate {}",
+                            recipient_addr,
+                            peerstate.is_some()
+                        );
+                        do_encrypt = false;
+                        /* if we cannot encrypt to a single recipient, we cannot encrypt the message at all */
+                        break;
                     }
                 }
             }
-            let sign_key = if do_encrypt {
-                keyring.add_ref(&public_key);
-                let key = Key::from_self_private(context, addr.clone(), &context.sql);
+        }
+        let sign_key = if do_encrypt {
+            keyring.add_ref(&public_key);
+            let key = Key::from_self_private(context, addr.clone(), &context.sql);
 
-                if key.is_none() {
-                    do_encrypt = false;
-                }
-                key
-            } else {
-                None
-            };
-            if force_unencrypted {
+            if key.is_none() {
                 do_encrypt = false;
             }
-            /*just a pointer into mailmime structure, must not be freed*/
-            let imffields_unprotected = mailmime_find_mailimf_fields(in_out_message);
-            if !imffields_unprotected.is_null() {
-                /* encrypt message, if possible */
-                if do_encrypt {
-                    mailprivacy_prepare_mime(in_out_message);
-                    let mut part_to_encrypt: *mut mailmime =
-                        (*in_out_message).mm_data.mm_message.mm_msg_mime;
-                    (*part_to_encrypt).mm_parent = ptr::null_mut();
-                    let imffields_encrypted: *mut mailimf_fields = mailimf_fields_new_empty();
-                    /* mailmime_new_message_data() calls mailmime_fields_new_with_version() which would add the unwanted MIME-Version:-header */
-                    let message_to_encrypt: *mut mailmime = mailmime_new(
-                        MAILMIME_MESSAGE as libc::c_int,
-                        ptr::null(),
-                        0 as libc::size_t,
-                        mailmime_fields_new_empty(),
-                        mailmime_get_content_message(),
-                        ptr::null_mut(),
-                        ptr::null_mut(),
-                        ptr::null_mut(),
-                        ptr::null_mut(),
-                        imffields_encrypted,
-                        part_to_encrypt,
-                    );
-                    if do_gossip {
-                        for peerstate in peerstates {
-                            peerstate.render_gossip_header(min_verified as usize).map(|header| {
-                                wrapmime::new_custom_field(
-                                    imffields_encrypted,
-                                    "Autocrypt-Gossip",
-                                    &header
-                                )
-                            });
-                        }
-                    }
-                    /* memoryhole headers */
-                    // XXX we can't use clist's into_iter()
-                    // because the loop body also removes items
-                    let mut cur: *mut clistiter = (*(*imffields_unprotected).fld_list).first;
-                    while !cur.is_null() {
-                        let field: *mut mailimf_field = (*cur).data as *mut mailimf_field;
-                        let mut move_to_encrypted = false;
-                        if !field.is_null() {
-                            if (*field).fld_type == MAILIMF_FIELD_SUBJECT as libc::c_int {
-                                move_to_encrypted = true;
-                            } else if (*field).fld_type
-                                == MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int
+            key
+        } else {
+            None
+        };
+        if force_unencrypted {
+            do_encrypt = false;
+        }
+        /*just a pointer into mailmime structure, must not be freed*/
+        let imffields_unprotected = mailmime_find_mailimf_fields(in_out_message);
+        if imffields_unprotected.is_null() {
+            bail!("could not find mime fields");
+        }
+        /* encrypt message, if possible */
+        if do_encrypt {
+            mailprivacy_prepare_mime(in_out_message);
+            let mut part_to_encrypt: *mut mailmime =
+                (*in_out_message).mm_data.mm_message.mm_msg_mime;
+            (*part_to_encrypt).mm_parent = ptr::null_mut();
+            let imffields_encrypted: *mut mailimf_fields = mailimf_fields_new_empty();
+            /* mailmime_new_message_data() calls mailmime_fields_new_with_version() which would add the unwanted MIME-Version:-header */
+            let message_to_encrypt: *mut mailmime = mailmime_new(
+                MAILMIME_MESSAGE as libc::c_int,
+                ptr::null(),
+                0 as libc::size_t,
+                mailmime_fields_new_empty(),
+                mailmime_get_content_message(),
+                ptr::null_mut(),
+                ptr::null_mut(),
+                ptr::null_mut(),
+                ptr::null_mut(),
+                imffields_encrypted,
+                part_to_encrypt,
+            );
+            if do_gossip {
+                for peerstate in peerstates {
+                    peerstate
+                        .render_gossip_header(min_verified as usize)
+                        .map(|header| {
+                            wrapmime::new_custom_field(
+                                imffields_encrypted,
+                                "Autocrypt-Gossip",
+                                &header,
+                            )
+                        });
+                }
+            }
+            /* memoryhole headers */
+            // XXX we can't use clist's into_iter()
+            // because the loop body also removes items
+            let mut cur: *mut clistiter = (*(*imffields_unprotected).fld_list).first;
+            while !cur.is_null() {
+                let field: *mut mailimf_field = (*cur).data as *mut mailimf_field;
+                let mut move_to_encrypted = false;
+                if !field.is_null() {
+                    if (*field).fld_type == MAILIMF_FIELD_SUBJECT as libc::c_int {
+                        move_to_encrypted = true;
+                    } else if (*field).fld_type == MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int {
+                        let opt_field = (*field).fld_data.fld_optional_field;
+                        if !opt_field.is_null() && !(*opt_field).fld_name.is_null() {
+                            let fld_name = to_string_lossy((*opt_field).fld_name);
+                            if fld_name.starts_with("Secure-Join") || fld_name.starts_with("Chat-")
                             {
-                                let opt_field = (*field).fld_data.fld_optional_field;
-                                if !opt_field.is_null() && !(*opt_field).fld_name.is_null() {
-                                    let fld_name = to_string_lossy((*opt_field).fld_name);
-                                    if fld_name.starts_with("Secure-Join")
-                                        || fld_name.starts_with("Chat-")
-                                    {
-                                        move_to_encrypted = true;
-                                    }
-                                }
+                                move_to_encrypted = true;
                             }
                         }
-                        if move_to_encrypted {
-                            mailimf_fields_add(imffields_encrypted, field);
-                            cur = clist_delete((*imffields_unprotected).fld_list, cur);
-                        } else {
-                            cur = (*cur).next;
-                        }
-                    }
-                    let subject: *mut mailimf_subject = mailimf_subject_new("...".strdup());
-                    mailimf_fields_add(
-                        imffields_unprotected,
-                        mailimf_field_new(
-                            MAILIMF_FIELD_SUBJECT as libc::c_int,
-                            ptr::null_mut(),
-                            ptr::null_mut(),
-                            ptr::null_mut(),
-                            ptr::null_mut(),
-                            ptr::null_mut(),
-                            ptr::null_mut(),
-                            ptr::null_mut(),
-                            ptr::null_mut(),
-                            ptr::null_mut(),
-                            ptr::null_mut(),
-                            ptr::null_mut(),
-                            ptr::null_mut(),
-                            ptr::null_mut(),
-                            ptr::null_mut(),
-                            ptr::null_mut(),
-                            ptr::null_mut(),
-                            ptr::null_mut(),
-                            ptr::null_mut(),
-                            subject,
-                            ptr::null_mut(),
-                            ptr::null_mut(),
-                            ptr::null_mut(),
-                        ),
-                    );
-                    wrapmime::append_ct_param(
-                        (*part_to_encrypt).mm_content_type,
-                        "protected-headers",
-                        "v1",
-                    )?;
-                    mailmime_write_mem(plain, &mut col, message_to_encrypt);
-                    if (*plain).str_0.is_null() || (*plain).len <= 0 {
-                        bail!("could not write/allocate");
-                    }
-                    if let Ok(ctext_v) = dc_pgp_pk_encrypt(
-                        std::slice::from_raw_parts((*plain).str_0 as *const u8, (*plain).len),
-                        &keyring,
-                        sign_key.as_ref(),
-                    ) {
-                        let ctext_bytes = ctext_v.len();
-                        let ctext = ctext_v.strdup();
-                        self.cdata_to_free = Some(Box::new(ctext));
-
-                        /* create MIME-structure that will contain the encrypted text */
-                        let mut encrypted_part: *mut mailmime = new_data_part(
-                            ptr::null_mut(),
-                            0 as libc::size_t,
-                            "multipart/encrypted",
-                            -1,
-                        );
-                        let content: *mut mailmime_content = (*encrypted_part).mm_content_type;
-                        wrapmime::append_ct_param(
-                            content,
-                            "protocol",
-                            "application/pgp-encrypted",
-                        )?;
-                        static mut VERSION_CONTENT: [libc::c_char; 13] =
-                            [86, 101, 114, 115, 105, 111, 110, 58, 32, 49, 13, 10, 0];
-                        let version_mime: *mut mailmime = new_data_part(
-                            VERSION_CONTENT.as_mut_ptr() as *mut libc::c_void,
-                            strlen(VERSION_CONTENT.as_mut_ptr()),
-                            "application/pgp-encrypted",
-                            MAILMIME_MECHANISM_7BIT as i32,
-                        );
-                        mailmime_smart_add_part(encrypted_part, version_mime);
-                        let ctext_part: *mut mailmime = new_data_part(
-                            ctext as *mut libc::c_void,
-                            ctext_bytes,
-                            "application/octet-stream",
-                            MAILMIME_MECHANISM_7BIT as i32,
-                        );
-                        mailmime_smart_add_part(encrypted_part, ctext_part);
-                        (*in_out_message).mm_data.mm_message.mm_msg_mime = encrypted_part;
-                        (*encrypted_part).mm_parent = in_out_message;
-                        mailmime_free(message_to_encrypt);
-                        if !plain.is_null() {
-                            mmap_string_free(plain);
-                        }
-                        return Ok(true);
                     }
                 }
-                let aheader = Aheader::new(addr, public_key, prefer_encrypt).to_string();
-                new_custom_field(imffields_unprotected, "Autocrypt", &aheader);
+                if move_to_encrypted {
+                    mailimf_fields_add(imffields_encrypted, field);
+                    cur = clist_delete((*imffields_unprotected).fld_list, cur);
+                } else {
+                    cur = (*cur).next;
+                }
             }
-        if !plain.is_null() {
+            let subject: *mut mailimf_subject = mailimf_subject_new("...".strdup());
+            mailimf_fields_add(
+                imffields_unprotected,
+                mailimf_field_new(
+                    MAILIMF_FIELD_SUBJECT as libc::c_int,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    subject,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                ),
+            );
+            wrapmime::append_ct_param(
+                (*part_to_encrypt).mm_content_type,
+                "protected-headers",
+                "v1",
+            )?;
+            let plain: *mut MMAPString =
+                mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
+            let mut col: libc::c_int = 0i32;
+            mailmime_write_mem(plain, &mut col, message_to_encrypt);
+            if (*plain).str_0.is_null() || (*plain).len <= 0 {
+                bail!("could not write/allocate");
+            }
+            let ctext = dc_pgp_pk_encrypt(
+                std::slice::from_raw_parts((*plain).str_0 as *const u8, (*plain).len),
+                &keyring,
+                sign_key.as_ref(),
+            );
             mmap_string_free(plain);
+
+            if let Ok(ctext_v) = ctext {
+                let ctext_bytes = ctext_v.len();
+                let ctext = ctext_v.strdup();
+                self.cdata_to_free = Some(Box::new(ctext));
+
+                /* create MIME-structure that will contain the encrypted text */
+                let mut encrypted_part: *mut mailmime = new_data_part(
+                    ptr::null_mut(),
+                    0 as libc::size_t,
+                    "multipart/encrypted",
+                    -1,
+                );
+                let content: *mut mailmime_content = (*encrypted_part).mm_content_type;
+                wrapmime::append_ct_param(content, "protocol", "application/pgp-encrypted")?;
+                static mut VERSION_CONTENT: [libc::c_char; 13] =
+                    [86, 101, 114, 115, 105, 111, 110, 58, 32, 49, 13, 10, 0];
+                let version_mime: *mut mailmime = new_data_part(
+                    VERSION_CONTENT.as_mut_ptr() as *mut libc::c_void,
+                    strlen(VERSION_CONTENT.as_mut_ptr()),
+                    "application/pgp-encrypted",
+                    MAILMIME_MECHANISM_7BIT as i32,
+                );
+                mailmime_smart_add_part(encrypted_part, version_mime);
+                let ctext_part: *mut mailmime = new_data_part(
+                    ctext as *mut libc::c_void,
+                    ctext_bytes,
+                    "application/octet-stream",
+                    MAILMIME_MECHANISM_7BIT as i32,
+                );
+                mailmime_smart_add_part(encrypted_part, ctext_part);
+                (*in_out_message).mm_data.mm_message.mm_msg_mime = encrypted_part;
+                (*encrypted_part).mm_parent = in_out_message;
+                mailmime_free(message_to_encrypt);
+                encryption_successfull = true;
+            }
         }
-        Ok(false)
+        let aheader = Aheader::new(addr, public_key, prefer_encrypt).to_string();
+        new_custom_field(imffields_unprotected, "Autocrypt", &aheader);
+        Ok(encryption_successfull)
     }
 
     pub unsafe fn decrypt(&mut self, context: &Context, in_out_message: *mut mailmime) {
