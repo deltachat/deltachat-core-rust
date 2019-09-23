@@ -85,6 +85,25 @@ impl<'a> MimeFactory<'a> {
             context,
         }
     }
+
+    pub fn finalize_mime_message(
+        &mut self,
+        message: *mut mailmime,
+        encrypted: bool,
+        gossiped: bool,
+    ) -> Result<(), Error> {
+        unsafe {
+            assert!(self.out.is_null()); // guard against double-calls
+            self.out = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
+            let mut col: libc::c_int = 0;
+            if 0 != mailmime_write_mem(self.out, &mut col, message) {
+                bail!("could not write memory-mime-message")
+            }
+        }
+        self.out_encrypted = encrypted;
+        self.out_gossiped = encrypted && gossiped;
+        Ok(())
+    }
 }
 
 impl<'a> Drop for MimeFactory<'a> {
@@ -242,7 +261,7 @@ pub fn dc_mimefactory_load_mdn<'a>(
 
 pub unsafe fn dc_mimefactory_render(
     context: &Context,
-    factory: &mut MimeFactory,
+    mut factory: &mut MimeFactory,
 ) -> Result<(), Error> {
     if factory.loaded == Loaded::Nothing || !factory.out.is_null() {
         bail!("Invalid use of mimefactory-object.");
@@ -729,28 +748,20 @@ pub unsafe fn dc_mimefactory_render(
         let aheader = encrypt_helper.get_aheader().to_string();
         new_custom_field(imffields_unprotected, "Autocrypt", &aheader);
     }
+    let mut finalized = false;
     if force_plaintext == 0 {
-        let was_encrypted = encrypt_helper.try_encrypt(
-            factory.context,
-            &factory.recipients_addr,
+        finalized = encrypt_helper.try_encrypt(
+            &mut factory,
             e2ee_guaranteed,
             min_verified,
             do_gossip,
             message,
             imffields_unprotected,
         )?;
-        if was_encrypted {
-            info!(context, "message was encrypted");
-            factory.out_encrypted = true;
-            if do_gossip {
-                factory.out_gossiped = true;
-            }
-        }
     }
-    factory.out = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
-    let mut col: libc::c_int = 0;
-    mailmime_write_mem(factory.out, &mut col, message);
-    encrypt_helper.thanks();
+    if !finalized {
+        factory.finalize_mime_message(message, false, false)?;
+    }
     cleanup(message);
     Ok(())
 }
