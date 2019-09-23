@@ -2,7 +2,6 @@ use std::path::Path;
 use std::ptr;
 
 use chrono::TimeZone;
-use libc::free;
 use mmime::clist::*;
 use mmime::mailimf_types::*;
 use mmime::mailimf_types_helper::*;
@@ -535,7 +534,7 @@ pub unsafe fn dc_mimefactory_render(
                 meta.type_0 = Viewtype::Image;
                 meta.param.set(Param::File, grpimage);
 
-                let res = build_body_file(context, &meta, "group-image");
+                let res = build_body_file(context, &meta, "group-image")?;
                 meta_part = res.0;
                 let filename_as_sent = res.1;
                 if !meta_part.is_null() {
@@ -610,10 +609,8 @@ pub unsafe fn dc_mimefactory_render(
                         24 * 1024 * 1024 / 4 * 3 / 1000 / 1000,
                     );
                 } else {
-                    let (file_part, _) = build_body_file(context, &factory.msg, "");
-                    if !file_part.is_null() {
-                        mailmime_smart_add_part(message, file_part);
-                    }
+                    let (file_part, _) = build_body_file(context, &factory.msg, "")?;
+                    mailmime_smart_add_part(message, file_part);
                 }
             }
             if !meta_part.is_null() {
@@ -699,8 +696,7 @@ pub unsafe fn dc_mimefactory_render(
                 factory.msg.rfc724_mid
             );
 
-            let content_type_0 =
-                wrapmime::new_mailmime_content_type("message/disposition-notification");
+            let content_type_0 = wrapmime::new_content_type("message/disposition-notification")?;
             let mime_fields_0: *mut mailmime_fields =
                 mailmime_fields_new_encoding(MAILMIME_MECHANISM_8BIT as libc::c_int);
             let mach_mime_part: *mut mailmime = mailmime_new_empty(content_type_0, mime_fields_0);
@@ -816,10 +812,14 @@ fn get_subject(
 }
 
 #[allow(non_snake_case)]
-fn build_body_file(context: &Context, msg: &Message, base_name: &str) -> (*mut mailmime, String) {
+fn build_body_file(
+    context: &Context,
+    msg: &Message,
+    base_name: &str,
+) -> Result<(*mut mailmime, String), Error> {
     let path_filename = match msg.param.get(Param::File) {
         None => {
-            return (ptr::null_mut(), "".to_string());
+            bail!("msg has no filename");
         }
         Some(path) => path,
     };
@@ -913,23 +913,16 @@ fn build_body_file(context: &Context, msg: &Message, base_name: &str) -> (*mut m
                 }
             }
         }
-        let content = wrapmime::new_mailmime_content_type(&mimetype);
-        let filename_encoded = dc_encode_header_words(&filename_to_send).strdup();
-        clist_insert_after(
-            (*content).ct_parameters,
-            (*(*content).ct_parameters).last,
-            mailmime_param_new_with_data(
-                b"name\x00" as *const u8 as *const libc::c_char as *mut libc::c_char,
-                filename_encoded,
-            ) as *mut libc::c_void,
-        );
-        free(filename_encoded as *mut libc::c_void);
+        let content = wrapmime::new_content_type(&mimetype)?;
+        let filename_encoded = dc_encode_header_words(&filename_to_send);
+        wrapmime::append_ct_param(content, "name", &filename_encoded)?;
+
         let mime_sub = mailmime_new_empty(content, mime_fields);
         let abs_path = dc_get_abs_path(context, path_filename)
             .to_c_string()
             .unwrap();
         mailmime_set_body_file(mime_sub, dc_strdup(abs_path.as_ptr()));
-        (mime_sub, filename_to_send)
+        Ok((mime_sub, filename_to_send))
     }
 }
 

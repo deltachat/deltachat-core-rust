@@ -252,16 +252,16 @@ impl EncryptHelper {
                     ptr::null_mut(),
                     0 as libc::size_t,
                     "multipart/encrypted",
-                    -1,
-                );
+                    MAILMIME_MECHANISM_BASE64,
+                )?;
                 let content: *mut mailmime_content = (*encrypted_part).mm_content_type;
                 wrapmime::append_ct_param(content, "protocol", "application/pgp-encrypted")?;
                 let version_mime: *mut mailmime = new_data_part(
                     VERSION_CONTENT.as_mut_ptr() as *mut libc::c_void,
                     strlen(VERSION_CONTENT.as_mut_ptr()),
                     "application/pgp-encrypted",
-                    MAILMIME_MECHANISM_7BIT as i32,
-                );
+                    MAILMIME_MECHANISM_7BIT,
+                )?;
                 mailmime_smart_add_part(encrypted_part, version_mime);
 
                 // we assume that ctext_v is not dropped until the end
@@ -270,8 +270,8 @@ impl EncryptHelper {
                     ctext_v.as_ptr() as *mut libc::c_void,
                     ctext_v.len(),
                     "application/octet-stream",
-                    MAILMIME_MECHANISM_7BIT as i32,
-                );
+                    MAILMIME_MECHANISM_7BIT,
+                )?;
                 mailmime_smart_add_part(encrypted_part, ctext_part);
                 (*in_out_message).mm_data.mm_message.mm_msg_mime = encrypted_part;
                 (*encrypted_part).mm_parent = in_out_message;
@@ -421,95 +421,38 @@ impl E2eeHelper {
     }
 }
 
-unsafe fn new_data_part(
+fn new_data_part(
     data: *mut libc::c_void,
     data_bytes: libc::size_t,
-    default_content_type: &str,
-    default_encoding: libc::c_int,
-) -> *mut mailmime {
-    let mut ok_to_continue = true;
-    let mut encoding: *mut mailmime_mechanism = ptr::null_mut();
-    let content: *mut mailmime_content;
-    let mime: *mut mailmime;
-    let mime_fields: *mut mailmime_fields;
-    let encoding_type: libc::c_int;
-    let mut do_encoding: libc::c_int;
+    content_type: &str,
+    default_encoding: u32,
+) -> Result<*mut mailmime> {
+    let content = new_content_type(&content_type)?;
+    unsafe {
+        let mut encoding: *mut mailmime_mechanism = ptr::null_mut();
+        if wrapmime::content_type_needs_encoding(content) {
+            encoding = mailmime_mechanism_new(default_encoding as i32, ptr::null_mut());
+            ensure!(!encoding.is_null(), "failed to create encoding");
+        }
+        let mime_fields = mailmime_fields_new_with_data(
+            encoding,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+        );
+        ensure!(!mime_fields.is_null(), "internal mime error");
 
-    let content_type = if default_content_type.is_empty() {
-        "application/octet-stream"
-    } else {
-        default_content_type
-    };
-    content = new_mailmime_content_type(&content_type);
-    if content.is_null() {
-        ok_to_continue = false;
-    } else {
-        do_encoding = 1i32;
-        if (*(*content).ct_type).tp_type == MAILMIME_TYPE_COMPOSITE_TYPE as libc::c_int {
-            let composite: *mut mailmime_composite_type;
-            composite = (*(*content).ct_type).tp_data.tp_composite_type;
-            match (*composite).ct_type {
-                1 => {
-                    if strcasecmp(
-                        (*content).ct_subtype,
-                        b"rfc822\x00" as *const u8 as *const libc::c_char,
-                    ) == 0i32
-                    {
-                        do_encoding = 0i32
-                    }
-                }
-                2 => do_encoding = 0i32,
-                _ => {}
-            }
-        }
-        if 0 != do_encoding {
-            if default_encoding == -1i32 {
-                encoding_type = MAILMIME_MECHANISM_BASE64 as libc::c_int
-            } else {
-                encoding_type = default_encoding
-            }
-            encoding = mailmime_mechanism_new(encoding_type, ptr::null_mut());
-            if encoding.is_null() {
-                ok_to_continue = false;
-            }
-        }
-        if ok_to_continue {
-            mime_fields = mailmime_fields_new_with_data(
-                encoding,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-            );
-            if mime_fields.is_null() {
-                ok_to_continue = false;
-            } else {
-                mime = mailmime_new_empty(content, mime_fields);
-                if mime.is_null() {
-                    mailmime_fields_free(mime_fields);
-                    mailmime_content_free(content);
-                } else {
-                    if !data.is_null()
-                        && data_bytes > 0
-                        && (*mime).mm_type == MAILMIME_SINGLE as libc::c_int
-                    {
-                        mailmime_set_body_text(mime, data as *mut libc::c_char, data_bytes);
-                    }
-                    return mime;
-                }
-            }
-        }
-    }
+        let mime = mailmime_new_empty(content, mime_fields);
+        ensure!(!mime.is_null(), "internal mime error");
 
-    if ok_to_continue == false {
-        if !encoding.is_null() {
-            mailmime_mechanism_free(encoding);
+        if (*mime).mm_type == MAILMIME_SINGLE as libc::c_int {
+            if !data.is_null() && data_bytes > 0 {
+                mailmime_set_body_text(mime, data as *mut libc::c_char, data_bytes);
+            }
         }
-        if !content.is_null() {
-            mailmime_content_free(content);
-        }
+        return Ok(mime);
     }
-    ptr::null_mut()
 }
 
 /// Load public key from database or generate a new one.
