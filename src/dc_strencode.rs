@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use phf::phf_set;
 use std::borrow::Cow;
 use std::ffi::CString;
@@ -10,15 +11,6 @@ use mmime::other::*;
 use percent_encoding::{percent_decode, utf8_percent_encode, AsciiSet, CONTROLS};
 
 use crate::dc_tools::*;
-
-/// Append valid utf-8 string {buf} with size {len} to Rust string {s}.
-///
-/// {buf} is not expected to be null-terminated.
-unsafe fn append_buf(s: &mut String, buf: *const libc::c_char, len: usize) {
-    let slice = std::slice::from_raw_parts(buf.cast(), len);
-    let string = std::str::from_utf8(slice).expect("append_buf: invalid utf8");
-    s.push_str(string);
-}
 
 /**
  * Encode non-ascii-strings as `=?UTF-8?Q?Bj=c3=b6rn_Petersen?=`.
@@ -34,133 +26,46 @@ unsafe fn append_buf(s: &mut String, buf: *const libc::c_char, len: usize) {
  * @return Returns the encoded string which must be free()'d when no longed needed.
  *     On errors, NULL is returned.
  */
-pub unsafe fn dc_encode_header_words(to_encode_r: impl AsRef<str>) -> String {
-    let to_encode =
-        CString::new(to_encode_r.as_ref().as_bytes()).expect("invalid cstring to_encode");
-
-    let mut ok_to_continue = true;
-    let mut ret_str: *mut libc::c_char = ptr::null_mut();
-    let mut cur: *const libc::c_char = to_encode.as_ptr();
-    let mut result = "".into();
-
-    loop {
-        if !ok_to_continue {
-            break;
-        } else {
-            if *cur as libc::c_int != '\u{0}' as i32 {
-                let begin: *const libc::c_char;
-                let mut end: *const libc::c_char;
-                let mut do_quote: bool;
-                let mut quote_words: libc::c_int;
-                begin = cur;
-                end = begin;
-                quote_words = 0i32;
-                do_quote = true;
-                while *cur as libc::c_int != '\u{0}' as i32 {
-                    get_word(cur, &mut cur, &mut do_quote);
-                    if !do_quote {
-                        break;
-                    }
-                    quote_words = 1i32;
-                    end = cur;
-                    if *cur as libc::c_int != '\u{0}' as i32 {
-                        cur = cur.offset(1isize)
-                    }
-                }
-                if 0 != quote_words {
-                    quote_word(&mut result, begin, end.wrapping_offset_from(begin) as _);
-                    if *end as libc::c_int == ' ' as i32 || *end as libc::c_int == '\t' as i32 {
-                        result.push(*end as u8 as char);
-                        end = end.offset(1isize)
-                    }
-                    if *end as libc::c_int != '\u{0}' as i32 {
-                        append_buf(&mut result, end, cur.wrapping_offset_from(end) as _);
-                    }
-                } else {
-                    append_buf(&mut result, begin, cur.wrapping_offset_from(begin) as _);
-                }
-                if !(*cur as libc::c_int == ' ' as i32 || *cur as libc::c_int == '\t' as i32) {
-                    continue;
-                }
-                result.push(*cur as u8 as char);
-                cur = cur.offset(1isize);
-            } else {
-                ret_str = result.strdup();
-                ok_to_continue = false;
-            }
-        }
+pub fn dc_encode_header_words(input: impl AsRef<str>) -> String {
+    let mut result = String::default();
+    for (_, group) in &input.as_ref().chars().group_by(|c| c.is_whitespace()) {
+        let word: String = group.collect();
+        result.push_str(&quote_word(&word.as_bytes()));
     }
 
-    let s = to_string(ret_str);
-    free(ret_str.cast());
-    s
+    result
 }
 
-unsafe fn quote_word(dest: &mut String, word: *const libc::c_char, size: usize) {
-    let slice = std::slice::from_raw_parts(word.cast(), size);
-    dest.push_str(&quote_word_safe(slice))
-}
-
-fn quote_word_safe(word: &[u8]) -> String {
+fn quote_word(word: &[u8]) -> String {
     static ENCODED: phf::Set<u8> = phf_set! {
         b',' , b':' , b'!' , b'"' , b'#' , b'$' , b'@' , b'[' , b'\\' , b']',
         b'^' , b'`' , b'{' , b'|', b'}' , b'~' , b'=' , b'?' , b'_' ,
     };
-    let mut result: String = "=?utf-8?Q?".into();
+    let mut result = String::default();
+    let mut encoded = false;
+
     for byte in word {
         let byte = *byte;
         if byte >= 128 || ENCODED.contains(&byte) {
-            result.push_str(&format!("={:2X}", byte))
+            result.push_str(&format!("={:2X}", byte));
+            encoded = true;
         } else if byte == b' ' {
             result.push('_');
+            encoded = true;
         } else {
             result.push(byte as _);
         }
     }
-    result.push_str("?=");
-    result
-}
 
-unsafe fn get_word(
-    begin: *const libc::c_char,
-    pend: *mut *const libc::c_char,
-    pto_be_quoted: *mut bool,
-) {
-    let mut cur: *const libc::c_char = begin;
-    while *cur as libc::c_int != ' ' as i32
-        && *cur as libc::c_int != '\t' as i32
-        && *cur as libc::c_int != '\u{0}' as i32
-    {
-        cur = cur.offset(1isize)
+    if encoded {
+        result = format!("=?utf-8?Q?{}?=", &result);
     }
-    *pto_be_quoted = to_be_quoted(begin, cur.wrapping_offset_from(begin) as libc::size_t);
-    *pend = cur;
+    result
 }
 
 /* ******************************************************************************
  * Encode/decode header words, RFC 2047
  ******************************************************************************/
-
-/* see comment below */
-unsafe fn to_be_quoted(word: *const libc::c_char, size: libc::size_t) -> bool {
-    let mut cur: *const libc::c_char = word;
-    let mut i = 0;
-    while i < size {
-        match *cur as libc::c_int {
-            44 | 58 | 33 | 34 | 35 | 36 | 64 | 91 | 92 | 93 | 94 | 96 | 123 | 124 | 125 | 126
-            | 61 | 63 | 95 => return true,
-            _ => {
-                if *cur as libc::c_uchar as libc::c_int >= 128i32 {
-                    return true;
-                }
-            }
-        }
-        cur = cur.offset(1isize);
-        i = i.wrapping_add(1)
-    }
-
-    false
-}
 
 pub unsafe fn dc_decode_header_words(in_0: *const libc::c_char) -> *mut libc::c_char {
     if in_0.is_null() {
@@ -386,7 +291,7 @@ mod tests {
 
         #[test]
         fn test_dc_header_roundtrip(input: String) {
-            let encoded = unsafe { dc_encode_header_words(&input) };
+            let encoded = dc_encode_header_words(&input);
             let decoded = dc_decode_header_words_safe(&encoded);
 
             assert_eq!(input, decoded);
