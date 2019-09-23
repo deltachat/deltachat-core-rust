@@ -1331,7 +1331,13 @@ pub fn add_to_chat_contacts_table(context: &Context, chat_id: u32, contact_id: u
 }
 
 pub fn add_contact_to_chat(context: &Context, chat_id: u32, contact_id: u32) -> bool {
-    add_contact_to_chat_ex(context, chat_id, contact_id, false)
+    match add_contact_to_chat_ex(context, chat_id, contact_id, false) {
+        Ok(res) => res, 
+        Err(err) => {
+            error!(context, "failed to add contact: {}", err);
+            false
+        }
+    }
 }
 
 #[allow(non_snake_case)]
@@ -1340,33 +1346,30 @@ pub(crate) fn add_contact_to_chat_ex(
     chat_id: u32,
     contact_id: u32,
     from_handshake: bool,
-) -> bool {
-    let mut OK_TO_CONTINUE = true;
-    let mut success = false;
-    let contact = Contact::get_by_id(context, contact_id);
-
-    if contact.is_err() || chat_id <= DC_CHAT_ID_LAST_SPECIAL {
-        return false;
-    }
+) -> Result<bool, Error> {
+    ensure!(chat_id > DC_CHAT_ID_LAST_SPECIAL, "can not add member to special chats");
+    let contact = Contact::get_by_id(context, contact_id)?;
     let mut msg = Message::default();
 
     reset_gossiped_timestamp(context, chat_id);
-    let contact = contact.unwrap();
 
     /*this also makes sure, not contacts are added to special or normal chats*/
-    if let Ok(mut chat) = Chat::load_from_db(context, chat_id) {
-        if !(!real_group_exists(context, chat_id)
-            || !Contact::real_exists_by_id(context, contact_id) && contact_id != DC_CONTACT_ID_SELF)
-        {
-            if !is_contact_in_chat(context, chat_id, 1 as u32) {
+    let mut chat = Chat::load_from_db(context, chat_id)?;
+    ensure!(real_group_exists(context, chat_id), 
+            "chat_id {} is not a group where one can add members", chat_id);
+    ensure!(Contact::real_exists_by_id(context, contact_id) && contact_id != DC_CONTACT_ID_SELF,
+            "invalid contact_id {} for removal in group", contact_id);
+
+            if !is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF as u32) {
+                /* we should respect this - whatever we send to the group, it gets discarded anyway! */
                 emit_event!(
                     context,
                     Event::ErrorSelfNotInGroup(
                         "Cannot add contact to group; self not in group.".into()
                     )
                 );
-            } else {
-                /* we should respect this - whatever we send to the group, it gets discarded anyway! */
+                bail!("can not add contact because our account is not part of it");
+            }
                 if from_handshake && chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 1
                 {
                     chat.param.remove(Param::Unpromoted);
@@ -1376,14 +1379,15 @@ pub(crate) fn add_contact_to_chat_ex(
                     .sql
                     .get_config(context, "configured_addr")
                     .unwrap_or_default();
-                if contact.get_addr() != &self_addr {
+                if contact.get_addr() == &self_addr {
+                    bail!("invalid attempt to add self e-mail address to group");
+                }
                     // ourself is added using DC_CONTACT_ID_SELF, do not add it explicitly.
                     // if SELF is not in the group, members cannot be added at all.
 
                     if is_contact_in_chat(context, chat_id, contact_id) {
                         if !from_handshake {
-                            success = true;
-                            OK_TO_CONTINUE = false;
+                            return Ok(true);
                         }
                     } else {
                         // else continue and send status mail
@@ -1393,16 +1397,13 @@ pub(crate) fn add_contact_to_chat_ex(
                                     context,
                                     "Only bidirectional verified contacts can be added to verified groups."
                                 );
-                                OK_TO_CONTINUE = false;
+                                return Ok(false);
                             }
                         }
-                        if OK_TO_CONTINUE {
                             if !add_to_chat_contacts_table(context, chat_id, contact_id) {
-                                OK_TO_CONTINUE = false;
+                                return Ok(false);
                             }
-                        }
                     }
-                    if OK_TO_CONTINUE {
                         if chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
                             msg.type_0 = Viewtype::Text;
                             msg.text = Some(context.stock_system_msg(
@@ -1421,14 +1422,7 @@ pub(crate) fn add_contact_to_chat_ex(
                             });
                         }
                         context.call_cb(Event::MsgsChanged { chat_id, msg_id: 0 });
-                        success = true;
-                    }
-                }
-            }
-        }
-    };
-
-    success
+                        return Ok(true);
 }
 
 fn real_group_exists(context: &Context, chat_id: u32) -> bool {
