@@ -23,6 +23,7 @@ use mmime::{mailmime_substitute, MAILIMF_NO_ERROR, MAIL_NO_ERROR};
 use crate::aheader::*;
 use crate::config::Config;
 use crate::context::Context;
+use crate::dc_mimefactory::*;
 use crate::dc_mimeparser::*;
 use crate::dc_tools::*;
 use crate::error::*;
@@ -36,21 +37,12 @@ use crate::wrapmime::*;
 
 #[derive(Debug)]
 pub struct EncryptHelper {
-    cdata_to_free: Option<Box<dyn Any>>,
     pub prefer_encrypt: EncryptPreference,
     pub addr: String,
     pub public_key: Key,
 }
 
 impl EncryptHelper {
-    /// Frees data referenced by "mailmime" but not freed by mailmime_free(). After calling this function,
-    /// in_out_message cannot be used any longer!
-    pub unsafe fn thanks(&mut self) {
-        if let Some(data) = self.cdata_to_free.take() {
-            free(Box::into_raw(data) as *mut _)
-        }
-    }
-
     pub fn new(context: &Context) -> Result<EncryptHelper> {
         let e2ee = context.sql.get_config_int(&context, "e2ee_enabled");
         let prefer_encrypt = if 0 != e2ee.unwrap_or_default() {
@@ -72,7 +64,6 @@ impl EncryptHelper {
             }
         };
         Ok(EncryptHelper {
-            cdata_to_free: None,
             prefer_encrypt: prefer_encrypt,
             addr: addr,
             public_key: public_key,
@@ -87,8 +78,7 @@ impl EncryptHelper {
 
     pub fn try_encrypt(
         &mut self,
-        context: &Context,
-        recipients_addr: &Vec<String>,
+        factory: &mut MimeFactory,
         e2ee_guaranteed: bool,
         min_verified: libc::c_int,
         do_gossip: bool,
@@ -104,11 +94,12 @@ impl EncryptHelper {
             return Ok(false);
         }
 
+        let context = &factory.context;
         let mut keyring = Keyring::default();
-        let mut gossip_headers: Vec<String> = Vec::with_capacity(recipients_addr.len());
+        let mut gossip_headers: Vec<String> = Vec::with_capacity(factory.recipients_addr.len());
 
         // determine if we can and should encrypt
-        for recipient_addr in recipients_addr.iter() {
+        for recipient_addr in factory.recipients_addr.iter() {
             if *recipient_addr == self.addr {
                 continue;
             }
@@ -175,7 +166,7 @@ impl EncryptHelper {
                 part_to_encrypt,
             );
 
-            for header in gossip_headers {
+            for header in &gossip_headers {
                 wrapmime::new_custom_field(imffields_encrypted, "Autocrypt-Gossip", &header)
             }
 
@@ -244,9 +235,11 @@ impl EncryptHelper {
                 mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
             let mut col: libc::c_int = 0i32;
             mailmime_write_mem(plain, &mut col, message_to_encrypt);
+            mailmime_free(message_to_encrypt);
             if (*plain).str_0.is_null() || (*plain).len <= 0 {
                 bail!("could not write/allocate");
             }
+
             let ctext = dc_pgp_pk_encrypt(
                 std::slice::from_raw_parts((*plain).str_0 as *const u8, (*plain).len),
                 &keyring,
@@ -274,20 +267,19 @@ impl EncryptHelper {
                 );
                 mailmime_smart_add_part(encrypted_part, version_mime);
 
-                let ctext_bytes = ctext_v.len();
-                let ctext = ctext_v.strdup();
-                self.cdata_to_free = Some(Box::new(ctext));
-
+                // we assume that ctext_v is not dropped until the end
+                // of this if-scope
                 let ctext_part: *mut mailmime = new_data_part(
-                    ctext as *mut libc::c_void,
-                    ctext_bytes,
+                    ctext_v.as_ptr() as *mut libc::c_void,
+                    ctext_v.len(),
                     "application/octet-stream",
                     MAILMIME_MECHANISM_7BIT as i32,
                 );
                 mailmime_smart_add_part(encrypted_part, ctext_part);
                 (*in_out_message).mm_data.mm_message.mm_msg_mime = encrypted_part;
                 (*encrypted_part).mm_parent = in_out_message;
-                mailmime_free(message_to_encrypt);
+                let gossiped = !&gossip_headers.is_empty();
+                factory.finalize_mime_message(in_out_message, true, gossiped)?;
                 Ok(true)
             } else {
                 bail!("encryption failed")
