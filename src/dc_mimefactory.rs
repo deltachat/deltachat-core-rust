@@ -17,7 +17,7 @@ use crate::chat::{self, Chat};
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::{get_version_str, Context};
-use crate::dc_mimeparser::SystemMessage;
+use crate::dc_mimeparser::{mailmime_find_mailimf_fields, SystemMessage};
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
 use crate::e2ee::*;
@@ -340,6 +340,9 @@ pub unsafe fn dc_mimefactory_render(
         }
     };
     let message = mailmime_new_message_data(0 as *mut mailmime);
+    if message.is_null() {
+        bail!("could not create mime message data")
+    }
     mailmime_set_imf_fields(message, imf_fields);
 
     // 1=add Autocrypt-header (needed eg. for handshaking), 2=no Autocrypte-header (used for MDN)
@@ -664,6 +667,7 @@ pub unsafe fn dc_mimefactory_render(
             set_body_text(mach_mime_part, &message_text2)?;
             mailmime_add_part(multipart, mach_mime_part);
             force_plaintext = DC_FP_NO_AUTOCRYPT_HEADER;
+            info!(context, "sending MDM {:?}", message_text2);
             /* currently, we do not send MDNs encrypted:
             - in a multi-device-setup that is not set up properly, MDNs would disturb the communication as they
               are send automatically which may lead to spreading outdated Autocrypt headers.
@@ -681,7 +685,7 @@ pub unsafe fn dc_mimefactory_render(
         }
     };
 
-    /* Encrypt the message
+    /* Create the mime message
      *************************************************************************/
 
     mailimf_fields_add(
@@ -713,17 +717,30 @@ pub unsafe fn dc_mimefactory_render(
         ),
     );
 
-    let mut e2ee_helper = E2eeHelper::default();
+    /*just a pointer into mailmime structure, must not be freed*/
+    let imffields_unprotected = mailmime_find_mailimf_fields(message);
+    if imffields_unprotected.is_null() {
+        bail!("could not find mime fields");
+    }
+
+    let mut encrypt_helper = EncryptHelper::new(&context)?;
     if force_plaintext != DC_FP_NO_AUTOCRYPT_HEADER {
-        if e2ee_helper.encrypt(
+        // unless determined otherwise we add Autocrypt header
+        let aheader = encrypt_helper.get_aheader().to_string();
+        new_custom_field(imffields_unprotected, "Autocrypt", &aheader);
+    }
+    if force_plaintext == 0 {
+        let was_encrypted = encrypt_helper.try_encrypt(
             factory.context,
             &factory.recipients_addr,
-            force_plaintext == DC_FP_ADD_AUTOCRYPT_HEADER,
             e2ee_guaranteed,
             min_verified,
             do_gossip,
             message,
-        )? {
+            imffields_unprotected,
+        )?;
+        if was_encrypted {
+            info!(context, "message was encrypted");
             factory.out_encrypted = true;
             if do_gossip {
                 factory.out_gossiped = true;
@@ -733,7 +750,7 @@ pub unsafe fn dc_mimefactory_render(
     factory.out = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
     let mut col: libc::c_int = 0;
     mailmime_write_mem(factory.out, &mut col, message);
-    e2ee_helper.thanks();
+    encrypt_helper.thanks();
     cleanup(message);
     Ok(())
 }

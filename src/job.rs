@@ -1016,6 +1016,7 @@ fn add_smtp_job(context: &Context, action: Action, mimefactory: &MimeFactory) ->
             path_filename.display(),
         );
     } else {
+        info!(context, "add_smtp_job file written: {:?}", path_filename);
         let recipients = mimefactory.recipients_addr.join("\x1e");
         param.set(Param::File, path_filename.to_string_lossy());
         param.set(Param::Recipients, &recipients);
