@@ -206,23 +206,15 @@ impl Job {
 
     #[allow(non_snake_case)]
     fn do_DC_JOB_MOVE_MSG(&mut self, context: &Context) {
-        let ok_to_continue;
-        let mut dest_uid = 0;
-
         let inbox = context.inbox.read().unwrap();
 
         if !inbox.is_connected() {
             connect_to_inbox(context, &inbox);
             if !inbox.is_connected() {
                 self.try_again_later(3, None);
-                ok_to_continue = false;
-            } else {
-                ok_to_continue = true;
+                return;
             }
-        } else {
-            ok_to_continue = true;
-        }
-        if ok_to_continue {
+        } 
             if let Ok(msg) = Message::load_from_db(context, self.foreign_id) {
                 if context
                     .sql
@@ -236,6 +228,7 @@ impl Job {
 
                 if let Some(dest_folder) = dest_folder {
                     let server_folder = msg.server_folder.as_ref().unwrap();
+                    let mut dest_uid = 0;
 
                     match inbox.mv(
                         context,
@@ -259,79 +252,56 @@ impl Job {
                     }
                 }
             }
-        }
     }
 
     #[allow(non_snake_case)]
     fn do_DC_JOB_DELETE_MSG_ON_IMAP(&mut self, context: &Context) {
-        let mut delete_from_server = 1;
         let inbox = context.inbox.read().unwrap();
 
         if let Ok(mut msg) = Message::load_from_db(context, self.foreign_id) {
             if !msg.rfc724_mid.is_empty() {
-                let ok_to_continue1;
                 /* eg. device messages have no Message-ID */
+                let mut delete_from_server = true;
                 if message::rfc724_mid_cnt(context, &msg.rfc724_mid) != 1 {
                     info!(
                         context,
                         "The message is deleted from the server when all parts are deleted.",
                     );
-                    delete_from_server = 0i32
+                    delete_from_server = false;
                 }
                 /* if this is the last existing part of the message, we delete the message from the server */
-                if 0 != delete_from_server {
-                    let ok_to_continue;
+                if delete_from_server {
                     if !inbox.is_connected() {
                         connect_to_inbox(context, &inbox);
                         if !inbox.is_connected() {
                             self.try_again_later(3i32, None);
-                            ok_to_continue = false;
-                        } else {
-                            ok_to_continue = true;
-                        }
-                    } else {
-                        ok_to_continue = true;
-                    }
-                    if ok_to_continue {
+                            return;
+                        } 
+                    } 
                         let mid = msg.rfc724_mid;
                         let server_folder = msg.server_folder.as_ref().unwrap();
                         if 0 == inbox.delete_msg(context, &mid, server_folder, &mut msg.server_uid)
                         {
                             self.try_again_later(-1i32, None);
-                            ok_to_continue1 = false;
-                        } else {
-                            ok_to_continue1 = true;
-                        }
-                    } else {
-                        ok_to_continue1 = false;
-                    }
-                } else {
-                    ok_to_continue1 = true;
-                }
-                if ok_to_continue1 {
+                            return;
+                        } 
+                } 
                     Message::delete_from_db(context, msg.id);
-                }
             }
         }
     }
 
     #[allow(non_snake_case)]
     fn do_DC_JOB_MARKSEEN_MSG_ON_IMAP(&mut self, context: &Context) {
-        let ok_to_continue;
         let inbox = context.inbox.read().unwrap();
 
         if !inbox.is_connected() {
             connect_to_inbox(context, &inbox);
             if !inbox.is_connected() {
                 self.try_again_later(3i32, None);
-                ok_to_continue = false;
-            } else {
-                ok_to_continue = true;
-            }
-        } else {
-            ok_to_continue = true;
-        }
-        if ok_to_continue {
+                return;
+            } 
+        } 
             if let Ok(msg) = Message::load_from_db(context, self.foreign_id) {
                 let server_folder = msg.server_folder.as_ref().unwrap();
                 match inbox.set_seen(context, server_folder, msg.server_uid) {
@@ -361,33 +331,25 @@ impl Job {
                     }
                 }
             }
-        }
     }
 
     #[allow(non_snake_case)]
     fn do_DC_JOB_MARKSEEN_MDN_ON_IMAP(&mut self, context: &Context) {
-        let ok_to_continue;
         let folder = self
             .param
             .get(Param::ServerFolder)
             .unwrap_or_default()
             .to_string();
         let uid = self.param.get_int(Param::ServerUid).unwrap_or_default() as u32;
-        let mut dest_uid = 0;
         let inbox = context.inbox.read().unwrap();
 
         if !inbox.is_connected() {
             connect_to_inbox(context, &inbox);
             if !inbox.is_connected() {
                 self.try_again_later(3, None);
-                ok_to_continue = false;
-            } else {
-                ok_to_continue = true;
-            }
-        } else {
-            ok_to_continue = true;
+                return;
+            } 
         }
-        if ok_to_continue {
             if inbox.set_seen(context, &folder, uid) == ImapResult::Failed {
                 self.try_again_later(3i32, None);
             }
@@ -402,6 +364,7 @@ impl Job {
                 }
                 let dest_folder = context.sql.get_config(context, "configured_mvbox_folder");
                 if let Some(dest_folder) = dest_folder {
+                    let mut dest_uid = 0;
                     if ImapResult::RetryLater
                         == inbox.mv(context, folder, uid, dest_folder, &mut dest_uid)
                     {
@@ -409,7 +372,6 @@ impl Job {
                     }
                 }
             }
-        }
     }
 }
 
