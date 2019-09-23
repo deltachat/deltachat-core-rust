@@ -383,5 +383,13 @@ mod tests {
             // make sure this never panics
             let _decoded = dc_decode_ext_header(&buf);
         }
+
+        #[test]
+        fn test_dc_header_roundtrip(input: String) {
+            let encoded = unsafe { dc_encode_header_words(&input) };
+            let decoded = dc_decode_header_words_safe(&encoded);
+
+            assert_eq!(input, decoded);
+        }
     }
 }
