@@ -3,7 +3,6 @@ use std::ptr;
 
 use deltachat_derive::{FromSql, ToSql};
 use libc::{free, strcmp};
-use phf::phf_map;
 
 use crate::chat::{self, Chat};
 use crate::constants::*;
@@ -674,22 +673,24 @@ pub fn get_msg_info(context: &Context, msg_id: u32) -> String {
 }
 
 pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
-    static KNOWN: phf::Map<&'static str, (Viewtype, &'static str)> = phf_map! {
-        "mp3"   => (Viewtype::Audio, "audio/mpeg"),
-        "aac"   => (Viewtype::Audio, "audio/aac"),
-        "mp4"   => (Viewtype::Video, "video/mp4"),
-        "jpg"   => (Viewtype::Image, "image/jpeg"),
-        "jpeg"  => (Viewtype::Image, "image/jpeg"),
-        "jpe"   => (Viewtype::Image, "image/jpeg"),
-        "png"   => (Viewtype::Image, "image/png"),
-        "webp"  => (Viewtype::Image, "image/webp"),
-        "gif"   => (Viewtype::Gif,   "image/gif"),
-        "vcf"   => (Viewtype::File,  "text/vcard"),
-        "vcard" => (Viewtype::File,  "text/vcard"),
-    };
     let extension: &str = &path.extension()?.to_str()?.to_lowercase();
-
-    KNOWN.get(extension).map(|x| *x)
+    let info = match extension {
+        "mp3" => (Viewtype::Audio, "audio/mpeg"),
+        "aac" => (Viewtype::Audio, "audio/aac"),
+        "mp4" => (Viewtype::Video, "video/mp4"),
+        "jpg" => (Viewtype::Image, "image/jpeg"),
+        "jpeg" => (Viewtype::Image, "image/jpeg"),
+        "jpe" => (Viewtype::Image, "image/jpeg"),
+        "png" => (Viewtype::Image, "image/png"),
+        "webp" => (Viewtype::Image, "image/webp"),
+        "gif" => (Viewtype::Gif, "image/gif"),
+        "vcf" => (Viewtype::File, "text/vcard"),
+        "vcard" => (Viewtype::File, "text/vcard"),
+        _ => {
+            return None;
+        }
+    };
+    Some(info)
 }
 
 pub fn get_mime_headers(context: &Context, msg_id: u32) -> Option<String> {
