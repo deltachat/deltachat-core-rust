@@ -258,9 +258,6 @@ pub unsafe fn dc_continue_key_transfer(
     msg_id: u32,
     setup_code: *const libc::c_char,
 ) -> bool {
-    let mut success = false;
-    let mut armored_key: *mut libc::c_char = ptr::null_mut();
-    let norm_sc;
     if msg_id <= 9i32 as libc::c_uint || setup_code.is_null() {
         return false;
     }
@@ -278,32 +275,27 @@ pub unsafe fn dc_continue_key_transfer(
 
     if let Some(filename) = msg.get_file(context) {
         if let Ok(buf) = dc_read_file(context, filename) {
-            norm_sc = dc_normalize_setup_code(context, setup_code);
-            if norm_sc.is_null() {
-                warn!(context, "Cannot normalize Setup Code.",);
+            let norm_sc = CString::yolo(dc_normalize_setup_code(as_str(setup_code)));
+            let armored_key = dc_decrypt_setup_file(context, norm_sc.as_ptr(), buf.as_ptr().cast());
+            if armored_key.is_null() {
+                warn!(context, "Cannot decrypt Autocrypt Setup Message.",);
+                false
+            } else if set_self_key(context, armored_key, 1) {
+                /*set default*/
+                /* error already logged */
+                free(armored_key as *mut libc::c_void);
+                true
             } else {
-                armored_key = dc_decrypt_setup_file(context, norm_sc, buf.as_ptr().cast());
-                if armored_key.is_null() {
-                    warn!(context, "Cannot decrypt Autocrypt Setup Message.",);
-                } else if set_self_key(context, armored_key, 1) {
-                    /*set default*/
-                    /* error already logged */
-                    success = true
-                }
+                false
             }
         } else {
             error!(context, "Cannot read Autocrypt Setup Message file.",);
-            return false;
+            false
         }
     } else {
         error!(context, "Message is no Autocrypt Setup Message.");
-        return false;
+        false
     }
-
-    free(armored_key as *mut libc::c_void);
-    free(norm_sc as *mut libc::c_void);
-
-    success
 }
 
 fn set_self_key(
@@ -448,36 +440,17 @@ pub unsafe fn dc_decrypt_setup_file(
     payload
 }
 
-pub unsafe fn dc_normalize_setup_code(
-    _context: &Context,
-    in_0: *const libc::c_char,
-) -> *mut libc::c_char {
-    if in_0.is_null() {
-        return ptr::null_mut();
-    }
+pub fn dc_normalize_setup_code(s: &str) -> String {
     let mut out = String::new();
-    let mut outlen;
-    let mut p1: *const libc::c_char = in_0;
-    while 0 != *p1 {
-        if *p1 as libc::c_int >= '0' as i32 && *p1 as libc::c_int <= '9' as i32 {
-            out += &format!("{}", *p1 as i32 as u8 as char);
-            outlen = out.len();
-            if outlen == 4
-                || outlen == 9
-                || outlen == 14
-                || outlen == 19
-                || outlen == 24
-                || outlen == 29
-                || outlen == 34
-                || outlen == 39
-            {
-                out += "-";
+    for c in s.chars() {
+        if c >= '0' && c <= '9' {
+            out.push(c);
+            if let 4 | 9 | 14 | 19 | 24 | 29 | 34 | 39 = out.len() {
+                out += "-"
             }
         }
-        p1 = p1.offset(1);
     }
-
-    out.strdup()
+    out
 }
 
 #[allow(non_snake_case)]
@@ -1098,5 +1071,16 @@ mod tests {
 
             assert_eq!(bytes, key.to_asc(None).into_bytes());
         }
+    }
+
+    #[test]
+    fn test_normalize_setup_code() {
+        let norm = dc_normalize_setup_code("123422343234423452346234723482349234");
+        assert_eq!(norm, "1234-2234-3234-4234-5234-6234-7234-8234-9234");
+
+        let norm = dc_normalize_setup_code(
+            "\t1 2 3422343234- foo bar-- 423-45 2 34 6234723482349234      ",
+        );
+        assert_eq!(norm, "1234-2234-3234-4234-5234-6234-7234-8234-9234");
     }
 }
