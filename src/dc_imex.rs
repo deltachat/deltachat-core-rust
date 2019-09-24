@@ -253,12 +253,8 @@ pub fn dc_create_setup_code(_context: &Context) -> String {
     ret
 }
 
-pub unsafe fn dc_continue_key_transfer(
-    context: &Context,
-    msg_id: u32,
-    setup_code: *const libc::c_char,
-) -> bool {
-    if msg_id <= 9i32 as libc::c_uint || setup_code.is_null() {
+pub unsafe fn dc_continue_key_transfer(context: &Context, msg_id: u32, setup_code: &str) -> bool {
+    if msg_id <= 9i32 as libc::c_uint {
         return false;
     }
 
@@ -275,7 +271,7 @@ pub unsafe fn dc_continue_key_transfer(
 
     if let Some(filename) = msg.get_file(context) {
         if let Ok(buf) = dc_read_file(context, filename) {
-            let norm_sc = CString::yolo(dc_normalize_setup_code(as_str(setup_code)));
+            let norm_sc = CString::yolo(dc_normalize_setup_code(setup_code));
             let armored_key = dc_decrypt_setup_file(context, norm_sc.as_ptr(), buf.as_ptr().cast());
             if armored_key.is_null() {
                 warn!(context, "Cannot decrypt Autocrypt Setup Message.",);

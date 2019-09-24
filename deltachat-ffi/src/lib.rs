@@ -1573,7 +1573,9 @@ pub unsafe extern "C" fn dc_continue_key_transfer(
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| dc_imex::dc_continue_key_transfer(ctx, msg_id, setup_code) as libc::c_int)
+        .with_inner(|ctx| {
+            dc_imex::dc_continue_key_transfer(ctx, msg_id, as_str(setup_code)) as libc::c_int
+        })
         .unwrap_or(0)
 }
 
