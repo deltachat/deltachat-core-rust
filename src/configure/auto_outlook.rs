@@ -1,13 +1,10 @@
-use std::ptr;
-
-use libc::free;
+use std::collections::HashMap;
 use quick_xml;
-use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_tools::*;
 use crate::login_param::LoginParam;
+use quick_xml::events::{BytesEnd};
 
 use super::read_autoconf_file;
 /* ******************************************************************************
@@ -17,10 +14,9 @@ use super::read_autoconf_file;
 struct outlk_autodiscover_t<'a> {
     pub in_0: &'a LoginParam,
     pub out: LoginParam,
-    pub out_imap_set: libc::c_int,
-    pub out_smtp_set: libc::c_int,
-    pub tag_config: libc::c_int,
-    pub config: [*mut libc::c_char; 6],
+    pub out_imap_set: bool,
+    pub out_smtp_set: bool,
+    pub config: HashMap<String, String>,
 }
 
 pub fn outlk_autodiscover(
@@ -32,29 +28,14 @@ pub fn outlk_autodiscover(
     let mut outlk_ad = outlk_autodiscover_t {
         in_0: param_in,
         out: LoginParam::new(),
-        out_imap_set: 0,
-        out_smtp_set: 0,
-        tag_config: 0,
-        config: [ptr::null_mut(); 6],
+        out_imap_set: false,
+        out_smtp_set: false,
+        config: HashMap::new(),
     };
-    let ok_to_continue;
-    let mut i = 0;
-    loop {
-        if i >= 10 {
-            ok_to_continue = true;
-            break;
-        }
-        unsafe {
-            libc::memset(
-                &mut outlk_ad as *mut outlk_autodiscover_t as *mut libc::c_void,
-                0,
-                ::std::mem::size_of::<outlk_autodiscover_t>(),
-            );
-        }
+    for i in 0..10 {
         let xml_raw = read_autoconf_file(context, &url);
         if xml_raw.is_err() {
-            ok_to_continue = false;
-            break;
+            return Some(outlk_ad.out);
         }
         let xml_raw = xml_raw.unwrap();
 
@@ -62,17 +43,23 @@ pub fn outlk_autodiscover(
         reader.trim_text(true);
 
         let mut buf = Vec::new();
-
+        let current_tag: Option<String> = None;
         loop {
             match reader.read_event(&mut buf) {
                 Ok(quick_xml::events::Event::Start(ref e)) => {
-                    outlk_autodiscover_starttag_cb(e, &mut outlk_ad)
+                    current_tag = Some(String::from_utf8_lossy(e.name()).trim().to_lowercase());
                 }
                 Ok(quick_xml::events::Event::End(ref e)) => {
-                    outlk_autodiscover_endtag_cb(e, &mut outlk_ad)
+                    if "protocol" == String::from_utf8_lossy(e.name()).trim().to_lowercase() {
+                        finish_settings(e, &mut outlk_ad);
+                    }
+                    current_tag = None;
                 }
                 Ok(quick_xml::events::Event::Text(ref e)) => {
-                    outlk_autodiscover_text_cb(e, &mut outlk_ad, &reader)
+                    if let Some(current_tag) = current_tag {
+                        let val = e.unescape_and_decode(&reader).unwrap_or_default();
+                        &outlk_ad.config.insert(current_tag, val);
+                    }
                 }
                 Err(e) => {
                     error!(
@@ -81,133 +68,70 @@ pub fn outlk_autodiscover(
                         reader.buffer_position(),
                         e
                     );
+                    break;
                 }
                 Ok(quick_xml::events::Event::Eof) => break,
                 _ => (),
             }
             buf.clear();
         }
-
-        unsafe {
-            if !(!outlk_ad.config[5].is_null()
-                && 0 != *outlk_ad.config[5usize].offset(0isize) as libc::c_int)
-            {
-                ok_to_continue = true;
-                break;
+        if let Some(next_url) = outlk_ad.config.get("redirecturl") {
+            if !next_url.is_empty() {
+                url = next_url.to_string();
+                continue;
             }
         }
-        url = to_string(outlk_ad.config[5usize]);
-
-        outlk_clean_config(&mut outlk_ad);
-        i += 1;
+        break;
     }
 
-    if ok_to_continue {
-        if outlk_ad.out.mail_server.is_empty()
-            || outlk_ad.out.mail_port == 0
-            || outlk_ad.out.send_server.is_empty()
-            || outlk_ad.out.send_port == 0
-        {
-            let r = outlk_ad.out.to_string();
-            warn!(context, "Bad or incomplete autoconfig: {}", r,);
-            outlk_clean_config(&mut outlk_ad);
+    if outlk_ad.out.mail_server.is_empty()
+        || outlk_ad.out.mail_port == 0
+        || outlk_ad.out.send_server.is_empty()
+        || outlk_ad.out.send_port == 0
+    {
+        let r = outlk_ad.out.to_string();
+        warn!(context, "Bad or incomplete autoconfig: {}", r,);
 
-            return None;
-        }
+        return None;
     }
-    outlk_clean_config(&mut outlk_ad);
     Some(outlk_ad.out)
 }
 
-fn outlk_clean_config(mut outlk_ad: *mut outlk_autodiscover_t) {
-    for i in 0..6 {
-        unsafe {
-            free((*outlk_ad).config[i] as *mut libc::c_void);
-            (*outlk_ad).config[i] = ptr::null_mut();
-        }
-    }
-}
-
-fn outlk_autodiscover_text_cb<B: std::io::BufRead>(
-    event: &BytesText,
-    outlk_ad: &mut outlk_autodiscover_t,
-    reader: &quick_xml::Reader<B>,
-) {
-    let val = event.unescape_and_decode(reader).unwrap_or_default();
-
-    unsafe {
-        free(outlk_ad.config[outlk_ad.tag_config as usize].cast());
-        outlk_ad.config[outlk_ad.tag_config as usize] = val.trim().strdup();
-    }
-}
-
-fn outlk_autodiscover_endtag_cb(event: &BytesEnd, outlk_ad: &mut outlk_autodiscover_t) {
-    let tag = String::from_utf8_lossy(event.name()).trim().to_lowercase();
-
-    if tag == "protocol" {
-        unsafe {
-            if !outlk_ad.config[1].is_null() {
-                let port = dc_atoi_null_is_0(outlk_ad.config[3]);
-                let ssl_on = (!outlk_ad.config[4].is_null()
-                    && strcasecmp(
-                        outlk_ad.config[4],
-                        b"on\x00" as *const u8 as *const libc::c_char,
-                    ) == 0) as libc::c_int;
-                let ssl_off = (!outlk_ad.config[4].is_null()
-                    && strcasecmp(
-                        outlk_ad.config[4],
-                        b"off\x00" as *const u8 as *const libc::c_char,
-                    ) == 0) as libc::c_int;
-                if strcasecmp(
-                    outlk_ad.config[1],
-                    b"imap\x00" as *const u8 as *const libc::c_char,
-                ) == 0
-                    && outlk_ad.out_imap_set == 0
-                {
-                    outlk_ad.out.mail_server = to_string_lossy(outlk_ad.config[2]);
-                    outlk_ad.out.mail_port = port;
-                    if 0 != ssl_on {
-                        outlk_ad.out.server_flags |= DC_LP_IMAP_SOCKET_SSL as i32
-                    } else if 0 != ssl_off {
-                        outlk_ad.out.server_flags |= DC_LP_IMAP_SOCKET_PLAIN as i32
-                    }
-                    outlk_ad.out_imap_set = 1
-                } else if strcasecmp(
-                    outlk_ad.config[1usize],
-                    b"smtp\x00" as *const u8 as *const libc::c_char,
-                ) == 0
-                    && outlk_ad.out_smtp_set == 0
-                {
-                    outlk_ad.out.send_server = to_string_lossy(outlk_ad.config[2]);
-                    outlk_ad.out.send_port = port;
-                    if 0 != ssl_on {
-                        outlk_ad.out.server_flags |= DC_LP_SMTP_SOCKET_SSL as i32
-                    } else if 0 != ssl_off {
-                        outlk_ad.out.server_flags |= DC_LP_SMTP_SOCKET_PLAIN as i32
-                    }
-                    outlk_ad.out_smtp_set = 1
-                }
+fn finish_settings(event: &BytesEnd, outlk_ad: &mut outlk_autodiscover_t) {
+    let ssl_on = false;
+    let ssl_off = false;
+    let config = &outlk_ad.config;
+    if let Some(type_val) = &config.get("type") {
+        let port = match config.get("port") {
+            None => 0,
+            Some(r) => {
+                r.parse::<i32>().unwrap_or_default()
             }
-            outlk_clean_config(outlk_ad);
+        };
+        if let Some(ssl) = &config.get("ssl") {
+            ssl_on = *ssl == "on";
+            ssl_off = *ssl == "off";
+        }
+        let type_val = *type_val;
+        if !outlk_ad.out_imap_set && type_val == "imap" {
+            outlk_ad.out.mail_server = config.get("server"); //.unwrap_or_default();
+            outlk_ad.out.mail_port = port;
+            if ssl_on {
+                outlk_ad.out.server_flags |= DC_LP_IMAP_SOCKET_SSL as i32;
+            } else if ssl_off {
+                outlk_ad.out.server_flags |= DC_LP_IMAP_SOCKET_PLAIN as i32;
+            }
+            outlk_ad.out_imap_set = true;
+        } else if !outlk_ad.out_smtp_set && type_val == "smtp" {
+            outlk_ad.out.send_server = &config.get("server").unwrap_or_default();
+            outlk_ad.out.send_port = port;
+
+            if ssl_on {
+                outlk_ad.out.server_flags |= DC_LP_SMTP_SOCKET_SSL as i32
+            } else if ssl_off {
+                outlk_ad.out.server_flags |= DC_LP_SMTP_SOCKET_PLAIN as i32
+            }
+            outlk_ad.out_smtp_set = true;
         }
     }
-    outlk_ad.tag_config = 0;
-}
-
-fn outlk_autodiscover_starttag_cb(event: &BytesStart, outlk_ad: &mut outlk_autodiscover_t) {
-    let tag = String::from_utf8_lossy(event.name()).trim().to_lowercase();
-
-    if tag == "protocol" {
-        outlk_clean_config(outlk_ad);
-    } else if tag == "type" {
-        outlk_ad.tag_config = 1
-    } else if tag == "server" {
-        outlk_ad.tag_config = 2
-    } else if tag == "port" {
-        outlk_ad.tag_config = 3
-    } else if tag == "ssl" {
-        outlk_ad.tag_config = 4
-    } else if tag == "redirecturl" {
-        outlk_ad.tag_config = 5
-    };
 }
