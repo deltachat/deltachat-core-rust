@@ -327,11 +327,6 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         arg1.strdup() as *const _
     };
     let arg2 = args.next().unwrap_or_default();
-    let arg2_c = if arg2.is_empty() {
-        std::ptr::null()
-    } else {
-        arg2.strdup() as *const _
-    };
 
     match arg0 {
         "help" | "?" => match arg1 {
@@ -451,7 +446,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 !arg1.is_empty() && !arg2.is_empty(),
                 "Arguments <msg-id> <setup-code> expected"
             );
-            if !dc_continue_key_transfer(context, arg1.parse()?, arg2_c) {
+            if !dc_continue_key_transfer(context, arg1.parse()?, &arg2) {
                 bail!("Continue key transfer failed");
             }
         }
@@ -1001,7 +996,6 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
     }
 
     free(arg1_c as *mut _);
-    free(arg2_c as *mut _);
 
     Ok(())
 }
