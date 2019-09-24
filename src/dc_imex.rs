@@ -254,7 +254,7 @@ pub fn dc_create_setup_code(_context: &Context) -> String {
 }
 
 pub unsafe fn dc_continue_key_transfer(context: &Context, msg_id: u32, setup_code: &str) -> bool {
-    if msg_id <= 9i32 as libc::c_uint {
+    if msg_id <= DC_MSG_ID_LAST_SPECIAL {
         return false;
     }
 
