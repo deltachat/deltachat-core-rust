@@ -222,33 +222,6 @@ unsafe fn stress_functions(context: &Context) {
 
     free(buf_0 as *mut libc::c_void);
 
-    let mut norm: *mut libc::c_char = dc_normalize_setup_code(
-        context,
-        b"123422343234423452346234723482349234\x00" as *const u8 as *const libc::c_char,
-    );
-    assert!(!norm.is_null());
-    assert_eq!(
-        0,
-        strcmp(
-            norm,
-            b"1234-2234-3234-4234-5234-6234-7234-8234-9234\x00" as *const u8 as *const libc::c_char,
-        )
-    );
-    free(norm as *mut libc::c_void);
-    norm = dc_normalize_setup_code(
-        context,
-        b"\t1 2 3422343234- foo bar-- 423-45 2 34 6234723482349234      \x00" as *const u8
-            as *const libc::c_char,
-    );
-    assert!(!norm.is_null());
-    assert_eq!(
-        0,
-        strcmp(
-            norm,
-            b"1234-2234-3234-4234-5234-6234-7234-8234-9234\x00" as *const u8 as *const libc::c_char,
-        )
-    );
-    free(norm as *mut libc::c_void);
     let mut buf_1: *mut libc::c_char;
     let mut headerline_0: *const libc::c_char = ptr::null();
     let mut setupcodebegin_0: *const libc::c_char = ptr::null();
