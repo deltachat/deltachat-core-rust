@@ -1888,8 +1888,8 @@ mod tests {
     #[test]
     fn test_get_draft_special_chat_id() {
         let t = dummy_context();
-        let draft = get_draft(&t.ctx, DC_CHAT_ID_LAST_SPECIAL);
-        assert!(draft.is_err());
+        let draft = get_draft(&t.ctx, DC_CHAT_ID_LAST_SPECIAL).unwrap();
+        assert!(draft.is_none());
     }
 
     #[test]
