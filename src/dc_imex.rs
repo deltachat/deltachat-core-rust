@@ -272,16 +272,18 @@ pub unsafe fn dc_continue_key_transfer(context: &Context, msg_id: u32, setup_cod
     if let Some(filename) = msg.get_file(context) {
         if let Ok(buf) = dc_read_file(context, filename) {
             let norm_sc = CString::yolo(dc_normalize_setup_code(setup_code));
-            let armored_key = dc_decrypt_setup_file(context, norm_sc.as_ptr(), buf.as_ptr().cast());
-            if armored_key.is_null() {
-                warn!(context, "Cannot decrypt Autocrypt Setup Message.",);
-                false
-            } else if set_self_key(context, armored_key, 1) {
-                /*set default*/
-                /* error already logged */
-                free(armored_key as *mut libc::c_void);
-                true
+            if let Some(armored_key) =
+                dc_decrypt_setup_file(context, norm_sc.as_ptr(), buf.as_ptr().cast())
+            {
+                if set_self_key(context, &armored_key, 1) {
+                    /*set default*/
+                    /* error already logged */
+                    true
+                } else {
+                    false
+                }
             } else {
+                warn!(context, "Cannot decrypt Autocrypt Setup Message.",);
                 false
             }
         } else {
@@ -294,14 +296,7 @@ pub unsafe fn dc_continue_key_transfer(context: &Context, msg_id: u32, setup_cod
     }
 }
 
-fn set_self_key(
-    context: &Context,
-    armored_c: *const libc::c_char,
-    set_default: libc::c_int,
-) -> bool {
-    assert!(!armored_c.is_null(), "invalid buffer");
-    let armored = as_str(armored_c);
-
+fn set_self_key(context: &Context, armored: &str, set_default: libc::c_int) -> bool {
     let keys = Key::from_armored_string(armored, KeyType::Private)
         .and_then(|(k, h)| if k.verify() { Some((k, h)) } else { None })
         .and_then(|(k, h)| k.split_key().map(|pub_key| (k, pub_key, h)));
@@ -377,7 +372,7 @@ pub unsafe fn dc_decrypt_setup_file(
     context: &Context,
     passphrase: *const libc::c_char,
     filecontent: *const libc::c_char,
-) -> *mut libc::c_char {
+) -> Option<String> {
     let fc_buf: *mut libc::c_char;
     let mut fc_headerline: *const libc::c_char = ptr::null();
     let mut fc_base64: *const libc::c_char = ptr::null();
@@ -385,7 +380,7 @@ pub unsafe fn dc_decrypt_setup_file(
     let mut binary_bytes: libc::size_t = 0;
     let mut indx: libc::size_t = 0;
 
-    let mut payload: *mut libc::c_char = ptr::null_mut();
+    let mut payload: Option<String> = None;
     fc_buf = dc_strdup(filecontent);
     if dc_split_armored_data(
         fc_buf,
@@ -417,10 +412,7 @@ pub unsafe fn dc_decrypt_setup_file(
                 as_str(passphrase),
                 std::slice::from_raw_parts(binary as *const u8, binary_bytes),
             ) {
-                Ok(plain) => {
-                    let payload_c = CString::new(plain).unwrap();
-                    payload = strdup(payload_c.as_ptr());
-                }
+                Ok(plain) => payload = Some(String::from_utf8(plain).unwrap()),
                 Err(err) => {
                     error!(context, "Failed to decrypt message: {:?}", err);
                 }
@@ -886,7 +878,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                     );
                     set_default = 0i32
                 }
-                if !set_self_key(context, private_key, set_default) {
+                if !set_self_key(context, as_str(private_key), set_default) {
                     continue;
                 }
                 imported_cnt += 1
