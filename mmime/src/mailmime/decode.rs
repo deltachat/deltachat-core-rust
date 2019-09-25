@@ -8,9 +8,6 @@ use crate::mailmime::types::*;
 use crate::mmapstring::*;
 use crate::other::*;
 
-pub const MAIL_CHARCONV_ERROR_CONV: libc::c_uint = 3;
-pub const MAIL_CHARCONV_ERROR_UNKNOWN_CHARSET: libc::c_uint = 1;
-pub const MAIL_CHARCONV_ERROR_MEMORY: libc::c_uint = 2;
 pub const TYPE_WORD: libc::c_uint = 1;
 pub const TYPE_ENCODED_WORD: libc::c_uint = 2;
 pub const MAILMIME_ENCODING_Q: libc::c_uint = 1;
@@ -850,7 +847,7 @@ unsafe fn mailmime_etoken_parse(
     return mailimf_custom_string_parse(message, length, indx, result, Some(is_etoken_char));
 }
 
-pub unsafe fn is_etoken_char(mut ch: libc::c_char) -> libc::c_int {
+unsafe fn is_etoken_char(mut ch: libc::c_char) -> libc::c_int {
     let mut uch: libc::c_uchar = ch as libc::c_uchar;
     if (uch as libc::c_int) < 31i32 {
         return 0i32;
