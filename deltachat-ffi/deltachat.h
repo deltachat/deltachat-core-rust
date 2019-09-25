@@ -405,8 +405,13 @@ char*           dc_get_config                (dc_context_t* context, const char*
 
 /**
  * Get information about the context.
+ *
  * The information is returned by a multi-line string
  * and contains information about the current configuration.
+ *
+ * If the context is not open or configured only a subset of the information
+ * will be available.  There is no guarantee about which information will be
+ * included when however.
  *
  * @memberof dc_context_t
  * @param context The context as created by dc_context_new().
