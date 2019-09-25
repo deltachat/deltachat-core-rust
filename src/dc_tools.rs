@@ -530,10 +530,13 @@ pub(crate) fn dc_get_filebytes(context: &Context, path: impl AsRef<std::path::Pa
 
 pub(crate) fn dc_delete_file(context: &Context, path: impl AsRef<std::path::Path>) -> bool {
     let path_abs = dc_get_abs_path(context, &path);
+    if !path_abs.exists() {
+        return false;
+    }
     if !path_abs.is_file() {
         warn!(
             context,
-            "Will not delete directory \"{}\".",
+            "refusing to deleting non-file \"{}\".",
             path.as_ref().display()
         );
         return false;
@@ -1499,6 +1502,7 @@ mod tests {
         let t = dummy_context();
         let context = &t.ctx;
 
+        assert!(!dc_delete_file(context, "$BLOBDIR/lkqwjelqkwlje"));
         if dc_file_exist(context, "$BLOBDIR/foobar")
             || dc_file_exist(context, "$BLOBDIR/dada")
             || dc_file_exist(context, "$BLOBDIR/foobar.dadada")
@@ -1521,6 +1525,7 @@ mod tests {
             .to_string();
 
         assert!(dc_is_blobdir_path(context, &abs_path));
+
         assert!(dc_is_blobdir_path(context, "$BLOBDIR/fofo",));
         assert!(!dc_is_blobdir_path(context, "/BLOBDIR/fofo",));
         assert!(dc_file_exist(context, &abs_path));

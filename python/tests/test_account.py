@@ -343,9 +343,12 @@ class TestOnlineAccount:
     def test_export_import_self_keys(self, acfactory, tmpdir):
         ac1, ac2 = acfactory.get_two_online_accounts()
         dir = tmpdir.mkdir("exportdir")
-        tmpfile = ac1.export_self_keys(dir.strpath)
-        ac1.consume_events()
-        assert ac1.import_self_keys(tmpfile)
+        l = ac1.export_self_keys(dir.strpath)
+        assert len(l) == 2
+        for x in l:
+            assert x.startswith(dir.strpath)
+        ac1._evlogger.consume_events()
+        ac1.import_self_keys(dir.strpath)
 
     def test_one_account_send(self, acfactory):
         ac1 = acfactory.get_online_configuring_account()

@@ -1527,7 +1527,7 @@ pub unsafe extern "C" fn dc_imex(
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| dc_imex::dc_imex(ctx, what, as_opt_str(param1), param2))
+        .with_inner(|ctx| dc_imex::dc_imex(ctx, what, as_opt_str(param1), as_opt_str(param2)))
         .ok();
 }
 
@@ -1542,7 +1542,13 @@ pub unsafe extern "C" fn dc_imex_has_backup(
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| dc_imex::dc_imex_has_backup(ctx, as_str(dir)))
+        .with_inner(|ctx| match dc_imex::dc_imex_has_backup(ctx, as_str(dir)) {
+            Ok(res) => res.strdup(),
+            Err(err) => {
+                error!(ctx, "dc_imex_has_backup: {}", err);
+                ptr::null_mut()
+            }
+        })
         .unwrap_or_else(|_| ptr::null_mut())
 }
 
