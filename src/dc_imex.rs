@@ -34,15 +34,15 @@ pub fn dc_imex(
     context: &Context,
     what: libc::c_int,
     param1: Option<impl AsRef<Path>>,
-    param2: *const libc::c_char,
+    param2: Option<impl AsRef<Path>>,
 ) {
     let mut param = Params::new();
     param.set_int(Param::Cmd, what as i32);
     if let Some(param1) = param1 {
         param.set(Param::Arg, param1.as_ref().to_string_lossy());
     }
-    if !param2.is_null() {
-        param.set(Param::Arg2, as_str(param2));
+    if let Some(param2) = param2 {
+        param.set(Param::Arg, param2.as_ref().to_string_lossy());
     }
 
     job_kill_action(context, Action::ImexImap);
@@ -50,19 +50,11 @@ pub fn dc_imex(
 }
 
 /// Returns the filename of the backup if found, nullptr otherwise.
-pub unsafe fn dc_imex_has_backup(
-    context: &Context,
-    dir_name: impl AsRef<Path>,
-) -> *mut libc::c_char {
+pub fn dc_imex_has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result<String> {
     let dir_name = dir_name.as_ref();
     let dir_iter = std::fs::read_dir(dir_name);
     if dir_iter.is_err() {
-        info!(
-            context,
-            "Backup check: Cannot open directory \"{}\".\x00",
-            dir_name.display(),
-        );
-        return ptr::null_mut();
+        bail!("Backup check: Cannot open directory \"{:?}\"", dir_name);
     }
     let mut newest_backup_time = 0;
     let mut newest_backup_path: Option<std::path::PathBuf> = None;
@@ -89,14 +81,8 @@ pub unsafe fn dc_imex_has_backup(
         }
     }
     match newest_backup_path {
-        Some(path) => match path.to_c_string() {
-            Ok(cstr) => dc_strdup(cstr.as_ptr()),
-            Err(err) => {
-                error!(context, "Invalid backup filename: {}", err);
-                std::ptr::null_mut()
-            }
-        },
-        None => std::ptr::null_mut(),
+        Some(path) => Ok(path.to_string_lossy().into_owned()),
+        None => bail!("no backup found"),
     }
 }
 
@@ -450,71 +436,54 @@ pub fn dc_normalize_setup_code(s: &str) -> String {
 }
 
 #[allow(non_snake_case)]
-pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: &Job) {
-    let mut ok_to_continue = true;
-    let mut success: libc::c_int = 0;
-
-    if dc_alloc_ongoing(context) {
-        let what = job.param.get_int(Param::Cmd).unwrap_or_default();
-        let param1_s = job.param.get(Param::Arg).unwrap_or_default();
-        let param1 = CString::yolo(param1_s);
-        let _param2 = CString::yolo(job.param.get(Param::Arg2).unwrap_or_default());
-
-        if strlen(param1.as_ptr()) == 0 {
-            error!(context, "No Import/export dir/file given.",);
-        } else {
-            info!(context, "Import/export process started.",);
-            context.call_cb(Event::ImexProgress(10));
-
-            if !context.sql.is_open() {
-                error!(context, "Import/export: Database not opened.",);
-            } else {
-                if what == 1 || what == 11 {
-                    /* before we export anything, make sure the private key exists */
-                    if e2ee::ensure_secret_key_exists(context).is_err() {
-                        error!(
-                            context,
-                            "Import/export: Cannot create private key or private key not available.",
-                        );
-                        ok_to_continue = false;
-                    } else {
-                        dc_create_folder(context, &param1_s);
-                    }
-                }
-                if ok_to_continue {
-                    match what {
-                        1 => {
-                            if export_self_keys(context, param1.as_ptr()) {
-                                info!(context, "Import/export completed.",);
-                                success = 1
-                            }
-                        }
-                        2 => {
-                            if 0 != import_self_keys(context, param1.as_ptr()) {
-                                info!(context, "Import/export completed.",);
-                                success = 1
-                            }
-                        }
-                        11 => {
-                            if export_backup(context, param1.as_ptr()) {
-                                info!(context, "Import/export completed.",);
-                                success = 1
-                            }
-                        }
-                        12 => {
-                            if import_backup(context, param1.as_ptr()) {
-                                info!(context, "Import/export completed.",);
-                                success = 1
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-            }
-        }
-        dc_free_ongoing(context);
+pub fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: &Job) -> Result<()> {
+    if !dc_alloc_ongoing(context) {
+        bail!("could not allocate ongoing")
     }
-    context.call_cb(Event::ImexProgress(if 0 != success { 1000 } else { 0 }));
+    let what = job.param.get_int(Param::Cmd).unwrap_or_default();
+    let param1_s = job.param.get(Param::Arg).unwrap_or_default();
+    let param1 = CString::yolo(param1_s);
+    let _param2 = CString::yolo(job.param.get(Param::Arg2).unwrap_or_default());
+
+    if param1_s.empty() == 0 {
+        bail!("No Import/export dir/file given.");
+    }
+    info!(context, "Import/export process started.");
+    context.call_cb(Event::ImexProgress(10));
+
+    if !context.sql.is_open() {
+        bail!("Database not opened.");
+    }
+    if what == DC_IMEX_EXPORT_BACKUP || what == DC_IMEX_EXPORT_SELF_KEYS {
+        /* before we export anything, make sure the private key exists */
+        if e2ee::ensure_secret_key_exists(context).is_err() {
+            dc_free_ongoing(context);
+            bail!("Cannot create private key or private key not available.");
+        } else {
+            dc_create_folder(context, &param1_s);
+        }
+    }
+    let success = match what {
+        DC_IMEX_EXPORT_SELF_KEYS => unsafe { export_self_keys(context, param1.as_ptr()) },
+        DC_IMEX_IMPORT_SELF_KEYS => unsafe { import_self_keys(context, param1.as_ptr()) },
+        DC_IMEX_EXPORT_BACKUP => unsafe { export_backup(context, param1.as_ptr()) },
+        DC_IMEX_IMPORT_BACKUP => unsafe { import_backup(context, param1.as_ptr()) },
+        _ => {
+            bail!("unknown IMEX type: {}", what);
+        }
+    };
+    dc_free_ongoing(context);
+    match success {
+        true => {
+            info!(context, "IMEX successfully completed");
+            context.call_cb(Event::ImexProgress(1000));
+            Ok(())
+        }
+        false => {
+            context.call_cb(Event::ImexProgress(0));
+            bail!("IMEX FAILED to complete");
+        }
+    }
 }
 
 /*******************************************************************************
@@ -805,7 +774,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> bool {
 /*******************************************************************************
  * Classic key import
  ******************************************************************************/
-unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> libc::c_int {
+unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> bool {
     /* hint: even if we switch to import Autocrypt Setup Files, we should leave the possibility to import
     plain ASC keys, at least keys without a password, if we do not want to implement a password entry function.
     Importing ASC keys is useful to use keys in Delta Chat used by any other non-Autocrypt-PGP implementation.
@@ -910,7 +879,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
     free(buf as *mut libc::c_void);
     free(buf2 as *mut libc::c_void);
 
-    imported_cnt
+    imported_cnt != 0
 }
 
 unsafe fn export_self_keys(context: &Context, dir: *const libc::c_char) -> bool {
@@ -936,14 +905,14 @@ unsafe fn export_self_keys(context: &Context, dir: *const libc::c_char) -> bool 
                     let (id, public_key, private_key, is_default) = key_pair?;
                     let id = Some(id).filter(|_| is_default != 0);
                     if let Some(key) = public_key {
-                        if export_key_to_asc_file(context, dir, id, &key) {
+                        if !export_key_to_asc_file(context, dir, id, &key) {
                             export_errors += 1;
                         }
                     } else {
                         export_errors += 1;
                     }
                     if let Some(key) = private_key {
-                        if export_key_to_asc_file(context, dir, id, &key) {
+                        if !export_key_to_asc_file(context, dir, id, &key) {
                             export_errors += 1;
                         }
                     } else {
@@ -962,7 +931,7 @@ unsafe fn export_self_keys(context: &Context, dir: *const libc::c_char) -> bool 
 /*******************************************************************************
  * Classic key export
  ******************************************************************************/
-unsafe fn export_key_to_asc_file(
+fn export_key_to_asc_file(
     context: &Context,
     dir: *const libc::c_char,
     id: Option<i64>,
@@ -1050,23 +1019,21 @@ mod tests {
 
     #[test]
     fn test_export_key_to_asc_file() {
-        unsafe {
-            let context = dummy_context();
-            let base64 = include_str!("../test-data/key/public.asc");
-            let key = Key::from_base64(base64, KeyType::Public).unwrap();
-            let blobdir = CString::yolo("$BLOBDIR");
-            assert!(export_key_to_asc_file(
-                &context.ctx,
-                blobdir.as_ptr(),
-                None,
-                &key
-            ));
-            let blobdir = context.ctx.get_blobdir().to_str().unwrap();
-            let filename = format!("{}/public-key-default.asc", blobdir);
-            let bytes = std::fs::read(&filename).unwrap();
+        let context = dummy_context();
+        let base64 = include_str!("../test-data/key/public.asc");
+        let key = Key::from_base64(base64, KeyType::Public).unwrap();
+        let blobdir = CString::yolo("$BLOBDIR");
+        assert!(export_key_to_asc_file(
+            &context.ctx,
+            blobdir.as_ptr(),
+            None,
+            &key
+        ));
+        let blobdir = context.ctx.get_blobdir().to_str().unwrap();
+        let filename = format!("{}/public-key-default.asc", blobdir);
+        let bytes = std::fs::read(&filename).unwrap();
 
-            assert_eq!(bytes, key.to_asc(None).into_bytes());
-        }
+        assert_eq!(bytes, key.to_asc(None).into_bytes());
     }
 
     #[test]

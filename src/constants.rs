@@ -65,13 +65,13 @@ pub(crate) const DC_FP_NO_AUTOCRYPT_HEADER: i32 = 2;
 pub(crate) const DC_FP_ADD_AUTOCRYPT_HEADER: i32 = 1;
 
 /// param1 is a directory where the keys are written to
-const DC_IMEX_EXPORT_SELF_KEYS: usize = 1;
+pub const DC_IMEX_EXPORT_SELF_KEYS: i32 = 1;
 /// param1 is a directory where the keys are searched in and read from
-const DC_IMEX_IMPORT_SELF_KEYS: usize = 2;
+pub const DC_IMEX_IMPORT_SELF_KEYS: i32 = 2;
 /// param1 is a directory where the backup is written to
-const DC_IMEX_EXPORT_BACKUP: usize = 11;
+pub const DC_IMEX_EXPORT_BACKUP: i32 = 11;
 /// param1 is the file with the backup to import
-const DC_IMEX_IMPORT_BACKUP: usize = 12;
+pub const DC_IMEX_IMPORT_BACKUP: i32 = 12;
 
 /// virtual chat showing all messages belonging to chats flagged with chats.blocked=2
 pub(crate) const DC_CHAT_ID_DEADDROP: u32 = 1;

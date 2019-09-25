@@ -48,7 +48,7 @@ class Account(object):
         if not lib.dc_open(self._dc_context, db_path, ffi.NULL):
             raise ValueError("Could not dc_open: {}".format(db_path))
         self._configkeys = self.get_config("sys.config_keys").split()
-        self._imex_progress_finished = Queue()
+        self._imex_events = Queue()
 
     def __del__(self):
         self.shutdown()
@@ -303,24 +303,28 @@ class Account(object):
             raise RuntimeError("found more than one new file")
         return l[0]
 
-    def _imex_progress_finished_clear(self):
+    def _imex_events_clear(self):
         try:
             while True:
-                self._imex_progress_finished.get_nowait()
+                self._imex_events.get_nowait()
         except Empty:
             pass
 
     def _export(self, path, imex_cmd):
         snap_files = os.listdir(path)
-        self._imex_progress_finished_clear()
+        self._imex_events_clear()
         lib.dc_imex(self._dc_context, imex_cmd, as_dc_charpointer(path), ffi.NULL)
         if not self._threads.is_started():
             lib.dc_perform_imap_jobs(self._dc_context)
-        if not self._imex_progress_finished.get():
-            raise ValueError("export failed")
-        return [ os.path.join(path, x)
-                 for x in os.listdir(backupdir)
-                    if x not in snap_files]
+        files_written = []
+        while True:
+            ev = self._imex_events.get()
+            if isinstance(ev, str):
+                files_written.append(ev)
+            elif isinstance(ev, bool):
+                if not ev:
+                    raise ValueError("export failed, exp-files: {}".format(files_written))
+                return files_written
 
     def import_self_keys(self, path):
         """ Import private keys found in the `path` directory.
@@ -338,11 +342,11 @@ class Account(object):
         self._import(path, imex_cmd=12)
 
     def _import(self, path, imex_cmd):
-        self._imex_progress_finished_clear()
+        self._imex_events_clear()
         lib.dc_imex(self._dc_context, imex_cmd, as_dc_charpointer(path), ffi.NULL)
         if not self._threads.is_started():
             lib.dc_perform_imap_jobs(self._dc_context)
-        if not self._imex_progress_finished.get():
+        if not self._imex_events.get():
             raise ValueError("import from path '{}' failed".format(path))
 
     def initiate_key_transfer(self):
@@ -453,10 +457,12 @@ class Account(object):
 
     def on_dc_event_imex_progress(self, data1, data2):
         if data1 == 1000:
-            self._imex_progress_finished.put(True)
+            self._imex_events.put(True)
         elif data1 == 0:
-            self._imex_progress_finished.put(False)
+            self._imex_events.put(False)
 
+    def on_dc_event_imex_file_written(self, data1, data2):
+        self._imex_events.put(data1)
 
 class IOThreads:
     def __init__(self, dc_context, log_event=lambda *args: None):
