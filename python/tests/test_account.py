@@ -533,7 +533,7 @@ class TestOnlineAccount:
         assert len(messages) == 1
         assert messages[0].text == "msg1"
 
-    def test_ac_setup_message(self, acfactory):
+    def test_ac_setup_message(self, acfactory, lp):
         # note that the receiving account needs to be configured and running
         # before ther setup message is send. DC does not read old messages
         # as of Jul2019
@@ -541,6 +541,7 @@ class TestOnlineAccount:
         ac2 = acfactory.clone_online_account(ac1)
         wait_configuration_progress(ac2, 1000)
         wait_configuration_progress(ac1, 1000)
+        lp.sec("trigger ac setup message and return setupcode")
         assert ac1.get_info()["fingerprint"] != ac2.get_info()["fingerprint"]
         setup_code = ac1.initiate_key_transfer()
         ac2._evlogger.set_timeout(30)
@@ -548,9 +549,10 @@ class TestOnlineAccount:
         msg = ac2.get_message_by_id(ev[2])
         assert msg.is_setup_message()
         assert msg.get_setupcodebegin() == setup_code[:2]
-        # first try a bad setup code
+        lp.sec("try a bad setup code")
         with pytest.raises(ValueError):
             msg.continue_key_transfer(str(reversed(setup_code)))
+        lp.sec("try a good setup code")
         print("*************** Incoming ASM File at: ", msg.filename)
         print("*************** Setup Code: ", setup_code)
         msg.continue_key_transfer(setup_code)

@@ -231,57 +231,39 @@ pub fn dc_create_setup_code(_context: &Context) -> String {
     ret
 }
 
-pub unsafe fn dc_continue_key_transfer(context: &Context, msg_id: u32, setup_code: &str) -> bool {
+pub fn dc_continue_key_transfer(context: &Context, msg_id: u32, setup_code: &str) -> Result<()> {
     if msg_id <= DC_MSG_ID_LAST_SPECIAL {
-        return false;
+        bail!("wrong id");
     }
 
     let msg = Message::load_from_db(context, msg_id);
     if msg.is_err() {
-        error!(context, "Message is no Autocrypt Setup Message.");
-        return false;
+        bail!("Message is no Autocrypt Setup Message.");
     }
     let msg = msg.unwrap();
     if !msg.is_setupmessage() {
-        error!(context, "Message is no Autocrypt Setup Message.");
-        return false;
+        bail!("Message is no Autocrypt Setup Message.");
     }
 
     if let Some(filename) = msg.get_file(context) {
         if let Ok(buf) = dc_read_file(context, filename) {
             let norm_sc = CString::yolo(dc_normalize_setup_code(setup_code));
-            let armored_key = dc_decrypt_setup_file(context, norm_sc.as_ptr(), buf.as_ptr().cast());
-            if armored_key.is_null() {
-                warn!(context, "Cannot decrypt Autocrypt Setup Message.",);
-                false
-            } else if set_self_key(context, armored_key, 1) {
-                /*set default*/
-                /* error already logged */
-                free(armored_key as *mut libc::c_void);
-                true
-            } else {
-                armored_key = dc_decrypt_setup_file(context, norm_sc, buf.as_ptr().cast());
-                if armored_key.is_null() {
-                    error!(context, "Cannot decrypt Autocrypt Setup Message.",);
-                } else {
-                    let armored_key_r = as_str(armored_key);
-                    match set_self_key(context, armored_key_r, true, true) {
-                        Ok(()) => {
-                            success = true;
-                        }
-                        Err(err) => {
-                            warn!(context, "set-self-key failed: {}", err);
-                        }
-                    }
+            let armored_key: &str;
+            unsafe {
+                let sc = dc_decrypt_setup_file(context, norm_sc.as_ptr(), buf.as_ptr().cast());
+                if sc.is_null() {
+                    bail!("bad setup code");
                 }
+                armored_key = as_str(sc);
+                free(sc as *mut libc::c_void);
             }
+            set_self_key(context, &armored_key, true, true)?;
+            Ok(())
         } else {
-            error!(context, "Cannot read Autocrypt Setup Message file.",);
-            false
+            bail!("Cannot read Autocrypt Setup Message file.");
         }
     } else {
-        error!(context, "Message is no Autocrypt Setup Message.");
-        false
+        bail!("Message is no Autocrypt Setup Message.");
     }
 }
 

@@ -446,9 +446,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 !arg1.is_empty() && !arg2.is_empty(),
                 "Arguments <msg-id> <setup-code> expected"
             );
-            if !dc_continue_key_transfer(context, arg1.parse()?, &arg2) {
-                bail!("Continue key transfer failed");
-            }
+            dc_continue_key_transfer(context, arg1.parse()?, &arg2)?;
         }
         "has-backup" => {
             dc_imex_has_backup(context, blobdir)?;
