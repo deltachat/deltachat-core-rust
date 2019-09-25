@@ -1,5 +1,4 @@
 use std::path::Path;
-use std::ptr;
 use std::str::FromStr;
 
 use deltachat::chat::{self, Chat};
@@ -328,6 +327,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
     };
     let arg2 = args.next().unwrap_or_default();
 
+    let blobdir = context.get_blobdir();
     match arg0 {
         "help" | "?" => match arg1 {
             // TODO: reuse commands definition in main.rs.
@@ -451,27 +451,24 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             }
         }
         "has-backup" => {
-            let ret = dc_imex_has_backup(context, context.get_blobdir());
-            if ret.is_null() {
-                println!("No backup found.");
-            }
+            dc_imex_has_backup(context, blobdir)?;
         }
         "export-backup" => {
-            dc_imex(context, 11, Some(context.get_blobdir()), ptr::null());
+            dc_imex(context, 11, Some(blobdir));
         }
         "import-backup" => {
             ensure!(!arg1.is_empty(), "Argument <backup-file> missing.");
-            dc_imex(context, 12, Some(arg1), ptr::null());
+            dc_imex(context, 12, Some(arg1));
         }
         "export-keys" => {
-            dc_imex(context, 1, Some(context.get_blobdir()), ptr::null());
+            dc_imex(context, 1, Some(blobdir));
         }
         "import-keys" => {
-            dc_imex(context, 2, Some(context.get_blobdir()), ptr::null());
+            dc_imex(context, 2, Some(blobdir));
         }
         "export-setup" => {
             let setup_code = dc_create_setup_code(context);
-            let file_name = context.get_blobdir().join("autocrypt-setup-message.html");
+            let file_name = blobdir.join("autocrypt-setup-message.html");
             let file_content = dc_render_setup_file(context, &setup_code)?;
             std::fs::write(&file_name, file_content)?;
             println!(

@@ -1519,7 +1519,7 @@ pub unsafe extern "C" fn dc_imex(
     context: *mut dc_context_t,
     what: libc::c_int,
     param1: *mut libc::c_char,
-    param2: *mut libc::c_char,
+    _param2: *mut libc::c_char,
 ) {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_imex()");
@@ -1527,7 +1527,7 @@ pub unsafe extern "C" fn dc_imex(
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| dc_imex::dc_imex(ctx, what, as_opt_str(param1), as_opt_str(param2)))
+        .with_inner(|ctx| dc_imex::dc_imex(ctx, what, as_opt_str(param1)))
         .ok();
 }
 

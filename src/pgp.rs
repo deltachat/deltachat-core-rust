@@ -19,7 +19,7 @@ use crate::keyring::*;
 
 pub unsafe fn dc_split_armored_data(
     buf: *mut libc::c_char,
-    ret_headerline: *mut *const libc::c_char,
+    ret_headerline: *mut String,
     ret_setupcodebegin: *mut *const libc::c_char,
     ret_preferencrypt: *mut *const libc::c_char,
     ret_base64: *mut *const libc::c_char,
@@ -31,9 +31,6 @@ pub unsafe fn dc_split_armored_data(
     let mut p2: *mut libc::c_char;
     let mut headerline: *mut libc::c_char = ptr::null_mut();
     let mut base64: *mut libc::c_char = ptr::null_mut();
-    if !ret_headerline.is_null() {
-        *ret_headerline = ptr::null()
-    }
     if !ret_setupcodebegin.is_null() {
         *ret_setupcodebegin = ptr::null_mut();
     }
@@ -43,7 +40,7 @@ pub unsafe fn dc_split_armored_data(
     if !ret_base64.is_null() {
         *ret_base64 = ptr::null();
     }
-    if !(buf.is_null() || ret_headerline.is_null()) {
+    if !buf.is_null() {
         dc_remove_cr_chars(buf);
         while 0 != *p1 {
             if *p1 as libc::c_int == '\n' as i32 {
@@ -62,9 +59,7 @@ pub unsafe fn dc_split_armored_data(
                         ) == 0i32
                     {
                         headerline = line;
-                        if !ret_headerline.is_null() {
-                            *ret_headerline = headerline
-                        }
+                        *ret_headerline = as_str(headerline).to_string();
                     }
                 } else if strspn(line, b"\t\r\n \x00" as *const u8 as *const libc::c_char)
                     == strlen(line)

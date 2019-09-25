@@ -59,7 +59,7 @@ unsafe fn stress_functions(context: &Context) {
     assert!(res.contains(" configured_server_flags "));
 
     let mut buf_0: *mut libc::c_char;
-    let mut headerline: *const libc::c_char = ptr::null();
+    let mut headerline = String::default();
     let mut setupcodebegin: *const libc::c_char = ptr::null();
     let mut preferencrypt: *const libc::c_char = ptr::null();
     let mut base64: *const libc::c_char = ptr::null();
@@ -75,14 +75,8 @@ unsafe fn stress_functions(context: &Context) {
         &mut base64,
     );
     assert!(ok);
-    assert!(!headerline.is_null());
-    assert_eq!(
-        strcmp(
-            headerline,
-            b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-        ),
-        0
-    );
+    assert!(!headerline.is_empty());
+    assert_eq!(headerline, "-----BEGIN PGP MESSAGE-----");
 
     assert!(!base64.is_null());
     assert_eq!(as_str(base64 as *const libc::c_char), "data",);
@@ -101,14 +95,7 @@ unsafe fn stress_functions(context: &Context) {
     );
 
     assert!(ok);
-    assert!(!headerline.is_null());
-    assert_eq!(
-        strcmp(
-            headerline,
-            b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-        ),
-        0
-    );
+    assert_eq!(headerline, "-----BEGIN PGP MESSAGE-----");
 
     assert!(!base64.is_null());
     assert_eq!(as_str(base64 as *const libc::c_char), "dat1",);
@@ -128,14 +115,7 @@ unsafe fn stress_functions(context: &Context) {
     );
 
     assert!(ok);
-    assert!(!headerline.is_null());
-    assert_eq!(
-        strcmp(
-            headerline,
-            b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-        ),
-        0
-    );
+    assert_eq!(headerline, "-----BEGIN PGP MESSAGE-----");
     assert!(setupcodebegin.is_null());
 
     assert!(!base64.is_null());
@@ -165,14 +145,7 @@ unsafe fn stress_functions(context: &Context) {
         &mut base64,
     );
     assert!(ok);
-    assert!(!headerline.is_null());
-    assert_eq!(
-        strcmp(
-            headerline,
-            b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-        ),
-        0
-    );
+    assert_eq!(headerline, "-----BEGIN PGP MESSAGE-----");
 
     assert!(!setupcodebegin.is_null());
     assert_eq!(
@@ -199,15 +172,7 @@ unsafe fn stress_functions(context: &Context) {
         &mut base64,
     );
     assert!(ok);
-    assert!(!headerline.is_null());
-    assert_eq!(
-        strcmp(
-            headerline,
-            b"-----BEGIN PGP PRIVATE KEY BLOCK-----\x00" as *const u8 as *const libc::c_char,
-        ),
-        0
-    );
-
+    assert_eq!(headerline, "-----BEGIN PGP PRIVATE KEY BLOCK-----");
     assert!(!preferencrypt.is_null());
     assert_eq!(
         strcmp(
@@ -223,7 +188,7 @@ unsafe fn stress_functions(context: &Context) {
     free(buf_0 as *mut libc::c_void);
 
     let mut buf_1: *mut libc::c_char;
-    let mut headerline_0: *const libc::c_char = ptr::null();
+    let mut headerline_0 = String::default();
     let mut setupcodebegin_0: *const libc::c_char = ptr::null();
     let mut preferencrypt_0: *const libc::c_char = ptr::null();
     buf_1 = strdup(S_EM_SETUPFILE);
@@ -234,14 +199,7 @@ unsafe fn stress_functions(context: &Context) {
         &mut preferencrypt_0,
         ptr::null_mut(),
     ));
-    assert!(!headerline_0.is_null());
-    assert_eq!(
-        0,
-        strcmp(
-            headerline_0,
-            b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-        )
-    );
+    assert_eq!(headerline_0, "-----BEGIN PGP MESSAGE-----");
     assert!(!setupcodebegin_0.is_null());
     assert!(strlen(setupcodebegin_0) < strlen(S_EM_SETUPCODE));
     assert_eq!(
@@ -260,14 +218,7 @@ unsafe fn stress_functions(context: &Context) {
         &mut preferencrypt_0,
         ptr::null_mut(),
     ));
-    assert!(!headerline_0.is_null());
-    assert_eq!(
-        strcmp(
-            headerline_0,
-            b"-----BEGIN PGP PRIVATE KEY BLOCK-----\x00" as *const u8 as *const libc::c_char,
-        ),
-        0
-    );
+    assert_eq!(headerline_0, "-----BEGIN PGP PRIVATE KEY BLOCK-----");
     assert!(setupcodebegin_0.is_null());
     assert!(!preferencrypt_0.is_null());
     assert_eq!(

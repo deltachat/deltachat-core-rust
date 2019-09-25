@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::ptr;
 
 use deltachat_derive::{FromSql, ToSql};
-use libc::{free, strcmp};
+use libc::free;
 
 use crate::chat::{self, Chat};
 use crate::constants::*;
@@ -353,7 +353,7 @@ impl Message {
             if let Ok(mut buf) = dc_read_file(context, filename) {
                 unsafe {
                     // just a pointer inside buf, MUST NOT be free()'d
-                    let mut buf_headerline = ptr::null();
+                    let mut buf_headerline = String::default();
                     // just a pointer inside buf, MUST NOT be free()'d
                     let mut buf_setupcodebegin = ptr::null();
 
@@ -363,10 +363,7 @@ impl Message {
                         &mut buf_setupcodebegin,
                         ptr::null_mut(),
                         ptr::null_mut(),
-                    ) && strcmp(
-                        buf_headerline,
-                        b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-                    ) == 0
+                    ) && buf_headerline == "-----BEGIN PGP MESSAGE-----"
                         && !buf_setupcodebegin.is_null()
                     {
                         return Some(to_string(buf_setupcodebegin));

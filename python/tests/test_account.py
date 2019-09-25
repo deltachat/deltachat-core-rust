@@ -293,10 +293,10 @@ class TestOfflineChat:
         assert contact == ac1.get_self_contact()
         assert not backupdir.listdir()
 
-        path = ac1.export_to_dir(backupdir.strpath)
+        path = ac1.export_all(backupdir.strpath)
         assert os.path.exists(path)
         ac2 = acfactory.get_unconfigured_account()
-        ac2.import_from_file(path)
+        ac2.import_all(path)
         contacts = ac2.get_contacts(query="some1")
         assert len(contacts) == 1
         contact2 = contacts[0]
@@ -343,9 +343,9 @@ class TestOnlineAccount:
     def test_export_import_self_keys(self, acfactory, tmpdir):
         ac1, ac2 = acfactory.get_two_online_accounts()
         dir = tmpdir.mkdir("exportdir")
-        l = ac1.export_self_keys(dir.strpath)
-        assert len(l) == 2
-        for x in l:
+        export_files = ac1.export_self_keys(dir.strpath)
+        assert len(export_files) == 2
+        for x in export_files:
             assert x.startswith(dir.strpath)
         ac1._evlogger.consume_events()
         ac1.import_self_keys(dir.strpath)
