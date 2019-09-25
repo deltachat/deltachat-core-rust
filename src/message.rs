@@ -150,9 +150,10 @@ impl Message {
             if let Some((_, mime)) = guess_msgtype_from_suffix(Path::new(file)) {
                 return mime.to_string();
             }
+            return "application/octet-stream".to_string()
         }
+        "".to_string()
 
-        "application/octet-stream".to_string()
     }
 
     pub fn get_file(&self, context: &Context) -> Option<PathBuf> {
