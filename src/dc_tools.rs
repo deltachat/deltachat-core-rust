@@ -536,7 +536,7 @@ pub(crate) fn dc_delete_file(context: &Context, path: impl AsRef<std::path::Path
     if !path_abs.is_file() {
         warn!(
             context,
-            "refusing to deleting non-file \"{}\".",
+            "refusing to delete non-file \"{}\".",
             path.as_ref().display()
         );
         return false;

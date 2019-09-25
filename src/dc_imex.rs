@@ -44,13 +44,10 @@ pub fn dc_imex(context: &Context, what: libc::c_int, param1: Option<impl AsRef<P
 /// Returns the filename of the backup if found, nullptr otherwise.
 pub fn dc_imex_has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result<String> {
     let dir_name = dir_name.as_ref();
-    let dir_iter = std::fs::read_dir(dir_name);
-    if dir_iter.is_err() {
-        bail!("Backup check: Cannot open directory \"{:?}\"", dir_name);
-    }
+    let dir_iter = std::fs::read_dir(dir_name)?;
     let mut newest_backup_time = 0;
     let mut newest_backup_path: Option<std::path::PathBuf> = None;
-    for dirent in dir_iter.unwrap() {
+    for dirent in dir_iter {
         match dirent {
             Ok(dirent) => {
                 let path = dirent.path();
@@ -232,29 +229,26 @@ pub fn dc_create_setup_code(_context: &Context) -> String {
 }
 
 pub fn dc_continue_key_transfer(context: &Context, msg_id: u32, setup_code: &str) -> Result<()> {
-    if msg_id <= DC_MSG_ID_LAST_SPECIAL {
-        bail!("wrong id");
-    }
+    ensure!(msg_id > DC_MSG_ID_LAST_SPECIAL, "wrong id");
 
     let msg = Message::load_from_db(context, msg_id);
     if msg.is_err() {
         bail!("Message is no Autocrypt Setup Message.");
     }
     let msg = msg.unwrap();
-    if !msg.is_setupmessage() {
-        bail!("Message is no Autocrypt Setup Message.");
-    }
+    ensure!(
+        msg.is_setupmessage(),
+        "Message is no Autocrypt Setup Message."
+    );
 
     if let Some(filename) = msg.get_file(context) {
         if let Ok(buf) = dc_read_file(context, filename) {
             let norm_sc = CString::yolo(dc_normalize_setup_code(setup_code));
-            let armored_key: &str;
+            let armored_key: String;
             unsafe {
                 let sc = dc_decrypt_setup_file(context, norm_sc.as_ptr(), buf.as_ptr().cast());
-                if sc.is_null() {
-                    bail!("bad setup code");
-                }
-                armored_key = as_str(sc);
+                ensure!(!sc.is_null(), "bad setup code");
+                armored_key = to_string(sc);
                 free(sc as *mut libc::c_void);
             }
             set_self_key(context, &armored_key, true, true)?;
@@ -278,9 +272,7 @@ fn set_self_key(
         .and_then(|(k, h)| if k.verify() { Some((k, h)) } else { None })
         .and_then(|(k, h)| k.split_key().map(|pub_key| (k, pub_key, h)));
 
-    if keys.is_none() {
-        bail!("File does not contain a valid private key.");
-    }
+    ensure!(keys.is_some(), "Not a valid private key");
 
     let (private_key, public_key, header) = keys.unwrap();
     let preferencrypt = header.get("Autocrypt-Prefer-Encrypt");
@@ -305,9 +297,7 @@ fn set_self_key(
     };
 
     let self_addr = context.get_config(Config::ConfiguredAddr);
-    if self_addr.is_none() {
-        bail!("Missing self addr");
-    }
+    ensure!(self_addr.is_some(), "Missing self addr");
 
     // XXX maybe better make dc_key_save_self_keypair delete things
     sql::execute(
@@ -413,50 +403,44 @@ pub fn dc_normalize_setup_code(s: &str) -> String {
 
 #[allow(non_snake_case)]
 pub fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: &Job) -> Result<()> {
-    if !dc_alloc_ongoing(context) {
-        bail!("could not allocate ongoing")
-    }
+    ensure!(dc_alloc_ongoing(context), "could not allocate ongoing");
     let what = job.param.get_int(Param::Cmd).unwrap_or_default();
-    let param1_s = job.param.get(Param::Arg).unwrap_or_default();
-    let param1 = CString::yolo(param1_s);
+    let param = job.param.get(Param::Arg).unwrap_or_default();
 
-    if param1_s.is_empty() {
-        bail!("No Import/export dir/file given.");
-    }
+    ensure!(!param.is_empty(), "No Import/export dir/file given.");
     info!(context, "Import/export process started.");
     context.call_cb(Event::ImexProgress(10));
 
-    if !context.sql.is_open() {
-        bail!("Database not opened.");
-    }
+    ensure!(context.sql.is_open(), "Database not opened.");
     if what == DC_IMEX_EXPORT_BACKUP || what == DC_IMEX_EXPORT_SELF_KEYS {
         /* before we export anything, make sure the private key exists */
         if e2ee::ensure_secret_key_exists(context).is_err() {
             dc_free_ongoing(context);
             bail!("Cannot create private key or private key not available.");
         } else {
-            dc_create_folder(context, &param1_s);
+            dc_create_folder(context, &param);
         }
     }
+    let path = Path::new(param);
     let success = match what {
-        DC_IMEX_EXPORT_SELF_KEYS => export_self_keys(context, &param1_s),
-        DC_IMEX_IMPORT_SELF_KEYS => import_self_keys(context, &param1_s),
-        DC_IMEX_EXPORT_BACKUP => unsafe { export_backup(context, param1.as_ptr()) },
-        DC_IMEX_IMPORT_BACKUP => unsafe { import_backup(context, param1.as_ptr()) },
+        DC_IMEX_EXPORT_SELF_KEYS => export_self_keys(context, path),
+        DC_IMEX_IMPORT_SELF_KEYS => import_self_keys(context, path),
+        DC_IMEX_EXPORT_BACKUP => unsafe { export_backup(context, path) },
+        DC_IMEX_IMPORT_BACKUP => import_backup(context, path),
         _ => {
             bail!("unknown IMEX type: {}", what);
         }
     };
     dc_free_ongoing(context);
     match success {
-        true => {
+        Ok(()) => {
             info!(context, "IMEX successfully completed");
             context.call_cb(Event::ImexProgress(1000));
             Ok(())
         }
-        false => {
+        Err(err) => {
             context.call_cb(Event::ImexProgress(0));
-            bail!("IMEX FAILED to complete");
+            bail!("IMEX FAILED to complete: {}", err);
         }
     }
 }
@@ -466,36 +450,35 @@ pub fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: &Job) -> Result<()> {
  ******************************************************************************/
 
 #[allow(non_snake_case)]
-unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char) -> bool {
+fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) -> Result<()> {
     info!(
         context,
         "Import \"{}\" to \"{}\".",
-        as_str(backup_to_import),
+        backup_to_import.as_ref().display(),
         context.get_dbfile().display()
     );
 
-    if dc_is_configured(context) {
-        error!(context, "Cannot import backups to accounts in use.");
-        return false;
-    }
+    ensure!(
+        !dc_is_configured(context),
+        "Cannot import backups to accounts in use."
+    );
     &context.sql.close(&context);
     dc_delete_file(context, context.get_dbfile());
-    if dc_file_exist(context, context.get_dbfile()) {
-        error!(
-            context,
-            "Cannot import backups: Cannot delete the old file.",
-        );
-        return false;
-    }
+    ensure!(
+        !dc_file_exist(context, context.get_dbfile()),
+        "Cannot delete old database."
+    );
 
-    if !dc_copy_file(context, as_path(backup_to_import), context.get_dbfile()) {
-        return false;
-    }
+    ensure!(
+        dc_copy_file(context, backup_to_import.as_ref(), context.get_dbfile()),
+        "could not copy file"
+    );
     /* error already logged */
     /* re-open copied database file */
-    if !context.sql.open(&context, &context.get_dbfile(), 0) {
-        return false;
-    }
+    ensure!(
+        context.sql.open(&context, &context.get_dbfile(), 0),
+        "could not re-open db"
+    );
 
     let total_files_cnt = context
         .sql
@@ -516,12 +499,10 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
             Ok((name, blob))
         },
         |files| {
-            let mut loop_success = true;
             let mut processed_files_cnt = 0;
 
             for file in files {
                 let (file_name, file_blob) = file?;
-
                 if context
                     .running_state
                     .clone()
@@ -529,8 +510,7 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
                     .unwrap()
                     .shall_stop_ongoing
                 {
-                    loop_success = false;
-                    break;
+                    bail!("received stop signal");
                 }
                 processed_files_cnt += 1;
                 let mut permille = processed_files_cnt * 1000 / total_files_cnt;
@@ -549,19 +529,11 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
                 if dc_write_file(context, &pathNfilename, &file_blob) {
                     continue;
                 }
-                error!(
-                    context,
+                bail!(
                     "Storage full? Cannot write file {} with {} bytes.",
                     pathNfilename.display(),
                     file_blob.len(),
                 );
-                // otherwise the user may believe the stuff is imported correctly, but there are files missing ...
-                loop_success = false;
-                break;
-            }
-
-            if !loop_success {
-                return Err(format_err!("fail"));
             }
             Ok(())
         },
@@ -573,7 +545,6 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
         sql::try_execute(context, &context.sql, "VACUUM;").ok();
         Ok(())
     })
-    .is_ok()
 }
 
 /*******************************************************************************
@@ -582,7 +553,7 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
 /* the FILE_PROGRESS macro calls the callback with the permille of files processed.
 The macro avoids weird values of 0% or 100% while still working. */
 #[allow(non_snake_case)]
-unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> bool {
+unsafe fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     let mut ok_to_continue: bool;
     let mut success = false;
 
@@ -594,7 +565,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> bool {
         .format("delta-chat-%Y-%m-%d.bak")
         .to_string();
 
-    let dest_path_filename = dc_get_fine_path_filename(context, as_path(dir), res);
+    let dest_path_filename = dc_get_fine_path_filename(context, dir, res);
 
     sql::housekeeping(context);
 
@@ -743,28 +714,26 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> bool {
         dc_delete_file(context, &dest_path_filename);
     }
 
-    success
+    ensure!(success, "failed");
+    Ok(())
 }
 
 /*******************************************************************************
  * Classic key import
  ******************************************************************************/
-fn import_self_keys(context: &Context, dir_name: &str) -> bool {
+fn import_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     /* hint: even if we switch to import Autocrypt Setup Files, we should leave the possibility to import
     plain ASC keys, at least keys without a password, if we do not want to implement a password entry function.
     Importing ASC keys is useful to use keys in Delta Chat used by any other non-Autocrypt-PGP implementation.
 
     Maybe we should make the "default" key handlong also a little bit smarter
     (currently, the last imported key is the standard key unless it contains the string "legacy" in its name) */
-    if dir_name.is_empty() {
-        return false;
-    }
     let mut set_default: bool;
     let mut key: String;
     let mut imported_cnt = 0;
 
-    let dir = std::path::Path::new(dir_name);
-    if let Ok(dir_handle) = std::fs::read_dir(dir) {
+    let dir_name = dir.as_ref().to_string_lossy();
+    if let Ok(dir_handle) = std::fs::read_dir(&dir) {
         for entry in dir_handle {
             let entry_fn = match entry {
                 Err(err) => {
@@ -774,7 +743,7 @@ fn import_self_keys(context: &Context, dir_name: &str) -> bool {
                 Ok(res) => res.file_name(),
             };
             let name_f = entry_fn.to_string_lossy();
-            let path_plus_name = dir.join(&entry_fn);
+            let path_plus_name = dir.as_ref().join(&entry_fn);
             match dc_get_filesuffix_lc(&name_f) {
                 Some(suffix) => {
                     if suffix != "asc" {
@@ -791,8 +760,9 @@ fn import_self_keys(context: &Context, dir_name: &str) -> bool {
                     continue;
                 }
             }
-            if let Ok(content) = dc_read_file(context, &path_plus_name) {
+            let ccontent = if let Ok(content) = dc_read_file(context, &path_plus_name) {
                 key = String::from_utf8_lossy(&content).to_string();
+                CString::new(content).unwrap()
             } else {
                 continue;
             };
@@ -801,7 +771,7 @@ fn import_self_keys(context: &Context, dir_name: &str) -> bool {
             let mut buf2_headerline = String::default();
             let split_res: bool;
             unsafe {
-                let buf2 = "".strdup();
+                let buf2 = dc_strdup(ccontent.as_ptr());
                 split_res = dc_split_armored_data(
                     buf2,
                     &mut buf2_headerline,
@@ -825,71 +795,76 @@ fn import_self_keys(context: &Context, dir_name: &str) -> bool {
             }
             imported_cnt += 1
         }
-        if imported_cnt == 0i32 {
-            error!(context, "No private keys found in \"{}\".", dir_name,);
-        }
+        ensure!(
+            imported_cnt > 0,
+            "No private keys found in \"{}\".",
+            dir_name
+        );
+        return Ok(());
     } else {
-        error!(context, "Import: Cannot open directory \"{}\".", dir_name,);
+        bail!("Import: Cannot open directory \"{}\".", dir_name);
     }
-    imported_cnt != 0
 }
 
-fn export_self_keys(context: &Context, dir: &str) -> bool {
+fn export_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     let mut export_errors = 0;
 
-    context
-        .sql
-        .query_map(
-            "SELECT id, public_key, private_key, is_default FROM keypairs;",
-            params![],
-            |row| {
-                let id = row.get(0)?;
-                let public_key_blob: Vec<u8> = row.get(1)?;
-                let public_key = Key::from_slice(&public_key_blob, KeyType::Public);
-                let private_key_blob: Vec<u8> = row.get(2)?;
-                let private_key = Key::from_slice(&private_key_blob, KeyType::Private);
-                let is_default: i32 = row.get(3)?;
+    context.sql.query_map(
+        "SELECT id, public_key, private_key, is_default FROM keypairs;",
+        params![],
+        |row| {
+            let id = row.get(0)?;
+            let public_key_blob: Vec<u8> = row.get(1)?;
+            let public_key = Key::from_slice(&public_key_blob, KeyType::Public);
+            let private_key_blob: Vec<u8> = row.get(2)?;
+            let private_key = Key::from_slice(&private_key_blob, KeyType::Private);
+            let is_default: i32 = row.get(3)?;
 
-                Ok((id, public_key, private_key, is_default))
-            },
-            |keys| {
-                for key_pair in keys {
-                    let (id, public_key, private_key, is_default) = key_pair?;
-                    let id = Some(id).filter(|_| is_default != 0);
-                    if let Some(key) = public_key {
-                        if !export_key_to_asc_file(context, dir, id, &key) {
-                            export_errors += 1;
-                        }
-                    } else {
+            Ok((id, public_key, private_key, is_default))
+        },
+        |keys| {
+            for key_pair in keys {
+                let (id, public_key, private_key, is_default) = key_pair?;
+                let id = Some(id).filter(|_| is_default != 0);
+                if let Some(key) = public_key {
+                    if !export_key_to_asc_file(context, &dir, id, &key) {
                         export_errors += 1;
                     }
-                    if let Some(key) = private_key {
-                        if !export_key_to_asc_file(context, dir, id, &key) {
-                            export_errors += 1;
-                        }
-                    } else {
-                        export_errors += 1;
-                    }
+                } else {
+                    export_errors += 1;
                 }
+                if let Some(key) = private_key {
+                    if !export_key_to_asc_file(context, &dir, id, &key) {
+                        export_errors += 1;
+                    }
+                } else {
+                    export_errors += 1;
+                }
+            }
 
-                Ok(())
-            },
-        )
-        .unwrap();
+            Ok(())
+        },
+    )?;
 
-    export_errors == 0
+    ensure!(export_errors == 0, "errors while importing");
+    Ok(())
 }
 
 /*******************************************************************************
  * Classic key export
  ******************************************************************************/
-fn export_key_to_asc_file(context: &Context, dir: &str, id: Option<i64>, key: &Key) -> bool {
+fn export_key_to_asc_file(
+    context: &Context,
+    dir: impl AsRef<Path>,
+    id: Option<i64>,
+    key: &Key,
+) -> bool {
     let mut success = false;
     let file_name = {
         let kind = if key.is_public() { "public" } else { "private" };
         let id = id.map_or("default".into(), |i| i.to_string());
 
-        Path::new(dir).join(format!("{}-key-{}.asc", kind, &id))
+        dir.as_ref().join(format!("{}-key-{}.asc", kind, &id))
     };
     info!(context, "Exporting key {}", file_name.display());
     dc_delete_file(context, &file_name);
