@@ -143,17 +143,18 @@ impl Message {
         }
     }
 
-    pub fn get_filemime(&self) -> String {
+    pub fn get_filemime(&self) -> Option<String> {
         if let Some(m) = self.param.get(Param::MimeType) {
-            return m.to_string();
+            return Some(m.to_string());
         } else if let Some(file) = self.param.get(Param::File) {
             if let Some((_, mime)) = guess_msgtype_from_suffix(Path::new(file)) {
-                return mime.to_string();
+                return Some(mime.to_string());
             }
-            return "application/octet-stream".to_string()
+            // we have a file but no mimetype, let's use a generic one
+            return Some("application/octet-stream".to_string());
         }
-        "".to_string()
-
+        // no mimetype and no file
+        None
     }
 
     pub fn get_file(&self, context: &Context) -> Option<PathBuf> {
@@ -644,7 +645,7 @@ pub fn get_msg_info(context: &Context, msg_id: u32) -> String {
         ret += "Type: ";
         ret += &format!("{}", msg.type_0);
         ret += "\n";
-        ret += &format!("Mimetype: {}\n", &msg.get_filemime());
+        ret += &format!("Mimetype: {}\n", &msg.get_filemime().unwrap_or_default());
     }
     let w = msg.param.get_int(Param::Width).unwrap_or_default();
     let h = msg.param.get_int(Param::Height).unwrap_or_default();
@@ -1155,5 +1156,6 @@ mod tests {
         let msg_id = chat::prepare_msg(ctx, chat, &mut msg).unwrap();
 
         let _msg2 = Message::load_from_db(ctx, msg_id).unwrap();
+        assert_eq!(_msg2.get_filemime(), None);
     }
 }

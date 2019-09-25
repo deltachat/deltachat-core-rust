@@ -2362,7 +2362,11 @@ pub unsafe extern "C" fn dc_msg_get_filemime(msg: *mut dc_msg_t) -> *mut libc::c
         return dc_strdup(ptr::null());
     }
     let ffi_msg = &*msg;
-    ffi_msg.message.get_filemime().strdup()
+    if let Some(x) = ffi_msg.message.get_filemime() {
+        x.strdup()
+    } else {
+        return dc_strdup(ptr::null());
+    }
 }
 
 #[no_mangle]
