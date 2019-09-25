@@ -2,7 +2,7 @@ use std::ffi::CString;
 use std::path::Path;
 use std::ptr;
 
-use libc::{free, strcmp, strlen, strstr};
+use libc::{free, strlen};
 use mmime::mailmime_content::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
@@ -30,19 +30,11 @@ use crate::stock::StockMessage;
 // param1 is a directory where the keys are searched in and read from
 // param1 is a directory where the backup is written to
 // param1 is the file with the backup to import
-pub fn dc_imex(
-    context: &Context,
-    what: libc::c_int,
-    param1: Option<impl AsRef<Path>>,
-    param2: Option<impl AsRef<Path>>,
-) {
+pub fn dc_imex(context: &Context, what: libc::c_int, param1: Option<impl AsRef<Path>>) {
     let mut param = Params::new();
     param.set_int(Param::Cmd, what as i32);
     if let Some(param1) = param1 {
         param.set(Param::Arg, param1.as_ref().to_string_lossy());
-    }
-    if let Some(param2) = param2 {
-        param.set(Param::Arg, param2.as_ref().to_string_lossy());
     }
 
     job_kill_action(context, Action::ImexImap);
@@ -268,7 +260,20 @@ pub unsafe fn dc_continue_key_transfer(context: &Context, msg_id: u32, setup_cod
                 free(armored_key as *mut libc::c_void);
                 true
             } else {
-                false
+                armored_key = dc_decrypt_setup_file(context, norm_sc, buf.as_ptr().cast());
+                if armored_key.is_null() {
+                    error!(context, "Cannot decrypt Autocrypt Setup Message.",);
+                } else {
+                    let armored_key_r = as_str(armored_key);
+                    match set_self_key(context, armored_key_r, true, true) {
+                        Ok(()) => {
+                            success = true;
+                        }
+                        Err(err) => {
+                            warn!(context, "set-self-key failed: {}", err);
+                        }
+                    }
+                }
             }
         } else {
             error!(context, "Cannot read Autocrypt Setup Message file.",);
@@ -282,55 +287,61 @@ pub unsafe fn dc_continue_key_transfer(context: &Context, msg_id: u32, setup_cod
 
 fn set_self_key(
     context: &Context,
-    armored_c: *const libc::c_char,
-    set_default: libc::c_int,
-) -> bool {
-    assert!(!armored_c.is_null(), "invalid buffer");
-    let armored = as_str(armored_c);
-
+    armored: &str,
+    set_default: bool,
+    prefer_encrypt_required: bool,
+) -> Result<()> {
+    // try hard to only modify key-state
     let keys = Key::from_armored_string(armored, KeyType::Private)
         .and_then(|(k, h)| if k.verify() { Some((k, h)) } else { None })
         .and_then(|(k, h)| k.split_key().map(|pub_key| (k, pub_key, h)));
 
     if keys.is_none() {
-        error!(context, "File does not contain a valid private key.",);
-        return false;
+        bail!("File does not contain a valid private key.");
     }
 
     let (private_key, public_key, header) = keys.unwrap();
     let preferencrypt = header.get("Autocrypt-Prefer-Encrypt");
+    match preferencrypt.map(|s| s.as_str()) {
+        Some(headerval) => {
+            let e2ee_enabled = match headerval {
+                "nopreference" => 0,
+                "mutual" => 1,
+                _ => {
+                    bail!("invalid Autocrypt-Prefer-Encrypt header: {:?}", header);
+                }
+            };
+            context
+                .sql
+                .set_config_int(context, "e2ee_enabled", e2ee_enabled)?;
+        }
+        None => {
+            if prefer_encrypt_required {
+                bail!("missing Autocrypt-Prefer-Encrypt header");
+            }
+        }
+    };
 
-    if sql::execute(
+    let self_addr = context.get_config(Config::ConfiguredAddr);
+    if self_addr.is_none() {
+        bail!("Missing self addr");
+    }
+
+    // XXX maybe better make dc_key_save_self_keypair delete things
+    sql::execute(
         context,
         &context.sql,
         "DELETE FROM keypairs WHERE public_key=? OR private_key=?;",
         params![public_key.to_bytes(), private_key.to_bytes()],
-    )
-    .is_err()
-    {
-        return false;
-    }
+    )?;
 
-    if 0 != set_default {
-        if sql::execute(
+    if set_default {
+        sql::execute(
             context,
             &context.sql,
             "UPDATE keypairs SET is_default=0;",
             params![],
-        )
-        .is_err()
-        {
-            return false;
-        }
-    } else {
-        error!(context, "File does not contain a private key.",);
-    }
-
-    let self_addr = context.get_config(Config::ConfiguredAddr);
-
-    if self_addr.is_none() {
-        error!(context, "Missing self addr");
-        return false;
+        )?;
     }
 
     if !dc_key_save_self_keypair(
@@ -338,25 +349,12 @@ fn set_self_key(
         &public_key,
         &private_key,
         self_addr.unwrap(),
-        set_default,
+        set_default as libc::c_int,
         &context.sql,
     ) {
-        error!(context, "Cannot save keypair.");
-        return false;
+        bail!("Cannot save keypair, internal key-state possibly corrupted now!");
     }
-
-    match preferencrypt.map(|s| s.as_str()) {
-        Some("") => false,
-        Some("nopreference") => context
-            .sql
-            .set_config_int(context, "e2ee_enabled", 0)
-            .is_ok(),
-        Some("mutual") => context
-            .sql
-            .set_config_int(context, "e2ee_enabled", 1)
-            .is_ok(),
-        _ => true,
-    }
+    Ok(())
 }
 
 pub unsafe fn dc_decrypt_setup_file(
@@ -365,7 +363,7 @@ pub unsafe fn dc_decrypt_setup_file(
     filecontent: *const libc::c_char,
 ) -> *mut libc::c_char {
     let fc_buf: *mut libc::c_char;
-    let mut fc_headerline: *const libc::c_char = ptr::null();
+    let mut fc_headerline = String::default();
     let mut fc_base64: *const libc::c_char = ptr::null();
     let mut binary: *mut libc::c_char = ptr::null_mut();
     let mut binary_bytes: libc::size_t = 0;
@@ -379,11 +377,7 @@ pub unsafe fn dc_decrypt_setup_file(
         ptr::null_mut(),
         ptr::null_mut(),
         &mut fc_base64,
-    ) && !fc_headerline.is_null()
-        && strcmp(
-            fc_headerline,
-            b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-        ) == 0
+    ) && fc_headerline == "-----BEGIN PGP MESSAGE-----"
         && !fc_base64.is_null()
     {
         /* convert base64 to binary */
@@ -464,7 +458,7 @@ pub fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: &Job) -> Result<()> {
     }
     let success = match what {
         DC_IMEX_EXPORT_SELF_KEYS => export_self_keys(context, &param1_s),
-        DC_IMEX_IMPORT_SELF_KEYS => unsafe { import_self_keys(context, &param1_s) },
+        DC_IMEX_IMPORT_SELF_KEYS => import_self_keys(context, &param1_s),
         DC_IMEX_EXPORT_BACKUP => unsafe { export_backup(context, param1.as_ptr()) },
         DC_IMEX_IMPORT_BACKUP => unsafe { import_backup(context, param1.as_ptr()) },
         _ => {
@@ -773,105 +767,88 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> bool {
 /*******************************************************************************
  * Classic key import
  ******************************************************************************/
-unsafe fn import_self_keys(context: &Context, dir_name: &str) -> bool {
+fn import_self_keys(context: &Context, dir_name: &str) -> bool {
     /* hint: even if we switch to import Autocrypt Setup Files, we should leave the possibility to import
     plain ASC keys, at least keys without a password, if we do not want to implement a password entry function.
     Importing ASC keys is useful to use keys in Delta Chat used by any other non-Autocrypt-PGP implementation.
 
     Maybe we should make the "default" key handlong also a little bit smarter
     (currently, the last imported key is the standard key unless it contains the string "legacy" in its name) */
-    let mut set_default: libc::c_int;
-    let mut buf: *mut libc::c_char = ptr::null_mut();
-    // a pointer inside buf, MUST NOT be free()'d
-    let mut private_key: *const libc::c_char;
-    let mut buf2: *mut libc::c_char = ptr::null_mut();
-    // a pointer inside buf2, MUST NOT be free()'d
-    let mut buf2_headerline: *const libc::c_char = ptr::null_mut();
+    if dir_name.is_empty() {
+        return false;
+    }
+    let mut set_default: bool;
+    let mut key: String;
     let mut imported_cnt = 0;
-    if !dir_name.is_empty() {
-        let dir = std::path::Path::new(dir_name);
-        if let Ok(dir_handle) = std::fs::read_dir(dir) {
-            for entry in dir_handle {
-                if let Err(err) = entry {
+
+    let dir = std::path::Path::new(dir_name);
+    if let Ok(dir_handle) = std::fs::read_dir(dir) {
+        for entry in dir_handle {
+            let entry_fn = match entry {
+                Err(err) => {
                     info!(context, "file-dir error: {}", err);
                     break;
                 }
-                let entry_fn = entry.unwrap().file_name();
-                let name_f = entry_fn.to_string_lossy();
-
-                info!(context, "Checking name_f: {}", name_f);
-                match dc_get_filesuffix_lc(&name_f) {
-                    Some(suffix) => {
-                        if suffix != "asc" {
-                            continue;
-                        }
-                    }
-                    None => {
+                Ok(res) => res.file_name(),
+            };
+            let name_f = entry_fn.to_string_lossy();
+            let path_plus_name = dir.join(&entry_fn);
+            match dc_get_filesuffix_lc(&name_f) {
+                Some(suffix) => {
+                    if suffix != "asc" {
                         continue;
                     }
+                    set_default = if name_f.contains("legacy") {
+                        info!(context, "found legacy key '{}'", path_plus_name.display());
+                        false
+                    } else {
+                        true
+                    }
                 }
-                let path_plus_name = dir.join(&entry_fn);
-                info!(context, "Checking: {}", path_plus_name.display());
-
-                free(buf.cast());
-                buf = ptr::null_mut();
-
-                if let Ok(buf_r) = dc_read_file(context, &path_plus_name) {
-                    buf = buf_r.as_ptr() as *mut _;
-                    std::mem::forget(buf_r);
-                } else {
+                None => {
                     continue;
-                };
+                }
+            }
+            if let Ok(content) = dc_read_file(context, &path_plus_name) {
+                key = String::from_utf8_lossy(&content).to_string();
+            } else {
+                continue;
+            };
 
-                private_key = buf;
-
-                free(buf2 as *mut libc::c_void);
-                buf2 = dc_strdup(buf);
-                if dc_split_armored_data(
+            /* only import if we have a private key */
+            let mut buf2_headerline = String::default();
+            let split_res: bool;
+            unsafe {
+                let buf2 = "".strdup();
+                split_res = dc_split_armored_data(
                     buf2,
                     &mut buf2_headerline,
                     ptr::null_mut(),
                     ptr::null_mut(),
                     ptr::null_mut(),
-                ) && strcmp(
-                    buf2_headerline,
-                    b"-----BEGIN PGP PUBLIC KEY BLOCK-----\x00" as *const u8 as *const libc::c_char,
-                ) == 0
-                {
-                    private_key = strstr(
-                        buf,
-                        b"-----BEGIN PGP PRIVATE KEY BLOCK\x00" as *const u8 as *const libc::c_char,
-                    );
-                    if private_key.is_null() {
-                        /* this is no error but quite normal as we always export the public keys together with the private ones */
-                        continue;
-                    }
-                }
-                set_default = 1;
-                if name_f.contains("legacy") {
-                    info!(
-                        context,
-                        "Treating \"{}\" as a legacy private key.",
-                        path_plus_name.display(),
-                    );
-                    set_default = 0i32
-                }
-                if !set_self_key(context, private_key, set_default) {
-                    continue;
-                }
-                imported_cnt += 1
+                );
+                free(buf2 as *mut libc::c_void);
             }
-            if imported_cnt == 0i32 {
-                error!(context, "No private keys found in \"{}\".", dir_name,);
+            if split_res
+                && buf2_headerline.contains("-----BEGIN PGP PUBLIC KEY BLOCK-----")
+                && !key.contains("-----BEGIN PGP PRIVATE KEY BLOCK")
+            {
+                info!(context, "ignoring public key file '{}", name_f);
+                // it's fine: DC exports public with private
+                continue;
             }
-        } else {
-            error!(context, "Import: Cannot open directory \"{}\".", dir_name,);
+            if let Err(err) = set_self_key(context, &key, set_default, false) {
+                error!(context, "set_self_key: {}", err);
+                continue;
+            }
+            imported_cnt += 1
         }
+        if imported_cnt == 0i32 {
+            error!(context, "No private keys found in \"{}\".", dir_name,);
+        }
+    } else {
+        error!(context, "Import: Cannot open directory \"{}\".", dir_name,);
     }
-
-    free(buf as *mut libc::c_void);
-    free(buf2 as *mut libc::c_void);
-
     imported_cnt != 0
 }
 

@@ -2,7 +2,6 @@
 
 from __future__ import print_function
 import threading
-import os
 import re
 import time
 from array import array
@@ -298,10 +297,10 @@ class Account(object):
         (chats, contacts, keys, media, ...). The file is created in the
         the `path` directory.
         """
-        l = self._export(path, 11)
-        if len(l) != 1:
+        export_files = self._export(path, 11)
+        if len(export_files) != 1:
             raise RuntimeError("found more than one new file")
-        return l[0]
+        return export_files[0]
 
     def _imex_events_clear(self):
         try:
@@ -311,7 +310,6 @@ class Account(object):
             pass
 
     def _export(self, path, imex_cmd):
-        snap_files = os.listdir(path)
         self._imex_events_clear()
         lib.dc_imex(self._dc_context, imex_cmd, as_dc_charpointer(path), ffi.NULL)
         if not self._threads.is_started():
@@ -463,6 +461,7 @@ class Account(object):
 
     def on_dc_event_imex_file_written(self, data1, data2):
         self._imex_events.put(data1)
+
 
 class IOThreads:
     def __init__(self, dc_context, log_event=lambda *args: None):
