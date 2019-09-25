@@ -3,8 +3,8 @@ use libc::toupper;
 
 use crate::charconv::*;
 use crate::mailimf::*;
-use crate::mailmime_content::*;
-use crate::mailmime_types::*;
+use crate::mailmime::content::*;
+use crate::mailmime::types::*;
 use crate::mmapstring::*;
 use crate::other::*;
 

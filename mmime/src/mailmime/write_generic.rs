@@ -1,11 +1,11 @@
 use std::ffi::CStr;
 
 use crate::clist::*;
-use crate::mailimf_write_generic::*;
+use crate::mailimf::write_generic::*;
+use crate::mailmime::content::*;
+use crate::mailmime::types::*;
+use crate::mailmime::types_helper::*;
 use crate::mailmime::*;
-use crate::mailmime_content::*;
-use crate::mailmime_types::*;
-use crate::mailmime_types_helper::*;
 use crate::other::*;
 
 pub const STATE_INIT: libc::c_uint = 0;
@@ -1017,7 +1017,7 @@ pub unsafe fn mailmime_write_driver(
     >,
     mut data: *mut libc::c_void,
     mut col: *mut libc::c_int,
-    mut build_info: *mut mailmime,
+    mut build_info: *mut Mailmime,
 ) -> libc::c_int {
     if !(*build_info).mm_parent.is_null() {
         return mailmime_sub_write_driver(do_write, data, col, build_info);
@@ -1038,7 +1038,7 @@ unsafe fn mailmime_part_write_driver(
     >,
     mut data: *mut libc::c_void,
     mut col: *mut libc::c_int,
-    mut build_info: *mut mailmime,
+    mut build_info: *mut Mailmime,
 ) -> libc::c_int {
     let mut current_block: u64;
     let mut cur: *mut clistiter = 0 as *mut clistiter;
@@ -1152,8 +1152,8 @@ unsafe fn mailmime_part_write_driver(
                                     current_block = 3546145585875536353;
                                     break;
                                 }
-                                let mut subpart: *mut mailmime = 0 as *mut mailmime;
-                                subpart = (*cur).data as *mut mailmime;
+                                let mut subpart: *mut Mailmime = 0 as *mut Mailmime;
+                                subpart = (*cur).data as *mut Mailmime;
                                 if 0 == first {
                                     r = mailimf_string_write_driver(
                                         do_write,
@@ -1421,7 +1421,7 @@ unsafe fn mailmime_sub_write_driver(
     >,
     mut data: *mut libc::c_void,
     mut col: *mut libc::c_int,
-    mut build_info: *mut mailmime,
+    mut build_info: *mut Mailmime,
 ) -> libc::c_int {
     let mut r: libc::c_int = 0;
     if !(*build_info).mm_content_type.is_null() {

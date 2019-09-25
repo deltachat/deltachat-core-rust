@@ -1,5 +1,5 @@
-use crate::mailmime_types::*;
-use crate::mailmime_write_generic::*;
+use crate::mailmime::types::*;
+use crate::mailmime::write_generic::*;
 use crate::mmapstring::*;
 use crate::other::*;
 
@@ -41,7 +41,7 @@ pub unsafe fn mailmime_content_type_write_mem(
 pub unsafe fn mailmime_write_mem(
     mut f: *mut MMAPString,
     mut col: *mut libc::c_int,
-    mut build_info: *mut mailmime,
+    mut build_info: *mut Mailmime,
 ) -> libc::c_int {
     return mailmime_write_driver(Some(do_write), f as *mut libc::c_void, col, build_info);
 }

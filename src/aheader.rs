@@ -3,7 +3,7 @@ use std::ffi::CStr;
 use std::str::FromStr;
 use std::{fmt, str};
 
-use mmime::mailimf_types::*;
+use mmime::mailimf::types::*;
 
 use crate::constants::*;
 use crate::contact::*;

@@ -1,10 +1,9 @@
-use libc;
 use rand::{thread_rng, Rng};
 
 use crate::clist::*;
-use crate::mailimf_types::*;
+use crate::mailimf::types::*;
+use crate::mailmime::types::*;
 use crate::mailmime::*;
-use crate::mailmime_types::*;
 use crate::other::*;
 
 #[derive(Copy, Clone)]
@@ -637,9 +636,9 @@ pub unsafe fn mailmime_data_new_file(
     );
 }
 
-pub unsafe fn mailmime_new_message_data(mut msg_mime: *mut mailmime) -> *mut mailmime {
+pub unsafe fn mailmime_new_message_data(mut msg_mime: *mut Mailmime) -> *mut Mailmime {
     let mut content: *mut mailmime_content = 0 as *mut mailmime_content;
-    let mut build_info: *mut mailmime = 0 as *mut mailmime;
+    let mut build_info: *mut Mailmime = 0 as *mut Mailmime;
     let mut mime_fields: *mut mailmime_fields = 0 as *mut mailmime_fields;
     content = mailmime_get_content_message();
     if !content.is_null() {
@@ -672,15 +671,15 @@ pub unsafe fn mailmime_new_message_data(mut msg_mime: *mut mailmime) -> *mut mai
         }
         mailmime_content_free(content);
     }
-    return 0 as *mut mailmime;
+    return 0 as *mut Mailmime;
 }
 
 pub unsafe fn mailmime_new_empty(
     mut content: *mut mailmime_content,
     mut mime_fields: *mut mailmime_fields,
-) -> *mut mailmime {
+) -> *mut Mailmime {
     let mut current_block: u64;
-    let mut build_info: *mut mailmime = 0 as *mut mailmime;
+    let mut build_info: *mut Mailmime = 0 as *mut Mailmime;
     let mut list: *mut clist = 0 as *mut clist;
     let mut r: libc::c_int = 0;
     let mut mime_type: libc::c_int = 0;
@@ -823,11 +822,11 @@ pub unsafe fn mailmime_new_empty(
                         0 as *mut mailmime_data,
                         list,
                         0 as *mut mailimf_fields,
-                        0 as *mut mailmime,
+                        0 as *mut Mailmime,
                     );
                     if build_info.is_null() {
                         clist_free(list);
-                        return 0 as *mut mailmime;
+                        return 0 as *mut Mailmime;
                     }
                     return build_info;
                 }
@@ -835,7 +834,7 @@ pub unsafe fn mailmime_new_empty(
         }
         _ => {}
     }
-    return 0 as *mut mailmime;
+    return 0 as *mut Mailmime;
 }
 
 pub unsafe fn mailmime_generate_boundary() -> *mut libc::c_char {
@@ -856,12 +855,12 @@ pub unsafe fn mailmime_generate_boundary() -> *mut libc::c_char {
 pub unsafe fn mailmime_new_with_content(
     mut content_type: *const libc::c_char,
     mut mime_fields: *mut mailmime_fields,
-    mut result: *mut *mut mailmime,
+    mut result: *mut *mut Mailmime,
 ) -> libc::c_int {
     let mut r: libc::c_int = 0;
     let mut cur_token: size_t = 0;
     let mut content: *mut mailmime_content = 0 as *mut mailmime_content;
-    let mut build_info: *mut mailmime = 0 as *mut mailmime;
+    let mut build_info: *mut Mailmime = 0 as *mut Mailmime;
     let mut res: libc::c_int = 0;
     cur_token = 0i32 as size_t;
     r = mailmime_content_parse(
@@ -886,7 +885,7 @@ pub unsafe fn mailmime_new_with_content(
 }
 
 pub unsafe fn mailmime_set_preamble_file(
-    mut build_info: *mut mailmime,
+    mut build_info: *mut Mailmime,
     mut filename: *mut libc::c_char,
 ) -> libc::c_int {
     let mut data: *mut mailmime_data = 0 as *mut mailmime_data;
@@ -906,7 +905,7 @@ pub unsafe fn mailmime_set_preamble_file(
 }
 
 pub unsafe fn mailmime_set_epilogue_file(
-    mut build_info: *mut mailmime,
+    mut build_info: *mut Mailmime,
     mut filename: *mut libc::c_char,
 ) -> libc::c_int {
     let mut data: *mut mailmime_data = 0 as *mut mailmime_data;
@@ -926,7 +925,7 @@ pub unsafe fn mailmime_set_epilogue_file(
 }
 
 pub unsafe fn mailmime_set_preamble_text(
-    mut build_info: *mut mailmime,
+    mut build_info: *mut Mailmime,
     mut data_str: *mut libc::c_char,
     mut length: size_t,
 ) -> libc::c_int {
@@ -947,7 +946,7 @@ pub unsafe fn mailmime_set_preamble_text(
 }
 
 pub unsafe fn mailmime_set_epilogue_text(
-    mut build_info: *mut mailmime,
+    mut build_info: *mut Mailmime,
     mut data_str: *mut libc::c_char,
     mut length: size_t,
 ) -> libc::c_int {
@@ -968,7 +967,7 @@ pub unsafe fn mailmime_set_epilogue_text(
 }
 
 pub unsafe fn mailmime_set_body_file(
-    mut build_info: *mut mailmime,
+    mut build_info: *mut Mailmime,
     mut filename: *mut libc::c_char,
 ) -> libc::c_int {
     let mut encoding: libc::c_int = 0;
@@ -990,7 +989,7 @@ pub unsafe fn mailmime_set_body_file(
 }
 
 pub unsafe fn mailmime_set_body_text(
-    mut build_info: *mut mailmime,
+    mut build_info: *mut Mailmime,
     mut data_str: *mut libc::c_char,
     mut length: size_t,
 ) -> libc::c_int {
@@ -1013,8 +1012,8 @@ pub unsafe fn mailmime_set_body_text(
 }
 
 pub unsafe fn mailmime_add_part(
-    mut build_info: *mut mailmime,
-    mut part: *mut mailmime,
+    mut build_info: *mut Mailmime,
+    mut part: *mut Mailmime,
 ) -> libc::c_int {
     let mut r: libc::c_int = 0;
     if (*build_info).mm_type == MAILMIME_MESSAGE as libc::c_int {
@@ -1039,19 +1038,19 @@ pub unsafe fn mailmime_add_part(
     return MAILIMF_NO_ERROR as libc::c_int;
 }
 
-pub unsafe fn mailmime_remove_part(mut mime: *mut mailmime) {
-    let mut parent: *mut mailmime = 0 as *mut mailmime;
+pub unsafe fn mailmime_remove_part(mut mime: *mut Mailmime) {
+    let mut parent: *mut Mailmime = 0 as *mut Mailmime;
     parent = (*mime).mm_parent;
     if parent.is_null() {
         return;
     }
     match (*mime).mm_parent_type {
         3 => {
-            (*mime).mm_parent = 0 as *mut mailmime;
-            (*parent).mm_data.mm_message.mm_msg_mime = 0 as *mut mailmime
+            (*mime).mm_parent = 0 as *mut Mailmime;
+            (*parent).mm_data.mm_message.mm_msg_mime = 0 as *mut Mailmime
         }
         2 => {
-            (*mime).mm_parent = 0 as *mut mailmime;
+            (*mime).mm_parent = 0 as *mut Mailmime;
             clist_delete(
                 (*parent).mm_data.mm_multipart.mm_mp_list,
                 (*mime).mm_multipart_pos,
@@ -1062,7 +1061,7 @@ pub unsafe fn mailmime_remove_part(mut mime: *mut mailmime) {
 }
 
 pub unsafe fn mailmime_set_imf_fields(
-    mut build_info: *mut mailmime,
+    mut build_info: *mut Mailmime,
     mut mm_fields: *mut mailimf_fields,
 ) {
     (*build_info).mm_data.mm_message.mm_fields = mm_fields;
@@ -1213,11 +1212,11 @@ pub unsafe fn mailmime_single_fields_free(mut single_fields: *mut mailmime_singl
 }
 
 pub unsafe fn mailmime_smart_add_part(
-    mut mime: *mut mailmime,
-    mut mime_sub: *mut mailmime,
+    mut mime: *mut Mailmime,
+    mut mime_sub: *mut Mailmime,
 ) -> libc::c_int {
-    let mut saved_sub: *mut mailmime = 0 as *mut mailmime;
-    let mut mp: *mut mailmime = 0 as *mut mailmime;
+    let mut saved_sub: *mut Mailmime = 0 as *mut Mailmime;
+    let mut mp: *mut Mailmime = 0 as *mut Mailmime;
     let mut res: libc::c_int = 0;
     let mut r: libc::c_int = 0;
     match (*mime).mm_type {
@@ -1278,10 +1277,10 @@ pub unsafe fn mailmime_smart_add_part(
     return res;
 }
 
-pub unsafe fn mailmime_multiple_new(mut type_0: *const libc::c_char) -> *mut mailmime {
+pub unsafe fn mailmime_multiple_new(mut type_0: *const libc::c_char) -> *mut Mailmime {
     let mut mime_fields: *mut mailmime_fields = 0 as *mut mailmime_fields;
     let mut content: *mut mailmime_content = 0 as *mut mailmime_content;
-    let mut mp: *mut mailmime = 0 as *mut mailmime;
+    let mut mp: *mut Mailmime = 0 as *mut Mailmime;
     mime_fields = mailmime_fields_new_empty();
     if !mime_fields.is_null() {
         content = mailmime_content_new_with_str(type_0);
@@ -1295,7 +1294,7 @@ pub unsafe fn mailmime_multiple_new(mut type_0: *const libc::c_char) -> *mut mai
         }
         mailmime_fields_free(mime_fields);
     }
-    return 0 as *mut mailmime;
+    return 0 as *mut Mailmime;
 }
 
 pub unsafe fn mailmime_content_new_with_str(mut str: *const libc::c_char) -> *mut mailmime_content {
@@ -1310,8 +1309,8 @@ pub unsafe fn mailmime_content_new_with_str(mut str: *const libc::c_char) -> *mu
     return content;
 }
 
-pub unsafe fn mailmime_smart_remove_part(mut mime: *mut mailmime) -> libc::c_int {
-    let mut parent: *mut mailmime = 0 as *mut mailmime;
+pub unsafe fn mailmime_smart_remove_part(mut mime: *mut Mailmime) -> libc::c_int {
+    let mut parent: *mut Mailmime = 0 as *mut Mailmime;
     let mut res: libc::c_int = 0;
     parent = (*mime).mm_parent;
     if parent.is_null() {

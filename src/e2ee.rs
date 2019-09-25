@@ -8,14 +8,14 @@ use std::str::FromStr;
 
 use libc::{free, strcmp, strlen, strncmp};
 use mmime::clist::*;
+use mmime::mailimf::types::*;
+use mmime::mailimf::types_helper::*;
 use mmime::mailimf::*;
-use mmime::mailimf_types::*;
-use mmime::mailimf_types_helper::*;
+use mmime::mailmime::content::*;
+use mmime::mailmime::types::*;
+use mmime::mailmime::types_helper::*;
+use mmime::mailmime::write_mem::*;
 use mmime::mailmime::*;
-use mmime::mailmime_content::*;
-use mmime::mailmime_types::*;
-use mmime::mailmime_types_helper::*;
-use mmime::mailmime_write_mem::*;
 use mmime::mailprivacy_prepare_mime;
 use mmime::mmapstring::*;
 use mmime::{mailmime_substitute, MAILIMF_NO_ERROR, MAIL_NO_ERROR};
@@ -81,7 +81,7 @@ impl EncryptHelper {
         e2ee_guaranteed: bool,
         min_verified: libc::c_int,
         do_gossip: bool,
-        mut in_out_message: *mut mailmime,
+        mut in_out_message: *mut Mailmime,
         imffields_unprotected: *mut mailimf_fields,
     ) -> Result<bool> {
         /* libEtPan's pgp_encrypt_mime() takes the parent as the new root.
@@ -146,12 +146,12 @@ impl EncryptHelper {
         /* encrypt message */
         unsafe {
             mailprivacy_prepare_mime(in_out_message);
-            let mut part_to_encrypt: *mut mailmime =
+            let mut part_to_encrypt: *mut Mailmime =
                 (*in_out_message).mm_data.mm_message.mm_msg_mime;
             (*part_to_encrypt).mm_parent = ptr::null_mut();
             let imffields_encrypted: *mut mailimf_fields = mailimf_fields_new_empty();
             /* mailmime_new_message_data() calls mailmime_fields_new_with_version() which would add the unwanted MIME-Version:-header */
-            let message_to_encrypt: *mut mailmime = mailmime_new(
+            let message_to_encrypt: *mut Mailmime = mailmime_new(
                 MAILMIME_MESSAGE as libc::c_int,
                 ptr::null(),
                 0 as libc::size_t,
@@ -248,7 +248,7 @@ impl EncryptHelper {
 
             if let Ok(ctext_v) = ctext {
                 /* create MIME-structure that will contain the encrypted text */
-                let mut encrypted_part: *mut mailmime = new_data_part(
+                let mut encrypted_part: *mut Mailmime = new_data_part(
                     ptr::null_mut(),
                     0 as libc::size_t,
                     "multipart/encrypted",
@@ -256,7 +256,7 @@ impl EncryptHelper {
                 )?;
                 let content: *mut mailmime_content = (*encrypted_part).mm_content_type;
                 wrapmime::append_ct_param(content, "protocol", "application/pgp-encrypted")?;
-                let version_mime: *mut mailmime = new_data_part(
+                let version_mime: *mut Mailmime = new_data_part(
                     VERSION_CONTENT.as_mut_ptr() as *mut libc::c_void,
                     strlen(VERSION_CONTENT.as_mut_ptr()),
                     "application/pgp-encrypted",
@@ -266,7 +266,7 @@ impl EncryptHelper {
 
                 // we assume that ctext_v is not dropped until the end
                 // of this if-scope
-                let ctext_part: *mut mailmime = new_data_part(
+                let ctext_part: *mut Mailmime = new_data_part(
                     ctext_v.as_ptr() as *mut libc::c_void,
                     ctext_v.len(),
                     "application/octet-stream",
@@ -304,7 +304,7 @@ impl E2eeHelper {
         }
     }
 
-    pub unsafe fn decrypt(&mut self, context: &Context, in_out_message: *mut mailmime) {
+    pub unsafe fn decrypt(&mut self, context: &Context, in_out_message: *mut Mailmime) {
         /* return values: 0=nothing to decrypt/cannot decrypt, 1=sth. decrypted
         (to detect parts that could not be decrypted, simply look for left "multipart/encrypted" MIME types */
         /*just a pointer into mailmime structure, must not be freed*/
@@ -426,7 +426,7 @@ fn new_data_part(
     data_bytes: libc::size_t,
     content_type: &str,
     default_encoding: u32,
-) -> Result<*mut mailmime> {
+) -> Result<*mut Mailmime> {
     let content = new_content_type(&content_type)?;
     unsafe {
         let mut encoding: *mut mailmime_mechanism = ptr::null_mut();
@@ -565,7 +565,7 @@ unsafe fn update_gossip_peerstates(
 
 unsafe fn decrypt_recursive(
     context: &Context,
-    mime: *mut mailmime,
+    mime: *mut Mailmime,
     private_keyring: &Keyring,
     public_keyring_for_validate: &Keyring,
     ret_valid_signatures: &mut HashSet<String>,
@@ -585,10 +585,10 @@ unsafe fn decrypt_recursive(
             ) == 0i32
         {
             for cur_data in (*(*mime).mm_data.mm_multipart.mm_mp_list).into_iter() {
-                let mut decrypted_mime: *mut mailmime = ptr::null_mut();
+                let mut decrypted_mime: *mut Mailmime = ptr::null_mut();
                 if decrypt_part(
                     context,
-                    cur_data as *mut mailmime,
+                    cur_data as *mut Mailmime,
                     private_keyring,
                     public_keyring_for_validate,
                     ret_valid_signatures,
@@ -618,7 +618,7 @@ unsafe fn decrypt_recursive(
             for cur_data in (*(*mime).mm_data.mm_multipart.mm_mp_list).into_iter() {
                 if decrypt_recursive(
                     context,
-                    cur_data as *mut mailmime,
+                    cur_data as *mut Mailmime,
                     private_keyring,
                     public_keyring_for_validate,
                     ret_valid_signatures,
@@ -654,11 +654,11 @@ unsafe fn decrypt_recursive(
 
 unsafe fn decrypt_part(
     _context: &Context,
-    mime: *mut mailmime,
+    mime: *mut Mailmime,
     private_keyring: &Keyring,
     public_keyring_for_validate: &Keyring,
     ret_valid_signatures: &mut HashSet<String>,
-    ret_decrypted_mime: *mut *mut mailmime,
+    ret_decrypted_mime: *mut *mut Mailmime,
 ) -> bool {
     let mut ok_to_continue = true;
     let mime_data: *mut mailmime_data;
@@ -738,7 +738,7 @@ unsafe fn decrypt_part(
                     let plain_buf = plain.as_ptr() as *const libc::c_char;
 
                     let mut index: libc::size_t = 0;
-                    let mut decrypted_mime: *mut mailmime = ptr::null_mut();
+                    let mut decrypted_mime: *mut Mailmime = ptr::null_mut();
                     if mailmime_parse(
                         plain_buf as *const _,
                         plain_bytes,
@@ -794,7 +794,7 @@ unsafe fn has_decrypted_pgp_armor(str__: *const libc::c_char, mut str_bytes: lib
 /// However, Delta Chat itself has no problem with encrypted multipart/report
 /// parts and MUAs should be encouraged to encrpyt multipart/reports as well so
 /// that we could use the normal Autocrypt processing.
-unsafe fn contains_report(mime: *mut mailmime) -> bool {
+unsafe fn contains_report(mime: *mut Mailmime) -> bool {
     if (*mime).mm_type == MAILMIME_MULTIPLE as libc::c_int {
         if (*(*(*mime).mm_content_type).ct_type).tp_type
             == MAILMIME_TYPE_COMPOSITE_TYPE as libc::c_int
@@ -811,7 +811,7 @@ unsafe fn contains_report(mime: *mut mailmime) -> bool {
             return true;
         }
         for cur_data in (*(*(*mime).mm_mime_fields).fld_list).into_iter() {
-            if contains_report(cur_data as *mut mailmime) {
+            if contains_report(cur_data as *mut Mailmime) {
                 return true;
             }
         }

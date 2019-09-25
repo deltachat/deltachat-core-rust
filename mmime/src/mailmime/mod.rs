@@ -1,13 +1,19 @@
-use libc;
+pub mod content;
+pub mod decode;
+pub mod disposition;
+pub mod types;
+pub mod types_helper;
+pub(crate) mod write_generic;
+pub mod write_mem;
 
 use libc::toupper;
 
 use crate::clist::*;
+use crate::mailimf::types::*;
 use crate::mailimf::*;
-use crate::mailimf_types::*;
-use crate::mailmime_decode::*;
-use crate::mailmime_disposition::*;
-use crate::mailmime_types::*;
+use crate::mailmime::decode::*;
+use crate::mailmime::disposition::*;
+use crate::mailmime::types::*;
 use crate::other::*;
 
 pub const MAILMIME_COMPOSITE_TYPE_EXTENSION: libc::c_uint = 3;

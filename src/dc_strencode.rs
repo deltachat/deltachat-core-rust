@@ -4,7 +4,7 @@ use std::ptr;
 
 use charset::Charset;
 use libc::{free, strlen};
-use mmime::mailmime_decode::*;
+use mmime::mailmime::decode::mailmime_encoded_phrase_parse;
 use mmime::mmapstring::*;
 use mmime::other::*;
 use percent_encoding::{percent_decode, utf8_percent_encode, AsciiSet, CONTROLS};

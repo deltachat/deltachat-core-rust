@@ -11,7 +11,7 @@ use std::{fmt, fs, ptr};
 use chrono::{Local, TimeZone};
 use libc::{memcpy, strcpy, strlen, uintptr_t};
 use mmime::clist::*;
-use mmime::mailimf_types::*;
+use mmime::mailimf::types::*;
 use rand::{thread_rng, Rng};
 
 use crate::context::Context;

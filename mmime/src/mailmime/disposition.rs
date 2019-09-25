@@ -1,10 +1,9 @@
-use libc;
-use libc::toupper;
+use libc::{self, toupper};
 
 use crate::clist::*;
 use crate::mailimf::*;
+use crate::mailmime::types::*;
 use crate::mailmime::*;
-use crate::mailmime_types::*;
 use crate::other::*;
 
 pub const MAILMIME_DISPOSITION_TYPE_EXTENSION: libc::c_uint = 3;

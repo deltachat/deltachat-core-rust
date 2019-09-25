@@ -1,5 +1,5 @@
 use crate::clist::*;
-use crate::mailimf_types::*;
+use crate::mailimf::types::*;
 use crate::other::*;
 
 pub const STATE_WORD: libc::c_uint = 1;
@@ -1980,46 +1980,6 @@ unsafe fn mailimf_path_write_driver(
     );
     if r != MAILIMF_NO_ERROR as libc::c_int {
         return r;
-    }
-    return MAILIMF_NO_ERROR as libc::c_int;
-}
-/*
-  mailimf_envelope_fields_write writes only some fields to a given stream
-
-  @param f is the stream
-  @param col (* col) is the column number where we will start to
-    write the text, the ending column will be stored in (* col)
-  @param fields is the fields to write
-*/
-pub unsafe fn mailimf_envelope_fields_write_driver(
-    mut do_write: Option<
-        unsafe fn(_: *mut libc::c_void, _: *const libc::c_char, _: size_t) -> libc::c_int,
-    >,
-    mut data: *mut libc::c_void,
-    mut col: *mut libc::c_int,
-    mut fields: *mut mailimf_fields,
-) -> libc::c_int {
-    let mut cur: *mut clistiter = 0 as *mut clistiter;
-    cur = (*(*fields).fld_list).first;
-    while !cur.is_null() {
-        let mut r: libc::c_int = 0;
-        let mut field: *mut mailimf_field = 0 as *mut mailimf_field;
-        field = (if !cur.is_null() {
-            (*cur).data
-        } else {
-            0 as *mut libc::c_void
-        }) as *mut mailimf_field;
-        if (*field).fld_type != MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int {
-            r = mailimf_field_write_driver(do_write, data, col, field);
-            if r != MAILIMF_NO_ERROR as libc::c_int {
-                return r;
-            }
-        }
-        cur = if !cur.is_null() {
-            (*cur).next
-        } else {
-            0 as *mut clistcell
-        }
     }
     return MAILIMF_NO_ERROR as libc::c_int;
 }

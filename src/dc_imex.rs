@@ -3,7 +3,7 @@ use std::path::Path;
 use std::ptr;
 
 use libc::{free, strlen};
-use mmime::mailmime_content::*;
+use mmime::mailmime::content::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
 use rand::{thread_rng, Rng};

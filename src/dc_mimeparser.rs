@@ -6,12 +6,12 @@ use charset::Charset;
 use deltachat_derive::{FromSql, ToSql};
 use libc::{strcmp, strlen, strncmp};
 use mmime::clist::*;
+use mmime::mailimf::types::*;
 use mmime::mailimf::*;
-use mmime::mailimf_types::*;
+use mmime::mailmime::content::*;
+use mmime::mailmime::disposition::*;
+use mmime::mailmime::types::*;
 use mmime::mailmime::*;
-use mmime::mailmime_content::*;
-use mmime::mailmime_disposition::*;
-use mmime::mailmime_types::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
 
@@ -31,7 +31,7 @@ use crate::stock::StockMessage;
 pub struct MimeParser<'a> {
     pub context: &'a Context,
     pub parts: Vec<Part>,
-    pub mimeroot: *mut mailmime,
+    pub mimeroot: *mut Mailmime,
     pub header: HashMap<String, *mut mailimf_field>,
     pub header_root: *mut mailimf_fields,
     pub header_protected: *mut mailimf_fields,
@@ -40,7 +40,7 @@ pub struct MimeParser<'a> {
     pub decrypting_failed: bool,
     pub e2ee_helper: E2eeHelper,
     pub is_forwarded: bool,
-    pub reports: Vec<*mut mailmime>,
+    pub reports: Vec<*mut Mailmime>,
     pub is_system_message: SystemMessage,
     pub location_kml: Option<location::Kml>,
     pub message_kml: Option<location::Kml>,
@@ -363,7 +363,7 @@ impl<'a> MimeParser<'a> {
         }
     }
 
-    unsafe fn parse_mime_recursive(&mut self, mime: *mut mailmime) -> bool {
+    unsafe fn parse_mime_recursive(&mut self, mime: *mut Mailmime) -> bool {
         if mime.is_null() {
             return false;
         }
@@ -428,7 +428,7 @@ impl<'a> MimeParser<'a> {
         }
     }
 
-    unsafe fn handle_multiple(&mut self, mime: *mut mailmime) -> bool {
+    unsafe fn handle_multiple(&mut self, mime: *mut Mailmime) -> bool {
         let mut any_part_added = false;
         match mailmime_get_mime_type(mime) {
             /* Most times, mutlipart/alternative contains true alternatives
@@ -468,7 +468,7 @@ impl<'a> MimeParser<'a> {
                 however, most times it seems okay. */
                 let cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
                 if !cur.is_null() {
-                    any_part_added = self.parse_mime_recursive((*cur).data as *mut mailmime);
+                    any_part_added = self.parse_mime_recursive((*cur).data as *mut Mailmime);
                 }
             }
             (DC_MIMETYPE_MP_NOT_DECRYPTABLE, _, _) => {
@@ -538,7 +538,7 @@ impl<'a> MimeParser<'a> {
                             plain_cnt += 1;
                         }
                         (DC_MIMETYPE_TEXT_HTML, _, _) => {
-                            html_part = cur_data as *mut mailmime;
+                            html_part = cur_data as *mut Mailmime;
                             html_cnt += 1;
                         }
                         _ => {}
@@ -565,7 +565,7 @@ impl<'a> MimeParser<'a> {
         any_part_added
     }
 
-    unsafe fn add_single_part_if_known(&mut self, mime: *mut mailmime) -> bool {
+    unsafe fn add_single_part_if_known(&mut self, mime: *mut Mailmime) -> bool {
         // return true if a part was added
         if mime.is_null() || (*mime).mm_data.mm_single.is_null() {
             return false;
@@ -969,7 +969,7 @@ unsafe fn hash_header(out: &mut HashMap<String, *mut mailimf_field>, in_0: *cons
     }
 }
 
-unsafe fn mailmime_get_mime_type(mime: *mut mailmime) -> (libc::c_int, Viewtype, Option<String>) {
+unsafe fn mailmime_get_mime_type(mime: *mut Mailmime) -> (libc::c_int, Viewtype, Option<String>) {
     let c = (*mime).mm_content_type;
 
     let unknown_type = (0, Viewtype::Unknown, None);
@@ -1093,7 +1093,7 @@ fn reconcat_mime(typ: Option<&str>, subtype: Option<&str>) -> String {
     format!("{}/{}", typ, subtype)
 }
 
-unsafe fn mailmime_is_attachment_disposition(mime: *mut mailmime) -> bool {
+unsafe fn mailmime_is_attachment_disposition(mime: *mut Mailmime) -> bool {
     if (*mime).mm_mime_fields.is_null() {
         return false;
     }
@@ -1118,7 +1118,7 @@ unsafe fn mailmime_is_attachment_disposition(mime: *mut mailmime) -> bool {
 
 /* low-level-tools for working with mailmime structures directly */
 pub unsafe fn mailmime_find_ct_parameter(
-    mime: *mut mailmime,
+    mime: *mut Mailmime,
     name: &str,
 ) -> *mut mailmime_parameter {
     if mime.is_null()
@@ -1140,7 +1140,7 @@ pub unsafe fn mailmime_find_ct_parameter(
     ptr::null_mut()
 }
 
-pub unsafe fn mailmime_transfer_decode(mime: *mut mailmime) -> Result<Vec<u8>, Error> {
+pub unsafe fn mailmime_transfer_decode(mime: *mut Mailmime) -> Result<Vec<u8>, Error> {
     ensure!(!mime.is_null(), "invalid inputs");
 
     let mut mime_transfer_encoding = MAILMIME_MECHANISM_BINARY as libc::c_int;
@@ -1295,7 +1295,7 @@ pub unsafe fn mailimf_find_field(
 }
 
 /*the result is a pointer to mime, must not be freed*/
-pub unsafe fn mailmime_find_mailimf_fields(mime: *mut mailmime) -> *mut mailimf_fields {
+pub unsafe fn mailmime_find_mailimf_fields(mime: *mut Mailmime) -> *mut mailimf_fields {
     if mime.is_null() {
         return ptr::null_mut();
     }
@@ -1353,7 +1353,7 @@ mod tests {
         unsafe {
             let txt: *const libc::c_char =
                 b"FieldA: ValueA\nFieldB: ValueB\n\x00" as *const u8 as *const libc::c_char;
-            let mut mime: *mut mailmime = ptr::null_mut();
+            let mut mime: *mut Mailmime = ptr::null_mut();
             let mut dummy = 0;
             let res = mailmime_parse(txt, strlen(txt), &mut dummy, &mut mime);
 

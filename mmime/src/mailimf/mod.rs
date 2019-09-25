@@ -1,10 +1,13 @@
-use libc;
-use libc::toupper;
+pub mod types;
+pub mod types_helper;
+pub(crate) mod write_generic;
+
+use libc::{self, toupper};
 
 use crate::clist::*;
-use crate::mailimf_types::*;
-use crate::mailmime_decode::*;
-use crate::mailmime_types::*;
+use crate::mailimf::types::*;
+use crate::mailmime::decode::*;
+use crate::mailmime::types::*;
 use crate::mmapstring::*;
 use crate::other::*;
 

@@ -1,10 +1,10 @@
 use chrono::{Datelike, Local, TimeZone, Timelike};
 
 use crate::clist::*;
-use crate::mailimf_types::*;
-use crate::mailimf_types_helper::*;
-use crate::mailmime_types::*;
-use crate::mailmime_types_helper::*;
+use crate::mailimf::types::*;
+use crate::mailimf::types_helper::*;
+use crate::mailmime::types::*;
+use crate::mailmime::types_helper::*;
 
 pub(crate) use libc::{
     calloc, close, free, isalpha, isdigit, malloc, memcmp, memcpy, memmove, memset, realloc,
@@ -132,7 +132,7 @@ pub const MAILIMF_ERROR_MEMORY: libc::c_uint = 2;
 pub const MAILIMF_ERROR_PARSE: libc::c_uint = 1;
 pub const MAILIMF_NO_ERROR: libc::c_uint = 0;
 
-pub unsafe fn mailprivacy_prepare_mime(mut mime: *mut mailmime) {
+pub unsafe fn mailprivacy_prepare_mime(mut mime: *mut Mailmime) {
     let mut cur: *mut clistiter = 0 as *mut clistiter;
     match (*mime).mm_type {
         1 => {
@@ -143,12 +143,12 @@ pub unsafe fn mailprivacy_prepare_mime(mut mime: *mut mailmime) {
         2 => {
             cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
             while !cur.is_null() {
-                let mut child: *mut mailmime = 0 as *mut mailmime;
+                let mut child: *mut Mailmime = 0 as *mut Mailmime;
                 child = (if !cur.is_null() {
                     (*cur).data
                 } else {
                     0 as *mut libc::c_void
-                }) as *mut mailmime;
+                }) as *mut Mailmime;
                 mailprivacy_prepare_mime(child);
                 cur = if !cur.is_null() {
                     (*cur).next
@@ -166,7 +166,7 @@ pub unsafe fn mailprivacy_prepare_mime(mut mime: *mut mailmime) {
     };
 }
 
-unsafe fn prepare_mime_single(mut mime: *mut mailmime) {
+unsafe fn prepare_mime_single(mut mime: *mut Mailmime) {
     let mut single_fields: mailmime_single_fields = mailmime_single_fields {
         fld_content: 0 as *mut mailmime_content,
         fld_content_charset: 0 as *mut libc::c_char,
@@ -251,10 +251,10 @@ unsafe fn prepare_mime_single(mut mime: *mut mailmime) {
 }
 
 pub unsafe fn mailmime_substitute(
-    mut old_mime: *mut mailmime,
-    mut new_mime: *mut mailmime,
+    mut old_mime: *mut Mailmime,
+    mut new_mime: *mut Mailmime,
 ) -> libc::c_int {
-    let mut parent: *mut mailmime = 0 as *mut mailmime;
+    let mut parent: *mut Mailmime = 0 as *mut Mailmime;
     parent = (*old_mime).mm_parent;
     if parent.is_null() {
         return MAIL_ERROR_INVAL as libc::c_int;
@@ -266,7 +266,7 @@ pub unsafe fn mailmime_substitute(
     }
     (*new_mime).mm_parent = parent;
     (*new_mime).mm_parent_type = (*old_mime).mm_parent_type;
-    (*old_mime).mm_parent = 0 as *mut mailmime;
+    (*old_mime).mm_parent = 0 as *mut Mailmime;
     (*old_mime).mm_parent_type = MAILMIME_NONE as libc::c_int;
     return MAIL_NO_ERROR as libc::c_int;
 }
