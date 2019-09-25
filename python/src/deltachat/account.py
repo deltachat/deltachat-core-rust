@@ -48,7 +48,7 @@ class Account(object):
         if not lib.dc_open(self._dc_context, db_path, ffi.NULL):
             raise ValueError("Could not dc_open: {}".format(db_path))
         self._configkeys = self.get_config("sys.config_keys").split()
-        self._imex_completed = threading.Event()
+        self._imex_progress_finished = Queue()
 
     def __del__(self):
         self.shutdown()
@@ -289,31 +289,61 @@ class Account(object):
         msg_ids = [msg.id for msg in messages]
         lib.dc_delete_msgs(self._dc_context, msg_ids, len(msg_ids))
 
-    def export_to_dir(self, backupdir):
-        """return after all delta chat state is exported to a new file in
-        the specified directory.
+    def export_self_keys(self, path):
+        """ export public and private keys to the specified directory. """
+        return self._export(path, imex_cmd=1)
+
+    def export_all(self, path):
+        """return new file containing a backup of all database state
+        (chats, contacts, keys, media, ...). The file is created in the
+        the `path` directory.
         """
-        snap_files = os.listdir(backupdir)
-        self._imex_completed.clear()
-        lib.dc_imex(self._dc_context, 11, as_dc_charpointer(backupdir), ffi.NULL)
+        l = self._export(path, 11)
+        if len(l) != 1:
+            raise RuntimeError("found more than one new file")
+        return l[0]
+
+    def _imex_progress_finished_clear(self):
+        try:
+            while True:
+                self._imex_progress_finished.get_nowait()
+        except Empty:
+            pass
+
+    def _export(self, path, imex_cmd):
+        snap_files = os.listdir(path)
+        self._imex_progress_finished_clear()
+        lib.dc_imex(self._dc_context, imex_cmd, as_dc_charpointer(path), ffi.NULL)
         if not self._threads.is_started():
             lib.dc_perform_imap_jobs(self._dc_context)
-        self._imex_completed.wait()
-        for x in os.listdir(backupdir):
-            if x not in snap_files:
-                return os.path.join(backupdir, x)
+        if not self._imex_progress_finished.get():
+            raise ValueError("export failed")
+        return [ os.path.join(path, x)
+                 for x in os.listdir(backupdir)
+                    if x not in snap_files]
 
-    def import_from_file(self, path):
-        """import delta chat state from the specified backup file.
+    def import_self_keys(self, path):
+        """ Import private keys found in the `path` directory.
+        The last imported key is made the default keys unless its name
+        contains the string legacy. Public keys are not imported.
+        """
+        self._import(path, imex_cmd=2)
+
+    def import_all(self, path):
+        """import delta chat state from the specified backup `path` (a file).
 
         The account must be in unconfigured state for import to attempted.
         """
         assert not self.is_configured(), "cannot import into configured account"
-        self._imex_completed.clear()
-        lib.dc_imex(self._dc_context, 12, as_dc_charpointer(path), ffi.NULL)
+        self._import(path, imex_cmd=12)
+
+    def _import(self, path, imex_cmd):
+        self._imex_progress_finished_clear()
+        lib.dc_imex(self._dc_context, imex_cmd, as_dc_charpointer(path), ffi.NULL)
         if not self._threads.is_started():
             lib.dc_perform_imap_jobs(self._dc_context)
-        self._imex_completed.wait()
+        if not self._imex_progress_finished.get():
+            raise ValueError("import from path '{}' failed".format(path))
 
     def initiate_key_transfer(self):
         """return setup code after a Autocrypt setup message
@@ -423,7 +453,9 @@ class Account(object):
 
     def on_dc_event_imex_progress(self, data1, data2):
         if data1 == 1000:
-            self._imex_completed.set()
+            self._imex_progress_finished.put(True)
+        elif data1 == 0:
+            self._imex_progress_finished.put(False)
 
 
 class IOThreads:

@@ -340,6 +340,13 @@ class TestOnlineAccount:
         assert chat.id > const.DC_CHAT_ID_LAST_SPECIAL
         return chat
 
+    def test_export_import_self_keys(self, acfactory, tmpdir):
+        ac1, ac2 = acfactory.get_two_online_accounts()
+        dir = tmpdir.mkdir("exportdir")
+        tmpfile = ac1.export_self_keys(dir.strpath)
+        ac1.consume_events()
+        assert ac1.import_self_keys(tmpfile)
+
     def test_one_account_send(self, acfactory):
         ac1 = acfactory.get_online_configuring_account()
         c2 = ac1.create_contact(email=ac1.get_config("addr"))
@@ -501,7 +508,7 @@ class TestOnlineAccount:
         assert os.path.exists(msg_in.filename)
         assert os.stat(msg_in.filename).st_size == os.stat(path).st_size
 
-    def test_import_export_online(self, acfactory, tmpdir):
+    def test_import_export_online_all(self, acfactory, tmpdir):
         ac1 = acfactory.get_online_configuring_account()
         wait_configuration_progress(ac1, 1000)
 
@@ -509,11 +516,11 @@ class TestOnlineAccount:
         chat = ac1.create_chat_by_contact(contact1)
         chat.send_text("msg1")
         backupdir = tmpdir.mkdir("backup")
-        path = ac1.export_to_dir(backupdir.strpath)
+        path = ac1.export_all(backupdir.strpath)
         assert os.path.exists(path)
 
         ac2 = acfactory.get_unconfigured_account()
-        ac2.import_from_file(path)
+        ac2.import_all(path)
         contacts = ac2.get_contacts(query="some1")
         assert len(contacts) == 1
         contact2 = contacts[0]
