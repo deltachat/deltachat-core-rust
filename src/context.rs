@@ -66,6 +66,30 @@ pub struct RunningState {
     pub shall_stop_ongoing: bool,
 }
 
+/// Return some info about deltachat-core
+///
+/// This contains information mostly about the library itself, the
+/// actual keys and their values which will be present are not
+/// guaranteed.  Calling [Context::get_info] also includes information
+/// about the context on top of the information here.
+pub fn get_info() -> HashMap<&'static str, String> {
+    let mut res = HashMap::new();
+    res.insert("deltachat_core_version", format!("v{}", &*DC_VERSION_STR));
+    res.insert("sqlite_version", rusqlite::version().to_string());
+    res.insert(
+        "sqlite_thread_safe",
+        unsafe { rusqlite::ffi::sqlite3_threadsafe() }.to_string(),
+    );
+    res.insert(
+        "arch",
+        (::std::mem::size_of::<*mut libc::c_void>())
+            .wrapping_mul(8)
+            .to_string(),
+    );
+    res.insert("level", "awesome".into());
+    res
+}
+
 impl Context {
     pub fn new(cb: Box<ContextCallback>, os_name: String, dbfile: PathBuf) -> Result<Context> {
         let mut blob_fname = OsString::new();
@@ -209,19 +233,7 @@ impl Context {
             .get_config(self, "configured_mvbox_folder")
             .unwrap_or_else(|| "<unset>".to_string());
 
-        let mut res = HashMap::new();
-        res.insert("deltachat_core_version", format!("v{}", &*DC_VERSION_STR));
-        res.insert("sqlite_version", rusqlite::version().to_string());
-        res.insert(
-            "sqlite_thread_safe",
-            unsafe { rusqlite::ffi::sqlite3_threadsafe() }.to_string(),
-        );
-        res.insert(
-            "arch",
-            (::std::mem::size_of::<*mut libc::c_void>())
-                .wrapping_mul(8)
-                .to_string(),
-        );
+        let mut res = get_info();
         res.insert("number_of_chats", chats.to_string());
         res.insert("number_of_chat_messages", real_msgs.to_string());
         res.insert("messages_in_contact_requests", deaddrop_msgs.to_string());
@@ -251,7 +263,6 @@ impl Context {
             pub_key_cnt.unwrap_or_default().to_string(),
         );
         res.insert("fingerprint", fingerprint_str);
-        res.insert("level", "awesome".into());
 
         res
     }
@@ -504,6 +515,14 @@ mod tests {
         let t = dummy_context();
 
         let info = t.ctx.get_info();
+        assert!(info.get("database_dir").is_some());
+    }
+
+    #[test]
+    fn test_get_info_no_context() {
+        let info = get_info();
+        assert!(info.get("deltachat_core_version").is_some());
+        assert!(info.get("database_dir").is_none());
         assert_eq!(info.get("level").unwrap(), "awesome");
     }
 }

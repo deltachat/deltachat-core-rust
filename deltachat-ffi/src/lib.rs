@@ -347,9 +347,12 @@ pub unsafe extern "C" fn dc_get_info(context: *mut dc_context_t) -> *mut libc::c
         return dc_strdup(ptr::null());
     }
     let ffi_context = &*context;
-    ffi_context
-        .with_inner(|ctx| render_info(ctx.get_info()).unwrap_or_default().strdup())
-        .unwrap_or_else(|_| "".strdup())
+    let guard = ffi_context.inner.read().unwrap();
+    let info = match guard.as_ref() {
+        Some(ref ctx) => ctx.get_info(),
+        None => context::get_info(),
+    };
+    render_info(info).unwrap_or_default().strdup()
 }
 
 fn render_info(

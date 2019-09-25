@@ -108,3 +108,25 @@ def test_provider_info():
 
 def test_provider_info_none():
     assert lib.dc_provider_new_from_email(cutil.as_dc_charpointer("email@unexistent.no")) == ffi.NULL
+
+
+def test_get_info_closed():
+    ctx = ffi.gc(
+        lib.dc_context_new(lib.py_dc_callback, ffi.NULL, ffi.NULL),
+        lib.dc_context_unref,
+    )
+    info = cutil.from_dc_charpointer(lib.dc_get_info(ctx))
+    assert 'deltachat_core_version' in info
+    assert 'database_dir' not in info
+
+
+def test_get_info_open(tmpdir):
+    ctx = ffi.gc(
+        lib.dc_context_new(lib.py_dc_callback, ffi.NULL, ffi.NULL),
+        lib.dc_context_unref,
+    )
+    db_fname = tmpdir.join("test.db")
+    lib.dc_open(ctx, db_fname.strpath.encode("ascii"), ffi.NULL)
+    info = cutil.from_dc_charpointer(lib.dc_get_info(ctx))
+    assert 'deltachat_core_version' in info
+    assert 'database_dir' in info
