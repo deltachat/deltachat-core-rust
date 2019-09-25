@@ -275,12 +275,10 @@ pub unsafe extern "C" fn dc_is_open(context: *mut dc_context_t) -> libc::c_int {
         eprintln!("ignoring careless call to dc_is_open()");
         return 0;
     }
-    let ffi_context = &mut *context;
-    let inner_guard = ffi_context.inner.read().unwrap();
-    match *inner_guard {
-        Some(_) => 0,
-        None => 1,
-    }
+    let ffi_context = &*context;
+    ffi_context
+        .with_inner(|ctx| ctx.sql.is_open() as libc::c_int)
+        .unwrap_or(0)
 }
 
 #[no_mangle]
