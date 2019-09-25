@@ -345,7 +345,7 @@ impl Message {
     }
 
     pub fn get_setupcodebegin(&self, context: &Context) -> Option<String> {
-        if self.is_setupmessage() {
+        if !self.is_setupmessage() {
             return None;
         }
 
