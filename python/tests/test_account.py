@@ -537,6 +537,7 @@ class TestOnlineAccount:
         ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
         msg = ac2.get_message_by_id(ev[2])
         assert msg.is_setup_message()
+        assert msg.get_setupcodebegin() == setup_code[:2]
         # first try a bad setup code
         with pytest.raises(ValueError):
             msg.continue_key_transfer(str(reversed(setup_code)))
