@@ -443,9 +443,8 @@ pub fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: &Job) -> Result<()> {
     let what = job.param.get_int(Param::Cmd).unwrap_or_default();
     let param1_s = job.param.get(Param::Arg).unwrap_or_default();
     let param1 = CString::yolo(param1_s);
-    let _param2 = CString::yolo(job.param.get(Param::Arg2).unwrap_or_default());
 
-    if param1_s.empty() == 0 {
+    if param1_s.is_empty() {
         bail!("No Import/export dir/file given.");
     }
     info!(context, "Import/export process started.");
@@ -464,8 +463,8 @@ pub fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: &Job) -> Result<()> {
         }
     }
     let success = match what {
-        DC_IMEX_EXPORT_SELF_KEYS => unsafe { export_self_keys(context, param1.as_ptr()) },
-        DC_IMEX_IMPORT_SELF_KEYS => unsafe { import_self_keys(context, param1.as_ptr()) },
+        DC_IMEX_EXPORT_SELF_KEYS => export_self_keys(context, &param1_s),
+        DC_IMEX_IMPORT_SELF_KEYS => unsafe { import_self_keys(context, &param1_s) },
         DC_IMEX_EXPORT_BACKUP => unsafe { export_backup(context, param1.as_ptr()) },
         DC_IMEX_IMPORT_BACKUP => unsafe { import_backup(context, param1.as_ptr()) },
         _ => {
@@ -774,14 +773,13 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> bool {
 /*******************************************************************************
  * Classic key import
  ******************************************************************************/
-unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> bool {
+unsafe fn import_self_keys(context: &Context, dir_name: &str) -> bool {
     /* hint: even if we switch to import Autocrypt Setup Files, we should leave the possibility to import
     plain ASC keys, at least keys without a password, if we do not want to implement a password entry function.
     Importing ASC keys is useful to use keys in Delta Chat used by any other non-Autocrypt-PGP implementation.
 
     Maybe we should make the "default" key handlong also a little bit smarter
     (currently, the last imported key is the standard key unless it contains the string "legacy" in its name) */
-    let mut imported_cnt: libc::c_int = 0;
     let mut set_default: libc::c_int;
     let mut buf: *mut libc::c_char = ptr::null_mut();
     // a pointer inside buf, MUST NOT be free()'d
@@ -789,19 +787,22 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
     let mut buf2: *mut libc::c_char = ptr::null_mut();
     // a pointer inside buf2, MUST NOT be free()'d
     let mut buf2_headerline: *const libc::c_char = ptr::null_mut();
-    if !dir_name.is_null() {
-        let dir = std::path::Path::new(as_str(dir_name));
+    let mut imported_cnt = 0;
+    if !dir_name.is_empty() {
+        let dir = std::path::Path::new(dir_name);
         if let Ok(dir_handle) = std::fs::read_dir(dir) {
             for entry in dir_handle {
-                if entry.is_err() {
+                if let Err(err) = entry {
+                    info!(context, "file-dir error: {}", err);
                     break;
                 }
                 let entry_fn = entry.unwrap().file_name();
                 let name_f = entry_fn.to_string_lossy();
 
+                info!(context, "Checking name_f: {}", name_f);
                 match dc_get_filesuffix_lc(&name_f) {
                     Some(suffix) => {
-                        if suffix != ".asc" {
+                        if suffix != "asc" {
                             continue;
                         }
                     }
@@ -861,18 +862,10 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                 imported_cnt += 1
             }
             if imported_cnt == 0i32 {
-                error!(
-                    context,
-                    "No private keys found in \"{}\".",
-                    as_str(dir_name),
-                );
+                error!(context, "No private keys found in \"{}\".", dir_name,);
             }
         } else {
-            error!(
-                context,
-                "Import: Cannot open directory \"{}\".",
-                as_str(dir_name),
-            );
+            error!(context, "Import: Cannot open directory \"{}\".", dir_name,);
         }
     }
 
@@ -882,7 +875,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
     imported_cnt != 0
 }
 
-unsafe fn export_self_keys(context: &Context, dir: *const libc::c_char) -> bool {
+fn export_self_keys(context: &Context, dir: &str) -> bool {
     let mut export_errors = 0;
 
     context
@@ -931,18 +924,13 @@ unsafe fn export_self_keys(context: &Context, dir: *const libc::c_char) -> bool 
 /*******************************************************************************
  * Classic key export
  ******************************************************************************/
-fn export_key_to_asc_file(
-    context: &Context,
-    dir: *const libc::c_char,
-    id: Option<i64>,
-    key: &Key,
-) -> bool {
+fn export_key_to_asc_file(context: &Context, dir: &str, id: Option<i64>, key: &Key) -> bool {
     let mut success = false;
     let file_name = {
         let kind = if key.is_public() { "public" } else { "private" };
         let id = id.map_or("default".into(), |i| i.to_string());
 
-        as_path(dir).join(format!("{}-key-{}.asc", kind, &id))
+        Path::new(dir).join(format!("{}-key-{}.asc", kind, &id))
     };
     info!(context, "Exporting key {}", file_name.display());
     dc_delete_file(context, &file_name);
@@ -1022,13 +1010,8 @@ mod tests {
         let context = dummy_context();
         let base64 = include_str!("../test-data/key/public.asc");
         let key = Key::from_base64(base64, KeyType::Public).unwrap();
-        let blobdir = CString::yolo("$BLOBDIR");
-        assert!(export_key_to_asc_file(
-            &context.ctx,
-            blobdir.as_ptr(),
-            None,
-            &key
-        ));
+        let blobdir = "$BLOBDIR";
+        assert!(export_key_to_asc_file(&context.ctx, blobdir, None, &key));
         let blobdir = context.ctx.get_blobdir().to_str().unwrap();
         let filename = format!("{}/public-key-default.asc", blobdir);
         let bytes = std::fs::read(&filename).unwrap();
