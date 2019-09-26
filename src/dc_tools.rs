@@ -9,7 +9,7 @@ use std::time::SystemTime;
 use std::{fmt, fs, ptr};
 
 use chrono::{Local, TimeZone};
-use libc::{memcpy, strcpy, strlen, uintptr_t};
+use libc::{memcpy, strlen};
 use mmime::clist::*;
 use mmime::mailimf::types::*;
 use rand::{thread_rng, Rng};
@@ -147,66 +147,6 @@ pub(crate) fn dc_truncate(buf: &str, approx_chars: usize, do_unwrap: bool) -> Co
     } else {
         Cow::Borrowed(buf)
     }
-}
-
-#[allow(non_snake_case)]
-pub(crate) unsafe fn dc_truncate_n_unwrap_str(
-    buf: *mut libc::c_char,
-    approx_characters: libc::c_int,
-    do_unwrap: libc::c_int,
-) {
-    /* Function unwraps the given string and removes unnecessary whitespace.
-    Function stops processing after approx_characters are processed.
-    (as we're using UTF-8, for simplicity, we cut the string only at whitespaces). */
-    /* a single line is truncated `...` instead of `[...]` (the former is typically also used by the UI to fit strings in a rectangle) */
-    let ellipse_utf8: *const libc::c_char = if 0 != do_unwrap {
-        b" ...\x00" as *const u8 as *const libc::c_char
-    } else {
-        b" [...]\x00" as *const u8 as *const libc::c_char
-    };
-    let mut lastIsCharacter: libc::c_int = 0;
-    /* force unsigned - otherwise the `> ' '` comparison will fail */
-    let mut p1: *mut libc::c_uchar = buf as *mut libc::c_uchar;
-    while 0 != *p1 {
-        if *p1 as libc::c_int > ' ' as i32 {
-            lastIsCharacter = 1
-        } else if 0 != lastIsCharacter {
-            let used_bytes = (p1 as uintptr_t).wrapping_sub(buf as uintptr_t) as libc::size_t;
-            if dc_utf8_strnlen(buf, used_bytes) >= approx_characters as usize {
-                let buf_bytes = strlen(buf);
-                if buf_bytes.wrapping_sub(used_bytes) >= strlen(ellipse_utf8) {
-                    strcpy(p1 as *mut libc::c_char, ellipse_utf8);
-                }
-                break;
-            } else {
-                lastIsCharacter = 0;
-                if 0 != do_unwrap {
-                    *p1 = ' ' as i32 as libc::c_uchar
-                }
-            }
-        } else if 0 != do_unwrap {
-            *p1 = '\r' as i32 as libc::c_uchar
-        }
-        p1 = p1.offset(1isize)
-    }
-    if 0 != do_unwrap {
-        dc_remove_cr_chars(buf);
-    };
-}
-
-unsafe fn dc_utf8_strnlen(s: *const libc::c_char, n: libc::size_t) -> libc::size_t {
-    if s.is_null() {
-        return 0;
-    }
-
-    let mut j: libc::size_t = 0;
-    for i in 0..n {
-        if *s.add(i) as libc::c_int & 0xc0 != 0x80 {
-            j = j.wrapping_add(1)
-        }
-    }
-
-    j
 }
 
 pub(crate) unsafe fn dc_str_from_clist(

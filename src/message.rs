@@ -2,7 +2,6 @@ use std::path::{Path, PathBuf};
 use std::ptr;
 
 use deltachat_derive::{FromSql, ToSql};
-use libc::free;
 
 use crate::chat::{self, Chat};
 use crate::constants::*;
@@ -108,18 +107,6 @@ impl Message {
             msg.hidden = row.get(18)?;
             msg.location_id = row.get(19)?;
             msg.chat_blocked = row.get::<_, Option<Blocked>>(20)?.unwrap_or_default();
-            if msg.chat_blocked == Blocked::Deaddrop {
-                if let Some(ref text) = msg.text {
-                    unsafe {
-                        let ptr = text.strdup();
-
-                        dc_truncate_n_unwrap_str(ptr, 256, 0);
-
-                        msg.text = Some(to_string(ptr));
-                        free(ptr.cast());
-                    }
-                }
-            };
             Ok(msg)
         })
     }
