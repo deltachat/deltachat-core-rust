@@ -117,7 +117,8 @@ The sender plus the recipients are the group members.
 To allow different groups with the same members,
 groups are identified by a group-id.
 The group-id MUST be created only from the characters
-`0`-`9`, `A`-`Z`, `a`-`z` `_` and `-`.
+`0`-`9`, `A`-`Z`, `a`-`z` `_` and `-`
+and MUST have a length of at least 11 characters.
 
 Groups MUST have a group-name.
 The group-name is any non-zero-length UTF-8 string.
@@ -144,9 +145,9 @@ The message-id MUST have the format `Gr.<group-id>.<unique data>`.
     From: member1@domain
     To: member2@domain, member3@domain
     Chat-Version: 1.0
-    Chat-Group-ID: 1234xyZ
+    Chat-Group-ID: 12345uvwxyZ
     Chat-Group-Name: My Group
-    Message-ID: Gr.1234xyZ.0001@domain
+    Message-ID: Gr.12345uvwxyZ.0001@domain
     Subject: Chat: My Group: Hello group ...
 
     Hello group - this group contains three members
@@ -196,10 +197,10 @@ and the message SHOULD appear as a message or action from the sender.
     From: member1@domain
     To: member2@domain, member3@domain, member4@domain
     Chat-Version: 1.0
-    Chat-Group-ID: 1234xyZ
+    Chat-Group-ID: 12345uvwxyZ
     Chat-Group-Name: My Group
     Chat-Group-Member-Added: member4@domain
-    Message-ID: Gr.1234xyZ.0002@domain
+    Message-ID: Gr.12345uvwxyZ.0002@domain
     Subject: Chat: My Group: Hello, ...
 
     Hello, I've added member4@domain to our group.  Now we have 4 members.
@@ -209,10 +210,10 @@ To remove a member:
     From: member1@domain
     To: member2@domain, member3@domain
     Chat-Version: 1.0
-    Chat-Group-ID: 1234xyZ
+    Chat-Group-ID: 12345uvwxyZ
     Chat-Group-Name: My Group
     Chat-Group-Member-Removed: member4@domain
-    Message-ID: Gr.1234xyZ.0003@domain
+    Message-ID: Gr.12345uvwxyZ.0003@domain
     Subject: Chat: My Group: Hello, ...
 
     Hello, I've removed member4@domain from our group.  Now we have 3 members.
@@ -233,10 +234,10 @@ and the message SHOULD appear as a message or action from the sender.
     From: member1@domain
     To: member2@domain, member3@domain
     Chat-Version: 1.0
-    Chat-Group-ID: 1234xyZ
+    Chat-Group-ID: 12345uvwxyZ
     Chat-Group-Name: Our Group
     Chat-Group-Name-Changed: My Group
-    Message-ID: Gr.1234xyZ.0004@domain
+    Message-ID: Gr.12345uvwxyZ.0004@domain
     Subject: Chat: Our Group: Hello, ...
 
     Hello, I've changed the group name from "My Group" to "Our Group".
@@ -262,10 +263,10 @@ and the message SHOULD appear as a message or action from the sender.
     From: member1@domain
     To: member2@domain, member3@domain
     Chat-Version: 1.0
-    Chat-Group-ID: 1234xyZ
+    Chat-Group-ID: 12345uvwxyZ
     Chat-Group-Name: Our Group
     Chat-Group-Image: image.jpg
-    Message-ID: Gr.1234xyZ.0005@domain
+    Message-ID: Gr.12345uvwxyZ.0005@domain
     Subject: Chat: Our Group: Hello, ...
     Content-Type: multipart/mixed; boundary="==break=="
 
