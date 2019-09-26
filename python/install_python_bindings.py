@@ -6,7 +6,7 @@
 
 import os
 import subprocess
-import os
+import sys
 
 if __name__ == "__main__":
     os.environ["DCC_RS_TARGET"] = target = "release"
@@ -21,5 +21,5 @@ if __name__ == "__main__":
     subprocess.check_call("rm -rf build/ src/deltachat/*.so" , shell=True)
 
     subprocess.check_call([
-        "pip", "install", "-e", "."
+        sys.executable, "-m", "pip", "install", "-e", "."
     ])
