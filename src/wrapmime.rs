@@ -1,10 +1,12 @@
 use std::ffi::CString;
+use std::ptr;
 
 use crate::dc_tools::*;
 use crate::error::Error;
 use mmime::clist::*;
 use mmime::mailimf::types::*;
 use mmime::mailimf::types_helper::*;
+use mmime::mailmime::content::*;
 use mmime::mailmime::disposition::*;
 use mmime::mailmime::types::*;
 use mmime::mailmime::types_helper::*;
@@ -24,6 +26,100 @@ macro_rules! clist_append {
         }
     };
 }
+
+/**************************************
+* mime parsing API
+**************************************/
+
+pub fn get_ct_subtype(mime: *mut Mailmime) -> Option<String> {
+    unsafe {
+        let ct: *mut mailmime_content = (*mime).mm_content_type;
+
+        if !ct.is_null() && !(*ct).ct_subtype.is_null() {
+            println!("ct_subtype: {}", to_string((*ct).ct_subtype));
+            Some(to_string((*ct).ct_subtype)) 
+        } else {
+            None
+        }
+    }
+}
+
+pub fn has_decryptable_data_(mime_data: *mut mailmime_data) -> bool {
+    /* MAILMIME_DATA_FILE indicates, the data is in a file; AFAIK this is not used on parsing */
+    unsafe {
+        (*mime_data).dt_type == MAILMIME_DATA_TEXT as libc::c_int
+            && !(*mime_data).dt_data.dt_text.dt_data.is_null()
+            && (*mime_data).dt_data.dt_text.dt_length > 0
+    }
+}
+
+pub fn get_mime_transfer_encoding(mime: *mut Mailmime) -> Option<libc::c_int> {
+    unsafe {
+        let mm_mime_fields = (*mime).mm_mime_fields;
+        if !mm_mime_fields.is_null() {
+            for cur_data in (*(*mm_mime_fields).fld_list).into_iter() {
+                let field: *mut mailmime_field = cur_data as *mut _;
+                if (*field).fld_type == MAILMIME_FIELD_TRANSFER_ENCODING as libc::c_int
+                    && !(*field).fld_data.fld_encoding.is_null()
+                {
+                    return Some((*(*field).fld_data.fld_encoding).enc_type);
+                }
+            }
+        }
+    }
+    None
+}
+
+pub fn decode_dt_data(
+    mime_data: *mut mailmime_data,
+    mime_transfer_encoding: libc::c_int,
+) -> Result<(*mut libc::c_char, libc::size_t), Error> {
+    // Decode data according to mime_transfer_encoding
+    // returns Ok with a (decoded_data,decoded_data_bytes) pointer
+    // where the caller must make sure to free it.
+    // It may return Ok(ptr::null_mut(), 0)
+
+    let mut transfer_decoding_buffer: *mut libc::c_char = ptr::null_mut();
+    let decoded_data: *mut libc::c_char;
+    let mut decoded_data_bytes: libc::size_t = 0;
+    if mime_transfer_encoding == MAILMIME_MECHANISM_7BIT as libc::c_int
+        || mime_transfer_encoding == MAILMIME_MECHANISM_8BIT as libc::c_int
+        || mime_transfer_encoding == MAILMIME_MECHANISM_BINARY as libc::c_int
+    {
+        unsafe {
+            decoded_data = (*mime_data).dt_data.dt_text.dt_data as *mut _;
+            decoded_data_bytes = (*mime_data).dt_data.dt_text.dt_length;
+        }
+        ensure!(
+            !decoded_data.is_null() && decoded_data_bytes > 0,
+            "could not decode mime message"
+        );
+    } else {
+        let mut current_index: libc::size_t = 0;
+        unsafe {
+            let r = mailmime_part_parse(
+                (*mime_data).dt_data.dt_text.dt_data,
+                (*mime_data).dt_data.dt_text.dt_length,
+                &mut current_index,
+                mime_transfer_encoding,
+                &mut transfer_decoding_buffer,
+                &mut decoded_data_bytes,
+            );
+            if r != MAILIMF_NO_ERROR as libc::c_int
+                || transfer_decoding_buffer.is_null()
+                || decoded_data_bytes <= 0
+            {
+                bail!("mailmime_part_parse returned error or invalid data");
+            }
+            decoded_data = transfer_decoding_buffer;
+        }
+    }
+    Ok((decoded_data, decoded_data_bytes))
+}
+
+/**************************************
+* mime creation API
+**************************************/
 
 pub fn add_filename_part(
     message: *mut Mailmime,

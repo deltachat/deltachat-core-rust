@@ -678,7 +678,7 @@ fn mark_peer_as_verified(context: &Context, fingerprint: impl AsRef<str>) -> Res
         if peerstate.set_verified(1, fingerprint.as_ref(), 2) {
             peerstate.prefer_encrypt = EncryptPreference::Mutual;
             peerstate.to_save = Some(ToSave::All);
-            peerstate.save_to_db(&context.sql, false);
+            peerstate.save_to_db(&context.sql, false).unwrap();
             return Ok(());
         }
     }

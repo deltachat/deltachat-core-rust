@@ -102,7 +102,7 @@ impl<'a> MimeParser<'a> {
         }
     }
 
-    pub unsafe fn parse(&mut self, body: &[u8]) {
+    pub unsafe fn parse(&mut self, body: &[u8]) -> Result<(), Error> {
         let mut index = 0;
 
         let r = mailmime_parse(
@@ -113,7 +113,7 @@ impl<'a> MimeParser<'a> {
         );
 
         if r == MAILIMF_NO_ERROR as libc::c_int && !self.mimeroot.is_null() {
-            self.e2ee_helper.decrypt(self.context, self.mimeroot);
+            self.e2ee_helper.try_decrypt(self.context, self.mimeroot)?;
             self.parse_mime_recursive(self.mimeroot);
 
             if let Some(field) = self.lookup_field("Subject") {
@@ -317,6 +317,7 @@ impl<'a> MimeParser<'a> {
             }
             self.parts.push(part_5);
         }
+        Ok(())
     }
 
     pub fn get_last_nonmeta(&mut self) -> Option<&mut Part> {
@@ -1056,7 +1057,7 @@ unsafe fn mailmime_get_mime_type(mime: *mut Mailmime) -> (libc::c_int, Viewtype,
                     Some("alternative") => DC_MIMETYPE_MP_ALTERNATIVE,
                     Some("related") => DC_MIMETYPE_MP_RELATED,
                     Some("encrypted") => {
-                        // decryptable parts are already converted to other mime parts in dc_e2ee_decrypt()
+                        // apparently try_decrypt failed to decrypt
                         DC_MIMETYPE_MP_NOT_DECRYPTABLE
                     }
                     Some("signed") => DC_MIMETYPE_MP_SIGNED,
@@ -1426,7 +1427,7 @@ mod tests {
         let context = dummy_context();
         let raw = include_bytes!("../test-data/message/issue_523.txt");
         let mut mimeparser = MimeParser::new(&context.ctx);
-        unsafe { mimeparser.parse(&raw[..]) };
+        unsafe { mimeparser.parse(&raw[..]).unwrap() };
         assert_eq!(mimeparser.subject, None);
         assert_eq!(mimeparser.parts.len(), 1);
     }
@@ -1436,7 +1437,7 @@ mod tests {
         fn test_dc_mailmime_parse_crash_fuzzy(data in "[!-~\t ]{2000,}") {
             let context = dummy_context();
             let mut mimeparser = MimeParser::new(&context.ctx);
-            unsafe { mimeparser.parse(data.as_bytes()) };
+            unsafe { mimeparser.parse(data.as_bytes()).unwrap() };
         }
     }
 
@@ -1445,7 +1446,7 @@ mod tests {
         let context = dummy_context();
         let raw = include_bytes!("../test-data/message/mail_with_message_id.txt");
         let mut mimeparser = MimeParser::new(&context.ctx);
-        unsafe { mimeparser.parse(&raw[..]) };
+        unsafe { mimeparser.parse(&raw[..]).unwrap() };
         assert_eq!(
             mimeparser.get_rfc724_mid(),
             Some("2dfdbde7@example.org".into())
@@ -1457,7 +1458,7 @@ mod tests {
         let context = dummy_context();
         let raw = include_bytes!("../test-data/message/issue_523.txt");
         let mut mimeparser = MimeParser::new(&context.ctx);
-        unsafe { mimeparser.parse(&raw[..]) };
+        unsafe { mimeparser.parse(&raw[..]).unwrap() };
         assert_eq!(mimeparser.get_rfc724_mid(), None);
     }
 
@@ -1467,7 +1468,7 @@ mod tests {
             let context = dummy_context();
             let raw = b"Content-Type: multipart/mixed; boundary=\"==break==\";\nSubject: outer-subject\nX-Special-A: special-a\nFoo: Bar\nChat-Version: 0.0\n\n--==break==\nContent-Type: text/plain; protected-headers=\"v1\";\nSubject: inner-subject\nX-Special-B: special-b\nFoo: Xy\nChat-Version: 1.0\n\ntest1\n\n--==break==--\n\n\x00";
             let mut mimeparser = MimeParser::new(&context.ctx);
-            mimeparser.parse(&raw[..]);
+            mimeparser.parse(&raw[..]).unwrap();
 
             assert_eq!(mimeparser.subject, Some("inner-subject".into()));
 
