@@ -501,14 +501,6 @@ const NEW_GROUP_ID_PREFIX: &str = "chat$group.";
 ///
 /// * `mid` - A string that holds the message id
 ///
-/// # Examples
-///
-/// ```ignore
-/// use crate::dc_tools::dc_extract_grpid_from_rfc724_mid;
-/// let mid = "Gr.12345678901.morerandom@domain.de";
-/// let grpid = dc_extract_grpid_from_rfc724_mid(mid);
-/// assert_eq!(grpid, Some("12345678901"));
-/// ```
 pub(crate) fn dc_extract_grpid_from_rfc724_mid(mid: &str) -> Option<&str> {
     if mid.len() < 9 {
         return None;
