@@ -7,6 +7,7 @@ use std::ptr;
 use std::str::FromStr;
 
 use libc::{free, strcmp, strlen, strncmp};
+use mmime::display::display_mime;
 use mmime::clist::*;
 use mmime::mailimf::types::*;
 use mmime::mailimf::types_helper::*;
@@ -305,9 +306,11 @@ impl E2eeHelper {
         }
     }
 
-    pub unsafe fn decrypt(&mut self, context: &Context, in_out_message: *mut Mailmime) {
-        /* return values: 0=nothing to decrypt/cannot decrypt, 1=sth. decrypted
-        (to detect parts that could not be decrypted, simply look for left "multipart/encrypted" MIME types */
+    pub unsafe fn try_decrypt(
+        &mut self,
+        context: &Context,
+        in_out_message: *mut Mailmime,
+    ) -> Result<()> {
         /*just a pointer into mailmime structure, must not be freed*/
         let imffields: *mut mailimf_fields = mailmime_find_mailimf_fields(in_out_message);
         let mut message_time = 0;
@@ -343,16 +346,16 @@ impl E2eeHelper {
                     if let Some(ref mut peerstate) = peerstate {
                         if let Some(ref header) = autocryptheader {
                             peerstate.apply_header(&header, message_time);
-                            peerstate.save_to_db(&context.sql, false);
+                            peerstate.save_to_db(&context.sql, false).unwrap();
                         } else if message_time > peerstate.last_seen_autocrypt
                             && !contains_report(in_out_message)
                         {
                             peerstate.degrade_encryption(message_time);
-                            peerstate.save_to_db(&context.sql, false);
+                            peerstate.save_to_db(&context.sql, false).unwrap();
                         }
                     } else if let Some(ref header) = autocryptheader {
                         let p = Peerstate::from_header(context, header, message_time);
-                        assert!(p.save_to_db(&context.sql, true));
+                        p.save_to_db(&context.sql, true).unwrap();
                         peerstate = Some(p);
                     }
                 }
@@ -380,30 +383,22 @@ impl E2eeHelper {
                             public_keyring_for_validate.add_ref(key);
                         }
                     }
-                    for iterations in 0..10 {
-                        let mut has_unencrypted_parts: libc::c_int = 0i32;
-                        if decrypt_recursive(
-                            context,
-                            in_out_message,
-                            &private_keyring,
-                            &public_keyring_for_validate,
-                            &mut self.signatures,
-                            &mut gossip_headers,
-                            &mut has_unencrypted_parts,
-                        )
-                        .is_err()
-                        {
-                            break;
+
+                    match decrypt_if_autocrypt_message(
+                        context,
+                        in_out_message,
+                        &private_keyring,
+                        &public_keyring_for_validate,
+                        &mut self.signatures,
+                        &mut gossip_headers,
+                    ) {
+                        Ok(res) => {
+                            self.encrypted = res;
                         }
-                        /* if we're here, sth. was encrypted. if we're on top-level,
-                        and there are no additional unencrypted parts in the message
-                        the encryption was fine (signature is handled separately and
-                        returned as `signatures`) */
-                        if iterations == 0 && 0 == has_unencrypted_parts {
-                            self.encrypted = true;
+                        Err(err) => {
+                            bail!("failed to decrypt: {}", err);
                         }
                     }
-                    /* check for Autocrypt-Gossip */
                     if !gossip_headers.is_null() {
                         self.gossipped_addr = update_gossip_peerstates(
                             context,
@@ -419,6 +414,7 @@ impl E2eeHelper {
         if !gossip_headers.is_null() {
             mailimf_fields_free(gossip_headers);
         }
+        Ok(())
     }
 }
 
@@ -536,10 +532,10 @@ unsafe fn update_gossip_peerstates(
                             Peerstate::from_addr(context, &context.sql, &header.addr);
                         if let Some(ref mut peerstate) = peerstate {
                             peerstate.apply_gossip(header, message_time);
-                            peerstate.save_to_db(&context.sql, false);
+                            peerstate.save_to_db(&context.sql, false).unwrap();
                         } else {
                             let p = Peerstate::from_gossip(context, header, message_time);
-                            p.save_to_db(&context.sql, true);
+                            p.save_to_db(&context.sql, true).unwrap();
                             peerstate = Some(p);
                         }
                         if let Some(peerstate) = peerstate {
@@ -564,220 +560,165 @@ unsafe fn update_gossip_peerstates(
     gossipped_addr
 }
 
-unsafe fn decrypt_recursive(
+fn decrypt_if_autocrypt_message(
     context: &Context,
-    mime: *mut Mailmime,
+    mime_undetermined: *mut Mailmime,
     private_keyring: &Keyring,
     public_keyring_for_validate: &Keyring,
     ret_valid_signatures: &mut HashSet<String>,
     ret_gossip_headers: *mut *mut mailimf_fields,
-    ret_has_unencrypted_parts: *mut libc::c_int,
-) -> Result<()> {
-    ensure!(!mime.is_null(), "Invalid mime reference");
-    let ct: *mut mailmime_content;
+) -> Result<(bool)> {
+    /* The returned bool is true if we detected an Autocrypt-encrypted
+    message and successfully decrypted it.  Decryption modifies the
+    passed in mime structure in place.  The returned bool is false
+    if it was not an Autocrypt message.
+    Errors are returned for failures related to decryption.
+    */
+    ensure!(!mime_undetermined.is_null(), "Invalid mime reference");
+    let mime: *mut Mailmime; 
+    unsafe {
+        println!("****** INCOMING MSG BEGIN");
+        display_mime(mime_undetermined);
+        println!("****** INCOMING MSG END");
+        
+        if (*mime_undetermined).mm_type != MAILMIME_MESSAGE as libc::c_int {
+            return Ok(false);
+        }
+        mime = (*mime_undetermined).mm_data.mm_message.mm_msg_mime;
+            
+        if (*mime).mm_type != MAILMIME_MULTIPLE as libc::c_int
+            || "encrypted" != wrapmime::get_ct_subtype(mime).unwrap_or_default()
+        {
+            return Ok(false);
+        }
+    }
+    info!(context, "found OpenPGP-encrypted message");
+    // we may have a proper Multipart/Encrypted Autocrypt Level 1 message
+    // XXX: more precise check we have exactly this specified OpenPGP-mime structure
+    // https://tools.ietf.org/html/rfc3156.html#section-4
 
-    if (*mime).mm_type == MAILMIME_MULTIPLE as libc::c_int {
-        ct = (*mime).mm_content_type;
-        if !ct.is_null()
-            && !(*ct).ct_subtype.is_null()
-            && strcmp(
-                (*ct).ct_subtype,
-                b"encrypted\x00" as *const u8 as *const libc::c_char,
-            ) == 0i32
-        {
-            for cur_data in (*(*mime).mm_data.mm_multipart.mm_mp_list).into_iter() {
-                let mut decrypted_mime: *mut Mailmime = ptr::null_mut();
-                let decrypted = match decrypt_part(
-                    context,
-                    cur_data as *mut Mailmime,
-                    private_keyring,
-                    public_keyring_for_validate,
-                    ret_valid_signatures,
-                    &mut decrypted_mime,
-                ) {
-                    Ok(res) => res,
-                    Err(err) => bail!("decrypt_part: {}", err),
-                };
-                if decrypted {
-                    if (*ret_gossip_headers).is_null() && ret_valid_signatures.len() > 0 {
-                        let mut dummy: libc::size_t = 0;
-                        let mut test: *mut mailimf_fields = ptr::null_mut();
-                        if mailimf_envelope_and_optional_fields_parse(
-                            (*decrypted_mime).mm_mime_start,
-                            (*decrypted_mime).mm_length,
-                            &mut dummy,
-                            &mut test,
-                        ) == MAILIMF_NO_ERROR as libc::c_int
-                            && !test.is_null()
-                        {
-                            *ret_gossip_headers = test
-                        }
-                    }
-                    mailmime_substitute(mime, decrypted_mime);
-                    mailmime_free(mime);
-                    return Ok(());
-                }
-            }
-            *ret_has_unencrypted_parts = 1i32
-        } else {
-            for cur_data in (*(*mime).mm_data.mm_multipart.mm_mp_list).into_iter() {
-                if decrypt_recursive(
-                    context,
-                    cur_data as *mut Mailmime,
-                    private_keyring,
-                    public_keyring_for_validate,
-                    ret_valid_signatures,
-                    ret_gossip_headers,
-                    ret_has_unencrypted_parts,
-                )
-                .is_ok()
-                {
-                    return Ok(());
-                }
-            }
-        }
-    } else if (*mime).mm_type == MAILMIME_MESSAGE as libc::c_int {
-        if decrypt_recursive(
-            context,
-            (*mime).mm_data.mm_message.mm_msg_mime,
-            private_keyring,
-            public_keyring_for_validate,
-            ret_valid_signatures,
-            ret_gossip_headers,
-            ret_has_unencrypted_parts,
-        )
-        .is_ok()
-        {
-            return Ok(());
-        }
-    } else {
-        *ret_has_unencrypted_parts = 1;
+    let mut parts: Vec<*mut libc::c_void> = Vec::new();
+    unsafe {
+        parts.extend((*(*mime).mm_data.mm_multipart.mm_mp_list).into_iter());
+    }
+    ensure!(parts.len() == 2, "Invalid Autocrypt Level 1 Mime Parts");
+
+    info!(context, "decrypt_if_autocrypt_message found AC-encrypted message");
+
+    // ensure protocol-parameter "application/pgp-encrypted")
+    // ensure wrapmime::get_content_type(parts[1])) == "application/octetstream"
+
+    let encrypted_mime_payload = parts[1] as *mut mmime::mailmime::types::Mailmime;
+
+    let decrypted_mime = match decrypt_part(
+        context,
+        encrypted_mime_payload,
+        private_keyring,
+        public_keyring_for_validate,
+        ret_valid_signatures,
+    ) {
+        Ok(res) => res,
+        Err(err) => bail!("decrypt_part failed: {}", err),
+    };
+    /* decrypted_mime is a dangling pointer which we now put into
+    mailmime's Ownership */
+    unsafe {
+        mailmime_substitute(mime, decrypted_mime);
+        mailmime_free(mime);
     }
 
-    Err(format_err!("Failed to decrypt"))
+    /* finally, let's return any gossip headers */
+    unsafe {
+        if (*ret_gossip_headers).is_null() && ret_valid_signatures.len() > 0 {
+            let mut dummy: libc::size_t = 0;
+            let mut test: *mut mailimf_fields = ptr::null_mut();
+            if mailimf_envelope_and_optional_fields_parse(
+                (*decrypted_mime).mm_mime_start,
+                (*decrypted_mime).mm_length,
+                &mut dummy,
+                &mut test,
+            ) == MAILIMF_NO_ERROR as libc::c_int
+                && !test.is_null()
+            {
+                *ret_gossip_headers = test
+            }
+        }
+    }
+    return Ok(true);
 }
 
-unsafe fn decrypt_part(
+fn decrypt_part(
     _context: &Context,
     mime: *mut Mailmime,
     private_keyring: &Keyring,
     public_keyring_for_validate: &Keyring,
     ret_valid_signatures: &mut HashSet<String>,
-    ret_decrypted_mime: *mut *mut Mailmime,
-) -> Result<bool> {
+) -> Result<*mut Mailmime> {
     let mime_data: *mut mailmime_data;
-    let mut mime_transfer_encoding: libc::c_int = MAILMIME_MECHANISM_BINARY as libc::c_int;
-    let mut sth_decrypted = false;
+    let mut mime_transfer_encoding = MAILMIME_MECHANISM_BINARY as libc::c_int;
 
-    let cleanup = |transfer_decoding_buffer: *mut libc::c_char| {
-        if !transfer_decoding_buffer.is_null() {
-            mmap_string_unref(transfer_decoding_buffer);
-        }
-    };
-
-    *ret_decrypted_mime = ptr::null_mut();
-    mime_data = (*mime).mm_data.mm_single;
-    /* MAILMIME_DATA_FILE indicates, the data is in a file; AFAIK this is not used on parsing */
-    if (*mime_data).dt_type != MAILMIME_DATA_TEXT as libc::c_int
-        || (*mime_data).dt_data.dt_text.dt_data.is_null()
-        || (*mime_data).dt_data.dt_text.dt_length <= 0
-    {
-        return Ok(false);
+    unsafe {
+        mime_data = (*mime).mm_data.mm_single;
     }
-    if !(*mime).mm_mime_fields.is_null() {
-        for cur_data in (*(*(*mime).mm_mime_fields).fld_list).into_iter() {
-            let field: *mut mailmime_field = cur_data as *mut _;
-            if (*field).fld_type == MAILMIME_FIELD_TRANSFER_ENCODING as libc::c_int
-                && !(*field).fld_data.fld_encoding.is_null()
+    if !wrapmime::has_decryptable_data_(mime_data) {
+        return Ok(ptr::null_mut());
+    }
+
+    if let Some(enc) = wrapmime::get_mime_transfer_encoding(mime) {
+        mime_transfer_encoding = enc;
+    }
+
+    let (decoded_data, decoded_data_bytes) =
+        wrapmime::decode_dt_data(mime_data, mime_transfer_encoding)?;
+    /* encrypted, non-NULL decoded data in decoded_data now ...
+    Note that we need to take care of freeing decoded_data ourself.
+    Once decryption is finished we unref() can do this, so our caller does not
+    need to care for it.
+
+    */
+    let mut ret_decrypted_mime = ptr::null_mut();
+
+    unsafe {
+        if has_decrypted_pgp_armor(decoded_data, decoded_data_bytes as libc::c_int) {
+            /* we should only have one decryption happening */
+            assert!(ret_valid_signatures.is_empty(), "corrupted");
+
+            let plain = match dc_pgp_pk_decrypt(
+                std::slice::from_raw_parts(decoded_data as *const u8, decoded_data_bytes),
+                &private_keyring,
+                &public_keyring_for_validate,
+                Some(ret_valid_signatures),
+            ) {
+                Ok(plain) => plain,
+                Err(err) => {
+                    mmap_string_unref(decoded_data);
+                    bail!("could not decrypt: {}", err)
+                }
+            };
+            let plain_bytes = plain.len();
+            let plain_buf = plain.as_ptr() as *const libc::c_char;
+
+            let mut index: libc::size_t = 0;
+            let mut decrypted_mime: *mut Mailmime = ptr::null_mut();
+            if mailmime_parse(
+                plain_buf as *const _,
+                plain_bytes,
+                &mut index,
+                &mut decrypted_mime,
+            ) != MAIL_NO_ERROR as libc::c_int
+                || decrypted_mime.is_null()
             {
-                mime_transfer_encoding = (*(*field).fld_data.fld_encoding).enc_type
+                if !decrypted_mime.is_null() {
+                    mailmime_free(decrypted_mime);
+                }
+            } else {
+                ret_decrypted_mime = decrypted_mime;
             }
+            std::mem::forget(plain);
         }
+        mmap_string_unref(decoded_data);
     }
-    /* regarding `Content-Transfer-Encoding:` */
-    /* mmap_string_unref()'d if set */
-    let mut transfer_decoding_buffer: *mut libc::c_char = ptr::null_mut();
-    let decoded_data: *const libc::c_char;
-    let mut decoded_data_bytes: libc::size_t = 0;
-    if mime_transfer_encoding == MAILMIME_MECHANISM_7BIT as libc::c_int
-        || mime_transfer_encoding == MAILMIME_MECHANISM_8BIT as libc::c_int
-        || mime_transfer_encoding == MAILMIME_MECHANISM_BINARY as libc::c_int
-    {
-        decoded_data = (*mime_data).dt_data.dt_text.dt_data;
-        decoded_data_bytes = (*mime_data).dt_data.dt_text.dt_length;
-        if decoded_data.is_null() || decoded_data_bytes <= 0 {
-            /* no error - but no data */
-            return Ok(false);
-        }
-    } else {
-        let r: libc::c_int;
-        let mut current_index: libc::size_t = 0;
-        r = mailmime_part_parse(
-            (*mime_data).dt_data.dt_text.dt_data,
-            (*mime_data).dt_data.dt_text.dt_length,
-            &mut current_index,
-            mime_transfer_encoding,
-            &mut transfer_decoding_buffer,
-            &mut decoded_data_bytes,
-        );
-        if r != MAILIMF_NO_ERROR as libc::c_int
-            || transfer_decoding_buffer.is_null()
-            || decoded_data_bytes <= 0
-        {
-            cleanup(transfer_decoding_buffer);
-            bail!("mailmime_part_parse returned error or invalid data");
-        }
-        decoded_data = transfer_decoding_buffer;
-    }
-
-    /* encrypted, decoded data in decoded_data now ... */
-    if has_decrypted_pgp_armor(decoded_data, decoded_data_bytes as libc::c_int) {
-        let add_signatures = if ret_valid_signatures.is_empty() {
-            Some(ret_valid_signatures)
-        } else {
-            None
-        };
-
-        /*if we already have fingerprints, do not add more; this ensures, only the fingerprints from the outer-most part are collected */
-        let plain = match dc_pgp_pk_decrypt(
-            std::slice::from_raw_parts(decoded_data as *const u8, decoded_data_bytes),
-            &private_keyring,
-            &public_keyring_for_validate,
-            add_signatures,
-        ) {
-            Ok(plain) => plain,
-            Err(err) => {
-                cleanup(transfer_decoding_buffer);
-                bail!("could not decrypt: {}", err)
-            }
-        };
-        let plain_bytes = plain.len();
-        let plain_buf = plain.as_ptr() as *const libc::c_char;
-
-        let mut index: libc::size_t = 0;
-        let mut decrypted_mime: *mut Mailmime = ptr::null_mut();
-        if mailmime_parse(
-            plain_buf as *const _,
-            plain_bytes,
-            &mut index,
-            &mut decrypted_mime,
-        ) != MAIL_NO_ERROR as libc::c_int
-            || decrypted_mime.is_null()
-        {
-            if !decrypted_mime.is_null() {
-                mailmime_free(decrypted_mime);
-            }
-        } else {
-            *ret_decrypted_mime = decrypted_mime;
-            sth_decrypted = true;
-        }
-        std::mem::forget(plain);
-    }
-    //mailmime_substitute(mime, new_mime);
-    //s. mailprivacy_gnupg.c::pgp_decrypt()
-    cleanup(transfer_decoding_buffer);
-
-    Ok(sth_decrypted)
+    Ok(ret_decrypted_mime)
 }
 
 unsafe fn has_decrypted_pgp_armor(str__: *const libc::c_char, mut str_bytes: libc::c_int) -> bool {

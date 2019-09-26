@@ -154,6 +154,7 @@ pub struct unnamed_6 {
     pub dt_data: *const libc::c_char,
     pub dt_length: size_t,
 }
+
 pub type unnamed_7 = libc::c_uint;
 pub const MAILMIME_MESSAGE: unnamed_7 = 3;
 pub const MAILMIME_MULTIPLE: unnamed_7 = 2;

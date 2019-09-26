@@ -61,7 +61,9 @@ pub unsafe fn dc_receive_imf(
     // somewhen, I did not found out anything that speaks against this approach yet)
 
     let mut mime_parser = MimeParser::new(context);
-    mime_parser.parse(imf_raw);
+    if let Err(err) = mime_parser.parse(imf_raw) {
+        error!(context, "dc_receive_imf parse error: {}", err);
+    };
 
     if mime_parser.header.is_empty() {
         // Error - even adding an empty record won't help as we do not know the message ID
@@ -1148,21 +1150,15 @@ unsafe fn create_or_lookup_group(
     // check, if we have a chat with this group ID
     let (mut chat_id, chat_id_verified, _blocked) = chat::get_chat_id_by_grpid(context, &grpid);
     if chat_id != 0 {
-        let mut failure_reason = std::ptr::null_mut();
-
-        if chat_id_verified
-            && 0 == check_verified_properties(
-                context,
-                mime_parser,
-                from_id as u32,
-                to_ids,
-                &mut failure_reason,
-            )
-        {
-            mime_parser.repl_msg_by_error(to_string(failure_reason));
+        if chat_id_verified {
+            if let Err(err) =
+                check_verified_properties(context, mime_parser, from_id as u32, to_ids)
+            {
+                warn!(context, "verification problem: {}", err);
+                let s = format!("{}. See 'Info' for more details", err);
+                mime_parser.repl_msg_by_error(s);
+            }
         }
-
-        free(failure_reason.cast());
     }
 
     // check if the sender is a member of the existing group -
@@ -1191,18 +1187,14 @@ unsafe fn create_or_lookup_group(
         let mut create_verified = VerifiedStatus::Unverified;
         if mime_parser.lookup_field("Chat-Verified").is_some() {
             create_verified = VerifiedStatus::Verified;
-            let mut failure_reason = std::ptr::null_mut();
 
-            if 0 == check_verified_properties(
-                context,
-                mime_parser,
-                from_id as u32,
-                to_ids,
-                &mut failure_reason,
-            ) {
-                mime_parser.repl_msg_by_error(to_string(failure_reason));
+            if let Err(err) =
+                check_verified_properties(context, mime_parser, from_id as u32, to_ids)
+            {
+                warn!(context, "verification problem: {}", err);
+                let s = format!("{}. See 'Info' for more details", err);
+                mime_parser.repl_msg_by_error(&s);
             }
-            free(failure_reason.cast());
         }
         if 0 == allow_creation {
             cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
@@ -1609,51 +1601,41 @@ fn search_chat_ids_by_contact_ids(context: &Context, unsorted_contact_ids: &Vec<
     chat_ids
 }
 
-unsafe fn check_verified_properties(
+fn check_verified_properties(
     context: &Context,
     mimeparser: &MimeParser,
     from_id: u32,
     to_ids: &Vec<u32>,
-    failure_reason: *mut *mut libc::c_char,
-) -> libc::c_int {
-    let verify_fail = |reason: String| {
-        *failure_reason = format!("{}. See \"Info\" for details.", reason).strdup();
-        warn!(context, "{}", reason);
-    };
+) -> Result<()> {
+    let contact = Contact::load_from_db(context, from_id)?;
 
-    let contact = match Contact::load_from_db(context, from_id) {
-        Ok(contact) => contact,
-        Err(_err) => {
-            verify_fail("Internal Error; cannot load contact".into());
-            return 0;
-        }
-    };
-
-    if !mimeparser.e2ee_helper.encrypted {
-        verify_fail("This message is not encrypted".into());
-        return 0;
-    }
+    ensure!(
+        mimeparser.e2ee_helper.encrypted,
+        "This message is not encrypted."
+    );
 
     // ensure, the contact is verified
     // and the message is signed with a verified key of the sender.
     // this check is skipped for SELF as there is no proper SELF-peerstate
     // and results in group-splits otherwise.
-    if from_id != 1 {
+    if from_id != DC_CONTACT_ID_SELF {
         let peerstate = Peerstate::from_addr(context, &context.sql, contact.get_addr());
 
         if peerstate.is_none()
             || contact.is_verified_ex(context, peerstate.as_ref())
                 != VerifiedStatus::BidirectVerified
         {
-            verify_fail("The sender of this message is not verified.".into());
-            return 0;
+            bail!(
+                "Sender of this message is not verified: {}",
+                contact.get_addr()
+            );
         }
 
         if let Some(peerstate) = peerstate {
-            if !peerstate.has_verified_key(&mimeparser.e2ee_helper.signatures) {
-                verify_fail("The message was sent with non-verified encryption.".into());
-                return 0;
-            }
+            ensure!(
+                peerstate.has_verified_key(&mimeparser.e2ee_helper.signatures),
+                "The message was sent with non-verified encryption."
+            );
         }
     }
 
@@ -1671,13 +1653,13 @@ unsafe fn check_verified_properties(
             rows.collect::<std::result::Result<Vec<_>, _>>()
                 .map_err(Into::into)
         },
-    );
+    )?;
 
-    if rows.is_err() {
-        return 0;
-    }
-    for (to_addr, mut is_verified) in rows.unwrap().into_iter() {
+    for (to_addr, _is_verified) in rows.into_iter() {
+        let mut is_verified = _is_verified != 0;
         let mut peerstate = Peerstate::from_addr(context, &context.sql, &to_addr);
+
+        // mark gossiped keys (if any) as verified
         if mimeparser.e2ee_helper.gossipped_addr.contains(&to_addr) && peerstate.is_some() {
             let peerstate = peerstate.as_mut().unwrap();
 
@@ -1686,7 +1668,7 @@ unsafe fn check_verified_properties(
             // - OR if the verified-key does not match public-key or gossip-key
             //   (otherwise a verified key can _only_ be updated through QR scan which might be annoying,
             //   see https://github.com/nextleap-project/countermitm/issues/46 for a discussion about this point)
-            if 0 == is_verified
+            if !is_verified
                 || peerstate.verified_key_fingerprint != peerstate.public_key_fingerprint
                     && peerstate.verified_key_fingerprint != peerstate.gossip_key_fingerprint
             {
@@ -1694,21 +1676,19 @@ unsafe fn check_verified_properties(
                 let fp = peerstate.gossip_key_fingerprint.clone();
                 if let Some(fp) = fp {
                     peerstate.set_verified(0, &fp, 2);
-                    peerstate.save_to_db(&context.sql, false);
-                    is_verified = 1;
+                    peerstate.save_to_db(&context.sql, false).unwrap();
+                    is_verified = true;
                 }
             }
         }
-        if 0 == is_verified {
-            verify_fail(format!(
+        if !is_verified {
+            bail!(
                 "{} is not a member of this verified group",
-                to_addr
-            ));
-            return 0;
+                to_addr.to_string()
+            );
         }
     }
-
-    1
+    Ok(())
 }
 
 fn set_better_msg(mime_parser: &mut MimeParser, better_msg: impl AsRef<str>) {

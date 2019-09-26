@@ -7,6 +7,7 @@ use crate::aheader::*;
 use crate::chat::*;
 use crate::constants::*;
 use crate::context::Context;
+use crate::error::*;
 use crate::key::*;
 use crate::sql::{self, Sql};
 
@@ -408,28 +409,19 @@ impl<'a> Peerstate<'a> {
         success
     }
 
-    pub fn save_to_db(&self, sql: &Sql, create: bool) -> bool {
-        let mut success = false;
-
-        if self.addr.is_none() {
-            return success;
-        }
-
+    pub fn save_to_db(&self, sql: &Sql, create: bool) -> Result<()> {
+        ensure!(!self.addr.is_none(), "self.addr is not configured");
         if create {
-            if sql::execute(
+            sql::execute(
                 self.context,
                 sql,
                 "INSERT INTO acpeerstates (addr) VALUES(?);",
                 params![self.addr.as_ref().unwrap()],
-            )
-            .is_err()
-            {
-                return false;
-            }
+            )?;
         }
 
         if self.to_save == Some(ToSave::All) || create {
-            success = sql::execute(
+            sql::execute(
                 self.context,
                 sql,
 		"UPDATE acpeerstates \
@@ -450,10 +442,9 @@ impl<'a> Peerstate<'a> {
                     &self.verified_key_fingerprint,
                     &self.addr,
                 ],
-            ).is_ok();
-            assert_eq!(success, true);
+            )?
         } else if self.to_save == Some(ToSave::Timestamps) {
-            success = sql::execute(
+            sql::execute(
                 self.context,
                 sql,
                 "UPDATE acpeerstates SET last_seen=?, last_seen_autocrypt=?, gossip_timestamp=? \
@@ -464,15 +455,14 @@ impl<'a> Peerstate<'a> {
                     self.gossip_timestamp,
                     &self.addr
                 ],
-            )
-            .is_ok();
+            )?;
         }
 
         if self.to_save == Some(ToSave::All) || create {
             reset_gossiped_timestamp(self.context, 0);
         }
 
-        success
+        Ok(())
     }
 
     pub fn has_verified_key(&self, fingerprints: &HashSet<String>) -> bool {
@@ -522,7 +512,10 @@ mod tests {
             degrade_event: None,
         };
 
-        assert!(peerstate.save_to_db(&ctx.ctx.sql, true), "failed to save");
+        assert!(
+            peerstate.save_to_db(&ctx.ctx.sql, true).is_ok(),
+            "failed to save to db"
+        );
 
         let peerstate_new = Peerstate::from_addr(&ctx.ctx, &ctx.ctx.sql, addr.into())
             .expect("failed to load peerstate from db");
@@ -564,7 +557,10 @@ mod tests {
             degrade_event: None,
         };
 
-        assert!(peerstate.save_to_db(&ctx.ctx.sql, true), "failed to save");
+        assert!(
+            peerstate.save_to_db(&ctx.ctx.sql, true).is_ok(),
+            "failed to save"
+        );
 
         let peerstate_new = Peerstate::from_addr(&ctx.ctx, &ctx.ctx.sql, addr.into())
             .expect("failed to load peerstate from db");
