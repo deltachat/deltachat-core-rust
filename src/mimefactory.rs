@@ -3,12 +3,12 @@ use std::ptr;
 
 use chrono::TimeZone;
 use mmime::clist::*;
-use mmime::mailimf_types::*;
-use mmime::mailimf_types_helper::*;
-use mmime::mailmime_disposition::*;
-use mmime::mailmime_types::*;
-use mmime::mailmime_types_helper::*;
-use mmime::mailmime_write_mem::*;
+use mmime::mailimf::types::*;
+use mmime::mailimf::types_helper::*;
+use mmime::mailmime::disposition::*;
+use mmime::mailmime::types::*;
+use mmime::mailmime::types_helper::*;
+use mmime::mailmime::write_mem::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
 
@@ -86,7 +86,7 @@ impl<'a> MimeFactory<'a> {
 
     pub fn finalize_mime_message(
         &mut self,
-        message: *mut mailmime,
+        message: *mut Mailmime,
         encrypted: bool,
         gossiped: bool,
     ) -> Result<(), Error> {
@@ -236,12 +236,12 @@ impl<'a> MimeFactory<'a> {
             );
         }
 
-        let cleanup = |message: *mut mailmime| {
+        let cleanup = |message: *mut Mailmime| {
             if !message.is_null() {
                 mailmime_free(message);
             }
         };
-        let message = mailmime_new_message_data(0 as *mut mailmime);
+        let message = mailmime_new_message_data(0 as *mut Mailmime);
         ensure!(!message.is_null(), "could not create mime message data");
 
         mailmime_set_imf_fields(message, imf_fields);
@@ -257,7 +257,7 @@ impl<'a> MimeFactory<'a> {
                 /* Render a normal message
                  *********************************************************************/
                 let chat = self.chat.as_ref().unwrap();
-                let mut meta_part: *mut mailmime = ptr::null_mut();
+                let mut meta_part: *mut Mailmime = ptr::null_mut();
                 let mut placeholdertext = None;
 
                 if chat.typ == Chattype::VerifiedGroup {
@@ -589,7 +589,7 @@ impl<'a> MimeFactory<'a> {
                     wrapmime::new_content_type("message/disposition-notification")?;
                 let mime_fields_0: *mut mailmime_fields =
                     mailmime_fields_new_encoding(MAILMIME_MECHANISM_8BIT as libc::c_int);
-                let mach_mime_part: *mut mailmime =
+                let mach_mime_part: *mut Mailmime =
                     mailmime_new_empty(content_type_0, mime_fields_0);
                 wrapmime::set_body_text(mach_mime_part, &message_text2)?;
                 mailmime_add_part(multipart, mach_mime_part);
@@ -821,7 +821,7 @@ fn build_body_file(
     context: &Context,
     msg: &Message,
     base_name: &str,
-) -> Result<(*mut mailmime, String), Error> {
+) -> Result<(*mut Mailmime, String), Error> {
     let path_filename = match msg.param.get(Param::File) {
         None => {
             bail!("msg has no filename");

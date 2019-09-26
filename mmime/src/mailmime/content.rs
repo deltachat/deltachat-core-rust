@@ -1,9 +1,9 @@
 use crate::clist::*;
+use crate::mailimf::types::*;
 use crate::mailimf::*;
-use crate::mailimf_types::*;
+use crate::mailmime::types::*;
+use crate::mailmime::types_helper::*;
 use crate::mailmime::*;
-use crate::mailmime_types::*;
-use crate::mailmime_types_helper::*;
 use crate::mmapstring::*;
 use crate::other::*;
 
@@ -80,9 +80,9 @@ pub unsafe fn mailmime_parse(
     mut message: *const libc::c_char,
     mut length: size_t,
     mut indx: *mut size_t,
-    mut result: *mut *mut mailmime,
+    mut result: *mut *mut Mailmime,
 ) -> libc::c_int {
-    let mut mime: *mut mailmime = 0 as *mut mailmime;
+    let mut mime: *mut Mailmime = 0 as *mut Mailmime;
     let mut r: libc::c_int = 0;
     let mut res: libc::c_int = 0;
     let mut content_message: *mut mailmime_content = 0 as *mut mailmime_content;
@@ -174,7 +174,7 @@ unsafe fn mailmime_parse_with_default(
     mut default_type: libc::c_int,
     mut content_type: *mut mailmime_content,
     mut mime_fields: *mut mailmime_fields,
-    mut result: *mut *mut mailmime,
+    mut result: *mut *mut Mailmime,
 ) -> libc::c_int {
     let mut current_block: u64;
     let mut cur_token: size_t = 0;
@@ -184,8 +184,8 @@ unsafe fn mailmime_parse_with_default(
     let mut boundary: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut fields: *mut mailimf_fields = 0 as *mut mailimf_fields;
     let mut list: *mut clist = 0 as *mut clist;
-    let mut msg_mime: *mut mailmime = 0 as *mut mailmime;
-    let mut mime: *mut mailmime = 0 as *mut mailmime;
+    let mut msg_mime: *mut Mailmime = 0 as *mut Mailmime;
+    let mut mime: *mut Mailmime = 0 as *mut Mailmime;
     let mut r: libc::c_int = 0;
     let mut res: libc::c_int = 0;
     let mut preamble: *mut mailmime_data = 0 as *mut mailmime_data;
@@ -312,7 +312,7 @@ unsafe fn mailmime_parse_with_default(
                         res = MAILIMF_ERROR_MEMORY as libc::c_int
                     } else {
                         list = 0 as *mut clist;
-                        msg_mime = 0 as *mut mailmime;
+                        msg_mime = 0 as *mut Mailmime;
                         fields = 0 as *mut mailimf_fields;
                         match body_type {
                             3 => {
@@ -361,7 +361,7 @@ unsafe fn mailmime_parse_with_default(
                                                 current_block = 12065775993741208975;
                                             } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
                                                 mailmime_fields_free(mime_fields);
-                                                msg_mime = 0 as *mut mailmime;
+                                                msg_mime = 0 as *mut Mailmime;
                                                 current_block = 12065775993741208975;
                                             } else {
                                                 mailmime_fields_free(mime_fields);
@@ -456,7 +456,7 @@ unsafe fn mailmime_parse_with_default(
                                         clist_foreach(
                                             list,
                                             ::std::mem::transmute::<
-                                                Option<unsafe fn(_: *mut mailmime) -> ()>,
+                                                Option<unsafe fn(_: *mut Mailmime) -> ()>,
                                                 clist_func,
                                             >(Some(
                                                 mailmime_free,
@@ -605,7 +605,7 @@ unsafe fn mailmime_multipart_body_parse(
                                 break;
                             }
                             let mut bp_token: size_t = 0;
-                            let mut mime_bp: *mut mailmime = 0 as *mut mailmime;
+                            let mut mime_bp: *mut Mailmime = 0 as *mut Mailmime;
                             let mut data_str: *const libc::c_char = 0 as *const libc::c_char;
                             let mut data_size: size_t = 0;
                             let mut fields: *mut mailimf_fields = 0 as *mut mailimf_fields;
@@ -821,7 +821,7 @@ unsafe fn mailmime_multipart_body_parse(
                         clist_foreach(
                             list,
                             ::std::mem::transmute::<
-                                Option<unsafe fn(_: *mut mailmime) -> ()>,
+                                Option<unsafe fn(_: *mut Mailmime) -> ()>,
                                 clist_func,
                             >(Some(mailmime_free)),
                             0 as *mut libc::c_void,
@@ -1344,20 +1344,20 @@ pub unsafe fn mailmime_extract_boundary(
 }
 
 pub unsafe fn mailmime_get_section(
-    mut mime: *mut mailmime,
+    mut mime: *mut Mailmime,
     mut section: *mut mailmime_section,
-    mut result: *mut *mut mailmime,
+    mut result: *mut *mut Mailmime,
 ) -> libc::c_int {
     return mailmime_get_section_list(mime, (*(*section).sec_list).first, result);
 }
 unsafe fn mailmime_get_section_list(
-    mut mime: *mut mailmime,
+    mut mime: *mut Mailmime,
     mut list: *mut clistiter,
-    mut result: *mut *mut mailmime,
+    mut result: *mut *mut Mailmime,
 ) -> libc::c_int {
     let mut id: uint32_t = 0;
-    let mut data: *mut mailmime = 0 as *mut mailmime;
-    let mut submime: *mut mailmime = 0 as *mut mailmime;
+    let mut data: *mut Mailmime = 0 as *mut Mailmime;
+    let mut submime: *mut Mailmime = 0 as *mut Mailmime;
     if list.is_null() {
         *result = mime;
         return MAILIMF_NO_ERROR as libc::c_int;
@@ -1367,14 +1367,14 @@ unsafe fn mailmime_get_section_list(
     } else {
         0 as *mut libc::c_void
     }) as *mut uint32_t);
-    data = 0 as *mut mailmime;
+    data = 0 as *mut Mailmime;
     match (*mime).mm_type {
         1 => return MAILIMF_ERROR_INVAL as libc::c_int,
         2 => {
             data = clist_nth_data(
                 (*mime).mm_data.mm_multipart.mm_mp_list,
                 id.wrapping_sub(1i32 as libc::c_uint) as libc::c_int,
-            ) as *mut mailmime;
+            ) as *mut Mailmime;
             if data.is_null() {
                 return MAILIMF_ERROR_INVAL as libc::c_int;
             }
@@ -1406,7 +1406,7 @@ unsafe fn mailmime_get_section_list(
                     data = clist_nth_data(
                         (*submime).mm_data.mm_multipart.mm_mp_list,
                         id.wrapping_sub(1i32 as libc::c_uint) as libc::c_int,
-                    ) as *mut mailmime;
+                    ) as *mut Mailmime;
                     if data.is_null() {
                         return MAILIMF_ERROR_INVAL as libc::c_int;
                     }
@@ -2147,7 +2147,7 @@ pub unsafe fn mailmime_part_parse_partial(
 }
 
 pub unsafe fn mailmime_get_section_id(
-    mut mime: *mut mailmime,
+    mut mime: *mut Mailmime,
     mut result: *mut *mut mailmime_section,
 ) -> libc::c_int {
     let mut current_block: u64;
@@ -2173,7 +2173,7 @@ pub unsafe fn mailmime_get_section_id(
         let mut id: uint32_t = 0;
         let mut p_id: *mut uint32_t = 0 as *mut uint32_t;
         let mut cur: *mut clistiter = 0 as *mut clistiter;
-        let mut parent: *mut mailmime = 0 as *mut mailmime;
+        let mut parent: *mut Mailmime = 0 as *mut Mailmime;
         r = mailmime_get_section_id((*mime).mm_parent, &mut section_id);
         if r != MAILIMF_NO_ERROR as libc::c_int {
             res = r;

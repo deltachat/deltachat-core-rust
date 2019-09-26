@@ -3,12 +3,12 @@ use std::ffi::CString;
 use crate::dc_tools::*;
 use crate::error::Error;
 use mmime::clist::*;
-use mmime::mailimf_types::*;
-use mmime::mailimf_types_helper::*;
+use mmime::mailimf::types::*;
+use mmime::mailimf::types_helper::*;
+use mmime::mailmime::disposition::*;
+use mmime::mailmime::types::*;
+use mmime::mailmime::types_helper::*;
 use mmime::mailmime::*;
-use mmime::mailmime_disposition::*;
-use mmime::mailmime_types::*;
-use mmime::mailmime_types_helper::*;
 use mmime::other::*;
 
 #[macro_export]
@@ -26,7 +26,7 @@ macro_rules! clist_append {
 }
 
 pub fn add_filename_part(
-    message: *mut mailmime,
+    message: *mut Mailmime,
     basename: &str,
     mime_type: &str,
     file_content: &str,
@@ -57,9 +57,9 @@ pub fn new_custom_field(fields: *mut mailimf_fields, name: &str, value: &str) {
     }
 }
 
-pub fn build_body_text(text: &str) -> Result<*mut mailmime, Error> {
+pub fn build_body_text(text: &str) -> Result<*mut Mailmime, Error> {
     let mime_fields: *mut mailmime_fields;
-    let message_part: *mut mailmime;
+    let message_part: *mut Mailmime;
 
     let content = new_content_type("text/plain")?;
     append_ct_param(content, "charset", "utf-8")?;
@@ -104,7 +104,7 @@ pub fn new_content_type(content_type: &str) -> Result<*mut mailmime_content, Err
     Ok(content)
 }
 
-pub fn set_body_text(part: *mut mailmime, text: &str) -> Result<(), Error> {
+pub fn set_body_text(part: *mut Mailmime, text: &str) -> Result<(), Error> {
     use libc::strlen;
     unsafe {
         let text_c = text.strdup();

@@ -1,7 +1,5 @@
-use libc;
-
 use crate::clist::*;
-use crate::mailimf_types::*;
+use crate::mailimf::types::*;
 use crate::mmapstring::*;
 use crate::other::*;
 
@@ -164,9 +162,9 @@ pub const MAILMIME_NONE: unnamed_7 = 0;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct mailmime {
+pub struct Mailmime {
     pub mm_parent_type: libc::c_int,
-    pub mm_parent: *mut mailmime,
+    pub mm_parent: *mut Mailmime,
     pub mm_multipart_pos: *mut clistiter,
     pub mm_type: libc::c_int,
     pub mm_mime_start: *const libc::c_char,
@@ -188,7 +186,7 @@ pub union unnamed_8 {
 #[repr(C)]
 pub struct unnamed_9 {
     pub mm_fields: *mut mailimf_fields,
-    pub mm_msg_mime: *mut mailmime,
+    pub mm_msg_mime: *mut Mailmime,
 }
 /* multi-part */
 #[derive(Copy, Clone)]
@@ -656,15 +654,15 @@ pub unsafe fn mailmime_new(
     mut mm_epilogue: *mut mailmime_data,
     mut mm_mp_list: *mut clist,
     mut mm_fields: *mut mailimf_fields,
-    mut mm_msg_mime: *mut mailmime,
-) -> *mut mailmime {
-    let mut mime: *mut mailmime = 0 as *mut mailmime;
+    mut mm_msg_mime: *mut Mailmime,
+) -> *mut Mailmime {
+    let mut mime: *mut Mailmime = 0 as *mut Mailmime;
     let mut cur: *mut clistiter = 0 as *mut clistiter;
-    mime = malloc(::std::mem::size_of::<mailmime>() as libc::size_t) as *mut mailmime;
+    mime = malloc(::std::mem::size_of::<Mailmime>() as libc::size_t) as *mut Mailmime;
     if mime.is_null() {
-        return 0 as *mut mailmime;
+        return 0 as *mut Mailmime;
     }
-    (*mime).mm_parent = 0 as *mut mailmime;
+    (*mime).mm_parent = 0 as *mut Mailmime;
     (*mime).mm_parent_type = MAILMIME_NONE as libc::c_int;
     (*mime).mm_multipart_pos = 0 as *mut clistiter;
     (*mime).mm_type = mm_type;
@@ -681,12 +679,12 @@ pub unsafe fn mailmime_new(
             (*mime).mm_data.mm_multipart.mm_mp_list = mm_mp_list;
             cur = (*mm_mp_list).first;
             while !cur.is_null() {
-                let mut submime: *mut mailmime = 0 as *mut mailmime;
+                let mut submime: *mut Mailmime = 0 as *mut Mailmime;
                 submime = (if !cur.is_null() {
                     (*cur).data
                 } else {
                     0 as *mut libc::c_void
-                }) as *mut mailmime;
+                }) as *mut Mailmime;
                 (*submime).mm_parent = mime;
                 (*submime).mm_parent_type = MAILMIME_MULTIPLE as libc::c_int;
                 (*submime).mm_multipart_pos = cur;
@@ -710,7 +708,7 @@ pub unsafe fn mailmime_new(
     return mime;
 }
 
-pub unsafe fn mailmime_free(mut mime: *mut mailmime) {
+pub unsafe fn mailmime_free(mut mime: *mut Mailmime) {
     match (*mime).mm_type {
         1 => {
             if (*mime).mm_body.is_null() && !(*mime).mm_data.mm_single.is_null() {
@@ -727,7 +725,7 @@ pub unsafe fn mailmime_free(mut mime: *mut mailmime) {
             }
             clist_foreach(
                 (*mime).mm_data.mm_multipart.mm_mp_list,
-                ::std::mem::transmute::<Option<unsafe fn(_: *mut mailmime) -> ()>, clist_func>(
+                ::std::mem::transmute::<Option<unsafe fn(_: *mut Mailmime) -> ()>, clist_func>(
                     Some(mailmime_free),
                 ),
                 0 as *mut libc::c_void,

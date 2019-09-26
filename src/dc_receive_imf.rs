@@ -4,11 +4,11 @@ use std::ptr;
 use itertools::join;
 use libc::{free, strcmp, strlen};
 use mmime::clist::*;
+use mmime::mailimf::types::*;
 use mmime::mailimf::*;
-use mmime::mailimf_types::*;
+use mmime::mailmime::content::*;
+use mmime::mailmime::types::*;
 use mmime::mailmime::*;
-use mmime::mailmime_content::*;
-use mmime::mailmime_types::*;
 use mmime::other::*;
 use sha2::{Digest, Sha256};
 
@@ -788,7 +788,7 @@ unsafe fn handle_reports(
                     .data
                 } else {
                     ptr::null_mut()
-                }) as *mut mailmime;
+                }) as *mut Mailmime;
 
                 if !report_data.is_null()
                     && (*(*(*report_data).mm_content_type).ct_type).tp_type

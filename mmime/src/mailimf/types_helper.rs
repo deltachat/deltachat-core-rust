@@ -1,5 +1,5 @@
 use crate::clist::*;
-use crate::mailimf_types::*;
+use crate::mailimf::types::*;
 use crate::other::*;
 
 /*

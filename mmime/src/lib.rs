@@ -20,17 +20,7 @@ pub mod charconv;
 pub mod chash;
 pub mod clist;
 pub mod mailimf;
-pub mod mailimf_types;
-pub mod mailimf_types_helper;
-pub mod mailimf_write_generic;
 pub mod mailmime;
-pub mod mailmime_content;
-pub mod mailmime_decode;
-pub mod mailmime_disposition;
-pub mod mailmime_types;
-pub mod mailmime_types_helper;
-pub mod mailmime_write_generic;
-pub mod mailmime_write_mem;
 pub mod mmapstring;
 pub mod other;
 
@@ -38,24 +28,16 @@ pub use self::charconv::*;
 pub use self::chash::*;
 pub use self::clist::*;
 pub use self::mailimf::*;
-pub use self::mailimf_types::*;
-pub use self::mailimf_types_helper::*;
-pub use self::mailimf_write_generic::*;
 pub use self::mailmime::*;
-pub use self::mailmime_content::*;
-pub use self::mailmime_decode::*;
-pub use self::mailmime_disposition::*;
-pub use self::mailmime_types::*;
-pub use self::mailmime_types_helper::*;
-pub use self::mailmime_write_generic::*;
-pub use self::mailmime_write_mem::*;
 pub use self::mmapstring::*;
 pub use self::other::*;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mailmime_types::{mailmime, mailmime_content, mailmime_disposition};
+    use crate::mailimf::types::*;
+    use crate::mailmime::types::*;
+
     use std::ffi::CStr;
 
     #[test]
@@ -80,7 +62,7 @@ mod tests {
 
             let mut current_index = 0;
             let mut mime = std::ptr::null_mut();
-            let res = crate::mailmime_content::mailmime_parse(
+            let res = crate::mailmime::content::mailmime_parse(
                 c_data.as_ptr(),
                 data.len() as usize,
                 &mut current_index,
@@ -92,11 +74,11 @@ mod tests {
 
             display_mime(mime);
 
-            mailmime_types::mailmime_free(mime);
+            mailmime::types::mailmime_free(mime);
         }
     }
 
-    unsafe fn display_mime(mut mime: *mut mailmime) {
+    unsafe fn display_mime(mut mime: *mut Mailmime) {
         let mut cur: *mut clistiter = 0 as *mut clistiter;
         println!("{}", (*mime).mm_type);
 
@@ -130,7 +112,7 @@ mod tests {
                             (*cur).data
                         } else {
                             0 as *mut libc::c_void
-                        }) as *mut mailmime,
+                        }) as *mut Mailmime,
                     );
                     cur = if !cur.is_null() {
                         (*cur).next

@@ -43,15 +43,14 @@ pub struct mailimf_date_time {
     pub dt_zone: libc::c_int,
 }
 /* this is the type of address */
-pub type unnamed = libc::c_uint;
 /* if this is a group
 (group_name: address1@domain1,
     address2@domain2; ) */
-pub const MAILIMF_ADDRESS_GROUP: unnamed = 2;
+pub const MAILIMF_ADDRESS_GROUP: libc::c_uint = 2;
 /* if this is a mailbox (mailbox@domain) */
-pub const MAILIMF_ADDRESS_MAILBOX: unnamed = 1;
+pub const MAILIMF_ADDRESS_MAILBOX: libc::c_uint = 1;
 /* on parse error */
-pub const MAILIMF_ADDRESS_ERROR: unnamed = 0;
+pub const MAILIMF_ADDRESS_ERROR: libc::c_uint = 0;
 /*
   mailimf_address is an address
 
