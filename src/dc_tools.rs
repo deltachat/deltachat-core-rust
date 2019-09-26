@@ -525,6 +525,7 @@ pub(crate) fn dc_extract_grpid_from_rfc724_mid(mid: &str) -> Option<&str> {
         return suffix
             .split('.')
             .next()
+            // strict length comparison, the 'Gr.' magic is weak enough
             .filter(|old_grpid| old_grpid.len() == 11 || old_grpid.len() == 16);
     }
 
