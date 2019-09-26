@@ -586,7 +586,7 @@ unsafe fn decrypt_recursive(
         {
             for cur_data in (*(*mime).mm_data.mm_multipart.mm_mp_list).into_iter() {
                 let mut decrypted_mime: *mut Mailmime = ptr::null_mut();
-                if decrypt_part(
+                let decrypted = match decrypt_part(
                     context,
                     cur_data as *mut Mailmime,
                     private_keyring,
@@ -594,6 +594,10 @@ unsafe fn decrypt_recursive(
                     ret_valid_signatures,
                     &mut decrypted_mime,
                 ) {
+                    Ok(res) => res, 
+                    Err(err) => bail!("decrypt_part: {}", err)
+                };
+                if decrypted {
                     if (*ret_gossip_headers).is_null() && ret_valid_signatures.len() > 0 {
                         let mut dummy: libc::size_t = 0;
                         let mut test: *mut mailimf_fields = ptr::null_mut();
@@ -659,24 +663,26 @@ unsafe fn decrypt_part(
     public_keyring_for_validate: &Keyring,
     ret_valid_signatures: &mut HashSet<String>,
     ret_decrypted_mime: *mut *mut Mailmime,
-) -> bool {
-    let mut ok_to_continue = true;
+) -> Result<bool> {
     let mime_data: *mut mailmime_data;
     let mut mime_transfer_encoding: libc::c_int = MAILMIME_MECHANISM_BINARY as libc::c_int;
-    /* mmap_string_unref()'d if set */
-    let mut transfer_decoding_buffer: *mut libc::c_char = ptr::null_mut();
-    /* must not be free()'d */
-    let mut decoded_data: *const libc::c_char = ptr::null_mut();
-    let mut decoded_data_bytes: libc::size_t = 0;
     let mut sth_decrypted = false;
+
+    let cleanup = |transfer_decoding_buffer: *mut libc::c_char| {
+        if !transfer_decoding_buffer.is_null() {
+            mmap_string_unref(transfer_decoding_buffer);
+        }
+    };
 
     *ret_decrypted_mime = ptr::null_mut();
     mime_data = (*mime).mm_data.mm_single;
     /* MAILMIME_DATA_FILE indicates, the data is in a file; AFAIK this is not used on parsing */
-    if !((*mime_data).dt_type != MAILMIME_DATA_TEXT as libc::c_int
+    if (*mime_data).dt_type != MAILMIME_DATA_TEXT as libc::c_int
         || (*mime_data).dt_data.dt_text.dt_data.is_null()
-        || (*mime_data).dt_data.dt_text.dt_length <= 0)
+        || (*mime_data).dt_data.dt_text.dt_length <= 0
     {
+        return Ok(false);
+    } 
         if !(*mime).mm_mime_fields.is_null() {
             for cur_data in (*(*(*mime).mm_mime_fields).fld_list).into_iter() {
                 let field: *mut mailmime_field = cur_data as *mut _;
@@ -687,7 +693,11 @@ unsafe fn decrypt_part(
                 }
             }
         }
-        /* regard `Content-Transfer-Encoding:` */
+        /* regarding `Content-Transfer-Encoding:` */
+        /* mmap_string_unref()'d if set */
+        let mut transfer_decoding_buffer: *mut libc::c_char = ptr::null_mut();
+        let decoded_data: *const libc::c_char;
+        let mut decoded_data_bytes: libc::size_t = 0;
         if mime_transfer_encoding == MAILMIME_MECHANISM_7BIT as libc::c_int
             || mime_transfer_encoding == MAILMIME_MECHANISM_8BIT as libc::c_int
             || mime_transfer_encoding == MAILMIME_MECHANISM_BINARY as libc::c_int
@@ -696,7 +706,7 @@ unsafe fn decrypt_part(
             decoded_data_bytes = (*mime_data).dt_data.dt_text.dt_length;
             if decoded_data.is_null() || decoded_data_bytes <= 0 {
                 /* no error - but no data */
-                ok_to_continue = false;
+                return Ok(false);
             }
         } else {
             let r: libc::c_int;
@@ -713,12 +723,12 @@ unsafe fn decrypt_part(
                 || transfer_decoding_buffer.is_null()
                 || decoded_data_bytes <= 0
             {
-                ok_to_continue = false;
-            } else {
-                decoded_data = transfer_decoding_buffer;
-            }
+                cleanup(transfer_decoding_buffer);
+                bail!("mailmime_part_parse returned error or invalid data");
+            } 
+            decoded_data = transfer_decoding_buffer;
         }
-        if ok_to_continue {
+        
             /* encrypted, decoded data in decoded_data now ... */
             if has_decrypted_pgp_armor(decoded_data, decoded_data_bytes as libc::c_int) {
                 let add_signatures = if ret_valid_signatures.is_empty() {
@@ -728,12 +738,18 @@ unsafe fn decrypt_part(
                 };
 
                 /*if we already have fingerprints, do not add more; this ensures, only the fingerprints from the outer-most part are collected */
-                if let Ok(plain) = dc_pgp_pk_decrypt(
+                let plain = match dc_pgp_pk_decrypt(
                     std::slice::from_raw_parts(decoded_data as *const u8, decoded_data_bytes),
                     &private_keyring,
                     &public_keyring_for_validate,
                     add_signatures,
                 ) {
+                    Ok(plain) => plain,
+                    Err(err) => {
+                        cleanup(transfer_decoding_buffer);
+                        bail!("could not decrypt: {}", err)
+                    }
+                };
                     let plain_bytes = plain.len();
                     let plain_buf = plain.as_ptr() as *const libc::c_char;
 
@@ -755,17 +771,12 @@ unsafe fn decrypt_part(
                         sth_decrypted = true;
                     }
                     std::mem::forget(plain);
-                }
             }
-        }
-    }
     //mailmime_substitute(mime, new_mime);
     //s. mailprivacy_gnupg.c::pgp_decrypt()
-    if !transfer_decoding_buffer.is_null() {
-        mmap_string_unref(transfer_decoding_buffer);
-    }
+    cleanup(transfer_decoding_buffer);
 
-    sth_decrypted
+    Ok(sth_decrypted)
 }
 
 unsafe fn has_decrypted_pgp_armor(str__: *const libc::c_char, mut str_bytes: libc::c_int) -> bool {
