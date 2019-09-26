@@ -1,5 +1,4 @@
 use itertools::Itertools;
-use phf::phf_set;
 use std::borrow::Cow;
 use std::ffi::CString;
 use std::ptr;
@@ -36,17 +35,19 @@ pub fn dc_encode_header_words(input: impl AsRef<str>) -> String {
     result
 }
 
+fn must_encode(byte: u8) -> bool {
+    static SPECIALS: &[u8] = b",:!\"#$@[\\]^`{|}~=?_";
+
+    SPECIALS.into_iter().any(|b| *b == byte)
+}
+
 fn quote_word(word: &[u8]) -> String {
-    static ENCODED: phf::Set<u8> = phf_set! {
-        b',' , b':' , b'!' , b'"' , b'#' , b'$' , b'@' , b'[' , b'\\' , b']',
-        b'^' , b'`' , b'{' , b'|', b'}' , b'~' , b'=' , b'?' , b'_' ,
-    };
     let mut result = String::default();
     let mut encoded = false;
 
     for byte in word {
         let byte = *byte;
-        if byte >= 128 || ENCODED.contains(&byte) {
+        if byte >= 128 || must_encode(byte) {
             result.push_str(&format!("={:2X}", byte));
             encoded = true;
         } else if byte == b' ' {
