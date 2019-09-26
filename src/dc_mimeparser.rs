@@ -1422,6 +1422,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_dc_mimeparser_crash() {
         let context = dummy_context();
         let raw = include_bytes!("../test-data/message/issue_523.txt");
