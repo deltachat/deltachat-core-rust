@@ -22,7 +22,7 @@ class Account(object):
     by the underlying deltachat c-library.  All public Account methods are
     meant to be memory-safe and return memory-safe objects.
     """
-    def __init__(self, db_path, logid=None, eventlogging=True):
+    def __init__(self, db_path, logid=None, eventlogging=True, debug=True):
         """ initialize account object.
 
         :param db_path: a path to the account database. The database
@@ -30,13 +30,14 @@ class Account(object):
         :param logid: an optional logging prefix that should be used with
                       the default internal logging.
         :param eventlogging: if False no eventlogging and no context callback will be configured
+        :param debug: turn on debug logging for events.
         """
         self._dc_context = ffi.gc(
             lib.dc_context_new(lib.py_dc_callback, ffi.NULL, ffi.NULL),
             _destroy_dc_context,
         )
         if eventlogging:
-            self._evlogger = EventLogger(self._dc_context, logid)
+            self._evlogger = EventLogger(self._dc_context, logid, debug)
             deltachat.set_context_callback(self._dc_context, self._process_event)
             self._threads = IOThreads(self._dc_context, self._evlogger._log_event)
         else:
