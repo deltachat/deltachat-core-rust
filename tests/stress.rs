@@ -209,7 +209,8 @@ unsafe fn stress_functions(context: &Context) {
 
     assert!(preferencrypt_0.is_null());
     free(buf_1 as *mut libc::c_void);
-    buf_1 = dc_decrypt_setup_file(context, S_EM_SETUPCODE, S_EM_SETUPFILE);
+    let decrypted = dc_decrypt_setup_file(context, S_EM_SETUPCODE, S_EM_SETUPFILE).unwrap();
+    buf_1 = decrypted.strdup();
     assert!(!buf_1.is_null());
     assert!(dc_split_armored_data(
         buf_1,

@@ -244,14 +244,15 @@ pub fn dc_continue_key_transfer(context: &Context, msg_id: u32, setup_code: &str
     if let Some(filename) = msg.get_file(context) {
         if let Ok(buf) = dc_read_file(context, filename) {
             let norm_sc = CString::yolo(dc_normalize_setup_code(setup_code));
-            let armored_key: String;
             unsafe {
-                let sc = dc_decrypt_setup_file(context, norm_sc.as_ptr(), buf.as_ptr().cast());
-                ensure!(!sc.is_null(), "bad setup code");
-                armored_key = to_string(sc);
-                free(sc as *mut libc::c_void);
+                if let Ok(armored_key) =
+                    dc_decrypt_setup_file(context, norm_sc.as_ptr(), buf.as_ptr().cast())
+                {
+                    set_self_key(context, &armored_key, true, true)?;
+                } else {
+                    bail!("Bad setup code.")
+                }
             }
-            set_self_key(context, &armored_key, true, true)?;
             Ok(())
         } else {
             bail!("Cannot read Autocrypt Setup Message file.");
@@ -333,7 +334,7 @@ pub unsafe fn dc_decrypt_setup_file(
     context: &Context,
     passphrase: *const libc::c_char,
     filecontent: *const libc::c_char,
-) -> *mut libc::c_char {
+) -> Result<String> {
     let fc_buf: *mut libc::c_char;
     let mut fc_headerline = String::default();
     let mut fc_base64: *const libc::c_char = ptr::null();
@@ -341,7 +342,8 @@ pub unsafe fn dc_decrypt_setup_file(
     let mut binary_bytes: libc::size_t = 0;
     let mut indx: libc::size_t = 0;
 
-    let mut payload: *mut libc::c_char = ptr::null_mut();
+    let mut payload: Result<String> = Err(format_err!("Failed to decrypt"));
+
     fc_buf = dc_strdup(filecontent);
     if dc_split_armored_data(
         fc_buf,
@@ -369,12 +371,10 @@ pub unsafe fn dc_decrypt_setup_file(
                 as_str(passphrase),
                 std::slice::from_raw_parts(binary as *const u8, binary_bytes),
             ) {
-                Ok(plain) => {
-                    let payload_c = CString::new(plain).unwrap();
-                    payload = strdup(payload_c.as_ptr());
-                }
+                Ok(plain) => payload = Ok(String::from_utf8(plain).unwrap()),
                 Err(err) => {
                     error!(context, "Failed to decrypt message: {:?}", err);
+                    payload = Err(err);
                 }
             }
         }
