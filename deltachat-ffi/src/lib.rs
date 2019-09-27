@@ -225,8 +225,8 @@ pub unsafe extern "C" fn dc_get_userdata(context: *mut dc_context_t) -> *mut lib
 #[no_mangle]
 pub unsafe extern "C" fn dc_open(
     context: *mut dc_context_t,
-    dbfile: *mut libc::c_char,
-    blobdir: *mut libc::c_char,
+    dbfile: *const libc::c_char,
+    blobdir: *const libc::c_char,
 ) -> libc::c_int {
     if context.is_null() || dbfile.is_null() {
         eprintln!("ignoring careless call to dc_open()");
@@ -298,8 +298,8 @@ pub unsafe extern "C" fn dc_get_blobdir(context: *mut dc_context_t) -> *mut libc
 #[no_mangle]
 pub unsafe extern "C" fn dc_set_config(
     context: *mut dc_context_t,
-    key: *mut libc::c_char,
-    value: *mut libc::c_char,
+    key: *const libc::c_char,
+    value: *const libc::c_char,
 ) -> libc::c_int {
     if context.is_null() || key.is_null() {
         eprintln!("ignoring careless call to dc_set_config()");
@@ -322,7 +322,7 @@ pub unsafe extern "C" fn dc_set_config(
 #[no_mangle]
 pub unsafe extern "C" fn dc_get_config(
     context: *mut dc_context_t,
-    key: *mut libc::c_char,
+    key: *const libc::c_char,
 ) -> *mut libc::c_char {
     if context.is_null() || key.is_null() {
         eprintln!("ignoring careless call to dc_get_config()");
@@ -369,8 +369,8 @@ fn render_info(
 #[no_mangle]
 pub unsafe extern "C" fn dc_get_oauth2_url(
     context: *mut dc_context_t,
-    addr: *mut libc::c_char,
-    redirect: *mut libc::c_char,
+    addr: *const libc::c_char,
+    redirect: *const libc::c_char,
 ) -> *mut libc::c_char {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_get_oauth2_url()");
@@ -612,7 +612,7 @@ pub unsafe extern "C" fn dc_maybe_network(context: *mut dc_context_t) {
 pub unsafe extern "C" fn dc_get_chatlist(
     context: *mut dc_context_t,
     flags: libc::c_int,
-    query_str: *mut libc::c_char,
+    query_str: *const libc::c_char,
     query_id: u32,
 ) -> *mut dc_chatlist_t {
     if context.is_null() {
@@ -733,7 +733,7 @@ pub unsafe extern "C" fn dc_send_msg(
 pub unsafe extern "C" fn dc_send_text_msg(
     context: *mut dc_context_t,
     chat_id: u32,
-    text_to_send: *mut libc::c_char,
+    text_to_send: *const libc::c_char,
 ) -> u32 {
     if context.is_null() || text_to_send.is_null() {
         eprintln!("ignoring careless call to dc_send_text_msg()");
@@ -1017,7 +1017,7 @@ pub unsafe extern "C" fn dc_get_chat_contacts(
 pub unsafe extern "C" fn dc_search_msgs(
     context: *mut dc_context_t,
     chat_id: u32,
-    query: *mut libc::c_char,
+    query: *const libc::c_char,
 ) -> *mut dc_array::dc_array_t {
     if context.is_null() || query.is_null() {
         eprintln!("ignoring careless call to dc_search_msgs()");
@@ -1054,7 +1054,7 @@ pub unsafe extern "C" fn dc_get_chat(context: *mut dc_context_t, chat_id: u32) -
 pub unsafe extern "C" fn dc_create_group_chat(
     context: *mut dc_context_t,
     verified: libc::c_int,
-    name: *mut libc::c_char,
+    name: *const libc::c_char,
 ) -> u32 {
     if context.is_null() || name.is_null() {
         eprintln!("ignoring careless call to dc_create_group_chat()");
@@ -1131,7 +1131,7 @@ pub unsafe extern "C" fn dc_remove_contact_from_chat(
 pub unsafe extern "C" fn dc_set_chat_name(
     context: *mut dc_context_t,
     chat_id: u32,
-    name: *mut libc::c_char,
+    name: *const libc::c_char,
 ) -> libc::c_int {
     if context.is_null() || chat_id <= constants::DC_CHAT_ID_LAST_SPECIAL as u32 || name.is_null() {
         eprintln!("ignoring careless call to dc_set_chat_name()");
@@ -1151,7 +1151,7 @@ pub unsafe extern "C" fn dc_set_chat_name(
 pub unsafe extern "C" fn dc_set_chat_profile_image(
     context: *mut dc_context_t,
     chat_id: u32,
-    image: *mut libc::c_char,
+    image: *const libc::c_char,
 ) -> libc::c_int {
     if context.is_null() || chat_id <= constants::DC_CHAT_ID_LAST_SPECIAL as u32 {
         eprintln!("ignoring careless call to dc_set_chat_profile_image()");
@@ -1322,7 +1322,7 @@ pub unsafe extern "C" fn dc_get_msg(context: *mut dc_context_t, msg_id: u32) -> 
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_may_be_valid_addr(addr: *mut libc::c_char) -> libc::c_int {
+pub unsafe extern "C" fn dc_may_be_valid_addr(addr: *const libc::c_char) -> libc::c_int {
     if addr.is_null() {
         eprintln!("ignoring careless call to dc_may_be_valid_addr()");
         return 0;
@@ -1334,7 +1334,7 @@ pub unsafe extern "C" fn dc_may_be_valid_addr(addr: *mut libc::c_char) -> libc::
 #[no_mangle]
 pub unsafe extern "C" fn dc_lookup_contact_id_by_addr(
     context: *mut dc_context_t,
-    addr: *mut libc::c_char,
+    addr: *const libc::c_char,
 ) -> u32 {
     if context.is_null() || addr.is_null() {
         eprintln!("ignoring careless call to dc_lookup_contact_id_by_addr()");
@@ -1349,8 +1349,8 @@ pub unsafe extern "C" fn dc_lookup_contact_id_by_addr(
 #[no_mangle]
 pub unsafe extern "C" fn dc_create_contact(
     context: *mut dc_context_t,
-    name: *mut libc::c_char,
-    addr: *mut libc::c_char,
+    name: *const libc::c_char,
+    addr: *const libc::c_char,
 ) -> u32 {
     if context.is_null() || addr.is_null() {
         eprintln!("ignoring careless call to dc_create_contact()");
@@ -1369,7 +1369,7 @@ pub unsafe extern "C" fn dc_create_contact(
 #[no_mangle]
 pub unsafe extern "C" fn dc_add_address_book(
     context: *mut dc_context_t,
-    addr_book: *mut libc::c_char,
+    addr_book: *const libc::c_char,
 ) -> libc::c_int {
     if context.is_null() || addr_book.is_null() {
         eprintln!("ignoring careless call to dc_add_address_book()");
@@ -1390,7 +1390,7 @@ pub unsafe extern "C" fn dc_add_address_book(
 pub unsafe extern "C" fn dc_get_contacts(
     context: *mut dc_context_t,
     flags: u32,
-    query: *mut libc::c_char,
+    query: *const libc::c_char,
 ) -> *mut dc_array::dc_array_t {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_get_contacts()");
@@ -1521,8 +1521,8 @@ pub unsafe extern "C" fn dc_get_contact(
 pub unsafe extern "C" fn dc_imex(
     context: *mut dc_context_t,
     what: libc::c_int,
-    param1: *mut libc::c_char,
-    _param2: *mut libc::c_char,
+    param1: *const libc::c_char,
+    _param2: *const libc::c_char,
 ) {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_imex()");
@@ -1537,7 +1537,7 @@ pub unsafe extern "C" fn dc_imex(
 #[no_mangle]
 pub unsafe extern "C" fn dc_imex_has_backup(
     context: *mut dc_context_t,
-    dir: *mut libc::c_char,
+    dir: *const libc::c_char,
 ) -> *mut libc::c_char {
     if context.is_null() || dir.is_null() {
         eprintln!("ignoring careless call to dc_imex_has_backup()");
@@ -1577,7 +1577,7 @@ pub unsafe extern "C" fn dc_initiate_key_transfer(context: *mut dc_context_t) ->
 pub unsafe extern "C" fn dc_continue_key_transfer(
     context: *mut dc_context_t,
     msg_id: u32,
-    setup_code: *mut libc::c_char,
+    setup_code: *const libc::c_char,
 ) -> libc::c_int {
     if context.is_null()
         || msg_id <= constants::DC_MSG_ID_LAST_SPECIAL as u32
@@ -1615,7 +1615,7 @@ pub unsafe extern "C" fn dc_stop_ongoing_process(context: *mut dc_context_t) {
 #[no_mangle]
 pub unsafe extern "C" fn dc_check_qr(
     context: *mut dc_context_t,
-    qr: *mut libc::c_char,
+    qr: *const libc::c_char,
 ) -> *mut dc_lot_t {
     if context.is_null() || qr.is_null() {
         eprintln!("ignoring careless call to dc_check_qr()");
@@ -1652,7 +1652,7 @@ pub unsafe extern "C" fn dc_get_securejoin_qr(
 #[no_mangle]
 pub unsafe extern "C" fn dc_join_securejoin(
     context: *mut dc_context_t,
-    qr: *mut libc::c_char,
+    qr: *const libc::c_char,
 ) -> u32 {
     if context.is_null() || qr.is_null() {
         eprintln!("ignoring careless call to dc_join_securejoin()");
@@ -2569,7 +2569,7 @@ pub unsafe extern "C" fn dc_msg_get_setupcodebegin(msg: *mut dc_msg_t) -> *mut l
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_set_text(msg: *mut dc_msg_t, text: *mut libc::c_char) {
+pub unsafe extern "C" fn dc_msg_set_text(msg: *mut dc_msg_t, text: *const libc::c_char) {
     if msg.is_null() {
         eprintln!("ignoring careless call to dc_msg_set_text()");
         return;
@@ -2582,8 +2582,8 @@ pub unsafe extern "C" fn dc_msg_set_text(msg: *mut dc_msg_t, text: *mut libc::c_
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_set_file(
     msg: *mut dc_msg_t,
-    file: *mut libc::c_char,
-    filemime: *mut libc::c_char,
+    file: *const libc::c_char,
+    filemime: *const libc::c_char,
 ) {
     if msg.is_null() || file.is_null() {
         eprintln!("ignoring careless call to dc_msg_set_file()");

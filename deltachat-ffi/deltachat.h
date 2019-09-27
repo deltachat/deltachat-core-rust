@@ -3485,7 +3485,7 @@ int             dc_contact_is_verified       (dc_contact_t* contact);
  *     accessor functions.  If no provider info is found, NULL will be
  *     returned.
  */
-dc_provider_t*  dc_provider_new_from_domain           (char* domain);
+dc_provider_t*  dc_provider_new_from_domain           (const char* domain);
 
 
 /**
@@ -3499,7 +3499,7 @@ dc_provider_t*  dc_provider_new_from_domain           (char* domain);
  *     accessor functions.  If no provider info is found, NULL will be
  *     returned.
  */
-dc_provider_t*  dc_provider_new_from_email            (char* email);
+dc_provider_t*  dc_provider_new_from_email            (const char* email);
 
 
 /**
