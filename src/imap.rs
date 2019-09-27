@@ -110,6 +110,8 @@ impl Client {
     ) -> imap::error::Result<Self> {
         let stream = net::TcpStream::connect(addr)?;
         let tls = native_tls::TlsConnector::builder()
+            // see also: https://github.com/deltachat/deltachat-core-rust/issues/203
+            .danger_accept_invalid_certs(true)
             .danger_accept_invalid_hostnames(true)
             .build()
             .unwrap();
