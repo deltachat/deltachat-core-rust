@@ -182,7 +182,8 @@ impl EncryptHelper {
                         let opt_field = (*field).fld_data.fld_optional_field;
                         if !opt_field.is_null() && !(*opt_field).fld_name.is_null() {
                             let fld_name = to_string_lossy((*opt_field).fld_name);
-                            if fld_name.starts_with("Secure-Join") || fld_name.starts_with("Chat-")
+                            if fld_name.starts_with("Secure-Join")
+                                || (fld_name.starts_with("Chat-") && fld_name != "Chat-Version")
                             {
                                 move_to_encrypted = true;
                             }
