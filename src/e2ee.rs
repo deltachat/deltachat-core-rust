@@ -1,13 +1,11 @@
 //! End-to-end encryption support.
 
-use std::any::Any;
 use std::collections::HashSet;
 use std::ffi::CStr;
 use std::ptr;
 use std::str::FromStr;
 
-use libc::{free, strcmp, strlen, strncmp};
-use mmime::display::display_mime;
+use libc::{strcmp, strlen, strncmp};
 use mmime::clist::*;
 use mmime::mailimf::types::*;
 use mmime::mailimf::types_helper::*;
@@ -289,8 +287,6 @@ impl EncryptHelper {
 
 #[derive(Debug, Default)]
 pub struct E2eeHelper {
-    cdata_to_free: Option<Box<dyn Any>>,
-
     // for decrypting only
     pub encrypted: bool,
     pub signatures: HashSet<String>,
@@ -298,14 +294,6 @@ pub struct E2eeHelper {
 }
 
 impl E2eeHelper {
-    /// Frees data referenced by "mailmime" but not freed by mailmime_free(). After calling this function,
-    /// in_out_message cannot be used any longer!
-    pub unsafe fn thanks(&mut self) {
-        if let Some(data) = self.cdata_to_free.take() {
-            free(Box::into_raw(data) as *mut _)
-        }
-    }
-
     pub unsafe fn try_decrypt(
         &mut self,
         context: &Context,
@@ -318,6 +306,8 @@ impl E2eeHelper {
         let mut private_keyring = Keyring::default();
         let mut public_keyring_for_validate = Keyring::default();
         let mut gossip_headers: *mut mailimf_fields = ptr::null_mut();
+
+        // XXX do wrapmime:: helper for the next block
         if !(in_out_message.is_null() || imffields.is_null()) {
             let mut field = mailimf_find_field(imffields, MAILIMF_FIELD_FROM as libc::c_int);
 
@@ -410,7 +400,6 @@ impl E2eeHelper {
                 }
             }
         }
-        //mailmime_print(in_out_message);
         if !gossip_headers.is_null() {
             mailimf_fields_free(gossip_headers);
         }
@@ -505,6 +494,7 @@ unsafe fn update_gossip_peerstates(
     imffields: *mut mailimf_fields,
     gossip_headers: *const mailimf_fields,
 ) -> HashSet<String> {
+    // XXX split the parsing from the modification part
     let mut recipients: Option<HashSet<String>> = None;
     let mut gossipped_addr: HashSet<String> = Default::default();
 
@@ -569,57 +559,29 @@ fn decrypt_if_autocrypt_message(
     ret_gossip_headers: *mut *mut mailimf_fields,
 ) -> Result<(bool)> {
     /* The returned bool is true if we detected an Autocrypt-encrypted
-    message and successfully decrypted it.  Decryption modifies the
-    passed in mime structure in place.  The returned bool is false
+    message and successfully decrypted it. Decryption then modifies the
+    passed in mime structure in place. The returned bool is false
     if it was not an Autocrypt message.
-    Errors are returned for failures related to decryption.
+
+    Errors are returned for failures related to decryption of AC-messages.
     */
     ensure!(!mime_undetermined.is_null(), "Invalid mime reference");
-    let mime: *mut Mailmime; 
-    unsafe {
-        println!("****** INCOMING MSG BEGIN");
-        display_mime(mime_undetermined);
-        println!("****** INCOMING MSG END");
-        
-        if (*mime_undetermined).mm_type != MAILMIME_MESSAGE as libc::c_int {
+
+    let (mime, encrypted_data_part) = match wrapmime::get_autocrypt_mime(mime_undetermined) {
+        Err(_) => {
+            // not a proper autocrypt message, abort and ignore
             return Ok(false);
         }
-        mime = (*mime_undetermined).mm_data.mm_message.mm_msg_mime;
-            
-        if (*mime).mm_type != MAILMIME_MULTIPLE as libc::c_int
-            || "encrypted" != wrapmime::get_ct_subtype(mime).unwrap_or_default()
-        {
-            return Ok(false);
-        }
-    }
-    info!(context, "found OpenPGP-encrypted message");
-    // we may have a proper Multipart/Encrypted Autocrypt Level 1 message
-    // XXX: more precise check we have exactly this specified OpenPGP-mime structure
-    // https://tools.ietf.org/html/rfc3156.html#section-4
+        Ok(res) => res,
+    };
 
-    let mut parts: Vec<*mut libc::c_void> = Vec::new();
-    unsafe {
-        parts.extend((*(*mime).mm_data.mm_multipart.mm_mp_list).into_iter());
-    }
-    ensure!(parts.len() == 2, "Invalid Autocrypt Level 1 Mime Parts");
-
-    info!(context, "decrypt_if_autocrypt_message found AC-encrypted message");
-
-    // ensure protocol-parameter "application/pgp-encrypted")
-    // ensure wrapmime::get_content_type(parts[1])) == "application/octetstream"
-
-    let encrypted_mime_payload = parts[1] as *mut mmime::mailmime::types::Mailmime;
-
-    let decrypted_mime = match decrypt_part(
+    let decrypted_mime = decrypt_part(
         context,
-        encrypted_mime_payload,
+        encrypted_data_part,
         private_keyring,
         public_keyring_for_validate,
         ret_valid_signatures,
-    ) {
-        Ok(res) => res,
-        Err(err) => bail!("decrypt_part failed: {}", err),
-    };
+    )?;
     /* decrypted_mime is a dangling pointer which we now put into
     mailmime's Ownership */
     unsafe {
@@ -627,7 +589,9 @@ fn decrypt_if_autocrypt_message(
         mailmime_free(mime);
     }
 
-    /* finally, let's return any gossip headers */
+    /* finally, let's also return gossip headers
+    XXX better return parsed headers so that upstream
+    does not need to dive into mmime-stuff again. */
     unsafe {
         if (*ret_gossip_headers).is_null() && ret_valid_signatures.len() > 0 {
             let mut dummy: libc::size_t = 0;
@@ -660,7 +624,7 @@ fn decrypt_part(
     unsafe {
         mime_data = (*mime).mm_data.mm_single;
     }
-    if !wrapmime::has_decryptable_data_(mime_data) {
+    if !wrapmime::has_decryptable_data(mime_data) {
         return Ok(ptr::null_mut());
     }
 
@@ -671,17 +635,15 @@ fn decrypt_part(
     let (decoded_data, decoded_data_bytes) =
         wrapmime::decode_dt_data(mime_data, mime_transfer_encoding)?;
     /* encrypted, non-NULL decoded data in decoded_data now ...
-    Note that we need to take care of freeing decoded_data ourself.
-    Once decryption is finished we unref() can do this, so our caller does not
-    need to care for it.
-
+    Note that we need to take care of freeing decoded_data ourself,
+    after encryption has been attempted.
     */
     let mut ret_decrypted_mime = ptr::null_mut();
 
     unsafe {
         if has_decrypted_pgp_armor(decoded_data, decoded_data_bytes as libc::c_int) {
             /* we should only have one decryption happening */
-            assert!(ret_valid_signatures.is_empty(), "corrupted");
+            ensure!(ret_valid_signatures.is_empty(), "corrupt signatures");
 
             let plain = match dc_pgp_pk_decrypt(
                 std::slice::from_raw_parts(decoded_data as *const u8, decoded_data_bytes),
@@ -689,7 +651,10 @@ fn decrypt_part(
                 &public_keyring_for_validate,
                 Some(ret_valid_signatures),
             ) {
-                Ok(plain) => plain,
+                Ok(plain) => {
+                    ensure!(!ret_valid_signatures.is_empty(), "no valid signatures");
+                    plain
+                }
                 Err(err) => {
                     mmap_string_unref(decoded_data);
                     bail!("could not decrypt: {}", err)
@@ -800,6 +765,7 @@ pub fn ensure_secret_key_exists(context: &Context) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use libc::free;
 
     use crate::test_utils::*;
 

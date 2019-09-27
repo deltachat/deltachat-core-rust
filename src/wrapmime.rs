@@ -37,14 +37,48 @@ pub fn get_ct_subtype(mime: *mut Mailmime) -> Option<String> {
 
         if !ct.is_null() && !(*ct).ct_subtype.is_null() {
             println!("ct_subtype: {}", to_string((*ct).ct_subtype));
-            Some(to_string((*ct).ct_subtype)) 
+            Some(to_string((*ct).ct_subtype))
         } else {
             None
         }
     }
 }
 
-pub fn has_decryptable_data_(mime_data: *mut mailmime_data) -> bool {
+pub fn get_autocrypt_mime(
+    mime_undetermined: *mut Mailmime,
+) -> Result<(*mut Mailmime, *mut Mailmime), Error> {
+    /* return Result with two mime pointers:
+       First mime pointer is to the multipart-mime message
+       (which is replaced with a decrypted version later)
+       Second one is to the encrypted payload.
+       For non-autocrypt message an Error is returned.
+    */
+    unsafe {
+        ensure!(
+            (*mime_undetermined).mm_type == MAILMIME_MESSAGE as libc::c_int,
+            "Not a root mime message"
+        );
+        let mime = (*mime_undetermined).mm_data.mm_message.mm_msg_mime;
+
+        ensure!(
+            (*mime).mm_type == MAILMIME_MULTIPLE as libc::c_int
+                && "encrypted" == get_ct_subtype(mime).unwrap_or_default(),
+            "Not a multipart/encrypted message"
+        );
+        let parts: Vec<_> = (*(*mime).mm_data.mm_multipart.mm_mp_list)
+            .into_iter()
+            .map(|c| c as *mut Mailmime)
+            .collect();
+        ensure!(parts.len() == 2, "Invalid Autocrypt Level 1 Mime Parts");
+        // XXX ensure protocol-parameter "application/pgp-encrypted")
+        // XXX ensure wrapmime::get_content_type(parts[1])) == "application/octetstream"
+        // a proper OpenPGP multipart/encrypted Autocrypt Level 1 message
+        // https://tools.ietf.org/html/rfc3156.html#section-4
+        Ok((mime, parts[1]))
+    }
+}
+
+pub fn has_decryptable_data(mime_data: *mut mailmime_data) -> bool {
     /* MAILMIME_DATA_FILE indicates, the data is in a file; AFAIK this is not used on parsing */
     unsafe {
         (*mime_data).dt_type == MAILMIME_DATA_TEXT as libc::c_int

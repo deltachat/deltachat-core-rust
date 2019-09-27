@@ -1648,7 +1648,7 @@ fn check_verified_properties(
             to_ids_str,
         ),
         params![],
-        |row| Ok((row.get::<_, String>(0)?, row.get::<_, i32>(1)?)),
+        |row| Ok((row.get::<_, String>(0)?, row.get::<_, i32>(1).unwrap_or(0))),
         |rows| {
             rows.collect::<std::result::Result<Vec<_>, _>>()
                 .map_err(Into::into)
@@ -1672,7 +1672,7 @@ fn check_verified_properties(
                 || peerstate.verified_key_fingerprint != peerstate.public_key_fingerprint
                     && peerstate.verified_key_fingerprint != peerstate.gossip_key_fingerprint
             {
-                info!(context, "{} has verfied {}.", contact.get_addr(), to_addr,);
+                info!(context, "{} has verified {}.", contact.get_addr(), to_addr,);
                 let fp = peerstate.gossip_key_fingerprint.clone();
                 if let Some(fp) = fp {
                     peerstate.set_verified(0, &fp, 2);
