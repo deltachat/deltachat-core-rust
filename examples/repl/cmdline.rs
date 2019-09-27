@@ -414,18 +414,13 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                  ============================================="
             ),
         },
-        "initiate-key-transfer" => {
-            let setup_code = dc_initiate_key_transfer(context);
-            if !setup_code.is_null() {
-                println!(
-                    "Setup code for the transferred setup message: {}",
-                    as_str(setup_code),
-                );
-                free(setup_code as *mut libc::c_void);
-            } else {
-                bail!("Failed to generate setup code");
-            };
-        }
+        "initiate-key-transfer" => match dc_initiate_key_transfer(context) {
+            Ok(setup_code) => println!(
+                "Setup code for the transferred setup message: {}",
+                setup_code,
+            ),
+            Err(err) => bail!("Failed to generate setup code: {}", err),
+        },
         "get-setupcodebegin" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
             let msg_id: u32 = arg1.parse()?;
