@@ -1563,7 +1563,13 @@ pub unsafe extern "C" fn dc_initiate_key_transfer(context: *mut dc_context_t) ->
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| dc_imex::dc_initiate_key_transfer(ctx))
+        .with_inner(|ctx| match dc_imex::dc_initiate_key_transfer(ctx) {
+            Ok(res) => res.strdup(),
+            Err(err) => {
+                error!(ctx, "dc_initiate_key_transfer(): {}", err);
+                ptr::null_mut()
+            }
+        })
         .unwrap_or_else(|_| ptr::null_mut())
 }
 

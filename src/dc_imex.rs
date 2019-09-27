@@ -75,11 +75,9 @@ pub fn dc_imex_has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Resu
     }
 }
 
-pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
+pub fn dc_initiate_key_transfer(context: &Context) -> Result<String> {
     let mut msg: Message;
-    if !dc_alloc_ongoing(context) {
-        return std::ptr::null_mut();
-    }
+    ensure!(dc_alloc_ongoing(context), "could not allocate ongoing");
     let setup_code = dc_create_setup_code(context);
     /* this may require a keypair to be created. this may take a second ... */
     if !context
@@ -149,7 +147,7 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
     }
     dc_free_ongoing(context);
 
-    setup_code.strdup()
+    Ok(setup_code)
 }
 
 /// Renders HTML body of a setup file message.
