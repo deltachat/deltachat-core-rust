@@ -890,7 +890,6 @@ impl<'a> Drop for MimeParser<'a> {
         if !self.mimeroot.is_null() {
             unsafe { mailmime_free(self.mimeroot) };
         }
-        unsafe { self.e2ee_helper.thanks() };
     }
 }
 
@@ -1057,7 +1056,8 @@ unsafe fn mailmime_get_mime_type(mime: *mut Mailmime) -> (libc::c_int, Viewtype,
                     Some("alternative") => DC_MIMETYPE_MP_ALTERNATIVE,
                     Some("related") => DC_MIMETYPE_MP_RELATED,
                     Some("encrypted") => {
-                        // apparently try_decrypt failed to decrypt
+                        // maybe try_decrypt failed to decrypt
+                        // or it wasn't in proper Autocrypt format
                         DC_MIMETYPE_MP_NOT_DECRYPTABLE
                     }
                     Some("signed") => DC_MIMETYPE_MP_SIGNED,

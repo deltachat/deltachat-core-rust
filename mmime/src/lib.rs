@@ -19,29 +19,24 @@
 pub mod charconv;
 pub mod chash;
 pub mod clist;
+pub mod display;
 pub mod mailimf;
 pub mod mailmime;
 pub mod mmapstring;
 pub mod other;
-pub mod display;
 
 pub use self::charconv::*;
 pub use self::chash::*;
 pub use self::clist::*;
+pub use self::display::*;
 pub use self::mailimf::*;
 pub use self::mailmime::*;
 pub use self::mmapstring::*;
 pub use self::other::*;
-pub use self::display::*;
-
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mailimf::types::*;
-    use crate::mailmime::types::*;
-
-    use std::ffi::CStr;
 
     #[test]
     fn mailmime_parse_test() {
