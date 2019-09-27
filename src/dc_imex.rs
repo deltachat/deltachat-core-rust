@@ -587,34 +587,34 @@ unsafe fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> 
             s
         );
     }
-        /* add all files as blobs to the database copy (this does not require the source to be locked, neigher the destination as it is used only here) */
-        /*for logging only*/
-        let sql = Sql::new();
-        if sql.open(context, &dest_path_filename, 0) {
-            if !sql.table_exists("backup_blobs") {
-                if sql::execute(
-                    context,
-                    &sql,
-                    "CREATE TABLE backup_blobs (id INTEGER PRIMARY KEY, file_name, file_content);",
-                    params![],
-                )
-                .is_err()
-                {
-                    /* error already logged */
-                    ok_to_continue = false;
-                }
+    /* add all files as blobs to the database copy (this does not require the source to be locked, neigher the destination as it is used only here) */
+    /*for logging only*/
+    let sql = Sql::new();
+    if sql.open(context, &dest_path_filename, 0) {
+        if !sql.table_exists("backup_blobs") {
+            if sql::execute(
+                context,
+                &sql,
+                "CREATE TABLE backup_blobs (id INTEGER PRIMARY KEY, file_name, file_content);",
+                params![],
+            )
+            .is_err()
+            {
+                /* error already logged */
+                ok_to_continue = false;
             }
-            if ok_to_continue {
-                let mut total_files_cnt = 0;
-                let dir = context.get_blobdir();
-                if let Ok(dir_handle) = std::fs::read_dir(&dir) {
-                    total_files_cnt += dir_handle.filter(|r| r.is_ok()).count();
+        }
+        if ok_to_continue {
+            let mut total_files_cnt = 0;
+            let dir = context.get_blobdir();
+            if let Ok(dir_handle) = std::fs::read_dir(&dir) {
+                total_files_cnt += dir_handle.filter(|r| r.is_ok()).count();
 
-                    info!(context, "EXPORT: total_files_cnt={}", total_files_cnt);
-                    if total_files_cnt > 0 {
-                        // scan directory, pass 2: copy files
-                        if let Ok(dir_handle) = std::fs::read_dir(&dir) {
-                            sql.prepare(
+                info!(context, "EXPORT: total_files_cnt={}", total_files_cnt);
+                if total_files_cnt > 0 {
+                    // scan directory, pass 2: copy files
+                    if let Ok(dir_handle) = std::fs::read_dir(&dir) {
+                        sql.prepare(
                                     "INSERT INTO backup_blobs (file_name, file_content) VALUES (?, ?);",
                                     move |mut stmt, _| {
                                         let mut processed_files_cnt = 0;
@@ -678,34 +678,34 @@ unsafe fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> 
                                         Ok(())
                                     }
                                 ).unwrap();
-                        } else {
-                            error!(
-                                context,
-                                "Backup: Cannot copy from blob-directory \"{}\".",
-                                context.get_blobdir().display(),
-                            );
-                        }
                     } else {
-                        info!(context, "Backup: No files to copy.",);
-                    }
-                    if ok_to_continue {
-                        if sql
-                            .set_config_int(context, "backup_time", now as i32)
-                            .is_ok()
-                        {
-                            context.call_cb(Event::ImexFileWritten(dest_path_filename.clone()));
-                            success = true;
-                        }
+                        error!(
+                            context,
+                            "Backup: Cannot copy from blob-directory \"{}\".",
+                            context.get_blobdir().display(),
+                        );
                     }
                 } else {
-                    error!(
-                        context,
-                        "Backup: Cannot get info for blob-directory \"{}\".",
-                        context.get_blobdir().display(),
-                    );
-                };
-            }
+                    info!(context, "Backup: No files to copy.",);
+                }
+                if ok_to_continue {
+                    if sql
+                        .set_config_int(context, "backup_time", now as i32)
+                        .is_ok()
+                    {
+                        context.call_cb(Event::ImexFileWritten(dest_path_filename.clone()));
+                        success = true;
+                    }
+                }
+            } else {
+                error!(
+                    context,
+                    "Backup: Cannot get info for blob-directory \"{}\".",
+                    context.get_blobdir().display(),
+                );
+            };
         }
+    }
     if 0 != delete_dest_file {
         dc_delete_file(context, &dest_path_filename);
     }
