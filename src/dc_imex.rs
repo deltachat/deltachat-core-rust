@@ -554,7 +554,7 @@ fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) -> Resul
 The macro avoids weird values of 0% or 100% while still working. */
 #[allow(non_snake_case)]
 unsafe fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
-    let mut ok_to_continue: bool;
+    let mut ok_to_continue = true;
     let mut success = false;
 
     let mut delete_dest_file: libc::c_int = 0;
@@ -571,16 +571,22 @@ unsafe fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> 
 
     sql::try_execute(context, &context.sql, "VACUUM;").ok();
     context.sql.close(context);
-    let mut closed = true;
     info!(
         context,
         "Backup \"{}\" to \"{}\".",
         context.get_dbfile().display(),
         dest_path_filename.display(),
     );
-    if dc_copy_file(context, context.get_dbfile(), &dest_path_filename) {
-        context.sql.open(&context, &context.get_dbfile(), 0);
-        closed = false;
+    let copied = dc_copy_file(context, context.get_dbfile(), &dest_path_filename);
+    context.sql.open(&context, &context.get_dbfile(), 0);
+    if !copied {
+        let s = dest_path_filename.to_string_lossy().to_string();
+        bail!(
+            "could not copy file from {:?} to {:?}",
+            context.get_dbfile(),
+            s
+        );
+    }
         /* add all files as blobs to the database copy (this does not require the source to be locked, neigher the destination as it is used only here) */
         /*for logging only*/
         let sql = Sql::new();
@@ -596,11 +602,7 @@ unsafe fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> 
                 {
                     /* error already logged */
                     ok_to_continue = false;
-                } else {
-                    ok_to_continue = true;
                 }
-            } else {
-                ok_to_continue = true;
             }
             if ok_to_continue {
                 let mut total_files_cnt = 0;
@@ -618,7 +620,6 @@ unsafe fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> 
                                         let mut processed_files_cnt = 0;
                                         for entry in dir_handle {
                                             if entry.is_err() {
-                                                ok_to_continue = true;
                                                 break;
                                             }
                                             let entry = entry.unwrap();
@@ -686,7 +687,6 @@ unsafe fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> 
                         }
                     } else {
                         info!(context, "Backup: No files to copy.",);
-                        ok_to_continue = true;
                     }
                     if ok_to_continue {
                         if sql
@@ -706,10 +706,6 @@ unsafe fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> 
                 };
             }
         }
-    }
-    if closed {
-        context.sql.open(&context, &context.get_dbfile(), 0);
-    }
     if 0 != delete_dest_file {
         dc_delete_file(context, &dest_path_filename);
     }
