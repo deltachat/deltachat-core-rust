@@ -804,14 +804,14 @@ impl Contact {
         }
 
         if let Some(peerstate) = peerstate {
-            if peerstate.verified_key().is_some() {
+            if peerstate.verified_key.is_some() {
                 return VerifiedStatus::BidirectVerified;
             }
         }
 
         let peerstate = Peerstate::from_addr(context, &context.sql, &self.addr);
         if let Some(ps) = peerstate {
-            if ps.verified_key().is_some() {
+            if ps.verified_key.is_some() {
                 return VerifiedStatus::BidirectVerified;
             }
         }

@@ -23,7 +23,7 @@ pub struct Peerstate<'a> {
     pub gossip_key: Option<Key>,
     pub gossip_timestamp: i64,
     pub gossip_key_fingerprint: Option<String>,
-    verified_key: VerifiedKey,
+    pub verified_key: Option<Key>,
     pub verified_key_fingerprint: Option<String>,
     pub to_save: Option<ToSave>,
     pub degrade_event: Option<DegradeEvent>,
@@ -85,32 +85,6 @@ pub enum DegradeEvent {
     FingerprintChanged = 0x02,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-enum VerifiedKey {
-    Gossip,
-    Public,
-    None,
-}
-
-impl Default for VerifiedKey {
-    fn default() -> Self {
-        VerifiedKey::None
-    }
-}
-
-impl VerifiedKey {
-    pub fn is_none(&self) -> bool {
-        match self {
-            VerifiedKey::None => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_some(&self) -> bool {
-        !self.is_none()
-    }
-}
-
 impl<'a> Peerstate<'a> {
     pub fn new(context: &'a Context) -> Self {
         Peerstate {
@@ -124,18 +98,10 @@ impl<'a> Peerstate<'a> {
             gossip_key: None,
             gossip_key_fingerprint: None,
             gossip_timestamp: 0,
-            verified_key: Default::default(),
+            verified_key: None,
             verified_key_fingerprint: None,
             to_save: None,
             degrade_event: None,
-        }
-    }
-
-    pub fn verified_key(&self) -> Option<&Key> {
-        match self.verified_key {
-            VerifiedKey::Public => self.public_key.as_ref(),
-            VerifiedKey::Gossip => self.gossip_key.as_ref(),
-            VerifiedKey::None => None,
         }
     }
 
@@ -242,18 +208,10 @@ impl<'a> Peerstate<'a> {
                     .get(6)
                     .ok()
                     .and_then(|blob: Vec<u8>| Key::from_slice(&blob, KeyType::Public));
-                let vk = row
+                res.verified_key = row
                     .get(9)
                     .ok()
                     .and_then(|blob: Vec<u8>| Key::from_slice(&blob, KeyType::Public));
-
-                res.verified_key = if vk == res.gossip_key && res.gossip_key.is_some() {
-                    VerifiedKey::Gossip
-                } else if vk == res.public_key {
-                    VerifiedKey::Public
-                } else {
-                    VerifiedKey::None
-                };
 
                 Ok(res)
             })
@@ -374,7 +332,7 @@ impl<'a> Peerstate<'a> {
         }
 
         if 0 != min_verified {
-            return self.verified_key();
+            return self.verified_key.as_ref();
         }
         if self.public_key.is_some() {
             return self.public_key.as_ref();
@@ -391,7 +349,7 @@ impl<'a> Peerstate<'a> {
                 && self.public_key_fingerprint.as_ref().unwrap() == fingerprint
             {
                 self.to_save = Some(ToSave::All);
-                self.verified_key = VerifiedKey::Public;
+                self.verified_key = self.public_key.clone();
                 self.verified_key_fingerprint = self.public_key_fingerprint.clone();
                 success = true;
             }
@@ -400,7 +358,7 @@ impl<'a> Peerstate<'a> {
                 && self.gossip_key_fingerprint.as_ref().unwrap() == fingerprint
             {
                 self.to_save = Some(ToSave::All);
-                self.verified_key = VerifiedKey::Gossip;
+                self.verified_key = self.gossip_key.clone();
                 self.verified_key_fingerprint = self.gossip_key_fingerprint.clone();
                 success = true;
             }
@@ -438,7 +396,7 @@ impl<'a> Peerstate<'a> {
                     self.gossip_key.as_ref().map(|k| k.to_bytes()),
                     &self.public_key_fingerprint,
                     &self.gossip_key_fingerprint,
-                    self.verified_key().map(|k| k.to_bytes()),
+                    self.verified_key.as_ref().map(|k| k.to_bytes()),
                     &self.verified_key_fingerprint,
                     &self.addr,
                 ],
