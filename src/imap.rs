@@ -953,14 +953,7 @@ impl Imap {
             if !is_deleted && msg.body().is_some() {
                 let body = msg.body().unwrap();
                 unsafe {
-                    dc_receive_imf(
-                        context,
-                        body.as_ptr() as *const libc::c_char,
-                        body.len(),
-                        folder.as_ref(),
-                        server_uid,
-                        flags as u32,
-                    );
+                    dc_receive_imf(context, &body, folder.as_ref(), server_uid, flags as u32);
                 }
             }
         }

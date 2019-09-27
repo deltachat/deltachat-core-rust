@@ -39,8 +39,7 @@ enum CreateEvent {
 /// Receive a message and add it to the database.
 pub unsafe fn dc_receive_imf(
     context: &Context,
-    imf_raw_not_terminated: *const libc::c_char,
-    imf_raw_bytes: libc::size_t,
+    imf_raw: &[u8],
     server_folder: impl AsRef<str>,
     server_uid: u32,
     flags: u32,
@@ -61,9 +60,8 @@ pub unsafe fn dc_receive_imf(
     // we use mailmime_parse() through dc_mimeparser (both call mailimf_struct_multiple_parse()
     // somewhen, I did not found out anything that speaks against this approach yet)
 
-    let body = std::slice::from_raw_parts(imf_raw_not_terminated as *const u8, imf_raw_bytes);
     let mut mime_parser = MimeParser::new(context);
-    mime_parser.parse(body);
+    mime_parser.parse(imf_raw);
 
     if mime_parser.header.is_empty() {
         // Error - even adding an empty record won't help as we do not know the message ID
@@ -204,8 +202,7 @@ pub unsafe fn dc_receive_imf(
         if let Err(err) = add_parts(
             context,
             &mut mime_parser,
-            imf_raw_not_terminated,
-            imf_raw_bytes,
+            imf_raw,
             incoming,
             &mut incoming_origin,
             server_folder.as_ref(),
@@ -292,8 +289,7 @@ pub unsafe fn dc_receive_imf(
 unsafe fn add_parts(
     context: &Context,
     mut mime_parser: &mut MimeParser,
-    imf_raw_not_terminated: *const libc::c_char,
-    imf_raw_bytes: libc::size_t,
+    imf_raw: &[u8],
     incoming: i32,
     incoming_origin: &mut Origin,
     server_folder: impl AsRef<str>,
@@ -683,10 +679,7 @@ unsafe fn add_parts(
                         part.bytes,
                         *hidden,
                         if save_mime_headers {
-                            Some(String::from_utf8_lossy(std::slice::from_raw_parts(
-                                imf_raw_not_terminated as *const u8,
-                                imf_raw_bytes,
-                            )))
+                            Some(String::from_utf8_lossy(imf_raw))
                         } else {
                             None
                         },
