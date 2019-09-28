@@ -1965,7 +1965,7 @@ unsafe fn add_or_lookup_contact_by_addr(
     /* add addr_spec if missing, update otherwise */
     let mut display_name_dec = "".to_string();
     if !display_name_enc.is_null() {
-        let tmp = as_str(dc_decode_header_words(display_name_enc));
+        let tmp = dc_decode_header_words_safe(as_str(display_name_enc));
         display_name_dec = normalize_name(&tmp);
     }
     /*can be NULL*/
