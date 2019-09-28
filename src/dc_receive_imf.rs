@@ -1076,7 +1076,7 @@ unsafe fn create_or_lookup_group(
     }
 
     if let Some(optional_field) = mime_parser.lookup_optional_field("Chat-Group-Name") {
-        grpname = Some(dc_decode_header_words_safe(&optional_field));
+        grpname = Some(dc_decode_header_words(&optional_field));
     }
     if let Some(optional_field) = mime_parser.lookup_optional_field("Chat-Group-Member-Removed") {
         X_MrRemoveFromGrp = Some(optional_field);
@@ -1965,7 +1965,7 @@ unsafe fn add_or_lookup_contact_by_addr(
     /* add addr_spec if missing, update otherwise */
     let mut display_name_dec = "".to_string();
     if !display_name_enc.is_null() {
-        let tmp = dc_decode_header_words_safe(as_str(display_name_enc));
+        let tmp = dc_decode_header_words(as_str(display_name_enc));
         display_name_dec = normalize_name(&tmp);
     }
     /*can be NULL*/
