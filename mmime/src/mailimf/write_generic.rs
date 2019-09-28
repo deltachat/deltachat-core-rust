@@ -1581,22 +1581,18 @@ unsafe fn mailimf_date_time_write_driver(
     mut col: *mut libc::c_int,
     mut date_time: *mut mailimf_date_time,
 ) -> libc::c_int {
-    let wday = dayofweek(
-        (*date_time).dt_year,
-        (*date_time).dt_month,
-        (*date_time).dt_day,
-    );
+    let wday = dayofweek((*date_time).year, (*date_time).month, (*date_time).day);
 
     let date_str = format!(
         "{}, {} {} {} {:02}:{:02}:{:02} {:+05}",
-        week_of_day_str[wday as usize],
-        (*date_time).dt_day,
-        month_str[((*date_time).dt_month - 1i32) as usize],
-        (*date_time).dt_year,
-        (*date_time).dt_hour,
-        (*date_time).dt_min,
-        (*date_time).dt_sec,
-        (*date_time).dt_zone,
+        wday,
+        (*date_time).day,
+        month_str[((*date_time).month - 1) as usize],
+        (*date_time).year,
+        (*date_time).hour,
+        (*date_time).min,
+        (*date_time).sec,
+        (*date_time).zone,
     );
     let date_str_c = std::ffi::CString::new(date_str).unwrap();
     let r = mailimf_string_write_driver(
@@ -1611,27 +1607,16 @@ unsafe fn mailimf_date_time_write_driver(
     }
     return MAILIMF_NO_ERROR as libc::c_int;
 }
-static mut month_str: [&'static str; 12] = [
+static mut month_str: [&str; 12] = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
-static mut week_of_day_str: [&'static str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-/* 0 = Sunday */
-/* y > 1752 */
-unsafe fn dayofweek(
-    mut year: libc::c_int,
-    mut month: libc::c_int,
-    mut day: libc::c_int,
-) -> libc::c_int {
-    static mut offset: [libc::c_int; 12] = [
-        0i32, 3i32, 2i32, 5i32, 0i32, 3i32, 5i32, 1i32, 4i32, 6i32, 2i32, 4i32,
-    ];
-    year -= (month < 3i32) as libc::c_int;
-    return (year + year / 4i32 - year / 100i32
-        + year / 400i32
-        + offset[(month - 1i32) as usize]
-        + day)
-        % 7i32;
+
+fn dayofweek(year: i32, month: u32, day: u32) -> String {
+    chrono::NaiveDate::from_ymd(year, month, day)
+        .format("%a")
+        .to_string()
 }
+
 unsafe fn mailimf_resent_msg_id_write_driver(
     mut do_write: Option<
         unsafe fn(_: *mut libc::c_void, _: *const libc::c_char, _: size_t) -> libc::c_int,

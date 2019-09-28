@@ -4,48 +4,35 @@ use crate::clist::*;
 use crate::other::*;
 
 /*
-  IMPORTANT NOTE:
+ IMPORTANT NOTE:
 
-  All allocation functions will take as argument allocated data
-  and will store these data in the structure they will allocate.
-  Data should be persistant during all the use of the structure
-  and will be freed by the free function of the structure
+ All allocation functions will take as argument allocated data
+ and will store these data in the structure they will allocate.
+ Data should be persistant during all the use of the structure
+ and will be freed by the free function of the structure
 
-  allocation functions will return NULL on failure
+ allocation functions will return NULL on failure
 */
-/*
-  mailimf_date_time is a date
 
-  - day is the day of month (1 to 31)
-
-  - month (1 to 12)
-
-  - year (4 digits)
-
-  - hour (0 to 23)
-
-  - min (0 to 59)
-
-  - sec (0 to 59)
-
-  - zone (this is the decimal value that we can read, for example:
-    for "-0200", the value is -200)
-*/
-#[derive(Copy, Clone, Debug)]
-#[repr(C)]
+/// Date
+///  - day is the day of month (1 to 31)
+///  - month (1 to 12)
+///  - year (4 digits)
+///  - hour (0 to 23)
+///  - min (0 to 59)
+///  - sec (0 to 59)
+///  - zone (this is the decimal value that we can read, for example:
+//    for "-0200", the value is -200)
+#[derive(Clone, Debug)]
 pub struct mailimf_date_time {
-    pub dt_day: libc::c_int,
-    pub dt_month: libc::c_int,
-    pub dt_year: libc::c_int,
-    pub dt_hour: libc::c_int,
-    pub dt_min: libc::c_int,
-    pub dt_sec: libc::c_int,
-    pub dt_zone: libc::c_int,
+    pub day: u32,
+    pub month: u32,
+    pub year: i32,
+    pub hour: u32,
+    pub min: u32,
+    pub sec: u32,
+    pub zone: i32,
 }
-/* this is the type of address */
-/* if this is a group
-(group_name: address1@domain1,
-    address2@domain2; ) */
 
 /// An address, either for a mailbox or a group.
 #[derive(Debug, Clone, Copy)]
@@ -438,34 +425,35 @@ pub const MAILIMF_FIELD_RETURN_PATH: unnamed_2 = 1;
 pub type unnamed_2 = libc::c_uint;
 /* on parse error */
 pub const MAILIMF_FIELD_NONE: unnamed_2 = 0;
-#[no_mangle]
+
 pub unsafe fn mailimf_date_time_new(
-    mut dt_day: libc::c_int,
-    mut dt_month: libc::c_int,
-    mut dt_year: libc::c_int,
-    mut dt_hour: libc::c_int,
-    mut dt_min: libc::c_int,
-    mut dt_sec: libc::c_int,
-    mut dt_zone: libc::c_int,
+    day: u32,
+    month: u32,
+    year: i32,
+    hour: u32,
+    min: u32,
+    sec: u32,
+    zone: i32,
 ) -> *mut mailimf_date_time {
-    let mut date_time: *mut mailimf_date_time = 0 as *mut mailimf_date_time;
-    date_time = malloc(::std::mem::size_of::<mailimf_date_time>() as libc::size_t)
-        as *mut mailimf_date_time;
-    if date_time.is_null() {
-        return 0 as *mut mailimf_date_time;
-    }
-    (*date_time).dt_day = dt_day;
-    (*date_time).dt_month = dt_month;
-    (*date_time).dt_year = dt_year;
-    (*date_time).dt_hour = dt_hour;
-    (*date_time).dt_min = dt_min;
-    (*date_time).dt_sec = dt_sec;
-    (*date_time).dt_zone = dt_zone;
-    return date_time;
+    let dt = mailimf_date_time {
+        day,
+        month,
+        year,
+        hour,
+        min,
+        sec,
+        zone,
+    };
+
+    Box::into_raw(Box::new(dt))
 }
 
-pub unsafe fn mailimf_date_time_free(mut date_time: *mut mailimf_date_time) {
-    free(date_time as *mut libc::c_void);
+pub unsafe fn mailimf_date_time_free(date_time: *mut mailimf_date_time) {
+    if date_time.is_null() {
+        return;
+    }
+
+    let _ = Box::from_raw(date_time);
 }
 
 pub fn mailimf_address_new_mailbox(ad_mailbox: *mut mailimf_mailbox) -> *mut mailimf_address {

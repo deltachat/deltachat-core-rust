@@ -1646,12 +1646,12 @@ pub fn mailimf_get_date(t: i64) -> *mut mailimf_date_time {
 
     unsafe {
         mailimf_date_time_new(
-            lt.day() as libc::c_int,
-            lt.month() as libc::c_int,
-            lt.year() as libc::c_int,
-            lt.hour() as libc::c_int,
-            lt.minute() as libc::c_int,
-            lt.second() as libc::c_int,
+            lt.day(),
+            lt.month(),
+            lt.year(),
+            lt.hour(),
+            lt.minute(),
+            lt.second(),
             off,
         )
     }
@@ -1691,16 +1691,16 @@ mod tests {
         let now_local = Local.from_utc_datetime(&now_utc.naive_local());
         let t_local = now_local.timestamp();
 
-        let converted = unsafe { *mailimf_get_date(t_local as i64) };
+        let converted = unsafe { &*mailimf_get_date(t_local as i64) };
 
-        assert_eq!(converted.dt_day as u32, now_local.day());
-        assert_eq!(converted.dt_month as u32, now_local.month());
-        assert_eq!(converted.dt_year, now_local.year());
-        assert_eq!(converted.dt_hour as u32, now_local.hour());
-        assert_eq!(converted.dt_min as u32, now_local.minute());
-        assert_eq!(converted.dt_sec as u32, now_local.second());
+        assert_eq!(converted.day, now_local.day());
+        assert_eq!(converted.month, now_local.month());
+        assert_eq!(converted.year, now_local.year());
+        assert_eq!(converted.hour, now_local.hour());
+        assert_eq!(converted.min, now_local.minute());
+        assert_eq!(converted.sec, now_local.second());
         assert_eq!(
-            converted.dt_zone,
+            converted.zone,
             (now_local.offset().local_minus_utc() / (60 * 60)) * 100
         );
     }

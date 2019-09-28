@@ -207,15 +207,16 @@ unsafe fn display_mime_fields(mut fields: *mut mailmime_fields) {
 unsafe fn display_date_time(mut d: *mut mailimf_date_time) {
     print!(
         "{:02}/{:02}/{:02} {:02}:{:02}:{:02} +{:04}",
-        (*d).dt_day,
-        (*d).dt_month,
-        (*d).dt_year,
-        (*d).dt_hour,
-        (*d).dt_min,
-        (*d).dt_sec,
-        (*d).dt_zone,
+        (*d).day,
+        (*d).month,
+        (*d).year,
+        (*d).hour,
+        (*d).min,
+        (*d).sec,
+        (*d).zone,
     );
 }
+
 unsafe fn display_orig_date(mut orig_date: *mut mailimf_orig_date) {
     display_date_time((*orig_date).dt_date_time);
 }

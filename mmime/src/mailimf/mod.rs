@@ -2849,16 +2849,16 @@ pub unsafe fn mailimf_date_time_parse(
     let mut cur_token: size_t = 0;
     let mut day_of_week: libc::c_int = 0;
     let mut date_time: *mut mailimf_date_time = 0 as *mut mailimf_date_time;
-    let mut day: libc::c_int = 0;
-    let mut month: libc::c_int = 0;
-    let mut year: libc::c_int = 0;
-    let mut hour: libc::c_int = 0;
-    let mut min: libc::c_int = 0;
-    let mut sec: libc::c_int = 0;
-    let mut zone: libc::c_int = 0;
+    let mut day = 0;
+    let mut month = 0;
+    let mut year = 0;
+    let mut hour = 0;
+    let mut min = 0;
+    let mut sec = 0;
+    let mut zone = 0;
     let mut r: libc::c_int = 0;
     cur_token = *indx;
-    day_of_week = -1i32;
+    day_of_week = -1;
     r = mailimf_day_of_week_parse(message, length, &mut cur_token, &mut day_of_week);
     if r == MAILIMF_NO_ERROR as libc::c_int {
         r = mailimf_comma_parse(message, length, &mut cur_token);
@@ -2870,9 +2870,9 @@ pub unsafe fn mailimf_date_time_parse(
     } else if r != MAILIMF_ERROR_PARSE as libc::c_int {
         return r;
     }
-    day = 0i32;
-    month = 0i32;
-    year = 0i32;
+    day = 0;
+    month = 0;
+    year = 0;
     r = mailimf_date_parse(
         message,
         length,
@@ -2897,10 +2897,10 @@ pub unsafe fn mailimf_date_time_parse(
     if r != MAILIMF_NO_ERROR as libc::c_int {
         return r;
     }
-    hour = 0i32;
-    min = 0i32;
-    sec = 0i32;
-    zone = 0i32;
+    hour = 0;
+    min = 0;
+    sec = 0;
+    zone = 0;
     r = mailimf_time_parse(
         message,
         length,
@@ -2925,16 +2925,16 @@ unsafe fn mailimf_time_parse(
     mut message: *const libc::c_char,
     mut length: size_t,
     mut indx: *mut size_t,
-    mut phour: *mut libc::c_int,
-    mut pmin: *mut libc::c_int,
-    mut psec: *mut libc::c_int,
-    mut pzone: *mut libc::c_int,
+    mut phour: *mut u32,
+    mut pmin: *mut u32,
+    mut psec: *mut u32,
+    mut pzone: *mut i32,
 ) -> libc::c_int {
     let mut cur_token: size_t = 0;
-    let mut hour: libc::c_int = 0;
-    let mut min: libc::c_int = 0;
-    let mut sec: libc::c_int = 0;
-    let mut zone: libc::c_int = 0;
+    let mut hour = 0;
+    let mut min = 0;
+    let mut sec = 0;
+    let mut zone = 0;
     let mut r: libc::c_int = 0;
     cur_token = *indx;
     r = mailimf_cfws_parse(message, length, &mut cur_token);
@@ -2959,7 +2959,7 @@ unsafe fn mailimf_time_parse(
     r = mailimf_zone_parse(message, length, &mut cur_token, &mut zone);
     if !(r == MAILIMF_NO_ERROR as libc::c_int) {
         if r == MAILIMF_ERROR_PARSE as libc::c_int {
-            zone = 0i32
+            zone = 0
         } else {
             return r;
         }
@@ -2969,31 +2969,32 @@ unsafe fn mailimf_time_parse(
     *psec = sec;
     *pzone = zone;
     *indx = cur_token;
-    return MAILIMF_NO_ERROR as libc::c_int;
+    MAILIMF_NO_ERROR as libc::c_int
 }
+
 unsafe fn mailimf_zone_parse(
     mut message: *const libc::c_char,
     mut length: size_t,
     mut indx: *mut size_t,
-    mut result: *mut libc::c_int,
+    mut result: *mut i32,
 ) -> libc::c_int {
-    let mut zone: libc::c_int = 0;
+    let mut zone = 0;
     let mut sign: libc::c_int = 0;
     let mut cur_token: size_t = 0;
     let mut r: libc::c_int = 0;
-    let mut value: uint32_t = 0;
+    let mut value = 0;
     cur_token = *indx;
     if cur_token.wrapping_add(1i32 as libc::size_t) < length {
         if *message.offset(cur_token as isize) as libc::c_int == 'U' as i32
             && *message.offset(cur_token.wrapping_add(1i32 as libc::size_t) as isize) as libc::c_int
                 == 'T' as i32
         {
-            *result = 1i32;
+            *result = 1;
             *indx = cur_token.wrapping_add(2i32 as libc::size_t);
             return MAILIMF_NO_ERROR as libc::c_int;
         }
     }
-    zone = 0i32;
+    zone = 0;
     if cur_token.wrapping_add(2i32 as libc::size_t) < length {
         let mut state: libc::c_int = 0;
         state = STATE_ZONE_1 as libc::c_int;
@@ -3024,7 +3025,7 @@ unsafe fn mailimf_zone_parse(
                                     as size_t as size_t;
                                 state = STATE_ZONE_CONT as libc::c_int
                             } else {
-                                zone = 0i32;
+                                zone = 0;
                                 state = STATE_ZONE_OK as libc::c_int
                             }
                         } else {
@@ -3032,19 +3033,19 @@ unsafe fn mailimf_zone_parse(
                         }
                     }
                     69 => {
-                        zone = -5i32;
+                        zone = -5;
                         state = STATE_ZONE_2 as libc::c_int
                     }
                     67 => {
-                        zone = -6i32;
+                        zone = -6;
                         state = STATE_ZONE_2 as libc::c_int
                     }
                     77 => {
-                        zone = -7i32;
+                        zone = -7;
                         state = STATE_ZONE_2 as libc::c_int
                     }
                     80 => {
-                        zone = -8i32;
+                        zone = -8;
                         state = STATE_ZONE_2 as libc::c_int
                     }
                     _ => state = STATE_ZONE_CONT as libc::c_int,
@@ -3066,7 +3067,7 @@ unsafe fn mailimf_zone_parse(
                         as libc::c_int
                         == 'T' as i32
                     {
-                        zone *= 100i32;
+                        zone *= 100;
                         state = STATE_ZONE_OK as libc::c_int
                     } else {
                         state = STATE_ZONE_ERR as libc::c_int
@@ -3107,7 +3108,7 @@ unsafe fn mailimf_zone_parse(
     if r != MAILIMF_NO_ERROR as libc::c_int {
         return r;
     }
-    zone = value.wrapping_mul(sign as libc::c_uint) as libc::c_int;
+    zone = value.wrapping_mul(sign as libc::c_uint) as i32;
     *indx = cur_token;
     *result = zone;
     return MAILIMF_NO_ERROR as libc::c_int;
@@ -3192,13 +3193,13 @@ unsafe fn mailimf_time_of_day_parse(
     mut message: *const libc::c_char,
     mut length: size_t,
     mut indx: *mut size_t,
-    mut phour: *mut libc::c_int,
-    mut pmin: *mut libc::c_int,
-    mut psec: *mut libc::c_int,
+    mut phour: *mut u32,
+    mut pmin: *mut u32,
+    mut psec: *mut u32,
 ) -> libc::c_int {
-    let mut hour: libc::c_int = 0;
-    let mut min: libc::c_int = 0;
-    let mut sec: libc::c_int = 0;
+    let mut hour = 0;
+    let mut min = 0;
+    let mut sec = 0;
     let mut cur_token: size_t = 0;
     let mut r: libc::c_int = 0;
     cur_token = *indx;
@@ -3221,7 +3222,7 @@ unsafe fn mailimf_time_of_day_parse(
             return r;
         }
     } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-        sec = 0i32
+        sec = 0;
     } else {
         return r;
     }
@@ -3235,72 +3236,75 @@ unsafe fn mailimf_second_parse(
     mut message: *const libc::c_char,
     mut length: size_t,
     mut indx: *mut size_t,
-    mut result: *mut libc::c_int,
+    mut result: *mut u32,
 ) -> libc::c_int {
-    let mut second: uint32_t = 0;
+    let mut second = 0;
     let mut r: libc::c_int = 0;
     r = mailimf_number_parse(message, length, indx, &mut second);
     if r != MAILIMF_NO_ERROR as libc::c_int {
         return r;
     }
-    *result = second as libc::c_int;
-    return MAILIMF_NO_ERROR as libc::c_int;
+    *result = second as u32;
+    MAILIMF_NO_ERROR as libc::c_int
 }
+
 unsafe fn mailimf_minute_parse(
     mut message: *const libc::c_char,
     mut length: size_t,
     mut indx: *mut size_t,
-    mut result: *mut libc::c_int,
+    mut result: *mut u32,
 ) -> libc::c_int {
-    let mut minute: uint32_t = 0;
+    let mut minute = 0;
     let mut r: libc::c_int = 0;
     r = mailimf_number_parse(message, length, indx, &mut minute);
     if r != MAILIMF_NO_ERROR as libc::c_int {
         return r;
     }
-    *result = minute as libc::c_int;
-    return MAILIMF_NO_ERROR as libc::c_int;
+    *result = minute as u32;
+    MAILIMF_NO_ERROR as libc::c_int
 }
+
 unsafe fn mailimf_hour_parse(
     mut message: *const libc::c_char,
     mut length: size_t,
     mut indx: *mut size_t,
-    mut result: *mut libc::c_int,
+    mut result: *mut u32,
 ) -> libc::c_int {
-    let mut hour: uint32_t = 0;
+    let mut hour = 0;
     let mut r: libc::c_int = 0;
     r = mailimf_number_parse(message, length, indx, &mut hour);
     if r != MAILIMF_NO_ERROR as libc::c_int {
         return r;
     }
-    *result = hour as libc::c_int;
-    return MAILIMF_NO_ERROR as libc::c_int;
+    *result = hour as u32;
+    MAILIMF_NO_ERROR as libc::c_int
 }
+
 unsafe fn mailimf_broken_date_parse(
     mut message: *const libc::c_char,
     mut length: size_t,
     mut indx: *mut size_t,
-    mut pday: *mut libc::c_int,
-    mut pmonth: *mut libc::c_int,
-    mut pyear: *mut libc::c_int,
+    mut pday: *mut u32,
+    mut pmonth: *mut u32,
+    mut pyear: *mut i32,
 ) -> libc::c_int {
     let mut cur_token: size_t = 0;
-    let mut day: libc::c_int = 0;
-    let mut month: libc::c_int = 0;
-    let mut year: libc::c_int = 0;
+    let mut day = 0;
+    let mut month = 0;
+    let mut year = 0;
     let mut r: libc::c_int = 0;
     cur_token = *indx;
-    month = 1i32;
+    month = 1;
     r = mailimf_month_parse(message, length, &mut cur_token, &mut month);
     if r != MAILIMF_NO_ERROR as libc::c_int {
         return r;
     }
-    day = 1i32;
+    day = 1;
     r = mailimf_day_parse(message, length, &mut cur_token, &mut day);
     if r != MAILIMF_NO_ERROR as libc::c_int {
         return r;
     }
-    year = 2001i32;
+    year = 2001;
     r = mailimf_year_parse(message, length, &mut cur_token, &mut year);
     if r != MAILIMF_NO_ERROR as libc::c_int {
         return r;
@@ -3315,9 +3319,9 @@ unsafe fn mailimf_year_parse(
     mut message: *const libc::c_char,
     mut length: size_t,
     mut indx: *mut size_t,
-    mut result: *mut libc::c_int,
+    mut result: *mut i32,
 ) -> libc::c_int {
-    let mut number: uint32_t = 0;
+    let mut number = 0;
     let mut cur_token: size_t = 0;
     let mut r: libc::c_int = 0;
     cur_token = *indx;
@@ -3330,17 +3334,18 @@ unsafe fn mailimf_year_parse(
         return r;
     }
     *indx = cur_token;
-    *result = number as libc::c_int;
-    return MAILIMF_NO_ERROR as libc::c_int;
+    *result = number as i32;
+    MAILIMF_NO_ERROR as libc::c_int
 }
+
 unsafe fn mailimf_day_parse(
     mut message: *const libc::c_char,
     mut length: size_t,
     mut indx: *mut size_t,
-    mut result: *mut libc::c_int,
+    mut result: *mut u32,
 ) -> libc::c_int {
     let mut cur_token: size_t = 0;
-    let mut day: uint32_t = 0;
+    let mut day = 0;
     let mut r: libc::c_int = 0;
     cur_token = *indx;
     r = mailimf_cfws_parse(message, length, &mut cur_token);
@@ -3351,18 +3356,19 @@ unsafe fn mailimf_day_parse(
     if r != MAILIMF_NO_ERROR as libc::c_int {
         return r;
     }
-    *result = day as libc::c_int;
+    *result = day as u32;
     *indx = cur_token;
-    return MAILIMF_NO_ERROR as libc::c_int;
+    MAILIMF_NO_ERROR as libc::c_int
 }
+
 unsafe fn mailimf_month_parse(
     mut message: *const libc::c_char,
     mut length: size_t,
     mut indx: *mut size_t,
-    mut result: *mut libc::c_int,
+    mut result: *mut u32,
 ) -> libc::c_int {
     let mut cur_token: size_t = 0;
-    let mut month: libc::c_int = 0;
+    let mut month = 0;
     let mut r: libc::c_int = 0;
     cur_token = *indx;
     r = mailimf_cfws_parse(message, length, &mut cur_token);
@@ -3375,38 +3381,41 @@ unsafe fn mailimf_month_parse(
     }
     *result = month;
     *indx = cur_token;
-    return MAILIMF_NO_ERROR as libc::c_int;
+    MAILIMF_NO_ERROR as libc::c_int
 }
+
 unsafe fn mailimf_month_name_parse(
     mut message: *const libc::c_char,
     mut length: size_t,
     mut indx: *mut size_t,
-    mut result: *mut libc::c_int,
+    mut result: *mut u32,
 ) -> libc::c_int {
     let mut cur_token: size_t = 0;
-    let mut month: libc::c_int = 0;
-    let mut guessed_month: libc::c_int = 0;
-    let mut r: libc::c_int = 0;
+    let mut month: u32 = 0;
     cur_token = *indx;
-    guessed_month = guess_month(message, length, cur_token);
-    if guessed_month == -1i32 {
+
+    let guessed_month = guess_month(message, length, cur_token);
+    if guessed_month < 0 {
         return MAILIMF_ERROR_PARSE as libc::c_int;
     }
-    r = mailimf_token_case_insensitive_len_parse(
+
+    let r = mailimf_token_case_insensitive_len_parse(
         message,
         length,
         &mut cur_token,
-        month_names[(guessed_month - 1i32) as usize].str_0,
-        strlen(month_names[(guessed_month - 1i32) as usize].str_0),
+        month_names[(guessed_month - 1) as usize].str_0,
+        strlen(month_names[(guessed_month - 1) as usize].str_0),
     );
     if r != MAILIMF_NO_ERROR as libc::c_int {
         return r;
     }
-    month = guessed_month;
+
+    month = guessed_month as u32;
     *result = month;
     *indx = cur_token;
-    return MAILIMF_NO_ERROR as libc::c_int;
+    MAILIMF_NO_ERROR as libc::c_int
 }
+
 /*
 month-name      =       "Jan" / "Feb" / "Mar" / "Apr" /
                         "May" / "Jun" / "Jul" / "Aug" /
@@ -3543,27 +3552,27 @@ unsafe fn mailimf_date_parse(
     mut message: *const libc::c_char,
     mut length: size_t,
     mut indx: *mut size_t,
-    mut pday: *mut libc::c_int,
-    mut pmonth: *mut libc::c_int,
-    mut pyear: *mut libc::c_int,
+    mut pday: *mut u32,
+    mut pmonth: *mut u32,
+    mut pyear: *mut i32,
 ) -> libc::c_int {
     let mut cur_token: size_t = 0;
-    let mut day: libc::c_int = 0;
-    let mut month: libc::c_int = 0;
-    let mut year: libc::c_int = 0;
+    let mut day = 0;
+    let mut month = 0;
+    let mut year = 0;
     let mut r: libc::c_int = 0;
     cur_token = *indx;
-    day = 1i32;
+    day = 1;
     r = mailimf_day_parse(message, length, &mut cur_token, &mut day);
     if r != MAILIMF_NO_ERROR as libc::c_int {
         return r;
     }
-    month = 1i32;
+    month = 1;
     r = mailimf_month_parse(message, length, &mut cur_token, &mut month);
     if r != MAILIMF_NO_ERROR as libc::c_int {
         return r;
     }
-    year = 2001i32;
+    year = 2001;
     r = mailimf_year_parse(message, length, &mut cur_token, &mut year);
     if r != MAILIMF_NO_ERROR as libc::c_int {
         return r;
@@ -3631,7 +3640,7 @@ unsafe fn mailimf_day_name_parse(
     day_of_week = guessed_day;
     *result = day_of_week;
     *indx = cur_token;
-    return MAILIMF_NO_ERROR as libc::c_int;
+    MAILIMF_NO_ERROR as libc::c_int
 }
 static mut day_names: [mailimf_token_value; 7] = [
     mailimf_token_value {
