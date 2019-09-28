@@ -470,7 +470,7 @@ fn load_or_generate_self_public_key(context: &Context, self_addr: impl AsRef<str
                 &public_key,
                 &private_key,
                 &self_addr,
-                1,
+                true,
                 &context.sql,
             ) {
                 true => {

@@ -76,7 +76,7 @@ pub fn configure_alice_keypair(ctx: &Context) -> String {
         KeyType::Private,
     )
     .unwrap();
-    let saved = key::dc_key_save_self_keypair(&ctx, &public, &private, &addr, 1, &ctx.sql);
+    let saved = key::dc_key_save_self_keypair(&ctx, &public, &private, &addr, true, &ctx.sql);
     assert_eq!(saved, true, "Failed to save Alice's key");
     addr
 }

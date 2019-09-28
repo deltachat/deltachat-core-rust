@@ -26,6 +26,10 @@ pub enum Error {
     CStringError(crate::dc_tools::CStringError),
     #[fail(display = "PGP: {:?}", _0)]
     Pgp(pgp::errors::Error),
+    #[fail(display = "Base64Decode: {:?}", _0)]
+    Base64Decode(base64::DecodeError),
+    #[fail(display = "{:?}", _0)]
+    FromUtf8(std::string::FromUtf8Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -33,6 +37,12 @@ pub type Result<T> = std::result::Result<T, Error>;
 impl From<rusqlite::Error> for Error {
     fn from(err: rusqlite::Error) -> Error {
         Error::Sql(err)
+    }
+}
+
+impl From<base64::DecodeError> for Error {
+    fn from(err: base64::DecodeError) -> Error {
+        Error::Base64Decode(err)
     }
 }
 
@@ -57,6 +67,12 @@ impl From<std::io::Error> for Error {
 impl From<std::str::Utf8Error> for Error {
     fn from(err: std::str::Utf8Error) -> Error {
         Error::Utf8(err)
+    }
+}
+
+impl From<std::string::FromUtf8Error> for Error {
+    fn from(err: std::string::FromUtf8Error) -> Error {
+        Error::FromUtf8(err)
     }
 }
 

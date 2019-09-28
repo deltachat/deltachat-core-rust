@@ -2,7 +2,6 @@ use std::collections::BTreeMap;
 use std::io::Cursor;
 use std::path::Path;
 
-use libc;
 use pgp::composed::{Deserializable, SignedPublicKey, SignedSecretKey};
 use pgp::ser::Serialize;
 use pgp::types::{KeyTrait, SecretKeyTrait};
@@ -254,14 +253,14 @@ pub fn dc_key_save_self_keypair(
     public_key: &Key,
     private_key: &Key,
     addr: impl AsRef<str>,
-    is_default: libc::c_int,
+    is_default: bool,
     sql: &Sql,
 ) -> bool {
     sql::execute(
         context,
         sql,
         "INSERT INTO keypairs (addr, is_default, public_key, private_key, created) VALUES (?,?,?,?,?);",
-        params![addr.as_ref(), is_default, public_key.to_bytes(), private_key.to_bytes(), time()],
+        params![addr.as_ref(), is_default as i32, public_key.to_bytes(), private_key.to_bytes(), time()],
     ).is_ok()
 }
 

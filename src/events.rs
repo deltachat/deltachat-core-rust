@@ -167,7 +167,7 @@ pub enum Event {
     #[strum(props(id = "2041"))]
     ConfigureProgress(usize),
 
-    /// Inform about the import/export progress started by dc_imex().
+    /// Inform about the import/export progress started by imex().
     ///
     /// @param data1 (usize) 0=error, 1-999=progress in permille, 1000=success and done
     /// @param data2 0
@@ -175,8 +175,8 @@ pub enum Event {
     #[strum(props(id = "2051"))]
     ImexProgress(usize),
 
-    /// A file has been exported. A file has been written by dc_imex().
-    /// This event may be sent multiple times by a single call to dc_imex().
+    /// A file has been exported. A file has been written by imex().
+    /// This event may be sent multiple times by a single call to imex().
     ///
     /// A typical purpose for a handler of this event may be to make the file public to some system
     /// services.

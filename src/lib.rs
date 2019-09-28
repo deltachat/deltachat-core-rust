@@ -39,36 +39,36 @@ pub mod contact;
 pub mod context;
 mod e2ee;
 mod imap;
+pub mod imex;
 pub mod job;
 mod job_thread;
 pub mod key;
 pub mod keyring;
 pub mod location;
+mod login_param;
 pub mod lot;
 pub mod message;
+mod mimefactory;
 pub mod oauth2;
 mod param;
 pub mod peerstate;
 pub mod pgp;
 pub mod qr;
+pub mod securejoin;
 mod smtp;
 pub mod sql;
 mod stock;
+mod token;
+#[macro_use]
+mod wrapmime;
 
 pub mod dc_array;
 mod dc_dehtml;
-pub mod dc_imex;
 pub mod dc_mimeparser;
 pub mod dc_receive_imf;
 mod dc_simplify;
 mod dc_strencode;
 pub mod dc_tools;
-mod login_param;
-mod mimefactory;
-pub mod securejoin;
-mod token;
-#[macro_use]
-mod wrapmime;
 
 #[cfg(test)]
 mod test_utils;

@@ -2,10 +2,7 @@ use std::ffi::CString;
 use std::path::Path;
 use std::ptr;
 
-use libc::{free, strlen};
-use mmime::mailmime::content::*;
-use mmime::mmapstring::*;
-use mmime::other::*;
+use num_traits::FromPrimitive;
 use rand::{thread_rng, Rng};
 
 use crate::chat;
@@ -25,12 +22,48 @@ use crate::pgp::*;
 use crate::sql::{self, Sql};
 use crate::stock::StockMessage;
 
-// import/export and tools
-// param1 is a directory where the keys are written to
-// param1 is a directory where the keys are searched in and read from
-// param1 is a directory where the backup is written to
-// param1 is the file with the backup to import
-pub fn dc_imex(context: &Context, what: libc::c_int, param1: Option<impl AsRef<Path>>) {
+#[derive(Debug, Display, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive)]
+#[repr(i32)]
+pub enum ImexMode {
+    /// Export all private keys and all public keys of the user to the
+    /// directory given as `param1`.  The default key is written to the files `public-key-default.asc`
+    /// and `private-key-default.asc`, if there are more keys, they are written to files as
+    /// `public-key-<id>.asc` and `private-key-<id>.asc`
+    ExportSelfKeys = 1,
+    /// Import private keys found in the directory given as `param1`.
+    /// The last imported key is made the default keys unless its name contains the string `legacy`.
+    /// Public keys are not imported.
+    ImportSelfKeys = 2,
+    /// Export a backup to the directory given as `param1`.
+    /// The backup contains all contacts, chats, images and other data and device independent settings.
+    /// The backup does not contain device dependent settings as ringtones or LED notification settings.
+    /// The name of the backup is typically `delta-chat.<day>.bak`, if more than one backup is create on a day,
+    /// the format is `delta-chat.<day>-<number>.bak`
+    ExportBackup = 11,
+    /// `param1` is the file (not: directory) to import. The file is normally
+    /// created by DC_IMEX_EXPORT_BACKUP and detected by dc_imex_has_backup(). Importing a backup
+    /// is only possible as long as the context is not configured or used in another way.
+    ImportBackup = 12,
+}
+
+/// Import/export things.
+/// For this purpose, the function creates a job that is executed in the IMAP-thread then;
+/// this requires to call dc_perform_imap_jobs() regularly.
+///
+/// What to do is defined by the _what_ parameter.
+///
+/// While dc_imex() returns immediately, the started job may take a while,
+/// you can stop it using dc_stop_ongoing_process(). During execution of the job,
+/// some events are sent out:
+///
+/// - A number of #DC_EVENT_IMEX_PROGRESS events are sent and may be used to create
+///   a progress bar or stuff like that. Moreover, you'll be informed when the imex-job is done.
+///
+/// - For each file written on export, the function sends #DC_EVENT_IMEX_FILE_WRITTEN
+///
+/// Only one import-/export-progress can run at the same time.
+/// To cancel an import-/export-progress, use dc_stop_ongoing_process().
+pub fn imex(context: &Context, what: ImexMode, param1: Option<impl AsRef<Path>>) {
     let mut param = Params::new();
     param.set_int(Param::Cmd, what as i32);
     if let Some(param1) = param1 {
@@ -42,7 +75,7 @@ pub fn dc_imex(context: &Context, what: libc::c_int, param1: Option<impl AsRef<P
 }
 
 /// Returns the filename of the backup if found, nullptr otherwise.
-pub fn dc_imex_has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result<String> {
+pub fn has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result<String> {
     let dir_name = dir_name.as_ref();
     let dir_iter = std::fs::read_dir(dir_name)?;
     let mut newest_backup_time = 0;
@@ -75,10 +108,10 @@ pub fn dc_imex_has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Resu
     }
 }
 
-pub fn dc_initiate_key_transfer(context: &Context) -> Result<String> {
+pub fn initiate_key_transfer(context: &Context) -> Result<String> {
     let mut msg: Message;
     ensure!(dc_alloc_ongoing(context), "could not allocate ongoing");
-    let setup_code = dc_create_setup_code(context);
+    let setup_code = create_setup_code(context);
     /* this may require a keypair to be created. this may take a second ... */
     if !context
         .running_state
@@ -87,7 +120,7 @@ pub fn dc_initiate_key_transfer(context: &Context) -> Result<String> {
         .unwrap()
         .shall_stop_ongoing
     {
-        if let Ok(ref setup_file_content) = dc_render_setup_file(context, &setup_code) {
+        if let Ok(ref setup_file_content) = render_setup_file(context, &setup_code) {
             /* encrypting may also take a while ... */
             if !context
                 .running_state
@@ -153,7 +186,7 @@ pub fn dc_initiate_key_transfer(context: &Context) -> Result<String> {
 /// Renders HTML body of a setup file message.
 ///
 /// The `passphrase` must be at least 2 characters long.
-pub fn dc_render_setup_file(context: &Context, passphrase: &str) -> Result<String> {
+pub fn render_setup_file(context: &Context, passphrase: &str) -> Result<String> {
     ensure!(
         passphrase.len() >= 2,
         "Passphrase must be at least 2 chars long."
@@ -203,7 +236,7 @@ pub fn dc_render_setup_file(context: &Context, passphrase: &str) -> Result<Strin
     ))
 }
 
-pub fn dc_create_setup_code(_context: &Context) -> String {
+pub fn create_setup_code(_context: &Context) -> String {
     let mut random_val: u16;
     let mut rng = thread_rng();
     let mut ret = String::new();
@@ -211,22 +244,22 @@ pub fn dc_create_setup_code(_context: &Context) -> String {
     for i in 0..9 {
         loop {
             random_val = rng.gen();
-            if !(random_val as libc::c_int > 60000) {
+            if !(random_val as usize > 60000) {
                 break;
             }
         }
-        random_val = (random_val as libc::c_int % 10000) as u16;
+        random_val = (random_val as usize % 10000) as u16;
         ret += &format!(
             "{}{:04}",
             if 0 != i { "-" } else { "" },
-            random_val as libc::c_int,
+            random_val as usize
         );
     }
 
     ret
 }
 
-pub fn dc_continue_key_transfer(context: &Context, msg_id: u32, setup_code: &str) -> Result<()> {
+pub fn continue_key_transfer(context: &Context, msg_id: u32, setup_code: &str) -> Result<()> {
     ensure!(msg_id > DC_MSG_ID_LAST_SPECIAL, "wrong id");
 
     let msg = Message::load_from_db(context, msg_id);
@@ -240,17 +273,14 @@ pub fn dc_continue_key_transfer(context: &Context, msg_id: u32, setup_code: &str
     );
 
     if let Some(filename) = msg.get_file(context) {
-        if let Ok(buf) = dc_read_file(context, filename) {
-            let norm_sc = CString::yolo(dc_normalize_setup_code(setup_code));
-            unsafe {
-                if let Ok(armored_key) =
-                    dc_decrypt_setup_file(context, norm_sc.as_ptr(), buf.as_ptr().cast())
-                {
-                    set_self_key(context, &armored_key, true, true)?;
-                } else {
-                    bail!("Bad setup code.")
-                }
+        if let Ok(ref mut buf) = dc_read_file(context, filename) {
+            let sc = normalize_setup_code(setup_code);
+            if let Ok(armored_key) = decrypt_setup_file(context, sc, buf) {
+                set_self_key(context, &armored_key, true, true)?;
+            } else {
+                bail!("Bad setup code.")
             }
+
             Ok(())
         } else {
             bail!("Cannot read Autocrypt Setup Message file.");
@@ -320,7 +350,7 @@ fn set_self_key(
         &public_key,
         &private_key,
         self_addr.unwrap(),
-        set_default as libc::c_int,
+        set_default,
         &context.sql,
     ) {
         bail!("Cannot save keypair, internal key-state possibly corrupted now!");
@@ -328,65 +358,56 @@ fn set_self_key(
     Ok(())
 }
 
-pub unsafe fn dc_decrypt_setup_file(
-    context: &Context,
-    passphrase: *const libc::c_char,
-    filecontent: *const libc::c_char,
+fn decrypt_setup_file(
+    _context: &Context,
+    passphrase: impl AsRef<str>,
+    filecontent: &mut [u8],
 ) -> Result<String> {
-    let fc_buf: *mut libc::c_char;
     let mut fc_headerline = String::default();
     let mut fc_base64: *const libc::c_char = ptr::null();
-    let mut binary: *mut libc::c_char = ptr::null_mut();
-    let mut binary_bytes: libc::size_t = 0;
-    let mut indx: libc::size_t = 0;
 
-    let mut payload: Result<String> = Err(format_err!("Failed to decrypt"));
+    let split_result = unsafe {
+        dc_split_armored_data(
+            filecontent.as_mut_ptr().cast(),
+            &mut fc_headerline,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            &mut fc_base64,
+        )
+    };
 
-    fc_buf = dc_strdup(filecontent);
-    if dc_split_armored_data(
-        fc_buf,
-        &mut fc_headerline,
-        ptr::null_mut(),
-        ptr::null_mut(),
-        &mut fc_base64,
-    ) && fc_headerline == "-----BEGIN PGP MESSAGE-----"
-        && !fc_base64.is_null()
-    {
-        /* convert base64 to binary */
-        /*must be freed using mmap_string_unref()*/
-        if !(mailmime_base64_body_parse(
-            fc_base64,
-            strlen(fc_base64),
-            &mut indx,
-            &mut binary,
-            &mut binary_bytes,
-        ) != MAILIMF_NO_ERROR as libc::c_int
-            || binary.is_null()
-            || binary_bytes == 0)
-        {
-            /* decrypt symmetrically */
-            match dc_pgp_symm_decrypt(
-                as_str(passphrase),
-                std::slice::from_raw_parts(binary as *const u8, binary_bytes),
-            ) {
-                Ok(plain) => payload = Ok(String::from_utf8(plain).unwrap()),
-                Err(err) => {
-                    error!(context, "Failed to decrypt message: {:?}", err);
-                    payload = Err(err);
-                }
-            }
-        }
+    if !split_result || fc_headerline != "-----BEGIN PGP MESSAGE-----" || fc_base64.is_null() {
+        bail!("Invalid armored data");
     }
 
-    free(fc_buf as *mut libc::c_void);
-    if !binary.is_null() {
-        mmap_string_unref(binary);
-    }
+    // convert base64 to binary
+    let base64_encoded =
+        unsafe { std::slice::from_raw_parts(fc_base64 as *const u8, libc::strlen(fc_base64)) };
 
-    payload
+    let data = base64_decode(&base64_encoded)?;
+
+    // decrypt symmetrically
+    let payload = dc_pgp_symm_decrypt(passphrase.as_ref(), &data)?;
+    let payload_str = String::from_utf8(payload)?;
+
+    Ok(payload_str)
 }
 
-pub fn dc_normalize_setup_code(s: &str) -> String {
+/// Decode the base64 encoded slice. Handles line breaks.
+fn base64_decode(input: &[u8]) -> Result<Vec<u8>> {
+    use std::io::Read;
+    let c = std::io::Cursor::new(input);
+    let lr = pgp::line_reader::LineReader::new(c);
+    let br = pgp::base64_reader::Base64Reader::new(lr);
+    let mut reader = pgp::base64_decoder::Base64Decoder::new(br);
+
+    let mut data = Vec::new();
+    reader.read_to_end(&mut data)?;
+
+    Ok(data)
+}
+
+pub fn normalize_setup_code(s: &str) -> String {
     let mut out = String::new();
     for c in s.chars() {
         if c >= '0' && c <= '9' {
@@ -400,9 +421,9 @@ pub fn dc_normalize_setup_code(s: &str) -> String {
 }
 
 #[allow(non_snake_case)]
-pub fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: &Job) -> Result<()> {
+pub fn job_do_DC_JOB_IMEX_IMAP(context: &Context, job: &Job) -> Result<()> {
     ensure!(dc_alloc_ongoing(context), "could not allocate ongoing");
-    let what = job.param.get_int(Param::Cmd).unwrap_or_default();
+    let what: Option<ImexMode> = job.param.get_int(Param::Cmd).and_then(ImexMode::from_i32);
     let param = job.param.get(Param::Arg).unwrap_or_default();
 
     ensure!(!param.is_empty(), "No Import/export dir/file given.");
@@ -410,8 +431,8 @@ pub fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: &Job) -> Result<()> {
     context.call_cb(Event::ImexProgress(10));
 
     ensure!(context.sql.is_open(), "Database not opened.");
-    if what == DC_IMEX_EXPORT_BACKUP || what == DC_IMEX_EXPORT_SELF_KEYS {
-        /* before we export anything, make sure the private key exists */
+    if what == Some(ImexMode::ExportBackup) || what == Some(ImexMode::ExportSelfKeys) {
+        // before we export anything, make sure the private key exists
         if e2ee::ensure_secret_key_exists(context).is_err() {
             dc_free_ongoing(context);
             bail!("Cannot create private key or private key not available.");
@@ -421,12 +442,12 @@ pub fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: &Job) -> Result<()> {
     }
     let path = Path::new(param);
     let success = match what {
-        DC_IMEX_EXPORT_SELF_KEYS => export_self_keys(context, path),
-        DC_IMEX_IMPORT_SELF_KEYS => import_self_keys(context, path),
-        DC_IMEX_EXPORT_BACKUP => unsafe { export_backup(context, path) },
-        DC_IMEX_IMPORT_BACKUP => import_backup(context, path),
-        _ => {
-            bail!("unknown IMEX type: {}", what);
+        Some(ImexMode::ExportSelfKeys) => export_self_keys(context, path),
+        Some(ImexMode::ImportSelfKeys) => import_self_keys(context, path),
+        Some(ImexMode::ExportBackup) => export_backup(context, path),
+        Some(ImexMode::ImportBackup) => import_backup(context, path),
+        None => {
+            bail!("unknown IMEX type");
         }
     };
     dc_free_ongoing(context);
@@ -443,11 +464,7 @@ pub fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: &Job) -> Result<()> {
     }
 }
 
-/*******************************************************************************
- * Import backup
- ******************************************************************************/
-
-#[allow(non_snake_case)]
+/// Import Backup
 fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) -> Result<()> {
     info!(
         context,
@@ -523,13 +540,13 @@ fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) -> Resul
                     continue;
                 }
 
-                let pathNfilename = context.get_blobdir().join(file_name);
-                if dc_write_file(context, &pathNfilename, &file_blob) {
+                let path_filename = context.get_blobdir().join(file_name);
+                if dc_write_file(context, &path_filename, &file_blob) {
                     continue;
                 }
                 bail!(
                     "Storage full? Cannot write file {} with {} bytes.",
-                    pathNfilename.display(),
+                    path_filename.display(),
                     file_blob.len(),
                 );
             }
@@ -550,8 +567,7 @@ fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) -> Resul
  ******************************************************************************/
 /* the FILE_PROGRESS macro calls the callback with the permille of files processed.
 The macro avoids weird values of 0% or 100% while still working. */
-#[allow(non_snake_case)]
-unsafe fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
+fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     let mut ok_to_continue = true;
     let mut success = false;
 
@@ -650,9 +666,9 @@ unsafe fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> 
                                                     continue;
                                                 } else {
                                                     info!(context, "EXPORTing filename={}", name);
-                                                    let curr_pathNfilename = context.get_blobdir().join(entry.file_name());
+                                                    let curr_path_filename = context.get_blobdir().join(entry.file_name());
                                                     if let Ok(buf) =
-                                                        dc_read_file(context, &curr_pathNfilename)
+                                                        dc_read_file(context, &curr_path_filename)
                                                     {
                                                         if buf.is_empty() {
                                                             continue;
@@ -661,7 +677,7 @@ unsafe fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> 
                                                             error!(
                                                                 context,
                                                                 "Disk full? Cannot add file \"{}\" to backup.",
-                                                                curr_pathNfilename.display(),
+                                                                curr_path_filename.display(),
                                                             );
                                                             /* this is not recoverable! writing to the sqlite database should work! */
                                                             ok_to_continue = false;
@@ -773,7 +789,7 @@ fn import_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
                     ptr::null_mut(),
                     ptr::null_mut(),
                 );
-                free(buf2 as *mut libc::c_void);
+                libc::free(buf2 as *mut libc::c_void);
             }
             if split_res
                 && buf2_headerline.contains("-----BEGIN PGP PUBLIC KEY BLOCK-----")
@@ -884,7 +900,7 @@ mod tests {
         let t = test_context(Some(Box::new(logging_cb)));
 
         configure_alice_keypair(&t.ctx);
-        let msg = dc_render_setup_file(&t.ctx, "hello").unwrap();
+        let msg = render_setup_file(&t.ctx, "hello").unwrap();
         println!("{}", &msg);
         // Check some substrings, indicating things got substituted.
         // In particular note the mixing of `\r\n` and `\n` depending
@@ -910,10 +926,10 @@ mod tests {
     }
 
     #[test]
-    fn test_render_setup_file_newline_replace() {
+    fn otest_render_setup_file_newline_replace() {
         let t = test_context(Some(Box::new(ac_setup_msg_cb)));
         configure_alice_keypair(&t.ctx);
-        let msg = dc_render_setup_file(&t.ctx, "pw").unwrap();
+        let msg = render_setup_file(&t.ctx, "pw").unwrap();
         println!("{}", &msg);
         assert!(msg.contains("<p>hello<br>there</p>"));
     }
@@ -921,7 +937,7 @@ mod tests {
     #[test]
     fn test_create_setup_code() {
         let t = dummy_context();
-        let setupcode = dc_create_setup_code(&t.ctx);
+        let setupcode = create_setup_code(&t.ctx);
         assert_eq!(setupcode.len(), 44);
         assert_eq!(setupcode.chars().nth(4).unwrap(), '-');
         assert_eq!(setupcode.chars().nth(9).unwrap(), '-');
@@ -949,12 +965,65 @@ mod tests {
 
     #[test]
     fn test_normalize_setup_code() {
-        let norm = dc_normalize_setup_code("123422343234423452346234723482349234");
+        let norm = normalize_setup_code("123422343234423452346234723482349234");
         assert_eq!(norm, "1234-2234-3234-4234-5234-6234-7234-8234-9234");
 
-        let norm = dc_normalize_setup_code(
-            "\t1 2 3422343234- foo bar-- 423-45 2 34 6234723482349234      ",
-        );
+        let norm =
+            normalize_setup_code("\t1 2 3422343234- foo bar-- 423-45 2 34 6234723482349234      ");
         assert_eq!(norm, "1234-2234-3234-4234-5234-6234-7234-8234-9234");
+    }
+
+    /* S_EM_SETUPFILE is a AES-256 symm. encrypted setup message created by Enigmail
+    with an "encrypted session key", see RFC 4880.  The code is in S_EM_SETUPCODE */
+    const S_EM_SETUPCODE: &str = "1742-0185-6197-1303-7016-8412-3581-4441-0597";
+    const S_EM_SETUPFILE: &str = include_str!("../test-data/message/stress.txt");
+
+    #[test]
+    fn test_split_and_decrypt() {
+        let ctx = dummy_context();
+        let context = &ctx.ctx;
+
+        let mut headerline = String::default();
+        let mut setupcodebegin = ptr::null();
+        let mut preferencrypt = ptr::null();
+
+        let mut buf_1 = S_EM_SETUPFILE.to_string();
+
+        unsafe {
+            assert!(dc_split_armored_data(
+                buf_1.as_mut_ptr().cast(),
+                &mut headerline,
+                &mut setupcodebegin,
+                &mut preferencrypt,
+                ptr::null_mut(),
+            ));
+        }
+        assert_eq!(headerline, "-----BEGIN PGP MESSAGE-----");
+        assert!(!setupcodebegin.is_null());
+
+        // TODO: verify that this is the right check
+        assert!(S_EM_SETUPCODE.starts_with(as_str(setupcodebegin)));
+
+        assert!(preferencrypt.is_null());
+
+        let mut setup_file = S_EM_SETUPFILE.to_string();
+        let mut decrypted = unsafe {
+            decrypt_setup_file(context, S_EM_SETUPCODE, setup_file.as_bytes_mut()).unwrap()
+        };
+
+        unsafe {
+            assert!(dc_split_armored_data(
+                decrypted.as_mut_ptr().cast(),
+                &mut headerline,
+                &mut setupcodebegin,
+                &mut preferencrypt,
+                ptr::null_mut(),
+            ));
+        }
+
+        assert_eq!(headerline, "-----BEGIN PGP PRIVATE KEY BLOCK-----");
+        assert!(setupcodebegin.is_null());
+        assert!(!preferencrypt.is_null());
+        assert_eq!(as_str(preferencrypt), "mutual",);
     }
 }
