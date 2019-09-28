@@ -708,6 +708,28 @@ pub unsafe fn mailmime_new(
     return mime;
 }
 
+pub unsafe fn mailmime_new_simple(
+    mut mm_type: libc::c_int,
+    mut mm_mime_fields: *mut mailmime_fields,
+    mut mm_content_type: *mut mailmime_content,
+    mut mm_fields: *mut mailimf_fields,
+    mut mm_msg_mime: *mut Mailmime,
+) -> *mut Mailmime {
+    mailmime_new(
+        mm_type,
+        std::ptr::null(),
+        0,
+        mm_mime_fields,
+        std::ptr::null_mut(),
+        std::ptr::null_mut(),
+        std::ptr::null_mut(),
+        std::ptr::null_mut(),
+        std::ptr::null_mut(),
+        mm_fields,
+        mm_msg_mime,
+    )
+}
+
 pub unsafe fn mailmime_free(mut mime: *mut Mailmime) {
     match (*mime).mm_type {
         1 => {

@@ -888,6 +888,7 @@ pub unsafe fn mailimf_fields_new(mut fld_list: *mut clist) -> *mut mailimf_field
     (*fields).fld_list = fld_list;
     return fields;
 }
+
 #[no_mangle]
 pub unsafe fn mailimf_field_new(
     mut fld_type: libc::c_int,
@@ -947,6 +948,20 @@ pub unsafe fn mailimf_field_new(
     }
     return field;
 }
+
+#[no_mangle]
+pub unsafe fn mailimf_field_new_subject(fld_subject: *mut mailimf_subject) -> *mut mailimf_field {
+    let mut field: *mut mailimf_field = 0 as *mut mailimf_field;
+    field = malloc(::std::mem::size_of::<mailimf_field>() as libc::size_t) as *mut mailimf_field;
+    if field.is_null() {
+        return 0 as *mut mailimf_field;
+    }
+    (*field).fld_type = MAILIMF_FIELD_SUBJECT as libc::c_int;
+    (*field).fld_data.fld_subject = fld_subject;
+
+    field
+}
+
 #[no_mangle]
 pub unsafe fn mailimf_orig_date_new(
     mut dt_date_time: *mut mailimf_date_time,

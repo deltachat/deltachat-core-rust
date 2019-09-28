@@ -5,7 +5,6 @@ use std::ptr;
 use charset::Charset;
 use deltachat_derive::{FromSql, ToSql};
 use libc::{strcmp, strlen, strncmp};
-use mmime::clist::*;
 use mmime::mailimf::types::*;
 use mmime::mailimf::*;
 use mmime::mailmime::content::*;
@@ -21,7 +20,7 @@ use crate::context::Context;
 use crate::dc_simplify::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
-use crate::e2ee::*;
+use crate::e2ee;
 use crate::error::Error;
 use crate::location;
 use crate::param::*;
@@ -38,7 +37,9 @@ pub struct MimeParser<'a> {
     pub subject: Option<String>,
     pub is_send_by_messenger: bool,
     pub decrypting_failed: bool,
-    pub e2ee_helper: E2eeHelper,
+    pub encrypted: bool,
+    pub signatures: HashSet<String>,
+    pub gossipped_addr: HashSet<String>,
     pub is_forwarded: bool,
     pub reports: Vec<*mut Mailmime>,
     pub is_system_message: SystemMessage,
@@ -92,7 +93,9 @@ impl<'a> MimeParser<'a> {
             subject: None,
             is_send_by_messenger: false,
             decrypting_failed: false,
-            e2ee_helper: Default::default(),
+            encrypted: false,
+            signatures: Default::default(),
+            gossipped_addr: Default::default(),
             is_forwarded: false,
             context,
             reports: Vec::new(),
@@ -113,7 +116,11 @@ impl<'a> MimeParser<'a> {
         );
 
         if r == MAILIMF_NO_ERROR as libc::c_int && !self.mimeroot.is_null() {
-            self.e2ee_helper.try_decrypt(self.context, self.mimeroot)?;
+            let (encrypted, signatures, gossipped_addr) =
+                e2ee::try_decrypt(self.context, self.mimeroot)?;
+            self.encrypted = encrypted;
+            self.signatures = signatures;
+            self.gossipped_addr = gossipped_addr;
             self.parse_mime_recursive(self.mimeroot);
 
             if let Some(field) = self.lookup_field("Subject") {
@@ -794,9 +801,9 @@ impl<'a> MimeParser<'a> {
     }
 
     fn do_add_single_part(&mut self, mut part: Part) {
-        if self.e2ee_helper.encrypted && self.e2ee_helper.signatures.len() > 0 {
+        if self.encrypted && self.signatures.len() > 0 {
             part.param.set_int(Param::GuranteeE2ee, 1);
-        } else if self.e2ee_helper.encrypted {
+        } else if self.encrypted {
             part.param.set_int(Param::ErroneousE2ee, 0x2);
         }
         self.parts.push(part);
@@ -1204,50 +1211,61 @@ pub unsafe fn mailmime_transfer_decode(mime: *mut Mailmime) -> Result<Vec<u8>, E
     Err(format_err!("Failed to to decode"))
 }
 
-pub unsafe fn mailimf_get_recipients(imffields: *mut mailimf_fields) -> HashSet<String> {
+pub fn mailimf_get_recipients(imffields: *mut mailimf_fields) -> HashSet<String> {
     /* returned addresses are normalized. */
     let mut recipients: HashSet<String> = Default::default();
 
-    for cur in (*(*imffields).fld_list).into_iter() {
+    for cur in unsafe { (*(*imffields).fld_list).into_iter() } {
         let fld = cur as *mut mailimf_field;
 
         let fld_to: *mut mailimf_to;
         let fld_cc: *mut mailimf_cc;
 
         let mut addr_list: *mut mailimf_address_list = ptr::null_mut();
+        if fld.is_null() {
+            continue;
+        }
+
+        let fld = unsafe { *fld };
+
         // TODO match on enums /rtn
-        match (*fld).fld_type {
+        match fld.fld_type {
             13 => {
-                fld_to = (*fld).fld_data.fld_to;
+                fld_to = unsafe { fld.fld_data.fld_to };
                 if !fld_to.is_null() {
-                    addr_list = (*fld_to).to_addr_list
+                    addr_list = unsafe { (*fld_to).to_addr_list };
                 }
             }
             14 => {
-                fld_cc = (*fld).fld_data.fld_cc;
+                fld_cc = unsafe { fld.fld_data.fld_cc };
                 if !fld_cc.is_null() {
-                    addr_list = (*fld_cc).cc_addr_list
+                    addr_list = unsafe { (*fld_cc).cc_addr_list };
                 }
             }
             _ => {}
         }
 
         if !addr_list.is_null() {
-            for cur2 in (*(*addr_list).ad_list).into_iter() {
+            for cur2 in unsafe { &(*(*addr_list).ad_list) } {
                 let adr = cur2 as *mut mailimf_address;
 
-                if !adr.is_null() {
-                    if (*adr).ad_type == MAILIMF_ADDRESS_MAILBOX as libc::c_int {
-                        mailimf_get_recipients_add_addr(&mut recipients, (*adr).ad_data.ad_mailbox);
-                    } else if (*adr).ad_type == MAILIMF_ADDRESS_GROUP as libc::c_int {
-                        let group: *mut mailimf_group = (*adr).ad_data.ad_group;
-                        if !group.is_null() && !(*group).grp_mb_list.is_null() {
-                            for cur3 in (*(*(*group).grp_mb_list).mb_list).into_iter() {
-                                mailimf_get_recipients_add_addr(
-                                    &mut recipients,
-                                    cur3 as *mut mailimf_mailbox,
-                                );
-                            }
+                if adr.is_null() {
+                    continue;
+                }
+                let adr = unsafe { *adr };
+
+                if adr.ad_type == MAILIMF_ADDRESS_MAILBOX as libc::c_int {
+                    mailimf_get_recipients_add_addr(&mut recipients, unsafe {
+                        adr.ad_data.ad_mailbox
+                    });
+                } else if adr.ad_type == MAILIMF_ADDRESS_GROUP as libc::c_int {
+                    let group = unsafe { adr.ad_data.ad_group };
+                    if !group.is_null() && unsafe { !(*group).grp_mb_list.is_null() } {
+                        for cur3 in unsafe { &(*(*(*group).grp_mb_list).mb_list) } {
+                            mailimf_get_recipients_add_addr(
+                                &mut recipients,
+                                cur3 as *mut mailimf_mailbox,
+                            );
                         }
                     }
                 }
@@ -1266,29 +1284,25 @@ fn mailimf_get_recipients_add_addr(recipients: &mut HashSet<String>, mb: *mut ma
 }
 
 /*the result is a pointer to mime, must not be freed*/
-pub unsafe fn mailimf_find_field(
+pub fn mailimf_find_field(
     header: *mut mailimf_fields,
     wanted_fld_type: libc::c_int,
 ) -> *mut mailimf_field {
-    if header.is_null() || (*header).fld_list.is_null() {
+    if header.is_null() {
         return ptr::null_mut();
     }
-    let mut cur1: *mut clistiter = (*(*header).fld_list).first;
-    while !cur1.is_null() {
-        let field: *mut mailimf_field = (if !cur1.is_null() {
-            (*cur1).data
-        } else {
-            ptr::null_mut()
-        }) as *mut mailimf_field;
+
+    let header = unsafe { (*header) };
+    if header.fld_list.is_null() {
+        return ptr::null_mut();
+    }
+
+    for cur in unsafe { &(*header.fld_list) } {
+        let field = cur as *mut mailimf_field;
         if !field.is_null() {
-            if (*field).fld_type == wanted_fld_type {
+            if unsafe { (*field).fld_type } == wanted_fld_type {
                 return field;
             }
-        }
-        cur1 = if !cur1.is_null() {
-            (*cur1).next
-        } else {
-            ptr::null_mut()
         }
     }
 

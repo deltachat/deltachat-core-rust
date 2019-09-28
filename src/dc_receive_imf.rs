@@ -1609,10 +1609,7 @@ fn check_verified_properties(
 ) -> Result<()> {
     let contact = Contact::load_from_db(context, from_id)?;
 
-    ensure!(
-        mimeparser.e2ee_helper.encrypted,
-        "This message is not encrypted."
-    );
+    ensure!(mimeparser.encrypted, "This message is not encrypted.");
 
     // ensure, the contact is verified
     // and the message is signed with a verified key of the sender.
@@ -1633,7 +1630,7 @@ fn check_verified_properties(
 
         if let Some(peerstate) = peerstate {
             ensure!(
-                peerstate.has_verified_key(&mimeparser.e2ee_helper.signatures),
+                peerstate.has_verified_key(&mimeparser.signatures),
                 "The message was sent with non-verified encryption."
             );
         }
@@ -1660,7 +1657,7 @@ fn check_verified_properties(
         let mut peerstate = Peerstate::from_addr(context, &context.sql, &to_addr);
 
         // mark gossiped keys (if any) as verified
-        if mimeparser.e2ee_helper.gossipped_addr.contains(&to_addr) && peerstate.is_some() {
+        if mimeparser.gossipped_addr.contains(&to_addr) && peerstate.is_some() {
             let peerstate = peerstate.as_mut().unwrap();
 
             // if we're here, we know the gossip key is verified:

@@ -413,7 +413,7 @@ pub fn handle_securejoin_handshake(
                 could_not_establish_secure_connection(
                     context,
                     contact_chat_id,
-                    if mimeparser.e2ee_helper.encrypted {
+                    if mimeparser.encrypted {
                         "No valid signature."
                     } else {
                         "Not encrypted."
@@ -693,17 +693,16 @@ fn mark_peer_as_verified(context: &Context, fingerprint: impl AsRef<str>) -> Res
  ******************************************************************************/
 
 fn encrypted_and_signed(mimeparser: &MimeParser, expected_fingerprint: impl AsRef<str>) -> bool {
-    if !mimeparser.e2ee_helper.encrypted {
+    if !mimeparser.encrypted {
         warn!(mimeparser.context, "Message not encrypted.",);
         false
-    } else if mimeparser.e2ee_helper.signatures.len() <= 0 {
+    } else if mimeparser.signatures.len() <= 0 {
         warn!(mimeparser.context, "Message not signed.",);
         false
     } else if expected_fingerprint.as_ref().is_empty() {
         warn!(mimeparser.context, "Fingerprint for comparison missing.",);
         false
     } else if !mimeparser
-        .e2ee_helper
         .signatures
         .contains(expected_fingerprint.as_ref())
     {
