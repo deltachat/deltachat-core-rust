@@ -1,7 +1,6 @@
 //! End-to-end encryption support.
 
 use std::collections::HashSet;
-use std::ffi::CStr;
 use std::ptr;
 use std::str::FromStr;
 
@@ -479,8 +478,8 @@ fn update_gossip_peerstates(
             if !optional_field.fld_name.is_null()
                 && as_str(optional_field.fld_name) == "Autocrypt-Gossip"
             {
-                let value = unsafe { CStr::from_ptr(optional_field.fld_value).to_str().unwrap() };
-                let gossip_header = Aheader::from_str(value);
+                let value = to_string_lossy(optional_field.fld_value);
+                let gossip_header = Aheader::from_str(&value);
 
                 if let Ok(ref header) = gossip_header {
                     if recipients.is_none() {

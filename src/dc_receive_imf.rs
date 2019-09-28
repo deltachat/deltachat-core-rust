@@ -610,7 +610,7 @@ unsafe fn add_parts(
     let icnt = mime_parser.parts.len();
     let mut txt_raw = None;
 
-    let is_ok = context
+    context
         .sql
         .prepare(
             "INSERT INTO msgs \
@@ -697,13 +697,10 @@ unsafe fn add_parts(
                 Ok(())
             },
         )
-        .is_ok();
-
-    if !is_ok {
-        // i/o error - there is nothing more we can do - in other cases, we try to write at least an empty record
-        cleanup(mime_in_reply_to, mime_references);
-        bail!("Cannot write DB.");
-    }
+        .map_err(|err| {
+            cleanup(mime_in_reply_to, mime_references);
+            err
+        })?;
 
     info!(
         context,
