@@ -36,7 +36,6 @@ pub fn get_ct_subtype(mime: *mut Mailmime) -> Option<String> {
         let ct: *mut mailmime_content = (*mime).mm_content_type;
 
         if !ct.is_null() && !(*ct).ct_subtype.is_null() {
-            println!("ct_subtype: {}", to_string((*ct).ct_subtype));
             Some(to_string((*ct).ct_subtype))
         } else {
             None
@@ -48,10 +47,12 @@ pub fn get_autocrypt_mime(
     mime_undetermined: *mut Mailmime,
 ) -> Result<(*mut Mailmime, *mut Mailmime), Error> {
     /* return Result with two mime pointers:
-       First mime pointer is to the multipart-mime message
-       (which is replaced with a decrypted version later)
-       Second one is to the encrypted payload.
-       For non-autocrypt message an Error is returned.
+
+    First mime pointer is to the multipart-mime message
+    (which is replaced with a decrypted version later)
+
+    Second one is to the encrypted payload.
+    For non-autocrypt message an Error is returned.
     */
     unsafe {
         ensure!(
