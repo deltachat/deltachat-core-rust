@@ -720,7 +720,7 @@ pub unsafe fn mailmime_new_simple(
         std::ptr::null(),
         0,
         mm_mime_fields,
-        std::ptr::null_mut(),
+        mm_content_type,
         std::ptr::null_mut(),
         std::ptr::null_mut(),
         std::ptr::null_mut(),
