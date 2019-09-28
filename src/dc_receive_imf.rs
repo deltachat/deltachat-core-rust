@@ -1856,16 +1856,15 @@ unsafe fn dc_add_or_lookup_contacts_by_address_list(
     if adr_list.is_null() {
         return;
     }
-    let mut cur: *mut clistiter = (*(*adr_list).ad_list).first;
-    while !cur.is_null() {
-        let adr: *mut mailimf_address = (if !cur.is_null() {
-            (*cur).data
-        } else {
-            ptr::null_mut()
-        }) as *mut mailimf_address;
-        if !adr.is_null() {
-            if (*adr).ad_type == MAILIMF_ADDRESS_MAILBOX as libc::c_int {
-                let mb: *mut mailimf_mailbox = (*adr).ad_data.ad_mailbox;
+
+    for cur in &(*(*adr_list).ad_list) {
+        let adr = cur as *mut mailimf_address;
+        if adr.is_null() {
+            continue;
+        }
+
+        match *adr {
+            mailimf_address::Mailbox(mb) => {
                 if !mb.is_null() {
                     add_or_lookup_contact_by_addr(
                         context,
@@ -1876,8 +1875,8 @@ unsafe fn dc_add_or_lookup_contacts_by_address_list(
                         check_self,
                     );
                 }
-            } else if (*adr).ad_type == MAILIMF_ADDRESS_GROUP as libc::c_int {
-                let group: *mut mailimf_group = (*adr).ad_data.ad_group;
+            }
+            mailimf_address::Group(group) => {
                 if !group.is_null() && !(*group).grp_mb_list.is_null() {
                     dc_add_or_lookup_contacts_by_mailbox_list(
                         context,
@@ -1888,11 +1887,6 @@ unsafe fn dc_add_or_lookup_contacts_by_address_list(
                     );
                 }
             }
-        }
-        cur = if !cur.is_null() {
-            (*cur).next
-        } else {
-            ptr::null_mut()
         }
     }
 }

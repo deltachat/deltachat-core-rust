@@ -278,17 +278,17 @@ unsafe fn display_group(mut group: *mut mailimf_group) {
     }
     print!("; ");
 }
-unsafe fn display_address(mut a: *mut mailimf_address) {
-    match (*a).ad_type {
-        2 => {
-            display_group((*a).ad_data.ad_group);
+unsafe fn display_address(a: *mut mailimf_address) {
+    match *a {
+        mailimf_address::Group(data) => {
+            display_group(data);
         }
-        1 => {
-            display_mailbox((*a).ad_data.ad_mailbox);
+        mailimf_address::Mailbox(data) => {
+            display_mailbox(data);
         }
-        _ => {}
-    };
+    }
 }
+
 unsafe fn display_address_list(mut addr_list: *mut mailimf_address_list) {
     let mut cur: *mut clistiter = 0 as *mut clistiter;
     cur = (*(*addr_list).ad_list).first;

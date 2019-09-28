@@ -972,24 +972,24 @@ unsafe fn mailimf_address_write_driver(
     mut col: *mut libc::c_int,
     mut addr: *mut mailimf_address,
 ) -> libc::c_int {
-    let mut r: libc::c_int = 0;
-    match (*addr).ad_type {
-        1 => {
-            r = mailimf_mailbox_write_driver(do_write, data, col, (*addr).ad_data.ad_mailbox);
+    match *addr {
+        mailimf_address::Mailbox(mb_data) => {
+            let r = mailimf_mailbox_write_driver(do_write, data, col, mb_data);
             if r != MAILIMF_NO_ERROR as libc::c_int {
                 return r;
             }
         }
-        2 => {
-            r = mailimf_group_write_driver(do_write, data, col, (*addr).ad_data.ad_group);
+        mailimf_address::Group(gr_data) => {
+            let r = mailimf_group_write_driver(do_write, data, col, gr_data);
             if r != MAILIMF_NO_ERROR as libc::c_int {
                 return r;
             }
         }
-        _ => {}
     }
-    return MAILIMF_NO_ERROR as libc::c_int;
+
+    MAILIMF_NO_ERROR as libc::c_int
 }
+
 unsafe fn mailimf_group_write_driver(
     mut do_write: Option<
         unsafe fn(_: *mut libc::c_void, _: *const libc::c_char, _: size_t) -> libc::c_int,

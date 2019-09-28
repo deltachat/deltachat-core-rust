@@ -1665,52 +1665,38 @@ pub unsafe fn mailimf_address_list_parse(
   @return MAILIMF_NO_ERROR on success, MAILIMF_ERROR_XXX on error
 */
 pub unsafe fn mailimf_address_parse(
-    mut message: *const libc::c_char,
-    mut length: size_t,
-    mut indx: *mut size_t,
-    mut result: *mut *mut mailimf_address,
+    message: *const libc::c_char,
+    length: size_t,
+    indx: *mut size_t,
+    result: *mut *mut mailimf_address,
 ) -> libc::c_int {
-    let mut type_0: libc::c_int = 0;
-    let mut cur_token: size_t = 0;
-    let mut mailbox: *mut mailimf_mailbox = 0 as *mut mailimf_mailbox;
-    let mut group: *mut mailimf_group = 0 as *mut mailimf_group;
-    let mut address: *mut mailimf_address = 0 as *mut mailimf_address;
-    let mut r: libc::c_int = 0;
-    let mut res: libc::c_int = 0;
-    cur_token = *indx;
-    mailbox = 0 as *mut mailimf_mailbox;
-    group = 0 as *mut mailimf_group;
-    type_0 = MAILIMF_ADDRESS_ERROR as libc::c_int;
-    r = mailimf_group_parse(message, length, &mut cur_token, &mut group);
+    let mut mailbox = std::ptr::null_mut();
+    let mut group = std::ptr::null_mut();
+    let mut cur_token = *indx;
+
+    let mut r = mailimf_group_parse(message, length, &mut cur_token, &mut group);
+
     if r == MAILIMF_NO_ERROR as libc::c_int {
-        type_0 = MAILIMF_ADDRESS_GROUP as libc::c_int
+        // Valid group address
+        *indx = cur_token;
+        *result = mailimf_address_new_group(group);
+        return MAILIMF_NO_ERROR as libc::c_int;
     }
+
     if r == MAILIMF_ERROR_PARSE as libc::c_int {
         r = mailimf_mailbox_parse(message, length, &mut cur_token, &mut mailbox);
         if r == MAILIMF_NO_ERROR as libc::c_int {
-            type_0 = MAILIMF_ADDRESS_MAILBOX as libc::c_int
-        }
-    }
-    if r != MAILIMF_NO_ERROR as libc::c_int {
-        res = r
-    } else {
-        address = mailimf_address_new(type_0, mailbox, group);
-        if address.is_null() {
-            res = MAILIMF_ERROR_MEMORY as libc::c_int;
-            if !mailbox.is_null() {
-                mailimf_mailbox_free(mailbox);
-            }
-            if !group.is_null() {
-                mailimf_group_free(group);
-            }
-        } else {
-            *result = address;
+            // Valid mailbox address
             *indx = cur_token;
+            mailimf_address_new_mailbox(mailbox);
             return MAILIMF_NO_ERROR as libc::c_int;
         }
     }
-    return res;
+
+    // Cannot parse this address
+    r
 }
+
 /*
   mailimf_mailbox_parse will parse the given address
 

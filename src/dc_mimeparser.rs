@@ -1252,20 +1252,19 @@ pub fn mailimf_get_recipients(imffields: *mut mailimf_fields) -> HashSet<String>
                 if adr.is_null() {
                     continue;
                 }
-                let adr = unsafe { *adr };
 
-                if adr.ad_type == MAILIMF_ADDRESS_MAILBOX as libc::c_int {
-                    mailimf_get_recipients_add_addr(&mut recipients, unsafe {
-                        adr.ad_data.ad_mailbox
-                    });
-                } else if adr.ad_type == MAILIMF_ADDRESS_GROUP as libc::c_int {
-                    let group = unsafe { adr.ad_data.ad_group };
-                    if !group.is_null() && unsafe { !(*group).grp_mb_list.is_null() } {
-                        for cur3 in unsafe { &(*(*(*group).grp_mb_list).mb_list) } {
-                            mailimf_get_recipients_add_addr(
-                                &mut recipients,
-                                cur3 as *mut mailimf_mailbox,
-                            );
+                match unsafe { *adr } {
+                    mailimf_address::Mailbox(mailbox) => {
+                        mailimf_get_recipients_add_addr(&mut recipients, mailbox);
+                    }
+                    mailimf_address::Group(group) => {
+                        if !group.is_null() && unsafe { !(*group).grp_mb_list.is_null() } {
+                            for cur3 in unsafe { &(*(*(*group).grp_mb_list).mb_list) } {
+                                mailimf_get_recipients_add_addr(
+                                    &mut recipients,
+                                    cur3 as *mut mailimf_mailbox,
+                                );
+                            }
                         }
                     }
                 }

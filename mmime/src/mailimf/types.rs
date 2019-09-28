@@ -46,32 +46,14 @@ pub struct mailimf_date_time {
 /* if this is a group
 (group_name: address1@domain1,
     address2@domain2; ) */
-pub const MAILIMF_ADDRESS_GROUP: libc::c_uint = 2;
-/* if this is a mailbox (mailbox@domain) */
-pub const MAILIMF_ADDRESS_MAILBOX: libc::c_uint = 1;
-/* on parse error */
-pub const MAILIMF_ADDRESS_ERROR: libc::c_uint = 0;
-/*
-  mailimf_address is an address
 
-  - type can be MAILIMF_ADDRESS_MAILBOX or MAILIMF_ADDRESS_GROUP
-
-  - mailbox is a mailbox if type is MAILIMF_ADDRESS_MAILBOX
-
-  - group is a group if type is MAILIMF_ADDRESS_GROUP
-*/
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct mailimf_address {
-    pub ad_type: libc::c_int,
-    pub ad_data: unnamed_0,
+/// An address, either for a mailbox or a group.
+#[derive(Debug, Clone, Copy)]
+pub enum mailimf_address {
+    Mailbox(*mut mailimf_mailbox),
+    Group(*mut mailimf_group),
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union unnamed_0 {
-    pub ad_mailbox: *mut mailimf_mailbox,
-    pub ad_group: *mut mailimf_group,
-}
+
 /*
   mailimf_group is a group
 
@@ -481,43 +463,40 @@ pub unsafe fn mailimf_date_time_new(
     (*date_time).dt_zone = dt_zone;
     return date_time;
 }
-#[no_mangle]
+
 pub unsafe fn mailimf_date_time_free(mut date_time: *mut mailimf_date_time) {
     free(date_time as *mut libc::c_void);
 }
-#[no_mangle]
-pub unsafe fn mailimf_address_new(
-    mut ad_type: libc::c_int,
-    mut ad_mailbox: *mut mailimf_mailbox,
-    mut ad_group: *mut mailimf_group,
-) -> *mut mailimf_address {
-    let mut address: *mut mailimf_address = 0 as *mut mailimf_address;
-    address =
-        malloc(::std::mem::size_of::<mailimf_address>() as libc::size_t) as *mut mailimf_address;
+
+pub fn mailimf_address_new_mailbox(ad_mailbox: *mut mailimf_mailbox) -> *mut mailimf_address {
+    let addr = mailimf_address::Mailbox(ad_mailbox);
+
+    Box::into_raw(Box::new(addr))
+}
+
+pub fn mailimf_address_new_group(ad_group: *mut mailimf_group) -> *mut mailimf_address {
+    let addr = mailimf_address::Group(ad_group);
+
+    Box::into_raw(Box::new(addr))
+}
+
+pub unsafe fn mailimf_address_free(address: *mut mailimf_address) {
     if address.is_null() {
-        return 0 as *mut mailimf_address;
+        return;
     }
-    (*address).ad_type = ad_type;
-    match ad_type {
-        1 => (*address).ad_data.ad_mailbox = ad_mailbox,
-        2 => (*address).ad_data.ad_group = ad_group,
-        _ => {}
-    }
-    return address;
-}
-#[no_mangle]
-pub unsafe fn mailimf_address_free(mut address: *mut mailimf_address) {
-    match (*address).ad_type {
-        1 => {
-            mailimf_mailbox_free((*address).ad_data.ad_mailbox);
+
+    let addr = Box::from_raw(address);
+
+    match *addr {
+        mailimf_address::Mailbox(data) => {
+            mailimf_mailbox_free(data);
         }
-        2 => {
-            mailimf_group_free((*address).ad_data.ad_group);
+        mailimf_address::Group(data) => {
+            mailimf_group_free(data);
         }
-        _ => {}
     }
-    free(address as *mut libc::c_void);
 }
+
 #[no_mangle]
 pub unsafe fn mailimf_group_free(mut group: *mut mailimf_group) {
     if !(*group).grp_mb_list.is_null() {

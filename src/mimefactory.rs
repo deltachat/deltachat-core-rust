@@ -173,18 +173,14 @@ impl<'a> MimeFactory<'a> {
             for (name, addr) in name_iter.zip(addr_iter) {
                 mailimf_address_list_add(
                     to,
-                    mailimf_address_new(
-                        MAILIMF_ADDRESS_MAILBOX as libc::c_int,
-                        mailimf_mailbox_new(
-                            if !name.is_empty() {
-                                dc_encode_header_words(&name).strdup()
-                            } else {
-                                ptr::null_mut()
-                            },
-                            addr.strdup(),
-                        ),
-                        ptr::null_mut(),
-                    ),
+                    mailimf_address_new_mailbox(mailimf_mailbox_new(
+                        if !name.is_empty() {
+                            dc_encode_header_words(&name).strdup()
+                        } else {
+                            ptr::null_mut()
+                        },
+                        addr.strdup(),
+                    )),
                 );
             }
         }
