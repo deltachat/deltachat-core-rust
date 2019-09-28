@@ -88,7 +88,7 @@ impl EncryptHelper {
         // libEtPan's pgp_encrypt_mime() takes the parent as the new root.
         // We just expect the root as being given to this function.
         ensure!(
-            !in_out_message.is_null() && unsafe { !(*in_out_message).mm_parent.is_null() },
+            !in_out_message.is_null() && unsafe { (*in_out_message).mm_parent.is_null() },
             "corrupted inputs"
         );
 
@@ -335,7 +335,7 @@ pub fn try_decrypt(
                 }
                 if let Some(ref peerstate) = peerstate {
                     if peerstate.degrade_event.is_some() {
-                        handle_degrade_event(context, &peerstate);
+                        handle_degrade_event(context, &peerstate)?;
                     }
                     if let Some(ref key) = peerstate.gossip_key {
                         public_keyring_for_validate.add_ref(key);
@@ -356,10 +356,6 @@ pub fn try_decrypt(
                 if !gossip_headers.is_null() {
                     gossipped_addr =
                         update_gossip_peerstates(context, message_time, imffields, gossip_headers)?;
-                }
-                if !gossip_headers.is_null() {
-                    gossipped_addr =
-                        update_gossip_peerstates(context, message_time, imffields, gossip_headers)
                 }
             }
         }
