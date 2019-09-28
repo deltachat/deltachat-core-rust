@@ -1003,8 +1003,8 @@ unsafe fn mailimf_group_write_driver(
         do_write,
         data,
         col,
-        (*group).grp_display_name,
-        strlen((*group).grp_display_name),
+        (*group).display_name,
+        strlen((*group).display_name),
     );
     if r != MAILIMF_NO_ERROR as libc::c_int {
         return r;
@@ -1019,8 +1019,8 @@ unsafe fn mailimf_group_write_driver(
     if r != MAILIMF_NO_ERROR as libc::c_int {
         return r;
     }
-    if !(*group).grp_mb_list.is_null() {
-        r = mailimf_mailbox_list_write_driver(do_write, data, col, (*group).grp_mb_list);
+    if !(*group).mb_list.is_null() {
+        r = mailimf_mailbox_list_write_driver(do_write, data, col, (*group).mb_list);
         if r != MAILIMF_NO_ERROR as libc::c_int {
             return r;
         }

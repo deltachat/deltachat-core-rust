@@ -1877,10 +1877,10 @@ unsafe fn dc_add_or_lookup_contacts_by_address_list(
                 }
             }
             mailimf_address::Group(group) => {
-                if !group.is_null() && !(*group).grp_mb_list.is_null() {
+                if !group.is_null() && !(*group).mb_list.is_null() {
                     dc_add_or_lookup_contacts_by_mailbox_list(
                         context,
-                        (*group).grp_mb_list,
+                        (*group).mb_list,
                         origin,
                         ids,
                         check_self,

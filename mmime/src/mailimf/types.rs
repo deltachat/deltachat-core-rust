@@ -41,22 +41,28 @@ pub enum mailimf_address {
     Group(*mut mailimf_group),
 }
 
-/*
-  mailimf_group is a group
-
-  - display_name is the name that will be displayed for this group,
-    for example 'group_name' in
-    'group_name: address1@domain1, address2@domain2;', should be allocated
-    with malloc()
-
-  - mb_list is a list of mailboxes
-*/
-#[derive(Copy, Clone)]
-#[repr(C)]
+/// Represents a group.
+///  - display_name is the name that will be displayed for this group,
+///    for example 'group_name' in
+///    'group_name: address1@domain1, address2@domain2;',
+///  - mb_list is a list of mailboxes
+#[derive(Clone)]
 pub struct mailimf_group {
-    pub grp_display_name: *mut libc::c_char,
-    pub grp_mb_list: *mut mailimf_mailbox_list,
+    pub display_name: *mut libc::c_char,
+    pub mb_list: *mut mailimf_mailbox_list,
 }
+
+impl Drop for mailimf_group {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.mb_list.is_null() {
+                mailimf_mailbox_list_free(self.mb_list);
+            }
+            mailimf_display_name_free(self.display_name);
+        }
+    }
+}
+
 /*
   mailimf_mailbox_list is a list of mailboxes
 
@@ -485,14 +491,14 @@ pub unsafe fn mailimf_address_free(address: *mut mailimf_address) {
     }
 }
 
-#[no_mangle]
-pub unsafe fn mailimf_group_free(mut group: *mut mailimf_group) {
-    if !(*group).grp_mb_list.is_null() {
-        mailimf_mailbox_list_free((*group).grp_mb_list);
+pub unsafe fn mailimf_group_free(group: *mut mailimf_group) {
+    if group.is_null() {
+        return;
     }
-    mailimf_display_name_free((*group).grp_display_name);
-    free(group as *mut libc::c_void);
+
+    let group = &Box::from_raw(group);
 }
+
 #[no_mangle]
 pub unsafe fn mailimf_display_name_free(mut display_name: *mut libc::c_char) {
     mailimf_phrase_free(display_name);
@@ -539,20 +545,19 @@ pub unsafe fn mailimf_mailbox_new(
     (*mb).mb_addr_spec = mb_addr_spec;
     return mb;
 }
-#[no_mangle]
-pub unsafe fn mailimf_group_new(
-    mut grp_display_name: *mut libc::c_char,
-    mut grp_mb_list: *mut mailimf_mailbox_list,
+
+pub fn mailimf_group_new(
+    display_name: *mut libc::c_char,
+    mb_list: *mut mailimf_mailbox_list,
 ) -> *mut mailimf_group {
-    let mut group: *mut mailimf_group = 0 as *mut mailimf_group;
-    group = malloc(::std::mem::size_of::<mailimf_group>() as libc::size_t) as *mut mailimf_group;
-    if group.is_null() {
-        return 0 as *mut mailimf_group;
-    }
-    (*group).grp_display_name = grp_display_name;
-    (*group).grp_mb_list = grp_mb_list;
-    return group;
+    let group = mailimf_group {
+        display_name,
+        mb_list,
+    };
+
+    Box::into_raw(Box::new(group))
 }
+
 #[no_mangle]
 pub unsafe fn mailimf_mailbox_list_new(mut mb_list: *mut clist) -> *mut mailimf_mailbox_list {
     let mut mbl: *mut mailimf_mailbox_list = 0 as *mut mailimf_mailbox_list;

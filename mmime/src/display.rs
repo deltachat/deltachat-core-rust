@@ -260,9 +260,9 @@ unsafe fn display_group(mut group: *mut mailimf_group) {
     let mut cur: *mut clistiter = 0 as *mut clistiter;
     print!(
         "{}: ",
-        CStr::from_ptr((*group).grp_display_name).to_str().unwrap()
+        CStr::from_ptr((*group).display_name).to_str().unwrap()
     );
-    cur = (*(*(*group).grp_mb_list).mb_list).first;
+    cur = (*(*(*group).mb_list).mb_list).first;
     while !cur.is_null() {
         let mut mb: *mut mailimf_mailbox = 0 as *mut mailimf_mailbox;
         mb = (if !cur.is_null() {

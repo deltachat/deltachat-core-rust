@@ -1258,8 +1258,8 @@ pub fn mailimf_get_recipients(imffields: *mut mailimf_fields) -> HashSet<String>
                         mailimf_get_recipients_add_addr(&mut recipients, mailbox);
                     }
                     mailimf_address::Group(group) => {
-                        if !group.is_null() && unsafe { !(*group).grp_mb_list.is_null() } {
-                            for cur3 in unsafe { &(*(*(*group).grp_mb_list).mb_list) } {
+                        if !group.is_null() && unsafe { !(*group).mb_list.is_null() } {
+                            for cur3 in unsafe { &(*(*(*group).mb_list).mb_list) } {
                                 mailimf_get_recipients_add_addr(
                                     &mut recipients,
                                     cur3 as *mut mailimf_mailbox,
