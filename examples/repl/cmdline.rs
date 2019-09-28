@@ -8,10 +8,10 @@ use deltachat::configure::*;
 use deltachat::constants::*;
 use deltachat::contact::*;
 use deltachat::context::*;
-use deltachat::dc_imex::*;
 use deltachat::dc_receive_imf::*;
 use deltachat::dc_tools::*;
 use deltachat::error::Error;
+use deltachat::imex::*;
 use deltachat::job::*;
 use deltachat::location;
 use deltachat::lot::LotState;
@@ -102,7 +102,7 @@ fn dc_poke_eml_file(context: &Context, filename: impl AsRef<Path>) -> Result<(),
 
 /// Import a file to the database.
 /// For testing, import a folder with eml-files, a single eml-file, e-mail plus public key and so on.
-/// For normal importing, use dc_imex().
+/// For normal importing, use imex().
 ///
 /// @private @memberof Context
 /// @param context The context as created by dc_context_new().
@@ -405,7 +405,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                  ============================================="
             ),
         },
-        "initiate-key-transfer" => match dc_initiate_key_transfer(context) {
+        "initiate-key-transfer" => match initiate_key_transfer(context) {
             Ok(setup_code) => println!(
                 "Setup code for the transferred setup message: {}",
                 setup_code,
@@ -432,28 +432,28 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 !arg1.is_empty() && !arg2.is_empty(),
                 "Arguments <msg-id> <setup-code> expected"
             );
-            dc_continue_key_transfer(context, arg1.parse()?, &arg2)?;
+            continue_key_transfer(context, arg1.parse()?, &arg2)?;
         }
         "has-backup" => {
-            dc_imex_has_backup(context, blobdir)?;
+            has_backup(context, blobdir)?;
         }
         "export-backup" => {
-            dc_imex(context, 11, Some(blobdir));
+            imex(context, ImexMode::ExportBackup, Some(blobdir));
         }
         "import-backup" => {
             ensure!(!arg1.is_empty(), "Argument <backup-file> missing.");
-            dc_imex(context, 12, Some(arg1));
+            imex(context, ImexMode::ImportBackup, Some(arg1));
         }
         "export-keys" => {
-            dc_imex(context, 1, Some(blobdir));
+            imex(context, ImexMode::ExportSelfKeys, Some(blobdir));
         }
         "import-keys" => {
-            dc_imex(context, 2, Some(blobdir));
+            imex(context, ImexMode::ImportSelfKeys, Some(blobdir));
         }
         "export-setup" => {
-            let setup_code = dc_create_setup_code(context);
+            let setup_code = create_setup_code(context);
             let file_name = blobdir.join("autocrypt-setup-message.html");
-            let file_content = dc_render_setup_file(context, &setup_code)?;
+            let file_content = render_setup_file(context, &setup_code)?;
             std::fs::write(&file_name, file_content)?;
             println!(
                 "Setup message written to: {}\nSetup code: {}",

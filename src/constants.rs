@@ -64,15 +64,6 @@ pub const DC_GCL_ADD_SELF: usize = 0x02;
 pub(crate) const DC_FP_NO_AUTOCRYPT_HEADER: i32 = 2;
 pub(crate) const DC_FP_ADD_AUTOCRYPT_HEADER: i32 = 1;
 
-/// param1 is a directory where the keys are written to
-pub const DC_IMEX_EXPORT_SELF_KEYS: i32 = 1;
-/// param1 is a directory where the keys are searched in and read from
-pub const DC_IMEX_IMPORT_SELF_KEYS: i32 = 2;
-/// param1 is a directory where the backup is written to
-pub const DC_IMEX_EXPORT_BACKUP: i32 = 11;
-/// param1 is the file with the backup to import
-pub const DC_IMEX_IMPORT_BACKUP: i32 = 12;
-
 /// virtual chat showing all messages belonging to chats flagged with chats.blocked=2
 pub(crate) const DC_CHAT_ID_DEADDROP: u32 = 1;
 /// messages that should be deleted get this chat_id; the messages are deleted from the working thread later then. This is also needed as rfc724_mid should be preset as long as the message is not deleted on the server (otherwise it is downloaded again)

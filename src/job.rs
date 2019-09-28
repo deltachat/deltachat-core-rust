@@ -7,10 +7,10 @@ use crate::chat;
 use crate::configure::*;
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_imex::*;
 use crate::dc_tools::*;
 use crate::events::Event;
 use crate::imap::*;
+use crate::imex::*;
 use crate::location;
 use crate::login_param::LoginParam;
 use crate::message::{self, Message, MessageState};
@@ -824,7 +824,7 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                 Action::MoveMsg => job.do_DC_JOB_MOVE_MSG(context),
                 Action::SendMdn => job.do_DC_JOB_SEND(context),
                 Action::ConfigureImap => unsafe { dc_job_do_DC_JOB_CONFIGURE_IMAP(context) },
-                Action::ImexImap => match dc_job_do_DC_JOB_IMEX_IMAP(context, &job) {
+                Action::ImexImap => match job_do_DC_JOB_IMEX_IMAP(context, &job) {
                     Ok(()) => {}
                     Err(err) => {
                         error!(context, "{}", err);

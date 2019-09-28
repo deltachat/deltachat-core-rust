@@ -1528,9 +1528,17 @@ pub unsafe extern "C" fn dc_imex(
         eprintln!("ignoring careless call to dc_imex()");
         return;
     }
+    let what = match imex::ImexMode::from_i32(what as i32) {
+        Some(what) => what,
+        None => {
+            eprintln!("ignoring invalid argument {} to dc_imex", what);
+            return;
+        }
+    };
+
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| dc_imex::dc_imex(ctx, what, as_opt_str(param1)))
+        .with_inner(|ctx| imex::imex(ctx, what, as_opt_str(param1)))
         .ok();
 }
 
@@ -1545,7 +1553,7 @@ pub unsafe extern "C" fn dc_imex_has_backup(
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| match dc_imex::dc_imex_has_backup(ctx, as_str(dir)) {
+        .with_inner(|ctx| match imex::has_backup(ctx, as_str(dir)) {
             Ok(res) => res.strdup(),
             Err(err) => {
                 error!(ctx, "dc_imex_has_backup: {}", err);
@@ -1563,7 +1571,7 @@ pub unsafe extern "C" fn dc_initiate_key_transfer(context: *mut dc_context_t) ->
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| match dc_imex::dc_initiate_key_transfer(ctx) {
+        .with_inner(|ctx| match imex::initiate_key_transfer(ctx) {
             Ok(res) => res.strdup(),
             Err(err) => {
                 error!(ctx, "dc_initiate_key_transfer(): {}", err);
@@ -1588,15 +1596,15 @@ pub unsafe extern "C" fn dc_continue_key_transfer(
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| {
-            match dc_imex::dc_continue_key_transfer(ctx, msg_id, as_str(setup_code)) {
+        .with_inner(
+            |ctx| match imex::continue_key_transfer(ctx, msg_id, as_str(setup_code)) {
                 Ok(()) => 1,
                 Err(err) => {
                     error!(ctx, "dc_continue_key_transfer: {}", err);
                     0
                 }
-            }
-        })
+            },
+        )
         .unwrap_or(0)
 }
 
