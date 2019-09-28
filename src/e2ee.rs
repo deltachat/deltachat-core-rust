@@ -345,20 +345,17 @@ pub fn try_decrypt(
                     }
                 }
 
-                match decrypt_if_autocrypt_message(
+                encrypted = decrypt_if_autocrypt_message(
                     context,
                     in_out_message,
                     &private_keyring,
                     &public_keyring_for_validate,
                     &mut signatures,
                     &mut gossip_headers,
-                ) {
-                    Ok(res) => {
-                        encrypted = res;
-                    }
-                    Err(err) => {
-                        bail!("failed to decrypt: {}", err);
-                    }
+                )?;
+                if !gossip_headers.is_null() {
+                    gossipped_addr =
+                        update_gossip_peerstates(context, message_time, imffields, gossip_headers)?;
                 }
                 if !gossip_headers.is_null() {
                     gossipped_addr =
@@ -463,7 +460,7 @@ fn update_gossip_peerstates(
     message_time: i64,
     imffields: *mut mailimf_fields,
     gossip_headers: *const mailimf_fields,
-) -> HashSet<String> {
+) -> Result<HashSet<String>> {
     // XXX split the parsing from the modification part
     let mut recipients: Option<HashSet<String>> = None;
     let mut gossipped_addr: HashSet<String> = Default::default();
@@ -498,15 +495,15 @@ fn update_gossip_peerstates(
                             Peerstate::from_addr(context, &context.sql, &header.addr);
                         if let Some(ref mut peerstate) = peerstate {
                             peerstate.apply_gossip(header, message_time);
-                            peerstate.save_to_db(&context.sql, false).unwrap();
+                            peerstate.save_to_db(&context.sql, false)?;
                         } else {
                             let p = Peerstate::from_gossip(context, header, message_time);
-                            p.save_to_db(&context.sql, true).unwrap();
+                            p.save_to_db(&context.sql, true)?;
                             peerstate = Some(p);
                         }
                         if let Some(peerstate) = peerstate {
                             if peerstate.degrade_event.is_some() {
-                                handle_degrade_event(context, &peerstate);
+                                handle_degrade_event(context, &peerstate)?;
                             }
                         }
 
@@ -523,7 +520,7 @@ fn update_gossip_peerstates(
         }
     }
 
-    gossipped_addr
+    Ok(gossipped_addr)
 }
 
 fn decrypt_if_autocrypt_message(
