@@ -965,41 +965,39 @@ fn send_mdn(context: &Context, msg_id: u32) {
 
 #[allow(non_snake_case)]
 fn add_smtp_job(context: &Context, action: Action, mimefactory: &MimeFactory) -> libc::c_int {
-    let mut success: libc::c_int = 0i32;
     let mut param = Params::new();
-    let path_filename = dc_get_fine_path_filename(context, "$BLOBDIR", &mimefactory.rfc724_mid);
     let bytes = unsafe {
         std::slice::from_raw_parts(
             (*mimefactory.out).str_0 as *const u8,
             (*mimefactory.out).len,
         )
     };
-    if !dc_write_file(context, &path_filename, bytes) {
-        error!(
-            context,
-            "Could not write message <{}> to \"{}\".",
-            mimefactory.rfc724_mid,
-            path_filename.display(),
-        );
-    } else {
-        info!(context, "add_smtp_job file written: {:?}", path_filename);
-        let recipients = mimefactory.recipients_addr.join("\x1e");
-        param.set(Param::File, path_filename.to_string_lossy());
-        param.set(Param::Recipients, &recipients);
-        job_add(
-            context,
-            action,
-            (if mimefactory.loaded == Loaded::Message {
-                mimefactory.msg.id
-            } else {
-                0
-            }) as libc::c_int,
-            param,
-            0,
-        );
-        success = 1;
-    }
-    success
+    let bpath = match context.new_blob_file(&mimefactory.rfc724_mid, bytes) {
+        Ok(path) => path,
+        Err(err) => {
+            error!(
+                context,
+                "Could not write {} smtp-message, error {}", mimefactory.rfc724_mid, err
+            );
+            return 0;
+        }
+    };
+    info!(context, "add_smtp_job file written: {:?}", bpath);
+    let recipients = mimefactory.recipients_addr.join("\x1e");
+    param.set(Param::File, &bpath);
+    param.set(Param::Recipients, &recipients);
+    job_add(
+        context,
+        action,
+        (if mimefactory.loaded == Loaded::Message {
+            mimefactory.msg.id
+        } else {
+            0
+        }) as libc::c_int,
+        param,
+        0,
+    );
+    1
 }
 
 pub fn job_add(

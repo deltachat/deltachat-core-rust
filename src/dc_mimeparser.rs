@@ -776,28 +776,34 @@ impl<'a> MimeParser<'a> {
         decoded_data: &[u8],
         desired_filename: &str,
     ) {
-        /* create a free file name to use */
-        let path_filename = dc_get_fine_path_filename(self.context, "$BLOBDIR", desired_filename);
-
-        /* copy data to file */
-        if dc_write_file(self.context, &path_filename, decoded_data) {
-            let mut part = Part::default();
-            part.typ = msg_type;
-            part.mimetype = mime_type;
-            part.bytes = decoded_data.len() as libc::c_int;
-            part.param.set(Param::File, path_filename.to_string_lossy());
-            if let Some(raw_mime) = raw_mime {
-                part.param.set(Param::MimeType, raw_mime);
+        /* write decoded data to new blob file */
+        let bpath = match self.context.new_blob_file(desired_filename, decoded_data) {
+            Ok(path) => path,
+            Err(err) => {
+                error!(
+                    self.context,
+                    "Could not add blob for mime part {}, error {}", desired_filename, err
+                );
+                return;
             }
+        };
 
-            if mime_type == DC_MIMETYPE_IMAGE {
-                if let Ok((width, height)) = dc_get_filemeta(decoded_data) {
-                    part.param.set_int(Param::Width, width as i32);
-                    part.param.set_int(Param::Height, height as i32);
-                }
-            }
-            self.do_add_single_part(part);
+        let mut part = Part::default();
+        part.typ = msg_type;
+        part.mimetype = mime_type;
+        part.bytes = decoded_data.len() as libc::c_int;
+        part.param.set(Param::File, bpath);
+        if let Some(raw_mime) = raw_mime {
+            part.param.set(Param::MimeType, raw_mime);
         }
+
+        if mime_type == DC_MIMETYPE_IMAGE {
+            if let Ok((width, height)) = dc_get_filemeta(decoded_data) {
+                part.param.set_int(Param::Width, width as i32);
+                part.param.set_int(Param::Height, height as i32);
+            }
+        }
+        self.do_add_single_part(part);
     }
 
     fn do_add_single_part(&mut self, mut part: Part) {

@@ -1,6 +1,7 @@
 //! Some tools and enhancements to the used libraries, there should be
 //! no references to Context and other "larger" entities here.
 
+use core::cmp::max;
 use std::borrow::Cow;
 use std::ffi::{CStr, CString, OsString};
 use std::path::{Path, PathBuf};
@@ -415,12 +416,41 @@ pub(crate) fn dc_ensure_no_slash_safe(path: &str) -> &str {
     path
 }
 
-/// Function modifies the given buffer and replaces all characters not valid in filenames by a "-".
-fn validate_filename(filename: &str) -> String {
-    filename
-        .replace('/', "-")
-        .replace('\\', "-")
-        .replace(':', "-")
+// Function returns a sanitized basename that does not contain
+// win/linux path separators and also not any non-ascii chars
+fn get_safe_basename(filename: &str) -> String {
+    // return the (potentially mangled) basename of the input filename
+    // this might be a path that comes in from another operating system
+    let mut index: usize = 0;
+
+    if let Some(unix_index) = filename.rfind("/") {
+        index = unix_index + 1;
+    }
+    if let Some(win_index) = filename.rfind("\\") {
+        index = max(index, win_index + 1);
+    }
+    if index >= filename.len() {
+        "nobasename".to_string()
+    } else {
+        // we don't allow any non-ascii to be super-safe
+        filename[index..].replace(|c: char| !c.is_ascii() || c == ':', "-")
+    }
+}
+
+pub fn dc_derive_safe_stem_ext(filename: &str) -> (String, String) {
+    let basename = get_safe_basename(&filename);
+    let (mut stem, mut ext) = if let Some(index) = basename.rfind(".") {
+        (
+            basename[0..index].to_string(),
+            basename[index..].to_string(),
+        )
+    } else {
+        (basename, "".to_string())
+    };
+    // limit length of stem and ext
+    stem.truncate(32);
+    ext.truncate(32);
+    (stem, ext)
 }
 
 // the returned suffix is lower-case
@@ -609,6 +639,14 @@ pub(crate) fn dc_get_fine_path_filename(
     }
 
     panic!("Something is really wrong, you need to clean up your disk");
+}
+
+/// Function modifies the given buffer and replaces all characters not valid in filenames by a "-".
+fn validate_filename(filename: &str) -> String {
+    filename
+        .replace('/', "-")
+        .replace('\\', "-")
+        .replace(':', "-")
 }
 
 pub(crate) fn dc_is_blobdir_path(context: &Context, path: impl AsRef<str>) -> bool {
@@ -1438,6 +1476,19 @@ mod tests {
     }
 
     #[test]
+    fn test_file_get_safe_basename() {
+        assert_eq!(get_safe_basename("12312/hello"), "hello");
+        assert_eq!(get_safe_basename("12312\\hello"), "hello");
+        assert_eq!(get_safe_basename("//12312\\hello"), "hello");
+        assert_eq!(get_safe_basename("//123:12\\hello"), "hello");
+        assert_eq!(get_safe_basename("//123:12/\\\\hello"), "hello");
+        assert_eq!(get_safe_basename("//123:12//hello"), "hello");
+        assert_eq!(get_safe_basename("//123:12//"), "nobasename");
+        assert_eq!(get_safe_basename("//123:12/"), "nobasename");
+        assert!(get_safe_basename("123\x012.hello").ends_with(".hello"));
+    }
+
+    #[test]
     fn test_file_handling() {
         let t = dummy_context();
         let context = &t.ctx;
@@ -1483,14 +1534,21 @@ mod tests {
         assert!(dc_create_folder(context, "$BLOBDIR/foobar-folder"));
         assert!(dc_file_exist(context, "$BLOBDIR/foobar-folder",));
         assert!(!dc_delete_file(context, "$BLOBDIR/foobar-folder"));
+
         let fn0 = dc_get_fine_path_filename(context, "$BLOBDIR", "foobar.dadada");
-        assert_eq!(fn0, PathBuf::from("$BLOBDIR/foobar.dadada"));
+        let fn0_s = fn0.to_string_lossy();
+        assert!(fn0_s.starts_with("$BLOBDIR/foobar-"));
+        assert!(fn0.extension().unwrap() == "dadada");
+
+        let fn0 = dc_get_fine_path_filename(context, "$BLOBDIR", "hello\\foobar.x");
+        let fn0_s = fn0.to_string_lossy();
+        assert!(fn0_s.starts_with("$BLOBDIR/foobar-"));
+        assert!(fn0_s.ends_with(".x"));
 
         assert!(dc_write_file(context, &fn0, b"content"));
-        let fn1 = dc_get_fine_path_filename(context, "$BLOBDIR", "foobar.dadada");
-        assert_eq!(fn1, PathBuf::from("$BLOBDIR/foobar-1.dadada"));
 
         assert!(dc_delete_file(context, &fn0));
+        assert!(!dc_file_exist(context, &fn0));
     }
 
     #[test]

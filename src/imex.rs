@@ -129,14 +129,15 @@ pub fn initiate_key_transfer(context: &Context) -> Result<String> {
                 .unwrap()
                 .shall_stop_ongoing
             {
-                let setup_file_name =
-                    dc_get_fine_path_filename(context, "$BLOBDIR", "autocrypt-setup-message.html");
-                if dc_write_file(context, &setup_file_name, setup_file_content.as_bytes()) {
+                let setup_file_name = context.new_blob_file(
+                    "autocrypt-setup-message.html",
+                    setup_file_content.as_bytes(),
+                )?;
+                {
                     if let Ok(chat_id) = chat::create_by_contact_id(context, 1) {
                         msg = Message::default();
                         msg.type_0 = Viewtype::File;
-                        msg.param
-                            .set(Param::File, setup_file_name.to_string_lossy());
+                        msg.param.set(Param::File, setup_file_name);
 
                         msg.param
                             .set(Param::MimeType, "application/autocrypt-setup");
@@ -579,6 +580,7 @@ fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
         .format("delta-chat-%Y-%m-%d.bak")
         .to_string();
 
+    // let dest_path_filename = dc_get_next_backup_file(context, dir, res);
     let dest_path_filename = dc_get_fine_path_filename(context, dir, res);
 
     sql::housekeeping(context);
