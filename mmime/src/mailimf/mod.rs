@@ -199,39 +199,20 @@ pub unsafe fn mailimf_fields_parse(
 ) -> libc::c_int {
     let mut current_block: u64;
     let mut cur_token: size_t = 0;
-    let mut list: *mut clist = 0 as *mut clist;
+    let mut list = Vec::new();
     let mut fields: *mut mailimf_fields = 0 as *mut mailimf_fields;
     let mut r: libc::c_int = 0;
     let mut res: libc::c_int = 0;
     cur_token = *indx;
-    list = 0 as *mut clist;
+    list.clear();
+
     r = mailimf_struct_multiple_parse(
         message,
         length,
         &mut cur_token,
         &mut list,
-        ::std::mem::transmute::<
-            Option<
-                unsafe fn(
-                    _: *const libc::c_char,
-                    _: size_t,
-                    _: *mut size_t,
-                    _: *mut *mut mailimf_field,
-                ) -> libc::c_int,
-            >,
-            Option<
-                unsafe fn(
-                    _: *const libc::c_char,
-                    _: size_t,
-                    _: *mut size_t,
-                    _: *mut libc::c_void,
-                ) -> libc::c_int,
-            >,
-        >(Some(mailimf_field_parse)),
-        ::std::mem::transmute::<
-            Option<unsafe fn(_: *mut mailimf_field) -> ()>,
-            Option<unsafe fn(_: *mut libc::c_void) -> libc::c_int>,
-        >(Some(mailimf_field_free)),
+        Some(mailimf_field_parse),
+        None,
     );
     /*
     if ((r != MAILIMF_NO_ERROR) && (r != MAILIMF_ERROR_PARSE)) {
@@ -245,13 +226,8 @@ pub unsafe fn mailimf_fields_parse(
             current_block = 11050875288958768710;
         }
         1 => {
-            list = clist_new();
-            if list.is_null() {
-                res = MAILIMF_ERROR_MEMORY as libc::c_int;
-                current_block = 6724962012950341805;
-            } else {
-                current_block = 11050875288958768710;
-            }
+            list.clear();
+            current_block = 11050875288958768710;
         }
         _ => {
             res = r;
@@ -260,39 +236,24 @@ pub unsafe fn mailimf_fields_parse(
     }
     match current_block {
         11050875288958768710 => {
-            fields = mailimf_fields_new(list);
-            if fields.is_null() {
-                res = MAILIMF_ERROR_MEMORY as libc::c_int;
-                if !list.is_null() {
-                    clist_foreach(
-                        list,
-                        ::std::mem::transmute::<
-                            Option<unsafe fn(_: *mut mailimf_field) -> ()>,
-                            clist_func,
-                        >(Some(mailimf_field_free)),
-                        0 as *mut libc::c_void,
-                    );
-                    clist_free(list);
-                }
-            } else {
-                *result = fields;
-                *indx = cur_token;
-                return MAILIMF_NO_ERROR as libc::c_int;
-            }
+            *result = mailimf_fields_new(list);
+            *indx = cur_token;
+            return MAILIMF_NO_ERROR as libc::c_int;
         }
         _ => {}
     }
     return res;
 }
+
 unsafe fn mailimf_field_parse(
-    mut message: *const libc::c_char,
-    mut length: size_t,
-    mut indx: *mut size_t,
-    mut result: *mut *mut mailimf_field,
+    message: *const libc::c_char,
+    length: size_t,
+    indx: *mut size_t,
+    result: &mut mailimf_field,
 ) -> libc::c_int {
-    let mut current_block: u64;
-    let mut cur_token: size_t = 0;
-    let mut type_0: libc::c_int = 0;
+    let mut cur_token = *indx;
+    let try_optional = false;
+
     let mut return_path: *mut mailimf_return = 0 as *mut mailimf_return;
     let mut resent_date: *mut mailimf_orig_date = 0 as *mut mailimf_orig_date;
     let mut resent_from: *mut mailimf_from = 0 as *mut mailimf_from;
@@ -315,440 +276,283 @@ unsafe fn mailimf_field_parse(
     let mut comments: *mut mailimf_comments = 0 as *mut mailimf_comments;
     let mut keywords: *mut mailimf_keywords = 0 as *mut mailimf_keywords;
     let mut optional_field: *mut mailimf_optional_field = 0 as *mut mailimf_optional_field;
-    let mut field: *mut mailimf_field = 0 as *mut mailimf_field;
-    let mut guessed_type: libc::c_int = 0;
+
+    let guessed_type = guess_header_type(message, length, cur_token);
+
     let mut r: libc::c_int = 0;
     let mut res: libc::c_int = 0;
-    cur_token = *indx;
-    return_path = 0 as *mut mailimf_return;
-    resent_date = 0 as *mut mailimf_orig_date;
-    resent_from = 0 as *mut mailimf_from;
-    resent_sender = 0 as *mut mailimf_sender;
-    resent_to = 0 as *mut mailimf_to;
-    resent_cc = 0 as *mut mailimf_cc;
-    resent_bcc = 0 as *mut mailimf_bcc;
-    resent_msg_id = 0 as *mut mailimf_message_id;
-    orig_date = 0 as *mut mailimf_orig_date;
-    from = 0 as *mut mailimf_from;
-    sender = 0 as *mut mailimf_sender;
-    reply_to = 0 as *mut mailimf_reply_to;
-    to = 0 as *mut mailimf_to;
-    cc = 0 as *mut mailimf_cc;
-    bcc = 0 as *mut mailimf_bcc;
-    message_id = 0 as *mut mailimf_message_id;
-    in_reply_to = 0 as *mut mailimf_in_reply_to;
-    references = 0 as *mut mailimf_references;
-    subject = 0 as *mut mailimf_subject;
-    comments = 0 as *mut mailimf_comments;
-    keywords = 0 as *mut mailimf_keywords;
-    optional_field = 0 as *mut mailimf_optional_field;
-    guessed_type = guess_header_type(message, length, cur_token);
-    type_0 = MAILIMF_FIELD_NONE as libc::c_int;
+
     match guessed_type {
         9 => {
             r = mailimf_orig_date_parse(message, length, &mut cur_token, &mut orig_date);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = MAILIMF_FIELD_ORIG_DATE as libc::c_int;
-                current_block = 9846950269610550213;
+                *result = mailimf_field::OrigDate(orig_date);
+                *indx = cur_token;
+                return MAILIMF_NO_ERROR as libc::c_int;
             } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 9846950269610550213;
+                try_optional = true;
             } else {
-                /* do nothing */
-                res = r;
-                current_block = 10956553358380301606;
+                return r;
             }
         }
         10 => {
             r = mailimf_from_parse(message, length, &mut cur_token, &mut from);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 9846950269610550213;
+                *result = mailimf_field::From(from);
+                *indx = cur_token;
+                return MAILIMF_NO_ERROR as libc::c_int;
             } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 9846950269610550213;
+                try_optional = true;
             } else {
-                /* do nothing */
-                res = r;
-                current_block = 10956553358380301606;
+                return r;
             }
         }
         11 => {
             r = mailimf_sender_parse(message, length, &mut cur_token, &mut sender);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 9846950269610550213;
+                *result = mailimf_field::Sender(sender);
+                *indx = cur_token;
+                return MAILIMF_NO_ERROR as libc::c_int;
             } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 9846950269610550213;
+                try_optional = true;
             } else {
-                /* do nothing */
-                res = r;
-                current_block = 10956553358380301606;
+                return r;
             }
         }
         12 => {
             r = mailimf_reply_to_parse(message, length, &mut cur_token, &mut reply_to);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 9846950269610550213;
+                *result = mailimf_field::ReplyTo(reply_to);
+                *indx = cur_token;
+                return MAILIMF_NO_ERROR as libc::c_int;
             } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 9846950269610550213;
+                try_optional = true;
             } else {
-                /* do nothing */
-                res = r;
-                current_block = 10956553358380301606;
+                return r;
             }
         }
         13 => {
             r = mailimf_to_parse(message, length, &mut cur_token, &mut to);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 9846950269610550213;
+                *result = mailimf_field::To(to);
+                *indx = cur_token;
+                return MAILIMF_NO_ERROR as libc::c_int;
             } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 9846950269610550213;
+                try_optional = true;
             } else {
-                /* do nothing */
-                res = r;
-                current_block = 10956553358380301606;
+                return r;
             }
         }
         14 => {
             r = mailimf_cc_parse(message, length, &mut cur_token, &mut cc);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 9846950269610550213;
+                *result = mailimf_field::Cc(cc);
+                *indx = cur_token;
+                return MAILIMF_NO_ERROR as libc::c_int;
             } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 9846950269610550213;
+                try_optional = true;
             } else {
-                /* do nothing */
-                res = r;
-                current_block = 10956553358380301606;
+                return r;
             }
         }
         15 => {
             r = mailimf_bcc_parse(message, length, &mut cur_token, &mut bcc);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 9846950269610550213;
+                *result = mailimf_field::Bcc(bcc);
+                *indx = cur_token;
+                return MAILIMF_NO_ERROR as libc::c_int;
             } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 9846950269610550213;
+                try_optional = true;
             } else {
-                /* do nothing */
-                res = r;
-                current_block = 10956553358380301606;
+                return r;
             }
         }
         16 => {
             r = mailimf_message_id_parse(message, length, &mut cur_token, &mut message_id);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 9846950269610550213;
+                *result = mailimf_field::MessageId(message_id);
+                *indx = cur_token;
+                return MAILIMF_NO_ERROR as libc::c_int;
             } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 9846950269610550213;
+                try_optional = true;
             } else {
-                /* do nothing */
-                res = r;
-                current_block = 10956553358380301606;
+                return r;
             }
         }
         17 => {
             r = mailimf_in_reply_to_parse(message, length, &mut cur_token, &mut in_reply_to);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 9846950269610550213;
+                *result = mailimf_field::InReplyTo(in_reply_to);
+                *indx = cur_token;
+                return MAILIMF_NO_ERROR as libc::c_int;
             } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 9846950269610550213;
+                try_optional = true;
             } else {
-                /* do nothing */
-                res = r;
-                current_block = 10956553358380301606;
+                return r;
             }
         }
         18 => {
             r = mailimf_references_parse(message, length, &mut cur_token, &mut references);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 9846950269610550213;
+                *result = mailimf_field::References(references);
+                *indx = cur_token;
+                return MAILIMF_NO_ERROR as libc::c_int;
             } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 9846950269610550213;
+                try_optional = true;
             } else {
-                /* do nothing */
-                res = r;
-                current_block = 10956553358380301606;
+                return r;
             }
         }
         19 => {
             r = mailimf_subject_parse(message, length, &mut cur_token, &mut subject);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 9846950269610550213;
+                *result = mailimf_field::Subject(subject);
+                *indx = cur_token;
+                return MAILIMF_NO_ERROR as libc::c_int;
             } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 9846950269610550213;
+                try_optional = true;
             } else {
-                /* do nothing */
-                res = r;
-                current_block = 10956553358380301606;
+                return r;
             }
         }
         20 => {
             r = mailimf_comments_parse(message, length, &mut cur_token, &mut comments);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 9846950269610550213;
+                *result = mailimf_field::Comments(comments);
+                *indx = cur_token;
+                return MAILIMF_NO_ERROR as libc::c_int;
             } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 9846950269610550213;
+                try_optional = true;
             } else {
-                /* do nothing */
-                res = r;
-                current_block = 10956553358380301606;
+                return r;
             }
         }
         21 => {
             r = mailimf_keywords_parse(message, length, &mut cur_token, &mut keywords);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 9846950269610550213;
+                *result = mailimf_field::Keywords(keywords);
+                *indx = cur_token;
+                return MAILIMF_NO_ERROR as libc::c_int;
             } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 9846950269610550213;
+                try_optional = true;
             } else {
-                /* do nothing */
-                res = r;
-                current_block = 10956553358380301606;
+                return r;
             }
         }
         1 => {
             r = mailimf_return_parse(message, length, &mut cur_token, &mut return_path);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 9846950269610550213;
+                *result = mailimf_field::ReturnPath(return_path);
+                *indx = cur_token;
+                return MAILIMF_NO_ERROR as libc::c_int;
             } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 9846950269610550213;
+                try_optional = true;
             } else {
-                /* do nothing */
-                res = r;
-                current_block = 10956553358380301606;
+                return r;
             }
         }
         2 => {
             r = mailimf_resent_date_parse(message, length, &mut cur_token, &mut resent_date);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 9846950269610550213;
+                *result = mailimf_field::ResentDate(resent_date);
+                *indx = cur_token;
+                return MAILIMF_NO_ERROR as libc::c_int;
             } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 9846950269610550213;
+                try_optional = true;
             } else {
-                /* do nothing */
-                res = r;
-                current_block = 10956553358380301606;
+                return r;
             }
         }
         3 => {
             r = mailimf_resent_from_parse(message, length, &mut cur_token, &mut resent_from);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 9846950269610550213;
+                *result = mailimf_field::ResentFrom(resent_from);
+                *indx = cur_token;
+                return MAILIMF_NO_ERROR as libc::c_int;
             } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 9846950269610550213;
+                try_optional = true;
             } else {
-                /* do nothing */
-                res = r;
-                current_block = 10956553358380301606;
+                return r;
             }
         }
         4 => {
             r = mailimf_resent_sender_parse(message, length, &mut cur_token, &mut resent_sender);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 9846950269610550213;
+                *result = mailimf_field::ResentSender(resent_sender);
+                *indx = cur_token;
+                return MAILIMF_NO_ERROR as libc::c_int;
             } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 9846950269610550213;
+                try_optional = true;
             } else {
-                /* do nothing */
-                res = r;
-                current_block = 10956553358380301606;
+                return r;
             }
         }
         5 => {
             r = mailimf_resent_to_parse(message, length, &mut cur_token, &mut resent_to);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 9846950269610550213;
+                *result = mailimf_field::ResentTo(resent_to);
+                *indx = cur_token;
+                return MAILIMF_NO_ERROR as libc::c_int;
             } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 9846950269610550213;
+                try_optional = true;
             } else {
-                /* do nothing */
-                res = r;
-                current_block = 10956553358380301606;
+                return r;
             }
         }
         6 => {
             r = mailimf_resent_cc_parse(message, length, &mut cur_token, &mut resent_cc);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 9846950269610550213;
+                *result = mailimf_field::ResentCc(resent_cc);
+                *indx = cur_token;
+                return MAILIMF_NO_ERROR as libc::c_int;
             } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 9846950269610550213;
+                try_optional = true;
             } else {
-                /* do nothing */
-                res = r;
-                current_block = 10956553358380301606;
+                return r;
             }
         }
         7 => {
             r = mailimf_resent_bcc_parse(message, length, &mut cur_token, &mut resent_bcc);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 9846950269610550213;
+                *result = mailimf_field::ResentBcc(resent_bcc);
+                *indx = cur_token;
+                return MAILIMF_NO_ERROR as libc::c_int;
             } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 9846950269610550213;
+                try_optional = true;
             } else {
-                /* do nothing */
-                res = r;
-                current_block = 10956553358380301606;
+                return r;
             }
         }
         8 => {
             r = mailimf_resent_msg_id_parse(message, length, &mut cur_token, &mut resent_msg_id);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 9846950269610550213;
+                *result = mailimf_field::ResentMsgId(resent_msg_id);
+                *indx = cur_token;
+                return MAILIMF_NO_ERROR as libc::c_int;
             } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 9846950269610550213;
+                try_optional = true;
             } else {
-                /* do nothing */
-                res = r;
-                current_block = 10956553358380301606;
+                return r;
             }
         }
         _ => {
-            current_block = 9846950269610550213;
+            try_optional = true;
         }
     }
-    match current_block {
-        9846950269610550213 => {
-            if type_0 == MAILIMF_FIELD_NONE as libc::c_int {
-                r = mailimf_optional_field_parse(
-                    message,
-                    length,
-                    &mut cur_token,
-                    &mut optional_field,
-                );
-                if r != MAILIMF_NO_ERROR as libc::c_int {
-                    res = r;
-                    current_block = 10956553358380301606;
-                } else {
-                    type_0 = MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int;
-                    current_block = 2920409193602730479;
-                }
-            } else {
-                current_block = 2920409193602730479;
-            }
-            match current_block {
-                10956553358380301606 => {}
-                _ => {
-                    field = mailimf_field_new(
-                        type_0,
-                        return_path,
-                        resent_date,
-                        resent_from,
-                        resent_sender,
-                        resent_to,
-                        resent_cc,
-                        resent_bcc,
-                        resent_msg_id,
-                        orig_date,
-                        from,
-                        sender,
-                        reply_to,
-                        to,
-                        cc,
-                        bcc,
-                        message_id,
-                        in_reply_to,
-                        references,
-                        subject,
-                        comments,
-                        keywords,
-                        optional_field,
-                    );
-                    if field.is_null() {
-                        res = MAILIMF_ERROR_MEMORY as libc::c_int;
-                        if !return_path.is_null() {
-                            mailimf_return_free(return_path);
-                        }
-                        if !resent_date.is_null() {
-                            mailimf_orig_date_free(resent_date);
-                        }
-                        if !resent_from.is_null() {
-                            mailimf_from_free(resent_from);
-                        }
-                        if !resent_sender.is_null() {
-                            mailimf_sender_free(resent_sender);
-                        }
-                        if !resent_to.is_null() {
-                            mailimf_to_free(resent_to);
-                        }
-                        if !resent_cc.is_null() {
-                            mailimf_cc_free(resent_cc);
-                        }
-                        if !resent_bcc.is_null() {
-                            mailimf_bcc_free(resent_bcc);
-                        }
-                        if !resent_msg_id.is_null() {
-                            mailimf_message_id_free(resent_msg_id);
-                        }
-                        if !orig_date.is_null() {
-                            mailimf_orig_date_free(orig_date);
-                        }
-                        if !from.is_null() {
-                            mailimf_from_free(from);
-                        }
-                        if !sender.is_null() {
-                            mailimf_sender_free(sender);
-                        }
-                        if !reply_to.is_null() {
-                            mailimf_reply_to_free(reply_to);
-                        }
-                        if !to.is_null() {
-                            mailimf_to_free(to);
-                        }
-                        if !cc.is_null() {
-                            mailimf_cc_free(cc);
-                        }
-                        if !bcc.is_null() {
-                            mailimf_bcc_free(bcc);
-                        }
-                        if !message_id.is_null() {
-                            mailimf_message_id_free(message_id);
-                        }
-                        if !in_reply_to.is_null() {
-                            mailimf_in_reply_to_free(in_reply_to);
-                        }
-                        if !references.is_null() {
-                            mailimf_references_free(references);
-                        }
-                        if !subject.is_null() {
-                            mailimf_subject_free(subject);
-                        }
-                        if !comments.is_null() {
-                            mailimf_comments_free(comments);
-                        }
-                        if !keywords.is_null() {
-                            mailimf_keywords_free(keywords);
-                        }
-                        if !optional_field.is_null() {
-                            mailimf_optional_field_free(optional_field);
-                        }
-                    } else {
-                        *result = field;
-                        *indx = cur_token;
-                        return MAILIMF_NO_ERROR as libc::c_int;
-                    }
-                }
-            }
+
+    if try_optional {
+        r = mailimf_optional_field_parse(message, length, &mut cur_token, &mut optional_field);
+        if r != MAILIMF_NO_ERROR as libc::c_int {
+            return r;
         }
-        _ => {}
+        *result = mailimf_field::OptionalField(optional_field);
+        *indx = cur_token;
+        return MAILIMF_NO_ERROR as libc::c_int;
     }
-    return res;
+
+    res
 }
+
 unsafe fn mailimf_optional_field_parse(
     mut message: *const libc::c_char,
     mut length: size_t,
@@ -3917,8 +3721,9 @@ unsafe fn mailimf_keywords_parse(
             }
         }
     }
-    return res;
+    res
 }
+
 unsafe fn mailimf_comments_parse(
     mut message: *const libc::c_char,
     mut length: size_t,
@@ -4027,7 +3832,7 @@ pub unsafe fn mailimf_references_parse(
 ) -> libc::c_int {
     let mut references: *mut mailimf_references = 0 as *mut mailimf_references;
     let mut cur_token: size_t = 0;
-    let mut msg_id_list: *mut clist = 0 as *mut clist;
+    let mut msg_id_list = Vec::new();
     let mut r: libc::c_int = 0;
     let mut res: libc::c_int = 0;
     cur_token = *indx;
@@ -4053,7 +3858,8 @@ pub unsafe fn mailimf_references_parse(
                 if r != MAILIMF_NO_ERROR as libc::c_int {
                     res = r
                 } else {
-                    references = mailimf_references_new(msg_id_list);
+                    // references = mailimf_references_new(msg_id_list);
+                    panic!("implement me correctly");
                     if references.is_null() {
                         res = MAILIMF_ERROR_MEMORY as libc::c_int
                     } else {
@@ -4062,15 +3868,10 @@ pub unsafe fn mailimf_references_parse(
                         return MAILIMF_NO_ERROR as libc::c_int;
                     }
                 }
-                clist_foreach(
-                    msg_id_list,
-                    ::std::mem::transmute::<
-                        Option<unsafe fn(_: *mut libc::c_char) -> ()>,
-                        clist_func,
-                    >(Some(mailimf_msg_id_free)),
-                    0 as *mut libc::c_void,
-                );
-                clist_free(msg_id_list);
+
+                for el in &msg_id_list {
+                    mailimf_msg_id_free(*el);
+                }
             }
         }
     }
@@ -4078,45 +3879,26 @@ pub unsafe fn mailimf_references_parse(
 }
 
 pub unsafe fn mailimf_msg_id_list_parse(
-    mut message: *const libc::c_char,
-    mut length: size_t,
-    mut indx: *mut size_t,
-    mut result: *mut *mut clist,
+    message: *const libc::c_char,
+    length: size_t,
+    indx: *mut size_t,
+    result: &mut Vec<*mut libc::c_char>,
 ) -> libc::c_int {
-    return mailimf_struct_multiple_parse(
+    mailimf_struct_multiple_parse(
         message,
         length,
         indx,
         result,
-        ::std::mem::transmute::<
-            Option<
-                unsafe fn(
-                    _: *const libc::c_char,
-                    _: size_t,
-                    _: *mut size_t,
-                    _: *mut *mut libc::c_char,
-                ) -> libc::c_int,
-            >,
-            Option<
-                unsafe fn(
-                    _: *const libc::c_char,
-                    _: size_t,
-                    _: *mut size_t,
-                    _: *mut libc::c_void,
-                ) -> libc::c_int,
-            >,
-        >(Some(mailimf_unstrict_msg_id_parse)),
-        ::std::mem::transmute::<
-            Option<unsafe fn(_: *mut libc::c_char) -> ()>,
-            Option<unsafe fn(_: *mut libc::c_void) -> libc::c_int>,
-        >(Some(mailimf_msg_id_free)),
-    );
+        Some(mailimf_unstrict_msg_id_parse),
+        Some(mailimf_msg_id_free),
+    )
 }
+
 unsafe fn mailimf_unstrict_msg_id_parse(
-    mut message: *const libc::c_char,
-    mut length: size_t,
-    mut indx: *mut size_t,
-    mut result: *mut *mut libc::c_char,
+    message: *const libc::c_char,
+    length: size_t,
+    indx: *mut size_t,
+    result: &mut *mut libc::c_char,
 ) -> libc::c_int {
     let mut msgid: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut cur_token: size_t = 0;
@@ -4383,93 +4165,65 @@ pub unsafe fn mailimf_atom_parse(
     }
     return res;
 }
-unsafe fn mailimf_struct_multiple_parse(
+unsafe fn mailimf_struct_multiple_parse<T>(
     mut message: *const libc::c_char,
     mut length: size_t,
     mut indx: *mut size_t,
-    mut result: *mut *mut clist,
+    mut result: &mut Vec<T>,
     mut parser: Option<
-        unsafe fn(
-            _: *const libc::c_char,
-            _: size_t,
-            _: *mut size_t,
-            _: *mut libc::c_void,
-        ) -> libc::c_int,
+        unsafe fn(_: *const libc::c_char, _: size_t, _: *mut size_t, _: &mut T) -> libc::c_int,
     >,
-    mut destructor: Option<unsafe fn(_: *mut libc::c_void) -> libc::c_int>,
+    mut destructor: Option<unsafe fn(_: T)>,
 ) -> libc::c_int {
     let mut current_block: u64;
-    let mut struct_list: *mut clist = 0 as *mut clist;
+    let mut struct_list = Vec::new();
     let mut cur_token: size_t = 0;
-    let mut value: *mut libc::c_void = 0 as *mut libc::c_void;
+    let mut value: T;
+
     let mut r: libc::c_int = 0;
     let mut res: libc::c_int = 0;
     cur_token = *indx;
-    r = parser.expect("non-null function pointer")(
-        message,
-        length,
-        &mut cur_token,
-        &mut value as *mut *mut libc::c_void as *mut libc::c_void,
-    );
+    r = parser.expect("non-null function pointer")(message, length, &mut cur_token, &mut value);
     if r != MAILIMF_NO_ERROR as libc::c_int {
         res = r
     } else {
-        struct_list = clist_new();
-        if struct_list.is_null() {
-            destructor.expect("non-null function pointer")(value);
-            res = MAILIMF_ERROR_MEMORY as libc::c_int
-        } else {
-            r = clist_insert_after(struct_list, (*struct_list).last, value);
-            if r < 0i32 {
-                destructor.expect("non-null function pointer")(value);
-                res = MAILIMF_ERROR_MEMORY as libc::c_int
-            } else {
-                loop {
-                    r = parser.expect("non-null function pointer")(
-                        message,
-                        length,
-                        &mut cur_token,
-                        &mut value as *mut *mut libc::c_void as *mut libc::c_void,
-                    );
-                    if r != MAILIMF_NO_ERROR as libc::c_int {
-                        if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                            current_block = 11057878835866523405;
-                            break;
-                        }
-                        res = r;
-                        current_block = 8222683242185098763;
-                        break;
-                    } else {
-                        r = clist_insert_after(struct_list, (*struct_list).last, value);
-                        if !(r < 0i32) {
-                            continue;
-                        }
-                        destructor.expect("non-null function pointer")(value);
-                        res = MAILIMF_ERROR_MEMORY as libc::c_int;
-                        current_block = 8222683242185098763;
-                        break;
-                    }
-                }
-                match current_block {
-                    8222683242185098763 => {}
-                    _ => {
-                        *result = struct_list;
-                        *indx = cur_token;
-                        return MAILIMF_NO_ERROR as libc::c_int;
-                    }
-                }
-            }
-            clist_foreach(
-                struct_list,
-                ::std::mem::transmute::<
-                    Option<unsafe fn(_: *mut libc::c_void) -> libc::c_int>,
-                    clist_func,
-                >(destructor),
-                0 as *mut libc::c_void,
+        struct_list.push(value);
+        loop {
+            r = parser.expect("non-null function pointer")(
+                message,
+                length,
+                &mut cur_token,
+                &mut value,
             );
-            clist_free(struct_list);
+            if r != MAILIMF_NO_ERROR as libc::c_int {
+                if r == MAILIMF_ERROR_PARSE as libc::c_int {
+                    current_block = 11057878835866523405;
+                    break;
+                }
+                res = r;
+                current_block = 8222683242185098763;
+                break;
+            } else {
+                struct_list.push(value);
+                continue;
+            }
+        }
+        match current_block {
+            8222683242185098763 => {}
+            _ => {
+                *result = struct_list;
+                *indx = cur_token;
+                return MAILIMF_NO_ERROR as libc::c_int;
+            }
+        }
+
+        if let Some(destructor) = destructor {
+            for el in &struct_list {
+                destructor(*el);
+            }
         }
     }
+
     return res;
 }
 unsafe fn mailimf_in_reply_to_parse(
@@ -4480,7 +4234,7 @@ unsafe fn mailimf_in_reply_to_parse(
 ) -> libc::c_int {
     let mut in_reply_to: *mut mailimf_in_reply_to = 0 as *mut mailimf_in_reply_to;
     let mut cur_token: size_t = 0;
-    let mut msg_id_list: *mut clist = 0 as *mut clist;
+    let mut msg_id_list = Vec::new();
     let mut res: libc::c_int = 0;
     let mut r: libc::c_int = 0;
     cur_token = *indx;
@@ -4506,7 +4260,8 @@ unsafe fn mailimf_in_reply_to_parse(
                 if r != MAILIMF_NO_ERROR as libc::c_int {
                     res = r
                 } else {
-                    in_reply_to = mailimf_in_reply_to_new(msg_id_list);
+                    // in_reply_to = mailimf_in_reply_to_new(msg_id_list);
+                    panic!("implement me correctly");
                     if in_reply_to.is_null() {
                         res = MAILIMF_ERROR_MEMORY as libc::c_int
                     } else {
@@ -4515,15 +4270,9 @@ unsafe fn mailimf_in_reply_to_parse(
                         return MAILIMF_NO_ERROR as libc::c_int;
                     }
                 }
-                clist_foreach(
-                    msg_id_list,
-                    ::std::mem::transmute::<
-                        Option<unsafe fn(_: *mut libc::c_char) -> ()>,
-                        clist_func,
-                    >(Some(mailimf_msg_id_free)),
-                    0 as *mut libc::c_void,
-                );
-                clist_free(msg_id_list);
+                for el in &msg_id_list {
+                    mailimf_msg_id_free(*el);
+                }
             }
         }
     }
@@ -5130,71 +4879,49 @@ pub unsafe fn mailimf_envelope_fields_parse(
 ) -> libc::c_int {
     let mut current_block: u64;
     let mut cur_token: size_t = 0;
-    let mut list: *mut clist = 0 as *mut clist;
     let mut fields: *mut mailimf_fields = 0 as *mut mailimf_fields;
     let mut r: libc::c_int = 0;
     let mut res: libc::c_int = 0;
     cur_token = *indx;
-    list = clist_new();
-    if list.is_null() {
-        res = MAILIMF_ERROR_MEMORY as libc::c_int
-    } else {
-        loop {
-            let mut elt: *mut mailimf_field = 0 as *mut mailimf_field;
-            r = mailimf_envelope_field_parse(message, length, &mut cur_token, &mut elt);
+    let mut list = Vec::new();
+
+    loop {
+        let mut elt: mailimf_field;
+        r = mailimf_envelope_field_parse(message, length, &mut cur_token, &mut elt);
+        if r == MAILIMF_NO_ERROR as libc::c_int {
+            list.push(elt);
+            continue;
+        } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
+            r = mailimf_ignore_field_parse(message, length, &mut cur_token);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                r = clist_insert_after(list, (*list).last, elt as *mut libc::c_void);
-                if !(r < 0i32) {
-                    continue;
-                }
-                res = MAILIMF_ERROR_MEMORY as libc::c_int;
-                current_block = 894413572976700158;
-                break;
-            } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                r = mailimf_ignore_field_parse(message, length, &mut cur_token);
-                if r == MAILIMF_NO_ERROR as libc::c_int {
-                    continue;
-                }
-                /* do nothing */
-                if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                    current_block = 2719512138335094285;
-                    break;
-                }
-                res = r;
-                current_block = 894413572976700158;
-                break;
-            } else {
-                res = r;
-                current_block = 894413572976700158;
+                continue;
+            }
+            /* do nothing */
+            if r == MAILIMF_ERROR_PARSE as libc::c_int {
+                current_block = 2719512138335094285;
                 break;
             }
-        }
-        match current_block {
-            2719512138335094285 => {
-                fields = mailimf_fields_new(list);
-                if fields.is_null() {
-                    res = MAILIMF_ERROR_MEMORY as libc::c_int
-                } else {
-                    *result = fields;
-                    *indx = cur_token;
-                    return MAILIMF_NO_ERROR as libc::c_int;
-                }
-            }
-            _ => {}
-        }
-        if !list.is_null() {
-            clist_foreach(
-                list,
-                ::std::mem::transmute::<Option<unsafe fn(_: *mut mailimf_field) -> ()>, clist_func>(
-                    Some(mailimf_field_free),
-                ),
-                0 as *mut libc::c_void,
-            );
-            clist_free(list);
+            res = r;
+            current_block = 894413572976700158;
+            break;
+        } else {
+            res = r;
+            current_block = 894413572976700158;
+            break;
         }
     }
-    return res;
+    match current_block {
+        2719512138335094285 => {
+            *result = mailimf_fields_new(list);
+            *indx = cur_token;
+            return MAILIMF_NO_ERROR as libc::c_int;
+        }
+        _ => {}
+    }
+
+    res
 }
+
 /*
   mailimf_ignore_field_parse will skip the given field
 
@@ -5302,12 +5029,11 @@ static int mailimf_ftext_parse(const char * message, size_t length,
 }
 */
 unsafe fn mailimf_envelope_field_parse(
-    mut message: *const libc::c_char,
-    mut length: size_t,
-    mut indx: *mut size_t,
-    mut result: *mut *mut mailimf_field,
+    message: *const libc::c_char,
+    length: size_t,
+    indx: *mut size_t,
+    result: &mut mailimf_field,
 ) -> libc::c_int {
-    let mut current_block: u64;
     let mut cur_token: size_t = 0;
     let mut type_0: libc::c_int = 0;
     let mut orig_date: *mut mailimf_orig_date = 0 as *mut mailimf_orig_date;
@@ -5322,252 +5048,100 @@ unsafe fn mailimf_envelope_field_parse(
     let mut references: *mut mailimf_references = 0 as *mut mailimf_references;
     let mut subject: *mut mailimf_subject = 0 as *mut mailimf_subject;
     let mut optional_field: *mut mailimf_optional_field = 0 as *mut mailimf_optional_field;
-    let mut field: *mut mailimf_field = 0 as *mut mailimf_field;
-    let mut guessed_type: libc::c_int = 0;
-    let mut r: libc::c_int = 0;
-    let mut res: libc::c_int = 0;
-    cur_token = *indx;
-    orig_date = 0 as *mut mailimf_orig_date;
-    from = 0 as *mut mailimf_from;
-    sender = 0 as *mut mailimf_sender;
-    reply_to = 0 as *mut mailimf_reply_to;
-    to = 0 as *mut mailimf_to;
-    cc = 0 as *mut mailimf_cc;
-    bcc = 0 as *mut mailimf_bcc;
-    message_id = 0 as *mut mailimf_message_id;
-    in_reply_to = 0 as *mut mailimf_in_reply_to;
-    references = 0 as *mut mailimf_references;
-    subject = 0 as *mut mailimf_subject;
-    optional_field = 0 as *mut mailimf_optional_field;
-    guessed_type = guess_header_type(message, length, cur_token);
-    type_0 = MAILIMF_FIELD_NONE as libc::c_int;
+
+    let mut r = 0;
+
+    let mut cur_token = *indx;
+    let guessed_type = guess_header_type(message, length, cur_token);
+
+    let mut try_optional = false;
+
     match guessed_type {
         9 => {
             r = mailimf_orig_date_parse(message, length, &mut cur_token, &mut orig_date);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 4488496028633655612;
-            } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 4488496028633655612;
-            } else {
-                /* do nothing */
-                res = r;
-                current_block = 15605017197726313499;
+                *result = mailimf_field::OrigDate(orig_date);
+                *indx = cur_token;
             }
         }
         10 => {
             r = mailimf_from_parse(message, length, &mut cur_token, &mut from);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 4488496028633655612;
-            } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 4488496028633655612;
-            } else {
-                /* do nothing */
-                res = r;
-                current_block = 15605017197726313499;
+                *result = mailimf_field::From(from);
+                *indx = cur_token;
             }
         }
         11 => {
             r = mailimf_sender_parse(message, length, &mut cur_token, &mut sender);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 4488496028633655612;
-            } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 4488496028633655612;
-            } else {
-                /* do nothing */
-                res = r;
-                current_block = 15605017197726313499;
+                *result = mailimf_field::Sender(sender);
+                *indx = cur_token;
             }
         }
         12 => {
             r = mailimf_reply_to_parse(message, length, &mut cur_token, &mut reply_to);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 4488496028633655612;
-            } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 4488496028633655612;
-            } else {
-                /* do nothing */
-                res = r;
-                current_block = 15605017197726313499;
+                *result = mailimf_field::ReplyTo(reply_to);
+                *indx = cur_token;
             }
         }
         13 => {
             r = mailimf_to_parse(message, length, &mut cur_token, &mut to);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 4488496028633655612;
-            } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 4488496028633655612;
-            } else {
-                /* do nothing */
-                res = r;
-                current_block = 15605017197726313499;
+                *result = mailimf_field::To(to);
+                *indx = cur_token;
             }
         }
         14 => {
             r = mailimf_cc_parse(message, length, &mut cur_token, &mut cc);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 4488496028633655612;
-            } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 4488496028633655612;
-            } else {
-                /* do nothing */
-                res = r;
-                current_block = 15605017197726313499;
+                *result = mailimf_field::Cc(cc);
+                *indx = cur_token;
             }
         }
         15 => {
             r = mailimf_bcc_parse(message, length, &mut cur_token, &mut bcc);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 4488496028633655612;
-            } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 4488496028633655612;
-            } else {
-                /* do nothing */
-                res = r;
-                current_block = 15605017197726313499;
+                *result = mailimf_field::Bcc(bcc);
+                *indx = cur_token;
             }
         }
         16 => {
             r = mailimf_message_id_parse(message, length, &mut cur_token, &mut message_id);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 4488496028633655612;
-            } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 4488496028633655612;
-            } else {
-                /* do nothing */
-                res = r;
-                current_block = 15605017197726313499;
+                *result = mailimf_field::MessageId(message_id);
+                *indx = cur_token;
             }
         }
         17 => {
             r = mailimf_in_reply_to_parse(message, length, &mut cur_token, &mut in_reply_to);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 4488496028633655612;
-            } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 4488496028633655612;
-            } else {
-                /* do nothing */
-                res = r;
-                current_block = 15605017197726313499;
+                *result = mailimf_field::InReplyTo(in_reply_to);
+                *indx = cur_token;
             }
         }
         18 => {
             r = mailimf_references_parse(message, length, &mut cur_token, &mut references);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 4488496028633655612;
-            } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 4488496028633655612;
-            } else {
-                /* do nothing */
-                res = r;
-                current_block = 15605017197726313499;
+                *result = mailimf_field::References(references);
+                *indx = cur_token;
             }
         }
         19 => {
             r = mailimf_subject_parse(message, length, &mut cur_token, &mut subject);
             if r == MAILIMF_NO_ERROR as libc::c_int {
-                type_0 = guessed_type;
-                current_block = 4488496028633655612;
-            } else if r == MAILIMF_ERROR_PARSE as libc::c_int {
-                current_block = 4488496028633655612;
-            } else {
-                /* do nothing */
-                res = r;
-                current_block = 15605017197726313499;
+                *result = mailimf_field::Subject(subject);
+                *indx = cur_token;
             }
         }
         _ => {
-            current_block = 4488496028633655612;
+            r = MAILIMF_ERROR_PARSE as libc::c_int;
         }
     }
-    match current_block {
-        4488496028633655612 => {
-            if type_0 == MAILIMF_FIELD_NONE as libc::c_int {
-                res = MAILIMF_ERROR_PARSE as libc::c_int
-            } else {
-                field = mailimf_field_new(
-                    type_0,
-                    0 as *mut mailimf_return,
-                    0 as *mut mailimf_orig_date,
-                    0 as *mut mailimf_from,
-                    0 as *mut mailimf_sender,
-                    0 as *mut mailimf_to,
-                    0 as *mut mailimf_cc,
-                    0 as *mut mailimf_bcc,
-                    0 as *mut mailimf_message_id,
-                    orig_date,
-                    from,
-                    sender,
-                    reply_to,
-                    to,
-                    cc,
-                    bcc,
-                    message_id,
-                    in_reply_to,
-                    references,
-                    subject,
-                    0 as *mut mailimf_comments,
-                    0 as *mut mailimf_keywords,
-                    optional_field,
-                );
-                if field.is_null() {
-                    res = MAILIMF_ERROR_MEMORY as libc::c_int;
-                    if !orig_date.is_null() {
-                        mailimf_orig_date_free(orig_date);
-                    }
-                    if !from.is_null() {
-                        mailimf_from_free(from);
-                    }
-                    if !sender.is_null() {
-                        mailimf_sender_free(sender);
-                    }
-                    if !reply_to.is_null() {
-                        mailimf_reply_to_free(reply_to);
-                    }
-                    if !to.is_null() {
-                        mailimf_to_free(to);
-                    }
-                    if !cc.is_null() {
-                        mailimf_cc_free(cc);
-                    }
-                    if !bcc.is_null() {
-                        mailimf_bcc_free(bcc);
-                    }
-                    if !message_id.is_null() {
-                        mailimf_message_id_free(message_id);
-                    }
-                    if !in_reply_to.is_null() {
-                        mailimf_in_reply_to_free(in_reply_to);
-                    }
-                    if !references.is_null() {
-                        mailimf_references_free(references);
-                    }
-                    if !subject.is_null() {
-                        mailimf_subject_free(subject);
-                    }
-                    if !optional_field.is_null() {
-                        mailimf_optional_field_free(optional_field);
-                    }
-                } else {
-                    *result = field;
-                    *indx = cur_token;
-                    return MAILIMF_NO_ERROR as libc::c_int;
-                }
-            }
-        }
-        _ => {}
-    }
-    return res;
+
+    r
 }
+
 /*
   mailimf_envelope_fields will parse the given fields (Date,
   From, Sender, Reply-To, To, Cc, Bcc, Message-ID, In-Reply-To,
@@ -5592,39 +5166,19 @@ pub unsafe fn mailimf_envelope_and_optional_fields_parse(
 ) -> libc::c_int {
     let mut current_block: u64;
     let mut cur_token: size_t = 0;
-    let mut list: *mut clist = 0 as *mut clist;
+    let mut list: Vec<mailimf_field> = Vec::new();
     let mut fields: *mut mailimf_fields = 0 as *mut mailimf_fields;
     let mut r: libc::c_int = 0;
     let mut res: libc::c_int = 0;
     cur_token = *indx;
-    list = 0 as *mut clist;
+
     r = mailimf_struct_multiple_parse(
         message,
         length,
         &mut cur_token,
         &mut list,
-        ::std::mem::transmute::<
-            Option<
-                unsafe fn(
-                    _: *const libc::c_char,
-                    _: size_t,
-                    _: *mut size_t,
-                    _: *mut *mut mailimf_field,
-                ) -> libc::c_int,
-            >,
-            Option<
-                unsafe fn(
-                    _: *const libc::c_char,
-                    _: size_t,
-                    _: *mut size_t,
-                    _: *mut libc::c_void,
-                ) -> libc::c_int,
-            >,
-        >(Some(mailimf_envelope_or_optional_field_parse)),
-        ::std::mem::transmute::<
-            Option<unsafe fn(_: *mut mailimf_field) -> ()>,
-            Option<unsafe fn(_: *mut libc::c_void) -> libc::c_int>,
-        >(Some(mailimf_field_free)),
+        Some(mailimf_envelope_or_optional_field_parse),
+        None,
     );
     match r {
         0 => {
@@ -5632,13 +5186,8 @@ pub unsafe fn mailimf_envelope_and_optional_fields_parse(
             current_block = 11050875288958768710;
         }
         1 => {
-            list = clist_new();
-            if list.is_null() {
-                res = MAILIMF_ERROR_MEMORY as libc::c_int;
-                current_block = 7755940856643933760;
-            } else {
-                current_block = 11050875288958768710;
-            }
+            list.clear();
+            current_block = 11050875288958768710;
         }
         _ => {
             res = r;
@@ -5647,35 +5196,21 @@ pub unsafe fn mailimf_envelope_and_optional_fields_parse(
     }
     match current_block {
         11050875288958768710 => {
-            fields = mailimf_fields_new(list);
-            if fields.is_null() {
-                res = MAILIMF_ERROR_MEMORY as libc::c_int;
-                if !list.is_null() {
-                    clist_foreach(
-                        list,
-                        ::std::mem::transmute::<
-                            Option<unsafe fn(_: *mut mailimf_field) -> ()>,
-                            clist_func,
-                        >(Some(mailimf_field_free)),
-                        0 as *mut libc::c_void,
-                    );
-                    clist_free(list);
-                }
-            } else {
-                *result = fields;
-                *indx = cur_token;
-                return MAILIMF_NO_ERROR as libc::c_int;
-            }
+            *result = mailimf_fields_new(list);
+            *indx = cur_token;
+            return MAILIMF_NO_ERROR as libc::c_int;
         }
         _ => {}
     }
-    return res;
+
+    res
 }
+
 unsafe fn mailimf_envelope_or_optional_field_parse(
-    mut message: *const libc::c_char,
-    mut length: size_t,
-    mut indx: *mut size_t,
-    mut result: *mut *mut mailimf_field,
+    message: *const libc::c_char,
+    length: size_t,
+    indx: *mut size_t,
+    result: &mut mailimf_field,
 ) -> libc::c_int {
     let mut r: libc::c_int = 0;
     let mut cur_token: size_t = 0;
@@ -5690,38 +5225,10 @@ unsafe fn mailimf_envelope_or_optional_field_parse(
     if r != MAILIMF_NO_ERROR as libc::c_int {
         return r;
     }
-    field = mailimf_field_new(
-        MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int,
-        0 as *mut mailimf_return,
-        0 as *mut mailimf_orig_date,
-        0 as *mut mailimf_from,
-        0 as *mut mailimf_sender,
-        0 as *mut mailimf_to,
-        0 as *mut mailimf_cc,
-        0 as *mut mailimf_bcc,
-        0 as *mut mailimf_message_id,
-        0 as *mut mailimf_orig_date,
-        0 as *mut mailimf_from,
-        0 as *mut mailimf_sender,
-        0 as *mut mailimf_reply_to,
-        0 as *mut mailimf_to,
-        0 as *mut mailimf_cc,
-        0 as *mut mailimf_bcc,
-        0 as *mut mailimf_message_id,
-        0 as *mut mailimf_in_reply_to,
-        0 as *mut mailimf_references,
-        0 as *mut mailimf_subject,
-        0 as *mut mailimf_comments,
-        0 as *mut mailimf_keywords,
-        optional_field,
-    );
-    if field.is_null() {
-        mailimf_optional_field_free(optional_field);
-        return MAILIMF_ERROR_MEMORY as libc::c_int;
-    }
-    *result = field;
+
+    *result = mailimf_field::OptionalField(optional_field);
     *indx = cur_token;
-    return MAILIMF_NO_ERROR as libc::c_int;
+    MAILIMF_NO_ERROR as libc::c_int
 }
 
 /*
@@ -5746,39 +5253,19 @@ pub unsafe fn mailimf_optional_fields_parse(
 ) -> libc::c_int {
     let mut current_block: u64;
     let mut cur_token: size_t = 0;
-    let mut list: *mut clist = 0 as *mut clist;
+    let mut list = Vec::new();
     let mut fields: *mut mailimf_fields = 0 as *mut mailimf_fields;
     let mut r: libc::c_int = 0;
     let mut res: libc::c_int = 0;
     cur_token = *indx;
-    list = 0 as *mut clist;
+
     r = mailimf_struct_multiple_parse(
         message,
         length,
         &mut cur_token,
         &mut list,
-        ::std::mem::transmute::<
-            Option<
-                unsafe fn(
-                    _: *const libc::c_char,
-                    _: size_t,
-                    _: *mut size_t,
-                    _: *mut *mut mailimf_field,
-                ) -> libc::c_int,
-            >,
-            Option<
-                unsafe fn(
-                    _: *const libc::c_char,
-                    _: size_t,
-                    _: *mut size_t,
-                    _: *mut libc::c_void,
-                ) -> libc::c_int,
-            >,
-        >(Some(mailimf_only_optional_field_parse)),
-        ::std::mem::transmute::<
-            Option<unsafe fn(_: *mut mailimf_field) -> ()>,
-            Option<unsafe fn(_: *mut libc::c_void) -> libc::c_int>,
-        >(Some(mailimf_field_free)),
+        Some(mailimf_only_optional_field_parse),
+        None,
     );
     match r {
         0 => {
@@ -5786,13 +5273,8 @@ pub unsafe fn mailimf_optional_fields_parse(
             current_block = 11050875288958768710;
         }
         1 => {
-            list = clist_new();
-            if list.is_null() {
-                res = MAILIMF_ERROR_MEMORY as libc::c_int;
-                current_block = 4409055091581443388;
-            } else {
-                current_block = 11050875288958768710;
-            }
+            list.clear();
+            current_block = 11050875288958768710;
         }
         _ => {
             res = r;
@@ -5801,77 +5283,33 @@ pub unsafe fn mailimf_optional_fields_parse(
     }
     match current_block {
         11050875288958768710 => {
-            fields = mailimf_fields_new(list);
-            if fields.is_null() {
-                res = MAILIMF_ERROR_MEMORY as libc::c_int;
-                if !list.is_null() {
-                    clist_foreach(
-                        list,
-                        ::std::mem::transmute::<
-                            Option<unsafe fn(_: *mut mailimf_field) -> ()>,
-                            clist_func,
-                        >(Some(mailimf_field_free)),
-                        0 as *mut libc::c_void,
-                    );
-                    clist_free(list);
-                }
-            } else {
-                *result = fields;
-                *indx = cur_token;
-                return MAILIMF_NO_ERROR as libc::c_int;
-            }
+            *result = mailimf_fields_new(list);
+            *indx = cur_token;
+            return MAILIMF_NO_ERROR as libc::c_int;
         }
         _ => {}
     }
-    return res;
+    res
 }
+
 unsafe fn mailimf_only_optional_field_parse(
-    mut message: *const libc::c_char,
-    mut length: size_t,
-    mut indx: *mut size_t,
-    mut result: *mut *mut mailimf_field,
+    message: *const libc::c_char,
+    length: size_t,
+    indx: *mut size_t,
+    result: &mut mailimf_field,
 ) -> libc::c_int {
     let mut r: libc::c_int = 0;
     let mut cur_token: size_t = 0;
-    let mut optional_field: *mut mailimf_optional_field = 0 as *mut mailimf_optional_field;
-    let mut field: *mut mailimf_field = 0 as *mut mailimf_field;
+    let mut optional_field = std::ptr::null_mut();
     cur_token = *indx;
     r = mailimf_optional_field_parse(message, length, &mut cur_token, &mut optional_field);
     if r != MAILIMF_NO_ERROR as libc::c_int {
         return r;
     }
-    field = mailimf_field_new(
-        MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int,
-        0 as *mut mailimf_return,
-        0 as *mut mailimf_orig_date,
-        0 as *mut mailimf_from,
-        0 as *mut mailimf_sender,
-        0 as *mut mailimf_to,
-        0 as *mut mailimf_cc,
-        0 as *mut mailimf_bcc,
-        0 as *mut mailimf_message_id,
-        0 as *mut mailimf_orig_date,
-        0 as *mut mailimf_from,
-        0 as *mut mailimf_sender,
-        0 as *mut mailimf_reply_to,
-        0 as *mut mailimf_to,
-        0 as *mut mailimf_cc,
-        0 as *mut mailimf_bcc,
-        0 as *mut mailimf_message_id,
-        0 as *mut mailimf_in_reply_to,
-        0 as *mut mailimf_references,
-        0 as *mut mailimf_subject,
-        0 as *mut mailimf_comments,
-        0 as *mut mailimf_keywords,
-        optional_field,
-    );
-    if field.is_null() {
-        mailimf_optional_field_free(optional_field);
-        return MAILIMF_ERROR_MEMORY as libc::c_int;
-    }
-    *result = field;
+
+    *result = mailimf_field::OptionalField(optional_field);
     *indx = cur_token;
-    return MAILIMF_NO_ERROR as libc::c_int;
+    MAILIMF_NO_ERROR as libc::c_int
 }
 
 pub unsafe fn mailimf_custom_string_parse(

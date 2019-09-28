@@ -1243,30 +1243,21 @@ unsafe fn mailmime_preamble_parse(
     *indx = cur_token;
     return MAILIMF_NO_ERROR as libc::c_int;
 }
-unsafe fn remove_unparsed_mime_headers(mut fields: *mut mailimf_fields) {
-    let mut cur: *mut clistiter = 0 as *mut clistiter;
-    cur = (*(*fields).fld_list).first;
-    while !cur.is_null() {
-        let mut field: *mut mailimf_field = 0 as *mut mailimf_field;
-        let mut delete: libc::c_int = 0;
-        field = (if !cur.is_null() {
-            (*cur).data
-        } else {
-            0 as *mut libc::c_void
-        }) as *mut mailimf_field;
-        match (*field).fld_type {
-            22 => {
-                delete = 0i32;
+unsafe fn remove_unparsed_mime_headers(fields: *mut mailimf_fields) {
+    (*fields).0.retain(|field| {
+        let mut delete = false;
+
+        match field {
+            mailimf_field::OptionalField(data) => {
+                delete = false;
                 if strncasecmp(
-                    (*(*field).fld_data.fld_optional_field).fld_name,
+                    data.fld_name,
                     b"Content-\x00" as *const u8 as *const libc::c_char,
                     8i32 as libc::size_t,
                 ) == 0i32
                 {
                     let mut name: *mut libc::c_char = 0 as *mut libc::c_char;
-                    name = (*(*field).fld_data.fld_optional_field)
-                        .fld_name
-                        .offset(8isize);
+                    name = data.fld_name.offset(8isize);
                     if strcasecmp(name, b"Type\x00" as *const u8 as *const libc::c_char) == 0i32
                         || strcasecmp(
                             name,
@@ -1280,35 +1271,22 @@ unsafe fn remove_unparsed_mime_headers(mut fields: *mut mailimf_fields) {
                         || strcasecmp(name, b"Language\x00" as *const u8 as *const libc::c_char)
                             == 0i32
                     {
-                        delete = 1i32
+                        delete = true;
                     }
                 } else if strcasecmp(
-                    (*(*field).fld_data.fld_optional_field).fld_name,
+                    data.fld_name,
                     b"MIME-Version\x00" as *const u8 as *const libc::c_char,
                 ) == 0i32
                 {
-                    delete = 1i32
-                }
-                if 0 != delete {
-                    cur = clist_delete((*fields).fld_list, cur);
-                    mailimf_field_free(field);
-                } else {
-                    cur = if !cur.is_null() {
-                        (*cur).next
-                    } else {
-                        0 as *mut clistcell
-                    }
+                    delete = true;
                 }
             }
-            _ => {
-                cur = if !cur.is_null() {
-                    (*cur).next
-                } else {
-                    0 as *mut clistcell
-                }
-            }
+            _ => {}
         }
-    }
+
+        // retain keeps everything true
+        !delete
+    });
 }
 
 pub unsafe fn mailmime_extract_boundary(

@@ -50,10 +50,7 @@ pub unsafe fn display_mime(mut mime: *mut Mailmime) {
         }
         MAILMIME_MESSAGE => {
             if !(*mime).mm_data.mm_message.mm_fields.is_null() {
-                if !(*(*(*mime).mm_data.mm_message.mm_fields).fld_list)
-                    .first
-                    .is_null()
-                {
+                if !(*(*mime).mm_data.mm_message.mm_fields).0.is_empty() {
                     println!("headers begin");
                     display_fields((*mime).mm_data.mm_message.mm_fields);
                     println!("headers end");
@@ -279,59 +276,44 @@ unsafe fn display_cc(mut cc: *mut mailimf_cc) {
 unsafe fn display_subject(mut subject: *mut mailimf_subject) {
     print!("{}", CStr::from_ptr((*subject).sbj_value).to_str().unwrap());
 }
-unsafe fn display_field(mut field: *mut mailimf_field) {
-    match (*field).fld_type {
-        9 => {
+unsafe fn display_field(field: &mailimf_field) {
+    match *field {
+        mailimf_field::OrigDate(date) => {
             print!("Date: ");
-            display_orig_date((*field).fld_data.fld_orig_date);
+            display_orig_date(date);
             println!("");
         }
-        10 => {
+        mailimf_field::From(from) => {
             print!("From: ");
-            display_from((*field).fld_data.fld_from);
+            display_from(from);
             println!("");
         }
-        13 => {
+        mailimf_field::To(to) => {
             print!("To: ");
-            display_to((*field).fld_data.fld_to);
+            display_to(to);
             println!("");
         }
-        14 => {
+        mailimf_field::Cc(cc) => {
             print!("Cc: ");
-            display_cc((*field).fld_data.fld_cc);
+            display_cc(cc);
             println!("");
         }
-        19 => {
+        mailimf_field::Subject(subject) => {
             print!("Subject: ");
-            display_subject((*field).fld_data.fld_subject);
+            display_subject(subject);
             println!("");
         }
-        16 => {
+        mailimf_field::MessageId(message_id) => {
             println!(
                 "Message-ID: {}",
-                CStr::from_ptr((*(*field).fld_data.fld_message_id).mid_value)
-                    .to_str()
-                    .unwrap(),
+                CStr::from_ptr((*message_id).mid_value).to_str().unwrap(),
             );
         }
         _ => {}
     };
 }
-unsafe fn display_fields(mut fields: *mut mailimf_fields) {
-    let mut cur: *mut clistiter = 0 as *mut clistiter;
-    cur = (*(*fields).fld_list).first;
-    while !cur.is_null() {
-        let mut f: *mut mailimf_field = 0 as *mut mailimf_field;
-        f = (if !cur.is_null() {
-            (*cur).data
-        } else {
-            0 as *mut libc::c_void
-        }) as *mut mailimf_field;
+unsafe fn display_fields(fields: *mut mailimf_fields) {
+    for f in &(*fields).0 {
         display_field(f);
-        cur = if !cur.is_null() {
-            (*cur).next
-        } else {
-            0 as *mut clistcell
-        }
     }
 }

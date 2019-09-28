@@ -134,100 +134,70 @@ pub struct mailimf_message {
     pub msg_fields: *mut mailimf_fields,
     pub msg_body: *mut mailimf_body,
 }
-/*
-  mailimf_fields is a list of header fields
 
-  - fld_list is a list of header fields
-*/
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct mailimf_fields {
-    pub fld_list: *mut clist,
+/// List of header field.
+#[derive(Debug, Clone)]
+pub struct mailimf_fields(pub Vec<mailimf_field>);
+
+#[derive(Debug, Clone)]
+pub enum mailimf_field {
+    ReturnPath(*mut mailimf_return),
+    ResentDate(*mut mailimf_orig_date),
+    ResentFrom(*mut mailimf_from),
+    ResentSender(*mut mailimf_sender),
+    ResentTo(*mut mailimf_to),
+    ResentCc(*mut mailimf_cc),
+    ResentBcc(*mut mailimf_bcc),
+    ResentMsgId(*mut mailimf_message_id),
+    OrigDate(*mut mailimf_orig_date),
+    From(*mut mailimf_from),
+    Sender(*mut mailimf_sender),
+    ReplyTo(*mut mailimf_reply_to),
+    To(*mut mailimf_to),
+    Cc(*mut mailimf_cc),
+    Bcc(*mut mailimf_bcc),
+    MessageId(*mut mailimf_message_id),
+    InReplyTo(*mut mailimf_in_reply_to),
+    References(*mut mailimf_references),
+    Subject(*mut mailimf_subject),
+    Comments(*mut mailimf_comments),
+    Keywords(*mut mailimf_keywords),
+    OptionalField(*mut mailimf_optional_field),
 }
-/*
-  mailimf_field is a field
 
-  - fld_type is the type of the field
-
-  - fld_data.fld_return_path is the parsed content of the Return-Path
-    field if type is MAILIMF_FIELD_RETURN_PATH
-
-  - fld_data.fld_resent_date is the parsed content of the Resent-Date field
-    if type is MAILIMF_FIELD_RESENT_DATE
-
-  - fld_data.fld_resent_from is the parsed content of the Resent-From field
-
-  - fld_data.fld_resent_sender is the parsed content of the Resent-Sender field
-
-  - fld_data.fld_resent_to is the parsed content of the Resent-To field
-
-  - fld_data.fld_resent_cc is the parsed content of the Resent-Cc field
-
-  - fld_data.fld_resent_bcc is the parsed content of the Resent-Bcc field
-
-  - fld_data.fld_resent_msg_id is the parsed content of the Resent-Message-ID
-    field
-
-  - fld_data.fld_orig_date is the parsed content of the Date field
-
-  - fld_data.fld_from is the parsed content of the From field
-
-  - fld_data.fld_sender is the parsed content of the Sender field
-
-  - fld_data.fld_reply_to is the parsed content of the Reply-To field
-
-  - fld_data.fld_to is the parsed content of the To field
-
-  - fld_data.fld_cc is the parsed content of the Cc field
-
-  - fld_data.fld_bcc is the parsed content of the Bcc field
-
-  - fld_data.fld_message_id is the parsed content of the Message-ID field
-
-  - fld_data.fld_in_reply_to is the parsed content of the In-Reply-To field
-
-  - fld_data.fld_references is the parsed content of the References field
-
-  - fld_data.fld_subject is the content of the Subject field
-
-  - fld_data.fld_comments is the content of the Comments field
-
-  - fld_data.fld_keywords is the parsed content of the Keywords field
-
-  - fld_data.fld_optional_field is an other field and is not parsed
-*/
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct mailimf_field {
-    pub fld_type: libc::c_int,
-    pub fld_data: unnamed_1,
+impl Drop for mailimf_field {
+    fn drop(&mut self) {
+        use mailimf_field::*;
+        unsafe {
+            match self {
+                ReturnPath(p) => mailimf_return_free(*p),
+                OrigDate(d) => mailimf_orig_date_free(*d),
+                ResentFrom(r) => mailimf_from_free(*r),
+                ResentSender(r) => mailimf_sender_free(*r),
+                ResentTo(r) => mailimf_to_free(*r),
+                ResentCc(r) => mailimf_cc_free(*r),
+                ResentBcc(r) => mailimf_bcc_free(*r),
+                ResentMsgId(r) => mailimf_message_id_free(*r),
+                OrigDate(d) => mailimf_orig_date_free(*d),
+                From(f) => mailimf_from_free(*f),
+                Sender(s) => mailimf_sender_free(*s),
+                ReplyTo(t) => mailimf_reply_to_free(*t),
+                To(t) => mailimf_to_free(*t),
+                Cc(c) => mailimf_cc_free(*c),
+                Bcc(c) => mailimf_bcc_free(*c),
+                MessageId(m) => mailimf_message_id_free(*m),
+                InReplyTo(i) => mailimf_in_reply_to_free(*i),
+                References(r) => mailimf_references_free(*r),
+                Subject(s) => mailimf_subject_free(*s),
+                Comments(c) => mailimf_comments_free(*c),
+                Keywords(k) => mailimf_keywords_free(*k),
+                OptionalField(o) => mailimf_optional_field_free(*o),
+                _ => {}
+            }
+        }
+    }
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union unnamed_1 {
-    pub fld_return_path: *mut mailimf_return,
-    pub fld_resent_date: *mut mailimf_orig_date,
-    pub fld_resent_from: *mut mailimf_from,
-    pub fld_resent_sender: *mut mailimf_sender,
-    pub fld_resent_to: *mut mailimf_to,
-    pub fld_resent_cc: *mut mailimf_cc,
-    pub fld_resent_bcc: *mut mailimf_bcc,
-    pub fld_resent_msg_id: *mut mailimf_message_id,
-    pub fld_orig_date: *mut mailimf_orig_date,
-    pub fld_from: *mut mailimf_from,
-    pub fld_sender: *mut mailimf_sender,
-    pub fld_reply_to: *mut mailimf_reply_to,
-    pub fld_to: *mut mailimf_to,
-    pub fld_cc: *mut mailimf_cc,
-    pub fld_bcc: *mut mailimf_bcc,
-    pub fld_message_id: *mut mailimf_message_id,
-    pub fld_in_reply_to: *mut mailimf_in_reply_to,
-    pub fld_references: *mut mailimf_references,
-    pub fld_subject: *mut mailimf_subject,
-    pub fld_comments: *mut mailimf_comments,
-    pub fld_keywords: *mut mailimf_keywords,
-    pub fld_optional_field: *mut mailimf_optional_field,
-}
+
 /*
   mailimf_optional_field is a non-parsed field
 
@@ -634,93 +604,15 @@ pub unsafe fn mailimf_message_free(mut message: *mut mailimf_message) {
     mailimf_fields_free((*message).msg_fields);
     free(message as *mut libc::c_void);
 }
-#[no_mangle]
-pub unsafe fn mailimf_fields_free(mut fields: *mut mailimf_fields) {
-    if !(*fields).fld_list.is_null() {
-        clist_foreach(
-            (*fields).fld_list,
-            ::std::mem::transmute::<Option<unsafe fn(_: *mut mailimf_field) -> ()>, clist_func>(
-                Some(mailimf_field_free),
-            ),
-            0 as *mut libc::c_void,
-        );
-        clist_free((*fields).fld_list);
+
+pub unsafe fn mailimf_fields_free(fields: *mut mailimf_fields) {
+    if fields.is_null() {
+        return;
     }
-    free(fields as *mut libc::c_void);
+
+    let _ = Box::from_raw(fields);
 }
-#[no_mangle]
-pub unsafe fn mailimf_field_free(mut field: *mut mailimf_field) {
-    match (*field).fld_type {
-        1 => {
-            mailimf_return_free((*field).fld_data.fld_return_path);
-        }
-        2 => {
-            mailimf_orig_date_free((*field).fld_data.fld_resent_date);
-        }
-        3 => {
-            mailimf_from_free((*field).fld_data.fld_resent_from);
-        }
-        4 => {
-            mailimf_sender_free((*field).fld_data.fld_resent_sender);
-        }
-        5 => {
-            mailimf_to_free((*field).fld_data.fld_resent_to);
-        }
-        6 => {
-            mailimf_cc_free((*field).fld_data.fld_resent_cc);
-        }
-        7 => {
-            mailimf_bcc_free((*field).fld_data.fld_resent_bcc);
-        }
-        8 => {
-            mailimf_message_id_free((*field).fld_data.fld_resent_msg_id);
-        }
-        9 => {
-            mailimf_orig_date_free((*field).fld_data.fld_orig_date);
-        }
-        10 => {
-            mailimf_from_free((*field).fld_data.fld_from);
-        }
-        11 => {
-            mailimf_sender_free((*field).fld_data.fld_sender);
-        }
-        12 => {
-            mailimf_reply_to_free((*field).fld_data.fld_reply_to);
-        }
-        13 => {
-            mailimf_to_free((*field).fld_data.fld_to);
-        }
-        14 => {
-            mailimf_cc_free((*field).fld_data.fld_cc);
-        }
-        15 => {
-            mailimf_bcc_free((*field).fld_data.fld_bcc);
-        }
-        16 => {
-            mailimf_message_id_free((*field).fld_data.fld_message_id);
-        }
-        17 => {
-            mailimf_in_reply_to_free((*field).fld_data.fld_in_reply_to);
-        }
-        18 => {
-            mailimf_references_free((*field).fld_data.fld_references);
-        }
-        19 => {
-            mailimf_subject_free((*field).fld_data.fld_subject);
-        }
-        20 => {
-            mailimf_comments_free((*field).fld_data.fld_comments);
-        }
-        21 => {
-            mailimf_keywords_free((*field).fld_data.fld_keywords);
-        }
-        22 => {
-            mailimf_optional_field_free((*field).fld_data.fld_optional_field);
-        }
-        _ => {}
-    }
-    free(field as *mut libc::c_void);
-}
+
 #[no_mangle]
 pub unsafe fn mailimf_optional_field_free(mut opt_field: *mut mailimf_optional_field) {
     mailimf_field_name_free((*opt_field).fld_name);
@@ -853,88 +745,11 @@ pub unsafe fn mailimf_path_free(mut path: *mut mailimf_path) {
     }
     free(path as *mut libc::c_void);
 }
-#[no_mangle]
-pub unsafe fn mailimf_fields_new(mut fld_list: *mut clist) -> *mut mailimf_fields {
-    let mut fields: *mut mailimf_fields = 0 as *mut mailimf_fields;
-    fields = malloc(::std::mem::size_of::<mailimf_fields>() as libc::size_t) as *mut mailimf_fields;
-    if fields.is_null() {
-        return 0 as *mut mailimf_fields;
-    }
-    (*fields).fld_list = fld_list;
-    return fields;
-}
 
-#[no_mangle]
-pub unsafe fn mailimf_field_new(
-    mut fld_type: libc::c_int,
-    mut fld_return_path: *mut mailimf_return,
-    mut fld_resent_date: *mut mailimf_orig_date,
-    mut fld_resent_from: *mut mailimf_from,
-    mut fld_resent_sender: *mut mailimf_sender,
-    mut fld_resent_to: *mut mailimf_to,
-    mut fld_resent_cc: *mut mailimf_cc,
-    mut fld_resent_bcc: *mut mailimf_bcc,
-    mut fld_resent_msg_id: *mut mailimf_message_id,
-    mut fld_orig_date: *mut mailimf_orig_date,
-    mut fld_from: *mut mailimf_from,
-    mut fld_sender: *mut mailimf_sender,
-    mut fld_reply_to: *mut mailimf_reply_to,
-    mut fld_to: *mut mailimf_to,
-    mut fld_cc: *mut mailimf_cc,
-    mut fld_bcc: *mut mailimf_bcc,
-    mut fld_message_id: *mut mailimf_message_id,
-    mut fld_in_reply_to: *mut mailimf_in_reply_to,
-    mut fld_references: *mut mailimf_references,
-    mut fld_subject: *mut mailimf_subject,
-    mut fld_comments: *mut mailimf_comments,
-    mut fld_keywords: *mut mailimf_keywords,
-    mut fld_optional_field: *mut mailimf_optional_field,
-) -> *mut mailimf_field {
-    let mut field: *mut mailimf_field = 0 as *mut mailimf_field;
-    field = malloc(::std::mem::size_of::<mailimf_field>() as libc::size_t) as *mut mailimf_field;
-    if field.is_null() {
-        return 0 as *mut mailimf_field;
-    }
-    (*field).fld_type = fld_type;
-    match fld_type {
-        1 => (*field).fld_data.fld_return_path = fld_return_path,
-        2 => (*field).fld_data.fld_resent_date = fld_resent_date,
-        3 => (*field).fld_data.fld_resent_from = fld_resent_from,
-        4 => (*field).fld_data.fld_resent_sender = fld_resent_sender,
-        5 => (*field).fld_data.fld_resent_to = fld_resent_to,
-        6 => (*field).fld_data.fld_resent_cc = fld_resent_cc,
-        7 => (*field).fld_data.fld_resent_bcc = fld_resent_bcc,
-        8 => (*field).fld_data.fld_resent_msg_id = fld_resent_msg_id,
-        9 => (*field).fld_data.fld_orig_date = fld_orig_date,
-        10 => (*field).fld_data.fld_from = fld_from,
-        11 => (*field).fld_data.fld_sender = fld_sender,
-        12 => (*field).fld_data.fld_reply_to = fld_reply_to,
-        13 => (*field).fld_data.fld_to = fld_to,
-        14 => (*field).fld_data.fld_cc = fld_cc,
-        15 => (*field).fld_data.fld_bcc = fld_bcc,
-        16 => (*field).fld_data.fld_message_id = fld_message_id,
-        17 => (*field).fld_data.fld_in_reply_to = fld_in_reply_to,
-        18 => (*field).fld_data.fld_references = fld_references,
-        19 => (*field).fld_data.fld_subject = fld_subject,
-        20 => (*field).fld_data.fld_comments = fld_comments,
-        21 => (*field).fld_data.fld_keywords = fld_keywords,
-        22 => (*field).fld_data.fld_optional_field = fld_optional_field,
-        _ => {}
-    }
-    return field;
-}
+pub unsafe fn mailimf_fields_new(fld_list: Vec<mailimf_field>) -> *mut mailimf_fields {
+    let fields = mailimf_fields(fld_list);
 
-#[no_mangle]
-pub unsafe fn mailimf_field_new_subject(fld_subject: *mut mailimf_subject) -> *mut mailimf_field {
-    let mut field: *mut mailimf_field = 0 as *mut mailimf_field;
-    field = malloc(::std::mem::size_of::<mailimf_field>() as libc::size_t) as *mut mailimf_field;
-    if field.is_null() {
-        return 0 as *mut mailimf_field;
-    }
-    (*field).fld_type = MAILIMF_FIELD_SUBJECT as libc::c_int;
-    (*field).fld_data.fld_subject = fld_subject;
-
-    field
+    Box::into_raw(Box::new(fields))
 }
 
 #[no_mangle]
@@ -1037,7 +852,7 @@ pub unsafe fn mailimf_in_reply_to_new(mut mid_list: *mut clist) -> *mut mailimf_
 }
 /* != NULL */
 #[no_mangle]
-pub unsafe fn mailimf_references_new(mut mid_list: *mut clist) -> *mut mailimf_references {
+pub unsafe fn mailimf_references_new(mid_list: *mut clist) -> *mut mailimf_references {
     let mut ref_0: *mut mailimf_references = 0 as *mut mailimf_references;
     ref_0 = malloc(::std::mem::size_of::<mailimf_references>() as libc::size_t)
         as *mut mailimf_references;

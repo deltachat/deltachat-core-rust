@@ -6,18 +6,9 @@ use crate::other::*;
   this function creates a new mailimf_fields structure with no fields
 */
 pub unsafe fn mailimf_fields_new_empty() -> *mut mailimf_fields {
-    let mut list: *mut clist = 0 as *mut clist;
-    let mut fields_list: *mut mailimf_fields = 0 as *mut mailimf_fields;
-    list = clist_new();
-    if list.is_null() {
-        return 0 as *mut mailimf_fields;
-    }
-    fields_list = mailimf_fields_new(list);
-    if fields_list.is_null() {
-        return 0 as *mut mailimf_fields;
-    }
-    return fields_list;
+    mailimf_fields_new(Vec::new())
 }
+
 /*
  this function adds a field to the mailimf_fields structure
 
@@ -54,31 +45,7 @@ pub unsafe fn mailimf_field_new_custom(
     let mut field: *mut mailimf_field = 0 as *mut mailimf_field;
     opt_field = mailimf_optional_field_new(name, value);
     if !opt_field.is_null() {
-        field = mailimf_field_new(
-            MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int,
-            0 as *mut mailimf_return,
-            0 as *mut mailimf_orig_date,
-            0 as *mut mailimf_from,
-            0 as *mut mailimf_sender,
-            0 as *mut mailimf_to,
-            0 as *mut mailimf_cc,
-            0 as *mut mailimf_bcc,
-            0 as *mut mailimf_message_id,
-            0 as *mut mailimf_orig_date,
-            0 as *mut mailimf_from,
-            0 as *mut mailimf_sender,
-            0 as *mut mailimf_reply_to,
-            0 as *mut mailimf_to,
-            0 as *mut mailimf_cc,
-            0 as *mut mailimf_bcc,
-            0 as *mut mailimf_message_id,
-            0 as *mut mailimf_in_reply_to,
-            0 as *mut mailimf_references,
-            0 as *mut mailimf_subject,
-            0 as *mut mailimf_comments,
-            0 as *mut mailimf_keywords,
-            opt_field,
-        );
+        field = mailimf_field::OptionalField(opt_field);
         if field.is_null() {
             mailimf_optional_field_free(opt_field);
         } else {

@@ -431,7 +431,6 @@ pub unsafe fn mailimf_fields_add_data(
     let mut imf_references: *mut mailimf_references = 0 as *mut mailimf_references;
     let mut imf_in_reply_to: *mut mailimf_in_reply_to = 0 as *mut mailimf_in_reply_to;
     let mut imf_subject: *mut mailimf_subject = 0 as *mut mailimf_subject;
-    let mut field: *mut mailimf_field = 0 as *mut mailimf_field;
     let mut r: libc::c_int = 0;
     imf_date = 0 as *mut mailimf_orig_date;
     imf_from = 0 as *mut mailimf_from;
@@ -444,68 +443,18 @@ pub unsafe fn mailimf_fields_add_data(
     imf_references = 0 as *mut mailimf_references;
     imf_in_reply_to = 0 as *mut mailimf_in_reply_to;
     imf_subject = 0 as *mut mailimf_subject;
-    field = 0 as *mut mailimf_field;
+
     if !date.is_null() {
         imf_date = mailimf_orig_date_new(date);
         if imf_date.is_null() {
             current_block = 16539016819803454162;
         } else {
-            field = mailimf_field_new(
-                MAILIMF_FIELD_ORIG_DATE as libc::c_int,
-                0 as *mut mailimf_return,
-                0 as *mut mailimf_orig_date,
-                0 as *mut mailimf_from,
-                0 as *mut mailimf_sender,
-                0 as *mut mailimf_to,
-                0 as *mut mailimf_cc,
-                0 as *mut mailimf_bcc,
-                0 as *mut mailimf_message_id,
-                imf_date,
-                0 as *mut mailimf_from,
-                0 as *mut mailimf_sender,
-                0 as *mut mailimf_reply_to,
-                0 as *mut mailimf_to,
-                0 as *mut mailimf_cc,
-                0 as *mut mailimf_bcc,
-                0 as *mut mailimf_message_id,
-                0 as *mut mailimf_in_reply_to,
-                0 as *mut mailimf_references,
-                0 as *mut mailimf_subject,
-                0 as *mut mailimf_comments,
-                0 as *mut mailimf_keywords,
-                0 as *mut mailimf_optional_field,
-            );
-            /* return-path */
-            /* resent date */
-            /* resent from */
-            /* resent sender */
-            /* resent to */
-            /* resent cc */
-            /* resent bcc */
-            /* resent msg id */
-            /* date */
-            /* from */
-            /* sender */
-            /* reply-to */
-            /* to */
-            /* cc */
-            /* bcc */
-            /* message id */
-            /* in reply to */
-            /* references */
-            /* subject */
-            /* comments */
-            /* keywords */
-            /* optional field */
-            if field.is_null() {
-                current_block = 16539016819803454162;
+            let field = mailimf_field::OrigDate(imf_date);
+            r = mailimf_fields_add(fields, field);
+            if r != MAILIMF_NO_ERROR as libc::c_int {
+                current_block = 13813460800808168376;
             } else {
-                r = mailimf_fields_add(fields, field);
-                if r != MAILIMF_NO_ERROR as libc::c_int {
-                    current_block = 13813460800808168376;
-                } else {
-                    current_block = 2719512138335094285;
-                }
+                current_block = 2719512138335094285;
             }
         }
     } else {
@@ -518,62 +467,12 @@ pub unsafe fn mailimf_fields_add_data(
                 if imf_from.is_null() {
                     current_block = 13813460800808168376;
                 } else {
-                    field = mailimf_field_new(
-                        MAILIMF_FIELD_FROM as libc::c_int,
-                        0 as *mut mailimf_return,
-                        0 as *mut mailimf_orig_date,
-                        0 as *mut mailimf_from,
-                        0 as *mut mailimf_sender,
-                        0 as *mut mailimf_to,
-                        0 as *mut mailimf_cc,
-                        0 as *mut mailimf_bcc,
-                        0 as *mut mailimf_message_id,
-                        0 as *mut mailimf_orig_date,
-                        imf_from,
-                        0 as *mut mailimf_sender,
-                        0 as *mut mailimf_reply_to,
-                        0 as *mut mailimf_to,
-                        0 as *mut mailimf_cc,
-                        0 as *mut mailimf_bcc,
-                        0 as *mut mailimf_message_id,
-                        0 as *mut mailimf_in_reply_to,
-                        0 as *mut mailimf_references,
-                        0 as *mut mailimf_subject,
-                        0 as *mut mailimf_comments,
-                        0 as *mut mailimf_keywords,
-                        0 as *mut mailimf_optional_field,
-                    );
-                    /* return-path */
-                    /* resent date */
-                    /* resent from */
-                    /* resent sender */
-                    /* resent to */
-                    /* resent cc */
-                    /* resent bcc */
-                    /* resent msg id */
-                    /* date */
-                    /* from */
-                    /* sender */
-                    /* reply-to */
-                    /* to */
-                    /* cc */
-                    /* bcc */
-                    /* message id */
-                    /* in reply to */
-                    /* references */
-                    /* subject */
-                    /* comments */
-                    /* keywords */
-                    /* optional field */
-                    if field.is_null() {
-                        current_block = 16539016819803454162;
+                    let field = mailimf_field::From(imf_from);
+                    r = mailimf_fields_add(fields, field);
+                    if r != MAILIMF_NO_ERROR as libc::c_int {
+                        current_block = 13813460800808168376;
                     } else {
-                        r = mailimf_fields_add(fields, field);
-                        if r != MAILIMF_NO_ERROR as libc::c_int {
-                            current_block = 13813460800808168376;
-                        } else {
-                            current_block = 3275366147856559585;
-                        }
+                        current_block = 3275366147856559585;
                     }
                 }
             } else {
@@ -588,62 +487,12 @@ pub unsafe fn mailimf_fields_add_data(
                         if imf_sender.is_null() {
                             current_block = 16539016819803454162;
                         } else {
-                            field = mailimf_field_new(
-                                MAILIMF_FIELD_SENDER as libc::c_int,
-                                0 as *mut mailimf_return,
-                                0 as *mut mailimf_orig_date,
-                                0 as *mut mailimf_from,
-                                0 as *mut mailimf_sender,
-                                0 as *mut mailimf_to,
-                                0 as *mut mailimf_cc,
-                                0 as *mut mailimf_bcc,
-                                0 as *mut mailimf_message_id,
-                                0 as *mut mailimf_orig_date,
-                                0 as *mut mailimf_from,
-                                imf_sender,
-                                0 as *mut mailimf_reply_to,
-                                0 as *mut mailimf_to,
-                                0 as *mut mailimf_cc,
-                                0 as *mut mailimf_bcc,
-                                0 as *mut mailimf_message_id,
-                                0 as *mut mailimf_in_reply_to,
-                                0 as *mut mailimf_references,
-                                0 as *mut mailimf_subject,
-                                0 as *mut mailimf_comments,
-                                0 as *mut mailimf_keywords,
-                                0 as *mut mailimf_optional_field,
-                            );
-                            /* return-path */
-                            /* resent date */
-                            /* resent from */
-                            /* resent sender */
-                            /* resent to */
-                            /* resent cc */
-                            /* resent bcc */
-                            /* resent msg id */
-                            /* date */
-                            /* from */
-                            /* sender */
-                            /* reply-to */
-                            /* to */
-                            /* cc */
-                            /* bcc */
-                            /* message id */
-                            /* in reply to */
-                            /* references */
-                            /* subject */
-                            /* comments */
-                            /* keywords */
-                            /* optional field */
-                            if field.is_null() {
-                                current_block = 16539016819803454162;
+                            let field = mailimf_field::Sender(imf_sender);
+                            r = mailimf_fields_add(fields, field);
+                            if r != MAILIMF_NO_ERROR as libc::c_int {
+                                current_block = 13813460800808168376;
                             } else {
-                                r = mailimf_fields_add(fields, field);
-                                if r != MAILIMF_NO_ERROR as libc::c_int {
-                                    current_block = 13813460800808168376;
-                                } else {
-                                    current_block = 15090052786889560393;
-                                }
+                                current_block = 15090052786889560393;
                             }
                         }
                     } else {
@@ -658,62 +507,12 @@ pub unsafe fn mailimf_fields_add_data(
                                 if imf_reply_to.is_null() {
                                     current_block = 16539016819803454162;
                                 } else {
-                                    field = mailimf_field_new(
-                                        MAILIMF_FIELD_REPLY_TO as libc::c_int,
-                                        0 as *mut mailimf_return,
-                                        0 as *mut mailimf_orig_date,
-                                        0 as *mut mailimf_from,
-                                        0 as *mut mailimf_sender,
-                                        0 as *mut mailimf_to,
-                                        0 as *mut mailimf_cc,
-                                        0 as *mut mailimf_bcc,
-                                        0 as *mut mailimf_message_id,
-                                        0 as *mut mailimf_orig_date,
-                                        0 as *mut mailimf_from,
-                                        0 as *mut mailimf_sender,
-                                        imf_reply_to,
-                                        0 as *mut mailimf_to,
-                                        0 as *mut mailimf_cc,
-                                        0 as *mut mailimf_bcc,
-                                        0 as *mut mailimf_message_id,
-                                        0 as *mut mailimf_in_reply_to,
-                                        0 as *mut mailimf_references,
-                                        0 as *mut mailimf_subject,
-                                        0 as *mut mailimf_comments,
-                                        0 as *mut mailimf_keywords,
-                                        0 as *mut mailimf_optional_field,
-                                    );
-                                    /* return-path */
-                                    /* resent date */
-                                    /* resent from */
-                                    /* resent sender */
-                                    /* resent to */
-                                    /* resent cc */
-                                    /* resent bcc */
-                                    /* resent msg id */
-                                    /* date */
-                                    /* from */
-                                    /* sender */
-                                    /* reply-to */
-                                    /* to */
-                                    /* cc */
-                                    /* bcc */
-                                    /* message id */
-                                    /* in reply to */
-                                    /* references */
-                                    /* subject */
-                                    /* comments */
-                                    /* keywords */
-                                    /* optional field */
-                                    if field.is_null() {
-                                        current_block = 16539016819803454162;
+                                    let field = mailimf_field::ReplyTo(imf_reply_to);
+                                    r = mailimf_fields_add(fields, field);
+                                    if r != MAILIMF_NO_ERROR as libc::c_int {
+                                        current_block = 13813460800808168376;
                                     } else {
-                                        r = mailimf_fields_add(fields, field);
-                                        if r != MAILIMF_NO_ERROR as libc::c_int {
-                                            current_block = 13813460800808168376;
-                                        } else {
-                                            current_block = 10150597327160359210;
-                                        }
+                                        current_block = 10150597327160359210;
                                     }
                                 }
                             } else {
@@ -728,62 +527,12 @@ pub unsafe fn mailimf_fields_add_data(
                                         if imf_to.is_null() {
                                             current_block = 16539016819803454162;
                                         } else {
-                                            field = mailimf_field_new(
-                                                MAILIMF_FIELD_TO as libc::c_int,
-                                                0 as *mut mailimf_return,
-                                                0 as *mut mailimf_orig_date,
-                                                0 as *mut mailimf_from,
-                                                0 as *mut mailimf_sender,
-                                                0 as *mut mailimf_to,
-                                                0 as *mut mailimf_cc,
-                                                0 as *mut mailimf_bcc,
-                                                0 as *mut mailimf_message_id,
-                                                0 as *mut mailimf_orig_date,
-                                                0 as *mut mailimf_from,
-                                                0 as *mut mailimf_sender,
-                                                0 as *mut mailimf_reply_to,
-                                                imf_to,
-                                                0 as *mut mailimf_cc,
-                                                0 as *mut mailimf_bcc,
-                                                0 as *mut mailimf_message_id,
-                                                0 as *mut mailimf_in_reply_to,
-                                                0 as *mut mailimf_references,
-                                                0 as *mut mailimf_subject,
-                                                0 as *mut mailimf_comments,
-                                                0 as *mut mailimf_keywords,
-                                                0 as *mut mailimf_optional_field,
-                                            );
-                                            /* return-path */
-                                            /* resent date */
-                                            /* resent from */
-                                            /* resent sender */
-                                            /* resent to */
-                                            /* resent cc */
-                                            /* resent bcc */
-                                            /* resent msg id */
-                                            /* date */
-                                            /* from */
-                                            /* sender */
-                                            /* reply-to */
-                                            /* to */
-                                            /* cc */
-                                            /* bcc */
-                                            /* message id */
-                                            /* in reply to */
-                                            /* references */
-                                            /* subject */
-                                            /* comments */
-                                            /* keywords */
-                                            /* optional field */
-                                            if field.is_null() {
-                                                current_block = 16539016819803454162;
+                                            let field = mailimf_field::To(imf_to);
+                                            r = mailimf_fields_add(fields, field);
+                                            if r != MAILIMF_NO_ERROR as libc::c_int {
+                                                current_block = 13813460800808168376;
                                             } else {
-                                                r = mailimf_fields_add(fields, field);
-                                                if r != MAILIMF_NO_ERROR as libc::c_int {
-                                                    current_block = 13813460800808168376;
-                                                } else {
-                                                    current_block = 17233182392562552756;
-                                                }
+                                                current_block = 17233182392562552756;
                                             }
                                         }
                                     } else {
@@ -798,62 +547,12 @@ pub unsafe fn mailimf_fields_add_data(
                                                 if imf_cc.is_null() {
                                                     current_block = 16539016819803454162;
                                                 } else {
-                                                    field = mailimf_field_new(
-                                                        MAILIMF_FIELD_CC as libc::c_int,
-                                                        0 as *mut mailimf_return,
-                                                        0 as *mut mailimf_orig_date,
-                                                        0 as *mut mailimf_from,
-                                                        0 as *mut mailimf_sender,
-                                                        0 as *mut mailimf_to,
-                                                        0 as *mut mailimf_cc,
-                                                        0 as *mut mailimf_bcc,
-                                                        0 as *mut mailimf_message_id,
-                                                        0 as *mut mailimf_orig_date,
-                                                        0 as *mut mailimf_from,
-                                                        0 as *mut mailimf_sender,
-                                                        0 as *mut mailimf_reply_to,
-                                                        0 as *mut mailimf_to,
-                                                        imf_cc,
-                                                        0 as *mut mailimf_bcc,
-                                                        0 as *mut mailimf_message_id,
-                                                        0 as *mut mailimf_in_reply_to,
-                                                        0 as *mut mailimf_references,
-                                                        0 as *mut mailimf_subject,
-                                                        0 as *mut mailimf_comments,
-                                                        0 as *mut mailimf_keywords,
-                                                        0 as *mut mailimf_optional_field,
-                                                    );
-                                                    /* return-path */
-                                                    /* resent date */
-                                                    /* resent from */
-                                                    /* resent sender */
-                                                    /* resent to */
-                                                    /* resent cc */
-                                                    /* resent bcc */
-                                                    /* resent msg id */
-                                                    /* date */
-                                                    /* from */
-                                                    /* sender */
-                                                    /* reply-to */
-                                                    /* to */
-                                                    /* cc */
-                                                    /* bcc */
-                                                    /* message id */
-                                                    /* in reply to */
-                                                    /* references */
-                                                    /* subject */
-                                                    /* comments */
-                                                    /* keywords */
-                                                    /* optional field */
-                                                    if field.is_null() {
-                                                        current_block = 16539016819803454162;
+                                                    let field = mailimf_field::Cc(imf_cc);
+                                                    r = mailimf_fields_add(fields, field);
+                                                    if r != MAILIMF_NO_ERROR as libc::c_int {
+                                                        current_block = 13813460800808168376;
                                                     } else {
-                                                        r = mailimf_fields_add(fields, field);
-                                                        if r != MAILIMF_NO_ERROR as libc::c_int {
-                                                            current_block = 13813460800808168376;
-                                                        } else {
-                                                            current_block = 12930649117290160518;
-                                                        }
+                                                        current_block = 12930649117290160518;
                                                     }
                                                 }
                                             } else {
@@ -868,69 +567,14 @@ pub unsafe fn mailimf_fields_add_data(
                                                         if imf_bcc.is_null() {
                                                             current_block = 16539016819803454162;
                                                         } else {
-                                                            field = mailimf_field_new(
-                                                                MAILIMF_FIELD_BCC as libc::c_int,
-                                                                0 as *mut mailimf_return,
-                                                                0 as *mut mailimf_orig_date,
-                                                                0 as *mut mailimf_from,
-                                                                0 as *mut mailimf_sender,
-                                                                0 as *mut mailimf_to,
-                                                                0 as *mut mailimf_cc,
-                                                                0 as *mut mailimf_bcc,
-                                                                0 as *mut mailimf_message_id,
-                                                                0 as *mut mailimf_orig_date,
-                                                                0 as *mut mailimf_from,
-                                                                0 as *mut mailimf_sender,
-                                                                0 as *mut mailimf_reply_to,
-                                                                0 as *mut mailimf_to,
-                                                                0 as *mut mailimf_cc,
-                                                                imf_bcc,
-                                                                0 as *mut mailimf_message_id,
-                                                                0 as *mut mailimf_in_reply_to,
-                                                                0 as *mut mailimf_references,
-                                                                0 as *mut mailimf_subject,
-                                                                0 as *mut mailimf_comments,
-                                                                0 as *mut mailimf_keywords,
-                                                                0 as *mut mailimf_optional_field,
-                                                            );
-                                                            /* return-path */
-                                                            /* resent date */
-                                                            /* resent from */
-                                                            /* resent sender */
-                                                            /* resent to */
-                                                            /* resent cc */
-                                                            /* resent bcc */
-                                                            /* resent msg id */
-                                                            /* date */
-                                                            /* from */
-                                                            /* sender */
-                                                            /* reply-to */
-                                                            /* to */
-                                                            /* cc */
-                                                            /* bcc */
-                                                            /* message id */
-                                                            /* in reply to */
-                                                            /* references */
-                                                            /* subject */
-                                                            /* comments */
-                                                            /* keywords */
-                                                            /* optional field */
-                                                            if field.is_null() {
+                                                            let field = mailimf_field::Bcc(imf_bcc);
+                                                            r = mailimf_fields_add(fields, field);
+                                                            if r != MAILIMF_NO_ERROR as libc::c_int
+                                                            {
                                                                 current_block =
-                                                                    16539016819803454162;
+                                                                    13813460800808168376;
                                                             } else {
-                                                                r = mailimf_fields_add(
-                                                                    fields, field,
-                                                                );
-                                                                if r != MAILIMF_NO_ERROR
-                                                                    as libc::c_int
-                                                                {
-                                                                    current_block =
-                                                                        13813460800808168376;
-                                                                } else {
-                                                                    current_block =
-                                                                        7858101417678297991;
-                                                                }
+                                                                current_block = 7858101417678297991;
                                                             }
                                                         }
                                                     } else {
@@ -947,114 +591,21 @@ pub unsafe fn mailimf_fields_add_data(
                                                                     current_block =
                                                                         16539016819803454162;
                                                                 } else {
-                                                                    field =
-                                                                        mailimf_field_new(MAILIMF_FIELD_MESSAGE_ID
-                                                                                              as
-                                                                                              libc::c_int,
-                                                                                          0
-                                                                                              as
-                                                                                              *mut mailimf_return,
-                                                                                          0
-                                                                                              as
-                                                                                              *mut mailimf_orig_date,
-                                                                                          0
-                                                                                              as
-                                                                                              *mut mailimf_from,
-                                                                                          0
-                                                                                              as
-                                                                                              *mut mailimf_sender,
-                                                                                          0
-                                                                                              as
-                                                                                              *mut mailimf_to,
-                                                                                          0
-                                                                                              as
-                                                                                              *mut mailimf_cc,
-                                                                                          0
-                                                                                              as
-                                                                                              *mut mailimf_bcc,
-                                                                                          0
-                                                                                              as
-                                                                                              *mut mailimf_message_id,
-                                                                                          0
-                                                                                              as
-                                                                                              *mut mailimf_orig_date,
-                                                                                          0
-                                                                                              as
-                                                                                              *mut mailimf_from,
-                                                                                          0
-                                                                                              as
-                                                                                              *mut mailimf_sender,
-                                                                                          0
-                                                                                              as
-                                                                                              *mut mailimf_reply_to,
-                                                                                          0
-                                                                                              as
-                                                                                              *mut mailimf_to,
-                                                                                          0
-                                                                                              as
-                                                                                              *mut mailimf_cc,
-                                                                                          0
-                                                                                              as
-                                                                                              *mut mailimf_bcc,
-                                                                                          imf_msg_id,
-                                                                                          0
-                                                                                              as
-                                                                                              *mut mailimf_in_reply_to,
-                                                                                          0
-                                                                                              as
-                                                                                              *mut mailimf_references,
-                                                                                          0
-                                                                                              as
-                                                                                              *mut mailimf_subject,
-                                                                                          0
-                                                                                              as
-                                                                                              *mut mailimf_comments,
-                                                                                          0
-                                                                                              as
-                                                                                              *mut mailimf_keywords,
-                                                                                          0
-                                                                                              as
-                                                                                              *mut mailimf_optional_field);
-                                                                    /* return-path */
-                                                                    /* resent date */
-                                                                    /* resent from */
-                                                                    /* resent sender */
-                                                                    /* resent to */
-                                                                    /* resent cc */
-                                                                    /* resent bcc */
-                                                                    /* resent msg id */
-                                                                    /* date */
-                                                                    /* from */
-                                                                    /* sender */
-                                                                    /* reply-to */
-                                                                    /* to */
-                                                                    /* cc */
-                                                                    /* bcc */
-                                                                    /* message id */
-                                                                    /* in reply to */
-                                                                    /* references */
-                                                                    /* subject */
-                                                                    /* comments */
-                                                                    /* keywords */
-                                                                    /* optional field */
-                                                                    if field.is_null() {
-                                                                        current_block =
-                                                                            16539016819803454162;
-                                                                    } else {
-                                                                        r = mailimf_fields_add(
-                                                                            fields, field,
+                                                                    let field =
+                                                                        mailimf_field::MessageId(
+                                                                            imf_msg_id,
                                                                         );
-                                                                        if r != MAILIMF_NO_ERROR
-                                                                            as libc::c_int
-                                                                        {
-                                                                            current_block
-                                                                                =
-                                                                                13813460800808168376;
-                                                                        } else {
-                                                                            current_block
-                                                                                =
-                                                                                15514718523126015390;
-                                                                        }
+                                                                    r = mailimf_fields_add(
+                                                                        fields, field,
+                                                                    );
+                                                                    if r != MAILIMF_NO_ERROR
+                                                                        as libc::c_int
+                                                                    {
+                                                                        current_block =
+                                                                            13813460800808168376;
+                                                                    } else {
+                                                                        current_block =
+                                                                            15514718523126015390;
                                                                     }
                                                                 }
                                                             } else {
@@ -1076,120 +627,24 @@ pub unsafe fn mailimf_fields_add_data(
                                                                                 =
                                                                                 16539016819803454162;
                                                                         } else {
-                                                                            field
+                                                                            let field
                                                                                 =
-                                                                                mailimf_field_new(MAILIMF_FIELD_IN_REPLY_TO
-                                                                                                      as
-                                                                                                      libc::c_int,
-                                                                                                  0
-                                                                                                      as
-                                                                                                      *mut mailimf_return,
-                                                                                                  0
-                                                                                                      as
-                                                                                                      *mut mailimf_orig_date,
-                                                                                                  0
-                                                                                                      as
-                                                                                                      *mut mailimf_from,
-                                                                                                  0
-                                                                                                      as
-                                                                                                      *mut mailimf_sender,
-                                                                                                  0
-                                                                                                      as
-                                                                                                      *mut mailimf_to,
-                                                                                                  0
-                                                                                                      as
-                                                                                                      *mut mailimf_cc,
-                                                                                                  0
-                                                                                                      as
-                                                                                                      *mut mailimf_bcc,
-                                                                                                  0
-                                                                                                      as
-                                                                                                      *mut mailimf_message_id,
-                                                                                                  0
-                                                                                                      as
-                                                                                                      *mut mailimf_orig_date,
-                                                                                                  0
-                                                                                                      as
-                                                                                                      *mut mailimf_from,
-                                                                                                  0
-                                                                                                      as
-                                                                                                      *mut mailimf_sender,
-                                                                                                  0
-                                                                                                      as
-                                                                                                      *mut mailimf_reply_to,
-                                                                                                  0
-                                                                                                      as
-                                                                                                      *mut mailimf_to,
-                                                                                                  0
-                                                                                                      as
-                                                                                                      *mut mailimf_cc,
-                                                                                                  0
-                                                                                                      as
-                                                                                                      *mut mailimf_bcc,
-                                                                                                  0
-                                                                                                      as
-                                                                                                      *mut mailimf_message_id,
-                                                                                                  imf_in_reply_to,
-                                                                                                  0
-                                                                                                      as
-                                                                                                      *mut mailimf_references,
-                                                                                                  0
-                                                                                                      as
-                                                                                                      *mut mailimf_subject,
-                                                                                                  0
-                                                                                                      as
-                                                                                                      *mut mailimf_comments,
-                                                                                                  0
-                                                                                                      as
-                                                                                                      *mut mailimf_keywords,
-                                                                                                  0
-                                                                                                      as
-                                                                                                      *mut mailimf_optional_field);
-                                                                            /* return-path */
-                                                                            /* resent date */
-                                                                            /* resent from */
-                                                                            /* resent sender */
-                                                                            /* resent to */
-                                                                            /* resent cc */
-                                                                            /* resent bcc */
-                                                                            /* resent msg id */
-                                                                            /* date */
-                                                                            /* from */
-                                                                            /* sender */
-                                                                            /* reply-to */
-                                                                            /* to */
-                                                                            /* cc */
-                                                                            /* bcc */
-                                                                            /* message id */
-                                                                            /* in reply to */
-                                                                            /* references */
-                                                                            /* subject */
-                                                                            /* comments */
-                                                                            /* keywords */
-                                                                            /* optional field */
-                                                                            if field.is_null() {
+                                                                                mailimf_field::InReplyTo(
+                                                                                    imf_in_reply_to,
+                                                                                    );
+                                                                            r = mailimf_fields_add(
+                                                                                fields, field,
+                                                                            );
+                                                                            if r != MAILIMF_NO_ERROR
+                                                                                as libc::c_int
+                                                                            {
                                                                                 current_block
-                                                                                    =
-                                                                                    16539016819803454162;
-                                                                            } else {
-                                                                                r
-                                                                                    =
-                                                                                    mailimf_fields_add(fields,
-                                                                                                       field);
-                                                                                if r
-                                                                                       !=
-                                                                                       MAILIMF_NO_ERROR
-                                                                                           as
-                                                                                           libc::c_int
-                                                                                   {
-                                                                                    current_block
                                                                                         =
                                                                                         13813460800808168376;
-                                                                                } else {
-                                                                                    current_block
+                                                                            } else {
+                                                                                current_block
                                                                                         =
                                                                                         15587532755333643506;
-                                                                                }
                                                                             }
                                                                         }
                                                                     } else {
@@ -1212,109 +667,15 @@ pub unsafe fn mailimf_fields_add_data(
                                                                                         =
                                                                                         16539016819803454162;
                                                                                 } else {
-                                                                                    field
+                                                                                    let field
                                                                                         =
-                                                                                        mailimf_field_new(MAILIMF_FIELD_REFERENCES
-                                                                                                              as
-                                                                                                              libc::c_int,
-                                                                                                          0
-                                                                                                              as
-                                                                                                              *mut mailimf_return,
-                                                                                                          0
-                                                                                                              as
-                                                                                                              *mut mailimf_orig_date,
-                                                                                                          0
-                                                                                                              as
-                                                                                                              *mut mailimf_from,
-                                                                                                          0
-                                                                                                              as
-                                                                                                              *mut mailimf_sender,
-                                                                                                          0
-                                                                                                              as
-                                                                                                              *mut mailimf_to,
-                                                                                                          0
-                                                                                                              as
-                                                                                                              *mut mailimf_cc,
-                                                                                                          0
-                                                                                                              as
-                                                                                                              *mut mailimf_bcc,
-                                                                                                          0
-                                                                                                              as
-                                                                                                              *mut mailimf_message_id,
-                                                                                                          0
-                                                                                                              as
-                                                                                                              *mut mailimf_orig_date,
-                                                                                                          0
-                                                                                                              as
-                                                                                                              *mut mailimf_from,
-                                                                                                          0
-                                                                                                              as
-                                                                                                              *mut mailimf_sender,
-                                                                                                          0
-                                                                                                              as
-                                                                                                              *mut mailimf_reply_to,
-                                                                                                          0
-                                                                                                              as
-                                                                                                              *mut mailimf_to,
-                                                                                                          0
-                                                                                                              as
-                                                                                                              *mut mailimf_cc,
-                                                                                                          0
-                                                                                                              as
-                                                                                                              *mut mailimf_bcc,
-                                                                                                          0
-                                                                                                              as
-                                                                                                              *mut mailimf_message_id,
-                                                                                                          0
-                                                                                                              as
-                                                                                                              *mut mailimf_in_reply_to,
-                                                                                                          imf_references,
-                                                                                                          0
-                                                                                                              as
-                                                                                                              *mut mailimf_subject,
-                                                                                                          0
-                                                                                                              as
-                                                                                                              *mut mailimf_comments,
-                                                                                                          0
-                                                                                                              as
-                                                                                                              *mut mailimf_keywords,
-                                                                                                          0
-                                                                                                              as
-                                                                                                              *mut mailimf_optional_field);
-                                                                                    /* return-path */
-                                                                                    /* resent date */
-                                                                                    /* resent from */
-                                                                                    /* resent sender */
-                                                                                    /* resent to */
-                                                                                    /* resent cc */
-                                                                                    /* resent bcc */
-                                                                                    /* resent msg id */
-                                                                                    /* date */
-                                                                                    /* from */
-                                                                                    /* sender */
-                                                                                    /* reply-to */
-                                                                                    /* to */
-                                                                                    /* cc */
-                                                                                    /* bcc */
-                                                                                    /* message id */
-                                                                                    /* in reply to */
-                                                                                    /* references */
-                                                                                    /* subject */
-                                                                                    /* comments */
-                                                                                    /* keywords */
-                                                                                    /* optional field */
-                                                                                    if field
-                                                                                        .is_null()
-                                                                                    {
-                                                                                        current_block
-                                                                                            =
-                                                                                            16539016819803454162;
-                                                                                    } else {
-                                                                                        r
+                                                                                        mailimf_field::References(
+                                                                                            imf_references);
+                                                                                    r
                                                                                             =
                                                                                             mailimf_fields_add(fields,
                                                                                                                field);
-                                                                                        if r
+                                                                                    if r
                                                                                                !=
                                                                                                MAILIMF_NO_ERROR
                                                                                                    as
@@ -1327,7 +688,7 @@ pub unsafe fn mailimf_fields_add_data(
                                                                                             current_block
                                                                                                 =
                                                                                                 7301440000599063274;
-                                                                                        }
+
                                                                                     }
                                                                                 }
                                                                             } else {
@@ -1349,131 +710,28 @@ pub unsafe fn mailimf_fields_add_data(
                                                                                 =>
                                                                                 {
                                                                                     if !subject.is_null()
-                                                                                       {
+                                                                                    {
                                                                                         imf_subject
                                                                                             =
                                                                                             mailimf_subject_new(subject);
                                                                                         if imf_subject.is_null()
-                                                                                           {
+                                                                                        {
                                                                                             current_block
                                                                                                 =
                                                                                                 16539016819803454162;
                                                                                         } else {
-                                                                                            field
-                                                                                                =
-                                                                                                mailimf_field_new(MAILIMF_FIELD_SUBJECT
-                                                                                                                      as
-                                                                                                                      libc::c_int,
-                                                                                                                  0
-                                                                                                                      as
-                                                                                                                      *mut mailimf_return,
-                                                                                                                  0
-                                                                                                                      as
-                                                                                                                      *mut mailimf_orig_date,
-                                                                                                                  0
-                                                                                                                      as
-                                                                                                                      *mut mailimf_from,
-                                                                                                                  0
-                                                                                                                      as
-                                                                                                                      *mut mailimf_sender,
-                                                                                                                  0
-                                                                                                                      as
-                                                                                                                      *mut mailimf_to,
-                                                                                                                  0
-                                                                                                                      as
-                                                                                                                      *mut mailimf_cc,
-                                                                                                                  0
-                                                                                                                      as
-                                                                                                                      *mut mailimf_bcc,
-                                                                                                                  0
-                                                                                                                      as
-                                                                                                                      *mut mailimf_message_id,
-                                                                                                                  0
-                                                                                                                      as
-                                                                                                                      *mut mailimf_orig_date,
-                                                                                                                  0
-                                                                                                                      as
-                                                                                                                      *mut mailimf_from,
-                                                                                                                  0
-                                                                                                                      as
-                                                                                                                      *mut mailimf_sender,
-                                                                                                                  0
-                                                                                                                      as
-                                                                                                                      *mut mailimf_reply_to,
-                                                                                                                  0
-                                                                                                                      as
-                                                                                                                      *mut mailimf_to,
-                                                                                                                  0
-                                                                                                                      as
-                                                                                                                      *mut mailimf_cc,
-                                                                                                                  0
-                                                                                                                      as
-                                                                                                                      *mut mailimf_bcc,
-                                                                                                                  0
-                                                                                                                      as
-                                                                                                                      *mut mailimf_message_id,
-                                                                                                                  0
-                                                                                                                      as
-                                                                                                                      *mut mailimf_in_reply_to,
-                                                                                                                  0
-                                                                                                                      as
-                                                                                                                      *mut mailimf_references,
-                                                                                                                  imf_subject,
-                                                                                                                  0
-                                                                                                                      as
-                                                                                                                      *mut mailimf_comments,
-                                                                                                                  0
-                                                                                                                      as
-                                                                                                                      *mut mailimf_keywords,
-                                                                                                                  0
-                                                                                                                      as
-                                                                                                                      *mut mailimf_optional_field);
-                                                                                            /* return-path */
-                                                                                            /* resent date */
-                                                                                            /* resent from */
-                                                                                            /* resent sender */
-                                                                                            /* resent to */
-                                                                                            /* resent cc */
-                                                                                            /* resent bcc */
-                                                                                            /* resent msg id */
-                                                                                            /* date */
-                                                                                            /* from */
-                                                                                            /* sender */
-                                                                                            /* reply-to */
-                                                                                            /* to */
-                                                                                            /* cc */
-                                                                                            /* bcc */
-                                                                                            /* message id */
-                                                                                            /* in reply to */
-                                                                                            /* references */
-                                                                                            /* subject */
-                                                                                            /* comments */
-                                                                                            /* keywords */
-                                                                                            /* optional field */
-                                                                                            if field.is_null()
-                                                                                               {
+                                                                                            let field =
+                                                                                                mailimf_field::Subject(imf_subject);
+                                                                                            r = mailimf_fields_add(fields, field);
+                                                                                            if r != MAILIMF_NO_ERROR as libc::c_int
+                                                                                            {
                                                                                                 current_block
                                                                                                     =
-                                                                                                    16539016819803454162;
+                                                                                                    13813460800808168376;
                                                                                             } else {
-                                                                                                r
+                                                                                                current_block
                                                                                                     =
-                                                                                                    mailimf_fields_add(fields,
-                                                                                                                       field);
-                                                                                                if r
-                                                                                                       !=
-                                                                                                       MAILIMF_NO_ERROR
-                                                                                                           as
-                                                                                                           libc::c_int
-                                                                                                   {
-                                                                                                    current_block
-                                                                                                        =
-                                                                                                        13813460800808168376;
-                                                                                                } else {
-                                                                                                    current_block
-                                                                                                        =
-                                                                                                        10153752038087260855;
-                                                                                                }
+                                                                                                    10153752038087260855;
                                                                                             }
                                                                                         }
                                                                                     } else {
@@ -1520,15 +778,6 @@ pub unsafe fn mailimf_fields_add_data(
         }
         _ => {}
     }
-    match current_block {
-        13813460800808168376 => {
-            if !field.is_null() {
-                detach_field(field);
-                mailimf_field_free(field);
-            }
-        }
-        _ => {}
-    }
     detach_free_fields(
         imf_date,
         imf_from,
@@ -1542,7 +791,7 @@ pub unsafe fn mailimf_fields_add_data(
         imf_references,
         imf_subject,
     );
-    return MAILIMF_ERROR_MEMORY as libc::c_int;
+    MAILIMF_ERROR_MEMORY
 }
 
 unsafe fn detach_free_fields(
@@ -1575,11 +824,6 @@ unsafe fn detach_free_fields(
         (*subject).sbj_value = 0 as *mut libc::c_char;
         mailimf_subject_free(subject);
     };
-}
-
-unsafe fn detach_field(mut field: *mut mailimf_field) {
-    (*field).fld_type = MAILIMF_FIELD_NONE as libc::c_int;
-    mailimf_field_free(field);
 }
 
 unsafe fn detach_free_common_fields(
