@@ -221,13 +221,10 @@ unsafe fn display_orig_date(mut orig_date: *mut mailimf_orig_date) {
     display_date_time((*orig_date).dt_date_time);
 }
 unsafe fn display_mailbox(mut mb: *mut mailimf_mailbox) {
-    if !(*mb).mb_display_name.is_null() {
-        print!(
-            "{}",
-            CStr::from_ptr((*mb).mb_display_name).to_str().unwrap()
-        );
+    if !(*mb).display_name.is_null() {
+        print!("{}", CStr::from_ptr((*mb).display_name).to_str().unwrap());
     }
-    print!("<{}>", CStr::from_ptr((*mb).mb_addr_spec).to_str().unwrap());
+    print!("<{}>", CStr::from_ptr((*mb).addr_spec).to_str().unwrap());
 }
 unsafe fn display_mailbox_list(mut mb_list: *mut mailimf_mailbox_list) {
     for (i, mb) in (*mb_list).0.iter().enumerate() {

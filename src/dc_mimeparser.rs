@@ -847,7 +847,7 @@ impl<'a> MimeParser<'a> {
                 .unwrap_or_else(|| ptr::null_mut());
 
             if !mb.is_null() {
-                let from_addr_norm = addr_normalize(as_str((*mb).mb_addr_spec));
+                let from_addr_norm = addr_normalize(as_str((*mb).addr_spec));
                 let recipients = mailimf_get_recipients(self.header_root);
                 if recipients.len() == 1 {
                     if recipients.contains(from_addr_norm) {
@@ -916,8 +916,8 @@ pub fn mailimf_find_first_addr(mb_list: *const mailimf_mailbox_list) -> Option<S
 
     for mb in unsafe { &(*mb_list).0 } {
         let mb = *mb;
-        if !mb.is_null() && !unsafe { (*mb).mb_addr_spec.is_null() } {
-            let addr = unsafe { as_str((*mb).mb_addr_spec) };
+        if !mb.is_null() && !unsafe { (*mb).addr_spec.is_null() } {
+            let addr = unsafe { as_str((*mb).addr_spec) };
             return Some(addr_normalize(addr).to_string());
         }
     }
@@ -1272,7 +1272,7 @@ pub fn mailimf_get_recipients(imffields: *mut mailimf_fields) -> HashSet<String>
 
 fn mailimf_get_recipients_add_addr(recipients: &mut HashSet<String>, mb: *mut mailimf_mailbox) {
     if !mb.is_null() {
-        let addr_norm = addr_normalize(as_str(unsafe { (*mb).mb_addr_spec }));
+        let addr_norm = addr_normalize(as_str(unsafe { (*mb).addr_spec }));
         recipients.insert(addr_norm.into());
     }
 }

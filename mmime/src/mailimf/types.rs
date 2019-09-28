@@ -75,22 +75,26 @@ impl Drop for mailimf_mailbox_list {
     }
 }
 
-/*
-  mailimf_mailbox is a mailbox
-
-  - display_name is the name that will be displayed for this mailbox,
-    for example 'name' in '"name" <mailbox@domain>,
-    should be allocated with malloc()
-
-  - addr_spec is the mailbox, for example 'mailbox@domain'
-    in '"name" <mailbox@domain>, should be allocated with malloc()
-*/
-#[derive(Copy, Clone)]
-#[repr(C)]
+/// A single mailbox.
+#[derive(Clone)]
 pub struct mailimf_mailbox {
-    pub mb_display_name: *mut libc::c_char,
-    pub mb_addr_spec: *mut libc::c_char,
+    /// The name that will be displayed for this mailbox,
+    /// for example 'name' in '"name" <mailbox@domain>.
+    pub display_name: *mut libc::c_char,
+    /// addr_spec is the mailbox, for example 'mailbox@domain'
+    /// in '"name" <mailbox@domain>.
+    pub addr_spec: *mut libc::c_char,
 }
+
+impl Drop for mailimf_mailbox {
+    fn drop(&mut self) {
+        if !self.display_name.is_null() {
+            unsafe { mailimf_display_name_free(self.display_name) };
+        }
+        unsafe { mailimf_addr_spec_free(self.addr_spec) };
+    }
+}
+
 /*
   mailimf_address_list is a list of addresses
 
@@ -518,31 +522,28 @@ pub unsafe fn mailimf_mailbox_list_free(mb_list: *mut mailimf_mailbox_list) {
     let _ = Box::from_raw(mb_list);
 }
 
-#[no_mangle]
-pub unsafe fn mailimf_mailbox_free(mut mailbox: *mut mailimf_mailbox) {
-    if !(*mailbox).mb_display_name.is_null() {
-        mailimf_display_name_free((*mailbox).mb_display_name);
+pub unsafe fn mailimf_mailbox_free(mailbox: *mut mailimf_mailbox) {
+    if mailbox.is_null() {
+        return;
     }
-    mailimf_addr_spec_free((*mailbox).mb_addr_spec);
-    free(mailbox as *mut libc::c_void);
+    let _ = Box::from_raw(mailbox);
 }
+
 #[no_mangle]
 pub unsafe fn mailimf_addr_spec_free(mut addr_spec: *mut libc::c_char) {
     free(addr_spec as *mut libc::c_void);
 }
-#[no_mangle]
-pub unsafe fn mailimf_mailbox_new(
-    mut mb_display_name: *mut libc::c_char,
-    mut mb_addr_spec: *mut libc::c_char,
+
+pub fn mailimf_mailbox_new(
+    display_name: *mut libc::c_char,
+    addr_spec: *mut libc::c_char,
 ) -> *mut mailimf_mailbox {
-    let mut mb: *mut mailimf_mailbox = 0 as *mut mailimf_mailbox;
-    mb = malloc(::std::mem::size_of::<mailimf_mailbox>() as libc::size_t) as *mut mailimf_mailbox;
-    if mb.is_null() {
-        return 0 as *mut mailimf_mailbox;
-    }
-    (*mb).mb_display_name = mb_display_name;
-    (*mb).mb_addr_spec = mb_addr_spec;
-    return mb;
+    let mb = mailimf_mailbox {
+        display_name,
+        addr_spec,
+    };
+
+    Box::into_raw(Box::new(mb))
 }
 
 pub fn mailimf_group_new(

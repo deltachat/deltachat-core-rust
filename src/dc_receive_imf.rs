@@ -1868,8 +1868,8 @@ unsafe fn dc_add_or_lookup_contacts_by_address_list(
                 if !mb.is_null() {
                     add_or_lookup_contact_by_addr(
                         context,
-                        (*mb).mb_display_name,
-                        (*mb).mb_addr_spec,
+                        (*mb).display_name,
+                        (*mb).addr_spec,
                         origin,
                         ids,
                         check_self,
@@ -1906,8 +1906,8 @@ unsafe fn dc_add_or_lookup_contacts_by_mailbox_list(
         if !mb.is_null() {
             add_or_lookup_contact_by_addr(
                 context,
-                (*mb).mb_display_name,
-                (*mb).mb_addr_spec,
+                (*mb).display_name,
+                (*mb).addr_spec,
                 origin,
                 ids,
                 check_self,

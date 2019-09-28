@@ -1084,21 +1084,21 @@ unsafe fn mailimf_mailbox_write_driver(
 ) -> libc::c_int {
     let mut r: libc::c_int = 0;
     let mut do_fold: libc::c_int = 0;
-    if !(*mb).mb_display_name.is_null() {
-        if 0 != is_atext((*mb).mb_display_name) {
+    if !(*mb).display_name.is_null() {
+        if 0 != is_atext((*mb).display_name) {
             r = mailimf_header_string_write_driver(
                 do_write,
                 data,
                 col,
-                (*mb).mb_display_name,
-                strlen((*mb).mb_display_name),
+                (*mb).display_name,
+                strlen((*mb).display_name),
             );
             if r != MAILIMF_NO_ERROR as libc::c_int {
                 return r;
             }
         } else {
-            if !(*mb).mb_display_name.is_null() {
-                if (*col as libc::size_t).wrapping_add(strlen((*mb).mb_display_name))
+            if !(*mb).display_name.is_null() {
+                if (*col as libc::size_t).wrapping_add(strlen((*mb).display_name))
                     >= 72i32 as libc::size_t
                 {
                     r = mailimf_string_write_driver(
@@ -1113,15 +1113,15 @@ unsafe fn mailimf_mailbox_write_driver(
                     }
                 }
             }
-            if strlen((*mb).mb_display_name) > (998i32 / 2i32) as libc::size_t {
+            if strlen((*mb).display_name) > (998i32 / 2i32) as libc::size_t {
                 return MAILIMF_ERROR_INVAL as libc::c_int;
             }
             r = mailimf_quoted_string_write_driver(
                 do_write,
                 data,
                 col,
-                (*mb).mb_display_name,
-                strlen((*mb).mb_display_name),
+                (*mb).display_name,
+                strlen((*mb).display_name),
             );
             if r != MAILIMF_NO_ERROR as libc::c_int {
                 return r;
@@ -1130,7 +1130,7 @@ unsafe fn mailimf_mailbox_write_driver(
         do_fold = 0i32;
         if *col > 1i32 {
             if (*col as libc::size_t)
-                .wrapping_add(strlen((*mb).mb_addr_spec))
+                .wrapping_add(strlen((*mb).addr_spec))
                 .wrapping_add(3i32 as libc::size_t)
                 >= 72i32 as libc::size_t
             {
@@ -1171,8 +1171,8 @@ unsafe fn mailimf_mailbox_write_driver(
             do_write,
             data,
             col,
-            (*mb).mb_addr_spec,
-            strlen((*mb).mb_addr_spec),
+            (*mb).addr_spec,
+            strlen((*mb).addr_spec),
         );
         if r != MAILIMF_NO_ERROR as libc::c_int {
             return r;
@@ -1188,8 +1188,7 @@ unsafe fn mailimf_mailbox_write_driver(
             return r;
         }
     } else {
-        if (*col as libc::size_t).wrapping_add(strlen((*mb).mb_addr_spec)) >= 72i32 as libc::size_t
-        {
+        if (*col as libc::size_t).wrapping_add(strlen((*mb).addr_spec)) >= 72i32 as libc::size_t {
             r = mailimf_string_write_driver(
                 do_write,
                 data,
@@ -1205,8 +1204,8 @@ unsafe fn mailimf_mailbox_write_driver(
             do_write,
             data,
             col,
-            (*mb).mb_addr_spec,
-            strlen((*mb).mb_addr_spec),
+            (*mb).addr_spec,
+            strlen((*mb).addr_spec),
         );
         if r != MAILIMF_NO_ERROR as libc::c_int {
             return r;
