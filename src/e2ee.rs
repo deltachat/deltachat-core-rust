@@ -550,16 +550,15 @@ fn decrypt_if_autocrypt_message(
         public_keyring_for_validate,
         ret_valid_signatures,
     )?;
-    /* decrypted_mime is a dangling pointer which we now put into
-    mailmime's Ownership */
+    // decrypted_mime is a dangling pointer which we now put into mailmime's Ownership
     unsafe {
         mailmime_substitute(mime, decrypted_mime);
         mailmime_free(mime);
     }
 
-    /* finally, let's also return gossip headers
-    XXX better return parsed headers so that upstream
-    does not need to dive into mmime-stuff again. */
+    // finally, let's also return gossip headers
+    // XXX better return parsed headers so that upstream
+    // does not need to dive into mmime-stuff again.
     unsafe {
         if (*ret_gossip_headers).is_null() && ret_valid_signatures.len() > 0 {
             let mut dummy: libc::size_t = 0;
@@ -572,11 +571,12 @@ fn decrypt_if_autocrypt_message(
             ) == MAILIMF_NO_ERROR as libc::c_int
                 && !test.is_null()
             {
-                *ret_gossip_headers = test
+                *ret_gossip_headers = test;
             }
         }
     }
-    return Ok(true);
+
+    Ok(true)
 }
 
 fn decrypt_part(
@@ -602,10 +602,10 @@ fn decrypt_part(
 
     let (decoded_data, decoded_data_bytes) =
         wrapmime::decode_dt_data(mime_data, mime_transfer_encoding)?;
-    /* encrypted, non-NULL decoded data in decoded_data now ...
-    Note that we need to take care of freeing decoded_data ourself,
-    after encryption has been attempted.
-    */
+
+    // encrypted, non-NULL decoded data in decoded_data now ...
+    // Note that we need to take care of freeing decoded_data ourself,
+    // after encryption has been attempted.
     let mut ret_decrypted_mime = ptr::null_mut();
 
     ensure!(!decoded_data.is_null(), "Missing data");
@@ -648,6 +648,10 @@ fn decrypt_part(
                 unsafe { mailmime_free(decrypted_mime) };
             }
         } else {
+            // decrypted_mime points into `plain`.
+            // FIXME(@dignifiedquire): this still leaks memory I believe, as mailmime_free
+            // does not free the underlying buffer. But for now we have to live with it
+            std::mem::forget(plain);
             ret_decrypted_mime = decrypted_mime;
         }
     }
