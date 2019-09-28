@@ -312,19 +312,10 @@ pub unsafe fn mailimf_mailbox_list_new_empty() -> *mut mailimf_mailbox_list {
   other code will be returned otherwise
 */
 pub unsafe fn mailimf_mailbox_list_add(
-    mut mailbox_list: *mut mailimf_mailbox_list,
-    mut mb: *mut mailimf_mailbox,
-) -> libc::c_int {
-    let mut r: libc::c_int = 0;
-    r = clist_insert_after(
-        (*mailbox_list).mb_list,
-        (*(*mailbox_list).mb_list).last,
-        mb as *mut libc::c_void,
-    );
-    if r < 0i32 {
-        return MAILIMF_ERROR_MEMORY as libc::c_int;
-    }
-    return MAILIMF_NO_ERROR as libc::c_int;
+    mailbox_list: *mut mailimf_mailbox_list,
+    mb: *mut mailimf_mailbox,
+) {
+    (*mailbox_list).0.push(mb);
 }
 
 /*

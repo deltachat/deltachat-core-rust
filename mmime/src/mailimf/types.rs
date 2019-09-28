@@ -63,16 +63,18 @@ impl Drop for mailimf_group {
     }
 }
 
-/*
-  mailimf_mailbox_list is a list of mailboxes
+/// A list of mailboxes
+#[derive(Clone)]
+pub struct mailimf_mailbox_list(pub Vec<*mut mailimf_mailbox>);
 
-  - list is a list of mailboxes
-*/
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct mailimf_mailbox_list {
-    pub mb_list: *mut clist,
+impl Drop for mailimf_mailbox_list {
+    fn drop(&mut self) {
+        for mb in &self.0 {
+            unsafe { mailimf_mailbox_free(*mb) };
+        }
+    }
 }
+
 /*
   mailimf_mailbox is a mailbox
 
@@ -507,18 +509,15 @@ pub unsafe fn mailimf_display_name_free(mut display_name: *mut libc::c_char) {
 pub unsafe fn mailimf_phrase_free(mut phrase: *mut libc::c_char) {
     free(phrase as *mut libc::c_void);
 }
-#[no_mangle]
-pub unsafe fn mailimf_mailbox_list_free(mut mb_list: *mut mailimf_mailbox_list) {
-    clist_foreach(
-        (*mb_list).mb_list,
-        ::std::mem::transmute::<Option<unsafe fn(_: *mut mailimf_mailbox) -> ()>, clist_func>(
-            Some(mailimf_mailbox_free),
-        ),
-        0 as *mut libc::c_void,
-    );
-    clist_free((*mb_list).mb_list);
-    free(mb_list as *mut libc::c_void);
+
+pub unsafe fn mailimf_mailbox_list_free(mb_list: *mut mailimf_mailbox_list) {
+    if mb_list.is_null() {
+        return;
+    }
+
+    let _ = Box::from_raw(mb_list);
 }
+
 #[no_mangle]
 pub unsafe fn mailimf_mailbox_free(mut mailbox: *mut mailimf_mailbox) {
     if !(*mailbox).mb_display_name.is_null() {
@@ -558,16 +557,18 @@ pub fn mailimf_group_new(
     Box::into_raw(Box::new(group))
 }
 
-#[no_mangle]
-pub unsafe fn mailimf_mailbox_list_new(mut mb_list: *mut clist) -> *mut mailimf_mailbox_list {
-    let mut mbl: *mut mailimf_mailbox_list = 0 as *mut mailimf_mailbox_list;
-    mbl = malloc(::std::mem::size_of::<mailimf_mailbox_list>() as libc::size_t)
-        as *mut mailimf_mailbox_list;
-    if mbl.is_null() {
-        return 0 as *mut mailimf_mailbox_list;
-    }
-    (*mbl).mb_list = mb_list;
-    return mbl;
+pub fn mailimf_mailbox_list_new(mb_list: *mut clist) -> *mut mailimf_mailbox_list {
+    // convert clist into vec
+    let list: Vec<_> = unsafe { (*mb_list).into_iter() }
+        .map(|mb| mb as *mut mailimf_mailbox)
+        .collect();
+
+    // free clist
+    unsafe { clist_free(mb_list) }
+
+    let mbl = mailimf_mailbox_list(list);
+
+    Box::into_raw(Box::new(mbl))
 }
 
 pub unsafe fn mailimf_address_list_new(mut ad_list: *mut clist) -> *mut mailimf_address_list {

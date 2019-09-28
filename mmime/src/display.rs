@@ -230,55 +230,26 @@ unsafe fn display_mailbox(mut mb: *mut mailimf_mailbox) {
     print!("<{}>", CStr::from_ptr((*mb).mb_addr_spec).to_str().unwrap());
 }
 unsafe fn display_mailbox_list(mut mb_list: *mut mailimf_mailbox_list) {
-    let mut cur: *mut clistiter = 0 as *mut clistiter;
-    cur = (*(*mb_list).mb_list).first;
-    while !cur.is_null() {
-        let mut mb: *mut mailimf_mailbox = 0 as *mut mailimf_mailbox;
-        mb = (if !cur.is_null() {
-            (*cur).data
-        } else {
-            0 as *mut libc::c_void
-        }) as *mut mailimf_mailbox;
-        display_mailbox(mb);
-        if !if !cur.is_null() {
-            (*cur).next
-        } else {
-            0 as *mut clistcell
-        }
-        .is_null()
-        {
+    for (i, mb) in (*mb_list).0.iter().enumerate() {
+        display_mailbox(*mb);
+        if i < (*mb_list).0.len() - 1 {
             print!(", ");
-        }
-        cur = if !cur.is_null() {
-            (*cur).next
-        } else {
-            0 as *mut clistcell
         }
     }
 }
+
 unsafe fn display_group(mut group: *mut mailimf_group) {
     let mut cur: *mut clistiter = 0 as *mut clistiter;
     print!(
         "{}: ",
         CStr::from_ptr((*group).display_name).to_str().unwrap()
     );
-    cur = (*(*(*group).mb_list).mb_list).first;
-    while !cur.is_null() {
-        let mut mb: *mut mailimf_mailbox = 0 as *mut mailimf_mailbox;
-        mb = (if !cur.is_null() {
-            (*cur).data
-        } else {
-            0 as *mut libc::c_void
-        }) as *mut mailimf_mailbox;
-        display_mailbox(mb);
-        cur = if !cur.is_null() {
-            (*cur).next
-        } else {
-            0 as *mut clistcell
-        }
+    for mb in &(*(*group).mb_list).0 {
+        display_mailbox(*mb);
     }
     print!("; ");
 }
+
 unsafe fn display_address(a: *mut mailimf_address) {
     match *a {
         mailimf_address::Group(data) => {

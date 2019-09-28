@@ -1901,13 +1901,8 @@ unsafe fn dc_add_or_lookup_contacts_by_mailbox_list(
     if mb_list.is_null() {
         return;
     }
-    let mut cur: *mut clistiter = (*(*mb_list).mb_list).first;
-    while !cur.is_null() {
-        let mb: *mut mailimf_mailbox = (if !cur.is_null() {
-            (*cur).data
-        } else {
-            ptr::null_mut()
-        }) as *mut mailimf_mailbox;
+    for mb in &(*mb_list).0 {
+        let mb = *mb;
         if !mb.is_null() {
             add_or_lookup_contact_by_addr(
                 context,
@@ -1917,11 +1912,6 @@ unsafe fn dc_add_or_lookup_contacts_by_mailbox_list(
                 ids,
                 check_self,
             );
-        }
-        cur = if !cur.is_null() {
-            (*cur).next
-        } else {
-            ptr::null_mut()
         }
     }
 }

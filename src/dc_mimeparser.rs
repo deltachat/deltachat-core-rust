@@ -839,14 +839,12 @@ impl<'a> MimeParser<'a> {
                 fld_from.is_null()
             }
             || (*fld_from).frm_mb_list.is_null()
-            || (*(*fld_from).frm_mb_list).mb_list.is_null()
-            || (*(*(*fld_from).frm_mb_list).mb_list).count != 1i32)
+            || (*(*(*fld_from).frm_mb_list).0).len() != 1)
         {
-            let mb = (if !(*(*(*fld_from).frm_mb_list).mb_list).first.is_null() {
-                (*(*(*(*fld_from).frm_mb_list).mb_list).first).data
-            } else {
-                ptr::null_mut()
-            }) as *mut mailimf_mailbox;
+            let mb = (*(*(*fld_from).frm_mb_list).0)
+                .first()
+                .map(|v| *v)
+                .unwrap_or_else(|| ptr::null_mut());
 
             if !mb.is_null() {
                 let from_addr_norm = addr_normalize(as_str((*mb).mb_addr_spec));
@@ -916,8 +914,8 @@ pub fn mailimf_find_first_addr(mb_list: *const mailimf_mailbox_list) -> Option<S
         return None;
     }
 
-    for cur in unsafe { (*(*mb_list).mb_list).into_iter() } {
-        let mb = cur as *mut mailimf_mailbox;
+    for mb in unsafe { &(*mb_list).0 } {
+        let mb = *mb;
         if !mb.is_null() && !unsafe { (*mb).mb_addr_spec.is_null() } {
             let addr = unsafe { as_str((*mb).mb_addr_spec) };
             return Some(addr_normalize(addr).to_string());
@@ -1259,11 +1257,8 @@ pub fn mailimf_get_recipients(imffields: *mut mailimf_fields) -> HashSet<String>
                     }
                     mailimf_address::Group(group) => {
                         if !group.is_null() && unsafe { !(*group).mb_list.is_null() } {
-                            for cur3 in unsafe { &(*(*(*group).mb_list).mb_list) } {
-                                mailimf_get_recipients_add_addr(
-                                    &mut recipients,
-                                    cur3 as *mut mailimf_mailbox,
-                                );
+                            for mb in unsafe { &((*(*group).mb_list).0) } {
+                                mailimf_get_recipients_add_addr(&mut recipients, *mb);
                             }
                         }
                     }

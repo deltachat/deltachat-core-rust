@@ -1050,14 +1050,8 @@ pub unsafe fn mailimf_mailbox_list_write_driver(
     let mut r: libc::c_int = 0;
     let mut first: libc::c_int = 0;
     first = 1i32;
-    cur = (*(*mb_list).mb_list).first;
-    while !cur.is_null() {
-        let mut mb: *mut mailimf_mailbox = 0 as *mut mailimf_mailbox;
-        mb = (if !cur.is_null() {
-            (*cur).data
-        } else {
-            0 as *mut libc::c_void
-        }) as *mut mailimf_mailbox;
+
+    for mb in &(*mb_list).0 {
         if 0 == first {
             r = mailimf_string_write_driver(
                 do_write,
@@ -1072,18 +1066,14 @@ pub unsafe fn mailimf_mailbox_list_write_driver(
         } else {
             first = 0i32
         }
-        r = mailimf_mailbox_write_driver(do_write, data, col, mb);
+        r = mailimf_mailbox_write_driver(do_write, data, col, *mb);
         if r != MAILIMF_NO_ERROR as libc::c_int {
             return r;
         }
-        cur = if !cur.is_null() {
-            (*cur).next
-        } else {
-            0 as *mut clistcell
-        }
     }
-    return MAILIMF_NO_ERROR as libc::c_int;
+    MAILIMF_NO_ERROR as libc::c_int
 }
+
 unsafe fn mailimf_mailbox_write_driver(
     mut do_write: Option<
         unsafe fn(_: *mut libc::c_void, _: *const libc::c_char, _: size_t) -> libc::c_int,
