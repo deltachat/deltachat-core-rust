@@ -4,7 +4,7 @@ use std::ffi::CString;
 use std::ptr;
 
 use charset::Charset;
-use libc::{free, strlen};
+use libc::free;
 use mmime::mailmime::decode::mailmime_encoded_phrase_parse;
 use mmime::other::*;
 use percent_encoding::{percent_decode, utf8_percent_encode, AsciiSet, CONTROLS};
@@ -67,27 +67,6 @@ fn quote_word(word: &[u8]) -> String {
 /* ******************************************************************************
  * Encode/decode header words, RFC 2047
  ******************************************************************************/
-
-pub unsafe fn dc_decode_header_words(in_0: *const libc::c_char) -> *mut libc::c_char {
-    if in_0.is_null() {
-        return ptr::null_mut();
-    }
-    let mut out: *mut libc::c_char = ptr::null_mut();
-    let mut cur_token = 0;
-    let r: libc::c_int = mailmime_encoded_phrase_parse(
-        b"iso-8859-1\x00" as *const u8 as *const libc::c_char,
-        in_0,
-        strlen(in_0),
-        &mut cur_token,
-        b"utf-8\x00" as *const u8 as *const libc::c_char,
-        &mut out,
-    );
-    if r != MAILIMF_NO_ERROR as libc::c_int || out.is_null() {
-        out = dc_strdup(in_0)
-    }
-
-    out
-}
 
 pub fn dc_decode_header_words_safe(input: &str) -> String {
     static FROM_ENCODING: &[u8] = b"iso-8859-1\x00";
@@ -177,60 +156,34 @@ pub fn dc_decode_ext_header(to_decode: &[u8]) -> Cow<str> {
 mod tests {
     use super::*;
 
-    use libc::strcmp;
-    use std::ffi::CStr;
-
     #[test]
     fn test_dc_decode_header_words() {
-        unsafe {
-            let mut buf1: *mut libc::c_char = dc_decode_header_words(
-                b"=?utf-8?B?dGVzdMOkw7bDvC50eHQ=?=\x00" as *const u8 as *const libc::c_char,
-            );
-            assert_eq!(
-                strcmp(
-                    buf1,
-                    b"test\xc3\xa4\xc3\xb6\xc3\xbc.txt\x00" as *const u8 as *const libc::c_char
-                ),
-                0
-            );
-            free(buf1 as *mut libc::c_void);
+        assert_eq!(
+            dc_decode_header_words_safe("=?utf-8?B?dGVzdMOkw7bDvC50eHQ=?="),
+            std::string::String::from_utf8(b"test\xc3\xa4\xc3\xb6\xc3\xbc.txt".to_vec()).unwrap(),
+        );
 
-            buf1 =
-                dc_decode_header_words(b"just ascii test\x00" as *const u8 as *const libc::c_char);
-            assert_eq!(CStr::from_ptr(buf1).to_str().unwrap(), "just ascii test");
-            free(buf1 as *mut libc::c_void);
+        assert_eq!(
+            dc_decode_header_words_safe("just ascii test"),
+            "just ascii test"
+        );
 
-            assert_eq!(dc_encode_header_words("abcdef"), "abcdef");
+        assert_eq!(dc_encode_header_words("abcdef"), "abcdef");
 
-            let r = dc_encode_header_words(
-                std::string::String::from_utf8(b"test\xc3\xa4\xc3\xb6\xc3\xbc.txt".to_vec())
-                    .unwrap(),
+        let r = dc_encode_header_words(
+            std::string::String::from_utf8(b"test\xc3\xa4\xc3\xb6\xc3\xbc.txt".to_vec()).unwrap(),
+        );
+        assert!(r.starts_with("=?utf-8"));
+
+        assert_eq!(
+            dc_decode_header_words_safe(&r),
+            std::string::String::from_utf8(b"test\xc3\xa4\xc3\xb6\xc3\xbc.txt".to_vec()).unwrap(),
+        );
+
+        assert_eq!(
+                dc_decode_header_words_safe("=?ISO-8859-1?Q?attachment=3B=0D=0A_filename=3D?= =?ISO-8859-1?Q?=22test=E4=F6=FC=2Etxt=22=3B=0D=0A_size=3D39?="),
+                std::string::String::from_utf8(b"attachment;\r\n filename=\"test\xc3\xa4\xc3\xb6\xc3\xbc.txt\";\r\n size=39".to_vec()).unwrap(),
             );
-            assert!(r.starts_with("=?utf-8"));
-
-            buf1 = r.strdup();
-            let buf2: *mut libc::c_char = dc_decode_header_words(buf1);
-            assert_eq!(
-                strcmp(
-                    buf2,
-                    b"test\xc3\xa4\xc3\xb6\xc3\xbc.txt\x00" as *const u8 as *const libc::c_char
-                ),
-                0
-            );
-            free(buf2 as *mut libc::c_void);
-
-            buf1 = dc_decode_header_words(
-                b"=?ISO-8859-1?Q?attachment=3B=0D=0A_filename=3D?= =?ISO-8859-1?Q?=22test=E4=F6=FC=2Etxt=22=3B=0D=0A_size=3D39?=\x00" as *const u8 as *const libc::c_char
-            );
-            assert_eq!(
-                strcmp(
-                    buf1,
-                    b"attachment;\r\n filename=\"test\xc3\xa4\xc3\xb6\xc3\xbc.txt\";\r\n size=39\x00" as *const u8 as *const libc::c_char,
-
-                ),
-                0
-            );
-        }
     }
 
     #[test]
