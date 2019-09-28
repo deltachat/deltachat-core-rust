@@ -46,7 +46,7 @@ pub enum mailimf_address {
 ///    for example 'group_name' in
 ///    'group_name: address1@domain1, address2@domain2;',
 ///  - mb_list is a list of mailboxes
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct mailimf_group {
     pub display_name: *mut libc::c_char,
     pub mb_list: *mut mailimf_mailbox_list,
@@ -64,7 +64,7 @@ impl Drop for mailimf_group {
 }
 
 /// A list of mailboxes
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct mailimf_mailbox_list(pub Vec<*mut mailimf_mailbox>);
 
 impl Drop for mailimf_mailbox_list {
@@ -76,7 +76,7 @@ impl Drop for mailimf_mailbox_list {
 }
 
 /// A single mailbox.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct mailimf_mailbox {
     /// The name that will be displayed for this mailbox,
     /// for example 'name' in '"name" <mailbox@domain>.
@@ -95,16 +95,18 @@ impl Drop for mailimf_mailbox {
     }
 }
 
-/*
-  mailimf_address_list is a list of addresses
+/// A list of addresses.
+#[derive(Debug, Clone)]
+pub struct mailimf_address_list(pub Vec<*mut mailimf_address>);
 
-  - list is a list of addresses
-*/
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct mailimf_address_list {
-    pub ad_list: *mut clist,
+impl Drop for mailimf_address_list {
+    fn drop(&mut self) {
+        for addr in &self.0 {
+            unsafe { mailimf_address_free(*addr) };
+        }
+    }
 }
+
 /*
   mailimf_body is the text part of a message
 
@@ -572,28 +574,27 @@ pub fn mailimf_mailbox_list_new(mb_list: *mut clist) -> *mut mailimf_mailbox_lis
     Box::into_raw(Box::new(mbl))
 }
 
-pub unsafe fn mailimf_address_list_new(mut ad_list: *mut clist) -> *mut mailimf_address_list {
-    let mut addr_list: *mut mailimf_address_list = 0 as *mut mailimf_address_list;
-    addr_list = malloc(::std::mem::size_of::<mailimf_address_list>() as libc::size_t)
-        as *mut mailimf_address_list;
+pub fn mailimf_address_list_new(ad_list: *mut clist) -> *mut mailimf_address_list {
+    // convert clist into vec
+    let list: Vec<_> = unsafe { (*ad_list).into_iter() }
+        .map(|mb| mb as *mut mailimf_address)
+        .collect();
+
+    // free clist
+    unsafe { clist_free(ad_list) }
+
+    let adl = mailimf_address_list(list);
+
+    Box::into_raw(Box::new(adl))
+}
+
+pub unsafe fn mailimf_address_list_free(addr_list: *mut mailimf_address_list) {
     if addr_list.is_null() {
-        return 0 as *mut mailimf_address_list;
+        return;
     }
-    (*addr_list).ad_list = ad_list;
-    return addr_list;
+    let _ = Box::from_raw(addr_list);
 }
-#[no_mangle]
-pub unsafe fn mailimf_address_list_free(mut addr_list: *mut mailimf_address_list) {
-    clist_foreach(
-        (*addr_list).ad_list,
-        ::std::mem::transmute::<Option<unsafe fn(_: *mut mailimf_address) -> ()>, clist_func>(
-            Some(mailimf_address_free),
-        ),
-        0 as *mut libc::c_void,
-    );
-    clist_free((*addr_list).ad_list);
-    free(addr_list as *mut libc::c_void);
-}
+
 #[no_mangle]
 pub unsafe fn mailimf_body_new(
     mut bd_text: *const libc::c_char,

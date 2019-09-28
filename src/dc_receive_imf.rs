@@ -1857,13 +1857,12 @@ unsafe fn dc_add_or_lookup_contacts_by_address_list(
         return;
     }
 
-    for cur in &(*(*adr_list).ad_list) {
-        let adr = cur as *mut mailimf_address;
+    for adr in &(*(*adr_list).0) {
         if adr.is_null() {
             continue;
         }
 
-        match *adr {
+        match **adr {
             mailimf_address::Mailbox(mb) => {
                 if !mb.is_null() {
                     add_or_lookup_contact_by_addr(

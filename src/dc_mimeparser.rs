@@ -1244,20 +1244,18 @@ pub fn mailimf_get_recipients(imffields: *mut mailimf_fields) -> HashSet<String>
         }
 
         if !addr_list.is_null() {
-            for cur2 in unsafe { &(*(*addr_list).ad_list) } {
-                let adr = cur2 as *mut mailimf_address;
-
+            for adr in unsafe { &(*(*addr_list).0) } {
                 if adr.is_null() {
                     continue;
                 }
 
-                match unsafe { *adr } {
+                match unsafe { &**adr } {
                     mailimf_address::Mailbox(mailbox) => {
-                        mailimf_get_recipients_add_addr(&mut recipients, mailbox);
+                        mailimf_get_recipients_add_addr(&mut recipients, *mailbox);
                     }
                     mailimf_address::Group(group) => {
-                        if !group.is_null() && unsafe { !(*group).mb_list.is_null() } {
-                            for mb in unsafe { &((*(*group).mb_list).0) } {
+                        if !group.is_null() && unsafe { !(**group).mb_list.is_null() } {
+                            for mb in unsafe { &((*(**group).mb_list).0) } {
                                 mailimf_get_recipients_add_addr(&mut recipients, *mb);
                             }
                         }

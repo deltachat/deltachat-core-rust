@@ -258,33 +258,15 @@ unsafe fn display_address(a: *mut mailimf_address) {
     }
 }
 
-unsafe fn display_address_list(mut addr_list: *mut mailimf_address_list) {
-    let mut cur: *mut clistiter = 0 as *mut clistiter;
-    cur = (*(*addr_list).ad_list).first;
-    while !cur.is_null() {
-        let mut addr: *mut mailimf_address = 0 as *mut mailimf_address;
-        addr = (if !cur.is_null() {
-            (*cur).data
-        } else {
-            0 as *mut libc::c_void
-        }) as *mut mailimf_address;
-        display_address(addr);
-        if !if !cur.is_null() {
-            (*cur).next
-        } else {
-            0 as *mut clistcell
-        }
-        .is_null()
-        {
+unsafe fn display_address_list(addr_list: *mut mailimf_address_list) {
+    for (i, addr) in (*addr_list).0.iter().enumerate() {
+        display_address(*addr);
+        if i < (*addr_list).0.len() - 1 {
             print!(", ");
-        }
-        cur = if !cur.is_null() {
-            (*cur).next
-        } else {
-            0 as *mut clistcell
         }
     }
 }
+
 unsafe fn display_from(mut from: *mut mailimf_from) {
     display_mailbox_list((*from).frm_mb_list);
 }

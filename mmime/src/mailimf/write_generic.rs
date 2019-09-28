@@ -930,14 +930,8 @@ pub unsafe fn mailimf_address_list_write_driver(
     let mut r: libc::c_int = 0;
     let mut first: libc::c_int = 0;
     first = 1i32;
-    cur = (*(*addr_list).ad_list).first;
-    while !cur.is_null() {
-        let mut addr: *mut mailimf_address = 0 as *mut mailimf_address;
-        addr = (if !cur.is_null() {
-            (*cur).data
-        } else {
-            0 as *mut libc::c_void
-        }) as *mut mailimf_address;
+
+    for addr in &(*addr_list).0 {
         if 0 == first {
             r = mailimf_string_write_driver(
                 do_write,
@@ -952,18 +946,14 @@ pub unsafe fn mailimf_address_list_write_driver(
         } else {
             first = 0i32
         }
-        r = mailimf_address_write_driver(do_write, data, col, addr);
+        r = mailimf_address_write_driver(do_write, data, col, *addr);
         if r != MAILIMF_NO_ERROR as libc::c_int {
             return r;
         }
-        cur = if !cur.is_null() {
-            (*cur).next
-        } else {
-            0 as *mut clistcell
-        }
     }
-    return MAILIMF_NO_ERROR as libc::c_int;
+    MAILIMF_NO_ERROR as libc::c_int
 }
+
 unsafe fn mailimf_address_write_driver(
     mut do_write: Option<
         unsafe fn(_: *mut libc::c_void, _: *const libc::c_char, _: size_t) -> libc::c_int,
