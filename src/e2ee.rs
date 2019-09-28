@@ -336,16 +336,16 @@ impl E2eeHelper {
                     if let Some(ref mut peerstate) = peerstate {
                         if let Some(ref header) = autocryptheader {
                             peerstate.apply_header(&header, message_time);
-                            peerstate.save_to_db(&context.sql, false).unwrap();
+                            peerstate.save_to_db(&context.sql, false)?;
                         } else if message_time > peerstate.last_seen_autocrypt
                             && !contains_report(in_out_message)
                         {
                             peerstate.degrade_encryption(message_time);
-                            peerstate.save_to_db(&context.sql, false).unwrap();
+                            peerstate.save_to_db(&context.sql, false)?;
                         }
                     } else if let Some(ref header) = autocryptheader {
                         let p = Peerstate::from_header(context, header, message_time);
-                        p.save_to_db(&context.sql, true).unwrap();
+                        p.save_to_db(&context.sql, true)?;
                         peerstate = Some(p);
                     }
                 }
@@ -364,7 +364,7 @@ impl E2eeHelper {
                     }
                     if let Some(ref peerstate) = peerstate {
                         if peerstate.degrade_event.is_some() {
-                            handle_degrade_event(context, &peerstate);
+                            handle_degrade_event(context, &peerstate)?;
                         }
                         if let Some(ref key) = peerstate.gossip_key {
                             public_keyring_for_validate.add_ref(key);
@@ -395,7 +395,7 @@ impl E2eeHelper {
                             message_time,
                             imffields,
                             gossip_headers,
-                        )
+                        )?;
                     }
                 }
             }
@@ -493,7 +493,7 @@ unsafe fn update_gossip_peerstates(
     message_time: i64,
     imffields: *mut mailimf_fields,
     gossip_headers: *const mailimf_fields,
-) -> HashSet<String> {
+) -> Result<HashSet<String>> {
     // XXX split the parsing from the modification part
     let mut recipients: Option<HashSet<String>> = None;
     let mut gossipped_addr: HashSet<String> = Default::default();
@@ -522,15 +522,15 @@ unsafe fn update_gossip_peerstates(
                             Peerstate::from_addr(context, &context.sql, &header.addr);
                         if let Some(ref mut peerstate) = peerstate {
                             peerstate.apply_gossip(header, message_time);
-                            peerstate.save_to_db(&context.sql, false).unwrap();
+                            peerstate.save_to_db(&context.sql, false)?;
                         } else {
                             let p = Peerstate::from_gossip(context, header, message_time);
-                            p.save_to_db(&context.sql, true).unwrap();
+                            p.save_to_db(&context.sql, true)?;
                             peerstate = Some(p);
                         }
                         if let Some(peerstate) = peerstate {
                             if peerstate.degrade_event.is_some() {
-                                handle_degrade_event(context, &peerstate);
+                                handle_degrade_event(context, &peerstate)?;
                             }
                         }
 
@@ -547,7 +547,7 @@ unsafe fn update_gossip_peerstates(
         }
     }
 
-    gossipped_addr
+    Ok(gossipped_addr)
 }
 
 fn decrypt_if_autocrypt_message(
