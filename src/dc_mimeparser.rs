@@ -120,7 +120,7 @@ impl<'a> MimeParser<'a> {
                 if (*field).fld_type == MAILIMF_FIELD_SUBJECT as libc::c_int {
                     let subj = (*(*field).fld_data.fld_subject).sbj_value;
 
-                    self.subject = as_opt_str(subj).map(dc_decode_header_words_safe);
+                    self.subject = as_opt_str(subj).map(dc_decode_header_words);
                 }
             }
 
@@ -697,7 +697,7 @@ impl<'a> MimeParser<'a> {
                                         // might be a wrongly encoded filename
                                         let s = to_string_lossy((*dsp_param).pa_data.pa_filename);
                                         // this is used only if the parts buffer stays empty
-                                        desired_filename = dc_decode_header_words_safe(&s)
+                                        desired_filename = dc_decode_header_words(&s)
                                     }
                                 }
                             }

@@ -68,7 +68,7 @@ fn quote_word(word: &[u8]) -> String {
  * Encode/decode header words, RFC 2047
  ******************************************************************************/
 
-pub fn dc_decode_header_words_safe(input: &str) -> String {
+pub(crate) fn dc_decode_header_words(input: &str) -> String {
     static FROM_ENCODING: &[u8] = b"iso-8859-1\x00";
     static TO_ENCODING: &[u8] = b"utf-8\x00";
     let mut out = ptr::null_mut();
@@ -159,14 +159,11 @@ mod tests {
     #[test]
     fn test_dc_decode_header_words() {
         assert_eq!(
-            dc_decode_header_words_safe("=?utf-8?B?dGVzdMOkw7bDvC50eHQ=?="),
+            dc_decode_header_words("=?utf-8?B?dGVzdMOkw7bDvC50eHQ=?="),
             std::string::String::from_utf8(b"test\xc3\xa4\xc3\xb6\xc3\xbc.txt".to_vec()).unwrap(),
         );
 
-        assert_eq!(
-            dc_decode_header_words_safe("just ascii test"),
-            "just ascii test"
-        );
+        assert_eq!(dc_decode_header_words("just ascii test"), "just ascii test");
 
         assert_eq!(dc_encode_header_words("abcdef"), "abcdef");
 
@@ -176,12 +173,12 @@ mod tests {
         assert!(r.starts_with("=?utf-8"));
 
         assert_eq!(
-            dc_decode_header_words_safe(&r),
+            dc_decode_header_words(&r),
             std::string::String::from_utf8(b"test\xc3\xa4\xc3\xb6\xc3\xbc.txt".to_vec()).unwrap(),
         );
 
         assert_eq!(
-                dc_decode_header_words_safe("=?ISO-8859-1?Q?attachment=3B=0D=0A_filename=3D?= =?ISO-8859-1?Q?=22test=E4=F6=FC=2Etxt=22=3B=0D=0A_size=3D39?="),
+                dc_decode_header_words("=?ISO-8859-1?Q?attachment=3B=0D=0A_filename=3D?= =?ISO-8859-1?Q?=22test=E4=F6=FC=2Etxt=22=3B=0D=0A_size=3D39?="),
                 std::string::String::from_utf8(b"attachment;\r\n filename=\"test\xc3\xa4\xc3\xb6\xc3\xbc.txt\";\r\n size=39".to_vec()).unwrap(),
             );
     }
@@ -246,7 +243,7 @@ mod tests {
         #[test]
         fn test_dc_header_roundtrip(input: String) {
             let encoded = dc_encode_header_words(&input);
-            let decoded = dc_decode_header_words_safe(&encoded);
+            let decoded = dc_decode_header_words(&encoded);
 
             assert_eq!(input, decoded);
         }
