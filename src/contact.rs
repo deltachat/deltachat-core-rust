@@ -963,9 +963,9 @@ pub fn normalize_name(full_name: impl AsRef<str>) -> String {
     if len > 0 {
         let firstchar = full_name.as_bytes()[0];
         let lastchar = full_name.as_bytes()[len - 1];
-        if firstchar == '\'' as u8 && lastchar == '\'' as u8
-            || firstchar == '\"' as u8 && lastchar == '\"' as u8
-            || firstchar == '<' as u8 && lastchar == '>' as u8
+        if firstchar == b'\'' && lastchar == b'\''
+            || firstchar == b'\"' && lastchar == b'\"'
+            || firstchar == b'<' && lastchar == b'>'
         {
             full_name = &full_name[1..len - 1];
         }

@@ -333,7 +333,7 @@ fn encode_66bits_as_base64(v1: u32, v2: u32, fill: u32) -> String {
         enc.write_u8(((fill & 0x3) as u8) << 6).unwrap();
         enc.finish().unwrap();
     }
-    assert_eq!(wrapped_writer.pop(), Some('A' as u8)); // Remove last "A"
+    assert_eq!(wrapped_writer.pop(), Some(b'A')); // Remove last "A"
     String::from_utf8(wrapped_writer).unwrap()
 }
 
