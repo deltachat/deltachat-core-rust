@@ -107,8 +107,6 @@ impl Simplify {
                     if is_empty_line(lines[l_last - 1]) {
                         l_last -= 1
                     }
-                }
-                if l_last > 1 {
                     let line = lines[l_last - 1];
                     if is_quoted_headline(line) {
                         l_last -= 1
