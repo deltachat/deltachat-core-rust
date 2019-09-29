@@ -1972,11 +1972,9 @@ unsafe fn add_or_lookup_contact_by_addr(
     let row_id = Contact::add_or_lookup(context, display_name_dec, as_str(addr_spec), origin)
         .map(|(id, _)| id)
         .unwrap_or_default();
-    if 0 != row_id {
-        if !ids.contains(&row_id) {
-            ids.push(row_id);
-        }
-    };
+    if 0 != row_id && !ids.contains(&row_id) {
+        ids.push(row_id);
+    }
 }
 
 #[cfg(test)]
