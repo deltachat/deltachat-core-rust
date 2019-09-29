@@ -949,10 +949,8 @@ unsafe fn calc_timestamps(
             params![chat_id as i32, from_id as i32, *sort_timestamp],
         );
         if let Some(last_msg_time) = last_msg_time {
-            if last_msg_time > 0 {
-                if *sort_timestamp <= last_msg_time {
-                    *sort_timestamp = last_msg_time + 1;
-                }
+            if last_msg_time > 0 && *sort_timestamp <= last_msg_time {
+                *sort_timestamp = last_msg_time + 1;
             }
         }
     }
