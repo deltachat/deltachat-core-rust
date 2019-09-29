@@ -851,10 +851,8 @@ impl<'a> MimeParser<'a> {
             if !mb.is_null() {
                 let from_addr_norm = addr_normalize(as_str((*mb).mb_addr_spec));
                 let recipients = mailimf_get_recipients(self.header_root);
-                if recipients.len() == 1 {
-                    if recipients.contains(from_addr_norm) {
-                        sender_equals_recipient = true;
-                    }
+                if recipients.len() == 1 && recipients.contains(from_addr_norm) {
+                    sender_equals_recipient = true;
                 }
             }
         }
