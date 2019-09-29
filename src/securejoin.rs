@@ -521,12 +521,10 @@ pub fn handle_securejoin_handshake(
                 if group_chat_id == 0 {
                     error!(context, "Chat {} not found.", &field_grpid);
                     return ret;
-                } else {
-                    if let Err(err) =
-                        chat::add_contact_to_chat_ex(context, group_chat_id, contact_id, true)
-                    {
-                        error!(context, "failed to add contact: {}", err);
-                    }
+                } else if let Err(err) =
+                    chat::add_contact_to_chat_ex(context, group_chat_id, contact_id, true)
+                {
+                    error!(context, "failed to add contact: {}", err);
                 }
             } else {
                 send_handshake_msg(context, contact_chat_id, "vc-contact-confirm", "", None, "");
