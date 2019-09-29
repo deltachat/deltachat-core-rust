@@ -7,6 +7,7 @@ use crate::error::Error;
 #[derive(Debug, FromPrimitive)]
 #[repr(i32)]
 pub enum CertificateChecks {
+    Automatic,
     Strict,
     AcceptInvalidHostnames,
     AcceptInvalidCertificates,
@@ -14,7 +15,7 @@ pub enum CertificateChecks {
 
 impl Default for CertificateChecks {
     fn default() -> Self {
-        Self::AcceptInvalidCertificates
+        Self::Automatic
     }
 }
 
