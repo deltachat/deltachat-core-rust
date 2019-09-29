@@ -450,12 +450,8 @@ pub unsafe fn mailimf_fields_add_data(
             current_block = 16539016819803454162;
         } else {
             let field = mailimf_field::OrigDate(imf_date);
-            r = mailimf_fields_add(fields, field);
-            if r != MAILIMF_NO_ERROR as libc::c_int {
-                current_block = 13813460800808168376;
-            } else {
-                current_block = 2719512138335094285;
-            }
+            mailimf_fields_add(fields, field);
+            current_block = 2719512138335094285;
         }
     } else {
         current_block = 2719512138335094285;
@@ -468,12 +464,8 @@ pub unsafe fn mailimf_fields_add_data(
                     current_block = 13813460800808168376;
                 } else {
                     let field = mailimf_field::From(imf_from);
-                    r = mailimf_fields_add(fields, field);
-                    if r != MAILIMF_NO_ERROR as libc::c_int {
-                        current_block = 13813460800808168376;
-                    } else {
-                        current_block = 3275366147856559585;
-                    }
+                    mailimf_fields_add(fields, field);
+                    current_block = 3275366147856559585;
                 }
             } else {
                 current_block = 3275366147856559585;
@@ -488,12 +480,8 @@ pub unsafe fn mailimf_fields_add_data(
                             current_block = 16539016819803454162;
                         } else {
                             let field = mailimf_field::Sender(imf_sender);
-                            r = mailimf_fields_add(fields, field);
-                            if r != MAILIMF_NO_ERROR as libc::c_int {
-                                current_block = 13813460800808168376;
-                            } else {
-                                current_block = 15090052786889560393;
-                            }
+                            mailimf_fields_add(fields, field);
+                            current_block = 15090052786889560393;
                         }
                     } else {
                         current_block = 15090052786889560393;
@@ -508,12 +496,8 @@ pub unsafe fn mailimf_fields_add_data(
                                     current_block = 16539016819803454162;
                                 } else {
                                     let field = mailimf_field::ReplyTo(imf_reply_to);
-                                    r = mailimf_fields_add(fields, field);
-                                    if r != MAILIMF_NO_ERROR as libc::c_int {
-                                        current_block = 13813460800808168376;
-                                    } else {
-                                        current_block = 10150597327160359210;
-                                    }
+                                    mailimf_fields_add(fields, field);
+                                    current_block = 10150597327160359210;
                                 }
                             } else {
                                 current_block = 10150597327160359210;
@@ -528,12 +512,8 @@ pub unsafe fn mailimf_fields_add_data(
                                             current_block = 16539016819803454162;
                                         } else {
                                             let field = mailimf_field::To(imf_to);
-                                            r = mailimf_fields_add(fields, field);
-                                            if r != MAILIMF_NO_ERROR as libc::c_int {
-                                                current_block = 13813460800808168376;
-                                            } else {
-                                                current_block = 17233182392562552756;
-                                            }
+                                            mailimf_fields_add(fields, field);
+                                            current_block = 17233182392562552756;
                                         }
                                     } else {
                                         current_block = 17233182392562552756;
@@ -548,12 +528,8 @@ pub unsafe fn mailimf_fields_add_data(
                                                     current_block = 16539016819803454162;
                                                 } else {
                                                     let field = mailimf_field::Cc(imf_cc);
-                                                    r = mailimf_fields_add(fields, field);
-                                                    if r != MAILIMF_NO_ERROR as libc::c_int {
-                                                        current_block = 13813460800808168376;
-                                                    } else {
-                                                        current_block = 12930649117290160518;
-                                                    }
+                                                    mailimf_fields_add(fields, field);
+                                                    current_block = 12930649117290160518;
                                                 }
                                             } else {
                                                 current_block = 12930649117290160518;
@@ -568,14 +544,8 @@ pub unsafe fn mailimf_fields_add_data(
                                                             current_block = 16539016819803454162;
                                                         } else {
                                                             let field = mailimf_field::Bcc(imf_bcc);
-                                                            r = mailimf_fields_add(fields, field);
-                                                            if r != MAILIMF_NO_ERROR as libc::c_int
-                                                            {
-                                                                current_block =
-                                                                    13813460800808168376;
-                                                            } else {
-                                                                current_block = 7858101417678297991;
-                                                            }
+                                                            mailimf_fields_add(fields, field);
+                                                            current_block = 7858101417678297991;
                                                         }
                                                     } else {
                                                         current_block = 7858101417678297991;
@@ -595,18 +565,11 @@ pub unsafe fn mailimf_fields_add_data(
                                                                         mailimf_field::MessageId(
                                                                             imf_msg_id,
                                                                         );
-                                                                    r = mailimf_fields_add(
+                                                                    mailimf_fields_add(
                                                                         fields, field,
                                                                     );
-                                                                    if r != MAILIMF_NO_ERROR
-                                                                        as libc::c_int
-                                                                    {
-                                                                        current_block =
-                                                                            13813460800808168376;
-                                                                    } else {
-                                                                        current_block =
-                                                                            15514718523126015390;
-                                                                    }
+                                                                    current_block =
+                                                                        15514718523126015390;
                                                                 }
                                                             } else {
                                                                 current_block =
@@ -632,20 +595,12 @@ pub unsafe fn mailimf_fields_add_data(
                                                                                 mailimf_field::InReplyTo(
                                                                                     imf_in_reply_to,
                                                                                     );
-                                                                            r = mailimf_fields_add(
+                                                                            mailimf_fields_add(
                                                                                 fields, field,
                                                                             );
-                                                                            if r != MAILIMF_NO_ERROR
-                                                                                as libc::c_int
-                                                                            {
-                                                                                current_block
-                                                                                        =
-                                                                                        13813460800808168376;
-                                                                            } else {
-                                                                                current_block
+                                                                            current_block
                                                                                         =
                                                                                         15587532755333643506;
-                                                                            }
                                                                         }
                                                                     } else {
                                                                         current_block =
@@ -671,25 +626,10 @@ pub unsafe fn mailimf_fields_add_data(
                                                                                         =
                                                                                         mailimf_field::References(
                                                                                             imf_references);
-                                                                                    r
-                                                                                            =
-                                                                                            mailimf_fields_add(fields,
-                                                                                                               field);
-                                                                                    if r
-                                                                                               !=
-                                                                                               MAILIMF_NO_ERROR
-                                                                                                   as
-                                                                                                   libc::c_int
-                                                                                           {
-                                                                                            current_block
-                                                                                                =
-                                                                                                13813460800808168376;
-                                                                                        } else {
-                                                                                            current_block
-                                                                                                =
-                                                                                                7301440000599063274;
-
-                                                                                    }
+                                                                                    mailimf_fields_add(fields, field);
+                                                                                    current_block
+                                                                                        =
+                                                                                        7301440000599063274;
                                                                                 }
                                                                             } else {
                                                                                 current_block
@@ -722,17 +662,10 @@ pub unsafe fn mailimf_fields_add_data(
                                                                                         } else {
                                                                                             let field =
                                                                                                 mailimf_field::Subject(imf_subject);
-                                                                                            r = mailimf_fields_add(fields, field);
-                                                                                            if r != MAILIMF_NO_ERROR as libc::c_int
-                                                                                            {
-                                                                                                current_block
-                                                                                                    =
-                                                                                                    13813460800808168376;
-                                                                                            } else {
-                                                                                                current_block
-                                                                                                    =
-                                                                                                    10153752038087260855;
-                                                                                            }
+                                                                                            mailimf_fields_add(fields, field);
+                                                                                            current_block
+                                                                                                =
+                                                                                                10153752038087260855;
                                                                                         }
                                                                                     } else {
                                                                                         current_block
@@ -791,7 +724,7 @@ pub unsafe fn mailimf_fields_add_data(
         imf_references,
         imf_subject,
     );
-    MAILIMF_ERROR_MEMORY
+    MAILIMF_ERROR_MEMORY as libc::c_int
 }
 
 unsafe fn detach_free_fields(

@@ -166,35 +166,19 @@ pub unsafe fn mailimf_fields_write_driver(
     mut do_write: Option<
         unsafe fn(_: *mut libc::c_void, _: *const libc::c_char, _: size_t) -> libc::c_int,
     >,
-    mut data: *mut libc::c_void,
-    mut col: *mut libc::c_int,
-    mut fields: *mut mailimf_fields,
+    data: *mut libc::c_void,
+    col: *mut libc::c_int,
+    fields: *mut mailimf_fields,
 ) -> libc::c_int {
-    let mut cur: *mut clistiter = 0 as *mut clistiter;
-    cur = (*(*fields).fld_list).first;
-    while !cur.is_null() {
-        let mut r: libc::c_int = 0;
-        r = mailimf_field_write_driver(
-            do_write,
-            data,
-            col,
-            (if !cur.is_null() {
-                (*cur).data
-            } else {
-                0 as *mut libc::c_void
-            }) as *mut mailimf_field,
-        );
+    for cur in &(*fields).0 {
+        let r = mailimf_field_write_driver(do_write, data, col, cur);
         if r != MAILIMF_NO_ERROR as libc::c_int {
             return r;
         }
-        cur = if !cur.is_null() {
-            (*cur).next
-        } else {
-            0 as *mut clistcell
-        }
     }
-    return MAILIMF_NO_ERROR as libc::c_int;
+    MAILIMF_NO_ERROR as libc::c_int
 }
+
 /*
   mailimf_field_write writes a field to a given stream
 
@@ -207,118 +191,38 @@ pub unsafe fn mailimf_field_write_driver(
     mut do_write: Option<
         unsafe fn(_: *mut libc::c_void, _: *const libc::c_char, _: size_t) -> libc::c_int,
     >,
-    mut data: *mut libc::c_void,
-    mut col: *mut libc::c_int,
-    mut field: *mut mailimf_field,
+    data: *mut libc::c_void,
+    col: *mut libc::c_int,
+    field: &mailimf_field,
 ) -> libc::c_int {
-    let mut r: libc::c_int = 0;
-    match (*field).fld_type {
-        1 => {
-            r = mailimf_return_write_driver(do_write, data, col, (*field).fld_data.fld_return_path)
-        }
-        2 => {
-            r = mailimf_resent_date_write_driver(
-                do_write,
-                data,
-                col,
-                (*field).fld_data.fld_resent_date,
-            )
-        }
-        3 => {
-            r = mailimf_resent_from_write_driver(
-                do_write,
-                data,
-                col,
-                (*field).fld_data.fld_resent_from,
-            )
-        }
-        4 => {
-            r = mailimf_resent_sender_write_driver(
-                do_write,
-                data,
-                col,
-                (*field).fld_data.fld_resent_sender,
-            )
-        }
-        5 => {
-            r = mailimf_resent_to_write_driver(do_write, data, col, (*field).fld_data.fld_resent_to)
-        }
-        6 => {
-            r = mailimf_resent_cc_write_driver(do_write, data, col, (*field).fld_data.fld_resent_cc)
-        }
-        7 => {
-            r = mailimf_resent_bcc_write_driver(
-                do_write,
-                data,
-                col,
-                (*field).fld_data.fld_resent_bcc,
-            )
-        }
-        8 => {
-            r = mailimf_resent_msg_id_write_driver(
-                do_write,
-                data,
-                col,
-                (*field).fld_data.fld_resent_msg_id,
-            )
-        }
-        9 => {
-            r = mailimf_orig_date_write_driver(do_write, data, col, (*field).fld_data.fld_orig_date)
-        }
-        10 => r = mailimf_from_write_driver(do_write, data, col, (*field).fld_data.fld_from),
-        11 => r = mailimf_sender_write_driver(do_write, data, col, (*field).fld_data.fld_sender),
-        12 => {
-            r = mailimf_reply_to_write_driver(do_write, data, col, (*field).fld_data.fld_reply_to)
-        }
-        13 => r = mailimf_to_write_driver(do_write, data, col, (*field).fld_data.fld_to),
-        14 => r = mailimf_cc_write_driver(do_write, data, col, (*field).fld_data.fld_cc),
-        15 => r = mailimf_bcc_write_driver(do_write, data, col, (*field).fld_data.fld_bcc),
-        16 => {
-            r = mailimf_message_id_write_driver(
-                do_write,
-                data,
-                col,
-                (*field).fld_data.fld_message_id,
-            )
-        }
-        17 => {
-            r = mailimf_in_reply_to_write_driver(
-                do_write,
-                data,
-                col,
-                (*field).fld_data.fld_in_reply_to,
-            )
-        }
-        18 => {
-            r = mailimf_references_write_driver(
-                do_write,
-                data,
-                col,
-                (*field).fld_data.fld_references,
-            )
-        }
-        19 => r = mailimf_subject_write_driver(do_write, data, col, (*field).fld_data.fld_subject),
-        20 => {
-            r = mailimf_comments_write_driver(do_write, data, col, (*field).fld_data.fld_comments)
-        }
-        21 => {
-            r = mailimf_keywords_write_driver(do_write, data, col, (*field).fld_data.fld_keywords)
-        }
-        22 => {
-            r = mailimf_optional_field_write_driver(
-                do_write,
-                data,
-                col,
-                (*field).fld_data.fld_optional_field,
-            )
-        }
-        _ => r = MAILIMF_ERROR_INVAL as libc::c_int,
+    use mailimf_field::*;
+
+    match field {
+        ReturnPath(path) => mailimf_return_write_driver(do_write, data, col, *path),
+        ResentDate(date) => mailimf_resent_date_write_driver(do_write, data, col, *date),
+        ResentFrom(from) => mailimf_resent_from_write_driver(do_write, data, col, *from),
+        ResentSender(sender) => mailimf_resent_sender_write_driver(do_write, data, col, *sender),
+        ResentTo(to) => mailimf_resent_to_write_driver(do_write, data, col, *to),
+        ResentCc(cc) => mailimf_resent_cc_write_driver(do_write, data, col, *cc),
+        ResentBcc(bcc) => mailimf_resent_bcc_write_driver(do_write, data, col, *bcc),
+        ResentMsgId(id) => mailimf_resent_msg_id_write_driver(do_write, data, col, *id),
+        OrigDate(date) => mailimf_orig_date_write_driver(do_write, data, col, *date),
+        From(from) => mailimf_from_write_driver(do_write, data, col, *from),
+        Sender(sender) => mailimf_sender_write_driver(do_write, data, col, *sender),
+        ReplyTo(to) => mailimf_reply_to_write_driver(do_write, data, col, *to),
+        To(to) => mailimf_to_write_driver(do_write, data, col, *to),
+        Cc(cc) => mailimf_cc_write_driver(do_write, data, col, *cc),
+        Bcc(bcc) => mailimf_bcc_write_driver(do_write, data, col, *bcc),
+        MessageId(id) => mailimf_message_id_write_driver(do_write, data, col, *id),
+        InReplyTo(to) => mailimf_in_reply_to_write_driver(do_write, data, col, *to),
+        References(refs) => mailimf_references_write_driver(do_write, data, col, *refs),
+        Subject(s) => mailimf_subject_write_driver(do_write, data, col, *s),
+        Comments(c) => mailimf_comments_write_driver(do_write, data, col, *c),
+        Keywords(k) => mailimf_keywords_write_driver(do_write, data, col, *k),
+        OptionalField(f) => mailimf_optional_field_write_driver(do_write, data, col, *f),
     }
-    if r != MAILIMF_NO_ERROR as libc::c_int {
-        return r;
-    }
-    return MAILIMF_NO_ERROR as libc::c_int;
 }
+
 unsafe fn mailimf_optional_field_write_driver(
     mut do_write: Option<
         unsafe fn(_: *mut libc::c_void, _: *const libc::c_char, _: size_t) -> libc::c_int,

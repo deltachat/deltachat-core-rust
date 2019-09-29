@@ -171,7 +171,7 @@ impl Drop for mailimf_field {
         unsafe {
             match self {
                 ReturnPath(p) => mailimf_return_free(*p),
-                OrigDate(d) => mailimf_orig_date_free(*d),
+                ResentDate(d) => mailimf_orig_date_free(*d),
                 ResentFrom(r) => mailimf_from_free(*r),
                 ResentSender(r) => mailimf_sender_free(*r),
                 ResentTo(r) => mailimf_to_free(*r),
@@ -929,8 +929,9 @@ pub unsafe fn mailimf_optional_field_new(
     }
     (*opt_field).fld_name = fld_name;
     (*opt_field).fld_value = fld_value;
-    return opt_field;
+    opt_field
 }
+
 /* internal use */
 #[no_mangle]
 pub unsafe fn mailimf_atom_free(mut atom: *mut libc::c_char) {
