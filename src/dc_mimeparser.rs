@@ -250,12 +250,13 @@ impl<'a> MimeParser<'a> {
                 }
             }
             if self.parts.len() == 1 {
-                if self.parts[0].typ == Viewtype::Audio {
-                    if self.lookup_optional_field("Chat-Voice-Message").is_some() {
-                        let part_mut = &mut self.parts[0];
-                        part_mut.typ = Viewtype::Voice;
-                    }
+                if self.parts[0].typ == Viewtype::Audio
+                    && self.lookup_optional_field("Chat-Voice-Message").is_some()
+                {
+                    let part_mut = &mut self.parts[0];
+                    part_mut.typ = Viewtype::Voice;
                 }
+
                 let part = &self.parts[0];
                 if part.typ == Viewtype::Audio
                     || part.typ == Viewtype::Voice
