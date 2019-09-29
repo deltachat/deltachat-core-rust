@@ -1251,13 +1251,13 @@ unsafe fn remove_unparsed_mime_headers(fields: *mut mailimf_fields) {
             mailimf_field::OptionalField(data) => {
                 delete = false;
                 if strncasecmp(
-                    (**data).fld_name,
+                    (**data).name,
                     b"Content-\x00" as *const u8 as *const libc::c_char,
                     8i32 as libc::size_t,
                 ) == 0i32
                 {
                     let mut name: *mut libc::c_char = 0 as *mut libc::c_char;
-                    name = (**data).fld_name.offset(8isize);
+                    name = (**data).name.offset(8isize);
                     if strcasecmp(name, b"Type\x00" as *const u8 as *const libc::c_char) == 0i32
                         || strcasecmp(
                             name,
@@ -1274,7 +1274,7 @@ unsafe fn remove_unparsed_mime_headers(fields: *mut mailimf_fields) {
                         delete = true;
                     }
                 } else if strcasecmp(
-                    (**data).fld_name,
+                    (**data).name,
                     b"MIME-Version\x00" as *const u8 as *const libc::c_char,
                 ) == 0i32
                 {

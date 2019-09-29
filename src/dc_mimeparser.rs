@@ -340,7 +340,7 @@ impl<'a> MimeParser<'a> {
                 if val.is_null() {
                     return None;
                 } else {
-                    return Some(unsafe { to_string_lossy((*val).fld_value) });
+                    return Some(unsafe { to_string_lossy((*val).value) });
                 }
             }
         }
@@ -923,7 +923,7 @@ unsafe fn hash_header(out: &mut HashMap<String, mailimf_field>, in_0: *const mai
                 // anyway we just use a lossy conversion.
 
                 if !optional_field.is_null() {
-                    Some(to_string_lossy((*optional_field).fld_name))
+                    Some(to_string_lossy((*optional_field).name))
                 } else {
                     None
                 }
@@ -934,7 +934,7 @@ unsafe fn hash_header(out: &mut HashMap<String, mailimf_field>, in_0: *const mai
             if !out.contains_key(&key) || // key already exists, only overwrite known types (protected headers)
                 field.is_optional_field() || key.starts_with("Chat-")
             {
-                out.insert(key, field.clone());
+                out.insert(key, *field);
             }
         }
     }
@@ -1288,9 +1288,9 @@ pub unsafe fn mailimf_find_optional_field(
     for field in &(*header).0 {
         if let mailimf_field::OptionalField(optional_field) = *field {
             if !optional_field.is_null()
-                && !(*optional_field).fld_name.is_null()
-                && !(*optional_field).fld_value.is_null()
-                && strcasecmp((*optional_field).fld_name, wanted_fld_name) == 0i32
+                && !(*optional_field).name.is_null()
+                && !(*optional_field).value.is_null()
+                && strcasecmp((*optional_field).name, wanted_fld_name) == 0i32
             {
                 return optional_field;
             }
@@ -1305,7 +1305,6 @@ mod tests {
     use super::*;
     use crate::test_utils::*;
     use proptest::prelude::*;
-    use std::ffi::CStr;
 
     #[test]
     fn test_mailmime_parse() {
@@ -1328,19 +1327,9 @@ mod tests {
             );
 
             assert!(!of_a.is_null());
-            assert!(!(*of_a).fld_value.is_null());
-            assert_eq!(
-                CStr::from_ptr((*of_a).fld_name as *const libc::c_char)
-                    .to_str()
-                    .unwrap(),
-                "FieldA",
-            );
-            assert_eq!(
-                CStr::from_ptr((*of_a).fld_value as *const libc::c_char)
-                    .to_str()
-                    .unwrap(),
-                "ValueA",
-            );
+            assert!(!(*of_a).value.is_null());
+            assert_eq!(as_str((*of_a).name), "FieldA");
+            assert_eq!(as_str((*of_a).value), "ValueA");
 
             of_a = mailimf_find_optional_field(
                 fields,
@@ -1348,33 +1337,18 @@ mod tests {
             );
 
             assert!(!of_a.is_null());
-            assert!(!(*of_a).fld_value.is_null());
-            assert_eq!(
-                CStr::from_ptr((*of_a).fld_name as *const libc::c_char)
-                    .to_str()
-                    .unwrap(),
-                "FieldA",
-            );
-            assert_eq!(
-                CStr::from_ptr((*of_a).fld_value as *const libc::c_char)
-                    .to_str()
-                    .unwrap(),
-                "ValueA",
-            );
+            assert!(!(*of_a).value.is_null());
+            assert_eq!(as_str((*of_a).name), "FieldA");
+            assert_eq!(as_str((*of_a).value), "ValueA");
 
-            let of_b: *mut mailimf_optional_field = mailimf_find_optional_field(
+            let of_b = mailimf_find_optional_field(
                 fields,
                 b"FieldB\x00" as *const u8 as *const libc::c_char,
             );
 
             assert!(!of_b.is_null());
-            assert!(!(*of_b).fld_value.is_null());
-            assert_eq!(
-                CStr::from_ptr((*of_b).fld_value as *const libc::c_char)
-                    .to_str()
-                    .unwrap(),
-                "ValueB",
-            );
+            assert!(!(*of_b).value.is_null());
+            assert_eq!(as_str((*of_b).value), "ValueB");
 
             mailmime_free(mime);
         }

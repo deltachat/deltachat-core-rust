@@ -153,7 +153,7 @@ impl<'a> MimeFactory<'a> {
         /* create basic mail
          *************************************************************************/
 
-        let from: *mut mailimf_mailbox_list = mailimf_mailbox_list_new_empty();
+        let from = mailimf_mailbox_list_new_empty();
         mailimf_mailbox_list_add(
             from,
             mailimf_mailbox_new(
@@ -165,7 +165,7 @@ impl<'a> MimeFactory<'a> {
                 self.from_addr.strdup(),
             ),
         );
-        let mut to: *mut mailimf_address_list = ptr::null_mut();
+        let mut to = ptr::null_mut();
         if !self.recipients_names.is_empty() && !self.recipients_addr.is_empty() {
             to = mailimf_address_list_new_empty();
             let name_iter = self.recipients_names.iter();

@@ -174,8 +174,8 @@ impl EncryptHelper {
                         move_to_encrypted = true;
                     }
                     mailimf_field::OptionalField(opt_field) => {
-                        if !opt_field.is_null() && !(*opt_field).fld_name.is_null() {
-                            let fld_name = to_string_lossy((*opt_field).fld_name);
+                        if !opt_field.is_null() && !(*opt_field).name.is_null() {
+                            let fld_name = to_string_lossy((*opt_field).name);
                             if fld_name.starts_with("Secure-Join")
                                 || (fld_name.starts_with("Chat-") && fld_name != "Chat-Version")
                             {
@@ -187,7 +187,7 @@ impl EncryptHelper {
                 }
 
                 if move_to_encrypted {
-                    mailimf_fields_add(imffields_encrypted, field.clone());
+                    mailimf_fields_add(imffields_encrypted, *field);
                     false
                 } else {
                     true
@@ -458,11 +458,9 @@ fn update_gossip_peerstates(
                 continue;
             }
 
-            let optional_field = unsafe { *optional_field };
-            if !optional_field.fld_name.is_null()
-                && as_str(optional_field.fld_name) == "Autocrypt-Gossip"
-            {
-                let value = to_string_lossy(optional_field.fld_value);
+            let optional_field = unsafe { &*optional_field };
+            if !optional_field.name.is_null() && as_str(optional_field.name) == "Autocrypt-Gossip" {
+                let value = to_string_lossy(optional_field.value);
                 let gossip_header = Aheader::from_str(&value);
 
                 if let Ok(ref header) = gossip_header {

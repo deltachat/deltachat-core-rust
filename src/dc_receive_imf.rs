@@ -824,16 +824,16 @@ unsafe fn handle_reports(
                                     b"Original-Message-ID\x00" as *const u8 as *const libc::c_char,
                                 );
                                 if !of_disposition.is_null()
-                                    && !(*of_disposition).fld_value.is_null()
+                                    && !(*of_disposition).value.is_null()
                                     && !of_org_msgid.is_null()
-                                    && !(*of_org_msgid).fld_value.is_null()
+                                    && !(*of_org_msgid).value.is_null()
                                 {
                                     let mut rfc724_mid_0 = std::ptr::null_mut();
                                     dummy = 0;
 
                                     if mailimf_msg_id_parse(
-                                        (*of_org_msgid).fld_value,
-                                        strlen((*of_org_msgid).fld_value),
+                                        (*of_org_msgid).value,
+                                        strlen((*of_org_msgid).value),
                                         &mut dummy,
                                         &mut rfc724_mid_0,
                                     ) == MAIL_NO_ERROR as libc::c_int

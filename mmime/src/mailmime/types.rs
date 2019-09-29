@@ -705,7 +705,7 @@ pub unsafe fn mailmime_new(
         }
         _ => {}
     }
-    return mime;
+    mime
 }
 
 pub unsafe fn mailmime_new_simple(

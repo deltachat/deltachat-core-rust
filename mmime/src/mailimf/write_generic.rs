@@ -232,16 +232,10 @@ unsafe fn mailimf_optional_field_write_driver(
     mut field: *mut mailimf_optional_field,
 ) -> libc::c_int {
     let mut r: libc::c_int = 0;
-    if strlen((*field).fld_name).wrapping_add(2i32 as libc::size_t) > 998i32 as libc::size_t {
+    if strlen((*field).name).wrapping_add(2i32 as libc::size_t) > 998i32 as libc::size_t {
         return MAILIMF_ERROR_INVAL as libc::c_int;
     }
-    r = mailimf_string_write_driver(
-        do_write,
-        data,
-        col,
-        (*field).fld_name,
-        strlen((*field).fld_name),
-    );
+    r = mailimf_string_write_driver(do_write, data, col, (*field).name, strlen((*field).name));
     if r != MAILIMF_NO_ERROR as libc::c_int {
         return r;
     }
@@ -259,8 +253,8 @@ unsafe fn mailimf_optional_field_write_driver(
         do_write,
         data,
         col,
-        (*field).fld_value,
-        strlen((*field).fld_value),
+        (*field).value,
+        strlen((*field).value),
     );
     if r != MAILIMF_NO_ERROR as libc::c_int {
         return r;

@@ -684,8 +684,8 @@ unsafe fn mailmime_mechanism_parse(
 }
 
 pub unsafe fn mailmime_field_parse(
-    mut field: *mut mailimf_optional_field,
-    mut result: *mut *mut mailmime_field,
+    field: *mut mailimf_optional_field,
+    result: *mut *mut mailmime_field,
 ) -> libc::c_int {
     let mut name: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut value: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -702,8 +702,8 @@ pub unsafe fn mailmime_field_parse(
     let mut location: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut res: libc::c_int = 0;
     let mut r: libc::c_int = 0;
-    name = (*field).fld_name;
-    value = (*field).fld_value;
+    name = (*field).name;
+    value = (*field).value;
     cur_token = 0i32 as size_t;
     content = 0 as *mut mailmime_content;
     encoding = 0 as *mut mailmime_mechanism;

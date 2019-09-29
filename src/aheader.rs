@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::ffi::CStr;
 use std::str::FromStr;
 use std::{fmt, str};
 
@@ -7,6 +6,7 @@ use mmime::mailimf::types::*;
 
 use crate::constants::*;
 use crate::contact::*;
+use crate::dc_tools::as_str;
 use crate::key::*;
 
 /// Possible values for encryption preference
@@ -72,15 +72,10 @@ impl Aheader {
         for field in unsafe { &(*header).0 } {
             if let mailimf_field::OptionalField(optional_field) = *field {
                 if !optional_field.is_null()
-                    && unsafe { !(*optional_field).fld_name.is_null() }
-                    && unsafe { CStr::from_ptr((*optional_field).fld_name).to_str().unwrap() }
-                        == "Autocrypt"
+                    && unsafe { !(*optional_field).name.is_null() }
+                    && unsafe { as_str((*optional_field).name) } == "Autocrypt"
                 {
-                    let value = unsafe {
-                        CStr::from_ptr((*optional_field).fld_value)
-                            .to_str()
-                            .unwrap()
-                    };
+                    let value = unsafe { as_str((*optional_field).value) };
 
                     match Self::from_str(value) {
                         Ok(test) => {
