@@ -545,19 +545,17 @@ unsafe fn add_parts(
                 }
             }
         }
-        if *chat_id == 0 {
-            if to_ids.is_empty() && 0 != to_self {
-                // from_id==to_id==DC_CONTACT_ID_SELF - this is a self-sent messages,
-                // maybe an Autocrypt Setup Messag
-                let (id, bl) = chat::create_or_lookup_by_contact_id(context, 1, Blocked::Not)
-                    .unwrap_or_default();
-                *chat_id = id;
-                chat_id_blocked = bl;
+        if *chat_id == 0 && to_ids.is_empty() && 0 != to_self {
+            // from_id==to_id==DC_CONTACT_ID_SELF - this is a self-sent messages,
+            // maybe an Autocrypt Setup Messag
+            let (id, bl) =
+                chat::create_or_lookup_by_contact_id(context, 1, Blocked::Not).unwrap_or_default();
+            *chat_id = id;
+            chat_id_blocked = bl;
 
-                if 0 != *chat_id && Blocked::Not != chat_id_blocked {
-                    chat::unblock(context, *chat_id);
-                    chat_id_blocked = Blocked::Not;
-                }
+            if 0 != *chat_id && Blocked::Not != chat_id_blocked {
+                chat::unblock(context, *chat_id);
+                chat_id_blocked = Blocked::Not;
             }
         }
         if *chat_id == 0 {
