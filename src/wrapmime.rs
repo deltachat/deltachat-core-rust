@@ -202,6 +202,35 @@ pub unsafe fn mailimf_find_optional_field(
     ptr::null_mut()
 }
 
+pub fn iter_optional_field_values(
+    header: *const mailimf_fields,
+    wanted_fld_name: *const libc::c_char,
+) -> Result<Vec<String>, Error> {
+    ensure!(
+        !header.is_null() && unsafe { !(*header).fld_list.is_null() },
+        "iter_optional_fields: invalid input"
+    );
+    let mut result = Vec::default();
+    for cur_data in unsafe { (*(*header).fld_list).into_iter() } {
+        let field: *mut mailimf_field = cur_data as *mut _;
+
+        unsafe {
+            if (*field).fld_type == MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int {
+                let optional_field: *mut mailimf_optional_field =
+                    (*field).fld_data.fld_optional_field;
+                if !optional_field.is_null()
+                    && !(*optional_field).fld_name.is_null()
+                    && !(*optional_field).fld_value.is_null()
+                    && strcasecmp((*optional_field).fld_name, wanted_fld_name) == 0i32
+                {
+                    result.push(to_string((*optional_field).fld_value));
+                }
+            }
+        }
+    }
+    Ok(result)
+}
+
 pub fn mailimf_get_recipients(imffields: *mut mailimf_fields) -> HashSet<String> {
     /* returned addresses are normalized. */
     let mut recipients: HashSet<String> = Default::default();

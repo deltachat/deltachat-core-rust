@@ -339,7 +339,7 @@ pub fn try_decrypt(
             }
         }
     }
-    Ok((encrypted, signatures, gossipped_addr))
+    Ok((!signatures.is_empty(), signatures, gossipped_addr))
 }
 
 fn new_data_part(
@@ -436,57 +436,39 @@ fn update_gossip_peerstates(
     let mut recipients: Option<HashSet<String>> = None;
     let mut gossipped_addr: HashSet<String> = Default::default();
 
-    for cur_data in unsafe { (*(*gossip_headers).fld_list).into_iter() } {
-        let field = cur_data as *mut mailimf_field;
-        if field.is_null() {
-            continue;
-        }
+    let fields = wrapmime::iter_optional_field_values(
+        gossip_headers,
+        b"Autocrypt-Gossip\0" as *const u8 as *const libc::c_char,
+    )?;
+    for value in fields.iter() {
+        let gossip_header = Aheader::from_str(&value);
 
-        let field = unsafe { *field };
-
-        if field.fld_type == MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int {
-            let optional_field = unsafe { field.fld_data.fld_optional_field };
-            if optional_field.is_null() {
-                continue;
+        if let Ok(ref header) = gossip_header {
+            if recipients.is_none() {
+                recipients = Some(mailimf_get_recipients(imffields));
             }
-
-            let optional_field = unsafe { *optional_field };
-            if !optional_field.fld_name.is_null()
-                && as_str(optional_field.fld_name) == "Autocrypt-Gossip"
-            {
-                let value = to_string_lossy(optional_field.fld_value);
-                let gossip_header = Aheader::from_str(&value);
-
-                if let Ok(ref header) = gossip_header {
-                    if recipients.is_none() {
-                        recipients = Some(mailimf_get_recipients(imffields));
-                    }
-                    if recipients.as_ref().unwrap().contains(&header.addr) {
-                        let mut peerstate =
-                            Peerstate::from_addr(context, &context.sql, &header.addr);
-                        if let Some(ref mut peerstate) = peerstate {
-                            peerstate.apply_gossip(header, message_time);
-                            peerstate.save_to_db(&context.sql, false)?;
-                        } else {
-                            let p = Peerstate::from_gossip(context, header, message_time);
-                            p.save_to_db(&context.sql, true)?;
-                            peerstate = Some(p);
-                        }
-                        if let Some(peerstate) = peerstate {
-                            if peerstate.degrade_event.is_some() {
-                                handle_degrade_event(context, &peerstate)?;
-                            }
-                        }
-
-                        gossipped_addr.insert(header.addr.clone());
-                    } else {
-                        info!(
-                            context,
-                            "Ignoring gossipped \"{}\" as the address is not in To/Cc list.",
-                            &header.addr,
-                        );
+            if recipients.as_ref().unwrap().contains(&header.addr) {
+                let mut peerstate = Peerstate::from_addr(context, &context.sql, &header.addr);
+                if let Some(ref mut peerstate) = peerstate {
+                    peerstate.apply_gossip(header, message_time);
+                    peerstate.save_to_db(&context.sql, false)?;
+                } else {
+                    let p = Peerstate::from_gossip(context, header, message_time);
+                    p.save_to_db(&context.sql, true)?;
+                    peerstate = Some(p);
+                }
+                if let Some(peerstate) = peerstate {
+                    if peerstate.degrade_event.is_some() {
+                        handle_degrade_event(context, &peerstate)?;
                     }
                 }
+
+                gossipped_addr.insert(header.addr.clone());
+            } else {
+                info!(
+                    context,
+                    "Ignoring gossipped \"{}\" as the address is not in To/Cc list.", &header.addr,
+                );
             }
         }
     }
