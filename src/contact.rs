@@ -390,20 +390,18 @@ impl Contact {
                 }
                 sth_modified = Modifier::Modified;
             }
+        } else if sql::execute(
+            context,
+            &context.sql,
+            "INSERT INTO contacts (name, addr, origin) VALUES(?, ?, ?);",
+            params![name.as_ref(), addr, origin,],
+        )
+        .is_ok()
+        {
+            row_id = sql::get_rowid(context, &context.sql, "contacts", "addr", addr);
+            sth_modified = Modifier::Created;
         } else {
-            if sql::execute(
-                context,
-                &context.sql,
-                "INSERT INTO contacts (name, addr, origin) VALUES(?, ?, ?);",
-                params![name.as_ref(), addr, origin,],
-            )
-            .is_ok()
-            {
-                row_id = sql::get_rowid(context, &context.sql, "contacts", "addr", addr);
-                sth_modified = Modifier::Created;
-            } else {
-                error!(context, "Cannot add contact.");
-            }
+            error!(context, "Cannot add contact.");
         }
 
         Ok((row_id, sth_modified))
