@@ -21,7 +21,6 @@ struct outlk_autodiscover_t<'a> {
     pub out_smtp_set: libc::c_int,
     pub tag_config: libc::c_int,
     pub config: [*mut libc::c_char; 6],
-    pub redirect: *mut libc::c_char,
 }
 
 pub unsafe fn outlk_autodiscover(
@@ -38,7 +37,6 @@ pub unsafe fn outlk_autodiscover(
         out_smtp_set: 0,
         tag_config: 0,
         config: [ptr::null_mut(); 6],
-        redirect: ptr::null_mut(),
     };
     let ok_to_continue;
     let mut i = 0;
