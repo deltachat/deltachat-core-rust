@@ -561,10 +561,10 @@ impl<'a> MimeParser<'a> {
                 }
 
                 for cur_data in (*(*mime).mm_data.mm_multipart.mm_mp_list).into_iter() {
-                    if cur_data as *mut _ != skip_part {
-                        if self.parse_mime_recursive(cur_data as *mut _) {
-                            any_part_added = true;
-                        }
+                    if cur_data as *mut _ != skip_part
+                        && self.parse_mime_recursive(cur_data as *mut _)
+                    {
+                        any_part_added = true;
                     }
                 }
             }
