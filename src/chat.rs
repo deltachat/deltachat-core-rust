@@ -285,13 +285,11 @@ impl Chat {
                     );
                     return Ok(0);
                 }
-            } else {
-                if (self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup)
-                    && self.param.get_int(Param::Unpromoted).unwrap_or_default() == 1
-                {
-                    self.param.remove(Param::Unpromoted);
-                    self.update_param(context).unwrap();
-                }
+            } else if (self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup)
+                && self.param.get_int(Param::Unpromoted).unwrap_or_default() == 1
+            {
+                self.param.remove(Param::Unpromoted);
+                self.update_param(context).unwrap();
             }
 
             /* check if we can guarantee E2EE for this message.
