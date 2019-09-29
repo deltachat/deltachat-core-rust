@@ -1399,14 +1399,14 @@ pub(crate) fn add_contact_to_chat_ex(
         }
     } else {
         // else continue and send status mail
-        if chat.typ == Chattype::VerifiedGroup {
-            if contact.is_verified(context) != VerifiedStatus::BidirectVerified {
-                error!(
-                    context,
-                    "Only bidirectional verified contacts can be added to verified groups."
-                );
-                return Ok(false);
-            }
+        if chat.typ == Chattype::VerifiedGroup
+            && contact.is_verified(context) != VerifiedStatus::BidirectVerified
+        {
+            error!(
+                context,
+                "Only bidirectional verified contacts can be added to verified groups."
+            );
+            return Ok(false);
         }
         if !add_to_chat_contacts_table(context, chat_id, contact_id) {
             return Ok(false);
