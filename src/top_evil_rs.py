@@ -21,6 +21,8 @@ if __name__ == "__main__":
     sum_unsafe, sum_free, sum_gotoblocks, sum_chars = 0, 0, 0, 0
 
     for fn, unsafe, free, gotoblocks, chars in reversed(sorted(filestats, key=lambda x: sum(x[1:]))):
+        if unsafe + free + gotoblocks + chars == 0:
+            continue
         print("{0: <25} unsafe: {1: >3} free: {2: >3} ok_to_cont: {3: >3} chars: {4: >3}".format(str(fn), unsafe, free, gotoblocks, chars))
         sum_unsafe += unsafe
         sum_free += free
