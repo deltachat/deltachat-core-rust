@@ -10,7 +10,6 @@ use std::{fmt, fs, ptr};
 
 use chrono::{Local, TimeZone};
 use libc::{memcpy, strlen};
-use mmime::clist::*;
 use mmime::mailimf::types::*;
 use rand::{thread_rng, Rng};
 
@@ -149,46 +148,26 @@ pub(crate) fn dc_truncate(buf: &str, approx_chars: usize, do_unwrap: bool) -> Co
     }
 }
 
-pub(crate) unsafe fn dc_str_from_clist(
-    list: *const clist,
+pub(crate) unsafe fn dc_str_from_vec(
+    list: &Vec<*mut libc::c_char>,
     delimiter: *const libc::c_char,
 ) -> *mut libc::c_char {
     let mut res = String::new();
 
-    if !list.is_null() {
-        let mut cur: *mut clistiter = (*list).first;
-        while !cur.is_null() {
-            let rfc724_mid = (if !cur.is_null() {
-                (*cur).data
-            } else {
-                ptr::null_mut()
-            }) as *const libc::c_char;
-
-            if !rfc724_mid.is_null() {
-                if !res.is_empty() && !delimiter.is_null() {
-                    res += as_str(delimiter);
-                }
-                res += as_str(rfc724_mid);
+    for val in list {
+        if !val.is_null() {
+            if !res.is_empty() && !delimiter.is_null() {
+                res += as_str(delimiter);
             }
-            cur = if !cur.is_null() {
-                (*cur).next
-            } else {
-                ptr::null_mut()
-            }
+            res += as_str(*val);
         }
     }
 
     res.strdup()
 }
 
-pub(crate) fn dc_str_to_clist(str: &str, delimiter: &str) -> *mut clist {
-    unsafe {
-        let list: *mut clist = clist_new();
-        for cur in str.split(&delimiter) {
-            clist_insert_after(list, (*list).last, cur.strdup().cast());
-        }
-        list
-    }
+pub(crate) fn dc_str_to_vec(s: &str, delimiter: &str) -> Vec<*mut libc::c_char> {
+    s.split(&delimiter).map(|s| unsafe { s.strdup() }).collect()
 }
 
 /* the colors must fulfill some criterions as:
@@ -392,15 +371,15 @@ pub(crate) fn dc_extract_grpid_from_rfc724_mid(mid: &str) -> Option<&str> {
     None
 }
 
-pub(crate) fn dc_extract_grpid_from_rfc724_mid_list(list: *const clist) -> *mut libc::c_char {
-    if !list.is_null() {
-        unsafe {
-            for cur in (*list).into_iter() {
-                let mid = as_str(cur as *const libc::c_char);
+pub(crate) fn dc_extract_grpid_from_rfc724_mid_list(
+    list: &Vec<*mut libc::c_char>,
+) -> *mut libc::c_char {
+    unsafe {
+        for cur in list {
+            let mid = as_str(*cur);
 
-                if let Some(grpid) = dc_extract_grpid_from_rfc724_mid(mid) {
-                    return grpid.strdup();
-                }
+            if let Some(grpid) = dc_extract_grpid_from_rfc724_mid(mid) {
+                return grpid.strdup();
             }
         }
     }
@@ -1129,21 +1108,6 @@ mod tests {
         );
     }
 
-    /* calls free() for each item content */
-    unsafe fn clist_free_content(haystack: *const clist) {
-        let mut iter = (*haystack).first;
-
-        while !iter.is_null() {
-            free((*iter).data);
-            (*iter).data = ptr::null_mut();
-            iter = if !iter.is_null() {
-                (*iter).next
-            } else {
-                ptr::null_mut()
-            }
-        }
-    }
-
     fn strndup(s: *const libc::c_char, n: libc::c_ulong) -> *mut libc::c_char {
         if s.is_null() {
             return std::ptr::null_mut();
@@ -1156,35 +1120,6 @@ mod tests {
             std::ptr::write_bytes(result.offset(end as isize), b'\x00', 1);
 
             result as *mut _
-        }
-    }
-
-    #[test]
-    fn test_dc_str_to_clist_1() {
-        unsafe {
-            let list = dc_str_to_clist("", " ");
-            assert_eq!((*list).count, 1);
-            clist_free_content(list);
-            clist_free(list);
-        }
-    }
-
-    #[test]
-    fn test_dc_str_to_clist_4() {
-        unsafe {
-            let list: *mut clist = dc_str_to_clist("foo bar test", " ");
-            assert_eq!((*list).count, 3);
-            let str: *mut libc::c_char =
-                dc_str_from_clist(list, b" \x00" as *const u8 as *const libc::c_char);
-
-            assert_eq!(
-                CStr::from_ptr(str as *const libc::c_char).to_str().unwrap(),
-                "foo bar test"
-            );
-
-            clist_free_content(list);
-            clist_free(list);
-            free(str as *mut libc::c_void);
         }
     }
 

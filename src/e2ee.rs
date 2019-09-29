@@ -5,7 +5,6 @@ use std::ptr;
 use std::str::FromStr;
 
 use libc::strlen;
-use mmime::clist::*;
 use mmime::mailimf::types::*;
 use mmime::mailimf::types_helper::*;
 use mmime::mailimf::*;
@@ -167,17 +166,14 @@ impl EncryptHelper {
             }
 
             // memoryhole headers: move some headers into encrypted part
-            // XXX note we can't use clist's into_iter() because the loop body also removes items
-            let mut cur = (*(*imffields_unprotected).fld_list).first;
-            while !cur.is_null() {
-                let field = (*cur).data as *mut mailimf_field;
+            (*imffields_unprotected).0.retain(|field| {
                 let mut move_to_encrypted = false;
 
-                if !field.is_null() {
-                    if (*field).fld_type == MAILIMF_FIELD_SUBJECT as libc::c_int {
+                match *field {
+                    mailimf_field::Subject(_) => {
                         move_to_encrypted = true;
-                    } else if (*field).fld_type == MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int {
-                        let opt_field = (*field).fld_data.fld_optional_field;
+                    }
+                    mailimf_field::OptionalField(opt_field) => {
                         if !opt_field.is_null() && !(*opt_field).fld_name.is_null() {
                             let fld_name = to_string_lossy((*opt_field).fld_name);
                             if fld_name.starts_with("Secure-Join")
@@ -187,18 +183,19 @@ impl EncryptHelper {
                             }
                         }
                     }
+                    _ => {}
                 }
 
                 if move_to_encrypted {
-                    mailimf_fields_add(imffields_encrypted, field);
-                    cur = clist_delete((*imffields_unprotected).fld_list, cur);
+                    mailimf_fields_add(imffields_encrypted, field.clone());
+                    false
                 } else {
-                    cur = (*cur).next;
+                    true
                 }
-            }
+            });
 
             let subject = mailimf_subject_new("...".strdup());
-            mailimf_fields_add(imffields_unprotected, mailimf_field_new_subject(subject));
+            mailimf_fields_add(imffields_unprotected, mailimf_field::Subject(subject));
 
             wrapmime::append_ct_param(
                 (*part_to_encrypt).mm_content_type,
@@ -280,17 +277,12 @@ pub fn try_decrypt(
 
     // XXX do wrapmime:: helper for the next block
     if !(in_out_message.is_null() || imffields.is_null()) {
-        let mut field = mailimf_find_field(imffields, MAILIMF_FIELD_FROM as libc::c_int);
-
-        if !field.is_null() && unsafe { !(*field).fld_data.fld_from.is_null() } {
-            let mb_list = unsafe { (*(*field).fld_data.fld_from).frm_mb_list };
+        if let Some(field) = mailimf_find_from_field(imffields) {
+            let mb_list = unsafe { (*field).frm_mb_list };
             from = mailimf_find_first_addr(mb_list);
         }
 
-        field = mailimf_find_field(imffields, MAILIMF_FIELD_ORIG_DATE as libc::c_int);
-        if !field.is_null() && unsafe { !(*field).fld_data.fld_orig_date.is_null() } {
-            let orig_date = unsafe { (*field).fld_data.fld_orig_date };
-
+        if let Some(orig_date) = mailimf_find_orig_date_field(imffields) {
             if !orig_date.is_null() {
                 let dt = unsafe { (*orig_date).dt_date_time };
                 message_time = dc_timestamp_from_date(dt);
@@ -460,16 +452,8 @@ fn update_gossip_peerstates(
     let mut recipients: Option<HashSet<String>> = None;
     let mut gossipped_addr: HashSet<String> = Default::default();
 
-    for cur_data in unsafe { (*(*gossip_headers).fld_list).into_iter() } {
-        let field = cur_data as *mut mailimf_field;
-        if field.is_null() {
-            continue;
-        }
-
-        let field = unsafe { *field };
-
-        if field.fld_type == MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int {
-            let optional_field = unsafe { field.fld_data.fld_optional_field };
+    for field in unsafe { &(*gossip_headers).0 } {
+        if let mailimf_field::OptionalField(optional_field) = *field {
             if optional_field.is_null() {
                 continue;
             }

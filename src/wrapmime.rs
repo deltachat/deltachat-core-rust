@@ -180,11 +180,7 @@ pub fn add_filename_part(
 pub fn new_custom_field(fields: *mut mailimf_fields, name: &str, value: &str) {
     unsafe {
         let field = mailimf_field_new_custom(name.strdup(), value.strdup());
-        let res = mailimf_fields_add(fields, field);
-        assert!(
-            res as u32 == MAILIMF_NO_ERROR,
-            "could not create mailimf field"
-        );
+        mailimf_fields_add(fields, field);
     }
 }
 

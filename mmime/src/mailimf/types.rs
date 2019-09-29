@@ -165,6 +165,15 @@ pub enum mailimf_field {
     OptionalField(*mut mailimf_optional_field),
 }
 
+impl mailimf_field {
+    pub fn is_optional_field(&self) -> bool {
+        match self {
+            mailimf_field::OptionalField(_) => true,
+            _ => false,
+        }
+    }
+}
+
 impl Drop for mailimf_field {
     fn drop(&mut self) {
         use mailimf_field::*;
@@ -192,7 +201,6 @@ impl Drop for mailimf_field {
                 Comments(c) => mailimf_comments_free(*c),
                 Keywords(k) => mailimf_keywords_free(*k),
                 OptionalField(o) => mailimf_optional_field_free(*o),
-                _ => {}
             }
         }
     }
@@ -241,26 +249,31 @@ pub struct mailimf_comments {
 pub struct mailimf_subject {
     pub sbj_value: *mut libc::c_char,
 }
-/*
- mailimf_references is the parsed References field
 
- - msg_id_list is the list of message identifiers
-*/
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct mailimf_references {
-    pub mid_list: *mut clist,
-}
-/*
-  mailimf_in_reply_to is the parsed In-Reply-To field
+/// List of parsed references.
+#[derive(Debug, Clone)]
+pub struct mailimf_references(pub Vec<*mut libc::c_char>);
 
-  - mid_list is the list of message identifers
-*/
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct mailimf_in_reply_to {
-    pub mid_list: *mut clist,
+impl Drop for mailimf_references {
+    fn drop(&mut self) {
+        for el in &self.0 {
+            unsafe { mailimf_msg_id_free(*el) };
+        }
+    }
 }
+
+/// The parsed In-Reply-To field.
+#[derive(Debug, Clone)]
+pub struct mailimf_in_reply_to(pub Vec<*mut libc::c_char>);
+
+impl Drop for mailimf_in_reply_to {
+    fn drop(&mut self) {
+        for el in &self.0 {
+            unsafe { mailimf_msg_id_free(*el) };
+        }
+    }
+}
+
 /*
   mailimf_message_id is the parsed Message-ID field
 
@@ -649,34 +662,25 @@ pub unsafe fn mailimf_subject_free(mut subject: *mut mailimf_subject) {
     mailimf_unstructured_free((*subject).sbj_value);
     free(subject as *mut libc::c_void);
 }
-#[no_mangle]
-pub unsafe fn mailimf_references_free(mut references: *mut mailimf_references) {
-    clist_foreach(
-        (*references).mid_list,
-        ::std::mem::transmute::<Option<unsafe fn(_: *mut libc::c_char) -> ()>, clist_func>(Some(
-            mailimf_msg_id_free,
-        )),
-        0 as *mut libc::c_void,
-    );
-    clist_free((*references).mid_list);
-    free(references as *mut libc::c_void);
+
+pub unsafe fn mailimf_references_free(references: *mut mailimf_references) {
+    if references.is_null() {
+        return;
+    }
+    let _ = Box::from_raw(references);
 }
+
 #[no_mangle]
 pub unsafe fn mailimf_msg_id_free(mut msg_id: *mut libc::c_char) {
     free(msg_id as *mut libc::c_void);
 }
-#[no_mangle]
-pub unsafe fn mailimf_in_reply_to_free(mut in_reply_to: *mut mailimf_in_reply_to) {
-    clist_foreach(
-        (*in_reply_to).mid_list,
-        ::std::mem::transmute::<Option<unsafe fn(_: *mut libc::c_char) -> ()>, clist_func>(Some(
-            mailimf_msg_id_free,
-        )),
-        0 as *mut libc::c_void,
-    );
-    clist_free((*in_reply_to).mid_list);
-    free(in_reply_to as *mut libc::c_void);
+
+pub unsafe fn mailimf_in_reply_to_free(in_reply_to: *mut mailimf_in_reply_to) {
+    if in_reply_to.is_null() {
+        return;
+    }
 }
+
 #[no_mangle]
 pub unsafe fn mailimf_message_id_free(mut message_id: *mut mailimf_message_id) {
     if !(*message_id).mid_value.is_null() {
@@ -839,29 +843,17 @@ pub unsafe fn mailimf_message_id_new(mut mid_value: *mut libc::c_char) -> *mut m
     (*message_id).mid_value = mid_value;
     return message_id;
 }
-#[no_mangle]
-pub unsafe fn mailimf_in_reply_to_new(mut mid_list: *mut clist) -> *mut mailimf_in_reply_to {
-    let mut in_reply_to: *mut mailimf_in_reply_to = 0 as *mut mailimf_in_reply_to;
-    in_reply_to = malloc(::std::mem::size_of::<mailimf_in_reply_to>() as libc::size_t)
-        as *mut mailimf_in_reply_to;
-    if in_reply_to.is_null() {
-        return 0 as *mut mailimf_in_reply_to;
-    }
-    (*in_reply_to).mid_list = mid_list;
-    return in_reply_to;
+
+pub unsafe fn mailimf_in_reply_to_new(ids: Vec<*mut libc::c_char>) -> *mut mailimf_in_reply_to {
+    let irt = mailimf_in_reply_to(ids);
+    Box::into_raw(Box::new(irt))
 }
-/* != NULL */
-#[no_mangle]
-pub unsafe fn mailimf_references_new(mid_list: *mut clist) -> *mut mailimf_references {
-    let mut ref_0: *mut mailimf_references = 0 as *mut mailimf_references;
-    ref_0 = malloc(::std::mem::size_of::<mailimf_references>() as libc::size_t)
-        as *mut mailimf_references;
-    if ref_0.is_null() {
-        return 0 as *mut mailimf_references;
-    }
-    (*ref_0).mid_list = mid_list;
-    return ref_0;
+
+pub unsafe fn mailimf_references_new(ids: Vec<*mut libc::c_char>) -> *mut mailimf_references {
+    let list = mailimf_references(ids);
+    Box::into_raw(Box::new(list))
 }
+
 #[no_mangle]
 pub unsafe fn mailimf_subject_new(mut sbj_value: *mut libc::c_char) -> *mut mailimf_subject {
     let mut subject: *mut mailimf_subject = 0 as *mut mailimf_subject;

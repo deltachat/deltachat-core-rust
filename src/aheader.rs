@@ -69,14 +69,8 @@ impl Aheader {
         }
 
         let mut fine_header = None;
-        let mut cur = unsafe { (*(*header).fld_list).first };
-
-        while !cur.is_null() {
-            let field = unsafe { (*cur).data as *mut mailimf_field };
-            if !field.is_null()
-                && unsafe { (*field).fld_type } == MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int
-            {
-                let optional_field = unsafe { (*field).fld_data.fld_optional_field };
+        for field in unsafe { &(*header).0 } {
+            if let mailimf_field::OptionalField(optional_field) = *field {
                 if !optional_field.is_null()
                     && unsafe { !(*optional_field).fld_name.is_null() }
                     && unsafe { CStr::from_ptr((*optional_field).fld_name).to_str().unwrap() }
@@ -103,8 +97,6 @@ impl Aheader {
                     }
                 }
             }
-
-            cur = unsafe { (*cur).next };
         }
 
         fine_header

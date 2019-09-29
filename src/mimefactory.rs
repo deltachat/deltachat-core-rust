@@ -184,16 +184,10 @@ impl<'a> MimeFactory<'a> {
                 );
             }
         }
-        let references_list = if !self.references.is_empty() {
-            dc_str_to_clist(&self.references, " ")
-        } else {
-            ptr::null_mut()
-        };
-        let in_reply_to_list = if !self.in_reply_to.is_empty() {
-            dc_str_to_clist(&self.in_reply_to, " ")
-        } else {
-            ptr::null_mut()
-        };
+        let references_list = dc_str_to_vec(&self.references, " ");
+
+        let in_reply_to_list = dc_str_to_vec(&self.in_reply_to, " ");
+
         let imf_fields = mailimf_fields_new_with_data_all(
             mailimf_get_date(self.timestamp as i64),
             from,
@@ -613,31 +607,9 @@ impl<'a> MimeFactory<'a> {
 
         mailimf_fields_add(
             imf_fields,
-            mailimf_field_new(
-                MAILIMF_FIELD_SUBJECT as libc::c_int,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-                mailimf_subject_new(dc_encode_header_words(subject_str).strdup()),
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-            ),
+            mailimf_field::Subject(mailimf_subject_new(
+                dc_encode_header_words(subject_str).strdup(),
+            )),
         );
 
         /*just a pointer into mailmime structure, must not be freed*/

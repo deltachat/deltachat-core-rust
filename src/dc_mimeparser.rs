@@ -31,7 +31,7 @@ pub struct MimeParser<'a> {
     pub context: &'a Context,
     pub parts: Vec<Part>,
     pub mimeroot: *mut Mailmime,
-    pub header: HashMap<String, *mut mailimf_field>,
+    pub header: HashMap<String, mailimf_field>,
     pub header_root: *mut mailimf_fields,
     pub header_protected: *mut mailimf_fields,
     pub subject: Option<String>,
@@ -124,8 +124,8 @@ impl<'a> MimeParser<'a> {
             self.parse_mime_recursive(self.mimeroot);
 
             if let Some(field) = self.lookup_field("Subject") {
-                if (*field).fld_type == MAILIMF_FIELD_SUBJECT as libc::c_int {
-                    let subj = (*(*field).fld_data.fld_subject).sbj_value;
+                if let mailimf_field::Subject(subject) = *field {
+                    let subj = (*subject).sbj_value;
 
                     self.subject = as_opt_str(subj).map(dc_decode_header_words_safe);
                 }
@@ -289,12 +289,9 @@ impl<'a> MimeParser<'a> {
                         {
                             if let Some(dn_to_addr) = mailimf_find_first_addr(mb_list) {
                                 if let Some(from_field) = self.lookup_field("From") {
-                                    if (*from_field).fld_type == MAILIMF_FIELD_FROM as libc::c_int
-                                        && !(*from_field).fld_data.fld_from.is_null()
-                                    {
-                                        let from_addr = mailimf_find_first_addr(
-                                            (*(*from_field).fld_data.fld_from).frm_mb_list,
-                                        );
+                                    if let mailimf_field::From(from) = *from_field {
+                                        let from_addr =
+                                            mailimf_find_first_addr((*from).frm_mb_list);
                                         if let Some(from_addr) = from_addr {
                                             if from_addr == dn_to_addr {
                                                 if let Some(part_4) = self.get_last_nonmeta() {
@@ -333,42 +330,22 @@ impl<'a> MimeParser<'a> {
 
     /* the following functions can be used only after a call to parse() */
 
-    pub fn lookup_field(&self, field_name: &str) -> Option<*mut mailimf_field> {
-        match self.header.get(field_name) {
-            Some(v) => {
-                if v.is_null() {
-                    None
-                } else {
-                    Some(*v)
-                }
-            }
-            None => None,
-        }
+    pub fn lookup_field(&self, field_name: &str) -> Option<&mailimf_field> {
+        self.header.get(field_name)
     }
 
     pub fn lookup_optional_field(&self, field_name: &str) -> Option<String> {
-        if let Some(field) = self.lookup_field_typ(field_name, MAILIMF_FIELD_OPTIONAL_FIELD) {
-            let val = unsafe { (*field).fld_data.fld_optional_field };
-            if val.is_null() {
-                return None;
-            } else {
-                return Some(unsafe { to_string_lossy((*val).fld_value) });
+        if let Some(field) = self.lookup_field(field_name) {
+            if let mailimf_field::OptionalField(val) = *field {
+                if val.is_null() {
+                    return None;
+                } else {
+                    return Some(unsafe { to_string_lossy((*val).fld_value) });
+                }
             }
         }
 
         None
-    }
-
-    pub fn lookup_field_typ(&self, name: &str, typ: u32) -> Option<*const mailimf_field> {
-        if let Some(field) = self.lookup_field(name) {
-            if unsafe { (*field).fld_type } == typ as libc::c_int {
-                Some(field)
-            } else {
-                None
-            }
-        } else {
-            None
-        }
     }
 
     unsafe fn parse_mime_recursive(&mut self, mime: *mut Mailmime) -> bool {
@@ -829,29 +806,22 @@ impl<'a> MimeParser<'a> {
         }
 
         let mut sender_equals_recipient = false;
-        let mut fld_from: *const mailimf_from = ptr::null();
 
         /* get From: and check there is exactly one sender */
-        let fld = mailimf_find_field(self.header_root, MAILIMF_FIELD_FROM as libc::c_int);
-        if !(fld.is_null()
-            || {
-                fld_from = (*fld).fld_data.fld_from;
-                fld_from.is_null()
-            }
-            || (*fld_from).frm_mb_list.is_null()
-            || (*(*(*fld_from).frm_mb_list).0).len() != 1)
-        {
-            let mb = (*(*(*fld_from).frm_mb_list).0)
-                .first()
-                .map(|v| *v)
-                .unwrap_or_else(|| ptr::null_mut());
+        if let Some(fld_from) = mailimf_find_from_field(self.header_root) {
+            if (*fld_from).frm_mb_list.is_null() || (*(*(*fld_from).frm_mb_list).0).len() != 1 {
+                let mb = (*(*(*fld_from).frm_mb_list).0)
+                    .first()
+                    .map(|v| *v)
+                    .unwrap_or_else(|| ptr::null_mut());
 
-            if !mb.is_null() {
-                let from_addr_norm = addr_normalize(as_str((*mb).addr_spec));
-                let recipients = mailimf_get_recipients(self.header_root);
-                if recipients.len() == 1 {
-                    if recipients.contains(from_addr_norm) {
-                        sender_equals_recipient = true;
+                if !mb.is_null() {
+                    let from_addr_norm = addr_normalize(as_str((*mb).addr_spec));
+                    let recipients = mailimf_get_recipients(self.header_root);
+                    if recipients.len() == 1 {
+                        if recipients.contains(from_addr_norm) {
+                            sender_equals_recipient = true;
+                        }
                     }
                 }
             }
@@ -875,11 +845,10 @@ impl<'a> MimeParser<'a> {
 
     pub fn get_rfc724_mid(&mut self) -> Option<String> {
         // get Message-ID from header
-        if let Some(field) = self.lookup_field_typ("Message-ID", MAILIMF_FIELD_MESSAGE_ID) {
-            unsafe {
-                let fld_message_id = (*field).fld_data.fld_message_id;
-                if !fld_message_id.is_null() {
-                    return Some(to_string((*fld_message_id).mid_value));
+        if let Some(field) = self.lookup_field("Message-ID") {
+            if let mailimf_field::MessageId(id) = *field {
+                if !id.is_null() {
+                    return Some(unsafe { to_string((*id).mid_value) });
                 }
             }
         }
@@ -925,31 +894,28 @@ pub fn mailimf_find_first_addr(mb_list: *const mailimf_mailbox_list) -> Option<S
     None
 }
 
-unsafe fn hash_header(out: &mut HashMap<String, *mut mailimf_field>, in_0: *const mailimf_fields) {
+unsafe fn hash_header(out: &mut HashMap<String, mailimf_field>, in_0: *const mailimf_fields) {
     if in_0.is_null() {
         return;
     }
 
-    for cur in (*(*in_0).fld_list).into_iter() {
-        let field = cur as *mut mailimf_field;
-        // TODO match on enums /rtn
-
-        let key = match (*field).fld_type as libc::c_uint {
-            MAILIMF_FIELD_RETURN_PATH => Some("Return-Path".to_string()),
-            MAILIMF_FIELD_ORIG_DATE => Some("Date".to_string()),
-            MAILIMF_FIELD_FROM => Some("From".to_string()),
-            MAILIMF_FIELD_SENDER => Some("Sender".to_string()),
-            MAILIMF_FIELD_REPLY_TO => Some("Reply-To".to_string()),
-            MAILIMF_FIELD_TO => Some("To".to_string()),
-            MAILIMF_FIELD_CC => Some("Cc".to_string()),
-            MAILIMF_FIELD_BCC => Some("Bcc".to_string()),
-            MAILIMF_FIELD_MESSAGE_ID => Some("Message-ID".to_string()),
-            MAILIMF_FIELD_IN_REPLY_TO => Some("In-Reply-To".to_string()),
-            MAILIMF_FIELD_REFERENCES => Some("References".to_string()),
-            MAILIMF_FIELD_SUBJECT => Some("Subject".to_string()),
-            MAILIMF_FIELD_OPTIONAL_FIELD => {
+    for field in &(*in_0).0 {
+        use mailimf_field::*;
+        let key = match *field {
+            ReturnPath(_) => Some("Return-Path".to_string()),
+            OrigDate(_) => Some("Date".to_string()),
+            From(_) => Some("From".to_string()),
+            Sender(_) => Some("Sender".to_string()),
+            ReplyTo(_) => Some("Reply-To".to_string()),
+            To(_) => Some("To".to_string()),
+            Cc(_) => Some("Cc".to_string()),
+            Bcc(_) => Some("Bcc".to_string()),
+            MessageId(_) => Some("Message-ID".to_string()),
+            InReplyTo(_) => Some("In-Reply-To".to_string()),
+            References(_) => Some("References".to_string()),
+            Subject(_) => Some("Subject".to_string()),
+            OptionalField(optional_field) => {
                 // MAILIMF_FIELD_OPTIONAL_FIELD
-                let optional_field = (*field).fld_data.fld_optional_field;
                 // XXX the optional field sometimes contains invalid UTF8
                 // which should not happen (according to the mime standard).
                 // This might point to a bug in our mime parsing/processing
@@ -966,9 +932,9 @@ unsafe fn hash_header(out: &mut HashMap<String, *mut mailimf_field>, in_0: *cons
         };
         if let Some(key) = key {
             if !out.contains_key(&key) || // key already exists, only overwrite known types (protected headers)
-                (*field).fld_type != MAILIMF_FIELD_OPTIONAL_FIELD as i32 || key.starts_with("Chat-")
+                field.is_optional_field() || key.starts_with("Chat-")
             {
-                out.insert(key, field);
+                out.insert(key, field.clone());
             }
         }
     }
@@ -1213,29 +1179,16 @@ pub fn mailimf_get_recipients(imffields: *mut mailimf_fields) -> HashSet<String>
     /* returned addresses are normalized. */
     let mut recipients: HashSet<String> = Default::default();
 
-    for cur in unsafe { (*(*imffields).fld_list).into_iter() } {
-        let fld = cur as *mut mailimf_field;
-
-        let fld_to: *mut mailimf_to;
-        let fld_cc: *mut mailimf_cc;
-
+    for fld in unsafe { &(*imffields).0 } {
         let mut addr_list: *mut mailimf_address_list = ptr::null_mut();
-        if fld.is_null() {
-            continue;
-        }
 
-        let fld = unsafe { *fld };
-
-        // TODO match on enums /rtn
-        match fld.fld_type {
-            13 => {
-                fld_to = unsafe { fld.fld_data.fld_to };
+        match *fld {
+            mailimf_field::To(fld_to) => {
                 if !fld_to.is_null() {
                     addr_list = unsafe { (*fld_to).to_addr_list };
                 }
             }
-            14 => {
-                fld_cc = unsafe { fld.fld_data.fld_cc };
+            mailimf_field::Cc(fld_cc) => {
                 if !fld_cc.is_null() {
                     addr_list = unsafe { (*fld_cc).cc_addr_list };
                 }
@@ -1275,30 +1228,32 @@ fn mailimf_get_recipients_add_addr(recipients: &mut HashSet<String>, mb: *mut ma
     }
 }
 
-/*the result is a pointer to mime, must not be freed*/
-pub fn mailimf_find_field(
-    header: *mut mailimf_fields,
-    wanted_fld_type: libc::c_int,
-) -> *mut mailimf_field {
+pub fn mailimf_find_from_field(header: *mut mailimf_fields) -> Option<*mut mailimf_from> {
     if header.is_null() {
-        return ptr::null_mut();
+        return None;
     }
 
-    let header = unsafe { (*header) };
-    if header.fld_list.is_null() {
-        return ptr::null_mut();
-    }
-
-    for cur in unsafe { &(*header.fld_list) } {
-        let field = cur as *mut mailimf_field;
-        if !field.is_null() {
-            if unsafe { (*field).fld_type } == wanted_fld_type {
-                return field;
-            }
+    unsafe { (*header).0.iter() }.find_map(|field| {
+        if let mailimf_field::From(f) = field {
+            Some(*f)
+        } else {
+            None
         }
+    })
+}
+
+pub fn mailimf_find_orig_date_field(header: *mut mailimf_fields) -> Option<*mut mailimf_orig_date> {
+    if header.is_null() {
+        return None;
     }
 
-    ptr::null_mut()
+    unsafe { (*header).0.iter() }.find_map(|field| {
+        if let mailimf_field::OrigDate(d) = field {
+            Some(*d)
+        } else {
+            None
+        }
+    })
 }
 
 /*the result is a pointer to mime, must not be freed*/
@@ -1327,14 +1282,11 @@ pub unsafe fn mailimf_find_optional_field(
     header: *mut mailimf_fields,
     wanted_fld_name: *const libc::c_char,
 ) -> *mut mailimf_optional_field {
-    if header.is_null() || (*header).fld_list.is_null() {
+    if header.is_null() {
         return ptr::null_mut();
     }
-    for cur_data in (*(*header).fld_list).into_iter() {
-        let field: *mut mailimf_field = cur_data as *mut _;
-
-        if (*field).fld_type == MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int {
-            let optional_field: *mut mailimf_optional_field = (*field).fld_data.fld_optional_field;
+    for field in &(*header).0 {
+        if let mailimf_field::OptionalField(optional_field) = *field {
             if !optional_field.is_null()
                 && !(*optional_field).fld_name.is_null()
                 && !(*optional_field).fld_value.is_null()

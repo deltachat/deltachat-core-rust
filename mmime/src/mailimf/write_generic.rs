@@ -588,7 +588,7 @@ unsafe fn mailimf_references_write_driver(
     if r != MAILIMF_NO_ERROR as libc::c_int {
         return r;
     }
-    r = mailimf_msg_id_list_write_driver(do_write, data, col, (*references).mid_list);
+    r = mailimf_msg_id_list_write_driver(do_write, data, col, &(*references).0);
     if r != MAILIMF_NO_ERROR as libc::c_int {
         return r;
     }
@@ -605,28 +605,19 @@ unsafe fn mailimf_references_write_driver(
     return MAILIMF_NO_ERROR as libc::c_int;
 }
 unsafe fn mailimf_msg_id_list_write_driver(
-    mut do_write: Option<
+    do_write: Option<
         unsafe fn(_: *mut libc::c_void, _: *const libc::c_char, _: size_t) -> libc::c_int,
     >,
-    mut data: *mut libc::c_void,
-    mut col: *mut libc::c_int,
-    mut mid_list: *mut clist,
+    data: *mut libc::c_void,
+    col: *mut libc::c_int,
+    mid_list: &Vec<*mut libc::c_char>,
 ) -> libc::c_int {
-    let mut cur: *mut clistiter = 0 as *mut clistiter;
-    let mut r: libc::c_int = 0;
-    let mut first: libc::c_int = 0;
-    first = 1i32;
-    cur = (*mid_list).first;
-    while !cur.is_null() {
-        let mut msgid: *mut libc::c_char = 0 as *mut libc::c_char;
-        let mut len: size_t = 0;
-        msgid = (if !cur.is_null() {
-            (*cur).data
-        } else {
-            0 as *mut libc::c_void
-        }) as *mut libc::c_char;
-        len = strlen(msgid);
-        if 0 == first {
+    let mut r = 0;
+    let mut first = true;
+
+    for msgid in mid_list {
+        let len = strlen(*msgid);
+        if !first {
             if *col > 1i32 {
                 if (*col as libc::size_t).wrapping_add(len) >= 72i32 as libc::size_t {
                     r = mailimf_string_write_driver(
@@ -639,11 +630,11 @@ unsafe fn mailimf_msg_id_list_write_driver(
                     if r != MAILIMF_NO_ERROR as libc::c_int {
                         return r;
                     }
-                    first = 1i32
+                    first = true;
                 }
             }
         }
-        if 0 == first {
+        if !first {
             r = mailimf_string_write_driver(
                 do_write,
                 data,
@@ -655,7 +646,7 @@ unsafe fn mailimf_msg_id_list_write_driver(
                 return r;
             }
         } else {
-            first = 0i32
+            first = false;
         }
         r = mailimf_string_write_driver(
             do_write,
@@ -667,7 +658,7 @@ unsafe fn mailimf_msg_id_list_write_driver(
         if r != MAILIMF_NO_ERROR as libc::c_int {
             return r;
         }
-        r = mailimf_string_write_driver(do_write, data, col, msgid, len);
+        r = mailimf_string_write_driver(do_write, data, col, *msgid, len);
         if r != MAILIMF_NO_ERROR as libc::c_int {
             return r;
         }
@@ -681,14 +672,11 @@ unsafe fn mailimf_msg_id_list_write_driver(
         if r != MAILIMF_NO_ERROR as libc::c_int {
             return r;
         }
-        cur = if !cur.is_null() {
-            (*cur).next
-        } else {
-            0 as *mut clistcell
-        }
     }
-    return MAILIMF_NO_ERROR as libc::c_int;
+
+    MAILIMF_NO_ERROR as libc::c_int
 }
+
 unsafe fn mailimf_in_reply_to_write_driver(
     mut do_write: Option<
         unsafe fn(_: *mut libc::c_void, _: *const libc::c_char, _: size_t) -> libc::c_int,
@@ -708,7 +696,7 @@ unsafe fn mailimf_in_reply_to_write_driver(
     if r != MAILIMF_NO_ERROR as libc::c_int {
         return r;
     }
-    r = mailimf_msg_id_list_write_driver(do_write, data, col, (*in_reply_to).mid_list);
+    r = mailimf_msg_id_list_write_driver(do_write, data, col, &(*in_reply_to).0);
     if r != MAILIMF_NO_ERROR as libc::c_int {
         return r;
     }

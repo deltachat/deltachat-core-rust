@@ -3,7 +3,6 @@ use std::ptr;
 
 use itertools::join;
 use libc::{free, strcmp, strlen};
-use mmime::clist::*;
 use mmime::mailimf::types::*;
 use mmime::mailimf::*;
 use mmime::mailmime::content::*;
@@ -119,61 +118,65 @@ pub unsafe fn dc_receive_imf(
         }
     };
 
-    if let Some(field) = mime_parser.lookup_field_typ("Date", MAILIMF_FIELD_ORIG_DATE) {
-        let orig_date = (*field).fld_data.fld_orig_date;
-        if !orig_date.is_null() {
-            // is not yet checked against bad times! we do this later if we have the database information.
-            sent_timestamp = dc_timestamp_from_date((*orig_date).dt_date_time)
+    if let Some(field) = mime_parser.lookup_field("Date") {
+        if let mailimf_field::OrigDate(orig_date) = *field {
+            if !orig_date.is_null() {
+                // is not yet checked against bad times! we do this later if we have the database information.
+                sent_timestamp = dc_timestamp_from_date((*orig_date).dt_date_time)
+            }
         }
     }
 
     // get From: and check if it is known (for known From:'s we add the other To:/Cc: in the 3rd pass)
     // or if From: is equal to SELF (in this case, it is any outgoing messages,
     // we do not check Return-Path any more as this is unreliable, see issue #150
-    if let Some(field) = mime_parser.lookup_field_typ("From", MAILIMF_FIELD_FROM) {
-        let fld_from = (*field).fld_data.fld_from;
-        if !fld_from.is_null() {
-            let mut check_self = 0;
-            let mut from_list = Vec::with_capacity(16);
-            dc_add_or_lookup_contacts_by_mailbox_list(
-                context,
-                (*fld_from).frm_mb_list,
-                Origin::IncomingUnknownFrom,
-                &mut from_list,
-                &mut check_self,
-            );
-            if 0 != check_self {
-                incoming = 0;
-                if mime_parser.sender_equals_recipient() {
-                    from_id = DC_CONTACT_ID_SELF;
+    if let Some(field) = mime_parser.lookup_field("From") {
+        if let mailimf_field::From(fld_from) = *field {
+            if !fld_from.is_null() {
+                let mut check_self = 0;
+                let mut from_list = Vec::with_capacity(16);
+                dc_add_or_lookup_contacts_by_mailbox_list(
+                    context,
+                    (*fld_from).frm_mb_list,
+                    Origin::IncomingUnknownFrom,
+                    &mut from_list,
+                    &mut check_self,
+                );
+                if 0 != check_self {
+                    incoming = 0;
+                    if mime_parser.sender_equals_recipient() {
+                        from_id = DC_CONTACT_ID_SELF;
+                    }
+                } else if from_list.len() >= 1 {
+                    // if there is no from given, from_id stays 0 which is just fine. These messages
+                    // are very rare, however, we have to add them to the database (they go to the
+                    // "deaddrop" chat) to avoid a re-download from the server. See also [**]
+                    from_id = from_list[0];
+                    incoming_origin =
+                        Contact::get_origin_by_id(context, from_id, &mut from_id_blocked)
                 }
-            } else if from_list.len() >= 1 {
-                // if there is no from given, from_id stays 0 which is just fine. These messages
-                // are very rare, however, we have to add them to the database (they go to the
-                // "deaddrop" chat) to avoid a re-download from the server. See also [**]
-                from_id = from_list[0];
-                incoming_origin = Contact::get_origin_by_id(context, from_id, &mut from_id_blocked)
             }
         }
     }
 
     // Make sure, to_ids starts with the first To:-address (Cc: is added in the loop below pass)
-    if let Some(field) = mime_parser.lookup_field_typ("To", MAILIMF_FIELD_TO) {
-        let fld_to = (*field).fld_data.fld_to;
-        if !fld_to.is_null() {
-            dc_add_or_lookup_contacts_by_address_list(
-                context,
-                (*fld_to).to_addr_list,
-                if 0 == incoming {
-                    Origin::OutgoingTo
-                } else if incoming_origin.is_verified() {
-                    Origin::IncomingTo
-                } else {
-                    Origin::IncomingUnknownTo
-                },
-                &mut to_ids,
-                &mut to_self,
-            );
+    if let Some(field) = mime_parser.lookup_field("To") {
+        if let mailimf_field::To(fld_to) = *field {
+            if !fld_to.is_null() {
+                dc_add_or_lookup_contacts_by_address_list(
+                    context,
+                    (*fld_to).to_addr_list,
+                    if 0 == incoming {
+                        Origin::OutgoingTo
+                    } else if incoming_origin.is_verified() {
+                        Origin::IncomingTo
+                    } else {
+                        Origin::IncomingUnknownTo
+                    },
+                    &mut to_ids,
+                    &mut to_self,
+                );
+            }
         }
     }
 
@@ -327,22 +330,23 @@ unsafe fn add_parts(
     // collect the rest information, CC: is added to the to-list, BCC: is ignored
     // (we should not add BCC to groups as this would split groups. We could add them as "known contacts",
     // however, the benefit is very small and this may leak data that is expected to be hidden)
-    if let Some(field) = mime_parser.lookup_field_typ("Cc", MAILIMF_FIELD_CC) {
-        let fld_cc = (*field).fld_data.fld_cc;
-        if !fld_cc.is_null() {
-            dc_add_or_lookup_contacts_by_address_list(
-                context,
-                (*fld_cc).cc_addr_list,
-                if 0 == incoming {
-                    Origin::OutgoingCc
-                } else if incoming_origin.is_verified() {
-                    Origin::IncomingCc
-                } else {
-                    Origin::IncomingUnknownCc
-                },
-                to_ids,
-                std::ptr::null_mut(),
-            );
+    if let Some(field) = mime_parser.lookup_field("Cc") {
+        if let mailimf_field::Cc(fld_cc) = *field {
+            if !fld_cc.is_null() {
+                dc_add_or_lookup_contacts_by_address_list(
+                    context,
+                    (*fld_cc).cc_addr_list,
+                    if 0 == incoming {
+                        Origin::OutgoingCc
+                    } else if incoming_origin.is_verified() {
+                        Origin::IncomingCc
+                    } else {
+                        Origin::IncomingUnknownCc
+                    },
+                    to_ids,
+                    std::ptr::null_mut(),
+                );
+            }
         }
     }
 
@@ -583,23 +587,25 @@ unsafe fn add_parts(
     // if the mime-headers should be saved, find out its size
     // (the mime-header ends with an empty line)
     let save_mime_headers = context.sql.get_config_bool(context, "save_mime_headers");
-    if let Some(field) = mime_parser.lookup_field_typ("In-Reply-To", MAILIMF_FIELD_IN_REPLY_TO) {
-        let fld_in_reply_to = (*field).fld_data.fld_in_reply_to;
-        if !fld_in_reply_to.is_null() {
-            mime_in_reply_to = dc_str_from_clist(
-                (*(*field).fld_data.fld_in_reply_to).mid_list,
-                b" \x00" as *const u8 as *const libc::c_char,
-            )
+    if let Some(field) = mime_parser.lookup_field("In-Reply-To") {
+        if let mailimf_field::InReplyTo(fld_in_reply_to) = *field {
+            if !fld_in_reply_to.is_null() {
+                mime_in_reply_to = dc_str_from_vec(
+                    &(*fld_in_reply_to).0,
+                    b" \x00" as *const u8 as *const libc::c_char,
+                );
+            }
         }
     }
 
-    if let Some(field) = mime_parser.lookup_field_typ("References", MAILIMF_FIELD_REFERENCES) {
-        let fld_references = (*field).fld_data.fld_references;
-        if !fld_references.is_null() {
-            mime_references = dc_str_from_clist(
-                (*(*field).fld_data.fld_references).mid_list,
-                b" \x00" as *const u8 as *const libc::c_char,
-            )
+    if let Some(field) = mime_parser.lookup_field("References") {
+        if let mailimf_field::References(fld_references) = *field {
+            if !fld_references.is_null() {
+                mime_references = dc_str_from_vec(
+                    &(*fld_references).0,
+                    b" \x00" as *const u8 as *const libc::c_char,
+                )
+            }
         }
     }
 
@@ -1022,38 +1028,36 @@ unsafe fn create_or_lookup_group(
     }
 
     if grpid.is_empty() {
-        if let Some(field) = mime_parser.lookup_field_typ("Message-ID", MAILIMF_FIELD_MESSAGE_ID) {
-            let fld_message_id = (*field).fld_data.fld_message_id;
-            if !fld_message_id.is_null() {
-                if let Some(extracted_grpid) =
-                    dc_extract_grpid_from_rfc724_mid(as_str((*fld_message_id).mid_value))
-                {
-                    grpid = extracted_grpid.to_string();
-                } else {
-                    grpid = "".to_string();
+        if let Some(field) = mime_parser.lookup_field("Message-ID") {
+            if let mailimf_field::MessageId(fld_message_id) = *field {
+                if !fld_message_id.is_null() {
+                    if let Some(extracted_grpid) =
+                        dc_extract_grpid_from_rfc724_mid(as_str((*fld_message_id).mid_value))
+                    {
+                        grpid = extracted_grpid.to_string();
+                    } else {
+                        grpid = "".to_string();
+                    }
                 }
             }
         }
         if grpid.is_empty() {
-            if let Some(field) =
-                mime_parser.lookup_field_typ("In-Reply-To", MAILIMF_FIELD_IN_REPLY_TO)
-            {
-                let fld_in_reply_to = (*field).fld_data.fld_in_reply_to;
-                if !fld_in_reply_to.is_null() {
-                    grpid = to_string(dc_extract_grpid_from_rfc724_mid_list(
-                        (*fld_in_reply_to).mid_list,
-                    ));
+            if let Some(field) = mime_parser.lookup_field("In-Reply-To") {
+                if let mailimf_field::InReplyTo(fld_in_reply_to) = *field {
+                    if !fld_in_reply_to.is_null() {
+                        grpid =
+                            to_string(dc_extract_grpid_from_rfc724_mid_list(&(*fld_in_reply_to).0));
+                    }
                 }
             }
             if grpid.is_empty() {
-                if let Some(field) =
-                    mime_parser.lookup_field_typ("References", MAILIMF_FIELD_REFERENCES)
-                {
-                    let fld_references = (*field).fld_data.fld_references;
-                    if !fld_references.is_null() {
-                        grpid = to_string(dc_extract_grpid_from_rfc724_mid_list(
-                            (*fld_references).mid_list,
-                        ));
+                if let Some(field) = mime_parser.lookup_field("References") {
+                    if let mailimf_field::References(fld_references) = *field {
+                        if !fld_references.is_null() {
+                            grpid = to_string(dc_extract_grpid_from_rfc724_mid_list(
+                                &(*fld_references).0,
+                            ));
+                        }
                     }
                 }
 
@@ -1706,13 +1710,9 @@ unsafe fn dc_is_reply_to_known_message(context: &Context, mime_parser: &MimePars
     }
 
     if let Some(field) = mime_parser.lookup_field("In-Reply-To") {
-        if (*field).fld_type == MAILIMF_FIELD_IN_REPLY_TO as libc::c_int {
-            let fld_in_reply_to = (*field).fld_data.fld_in_reply_to;
+        if let mailimf_field::InReplyTo(fld_in_reply_to) = *field {
             if !fld_in_reply_to.is_null() {
-                if is_known_rfc724_mid_in_list(
-                    context,
-                    (*(*field).fld_data.fld_in_reply_to).mid_list,
-                ) {
+                if is_known_rfc724_mid_in_list(context, &(*fld_in_reply_to).0) {
                     return 1;
                 }
             }
@@ -1720,13 +1720,9 @@ unsafe fn dc_is_reply_to_known_message(context: &Context, mime_parser: &MimePars
     }
 
     if let Some(field) = mime_parser.lookup_field("References") {
-        if (*field).fld_type == MAILIMF_FIELD_REFERENCES as libc::c_int {
-            let fld_references = (*field).fld_data.fld_references;
+        if let mailimf_field::References(fld_references) = *field {
             if !fld_references.is_null() {
-                if is_known_rfc724_mid_in_list(
-                    context,
-                    (*(*field).fld_data.fld_references).mid_list,
-                ) {
+                if is_known_rfc724_mid_in_list(context, &(*fld_references).0) {
                     return 1;
                 }
             }
@@ -1736,13 +1732,12 @@ unsafe fn dc_is_reply_to_known_message(context: &Context, mime_parser: &MimePars
     0
 }
 
-unsafe fn is_known_rfc724_mid_in_list(context: &Context, mid_list: *const clist) -> bool {
-    if mid_list.is_null() {
-        return false;
-    }
-
-    for data in &*mid_list {
-        if 0 != is_known_rfc724_mid(context, data.cast()) {
+unsafe fn is_known_rfc724_mid_in_list(
+    context: &Context,
+    mid_list: &Vec<*mut libc::c_char>,
+) -> bool {
+    for data in mid_list {
+        if 0 != is_known_rfc724_mid(context, *data) {
             return true;
         }
     }
@@ -1778,13 +1773,9 @@ unsafe fn dc_is_reply_to_messenger_message(
     - no check for the Chat-* headers (function is only called if it is no messenger message itself) */
 
     if let Some(field) = mime_parser.lookup_field("In-Reply-To") {
-        if (*field).fld_type == MAILIMF_FIELD_IN_REPLY_TO as libc::c_int {
-            let fld_in_reply_to = (*field).fld_data.fld_in_reply_to;
+        if let mailimf_field::InReplyTo(fld_in_reply_to) = *field {
             if !fld_in_reply_to.is_null() {
-                if 0 != is_msgrmsg_rfc724_mid_in_list(
-                    context,
-                    (*(*field).fld_data.fld_in_reply_to).mid_list,
-                ) {
+                if 0 != is_msgrmsg_rfc724_mid_in_list(context, &(*fld_in_reply_to).0) {
                     return 1;
                 }
             }
@@ -1792,13 +1783,9 @@ unsafe fn dc_is_reply_to_messenger_message(
     }
 
     if let Some(field) = mime_parser.lookup_field("References") {
-        if (*field).fld_type == MAILIMF_FIELD_REFERENCES as libc::c_int {
-            let fld_references: *mut mailimf_references = (*field).fld_data.fld_references;
+        if let mailimf_field::References(fld_references) = *field {
             if !fld_references.is_null() {
-                if 0 != is_msgrmsg_rfc724_mid_in_list(
-                    context,
-                    (*(*field).fld_data.fld_references).mid_list,
-                ) {
+                if 0 != is_msgrmsg_rfc724_mid_in_list(context, &(*fld_references).0) {
                     return 1;
                 }
             }
@@ -1808,25 +1795,13 @@ unsafe fn dc_is_reply_to_messenger_message(
     0
 }
 
-unsafe fn is_msgrmsg_rfc724_mid_in_list(context: &Context, mid_list: *const clist) -> libc::c_int {
-    if !mid_list.is_null() {
-        let mut cur: *mut clistiter = (*mid_list).first;
-        while !cur.is_null() {
-            if 0 != is_msgrmsg_rfc724_mid(
-                context,
-                if !cur.is_null() {
-                    as_str((*cur).data as *const libc::c_char)
-                } else {
-                    ""
-                },
-            ) {
-                return 1;
-            }
-            cur = if !cur.is_null() {
-                (*cur).next
-            } else {
-                ptr::null_mut()
-            }
+unsafe fn is_msgrmsg_rfc724_mid_in_list(
+    context: &Context,
+    mid_list: &Vec<*mut libc::c_char>,
+) -> libc::c_int {
+    for cur in mid_list {
+        if 0 != is_msgrmsg_rfc724_mid(context, if !cur.is_null() { as_str(*cur) } else { "" }) {
+            return 1;
         }
     }
     0

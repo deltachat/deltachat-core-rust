@@ -349,17 +349,17 @@ pub unsafe fn mailimf_address_list_add(
   other code will be returned otherwise
 */
 pub unsafe fn mailimf_fields_new_with_data_all(
-    mut date: *mut mailimf_date_time,
-    mut from: *mut mailimf_mailbox_list,
-    mut sender: *mut mailimf_mailbox,
-    mut reply_to: *mut mailimf_address_list,
-    mut to: *mut mailimf_address_list,
-    mut cc: *mut mailimf_address_list,
-    mut bcc: *mut mailimf_address_list,
-    mut message_id: *mut libc::c_char,
-    mut in_reply_to: *mut clist,
-    mut references: *mut clist,
-    mut subject: *mut libc::c_char,
+    date: *mut mailimf_date_time,
+    from: *mut mailimf_mailbox_list,
+    sender: *mut mailimf_mailbox,
+    reply_to: *mut mailimf_address_list,
+    to: *mut mailimf_address_list,
+    cc: *mut mailimf_address_list,
+    bcc: *mut mailimf_address_list,
+    message_id: *mut libc::c_char,
+    in_reply_to: Vec<*mut libc::c_char>,
+    references: Vec<*mut libc::c_char>,
+    subject: *mut libc::c_char,
 ) -> *mut mailimf_fields {
     let mut fields: *mut mailimf_fields = 0 as *mut mailimf_fields;
     let mut r: libc::c_int = 0;
@@ -406,18 +406,18 @@ pub unsafe fn mailimf_fields_new_with_data_all(
   other code will be returned otherwise
 */
 pub unsafe fn mailimf_fields_add_data(
-    mut fields: *mut mailimf_fields,
-    mut date: *mut mailimf_date_time,
-    mut from: *mut mailimf_mailbox_list,
-    mut sender: *mut mailimf_mailbox,
-    mut reply_to: *mut mailimf_address_list,
-    mut to: *mut mailimf_address_list,
-    mut cc: *mut mailimf_address_list,
-    mut bcc: *mut mailimf_address_list,
-    mut msg_id: *mut libc::c_char,
-    mut in_reply_to: *mut clist,
-    mut references: *mut clist,
-    mut subject: *mut libc::c_char,
+    fields: *mut mailimf_fields,
+    date: *mut mailimf_date_time,
+    from: *mut mailimf_mailbox_list,
+    sender: *mut mailimf_mailbox,
+    reply_to: *mut mailimf_address_list,
+    to: *mut mailimf_address_list,
+    cc: *mut mailimf_address_list,
+    bcc: *mut mailimf_address_list,
+    msg_id: *mut libc::c_char,
+    in_reply_to: Vec<*mut libc::c_char>,
+    references: Vec<*mut libc::c_char>,
+    subject: *mut libc::c_char,
 ) -> libc::c_int {
     let mut current_block: u64;
     let mut imf_date: *mut mailimf_orig_date = 0 as *mut mailimf_orig_date;
@@ -579,63 +579,35 @@ pub unsafe fn mailimf_fields_add_data(
                                                                 13813460800808168376 => {}
                                                                 16539016819803454162 => {}
                                                                 _ => {
-                                                                    if !in_reply_to.is_null() {
-                                                                        imf_in_reply_to =
-                                                                            mailimf_in_reply_to_new(
-                                                                                in_reply_to,
-                                                                            );
-                                                                        if imf_in_reply_to.is_null()
-                                                                        {
-                                                                            current_block
-                                                                                =
-                                                                                16539016819803454162;
-                                                                        } else {
-                                                                            let field
-                                                                                =
-                                                                                mailimf_field::InReplyTo(
-                                                                                    imf_in_reply_to,
-                                                                                    );
-                                                                            mailimf_fields_add(
-                                                                                fields, field,
-                                                                            );
-                                                                            current_block
-                                                                                        =
-                                                                                        15587532755333643506;
-                                                                        }
-                                                                    } else {
-                                                                        current_block =
-                                                                            15587532755333643506;
-                                                                    }
+                                                                    imf_in_reply_to =
+                                                                        mailimf_in_reply_to_new(
+                                                                            in_reply_to,
+                                                                        );
+                                                                    let field =
+                                                                        mailimf_field::InReplyTo(
+                                                                            imf_in_reply_to,
+                                                                        );
+                                                                    mailimf_fields_add(
+                                                                        fields, field,
+                                                                    );
+                                                                    current_block =
+                                                                        15587532755333643506;
                                                                     match current_block {
                                                                         13813460800808168376 => {}
                                                                         16539016819803454162 => {}
                                                                         _ => {
-                                                                            if !references.is_null()
-                                                                            {
-                                                                                imf_references
-                                                                                    =
-                                                                                    mailimf_references_new(references);
-                                                                                if imf_references
-                                                                                    .is_null()
-                                                                                {
-                                                                                    current_block
-                                                                                        =
-                                                                                        16539016819803454162;
-                                                                                } else {
-                                                                                    let field
-                                                                                        =
-                                                                                        mailimf_field::References(
-                                                                                            imf_references);
-                                                                                    mailimf_fields_add(fields, field);
-                                                                                    current_block
-                                                                                        =
-                                                                                        7301440000599063274;
-                                                                                }
-                                                                            } else {
-                                                                                current_block
-                                                                                    =
-                                                                                    7301440000599063274;
-                                                                            }
+                                                                            imf_references
+                                                                                =
+                                                                                mailimf_references_new(references);
+                                                                            let field
+                                                                                =
+                                                                                mailimf_field::References(
+                                                                                    imf_references);
+                                                                            mailimf_fields_add(
+                                                                                fields, field,
+                                                                            );
+                                                                            current_block =
+                                                                                7301440000599063274;
                                                                             match current_block
                                                                                 {
                                                                                 13813460800808168376
@@ -746,11 +718,9 @@ unsafe fn detach_free_fields(
         mailimf_reply_to_free(reply_to);
     }
     if !in_reply_to.is_null() {
-        (*in_reply_to).mid_list = 0 as *mut clist;
         mailimf_in_reply_to_free(in_reply_to);
     }
     if !references.is_null() {
-        (*references).mid_list = 0 as *mut clist;
         mailimf_references_free(references);
     }
     if !subject.is_null() {
