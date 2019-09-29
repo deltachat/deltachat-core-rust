@@ -5,7 +5,7 @@ use crate::constants::*;
 use crate::context::Context;
 use crate::error::Error;
 use crate::events::Event;
-use crate::login_param::LoginParam;
+use crate::login_param::{CertificateChecks, LoginParam};
 use crate::oauth2::*;
 
 #[derive(DebugStub)]
@@ -68,13 +68,19 @@ impl Smtp {
         let domain = &lp.send_server;
         let port = lp.send_port as u16;
 
-        let tls = native_tls::TlsConnector::builder()
-            // see also: https://github.com/deltachat/deltachat-core-rust/issues/203
-            .danger_accept_invalid_hostnames(true)
-            .danger_accept_invalid_certs(true)
-            .min_protocol_version(Some(DEFAULT_TLS_PROTOCOLS[0]))
-            .build()
-            .unwrap();
+        let mut tls_builder = native_tls::TlsConnector::builder();
+        let tls = match lp.send_certificate_checks {
+            CertificateChecks::Strict => &mut tls_builder,
+            CertificateChecks::AcceptInvalidHostnames => {
+                tls_builder.danger_accept_invalid_hostnames(true)
+            }
+            CertificateChecks::AcceptInvalidCertificates => tls_builder
+                .danger_accept_invalid_hostnames(true)
+                .danger_accept_invalid_certs(true),
+        }
+        .min_protocol_version(Some(DEFAULT_TLS_PROTOCOLS[0]))
+        .build()
+        .unwrap();
 
         let tls_parameters = ClientTlsParameters::new(domain.to_string(), tls);
 
