@@ -605,18 +605,17 @@ fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     /*for logging only*/
     let sql = Sql::new();
     if sql.open(context, &dest_path_filename, 0) {
-        if !sql.table_exists("backup_blobs") {
-            if sql::execute(
+        if !sql.table_exists("backup_blobs")
+            && sql::execute(
                 context,
                 &sql,
                 "CREATE TABLE backup_blobs (id INTEGER PRIMARY KEY, file_name, file_content);",
                 params![],
             )
             .is_err()
-            {
-                /* error already logged */
-                ok_to_continue = false;
-            }
+        {
+            /* error already logged */
+            ok_to_continue = false;
         }
         if ok_to_continue {
             let mut total_files_cnt = 0;
