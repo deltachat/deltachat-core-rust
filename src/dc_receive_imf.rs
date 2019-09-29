@@ -29,6 +29,7 @@ use crate::peerstate::*;
 use crate::securejoin::handle_securejoin_handshake;
 use crate::sql;
 use crate::stock::StockMessage;
+use crate::wrapmime;
 
 #[derive(Debug, PartialEq, Eq)]
 enum CreateEvent {
@@ -795,7 +796,7 @@ unsafe fn handle_reports(
                         b"disposition-notification\x00" as *const u8 as *const libc::c_char,
                     ) == 0
                 {
-                    if let Ok(report_body) = mailmime_transfer_decode(report_data) {
+                    if let Ok(report_body) = wrapmime::mailmime_transfer_decode(report_data) {
                         let mut report_parsed = std::ptr::null_mut();
                         let mut dummy = 0;
 
@@ -807,13 +808,14 @@ unsafe fn handle_reports(
                         ) == MAIL_NO_ERROR as libc::c_int
                             && !report_parsed.is_null()
                         {
-                            let report_fields = mailmime_find_mailimf_fields(report_parsed);
+                            let report_fields =
+                                wrapmime::mailmime_find_mailimf_fields(report_parsed);
                             if !report_fields.is_null() {
-                                let of_disposition = mailimf_find_optional_field(
+                                let of_disposition = wrapmime::mailimf_find_optional_field(
                                     report_fields,
                                     b"Disposition\x00" as *const u8 as *const libc::c_char,
                                 );
-                                let of_org_msgid = mailimf_find_optional_field(
+                                let of_org_msgid = wrapmime::mailimf_find_optional_field(
                                     report_fields,
                                     b"Original-Message-ID\x00" as *const u8 as *const libc::c_char,
                                 );

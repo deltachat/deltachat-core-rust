@@ -22,7 +22,6 @@ use num_traits::FromPrimitive;
 use crate::aheader::*;
 use crate::config::Config;
 use crate::context::Context;
-use crate::dc_mimeparser::*;
 use crate::dc_tools::*;
 use crate::error::*;
 use crate::key::*;
@@ -266,103 +265,80 @@ pub fn try_decrypt(
     context: &Context,
     in_out_message: *mut Mailmime,
 ) -> Result<(bool, HashSet<String>, HashSet<String>)> {
+    // just a pointer into mailmime structure, must not be freed
+    let imffields = unsafe { mailmime_find_mailimf_fields(in_out_message) };
+    ensure!(
+        !in_out_message.is_null() && !imffields.is_null(),
+        "corrupt invalid mime inputs"
+    );
+
+    let from = wrapmime::get_field_from(imffields)?;
+    let message_time = wrapmime::get_field_date(imffields)?;
+
+    let mut peerstate = None;
+    let autocryptheader = Aheader::from_imffields(&from, imffields);
+
+    if message_time > 0 {
+        peerstate = Peerstate::from_addr(context, &context.sql, &from);
+
+        if let Some(ref mut peerstate) = peerstate {
+            if let Some(ref header) = autocryptheader {
+                peerstate.apply_header(&header, message_time);
+                peerstate.save_to_db(&context.sql, false).unwrap();
+            } else if message_time > peerstate.last_seen_autocrypt
+                && !contains_report(in_out_message)
+            {
+                peerstate.degrade_encryption(message_time);
+                peerstate.save_to_db(&context.sql, false).unwrap();
+            }
+        } else if let Some(ref header) = autocryptheader {
+            let p = Peerstate::from_header(context, header, message_time);
+            p.save_to_db(&context.sql, true).unwrap();
+            peerstate = Some(p);
+        }
+    }
+    /* possibly perform decryption */
+    let mut private_keyring = Keyring::default();
+    let mut public_keyring_for_validate = Keyring::default();
     let mut encrypted = false;
     let mut signatures = HashSet::default();
     let mut gossipped_addr = HashSet::default();
 
-    // just a pointer into mailmime structure, must not be freed
-    let imffields = unsafe { mailmime_find_mailimf_fields(in_out_message) };
-    let mut message_time = 0;
-    let mut from = None;
-    let mut private_keyring = Keyring::default();
-    let mut public_keyring_for_validate = Keyring::default();
-    let mut gossip_headers = ptr::null_mut();
+    let self_addr = context.get_config(Config::ConfiguredAddr);
 
-    // XXX do wrapmime:: helper for the next block
-    if !(in_out_message.is_null() || imffields.is_null()) {
-        let mut field = mailimf_find_field(imffields, MAILIMF_FIELD_FROM as libc::c_int);
-
-        if !field.is_null() && unsafe { !(*field).fld_data.fld_from.is_null() } {
-            let mb_list = unsafe { (*(*field).fld_data.fld_from).frm_mb_list };
-            from = mailimf_find_first_addr(mb_list);
-        }
-
-        field = mailimf_find_field(imffields, MAILIMF_FIELD_ORIG_DATE as libc::c_int);
-        if !field.is_null() && unsafe { !(*field).fld_data.fld_orig_date.is_null() } {
-            let orig_date = unsafe { (*field).fld_data.fld_orig_date };
-
-            if !orig_date.is_null() {
-                let dt = unsafe { (*orig_date).dt_date_time };
-                message_time = dc_timestamp_from_date(dt);
-                if message_time != 0 && message_time > time() {
-                    message_time = time()
+    if let Some(self_addr) = self_addr {
+        if private_keyring.load_self_private_for_decrypting(context, self_addr, &context.sql) {
+            if peerstate.as_ref().map(|p| p.last_seen).unwrap_or_else(|| 0) == 0 {
+                peerstate = Peerstate::from_addr(&context, &context.sql, &from);
+            }
+            if let Some(ref peerstate) = peerstate {
+                if peerstate.degrade_event.is_some() {
+                    handle_degrade_event(context, &peerstate)?;
+                }
+                if let Some(ref key) = peerstate.gossip_key {
+                    public_keyring_for_validate.add_ref(key);
+                }
+                if let Some(ref key) = peerstate.public_key {
+                    public_keyring_for_validate.add_ref(key);
                 }
             }
-        }
-        let mut peerstate = None;
-        let autocryptheader = from
-            .as_ref()
-            .and_then(|from| Aheader::from_imffields(from, imffields));
-        if message_time > 0 {
-            if let Some(ref from) = from {
-                peerstate = Peerstate::from_addr(context, &context.sql, from);
 
-                if let Some(ref mut peerstate) = peerstate {
-                    if let Some(ref header) = autocryptheader {
-                        peerstate.apply_header(&header, message_time);
-                        peerstate.save_to_db(&context.sql, false).unwrap();
-                    } else if message_time > peerstate.last_seen_autocrypt
-                        && !contains_report(in_out_message)
-                    {
-                        peerstate.degrade_encryption(message_time);
-                        peerstate.save_to_db(&context.sql, false).unwrap();
-                    }
-                } else if let Some(ref header) = autocryptheader {
-                    let p = Peerstate::from_header(context, header, message_time);
-                    p.save_to_db(&context.sql, true).unwrap();
-                    peerstate = Some(p);
-                }
-            }
-        }
-        /* load private key for decryption */
-        let self_addr = context.get_config(Config::ConfiguredAddr);
-        if let Some(self_addr) = self_addr {
-            if private_keyring.load_self_private_for_decrypting(context, self_addr, &context.sql) {
-                if peerstate.as_ref().map(|p| p.last_seen).unwrap_or_else(|| 0) == 0 {
-                    peerstate =
-                        Peerstate::from_addr(&context, &context.sql, &from.unwrap_or_default());
-                }
-                if let Some(ref peerstate) = peerstate {
-                    if peerstate.degrade_event.is_some() {
-                        handle_degrade_event(context, &peerstate)?;
-                    }
-                    if let Some(ref key) = peerstate.gossip_key {
-                        public_keyring_for_validate.add_ref(key);
-                    }
-                    if let Some(ref key) = peerstate.public_key {
-                        public_keyring_for_validate.add_ref(key);
-                    }
-                }
-
-                encrypted = decrypt_if_autocrypt_message(
-                    context,
-                    in_out_message,
-                    &private_keyring,
-                    &public_keyring_for_validate,
-                    &mut signatures,
-                    &mut gossip_headers,
-                )?;
-                if !gossip_headers.is_null() {
-                    gossipped_addr =
-                        update_gossip_peerstates(context, message_time, imffields, gossip_headers)?;
-                }
+            let mut gossip_headers = ptr::null_mut();
+            encrypted = decrypt_if_autocrypt_message(
+                context,
+                in_out_message,
+                &private_keyring,
+                &public_keyring_for_validate,
+                &mut signatures,
+                &mut gossip_headers,
+            )?;
+            if !gossip_headers.is_null() {
+                gossipped_addr =
+                    update_gossip_peerstates(context, message_time, imffields, gossip_headers)?;
+                unsafe { mailimf_fields_free(gossip_headers) };
             }
         }
     }
-    if !gossip_headers.is_null() {
-        unsafe { mailimf_fields_free(gossip_headers) };
-    }
-
     Ok((encrypted, signatures, gossipped_addr))
 }
 
