@@ -4,7 +4,7 @@ use std::fmt;
 use crate::context::Context;
 use crate::error::Error;
 
-#[derive(Debug, FromPrimitive)]
+#[derive(Copy, Clone, Debug, FromPrimitive)]
 #[repr(i32)]
 pub enum CertificateChecks {
     Automatic,
