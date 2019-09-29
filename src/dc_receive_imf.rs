@@ -1303,14 +1303,14 @@ unsafe fn create_or_lookup_group(
         if skip.is_none() || !addr_cmp(&self_addr, skip.unwrap()) {
             chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF);
         }
-        if from_id > DC_CHAT_ID_LAST_SPECIAL {
-            if !Contact::addr_equals_contact(context, &self_addr, from_id as u32)
-                && (skip.is_none()
-                    || !Contact::addr_equals_contact(context, skip.unwrap(), from_id as u32))
-            {
-                chat::add_to_chat_contacts_table(context, chat_id, from_id as u32);
-            }
+        if from_id > DC_CHAT_ID_LAST_SPECIAL
+            && !Contact::addr_equals_contact(context, &self_addr, from_id as u32)
+            && (skip.is_none()
+                || !Contact::addr_equals_contact(context, skip.unwrap(), from_id as u32))
+        {
+            chat::add_to_chat_contacts_table(context, chat_id, from_id as u32);
         }
+
         for &to_id in to_ids.iter() {
             if !Contact::addr_equals_contact(context, &self_addr, to_id)
                 && (skip.is_none() || !Contact::addr_equals_contact(context, skip.unwrap(), to_id))
