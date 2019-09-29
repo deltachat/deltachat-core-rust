@@ -386,8 +386,8 @@ impl Chat {
 
             // add independent location to database
 
-            if msg.param.exists(Param::SetLatitude) {
-                if sql::execute(
+            if msg.param.exists(Param::SetLatitude)
+                && sql::execute(
                     context,
                     &context.sql,
                     "INSERT INTO locations \
@@ -402,17 +402,16 @@ impl Chat {
                     ],
                 )
                 .is_ok()
-                {
-                    location_id = sql::get_rowid2(
-                        context,
-                        &context.sql,
-                        "locations",
-                        "timestamp",
-                        timestamp,
-                        "from_id",
-                        DC_CONTACT_ID_SELF as i32,
-                    );
-                }
+            {
+                location_id = sql::get_rowid2(
+                    context,
+                    &context.sql,
+                    "locations",
+                    "timestamp",
+                    timestamp,
+                    "from_id",
+                    DC_CONTACT_ID_SELF as i32,
+                );
             }
 
             // add message to the database
