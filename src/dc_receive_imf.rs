@@ -494,10 +494,12 @@ unsafe fn add_parts(
         // if the chat_id is blocked,
         // for unknown senders and non-delta messages set the state to NOTICED
         // to not result in a contact request (this would require the state FRESH)
-        if Blocked::Not != chat_id_blocked && state == MessageState::InFresh {
-            if !incoming_origin.is_verified() && msgrmsg == 0 {
-                state = MessageState::InNoticed;
-            }
+        if Blocked::Not != chat_id_blocked
+            && state == MessageState::InFresh
+            && !incoming_origin.is_verified()
+            && msgrmsg == 0
+        {
+            state = MessageState::InNoticed;
         }
     } else {
         // Outgoing
