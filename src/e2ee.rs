@@ -600,22 +600,16 @@ fn decrypt_part(
         mime_transfer_encoding = enc;
     }
 
-    let (decoded_data, decoded_data_bytes) =
-        wrapmime::decode_dt_data(mime_data, mime_transfer_encoding)?;
+    let data: Vec<u8> = wrapmime::decode_dt_data(mime_data, mime_transfer_encoding)?;
 
-    // encrypted, non-NULL decoded data in decoded_data now ...
-    // Note that we need to take care of freeing decoded_data ourself,
-    // after encryption has been attempted.
     let mut ret_decrypted_mime = ptr::null_mut();
 
-    ensure!(!decoded_data.is_null(), "Missing data");
-    let data = unsafe { std::slice::from_raw_parts(decoded_data as *const u8, decoded_data_bytes) };
-    if has_decrypted_pgp_armor(data) {
+    if has_decrypted_pgp_armor(&data) {
         // we should only have one decryption happening
         ensure!(ret_valid_signatures.is_empty(), "corrupt signatures");
 
         let plain = match dc_pgp_pk_decrypt(
-            data,
+            &data,
             &private_keyring,
             &public_keyring_for_validate,
             Some(ret_valid_signatures),
@@ -624,10 +618,7 @@ fn decrypt_part(
                 ensure!(!ret_valid_signatures.is_empty(), "no valid signatures");
                 plain
             }
-            Err(err) => {
-                unsafe { mmap_string_unref(decoded_data) };
-                bail!("could not decrypt: {}", err)
-            }
+            Err(err) => bail!("could not decrypt: {}", err),
         };
         let plain_bytes = plain.len();
         let plain_buf = plain.as_ptr() as *const libc::c_char;
@@ -655,7 +646,6 @@ fn decrypt_part(
             ret_decrypted_mime = decrypted_mime;
         }
     }
-    unsafe { mmap_string_unref(decoded_data) };
 
     Ok(ret_decrypted_mime)
 }

@@ -4,6 +4,7 @@ use std::ptr;
 use crate::dc_tools::*;
 use crate::error::Error;
 use mmime::clist::*;
+use mmime::display::*;
 use mmime::mailimf::types::*;
 use mmime::mailimf::types_helper::*;
 use mmime::mailmime::content::*;
@@ -11,6 +12,7 @@ use mmime::mailmime::disposition::*;
 use mmime::mailmime::types::*;
 use mmime::mailmime::types_helper::*;
 use mmime::mailmime::*;
+use mmime::mmapstring::*;
 use mmime::other::*;
 
 #[macro_export]
@@ -108,48 +110,60 @@ pub fn get_mime_transfer_encoding(mime: *mut Mailmime) -> Option<libc::c_int> {
 pub fn decode_dt_data(
     mime_data: *mut mailmime_data,
     mime_transfer_encoding: libc::c_int,
-) -> Result<(*mut libc::c_char, libc::size_t), Error> {
+) -> Result<Vec<u8>, Error> {
     // Decode data according to mime_transfer_encoding
     // returns Ok with a (decoded_data,decoded_data_bytes) pointer
     // where the caller must make sure to free it.
     // It may return Ok(ptr::null_mut(), 0)
-
-    let mut transfer_decoding_buffer: *mut libc::c_char = ptr::null_mut();
-    let decoded_data: *mut libc::c_char;
-    let mut decoded_data_bytes: libc::size_t = 0;
     if mime_transfer_encoding == MAILMIME_MECHANISM_7BIT as libc::c_int
         || mime_transfer_encoding == MAILMIME_MECHANISM_8BIT as libc::c_int
         || mime_transfer_encoding == MAILMIME_MECHANISM_BINARY as libc::c_int
     {
-        unsafe {
-            decoded_data = (*mime_data).dt_data.dt_text.dt_data as *mut _;
-            decoded_data_bytes = (*mime_data).dt_data.dt_text.dt_length;
-        }
-        ensure!(
-            !decoded_data.is_null() && decoded_data_bytes > 0,
-            "could not decode mime message"
-        );
-    } else {
-        let mut current_index: libc::size_t = 0;
-        unsafe {
-            let r = mailmime_part_parse(
-                (*mime_data).dt_data.dt_text.dt_data,
-                (*mime_data).dt_data.dt_text.dt_length,
-                &mut current_index,
-                mime_transfer_encoding,
-                &mut transfer_decoding_buffer,
-                &mut decoded_data_bytes,
-            );
-            if r != MAILIMF_NO_ERROR as libc::c_int
-                || transfer_decoding_buffer.is_null()
-                || decoded_data_bytes <= 0
-            {
-                bail!("mailmime_part_parse returned error or invalid data");
-            }
-            decoded_data = transfer_decoding_buffer;
+        let decoded_data = unsafe { (*mime_data).dt_data.dt_text.dt_data };
+        let decoded_data_bytes = unsafe { (*mime_data).dt_data.dt_text.dt_length };
+
+        if decoded_data.is_null() || decoded_data_bytes <= 0 {
+            bail!("No data to decode found");
+        } else {
+            let result = unsafe {
+                std::slice::from_raw_parts(decoded_data as *const u8, decoded_data_bytes)
+            };
+            return Ok(result.to_vec());
         }
     }
-    Ok((decoded_data, decoded_data_bytes))
+    unsafe { display_mime_data(mime_data) };
+
+    let mut current_index = 0;
+    let mut transfer_decoding_buffer = ptr::null_mut();
+    let mut decoded_data_bytes = 0;
+
+    let r = unsafe { mailmime_part_parse(
+        (*mime_data).dt_data.dt_text.dt_data,
+        (*mime_data).dt_data.dt_text.dt_length,
+        &mut current_index,
+        mime_transfer_encoding,
+        &mut transfer_decoding_buffer,
+        &mut decoded_data_bytes,
+    ) };
+
+    if r == MAILIMF_NO_ERROR as libc::c_int
+        && !transfer_decoding_buffer.is_null()
+        && decoded_data_bytes > 0
+    {
+        let result = unsafe { std::slice::from_raw_parts(
+            transfer_decoding_buffer as *const u8,
+            decoded_data_bytes,
+        ) }
+        .to_vec();
+        // we return a fresh vec and transfer_decoding_buffer is not used or passed anywhere
+        // so it's safe to free it right away, as mailman_part_parse has
+        // allocated it fresh.
+        unsafe { mmap_string_unref(transfer_decoding_buffer) };
+
+        return Ok(result);
+    }
+
+    Err(format_err!("Failed to to decode"))
 }
 
 /**************************************

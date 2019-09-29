@@ -123,7 +123,7 @@ unsafe fn display_mime_discrete_type(mut discrete_type: *mut mailmime_discrete_t
         _ => {}
     };
 }
-unsafe fn display_mime_data(mut data: *mut mailmime_data) {
+pub unsafe fn display_mime_data(mut data: *mut mailmime_data) {
     match (*data).dt_type {
         0 => {
             println!(
