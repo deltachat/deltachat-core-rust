@@ -173,12 +173,10 @@ impl<'a> MimeParser<'a> {
             }
             if self.lookup_field("Chat-Group-Image").is_some() && !self.parts.is_empty() {
                 let textpart = &self.parts[0];
-                if textpart.typ == Viewtype::Text {
-                    if self.parts.len() >= 2 {
-                        let imgpart = &mut self.parts[1];
-                        if imgpart.typ == Viewtype::Image {
-                            imgpart.is_meta = true;
-                        }
+                if textpart.typ == Viewtype::Text && self.parts.len() >= 2 {
+                    let imgpart = &mut self.parts[1];
+                    if imgpart.typ == Viewtype::Image {
+                        imgpart.is_meta = true;
                     }
                 }
             }
