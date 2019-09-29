@@ -5,14 +5,12 @@ use std::ptr;
 use charset::Charset;
 use deltachat_derive::{FromSql, ToSql};
 use libc::{strcmp, strlen, strncmp};
-use mmime::display::display_mime;
 use mmime::mailimf::types::*;
 use mmime::mailimf::*;
 use mmime::mailmime::content::*;
 use mmime::mailmime::disposition::*;
 use mmime::mailmime::types::*;
 use mmime::mailmime::*;
-use mmime::mmapstring::*;
 use mmime::other::*;
 
 use crate::constants::Viewtype;
@@ -26,6 +24,7 @@ use crate::error::Error;
 use crate::location;
 use crate::param::*;
 use crate::stock::StockMessage;
+use crate::wrapmime;
 
 #[derive(Debug)]
 pub struct MimeParser<'a> {
@@ -1149,61 +1148,15 @@ pub unsafe fn mailmime_find_ct_parameter(
     ptr::null_mut()
 }
 
-pub unsafe fn mailmime_transfer_decode(mime: *mut Mailmime) -> Result<Vec<u8>, Error> {
+pub fn mailmime_transfer_decode(mime: *mut Mailmime) -> Result<Vec<u8>, Error> {
     ensure!(!mime.is_null(), "invalid inputs");
 
-    let mut mime_transfer_encoding = MAILMIME_MECHANISM_BINARY as libc::c_int;
+    let mime_transfer_encoding =
+        wrapmime::get_mime_transfer_encoding(mime).unwrap_or(MAILMIME_MECHANISM_BINARY as i32);
 
-    let mime_transfer_encoding = wrapmime::get_mime_transfer_encoding(mmime)
-                                 .unwrap_or(MAILMIME_MECHANISM_BINARY);
-    let mime_data = (*mime).mm_data.mm_single;
+    let mime_data = unsafe { (*mime).mm_data.mm_single };
 
-    if mime_transfer_encoding == MAILMIME_MECHANISM_7BIT as libc::c_int
-        || mime_transfer_encoding == MAILMIME_MECHANISM_8BIT as libc::c_int
-        || mime_transfer_encoding == MAILMIME_MECHANISM_BINARY as libc::c_int
-    {
-        let decoded_data = (*mime_data).dt_data.dt_text.dt_data;
-        let decoded_data_bytes = (*mime_data).dt_data.dt_text.dt_length;
-
-        if decoded_data.is_null() || decoded_data_bytes <= 0 {
-            bail!("No data to decode found");
-        } else {
-            let result = std::slice::from_raw_parts(decoded_data as *const u8, decoded_data_bytes);
-            return Ok(result.to_vec());
-        }
-    }
-    display_mime(mime);
-
-    let mut current_index = 0;
-    let mut transfer_decoding_buffer = ptr::null_mut();
-    let mut decoded_data_bytes = 0;
-
-    let r = mailmime_part_parse(
-        (*mime_data).dt_data.dt_text.dt_data,
-        (*mime_data).dt_data.dt_text.dt_length,
-        &mut current_index,
-        mime_transfer_encoding,
-        &mut transfer_decoding_buffer,
-        &mut decoded_data_bytes,
-    );
-
-    if r == MAILIMF_NO_ERROR as libc::c_int
-        && !transfer_decoding_buffer.is_null()
-        && decoded_data_bytes > 0
-    {
-        let result =
-            std::slice::from_raw_parts(transfer_decoding_buffer as *const u8, decoded_data_bytes)
-                .to_vec();
-        // we return a fresh vec and transfer_decoding_buffer is not used or passed anywhere
-        // so it's safe to free it right away, as mailman_part_parse has
-        // allocated it fresh.
-        mmap_string_unref(transfer_decoding_buffer);
-
-        return Ok(result);
-    }
-
-    Err(format_err!("Failed to to decode"))
-
+    wrapmime::decode_dt_data(mime_data, mime_transfer_encoding)
 }
 
 pub fn mailimf_get_recipients(imffields: *mut mailimf_fields) -> HashSet<String> {
