@@ -1370,6 +1370,38 @@ mod tests {
     use std::ffi::CStr;
 
     #[test]
+    fn test_mimeparser_parse_with_gmime_testsuite() {
+        unsafe {
+            let context = dummy_context();
+
+            let mut parser = MimeParser::new(&context.ctx);
+            assert!(parser
+                .parse(include_bytes!("../test-data/message/gmime/empty0.msg"))
+                .is_ok());
+
+            let mut parser = MimeParser::new(&context.ctx);
+            assert!(parser
+                .parse(include_bytes!("../test-data/message/gmime/empty1.msg"))
+                .is_ok());
+
+            let mut parser = MimeParser::new(&context.ctx);
+            assert!(parser
+                .parse(include_bytes!("../test-data/message/gmime/empty2.msg"))
+                .is_ok());
+
+            let mut parser = MimeParser::new(&context.ctx);
+            assert!(parser
+                .parse(include_bytes!("../test-data/message/gmime/substring.msg"))
+                .is_ok());
+            assert_eq!(
+                parser.subject,
+                Some("this'll probably break a lot of mime parsers".into())
+            );
+            assert!(!parser.mimeroot.is_null());
+        }
+    }
+
+    #[test]
     fn test_mailmime_parse() {
         unsafe {
             let txt: *const libc::c_char =
