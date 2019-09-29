@@ -574,14 +574,10 @@ fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
 
     let mut delete_dest_file: libc::c_int = 0;
     // get a fine backup file name (the name includes the date so that multiple backup instances are possible)
-    // FIXME: we should write to a temporary file first and rename it on success. this would guarantee the backup is complete. however, currently it is not clear it the import exists in the long run (may be replaced by a restore-from-imap)
-    let now = time();
-    let res = chrono::NaiveDateTime::from_timestamp(now as i64, 0)
-        .format("delta-chat-%Y-%m-%d.bak")
-        .to_string();
-
+    // FIXME: we should write to a temporary file first and rename it on success. this would guarantee the backup is complete.
     // let dest_path_filename = dc_get_next_backup_file(context, dir, res);
-    let dest_path_filename = dc_get_fine_path_filename(context, dir, res);
+    let now = time();
+    let dest_path_filename = dc_get_next_backup_path(dir, now)?;
 
     sql::housekeeping(context);
 

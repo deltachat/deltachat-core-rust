@@ -10,7 +10,7 @@ use libc::uintptr_t;
 use crate::chat::*;
 use crate::constants::*;
 use crate::contact::*;
-use crate::dc_tools::dc_derive_safe_stem_ext;
+use crate::dc_tools::{dc_copy_file, dc_derive_safe_stem_ext};
 use crate::error::*;
 use crate::events::Event;
 use crate::imap::*;
@@ -160,6 +160,22 @@ impl Context {
 
     pub fn get_blobdir(&self) -> &Path {
         self.blobdir.as_path()
+    }
+
+    pub fn copy_to_blobdir(&self, orig_filename: impl AsRef<str>) -> Result<String> {
+        // return a $BLOBDIR/<filename> with the content of orig_filename
+        // copied into it. The <filename> will be safely derived from
+        // orig_filename, and will not clash with existing filenames.
+        let dest = self.new_blob_file(&orig_filename, b"")?;
+        if dc_copy_file(
+            &self,
+            PathBuf::from(orig_filename.as_ref()),
+            PathBuf::from(&dest),
+        ) {
+            Ok(dest)
+        } else {
+            bail!("could not copy {} to {}", orig_filename.as_ref(), dest);
+        }
     }
 
     pub fn new_blob_file(&self, orig_filename: impl AsRef<str>, data: &[u8]) -> Result<String> {
@@ -526,16 +542,15 @@ mod tests {
 
         let y = &context.new_blob_file("hello", b"data").unwrap();
         assert!(dc_file_exist(&context, y));
-        assert!(y.starts_with("$BLOBDIR/data-"));
+        assert!(y.starts_with("$BLOBDIR/hello-"));
 
-        let x = &context.new_blob_file("hello", b"data.png").unwrap();
+        let x = &context.new_blob_file("xyz/hello.png", b"data").unwrap();
         assert!(dc_file_exist(&context, x));
-        assert!(x.starts_with("$BLOBDIR"));
+        assert_eq!(x, "$BLOBDIR/hello.png");
 
-        let y = &context.new_blob_file("hello", b"data.png").unwrap();
+        let y = &context.new_blob_file("hello\\world.png", b"data").unwrap();
         assert!(dc_file_exist(&context, y));
-        assert!(y.starts_with("$BLOBDIR/data-"));
-        assert!(y.ends_with(".png"));
+        assert_eq!(y, "$BLOBDIR/world.png");
     }
 
     #[test]

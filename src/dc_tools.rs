@@ -3,7 +3,7 @@
 
 use core::cmp::max;
 use std::borrow::Cow;
-use std::ffi::{CStr, CString, OsString};
+use std::ffi::{CStr, CString};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::SystemTime;
@@ -596,57 +596,24 @@ pub fn dc_read_file<P: AsRef<std::path::Path>>(
     }
 }
 
-pub(crate) fn dc_get_fine_path_filename(
-    context: &Context,
+pub(crate) fn dc_get_next_backup_path(
     folder: impl AsRef<Path>,
-    desired_filename_suffix: impl AsRef<str>,
-) -> PathBuf {
-    let now = time();
-
+    backup_time: i64,
+) -> Result<PathBuf, Error> {
     let folder = PathBuf::from(folder.as_ref());
-    // XXX sanitize desired_filename eg using
-    // https://github.com/kardeiz/sanitize-filename/blob/master/src/lib.rs
-    let suffix = validate_filename(desired_filename_suffix.as_ref());
-    let file_name = PathBuf::from(suffix);
-    let extension = file_name.extension().map(|c| c.clone());
+    let stem = chrono::NaiveDateTime::from_timestamp(backup_time, 0)
+        .format("delta-chat-%Y-%m-%d")
+        .to_string();
 
-    for i in 0..100_000 {
-        let ret = if i == 0 {
-            let mut folder = folder.clone();
-            folder.push(&file_name);
-            folder
-        } else {
-            let idx = if i < 100 { i } else { now + i };
-            let file_name = if let Some(stem) = file_name.file_stem() {
-                let mut stem = stem.to_os_string();
-                stem.push(format!("-{}", idx));
-                stem
-            } else {
-                OsString::from(idx.to_string())
-            };
-            let mut folder = folder.clone();
-            folder.push(file_name);
-            if let Some(ext) = extension {
-                folder.set_extension(&ext);
-            }
-            folder
-        };
-
-        if !dc_file_exist(context, &ret) {
-            // fine filename found
-            return ret;
+    // 64 backup files per day should be enough for everyone
+    for i in 0..64 {
+        let mut path = folder.clone();
+        path.push(format!("{}-{}.bak", stem, i));
+        if !path.exists() {
+            return Ok(path);
         }
     }
-
-    panic!("Something is really wrong, you need to clean up your disk");
-}
-
-/// Function modifies the given buffer and replaces all characters not valid in filenames by a "-".
-fn validate_filename(filename: &str) -> String {
-    filename
-        .replace('/', "-")
-        .replace('\\', "-")
-        .replace(':', "-")
+    bail!("could not create backup file, disk full?");
 }
 
 pub(crate) fn dc_is_blobdir_path(context: &Context, path: impl AsRef<str>) -> bool {
@@ -674,13 +641,10 @@ pub(crate) fn dc_make_rel_and_copy(context: &Context, path: &mut String) -> bool
         dc_make_rel_path(context, path);
         return true;
     }
-    let blobdir_path = dc_get_fine_path_filename(context, "$BLOBDIR", &path);
-    if dc_copy_file(context, &path, &blobdir_path) {
-        *path = blobdir_path.to_string_lossy().to_string();
-        dc_make_rel_path(context, path);
+    if let Ok(blobdir_path) = context.copy_to_blobdir(&path) {
+        *path = blobdir_path;
         return true;
     }
-
     false
 }
 
@@ -1522,6 +1486,7 @@ mod tests {
         assert!(dc_file_exist(context, &abs_path));
 
         assert!(dc_copy_file(context, "$BLOBDIR/foobar", "$BLOBDIR/dada",));
+
         assert_eq!(dc_get_filebytes(context, "$BLOBDIR/dada",), 7);
 
         let buf = dc_read_file(context, "$BLOBDIR/dada").unwrap();
@@ -1535,16 +1500,7 @@ mod tests {
         assert!(dc_file_exist(context, "$BLOBDIR/foobar-folder",));
         assert!(!dc_delete_file(context, "$BLOBDIR/foobar-folder"));
 
-        let fn0 = dc_get_fine_path_filename(context, "$BLOBDIR", "foobar.dadada");
-        let fn0_s = fn0.to_string_lossy();
-        assert!(fn0_s.starts_with("$BLOBDIR/foobar-"));
-        assert!(fn0.extension().unwrap() == "dadada");
-
-        let fn0 = dc_get_fine_path_filename(context, "$BLOBDIR", "hello\\foobar.x");
-        let fn0_s = fn0.to_string_lossy();
-        assert!(fn0_s.starts_with("$BLOBDIR/foobar-"));
-        assert!(fn0_s.ends_with(".x"));
-
+        let fn0 = "$BLOBDIR/data.data";
         assert!(dc_write_file(context, &fn0, b"content"));
 
         assert!(dc_delete_file(context, &fn0));
