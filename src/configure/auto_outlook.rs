@@ -103,20 +103,19 @@ pub unsafe fn outlk_autodiscover(
         i += 1;
     }
 
-    if ok_to_continue {
-        if outlk_ad.out.mail_server.is_empty()
+    if ok_to_continue
+        && (outlk_ad.out.mail_server.is_empty()
             || outlk_ad.out.mail_port == 0
             || outlk_ad.out.send_server.is_empty()
-            || outlk_ad.out.send_port == 0
-        {
-            let r = outlk_ad.out.to_string();
-            warn!(context, "Bad or incomplete autoconfig: {}", r,);
-            free(url as *mut libc::c_void);
-            free(xml_raw as *mut libc::c_void);
-            outlk_clean_config(&mut outlk_ad);
+            || outlk_ad.out.send_port == 0)
+    {
+        let r = outlk_ad.out.to_string();
+        warn!(context, "Bad or incomplete autoconfig: {}", r,);
+        free(url as *mut libc::c_void);
+        free(xml_raw as *mut libc::c_void);
+        outlk_clean_config(&mut outlk_ad);
 
-            return None;
-        }
+        return None;
     }
     free(url as *mut libc::c_void);
     free(xml_raw as *mut libc::c_void);
