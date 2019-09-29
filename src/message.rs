@@ -494,13 +494,12 @@ impl Lot {
                     } else {
                         self.text1 = None;
                     }
+                } else if let Some(contact) = contact {
+                    self.text1 = Some(contact.get_first_name().into());
                 } else {
-                    if let Some(contact) = contact {
-                        self.text1 = Some(contact.get_first_name().into());
-                    } else {
-                        self.text1 = None;
-                    }
+                    self.text1 = None;
                 }
+
                 self.text1_meaning = Meaning::Text1Username;
             }
         }
