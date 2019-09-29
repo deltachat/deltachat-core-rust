@@ -702,14 +702,13 @@ fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
                 } else {
                     info!(context, "Backup: No files to copy.",);
                 }
-                if ok_to_continue {
-                    if sql
+                if ok_to_continue
+                    && sql
                         .set_config_int(context, "backup_time", now as i32)
                         .is_ok()
-                    {
-                        context.call_cb(Event::ImexFileWritten(dest_path_filename.clone()));
-                        success = true;
-                    }
+                {
+                    context.call_cb(Event::ImexFileWritten(dest_path_filename.clone()));
+                    success = true;
                 }
             } else {
                 error!(
