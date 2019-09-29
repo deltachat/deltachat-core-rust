@@ -730,11 +730,12 @@ impl<'a> MimeFactory<'a> {
                     .get_config(context, "configured_addr")
                     .unwrap_or_default();
 
-                if !email_to_remove.is_empty() && email_to_remove != self_addr {
-                    if !vec_contains_lowercase(&factory.recipients_addr, &email_to_remove) {
-                        factory.recipients_names.push("".to_string());
-                        factory.recipients_addr.push(email_to_remove.to_string());
-                    }
+                if !email_to_remove.is_empty()
+                    && email_to_remove != self_addr
+                    && !vec_contains_lowercase(&factory.recipients_addr, &email_to_remove)
+                {
+                    factory.recipients_names.push("".to_string());
+                    factory.recipients_addr.push(email_to_remove.to_string());
                 }
             }
             if command != SystemMessage::AutocryptSetupMessage
