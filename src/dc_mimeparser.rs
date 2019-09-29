@@ -1300,10 +1300,8 @@ pub fn mailimf_find_field(
 
     for cur in unsafe { &(*header.fld_list) } {
         let field = cur as *mut mailimf_field;
-        if !field.is_null() {
-            if unsafe { (*field).fld_type } == wanted_fld_type {
-                return field;
-            }
+        if !field.is_null() && unsafe { (*field).fld_type == wanted_fld_type } {
+            return field;
         }
     }
 
