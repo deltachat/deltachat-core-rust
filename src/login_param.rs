@@ -11,10 +11,12 @@ pub struct LoginParam {
     pub mail_user: String,
     pub mail_pw: String,
     pub mail_port: i32,
+    pub mail_security: i32,
     pub send_server: String,
     pub send_user: String,
     pub send_pw: String,
     pub send_port: i32,
+    pub send_security: i32,
     pub server_flags: i32,
 }
 
@@ -63,16 +65,40 @@ impl LoginParam {
         let key = format!("{}server_flags", prefix);
         let server_flags = sql.get_config_int(context, key).unwrap_or_default();
 
+        let mail_security = match (
+            server_flags & DC_LP_IMAP_SOCKET_STARTTLS,
+            server_flags & DC_LP_IMAP_SOCKET_SSL,
+            server_flags & DC_LP_IMAP_SOCKET_PLAIN,
+        ) {
+            (1, 0, 0) => 2, // StartTLS
+            (0, 1, 0) => 1, // SSL/TLS
+            (0, 0, 1) => 3, // Plain
+            _ => 0,         // Automatic
+        };
+
+        let send_security = match (
+            server_flags & DC_LP_SMTP_SOCKET_FLAGS,
+            server_flags & DC_LP_SMTP_SOCKET_SSL,
+            server_flags & DC_LP_SMTP_SOCKET_PLAIN,
+        ) {
+            (1, 0, 0) => 2, // StartTLS
+            (0, 1, 0) => 1, // SSL/TLS
+            (0, 0, 1) => 3, // Plain
+            _ => 0,         // Automatic
+        };
+
         LoginParam {
             addr: addr.to_string(),
             mail_server,
             mail_user,
             mail_pw,
             mail_port,
+            mail_security,
             send_server,
             send_user,
             send_pw,
             send_port,
+            send_security,
             server_flags,
         }
     }

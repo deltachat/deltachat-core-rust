@@ -296,26 +296,18 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
                             param.server_flags &= !(DC_LP_AUTH_FLAGS as i32);
                             param.server_flags |= DC_LP_AUTH_NORMAL as i32
                         }
-                        if !dc_exactly_one_bit_set(
-                            param.server_flags & DC_LP_IMAP_SOCKET_FLAGS as i32,
-                        ) {
-                            param.server_flags &= !(DC_LP_IMAP_SOCKET_FLAGS as i32);
-                            param.server_flags |= if param.send_port == 143 {
-                                DC_LP_IMAP_SOCKET_STARTTLS as i32
+                        if param.mail_security == 0 {
+                            param.mail_security = if param.send_port == 143 {
+                                2 // StartTLS
                             } else {
-                                DC_LP_IMAP_SOCKET_SSL as i32
+                                1 // SSL/TLS
                             }
                         }
-                        if !dc_exactly_one_bit_set(
-                            param.server_flags & (DC_LP_SMTP_SOCKET_FLAGS as i32),
-                        ) {
-                            param.server_flags &= !(DC_LP_SMTP_SOCKET_FLAGS as i32);
-                            param.server_flags |= if param.send_port == 587 {
-                                DC_LP_SMTP_SOCKET_STARTTLS as i32
-                            } else if param.send_port == 25 {
-                                DC_LP_SMTP_SOCKET_PLAIN as i32
-                            } else {
-                                DC_LP_SMTP_SOCKET_SSL as i32
+                        if param.send_security == 0 {
+                            param.send_security = match param.send_port {
+                                587 => 2, // StartTLS
+                                25 => 3,  // Plain
+                                _ => 1,   // SSL/TLS
                             }
                         }
                         /* do we have a complete configuration? */
