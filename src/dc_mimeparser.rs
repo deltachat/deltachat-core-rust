@@ -1138,10 +1138,11 @@ pub unsafe fn mailmime_find_ct_parameter(
 
     for cur in (*(*(*mime).mm_content_type).ct_parameters).into_iter() {
         let param = cur as *mut mailmime_parameter;
-        if !param.is_null() && !(*param).pa_name.is_null() {
-            if &to_string_lossy((*param).pa_name) == name {
-                return param;
-            }
+        if !param.is_null()
+            && !(*param).pa_name.is_null()
+            && &to_string_lossy((*param).pa_name) == name
+        {
+            return param;
         }
     }
 
