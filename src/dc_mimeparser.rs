@@ -997,14 +997,12 @@ unsafe fn mailmime_get_mime_type(mime: *mut Mailmime) -> (libc::c_int, Viewtype,
                     ) == 0i32
                     {
                         return (DC_MIMETYPE_TEXT_PLAIN, Viewtype::Text, None);
-                    } else {
-                        if strcmp(
-                            (*c).ct_subtype,
-                            b"html\x00" as *const u8 as *const libc::c_char,
-                        ) == 0i32
-                        {
-                            return (DC_MIMETYPE_TEXT_HTML, Viewtype::Text, None);
-                        }
+                    } else if strcmp(
+                        (*c).ct_subtype,
+                        b"html\x00" as *const u8 as *const libc::c_char,
+                    ) == 0i32
+                    {
+                        return (DC_MIMETYPE_TEXT_HTML, Viewtype::Text, None);
                     }
                 }
 
