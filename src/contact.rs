@@ -918,21 +918,21 @@ fn set_block_contact(context: &Context, contact_id: u32, new_blocking: bool) {
     }
 
     if let Ok(contact) = Contact::load_from_db(context, contact_id) {
-        if contact.blocked != new_blocking {
-            if sql::execute(
+        if contact.blocked != new_blocking
+            && sql::execute(
                 context,
                 &context.sql,
                 "UPDATE contacts SET blocked=? WHERE id=?;",
                 params![new_blocking as i32, contact_id as i32],
             )
             .is_ok()
-            {
-                // also (un)block all chats with _only_ this contact - we do not delete them to allow a
-                // non-destructive blocking->unblocking.
-                // (Maybe, beside normal chats (type=100) we should also block group chats with only this user.
-                // However, I'm not sure about this point; it may be confusing if the user wants to add other people;
-                // this would result in recreating the same group...)
-                if sql::execute(
+        {
+            // also (un)block all chats with _only_ this contact - we do not delete them to allow a
+            // non-destructive blocking->unblocking.
+            // (Maybe, beside normal chats (type=100) we should also block group chats with only this user.
+            // However, I'm not sure about this point; it may be confusing if the user wants to add other people;
+            // this would result in recreating the same group...)
+            if sql::execute(
                     context,
                     &context.sql,
                     "UPDATE chats SET blocked=? WHERE type=? AND id IN (SELECT chat_id FROM chats_contacts WHERE contact_id=?);",
@@ -941,7 +941,6 @@ fn set_block_contact(context: &Context, contact_id: u32, new_blocking: bool) {
                     Contact::mark_noticed(context, contact_id);
                     context.call_cb(Event::ContactsChanged(None));
                 }
-            }
         }
     }
 }
