@@ -1794,13 +1794,13 @@ unsafe fn dc_is_reply_to_messenger_message(
     if let Some(field) = mime_parser.lookup_field("References") {
         if (*field).fld_type == MAILIMF_FIELD_REFERENCES as libc::c_int {
             let fld_references: *mut mailimf_references = (*field).fld_data.fld_references;
-            if !fld_references.is_null() {
-                if 0 != is_msgrmsg_rfc724_mid_in_list(
+            if !fld_references.is_null()
+                && 0 != is_msgrmsg_rfc724_mid_in_list(
                     context,
                     (*(*field).fld_data.fld_references).mid_list,
-                ) {
-                    return 1;
-                }
+                )
+            {
+                return 1;
             }
         }
     }
