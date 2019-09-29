@@ -394,10 +394,11 @@ fn new_data_part(
     let mime = unsafe { mailmime_new_empty(content, mime_fields) };
     ensure!(!mime.is_null(), "internal mime error");
 
-    if unsafe { (*mime).mm_type } == MAILMIME_SINGLE as libc::c_int {
-        if !data.is_null() && data_bytes > 0 {
-            unsafe { mailmime_set_body_text(mime, data as *mut libc::c_char, data_bytes) };
-        }
+    if unsafe { (*mime).mm_type } == MAILMIME_SINGLE as libc::c_int
+        && !data.is_null()
+        && data_bytes > 0
+    {
+        unsafe { mailmime_set_body_text(mime, data as *mut libc::c_char, data_bytes) };
     }
 
     Ok(mime)
