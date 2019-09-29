@@ -4,6 +4,8 @@
 // This is nice, but for now just annoying.
 #![allow(clippy::unreadable_literal)]
 #![feature(ptr_wrapping_offset_from)]
+#![deny(clippy::collapsible_if)]
+#![deny(clippy::char_lit_as_u8)]
 
 #[macro_use]
 extern crate failure_derive;
