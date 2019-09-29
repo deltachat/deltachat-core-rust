@@ -287,12 +287,12 @@ impl<'a> MimeParser<'a> {
                         ) == MAILIMF_NO_ERROR as libc::c_int
                             && !mb_list.is_null()
                         {
-                            if let Some(dn_to_addr) = mailimf_find_first_addr(mb_list) {
+                            if let Some(dn_to_addr) = wrapmime::mailimf_find_first_addr(mb_list) {
                                 if let Some(from_field) = self.lookup_field("From") {
                                     if (*from_field).fld_type == MAILIMF_FIELD_FROM as libc::c_int
                                         && !(*from_field).fld_data.fld_from.is_null()
                                     {
-                                        let from_addr = mailimf_find_first_addr(
+                                        let from_addr = wrapmime::mailimf_find_first_addr(
                                             (*(*from_field).fld_data.fld_from).frm_mb_list,
                                         );
                                         if let Some(from_addr) = from_addr {
@@ -590,7 +590,7 @@ impl<'a> MimeParser<'a> {
             return false;
         }
 
-        let mut decoded_data = match mailmime_transfer_decode(mime) {
+        let mut decoded_data = match wrapmime::mailmime_transfer_decode(mime) {
             Ok(decoded_data) => decoded_data,
             Err(_) => {
                 // Note that it's now always an error - might be no data
@@ -832,7 +832,7 @@ impl<'a> MimeParser<'a> {
         let mut fld_from: *const mailimf_from = ptr::null();
 
         /* get From: and check there is exactly one sender */
-        let fld = mailimf_find_field(self.header_root, MAILIMF_FIELD_FROM as libc::c_int);
+        let fld = wrapmime::mailimf_find_field(self.header_root, MAILIMF_FIELD_FROM as libc::c_int);
         if !(fld.is_null()
             || {
                 fld_from = (*fld).fld_data.fld_from;
@@ -850,7 +850,7 @@ impl<'a> MimeParser<'a> {
 
             if !mb.is_null() {
                 let from_addr_norm = addr_normalize(as_str((*mb).mb_addr_spec));
-                let recipients = mailimf_get_recipients(self.header_root);
+                let recipients = wrapmime::mailimf_get_recipients(self.header_root);
                 if recipients.len() == 1 {
                     if recipients.contains(from_addr_norm) {
                         sender_equals_recipient = true;
@@ -909,22 +909,6 @@ pub struct Part {
     pub msg_raw: Option<String>,
     pub bytes: i32,
     pub param: Params,
-}
-
-pub fn mailimf_find_first_addr(mb_list: *const mailimf_mailbox_list) -> Option<String> {
-    if mb_list.is_null() {
-        return None;
-    }
-
-    for cur in unsafe { (*(*mb_list).mb_list).into_iter() } {
-        let mb = cur as *mut mailimf_mailbox;
-        if !mb.is_null() && !unsafe { (*mb).mb_addr_spec.is_null() } {
-            let addr = unsafe { as_str((*mb).mb_addr_spec) };
-            return Some(addr_normalize(addr).to_string());
-        }
-    }
-
-    None
 }
 
 unsafe fn hash_header(out: &mut HashMap<String, *mut mailimf_field>, in_0: *const mailimf_fields) {
@@ -1148,162 +1132,6 @@ pub unsafe fn mailmime_find_ct_parameter(
     ptr::null_mut()
 }
 
-pub fn mailmime_transfer_decode(mime: *mut Mailmime) -> Result<Vec<u8>, Error> {
-    ensure!(!mime.is_null(), "invalid inputs");
-
-    let mime_transfer_encoding =
-        wrapmime::get_mime_transfer_encoding(mime).unwrap_or(MAILMIME_MECHANISM_BINARY as i32);
-
-    let mime_data = unsafe { (*mime).mm_data.mm_single };
-
-    wrapmime::decode_dt_data(mime_data, mime_transfer_encoding)
-}
-
-pub fn mailimf_get_recipients(imffields: *mut mailimf_fields) -> HashSet<String> {
-    /* returned addresses are normalized. */
-    let mut recipients: HashSet<String> = Default::default();
-
-    for cur in unsafe { (*(*imffields).fld_list).into_iter() } {
-        let fld = cur as *mut mailimf_field;
-
-        let fld_to: *mut mailimf_to;
-        let fld_cc: *mut mailimf_cc;
-
-        let mut addr_list: *mut mailimf_address_list = ptr::null_mut();
-        if fld.is_null() {
-            continue;
-        }
-
-        let fld = unsafe { *fld };
-
-        // TODO match on enums /rtn
-        match fld.fld_type {
-            13 => {
-                fld_to = unsafe { fld.fld_data.fld_to };
-                if !fld_to.is_null() {
-                    addr_list = unsafe { (*fld_to).to_addr_list };
-                }
-            }
-            14 => {
-                fld_cc = unsafe { fld.fld_data.fld_cc };
-                if !fld_cc.is_null() {
-                    addr_list = unsafe { (*fld_cc).cc_addr_list };
-                }
-            }
-            _ => {}
-        }
-
-        if !addr_list.is_null() {
-            for cur2 in unsafe { &(*(*addr_list).ad_list) } {
-                let adr = cur2 as *mut mailimf_address;
-
-                if adr.is_null() {
-                    continue;
-                }
-                let adr = unsafe { *adr };
-
-                if adr.ad_type == MAILIMF_ADDRESS_MAILBOX as libc::c_int {
-                    mailimf_get_recipients_add_addr(&mut recipients, unsafe {
-                        adr.ad_data.ad_mailbox
-                    });
-                } else if adr.ad_type == MAILIMF_ADDRESS_GROUP as libc::c_int {
-                    let group = unsafe { adr.ad_data.ad_group };
-                    if !group.is_null() && unsafe { !(*group).grp_mb_list.is_null() } {
-                        for cur3 in unsafe { &(*(*(*group).grp_mb_list).mb_list) } {
-                            mailimf_get_recipients_add_addr(
-                                &mut recipients,
-                                cur3 as *mut mailimf_mailbox,
-                            );
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    recipients
-}
-
-fn mailimf_get_recipients_add_addr(recipients: &mut HashSet<String>, mb: *mut mailimf_mailbox) {
-    if !mb.is_null() {
-        let addr_norm = addr_normalize(as_str(unsafe { (*mb).mb_addr_spec }));
-        recipients.insert(addr_norm.into());
-    }
-}
-
-/*the result is a pointer to mime, must not be freed*/
-pub fn mailimf_find_field(
-    header: *mut mailimf_fields,
-    wanted_fld_type: libc::c_int,
-) -> *mut mailimf_field {
-    if header.is_null() {
-        return ptr::null_mut();
-    }
-
-    let header = unsafe { (*header) };
-    if header.fld_list.is_null() {
-        return ptr::null_mut();
-    }
-
-    for cur in unsafe { &(*header.fld_list) } {
-        let field = cur as *mut mailimf_field;
-        if !field.is_null() {
-            if unsafe { (*field).fld_type } == wanted_fld_type {
-                return field;
-            }
-        }
-    }
-
-    ptr::null_mut()
-}
-
-/*the result is a pointer to mime, must not be freed*/
-pub unsafe fn mailmime_find_mailimf_fields(mime: *mut Mailmime) -> *mut mailimf_fields {
-    if mime.is_null() {
-        return ptr::null_mut();
-    }
-
-    match (*mime).mm_type as _ {
-        MAILMIME_MULTIPLE => {
-            for cur_data in (*(*mime).mm_data.mm_multipart.mm_mp_list).into_iter() {
-                let header = mailmime_find_mailimf_fields(cur_data as *mut _);
-                if !header.is_null() {
-                    return header;
-                }
-            }
-        }
-        MAILMIME_MESSAGE => return (*mime).mm_data.mm_message.mm_fields,
-        _ => {}
-    }
-
-    ptr::null_mut()
-}
-
-pub unsafe fn mailimf_find_optional_field(
-    header: *mut mailimf_fields,
-    wanted_fld_name: *const libc::c_char,
-) -> *mut mailimf_optional_field {
-    if header.is_null() || (*header).fld_list.is_null() {
-        return ptr::null_mut();
-    }
-    for cur_data in (*(*header).fld_list).into_iter() {
-        let field: *mut mailimf_field = cur_data as *mut _;
-
-        if (*field).fld_type == MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int {
-            let optional_field: *mut mailimf_optional_field = (*field).fld_data.fld_optional_field;
-            if !optional_field.is_null()
-                && !(*optional_field).fld_name.is_null()
-                && !(*optional_field).fld_value.is_null()
-                && strcasecmp((*optional_field).fld_name, wanted_fld_name) == 0i32
-            {
-                return optional_field;
-            }
-        }
-    }
-
-    ptr::null_mut()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1319,14 +1147,13 @@ mod tests {
             let mut mime: *mut Mailmime = ptr::null_mut();
             let mut dummy = 0;
             let res = mailmime_parse(txt, strlen(txt), &mut dummy, &mut mime);
-
             assert_eq!(res, MAIL_NO_ERROR as libc::c_int);
             assert!(!mime.is_null());
 
-            let fields: *mut mailimf_fields = mailmime_find_mailimf_fields(mime);
+            let fields: *mut mailimf_fields = wrapmime::mailmime_find_mailimf_fields(mime);
             assert!(!fields.is_null());
 
-            let mut of_a: *mut mailimf_optional_field = mailimf_find_optional_field(
+            let mut of_a: *mut mailimf_optional_field = wrapmime::mailimf_find_optional_field(
                 fields,
                 b"fielda\x00" as *const u8 as *const libc::c_char,
             );
@@ -1346,7 +1173,7 @@ mod tests {
                 "ValueA",
             );
 
-            of_a = mailimf_find_optional_field(
+            of_a = wrapmime::mailimf_find_optional_field(
                 fields,
                 b"FIELDA\x00" as *const u8 as *const libc::c_char,
             );
@@ -1366,7 +1193,7 @@ mod tests {
                 "ValueA",
             );
 
-            let of_b: *mut mailimf_optional_field = mailimf_find_optional_field(
+            let of_b: *mut mailimf_optional_field = wrapmime::mailimf_find_optional_field(
                 fields,
                 b"FieldB\x00" as *const u8 as *const libc::c_char,
             );
@@ -1389,7 +1216,9 @@ mod tests {
         let context = dummy_context();
         let raw = include_bytes!("../test-data/message/issue_523.txt");
         let mut mimeparser = MimeParser::new(&context.ctx);
-        unsafe { mimeparser.parse(&raw[..]).unwrap() };
+        unsafe {
+            mimeparser.parse(&raw[..]).unwrap();
+        };
         assert_eq!(mimeparser.subject, None);
         assert_eq!(mimeparser.parts.len(), 1);
     }
@@ -1397,9 +1226,13 @@ mod tests {
     proptest! {
         #[test]
         fn test_dc_mailmime_parse_crash_fuzzy(data in "[!-~\t ]{2000,}") {
+            // this test doesn't exercise much of dc_mimeparser anymore
+            // because a missing From-field early aborts parsing
             let context = dummy_context();
             let mut mimeparser = MimeParser::new(&context.ctx);
-            unsafe { mimeparser.parse(data.as_bytes()).unwrap() };
+            unsafe {
+                assert!(mimeparser.parse(data.as_bytes()).is_err());
+            }
         }
     }
 
@@ -1428,7 +1261,7 @@ mod tests {
     fn test_mimeparser_with_context() {
         unsafe {
             let context = dummy_context();
-            let raw = b"Content-Type: multipart/mixed; boundary=\"==break==\";\nSubject: outer-subject\nX-Special-A: special-a\nFoo: Bar\nChat-Version: 0.0\n\n--==break==\nContent-Type: text/plain; protected-headers=\"v1\";\nSubject: inner-subject\nX-Special-B: special-b\nFoo: Xy\nChat-Version: 1.0\n\ntest1\n\n--==break==--\n\n\x00";
+            let raw = b"From: hello\nContent-Type: multipart/mixed; boundary=\"==break==\";\nSubject: outer-subject\nX-Special-A: special-a\nFoo: Bar\nChat-Version: 0.0\n\n--==break==\nContent-Type: text/plain; protected-headers=\"v1\";\nSubject: inner-subject\nX-Special-B: special-b\nFoo: Xy\nChat-Version: 1.0\n\ntest1\n\n--==break==--\n\n\x00";
             let mut mimeparser = MimeParser::new(&context.ctx);
             mimeparser.parse(&raw[..]).unwrap();
 

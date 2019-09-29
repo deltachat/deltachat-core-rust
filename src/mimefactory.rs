@@ -16,7 +16,7 @@ use crate::chat::{self, Chat};
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::{get_version_str, Context};
-use crate::dc_mimeparser::{mailmime_find_mailimf_fields, SystemMessage};
+use crate::dc_mimeparser::SystemMessage;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
 use crate::e2ee::*;
@@ -645,7 +645,7 @@ impl<'a> MimeFactory<'a> {
         );
 
         /*just a pointer into mailmime structure, must not be freed*/
-        let imffields_unprotected = mailmime_find_mailimf_fields(message);
+        let imffields_unprotected = wrapmime::mailmime_find_mailimf_fields(message);
         ensure!(
             !imffields_unprotected.is_null(),
             "could not find mime fields"
