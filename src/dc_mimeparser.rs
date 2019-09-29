@@ -164,11 +164,9 @@ impl<'a> MimeParser<'a> {
                         }
                     }
                 }
-            } else {
-                if let Some(optional_field) = self.lookup_optional_field("Chat-Content") {
-                    if optional_field == "location-streaming-enabled" {
-                        self.is_system_message = SystemMessage::LocationStreamingEnabled;
-                    }
+            } else if let Some(optional_field) = self.lookup_optional_field("Chat-Content") {
+                if optional_field == "location-streaming-enabled" {
+                    self.is_system_message = SystemMessage::LocationStreamingEnabled;
                 }
             }
             if self.lookup_field("Chat-Group-Image").is_some() && !self.parts.is_empty() {
