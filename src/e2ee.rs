@@ -37,6 +37,8 @@ use crate::wrapmime::*;
 static mut VERSION_CONTENT: [libc::c_char; 13] =
     [86, 101, 114, 115, 105, 111, 110, 58, 32, 49, 13, 10, 0];
 
+type Fingerprint = String;
+
 #[derive(Debug)]
 pub struct EncryptHelper {
     pub prefer_encrypt: EncryptPreference,
@@ -300,7 +302,6 @@ pub fn try_decrypt(
     /* possibly perform decryption */
     let mut private_keyring = Keyring::default();
     let mut public_keyring_for_validate = Keyring::default();
-    let mut encrypted = false;
     let mut signatures = HashSet::default();
     let mut gossipped_addr = HashSet::default();
 
@@ -324,7 +325,7 @@ pub fn try_decrypt(
             }
 
             let mut gossip_headers = ptr::null_mut();
-            encrypted = decrypt_if_autocrypt_message(
+            let gossip_headers = decrypt_if_autocrypt_message(
                 context,
                 in_out_message,
                 &private_keyring,
@@ -335,7 +336,6 @@ pub fn try_decrypt(
             if !gossip_headers.is_null() {
                 gossipped_addr =
                     update_gossip_peerstates(context, message_time, imffields, gossip_headers)?;
-                unsafe { mailimf_fields_free(gossip_headers) };
             }
         }
     }
@@ -483,7 +483,7 @@ fn decrypt_if_autocrypt_message(
     public_keyring_for_validate: &Keyring,
     ret_valid_signatures: &mut HashSet<String>,
     ret_gossip_headers: *mut *mut mailimf_fields,
-) -> Result<(bool)> {
+) -> Result<(Vec<String>, HashSet<String>)> {
     /* The returned bool is true if we detected an Autocrypt-encrypted
     message and successfully decrypted it. Decryption then modifies the
     passed in mime structure in place. The returned bool is false
@@ -501,12 +501,11 @@ fn decrypt_if_autocrypt_message(
         Ok(res) => res,
     };
 
-    let decrypted_mime = decrypt_part(
+    let (decrypted_mime, signatures, gossip_headers) = decrypt_part(
         context,
         encrypted_data_part,
         private_keyring,
         public_keyring_for_validate,
-        ret_valid_signatures,
     )?;
     // decrypted_mime is a dangling pointer which we now put into mailmime's Ownership
     unsafe {
@@ -533,6 +532,7 @@ fn decrypt_if_autocrypt_message(
             }
         }
     }
+                unsafe { mailimf_fields_free(gossip_headers) };
 
     Ok(true)
 }
