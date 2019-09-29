@@ -1122,23 +1122,22 @@ unsafe fn create_or_lookup_group(
                     },
                     from_id as u32,
                 )
-            } else {
-                if let Some(optional_field) = mime_parser.lookup_optional_field("Chat-Group-Image")
-                {
-                    // fld_value is a pointer somewhere into mime_parser, must not be freed
-                    X_MrGrpImageChanged = optional_field;
-                    mime_parser.is_system_message = SystemMessage::GroupImageChanged;
-                    better_msg = context.stock_system_msg(
-                        if X_MrGrpImageChanged == "0" {
-                            StockMessage::MsgGrpImgDeleted
-                        } else {
-                            StockMessage::MsgGrpImgChanged
-                        },
-                        "",
-                        "",
-                        from_id as u32,
-                    )
-                }
+            } else if let Some(optional_field) =
+                mime_parser.lookup_optional_field("Chat-Group-Image")
+            {
+                // fld_value is a pointer somewhere into mime_parser, must not be freed
+                X_MrGrpImageChanged = optional_field;
+                mime_parser.is_system_message = SystemMessage::GroupImageChanged;
+                better_msg = context.stock_system_msg(
+                    if X_MrGrpImageChanged == "0" {
+                        StockMessage::MsgGrpImgDeleted
+                    } else {
+                        StockMessage::MsgGrpImgChanged
+                    },
+                    "",
+                    "",
+                    from_id as u32,
+                )
             }
         }
     }
