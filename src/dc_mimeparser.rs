@@ -5,6 +5,7 @@ use std::ptr;
 use charset::Charset;
 use deltachat_derive::{FromSql, ToSql};
 use libc::{strcmp, strlen, strncmp};
+use mmime::display::display_mime;
 use mmime::mailimf::types::*;
 use mmime::mailimf::*;
 use mmime::mailmime::content::*;
@@ -1153,20 +1154,9 @@ pub unsafe fn mailmime_transfer_decode(mime: *mut Mailmime) -> Result<Vec<u8>, E
 
     let mut mime_transfer_encoding = MAILMIME_MECHANISM_BINARY as libc::c_int;
 
+    let mime_transfer_encoding = wrapmime::get_mime_transfer_encoding(mmime)
+                                 .unwrap_or(MAILMIME_MECHANISM_BINARY);
     let mime_data = (*mime).mm_data.mm_single;
-    if !(*mime).mm_mime_fields.is_null() {
-        for cur in (*(*(*mime).mm_mime_fields).fld_list).into_iter() {
-            let field = cur as *mut mailmime_field;
-
-            if !field.is_null()
-                && (*field).fld_type == MAILMIME_FIELD_TRANSFER_ENCODING as libc::c_int
-                && !(*field).fld_data.fld_encoding.is_null()
-            {
-                mime_transfer_encoding = (*(*field).fld_data.fld_encoding).enc_type;
-                break;
-            }
-        }
-    }
 
     if mime_transfer_encoding == MAILMIME_MECHANISM_7BIT as libc::c_int
         || mime_transfer_encoding == MAILMIME_MECHANISM_8BIT as libc::c_int
@@ -1182,6 +1172,7 @@ pub unsafe fn mailmime_transfer_decode(mime: *mut Mailmime) -> Result<Vec<u8>, E
             return Ok(result.to_vec());
         }
     }
+    display_mime(mime);
 
     let mut current_index = 0;
     let mut transfer_decoding_buffer = ptr::null_mut();
@@ -1203,12 +1194,16 @@ pub unsafe fn mailmime_transfer_decode(mime: *mut Mailmime) -> Result<Vec<u8>, E
         let result =
             std::slice::from_raw_parts(transfer_decoding_buffer as *const u8, decoded_data_bytes)
                 .to_vec();
+        // we return a fresh vec and transfer_decoding_buffer is not used or passed anywhere
+        // so it's safe to free it right away, as mailman_part_parse has
+        // allocated it fresh.
         mmap_string_unref(transfer_decoding_buffer);
 
         return Ok(result);
     }
 
     Err(format_err!("Failed to to decode"))
+
 }
 
 pub fn mailimf_get_recipients(imffields: *mut mailimf_fields) -> HashSet<String> {
