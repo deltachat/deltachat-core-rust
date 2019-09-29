@@ -805,11 +805,9 @@ pub fn send_msg(context: &Context, chat_id: u32, msg: &mut Message) -> Result<u3
                 if 0 == id {
                     // avoid hanging if user tampers with db
                     break;
-                } else {
-                    if let Ok(mut copy) = Message::load_from_db(context, id as u32) {
-                        // TODO: handle cleanup and return early instead
-                        send_msg(context, 0, &mut copy).unwrap();
-                    }
+                } else if let Ok(mut copy) = Message::load_from_db(context, id as u32) {
+                    // TODO: handle cleanup and return early instead
+                    send_msg(context, 0, &mut copy).unwrap();
                 }
             }
             msg.param.remove(Param::PrepForwards);
