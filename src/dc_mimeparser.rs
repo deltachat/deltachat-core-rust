@@ -1111,13 +1111,11 @@ unsafe fn mailmime_is_attachment_disposition(mime: *mut Mailmime) -> bool {
         if !field.is_null()
             && (*field).fld_type == MAILMIME_FIELD_DISPOSITION as libc::c_int
             && !(*field).fld_data.fld_disposition.is_null()
+            && !(*(*field).fld_data.fld_disposition).dsp_type.is_null()
+            && (*(*(*field).fld_data.fld_disposition).dsp_type).dsp_type
+                == MAILMIME_DISPOSITION_TYPE_ATTACHMENT as libc::c_int
         {
-            if !(*(*field).fld_data.fld_disposition).dsp_type.is_null()
-                && (*(*(*field).fld_data.fld_disposition).dsp_type).dsp_type
-                    == MAILMIME_DISPOSITION_TYPE_ATTACHMENT as libc::c_int
-            {
-                return true;
-            }
+            return true;
         }
     }
 
