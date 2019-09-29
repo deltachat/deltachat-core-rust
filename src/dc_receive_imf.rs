@@ -1146,15 +1146,11 @@ unsafe fn create_or_lookup_group(
 
     // check, if we have a chat with this group ID
     let (mut chat_id, chat_id_verified, _blocked) = chat::get_chat_id_by_grpid(context, &grpid);
-    if chat_id != 0 {
-        if chat_id_verified {
-            if let Err(err) =
-                check_verified_properties(context, mime_parser, from_id as u32, to_ids)
-            {
-                warn!(context, "verification problem: {}", err);
-                let s = format!("{}. See 'Info' for more details", err);
-                mime_parser.repl_msg_by_error(s);
-            }
+    if chat_id != 0 && chat_id_verified {
+        if let Err(err) = check_verified_properties(context, mime_parser, from_id as u32, to_ids) {
+            warn!(context, "verification problem: {}", err);
+            let s = format!("{}. See 'Info' for more details", err);
+            mime_parser.repl_msg_by_error(s);
         }
     }
 
