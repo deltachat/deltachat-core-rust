@@ -890,11 +890,12 @@ fn save_locations(
         let locations = &mime_parser.message_kml.as_ref().unwrap().locations;
         let newest_location_id =
             location::save(context, chat_id, from_id, locations, 1).unwrap_or_default();
-        if 0 != newest_location_id && 0 == hidden {
-            if location::set_msg_location_id(context, insert_msg_id, newest_location_id).is_ok() {
-                location_id_written = true;
-                send_event = true;
-            }
+        if 0 != newest_location_id
+            && 0 == hidden
+            && location::set_msg_location_id(context, insert_msg_id, newest_location_id).is_ok()
+        {
+            location_id_written = true;
+            send_event = true;
         }
     }
 
