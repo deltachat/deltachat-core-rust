@@ -27,7 +27,6 @@ pub enum ImapResult {
 
 const PREFETCH_FLAGS: &str = "(UID ENVELOPE)";
 const BODY_FLAGS: &str = "(FLAGS BODY.PEEK[])";
-const FETCH_FLAGS: &str = "(FLAGS)";
 
 #[derive(Debug)]
 pub struct Imap {
@@ -1292,84 +1291,6 @@ impl Imap {
         }
     }
 
-    pub fn set_mdnsent(&self, context: &Context, folder: &str, uid: u32) -> ImapResult {
-        if let Some(imapresult) = self.prepare_imap_operation_on_msg(context, folder, uid) {
-            return imapresult;
-        }
-        // we are connected, and the folder is selected
-        let set = format!("{}", uid);
-        info!(context, "Marking message {}/{} as $MDNSent...", folder, uid,);
-
-        // Check if the folder can handle the `$MDNSent` flag (see RFC 3503).  If so, and not
-        // set: set the flags and return this information.
-        // If the folder cannot handle the `$MDNSent` flag, we risk duplicated MDNs; it's up
-        // to the receiving MUA to handle this then (eg. Delta Chat has no problem with this).
-
-        let can_create_flag = self
-            .config
-            .read()
-            .unwrap()
-            .selected_mailbox
-            .as_ref()
-            .map(|mbox| {
-                // empty means, everything can be stored
-                mbox.permanent_flags.is_empty()
-                    || mbox
-                        .permanent_flags
-                        .iter()
-                        .find(|flag| match flag {
-                            imap::types::Flag::Custom(s) => s == "$MDNSent",
-                            _ => false,
-                        })
-                        .is_some()
-            });
-
-        match can_create_flag {
-            None | Some(false) => {
-                warn!(
-                    context,
-                    "can't store $MDNSent flags in folder {}, ignoring.", folder
-                );
-                // return ImapResult::Failed;
-            }
-            Some(true) => {}
-        }
-
-        let msgs = if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
-            match session.uid_fetch(&set, FETCH_FLAGS) {
-                Ok(res) => res,
-                Err(err) => {
-                    warn!(context, "IMAP uid_fetch {:?} error: {}", set, err);
-                    return ImapResult::Failed;
-                }
-            }
-        } else {
-            unreachable!();
-        };
-        let flag_set = msgs
-            .first()
-            .map(|msg| {
-                msg.flags()
-                    .iter()
-                    .find(|flag| match flag {
-                        imap::types::Flag::Custom(s) => s == "$MDNSent",
-                        _ => false,
-                    })
-                    .is_some()
-            })
-            .unwrap_or_else(|| false);
-        if flag_set {
-            info!(context, "$MDNSent already set and MDN already sent.");
-            ImapResult::AlreadyDone
-        } else if self.add_flag_finalized(context, uid, "$MDNSent") {
-            info!(context, "$MDNSent just set and MDN will be sent.");
-            ImapResult::Success
-        } else {
-            info!(context, "$MDNSent could not be set, ignoring");
-            ImapResult::Failed
-        }
-    }
-
     // only returns 0 on connection problems; we should try later again in this case *
     pub fn delete_msg<S1: AsRef<str>, S2: AsRef<str>>(
         &self,
@@ -1608,27 +1529,13 @@ fn get_folder_meaning(folder_name: &imap::types::Name) -> FolderMeaning {
 }
 
 fn precheck_imf(context: &Context, rfc724_mid: &str, server_folder: &str, server_uid: u32) -> bool {
-    let mut rfc724_mid_exists = false;
-    let mut mark_seen = false;
-
     if let Ok((old_server_folder, old_server_uid, msg_id)) =
         message::rfc724_mid_exists(context, &rfc724_mid)
     {
-        rfc724_mid_exists = true;
-
+        // note: first mark as seen so that the potential heuristic move below
+        // does not have a chance to invalidate the uid that we know
         if old_server_folder.is_empty() && old_server_uid == 0 {
             info!(context, "[move] detected bbc-self {}", rfc724_mid,);
-            mark_seen = true;
-        } else if old_server_folder != server_folder {
-            info!(context, "[move] detected moved message {}", rfc724_mid,);
-            update_msg_move_state(context, &rfc724_mid, MoveState::Stay);
-        }
-        if old_server_folder != server_folder || old_server_uid != server_uid {
-            update_server_uid(context, &rfc724_mid, server_folder, server_uid);
-        }
-        context.do_heuristics_moves(server_folder, msg_id);
-
-        if mark_seen {
             job_add(
                 context,
                 Action::MarkseenMsgOnImap,
@@ -1636,8 +1543,15 @@ fn precheck_imf(context: &Context, rfc724_mid: &str, server_folder: &str, server
                 Params::new(),
                 0,
             );
+        } else if old_server_folder != server_folder {
+            info!(context, "[move] detected moved message {}", rfc724_mid,);
+            update_msg_move_state(context, &rfc724_mid, MoveState::Stay);
         }
+        if old_server_folder != server_folder || old_server_uid != server_uid {
+            update_server_uid(context, &rfc724_mid, server_folder, server_uid);
+        }
+        true
+    } else {
+        false
     }
-
-    rfc724_mid_exists
 }
