@@ -310,8 +310,8 @@ impl Job {
             }
         }
         if let Ok(msg) = Message::load_from_db(context, self.foreign_id) {
-            let server_folder = msg.server_folder.as_ref().unwrap();
-            match inbox.set_seen(context, server_folder, msg.server_uid) {
+            let folder = msg.server_folder.as_ref().unwrap();
+            match inbox.set_seen(context, folder, msg.server_uid) {
                 ImapResult::Failed => {}
                 ImapResult::RetryLater => {
                     self.try_again_later(3i32, None);
@@ -320,22 +320,7 @@ impl Job {
                     if 0 != msg.param.get_int(Param::WantsMdn).unwrap_or_default()
                         && context.get_config_bool(Config::MdnsEnabled)
                     {
-                        let folder = msg.server_folder.as_ref().unwrap();
-
-                        match inbox.set_mdnsent(&context, folder, msg.server_uid) {
-                            ImapResult::RetryLater => {
-                                self.try_again_later(3i32, None);
-                            }
-                            ImapResult::Success => {
-                                if let Err(err) = send_mdn(context, msg.id) {
-                                    warn!(
-                                        context,
-                                        "could not send out mdn for {}: {}", msg.id, err
-                                    );
-                                }
-                            }
-                            ImapResult::Failed | ImapResult::AlreadyDone => {}
-                        }
+                        send_mdn(context, msg.id);
                     }
                 }
             }
