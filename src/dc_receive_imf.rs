@@ -1672,7 +1672,7 @@ fn check_verified_properties(
                 let fp = peerstate.gossip_key_fingerprint.clone();
                 if let Some(fp) = fp {
                     peerstate.set_verified(0, &fp, 2);
-                    peerstate.save_to_db(&context.sql, false).unwrap();
+                    peerstate.save_to_db(&context.sql, false)?;
                     is_verified = true;
                 }
             }

@@ -794,7 +794,7 @@ fn open(
                         if let Some(ref mut peerstate) = Peerstate::from_addr(context, sql, &addr?)
                         {
                             peerstate.recalc_fingerprint();
-                            peerstate.save_to_db(sql, false).unwrap();
+                            peerstate.save_to_db(sql, false)?;
                         }
                     }
                     Ok(())

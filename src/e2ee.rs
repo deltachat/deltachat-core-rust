@@ -284,16 +284,16 @@ pub fn try_decrypt(
         if let Some(ref mut peerstate) = peerstate {
             if let Some(ref header) = autocryptheader {
                 peerstate.apply_header(&header, message_time);
-                peerstate.save_to_db(&context.sql, false).unwrap();
+                peerstate.save_to_db(&context.sql, false)?;
             } else if message_time > peerstate.last_seen_autocrypt
                 && !contains_report(in_out_message)
             {
                 peerstate.degrade_encryption(message_time);
-                peerstate.save_to_db(&context.sql, false).unwrap();
+                peerstate.save_to_db(&context.sql, false)?;
             }
         } else if let Some(ref header) = autocryptheader {
             let p = Peerstate::from_header(context, header, message_time);
-            p.save_to_db(&context.sql, true).unwrap();
+            p.save_to_db(&context.sql, true)?;
             peerstate = Some(p);
         }
     }
