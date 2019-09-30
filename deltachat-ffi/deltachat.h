@@ -3720,6 +3720,14 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
 
 
 /**
+ * Message containing a sticker, similar to image.
+ * If possible, the ui should display the image without borders in a transparent way.
+ * A click on a sticker will offer to install the sticker set in some future.
+ */
+#define DC_MSG_STICKER     23
+
+
+/**
  * Message containing an Audio file.
  * File and duration are set via dc_msg_set_file(), dc_msg_set_duration()
  * and retrieved via dc_msg_get_file(), dc_msg_get_duration().

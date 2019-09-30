@@ -109,6 +109,8 @@ pub enum StockMessage {
     MsgLocationDisabled = 65,
     #[strum(props(fallback = "Location"))]
     Location = 66,
+    #[strum(props(fallback = "Sticker"))]
+    Sticker = 67,
 }
 
 impl StockMessage {

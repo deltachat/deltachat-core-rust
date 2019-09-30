@@ -646,6 +646,7 @@ pub fn msgtype_has_file(msgtype: Viewtype) -> bool {
     match msgtype {
         Viewtype::Image => true,
         Viewtype::Gif => true,
+        Viewtype::Sticker => true,
         Viewtype::Audio => true,
         Viewtype::Voice => true,
         Viewtype::Video => true,
