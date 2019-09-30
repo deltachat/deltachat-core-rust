@@ -195,6 +195,11 @@ pub enum Viewtype {
     /// and retrieved via dc_msg_get_file(), dc_msg_get_width(), dc_msg_get_height().
     Gif = 21,
 
+    /// Message containing a sticker, similar to image.
+    /// If possible, the ui should display the image without borders in a transparent way.
+    /// A click on a sticker will offer to install the sticker set in some future.
+    Sticker = 23,
+
     /// Message containing an Audio file.
     /// File and duration are set via dc_msg_set_file(), dc_msg_set_duration()
     /// and retrieved via dc_msg_get_file(), dc_msg_get_duration().
@@ -299,7 +304,8 @@ const DC_STR_MSGACTIONBYME: usize = 63;
 const DC_STR_MSGLOCATIONENABLED: usize = 64;
 const DC_STR_MSGLOCATIONDISABLED: usize = 65;
 const DC_STR_LOCATION: usize = 66;
-const DC_STR_COUNT: usize = 66;
+const DC_STR_STICKER: usize = 67;
+const DC_STR_COUNT: usize = 67;
 
 pub const DC_JOB_DELETE_MSG_ON_IMAP: i32 = 110;
 

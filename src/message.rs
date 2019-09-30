@@ -818,6 +818,7 @@ pub fn get_summarytext_by_raw(
     let prefix = match viewtype {
         Viewtype::Image => context.stock_str(StockMessage::Image).into_owned(),
         Viewtype::Gif => context.stock_str(StockMessage::Gif).into_owned(),
+        Viewtype::Sticker => context.stock_str(StockMessage::Sticker).into_owned(),
         Viewtype::Video => context.stock_str(StockMessage::Video).into_owned(),
         Viewtype::Voice => context.stock_str(StockMessage::VoiceMessage).into_owned(),
         Viewtype::Audio | Viewtype::File => {

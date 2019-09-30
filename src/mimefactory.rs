@@ -435,6 +435,11 @@ impl<'a> MimeFactory<'a> {
                     }
                 }
 
+                if self.msg.type_0 == Viewtype::Sticker
+                {
+                    wrapmime::new_custom_field(imf_fields, "Chat-Content", "sticker");
+                }
+
                 if self.msg.type_0 == Viewtype::Voice
                     || self.msg.type_0 == Viewtype::Audio
                     || self.msg.type_0 == Viewtype::Video

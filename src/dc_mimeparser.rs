@@ -189,6 +189,7 @@ impl<'a> MimeParser<'a> {
                     textpart.typ == Viewtype::Text
                         && (filepart.typ == Viewtype::Image
                             || filepart.typ == Viewtype::Gif
+                            || filepart.typ == Viewtype::Sticker
                             || filepart.typ == Viewtype::Audio
                             || filepart.typ == Viewtype::Voice
                             || filepart.typ == Viewtype::Video
@@ -254,6 +255,14 @@ impl<'a> MimeParser<'a> {
                     if self.lookup_optional_field("Chat-Voice-Message").is_some() {
                         let part_mut = &mut self.parts[0];
                         part_mut.typ = Viewtype::Voice;
+                    }
+                }
+                if self.parts[0].typ == Viewtype::Image {
+                    if let Some(content_type) = self.lookup_optional_field("Chat-Content") {
+                        if content_type == "sticker".to_string() {
+                            let part_mut = &mut self.parts[0];
+                            part_mut.typ = Viewtype::Sticker;
+                        }
                     }
                 }
                 let part = &self.parts[0];
