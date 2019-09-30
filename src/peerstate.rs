@@ -400,7 +400,8 @@ impl<'a> Peerstate<'a> {
                     &self.verified_key_fingerprint,
                     &self.addr,
                 ],
-            )?
+            )?;
+            reset_gossiped_timestamp(self.context, 0);
         } else if self.to_save == Some(ToSave::Timestamps) {
             sql::execute(
                 self.context,
@@ -414,10 +415,6 @@ impl<'a> Peerstate<'a> {
                     &self.addr
                 ],
             )?;
-        }
-
-        if self.to_save == Some(ToSave::All) || create {
-            reset_gossiped_timestamp(self.context, 0);
         }
 
         Ok(())
@@ -485,6 +482,44 @@ mod tests {
             Peerstate::from_fingerprint(&ctx.ctx, &ctx.ctx.sql, &pub_key.fingerprint())
                 .expect("failed to load peerstate from db");
         assert_eq!(peerstate, peerstate_new2);
+    }
+
+    #[test]
+    fn test_peerstate_double_create() {
+        let ctx = crate::test_utils::dummy_context();
+        let addr = "hello@mail.com";
+
+        let pub_key = crate::key::Key::from_base64(
+            include_str!("../test-data/key/public.asc"),
+            KeyType::Public,
+        )
+        .unwrap();
+
+        let peerstate = Peerstate {
+            context: &ctx.ctx,
+            addr: Some(addr.into()),
+            last_seen: 10,
+            last_seen_autocrypt: 11,
+            prefer_encrypt: EncryptPreference::Mutual,
+            public_key: Some(pub_key.clone()),
+            public_key_fingerprint: Some(pub_key.fingerprint()),
+            gossip_key: None,
+            gossip_timestamp: 12,
+            gossip_key_fingerprint: None,
+            verified_key: None,
+            verified_key_fingerprint: None,
+            to_save: Some(ToSave::All),
+            degrade_event: None,
+        };
+
+        assert!(
+            peerstate.save_to_db(&ctx.ctx.sql, true).is_ok(),
+            "failed to save"
+        );
+        assert!(
+            peerstate.save_to_db(&ctx.ctx.sql, true).is_ok(),
+            "double-call with create failed"
+        );
     }
 
     #[test]
