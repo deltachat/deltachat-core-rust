@@ -1197,8 +1197,8 @@ impl Imap {
                     };
 
                     if copied {
-                        if self.add_flag(context, uid, "\\Deleted") == 0 {
-                            warn!(context, "Cannot mark message as \"Deleted\".",);
+                        if !self.add_flag_finalized(context, uid, "\\Deleted") {
+                            warn!(context, "Giving up: cannot mark {} as \"Deleted\".", uid);
                         }
                         self.config.write().unwrap().selected_folder_needs_expunge = true;
                         res = ImapResult::Success;
@@ -1223,13 +1223,21 @@ impl Imap {
         }
     }
 
-    fn add_flag<S: AsRef<str>>(&self, context: &Context, server_uid: u32, flag: S) -> usize {
+    fn add_flag_finalized(&self, context: &Context, server_uid: u32, flag: &str) -> bool {
+        // return true if we successfully set the flag or we otherwise
+        // think add_flag should not be retried: Disconnection during setting
+        // the flag, or other imap-errors, returns true as well.
+        //
+        // returning false means that the operation can be retried.
         if server_uid == 0 {
-            return 0;
+            return true; // might be moved but we don't want to have a stuck job
+        }
+        if self.should_reconnect() {
+            return false;
         }
         if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
             let set = format!("{}", server_uid);
-            let query = format!("+FLAGS ({})", flag.as_ref());
+            let query = format!("+FLAGS ({})", flag);
             match session.uid_store(&set, &query) {
                 Ok(_) => {}
                 Err(err) => {
@@ -1239,161 +1247,126 @@ impl Imap {
                     );
                 }
             }
-        }
-
-        // All non-connection states are treated as success - the mail may
-        // already be deleted or moved away on the server.
-        if self.should_reconnect() {
-            0
+            return true; // we tried once, that's probably enough for setting flag
         } else {
-            1
+            unreachable!();
         }
     }
 
-    pub fn set_seen<S: AsRef<str>>(&self, context: &Context, folder: S, uid: u32) -> ImapResult {
-        let mut res = ImapResult::RetryLater;
-
+    pub fn prepare_imap_operation_on_msg(
+        &self,
+        context: &Context,
+        folder: &str,
+        uid: u32,
+    ) -> Option<ImapResult> {
         if uid == 0 {
-            res = ImapResult::Failed
-        } else if self.is_connected() {
-            info!(
+            Some(ImapResult::Failed)
+        } else if !self.is_connected() {
+            Some(ImapResult::RetryLater)
+        } else if self.select_folder(context, Some(&folder)) == 0 {
+            warn!(
                 context,
-                "Marking message {}/{} as seen...",
-                folder.as_ref(),
-                uid,
+                "Cannot select folder {} for preparing IMAP operation", folder
             );
-
-            if self.select_folder(context, Some(folder.as_ref())) == 0 {
-                warn!(
-                    context,
-                    "Cannot select folder {} for setting SEEN flag.",
-                    folder.as_ref(),
-                );
-            } else if self.add_flag(context, uid, "\\Seen") == 0 {
-                warn!(context, "Cannot mark message as seen.",);
-            } else {
-                res = ImapResult::Success
-            }
-        }
-
-        if res == ImapResult::RetryLater {
-            if self.should_reconnect() {
-                ImapResult::RetryLater
-            } else {
-                ImapResult::Failed
-            }
+            Some(ImapResult::RetryLater)
         } else {
-            res
+            None
         }
     }
 
-    pub fn set_mdnsent<S: AsRef<str>>(&self, context: &Context, folder: S, uid: u32) -> ImapResult {
-        // returns 0=job should be retried later, 1=job done, 2=job done and flag just set
-        let mut res = ImapResult::RetryLater;
+    pub fn set_seen(&self, context: &Context, folder: &str, uid: u32) -> ImapResult {
+        if let Some(imapresult) = self.prepare_imap_operation_on_msg(context, folder, uid) {
+            return imapresult;
+        }
+        // we are connected, and the folder is selected
+        info!(context, "Marking message {}/{} as seen...", folder, uid,);
+
+        if self.add_flag_finalized(context, uid, "\\Seen") {
+            ImapResult::Success
+        } else {
+            warn!(
+                context,
+                "Cannot mark message {} in folder {} as seen, ignoring.", uid, folder
+            );
+            ImapResult::Failed
+        }
+    }
+
+    pub fn set_mdnsent(&self, context: &Context, folder: &str, uid: u32) -> ImapResult {
+        if let Some(imapresult) = self.prepare_imap_operation_on_msg(context, folder, uid) {
+            return imapresult;
+        }
+        // we are connected, and the folder is selected
         let set = format!("{}", uid);
+        info!(context, "Marking message {}/{} as $MDNSent...", folder, uid,);
 
-        if uid == 0 {
-            res = ImapResult::Failed;
-        } else if self.is_connected() {
-            info!(
-                context,
-                "Marking message {}/{} as $MDNSent...",
-                folder.as_ref(),
-                uid,
-            );
+        // Check if the folder can handle the `$MDNSent` flag (see RFC 3503).  If so, and not
+        // set: set the flags and return this information.
+        // If the folder cannot handle the `$MDNSent` flag, we risk duplicated MDNs; it's up
+        // to the receiving MUA to handle this then (eg. Delta Chat has no problem with this).
 
-            if self.select_folder(context, Some(folder.as_ref())) == 0 {
+        let can_create_flag = self
+            .config
+            .read()
+            .unwrap()
+            .selected_mailbox
+            .as_ref()
+            .map(|mbox| {
+                // empty means, everything can be stored
+                mbox.permanent_flags.is_empty()
+                    || mbox
+                        .permanent_flags
+                        .iter()
+                        .find(|flag| match flag {
+                            imap::types::Flag::Custom(s) => s == "$MDNSent",
+                            _ => false,
+                        })
+                        .is_some()
+            });
+
+        match can_create_flag {
+            None | Some(false) => {
                 warn!(
                     context,
-                    "Cannot select folder {} for setting $MDNSent flag.",
-                    folder.as_ref()
+                    "can't store $MDNSent flags in folder {}, ignoring.", folder
                 );
-            } else {
-                // Check if the folder can handle the `$MDNSent` flag (see RFC 3503).  If so, and not
-                // set: set the flags and return this information.
-                // If the folder cannot handle the `$MDNSent` flag, we risk duplicated MDNs; it's up
-                // to the receiving MUA to handle this then (eg. Delta Chat has no problem with this).
+                // return ImapResult::Failed;
+            }
+            Some(true) => {}
+        }
 
-                let can_create_flag = self
-                    .config
-                    .read()
-                    .unwrap()
-                    .selected_mailbox
-                    .as_ref()
-                    .map(|mbox| {
-                        // empty means, everything can be stored
-                        mbox.permanent_flags.is_empty()
-                            || mbox
-                                .permanent_flags
-                                .iter()
-                                .find(|flag| match flag {
-                                    imap::types::Flag::Custom(s) => s == "$MDNSent",
-                                    _ => false,
-                                })
-                                .is_some()
-                    })
-                    .expect("just selected folder");
-
-                if can_create_flag {
-                    let fetched_msgs =
-                        if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
-                            match session.uid_fetch(set, FETCH_FLAGS) {
-                                Ok(res) => Some(res),
-                                Err(err) => {
-                                    eprintln!("fetch error: {:?}", err);
-                                    None
-                                }
-                            }
-                        } else {
-                            unreachable!();
-                        };
-
-                    if let Some(msgs) = fetched_msgs {
-                        let flag_set = msgs
-                            .first()
-                            .map(|msg| {
-                                msg.flags()
-                                    .iter()
-                                    .find(|flag| match flag {
-                                        imap::types::Flag::Custom(s) => s == "$MDNSent",
-                                        _ => false,
-                                    })
-                                    .is_some()
-                            })
-                            .unwrap_or_else(|| false);
-
-                        res = if flag_set {
-                            ImapResult::AlreadyDone
-                        } else if self.add_flag(context, uid, "$MDNSent") != 0 {
-                            ImapResult::Success
-                        } else {
-                            res
-                        };
-
-                        if res == ImapResult::Success {
-                            info!(context, "$MDNSent just set and MDN will be sent.");
-                        } else {
-                            info!(context, "$MDNSent already set and MDN already sent.");
-                        }
-                    }
-                } else {
-                    res = ImapResult::Success;
-                    info!(
-                        context,
-                        "Cannot store $MDNSent flags, risk sending duplicate MDN.",
-                    );
+        let msgs = if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
+            match session.uid_fetch(&set, FETCH_FLAGS) {
+                Ok(res) => res,
+                Err(err) => {
+                    warn!(context, "IMAP uid_fetch {:?} error: {}", set, err);
+                    return ImapResult::Failed;
                 }
             }
-        }
-
-        if res == ImapResult::RetryLater {
-            if self.should_reconnect() {
-                ImapResult::RetryLater
-            } else {
-                ImapResult::Failed
-            }
         } else {
-            res
+            unreachable!();
+        };
+        let flag_set = msgs
+            .first()
+            .map(|msg| {
+                msg.flags()
+                    .iter()
+                    .find(|flag| match flag {
+                        imap::types::Flag::Custom(s) => s == "$MDNSent",
+                        _ => false,
+                    })
+                    .is_some()
+            })
+            .unwrap_or_else(|| false);
+        if flag_set {
+            info!(context, "$MDNSent already set and MDN already sent.");
+            ImapResult::AlreadyDone
+        } else if self.add_flag_finalized(context, uid, "$MDNSent") {
+            info!(context, "$MDNSent just set and MDN will be sent.");
+            ImapResult::Success
+        } else {
+            info!(context, "$MDNSent could not be set, ignoring");
+            ImapResult::Failed
         }
     }
 
@@ -1463,7 +1436,7 @@ impl Imap {
                 }
 
                 // mark the message for deletion
-                if self.add_flag(context, *server_uid, "\\Deleted") == 0 {
+                if !self.add_flag_finalized(context, *server_uid, "\\Deleted") {
                     warn!(context, "Cannot mark message as \"Deleted\".");
                 } else {
                     self.config.write().unwrap().selected_folder_needs_expunge = true;
