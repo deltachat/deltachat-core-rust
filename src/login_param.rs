@@ -142,6 +142,9 @@ impl LoginParam {
         let key = format!("{}mail_pw", prefix);
         sql.set_config(context, key, Some(&self.mail_pw))?;
 
+        let key = format!("{}mail_certificate_checks", prefix);
+        sql.set_config_int(context, key, self.mail_certificate_checks as i32)?;
+
         let key = format!("{}send_server", prefix);
         sql.set_config(context, key, Some(&self.send_server))?;
 
@@ -153,6 +156,9 @@ impl LoginParam {
 
         let key = format!("{}send_pw", prefix);
         sql.set_config(context, key, Some(&self.send_pw))?;
+
+        let key = format!("{}send_certificate_checks", prefix);
+        sql.set_config_int(context, key, self.send_certificate_checks as i32)?;
 
         let key = format!("{}server_flags", prefix);
         sql.set_config_int(context, key, self.server_flags)?;
