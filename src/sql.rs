@@ -482,6 +482,7 @@ fn open(
         let mut update_file_paths = 0;
 
         if dbversion < 1 {
+            info!(context, "[migration] v1");
             sql.execute(
                 "CREATE TABLE leftgrps ( id INTEGER PRIMARY KEY, grpid TEXT DEFAULT '');",
                 params![],
@@ -494,6 +495,7 @@ fn open(
             sql.set_config_int(context, "dbversion", 1)?;
         }
         if dbversion < 2 {
+            info!(context, "[migration] v2");
             sql.execute(
                 "ALTER TABLE contacts ADD COLUMN authname TEXT DEFAULT '';",
                 params![],
@@ -502,6 +504,7 @@ fn open(
             sql.set_config_int(context, "dbversion", 2)?;
         }
         if dbversion < 7 {
+            info!(context, "[migration] v7");
             sql.execute(
                 "CREATE TABLE keypairs (\
                  id INTEGER PRIMARY KEY, \
@@ -516,6 +519,7 @@ fn open(
             sql.set_config_int(context, "dbversion", 7)?;
         }
         if dbversion < 10 {
+            info!(context, "[migration] v10");
             sql.execute(
                 "CREATE TABLE acpeerstates (\
                  id INTEGER PRIMARY KEY, \
@@ -534,6 +538,7 @@ fn open(
             sql.set_config_int(context, "dbversion", 10)?;
         }
         if dbversion < 12 {
+            info!(context, "[migration] v12");
             sql.execute(
                 "CREATE TABLE msgs_mdns ( msg_id INTEGER,  contact_id INTEGER);",
                 params![],
@@ -546,6 +551,7 @@ fn open(
             sql.set_config_int(context, "dbversion", 12)?;
         }
         if dbversion < 17 {
+            info!(context, "[migration] v17");
             sql.execute(
                 "ALTER TABLE chats ADD COLUMN archived INTEGER DEFAULT 0;",
                 params![],
@@ -560,6 +566,7 @@ fn open(
             sql.set_config_int(context, "dbversion", 17)?;
         }
         if dbversion < 18 {
+            info!(context, "[migration] v18");
             sql.execute(
                 "ALTER TABLE acpeerstates ADD COLUMN gossip_timestamp INTEGER DEFAULT 0;",
                 params![],
@@ -569,6 +576,7 @@ fn open(
             sql.set_config_int(context, "dbversion", 18)?;
         }
         if dbversion < 27 {
+            info!(context, "[migration] v27");
             sql.execute("DELETE FROM msgs WHERE chat_id=1 OR chat_id=2;", params![])?;
             sql.execute(
                 "CREATE INDEX chats_contacts_index2 ON chats_contacts (contact_id);",
@@ -586,6 +594,7 @@ fn open(
             sql.set_config_int(context, "dbversion", 27)?;
         }
         if dbversion < 34 {
+            info!(context, "[migration] v34");
             sql.execute(
                 "ALTER TABLE msgs ADD COLUMN hidden INTEGER DEFAULT 0;",
                 params![],
@@ -615,6 +624,7 @@ fn open(
             sql.set_config_int(context, "dbversion", 34)?;
         }
         if dbversion < 39 {
+            info!(context, "[migration] v39");
             sql.execute(
                 "CREATE TABLE tokens ( id INTEGER PRIMARY KEY, namespc INTEGER DEFAULT 0, foreign_id INTEGER DEFAULT 0, token TEXT DEFAULT '', timestamp INTEGER DEFAULT 0);",
                 params![]
@@ -645,6 +655,7 @@ fn open(
             sql.set_config_int(context, "dbversion", 39)?;
         }
         if dbversion < 40 {
+            info!(context, "[migration] v40");
             sql.execute(
                 "ALTER TABLE jobs ADD COLUMN thread INTEGER DEFAULT 0;",
                 params![],
@@ -653,21 +664,25 @@ fn open(
             sql.set_config_int(context, "dbversion", 40)?;
         }
         if dbversion < 41 {
+            info!(context, "[migration] v41");
             update_file_paths = 1;
             dbversion = 41;
             sql.set_config_int(context, "dbversion", 41)?;
         }
         if dbversion < 42 {
+            info!(context, "[migration] v42");
             sql.execute("UPDATE msgs SET txt='' WHERE type!=10", params![])?;
             dbversion = 42;
             sql.set_config_int(context, "dbversion", 42)?;
         }
         if dbversion < 44 {
+            info!(context, "[migration] v44");
             sql.execute("ALTER TABLE msgs ADD COLUMN mime_headers TEXT;", params![])?;
             dbversion = 44;
             sql.set_config_int(context, "dbversion", 44)?;
         }
         if dbversion < 46 {
+            info!(context, "[migration] v46");
             sql.execute(
                 "ALTER TABLE msgs ADD COLUMN mime_in_reply_to TEXT;",
                 params![],
@@ -759,6 +774,7 @@ fn open(
             sql.set_config_int(context, "dbversion", 54)?;
         }
         if dbversion < 55 {
+            info!(context, "[migration] v55");
             sql.execute(
                 "ALTER TABLE locations ADD COLUMN independent INTEGER DEFAULT 0;",
                 params![],
@@ -768,6 +784,7 @@ fn open(
         }
 
         if 0 != recalc_fingerprints {
+            info!(context, "[migration] recalc fingerprints");
             sql.query_map(
                 "SELECT addr FROM acpeerstates;",
                 params![],
@@ -788,9 +805,7 @@ fn open(
             // versions before 2018-08 save the absolute paths in the database files at "param.f=";
             // for newer versions, we copy files always to the blob directory and store relative paths.
             // this snippet converts older databases and can be removed after some time.
-
-            info!(context, "[open] update file paths");
-
+            info!(context, "[migration] update file paths");
             let repl_from = sql
                 .get_config(context, "backup_for")
                 .unwrap_or_else(|| context.get_blobdir().to_string_lossy().into());
