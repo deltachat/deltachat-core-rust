@@ -92,6 +92,25 @@ pub fn has_decryptable_data(mime_data: *mut mailmime_data) -> bool {
     }
 }
 
+
+pub fn parse_mailmime(input: &Vec<u8>) -> Result<*Mailmime> {
+    let mut parsed_mime = ptr::null_mut();
+    let mut index = 0;
+    let res = unsafe { mailmime_parse(
+        decrypt_info.plain.as_ptr() as *const _,
+        decrypt_info.plain.len(),
+        &mut index,
+        &mut parsed_mime,
+    ) };
+    if res == MAIL_NO_ERROR && parsed_mime != ptr::null_mut() {
+        // mailmime_substitute detaches mime from its position in the mime tree 
+        // and puts decrypted_mime in its position. Afterwars mime is dangling. 
+        Ok(parsed_mime)
+    } else {
+        Err("could not parse mime structure");
+    }
+}
+
 pub fn get_field_from(imffields: *mut mailimf_fields) -> Result<String, Error> {
     let field = mailimf_find_field(imffields, MAILIMF_FIELD_FROM as libc::c_int);
     if !field.is_null() && unsafe { !(*field).fld_data.fld_from.is_null() } {

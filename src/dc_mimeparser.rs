@@ -116,7 +116,7 @@ impl<'a> MimeParser<'a> {
         );
 
         if r == MAILIMF_NO_ERROR as libc::c_int && !self.mimeroot.is_null() {
-            let (encrypted, signatures, gossipped_addr) =
+            let (signatures, gossipped_addr) =
                 e2ee::try_decrypt(self.context, self.mimeroot)?;
             self.encrypted = encrypted;
             self.signatures = signatures;

@@ -37,7 +37,8 @@ use crate::wrapmime::*;
 static mut VERSION_CONTENT: [libc::c_char; 13] =
     [86, 101, 114, 115, 105, 111, 110, 58, 32, 49, 13, 10, 0];
 
-type Fingerprint = String;
+type SignFingerprint = String;
+type GossipAddr = String;
 
 #[derive(Debug)]
 pub struct EncryptHelper {
@@ -266,8 +267,7 @@ impl EncryptHelper {
 pub fn try_decrypt(
     context: &Context,
     in_out_message: *mut Mailmime,
-) -> Result<(bool, HashSet<String>, HashSet<String>)> {
-    // just a pointer into mailmime structure, must not be freed
+) -> Result<DecryptInfo> {
     let imffields = unsafe { mailmime_find_mailimf_fields(in_out_message) };
     ensure!(
         !in_out_message.is_null() && !imffields.is_null(),
@@ -277,13 +277,16 @@ pub fn try_decrypt(
     let from = wrapmime::get_field_from(imffields)?;
     let message_time = wrapmime::get_field_date(imffields)?;
 
-    let mut peerstate = None;
     let autocryptheader = Aheader::from_imffields(&from, imffields);
+    let recipients = mailimf_get_recipients(imffields);
+    let mut peerstate = None;
 
     if message_time > 0 {
         peerstate = Peerstate::from_addr(context, &context.sql, &from);
 
         if let Some(ref mut peerstate) = peerstate {
+            // update Autocrypt peer state as per 
+            // https://autocrypt.org/level1.html#updating-autocrypt-peer-state
             if let Some(ref header) = autocryptheader {
                 peerstate.apply_header(&header, message_time);
                 peerstate.save_to_db(&context.sql, false).unwrap();
@@ -325,17 +328,20 @@ pub fn try_decrypt(
             }
 
             let mut gossip_headers = ptr::null_mut();
-            let gossip_headers = decrypt_if_autocrypt_message(
+            let mut decrypt_info = decrypt_if_autocrypt_message(
                 context,
                 in_out_message,
                 &private_keyring,
                 &public_keyring_for_validate,
-                &mut signatures,
-                &mut gossip_headers,
             )?;
-            if !gossip_headers.is_null() {
-                gossipped_addr =
-                    update_gossip_peerstates(context, message_time, imffields, gossip_headers)?;
+            decrypt_info.gossipped_addrs =
+                update_gossip_peerstates(
+                    context, 
+                    message_time, 
+                    gosimffields, decrypt_info.gossip_headers)?;
+            if recipients.is_none() {
+                recipients = Some(
+            }
             }
         }
     }
@@ -429,24 +435,17 @@ fn load_or_generate_self_public_key(context: &Context, self_addr: impl AsRef<str
 fn update_gossip_peerstates(
     context: &Context,
     message_time: i64,
-    imffields: *mut mailimf_fields,
-    gossip_headers: *const mailimf_fields,
+    recipients: &Vec<String>,
+    gossip_header_values: &Vec<String>,
 ) -> Result<HashSet<String>> {
     // XXX split the parsing from the modification part
-    let mut recipients: Option<HashSet<String>> = None;
-    let mut gossipped_addr: HashSet<String> = Default::default();
+    let recipients = wrapmime::mailimf_get_recipients(imffields);
 
-    let fields = wrapmime::iter_optional_field_values(
-        gossip_headers,
-        b"Autocrypt-Gossip\0" as *const u8 as *const libc::c_char,
-    )?;
-    for value in fields.iter() {
+    let mut gossipped_addr = HashSet<String>::default();
+    for value in gossip_header_values.iter() {
         let gossip_header = Aheader::from_str(&value);
 
         if let Ok(ref header) = gossip_header {
-            if recipients.is_none() {
-                recipients = Some(mailimf_get_recipients(imffields));
-            }
             if recipients.as_ref().unwrap().contains(&header.addr) {
                 let mut peerstate = Peerstate::from_addr(context, &context.sql, &header.addr);
                 if let Some(ref mut peerstate) = peerstate {
@@ -476,18 +475,25 @@ fn update_gossip_peerstates(
     Ok(gossipped_addr)
 }
 
+#[derive(Debug,Default)]
+struct DecryptInfo {
+    signers: Vec<String>;
+    gossiped_addrs: HashSet<String>;
+    was_encrypted: bool;
+}
+
 fn decrypt_if_autocrypt_message(
     context: &Context,
     mime_undetermined: *mut Mailmime,
     private_keyring: &Keyring,
     public_keyring_for_validate: &Keyring,
-    ret_valid_signatures: &mut HashSet<String>,
-    ret_gossip_headers: *mut *mut mailimf_fields,
-) -> Result<(Vec<String>, HashSet<String>)> {
-    /* The returned bool is true if we detected an Autocrypt-encrypted
-    message and successfully decrypted it. Decryption then modifies the
-    passed in mime structure in place. The returned bool is false
-    if it was not an Autocrypt message.
+) -> Result<DecryptInfo> {
+    /* If we detected an Autocrypt-encrypted message and successfully decrypted it
+    there will be at least one signer in the returned Vec<Signer>. 
+
+    Decryption modifies the passed in mime structure in place.  It is possible
+    to get a decrypted message yet it is not signed.  This should be interpreted
+    as not-encrypted (i.e. no lock in UIs) on messages. 
 
     Errors are returned for failures related to decryption of AC-messages.
     */
@@ -496,116 +502,76 @@ fn decrypt_if_autocrypt_message(
     let (mime, encrypted_data_part) = match wrapmime::get_autocrypt_mime(mime_undetermined) {
         Err(_) => {
             // not a proper autocrypt message, abort and ignore
-            return Ok(false);
+            return Ok(DecryptInfo::default());
         }
         Ok(res) => res,
     };
 
-    let (decrypted_mime, signatures, gossip_headers) = decrypt_part(
-        context,
+    decrypt_part(
         encrypted_data_part,
         private_keyring,
         public_keyring_for_validate,
-    )?;
-    // decrypted_mime is a dangling pointer which we now put into mailmime's Ownership
-    unsafe {
-        mailmime_substitute(mime, decrypted_mime);
-        mailmime_free(mime);
-    }
-
-    // finally, let's also return gossip headers
-    // XXX better return parsed headers so that upstream
-    // does not need to dive into mmime-stuff again.
-    unsafe {
-        if (*ret_gossip_headers).is_null() && ret_valid_signatures.len() > 0 {
-            let mut dummy: libc::size_t = 0;
-            let mut test: *mut mailimf_fields = ptr::null_mut();
-            if mailimf_envelope_and_optional_fields_parse(
-                (*decrypted_mime).mm_mime_start,
-                (*decrypted_mime).mm_length,
-                &mut dummy,
-                &mut test,
-            ) == MAILIMF_NO_ERROR as libc::c_int
-                && !test.is_null()
-            {
-                *ret_gossip_headers = test;
-            }
-        }
-    }
-                unsafe { mailimf_fields_free(gossip_headers) };
-
-    Ok(true)
+    )
 }
 
+
 fn decrypt_part(
-    _context: &Context,
     mime: *mut Mailmime,
     private_keyring: &Keyring,
     public_keyring_for_validate: &Keyring,
-    ret_valid_signatures: &mut HashSet<String>,
-) -> Result<*mut Mailmime> {
+) -> Result<DecryptInfo> {
     let mime_data: *mut mailmime_data;
-    let mut mime_transfer_encoding = MAILMIME_MECHANISM_BINARY as libc::c_int;
 
     unsafe {
         mime_data = (*mime).mm_data.mm_single;
     }
     if !wrapmime::has_decryptable_data(mime_data) {
-        return Ok(ptr::null_mut());
+        return Ok(DecryptInfo::default())
     }
 
+    let mut mime_transfer_encoding = MAILMIME_MECHANISM_BINARY as libc::c_int;
     if let Some(enc) = wrapmime::get_mime_transfer_encoding(mime) {
         mime_transfer_encoding = enc;
     }
 
     let data: Vec<u8> = wrapmime::decode_dt_data(mime_data, mime_transfer_encoding)?;
 
-    let mut ret_decrypted_mime = ptr::null_mut();
-
-    if has_decrypted_pgp_armor(&data) {
-        // we should only have one decryption happening
-        ensure!(ret_valid_signatures.is_empty(), "corrupt signatures");
-
-        let plain = match dc_pgp_pk_decrypt(
-            &data,
-            &private_keyring,
-            &public_keyring_for_validate,
-            Some(ret_valid_signatures),
-        ) {
-            Ok(plain) => {
-                ensure!(!ret_valid_signatures.is_empty(), "no valid signatures");
-                plain
-            }
-            Err(err) => bail!("could not decrypt: {}", err),
-        };
-        let plain_bytes = plain.len();
-        let plain_buf = plain.as_ptr() as *const libc::c_char;
-
-        let mut index = 0;
-        let mut decrypted_mime = ptr::null_mut();
-        if unsafe {
-            mailmime_parse(
-                plain_buf as *const _,
-                plain_bytes,
-                &mut index,
-                &mut decrypted_mime,
-            )
-        } != MAIL_NO_ERROR as libc::c_int
-            || decrypted_mime.is_null()
-        {
-            if !decrypted_mime.is_null() {
-                unsafe { mailmime_free(decrypted_mime) };
-            }
-        } else {
-            // decrypted_mime points into `plain`.
-            // FIXME(@dignifiedquire): this still leaks memory I believe, as mailmime_free
-            // does not free the underlying buffer. But for now we have to live with it
-            std::mem::forget(plain);
-            ret_decrypted_mime = decrypted_mime;
-        }
+    if !has_decrypted_pgp_armor(&data) {
+        return Ok(DecryptInfo::default())
     }
 
-    Ok(ret_decrypted_mime)
+    // now we have prepared ourselves to attempt decryption 
+
+    let mut decrypt_info = DecryptInfo::default();
+    let plain = match dc_pgp_pk_decrypt(
+        &data,
+        &private_keyring,
+        &public_keyring_for_validate,
+        Some(decrypt_info.signers),
+    ) {
+        Ok(plain) => {
+            decrypt_info.plain = plain;
+            plain
+        }
+        Err(err) => bail!("could not decrypt: {}", err),
+    };
+    if let Some(decrypted_mime) = wrapmime::parse_mailmime(data) {
+        unsafe {
+            // mailmime_substitute detaches mime from its position in the mime tree 
+            // and puts decrypted_mime in its position. Afterwars mime is dangling. 
+            mailmime_substitute(mime, decrypted_mime);
+            mailmime_free(mime);
+        }
+
+        // now let's read all gossip-header values 
+        decrypt_info.gossip_addrs = wrapmime::iter_optional_field_values(
+            decrypted_mime,
+            b"Autocrypt-Gossip\0" as *const u8 as *const libc::c_char,
+        )?;
+    } else {
+        decrypt_info.parsing_error_after_decryption = true;
+    }
+    Ok(decrypt_info)
 }
 
 fn has_decrypted_pgp_armor(input: &[u8]) -> bool {
