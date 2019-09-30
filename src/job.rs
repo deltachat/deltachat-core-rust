@@ -322,7 +322,7 @@ impl Job {
                     {
                         let folder = msg.server_folder.as_ref().unwrap();
 
-                        match inbox.set_mdnsent(context, folder, msg.server_uid) {
+                        match inbox.set_mdnsent(&context, folder, msg.server_uid) {
                             ImapResult::RetryLater => {
                                 self.try_again_later(3i32, None);
                             }
