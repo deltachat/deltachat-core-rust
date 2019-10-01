@@ -42,6 +42,12 @@ pub enum Event {
     #[strum(props(id = "103"))]
     SmtpMessageSent(String),
 
+    /// Emitted when an IMAP message has been marked as deleted
+    ///
+    /// @return 0
+    #[strum(props(id = "104"))]
+    ImapMessageDeleted(String),
+
     /// The library-user should write a warning string to the log.
     /// Passed to the callback given to dc_context_new().
     ///

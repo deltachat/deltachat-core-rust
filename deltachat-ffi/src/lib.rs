@@ -125,6 +125,7 @@ impl ContextWrapper {
                     | Event::SmtpConnected(msg)
                     | Event::ImapConnected(msg)
                     | Event::SmtpMessageSent(msg)
+                    | Event::ImapMessageDeleted(msg)
                     | Event::Warning(msg)
                     | Event::Error(msg)
                     | Event::ErrorNetwork(msg)
