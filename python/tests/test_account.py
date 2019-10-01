@@ -394,6 +394,17 @@ class TestOnlineAccount:
         ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
         assert ev[2] > const.DC_CHAT_ID_LAST_SPECIAL
 
+    def test_move_works(self, acfactory):
+        ac1 = acfactory.get_online_configuring_account()
+        ac2 = acfactory.get_online_configuring_account(mvbox=True)
+        wait_configuration_progress(ac2, 1000)
+        wait_configuration_progress(ac1, 1000)
+        chat = self.get_chat(ac1, ac2)
+        chat.send_text("message1")
+        ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
+        assert ev[2] > const.DC_CHAT_ID_LAST_SPECIAL
+        ev = ac2._evlogger.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
+
     def test_forward_messages(self, acfactory):
         ac1, ac2 = acfactory.get_two_online_accounts()
         chat = self.get_chat(ac1, ac2)
