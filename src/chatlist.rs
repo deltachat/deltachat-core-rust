@@ -182,7 +182,7 @@ impl Chatlist {
             if 0 == listflags & DC_GCL_NO_SPECIALS {
                 let last_deaddrop_fresh_msg_id = get_last_deaddrop_fresh_msg(context);
                 if last_deaddrop_fresh_msg_id > 0 {
-                    ids.push((1, last_deaddrop_fresh_msg_id));
+                    ids.insert(0, (DC_CHAT_ID_DEADDROP, last_deaddrop_fresh_msg_id));
                 }
                 add_archived_link_item = 1;
             }
