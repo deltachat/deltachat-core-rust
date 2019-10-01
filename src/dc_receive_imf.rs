@@ -2,10 +2,9 @@ use std::ffi::CString;
 use std::ptr;
 
 use itertools::join;
-use libc::{free, strcmp, strlen};
+use libc::{free, strcmp};
 use mmime::clist::*;
 use mmime::mailimf::types::*;
-use mmime::mailimf::*;
 use mmime::mailmime::content::*;
 use mmime::mailmime::types::*;
 use mmime::mailmime::*;
@@ -819,24 +818,16 @@ unsafe fn handle_reports(
                                     && !of_org_msgid.is_null()
                                     && !(*of_org_msgid).fld_value.is_null()
                                 {
-                                    let mut rfc724_mid_0 = std::ptr::null_mut();
-                                    dummy = 0;
-
-                                    if mailimf_msg_id_parse(
+                                    if let Ok(rfc724_mid) = wrapmime::parse_message_id(as_str(
                                         (*of_org_msgid).fld_value,
-                                        strlen((*of_org_msgid).fld_value),
-                                        &mut dummy,
-                                        &mut rfc724_mid_0,
-                                    ) == MAIL_NO_ERROR as libc::c_int
-                                        && !rfc724_mid_0.is_null()
-                                    {
+                                    )) {
                                         let mut chat_id_0 = 0;
                                         let mut msg_id = 0;
 
                                         if message::mdn_from_ext(
                                             context,
                                             from_id,
-                                            as_str(rfc724_mid_0),
+                                            &rfc724_mid,
                                             sent_timestamp,
                                             &mut chat_id_0,
                                             &mut msg_id,
@@ -844,7 +835,6 @@ unsafe fn handle_reports(
                                             rr_event_to_send.push((chat_id_0, msg_id));
                                         }
                                         mdn_consumed = (msg_id != 0) as libc::c_int;
-                                        free(rfc724_mid_0.cast());
                                     }
                                 }
                             }

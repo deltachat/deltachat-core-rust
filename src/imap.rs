@@ -8,12 +8,14 @@ use std::time::{Duration, SystemTime};
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_receive_imf::dc_receive_imf;
+use crate::error::Error;
 use crate::events::Event;
 use crate::job::{job_add, Action};
 use crate::login_param::LoginParam;
 use crate::message::{self, update_msg_move_state, update_server_uid};
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::param::Params;
+use crate::wrapmime;
 
 const DC_IMAP_SEEN: usize = 0x0001;
 
@@ -815,11 +817,7 @@ impl Imap {
             if cur_uid > last_seen_uid {
                 read_cnt += 1;
 
-                let message_id = msg
-                    .envelope()
-                    .expect("missing envelope")
-                    .message_id
-                    .expect("missing message id");
+                let message_id = prefetch_get_message_id(msg).unwrap_or_default();
 
                 if !precheck_imf(context, &message_id, folder.as_ref(), cur_uid) {
                     // check passed, go fetch the rest
@@ -1322,25 +1320,31 @@ impl Imap {
                 if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
                     match session.uid_fetch(set, PREFETCH_FLAGS) {
                         Ok(msgs) => {
-                            if msgs.is_empty()
-                                || msgs
-                                    .first()
-                                    .unwrap()
-                                    .envelope()
-                                    .expect("missing envelope")
-                                    .message_id
-                                    .expect("missing message id")
-                                    != message_id.as_ref()
-                            {
+                            if msgs.is_empty() {
                                 warn!(
                                     context,
-                                    "Cannot delete on IMAP, {}/{} does not match {}.",
+                                    "Cannot delete on IMAP, {}/{}: message-id gone '{}'",
                                     folder.as_ref(),
                                     server_uid,
                                     message_id.as_ref(),
                                 );
-                                *server_uid = 0;
+                            } else {
+                                let remote_message_id =
+                                    prefetch_get_message_id(msgs.first().unwrap())
+                                        .unwrap_or_default();
+
+                                if remote_message_id != message_id.as_ref() {
+                                    warn!(
+                                        context,
+                                        "Cannot delete on IMAP, {}/{}: remote message-id '{}' != '{}'",
+                                        folder.as_ref(),
+                                        server_uid,
+                                        remote_message_id,
+                                        message_id.as_ref(),
+                                    );
+                                }
                             }
+                            *server_uid = 0;
                         }
                         Err(err) => {
                             eprintln!("fetch error: {:?}", err);
@@ -1554,4 +1558,9 @@ fn precheck_imf(context: &Context, rfc724_mid: &str, server_folder: &str, server
     } else {
         false
     }
+}
+
+fn prefetch_get_message_id(prefetch_msg: &imap::types::Fetch) -> Result<String, Error> {
+    let message_id = prefetch_msg.envelope().unwrap().message_id.unwrap();
+    wrapmime::parse_message_id(&message_id)
 }
