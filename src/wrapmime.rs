@@ -8,6 +8,7 @@ use crate::dc_tools::*;
 use crate::error::Error;
 use mmime::clist::*;
 // use mmime::display::*;
+use mmime::mailimf::mailimf_msg_id_parse;
 use mmime::mailimf::types::*;
 use mmime::mailimf::types_helper::*;
 use mmime::mailmime::content::*;
@@ -45,6 +46,23 @@ pub fn get_ct_subtype(mime: *mut Mailmime) -> Option<String> {
         } else {
             None
         }
+    }
+}
+
+pub fn parse_message_id(message_id: &str) -> Result<String, Error> {
+    let mut dummy = 0;
+    let c_message_id = CString::new(message_id).unwrap();
+    let c_ptr = c_message_id.as_ptr();
+    let mut rfc724_mid_c = std::ptr::null_mut();
+    if unsafe { mailimf_msg_id_parse(c_ptr, libc::strlen(c_ptr), &mut dummy, &mut rfc724_mid_c) }
+        == MAIL_NO_ERROR as libc::c_int
+        && !rfc724_mid_c.is_null()
+    {
+        let res = to_string_lossy(rfc724_mid_c);
+        unsafe { libc::free(rfc724_mid_c.cast()) };
+        Ok(res)
+    } else {
+        bail!("could not parse message_id: {}", message_id);
     }
 }
 
@@ -517,5 +535,17 @@ mod tests {
         assert!(content_type_needs_encoding(
             new_content_type("application/pgp-encrypted").unwrap()
         ));
+    }
+
+    #[test]
+    fn test_parse_message_id() {
+        assert_eq!(
+            parse_message_id("Mr.PRUe8HJBoaO.3whNvLCMFU0@testrun.org").unwrap(),
+            "Mr.PRUe8HJBoaO.3whNvLCMFU0@testrun.org"
+        );
+        assert_eq!(
+            parse_message_id("<Mr.PRUe8HJBoaO.3whNvLCMFU0@testrun.org>").unwrap(),
+            "Mr.PRUe8HJBoaO.3whNvLCMFU0@testrun.org"
+        );
     }
 }
