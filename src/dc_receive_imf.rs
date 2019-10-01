@@ -82,7 +82,7 @@ pub unsafe fn dc_receive_imf(
     let mut chat_id = 0;
     let mut hidden = 0;
 
-    let mut add_delete_job: libc::c_int = 0;
+    let mut needs_delete_job = false;
     let mut insert_msg_id = 0;
 
     let mut sent_timestamp = 0;
@@ -219,7 +219,7 @@ pub unsafe fn dc_receive_imf(
             &mut chat_id,
             &mut to_id,
             flags,
-            &mut add_delete_job,
+            &mut needs_delete_job,
             to_self,
             &mut insert_msg_id,
             &mut created_db_entries,
@@ -250,7 +250,7 @@ pub unsafe fn dc_receive_imf(
             from_id,
             sent_timestamp,
             &mut rr_event_to_send,
-            server_folder,
+            &server_folder,
             server_uid,
         );
     }
@@ -266,7 +266,8 @@ pub unsafe fn dc_receive_imf(
         );
     }
 
-    if 0 != add_delete_job && !created_db_entries.is_empty() {
+    // if we delete we don't need to try moving messages
+    if needs_delete_job && !created_db_entries.is_empty() {
         job_add(
             context,
             Action::DeleteMsgOnImap,
@@ -274,6 +275,8 @@ pub unsafe fn dc_receive_imf(
             Params::new(),
             0,
         );
+    } else {
+        context.do_heuristics_moves(server_folder.as_ref(), insert_msg_id);
     }
 
     info!(
@@ -306,7 +309,7 @@ unsafe fn add_parts(
     chat_id: &mut u32,
     to_id: &mut u32,
     flags: u32,
-    add_delete_job: &mut libc::c_int,
+    needs_delete_job: &mut bool,
     to_self: i32,
     insert_msg_id: &mut u32,
     created_db_entries: &mut Vec<(usize, usize)>,
@@ -401,7 +404,7 @@ unsafe fn add_parts(
             let handshake = handle_securejoin_handshake(context, mime_parser, *from_id);
             if 0 != handshake & DC_HANDSHAKE_STOP_NORMAL_PROCESSING {
                 *hidden = 1;
-                *add_delete_job = handshake & DC_HANDSHAKE_ADD_DELETE_JOB;
+                *needs_delete_job = 0 != handshake & DC_HANDSHAKE_ADD_DELETE_JOB;
                 state = MessageState::InSeen;
             }
         }
@@ -718,7 +721,6 @@ unsafe fn add_parts(
         }
     }
 
-    context.do_heuristics_moves(server_folder.as_ref(), *insert_msg_id);
     cleanup(mime_in_reply_to, mime_references);
 
     Ok(())

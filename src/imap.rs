@@ -682,7 +682,7 @@ impl Imap {
                     }
                 }
             } else {
-                return 0;
+                unreachable!();
             }
         }
 
@@ -1536,8 +1536,6 @@ fn precheck_imf(context: &Context, rfc724_mid: &str, server_folder: &str, server
     if let Ok((old_server_folder, old_server_uid, msg_id)) =
         message::rfc724_mid_exists(context, &rfc724_mid)
     {
-        // note: first mark as seen so that the potential heuristic move below
-        // does not have a chance to invalidate the uid that we know
         if old_server_folder.is_empty() && old_server_uid == 0 {
             info!(context, "[move] detected bbc-self {}", rfc724_mid,);
             job_add(
@@ -1551,6 +1549,7 @@ fn precheck_imf(context: &Context, rfc724_mid: &str, server_folder: &str, server
             info!(context, "[move] detected moved message {}", rfc724_mid,);
             update_msg_move_state(context, &rfc724_mid, MoveState::Stay);
         }
+
         if old_server_folder != server_folder || old_server_uid != server_uid {
             update_server_uid(context, &rfc724_mid, server_folder, server_uid);
         }
