@@ -27,13 +27,13 @@ pub struct LoginParam {
     pub mail_pw: String,
     pub mail_port: i32,
     /// IMAP TLS options: whether to allow invalid certificates and/or invalid hostnames
-    pub mail_certificate_checks: CertificateChecks,
+    pub imap_certificate_checks: CertificateChecks,
     pub send_server: String,
     pub send_user: String,
     pub send_pw: String,
     pub send_port: i32,
     /// SMTP TLS options: whether to allow invalid certificates and/or invalid hostnames
-    pub send_certificate_checks: CertificateChecks,
+    pub smtp_certificate_checks: CertificateChecks,
     pub server_flags: i32,
 }
 
@@ -67,8 +67,8 @@ impl LoginParam {
         let key = format!("{}mail_pw", prefix);
         let mail_pw = sql.get_config(context, key).unwrap_or_default();
 
-        let key = format!("{}mail_certificate_checks", prefix);
-        let mail_certificate_checks =
+        let key = format!("{}imap_certificate_checks", prefix);
+        let imap_certificate_checks =
             if let Some(certificate_checks) = sql.get_config_int(context, key) {
                 num_traits::FromPrimitive::from_i32(certificate_checks).unwrap_or_default()
             } else {
@@ -87,8 +87,8 @@ impl LoginParam {
         let key = format!("{}send_pw", prefix);
         let send_pw = sql.get_config(context, key).unwrap_or_default();
 
-        let key = format!("{}send_certificate_checks", prefix);
-        let send_certificate_checks =
+        let key = format!("{}smtp_certificate_checks", prefix);
+        let smtp_certificate_checks =
             if let Some(certificate_checks) = sql.get_config_int(context, key) {
                 num_traits::FromPrimitive::from_i32(certificate_checks).unwrap_or_default()
             } else {
@@ -104,12 +104,12 @@ impl LoginParam {
             mail_user,
             mail_pw,
             mail_port,
-            mail_certificate_checks,
+            imap_certificate_checks,
             send_server,
             send_user,
             send_pw,
             send_port,
-            send_certificate_checks,
+            smtp_certificate_checks,
             server_flags,
         }
     }
@@ -142,8 +142,8 @@ impl LoginParam {
         let key = format!("{}mail_pw", prefix);
         sql.set_config(context, key, Some(&self.mail_pw))?;
 
-        let key = format!("{}mail_certificate_checks", prefix);
-        sql.set_config_int(context, key, self.mail_certificate_checks as i32)?;
+        let key = format!("{}imap_certificate_checks", prefix);
+        sql.set_config_int(context, key, self.imap_certificate_checks as i32)?;
 
         let key = format!("{}send_server", prefix);
         sql.set_config(context, key, Some(&self.send_server))?;
@@ -157,8 +157,8 @@ impl LoginParam {
         let key = format!("{}send_pw", prefix);
         sql.set_config(context, key, Some(&self.send_pw))?;
 
-        let key = format!("{}send_certificate_checks", prefix);
-        sql.set_config_int(context, key, self.send_certificate_checks as i32)?;
+        let key = format!("{}smtp_certificate_checks", prefix);
+        sql.set_config_int(context, key, self.smtp_certificate_checks as i32)?;
 
         let key = format!("{}server_flags", prefix);
         sql.set_config_int(context, key, self.server_flags)?;

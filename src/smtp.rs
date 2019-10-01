@@ -69,7 +69,7 @@ impl Smtp {
         let port = lp.send_port as u16;
 
         let mut tls_builder = native_tls::TlsConnector::builder();
-        let tls = match lp.send_certificate_checks {
+        let tls = match lp.smtp_certificate_checks {
             CertificateChecks::Automatic => {
                 // Same as AcceptInvalidCertificates for now.
                 // TODO: use provider database when it becomes available

@@ -554,7 +554,7 @@ impl Imap {
             config.imap_port = imap_port;
             config.imap_user = imap_user.to_string();
             config.imap_pw = imap_pw.to_string();
-            config.certificate_checks = lp.mail_certificate_checks;
+            config.certificate_checks = lp.imap_certificate_checks;
             config.server_flags = server_flags;
         }
 
