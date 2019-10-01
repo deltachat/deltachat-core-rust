@@ -216,13 +216,6 @@ impl Job {
     fn do_DC_JOB_MOVE_MSG(&mut self, context: &Context) {
         let inbox = context.inbox.read().unwrap();
 
-        if !inbox.is_connected() {
-            connect_to_inbox(context, &inbox);
-            if !inbox.is_connected() {
-                self.try_again_later(3, Some("could not connect".into()));
-                return;
-            }
-        }
         if let Ok(msg) = Message::load_from_db(context, self.foreign_id) {
             if context
                 .sql
@@ -269,26 +262,18 @@ impl Job {
         if let Ok(mut msg) = Message::load_from_db(context, self.foreign_id) {
             if !msg.rfc724_mid.is_empty() {
                 /* eg. device messages have no Message-ID */
-                let mut delete_from_server = true;
-                if message::rfc724_mid_cnt(context, &msg.rfc724_mid) != 1 {
+                if message::rfc724_mid_cnt(context, &msg.rfc724_mid) > 1 {
                     info!(
                         context,
                         "The message is deleted from the server when all parts are deleted.",
                     );
-                    delete_from_server = false;
-                }
-                /* if this is the last existing part of the message, we delete the message from the server */
-                if delete_from_server {
-                    if !inbox.is_connected() {
-                        connect_to_inbox(context, &inbox);
-                        if !inbox.is_connected() {
-                            self.try_again_later(3i32, None);
-                            return;
-                        }
-                    }
+                } else {
+                    /* if this is the last existing part of the message,
+                    we delete the message from the server */
                     let mid = msg.rfc724_mid;
                     let server_folder = msg.server_folder.as_ref().unwrap();
-                    if 0 == inbox.delete_msg(context, &mid, server_folder, &mut msg.server_uid) {
+                    let res = inbox.delete_msg(context, &mid, server_folder, &mut msg.server_uid);
+                    if res == ImapResult::RetryLater {
                         self.try_again_later(-1i32, None);
                         return;
                     }
@@ -302,25 +287,24 @@ impl Job {
     fn do_DC_JOB_MARKSEEN_MSG_ON_IMAP(&mut self, context: &Context) {
         let inbox = context.inbox.read().unwrap();
 
-        if !inbox.is_connected() {
-            connect_to_inbox(context, &inbox);
-            if !inbox.is_connected() {
-                self.try_again_later(3i32, None);
-                return;
-            }
-        }
         if let Ok(msg) = Message::load_from_db(context, self.foreign_id) {
             let folder = msg.server_folder.as_ref().unwrap();
             match inbox.set_seen(context, folder, msg.server_uid) {
-                ImapResult::Failed => {}
                 ImapResult::RetryLater => {
                     self.try_again_later(3i32, None);
                 }
-                _ => {
+                ImapResult::AlreadyDone => {}
+                ImapResult::Success | ImapResult::Failed => {
+                    // XXX the message might just have been moved
+                    // we want to send out an MDN anyway
+                    // The job will not be retried so locally
+                    // there is no risk of double-sending MDNs.
                     if 0 != msg.param.get_int(Param::WantsMdn).unwrap_or_default()
                         && context.get_config_bool(Config::MdnsEnabled)
                     {
-                        send_mdn(context, msg.id);
+                        if let Err(err) = send_mdn(context, msg.id) {
+                            warn!(context, "could not send out mdn for {}: {}", msg.id, err);
+                        }
                     }
                 }
             }
@@ -336,16 +320,9 @@ impl Job {
             .to_string();
         let uid = self.param.get_int(Param::ServerUid).unwrap_or_default() as u32;
         let inbox = context.inbox.read().unwrap();
-
-        if !inbox.is_connected() {
-            connect_to_inbox(context, &inbox);
-            if !inbox.is_connected() {
-                self.try_again_later(3, None);
-                return;
-            }
-        }
-        if inbox.set_seen(context, &folder, uid) == ImapResult::Failed {
+        if inbox.set_seen(context, &folder, uid) == ImapResult::RetryLater {
             self.try_again_later(3i32, None);
+            return;
         }
         if 0 != self.param.get_int(Param::AlsoMove).unwrap_or_default() {
             if context
@@ -360,7 +337,7 @@ impl Job {
             if let Some(dest_folder) = dest_folder {
                 let mut dest_uid = 0;
                 if ImapResult::RetryLater
-                    == inbox.mv(context, folder, uid, dest_folder, &mut dest_uid)
+                    == inbox.mv(context, &folder, uid, &dest_folder, &mut dest_uid)
                 {
                     self.try_again_later(3, None);
                 }
@@ -941,7 +918,7 @@ fn suspend_smtp_thread(context: &Context, suspend: bool) {
     }
 }
 
-fn connect_to_inbox(context: &Context, inbox: &Imap) -> libc::c_int {
+pub fn connect_to_inbox(context: &Context, inbox: &Imap) -> libc::c_int {
     let ret_connected = dc_connect_to_configured_imap(context, inbox);
     if 0 != ret_connected {
         inbox.set_watch_folder("INBOX".into());
