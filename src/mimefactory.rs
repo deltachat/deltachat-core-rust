@@ -578,7 +578,6 @@ impl<'a> MimeFactory<'a> {
                 wrapmime::set_body_text(mach_mime_part, &message_text2)?;
                 mailmime_add_part(multipart, mach_mime_part);
                 force_plaintext = DC_FP_NO_AUTOCRYPT_HEADER;
-                info!(context, "sending MDM {:?}", message_text2);
                 /* currently, we do not send MDNs encrypted:
                 - in a multi-device-setup that is not set up properly, MDNs would disturb the communication as they
                   are send automatically which may lead to spreading outdated Autocrypt headers.

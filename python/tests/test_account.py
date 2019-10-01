@@ -596,6 +596,9 @@ class TestOnlineAccount:
         lp.sec("ac2: start QR-code based join-group protocol")
         ch = ac2.qr_join_chat(qr)
         assert ch.id >= 10
+        # check that at least some of the handshake messages are deleted
+        ac1._evlogger.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED")
+        ac2._evlogger.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED")
         wait_securejoin_inviter_progress(ac1, 1000)
 
     def test_qr_verified_group_and_chatting(self, acfactory, lp):

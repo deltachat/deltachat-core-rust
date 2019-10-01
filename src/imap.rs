@@ -1317,15 +1317,16 @@ impl Imap {
                 );
             } else {
                 let set = format!("{}", server_uid);
+                let display_imap_id = format!("{}/{}", folder.as_ref(), server_uid);
+
                 if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
                     match session.uid_fetch(set, PREFETCH_FLAGS) {
                         Ok(msgs) => {
                             if msgs.is_empty() {
                                 warn!(
                                     context,
-                                    "Cannot delete on IMAP, {}/{}: message-id gone '{}'",
-                                    folder.as_ref(),
-                                    server_uid,
+                                    "Cannot delete on IMAP, {}: message-id gone '{}'",
+                                    display_imap_id, 
                                     message_id.as_ref(),
                                 );
                             } else {
@@ -1336,9 +1337,8 @@ impl Imap {
                                 if remote_message_id != message_id.as_ref() {
                                     warn!(
                                         context,
-                                        "Cannot delete on IMAP, {}/{}: remote message-id '{}' != '{}'",
-                                        folder.as_ref(),
-                                        server_uid,
+                                        "Cannot delete on IMAP, {}: remote message-id '{}' != '{}'",
+                                        display_imap_id,
                                         remote_message_id,
                                         message_id.as_ref(),
                                     );
@@ -1351,9 +1351,8 @@ impl Imap {
 
                             warn!(
                                 context,
-                                "Cannot delete on IMAP, {}/{} not found.",
-                                folder.as_ref(),
-                                server_uid,
+                                "Cannot delete on IMAP, {} not found.",
+                                display_imap_id, 
                             );
                             *server_uid = 0;
                         }
@@ -1364,6 +1363,13 @@ impl Imap {
                 if !self.add_flag_finalized(context, *server_uid, "\\Deleted") {
                     warn!(context, "Cannot mark message as \"Deleted\".");
                 } else {
+                    emit_event!(
+                        context,
+                        Event::ImapMessageDeleted(format!(
+                            "IMAP Message {} marked as deleted [{}]", 
+                            display_imap_id, message_id.as_ref()
+                        ))
+                    );
                     self.config.write().unwrap().selected_folder_needs_expunge = true;
                     success = true
                 }
