@@ -125,18 +125,22 @@ impl Smtp {
         }
     }
 
+    /// SMTP-Send a prepared mail to recipients.
+    /// returns boolean whether send was successful.
     pub fn send<'a>(
         &mut self,
         context: &Context,
         recipients: Vec<EmailAddress>,
-        body: Vec<u8>,
-    ) -> usize {
+        message: Vec<u8>,
+    ) -> bool {
+        let message_len = message.len();
+
         if let Some(ref mut transport) = self.transport {
             let envelope = Envelope::new(self.from.clone(), recipients).expect("invalid envelope");
             let mail = SendableEmail::new(
                 envelope,
                 "mail-id".into(), // TODO: random id
-                body,
+                message,
             );
 
             match transport.send(mail) {
@@ -145,17 +149,20 @@ impl Smtp {
                         "Message was sent to SMTP server".into(),
                     ));
                     self.transport_connected = true;
-                    1
+                    true
                 }
                 Err(err) => {
-                    warn!(context, "SMTP failed to send message: {}", err);
+                    warn!(
+                        context,
+                        "SMTP failed message size {}, error: {}", message_len, err
+                    );
                     self.error = Some(format!("{}", err));
-                    0
+                    false
                 }
             }
         } else {
-            // TODO: log error
-            0
+            warn!(context, "SMTP Failed to send message to {:?}", recipients);
+            false
         }
     }
 }

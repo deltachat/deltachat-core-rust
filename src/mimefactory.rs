@@ -141,52 +141,40 @@ impl<'a> MimeFactory<'a> {
     }
 
     /*******************************************************************************
-     * Render
+     * Render a basic email
      ******************************************************************************/
     // restrict unsafe to parts, introduce wrapmime helpers where appropriate
     pub unsafe fn render(&mut self) -> Result<(), Error> {
         if self.loaded == Loaded::Nothing || !self.out.is_null() {
             bail!("Invalid use of mimefactory-object.");
         }
-        let context = &self.context;
-
-        /* create basic mail
-         *************************************************************************/
-
-        let from: *mut mailimf_mailbox_list = mailimf_mailbox_list_new_empty();
-        mailimf_mailbox_list_add(
-            from,
-            mailimf_mailbox_new(
-                if !self.from_displayname.is_empty() {
-                    dc_encode_header_words(&self.from_displayname).strdup()
-                } else {
-                    ptr::null_mut()
-                },
-                self.from_addr.strdup(),
-            ),
+        ensure!(
+            !self.recipients_names.is_empty() && !self.recipients_addr.is_empty(),
+            "message has no recipients"
         );
-        let mut to: *mut mailimf_address_list = ptr::null_mut();
-        if !self.recipients_names.is_empty() && !self.recipients_addr.is_empty() {
-            to = mailimf_address_list_new_empty();
-            let name_iter = self.recipients_names.iter();
-            let addr_iter = self.recipients_addr.iter();
-            for (name, addr) in name_iter.zip(addr_iter) {
-                mailimf_address_list_add(
-                    to,
-                    mailimf_address_new(
-                        MAILIMF_ADDRESS_MAILBOX as libc::c_int,
-                        mailimf_mailbox_new(
-                            if !name.is_empty() {
-                                dc_encode_header_words(&name).strdup()
-                            } else {
-                                ptr::null_mut()
-                            },
-                            addr.strdup(),
-                        ),
-                        ptr::null_mut(),
+
+        let context = &self.context;
+        let from = wrapmime::new_mailbox_list(&self.from_displayname, &self.from_addr);
+
+        let to = mailimf_address_list_new_empty();
+        let name_iter = self.recipients_names.iter();
+        let addr_iter = self.recipients_addr.iter();
+        for (name, addr) in name_iter.zip(addr_iter) {
+            mailimf_address_list_add(
+                to,
+                mailimf_address_new(
+                    MAILIMF_ADDRESS_MAILBOX as libc::c_int,
+                    mailimf_mailbox_new(
+                        if !name.is_empty() {
+                            dc_encode_header_words(&name).strdup()
+                        } else {
+                            ptr::null_mut()
+                        },
+                        addr.strdup(),
                     ),
-                );
-            }
+                    ptr::null_mut(),
+                ),
+            );
         }
         let references_list = if !self.references.is_empty() {
             dc_str_to_clist(&self.references, " ")
@@ -198,6 +186,7 @@ impl<'a> MimeFactory<'a> {
         } else {
             ptr::null_mut()
         };
+
         let imf_fields = mailimf_fields_new_with_data_all(
             mailimf_get_date(self.timestamp as i64),
             from,

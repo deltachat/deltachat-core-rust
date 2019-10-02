@@ -8,6 +8,7 @@ use crate::configure::*;
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_tools::*;
+use crate::error::Error;
 use crate::events::Event;
 use crate::imap::*;
 use crate::imex::*;
@@ -144,7 +145,7 @@ impl Job {
                         .filter_map(|addr| match lettre::EmailAddress::new(addr.to_string()) {
                             Ok(addr) => Some(addr),
                             Err(err) => {
-                                eprintln!("WARNING: invalid recipient: {} {:?}", addr, err);
+                                warn!(context, "invalid recipient: {} {:?}", addr, err);
                                 None
                             }
                         })
@@ -156,21 +157,21 @@ impl Job {
                     if 0 != self.foreign_id && !message::exists(context, self.foreign_id) {
                         warn!(
                             context,
-                            "Message {} for job {} does not exist", self.foreign_id, self.job_id,
+                            "Not sending Message {} as it was deleted", self.foreign_id
                         );
                         return;
                     };
 
                     // hold the smtp lock during sending of a job and
                     // its ok/error response processing. Note that if a message
-                    // was sent we need to mark it in the database as we
+                    // was sent we need to mark it in the database ASAP as we
                     // otherwise might send it twice.
                     let mut sock = context.smtp.lock().unwrap();
-                    if 0 == sock.send(context, recipients_list, body) {
+                    if !sock.send(context, recipients_list, body) {
                         sock.disconnect();
                         self.try_again_later(-1i32, sock.error.clone());
                     } else {
-                        dc_delete_file(context, filename);
+                        // smtp success, update DB as quick as possible
                         if 0 != self.foreign_id {
                             message::update_msg_state(
                                 context,
@@ -190,6 +191,8 @@ impl Job {
                                 msg_id: self.foreign_id,
                             });
                         }
+                        // now also delete the generated file
+                        dc_delete_file(context, filename);
                     }
                 } else {
                     warn!(context, "Missing recipients for job {}", self.job_id,);
@@ -322,7 +325,12 @@ impl Job {
                                 self.try_again_later(3i32, None);
                             }
                             ImapResult::Success => {
-                                send_mdn(context, msg.id);
+                                if let Err(err) = send_mdn(context, msg.id) {
+                                    warn!(
+                                        context,
+                                        "could not send out mdn for {}: {}", msg.id, err
+                                    );
+                                }
                             }
                             ImapResult::Failed | ImapResult::AlreadyDone => {}
                         }
@@ -601,109 +609,101 @@ pub fn job_action_exists(context: &Context, action: Action) -> bool {
 
 /* special case for DC_JOB_SEND_MSG_TO_SMTP */
 #[allow(non_snake_case)]
-pub fn job_send_msg(context: &Context, msg_id: u32) -> libc::c_int {
-    let mut success = 0;
+pub fn job_send_msg(context: &Context, msg_id: u32) -> Result<(), Error> {
+    let mut mimefactory = MimeFactory::load_msg(context, msg_id)?;
 
-    /* load message data */
-    let mimefactory = MimeFactory::load_msg(context, msg_id);
-    if mimefactory.is_err() {
-        warn!(
-            context,
-            "Cannot load data to send, maybe the message is deleted in between.",
-        );
-    } else {
-        let mut mimefactory = mimefactory.unwrap();
-        // no redo, no IMAP. moreover, as the data does not exist, there is no need in calling dc_set_msg_failed()
-        if chat::msgtype_has_file(mimefactory.msg.type_0) {
-            let file_param = mimefactory
-                .msg
-                .param
-                .get(Param::File)
-                .map(|s| s.to_string());
-            if let Some(pathNfilename) = file_param {
-                if (mimefactory.msg.type_0 == Viewtype::Image
-                    || mimefactory.msg.type_0 == Viewtype::Gif)
-                    && !mimefactory.msg.param.exists(Param::Width)
-                {
-                    mimefactory.msg.param.set_int(Param::Width, 0);
-                    mimefactory.msg.param.set_int(Param::Height, 0);
+    ensure!(!mimefactory.recipients_addr.is_empty(), 
+            "msg {} has no recipients, can not smtp-sent", msg_id
+    );
 
-                    if let Ok(buf) = dc_read_file(context, pathNfilename) {
-                        if let Ok((width, height)) = dc_get_filemeta(&buf) {
-                            mimefactory.msg.param.set_int(Param::Width, width as i32);
-                            mimefactory.msg.param.set_int(Param::Height, height as i32);
-                        }
-                    }
-                    mimefactory.msg.save_param_to_disk(context);
-                }
-            }
-        }
-        /* create message */
-        if let Err(msg) = unsafe { mimefactory.render() } {
-            let e = msg.to_string();
-            message::set_msg_failed(context, msg_id, Some(e));
-        } else if 0
-            != mimefactory
-                .msg
-                .param
-                .get_int(Param::GuranteeE2ee)
-                .unwrap_or_default()
-            && !mimefactory.out_encrypted
-        {
-            /* unrecoverable */
-            warn!(
-                context,
-                "e2e encryption unavailable {} - {:?}",
-                msg_id,
-                mimefactory.msg.param.get_int(Param::GuranteeE2ee),
-            );
-            message::set_msg_failed(
-                context,
-                msg_id,
-                Some("End-to-end-encryption unavailable unexpectedly."),
-            );
-        } else {
-            if !vec_contains_lowercase(&mimefactory.recipients_addr, &mimefactory.from_addr) {
-                mimefactory.recipients_names.push("".to_string());
-                mimefactory
-                    .recipients_addr
-                    .push(mimefactory.from_addr.to_string());
-            }
-            if mimefactory.out_gossiped {
-                chat::set_gossiped_timestamp(context, mimefactory.msg.chat_id, time());
-            }
-            if 0 != mimefactory.out_last_added_location_id {
-                if let Err(err) =
-                    location::set_kml_sent_timestamp(context, mimefactory.msg.chat_id, time())
-                {
-                    error!(context, "Failed to set kml sent_timestamp: {:?}", err);
-                }
-                if !mimefactory.msg.hidden {
-                    if let Err(err) = location::set_msg_location_id(
-                        context,
-                        mimefactory.msg.id,
-                        mimefactory.out_last_added_location_id,
-                    ) {
-                        error!(context, "Failed to set msg_location_id: {:?}", err);
-                    }
-                }
-            }
-            if mimefactory.out_encrypted
-                && mimefactory
-                    .msg
-                    .param
-                    .get_int(Param::GuranteeE2ee)
-                    .unwrap_or_default()
-                    == 0
+    if chat::msgtype_has_file(mimefactory.msg.type_0) {
+        let file_param = mimefactory
+            .msg
+            .param
+            .get(Param::File)
+            .map(|s| s.to_string());
+        if let Some(pathNfilename) = file_param {
+            if (mimefactory.msg.type_0 == Viewtype::Image
+                || mimefactory.msg.type_0 == Viewtype::Gif)
+                && !mimefactory.msg.param.exists(Param::Width)
             {
-                mimefactory.msg.param.set_int(Param::GuranteeE2ee, 1);
+                mimefactory.msg.param.set_int(Param::Width, 0);
+                mimefactory.msg.param.set_int(Param::Height, 0);
+
+                if let Ok(buf) = dc_read_file(context, pathNfilename) {
+                    if let Ok((width, height)) = dc_get_filemeta(&buf) {
+                        mimefactory.msg.param.set_int(Param::Width, width as i32);
+                        mimefactory.msg.param.set_int(Param::Height, height as i32);
+                    }
+                }
                 mimefactory.msg.save_param_to_disk(context);
             }
-            success = add_smtp_job(context, Action::SendMsgToSmtp, &mut mimefactory);
         }
     }
 
-    success
+    /* create message */
+    if let Err(msg) = unsafe { mimefactory.render() } {
+        let e = msg.to_string();
+        message::set_msg_failed(context, msg_id, Some(e));
+        return Err(msg);
+    }
+    if 0 != mimefactory
+        .msg
+        .param
+        .get_int(Param::GuranteeE2ee)
+        .unwrap_or_default()
+        && !mimefactory.out_encrypted
+    {
+        /* unrecoverable */
+        message::set_msg_failed(
+            context,
+            msg_id,
+            Some("End-to-end-encryption unavailable unexpectedly."),
+        );
+        bail!(
+            "e2e encryption unavailable {} - {:?}",
+            msg_id,
+            mimefactory.msg.param.get_int(Param::GuranteeE2ee),
+        );
+    }
+    if !vec_contains_lowercase(&mimefactory.recipients_addr, &mimefactory.from_addr) {
+        mimefactory.recipients_names.push("".to_string());
+        mimefactory
+            .recipients_addr
+            .push(mimefactory.from_addr.to_string());
+    }
+    if mimefactory.out_gossiped {
+        chat::set_gossiped_timestamp(context, mimefactory.msg.chat_id, time());
+    }
+    if 0 != mimefactory.out_last_added_location_id {
+        if let Err(err) = location::set_kml_sent_timestamp(context, mimefactory.msg.chat_id, time())
+        {
+            error!(context, "Failed to set kml sent_timestamp: {:?}", err);
+        }
+        if !mimefactory.msg.hidden {
+            if let Err(err) = location::set_msg_location_id(
+                context,
+                mimefactory.msg.id,
+                mimefactory.out_last_added_location_id,
+            ) {
+                error!(context, "Failed to set msg_location_id: {:?}", err);
+            }
+        }
+    }
+    if mimefactory.out_encrypted
+        && mimefactory
+            .msg
+            .param
+            .get_int(Param::GuranteeE2ee)
+            .unwrap_or_default()
+            == 0
+    {
+        mimefactory.msg.param.set_int(Param::GuranteeE2ee, 1);
+        mimefactory.msg.save_param_to_disk(context);
+    }
+    add_smtp_job(context, Action::SendMsgToSmtp, &mut mimefactory)?;
+
+    Ok(())
 }
 
 pub fn perform_imap_jobs(context: &Context) {
@@ -955,16 +955,20 @@ fn connect_to_inbox(context: &Context, inbox: &Imap) -> libc::c_int {
     ret_connected
 }
 
-fn send_mdn(context: &Context, msg_id: u32) {
-    if let Ok(mut mimefactory) = MimeFactory::load_mdn(context, msg_id) {
-        if unsafe { mimefactory.render() }.is_ok() {
-            add_smtp_job(context, Action::SendMdn, &mut mimefactory);
-        }
-    }
+fn send_mdn(context: &Context, msg_id: u32) -> Result<(), Error> {
+    let mut mimefactory = MimeFactory::load_mdn(context, msg_id)?;
+    unsafe { mimefactory.render()? };
+    add_smtp_job(context, Action::SendMdn, &mut mimefactory)?;
+
+    Ok(())
 }
 
 #[allow(non_snake_case)]
-fn add_smtp_job(context: &Context, action: Action, mimefactory: &MimeFactory) -> libc::c_int {
+fn add_smtp_job(context: &Context, action: Action, mimefactory: &MimeFactory) -> Result<(), Error> {
+    ensure!(
+        !mimefactory.recipients_addr.is_empty(),
+        "no recipients for smtp job set"
+    );
     let mut param = Params::new();
     let bytes = unsafe {
         std::slice::from_raw_parts(
@@ -972,16 +976,7 @@ fn add_smtp_job(context: &Context, action: Action, mimefactory: &MimeFactory) ->
             (*mimefactory.out).len,
         )
     };
-    let bpath = match context.new_blob_file(&mimefactory.rfc724_mid, bytes) {
-        Ok(path) => path,
-        Err(err) => {
-            error!(
-                context,
-                "Could not write {} smtp-message, error {}", mimefactory.rfc724_mid, err
-            );
-            return 0;
-        }
-    };
+    let bpath = context.new_blob_file(&mimefactory.rfc724_mid, bytes)?;
     info!(context, "add_smtp_job file written: {:?}", bpath);
     let recipients = mimefactory.recipients_addr.join("\x1e");
     param.set(Param::File, &bpath);
@@ -997,7 +992,8 @@ fn add_smtp_job(context: &Context, action: Action, mimefactory: &MimeFactory) ->
         param,
         0,
     );
-    1
+
+    Ok(())
 }
 
 pub fn job_add(

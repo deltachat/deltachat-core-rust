@@ -3,6 +3,7 @@ use std::ffi::CString;
 use std::ptr;
 
 use crate::contact::addr_normalize;
+use crate::dc_strencode::*;
 use crate::dc_tools::*;
 use crate::error::Error;
 use mmime::clist::*;
@@ -478,6 +479,24 @@ pub fn content_type_needs_encoding(content: *const mailmime_content) -> bool {
             true
         }
     }
+}
+
+pub fn new_mailbox_list(displayname: &str, addr: &str) -> *mut mailimf_mailbox_list {
+    let mbox: *mut mailimf_mailbox_list = unsafe { mailimf_mailbox_list_new_empty() };
+    unsafe {
+        mailimf_mailbox_list_add(
+            mbox,
+            mailimf_mailbox_new(
+                if !displayname.is_empty() {
+                    dc_encode_header_words(&displayname).strdup()
+                } else {
+                    ptr::null_mut()
+                },
+                addr.strdup(),
+            ),
+        );
+    }
+    mbox
 }
 
 #[cfg(test)]

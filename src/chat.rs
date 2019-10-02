@@ -784,10 +784,7 @@ pub fn send_msg(context: &Context, chat_id: u32, msg: &mut Message) -> Result<u3
         message::update_msg_state(context, msg.id, MessageState::OutPending);
     }
 
-    ensure!(
-        job_send_msg(context, msg.id) != 0,
-        "Failed to initiate send job"
-    );
+    job_send_msg(context, msg.id)?;
 
     context.call_cb(Event::MsgsChanged {
         chat_id: msg.chat_id,
@@ -1717,10 +1714,12 @@ pub fn set_chat_profile_image(
     bail!("Failed to set profile image");
 }
 
-pub fn forward_msgs(context: &Context, msg_ids: &[u32], chat_id: u32) {
-    if msg_ids.is_empty() || chat_id <= DC_CHAT_ID_LAST_SPECIAL {
-        return;
-    }
+pub fn forward_msgs(context: &Context, msg_ids: &[u32], chat_id: u32) -> Result<(), Error> {
+    ensure!(!msg_ids.is_empty(), "empty msgs_ids: no one to forward to");
+    ensure!(
+        chat_id > DC_CHAT_ID_LAST_SPECIAL,
+        "can not forward to special chat"
+    );
 
     let mut created_db_entries = Vec::new();
     let mut curr_timestamp: i64;
@@ -1790,7 +1789,7 @@ pub fn forward_msgs(context: &Context, msg_ids: &[u32], chat_id: u32) {
                 new_msg_id = chat
                     .prepare_msg_raw(context, &mut msg, fresh10)
                     .unwrap_or_default();
-                job_send_msg(context, new_msg_id);
+                job_send_msg(context, new_msg_id)?;
             }
             created_db_entries.push(chat_id);
             created_db_entries.push(new_msg_id);
@@ -1803,6 +1802,8 @@ pub fn forward_msgs(context: &Context, msg_ids: &[u32], chat_id: u32) {
             msg_id: created_db_entries[i + 1],
         });
     }
+
+    Ok(())
 }
 
 pub fn get_chat_contact_cnt(context: &Context, chat_id: u32) -> usize {

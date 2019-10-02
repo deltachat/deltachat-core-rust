@@ -864,7 +864,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             let mut msg_ids = [0; 1];
             let chat_id = arg2.parse()?;
             msg_ids[0] = arg1.parse()?;
-            chat::forward_msgs(context, &msg_ids, chat_id);
+            chat::forward_msgs(context, &msg_ids, chat_id)?;
         }
         "markseen" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
