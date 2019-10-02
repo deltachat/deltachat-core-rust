@@ -1,6 +1,7 @@
 from __future__ import print_function
 import pytest
 import os
+import queue
 from deltachat import const, Account
 from deltachat.message import Message
 from datetime import datetime, timedelta
@@ -474,6 +475,14 @@ class TestOnlineAccount:
         assert ev[2] > const.DC_MSG_ID_LAST_SPECIAL
         lp.step("2")
         assert msg_out.is_out_mdn_received()
+
+        lp.sec("check that a second call to mark_seen does not create change or smtp job")
+        ac2._evlogger.consume_events()
+        ac2.mark_seen_messages([msg_in])
+        try:
+            ac2._evlogger.get_matching("DC_EVENT_MSG_READ", timeout=0.01)
+        except queue.Empty:
+            pass  # mark_seen_messages() has generated events before it returns
 
     def test_send_and_receive_will_encrypt_decrypt(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
