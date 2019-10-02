@@ -805,8 +805,7 @@ pub fn send_msg(context: &Context, chat_id: u32, msg: &mut Message) -> Result<u3
                     break;
                 } else {
                     if let Ok(mut copy) = Message::load_from_db(context, id as u32) {
-                        // TODO: handle cleanup and return early instead
-                        send_msg(context, 0, &mut copy).unwrap();
+                        send_msg(context, 0, &mut copy)?;
                     }
                 }
             }
@@ -1421,7 +1420,7 @@ pub(crate) fn add_contact_to_chat_ex(
         msg.param.set_int(Param::Cmd, 4);
         msg.param.set(Param::Arg, contact.get_addr());
         msg.param.set_int(Param::Arg2, from_handshake.into());
-        msg.id = send_msg(context, chat_id, &mut msg).unwrap_or_default();
+        msg.id = send_msg(context, chat_id, &mut msg)?;
         context.call_cb(Event::MsgsChanged {
             chat_id,
             msg_id: msg.id,
@@ -1532,7 +1531,7 @@ pub fn remove_contact_from_chat(
                         }
                         msg.param.set_int(Param::Cmd, 5);
                         msg.param.set(Param::Arg, contact.get_addr());
-                        msg.id = send_msg(context, chat_id, &mut msg).unwrap_or_default();
+                        msg.id = send_msg(context, chat_id, &mut msg)?;
                         context.call_cb(Event::MsgsChanged {
                             chat_id,
                             msg_id: msg.id,
@@ -1629,7 +1628,7 @@ pub fn set_chat_name(
                     if !chat.name.is_empty() {
                         msg.param.set(Param::Arg, &chat.name);
                     }
-                    msg.id = send_msg(context, chat_id, &mut msg).unwrap_or_default();
+                    msg.id = send_msg(context, chat_id, &mut msg)?;
                     context.call_cb(Event::MsgsChanged {
                         chat_id,
                         msg_id: msg.id,
@@ -1698,7 +1697,7 @@ pub fn set_chat_profile_image(
                     "",
                     DC_CONTACT_ID_SELF,
                 ));
-                msg.id = send_msg(context, chat_id, &mut msg).unwrap_or_default();
+                msg.id = send_msg(context, chat_id, &mut msg)?;
                 emit_event!(
                     context,
                     Event::MsgsChanged {
