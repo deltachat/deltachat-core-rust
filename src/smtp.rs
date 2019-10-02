@@ -5,7 +5,7 @@ use crate::constants::*;
 use crate::context::Context;
 use crate::error::Error;
 use crate::events::Event;
-use crate::login_param::{CertificateChecks, LoginParam};
+use crate::login_param::{dc_build_tls, LoginParam};
 use crate::oauth2::*;
 
 #[derive(DebugStub)]
@@ -68,26 +68,7 @@ impl Smtp {
         let domain = &lp.send_server;
         let port = lp.send_port as u16;
 
-        let mut tls_builder = native_tls::TlsConnector::builder();
-        let tls = match lp.smtp_certificate_checks {
-            CertificateChecks::Automatic => {
-                // Same as AcceptInvalidCertificates for now.
-                // TODO: use provider database when it becomes available
-                tls_builder
-                    .danger_accept_invalid_hostnames(true)
-                    .danger_accept_invalid_certs(true)
-            }
-            CertificateChecks::Strict => &mut tls_builder,
-            CertificateChecks::AcceptInvalidHostnames => {
-                tls_builder.danger_accept_invalid_hostnames(true)
-            }
-            CertificateChecks::AcceptInvalidCertificates => tls_builder
-                .danger_accept_invalid_hostnames(true)
-                .danger_accept_invalid_certs(true),
-        }
-        .build()
-        .unwrap();
-
+        let tls = dc_build_tls(lp.smtp_certificate_checks).unwrap();
         let tls_parameters = ClientTlsParameters::new(domain.to_string(), tls);
 
         let creds = if 0 != lp.server_flags & (DC_LP_AUTH_OAUTH2 as i32) {

@@ -11,7 +11,7 @@ use crate::dc_receive_imf::dc_receive_imf;
 use crate::error::Error;
 use crate::events::Event;
 use crate::job::{connect_to_inbox, job_add, Action};
-use crate::login_param::{CertificateChecks, LoginParam};
+use crate::login_param::{dc_build_tls, CertificateChecks, LoginParam};
 use crate::message::{self, update_msg_move_state, update_server_uid};
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::param::Params;
@@ -111,25 +111,7 @@ impl Client {
         certificate_checks: CertificateChecks,
     ) -> imap::error::Result<Self> {
         let stream = net::TcpStream::connect(addr)?;
-        let mut tls_builder = native_tls::TlsConnector::builder();
-        let tls = match certificate_checks {
-            CertificateChecks::Automatic => {
-                // Same as AcceptInvalidCertificates for now.
-                // TODO: use provider database when it becomes available
-                tls_builder
-                    .danger_accept_invalid_hostnames(true)
-                    .danger_accept_invalid_certs(true)
-            }
-            CertificateChecks::Strict => &mut tls_builder,
-            CertificateChecks::AcceptInvalidHostnames => {
-                tls_builder.danger_accept_invalid_hostnames(true)
-            }
-            CertificateChecks::AcceptInvalidCertificates => tls_builder
-                .danger_accept_invalid_hostnames(true)
-                .danger_accept_invalid_certs(true),
-        }
-        .build()
-        .unwrap();
+        let tls = dc_build_tls(certificate_checks).unwrap();
 
         let s = stream.try_clone().expect("cloning the stream failed");
         let tls_stream = native_tls::TlsConnector::connect(&tls, domain.as_ref(), s)?;
