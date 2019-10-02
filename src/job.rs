@@ -167,32 +167,36 @@ impl Job {
                     // was sent we need to mark it in the database ASAP as we
                     // otherwise might send it twice.
                     let mut sock = context.smtp.lock().unwrap();
-                    if !sock.send(context, recipients_list, body) {
-                        sock.disconnect();
-                        self.try_again_later(-1i32, sock.error.clone());
-                    } else {
-                        // smtp success, update DB as quick as possible
-                        if 0 != self.foreign_id {
-                            message::update_msg_state(
-                                context,
-                                self.foreign_id,
-                                MessageState::OutDelivered,
-                            );
-                            let chat_id: i32 = context
-                                .sql
-                                .query_get_value(
-                                    context,
-                                    "SELECT chat_id FROM msgs WHERE id=?",
-                                    params![self.foreign_id as i32],
-                                )
-                                .unwrap_or_default();
-                            context.call_cb(Event::MsgDelivered {
-                                chat_id: chat_id as u32,
-                                msg_id: self.foreign_id,
-                            });
+                    match sock.send(context, recipients_list, body) {
+                        Err(err) => {
+                            sock.disconnect();
+                            warn!(context, "smtp failed: {}", err);
+                            self.try_again_later(-1i32, Some(err.to_string()));
                         }
-                        // now also delete the generated file
-                        dc_delete_file(context, filename);
+                        Ok(()) => {
+                            // smtp success, update db ASAP, then delete smtp file
+                            if 0 != self.foreign_id {
+                                message::update_msg_state(
+                                    context,
+                                    self.foreign_id,
+                                    MessageState::OutDelivered,
+                                );
+                                let chat_id: i32 = context
+                                    .sql
+                                    .query_get_value(
+                                        context,
+                                        "SELECT chat_id FROM msgs WHERE id=?",
+                                        params![self.foreign_id as i32],
+                                    )
+                                    .unwrap_or_default();
+                                context.call_cb(Event::MsgDelivered {
+                                    chat_id: chat_id as u32,
+                                    msg_id: self.foreign_id,
+                                });
+                            }
+                            // now also delete the generated file
+                            dc_delete_file(context, filename);
+                        }
                     }
                 } else {
                     warn!(context, "Missing recipients for job {}", self.job_id,);
@@ -214,7 +218,7 @@ impl Job {
         if !inbox.is_connected() {
             connect_to_inbox(context, &inbox);
             if !inbox.is_connected() {
-                self.try_again_later(3, None);
+                self.try_again_later(3, Some("could not connect".into()));
                 return;
             }
         }
@@ -612,10 +616,6 @@ pub fn job_action_exists(context: &Context, action: Action) -> bool {
 pub fn job_send_msg(context: &Context, msg_id: u32) -> Result<(), Error> {
     let mut mimefactory = MimeFactory::load_msg(context, msg_id)?;
 
-    ensure!(!mimefactory.recipients_addr.is_empty(), 
-            "msg {} has no recipients, can not smtp-sent", msg_id
-    );
-
     if chat::msgtype_has_file(mimefactory.msg.type_0) {
         let file_param = mimefactory
             .msg
@@ -672,6 +672,15 @@ pub fn job_send_msg(context: &Context, msg_id: u32) -> Result<(), Error> {
             .recipients_addr
             .push(mimefactory.from_addr.to_string());
     }
+
+    if mimefactory.recipients_addr.is_empty() {
+        warn!(
+            context,
+            "message {} has no recipient, skipping smtp-send", msg_id
+        );
+        return Ok(());
+    }
+
     if mimefactory.out_gossiped {
         chat::set_gossiped_timestamp(context, mimefactory.msg.chat_id, time());
     }

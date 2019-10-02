@@ -1245,8 +1245,11 @@ pub unsafe extern "C" fn dc_forward_msgs(
 
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| chat::forward_msgs(ctx, ids, chat_id))
-        .unwrap_or_log_default(ctx, "Failed to forard message")
+        .with_inner(|ctx| {
+            chat::forward_msgs(ctx, ids, chat_id)
+                .unwrap_or_log_default(ctx, "Failed to forward message")
+        })
+        .unwrap_or_default()
 }
 
 #[no_mangle]

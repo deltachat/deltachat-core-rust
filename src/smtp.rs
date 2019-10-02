@@ -3,6 +3,7 @@ use lettre::*;
 
 use crate::constants::*;
 use crate::context::Context;
+use crate::error::Error;
 use crate::events::Event;
 use crate::login_param::LoginParam;
 use crate::oauth2::*;
@@ -14,7 +15,6 @@ pub struct Smtp {
     transport_connected: bool,
     /// Email address we are sending from.
     from: Option<EmailAddress>,
-    pub error: Option<String>,
 }
 
 impl Smtp {
@@ -24,7 +24,6 @@ impl Smtp {
             transport: None,
             transport_connected: false,
             from: None,
-            error: None,
         }
     }
 
@@ -132,11 +131,19 @@ impl Smtp {
         context: &Context,
         recipients: Vec<EmailAddress>,
         message: Vec<u8>,
-    ) -> bool {
+    ) -> Result<(), Error> {
         let message_len = message.len();
 
+        let recipients_display = recipients
+            .iter()
+            .map(|x| format!("{}", x))
+            .collect::<Vec<String>>()
+            .join(",");
+
         if let Some(ref mut transport) = self.transport {
-            let envelope = Envelope::new(self.from.clone(), recipients).expect("invalid envelope");
+            let envelope = Envelope::new(self.from.clone(), recipients);
+            ensure!(envelope.is_ok(), "internal smtp-message construction fail");
+            let envelope = envelope.unwrap();
             let mail = SendableEmail::new(
                 envelope,
                 "mail-id".into(), // TODO: random id
@@ -145,24 +152,22 @@ impl Smtp {
 
             match transport.send(mail) {
                 Ok(_) => {
-                    context.call_cb(Event::SmtpMessageSent(
-                        "Message was sent to SMTP server".into(),
-                    ));
+                    context.call_cb(Event::SmtpMessageSent(format!(
+                        "Message len={} was smtp-sent to {}",
+                        message_len, recipients_display
+                    )));
                     self.transport_connected = true;
-                    true
+                    return Ok(());
                 }
                 Err(err) => {
-                    warn!(
-                        context,
-                        "SMTP failed message size {}, error: {}", message_len, err
-                    );
-                    self.error = Some(format!("{}", err));
-                    false
+                    bail!("SMTP failed len={}: error: {}", message_len, err);
                 }
             }
         } else {
-            warn!(context, "SMTP Failed to send message to {:?}", recipients);
-            false
+            bail!(
+                "uh? SMTP has no transport,  failed to send to {:?}",
+                recipients_display
+            );
         }
     }
 }
