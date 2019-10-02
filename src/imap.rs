@@ -131,13 +131,14 @@ impl Client {
         Ok(Client::Insecure(client, stream))
     }
 
-    pub fn secure<S: AsRef<str>>(self, domain: S) -> imap::error::Result<Client> {
+    pub fn secure<S: AsRef<str>>(
+        self,
+        domain: S,
+        certificate_checks: CertificateChecks,
+    ) -> imap::error::Result<Client> {
         match self {
             Client::Insecure(client, stream) => {
-                let tls = native_tls::TlsConnector::builder()
-                    .danger_accept_invalid_hostnames(true)
-                    .build()
-                    .unwrap();
+                let tls = dc_build_tls(certificate_checks).unwrap();
 
                 let client_sec = client.secure(domain, &tls)?;
 
@@ -395,7 +396,7 @@ impl Imap {
 
                 Client::connect_insecure((imap_server, imap_port)).and_then(|client| {
                     if (server_flags & DC_LP_IMAP_SOCKET_STARTTLS) != 0 {
-                        client.secure(imap_server)
+                        client.secure(imap_server, config.certificate_checks)
                     } else {
                         Ok(client)
                     }
