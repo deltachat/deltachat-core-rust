@@ -4,6 +4,7 @@ use deltachat_derive::{FromSql, ToSql};
 use rand::{thread_rng, Rng};
 
 use crate::chat;
+use crate::config::Config;
 use crate::configure::*;
 use crate::constants::*;
 use crate::context::Context;
@@ -666,11 +667,13 @@ pub fn job_send_msg(context: &Context, msg_id: u32) -> Result<(), Error> {
             mimefactory.msg.param.get_int(Param::GuranteeE2ee),
         );
     }
-    if !vec_contains_lowercase(&mimefactory.recipients_addr, &mimefactory.from_addr) {
-        mimefactory.recipients_names.push("".to_string());
-        mimefactory
-            .recipients_addr
-            .push(mimefactory.from_addr.to_string());
+    if context.get_config_bool(Config::BccSelf) {
+        if !vec_contains_lowercase(&mimefactory.recipients_addr, &mimefactory.from_addr) {
+            mimefactory.recipients_names.push("".to_string());
+            mimefactory
+                .recipients_addr
+                .push(mimefactory.from_addr.to_string());
+        }
     }
 
     if mimefactory.recipients_addr.is_empty() {
