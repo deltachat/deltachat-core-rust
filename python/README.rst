@@ -97,7 +97,7 @@ If you want to run "liveconfig" functional tests you can set
   chat devs.
 
 - or the path of a file that contains two lines, each describing
-  via "addr=... mail_pwd=..." a test account login that will
+  via "addr=... mail_pw=..." a test account login that will
   be used for the live tests.
 
 With ``DCC_PY_LIVECONFIG`` set pytest invocations will use real
