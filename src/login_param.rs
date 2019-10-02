@@ -4,8 +4,9 @@ use std::fmt;
 use crate::context::Context;
 use crate::error::Error;
 
-#[derive(Copy, Clone, Debug, FromPrimitive)]
+#[derive(Copy, Clone, Debug, Display, FromPrimitive)]
 #[repr(i32)]
+#[strum(serialize_all = "snake_case")]
 pub enum CertificateChecks {
     Automatic = 0,
     Strict = 1,
@@ -176,16 +177,18 @@ impl fmt::Display for LoginParam {
 
         write!(
             f,
-            "{} {}:{}:{}:{} {}:{}:{}:{} {}",
+            "{} imap:{}:{}:{}:{}:cert_{} smtp:{}:{}:{}:{}:cert_{} {}",
             unset_empty(&self.addr),
             unset_empty(&self.mail_user),
             if !self.mail_pw.is_empty() { pw } else { unset },
             unset_empty(&self.mail_server),
             self.mail_port,
+            self.imap_certificate_checks,
             unset_empty(&self.send_user),
             if !self.send_pw.is_empty() { pw } else { unset },
             unset_empty(&self.send_server),
             self.send_port,
+            self.smtp_certificate_checks,
             flags_readable,
         )
     }
@@ -246,4 +249,19 @@ fn get_readable_flags(flags: i32) -> String {
     }
 
     res
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_certificate_checks_display() {
+        use std::string::ToString;
+
+        assert_eq!(
+            "accept_invalid_hostnames".to_string(),
+            CertificateChecks::AcceptInvalidHostnames.to_string()
+        );
+    }
 }
