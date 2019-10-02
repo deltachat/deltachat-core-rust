@@ -4,6 +4,22 @@ use std::fmt;
 use crate::context::Context;
 use crate::error::Error;
 
+#[derive(Copy, Clone, Debug, Display, FromPrimitive)]
+#[repr(i32)]
+#[strum(serialize_all = "snake_case")]
+pub enum CertificateChecks {
+    Automatic = 0,
+    Strict = 1,
+    AcceptInvalidHostnames = 2,
+    AcceptInvalidCertificates = 3,
+}
+
+impl Default for CertificateChecks {
+    fn default() -> Self {
+        Self::Automatic
+    }
+}
+
 #[derive(Default, Debug)]
 pub struct LoginParam {
     pub addr: String,
@@ -11,10 +27,14 @@ pub struct LoginParam {
     pub mail_user: String,
     pub mail_pw: String,
     pub mail_port: i32,
+    /// IMAP TLS options: whether to allow invalid certificates and/or invalid hostnames
+    pub imap_certificate_checks: CertificateChecks,
     pub send_server: String,
     pub send_user: String,
     pub send_pw: String,
     pub send_port: i32,
+    /// SMTP TLS options: whether to allow invalid certificates and/or invalid hostnames
+    pub smtp_certificate_checks: CertificateChecks,
     pub server_flags: i32,
 }
 
@@ -48,6 +68,14 @@ impl LoginParam {
         let key = format!("{}mail_pw", prefix);
         let mail_pw = sql.get_config(context, key).unwrap_or_default();
 
+        let key = format!("{}imap_certificate_checks", prefix);
+        let imap_certificate_checks =
+            if let Some(certificate_checks) = sql.get_config_int(context, key) {
+                num_traits::FromPrimitive::from_i32(certificate_checks).unwrap_or_default()
+            } else {
+                Default::default()
+            };
+
         let key = format!("{}send_server", prefix);
         let send_server = sql.get_config(context, key).unwrap_or_default();
 
@@ -60,6 +88,14 @@ impl LoginParam {
         let key = format!("{}send_pw", prefix);
         let send_pw = sql.get_config(context, key).unwrap_or_default();
 
+        let key = format!("{}smtp_certificate_checks", prefix);
+        let smtp_certificate_checks =
+            if let Some(certificate_checks) = sql.get_config_int(context, key) {
+                num_traits::FromPrimitive::from_i32(certificate_checks).unwrap_or_default()
+            } else {
+                Default::default()
+            };
+
         let key = format!("{}server_flags", prefix);
         let server_flags = sql.get_config_int(context, key).unwrap_or_default();
 
@@ -69,10 +105,12 @@ impl LoginParam {
             mail_user,
             mail_pw,
             mail_port,
+            imap_certificate_checks,
             send_server,
             send_user,
             send_pw,
             send_port,
+            smtp_certificate_checks,
             server_flags,
         }
     }
@@ -105,6 +143,9 @@ impl LoginParam {
         let key = format!("{}mail_pw", prefix);
         sql.set_config(context, key, Some(&self.mail_pw))?;
 
+        let key = format!("{}imap_certificate_checks", prefix);
+        sql.set_config_int(context, key, self.imap_certificate_checks as i32)?;
+
         let key = format!("{}send_server", prefix);
         sql.set_config(context, key, Some(&self.send_server))?;
 
@@ -116,6 +157,9 @@ impl LoginParam {
 
         let key = format!("{}send_pw", prefix);
         sql.set_config(context, key, Some(&self.send_pw))?;
+
+        let key = format!("{}smtp_certificate_checks", prefix);
+        sql.set_config_int(context, key, self.smtp_certificate_checks as i32)?;
 
         let key = format!("{}server_flags", prefix);
         sql.set_config_int(context, key, self.server_flags)?;
@@ -133,16 +177,18 @@ impl fmt::Display for LoginParam {
 
         write!(
             f,
-            "{} {}:{}:{}:{} {}:{}:{}:{} {}",
+            "{} imap:{}:{}:{}:{}:cert_{} smtp:{}:{}:{}:{}:cert_{} {}",
             unset_empty(&self.addr),
             unset_empty(&self.mail_user),
             if !self.mail_pw.is_empty() { pw } else { unset },
             unset_empty(&self.mail_server),
             self.mail_port,
+            self.imap_certificate_checks,
             unset_empty(&self.send_user),
             if !self.send_pw.is_empty() { pw } else { unset },
             unset_empty(&self.send_server),
             self.send_port,
+            self.smtp_certificate_checks,
             flags_readable,
         )
     }
@@ -203,4 +249,42 @@ fn get_readable_flags(flags: i32) -> String {
     }
 
     res
+}
+
+pub fn dc_build_tls(
+    certificate_checks: CertificateChecks,
+) -> Result<native_tls::TlsConnector, native_tls::Error> {
+    let mut tls_builder = native_tls::TlsConnector::builder();
+    match certificate_checks {
+        CertificateChecks::Automatic => {
+            // Same as AcceptInvalidCertificates for now.
+            // TODO: use provider database when it becomes available
+            tls_builder
+                .danger_accept_invalid_hostnames(true)
+                .danger_accept_invalid_certs(true)
+        }
+        CertificateChecks::Strict => &mut tls_builder,
+        CertificateChecks::AcceptInvalidHostnames => {
+            tls_builder.danger_accept_invalid_hostnames(true)
+        }
+        CertificateChecks::AcceptInvalidCertificates => tls_builder
+            .danger_accept_invalid_hostnames(true)
+            .danger_accept_invalid_certs(true),
+    }
+    .build()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_certificate_checks_display() {
+        use std::string::ToString;
+
+        assert_eq!(
+            "accept_invalid_hostnames".to_string(),
+            CertificateChecks::AcceptInvalidHostnames.to_string()
+        );
+    }
 }

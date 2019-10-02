@@ -11,7 +11,7 @@ use crate::dc_receive_imf::dc_receive_imf;
 use crate::error::Error;
 use crate::events::Event;
 use crate::job::{connect_to_inbox, job_add, Action};
-use crate::login_param::LoginParam;
+use crate::login_param::{dc_build_tls, CertificateChecks, LoginParam};
 use crate::message::{self, update_msg_move_state, update_server_uid};
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::param::Params;
@@ -108,14 +108,10 @@ impl Client {
     pub fn connect_secure<A: net::ToSocketAddrs, S: AsRef<str>>(
         addr: A,
         domain: S,
+        certificate_checks: CertificateChecks,
     ) -> imap::error::Result<Self> {
         let stream = net::TcpStream::connect(addr)?;
-        let tls = native_tls::TlsConnector::builder()
-            // see also: https://github.com/deltachat/deltachat-core-rust/issues/203
-            .danger_accept_invalid_certs(true)
-            .danger_accept_invalid_hostnames(true)
-            .build()
-            .unwrap();
+        let tls = dc_build_tls(certificate_checks).unwrap();
 
         let s = stream.try_clone().expect("cloning the stream failed");
         let tls_stream = native_tls::TlsConnector::connect(&tls, domain.as_ref(), s)?;
@@ -135,13 +131,14 @@ impl Client {
         Ok(Client::Insecure(client, stream))
     }
 
-    pub fn secure<S: AsRef<str>>(self, domain: S) -> imap::error::Result<Client> {
+    pub fn secure<S: AsRef<str>>(
+        self,
+        domain: S,
+        certificate_checks: CertificateChecks,
+    ) -> imap::error::Result<Client> {
         match self {
             Client::Insecure(client, stream) => {
-                let tls = native_tls::TlsConnector::builder()
-                    .danger_accept_invalid_hostnames(true)
-                    .build()
-                    .unwrap();
+                let tls = dc_build_tls(certificate_checks).unwrap();
 
                 let client_sec = client.secure(domain, &tls)?;
 
@@ -321,6 +318,7 @@ struct ImapConfig {
     pub imap_port: u16,
     pub imap_user: String,
     pub imap_pw: String,
+    pub certificate_checks: CertificateChecks,
     pub server_flags: usize,
     pub selected_folder: Option<String>,
     pub selected_mailbox: Option<imap::types::Mailbox>,
@@ -339,6 +337,7 @@ impl Default for ImapConfig {
             imap_port: 0,
             imap_user: "".into(),
             imap_pw: "".into(),
+            certificate_checks: Default::default(),
             server_flags: 0,
             selected_folder: None,
             selected_mailbox: None,
@@ -397,7 +396,7 @@ impl Imap {
 
                 Client::connect_insecure((imap_server, imap_port)).and_then(|client| {
                     if (server_flags & DC_LP_IMAP_SOCKET_STARTTLS) != 0 {
-                        client.secure(imap_server)
+                        client.secure(imap_server, config.certificate_checks)
                     } else {
                         Ok(client)
                     }
@@ -407,7 +406,11 @@ impl Imap {
                 let imap_server: &str = config.imap_server.as_ref();
                 let imap_port = config.imap_port;
 
-                Client::connect_secure((imap_server, imap_port), imap_server)
+                Client::connect_secure(
+                    (imap_server, imap_port),
+                    imap_server,
+                    config.certificate_checks,
+                )
             };
 
         let login_res = match connection_res {
@@ -534,6 +537,7 @@ impl Imap {
             config.imap_port = imap_port;
             config.imap_user = imap_user.to_string();
             config.imap_pw = imap_pw.to_string();
+            config.certificate_checks = lp.imap_certificate_checks;
             config.server_flags = server_flags;
         }
 
