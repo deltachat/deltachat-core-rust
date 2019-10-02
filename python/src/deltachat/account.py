@@ -574,11 +574,11 @@ class EventLogger:
             else:
                 assert not rex.match(ev[0]), "event found {}".format(ev)
 
-    def get_matching(self, event_name_regex, check_error=True):
+    def get_matching(self, event_name_regex, check_error=True, timeout=None):
         self._log("-- waiting for event with regex: {} --".format(event_name_regex))
         rex = re.compile("(?:{}).*".format(event_name_regex))
         while 1:
-            ev = self.get()
+            ev = self.get(timeout=timeout, check_error=check_error)
             if rex.match(ev[0]):
                 return ev
 
