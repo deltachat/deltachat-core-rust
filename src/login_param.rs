@@ -7,10 +7,10 @@ use crate::error::Error;
 #[derive(Copy, Clone, Debug, FromPrimitive)]
 #[repr(i32)]
 pub enum CertificateChecks {
-    Automatic,
-    Strict,
-    AcceptInvalidHostnames,
-    AcceptInvalidCertificates,
+    Automatic = 0,
+    Strict = 1,
+    AcceptInvalidHostnames = 2,
+    AcceptInvalidCertificates = 3,
 }
 
 impl Default for CertificateChecks {
