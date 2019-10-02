@@ -157,6 +157,11 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig):
             self.live_count += 1
             if "e2ee_enabled" not in configdict:
                 configdict["e2ee_enabled"] = "1"
+
+            # Enable strict certificate checks for online accounts
+            configdict["imap_certificate_checks"] = "1"
+            configdict["smtp_certificate_checks"] = "1"
+
             tmpdb = tmpdir.join("livedb%d" % self.live_count)
             ac = self.make_account(tmpdb.strpath, logid="ac{}".format(self.live_count))
             ac._evlogger.init_time = self.init_time
