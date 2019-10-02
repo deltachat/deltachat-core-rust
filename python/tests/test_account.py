@@ -19,6 +19,7 @@ class TestOfflineAccountBasic:
         d = ac1.get_info()
         assert d["arch"]
         assert d["number_of_chats"] == "0"
+        assert d["bcc_self"] == "1"
 
     def test_is_not_configured(self, acfactory):
         ac1 = acfactory.get_unconfigured_account()
@@ -36,6 +37,11 @@ class TestOfflineAccountBasic:
     def test_has_savemime(self, acfactory):
         ac1 = acfactory.get_unconfigured_account()
         assert "save_mime_headers" in ac1.get_config("sys.config_keys").split()
+
+    def test_has_bccself(self, acfactory):
+        ac1 = acfactory.get_unconfigured_account()
+        assert "bcc_self" in ac1.get_config("sys.config_keys").split()
+        assert ac1.get_config("bcc_self") == "1"
 
     def test_selfcontact_if_unconfigured(self, acfactory):
         ac1 = acfactory.get_unconfigured_account()
@@ -351,18 +357,32 @@ class TestOnlineAccount:
         ac1._evlogger.consume_events()
         ac1.import_self_keys(dir.strpath)
 
-    def test_one_account_send(self, acfactory):
+    def test_one_account_send_bcc_setting(self, acfactory, lp):
         ac1 = acfactory.get_online_configuring_account()
-        c2 = ac1.create_contact(email=ac1.get_config("addr"))
+        c2 = ac1.create_contact(email="notexists@testrun.org")
         chat = ac1.create_chat_by_contact(c2)
         assert chat.id > const.DC_CHAT_ID_LAST_SPECIAL
         wait_successful_IMAP_SMTP_connection(ac1)
         wait_configuration_progress(ac1, 1000)
 
+        lp.sec("send out message with bcc to ourselves")
         msg_out = chat.send_text("message2")
-        # wait for own account to receive
-        ev = ac1._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
-        assert ev[1] == msg_out.id
+        ev = ac1._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
+        assert ev[2] == msg_out.id
+        # wait for send out (BCC)
+        assert ac1.get_config("bcc_self") == "1"
+        self_addr = ac1.get_config("addr")
+        ev = ac1._evlogger.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
+        assert self_addr in ev[2]
+
+        ac1._evlogger.consume_events()
+        lp.sec("send out message without bcc")
+        ac1.set_config("bcc_self", "0")
+        msg_out = chat.send_text("message3")
+        ev = ac1._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
+        assert ev[2] == msg_out.id
+        ev = ac1._evlogger.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
+        assert self_addr not in ev[2]
 
     def test_mvbox_sentbox_threads(self, acfactory):
         ac1 = acfactory.get_online_configuring_account(mvbox=True, sentbox=True)

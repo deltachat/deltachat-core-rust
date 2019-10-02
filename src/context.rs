@@ -8,6 +8,7 @@ use std::sync::{Arc, Condvar, Mutex, RwLock};
 use libc::uintptr_t;
 
 use crate::chat::*;
+use crate::config::Config;
 use crate::constants::*;
 use crate::contact::*;
 use crate::dc_tools::{dc_copy_file, dc_derive_safe_stem_ext};
@@ -234,14 +235,10 @@ impl Context {
             .sql
             .get_config_int(self, "dbversion")
             .unwrap_or_default();
-        let e2ee_enabled = self
-            .sql
-            .get_config_int(self, "e2ee_enabled")
-            .unwrap_or_else(|| 1);
-        let mdns_enabled = self
-            .sql
-            .get_config_int(self, "mdns_enabled")
-            .unwrap_or_else(|| 1);
+
+        let e2ee_enabled = self.get_config_int(Config::E2eeEnabled);
+        let mdns_enabled = self.get_config_int(Config::MdnsEnabled);
+        let bcc_self = self.get_config_int(Config::BccSelf);
 
         let prv_key_cnt: Option<isize> =
             self.sql
@@ -259,26 +256,15 @@ impl Context {
             "<Not yet calculated>".into()
         };
 
-        let inbox_watch = self
-            .sql
-            .get_config_int(self, "inbox_watch")
-            .unwrap_or_else(|| 1);
-        let sentbox_watch = self
-            .sql
-            .get_config_int(self, "sentbox_watch")
-            .unwrap_or_else(|| 1);
-        let mvbox_watch = self
-            .sql
-            .get_config_int(self, "mvbox_watch")
-            .unwrap_or_else(|| 1);
-        let mvbox_move = self
-            .sql
-            .get_config_int(self, "mvbox_move")
-            .unwrap_or_else(|| 1);
+        let inbox_watch = self.get_config_int(Config::InboxWatch);
+        let sentbox_watch = self.get_config_int(Config::SentboxWatch);
+        let mvbox_watch = self.get_config_int(Config::MvboxWatch);
+        let mvbox_move = self.get_config_int(Config::MvboxMove);
         let folders_configured = self
             .sql
             .get_config_int(self, "folders_configured")
             .unwrap_or_default();
+
         let configured_sentbox_folder = self
             .sql
             .get_config(self, "configured_sentbox_folder")
@@ -309,6 +295,7 @@ impl Context {
         res.insert("configured_mvbox_folder", configured_mvbox_folder);
         res.insert("mdns_enabled", mdns_enabled.to_string());
         res.insert("e2ee_enabled", e2ee_enabled.to_string());
+        res.insert("bcc_self", bcc_self.to_string());
         res.insert(
             "private_key_count",
             prv_key_cnt.unwrap_or_default().to_string(),

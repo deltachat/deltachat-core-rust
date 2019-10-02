@@ -143,16 +143,11 @@ impl<'a> MimeFactory<'a> {
     /*******************************************************************************
      * Render a basic email
      ******************************************************************************/
-    // restrict unsafe to parts, introduce wrapmime helpers where appropriate
+    // XXX restrict unsafe to parts, introduce wrapmime helpers where appropriate
     pub unsafe fn render(&mut self) -> Result<(), Error> {
         if self.loaded == Loaded::Nothing || !self.out.is_null() {
             bail!("Invalid use of mimefactory-object.");
         }
-        ensure!(
-            !self.recipients_names.is_empty() && !self.recipients_addr.is_empty(),
-            "message has no recipients"
-        );
-
         let context = &self.context;
         let from = wrapmime::new_mailbox_list(&self.from_displayname, &self.from_addr);
 

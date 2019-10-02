@@ -30,6 +30,8 @@ pub enum Config {
     Selfstatus,
     Selfavatar,
     #[strum(props(default = "1"))]
+    BccSelf,
+    #[strum(props(default = "1"))]
     E2eeEnabled,
     #[strum(props(default = "1"))]
     MdnsEnabled,
@@ -90,6 +92,14 @@ impl Context {
             Config::Selfstatus => Some(self.stock_str(StockMessage::StatusLine).into_owned()),
             _ => key.get_str("default").map(|s| s.to_string()),
         }
+    }
+
+    pub fn get_config_int(&self, key: Config) -> i32 {
+        self.get_config(key).and_then(|s| s.parse().ok()).unwrap()
+    }
+
+    pub fn get_config_bool(&self, key: Config) -> bool {
+        self.get_config_int(key) != 0
     }
 
     /// Set the given config key.
