@@ -318,10 +318,7 @@ impl Job {
                 }
                 _ => {
                     if 0 != msg.param.get_int(Param::WantsMdn).unwrap_or_default()
-                        && 0 != context
-                            .sql
-                            .get_config_int(context, "mdns_enabled")
-                            .unwrap_or_else(|| 1)
+                        && context.get_config_bool(Config::MdnsEnabled)
                     {
                         let folder = msg.server_folder.as_ref().unwrap();
 

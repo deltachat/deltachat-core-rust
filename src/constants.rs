@@ -25,7 +25,6 @@ impl Default for MoveState {
 
 // some defaults
 const DC_E2EE_DEFAULT_ENABLED: i32 = 1;
-pub const DC_MDNS_DEFAULT_ENABLED: i32 = 1;
 const DC_INBOX_WATCH_DEFAULT: i32 = 1;
 const DC_SENTBOX_WATCH_DEFAULT: i32 = 1;
 const DC_MVBOX_WATCH_DEFAULT: i32 = 1;
