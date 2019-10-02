@@ -13,6 +13,7 @@ use mmime::other::*;
 use sha2::{Digest, Sha256};
 
 use crate::chat::{self, Chat};
+use crate::config::Config;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
@@ -371,10 +372,7 @@ unsafe fn add_parts(
     // maybe this can be optimized later, by checking the state before the message body is downloaded
     let mut allow_creation = 1;
     if mime_parser.is_system_message != SystemMessage::AutocryptSetupMessage && msgrmsg == 0 {
-        let show_emails = context
-            .sql
-            .get_config_int(context, "show_emails")
-            .unwrap_or_default();
+        let show_emails = context.get_config_int(Config::ShowEmails);
         if show_emails == 0 {
             *chat_id = 3;
             allow_creation = 0
@@ -737,10 +735,7 @@ unsafe fn handle_reports(
     server_folder: impl AsRef<str>,
     server_uid: u32,
 ) {
-    let mdns_enabled = context
-        .sql
-        .get_config_int(context, "mdns_enabled")
-        .unwrap_or_else(|| DC_MDNS_DEFAULT_ENABLED);
+    let mdns_enabled = context.get_config_bool(Config::MdnsEnabled);
 
     for report_root in &mime_parser.reports {
         let report_root = *report_root;
@@ -759,7 +754,7 @@ unsafe fn handle_reports(
             && (*(*report_root).mm_data.mm_multipart.mm_mp_list).count >= 2
         {
             // to get a clear functionality, do not show incoming MDNs if the options is disabled
-            if 0 != mdns_enabled {
+            if mdns_enabled {
                 let report_data = (if !if !(*(*report_root).mm_data.mm_multipart.mm_mp_list)
                     .first
                     .is_null()

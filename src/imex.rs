@@ -195,13 +195,9 @@ pub fn render_setup_file(context: &Context, passphrase: &str) -> Result<String> 
     let self_addr = e2ee::ensure_secret_key_exists(context)?;
     let private_key = Key::from_self_private(context, self_addr, &context.sql)
         .ok_or(format_err!("Failed to get private key."))?;
-    let ac_headers = match context
-        .sql
-        .get_config_int(context, Config::E2eeEnabled)
-        .unwrap_or(1)
-    {
-        0 => None,
-        _ => Some(("Autocrypt-Prefer-Encrypt", "mutual")),
+    let ac_headers = match context.get_config_bool(Config::E2eeEnabled) {
+        false => None,
+        true => Some(("Autocrypt-Prefer-Encrypt", "mutual")),
     };
     let private_key_asc = private_key.to_asc(ac_headers);
     let encr = dc_pgp_symm_encrypt(&passphrase, private_key_asc.as_bytes())?;

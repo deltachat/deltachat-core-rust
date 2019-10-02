@@ -13,6 +13,7 @@ use mmime::mmapstring::*;
 use mmime::other::*;
 
 use crate::chat::{self, Chat};
+use crate::config::Config;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::{get_version_str, Context};
@@ -106,15 +107,10 @@ impl<'a> MimeFactory<'a> {
     }
 
     pub fn load_mdn(context: &'a Context, msg_id: u32) -> Result<MimeFactory, Error> {
-        if 0 == context
-            .sql
-            .get_config_int(context, "mdns_enabled")
-            .unwrap_or_else(|| 1)
-        {
-            // MDNs not enabled - check this is late, in the job. the use may have changed its
-            // choice while offline ...
-
-            bail!("MDNs disabled ")
+        if !context.get_config_bool(Config::MdnsEnabled) {
+            // MDNs not enabled - check this is late, in the job. the
+            // user may have changed its choice while offline ...
+            bail!("MDNs meanwhile disabled")
         }
 
         let msg = Message::load_from_db(context, msg_id)?;
@@ -727,10 +723,7 @@ impl<'a> MimeFactory<'a> {
             }
             if command != SystemMessage::AutocryptSetupMessage
                 && command != SystemMessage::SecurejoinMessage
-                && 0 != context
-                    .sql
-                    .get_config_int(context, "mdns_enabled")
-                    .unwrap_or_else(|| 1)
+                && context.get_config_bool(Config::MdnsEnabled)
             {
                 factory.req_mdn = true;
             }

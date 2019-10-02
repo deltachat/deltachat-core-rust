@@ -299,11 +299,7 @@ impl Chat {
             so that E2EE is no longer available at a later point (reset, changed settings),
             we do not send the message out at all */
             do_guarantee_e2ee = false;
-            e2ee_enabled = context
-                .sql
-                .get_config_int(context, "e2ee_enabled")
-                .unwrap_or_else(|| 1)
-                == 1;
+            e2ee_enabled = context.get_config_bool(Config::E2eeEnabled);
             if e2ee_enabled && msg.param.get_int(Param::ForcePlaintext).unwrap_or_default() == 0 {
                 let mut can_encrypt = 1;
                 let mut all_mutual = 1;

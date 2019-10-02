@@ -46,12 +46,8 @@ pub struct EncryptHelper {
 
 impl EncryptHelper {
     pub fn new(context: &Context) -> Result<EncryptHelper> {
-        let prefer_encrypt = context
-            .sql
-            .get_config_int(&context, "e2ee_enabled")
-            .and_then(EncryptPreference::from_i32)
-            .unwrap_or_default();
-
+        let prefer_encrypt =
+            EncryptPreference::from_i32(context.get_config_int(Config::E2eeEnabled)).unwrap();
         let addr = match context.get_config(Config::ConfiguredAddr) {
             None => {
                 bail!("addr not configured!");
