@@ -258,6 +258,10 @@ class Account(object):
         """ return Message instance. """
         return Message.from_db(self, msg_id)
 
+    def get_chat_by_id(self, chat_id):
+        """ return Chat instance. """
+        return Chat(self, chat_id)
+
     def mark_seen_messages(self, messages):
         """ mark the given set of messages as seen.
 

@@ -734,3 +734,45 @@ class TestOnlineConfigureFails:
         ev1 = ac1._evlogger.get_matching("DC_EVENT_ERROR_NETWORK")
         assert "could not connect" in ev1[2].lower()
         wait_configuration_progress(ac1, 0, 0)
+
+
+class TestThreeAccounts:
+    def test_verified_export_import(self, acfactory, lp, tmpdir):
+        ac1, ac2 = acfactory.get_two_online_accounts()
+        lp.sec("ac1: create verified-group QR, ac2 scans and joins")
+        chat1 = ac1.create_group_chat("hello", verified=True)
+        assert chat1.is_verified()
+        qr = chat1.get_join_qr()
+        lp.sec("ac2: start QR-code based join-group protocol")
+        chat2 = ac2.qr_join_chat(qr)
+        assert chat2.id >= 10
+        wait_securejoin_inviter_progress(ac1, 1000)
+
+        lp.sec("ac2: read member added message")
+        msg = ac2.wait_next_incoming_message()
+        assert msg.is_encrypted()
+        assert "added" in msg.text.lower()
+        assert msg.chat.is_verified()
+
+        lp.sec("export ac1")
+        backupdir = tmpdir.mkdir("backup")
+        path = ac1.export_all(backupdir.strpath)
+        assert os.path.exists(path)
+
+        lp.sec("ac3: import ac1-state")
+        ac3 = acfactory.get_unconfigured_account()
+        ac3.import_all(path)
+        ch3 = ac3.get_chat_by_id(chat1.id)
+        assert ch3.is_verified()
+        ac3.start_threads()
+
+        lp.sec("ac3: send message")
+        msg_out = ch3.send_text("hello")
+        assert msg_out.is_encrypted()
+
+        lp.sec("ac2: read message and check it's verified chat")
+        msg = ac2.wait_next_incoming_message()
+        assert msg.text == "hello"
+        assert msg.is_encrypted()
+        assert msg.chat.is_verified()
+
