@@ -38,7 +38,7 @@ pub unsafe fn configure(context: &Context) {
 
 /// Check if the context is already configured.
 pub fn dc_is_configured(context: &Context) -> bool {
-    context.sql.get_config_bool(context, "configured")
+    context.sql.get_raw_config_bool(context, "configured")
 }
 
 /*******************************************************************************
@@ -604,7 +604,7 @@ pub fn dc_connect_to_configured_imap(context: &Context, imap: &Imap) -> libc::c_
         ret_connected = 1
     } else if context
         .sql
-        .get_config_int(context, "configured")
+        .get_raw_config_int(context, "configured")
         .unwrap_or_default()
         == 0
     {

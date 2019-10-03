@@ -241,7 +241,7 @@ impl Sql {
     }
 
     /// Get configuration options from the database.
-    pub fn get_config(&self, context: &Context, key: impl AsRef<str>) -> Option<String> {
+    pub fn get_raw_config(&self, context: &Context, key: impl AsRef<str>) -> Option<String> {
         if !self.is_open() || key.as_ref().is_empty() {
             return None;
         }
@@ -261,14 +261,14 @@ impl Sql {
         self.set_config(context, key, Some(&format!("{}", value)))
     }
 
-    pub fn get_config_int(&self, context: &Context, key: impl AsRef<str>) -> Option<i32> {
-        self.get_config(context, key).and_then(|s| s.parse().ok())
+    pub fn get_raw_config_int(&self, context: &Context, key: impl AsRef<str>) -> Option<i32> {
+        self.get_raw_config(context, key).and_then(|s| s.parse().ok())
     }
 
-    pub fn get_config_bool(&self, context: &Context, key: impl AsRef<str>) -> bool {
+    pub fn get_raw_config_bool(&self, context: &Context, key: impl AsRef<str>) -> bool {
         // Not the most obvious way to encode bool as string, but it is matter
         // of backward compatibility.
-        self.get_config_int(context, key).unwrap_or_default() > 0
+        self.get_raw_config_int(context, key).unwrap_or_default() > 0
     }
 
     pub fn set_config_bool<T>(&self, context: &Context, key: T, value: bool) -> Result<()>
@@ -288,8 +288,8 @@ impl Sql {
         self.set_config(context, key, Some(&format!("{}", value)))
     }
 
-    pub fn get_config_int64(&self, context: &Context, key: impl AsRef<str>) -> Option<i64> {
-        self.get_config(context, key).and_then(|r| r.parse().ok())
+    pub fn get_raw_config_int64(&self, context: &Context, key: impl AsRef<str>) -> Option<i64> {
+        self.get_raw_config(context, key).and_then(|r| r.parse().ok())
     }
 
     fn start_stmt(&self, stmt: impl AsRef<str>) {
@@ -481,7 +481,7 @@ fn open(
             }
         } else {
             exists_before_update = 1;
-            dbversion_before_update = sql.get_config_int(context, "dbversion").unwrap_or_default();
+            dbversion_before_update = sql.get_raw_config_int(context, "dbversion").unwrap_or_default();
         }
 
         // (1) update low-level database structure.
@@ -818,7 +818,7 @@ fn open(
             // this snippet converts older databases and can be removed after some time.
             info!(context, "[migration] update file paths");
             let repl_from = sql
-                .get_config(context, "backup_for")
+                .get_raw_config(context, "backup_for")
                 .unwrap_or_else(|| context.get_blobdir().to_string_lossy().into());
 
             let repl_from = dc_ensure_no_slash_safe(&repl_from);

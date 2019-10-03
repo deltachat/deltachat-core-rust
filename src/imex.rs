@@ -90,7 +90,7 @@ pub fn has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result<Strin
                     let sql = Sql::new();
                     if sql.open(context, &path, 0x1) {
                         let curr_backup_time =
-                            sql.get_config_int(context, "backup_time")
+                            sql.get_raw_config_int(context, "backup_time")
                                 .unwrap_or_default() as u64;
                         if curr_backup_time > newest_backup_time {
                             newest_backup_path = Some(path);

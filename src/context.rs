@@ -230,7 +230,7 @@ impl Context {
         let is_configured = self.get_config_int(Config::Configured);
         let dbversion = self
             .sql
-            .get_config_int(self, "dbversion")
+            .get_raw_config_int(self, "dbversion")
             .unwrap_or_default();
 
         let e2ee_enabled = self.get_config_int(Config::E2eeEnabled);
@@ -259,16 +259,16 @@ impl Context {
         let mvbox_move = self.get_config_int(Config::MvboxMove);
         let folders_configured = self
             .sql
-            .get_config_int(self, "folders_configured")
+            .get_raw_config_int(self, "folders_configured")
             .unwrap_or_default();
 
         let configured_sentbox_folder = self
             .sql
-            .get_config(self, "configured_sentbox_folder")
+            .get_raw_config(self, "configured_sentbox_folder")
             .unwrap_or_else(|| "<unset>".to_string());
         let configured_mvbox_folder = self
             .sql
-            .get_config(self, "configured_mvbox_folder")
+            .get_raw_config(self, "configured_mvbox_folder")
             .unwrap_or_else(|| "<unset>".to_string());
 
         let mut res = get_info();
@@ -372,7 +372,7 @@ impl Context {
     }
 
     pub fn is_sentbox(&self, folder_name: impl AsRef<str>) -> bool {
-        let sentbox_name = self.sql.get_config(self, "configured_sentbox_folder");
+        let sentbox_name = self.sql.get_raw_config(self, "configured_sentbox_folder");
         if let Some(name) = sentbox_name {
             name == folder_name.as_ref()
         } else {
@@ -381,7 +381,7 @@ impl Context {
     }
 
     pub fn is_mvbox(&self, folder_name: impl AsRef<str>) -> bool {
-        let mvbox_name = self.sql.get_config(self, "configured_mvbox_folder");
+        let mvbox_name = self.sql.get_raw_config(self, "configured_mvbox_folder");
 
         if let Some(name) = mvbox_name {
             name == folder_name.as_ref()

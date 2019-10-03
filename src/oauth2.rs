@@ -82,17 +82,17 @@ pub fn dc_get_oauth2_access_token(
 
         // read generated token
         if !regenerate && !is_expired(context) {
-            let access_token = context.sql.get_config(context, "oauth2_access_token");
+            let access_token = context.sql.get_raw_config(context, "oauth2_access_token");
             if access_token.is_some() {
                 // success
                 return access_token;
             }
         }
 
-        let refresh_token = context.sql.get_config(context, "oauth2_refresh_token");
+        let refresh_token = context.sql.get_raw_config(context, "oauth2_refresh_token");
         let refresh_token_for = context
             .sql
-            .get_config(context, "oauth2_refresh_token_for")
+            .get_raw_config(context, "oauth2_refresh_token_for")
             .unwrap_or_else(|| "unset".into());
 
         let (redirect_uri, token_url, update_redirect_uri_on_success) =
@@ -101,7 +101,7 @@ pub fn dc_get_oauth2_access_token(
                 (
                     context
                         .sql
-                        .get_config(context, "oauth2_pending_redirect_uri")
+                        .get_raw_config(context, "oauth2_pending_redirect_uri")
                         .unwrap_or_else(|| "unset".into()),
                     oauth2.init_token,
                     true,
@@ -114,7 +114,7 @@ pub fn dc_get_oauth2_access_token(
                 (
                     context
                         .sql
-                        .get_config(context, "oauth2_redirect_uri")
+                        .get_raw_config(context, "oauth2_redirect_uri")
                         .unwrap_or_else(|| "unset".into()),
                     oauth2.refresh_token,
                     false,
@@ -293,7 +293,7 @@ impl Oauth2 {
 fn is_expired(context: &Context) -> bool {
     let expire_timestamp = context
         .sql
-        .get_config_int64(context, "oauth2_timestamp_expires")
+        .get_raw_config_int64(context, "oauth2_timestamp_expires")
         .unwrap_or_default();
 
     if expire_timestamp <= 0 {

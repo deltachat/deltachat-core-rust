@@ -219,13 +219,13 @@ impl Job {
         if let Ok(msg) = Message::load_from_db(context, self.foreign_id) {
             if context
                 .sql
-                .get_config_int(context, "folders_configured")
+                .get_raw_config_int(context, "folders_configured")
                 .unwrap_or_default()
                 < 3
             {
                 inbox.configure_folders(context, 0x1i32);
             }
-            let dest_folder = context.sql.get_config(context, "configured_mvbox_folder");
+            let dest_folder = context.sql.get_raw_config(context, "configured_mvbox_folder");
 
             if let Some(dest_folder) = dest_folder {
                 let server_folder = msg.server_folder.as_ref().unwrap();
@@ -327,13 +327,13 @@ impl Job {
         if 0 != self.param.get_int(Param::AlsoMove).unwrap_or_default() {
             if context
                 .sql
-                .get_config_int(context, "folders_configured")
+                .get_raw_config_int(context, "folders_configured")
                 .unwrap_or_default()
                 < 3
             {
                 inbox.configure_folders(context, 0x1i32);
             }
-            let dest_folder = context.sql.get_config(context, "configured_mvbox_folder");
+            let dest_folder = context.sql.get_raw_config(context, "configured_mvbox_folder");
             if let Some(dest_folder) = dest_folder {
                 let mut dest_uid = 0;
                 if ImapResult::RetryLater
