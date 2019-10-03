@@ -43,7 +43,7 @@ pub unsafe fn dc_split_armored_data(
     if !buf.is_null() {
         dc_remove_cr_chars(buf);
         while 0 != *p1 {
-            if *p1 as libc::c_int == '\n' as i32 {
+            if i32::from(*p1) == '\n' as i32 {
                 *line.offset(line_chars as isize) = 0i32 as libc::c_char;
                 if headerline.is_null() {
                     dc_trim(line);
@@ -69,7 +69,7 @@ pub unsafe fn dc_split_armored_data(
                 } else {
                     p2 = strchr(line, ':' as i32);
                     if p2.is_null() {
-                        *line.offset(line_chars as isize) = '\n' as i32 as libc::c_char;
+                        *line.add(line_chars) = '\n' as i32 as libc::c_char;
                         base64 = line;
                         break;
                     } else {
@@ -189,7 +189,7 @@ pub fn dc_pgp_pk_encrypt(
     let lit_msg = Message::new_literal_bytes("", plain);
     let pkeys: Vec<&SignedPublicKey> = public_keys_for_encryption
         .keys()
-        .into_iter()
+        .iter()
         .filter_map(|key| {
             let k: &Key = &key;
             k.try_into().ok()

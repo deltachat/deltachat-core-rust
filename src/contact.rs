@@ -390,20 +390,18 @@ impl Contact {
                 }
                 sth_modified = Modifier::Modified;
             }
+        } else if sql::execute(
+            context,
+            &context.sql,
+            "INSERT INTO contacts (name, addr, origin) VALUES(?, ?, ?);",
+            params![name.as_ref(), addr, origin,],
+        )
+        .is_ok()
+        {
+            row_id = sql::get_rowid(context, &context.sql, "contacts", "addr", addr);
+            sth_modified = Modifier::Created;
         } else {
-            if sql::execute(
-                context,
-                &context.sql,
-                "INSERT INTO contacts (name, addr, origin) VALUES(?, ?, ?);",
-                params![name.as_ref(), addr, origin,],
-            )
-            .is_ok()
-            {
-                row_id = sql::get_rowid(context, &context.sql, "contacts", "addr", addr);
-                sth_modified = Modifier::Created;
-            } else {
-                error!(context, "Cannot add contact.");
-            }
+            error!(context, "Cannot add contact.");
         }
 
         Ok((row_id, sth_modified))
@@ -827,7 +825,7 @@ impl Contact {
         if let Ok(contact) = Contact::load_from_db(context, contact_id) {
             if !contact.addr.is_empty() {
                 let normalized_addr = addr_normalize(addr.as_ref());
-                if &contact.addr == &normalized_addr {
+                if contact.addr == normalized_addr {
                     return true;
                 }
             }
@@ -963,9 +961,9 @@ pub fn normalize_name(full_name: impl AsRef<str>) -> String {
     if len > 0 {
         let firstchar = full_name.as_bytes()[0];
         let lastchar = full_name.as_bytes()[len - 1];
-        if firstchar == '\'' as u8 && lastchar == '\'' as u8
-            || firstchar == '\"' as u8 && lastchar == '\"' as u8
-            || firstchar == '<' as u8 && lastchar == '>' as u8
+        if firstchar == b'\'' && lastchar == b'\''
+            || firstchar == b'\"' && lastchar == b'\"'
+            || firstchar == b'<' && lastchar == b'>'
         {
             full_name = &full_name[1..len - 1];
         }

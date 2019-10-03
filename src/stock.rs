@@ -351,9 +351,7 @@ mod tests {
         let contact_id = {
             Contact::create(&t.ctx, "Alice", "alice@example.com")
                 .expect("Failed to create contact Alice");
-            let id =
-                Contact::create(&t.ctx, "Bob", "bob@example.com").expect("failed to create bob");
-            id
+            Contact::create(&t.ctx, "Bob", "bob@example.com").expect("failed to create bob")
         };
         assert_eq!(
             t.ctx.stock_system_msg(

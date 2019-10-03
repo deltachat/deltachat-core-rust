@@ -10,18 +10,16 @@ pub struct Simplify {
 ///
 /// Also return whether not-standard (rfc3676, §4.3) footer is found.
 fn find_message_footer(lines: &[&str]) -> (usize, bool) {
-    for ix in 0..lines.len() {
-        let line = lines[ix];
-
+    for (ix, &line) in lines.iter().enumerate() {
         // quoted-printable may encode `-- ` to `-- =20` which is converted
         // back to `--  `
-        match line.as_ref() {
+        match line {
             "-- " | "--  " => return (ix, false),
             "--" | "---" | "----" => return (ix, true),
             _ => (),
         }
     }
-    return (lines.len(), false);
+    (lines.len(), false)
 }
 
 impl Simplify {
@@ -103,10 +101,8 @@ impl Simplify {
             if let Some(last_quoted_line) = l_lastQuotedLine {
                 l_last = last_quoted_line;
                 is_cut_at_end = true;
-                if l_last > 1 {
-                    if is_empty_line(lines[l_last - 1]) {
-                        l_last -= 1
-                    }
+                if l_last > 1 && is_empty_line(lines[l_last - 1]) {
+                    l_last -= 1
                 }
                 if l_last > 1 {
                     let line = lines[l_last - 1];
@@ -205,7 +201,7 @@ fn is_quoted_headline(buf: &str) -> bool {
 }
 
 fn is_plain_quote(buf: &str) -> bool {
-    buf.starts_with(">")
+    buf.starts_with('>')
 }
 
 #[cfg(test)]

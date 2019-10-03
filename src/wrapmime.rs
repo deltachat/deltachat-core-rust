@@ -329,7 +329,7 @@ pub fn decode_dt_data(
         let decoded_data = unsafe { (*mime_data).dt_data.dt_text.dt_data };
         let decoded_data_bytes = unsafe { (*mime_data).dt_data.dt_text.dt_length };
 
-        if decoded_data.is_null() || decoded_data_bytes <= 0 {
+        if decoded_data.is_null() || decoded_data_bytes == 0 {
             bail!("No data to decode found");
         } else {
             let result = unsafe {

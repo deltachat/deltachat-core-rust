@@ -352,7 +352,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
                                 ok_to_continue8 = true;
                                 break;
                             }
-                            if !param_autoconfig.is_none() {
+                            if param_autoconfig.is_some() {
                                 ok_to_continue8 = false;
                                 break;
                             }
@@ -423,7 +423,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
                             .unwrap()
                             .connect(context, &param)
                         {
-                            if !param_autoconfig.is_none() {
+                            if param_autoconfig.is_some() {
                                 success = false;
                             } else if s.shall_stop_ongoing {
                                 success = false;

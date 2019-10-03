@@ -382,15 +382,8 @@ impl<'a> MimeFactory<'a> {
                                     &fingerprint,
                                 );
                             }
-                            match msg.param.get(Param::Arg4) {
-                                Some(id) => {
-                                    wrapmime::new_custom_field(
-                                        imf_fields,
-                                        "Secure-Join-Group",
-                                        &id,
-                                    );
-                                }
-                                None => {}
+                            if let Some(id) = msg.param.get(Param::Arg4) {
+                                wrapmime::new_custom_field(imf_fields, "Secure-Join-Group", &id);
                             };
                         }
                     }
@@ -640,17 +633,18 @@ impl<'a> MimeFactory<'a> {
             let aheader = encrypt_helper.get_aheader().to_string();
             wrapmime::new_custom_field(imffields_unprotected, "Autocrypt", &aheader);
         }
-        let mut finalized = false;
-        if force_plaintext == 0 {
-            finalized = encrypt_helper.try_encrypt(
+        let finalized = if force_plaintext == 0 {
+            encrypt_helper.try_encrypt(
                 self,
                 e2ee_guaranteed,
                 min_verified,
                 do_gossip,
                 message,
                 imffields_unprotected,
-            )?;
-        }
+            )?
+        } else {
+            false
+        };
         if !finalized {
             self.finalize_mime_message(message, false, false)?;
         }
@@ -911,7 +905,7 @@ fn build_body_file(
     }
 }
 
-pub(crate) fn vec_contains_lowercase(vec: &Vec<String>, part: &str) -> bool {
+pub(crate) fn vec_contains_lowercase(vec: &[String], part: &str) -> bool {
     let partlc = part.to_lowercase();
     for cur in vec.iter() {
         if cur.to_lowercase() == partlc {

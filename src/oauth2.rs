@@ -207,14 +207,8 @@ pub fn dc_get_oauth2_addr(
     addr: impl AsRef<str>,
     code: impl AsRef<str>,
 ) -> Option<String> {
-    let oauth2 = Oauth2::from_address(addr.as_ref());
-    if oauth2.is_none() {
-        return None;
-    }
-    let oauth2 = oauth2.unwrap();
-    if oauth2.get_userinfo.is_none() {
-        return None;
-    }
+    let oauth2 = Oauth2::from_address(addr.as_ref())?;
+    oauth2.get_userinfo?;
 
     if let Some(access_token) =
         dc_get_oauth2_access_token(context, addr.as_ref(), code.as_ref(), false)

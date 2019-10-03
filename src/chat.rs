@@ -152,12 +152,10 @@ impl Chat {
                 return context.stock_str(StockMessage::DeadDrop).into();
             }
             let cnt = get_chat_contact_cnt(context, self.id);
-            return context
-                .stock_string_repl_int(StockMessage::Member, cnt as i32)
-                .into();
+            return context.stock_string_repl_int(StockMessage::Member, cnt as i32);
         }
 
-        return "Err".into();
+        "Err".to_string()
     }
 
     pub fn get_parent_mime_headers(&self, context: &Context) -> Option<(String, String, String)> {
@@ -799,10 +797,8 @@ pub fn send_msg(context: &Context, chat_id: u32, msg: &mut Message) -> Result<u3
                 if 0 == id {
                     // avoid hanging if user tampers with db
                     break;
-                } else {
-                    if let Ok(mut copy) = Message::load_from_db(context, id as u32) {
-                        send_msg(context, 0, &mut copy)?;
-                    }
+                } else if let Ok(mut copy) = Message::load_from_db(context, id as u32) {
+                    send_msg(context, 0, &mut copy)?;
                 }
             }
             msg.param.remove(Param::PrepForwards);
@@ -1392,14 +1388,14 @@ pub(crate) fn add_contact_to_chat_ex(
         }
     } else {
         // else continue and send status mail
-        if chat.typ == Chattype::VerifiedGroup {
-            if contact.is_verified(context) != VerifiedStatus::BidirectVerified {
-                error!(
-                    context,
-                    "Only bidirectional verified contacts can be added to verified groups."
-                );
-                return Ok(false);
-            }
+        if chat.typ == Chattype::VerifiedGroup
+            && contact.is_verified(context) != VerifiedStatus::BidirectVerified
+        {
+            error!(
+                context,
+                "Only bidirectional verified contacts can be added to verified groups."
+            );
+            return Ok(false);
         }
         if !add_to_chat_contacts_table(context, chat_id, contact_id) {
             return Ok(false);
@@ -1423,7 +1419,7 @@ pub(crate) fn add_contact_to_chat_ex(
         });
     }
     context.call_cb(Event::MsgsChanged { chat_id, msg_id: 0 });
-    return Ok(true);
+    Ok(true)
 }
 
 fn real_group_exists(context: &Context, chat_id: u32) -> bool {
@@ -1591,7 +1587,7 @@ pub fn set_chat_name(
     let mut msg = Message::default();
 
     if real_group_exists(context, chat_id) {
-        if &chat.name == new_name.as_ref() {
+        if chat.name == new_name.as_ref() {
             success = true;
         } else if !is_contact_in_chat(context, chat_id, 1) {
             emit_event!(
@@ -1723,7 +1719,7 @@ pub fn forward_msgs(context: &Context, msg_ids: &[u32], chat_id: u32) -> Result<
     if let Ok(mut chat) = Chat::load_from_db(context, chat_id) {
         curr_timestamp = dc_create_smeared_timestamps(context, msg_ids.len());
         let idsstr = msg_ids
-            .into_iter()
+            .iter()
             .enumerate()
             .fold(String::with_capacity(2 * msg_ids.len()), |acc, (i, n)| {
                 (if i == 0 { acc } else { acc + "," }) + &n.to_string()
@@ -1760,7 +1756,7 @@ pub fn forward_msgs(context: &Context, msg_ids: &[u32], chat_id: u32) -> Result<
             let new_msg_id: u32;
             if msg.state == MessageState::OutPreparing {
                 let fresh9 = curr_timestamp;
-                curr_timestamp = curr_timestamp + 1;
+                curr_timestamp += 1;
                 new_msg_id = chat
                     .prepare_msg_raw(context, &mut msg, fresh9)
                     .unwrap_or_default();
@@ -1780,7 +1776,7 @@ pub fn forward_msgs(context: &Context, msg_ids: &[u32], chat_id: u32) -> Result<
             } else {
                 msg.state = MessageState::OutPending;
                 let fresh10 = curr_timestamp;
-                curr_timestamp = curr_timestamp + 1;
+                curr_timestamp += 1;
                 new_msg_id = chat
                     .prepare_msg_raw(context, &mut msg, fresh10)
                     .unwrap_or_default();

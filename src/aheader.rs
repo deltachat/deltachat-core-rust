@@ -88,18 +88,15 @@ impl Aheader {
                             .unwrap()
                     };
 
-                    match Self::from_str(value) {
-                        Ok(test) => {
-                            if addr_cmp(&test.addr, wanted_from) {
-                                if fine_header.is_none() {
-                                    fine_header = Some(test);
-                                } else {
-                                    // TODO: figure out what kind of error case this is
-                                    return None;
-                                }
+                    if let Ok(test) = Self::from_str(value) {
+                        if addr_cmp(&test.addr, wanted_from) {
+                            if fine_header.is_none() {
+                                fine_header = Some(test);
+                            } else {
+                                // TODO: figure out what kind of error case this is
+                                return None;
                             }
                         }
-                        _ => {}
                     }
                 }
             }
@@ -131,9 +128,9 @@ impl str::FromStr for Aheader {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut attributes: BTreeMap<String, String> = s
-            .split(";")
+            .split(';')
             .filter_map(|a| {
-                let attribute: Vec<&str> = a.trim().splitn(2, "=").collect();
+                let attribute: Vec<&str> = a.trim().splitn(2, '=').collect();
                 if attribute.len() < 2 {
                     return None;
                 }
@@ -178,7 +175,7 @@ impl str::FromStr for Aheader {
 
         // Autocrypt-Level0: unknown attributes starting with an underscore can be safely ignored
         // Autocrypt-Level0: unknown attribute, treat the header as invalid
-        if attributes.keys().find(|k| !k.starts_with("_")).is_some() {
+        if attributes.keys().any(|k| !k.starts_with('_')) {
             return Err(());
         }
 

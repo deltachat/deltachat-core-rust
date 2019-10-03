@@ -258,13 +258,11 @@ impl Chatlist {
         let chat_loaded: Chat;
         let chat = if let Some(chat) = chat {
             chat
+        } else if let Ok(chat) = Chat::load_from_db(context, self.ids[index].0) {
+            chat_loaded = chat;
+            &chat_loaded
         } else {
-            if let Ok(chat) = Chat::load_from_db(context, self.ids[index].0) {
-                chat_loaded = chat;
-                &chat_loaded
-            } else {
-                return ret;
-            }
+            return ret;
         };
 
         let lastmsg_id = self.ids[index].1;

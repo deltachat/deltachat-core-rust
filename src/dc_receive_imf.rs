@@ -148,7 +148,7 @@ pub unsafe fn dc_receive_imf(
                 if mime_parser.sender_equals_recipient() {
                     from_id = DC_CONTACT_ID_SELF;
                 }
-            } else if from_list.len() >= 1 {
+            } else if !from_list.is_empty() {
                 // if there is no from given, from_id stays 0 which is just fine. These messages
                 // are very rare, however, we have to add them to the database (they go to the
                 // "deaddrop" chat) to avoid a re-download from the server. See also [**]
@@ -495,10 +495,12 @@ unsafe fn add_parts(
         // if the chat_id is blocked,
         // for unknown senders and non-delta messages set the state to NOTICED
         // to not result in a contact request (this would require the state FRESH)
-        if Blocked::Not != chat_id_blocked && state == MessageState::InFresh {
-            if !incoming_origin.is_verified() && msgrmsg == 0 {
-                state = MessageState::InNoticed;
-            }
+        if Blocked::Not != chat_id_blocked
+            && state == MessageState::InFresh
+            && !incoming_origin.is_verified()
+            && msgrmsg == 0
+        {
+            state = MessageState::InNoticed;
         }
     } else {
         // Outgoing
@@ -627,7 +629,7 @@ unsafe fn add_parts(
                     }
 
                     if let Some(ref msg) = part.msg {
-                        if !mime_parser.location_kml.is_none()
+                        if mime_parser.location_kml.is_some()
                             && icnt == 1
                             && (msg == "-location-" || msg.is_empty())
                         {
@@ -1479,7 +1481,7 @@ fn create_group_record(
     sql::get_rowid(context, &context.sql, "chats", "grpid", grpid.as_ref())
 }
 
-fn create_adhoc_grp_id(context: &Context, member_ids: &Vec<u32>) -> String {
+fn create_adhoc_grp_id(context: &Context, member_ids: &[u32]) -> String {
     /* algorithm:
     - sort normalized, lowercased, e-mail addresses alphabetically
     - put all e-mail addresses into a single string, separate the address by a single comma
@@ -1591,7 +1593,7 @@ fn check_verified_properties(
     context: &Context,
     mimeparser: &MimeParser,
     from_id: u32,
-    to_ids: &Vec<u32>,
+    to_ids: &[u32],
 ) -> Result<()> {
     let contact = Contact::load_from_db(context, from_id)?;
 
@@ -1711,13 +1713,13 @@ unsafe fn dc_is_reply_to_known_message(context: &Context, mime_parser: &MimePars
     if let Some(field) = mime_parser.lookup_field("References") {
         if (*field).fld_type == MAILIMF_FIELD_REFERENCES as libc::c_int {
             let fld_references = (*field).fld_data.fld_references;
-            if !fld_references.is_null() {
-                if is_known_rfc724_mid_in_list(
+            if !fld_references.is_null()
+                && is_known_rfc724_mid_in_list(
                     context,
                     (*(*field).fld_data.fld_references).mid_list,
-                ) {
-                    return 1;
-                }
+                )
+            {
+                return 1;
             }
         }
     }
@@ -1731,12 +1733,12 @@ unsafe fn is_known_rfc724_mid_in_list(context: &Context, mid_list: *const clist)
     }
 
     for data in &*mid_list {
-        if 0 != is_known_rfc724_mid(context, data.cast()) {
+        if is_known_rfc724_mid(context, data.cast()) != 0 {
             return true;
         }
     }
 
-    return false;
+    false
 }
 
 /// Check if a message is a reply to a known message (messenger or non-messenger).
@@ -1961,10 +1963,8 @@ unsafe fn add_or_lookup_contact_by_addr(
     let row_id = Contact::add_or_lookup(context, display_name_dec, as_str(addr_spec), origin)
         .map(|(id, _)| id)
         .unwrap_or_default();
-    if 0 != row_id {
-        if !ids.contains(&row_id) {
-            ids.push(row_id);
-        }
+    if 0 != row_id && !ids.contains(&row_id) {
+        ids.push(row_id);
     };
 }
 

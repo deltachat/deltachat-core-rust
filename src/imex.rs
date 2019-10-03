@@ -474,7 +474,7 @@ fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) -> Resul
         !dc_is_configured(context),
         "Cannot import backups to accounts in use."
     );
-    &context.sql.close(&context);
+    context.sql.close(&context);
     dc_delete_file(context, context.get_dbfile());
     ensure!(
         !dc_file_exist(context, context.get_dbfile()),
@@ -511,9 +511,7 @@ fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) -> Resul
             Ok((name, blob))
         },
         |files| {
-            let mut processed_files_cnt = 0;
-
-            for file in files {
+            for (processed_files_cnt, file) in files.enumerate() {
                 let (file_name, file_blob) = file?;
                 if context
                     .running_state
@@ -524,7 +522,6 @@ fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) -> Resul
                 {
                     bail!("received stop signal");
                 }
-                processed_files_cnt += 1;
                 let mut permille = processed_files_cnt * 1000 / total_files_cnt;
                 if permille < 10 {
                     permille = 10
@@ -804,7 +801,7 @@ fn import_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
             "No private keys found in \"{}\".",
             dir_name
         );
-        return Ok(());
+        Ok(())
     } else {
         bail!("Import: Cannot open directory \"{}\".", dir_name);
     }
