@@ -128,6 +128,7 @@ impl ContextWrapper {
                     | Event::ImapMessageDeleted(msg)
                     | Event::ImapMessageMoved(msg)
                     | Event::NewBlobFile(msg)
+                    | Event::DeletedBlobFile(msg)
                     | Event::Warning(msg)
                     | Event::Error(msg)
                     | Event::ErrorNetwork(msg)
