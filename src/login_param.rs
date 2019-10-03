@@ -129,40 +129,40 @@ impl LoginParam {
         let sql = &context.sql;
 
         let key = format!("{}addr", prefix);
-        sql.set_config(context, key, Some(&self.addr))?;
+        sql.set_raw_config(context, key, Some(&self.addr))?;
 
         let key = format!("{}mail_server", prefix);
-        sql.set_config(context, key, Some(&self.mail_server))?;
+        sql.set_raw_config(context, key, Some(&self.mail_server))?;
 
         let key = format!("{}mail_port", prefix);
-        sql.set_config_int(context, key, self.mail_port)?;
+        sql.set_raw_config_int(context, key, self.mail_port)?;
 
         let key = format!("{}mail_user", prefix);
-        sql.set_config(context, key, Some(&self.mail_user))?;
+        sql.set_raw_config(context, key, Some(&self.mail_user))?;
 
         let key = format!("{}mail_pw", prefix);
-        sql.set_config(context, key, Some(&self.mail_pw))?;
+        sql.set_raw_config(context, key, Some(&self.mail_pw))?;
 
         let key = format!("{}imap_certificate_checks", prefix);
-        sql.set_config_int(context, key, self.imap_certificate_checks as i32)?;
+        sql.set_raw_config_int(context, key, self.imap_certificate_checks as i32)?;
 
         let key = format!("{}send_server", prefix);
-        sql.set_config(context, key, Some(&self.send_server))?;
+        sql.set_raw_config(context, key, Some(&self.send_server))?;
 
         let key = format!("{}send_port", prefix);
-        sql.set_config_int(context, key, self.send_port)?;
+        sql.set_raw_config_int(context, key, self.send_port)?;
 
         let key = format!("{}send_user", prefix);
-        sql.set_config(context, key, Some(&self.send_user))?;
+        sql.set_raw_config(context, key, Some(&self.send_user))?;
 
         let key = format!("{}send_pw", prefix);
-        sql.set_config(context, key, Some(&self.send_pw))?;
+        sql.set_raw_config(context, key, Some(&self.send_pw))?;
 
         let key = format!("{}smtp_certificate_checks", prefix);
-        sql.set_config_int(context, key, self.smtp_certificate_checks as i32)?;
+        sql.set_raw_config_int(context, key, self.smtp_certificate_checks as i32)?;
 
         let key = format!("{}server_flags", prefix);
-        sql.set_config_int(context, key, self.server_flags)?;
+        sql.set_raw_config_int(context, key, self.server_flags)?;
 
         Ok(())
     }

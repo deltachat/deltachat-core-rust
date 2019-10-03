@@ -50,7 +50,7 @@ pub fn dc_get_oauth2_url(
     if let Some(oauth2) = Oauth2::from_address(addr) {
         if context
             .sql
-            .set_config(
+            .set_raw_config(
                 context,
                 "oauth2_pending_redirect_uri",
                 Some(redirect_uri.as_ref()),
@@ -159,11 +159,11 @@ pub fn dc_get_oauth2_access_token(
         if let Some(ref token) = response.refresh_token {
             context
                 .sql
-                .set_config(context, "oauth2_refresh_token", Some(token))
+                .set_raw_config(context, "oauth2_refresh_token", Some(token))
                 .ok();
             context
                 .sql
-                .set_config(context, "oauth2_refresh_token_for", Some(code.as_ref()))
+                .set_raw_config(context, "oauth2_refresh_token_for", Some(code.as_ref()))
                 .ok();
         }
 
@@ -172,7 +172,7 @@ pub fn dc_get_oauth2_access_token(
         if let Some(ref token) = response.access_token {
             context
                 .sql
-                .set_config(context, "oauth2_access_token", Some(token))
+                .set_raw_config(context, "oauth2_access_token", Some(token))
                 .ok();
             let expires_in = response
                 .expires_in
@@ -181,13 +181,13 @@ pub fn dc_get_oauth2_access_token(
                 .unwrap_or_else(|| 0);
             context
                 .sql
-                .set_config_int64(context, "oauth2_timestamp_expires", expires_in)
+                .set_raw_config_int64(context, "oauth2_timestamp_expires", expires_in)
                 .ok();
 
             if update_redirect_uri_on_success {
                 context
                     .sql
-                    .set_config(context, "oauth2_redirect_uri", Some(redirect_uri.as_ref()))
+                    .set_raw_config(context, "oauth2_redirect_uri", Some(redirect_uri.as_ref()))
                     .ok();
             }
         } else {
