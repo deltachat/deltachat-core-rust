@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::sync::{Arc, RwLock};
+use std::time::Duration;
 
 use rusqlite::{Connection, OpenFlags, Statement, NO_PARAMS};
 use thread_local_object::ThreadLocal;
@@ -68,6 +69,16 @@ impl Sql {
         let res = match &*self.pool.read().unwrap() {
             Some(pool) => {
                 let conn = pool.get()?;
+
+                // Only one process can make changes to the database at one time.
+                // busy_timeout defines, that if a seconds process wants write access,
+                // this second process will wait some milliseconds
+                // and try over until it gets write access or the given timeout is elapsed.
+                // If the second process does not get write access within the given timeout,
+                // sqlite3_step() will return the error SQLITE_BUSY.
+                // (without a busy_timeout, sqlite3_step() would return SQLITE_BUSY _at once_)
+                conn.busy_timeout(Duration::from_secs(10))?;
+
                 g(&conn)
             }
             None => Err(Error::SqlNoConnection),
@@ -330,7 +341,7 @@ fn open(
         .with_init(|c| c.execute_batch("PRAGMA secure_delete=on;"));
     let pool = r2d2::Pool::builder()
         .min_idle(Some(2))
-        .max_size(4)
+        .max_size(10)
         .connection_timeout(std::time::Duration::new(60, 0))
         .build(mgr)?;
 
