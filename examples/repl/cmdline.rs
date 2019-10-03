@@ -125,7 +125,7 @@ fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int {
             .set_config(context, "import_spec", Some(&real_spec))
             .unwrap();
     } else {
-        let rs = context.sql.get_config(context, "import_spec");
+        let rs = context.sql.get_raw_config(context, "import_spec");
         if rs.is_none() {
             error!(context, "Import: No file or folder given.");
             return 0;

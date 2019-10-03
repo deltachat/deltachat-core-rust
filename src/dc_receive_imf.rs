@@ -585,7 +585,7 @@ unsafe fn add_parts(
 
     // if the mime-headers should be saved, find out its size
     // (the mime-header ends with an empty line)
-    let save_mime_headers = context.sql.get_config_bool(context, "save_mime_headers");
+    let save_mime_headers = context.get_config_bool(Config::SaveMimeHeaders);
     if let Some(field) = mime_parser.lookup_field_typ("In-Reply-To", MAILIMF_FIELD_IN_REPLY_TO) {
         let fld_in_reply_to = (*field).fld_data.fld_in_reply_to;
         if !fld_in_reply_to.is_null() {
@@ -853,10 +853,7 @@ unsafe fn handle_reports(
                 param.set(Param::ServerFolder, server_folder.as_ref());
                 param.set_int(Param::ServerUid, server_uid as i32);
                 if mime_parser.is_send_by_messenger
-                    && 0 != context
-                        .sql
-                        .get_config_int(context, "mvbox_move")
-                        .unwrap_or_else(|| 1)
+                    && 0 != context.get_config_int(Config::MvboxMove)
                 {
                     param.set_int(Param::AlsoMove, 1);
                 }
@@ -1159,8 +1156,7 @@ unsafe fn create_or_lookup_group(
     group_explicitly_left = chat::is_group_explicitly_left(context, &grpid).unwrap_or_default();
 
     let self_addr = context
-        .sql
-        .get_config(context, "configured_addr")
+        .get_config(Config::ConfiguredAddr)
         .unwrap_or_default();
     if chat_id == 0
             && !mime_parser.is_mailinglist_message()
@@ -1490,8 +1486,7 @@ fn create_adhoc_grp_id(context: &Context, member_ids: &[u32]) -> String {
      */
     let member_ids_str = join(member_ids.iter().map(|x| x.to_string()), ",");
     let member_cs = context
-        .sql
-        .get_config(context, "configured_addr")
+        .get_config(Config::ConfiguredAddr)
         .unwrap_or_else(|| "no-self".to_string())
         .to_lowercase();
 
@@ -1942,8 +1937,7 @@ unsafe fn add_or_lookup_contact_by_addr(
     }
     *check_self = 0;
     let self_addr = context
-        .sql
-        .get_config(context, "configured_addr")
+        .get_config(Config::ConfiguredAddr)
         .unwrap_or_default();
 
     if addr_cmp(self_addr, as_str(addr_spec)) {

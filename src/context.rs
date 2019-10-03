@@ -224,18 +224,15 @@ impl Context {
         let unset = "0";
         let l = LoginParam::from_database(self, "");
         let l2 = LoginParam::from_database(self, "configured_");
-        let displayname = self.sql.get_config(self, "displayname");
+        let displayname = self.get_config(Config::Displayname);
         let chats = get_chat_cnt(self) as usize;
         let real_msgs = message::get_real_msg_cnt(self) as usize;
         let deaddrop_msgs = message::get_deaddrop_msg_cnt(self) as usize;
         let contacts = Contact::get_real_cnt(self) as usize;
-        let is_configured = self
-            .sql
-            .get_config_int(self, "configured")
-            .unwrap_or_default();
+        let is_configured = self.get_config_int(Config::Configured);
         let dbversion = self
             .sql
-            .get_config_int(self, "dbversion")
+            .get_raw_config_int(self, "dbversion")
             .unwrap_or_default();
 
         let e2ee_enabled = self.get_config_int(Config::E2eeEnabled);
@@ -264,16 +261,16 @@ impl Context {
         let mvbox_move = self.get_config_int(Config::MvboxMove);
         let folders_configured = self
             .sql
-            .get_config_int(self, "folders_configured")
+            .get_raw_config_int(self, "folders_configured")
             .unwrap_or_default();
 
         let configured_sentbox_folder = self
             .sql
-            .get_config(self, "configured_sentbox_folder")
+            .get_raw_config(self, "configured_sentbox_folder")
             .unwrap_or_else(|| "<unset>".to_string());
         let configured_mvbox_folder = self
             .sql
-            .get_config(self, "configured_mvbox_folder")
+            .get_raw_config(self, "configured_mvbox_folder")
             .unwrap_or_else(|| "<unset>".to_string());
 
         let mut res = get_info();
@@ -377,7 +374,7 @@ impl Context {
     }
 
     pub fn is_sentbox(&self, folder_name: impl AsRef<str>) -> bool {
-        let sentbox_name = self.sql.get_config(self, "configured_sentbox_folder");
+        let sentbox_name = self.sql.get_raw_config(self, "configured_sentbox_folder");
         if let Some(name) = sentbox_name {
             name == folder_name.as_ref()
         } else {
@@ -386,7 +383,7 @@ impl Context {
     }
 
     pub fn is_mvbox(&self, folder_name: impl AsRef<str>) -> bool {
-        let mvbox_name = self.sql.get_config(self, "configured_mvbox_folder");
+        let mvbox_name = self.sql.get_raw_config(self, "configured_mvbox_folder");
 
         if let Some(name) = mvbox_name {
             name == folder_name.as_ref()
@@ -396,12 +393,7 @@ impl Context {
     }
 
     pub fn do_heuristics_moves(&self, folder: &str, msg_id: u32) {
-        if self
-            .sql
-            .get_config_int(self, "mvbox_move")
-            .unwrap_or_else(|| 1)
-            == 0
-        {
+        if self.get_config_int(Config::MvboxMove) == 0 {
             return;
         }
 

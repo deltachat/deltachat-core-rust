@@ -60,11 +60,13 @@ pub struct MimeFactory<'a> {
 
 impl<'a> MimeFactory<'a> {
     fn new(context: &'a Context, msg: Message) -> Self {
-        let cget = |context: &Context, name: &str| context.sql.get_config(context, name);
         MimeFactory {
-            from_addr: cget(&context, "configured_addr").unwrap_or_default(),
-            from_displayname: cget(&context, "displayname").unwrap_or_default(),
-            selfstatus: cget(&context, "selfstatus")
+            from_addr: context
+                .get_config(Config::ConfiguredAddr)
+                .unwrap_or_default(),
+            from_displayname: context.get_config(Config::Displayname).unwrap_or_default(),
+            selfstatus: context
+                .get_config(Config::Selfstatus)
                 .unwrap_or_else(|| context.stock_str(StockMessage::StatusLine).to_string()),
             recipients_names: Vec::with_capacity(5),
             recipients_addr: Vec::with_capacity(5),
@@ -703,8 +705,7 @@ impl<'a> MimeFactory<'a> {
                 let email_to_remove = msg.param.get(Param::Arg).unwrap_or_default();
 
                 let self_addr = context
-                    .sql
-                    .get_config(context, "configured_addr")
+                    .get_config(Config::ConfiguredAddr)
                     .unwrap_or_default();
 
                 if !email_to_remove.is_empty() && email_to_remove != self_addr {

@@ -116,14 +116,14 @@ impl JobThread {
         if ret_connected {
             if context
                 .sql
-                .get_config_int(context, "folders_configured")
+                .get_raw_config_int(context, "folders_configured")
                 .unwrap_or_default()
                 < 3
             {
                 self.imap.configure_folders(context, 0x1);
             }
 
-            if let Some(mvbox_name) = context.sql.get_config(context, self.folder_config_name) {
+            if let Some(mvbox_name) = context.sql.get_raw_config(context, self.folder_config_name) {
                 self.imap.set_watch_folder(mvbox_name);
             } else {
                 self.imap.disconnect(context);

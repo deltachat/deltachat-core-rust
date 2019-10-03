@@ -82,10 +82,7 @@ pub fn dc_get_securejoin_qr(context: &Context, group_chat_id: u32) -> Option<Str
         }
     };
 
-    let self_name = context
-        .sql
-        .get_config(context, "displayname")
-        .unwrap_or_default();
+    let self_name = context.get_config(Config::Displayname).unwrap_or_default();
 
     fingerprint = match get_self_fingerprint(context) {
         Some(fp) => fp,

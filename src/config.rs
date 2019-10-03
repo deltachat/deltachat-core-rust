@@ -78,13 +78,13 @@ impl Context {
     pub fn get_config(&self, key: Config) -> Option<String> {
         let value = match key {
             Config::Selfavatar => {
-                let rel_path = self.sql.get_config(self, key);
+                let rel_path = self.sql.get_raw_config(self, key);
                 rel_path.map(|p| dc_get_abs_path(self, &p).to_str().unwrap().to_string())
             }
             Config::SysVersion => Some((&*DC_VERSION_STR).clone()),
             Config::SysMsgsizeMaxRecommended => Some(format!("{}", 24 * 1024 * 1024 / 4 * 3)),
             Config::SysConfigKeys => Some(get_config_keys_string()),
-            _ => self.sql.get_config(self, key),
+            _ => self.sql.get_raw_config(self, key),
         };
 
         if value.is_some() {
@@ -99,7 +99,9 @@ impl Context {
     }
 
     pub fn get_config_int(&self, key: Config) -> i32 {
-        self.get_config(key).and_then(|s| s.parse().ok()).unwrap()
+        self.get_config(key)
+            .and_then(|s| s.parse().ok())
+            .unwrap_or_default()
     }
 
     pub fn get_config_bool(&self, key: Config) -> bool {

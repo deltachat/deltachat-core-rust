@@ -693,7 +693,7 @@ impl Imap {
 
     fn get_config_last_seen_uid<S: AsRef<str>>(&self, context: &Context, folder: S) -> (u32, u32) {
         let key = format!("imap.mailbox.{}", folder.as_ref());
-        if let Some(entry) = context.sql.get_config(context, &key) {
+        if let Some(entry) = context.sql.get_raw_config(context, &key) {
             // the entry has the format `imap.mailbox.<folder>=<uidvalidity>:<lastseenuid>`
             let mut parts = entry.split(':');
             (
