@@ -99,7 +99,9 @@ impl Context {
     }
 
     pub fn get_config_int(&self, key: Config) -> i32 {
-        self.get_config(key).and_then(|s| s.parse().ok()).unwrap()
+        self.get_config(key)
+            .and_then(|s| s.parse().ok())
+            .unwrap_or_default()
     }
 
     pub fn get_config_bool(&self, key: Config) -> bool {
