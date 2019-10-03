@@ -368,7 +368,7 @@ pub fn perform_imap_fetch(context: &Context) {
     if 0 == connect_to_inbox(context, &inbox) {
         return;
     }
-    if context.get_config_int(Config::InboxWatch) == 0 {
+    if !context.get_config_bool(Config::InboxWatch) {
         info!(context, "INBOX-watch disabled.",);
         return;
     }
@@ -403,23 +403,23 @@ pub fn perform_imap_idle(context: &Context) {
 }
 
 pub fn perform_mvbox_fetch(context: &Context) {
-    let use_network = context.get_config_int(Config::MvboxWatch);
+    let use_network = context.get_config_bool(Config::MvboxWatch);
 
     context
         .mvbox_thread
         .write()
         .unwrap()
-        .fetch(context, use_network == 1);
+        .fetch(context, use_network);
 }
 
 pub fn perform_mvbox_idle(context: &Context) {
-    let use_network = context.get_config_int(Config::MvboxWatch);
+    let use_network = context.get_config_bool(Config::MvboxWatch);
 
     context
         .mvbox_thread
         .read()
         .unwrap()
-        .idle(context, use_network == 1);
+        .idle(context, use_network);
 }
 
 pub fn interrupt_mvbox_idle(context: &Context) {
@@ -427,23 +427,23 @@ pub fn interrupt_mvbox_idle(context: &Context) {
 }
 
 pub fn perform_sentbox_fetch(context: &Context) {
-    let use_network = context.get_config_int(Config::SentboxWatch);
+    let use_network = context.get_config_bool(Config::SentboxWatch);
 
     context
         .sentbox_thread
         .write()
         .unwrap()
-        .fetch(context, use_network == 1);
+        .fetch(context, use_network);
 }
 
 pub fn perform_sentbox_idle(context: &Context) {
-    let use_network = context.get_config_int(Config::SentboxWatch);
+    let use_network = context.get_config_bool(Config::SentboxWatch);
 
     context
         .sentbox_thread
         .read()
         .unwrap()
-        .idle(context, use_network == 1);
+        .idle(context, use_network);
 }
 
 pub fn interrupt_sentbox_idle(context: &Context) {
