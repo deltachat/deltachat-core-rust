@@ -1,5 +1,6 @@
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
+use crate::config::Config;
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_tools::*;
@@ -476,15 +477,8 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
                     }
                     16 => {
                         progress!(context, 900);
-                        let flags: libc::c_int = if 0
-                            != context
-                                .sql
-                                .get_config_int(context, "mvbox_watch")
-                                .unwrap_or_else(|| 1)
-                            || 0 != context
-                                .sql
-                                .get_config_int(context, "mvbox_move")
-                                .unwrap_or_else(|| 1)
+                        let flags: libc::c_int = if 0 != context.get_config_int(Config::MvboxWatch)
+                            || 0 != context.get_config_int(Config::MvboxMove)
                         {
                             DC_CREATE_MVBOX as i32
                         } else {

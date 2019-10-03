@@ -951,10 +951,7 @@ pub fn get_chat_msgs(context: &Context, chat_id: u32, flags: u32, marker1before:
     };
 
     let success = if chat_id == 1 {
-        let show_emails = context
-            .sql
-            .get_config_int(context, "show_emails")
-            .unwrap_or_default();
+        let show_emails = context.get_config_int(Config::ShowEmails);
         context.sql.query_map(
             "SELECT m.id, m.timestamp FROM msgs m \
              LEFT JOIN chats ON m.chat_id=chats.id \
@@ -1373,8 +1370,7 @@ pub(crate) fn add_contact_to_chat_ex(
         chat.update_param(context).unwrap();
     }
     let self_addr = context
-        .sql
-        .get_config(context, "configured_addr")
+        .get_config(Config::ConfiguredAddr)
         .unwrap_or_default();
     if contact.get_addr() == &self_addr {
         bail!("invalid attempt to add self e-mail address to group");

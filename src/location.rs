@@ -3,6 +3,7 @@ use quick_xml;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
 use crate::chat;
+use crate::config::Config;
 use crate::constants::*;
 use crate::context::*;
 use crate::dc_tools::*;
@@ -375,8 +376,7 @@ pub fn get_kml(context: &Context, chat_id: u32) -> Result<(String, u32), Error> 
     let mut last_added_location_id = 0;
 
     let self_addr = context
-        .sql
-        .get_config(context, "configured_addr")
+        .get_config(Config::ConfiguredAddr)
         .unwrap_or_default();
 
     let (locations_send_begin, locations_send_until, locations_last_sent) = context.sql.query_row(

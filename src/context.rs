@@ -222,15 +222,12 @@ impl Context {
         let unset = "0";
         let l = LoginParam::from_database(self, "");
         let l2 = LoginParam::from_database(self, "configured_");
-        let displayname = self.sql.get_config(self, "displayname");
+        let displayname = self.get_config(Config::Displayname);
         let chats = get_chat_cnt(self) as usize;
         let real_msgs = message::get_real_msg_cnt(self) as usize;
         let deaddrop_msgs = message::get_deaddrop_msg_cnt(self) as usize;
         let contacts = Contact::get_real_cnt(self) as usize;
-        let is_configured = self
-            .sql
-            .get_config_int(self, "configured")
-            .unwrap_or_default();
+        let is_configured = self.get_config_int(Config::Configured);
         let dbversion = self
             .sql
             .get_config_int(self, "dbversion")
@@ -394,12 +391,7 @@ impl Context {
     }
 
     pub fn do_heuristics_moves(&self, folder: &str, msg_id: u32) {
-        if self
-            .sql
-            .get_config_int(self, "mvbox_move")
-            .unwrap_or_else(|| 1)
-            == 0
-        {
+        if self.get_config_int(Config::MvboxMove) == 0 {
             return;
         }
 

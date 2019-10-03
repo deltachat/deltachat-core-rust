@@ -364,12 +364,7 @@ pub fn perform_imap_fetch(context: &Context) {
     if 0 == connect_to_inbox(context, &inbox) {
         return;
     }
-    if context
-        .sql
-        .get_config_int(context, "inbox_watch")
-        .unwrap_or_else(|| 1)
-        == 0
-    {
+    if context.get_config_int(Config::InboxWatch) == 0 {
         info!(context, "INBOX-watch disabled.",);
         return;
     }
@@ -404,10 +399,7 @@ pub fn perform_imap_idle(context: &Context) {
 }
 
 pub fn perform_mvbox_fetch(context: &Context) {
-    let use_network = context
-        .sql
-        .get_config_int(context, "mvbox_watch")
-        .unwrap_or_else(|| 1);
+    let use_network = context.get_config_int(Config::MvboxWatch);
 
     context
         .mvbox_thread
@@ -417,10 +409,7 @@ pub fn perform_mvbox_fetch(context: &Context) {
 }
 
 pub fn perform_mvbox_idle(context: &Context) {
-    let use_network = context
-        .sql
-        .get_config_int(context, "mvbox_watch")
-        .unwrap_or_else(|| 1);
+    let use_network = context.get_config_int(Config::MvboxWatch);
 
     context
         .mvbox_thread
@@ -434,10 +423,7 @@ pub fn interrupt_mvbox_idle(context: &Context) {
 }
 
 pub fn perform_sentbox_fetch(context: &Context) {
-    let use_network = context
-        .sql
-        .get_config_int(context, "sentbox_watch")
-        .unwrap_or_else(|| 1);
+    let use_network = context.get_config_int(Config::SentboxWatch);
 
     context
         .sentbox_thread
@@ -447,10 +433,7 @@ pub fn perform_sentbox_fetch(context: &Context) {
 }
 
 pub fn perform_sentbox_idle(context: &Context) {
-    let use_network = context
-        .sql
-        .get_config_int(context, "sentbox_watch")
-        .unwrap_or_else(|| 1);
+    let use_network = context.get_config_int(Config::SentboxWatch);
 
     context
         .sentbox_thread
