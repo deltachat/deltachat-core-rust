@@ -884,7 +884,7 @@ impl Imap {
         let key = format!("imap.mailbox.{}", folder.as_ref());
         let val = format!("{}:{}", uidvalidity, lastseenuid);
 
-        context.sql.set_config(context, &key, Some(&val)).ok();
+        context.sql.set_raw_config(context, &key, Some(&val)).ok();
     }
 
     fn fetch_single_msg<S: AsRef<str>>(
@@ -1396,18 +1396,18 @@ impl Imap {
 
         context
             .sql
-            .set_config_int(context, "folders_configured", 3)
+            .set_raw_config_int(context, "folders_configured", 3)
             .ok();
         if let Some(ref mvbox_folder) = mvbox_folder {
             context
                 .sql
-                .set_config(context, "configured_mvbox_folder", Some(mvbox_folder))
+                .set_raw_config(context, "configured_mvbox_folder", Some(mvbox_folder))
                 .ok();
         }
         if let Some(ref sentbox_folder) = sentbox_folder {
             context
                 .sql
-                .set_config(
+                .set_raw_config(
                     context,
                     "configured_sentbox_folder",
                     Some(sentbox_folder.name()),

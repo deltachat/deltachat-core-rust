@@ -115,20 +115,20 @@ impl Context {
             Config::Selfavatar if value.is_some() => {
                 let rel_path = std::fs::canonicalize(value.unwrap())?;
                 self.sql
-                    .set_config(self, key, Some(&rel_path.to_string_lossy()))
+                    .set_raw_config(self, key, Some(&rel_path.to_string_lossy()))
             }
             Config::InboxWatch => {
-                let ret = self.sql.set_config(self, key, value);
+                let ret = self.sql.set_raw_config(self, key, value);
                 interrupt_imap_idle(self);
                 ret
             }
             Config::SentboxWatch => {
-                let ret = self.sql.set_config(self, key, value);
+                let ret = self.sql.set_raw_config(self, key, value);
                 interrupt_sentbox_idle(self);
                 ret
             }
             Config::MvboxWatch => {
-                let ret = self.sql.set_config(self, key, value);
+                let ret = self.sql.set_raw_config(self, key, value);
                 interrupt_mvbox_idle(self);
                 ret
             }
@@ -140,9 +140,9 @@ impl Context {
                     value
                 };
 
-                self.sql.set_config(self, key, val)
+                self.sql.set_raw_config(self, key, val)
             }
-            _ => self.sql.set_config(self, key, value),
+            _ => self.sql.set_raw_config(self, key, value),
         }
     }
 }

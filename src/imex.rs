@@ -313,7 +313,7 @@ fn set_self_key(
             };
             context
                 .sql
-                .set_config_int(context, "e2ee_enabled", e2ee_enabled)?;
+                .set_raw_config_int(context, "e2ee_enabled", e2ee_enabled)?;
         }
         None => {
             if prefer_encrypt_required {
@@ -695,7 +695,7 @@ fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
                 }
                 if ok_to_continue {
                     if sql
-                        .set_config_int(context, "backup_time", now as i32)
+                        .set_raw_config_int(context, "backup_time", now as i32)
                         .is_ok()
                     {
                         context.call_cb(Event::ImexFileWritten(dest_path_filename.clone()));

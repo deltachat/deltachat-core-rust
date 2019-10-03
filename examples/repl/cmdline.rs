@@ -122,7 +122,7 @@ fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int {
         real_spec = to_string(spec);
         context
             .sql
-            .set_config(context, "import_spec", Some(&real_spec))
+            .set_raw_config(context, "import_spec", Some(&real_spec))
             .unwrap();
     } else {
         let rs = context.sql.get_raw_config(context, "import_spec");

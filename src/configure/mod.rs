@@ -114,7 +114,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
                                 param.addr = oauth2_addr;
                                 context
                                     .sql
-                                    .set_config(context, "addr", Some(param.addr.as_str()))
+                                    .set_raw_config(context, "addr", Some(param.addr.as_str()))
                                     .ok();
                             }
                             progress!(context, 20);
@@ -501,7 +501,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
                             )
                             .ok();
 
-                        context.sql.set_config_bool(context, "configured", true);
+                        context.sql.set_raw_config_bool(context, "configured", true);
                         true
                     }
                     18 => {
