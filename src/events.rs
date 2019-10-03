@@ -60,6 +60,12 @@ pub enum Event {
     #[strum(props(id = "150"))]
     NewBlobFile(String),
 
+    /// Emitted when an new file in the $BLOBDIR was created
+    ///
+    /// @return 0
+    #[strum(props(id = "151"))]
+    DeletedBlobFile(String),
+
     /// The library-user should write a warning string to the log.
     /// Passed to the callback given to dc_context_new().
     ///

@@ -17,6 +17,7 @@ use rand::{thread_rng, Rng};
 
 use crate::context::Context;
 use crate::error::Error;
+use crate::events::Event;
 
 pub(crate) fn dc_exactly_one_bit_set(v: libc::c_int) -> bool {
     0 != v && 0 == v & (v - 1)
@@ -512,10 +513,14 @@ pub(crate) fn dc_delete_file(context: &Context, path: impl AsRef<std::path::Path
         return false;
     }
 
+    let dpath = format!("{}", path.as_ref().to_string_lossy());
     match fs::remove_file(path_abs) {
-        Ok(_) => true,
+        Ok(_) => {
+            context.call_cb(Event::DeletedBlobFile(dpath));
+            true
+        }
         Err(_err) => {
-            warn!(context, "Cannot delete \"{}\".", path.as_ref().display());
+            warn!(context, "Cannot delete \"{}\".", dpath);
             false
         }
     }

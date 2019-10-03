@@ -3935,6 +3935,16 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
 #define DC_EVENT_NEW_BLOB_FILE 150
 
 /**
+ * Emitted when a blob file was successfully deleted 
+ *
+ * @param data1 0
+ * @param data2 (const char*) path name 
+ *     Must not be free()'d or modified and is valid only until the callback returns.
+ * @return 0
+ */
+#define DC_EVENT_DELETED_BLOB_FILE 151
+
+/**
  * The library-user should write a warning string to the log.
  * Passed to the callback given to dc_context_new().
  *

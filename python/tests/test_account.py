@@ -377,6 +377,7 @@ class TestOnlineAccount:
         self_addr = ac1.get_config("addr")
         ev = ac1._evlogger.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
         assert self_addr in ev[2]
+        ev = ac1._evlogger.get_matching("DC_EVENT_DELETED_BLOB_FILE")
 
         ac1._evlogger.consume_events()
         lp.sec("send out message without bcc")
@@ -386,6 +387,7 @@ class TestOnlineAccount:
         assert ev[2] == msg_out.id
         ev = ac1._evlogger.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
         assert self_addr not in ev[2]
+        ev = ac1._evlogger.get_matching("DC_EVENT_DELETED_BLOB_FILE")
 
     def test_mvbox_sentbox_threads(self, acfactory):
         ac1 = acfactory.get_online_configuring_account(mvbox=True, sentbox=True)
