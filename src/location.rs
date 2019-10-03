@@ -219,7 +219,7 @@ pub fn send_locations_to_chat(context: &Context, chat_id: u32, seconds: i64) {
                 msg.text =
                     Some(context.stock_system_msg(StockMessage::MsgLocationEnabled, "", "", 0));
                 msg.param.set_int(Param::Cmd, 8);
-                chat::send_msg(context, chat_id, &mut msg).unwrap();
+                chat::send_msg(context, chat_id, &mut msg).unwrap_or_default();
             } else if 0 == seconds && is_sending_locations_before {
                 let stock_str =
                     context.stock_system_msg(StockMessage::MsgLocationDisabled, "", "", 0);
@@ -615,7 +615,7 @@ pub fn job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: &Job) {
 
         for (chat_id, mut msg) in msgs.into_iter() {
             // TODO: better error handling
-            chat::send_msg(context, chat_id as u32, &mut msg).unwrap();
+            chat::send_msg(context, chat_id as u32, &mut msg).unwrap_or_default();
         }
     }
     if 0 != continue_streaming {

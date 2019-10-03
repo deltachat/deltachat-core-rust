@@ -51,7 +51,7 @@ pub fn get_ct_subtype(mime: *mut Mailmime) -> Option<String> {
 
 pub fn parse_message_id(message_id: &str) -> Result<String, Error> {
     let mut dummy = 0;
-    let c_message_id = CString::new(message_id).unwrap();
+    let c_message_id = CString::new(message_id).unwrap_or_default();
     let c_ptr = c_message_id.as_ptr();
     let mut rfc724_mid_c = std::ptr::null_mut();
     if unsafe { mailimf_msg_id_parse(c_ptr, libc::strlen(c_ptr), &mut dummy, &mut rfc724_mid_c) }
@@ -448,8 +448,8 @@ pub fn append_ct_param(
     value: &str,
 ) -> Result<(), Error> {
     unsafe {
-        let name_c = CString::new(name).unwrap();
-        let value_c = CString::new(value).unwrap();
+        let name_c = CString::new(name).unwrap_or_default();
+        let value_c = CString::new(value).unwrap_or_default();
 
         clist_append!(
             (*content).ct_parameters,
@@ -463,7 +463,7 @@ pub fn append_ct_param(
 }
 
 pub fn new_content_type(content_type: &str) -> Result<*mut mailmime_content, Error> {
-    let ct = CString::new(content_type).unwrap();
+    let ct = CString::new(content_type).unwrap_or_default();
     let content: *mut mailmime_content;
     // mailmime_content_new_with_str only parses but does not retain/own ct
     unsafe {

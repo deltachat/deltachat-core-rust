@@ -290,7 +290,7 @@ impl Chatlist {
         {
             ret.text2 = Some(context.stock_str(StockMessage::NoMessages).to_string());
         } else {
-            ret.fill(&mut lastmsg.unwrap(), chat, lastcontact.as_ref(), context);
+            ret.fill(&mut lastmsg.unwrap_or_default(), chat, lastcontact.as_ref(), context);
         }
 
         ret

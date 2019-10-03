@@ -524,7 +524,7 @@ pub fn get_msg_info(context: &Context, msg_id: u32) -> String {
         return ret;
     }
 
-    let msg = msg.unwrap();
+    let msg = msg.unwrap_or_default();
 
     let rawtxt: Option<String> = context.sql.query_get_value(
         context,
@@ -536,7 +536,7 @@ pub fn get_msg_info(context: &Context, msg_id: u32) -> String {
         ret += &format!("Cannot load message #{}.", msg_id as usize);
         return ret;
     }
-    let rawtxt = rawtxt.unwrap();
+    let rawtxt = rawtxt.unwrap_or_default();
     let rawtxt = dc_truncate(rawtxt.trim(), 100000, false);
 
     let fts = dc_timestamp_to_str(msg.get_timestamp());
@@ -745,7 +745,7 @@ pub fn markseen_msgs(context: &Context, msg_ids: &[u32]) -> bool {
         return false;
     }
     let mut send_event = false;
-    let msgs = msgs.unwrap();
+    let msgs = msgs.unwrap_or_default();
 
     for (id, curr_state, curr_blocked) in msgs.into_iter() {
         if curr_blocked == Blocked::Not {
@@ -982,7 +982,7 @@ pub fn mdn_from_ext(
                 context.sql.execute(
                     "INSERT INTO msgs_mdns (msg_id, contact_id, timestamp_sent) VALUES (?, ?, ?);",
                     params![*ret_msg_id as i32, from_id as i32, timestamp_sent],
-                ).unwrap(); // TODO: better error handling
+                ).unwrap_or_default(); // TODO: better error handling
             }
 
             // Normal chat? that's quite easy.

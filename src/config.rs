@@ -79,7 +79,7 @@ impl Context {
         let value = match key {
             Config::Selfavatar => {
                 let rel_path = self.sql.get_raw_config(self, key);
-                rel_path.map(|p| dc_get_abs_path(self, &p).to_str().unwrap().to_string())
+                rel_path.map(|p| dc_get_abs_path(self, &p).to_str().unwrap_or_default().to_string())
             }
             Config::SysVersion => Some((&*DC_VERSION_STR).clone()),
             Config::SysMsgsizeMaxRecommended => Some(format!("{}", 24 * 1024 * 1024 / 4 * 3)),
@@ -113,7 +113,7 @@ impl Context {
     pub fn set_config(&self, key: Config, value: Option<&str>) -> Result<(), Error> {
         match key {
             Config::Selfavatar if value.is_some() => {
-                let rel_path = std::fs::canonicalize(value.unwrap())?;
+                let rel_path = std::fs::canonicalize(value.unwrap_or_default())?;
                 self.sql
                     .set_raw_config(self, key, Some(&rel_path.to_string_lossy()))
             }

@@ -122,8 +122,8 @@ impl str::FromStr for Params {
             ensure!(key.is_some(), "Missing key");
             ensure!(value.is_some(), "Missing value");
 
-            let key = key.unwrap().trim();
-            let value = value.unwrap().trim();
+            let key = key.unwrap_or_default().trim();
+            let value = value.unwrap_or_default().trim();
 
             if let Some(key) = Param::from_u8(key.as_bytes()[0]) {
                 inner.insert(key, value.to_string());

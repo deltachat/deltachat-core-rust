@@ -263,7 +263,7 @@ pub fn continue_key_transfer(context: &Context, msg_id: u32, setup_code: &str) -
     if msg.is_err() {
         bail!("Message is no Autocrypt Setup Message.");
     }
-    let msg = msg.unwrap();
+    let msg = msg.unwrap_or_default();
     ensure!(
         msg.is_setupmessage(),
         "Message is no Autocrypt Setup Message."
@@ -346,7 +346,7 @@ fn set_self_key(
         context,
         &public_key,
         &private_key,
-        self_addr.unwrap(),
+        self_addr.unwrap_or_default(),
         set_default,
         &context.sql,
     ) {
@@ -682,7 +682,7 @@ fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
                                         }
                                         Ok(())
                                     }
-                                ).unwrap();
+                                ).unwrap_or_default();
                     } else {
                         error!(
                             context,
@@ -763,7 +763,7 @@ fn import_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
             }
             let ccontent = if let Ok(content) = dc_read_file(context, &path_plus_name) {
                 key = String::from_utf8_lossy(&content).to_string();
-                CString::new(content).unwrap()
+                CString::new(content).unwrap_or_default()
             } else {
                 continue;
             };

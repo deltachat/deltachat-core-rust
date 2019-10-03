@@ -133,7 +133,7 @@ impl ContextWrapper {
                     | Event::Error(msg)
                     | Event::ErrorNetwork(msg)
                     | Event::ErrorSelfNotInGroup(msg) => {
-                        let data2 = CString::new(msg).unwrap();
+                        let data2 = CString::new(msg).unwrap_or_default();
                         ffi_cb(self, event_id, 0, data2.as_ptr() as uintptr_t)
                     }
                     Event::MsgsChanged { chat_id, msg_id }
@@ -152,7 +152,7 @@ impl ContextWrapper {
                         ffi_cb(self, event_id, progress as uintptr_t, 0)
                     }
                     Event::ImexFileWritten(file) => {
-                        let data1 = file.to_c_string().unwrap();
+                        let data1 = file.to_c_string().unwrap_or_default();
                         ffi_cb(self, event_id, data1.as_ptr() as uintptr_t, 0)
                     }
                     Event::SecurejoinInviterProgress {
@@ -2138,7 +2138,7 @@ pub unsafe extern "C" fn dc_chat_get_profile_image(chat: *mut dc_chat_t) -> *mut
     let ffi_context = &*ffi_chat.context;
     ffi_context
         .with_inner(|ctx| match ffi_chat.chat.get_profile_image(ctx) {
-            Some(p) => p.to_str().unwrap().to_string().strdup(),
+            Some(p) => p.to_str().unwrap_or_default().to_string().strdup(),
             None => ptr::null_mut(),
         })
         .unwrap_or_else(|_| ptr::null_mut())
@@ -2483,7 +2483,7 @@ pub unsafe extern "C" fn dc_msg_get_summarytext(
         .with_inner(|ctx| {
             ffi_msg
                 .message
-                .get_summarytext(ctx, approx_characters.try_into().unwrap())
+                .get_summarytext(ctx, approx_characters.try_into().unwrap_or_default())
         })
         .unwrap_or_default()
         .strdup()
@@ -2775,7 +2775,7 @@ pub unsafe extern "C" fn dc_contact_get_profile_image(
             ffi_contact
                 .contact
                 .get_profile_image(ctx)
-                .map(|p| p.to_str().unwrap().to_string().strdup())
+                .map(|p| p.to_str().unwrap_or_default().to_string().strdup())
                 .unwrap_or_else(|| std::ptr::null_mut())
         })
         .unwrap_or_else(|_| ptr::null_mut())

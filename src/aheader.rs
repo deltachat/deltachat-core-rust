@@ -79,13 +79,13 @@ impl Aheader {
                 let optional_field = unsafe { (*field).fld_data.fld_optional_field };
                 if !optional_field.is_null()
                     && unsafe { !(*optional_field).fld_name.is_null() }
-                    && unsafe { CStr::from_ptr((*optional_field).fld_name).to_str().unwrap() }
+                    && unsafe { CStr::from_ptr((*optional_field).fld_name).to_str().unwrap_or_default() }
                         == "Autocrypt"
                 {
                     let value = unsafe {
                         CStr::from_ptr((*optional_field).fld_value)
                             .to_str()
-                            .unwrap()
+                            .unwrap_or_default()
                     };
 
                     if let Ok(test) = Self::from_str(value) {

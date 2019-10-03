@@ -81,7 +81,7 @@ impl Smtp {
             }
             let user = &lp.send_user;
 
-            lettre::smtp::authentication::Credentials::new(user.to_string(), access_token.unwrap())
+            lettre::smtp::authentication::Credentials::new(user.to_string(), access_token.unwrap_or_default())
         } else {
             // plain
             let user = lp.send_user.clone();

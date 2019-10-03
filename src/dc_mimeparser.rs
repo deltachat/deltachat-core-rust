@@ -282,7 +282,7 @@ impl<'a> MimeParser<'a> {
                     if self.get_last_nonmeta().is_some() {
                         let mut mb_list: *mut mailimf_mailbox_list = ptr::null_mut();
                         let mut index_0 = 0;
-                        let dn_field_c = CString::new(dn_field).unwrap();
+                        let dn_field_c = CString::new(dn_field).unwrap_or_default();
 
                         if mailimf_mailbox_list_parse(
                             dn_field_c.as_ptr(),
@@ -621,7 +621,7 @@ impl<'a> MimeParser<'a> {
                     && strcmp(charset, b"UTF-8\x00" as *const u8 as *const libc::c_char) != 0i32
                 {
                     if let Some(encoding) =
-                        Charset::for_label(CStr::from_ptr(charset).to_str().unwrap().as_bytes())
+                        Charset::for_label(CStr::from_ptr(charset).to_str().unwrap_or_default().as_bytes())
                     {
                         let (res, _, _) = encoding.decode(&decoded_data);
                         if res.is_empty() {

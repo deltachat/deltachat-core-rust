@@ -1598,7 +1598,7 @@ unsafe fn mailimf_date_time_write_driver(
         (*date_time).dt_sec,
         (*date_time).dt_zone,
     );
-    let date_str_c = std::ffi::CString::new(date_str).unwrap();
+    let date_str_c = std::ffi::CString::new(date_str).unwrap_or_default();
     let r = mailimf_string_write_driver(
         do_write,
         data,

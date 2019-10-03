@@ -17,12 +17,12 @@ pub unsafe fn charconv(
     assert!(!fromcode.is_null(), "invalid fromcode");
     assert!(!s.is_null(), "invalid input string");
     if let Some(encoding) =
-        charset::Charset::for_label(CStr::from_ptr(fromcode).to_str().unwrap().as_bytes())
+        charset::Charset::for_label(CStr::from_ptr(fromcode).to_str().unwrap_or_default().as_bytes())
     {
         let data = std::slice::from_raw_parts(s as *const u8, strlen(s));
 
         let (res, _, _) = encoding.decode(data);
-        let res_c = CString::new(res.as_bytes()).unwrap();
+        let res_c = CString::new(res.as_bytes()).unwrap_or_default();
         *result = strdup(res_c.as_ptr()) as *mut _;
 
         MAIL_CHARCONV_NO_ERROR as libc::c_int
