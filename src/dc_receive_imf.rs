@@ -852,9 +852,7 @@ unsafe fn handle_reports(
                 let mut param = Params::new();
                 param.set(Param::ServerFolder, server_folder.as_ref());
                 param.set_int(Param::ServerUid, server_uid as i32);
-                if mime_parser.is_send_by_messenger
-                    && 0 != context.get_config_int(Config::MvboxMove)
-                {
+                if mime_parser.is_send_by_messenger && context.get_config_bool(Config::MvboxMove) {
                     param.set_int(Param::AlsoMove, 1);
                 }
                 job_add(context, Action::MarkseenMdnOnImap, 0, param, 0);

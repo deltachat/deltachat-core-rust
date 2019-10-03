@@ -477,8 +477,8 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
                     }
                     16 => {
                         progress!(context, 900);
-                        let flags: libc::c_int = if 0 != context.get_config_int(Config::MvboxWatch)
-                            || 0 != context.get_config_int(Config::MvboxMove)
+                        let flags: libc::c_int = if context.get_config_bool(Config::MvboxWatch)
+                            || context.get_config_bool(Config::MvboxMove)
                         {
                             DC_CREATE_MVBOX as i32
                         } else {
@@ -602,12 +602,7 @@ pub fn dc_connect_to_configured_imap(context: &Context, imap: &Imap) -> libc::c_
 
     if imap.is_connected() {
         ret_connected = 1
-    } else if context
-        .sql
-        .get_raw_config_int(context, "configured")
-        .unwrap_or_default()
-        == 0
-    {
+    } else if !context.sql.get_raw_config_bool(context, "configured") {
         warn!(context, "Not configured, cannot connect.",);
     } else {
         let param = LoginParam::from_database(context, "configured_");

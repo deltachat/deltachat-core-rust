@@ -393,7 +393,7 @@ impl Context {
     }
 
     pub fn do_heuristics_moves(&self, folder: &str, msg_id: u32) {
-        if self.get_config_int(Config::MvboxMove) == 0 {
+        if !self.get_config_bool(Config::MvboxMove) {
             return;
         }
 
