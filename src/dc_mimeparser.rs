@@ -620,9 +620,12 @@ impl<'a> MimeParser<'a> {
                     && strcmp(charset, b"utf-8\x00" as *const u8 as *const libc::c_char) != 0i32
                     && strcmp(charset, b"UTF-8\x00" as *const u8 as *const libc::c_char) != 0i32
                 {
-                    if let Some(encoding) =
-                        Charset::for_label(CStr::from_ptr(charset).to_str().unwrap_or_default().as_bytes())
-                    {
+                    if let Some(encoding) = Charset::for_label(
+                        CStr::from_ptr(charset)
+                            .to_str()
+                            .unwrap_or_default()
+                            .as_bytes(),
+                    ) {
                         let (res, _, _) = encoding.decode(&decoded_data);
                         if res.is_empty() {
                             /* no error - but nothing to add */
