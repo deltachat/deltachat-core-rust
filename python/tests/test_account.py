@@ -229,7 +229,9 @@ class TestOfflineChat:
             chat1.send_image(path="notexists")
         fn = data.get_path("d.png")
         lp.sec("sending image")
+        chat1.account._evlogger.consume_events()
         msg = chat1.send_image(fn)
+        chat1.account._evlogger.get_matching("DC_EVENT_NEW_BLOB_FILE")
         assert msg.is_image()
         assert msg
         assert msg.id > 0
