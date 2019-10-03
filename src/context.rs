@@ -208,7 +208,9 @@ impl Context {
                 .open(&path)
             {
                 file.write_all(data)?;
-                return Ok(format!("$BLOBDIR/{}", candidate_basename));
+                let db_entry = format!("$BLOBDIR/{}", candidate_basename);
+                self.call_cb(Event::NewBlobFile(db_entry.clone()));
+                return Ok(db_entry);
             }
         }
         bail!("out of luck to create new blob file");

@@ -947,7 +947,6 @@ fn add_smtp_job(context: &Context, action: Action, mimefactory: &MimeFactory) ->
         )
     };
     let bpath = context.new_blob_file(&mimefactory.rfc724_mid, bytes)?;
-    info!(context, "add_smtp_job file written: {:?}", bpath);
     let recipients = mimefactory.recipients_addr.join("\x1e");
     param.set(Param::File, &bpath);
     param.set(Param::Recipients, &recipients);
