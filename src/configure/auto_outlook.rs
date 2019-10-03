@@ -41,7 +41,7 @@ pub unsafe fn outlk_autodiscover(
     let ok_to_continue;
     let mut i = 0;
     loop {
-        if !(i < 10) {
+        if i >= 10 {
             ok_to_continue = true;
             break;
         }

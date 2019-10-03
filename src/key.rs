@@ -218,10 +218,10 @@ impl Key {
         let file_content = self.to_asc(None).into_bytes();
 
         if dc_write_file(context, &file, &file_content) {
-            return true;
+            true
         } else {
             error!(context, "Cannot write key to {}", file.as_ref().display());
-            return false;
+            false
         }
     }
 

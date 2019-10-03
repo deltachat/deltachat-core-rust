@@ -472,7 +472,7 @@ mod tests {
             "failed to save to db"
         );
 
-        let peerstate_new = Peerstate::from_addr(&ctx.ctx, &ctx.ctx.sql, addr.into())
+        let peerstate_new = Peerstate::from_addr(&ctx.ctx, &ctx.ctx.sql, addr)
             .expect("failed to load peerstate from db");
 
         // clear to_save, as that is not persissted
@@ -555,7 +555,7 @@ mod tests {
             "failed to save"
         );
 
-        let peerstate_new = Peerstate::from_addr(&ctx.ctx, &ctx.ctx.sql, addr.into())
+        let peerstate_new = Peerstate::from_addr(&ctx.ctx, &ctx.ctx.sql, addr)
             .expect("failed to load peerstate from db");
 
         // clear to_save, as that is not persissted

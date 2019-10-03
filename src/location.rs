@@ -62,7 +62,7 @@ impl Kml {
 
     pub fn parse(context: &Context, content: impl AsRef<str>) -> Result<Self, Error> {
         ensure!(
-            content.as_ref().len() <= (1 * 1024 * 1024),
+            content.as_ref().len() <= (1024 * 1024),
             "A kml-files with {} bytes is larger than reasonably expected.",
             content.as_ref().len()
         );
@@ -359,7 +359,7 @@ pub fn get_range(
 }
 
 fn is_marker(txt: &str) -> bool {
-    txt.len() == 1 && txt.chars().next().unwrap() != ' '
+    txt.len() == 1 && !txt.starts_with(' ')
 }
 
 pub fn delete_all(context: &Context) -> Result<(), Error> {

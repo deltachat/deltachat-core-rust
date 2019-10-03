@@ -164,21 +164,17 @@ impl<'a> MimeParser<'a> {
                         }
                     }
                 }
-            } else {
-                if let Some(optional_field) = self.lookup_optional_field("Chat-Content") {
-                    if optional_field == "location-streaming-enabled" {
-                        self.is_system_message = SystemMessage::LocationStreamingEnabled;
-                    }
+            } else if let Some(optional_field) = self.lookup_optional_field("Chat-Content") {
+                if optional_field == "location-streaming-enabled" {
+                    self.is_system_message = SystemMessage::LocationStreamingEnabled;
                 }
             }
             if self.lookup_field("Chat-Group-Image").is_some() && !self.parts.is_empty() {
                 let textpart = &self.parts[0];
-                if textpart.typ == Viewtype::Text {
-                    if self.parts.len() >= 2 {
-                        let imgpart = &mut self.parts[1];
-                        if imgpart.typ == Viewtype::Image {
-                            imgpart.is_meta = true;
-                        }
+                if textpart.typ == Viewtype::Text && self.parts.len() >= 2 {
+                    let imgpart = &mut self.parts[1];
+                    if imgpart.typ == Viewtype::Image {
+                        imgpart.is_meta = true;
                     }
                 }
             }
@@ -259,7 +255,7 @@ impl<'a> MimeParser<'a> {
                 }
                 if self.parts[0].typ == Viewtype::Image {
                     if let Some(content_type) = self.lookup_optional_field("Chat-Content") {
-                        if content_type == "sticker".to_string() {
+                        if content_type == "sticker" {
                             let part_mut = &mut self.parts[0];
                             part_mut.typ = Viewtype::Sticker;
                         }
@@ -866,10 +862,8 @@ impl<'a> MimeParser<'a> {
             if !mb.is_null() {
                 let from_addr_norm = addr_normalize(as_str((*mb).mb_addr_spec));
                 let recipients = wrapmime::mailimf_get_recipients(self.header_root);
-                if recipients.len() == 1 {
-                    if recipients.contains(from_addr_norm) {
-                        sender_equals_recipient = true;
-                    }
+                if recipients.len() == 1 && recipients.contains(from_addr_norm) {
+                    sender_equals_recipient = true;
                 }
             }
         }
@@ -996,14 +990,12 @@ unsafe fn mailmime_get_mime_type(mime: *mut Mailmime) -> (libc::c_int, Viewtype,
                     ) == 0i32
                     {
                         return (DC_MIMETYPE_TEXT_PLAIN, Viewtype::Text, None);
-                    } else {
-                        if strcmp(
-                            (*c).ct_subtype,
-                            b"html\x00" as *const u8 as *const libc::c_char,
-                        ) == 0i32
-                        {
-                            return (DC_MIMETYPE_TEXT_HTML, Viewtype::Text, None);
-                        }
+                    } else if strcmp(
+                        (*c).ct_subtype,
+                        b"html\x00" as *const u8 as *const libc::c_char,
+                    ) == 0i32
+                    {
+                        return (DC_MIMETYPE_TEXT_HTML, Viewtype::Text, None);
                     }
                 }
 

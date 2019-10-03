@@ -142,7 +142,7 @@ impl Job {
             if let Ok(body) = dc_read_file(context, filename) {
                 if let Some(recipients) = self.param.get(Param::Recipients) {
                     let recipients_list = recipients
-                        .split("\x1e")
+                        .split('\x1e')
                         .filter_map(|addr| match lettre::EmailAddress::new(addr.to_string()) {
                             Ok(addr) => Some(addr),
                             Err(err) => {
@@ -626,13 +626,13 @@ pub fn job_send_msg(context: &Context, msg_id: u32) -> Result<(), Error> {
             mimefactory.msg.param.get_int(Param::GuranteeE2ee),
         );
     }
-    if context.get_config_bool(Config::BccSelf) {
-        if !vec_contains_lowercase(&mimefactory.recipients_addr, &mimefactory.from_addr) {
-            mimefactory.recipients_names.push("".to_string());
-            mimefactory
-                .recipients_addr
-                .push(mimefactory.from_addr.to_string());
-        }
+    if context.get_config_bool(Config::BccSelf)
+        && !vec_contains_lowercase(&mimefactory.recipients_addr, &mimefactory.from_addr)
+    {
+        mimefactory.recipients_names.push("".to_string());
+        mimefactory
+            .recipients_addr
+            .push(mimefactory.from_addr.to_string());
     }
 
     if mimefactory.recipients_addr.is_empty() {
@@ -764,13 +764,13 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
         // - they can be re-executed one time AT_ONCE, but they are not save in the database for later execution
         if Action::ConfigureImap == job.action || Action::ImexImap == job.action {
             job_kill_action(context, job.action);
-            &context
+            context
                 .sentbox_thread
                 .clone()
                 .read()
                 .unwrap()
                 .suspend(context);
-            &context
+            context
                 .mvbox_thread
                 .clone()
                 .read()
@@ -895,8 +895,7 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
 #[allow(non_snake_case)]
 fn get_backoff_time_offset(c_tries: libc::c_int) -> i64 {
     // results in ~3 weeks for the last backoff timespan
-    let mut N = 2_i32.pow((c_tries - 1) as u32);
-    N = N * 60;
+    let N = 2_i32.pow((c_tries - 1) as u32) * 60;
     let mut rng = thread_rng();
     let n: i32 = rng.gen();
     let mut seconds = n % (N + 1);

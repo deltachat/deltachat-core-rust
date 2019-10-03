@@ -532,7 +532,7 @@ fn decrypt_if_autocrypt_message(
     // XXX better return parsed headers so that upstream
     // does not need to dive into mmime-stuff again.
     unsafe {
-        if (*ret_gossip_headers).is_null() && ret_valid_signatures.len() > 0 {
+        if (*ret_gossip_headers).is_null() && !ret_valid_signatures.is_empty() {
             let mut dummy: libc::size_t = 0;
             let mut test: *mut mailimf_fields = ptr::null_mut();
             if mailimf_envelope_and_optional_fields_parse(
@@ -685,12 +685,12 @@ fn contains_report(mime: *mut Mailmime) -> bool {
 /// If this succeeds you are also guaranteed that the
 /// [Config::ConfiguredAddr] is configured, this address is returned.
 pub fn ensure_secret_key_exists(context: &Context) -> Result<String> {
-    let self_addr = context
-        .get_config(Config::ConfiguredAddr)
-        .ok_or(format_err!(concat!(
+    let self_addr = context.get_config(Config::ConfiguredAddr).ok_or_else(|| {
+        format_err!(concat!(
             "Failed to get self address, ",
             "cannot ensure secret key if not configured."
-        )))?;
+        ))
+    })?;
     load_or_generate_self_public_key(context, &self_addr)?;
     Ok(self_addr)
 }

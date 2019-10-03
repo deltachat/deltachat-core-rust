@@ -141,7 +141,7 @@ pub(crate) fn dc_truncate(buf: &str, approx_chars: usize, do_unwrap: bool) -> Co
             .unwrap_or_default();
 
         if let Some(index) = buf[..end_pos].rfind(|c| c == ' ' || c == '\n') {
-            Cow::Owned(format!("{}{}", &buf[..index + 1], ellipse))
+            Cow::Owned(format!("{}{}", &buf[..=index], ellipse))
         } else {
             Cow::Owned(format!("{}{}", &buf[..end_pos], ellipse))
         }
@@ -334,14 +334,14 @@ fn encode_66bits_as_base64(v1: u32, v2: u32, fill: u32) -> String {
         enc.write_u8(((fill & 0x3) as u8) << 6).unwrap();
         enc.finish().unwrap();
     }
-    assert_eq!(wrapped_writer.pop(), Some('A' as u8)); // Remove last "A"
+    assert_eq!(wrapped_writer.pop(), Some(b'A')); // Remove last "A"
     String::from_utf8(wrapped_writer).unwrap()
 }
 
 pub(crate) fn dc_create_incoming_rfc724_mid(
     message_timestamp: i64,
     contact_id_from: u32,
-    contact_ids_to: &Vec<u32>,
+    contact_ids_to: &[u32],
 ) -> Option<String> {
     if contact_ids_to.is_empty() {
         return None;
@@ -423,10 +423,10 @@ fn get_safe_basename(filename: &str) -> String {
     // this might be a path that comes in from another operating system
     let mut index: usize = 0;
 
-    if let Some(unix_index) = filename.rfind("/") {
+    if let Some(unix_index) = filename.rfind('/') {
         index = unix_index + 1;
     }
-    if let Some(win_index) = filename.rfind("\\") {
+    if let Some(win_index) = filename.rfind('\\') {
         index = max(index, win_index + 1);
     }
     if index >= filename.len() {
@@ -439,7 +439,7 @@ fn get_safe_basename(filename: &str) -> String {
 
 pub fn dc_derive_safe_stem_ext(filename: &str) -> (String, String) {
     let basename = get_safe_basename(&filename);
-    let (mut stem, mut ext) = if let Some(index) = basename.rfind(".") {
+    let (mut stem, mut ext) = if let Some(index) = basename.rfind('.') {
         (
             basename[0..index].to_string(),
             basename[index..].to_string(),

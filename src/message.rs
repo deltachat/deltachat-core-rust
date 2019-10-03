@@ -494,12 +494,10 @@ impl Lot {
                     } else {
                         self.text1 = None;
                     }
+                } else if let Some(contact) = contact {
+                    self.text1 = Some(contact.get_first_name().into());
                 } else {
-                    if let Some(contact) = contact {
-                        self.text1 = Some(contact.get_first_name().into());
-                    } else {
-                        self.text1 = None;
-                    }
+                    self.text1 = None;
                 }
                 self.text1_meaning = Meaning::Text1Username;
             }
@@ -618,9 +616,8 @@ pub fn get_msg_info(context: &Context, msg_id: u32) -> String {
     }
 
     ret += "\n";
-    match msg.param.get(Param::Error) {
-        Some(err) => ret += &format!("Error: {}", err),
-        _ => {}
+    if let Some(err) = msg.param.get(Param::Error) {
+        ret += &format!("Error: {}", err)
     }
 
     if let Some(path) = msg.get_file(context) {
@@ -688,7 +685,7 @@ pub fn get_mime_headers(context: &Context, msg_id: u32) -> Option<String> {
 }
 
 pub fn delete_msgs(context: &Context, msg_ids: &[u32]) {
-    for msg_id in msg_ids.into_iter() {
+    for msg_id in msg_ids.iter() {
         update_msg_chat_id(context, *msg_id, DC_CHAT_ID_TRASH);
         job_add(
             context,
@@ -728,7 +725,7 @@ pub fn markseen_msgs(context: &Context, msg_ids: &[u32]) -> bool {
         "SELECT m.state, c.blocked  FROM msgs m  LEFT JOIN chats c ON c.id=m.chat_id  WHERE m.id=? AND m.chat_id>9",
         |mut stmt, _| {
             let mut res = Vec::with_capacity(msg_ids.len());
-            for id in msg_ids.into_iter() {
+            for id in msg_ids.iter() {
                 let query_res = stmt.query_row(params![*id as i32], |row| {
                     Ok((row.get::<_, MessageState>(0)?, row.get::<_, Option<Blocked>>(1)?.unwrap_or_default()))
                 });
@@ -798,7 +795,7 @@ pub fn star_msgs(context: &Context, msg_ids: &[u32], star: bool) -> bool {
     context
         .sql
         .prepare("UPDATE msgs SET starred=? WHERE id=?;", |mut stmt, _| {
-            for msg_id in msg_ids.into_iter() {
+            for msg_id in msg_ids.iter() {
                 stmt.execute(params![star as i32, *msg_id as i32])?;
             }
             Ok(())
@@ -837,7 +834,7 @@ pub fn get_summarytext_by_raw(
                 } else {
                     None
                 }
-                .unwrap_or("ErrFileName".to_string());
+                .unwrap_or_else(|| "ErrFileName".to_string());
 
                 let label = context.stock_str(if viewtype == Viewtype::Audio {
                     StockMessage::Audio

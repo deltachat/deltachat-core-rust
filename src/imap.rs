@@ -331,7 +331,7 @@ struct ImapConfig {
 
 impl Default for ImapConfig {
     fn default() -> Self {
-        let cfg = ImapConfig {
+        ImapConfig {
             addr: "".into(),
             imap_server: "".into(),
             imap_port: 0,
@@ -346,9 +346,7 @@ impl Default for ImapConfig {
             has_xlist: false,
             imap_delimiter: '.',
             watch_folder: None,
-        };
-
-        cfg
+        }
     }
 }
 
@@ -935,22 +933,14 @@ impl Imap {
             let msg = &msgs[0];
 
             // XXX put flags into a set and pass them to dc_receive_imf
-            let is_deleted = msg
-                .flags()
-                .iter()
-                .find(|flag| match flag {
-                    imap::types::Flag::Deleted => true,
-                    _ => false,
-                })
-                .is_some();
-            let is_seen = msg
-                .flags()
-                .iter()
-                .find(|flag| match flag {
-                    imap::types::Flag::Seen => true,
-                    _ => false,
-                })
-                .is_some();
+            let is_deleted = msg.flags().iter().any(|flag| match flag {
+                imap::types::Flag::Deleted => true,
+                _ => false,
+            });
+            let is_seen = msg.flags().iter().any(|flag| match flag {
+                imap::types::Flag::Seen => true,
+                _ => false,
+            });
 
             let flags = if is_seen { DC_IMAP_SEEN } else { 0 };
 
@@ -1218,7 +1208,7 @@ impl Imap {
                     );
                 }
             }
-            return true; // we tried once, that's probably enough for setting flag
+            true // we tried once, that's probably enough for setting flag
         } else {
             unreachable!();
         }
@@ -1300,7 +1290,7 @@ impl Imap {
                     let remote_message_id =
                         prefetch_get_message_id(msgs.first().unwrap()).unwrap_or_default();
 
-                    if remote_message_id != message_id.as_ref() {
+                    if remote_message_id != message_id {
                         warn!(
                             context,
                             "Cannot delete on IMAP, {}: remote message-id '{}' != '{}'",

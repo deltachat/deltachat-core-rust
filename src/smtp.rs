@@ -150,7 +150,7 @@ impl Smtp {
                         message_len, recipients_display
                     )));
                     self.transport_connected = true;
-                    return Ok(());
+                    Ok(())
                 }
                 Err(err) => {
                     bail!("SMTP failed len={}: error: {}", message_len, err);

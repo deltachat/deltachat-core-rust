@@ -224,7 +224,7 @@ impl Sql {
             Ok(_) => Ok(()),
             Err(err) => {
                 error!(context, "set_config(): Cannot change value. {:?}", &err);
-                Err(err.into())
+                Err(err)
             }
         }
     }
@@ -1148,12 +1148,8 @@ mod test {
         maybe_add_file(&mut files, "$BLOBDIR/world.txt");
         maybe_add_file(&mut files, "world2.txt");
 
-        assert!(is_file_in_use(&mut files, None, "hello"));
-        assert!(!is_file_in_use(&mut files, Some(".txt"), "hello"));
-        assert!(is_file_in_use(
-            &mut files,
-            Some("-suffix"),
-            "world.txt-suffix"
-        ));
+        assert!(is_file_in_use(&files, None, "hello"));
+        assert!(!is_file_in_use(&files, Some(".txt"), "hello"));
+        assert!(is_file_in_use(&files, Some("-suffix"), "world.txt-suffix"));
     }
 }

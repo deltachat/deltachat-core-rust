@@ -696,7 +696,7 @@ fn encrypted_and_signed(mimeparser: &MimeParser, expected_fingerprint: impl AsRe
     if !mimeparser.encrypted {
         warn!(mimeparser.context, "Message not encrypted.",);
         false
-    } else if mimeparser.signatures.len() <= 0 {
+    } else if mimeparser.signatures.is_empty() {
         warn!(mimeparser.context, "Message not signed.",);
         false
     } else if expected_fingerprint.as_ref().is_empty() {
