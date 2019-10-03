@@ -225,7 +225,9 @@ impl Job {
             {
                 inbox.configure_folders(context, 0x1i32);
             }
-            let dest_folder = context.sql.get_raw_config(context, "configured_mvbox_folder");
+            let dest_folder = context
+                .sql
+                .get_raw_config(context, "configured_mvbox_folder");
 
             if let Some(dest_folder) = dest_folder {
                 let server_folder = msg.server_folder.as_ref().unwrap();
@@ -333,7 +335,9 @@ impl Job {
             {
                 inbox.configure_folders(context, 0x1i32);
             }
-            let dest_folder = context.sql.get_raw_config(context, "configured_mvbox_folder");
+            let dest_folder = context
+                .sql
+                .get_raw_config(context, "configured_mvbox_folder");
             if let Some(dest_folder) = dest_folder {
                 let mut dest_uid = 0;
                 if ImapResult::RetryLater
