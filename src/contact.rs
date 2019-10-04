@@ -1030,7 +1030,7 @@ fn split_address_book(book: &str) -> Vec<(&str, &str)> {
         .chunks(2)
         .into_iter()
         .filter_map(|mut chunk| {
-            let name = chunk.next().unwrap_or_default();
+            let name = chunk.next().unwrap();
             let addr = match chunk.next() {
                 Some(a) => a,
                 None => return None,

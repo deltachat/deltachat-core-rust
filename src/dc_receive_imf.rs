@@ -581,7 +581,7 @@ unsafe fn add_parts(
     );
 
     // unarchive chat
-    chat::unarchive(context, *chat_id).unwrap_or_default();
+    chat::unarchive(context, *chat_id)?;
 
     // if the mime-headers should be saved, find out its size
     // (the mime-header ends with an empty line)

@@ -287,7 +287,7 @@ impl Chat {
                 if self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup {
                     if self.param.get_int(Param::Unpromoted).unwrap_or_default() == 1 {
                         self.param.remove(Param::Unpromoted);
-                        self.update_param(context).unwrap_or_default();
+                        self.update_param(context)?;
                     }
                 }
             }
@@ -663,7 +663,7 @@ fn prepare_msg_common(context: &Context, chat_id: u32, msg: &mut Message) -> Res
             msg.type_0
         );
 
-        let mut path_filename = path_filename.unwrap_or_default().to_string();
+        let mut path_filename = path_filename.unwrap().to_string();
 
         if msg.state == MessageState::OutPreparing && !dc_is_blobdir_path(context, &path_filename) {
             bail!("Files must be created in the blob-directory.");
@@ -1367,7 +1367,7 @@ pub(crate) fn add_contact_to_chat_ex(
     }
     if from_handshake && chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 1 {
         chat.param.remove(Param::Unpromoted);
-        chat.update_param(context).unwrap_or_default();
+        chat.update_param(context)?;
     }
     let self_addr = context
         .get_config(Config::ConfiguredAddr)
@@ -1502,7 +1502,7 @@ pub fn remove_contact_from_chat(
                     if chat.is_promoted() {
                         msg.type_0 = Viewtype::Text;
                         if contact.id == DC_CONTACT_ID_SELF {
-                            set_group_explicitly_left(context, chat.grpid).unwrap_or_default();
+                            set_group_explicitly_left(context, chat.grpid)?;
                             msg.text = Some(context.stock_system_msg(
                                 StockMessage::MsgGroupLeft,
                                 "",
@@ -1711,7 +1711,7 @@ pub fn forward_msgs(context: &Context, msg_ids: &[u32], chat_id: u32) -> Result<
     let mut created_db_entries = Vec::new();
     let mut curr_timestamp: i64;
 
-    unarchive(context, chat_id).unwrap_or_default();
+    unarchive(context, chat_id)?;
     if let Ok(mut chat) = Chat::load_from_db(context, chat_id) {
         curr_timestamp = dc_create_smeared_timestamps(context, msg_ids.len());
         let idsstr = msg_ids
@@ -1721,18 +1721,15 @@ pub fn forward_msgs(context: &Context, msg_ids: &[u32], chat_id: u32) -> Result<
                 (if i == 0 { acc } else { acc + "," }) + &n.to_string()
             });
 
-        let ids = context
-            .sql
-            .query_map(
-                format!(
-                    "SELECT id FROM msgs WHERE id IN({}) ORDER BY timestamp,id",
-                    idsstr
-                ),
-                params![],
-                |row| row.get::<_, i32>(0),
-                |ids| ids.collect::<Result<Vec<_>, _>>().map_err(Into::into),
-            )
-            .unwrap_or_default(); // TODO: better error handling
+        let ids = context.sql.query_map(
+            format!(
+                "SELECT id FROM msgs WHERE id IN({}) ORDER BY timestamp,id",
+                idsstr
+            ),
+            params![],
+            |row| row.get::<_, i32>(0),
+            |ids| ids.collect::<Result<Vec<_>, _>>().map_err(Into::into),
+        )?;
 
         for id in ids {
             let src_msg_id = id;
@@ -1740,7 +1737,7 @@ pub fn forward_msgs(context: &Context, msg_ids: &[u32], chat_id: u32) -> Result<
             if msg.is_err() {
                 break;
             }
-            let mut msg = msg.unwrap_or_default();
+            let mut msg = msg.unwrap();
             let original_param = msg.param.clone();
             if msg.from_id != DC_CONTACT_ID_SELF {
                 msg.param.set_int(Param::Forwarded, 1);
@@ -1870,7 +1867,7 @@ mod tests {
     fn test_get_draft_no_draft() {
         let t = dummy_context();
         let chat_id = create_by_contact_id(&t.ctx, DC_CONTACT_ID_SELF).unwrap();
-        let draft = get_draft(&t.ctx, chat_id).unwrap_or_default();
+        let draft = get_draft(&t.ctx, chat_id).unwrap();
         assert!(draft.is_none());
     }
 

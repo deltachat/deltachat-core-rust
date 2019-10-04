@@ -330,13 +330,13 @@ fn encode_66bits_as_base64(v1: u32, v2: u32, fill: u32) -> String {
     let mut wrapped_writer = Vec::new();
     {
         let mut enc = base64::write::EncoderWriter::new(&mut wrapped_writer, base64::URL_SAFE);
-        enc.write_u32::<BigEndian>(v1).unwrap_or_default();
-        enc.write_u32::<BigEndian>(v2).unwrap_or_default();
-        enc.write_u8(((fill & 0x3) as u8) << 6).unwrap_or_default();
-        enc.finish().unwrap_or_default();
+        enc.write_u32::<BigEndian>(v1).unwrap();
+        enc.write_u32::<BigEndian>(v2).unwrap();
+        enc.write_u8(((fill & 0x3) as u8) << 6).unwrap();
+        enc.finish().unwrap();
     }
     assert_eq!(wrapped_writer.pop(), Some(b'A')); // Remove last "A"
-    String::from_utf8(wrapped_writer).unwrap_or_default()
+    String::from_utf8(wrapped_writer).unwrap()
 }
 
 pub(crate) fn dc_create_incoming_rfc724_mid(
@@ -386,7 +386,7 @@ pub(crate) fn dc_extract_grpid_from_rfc724_mid(mid: &str) -> Option<&str> {
         if let Some(grpid_len) = mid_without_offset.find('.') {
             /* strict length comparison, the 'Gr.' magic is weak enough */
             if grpid_len == 11 || grpid_len == 16 {
-                return Some(mid_without_offset.get(0..grpid_len).unwrap_or_default());
+                return Some(mid_without_offset.get(0..grpid_len).unwrap());
             }
         }
     }
@@ -892,7 +892,7 @@ fn as_path_unicode<'a>(s: *const libc::c_char) -> &'a std::path::Path {
 pub(crate) fn time() -> i64 {
     SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default()
+        .unwrap()
         .as_secs() as i64
 }
 

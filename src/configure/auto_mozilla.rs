@@ -40,7 +40,7 @@ pub unsafe fn moz_autoconfigure(
         free(xml_raw as *mut libc::c_void);
         return None;
     }
-    let (in_emaillocalpart, in_emaildomain) = param_in.addr.split_at(p.unwrap_or_default());
+    let (in_emaillocalpart, in_emaildomain) = param_in.addr.split_at(p.unwrap());
     let in_emaildomain = &in_emaildomain[1..];
 
     let mut reader = quick_xml::Reader::from_str(as_str(xml_raw));
