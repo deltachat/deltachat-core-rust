@@ -890,7 +890,7 @@ impl<'a> MimeParser<'a> {
             unsafe {
                 let fld_message_id = (*field).fld_data.fld_message_id;
                 if !fld_message_id.is_null() {
-                    return Some(to_string((*fld_message_id).mid_value));
+                    return Some(to_string_lossy((*fld_message_id).mid_value));
                 }
             }
         }

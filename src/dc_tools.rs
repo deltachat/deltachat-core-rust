@@ -30,11 +30,11 @@ pub(crate) fn dc_exactly_one_bit_set(v: libc::c_int) -> bool {
 /// # Examples
 ///
 /// ```
-/// use deltachat::dc_tools::{dc_strdup, to_string};
+/// use deltachat::dc_tools::{dc_strdup, to_string_lossy};
 /// unsafe {
 ///     let str_a = b"foobar\x00" as *const u8 as *const libc::c_char;
 ///     let str_a_copy = dc_strdup(str_a);
-///     assert_eq!(to_string(str_a_copy), "foobar");
+///     assert_eq!(to_string_lossy(str_a_copy), "foobar");
 ///     assert_ne!(str_a, str_a_copy);
 /// }
 /// ```
@@ -798,22 +798,6 @@ impl<T: AsRef<str>> StrExt for T {
     }
 }
 
-pub fn to_string(s: *const libc::c_char) -> String {
-    if s.is_null() {
-        return "".into();
-    }
-
-    let cstr = unsafe { CStr::from_ptr(s) };
-
-    cstr.to_str().map(|s| s.to_string()).unwrap_or_else(|err| {
-        panic!(
-            "Non utf8 string: '{:?}' ({:?})",
-            cstr.to_string_lossy(),
-            err
-        );
-    })
-}
-
 pub fn to_string_lossy(s: *const libc::c_char) -> String {
     if s.is_null() {
         return "".into();
@@ -1436,8 +1420,8 @@ mod tests {
         unsafe {
             let res = strndup(b"helloworld\x00" as *const u8 as *const libc::c_char, 4);
             assert_eq!(
-                to_string(res),
-                to_string(b"hell\x00" as *const u8 as *const libc::c_char)
+                to_string_lossy(res),
+                to_string_lossy(b"hell\x00" as *const u8 as *const libc::c_char)
             );
             assert_eq!(strlen(res), 4);
             free(res as *mut _);
@@ -1531,12 +1515,12 @@ mod tests {
         unsafe {
             let input = "foo\r\nbar".strdup();
             dc_remove_cr_chars(input);
-            assert_eq!("foo\nbar", to_string(input));
+            assert_eq!("foo\nbar", to_string_lossy(input));
             free(input.cast());
 
             let input = "\rfoo\r\rbar\r".strdup();
             dc_remove_cr_chars(input);
-            assert_eq!("foobar", to_string(input));
+            assert_eq!("foobar", to_string_lossy(input));
             free(input.cast());
         }
     }
