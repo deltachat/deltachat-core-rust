@@ -29,7 +29,7 @@ pub unsafe fn outlk_autodiscover(
     param_in: &LoginParam,
 ) -> Option<LoginParam> {
     let mut xml_raw: *mut libc::c_char = ptr::null_mut();
-    let mut url = url__.strdup();
+    let mut url = url__.to_string();
     let mut outlk_ad = outlk_autodiscover_t {
         in_0: param_in,
         out: LoginParam::new(),
@@ -47,12 +47,14 @@ pub unsafe fn outlk_autodiscover(
             ok_to_continue = true;
             break;
         }
+
         libc::memset(
             &mut outlk_ad as *mut outlk_autodiscover_t as *mut libc::c_void,
             0,
             ::std::mem::size_of::<outlk_autodiscover_t>(),
         );
-        xml_raw = read_autoconf_file(context, as_str(url));
+
+        xml_raw = read_autoconf_file(context, &url);
         if xml_raw.is_null() {
             ok_to_continue = false;
             break;
@@ -96,8 +98,7 @@ pub unsafe fn outlk_autodiscover(
             ok_to_continue = true;
             break;
         }
-        free(url as *mut libc::c_void);
-        url = dc_strdup(outlk_ad.config[5usize]);
+        url = as_str(outlk_ad.config[5usize]).to_string();
 
         outlk_clean_config(&mut outlk_ad);
         free(xml_raw as *mut libc::c_void);
@@ -113,14 +114,12 @@ pub unsafe fn outlk_autodiscover(
         {
             let r = outlk_ad.out.to_string();
             warn!(context, "Bad or incomplete autoconfig: {}", r,);
-            free(url as *mut libc::c_void);
             free(xml_raw as *mut libc::c_void);
             outlk_clean_config(&mut outlk_ad);
 
             return None;
         }
     }
-    free(url as *mut libc::c_void);
     free(xml_raw as *mut libc::c_void);
     outlk_clean_config(&mut outlk_ad);
     if out_null {
