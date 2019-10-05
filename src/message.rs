@@ -355,7 +355,7 @@ impl Message {
                     ) && buf_headerline == "-----BEGIN PGP MESSAGE-----"
                         && !buf_setupcodebegin.is_null()
                     {
-                        return Some(to_string(buf_setupcodebegin));
+                        return Some(to_string_lossy(buf_setupcodebegin));
                     }
                 }
             }

@@ -86,7 +86,7 @@ pub(crate) fn dc_decode_header_words(input: &str) -> String {
         if r as u32 != MAILIMF_NO_ERROR || out.is_null() {
             input.to_string()
         } else {
-            let res = to_string(out);
+            let res = to_string_lossy(out);
             free(out.cast());
             res
         }

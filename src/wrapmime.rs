@@ -42,7 +42,7 @@ pub fn get_ct_subtype(mime: *mut Mailmime) -> Option<String> {
         let ct: *mut mailmime_content = (*mime).mm_content_type;
 
         if !ct.is_null() && !(*ct).ct_subtype.is_null() {
-            Some(to_string((*ct).ct_subtype))
+            Some(to_string_lossy((*ct).ct_subtype))
         } else {
             None
         }

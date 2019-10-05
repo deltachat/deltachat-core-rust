@@ -688,8 +688,8 @@ unsafe fn add_parts(
                         } else {
                             None
                         },
-                        to_string(mime_in_reply_to),
-                        to_string(mime_references),
+                        to_string_lossy(mime_in_reply_to),
+                        to_string_lossy(mime_references),
                     ])?;
 
                     txt_raw = None;
@@ -1026,7 +1026,7 @@ unsafe fn create_or_lookup_group(
             {
                 let fld_in_reply_to = (*field).fld_data.fld_in_reply_to;
                 if !fld_in_reply_to.is_null() {
-                    grpid = to_string(dc_extract_grpid_from_rfc724_mid_list(
+                    grpid = to_string_lossy(dc_extract_grpid_from_rfc724_mid_list(
                         (*fld_in_reply_to).mid_list,
                     ));
                 }
@@ -1037,7 +1037,7 @@ unsafe fn create_or_lookup_group(
                 {
                     let fld_references = (*field).fld_data.fld_references;
                     if !fld_references.is_null() {
-                        grpid = to_string(dc_extract_grpid_from_rfc724_mid_list(
+                        grpid = to_string_lossy(dc_extract_grpid_from_rfc724_mid_list(
                             (*fld_references).mid_list,
                         ));
                     }

@@ -164,7 +164,7 @@ unsafe fn outlk_autodiscover_endtag_cb(event: &BytesEnd, outlk_ad: &mut outlk_au
             ) == 0
                 && outlk_ad.out_imap_set == 0
             {
-                outlk_ad.out.mail_server = to_string(outlk_ad.config[2]);
+                outlk_ad.out.mail_server = to_string_lossy(outlk_ad.config[2]);
                 outlk_ad.out.mail_port = port;
                 if 0 != ssl_on {
                     outlk_ad.out.server_flags |= DC_LP_IMAP_SOCKET_SSL as i32
@@ -178,7 +178,7 @@ unsafe fn outlk_autodiscover_endtag_cb(event: &BytesEnd, outlk_ad: &mut outlk_au
             ) == 0
                 && outlk_ad.out_smtp_set == 0
             {
-                outlk_ad.out.send_server = to_string(outlk_ad.config[2]);
+                outlk_ad.out.send_server = to_string_lossy(outlk_ad.config[2]);
                 outlk_ad.out.send_port = port;
                 if 0 != ssl_on {
                     outlk_ad.out.server_flags |= DC_LP_SMTP_SOCKET_SSL as i32

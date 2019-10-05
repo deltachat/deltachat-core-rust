@@ -133,7 +133,7 @@ impl Context {
         if ptr.is_null() {
             Cow::Borrowed(id.fallback())
         } else {
-            let ret = to_string(ptr);
+            let ret = to_string_lossy(ptr);
             unsafe { libc::free(ptr as *mut libc::c_void) };
             Cow::Owned(ret)
         }

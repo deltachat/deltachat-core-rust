@@ -119,7 +119,7 @@ fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int {
 
     /* if `spec` is given, remember it for later usage; if it is not given, try to use the last one */
     if !spec.is_null() {
-        real_spec = to_string(spec);
+        real_spec = to_string_lossy(spec);
         context
             .sql
             .set_raw_config(context, "import_spec", Some(&real_spec))

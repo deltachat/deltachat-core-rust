@@ -24,9 +24,7 @@ use num_traits::{FromPrimitive, ToPrimitive};
 
 use deltachat::contact::Contact;
 use deltachat::context::Context;
-use deltachat::dc_tools::{
-    as_path, as_str, dc_strdup, to_string, to_string_lossy, OsStrExt, StrExt,
-};
+use deltachat::dc_tools::{as_path, as_str, dc_strdup, to_string_lossy, OsStrExt, StrExt};
 use deltachat::*;
 
 // as C lacks a good and portable error handling,
@@ -381,8 +379,8 @@ pub unsafe extern "C" fn dc_get_oauth2_url(
         return ptr::null_mut(); // NULL explicitly defined as "unknown"
     }
     let ffi_context = &*context;
-    let addr = to_string(addr);
-    let redirect = to_string(redirect);
+    let addr = to_string_lossy(addr);
+    let redirect = to_string_lossy(redirect);
     ffi_context
         .with_inner(|ctx| match oauth2::dc_get_oauth2_url(ctx, addr, redirect) {
             Some(res) => res.strdup(),
