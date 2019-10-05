@@ -299,10 +299,10 @@ impl Chat {
             do_guarantee_e2ee = false;
             e2ee_enabled = context.get_config_bool(Config::E2eeEnabled);
             if e2ee_enabled && msg.param.get_int(Param::ForcePlaintext).unwrap_or_default() == 0 {
-                let mut can_encrypt = 1;
-                let mut all_mutual = 1;
+                let mut can_encrypt = true;
+                let mut all_mutual = true;
 
-                let res = context.sql.query_row(
+                let res = context.sql.query_map(
                     "SELECT ps.prefer_encrypted, c.addr \
                      FROM chats_contacts cc  \
                      LEFT JOIN contacts c ON cc.contact_id=c.id  \
@@ -310,29 +310,30 @@ impl Chat {
                      WHERE cc.chat_id=?  AND cc.contact_id>9;",
                     params![self.id],
                     |row| {
-                        let state: String = row.get(1)?;
+                        let addr: String = row.get(1)?;
 
                         if let Some(prefer_encrypted) = row.get::<_, Option<i32>>(0)? {
                             if prefer_encrypted != 1 {
                                 info!(
                                     context,
                                     "[autocrypt] peerstate for {} is {}",
-                                    state,
+                                    addr,
                                     if prefer_encrypted == 0 {
                                         "NOPREFERENCE"
                                     } else {
                                         "RESET"
                                     },
                                 );
-                                all_mutual = 0;
+                                all_mutual = false;
                             }
                         } else {
-                            info!(context, "[autocrypt] no peerstate for {}", state,);
-                            can_encrypt = 0;
-                            all_mutual = 0;
+                            info!(context, "[autocrypt] no peerstate for {}", addr,);
+                            can_encrypt = false;
+                            all_mutual = false;
                         }
                         Ok(())
                     },
+                    |rows| rows.collect::<Result<Vec<_>, _>>().map_err(Into::into),
                 );
                 match res {
                     Ok(_) => {}
@@ -341,8 +342,8 @@ impl Chat {
                     }
                 }
 
-                if 0 != can_encrypt {
-                    if 0 != all_mutual {
+                if can_encrypt {
+                    if all_mutual {
                         do_guarantee_e2ee = true;
                     } else if last_msg_in_chat_encrypted(context, &context.sql, self.id) {
                         do_guarantee_e2ee = true;

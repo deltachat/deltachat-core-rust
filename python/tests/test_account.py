@@ -516,6 +516,14 @@ class TestOnlineAccount:
         assert msg_back.text == "message-back"
         assert msg_back.is_encrypted()
 
+        lp.sec("create group chat with two members, one of which has no encrypt state")
+        chat = ac1.create_group_chat("encryption test")
+        chat.add_contact(ac1.create_contact(ac2.get_config("addr")))
+        chat.add_contact(ac1.create_contact("notexisting@testrun.org"))
+        msg = chat.send_text("test not encrypt")
+        ev = ac1._evlogger.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
+        assert not msg.is_encrypted()
+
     def test_saved_mime_on_received_message(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
 
