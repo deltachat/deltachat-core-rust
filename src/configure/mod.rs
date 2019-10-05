@@ -633,7 +633,7 @@ pub fn dc_stop_ongoing_process(context: &Context) {
     };
 }
 
-pub fn read_autoconf_file(context: &Context, url: &str) -> *mut libc::c_char {
+pub fn read_autoconf_file(context: &Context, url: &str) -> Option<String> {
     info!(context, "Testing {} ...", url);
 
     match reqwest::Client::new()
@@ -641,11 +641,11 @@ pub fn read_autoconf_file(context: &Context, url: &str) -> *mut libc::c_char {
         .send()
         .and_then(|mut res| res.text())
     {
-        Ok(res) => unsafe { res.strdup() },
+        Ok(res) => Some(res),
         Err(_err) => {
             info!(context, "Can\'t read file.",);
 
-            std::ptr::null_mut()
+            None
         }
     }
 }
