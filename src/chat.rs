@@ -162,9 +162,13 @@ impl Chat {
         let collect = |row: &rusqlite::Row| Ok((row.get(0)?, row.get(1)?, row.get(2)?));
         let params = params![self.id as i32, DC_CONTACT_ID_SELF as i32];
         let sql = &context.sql;
+
+        // use the last messsage of another user in the group as the parent
         let main_query = "SELECT rfc724_mid, mime_in_reply_to, mime_references \
                           FROM msgs WHERE chat_id=?1 AND timestamp=(SELECT max(timestamp) \
                           FROM msgs WHERE chat_id=?1 AND from_id!=?2);";
+
+        // there are no messages of other users - use the first message if SELF as parent
         let fallback_query = "SELECT rfc724_mid, mime_in_reply_to, mime_references \
                               FROM msgs WHERE chat_id=?1 AND timestamp=(SELECT min(timestamp) \
                               FROM msgs WHERE chat_id=?1 AND from_id==?2);";
@@ -302,6 +306,9 @@ impl Chat {
                 let mut can_encrypt = true;
                 let mut all_mutual = true;
 
+                // take care that this statement returns NULL rows
+                // if there is no peerstates for a chat member!
+                // for DC_PARAM_SELFTALK this statement does not return any row
                 let res = context.sql.query_map(
                     "SELECT ps.prefer_encrypted, c.addr \
                      FROM chats_contacts cc  \
@@ -313,6 +320,8 @@ impl Chat {
                         let addr: String = row.get(1)?;
 
                         if let Some(prefer_encrypted) = row.get::<_, Option<i32>>(0)? {
+                            // the peerstate exist, so we have either public_key or gossip_key
+                            // and can encrypt potentially
                             if prefer_encrypted != 1 {
                                 info!(
                                     context,
@@ -353,7 +362,15 @@ impl Chat {
             if do_guarantee_e2ee {
                 msg.param.set_int(Param::GuranteeE2ee, 1);
             }
+            // reset eg. for forwarding
             msg.param.remove(Param::ErroneousE2ee);
+
+            // set "In-Reply-To:" to identify the message to which the composed message is a reply;
+            // set "References:" to identify the "thread" of the conversation;
+            // both according to RFC 5322 3.6.4, page 25
+            //
+            // as self-talks are mainly used to transfer data between devices,
+            // we do not set In-Reply-To/References in this case.
             if !self.is_self_talk() {
                 if let Some((parent_rfc724_mid, parent_in_reply_to, parent_references)) =
                     self.get_parent_mime_headers(context)
@@ -361,6 +378,9 @@ impl Chat {
                     if !parent_rfc724_mid.is_empty() {
                         new_in_reply_to = parent_rfc724_mid.clone();
                     }
+
+                    // the whole list of messages referenced may be huge;
+                    // only use the oldest and and the parent message
                     let parent_references = if let Some(n) = parent_references.find(' ') {
                         &parent_references[0..n]
                     } else {
@@ -368,6 +388,7 @@ impl Chat {
                     };
 
                     if !parent_references.is_empty() && !parent_rfc724_mid.is_empty() {
+                        // angle brackets are added by the mimefactory later
                         new_references = format!("{} {}", parent_references, parent_rfc724_mid);
                     } else if !parent_references.is_empty() {
                         new_references = parent_references.to_string();
