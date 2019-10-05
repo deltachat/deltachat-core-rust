@@ -606,7 +606,6 @@ impl<'a> MimeParser<'a> {
         let old_part_count = self.parts.len();
 
         /* regard `Content-Transfer-Encoding:` */
-        let mut ok_to_continue = true;
         let mut desired_filename = String::default();
         let mut simplifier: Option<Simplify> = None;
         match mime_type {
@@ -626,10 +625,9 @@ impl<'a> MimeParser<'a> {
                         let (res, _, _) = encoding.decode(&decoded_data);
                         if res.is_empty() {
                             /* no error - but nothing to add */
-                            ok_to_continue = false;
-                        } else {
-                            decoded_data = res.as_bytes().to_vec()
+                            return false;
                         }
+                        decoded_data = res.as_bytes().to_vec()
                     } else {
                         warn!(
                             self.context,
@@ -639,7 +637,6 @@ impl<'a> MimeParser<'a> {
                         );
                     }
                 }
-                if ok_to_continue {
                     /* check header directly as is_send_by_messenger is not yet set up */
                     let is_msgrmsg = self.lookup_optional_field("Chat-Version").is_some();
 
@@ -664,7 +661,6 @@ impl<'a> MimeParser<'a> {
                     if simplifier.unwrap().is_forwarded {
                         self.is_forwarded = true;
                     }
-                }
             }
             DC_MIMETYPE_IMAGE
             | DC_MIMETYPE_AUDIO
@@ -738,10 +734,9 @@ impl<'a> MimeParser<'a> {
                         desired_filename =
                             format!("file.{}", as_str((*(*mime).mm_content_type).ct_subtype));
                     } else {
-                        ok_to_continue = false;
+                        return false;
                     }
                 }
-                if ok_to_continue {
                     if desired_filename.starts_with("location")
                         && desired_filename.ends_with(".kml")
                     {
@@ -765,7 +760,6 @@ impl<'a> MimeParser<'a> {
                             &desired_filename,
                         );
                     }
-                }
             }
             _ => {}
         }
