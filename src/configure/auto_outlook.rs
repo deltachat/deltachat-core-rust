@@ -54,48 +54,48 @@ pub unsafe fn outlk_autodiscover(
         );
 
         if let Some(xml_raw) = read_autoconf_file(context, &url) {
-        let mut reader = quick_xml::Reader::from_str(&xml_raw);
-        reader.trim_text(true);
+            let mut reader = quick_xml::Reader::from_str(&xml_raw);
+            reader.trim_text(true);
 
-        let mut buf = Vec::new();
+            let mut buf = Vec::new();
 
-        loop {
-            match reader.read_event(&mut buf) {
-                Ok(quick_xml::events::Event::Start(ref e)) => {
-                    outlk_autodiscover_starttag_cb(e, &mut outlk_ad)
+            loop {
+                match reader.read_event(&mut buf) {
+                    Ok(quick_xml::events::Event::Start(ref e)) => {
+                        outlk_autodiscover_starttag_cb(e, &mut outlk_ad)
+                    }
+                    Ok(quick_xml::events::Event::End(ref e)) => {
+                        outlk_autodiscover_endtag_cb(e, &mut outlk_ad)
+                    }
+                    Ok(quick_xml::events::Event::Text(ref e)) => {
+                        outlk_autodiscover_text_cb(e, &mut outlk_ad, &reader)
+                    }
+                    Err(e) => {
+                        error!(
+                            context,
+                            "Configure xml: Error at position {}: {:?}",
+                            reader.buffer_position(),
+                            e
+                        );
+                    }
+                    Ok(quick_xml::events::Event::Eof) => break,
+                    _ => (),
                 }
-                Ok(quick_xml::events::Event::End(ref e)) => {
-                    outlk_autodiscover_endtag_cb(e, &mut outlk_ad)
-                }
-                Ok(quick_xml::events::Event::Text(ref e)) => {
-                    outlk_autodiscover_text_cb(e, &mut outlk_ad, &reader)
-                }
-                Err(e) => {
-                    error!(
-                        context,
-                        "Configure xml: Error at position {}: {:?}",
-                        reader.buffer_position(),
-                        e
-                    );
-                }
-                Ok(quick_xml::events::Event::Eof) => break,
-                _ => (),
+                buf.clear();
             }
-            buf.clear();
-        }
 
-        // XML redirect via redirecturl
-        if !(!outlk_ad.config[5].is_null()
-            && 0 != *outlk_ad.config[5usize].offset(0isize) as libc::c_int)
-        {
-            out_null = false;
-            ok_to_continue = true;
-            break;
-        }
-        url = as_str(outlk_ad.config[5usize]).to_string();
+            // XML redirect via redirecturl
+            if !(!outlk_ad.config[5].is_null()
+                && 0 != *outlk_ad.config[5usize].offset(0isize) as libc::c_int)
+            {
+                out_null = false;
+                ok_to_continue = true;
+                break;
+            }
+            url = as_str(outlk_ad.config[5usize]).to_string();
 
-        outlk_clean_config(&mut outlk_ad);
-        i += 1;
+            outlk_clean_config(&mut outlk_ad);
+            i += 1;
         } else {
             ok_to_continue = false;
             break;
