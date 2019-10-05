@@ -22,7 +22,7 @@ struct moz_autoconfigure_t<'a> {
     pub tag_config: libc::c_int,
 }
 
-pub unsafe fn moz_autoconfigure(
+pub fn moz_autoconfigure(
     context: &Context,
     url: &str,
     param_in: &LoginParam,
