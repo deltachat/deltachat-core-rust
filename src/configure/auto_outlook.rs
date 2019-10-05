@@ -14,8 +14,7 @@ use super::read_autoconf_file;
  * Outlook's Autodiscover
  ******************************************************************************/
 #[repr(C)]
-struct outlk_autodiscover_t<'a> {
-    pub in_0: &'a LoginParam,
+struct outlk_autodiscover_t {
     pub out: LoginParam,
     pub out_imap_set: libc::c_int,
     pub out_smtp_set: libc::c_int,
@@ -26,11 +25,10 @@ struct outlk_autodiscover_t<'a> {
 pub unsafe fn outlk_autodiscover(
     context: &Context,
     url__: &str,
-    param_in: &LoginParam,
+    _param_in: &LoginParam,
 ) -> Option<LoginParam> {
     let mut url = url__.to_string();
     let mut outlk_ad = outlk_autodiscover_t {
-        in_0: param_in,
         out: LoginParam::new(),
         out_imap_set: 0,
         out_smtp_set: 0,
