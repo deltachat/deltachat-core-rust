@@ -79,19 +79,13 @@ impl Aheader {
                 let optional_field = unsafe { (*field).fld_data.fld_optional_field };
                 if !optional_field.is_null()
                     && unsafe { !(*optional_field).fld_name.is_null() }
-                    && unsafe {
-                        CStr::from_ptr((*optional_field).fld_name)
-                            .to_str()
-                            .unwrap_or_default()
-                    } == "Autocrypt"
+                    && unsafe { CStr::from_ptr((*optional_field).fld_name).to_string_lossy() }
+                        == "Autocrypt"
                 {
-                    let value = unsafe {
-                        CStr::from_ptr((*optional_field).fld_value)
-                            .to_str()
-                            .unwrap_or_default()
-                    };
+                    let value =
+                        unsafe { CStr::from_ptr((*optional_field).fld_value).to_string_lossy() };
 
-                    if let Ok(test) = Self::from_str(value) {
+                    if let Ok(test) = Self::from_str(&value) {
                         if addr_cmp(&test.addr, wanted_from) {
                             if fine_header.is_none() {
                                 fine_header = Some(test);

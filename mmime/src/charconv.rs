@@ -16,12 +16,9 @@ pub unsafe fn charconv(
 ) -> libc::c_int {
     assert!(!fromcode.is_null(), "invalid fromcode");
     assert!(!s.is_null(), "invalid input string");
-    if let Some(encoding) = charset::Charset::for_label(
-        CStr::from_ptr(fromcode)
-            .to_str()
-            .unwrap_or_default()
-            .as_bytes(),
-    ) {
+    if let Some(encoding) =
+        charset::Charset::for_label(CStr::from_ptr(fromcode).to_string_lossy().as_bytes())
+    {
         let data = std::slice::from_raw_parts(s as *const u8, strlen(s));
 
         let (res, _, _) = encoding.decode(data);
