@@ -978,16 +978,17 @@ mod tests {
         let mut setupcodebegin = ptr::null();
         let mut preferencrypt = ptr::null();
 
-        let mut buf_1 = S_EM_SETUPFILE.to_string();
-
         unsafe {
-            assert!(dc_split_armored_data(
-                buf_1.as_mut_ptr().cast(),
+            let buf_1 = S_EM_SETUPFILE.strdup();
+            let res = dc_split_armored_data(
+                buf_1,
                 &mut headerline,
                 &mut setupcodebegin,
                 &mut preferencrypt,
                 ptr::null_mut(),
-            ));
+            );
+            libc::free(buf_1 as *mut libc::c_void);
+            assert!(res);
         }
         assert_eq!(headerline, "-----BEGIN PGP MESSAGE-----");
         assert!(!setupcodebegin.is_null());
@@ -998,18 +999,20 @@ mod tests {
         assert!(preferencrypt.is_null());
 
         let mut setup_file = S_EM_SETUPFILE.to_string();
-        let mut decrypted = unsafe {
+        let decrypted = unsafe {
             decrypt_setup_file(context, S_EM_SETUPCODE, setup_file.as_bytes_mut()).unwrap()
         };
 
         unsafe {
+            let buf1 = decrypted.strdup();
             assert!(dc_split_armored_data(
-                decrypted.as_mut_ptr().cast(),
+                buf1,
                 &mut headerline,
                 &mut setupcodebegin,
                 &mut preferencrypt,
                 ptr::null_mut(),
             ));
+            libc::free(buf1 as *mut libc::c_void);
         }
 
         assert_eq!(headerline, "-----BEGIN PGP PRIVATE KEY BLOCK-----");
