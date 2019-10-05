@@ -71,7 +71,7 @@ impl LoginParam {
         let key = format!("{}imap_certificate_checks", prefix);
         let imap_certificate_checks =
             if let Some(certificate_checks) = sql.get_raw_config_int(context, key) {
-                num_traits::FromPrimitive::from_i32(certificate_checks).unwrap_or_default()
+                num_traits::FromPrimitive::from_i32(certificate_checks).unwrap()
             } else {
                 Default::default()
             };
@@ -91,7 +91,7 @@ impl LoginParam {
         let key = format!("{}smtp_certificate_checks", prefix);
         let smtp_certificate_checks =
             if let Some(certificate_checks) = sql.get_raw_config_int(context, key) {
-                num_traits::FromPrimitive::from_i32(certificate_checks).unwrap_or_default()
+                num_traits::FromPrimitive::from_i32(certificate_checks).unwrap()
             } else {
                 Default::default()
             };

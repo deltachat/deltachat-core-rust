@@ -118,7 +118,7 @@ impl StockMessage {
     ///
     /// These could be used in logging calls, so no logging here.
     fn fallback(&self) -> &'static str {
-        self.get_str("fallback").unwrap()
+        self.get_str("fallback").unwrap_or_default()
     }
 }
 

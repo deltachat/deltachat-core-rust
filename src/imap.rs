@@ -697,8 +697,16 @@ impl Imap {
             // the entry has the format `imap.mailbox.<folder>=<uidvalidity>:<lastseenuid>`
             let mut parts = entry.split(':');
             (
-                parts.next().unwrap().parse().unwrap_or_else(|_| 0),
-                parts.next().unwrap().parse().unwrap_or_else(|_| 0),
+                parts
+                    .next()
+                    .unwrap_or_default()
+                    .parse()
+                    .unwrap_or_else(|_| 0),
+                parts
+                    .next()
+                    .unwrap_or_default()
+                    .parse()
+                    .unwrap_or_else(|_| 0),
             )
         } else {
             (0, 0)
@@ -742,7 +750,7 @@ impl Imap {
             return 0;
         }
 
-        if mailbox.uid_validity.unwrap() != uid_validity {
+        if mailbox.uid_validity.unwrap_or_default() != uid_validity {
             // first time this folder is selected or UIDVALIDITY has changed, init lastseenuid and save it to config
 
             if mailbox.exists == 0 {
@@ -752,7 +760,12 @@ impl Imap {
                 // id we do not do this here, we'll miss the first message
                 // as we will get in here again and fetch from lastseenuid+1 then
 
-                self.set_config_last_seen_uid(context, &folder, mailbox.uid_validity.unwrap(), 0);
+                self.set_config_last_seen_uid(
+                    context,
+                    &folder,
+                    mailbox.uid_validity.unwrap_or_default(),
+                    0,
+                );
                 return 0;
             }
 
@@ -783,7 +796,7 @@ impl Imap {
                 last_seen_uid -= 1;
             }
 
-            uid_validity = mailbox.uid_validity.unwrap();
+            uid_validity = mailbox.uid_validity.unwrap_or_default();
             self.set_config_last_seen_uid(context, &folder, uid_validity, last_seen_uid);
             info!(
                 context,
@@ -945,7 +958,7 @@ impl Imap {
             let flags = if is_seen { DC_IMAP_SEEN } else { 0 };
 
             if !is_deleted && msg.body().is_some() {
-                let body = msg.body().unwrap();
+                let body = msg.body().unwrap_or_default();
                 unsafe {
                     dc_receive_imf(context, &body, folder.as_ref(), server_uid, flags as u32);
                 }
@@ -1056,13 +1069,14 @@ impl Imap {
         let mut do_fake_idle = true;
         while do_fake_idle {
             // wait a moment: every 5 seconds in the first 3 minutes after a new message, after that every 60 seconds.
-            let seconds_to_wait =
-                if fake_idle_start_time.elapsed().unwrap() < Duration::new(3 * 60, 0) && !wait_long
-                {
-                    Duration::new(5, 0)
-                } else {
-                    Duration::new(60, 0)
-                };
+            let seconds_to_wait = if fake_idle_start_time.elapsed().unwrap_or_default()
+                < Duration::new(3 * 60, 0)
+                && !wait_long
+            {
+                Duration::new(5, 0)
+            } else {
+                Duration::new(60, 0)
+            };
 
             let &(ref lock, ref cvar) = &*self.watch.clone();
             let mut watch = lock.lock().unwrap();

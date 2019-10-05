@@ -210,7 +210,7 @@ pub fn dc_join_securejoin(context: &Context, qr: &str) -> u32 {
         info!(context, "Taking protocol shortcut.");
         context.bob.write().unwrap().expects = DC_VC_CONTACT_CONFIRM;
         joiner_progress!(context, chat_id_2_contact_id(context, contact_chat_id), 400);
-        let own_fingerprint = get_self_fingerprint(context).unwrap();
+        let own_fingerprint = get_self_fingerprint(context).unwrap_or_default();
         send_handshake_msg(
             context,
             contact_chat_id,
@@ -291,7 +291,7 @@ fn send_handshake_msg(
         msg.param.set_int(Param::GuranteeE2ee, 1);
     }
     // TODO. handle cleanup on error
-    chat::send_msg(context, contact_chat_id, &mut msg).unwrap();
+    chat::send_msg(context, contact_chat_id, &mut msg).unwrap_or_default();
 }
 
 fn chat_id_2_contact_id(context: &Context, contact_chat_id: u32) -> u32 {
@@ -675,7 +675,9 @@ fn mark_peer_as_verified(context: &Context, fingerprint: impl AsRef<str>) -> Res
         if peerstate.set_verified(1, fingerprint.as_ref(), 2) {
             peerstate.prefer_encrypt = EncryptPreference::Mutual;
             peerstate.to_save = Some(ToSave::All);
-            peerstate.save_to_db(&context.sql, false).unwrap();
+            peerstate
+                .save_to_db(&context.sql, false)
+                .unwrap_or_default();
             return Ok(());
         }
     }

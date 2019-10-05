@@ -330,7 +330,7 @@ impl Context {
                     Ok(ret)
                 },
             )
-            .unwrap()
+            .unwrap_or_default()
     }
 
     #[allow(non_snake_case)]

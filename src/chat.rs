@@ -287,7 +287,7 @@ impl Chat {
                 if self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup {
                     if self.param.get_int(Param::Unpromoted).unwrap_or_default() == 1 {
                         self.param.remove(Param::Unpromoted);
-                        self.update_param(context).unwrap();
+                        self.update_param(context)?;
                     }
                 }
             }
@@ -1368,7 +1368,7 @@ pub(crate) fn add_contact_to_chat_ex(
     }
     if from_handshake && chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 1 {
         chat.param.remove(Param::Unpromoted);
-        chat.update_param(context).unwrap();
+        chat.update_param(context)?;
     }
     let self_addr = context
         .get_config(Config::ConfiguredAddr)
@@ -1503,7 +1503,7 @@ pub fn remove_contact_from_chat(
                     if chat.is_promoted() {
                         msg.type_0 = Viewtype::Text;
                         if contact.id == DC_CONTACT_ID_SELF {
-                            set_group_explicitly_left(context, chat.grpid).unwrap();
+                            set_group_explicitly_left(context, chat.grpid)?;
                             msg.text = Some(context.stock_system_msg(
                                 StockMessage::MsgGroupLeft,
                                 "",
@@ -1712,7 +1712,7 @@ pub fn forward_msgs(context: &Context, msg_ids: &[u32], chat_id: u32) -> Result<
     let mut created_db_entries = Vec::new();
     let mut curr_timestamp: i64;
 
-    unarchive(context, chat_id).unwrap();
+    unarchive(context, chat_id)?;
     if let Ok(mut chat) = Chat::load_from_db(context, chat_id) {
         curr_timestamp = dc_create_smeared_timestamps(context, msg_ids.len());
         let idsstr = msg_ids
@@ -1722,18 +1722,15 @@ pub fn forward_msgs(context: &Context, msg_ids: &[u32], chat_id: u32) -> Result<
                 (if i == 0 { acc } else { acc + "," }) + &n.to_string()
             });
 
-        let ids = context
-            .sql
-            .query_map(
-                format!(
-                    "SELECT id FROM msgs WHERE id IN({}) ORDER BY timestamp,id",
-                    idsstr
-                ),
-                params![],
-                |row| row.get::<_, i32>(0),
-                |ids| ids.collect::<Result<Vec<_>, _>>().map_err(Into::into),
-            )
-            .unwrap(); // TODO: better error handling
+        let ids = context.sql.query_map(
+            format!(
+                "SELECT id FROM msgs WHERE id IN({}) ORDER BY timestamp,id",
+                idsstr
+            ),
+            params![],
+            |row| row.get::<_, i32>(0),
+            |ids| ids.collect::<Result<Vec<_>, _>>().map_err(Into::into),
+        )?;
 
         for id in ids {
             let src_msg_id = id;

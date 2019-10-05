@@ -163,8 +163,8 @@ impl Key {
 
     pub fn to_bytes(&self) -> Vec<u8> {
         match self {
-            Key::Public(k) => k.to_bytes().unwrap(),
-            Key::Secret(k) => k.to_bytes().unwrap(),
+            Key::Public(k) => k.to_bytes().unwrap_or_default(),
+            Key::Secret(k) => k.to_bytes().unwrap_or_default(),
         }
     }
 

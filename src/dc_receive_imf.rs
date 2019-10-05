@@ -581,7 +581,7 @@ unsafe fn add_parts(
     );
 
     // unarchive chat
-    chat::unarchive(context, *chat_id).unwrap();
+    chat::unarchive(context, *chat_id)?;
 
     // if the mime-headers should be saved, find out its size
     // (the mime-header ends with an empty line)
@@ -1264,7 +1264,7 @@ unsafe fn create_or_lookup_group(
                 } else {
                     chat.param.set(Param::ProfileImage, grpimage);
                 }
-                chat.update_param(context).unwrap();
+                chat.update_param(context).unwrap_or_default();
                 send_EVENT_CHAT_MODIFIED = 1;
             }
         }
@@ -1575,7 +1575,7 @@ fn search_chat_ids_by_contact_ids(context: &Context, unsorted_contact_ids: &Vec<
                     }
                 Ok(())
                 }
-            ).unwrap(); // TODO: better error handling
+            ).unwrap_or_default(); // TODO: better error handling
         }
     }
 
@@ -1683,7 +1683,7 @@ unsafe fn dc_is_reply_to_known_message(context: &Context, mime_parser: &MimePars
     /* check if the message is a reply to a known message; the replies are identified by the Message-ID from
     `In-Reply-To`/`References:` (to support non-Delta-Clients) or from `Chat-Predecessor:` (Delta clients, see comment in dc_chat.c) */
     if let Some(optional_field) = mime_parser.lookup_optional_field("Chat-Predecessor") {
-        let optional_field_c = CString::new(optional_field).unwrap();
+        let optional_field_c = CString::new(optional_field).unwrap_or_default();
         if 0 != is_known_rfc724_mid(context, optional_field_c.as_ptr()) {
             return 1;
         }

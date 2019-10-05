@@ -637,7 +637,10 @@ fn dc_make_rel_path(context: &Context, path: &mut String) {
         .map(|s| path.starts_with(s))
         .unwrap_or_default()
     {
-        *path = path.replace(context.get_blobdir().to_str().unwrap(), "$BLOBDIR");
+        *path = path.replace(
+            context.get_blobdir().to_str().unwrap_or_default(),
+            "$BLOBDIR",
+        );
     }
 }
 
