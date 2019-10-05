@@ -24,9 +24,7 @@ use num_traits::{FromPrimitive, ToPrimitive};
 
 use deltachat::contact::Contact;
 use deltachat::context::Context;
-use deltachat::dc_tools::{
-    as_path, as_str, dc_strdup, to_string_lossy, OsStrExt, StrExt,
-};
+use deltachat::dc_tools::{as_path, as_str, dc_strdup, to_string_lossy, OsStrExt, StrExt};
 use deltachat::*;
 
 // as C lacks a good and portable error handling,
