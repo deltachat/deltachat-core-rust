@@ -38,6 +38,7 @@ pub unsafe fn outlk_autodiscover(
         tag_config: 0,
         config: [ptr::null_mut(); 6],
     };
+    let mut out_null = true;
     let ok_to_continue;
     let mut i = 0;
     loop {
@@ -89,6 +90,7 @@ pub unsafe fn outlk_autodiscover(
         if !(!outlk_ad.config[5].is_null()
             && 0 != *outlk_ad.config[5usize].offset(0isize) as libc::c_int)
         {
+            out_null = false;
             ok_to_continue = true;
             break;
         }
@@ -119,7 +121,11 @@ pub unsafe fn outlk_autodiscover(
     free(url as *mut libc::c_void);
     free(xml_raw as *mut libc::c_void);
     outlk_clean_config(&mut outlk_ad);
-    Some(outlk_ad.out)
+    if out_null {
+        None
+    } else {
+        Some(outlk_ad.out)
+    }
 }
 
 unsafe fn outlk_clean_config(mut outlk_ad: *mut outlk_autodiscover_t) {
