@@ -1340,6 +1340,25 @@ mod tests {
     }
 
     #[test]
+    fn test_dc_create_outgoing_rfc724_mid() {
+        // create a normal message-id
+        let mid = dc_create_outgoing_rfc724_mid(None, "foo@bar.de");
+        assert!(mid.starts_with("Mr."));
+        assert!(mid.ends_with("bar.de"));
+        assert!(dc_extract_grpid_from_rfc724_mid(mid.as_str()).is_none());
+
+        // create a message-id containing a group-id
+        let grpid = dc_create_id();
+        let mid = dc_create_outgoing_rfc724_mid(Some(&grpid), "foo@bar.de");
+        assert!(mid.starts_with("Gr."));
+        assert!(mid.ends_with("bar.de"));
+        assert_eq!(
+            dc_extract_grpid_from_rfc724_mid(mid.as_str()),
+            Some(grpid.as_str())
+        );
+    }
+
+    #[test]
     fn test_emailaddress_parse() {
         assert_eq!(EmailAddress::new("").is_ok(), false);
         assert_eq!(
