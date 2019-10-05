@@ -291,6 +291,7 @@ pub unsafe fn dc_receive_imf(
         &rr_event_to_send,
     );
 }
+
 unsafe fn add_parts(
     context: &Context,
     mut mime_parser: &mut MimeParser,
@@ -1443,7 +1444,7 @@ unsafe fn create_or_lookup_adhoc_group(
     context.call_cb(Event::ChatModified(chat_id));
 
     cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
-    return Ok(())
+    return Ok(());
 }
 
 fn create_group_record(
