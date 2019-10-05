@@ -12,7 +12,7 @@ use crate::dc_tools::*;
 use crate::error::Error;
 use crate::events::Event;
 use crate::imap::*;
-use crate::imex::*;
+use crate::imex::job_do_DC_JOB_IMEX_IMAP;
 use crate::location;
 use crate::login_param::LoginParam;
 use crate::message::{self, Message, MessageState};
@@ -781,13 +781,8 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                 Action::MarkseenMdnOnImap => job.do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context),
                 Action::MoveMsg => job.do_DC_JOB_MOVE_MSG(context),
                 Action::SendMdn => job.do_DC_JOB_SEND(context),
+                Action::ImexImap => job_do_DC_JOB_IMEX_IMAP(context, &job),
                 Action::ConfigureImap => dc_job_do_DC_JOB_CONFIGURE_IMAP(context),
-                Action::ImexImap => match dc_job_do_DC_JOB_IMEX_IMAP(context) {
-                    Ok(()) => {}
-                    Err(err) => {
-                        error!(context, "{}", err);
-                    }
-                },
                 Action::MaybeSendLocations => {
                     location::job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context, &job)
                 }

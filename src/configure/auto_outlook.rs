@@ -114,7 +114,7 @@ fn finish_settings(event: &BytesEnd, outlk_ad: &mut outlk_autodiscover_t) {
         }
         let type_val = *type_val;
         if !outlk_ad.out_imap_set && type_val == "imap" {
-            outlk_ad.out.mail_server = config.get("server"); //.unwrap_or_default();
+            outlk_ad.out.mail_server = config.get("server").unwrap_or("".to_string());
             outlk_ad.out.mail_port = port;
             if ssl_on {
                 outlk_ad.out.server_flags |= DC_LP_IMAP_SOCKET_SSL as i32;
