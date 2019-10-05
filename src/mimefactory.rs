@@ -671,30 +671,28 @@ impl<'a> MimeFactory<'a> {
                 .push(factory.from_displayname.to_string());
             factory.recipients_addr.push(factory.from_addr.to_string());
         } else {
-            context
-                .sql
-                .query_map(
-                    "SELECT c.authname, c.addr  \
-                     FROM chats_contacts cc  \
-                     LEFT JOIN contacts c ON cc.contact_id=c.id  \
-                     WHERE cc.chat_id=? AND cc.contact_id>9;",
-                    params![factory.msg.chat_id as i32],
-                    |row| {
-                        let authname: String = row.get(0)?;
-                        let addr: String = row.get(1)?;
-                        Ok((authname, addr))
-                    },
-                    |rows| {
-                        for row in rows {
-                            let (authname, addr) = row?;
-                            if !vec_contains_lowercase(&factory.recipients_addr, &addr) {
-                                factory.recipients_addr.push(addr);
-                                factory.recipients_names.push(authname);
-                            }
+            context.sql.query_map(
+                "SELECT c.authname, c.addr  \
+                 FROM chats_contacts cc  \
+                 LEFT JOIN contacts c ON cc.contact_id=c.id  \
+                 WHERE cc.chat_id=? AND cc.contact_id>9;",
+                params![factory.msg.chat_id as i32],
+                |row| {
+                    let authname: String = row.get(0)?;
+                    let addr: String = row.get(1)?;
+                    Ok((authname, addr))
+                },
+                |rows| {
+                    for row in rows {
+                        let (authname, addr) = row?;
+                        if !vec_contains_lowercase(&factory.recipients_addr, &addr) {
+                            factory.recipients_addr.push(addr);
+                            factory.recipients_names.push(authname);
                         }
-                        Ok(())
-                    },
-                )?;
+                    }
+                    Ok(())
+                },
+            )?;
 
             let command = factory.msg.param.get_cmd();
             let msg = &factory.msg;
