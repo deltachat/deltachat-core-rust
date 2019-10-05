@@ -42,6 +42,7 @@ pub unsafe fn outlk_autodiscover(
     let ok_to_continue;
     let mut i = 0;
     loop {
+        /* Follow up to 10 xml-redirects (http-redirects are followed in read_autoconf_file() */
         if i >= 10 {
             ok_to_continue = true;
             break;
@@ -87,6 +88,7 @@ pub unsafe fn outlk_autodiscover(
             buf.clear();
         }
 
+        // XML redirect via redirecturl
         if !(!outlk_ad.config[5].is_null()
             && 0 != *outlk_ad.config[5usize].offset(0isize) as libc::c_int)
         {
