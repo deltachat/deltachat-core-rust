@@ -291,7 +291,6 @@ pub unsafe fn dc_receive_imf(
         &rr_event_to_send,
     );
 }
-
 unsafe fn add_parts(
     context: &Context,
     mut mime_parser: &mut MimeParser,
@@ -1053,7 +1052,7 @@ unsafe fn create_or_lookup_group(
                         to_ids,
                         &mut chat_id,
                         &mut chat_id_blocked,
-                    );
+                    )?;
                     cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
                     return Ok(());
                 }
@@ -1208,7 +1207,7 @@ unsafe fn create_or_lookup_group(
                 to_ids,
                 &mut chat_id,
                 &mut chat_id_blocked,
-            );
+            )?;
         }
         cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
         return Ok(());
@@ -1328,12 +1327,12 @@ unsafe fn create_or_lookup_group(
                 to_ids,
                 &mut chat_id,
                 &mut chat_id_blocked,
-            );
+            )?;
         }
     }
 
     cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
-    return Ok(())
+    return Ok(());
 }
 
 /// Handle groups for received messages
@@ -1346,7 +1345,7 @@ unsafe fn create_or_lookup_adhoc_group(
     to_ids: &mut Vec<u32>,
     ret_chat_id: *mut u32,
     ret_chat_id_blocked: &mut Blocked,
-) {
+) -> Result<()> {
     // if we're here, no grpid was found, check there is an existing ad-hoc
     // group matching the to-list or if we can create one
     let mut chat_id = 0;
@@ -1366,7 +1365,7 @@ unsafe fn create_or_lookup_adhoc_group(
     if to_ids.is_empty() || mime_parser.is_mailinglist_message() {
         // too few contacts or a mailinglist
         cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
-        return;
+        return Ok(());
     }
 
     let mut member_ids = to_ids.clone();
@@ -1379,10 +1378,10 @@ unsafe fn create_or_lookup_adhoc_group(
     if member_ids.len() < 3 {
         // too few contacts given
         cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
-        return;
+        return Ok(());
     }
 
-    let chat_ids = search_chat_ids_by_contact_ids(context, &member_ids);
+    let chat_ids = search_chat_ids_by_contact_ids(context, &member_ids)?;
     if !chat_ids.is_empty() {
         let chat_ids_str = join(chat_ids.iter().map(|x| x.to_string()), ",");
         let res = context.sql.query_row(
@@ -1402,13 +1401,13 @@ unsafe fn create_or_lookup_adhoc_group(
             chat_id_blocked = id_blocked;
             /* success, chat found */
             cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
-            return;
+            return Ok(());
         }
     }
 
     if 0 == allow_creation {
         cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
-        return;
+        return Ok(());
     }
     // we do not check if the message is a reply to another group, this may result in
     // chats with unclear member list. instead we create a new group in the following lines ...
@@ -1418,7 +1417,7 @@ unsafe fn create_or_lookup_adhoc_group(
     let grpid = create_adhoc_grp_id(context, &member_ids);
     if grpid.is_empty() {
         cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
-        return;
+        return Ok(());
     }
 
     // use subject as initial chat name
@@ -1444,6 +1443,7 @@ unsafe fn create_or_lookup_adhoc_group(
     context.call_cb(Event::ChatModified(chat_id));
 
     cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
+    return Ok(())
 }
 
 fn create_group_record(
@@ -1521,7 +1521,10 @@ fn hex_hash(s: impl AsRef<str>) -> String {
 }
 
 #[allow(non_snake_case)]
-fn search_chat_ids_by_contact_ids(context: &Context, unsorted_contact_ids: &Vec<u32>) -> Vec<u32> {
+fn search_chat_ids_by_contact_ids(
+    context: &Context,
+    unsorted_contact_ids: &Vec<u32>,
+) -> Result<Vec<u32>> {
     /* searches chat_id's by the given contact IDs, may return zero, one or more chat_id's */
     let mut contact_ids = Vec::with_capacity(23);
     let mut chat_ids = Vec::with_capacity(23);
@@ -1576,11 +1579,11 @@ fn search_chat_ids_by_contact_ids(context: &Context, unsorted_contact_ids: &Vec<
                     }
                 Ok(())
                 }
-            ).unwrap_or_default(); // TODO: better error handling
+            )?;
         }
     }
 
-    chat_ids
+    Ok(chat_ids)
 }
 
 fn check_verified_properties(
