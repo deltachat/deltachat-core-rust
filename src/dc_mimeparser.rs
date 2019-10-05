@@ -640,30 +640,30 @@ impl<'a> MimeParser<'a> {
                         );
                     }
                 }
-                    /* check header directly as is_send_by_messenger is not yet set up */
-                    let is_msgrmsg = self.lookup_optional_field("Chat-Version").is_some();
+                /* check header directly as is_send_by_messenger is not yet set up */
+                let is_msgrmsg = self.lookup_optional_field("Chat-Version").is_some();
 
-                    let simplified_txt = if decoded_data.is_empty() {
-                        "".into()
-                    } else {
-                        let input = std::string::String::from_utf8_lossy(&decoded_data);
-                        let is_html = mime_type == 70;
+                let simplified_txt = if decoded_data.is_empty() {
+                    "".into()
+                } else {
+                    let input = std::string::String::from_utf8_lossy(&decoded_data);
+                    let is_html = mime_type == 70;
 
-                        simplifier.unwrap().simplify(&input, is_html, is_msgrmsg)
-                    };
-                    if !simplified_txt.is_empty() {
-                        let mut part = Part::default();
-                        part.typ = Viewtype::Text;
-                        part.mimetype = mime_type;
-                        part.msg = Some(simplified_txt);
-                        part.msg_raw =
-                            Some(std::string::String::from_utf8_lossy(&decoded_data).to_string());
-                        self.do_add_single_part(part);
-                    }
+                    simplifier.unwrap().simplify(&input, is_html, is_msgrmsg)
+                };
+                if !simplified_txt.is_empty() {
+                    let mut part = Part::default();
+                    part.typ = Viewtype::Text;
+                    part.mimetype = mime_type;
+                    part.msg = Some(simplified_txt);
+                    part.msg_raw =
+                        Some(std::string::String::from_utf8_lossy(&decoded_data).to_string());
+                    self.do_add_single_part(part);
+                }
 
-                    if simplifier.unwrap().is_forwarded {
-                        self.is_forwarded = true;
-                    }
+                if simplifier.unwrap().is_forwarded {
+                    self.is_forwarded = true;
+                }
             }
             DC_MIMETYPE_IMAGE
             | DC_MIMETYPE_AUDIO
@@ -740,29 +740,27 @@ impl<'a> MimeParser<'a> {
                         return false;
                     }
                 }
-                    if desired_filename.starts_with("location")
-                        && desired_filename.ends_with(".kml")
-                    {
-                        if !decoded_data.is_empty() {
-                            let d = std::string::String::from_utf8_lossy(&decoded_data);
-                            self.location_kml = location::Kml::parse(self.context, &d).ok();
-                        }
-                    } else if desired_filename.starts_with("message")
-                        && desired_filename.ends_with(".kml")
-                    {
-                        if !decoded_data.is_empty() {
-                            let d = std::string::String::from_utf8_lossy(&decoded_data);
-                            self.message_kml = location::Kml::parse(self.context, &d).ok();
-                        }
-                    } else if !decoded_data.is_empty() {
-                        self.do_add_single_file_part(
-                            msg_type,
-                            mime_type,
-                            raw_mime.as_ref(),
-                            &decoded_data,
-                            &desired_filename,
-                        );
+                if desired_filename.starts_with("location") && desired_filename.ends_with(".kml") {
+                    if !decoded_data.is_empty() {
+                        let d = std::string::String::from_utf8_lossy(&decoded_data);
+                        self.location_kml = location::Kml::parse(self.context, &d).ok();
                     }
+                } else if desired_filename.starts_with("message")
+                    && desired_filename.ends_with(".kml")
+                {
+                    if !decoded_data.is_empty() {
+                        let d = std::string::String::from_utf8_lossy(&decoded_data);
+                        self.message_kml = location::Kml::parse(self.context, &d).ok();
+                    }
+                } else if !decoded_data.is_empty() {
+                    self.do_add_single_file_part(
+                        msg_type,
+                        mime_type,
+                        raw_mime.as_ref(),
+                        &decoded_data,
+                        &desired_filename,
+                    );
+                }
             }
             _ => {}
         }
