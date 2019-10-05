@@ -436,7 +436,7 @@ unsafe fn add_parts(
                 to_ids,
                 chat_id,
                 &mut chat_id_blocked,
-            );
+            )?;
             if 0 != *chat_id && Blocked::Not != chat_id_blocked && create_blocked == Blocked::Not {
                 chat::unblock(context, *chat_id);
                 chat_id_blocked = Blocked::Not;
@@ -521,7 +521,7 @@ unsafe fn add_parts(
                     to_ids,
                     chat_id,
                     &mut chat_id_blocked,
-                );
+                )?;
                 if 0 != *chat_id && Blocked::Not != chat_id_blocked {
                     chat::unblock(context, *chat_id);
                     chat_id_blocked = Blocked::Not;
@@ -968,7 +968,7 @@ unsafe fn create_or_lookup_group(
     to_ids: &mut Vec<u32>,
     ret_chat_id: *mut u32,
     ret_chat_id_blocked: &mut Blocked,
-) {
+) -> Result<()> {
     let group_explicitly_left: bool;
     let mut chat_id = 0;
     let mut chat_id_blocked = Blocked::Not;
@@ -1055,7 +1055,7 @@ unsafe fn create_or_lookup_group(
                         &mut chat_id_blocked,
                     );
                     cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
-                    return;
+                    return Ok(());
                 }
             }
         }
@@ -1180,7 +1180,7 @@ unsafe fn create_or_lookup_group(
         }
         if 0 == allow_creation {
             cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
-            return;
+            return Ok(());
         }
         chat_id = create_group_record(
             context,
@@ -1211,7 +1211,7 @@ unsafe fn create_or_lookup_group(
             );
         }
         cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
-        return;
+        return Ok(());
     }
 
     // execute group commands
@@ -1264,7 +1264,7 @@ unsafe fn create_or_lookup_group(
                 } else {
                     chat.param.set(Param::ProfileImage, grpimage);
                 }
-                chat.update_param(context).unwrap_or_default();
+                chat.update_param(context)?;
                 send_EVENT_CHAT_MODIFIED = 1;
             }
         }
@@ -1333,6 +1333,7 @@ unsafe fn create_or_lookup_group(
     }
 
     cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
+    return Ok(())
 }
 
 /// Handle groups for received messages
