@@ -1515,8 +1515,8 @@ pub unsafe fn mailmime_data_write_driver(
         }
         1 => {
             let filename = CStr::from_ptr((*mime_data).dt_data.dt_filename)
-                .to_str()
-                .unwrap_or_default();
+                .to_string_lossy()
+                .into_owned();
             if let Ok(file) = std::fs::File::open(filename) {
                 if let Ok(mut text) = memmap::MmapOptions::new().map_copy(&file) {
                     if 0 != (*mime_data).dt_encoded {
