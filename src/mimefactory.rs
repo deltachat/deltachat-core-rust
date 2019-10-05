@@ -694,8 +694,7 @@ impl<'a> MimeFactory<'a> {
                         }
                         Ok(())
                     },
-                )
-                .unwrap_or_default();
+                )?;
 
             let command = factory.msg.param.get_cmd();
             let msg = &factory.msg;
@@ -898,9 +897,7 @@ fn build_body_file(
         wrapmime::append_ct_param(content, "name", &filename_encoded)?;
 
         let mime_sub = mailmime_new_empty(content, mime_fields);
-        let abs_path = dc_get_abs_path(context, path_filename)
-            .to_c_string()
-            .unwrap_or_default();
+        let abs_path = dc_get_abs_path(context, path_filename).to_c_string()?;
         mailmime_set_body_file(mime_sub, dc_strdup(abs_path.as_ptr()));
         Ok((mime_sub, filename_to_send))
     }
