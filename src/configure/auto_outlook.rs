@@ -3,6 +3,7 @@ use quick_xml::events::BytesEnd;
 
 use crate::constants::*;
 use crate::context::Context;
+use crate::error::Error;
 use crate::login_param::LoginParam;
 
 use super::read_autoconf_file;
@@ -19,26 +20,23 @@ struct OutlookAutodiscover {
     pub config_redirecturl: Option<String>,
 }
 
-pub fn outlk_autodiscover(
-    context: &Context,
-    url: &str,
-    _param_in: &LoginParam,
-) -> Option<LoginParam> {
-    let mut url = url.to_string();
-    /* Follow up to 10 xml-redirects (http-redirects are followed in read_autoconf_file() */
-    for _i in 0..10 {
-        let mut outlk_ad = OutlookAutodiscover {
-            out: LoginParam::new(),
-            out_imap_set: false,
-            out_smtp_set: false,
-            config_type: None,
-            config_server: String::new(),
-            config_port: 0,
-            config_ssl: String::new(),
-            config_redirecturl: None,
-        };
+enum ParsingResult {
+    LoginParam(LoginParam),
+    RedirectUrl(String),
+}
 
-        if let Some(xml_raw) = read_autoconf_file(context, &url) {
+fn outlk_parse_xml(xml_raw: &str) -> Result<ParsingResult, Error> {
+            let mut outlk_ad = OutlookAutodiscover {
+                out: LoginParam::new(),
+                out_imap_set: false,
+                out_smtp_set: false,
+                config_type: None,
+                config_server: String::new(),
+                config_port: 0,
+                config_ssl: String::new(),
+                config_redirecturl: None,
+            };
+
             let mut reader = quick_xml::Reader::from_str(&xml_raw);
             reader.trim_text(true);
 
@@ -74,20 +72,15 @@ pub fn outlk_autodiscover(
                             match tag.as_str() {
                                 "type" => outlk_ad.config_type = Some(val.trim().to_string()),
                                 "server" => outlk_ad.config_server = val.trim().to_string(),
-                                "port" => {
-                                    outlk_ad.config_port = val.trim().parse().unwrap_or_default()
-                                }
+                                "port" => outlk_ad.config_port = val.trim().parse().unwrap_or_default(),
                                 "ssl" => outlk_ad.config_ssl = val.trim().to_string(),
-                                "redirecturl" => {
-                                    outlk_ad.config_redirecturl = Some(val.trim().to_string())
-                                }
+                                "redirecturl" => outlk_ad.config_redirecturl = Some(val.trim().to_string()),
                                 _ => {}
                             };
                         }
                     }
                     Err(e) => {
-                        error!(
-                            context,
+                        bail!(
                             "Configure xml: Error at position {}: {:?}",
                             reader.buffer_position(),
                             e
@@ -109,12 +102,34 @@ pub fn outlk_autodiscover(
                     || outlk_ad.out.send_port == 0
                 {
                     let r = outlk_ad.out.to_string();
-                    warn!(context, "Bad or incomplete autoconfig: {}", r,);
+                    bail!("Bad or incomplete autoconfig: {}", r,);
+                }
+                Ok(ParsingResult::LoginParam(outlk_ad.out))
+            } else {
+                Ok(ParsingResult::RedirectUrl(
+                    outlk_ad.config_redirecturl.unwrap(),
+                ))
+            }
+}
+
+pub fn outlk_autodiscover(
+    context: &Context,
+    url: &str,
+    _param_in: &LoginParam,
+) -> Option<LoginParam> {
+    let mut url = url.to_string();
+    /* Follow up to 10 xml-redirects (http-redirects are followed in read_autoconf_file() */
+    for _i in 0..10 {
+        if let Some(xml_raw) = read_autoconf_file(context, &url) {
+            match outlk_parse_xml(&xml_raw) {
+                Err(err) => {
+                    warn!(context, "{}", err);
                     return None;
                 }
-                return Some(outlk_ad.out);
-            } else {
-                url = outlk_ad.config_redirecturl.unwrap();
+                Ok(res) => match res {
+                    ParsingResult::RedirectUrl(redirect_url) => url = redirect_url,
+                    ParsingResult::LoginParam(login_param) => return Some(login_param),
+                },
             }
         } else {
             return None;
