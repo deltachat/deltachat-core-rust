@@ -4,7 +4,6 @@ use std::str::FromStr;
 use deltachat::chat::{self, Chat};
 use deltachat::chatlist::*;
 use deltachat::config;
-use deltachat::configure::*;
 use deltachat::constants::*;
 use deltachat::contact::*;
 use deltachat::context::*;
@@ -471,7 +470,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(0 != dc_reset_tables(context, bits), "Reset failed");
         }
         "stop" => {
-            dc_stop_ongoing_process(context);
+            context.stop_ongoing();
         }
         "set" => {
             ensure!(!arg1.is_empty(), "Argument <key> missing.");
