@@ -350,6 +350,12 @@ class TestOnlineAccount:
         assert chat.id > const.DC_CHAT_ID_LAST_SPECIAL
         return chat
 
+    def test_configure_canceled(self, acfactory):
+        ac1 = acfactory.get_online_configuring_account()
+        wait_configuration_progress(ac1, 200)
+        ac1.stop_ongoing()
+        wait_configuration_progress(ac1, 0, 0)
+
     def test_export_import_self_keys(self, acfactory, tmpdir):
         ac1, ac2 = acfactory.get_two_online_accounts()
         dir = tmpdir.mkdir("exportdir")

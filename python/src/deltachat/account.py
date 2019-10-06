@@ -411,6 +411,9 @@ class Account(object):
             raise ValueError("could not join group")
         return Chat(self, chat_id)
 
+    def stop_ongoing(self):
+        lib.dc_stop_ongoing_process(self._dc_context)
+
     #
     # meta API for start/stop and event based processing
     #
@@ -432,7 +435,7 @@ class Account(object):
 
     def stop_threads(self, wait=True):
         """ stop IMAP/SMTP threads. """
-        lib.dc_stop_ongoing_process(self._dc_context)
+        self.stop_ongoing()
         self._threads.stop(wait=wait)
 
     def shutdown(self, wait=True):

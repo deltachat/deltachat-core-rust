@@ -3,7 +3,6 @@ use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 use crate::aheader::EncryptPreference;
 use crate::chat::{self, Chat};
 use crate::config::*;
-use crate::configure::*;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
@@ -157,7 +156,7 @@ pub fn dc_join_securejoin(context: &Context, qr: &str) -> u32 {
             bob.qr_scan = None;
 
             if ongoing_allocated {
-                dc_free_ongoing(context);
+               context.free_ongoing();
             }
             ret_chat_id as u32
         };
@@ -170,7 +169,7 @@ pub fn dc_join_securejoin(context: &Context, qr: &str) -> u32 {
 
     info!(context, "Requesting secure-join ...",);
     ensure_secret_key_exists(context).ok();
-    if !dc_alloc_ongoing(context) {
+    if !context.alloc_ongoing() {
         return cleanup(&context, contact_chat_id, false, join_vg);
     }
     let qr_scan = check_qr(context, &qr);
@@ -184,7 +183,7 @@ pub fn dc_join_securejoin(context: &Context, qr: &str) -> u32 {
         error!(context, "Unknown contact.",);
         return cleanup(&context, contact_chat_id, true, join_vg);
     }
-    if check_exit(context) {
+    if context.shall_stop_ongoing() {
         return cleanup(&context, contact_chat_id, true, join_vg);
     }
     join_vg = qr_scan.get_state() == LotState::QrAskVerifyGroup;
@@ -240,19 +239,10 @@ pub fn dc_join_securejoin(context: &Context, qr: &str) -> u32 {
     }
 
     // Bob -> Alice
-    while !check_exit(&context) {
+    while !context.shall_stop_ongoing() {
         std::thread::sleep(std::time::Duration::new(0, 3_000_000));
     }
     cleanup(&context, contact_chat_id, true, join_vg)
-}
-
-fn check_exit(context: &Context) -> bool {
-    context
-        .running_state
-        .clone()
-        .read()
-        .unwrap()
-        .shall_stop_ongoing
 }
 
 fn send_handshake_msg(
@@ -636,7 +626,7 @@ pub fn handle_securejoin_handshake(
 
 fn end_bobs_joining(context: &Context, status: libc::c_int) {
     context.bob.write().unwrap().status = status;
-    dc_stop_ongoing_process(context);
+    context.stop_ongoing();
 }
 
 fn secure_connection_established(context: &Context, contact_chat_id: u32) {
