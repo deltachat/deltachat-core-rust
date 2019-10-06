@@ -1620,9 +1620,7 @@ pub unsafe extern "C" fn dc_stop_ongoing_process(context: *mut dc_context_t) {
         return;
     }
     let ffi_context = &*context;
-    ffi_context
-        .with_inner(|ctx| ctx.stop_ongoing())
-        .ok();
+    ffi_context.with_inner(|ctx| ctx.stop_ongoing()).ok();
 }
 
 #[no_mangle]

@@ -156,7 +156,7 @@ pub fn dc_join_securejoin(context: &Context, qr: &str) -> u32 {
             bob.qr_scan = None;
 
             if ongoing_allocated {
-               context.free_ongoing();
+                context.free_ongoing();
             }
             ret_chat_id as u32
         };
