@@ -1,5 +1,6 @@
+use core::cmp::{min,max};
 use std::ffi::CString;
-use std::path::Path;
+use std::path::{Path,PathBuf};
 use std::ptr;
 
 use num_traits::FromPrimitive;
@@ -562,10 +563,6 @@ fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) -> Resul
 /* the FILE_PROGRESS macro calls the callback with the permille of files processed.
 The macro avoids weird values of 0% or 100% while still working. */
 fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
-    let mut ok_to_continue = true;
-    let mut success = false;
-
-    let mut delete_dest_file: libc::c_int = 0;
     // get a fine backup file name (the name includes the date so that multiple backup instances are possible)
     // FIXME: we should write to a temporary file first and rename it on success. this would guarantee the backup is complete.
     // let dest_path_filename = dc_get_next_backup_file(context, dir, res);
@@ -592,42 +589,48 @@ fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
             s
         );
     }
-    /* add all files as blobs to the database copy (this does not require the source to be locked, neigher the destination as it is used only here) */
-    /*for logging only*/
+    match add_files_to_export(context, &dest_path_filename) {
+        Err(err) => {
+            dc_delete_file(context, &dest_path_filename);
+            error!(context, "backup failed: {}", err);
+            Err(err)
+        }
+        Ok(()) => {
+            context.sql.set_raw_config_int(context, "backup_time", now as i32)?;
+            context.call_cb(Event::ImexFileWritten(dest_path_filename.clone()));
+            Ok(())
+        }
+    }
+}
+
+fn add_files_to_export(context: &Context, dest_path_filename: &PathBuf) -> Result<()> {
+    // add all files as blobs to the database copy (this does not require 
+    // the source to be locked, neigher the destination as it is used only here) 
     let sql = Sql::new();
-    if sql.open(context, &dest_path_filename, 0) {
+    ensure!(sql.open(context, &dest_path_filename, 0), "could not open db");
         if !sql.table_exists("backup_blobs") {
-            if sql::execute(
+            sql::execute(
                 context,
                 &sql,
                 "CREATE TABLE backup_blobs (id INTEGER PRIMARY KEY, file_name, file_content);",
                 params![],
-            )
-            .is_err()
-            {
-                /* error already logged */
-                ok_to_continue = false;
-            }
+            )?
         }
-        if ok_to_continue {
+            // copy all files from BLOBDIR into backup-db
             let mut total_files_cnt = 0;
             let dir = context.get_blobdir();
-            if let Ok(dir_handle) = std::fs::read_dir(&dir) {
+            let dir_handle = std::fs::read_dir(&dir)?; 
                 total_files_cnt += dir_handle.filter(|r| r.is_ok()).count();
 
                 info!(context, "EXPORT: total_files_cnt={}", total_files_cnt);
-                if total_files_cnt > 0 {
                     // scan directory, pass 2: copy files
-                    if let Ok(dir_handle) = std::fs::read_dir(&dir) {
+                    let dir_handle = std::fs::read_dir(&dir)?;
                         sql.prepare(
                                     "INSERT INTO backup_blobs (file_name, file_content) VALUES (?, ?);",
-                                    move |mut stmt, _| {
+                                    |mut stmt, _| {
                                         let mut processed_files_cnt = 0;
                                         for entry in dir_handle {
-                                            if entry.is_err() {
-                                                break;
-                                            }
-                                            let entry = entry.unwrap();
+                                            let entry = entry?;
                                             if context
                                                 .running_state
                                                 .clone()
@@ -635,19 +638,12 @@ fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
                                                 .unwrap()
                                                 .shall_stop_ongoing
                                             {
-                                                delete_dest_file = 1;
-                                                ok_to_continue = false;
-                                                break;
-                                            } else {
+                                                bail!("canceled during export-files");
+                                            } 
                                                 processed_files_cnt += 1;
-                                                let mut permille =
-                                                    processed_files_cnt * 1000 / total_files_cnt;
-                                                if permille < 10 {
-                                                    permille = 10;
-                                                }
-                                                if permille > 990 {
-                                                    permille = 990;
-                                                }
+                                                let permille = max(min(
+                                                    processed_files_cnt * 1000 / total_files_cnt,
+                                                    990), 10);
                                                 context.call_cb(Event::ImexProgress(permille));
 
                                                 let name_f = entry.file_name();
@@ -655,8 +651,8 @@ fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
                                                 if name.starts_with("delta-chat") && name.ends_with(".bak")
                                                 {
                                                     continue;
-                                                } else {
-                                                    info!(context, "EXPORTing filename={}", name);
+                                                } 
+                                                    info!(context, "EXPORT: copying filename={}", name);
                                                     let curr_path_filename = context.get_blobdir().join(entry.file_name());
                                                     if let Ok(buf) =
                                                         dc_read_file(context, &curr_path_filename)
@@ -664,59 +660,14 @@ fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
                                                         if buf.is_empty() {
                                                             continue;
                                                         }
-                                                        if stmt.execute(params![name, buf]).is_err() {
-                                                            error!(
-                                                                context,
-                                                                "Disk full? Cannot add file \"{}\" to backup.",
-                                                                curr_path_filename.display(),
-                                                            );
-                                                            /* this is not recoverable! writing to the sqlite database should work! */
-                                                            ok_to_continue = false;
-                                                            break;
-                                                        }
-                                                    } else {
-                                                        continue;
-                                                    }
-                                                }
-                                            }
+                                                        // bail out if we can't insert 
+                                                        stmt.execute(params![name, buf])?;
+                                                    } 
                                         }
                                         Ok(())
                                     }
-                                ).unwrap_or_default();
-                    } else {
-                        error!(
-                            context,
-                            "Backup: Cannot copy from blob-directory \"{}\".",
-                            context.get_blobdir().display(),
-                        );
-                    }
-                } else {
-                    info!(context, "Backup: No files to copy.",);
-                }
-                if ok_to_continue {
-                    if sql
-                        .set_raw_config_int(context, "backup_time", now as i32)
-                        .is_ok()
-                    {
-                        context.call_cb(Event::ImexFileWritten(dest_path_filename.clone()));
-                        success = true;
-                    }
-                }
-            } else {
-                error!(
-                    context,
-                    "Backup: Cannot get info for blob-directory \"{}\".",
-                    context.get_blobdir().display(),
-                );
-            };
-        }
-    }
-    if 0 != delete_dest_file {
-        dc_delete_file(context, &dest_path_filename);
-    }
-
-    ensure!(success, "failed");
-    Ok(())
+                                )?;
+                    Ok(())
 }
 
 /*******************************************************************************
@@ -734,15 +685,9 @@ fn import_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     let mut imported_cnt = 0;
 
     let dir_name = dir.as_ref().to_string_lossy();
-    if let Ok(dir_handle) = std::fs::read_dir(&dir) {
+    let dir_handle = std::fs::read_dir(&dir)?;
         for entry in dir_handle {
-            let entry_fn = match entry {
-                Err(err) => {
-                    info!(context, "file-dir error: {}", err);
-                    break;
-                }
-                Ok(res) => res.file_name(),
-            };
+            let entry_fn = entry?.file_name();
             let name_f = entry_fn.to_string_lossy();
             let path_plus_name = dir.as_ref().join(&entry_fn);
             match dc_get_filesuffix_lc(&name_f) {
@@ -802,9 +747,6 @@ fn import_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
             dir_name
         );
         Ok(())
-    } else {
-        bail!("Import: Cannot open directory \"{}\".", dir_name);
-    }
 }
 
 fn export_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
@@ -847,7 +789,7 @@ fn export_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
         },
     )?;
 
-    ensure!(export_errors == 0, "errors while importing");
+    ensure!(export_errors == 0, "errors while exporting keys");
     Ok(())
 }
 
