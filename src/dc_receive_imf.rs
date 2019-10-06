@@ -1686,13 +1686,7 @@ fn set_better_msg(mime_parser: &mut MimeParser, better_msg: impl AsRef<str>) {
 
 unsafe fn dc_is_reply_to_known_message(context: &Context, mime_parser: &MimeParser) -> libc::c_int {
     /* check if the message is a reply to a known message; the replies are identified by the Message-ID from
-    `In-Reply-To`/`References:` (to support non-Delta-Clients) or from `Chat-Predecessor:` (Delta clients, see comment in dc_chat.c) */
-    if let Some(optional_field) = mime_parser.lookup_optional_field("Chat-Predecessor") {
-        let optional_field_c = CString::new(optional_field).unwrap_or_default();
-        if 0 != is_known_rfc724_mid(context, optional_field_c.as_ptr()) {
-            return 1;
-        }
-    }
+    `In-Reply-To`/`References:` (to support non-Delta-Clients) */
 
     if let Some(field) = mime_parser.lookup_field("In-Reply-To") {
         if (*field).fld_type == MAILIMF_FIELD_IN_REPLY_TO as libc::c_int {
