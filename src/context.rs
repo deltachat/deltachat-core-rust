@@ -68,7 +68,7 @@ pub struct Context {
 #[derive(Debug, PartialEq, Eq)]
 pub struct RunningState {
     pub ongoing_running: bool,
-    pub shall_stop_ongoing: bool,
+    shall_stop_ongoing: bool,
 }
 
 /// Return some info about deltachat-core
@@ -219,6 +219,62 @@ impl Context {
     pub fn call_cb(&self, event: Event) -> uintptr_t {
         (*self.cb)(self, event)
     }
+
+    /*******************************************************************************
+     * Ongoing process allocation/free/check
+     ******************************************************************************/
+
+    pub fn alloc_ongoing(&self) -> bool {
+        if self.has_ongoing() {
+            warn!(self, "There is already another ongoing process running.",);
+
+            false
+        } else {
+            let s_a = self.running_state.clone();
+            let mut s = s_a.write().unwrap();
+
+            s.ongoing_running = true;
+            s.shall_stop_ongoing = false;
+
+            true
+        }
+    }
+
+    pub fn free_ongoing(&self) {
+        let s_a = self.running_state.clone();
+        let mut s = s_a.write().unwrap();
+
+        s.ongoing_running = false;
+        s.shall_stop_ongoing = true;
+    }
+
+    pub fn has_ongoing(&self) -> bool {
+        let s_a = self.running_state.clone();
+        let s = s_a.read().unwrap();
+
+        s.ongoing_running || !s.shall_stop_ongoing
+    }
+
+    /// Signal an ongoing process to stop.
+    pub fn stop_ongoing(&self) {
+        let s_a = self.running_state.clone();
+        let mut s = s_a.write().unwrap();
+
+        if s.ongoing_running && !s.shall_stop_ongoing {
+            info!(self, "Signaling the ongoing process to stop ASAP.",);
+            s.shall_stop_ongoing = true;
+        } else {
+            info!(self, "No ongoing process to stop.",);
+        };
+    }
+
+    pub fn shall_stop_ongoing(&self) -> bool {
+        self.running_state.clone().read().unwrap().shall_stop_ongoing
+    }
+
+    /*******************************************************************************
+     * UI chat/message related API 
+     ******************************************************************************/
 
     pub fn get_info(&self) -> HashMap<&'static str, String> {
         let unset = "0";

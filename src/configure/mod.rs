@@ -28,7 +28,7 @@ macro_rules! progress {
 
 // connect
 pub unsafe fn configure(context: &Context) {
-    if dc_has_ongoing(context) {
+    if context.has_ongoing() {
         warn!(context, "There is already another ongoing process running.",);
         return;
     }
@@ -53,7 +53,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
     let mut ongoing_allocated_here = false;
 
     let mut param_autoconfig: Option<LoginParam> = None;
-    if dc_alloc_ongoing(context) {
+    if context.alloc_ongoing() {
         ongoing_allocated_here = true;
         if !context.sql.is_open() {
             error!(context, "Cannot configure, database not opened.",);
@@ -74,9 +74,6 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
             context.smtp.clone().lock().unwrap().disconnect();
             info!(context, "Configure ...",);
 
-            let s_a = context.running_state.clone();
-            let s = s_a.read().unwrap();
-
             // Variables that are shared between steps:
             let mut param = LoginParam::from_database(context, "");
             // need all vars here to be mutable because rust thinks the same step could be called multiple times
@@ -88,7 +85,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
 
             const STEP_3_INDEX: u8 = 13;
             let mut step_counter: u8 = 0;
-            while !s.shall_stop_ongoing {
+            while !context.shall_stop_ongoing() {
                 step_counter = step_counter + 1;
 
                 let success = match step_counter {
@@ -358,7 +355,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
                                 break;
                             }
                             // probe STARTTLS/993
-                            if s.shall_stop_ongoing {
+                            if context.shall_stop_ongoing() {
                                 ok_to_continue8 = false;
                                 break;
                             }
@@ -372,7 +369,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
                                 break;
                             }
                             // probe STARTTLS/143
-                            if s.shall_stop_ongoing {
+                            if context.shall_stop_ongoing() {
                                 ok_to_continue8 = false;
                                 break;
                             }
@@ -389,7 +386,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
                                 break;
                             }
                             // next probe round with only the localpart of the email-address as the loginname
-                            if s.shall_stop_ongoing {
+                            if context.shall_stop_ongoing() {
                                 ok_to_continue8 = false;
                                 break;
                             }
@@ -426,7 +423,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
                         {
                             if param_autoconfig.is_some() {
                                 success = false;
-                            } else if s.shall_stop_ongoing {
+                            } else if context.shall_stop_ongoing() {
                                 success = false;
                             } else {
                                 progress!(context, 850);
@@ -442,7 +439,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
                                     .unwrap()
                                     .connect(context, &param)
                                 {
-                                    if s.shall_stop_ongoing {
+                                    if context.shall_stop_ongoing() {
                                         success = false;
                                     } else {
                                         progress!(context, 860);
@@ -553,45 +550,10 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
     }
     */
     if ongoing_allocated_here {
-        dc_free_ongoing(context);
+        context.free_ongoing();
     }
 
     progress!(context, if success { 1000 } else { 0 });
-}
-
-/*******************************************************************************
- * Ongoing process allocation/free/check
- ******************************************************************************/
-
-pub fn dc_alloc_ongoing(context: &Context) -> bool {
-    if dc_has_ongoing(context) {
-        warn!(context, "There is already another ongoing process running.",);
-
-        false
-    } else {
-        let s_a = context.running_state.clone();
-        let mut s = s_a.write().unwrap();
-
-        s.ongoing_running = true;
-        s.shall_stop_ongoing = false;
-
-        true
-    }
-}
-
-pub fn dc_free_ongoing(context: &Context) {
-    let s_a = context.running_state.clone();
-    let mut s = s_a.write().unwrap();
-
-    s.ongoing_running = false;
-    s.shall_stop_ongoing = true;
-}
-
-fn dc_has_ongoing(context: &Context) -> bool {
-    let s_a = context.running_state.clone();
-    let s = s_a.read().unwrap();
-
-    s.ongoing_running || !s.shall_stop_ongoing
 }
 
 /*******************************************************************************
@@ -619,19 +581,6 @@ pub fn dc_connect_to_configured_imap(context: &Context, imap: &Imap) -> libc::c_
 /*******************************************************************************
  * Configure a Context
  ******************************************************************************/
-
-/// Signal an ongoing process to stop.
-pub fn dc_stop_ongoing_process(context: &Context) {
-    let s_a = context.running_state.clone();
-    let mut s = s_a.write().unwrap();
-
-    if s.ongoing_running && !s.shall_stop_ongoing {
-        info!(context, "Signaling the ongoing process to stop ASAP.",);
-        s.shall_stop_ongoing = true;
-    } else {
-        info!(context, "No ongoing process to stop.",);
-    };
-}
 
 pub fn read_autoconf_file(context: &Context, url: &str) -> Option<String> {
     info!(context, "Testing {} ...", url);

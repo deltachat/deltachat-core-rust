@@ -110,32 +110,26 @@ pub fn has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result<Strin
 }
 
 pub fn initiate_key_transfer(context: &Context) -> Result<String> {
+    ensure!(context.alloc_ongoing(), "could not allocate ongoing");
+    let res = do_initiate_key_transfer(context);
+    context.free_ongoing();
+    res
+} 
+
+fn do_initiate_key_transfer(context: &Context) -> Result<String> {
     let mut msg: Message;
-    ensure!(dc_alloc_ongoing(context), "could not allocate ongoing");
     let setup_code = create_setup_code(context);
     /* this may require a keypair to be created. this may take a second ... */
-    if !context
-        .running_state
-        .clone()
-        .read()
-        .unwrap()
-        .shall_stop_ongoing
-    {
-        if let Ok(ref setup_file_content) = render_setup_file(context, &setup_code) {
+    ensure!(!context.shall_stop_ongoing(), "canceled");
+        let setup_file_content = render_setup_file(context, &setup_code)?;
             /* encrypting may also take a while ... */
-            if !context
-                .running_state
-                .clone()
-                .read()
-                .unwrap()
-                .shall_stop_ongoing
-            {
+            ensure!(!context.shall_stop_ongoing(), "canceled");
                 let setup_file_name = context.new_blob_file(
                     "autocrypt-setup-message.html",
                     setup_file_content.as_bytes(),
                 )?;
-                {
-                    if let Ok(chat_id) = chat::create_by_contact_id(context, 1) {
+                
+                    let chat_id = chat::create_by_contact_id(context, 1)?;
                         msg = Message::default();
                         msg.type_0 = Viewtype::File;
                         msg.param.set(Param::File, setup_file_name);
@@ -146,25 +140,10 @@ pub fn initiate_key_transfer(context: &Context) -> Result<String> {
                         msg.param
                             .set_int(Param::ForcePlaintext, DC_FP_NO_AUTOCRYPT_HEADER);
 
-                        if !context
-                            .running_state
-                            .clone()
-                            .read()
-                            .unwrap()
-                            .shall_stop_ongoing
-                        {
-                            if let Ok(msg_id) = chat::send_msg(context, chat_id, &mut msg) {
+                        ensure!(!context.shall_stop_ongoing(), "canceled");
+                            let msg_id = chat::send_msg(context, chat_id, &mut msg)?;
                                 info!(context, "Wait for setup message being sent ...",);
-                                loop {
-                                    if context
-                                        .running_state
-                                        .clone()
-                                        .read()
-                                        .unwrap()
-                                        .shall_stop_ongoing
-                                    {
-                                        break;
-                                    }
+                                while !context.shall_stop_ongoing() {
                                     std::thread::sleep(std::time::Duration::from_secs(1));
                                     if let Ok(msg) = Message::load_from_db(context, msg_id) {
                                         if msg.is_sent() {
@@ -173,15 +152,6 @@ pub fn initiate_key_transfer(context: &Context) -> Result<String> {
                                         }
                                     }
                                 }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    dc_free_ongoing(context);
-
     Ok(setup_code)
 }
 
@@ -420,7 +390,7 @@ pub fn normalize_setup_code(s: &str) -> String {
 
 #[allow(non_snake_case)]
 pub fn job_do_DC_JOB_IMEX_IMAP(context: &Context, job: &Job) -> Result<()> {
-    ensure!(dc_alloc_ongoing(context), "could not allocate ongoing");
+    ensure!(context.alloc_ongoing(), "could not allocate ongoing");
     let what: Option<ImexMode> = job.param.get_int(Param::Cmd).and_then(ImexMode::from_i32);
     let param = job.param.get(Param::Arg).unwrap_or_default();
 
@@ -432,7 +402,7 @@ pub fn job_do_DC_JOB_IMEX_IMAP(context: &Context, job: &Job) -> Result<()> {
     if what == Some(ImexMode::ExportBackup) || what == Some(ImexMode::ExportSelfKeys) {
         // before we export anything, make sure the private key exists
         if e2ee::ensure_secret_key_exists(context).is_err() {
-            dc_free_ongoing(context);
+            context.free_ongoing();
             bail!("Cannot create private key or private key not available.");
         } else {
             dc_create_folder(context, &param);
@@ -448,7 +418,7 @@ pub fn job_do_DC_JOB_IMEX_IMAP(context: &Context, job: &Job) -> Result<()> {
             bail!("unknown IMEX type");
         }
     };
-    dc_free_ongoing(context);
+    context.free_ongoing();
     match success {
         Ok(()) => {
             info!(context, "IMEX successfully completed");
@@ -514,15 +484,7 @@ fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) -> Resul
         |files| {
             for (processed_files_cnt, file) in files.enumerate() {
                 let (file_name, file_blob) = file?;
-                if context
-                    .running_state
-                    .clone()
-                    .read()
-                    .unwrap()
-                    .shall_stop_ongoing
-                {
-                    bail!("received stop signal");
-                }
+                ensure!(!context.shall_stop_ongoing(), "received stop signal");
                 let mut permille = processed_files_cnt * 1000 / total_files_cnt;
                 if permille < 10 {
                     permille = 10
@@ -636,15 +598,7 @@ fn add_files_to_export(context: &Context, dest_path_filename: &PathBuf) -> Resul
             let mut processed_files_cnt = 0;
             for entry in dir_handle {
                 let entry = entry?;
-                if context
-                    .running_state
-                    .clone()
-                    .read()
-                    .unwrap()
-                    .shall_stop_ongoing
-                {
-                    bail!("canceled during export-files");
-                }
+                ensure!(!context.shall_stop_ongoing(), "canceled during export-files");
                 processed_files_cnt += 1;
                 let permille = max(min(processed_files_cnt * 1000 / total_files_cnt, 990), 10);
                 context.call_cb(Event::ImexProgress(permille));
