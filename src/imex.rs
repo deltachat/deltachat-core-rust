@@ -1,6 +1,6 @@
-use core::cmp::{min,max};
+use core::cmp::{max, min};
 use std::ffi::CString;
-use std::path::{Path,PathBuf};
+use std::path::{Path, PathBuf};
 use std::ptr;
 
 use num_traits::FromPrimitive;
@@ -596,7 +596,9 @@ fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
             Err(err)
         }
         Ok(()) => {
-            context.sql.set_raw_config_int(context, "backup_time", now as i32)?;
+            context
+                .sql
+                .set_raw_config_int(context, "backup_time", now as i32)?;
             context.call_cb(Event::ImexFileWritten(dest_path_filename.clone()));
             Ok(())
         }
@@ -604,70 +606,68 @@ fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
 }
 
 fn add_files_to_export(context: &Context, dest_path_filename: &PathBuf) -> Result<()> {
-    // add all files as blobs to the database copy (this does not require 
-    // the source to be locked, neigher the destination as it is used only here) 
+    // add all files as blobs to the database copy (this does not require
+    // the source to be locked, neigher the destination as it is used only here)
     let sql = Sql::new();
-    ensure!(sql.open(context, &dest_path_filename, 0), "could not open db");
-        if !sql.table_exists("backup_blobs") {
-            sql::execute(
-                context,
-                &sql,
-                "CREATE TABLE backup_blobs (id INTEGER PRIMARY KEY, file_name, file_content);",
-                params![],
-            )?
-        }
-            // copy all files from BLOBDIR into backup-db
-            let mut total_files_cnt = 0;
-            let dir = context.get_blobdir();
-            let dir_handle = std::fs::read_dir(&dir)?; 
-                total_files_cnt += dir_handle.filter(|r| r.is_ok()).count();
+    ensure!(
+        sql.open(context, &dest_path_filename, 0),
+        "could not open db"
+    );
+    if !sql.table_exists("backup_blobs") {
+        sql::execute(
+            context,
+            &sql,
+            "CREATE TABLE backup_blobs (id INTEGER PRIMARY KEY, file_name, file_content);",
+            params![],
+        )?
+    }
+    // copy all files from BLOBDIR into backup-db
+    let mut total_files_cnt = 0;
+    let dir = context.get_blobdir();
+    let dir_handle = std::fs::read_dir(&dir)?;
+    total_files_cnt += dir_handle.filter(|r| r.is_ok()).count();
 
-                info!(context, "EXPORT: total_files_cnt={}", total_files_cnt);
-                    // scan directory, pass 2: copy files
-                    let dir_handle = std::fs::read_dir(&dir)?;
-                        sql.prepare(
-                                    "INSERT INTO backup_blobs (file_name, file_content) VALUES (?, ?);",
-                                    |mut stmt, _| {
-                                        let mut processed_files_cnt = 0;
-                                        for entry in dir_handle {
-                                            let entry = entry?;
-                                            if context
-                                                .running_state
-                                                .clone()
-                                                .read()
-                                                .unwrap()
-                                                .shall_stop_ongoing
-                                            {
-                                                bail!("canceled during export-files");
-                                            } 
-                                                processed_files_cnt += 1;
-                                                let permille = max(min(
-                                                    processed_files_cnt * 1000 / total_files_cnt,
-                                                    990), 10);
-                                                context.call_cb(Event::ImexProgress(permille));
+    info!(context, "EXPORT: total_files_cnt={}", total_files_cnt);
+    // scan directory, pass 2: copy files
+    let dir_handle = std::fs::read_dir(&dir)?;
+    sql.prepare(
+        "INSERT INTO backup_blobs (file_name, file_content) VALUES (?, ?);",
+        |mut stmt, _| {
+            let mut processed_files_cnt = 0;
+            for entry in dir_handle {
+                let entry = entry?;
+                if context
+                    .running_state
+                    .clone()
+                    .read()
+                    .unwrap()
+                    .shall_stop_ongoing
+                {
+                    bail!("canceled during export-files");
+                }
+                processed_files_cnt += 1;
+                let permille = max(min(processed_files_cnt * 1000 / total_files_cnt, 990), 10);
+                context.call_cb(Event::ImexProgress(permille));
 
-                                                let name_f = entry.file_name();
-                                                let name = name_f.to_string_lossy();
-                                                if name.starts_with("delta-chat") && name.ends_with(".bak")
-                                                {
-                                                    continue;
-                                                } 
-                                                    info!(context, "EXPORT: copying filename={}", name);
-                                                    let curr_path_filename = context.get_blobdir().join(entry.file_name());
-                                                    if let Ok(buf) =
-                                                        dc_read_file(context, &curr_path_filename)
-                                                    {
-                                                        if buf.is_empty() {
-                                                            continue;
-                                                        }
-                                                        // bail out if we can't insert 
-                                                        stmt.execute(params![name, buf])?;
-                                                    } 
-                                        }
-                                        Ok(())
-                                    }
-                                )?;
-                    Ok(())
+                let name_f = entry.file_name();
+                let name = name_f.to_string_lossy();
+                if name.starts_with("delta-chat") && name.ends_with(".bak") {
+                    continue;
+                }
+                info!(context, "EXPORT: copying filename={}", name);
+                let curr_path_filename = context.get_blobdir().join(entry.file_name());
+                if let Ok(buf) = dc_read_file(context, &curr_path_filename) {
+                    if buf.is_empty() {
+                        continue;
+                    }
+                    // bail out if we can't insert
+                    stmt.execute(params![name, buf])?;
+                }
+            }
+            Ok(())
+        },
+    )?;
+    Ok(())
 }
 
 /*******************************************************************************
@@ -686,67 +686,67 @@ fn import_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
 
     let dir_name = dir.as_ref().to_string_lossy();
     let dir_handle = std::fs::read_dir(&dir)?;
-        for entry in dir_handle {
-            let entry_fn = entry?.file_name();
-            let name_f = entry_fn.to_string_lossy();
-            let path_plus_name = dir.as_ref().join(&entry_fn);
-            match dc_get_filesuffix_lc(&name_f) {
-                Some(suffix) => {
-                    if suffix != "asc" {
-                        continue;
-                    }
-                    set_default = if name_f.contains("legacy") {
-                        info!(context, "found legacy key '{}'", path_plus_name.display());
-                        false
-                    } else {
-                        true
-                    }
-                }
-                None => {
+    for entry in dir_handle {
+        let entry_fn = entry?.file_name();
+        let name_f = entry_fn.to_string_lossy();
+        let path_plus_name = dir.as_ref().join(&entry_fn);
+        match dc_get_filesuffix_lc(&name_f) {
+            Some(suffix) => {
+                if suffix != "asc" {
                     continue;
                 }
+                set_default = if name_f.contains("legacy") {
+                    info!(context, "found legacy key '{}'", path_plus_name.display());
+                    false
+                } else {
+                    true
+                }
             }
-            let ccontent = if let Ok(content) = dc_read_file(context, &path_plus_name) {
-                key = String::from_utf8_lossy(&content).to_string();
-                CString::new(content).unwrap_or_default()
-            } else {
-                continue;
-            };
-
-            /* only import if we have a private key */
-            let mut buf2_headerline = String::default();
-            let split_res: bool;
-            unsafe {
-                let buf2 = dc_strdup(ccontent.as_ptr());
-                split_res = dc_split_armored_data(
-                    buf2,
-                    &mut buf2_headerline,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                );
-                libc::free(buf2 as *mut libc::c_void);
-            }
-            if split_res
-                && buf2_headerline.contains("-----BEGIN PGP PUBLIC KEY BLOCK-----")
-                && !key.contains("-----BEGIN PGP PRIVATE KEY BLOCK")
-            {
-                info!(context, "ignoring public key file '{}", name_f);
-                // it's fine: DC exports public with private
+            None => {
                 continue;
             }
-            if let Err(err) = set_self_key(context, &key, set_default, false) {
-                error!(context, "set_self_key: {}", err);
-                continue;
-            }
-            imported_cnt += 1
         }
-        ensure!(
-            imported_cnt > 0,
-            "No private keys found in \"{}\".",
-            dir_name
-        );
-        Ok(())
+        let ccontent = if let Ok(content) = dc_read_file(context, &path_plus_name) {
+            key = String::from_utf8_lossy(&content).to_string();
+            CString::new(content).unwrap_or_default()
+        } else {
+            continue;
+        };
+
+        /* only import if we have a private key */
+        let mut buf2_headerline = String::default();
+        let split_res: bool;
+        unsafe {
+            let buf2 = dc_strdup(ccontent.as_ptr());
+            split_res = dc_split_armored_data(
+                buf2,
+                &mut buf2_headerline,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                ptr::null_mut(),
+            );
+            libc::free(buf2 as *mut libc::c_void);
+        }
+        if split_res
+            && buf2_headerline.contains("-----BEGIN PGP PUBLIC KEY BLOCK-----")
+            && !key.contains("-----BEGIN PGP PRIVATE KEY BLOCK")
+        {
+            info!(context, "ignoring public key file '{}", name_f);
+            // it's fine: DC exports public with private
+            continue;
+        }
+        if let Err(err) = set_self_key(context, &key, set_default, false) {
+            error!(context, "set_self_key: {}", err);
+            continue;
+        }
+        imported_cnt += 1
+    }
+    ensure!(
+        imported_cnt > 0,
+        "No private keys found in \"{}\".",
+        dir_name
+    );
+    Ok(())
 }
 
 fn export_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
