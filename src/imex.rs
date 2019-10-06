@@ -114,44 +114,44 @@ pub fn initiate_key_transfer(context: &Context) -> Result<String> {
     let res = do_initiate_key_transfer(context);
     context.free_ongoing();
     res
-} 
+}
 
 fn do_initiate_key_transfer(context: &Context) -> Result<String> {
     let mut msg: Message;
     let setup_code = create_setup_code(context);
     /* this may require a keypair to be created. this may take a second ... */
     ensure!(!context.shall_stop_ongoing(), "canceled");
-        let setup_file_content = render_setup_file(context, &setup_code)?;
-            /* encrypting may also take a while ... */
-            ensure!(!context.shall_stop_ongoing(), "canceled");
-                let setup_file_name = context.new_blob_file(
-                    "autocrypt-setup-message.html",
-                    setup_file_content.as_bytes(),
-                )?;
-                
-                    let chat_id = chat::create_by_contact_id(context, 1)?;
-                        msg = Message::default();
-                        msg.type_0 = Viewtype::File;
-                        msg.param.set(Param::File, setup_file_name);
+    let setup_file_content = render_setup_file(context, &setup_code)?;
+    /* encrypting may also take a while ... */
+    ensure!(!context.shall_stop_ongoing(), "canceled");
+    let setup_file_name = context.new_blob_file(
+        "autocrypt-setup-message.html",
+        setup_file_content.as_bytes(),
+    )?;
 
-                        msg.param
-                            .set(Param::MimeType, "application/autocrypt-setup");
-                        msg.param.set_int(Param::Cmd, 6);
-                        msg.param
-                            .set_int(Param::ForcePlaintext, DC_FP_NO_AUTOCRYPT_HEADER);
+    let chat_id = chat::create_by_contact_id(context, 1)?;
+    msg = Message::default();
+    msg.type_0 = Viewtype::File;
+    msg.param.set(Param::File, setup_file_name);
 
-                        ensure!(!context.shall_stop_ongoing(), "canceled");
-                            let msg_id = chat::send_msg(context, chat_id, &mut msg)?;
-                                info!(context, "Wait for setup message being sent ...",);
-                                while !context.shall_stop_ongoing() {
-                                    std::thread::sleep(std::time::Duration::from_secs(1));
-                                    if let Ok(msg) = Message::load_from_db(context, msg_id) {
-                                        if msg.is_sent() {
-                                            info!(context, "... setup message sent.",);
-                                            break;
-                                        }
-                                    }
-                                }
+    msg.param
+        .set(Param::MimeType, "application/autocrypt-setup");
+    msg.param.set_int(Param::Cmd, 6);
+    msg.param
+        .set_int(Param::ForcePlaintext, DC_FP_NO_AUTOCRYPT_HEADER);
+
+    ensure!(!context.shall_stop_ongoing(), "canceled");
+    let msg_id = chat::send_msg(context, chat_id, &mut msg)?;
+    info!(context, "Wait for setup message being sent ...",);
+    while !context.shall_stop_ongoing() {
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        if let Ok(msg) = Message::load_from_db(context, msg_id) {
+            if msg.is_sent() {
+                info!(context, "... setup message sent.",);
+                break;
+            }
+        }
+    }
     Ok(setup_code)
 }
 
@@ -598,7 +598,10 @@ fn add_files_to_export(context: &Context, dest_path_filename: &PathBuf) -> Resul
             let mut processed_files_cnt = 0;
             for entry in dir_handle {
                 let entry = entry?;
-                ensure!(!context.shall_stop_ongoing(), "canceled during export-files");
+                ensure!(
+                    !context.shall_stop_ongoing(),
+                    "canceled during export-files"
+                );
                 processed_files_cnt += 1;
                 let permille = max(min(processed_files_cnt * 1000 / total_files_cnt, 990), 10);
                 context.call_cb(Event::ImexProgress(permille));

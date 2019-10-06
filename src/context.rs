@@ -269,11 +269,15 @@ impl Context {
     }
 
     pub fn shall_stop_ongoing(&self) -> bool {
-        self.running_state.clone().read().unwrap().shall_stop_ongoing
+        self.running_state
+            .clone()
+            .read()
+            .unwrap()
+            .shall_stop_ongoing
     }
 
     /*******************************************************************************
-     * UI chat/message related API 
+     * UI chat/message related API
      ******************************************************************************/
 
     pub fn get_info(&self) -> HashMap<&'static str, String> {
