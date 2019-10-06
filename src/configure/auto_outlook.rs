@@ -26,90 +26,90 @@ enum ParsingResult {
 }
 
 fn outlk_parse_xml(xml_raw: &str) -> Result<ParsingResult, Error> {
-            let mut outlk_ad = OutlookAutodiscover {
-                out: LoginParam::new(),
-                out_imap_set: false,
-                out_smtp_set: false,
-                config_type: None,
-                config_server: String::new(),
-                config_port: 0,
-                config_ssl: String::new(),
-                config_redirecturl: None,
-            };
+    let mut outlk_ad = OutlookAutodiscover {
+        out: LoginParam::new(),
+        out_imap_set: false,
+        out_smtp_set: false,
+        config_type: None,
+        config_server: String::new(),
+        config_port: 0,
+        config_ssl: String::new(),
+        config_redirecturl: None,
+    };
 
-            let mut reader = quick_xml::Reader::from_str(&xml_raw);
-            reader.trim_text(true);
+    let mut reader = quick_xml::Reader::from_str(&xml_raw);
+    reader.trim_text(true);
 
-            let mut buf = Vec::new();
+    let mut buf = Vec::new();
 
-            let mut current_tag: Option<String> = None;
+    let mut current_tag: Option<String> = None;
 
-            loop {
-                match reader.read_event(&mut buf) {
-                    Ok(quick_xml::events::Event::Start(ref e)) => {
-                        let tag = String::from_utf8_lossy(e.name()).trim().to_lowercase();
+    loop {
+        match reader.read_event(&mut buf) {
+            Ok(quick_xml::events::Event::Start(ref e)) => {
+                let tag = String::from_utf8_lossy(e.name()).trim().to_lowercase();
 
-                        if tag == "protocol" {
-                            outlk_ad.config_type = None;
-                            outlk_ad.config_server = String::new();
-                            outlk_ad.config_port = 0;
-                            outlk_ad.config_ssl = String::new();
-                            outlk_ad.config_redirecturl = None;
+                if tag == "protocol" {
+                    outlk_ad.config_type = None;
+                    outlk_ad.config_server = String::new();
+                    outlk_ad.config_port = 0;
+                    outlk_ad.config_ssl = String::new();
+                    outlk_ad.config_redirecturl = None;
 
-                            current_tag = None;
-                        } else {
-                            current_tag = Some(tag);
-                        }
-                    }
-                    Ok(quick_xml::events::Event::End(ref e)) => {
-                        outlk_autodiscover_endtag_cb(e, &mut outlk_ad);
-                        current_tag = None;
-                    }
-                    Ok(quick_xml::events::Event::Text(ref e)) => {
-                        let val = e.unescape_and_decode(&reader).unwrap_or_default();
-
-                        if let Some(ref tag) = current_tag {
-                            match tag.as_str() {
-                                "type" => outlk_ad.config_type = Some(val.trim().to_string()),
-                                "server" => outlk_ad.config_server = val.trim().to_string(),
-                                "port" => outlk_ad.config_port = val.trim().parse().unwrap_or_default(),
-                                "ssl" => outlk_ad.config_ssl = val.trim().to_string(),
-                                "redirecturl" => outlk_ad.config_redirecturl = Some(val.trim().to_string()),
-                                _ => {}
-                            };
-                        }
-                    }
-                    Err(e) => {
-                        bail!(
-                            "Configure xml: Error at position {}: {:?}",
-                            reader.buffer_position(),
-                            e
-                        );
-                    }
-                    Ok(quick_xml::events::Event::Eof) => break,
-                    _ => (),
+                    current_tag = None;
+                } else {
+                    current_tag = Some(tag);
                 }
-                buf.clear();
             }
+            Ok(quick_xml::events::Event::End(ref e)) => {
+                outlk_autodiscover_endtag_cb(e, &mut outlk_ad);
+                current_tag = None;
+            }
+            Ok(quick_xml::events::Event::Text(ref e)) => {
+                let val = e.unescape_and_decode(&reader).unwrap_or_default();
 
-            // XML redirect via redirecturl
-            if outlk_ad.config_redirecturl.is_none()
-                || outlk_ad.config_redirecturl.as_ref().unwrap().is_empty()
-            {
-                if outlk_ad.out.mail_server.is_empty()
-                    || outlk_ad.out.mail_port == 0
-                    || outlk_ad.out.send_server.is_empty()
-                    || outlk_ad.out.send_port == 0
-                {
-                    let r = outlk_ad.out.to_string();
-                    bail!("Bad or incomplete autoconfig: {}", r,);
+                if let Some(ref tag) = current_tag {
+                    match tag.as_str() {
+                        "type" => outlk_ad.config_type = Some(val.trim().to_string()),
+                        "server" => outlk_ad.config_server = val.trim().to_string(),
+                        "port" => outlk_ad.config_port = val.trim().parse().unwrap_or_default(),
+                        "ssl" => outlk_ad.config_ssl = val.trim().to_string(),
+                        "redirecturl" => outlk_ad.config_redirecturl = Some(val.trim().to_string()),
+                        _ => {}
+                    };
                 }
-                Ok(ParsingResult::LoginParam(outlk_ad.out))
-            } else {
-                Ok(ParsingResult::RedirectUrl(
-                    outlk_ad.config_redirecturl.unwrap(),
-                ))
             }
+            Err(e) => {
+                bail!(
+                    "Configure xml: Error at position {}: {:?}",
+                    reader.buffer_position(),
+                    e
+                );
+            }
+            Ok(quick_xml::events::Event::Eof) => break,
+            _ => (),
+        }
+        buf.clear();
+    }
+
+    // XML redirect via redirecturl
+    if outlk_ad.config_redirecturl.is_none()
+        || outlk_ad.config_redirecturl.as_ref().unwrap().is_empty()
+    {
+        if outlk_ad.out.mail_server.is_empty()
+            || outlk_ad.out.mail_port == 0
+            || outlk_ad.out.send_server.is_empty()
+            || outlk_ad.out.send_port == 0
+        {
+            let r = outlk_ad.out.to_string();
+            bail!("Bad or incomplete autoconfig: {}", r,);
+        }
+        Ok(ParsingResult::LoginParam(outlk_ad.out))
+    } else {
+        Ok(ParsingResult::RedirectUrl(
+            outlk_ad.config_redirecturl.unwrap(),
+        ))
+    }
 }
 
 pub fn outlk_autodiscover(
