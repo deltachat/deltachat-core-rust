@@ -384,7 +384,7 @@ impl Imap {
             return true;
         }
 
-        let server_flags = self.config.read().unwrap().server_flags;
+        let server_flags = self.config.read().unwrap().server_flags as i32;
 
         let connection_res: imap::error::Result<Client> =
             if (server_flags & (DC_LP_IMAP_SOCKET_STARTTLS | DC_LP_IMAP_SOCKET_PLAIN)) != 0 {
