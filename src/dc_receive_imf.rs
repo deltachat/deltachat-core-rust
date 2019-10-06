@@ -1,4 +1,3 @@
-use std::ffi::CString;
 use std::ptr;
 
 use itertools::join;
