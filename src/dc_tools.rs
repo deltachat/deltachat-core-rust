@@ -51,14 +51,6 @@ pub unsafe fn dc_strdup(s: *const libc::c_char) -> *mut libc::c_char {
     ret
 }
 
-pub(crate) fn dc_atoi_null_is_0(s: *const libc::c_char) -> libc::c_int {
-    if !s.is_null() {
-        as_str(s).parse().unwrap_or_default()
-    } else {
-        0
-    }
-}
-
 unsafe fn dc_ltrim(buf: *mut libc::c_char) {
     let mut len: libc::size_t;
     let mut cur: *const libc::c_uchar;
