@@ -14,24 +14,24 @@ if __name__ == "__main__":
         s = re.sub(r"(?m)///.*$", "", s)  # remove comments
         unsafe = s.count("unsafe")
         free = s.count("free(")
-        gotoblocks = s.count("ok_to_continue") + s.count('OK_TO_CONTINUE')
+        unsafe_fn = s.count("unsafe fn")
         chars = s.count("c_char") + s.count("CStr")
-        filestats.append((fn, unsafe, free, gotoblocks, chars))
+        filestats.append((fn, unsafe, free, unsafe_fn, chars))
 
-    sum_unsafe, sum_free, sum_gotoblocks, sum_chars = 0, 0, 0, 0
+    sum_unsafe, sum_free, sum_unsafe_fn, sum_chars = 0, 0, 0, 0
 
-    for fn, unsafe, free, gotoblocks, chars in reversed(sorted(filestats, key=lambda x: sum(x[1:]))):
-        if unsafe + free + gotoblocks + chars == 0:
+    for fn, unsafe, free, unsafe_fn, chars in reversed(sorted(filestats, key=lambda x: sum(x[1:]))):
+        if unsafe + free + unsafe_fn + chars == 0:
             continue
-        print("{0: <25} unsafe: {1: >3} free: {2: >3} ok_to_cont: {3: >3} chars: {4: >3}".format(str(fn), unsafe, free, gotoblocks, chars))
+        print("{0: <25} unsafe: {1: >3} free: {2: >3} unsafe-fn: {3: >3} chars: {4: >3}".format(str(fn), unsafe, free, unsafe_fn, chars))
         sum_unsafe += unsafe
         sum_free += free
-        sum_gotoblocks += gotoblocks
+        sum_unsafe_fn += unsafe_fn
         sum_chars += chars
 
 
     print()
     print("total unsafe:", sum_unsafe)
     print("total free:", sum_free)
-    print("total ok_to_continue:", sum_gotoblocks)
+    print("total unsafe-fn:", sum_unsafe_fn)
     print("total c_chars:", sum_chars)
