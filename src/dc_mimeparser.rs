@@ -105,15 +105,15 @@ impl<'a> MimeParser<'a> {
         }
     }
 
-    pub unsafe fn parse(&mut self, body: &[u8]) -> Result<(), Error> {
+    pub fn parse(&mut self, body: &[u8]) -> Result<(), Error> {
         let mut index = 0;
 
-        let r = mailmime_parse(
+        let r = unsafe { mailmime_parse(
             body.as_ptr() as *const libc::c_char,
             body.len(),
             &mut index,
             &mut self.mimeroot,
-        );
+        ) };
 
         if r == MAILIMF_NO_ERROR as libc::c_int && !self.mimeroot.is_null() {
             let (encrypted, signatures, gossipped_addr) =
@@ -121,11 +121,11 @@ impl<'a> MimeParser<'a> {
             self.encrypted = encrypted;
             self.signatures = signatures;
             self.gossipped_addr = gossipped_addr;
-            self.parse_mime_recursive(self.mimeroot);
+            unsafe { self.parse_mime_recursive(self.mimeroot) } ;
 
             if let Some(field) = self.lookup_field("Subject") {
-                if (*field).fld_type == MAILIMF_FIELD_SUBJECT as libc::c_int {
-                    let subj = (*(*field).fld_data.fld_subject).sbj_value;
+                if unsafe { (*field).fld_type } == MAILIMF_FIELD_SUBJECT as libc::c_int {
+                    let subj = unsafe { (*(*field).fld_data.fld_subject).sbj_value };
 
                     self.subject = as_opt_str(subj).map(dc_decode_header_words);
                 }
@@ -284,21 +284,21 @@ impl<'a> MimeParser<'a> {
                         let mut index_0 = 0;
                         let dn_field_c = CString::new(dn_field).unwrap_or_default();
 
-                        if mailimf_mailbox_list_parse(
+                        if unsafe { mailimf_mailbox_list_parse(
                             dn_field_c.as_ptr(),
                             strlen(dn_field_c.as_ptr()),
                             &mut index_0,
                             &mut mb_list,
-                        ) == MAILIMF_NO_ERROR as libc::c_int
+                        ) } == MAILIMF_NO_ERROR as libc::c_int
                             && !mb_list.is_null()
                         {
                             if let Some(dn_to_addr) = wrapmime::mailimf_find_first_addr(mb_list) {
                                 if let Some(from_field) = self.lookup_field("From") {
-                                    if (*from_field).fld_type == MAILIMF_FIELD_FROM as libc::c_int
-                                        && !(*from_field).fld_data.fld_from.is_null()
+                                    if unsafe { (*from_field).fld_type == MAILIMF_FIELD_FROM as libc::c_int
+                                        && !(*from_field).fld_data.fld_from.is_null() }
                                     {
                                         let from_addr = wrapmime::mailimf_find_first_addr(
-                                            (*(*from_field).fld_data.fld_from).frm_mb_list,
+                                            unsafe { (*(*from_field).fld_data.fld_from).frm_mb_list },
                                         );
                                         if let Some(from_addr) = from_addr {
                                             if from_addr == dn_to_addr {
@@ -310,7 +310,7 @@ impl<'a> MimeParser<'a> {
                                     }
                                 }
                             }
-                            mailimf_mailbox_list_free(mb_list);
+                            unsafe { mailimf_mailbox_list_free(mb_list) };
                         }
                     }
                 }

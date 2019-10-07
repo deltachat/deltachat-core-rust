@@ -263,7 +263,7 @@ pub fn try_decrypt(
     in_out_message: *mut Mailmime,
 ) -> Result<(bool, HashSet<String>, HashSet<String>)> {
     // just a pointer into mailmime structure, must not be freed
-    let imffields = unsafe { mailmime_find_mailimf_fields(in_out_message) };
+    let imffields = wrapmime::mailmime_find_mailimf_fields(in_out_message);
     ensure!(
         !in_out_message.is_null() && !imffields.is_null(),
         "corrupt invalid mime inputs"
