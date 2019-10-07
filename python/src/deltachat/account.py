@@ -1,6 +1,7 @@
 """ Account class implementation. """
 
 from __future__ import print_function
+import atexit
 import threading
 import re
 import time
@@ -49,9 +50,10 @@ class Account(object):
             raise ValueError("Could not dc_open: {}".format(db_path))
         self._configkeys = self.get_config("sys.config_keys").split()
         self._imex_events = Queue()
+        atexit.register(self.shutdown)
 
-    def __del__(self):
-        self.shutdown()
+    # def __del__(self):
+    #    self.shutdown()
 
     def _check_config_key(self, name):
         if name not in self._configkeys:
@@ -447,6 +449,7 @@ class Account(object):
             self.stop_threads(wait=wait)  # to wait for threads
             deltachat.clear_context_callback(self._dc_context)
             del self._dc_context
+            atexit.unregister(self.shutdown)
 
     def _process_event(self, ctx, evt_name, data1, data2):
         assert ctx == self._dc_context
