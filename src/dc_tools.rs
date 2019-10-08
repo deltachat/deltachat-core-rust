@@ -51,75 +51,6 @@ pub unsafe fn dc_strdup(s: *const libc::c_char) -> *mut libc::c_char {
     ret
 }
 
-unsafe fn dc_ltrim(buf: *mut libc::c_char) {
-    let mut len: libc::size_t;
-    let mut cur: *const libc::c_uchar;
-    if !buf.is_null() && 0 != *buf as libc::c_int {
-        len = strlen(buf);
-        cur = buf as *const libc::c_uchar;
-        while 0 != *cur as libc::c_int && 0 != libc::isspace(*cur as libc::c_int) {
-            cur = cur.offset(1isize);
-            len = len.wrapping_sub(1)
-        }
-        if buf as *const libc::c_uchar != cur {
-            libc::memmove(
-                buf as *mut libc::c_void,
-                cur as *const libc::c_void,
-                len.wrapping_add(1),
-            );
-        }
-    };
-}
-
-unsafe fn dc_rtrim(buf: *mut libc::c_char) {
-    let mut len: libc::size_t;
-    let mut cur: *mut libc::c_uchar;
-    if !buf.is_null() && 0 != *buf as libc::c_int {
-        len = strlen(buf);
-        cur = (buf as *mut libc::c_uchar)
-            .offset(len as isize)
-            .offset(-1isize);
-        while cur != buf as *mut libc::c_uchar && 0 != libc::isspace(*cur as libc::c_int) {
-            cur = cur.offset(-1isize);
-            len = len.wrapping_sub(1)
-        }
-        *cur.offset(
-            (if 0 != libc::isspace(*cur as libc::c_int) {
-                0
-            } else {
-                1
-            }) as isize,
-        ) = '\u{0}' as i32 as libc::c_uchar
-    };
-}
-
-pub(crate) unsafe fn dc_trim(buf: *mut libc::c_char) {
-    dc_ltrim(buf);
-    dc_rtrim(buf);
-}
-
-/* remove all \r characters from string */
-pub(crate) unsafe fn dc_remove_cr_chars(buf: *mut libc::c_char) {
-    /* search for first `\r` */
-    let mut p1: *const libc::c_char = buf;
-    while 0 != *p1 {
-        if *p1 as libc::c_int == '\r' as i32 {
-            break;
-        }
-        p1 = p1.offset(1isize)
-    }
-    /* p1 is `\r` or null-byte; start removing `\r` */
-    let mut p2: *mut libc::c_char = p1 as *mut libc::c_char;
-    while 0 != *p1 {
-        if *p1 as libc::c_int != '\r' as i32 {
-            *p2 = *p1;
-            p2 = p2.offset(1isize)
-        }
-        p1 = p1.offset(1isize)
-    }
-    *p2 = 0 as libc::c_char;
-}
-
 /// Shortens a string to a specified length and adds "..." or "[...]" to the end of
 /// the shortened string.
 pub(crate) fn dc_truncate(buf: &str, approx_chars: usize, do_unwrap: bool) -> Cow<str> {
@@ -631,26 +562,6 @@ pub(crate) fn dc_get_next_backup_path(
     }
     bail!("could not create backup file, disk full?");
 }
-pub(crate) fn dc_get_fine_path_filename(
-    context: &Context,
-    folder: impl AsRef<Path>,
-    backup_time: i64,
-) -> Result<PathBuf, Error> {
-    let folder = PathBuf::from(folder.as_ref());
-    let stem = chrono::NaiveDateTime::from_timestamp(backup_time, 0)
-        .format("delta-chat-%Y-%m-%d")
-        .to_string();
-
-    // 64 backup files per day should be enough for everyone
-    for i in 0..64 {
-        let mut path = folder.clone();
-        path.push(format!("{}-{}.bak", stem, i));
-        if !path.exists() {
-            return Ok(path);
-        }
-    }
-    bail!("could not create backup file, disk full?");
-}
 
 pub(crate) fn dc_is_blobdir_path(context: &Context, path: impl AsRef<str>) -> bool {
     context
@@ -1041,54 +952,6 @@ mod tests {
                 CString::new("").unwrap().as_c_str()
             );
             assert_ne!(str_a, str_a_copy);
-        }
-    }
-
-    #[test]
-    fn test_dc_ltrim() {
-        unsafe {
-            let html: *const libc::c_char =
-                b"\r\r\nline1<br>\r\n\r\n\r\rline2\n\r\x00" as *const u8 as *const libc::c_char;
-            let out: *mut libc::c_char = strndup(html, strlen(html) as libc::c_ulong);
-
-            dc_ltrim(out);
-
-            assert_eq!(
-                CStr::from_ptr(out as *const libc::c_char).to_str().unwrap(),
-                "line1<br>\r\n\r\n\r\rline2\n\r"
-            );
-        }
-    }
-
-    #[test]
-    fn test_dc_rtrim() {
-        unsafe {
-            let html: *const libc::c_char =
-                b"\r\r\nline1<br>\r\n\r\n\r\rline2\n\r\x00" as *const u8 as *const libc::c_char;
-            let out: *mut libc::c_char = strndup(html, strlen(html) as libc::c_ulong);
-
-            dc_rtrim(out);
-
-            assert_eq!(
-                CStr::from_ptr(out as *const libc::c_char).to_str().unwrap(),
-                "\r\r\nline1<br>\r\n\r\n\r\rline2"
-            );
-        }
-    }
-
-    #[test]
-    fn test_dc_trim() {
-        unsafe {
-            let html: *const libc::c_char =
-                b"\r\r\nline1<br>\r\n\r\n\r\rline2\n\r\x00" as *const u8 as *const libc::c_char;
-            let out: *mut libc::c_char = strndup(html, strlen(html) as libc::c_ulong);
-
-            dc_trim(out);
-
-            assert_eq!(
-                CStr::from_ptr(out as *const libc::c_char).to_str().unwrap(),
-                "line1<br>\r\n\r\n\r\rline2"
-            );
         }
     }
 
@@ -1559,20 +1422,5 @@ mod tests {
         assert!(listflags_has(listflags, DC_GCL_ADD_SELF) == true);
         let listflags: u32 = DC_GCL_VERIFIED_ONLY.try_into().unwrap();
         assert!(listflags_has(listflags, DC_GCL_ADD_SELF) == false);
-    }
-
-    #[test]
-    fn test_dc_remove_cr_chars() {
-        unsafe {
-            let input = "foo\r\nbar".strdup();
-            dc_remove_cr_chars(input);
-            assert_eq!("foo\nbar", to_string_lossy(input));
-            free(input.cast());
-
-            let input = "\rfoo\r\rbar\r".strdup();
-            dc_remove_cr_chars(input);
-            assert_eq!("foobar", to_string_lossy(input));
-            free(input.cast());
-        }
     }
 }
