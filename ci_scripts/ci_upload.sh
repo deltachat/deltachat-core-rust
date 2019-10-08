@@ -7,9 +7,9 @@ fi
 
 set -xe
 
-#DOXYDOCDIR=${1:?directory where doxygen docs to be found}
 PYDOCDIR=${1:?directory with python docs}
 WHEELHOUSEDIR=${2:?directory with pre-built wheels}
+DOXYDOCDIR=${3:?directory where doxygen docs to be found}
 
 export BRANCH=${CIRCLE_BRANCH:?specify branch for uploading purposes}
 
@@ -22,10 +22,10 @@ rsync -avz \
   delta@py.delta.chat:build/${BRANCH}
 
 # C docs to c.delta.chat
-#rsync -avz \
-#  -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
-#  "$DOXYDOCDIR/html/" \
-#  delta@py.delta.chat:build-c/${BRANCH}
+rsync -avz \
+  -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+  "$DOXYDOCDIR/html/" \
+  delta@c.delta.chat:build-c/${BRANCH}
 
 echo -----------------------
 echo upload wheels 
