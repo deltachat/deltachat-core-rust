@@ -319,7 +319,7 @@ fn set_self_key(
 }
 
 fn decrypt_setup_file<T: std::io::Read + std::io::Seek>(
-    context: &Context,
+    _context: &Context,
     passphrase: &str,
     file: T,
 ) -> Result<String> {
@@ -592,7 +592,6 @@ fn import_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     Maybe we should make the "default" key handlong also a little bit smarter
     (currently, the last imported key is the standard key unless it contains the string "legacy" in its name) */
     let mut set_default: bool;
-    let mut key: String;
     let mut imported_cnt = 0;
 
     let dir_name = dir.as_ref().to_string_lossy();
@@ -806,7 +805,7 @@ mod tests {
 
         assert!(!base64.is_empty());
 
-        let mut setup_file = S_EM_SETUPFILE.to_string();
+        let setup_file = S_EM_SETUPFILE.to_string();
         let decrypted = decrypt_setup_file(
             context,
             S_EM_SETUPCODE,
@@ -814,7 +813,7 @@ mod tests {
         )
         .unwrap();
 
-        let (typ, headers, base64) = split_armored_data(&buf_1).unwrap();
+        let (typ, headers, _base64) = split_armored_data(decrypted.as_bytes()).unwrap();
 
         assert_eq!(typ, BlockType::PrivateKey);
         assert_eq!(headers.get(HEADER_AUTOCRYPT), Some(&"mutual".to_string()));
