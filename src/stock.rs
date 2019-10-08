@@ -192,7 +192,7 @@ impl Context {
     /// placeholders with the string in `insert` and does the same for
     /// `%2$s`, `%2$d` and `%2$@` for `insert2`.
     /// (the `%1$@` variant is used on iOS, the other are used on Android and Desktop)
-    fn stock_string_repl_str2(
+    pub fn stock_string_repl_str2(
         &self,
         id: StockMessage,
         insert: impl AsRef<str>,
