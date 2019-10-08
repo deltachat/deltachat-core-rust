@@ -800,9 +800,7 @@ pub fn to_string_lossy(s: *const libc::c_char) -> String {
 
     let cstr = unsafe { CStr::from_ptr(s) };
 
-    cstr.to_str()
-        .map(|s| s.to_string())
-        .unwrap_or_else(|_| cstr.to_string_lossy().to_string())
+    cstr.to_string_lossy().to_string()
 }
 
 pub fn as_str<'a>(s: *const libc::c_char) -> &'a str {
