@@ -16,6 +16,7 @@ use crate::login_param::{dc_build_tls, CertificateChecks, LoginParam};
 use crate::message::{self, update_msg_move_state, update_server_uid};
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::param::Params;
+use crate::stock::StockMessage;
 use crate::wrapmime;
 
 const DC_IMAP_SEEN: usize = 0x0001;
@@ -445,14 +446,13 @@ impl Imap {
                 let config = self.config.read().unwrap();
                 let imap_server: &str = config.imap_server.as_ref();
                 let imap_port = config.imap_port;
-
-                emit_event!(
-                    context,
-                    Event::ErrorNetwork(format!(
-                        "Could not connect to IMAP-server {}:{}. ({})",
-                        imap_server, imap_port, err
-                    ))
+                let message = context.stock_string_repl_str2(
+                    StockMessage::ServerResponse,
+                    format!("{}:{}", imap_server, imap_port),
+                    format!("{}", err),
                 );
+
+                emit_event!(context, Event::ErrorNetwork(message));
 
                 return false;
             }
@@ -467,9 +467,13 @@ impl Imap {
                 true
             }
             Err((err, _)) => {
+                let config = self.config.read().unwrap();
+                let imap_user: &str = config.imap_user.as_ref();
+                let message = context.stock_string_repl_str(StockMessage::CannotLogin, imap_user);
+
                 emit_event!(
                     context,
-                    Event::ErrorNetwork(format!("Cannot login ({})", err))
+                    Event::ErrorNetwork(format!("{} ({})", message, err))
                 );
                 self.unsetup_handle(context);
 

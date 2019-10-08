@@ -96,7 +96,7 @@ pub enum StockMessage {
     SelfTalkSubTitle = 50,
     #[strum(props(fallback = "Cannot login as %1$s."))]
     CannotLogin = 60,
-    #[strum(props(fallback = "Response from %1$s: %2$s"))]
+    #[strum(props(fallback = "Could not connect to %1$s: %2$s"))]
     ServerResponse = 61,
     #[strum(props(fallback = "%1$s by %2$s."))]
     MsgActionByUser = 62,
@@ -334,7 +334,7 @@ mod tests {
         assert_eq!(
             t.ctx
                 .stock_string_repl_str2(StockMessage::ServerResponse, "foo", "bar"),
-            "Response from foo: bar"
+            "Could not connect to foo: bar"
         );
     }
 
