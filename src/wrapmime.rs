@@ -175,21 +175,21 @@ pub fn mailimf_find_field(
 }
 
 /*the result is a pointer to mime, must not be freed*/
-pub unsafe fn mailmime_find_mailimf_fields(mime: *mut Mailmime) -> *mut mailimf_fields {
+pub fn mailmime_find_mailimf_fields(mime: *mut Mailmime) -> *mut mailimf_fields {
     if mime.is_null() {
         return ptr::null_mut();
     }
 
-    match (*mime).mm_type as _ {
+    match unsafe { (*mime).mm_type as _ } {
         MAILMIME_MULTIPLE => {
-            for cur_data in (*(*mime).mm_data.mm_multipart.mm_mp_list).into_iter() {
+            for cur_data in unsafe { (*(*mime).mm_data.mm_multipart.mm_mp_list).into_iter() } {
                 let header = mailmime_find_mailimf_fields(cur_data as *mut _);
                 if !header.is_null() {
                     return header;
                 }
             }
         }
-        MAILMIME_MESSAGE => return (*mime).mm_data.mm_message.mm_fields,
+        MAILMIME_MESSAGE => return unsafe { (*mime).mm_data.mm_message.mm_fields },
         _ => {}
     }
 
