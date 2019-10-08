@@ -27,7 +27,7 @@ macro_rules! progress {
 }
 
 // connect
-pub unsafe fn configure(context: &Context) {
+pub fn configure(context: &Context) {
     if context.has_ongoing() {
         warn!(context, "There is already another ongoing process running.",);
         return;
