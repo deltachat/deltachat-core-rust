@@ -28,7 +28,7 @@ use crate::key::*;
 use crate::keyring::*;
 use crate::mimefactory::MimeFactory;
 use crate::peerstate::*;
-use crate::pgp::*;
+use crate::pgp;
 use crate::securejoin::handle_degrade_event;
 use crate::wrapmime;
 use crate::wrapmime::*;
@@ -211,7 +211,7 @@ impl EncryptHelper {
                 "could not write/allocate"
             );
 
-            let ctext = dc_pgp_pk_encrypt(
+            let ctext = pgp::pk_encrypt(
                 std::slice::from_raw_parts((*plain).str_0 as *const u8, (*plain).len),
                 &keyring,
                 sign_key.as_ref(),
@@ -398,7 +398,7 @@ fn load_or_generate_self_public_key(context: &Context, self_addr: impl AsRef<str
         context,
         "Generating keypair with {} bits, e={} ...", 2048, 65537,
     );
-    match dc_pgp_create_keypair(&self_addr) {
+    match pgp::create_keypair(&self_addr) {
         Some((public_key, private_key)) => {
             match dc_key_save_self_keypair(
                 context,
@@ -581,7 +581,7 @@ fn decrypt_part(
         // we should only have one decryption happening
         ensure!(ret_valid_signatures.is_empty(), "corrupt signatures");
 
-        let plain = match dc_pgp_pk_decrypt(
+        let plain = match pgp::pk_decrypt(
             &data,
             &private_keyring,
             &public_keyring_for_validate,

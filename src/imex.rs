@@ -17,7 +17,7 @@ use crate::job::*;
 use crate::key::*;
 use crate::message::Message;
 use crate::param::*;
-use crate::pgp::*;
+use crate::pgp;
 use crate::sql::{self, Sql};
 use crate::stock::StockMessage;
 
@@ -169,7 +169,7 @@ pub fn render_setup_file(context: &Context, passphrase: &str) -> Result<String> 
         true => Some(("Autocrypt-Prefer-Encrypt", "mutual")),
     };
     let private_key_asc = private_key.to_asc(ac_headers);
-    let encr = dc_pgp_symm_encrypt(&passphrase, private_key_asc.as_bytes())?;
+    let encr = pgp::symm_encrypt(&passphrase, private_key_asc.as_bytes())?;
 
     let replacement = format!(
         concat!(
@@ -323,7 +323,7 @@ fn decrypt_setup_file<T: std::io::Read + std::io::Seek>(
     passphrase: &str,
     file: T,
 ) -> Result<String> {
-    let plain_bytes = dc_pgp_symm_decrypt(passphrase, file)?;
+    let plain_bytes = pgp::symm_decrypt(passphrase, file)?;
     let plain_text = std::string::String::from_utf8(plain_bytes)?;
 
     Ok(plain_text)
@@ -713,8 +713,9 @@ fn export_key_to_asc_file(
 mod tests {
     use super::*;
 
+    use crate::pgp::{split_armored_data, HEADER_AUTOCRYPT, HEADER_SETUPCODE};
     use crate::test_utils::*;
-    use pgp::armor::BlockType;
+    use ::pgp::armor::BlockType;
 
     #[test]
     fn test_render_setup_file() {
