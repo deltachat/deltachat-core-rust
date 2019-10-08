@@ -72,7 +72,7 @@ pub fn moz_autoconfigure(
                 moz_autoconfigure_text_cb(e, &mut moz_ac, &reader)
             }
             Err(e) => {
-                error!(
+                warn!(
                     context,
                     "Configure xml: Error at position {}: {:?}",
                     reader.buffer_position(),
