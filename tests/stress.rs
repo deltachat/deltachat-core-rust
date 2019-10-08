@@ -8,7 +8,7 @@ use deltachat::contact::*;
 use deltachat::context::*;
 use deltachat::keyring::*;
 use deltachat::oauth2::*;
-use deltachat::pgp::*;
+use deltachat::pgp;
 use deltachat::Event;
 use tempfile::{tempdir, TempDir};
 
@@ -100,11 +100,11 @@ unsafe fn stress_functions(context: &Context) {
 #[test]
 #[ignore] // is too expensive
 fn test_encryption_decryption() {
-    let (public_key, private_key) = dc_pgp_create_keypair("foo@bar.de").unwrap();
+    let (public_key, private_key) = pgp::create_keypair("foo@bar.de").unwrap();
 
     private_key.split_key().unwrap();
 
-    let (public_key2, private_key2) = dc_pgp_create_keypair("two@zwo.de").unwrap();
+    let (public_key2, private_key2) = pgp::create_keypair("two@zwo.de").unwrap();
 
     assert_ne!(public_key, public_key2);
 
@@ -113,11 +113,11 @@ fn test_encryption_decryption() {
     keyring.add_owned(public_key.clone());
     keyring.add_ref(&public_key2);
 
-    let ctext_signed = dc_pgp_pk_encrypt(original_text, &keyring, Some(&private_key)).unwrap();
+    let ctext_signed = pgp::pk_encrypt(original_text, &keyring, Some(&private_key)).unwrap();
     assert!(!ctext_signed.is_empty());
     assert!(ctext_signed.starts_with("-----BEGIN PGP MESSAGE-----"));
 
-    let ctext_unsigned = dc_pgp_pk_encrypt(original_text, &keyring, None).unwrap();
+    let ctext_unsigned = pgp::pk_encrypt(original_text, &keyring, None).unwrap();
     assert!(!ctext_unsigned.is_empty());
     assert!(ctext_unsigned.starts_with("-----BEGIN PGP MESSAGE-----"));
 
@@ -132,7 +132,7 @@ fn test_encryption_decryption() {
 
     let mut valid_signatures: HashSet<String> = Default::default();
 
-    let plain = dc_pgp_pk_decrypt(
+    let plain = pgp::pk_decrypt(
         ctext_signed.as_bytes(),
         &keyring,
         &public_keyring,
@@ -146,7 +146,7 @@ fn test_encryption_decryption() {
     valid_signatures.clear();
 
     let empty_keyring = Keyring::default();
-    let plain = dc_pgp_pk_decrypt(
+    let plain = pgp::pk_decrypt(
         ctext_signed.as_bytes(),
         &keyring,
         &empty_keyring,
@@ -158,7 +158,7 @@ fn test_encryption_decryption() {
 
     valid_signatures.clear();
 
-    let plain = dc_pgp_pk_decrypt(
+    let plain = pgp::pk_decrypt(
         ctext_signed.as_bytes(),
         &keyring,
         &public_keyring2,
@@ -172,7 +172,7 @@ fn test_encryption_decryption() {
 
     public_keyring2.add_ref(&public_key);
 
-    let plain = dc_pgp_pk_decrypt(
+    let plain = pgp::pk_decrypt(
         ctext_signed.as_bytes(),
         &keyring,
         &public_keyring2,
@@ -184,7 +184,7 @@ fn test_encryption_decryption() {
 
     valid_signatures.clear();
 
-    let plain = dc_pgp_pk_decrypt(
+    let plain = pgp::pk_decrypt(
         ctext_unsigned.as_bytes(),
         &keyring,
         &public_keyring,
@@ -201,8 +201,7 @@ fn test_encryption_decryption() {
     let mut public_keyring = Keyring::default();
     public_keyring.add_ref(&public_key);
 
-    let plain =
-        dc_pgp_pk_decrypt(ctext_signed.as_bytes(), &keyring, &public_keyring, None).unwrap();
+    let plain = pgp::pk_decrypt(ctext_signed.as_bytes(), &keyring, &public_keyring, None).unwrap();
 
     assert_eq!(plain, original_text);
 }

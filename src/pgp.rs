@@ -47,7 +47,7 @@ pub fn split_armored_data(
 }
 
 /// Create a new key pair.
-pub fn dc_pgp_create_keypair(addr: impl AsRef<str>) -> Option<(Key, Key)> {
+pub fn create_keypair(addr: impl AsRef<str>) -> Option<(Key, Key)> {
     let user_id = format!("<{}>", addr.as_ref());
 
     let key_params = SecretKeyParamsBuilder::default()
@@ -97,7 +97,7 @@ pub fn dc_pgp_create_keypair(addr: impl AsRef<str>) -> Option<(Key, Key)> {
     Some((Key::Public(public_key), Key::Secret(private_key)))
 }
 
-pub fn dc_pgp_pk_encrypt(
+pub fn pk_encrypt(
     plain: &[u8],
     public_keys_for_encryption: &Keyring,
     private_key_for_signing: Option<&Key>,
@@ -134,7 +134,7 @@ pub fn dc_pgp_pk_encrypt(
     Ok(encoded_msg)
 }
 
-pub fn dc_pgp_pk_decrypt(
+pub fn pk_decrypt(
     ctext: &[u8],
     private_keys_for_decryption: &Keyring,
     public_keys_for_validation: &Keyring,
@@ -183,7 +183,7 @@ pub fn dc_pgp_pk_decrypt(
 }
 
 /// Symmetric encryption.
-pub fn dc_pgp_symm_encrypt(passphrase: &str, plain: &[u8]) -> Result<String, Error> {
+pub fn symm_encrypt(passphrase: &str, plain: &[u8]) -> Result<String, Error> {
     let mut rng = thread_rng();
     let lit_msg = Message::new_literal_bytes("", plain);
 
@@ -197,7 +197,7 @@ pub fn dc_pgp_symm_encrypt(passphrase: &str, plain: &[u8]) -> Result<String, Err
 }
 
 /// Symmetric decryption.
-pub fn dc_pgp_symm_decrypt<T: std::io::Read + std::io::Seek>(
+pub fn symm_decrypt<T: std::io::Read + std::io::Seek>(
     passphrase: &str,
     ctext: T,
 ) -> Result<Vec<u8>, Error> {
