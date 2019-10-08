@@ -4,6 +4,9 @@ executors:
     docker:
       - image: filecoin/rust:latest
     working_directory: /mnt/crate
+  doxygen:
+    docker:
+      - image: hrektts/doxygen
 
 restore-workspace: &restore-workspace
   attach_workspace:
@@ -113,6 +116,18 @@ jobs:
           target: "aarch64-linux-android"
 
 
+  build_doxygen:
+    executor: doxygen
+    steps:
+      - checkout
+      - run: bash ci_scripts/run-doxygen.sh
+      - run: mkdir -p workspace/c-docs 
+      - run: cp -av deltachat-ffi/{html,xml} workspace/c-docs/
+      - persist_to_workspace:
+          root: workspace
+          paths:
+            - c-docs
+
   build_test_docs_wheel:
     docker:
       - image: deltachat/coredeps
@@ -148,7 +163,7 @@ jobs:
           at: workspace
       - run: pyenv global 3.5.2
       - run: ls -laR workspace
-      - run: ci_scripts/ci_upload.sh workspace/py-docs workspace/wheelhouse
+      - run: ci_scripts/ci_upload.sh workspace/py-docs workspace/wheelhouse workspace/c-docs
 
   clippy:
     executor: default
@@ -166,18 +181,21 @@ workflows:
   test:
     jobs:
       - cargo_fetch
+      - build_doxygen
+
       - build_test_docs_wheel:
           requires:
             - cargo_fetch
       - upload_docs_wheels:
           requires:
             - build_test_docs_wheel
+            - build_doxygen 
       - rustfmt:
           requires:
             - cargo_fetch
       - clippy:
           requires:
-            - cargo_fetch
+           - cargo_fetch
 
       # Linux Desktop 64bit
       - test_x86_64-unknown-linux-gnu:
