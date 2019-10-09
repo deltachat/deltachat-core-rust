@@ -40,8 +40,10 @@ pub(crate) unsafe fn strncasecmp(
 
     // s1 and s2 might not be null terminated.
 
-    let s1_slice = std::slice::from_raw_parts(s1 as *const u8, strnlen(s1 as *const i8, n));
-    let s2_slice = std::slice::from_raw_parts(s2 as *const u8, strnlen(s2 as *const i8, n));
+    let s1_slice =
+        std::slice::from_raw_parts(s1 as *const u8, strnlen(s1 as *const libc::c_char, n));
+    let s2_slice =
+        std::slice::from_raw_parts(s2 as *const u8, strnlen(s2 as *const libc::c_char, n));
 
     let s1 = std::ffi::CStr::from_bytes_with_nul_unchecked(s1_slice)
         .to_string_lossy()
