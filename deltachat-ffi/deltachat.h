@@ -403,12 +403,14 @@ int             dc_set_config                (dc_context_t* context, const char*
 char*           dc_get_config                (dc_context_t* context, const char* key);
 
 /**
- * Set (translated) stock string 
+ * Set stock string translation. 
+ *
+ * The function will emit warnings if it returns an error state. 
  *
  * @param context The context object
- * @param stock_id   the integer id of the stock message 
+ * @param stock_id   the integer id of the stock message (DC_STR_*)
  * @param stock_msg  the message to be used 
- * @return void
+ * @return int (==0 on error, 1 on success)
  */
 int             dc_set_stock_translation(dc_context_t* context, uint32_t, const char* value);
 

@@ -25,6 +25,7 @@ use num_traits::{FromPrimitive, ToPrimitive};
 use deltachat::contact::Contact;
 use deltachat::context::Context;
 use deltachat::dc_tools::{as_path, as_str, dc_strdup, to_string_lossy, OsStrExt, StrExt};
+use deltachat::stock::StockMessage;
 use deltachat::*;
 
 // as C lacks a good and portable error handling,
@@ -350,19 +351,25 @@ pub unsafe extern "C" fn dc_set_stock_translation(
 ) -> libc::c_int {
     if context.is_null() || stock_msg.is_null() {
         eprintln!("ignoring careless call to dc_set_stock_string");
-        return;
+        return 0;
     }
-    let msg = as_str(stock_msg);
+    let msg = as_str(stock_msg).to_string();
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| match ctx.set_stock_translation(stock_id, msg) {
-            Ok(()) => 1,
-            Err(err) => {
-                warn!(ctx, "could not set translation: {}", err);
+        .with_inner(|ctx| match StockMessage::from_u32(stock_id) {
+            Some(id) => match ctx.set_stock_translation(id, msg) {
+                Ok(()) => 1,
+                Err(err) => {
+                    warn!(ctx, "set_stock_translation failed: {}", err);
+                    0
+                }
+            },
+            None => {
+                warn!(ctx, "invalid stock message id {}", stock_id);
                 0
             }
         })
-        .unwrap_or(())
+        .unwrap_or(0)
 }
 
 #[no_mangle]

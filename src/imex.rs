@@ -805,19 +805,12 @@ mod tests {
         assert!(msg.contains("-----END PGP MESSAGE-----\n"));
     }
 
-    fn ac_setup_msg_cb(ctx: &Context, evt: Event) -> libc::uintptr_t {
-        match evt {
-            Event::GetString {
-                id: StockMessage::AcSetupMsgBody,
-                ..
-            } => unsafe { "hello\r\nthere".strdup() as usize },
-            _ => logging_cb(ctx, evt),
-        }
-    }
-
     #[test]
     fn otest_render_setup_file_newline_replace() {
-        let t = test_context(Some(Box::new(ac_setup_msg_cb)));
+        let t = dummy_context();
+        t.ctx
+            .set_stock_translation(StockMessage::AcSetupMsgBody, "hello\r\nthere".to_string())
+            .unwrap();
         configure_alice_keypair(&t.ctx);
         let msg = render_setup_file(&t.ctx, "pw").unwrap();
         println!("{}", &msg);
