@@ -257,7 +257,7 @@ const DC_SHOW_EMAILS_ACCEPTED_CONTACTS: usize = 1;
 const DC_SHOW_EMAILS_ALL: usize = 2;
 
 // TODO: Strings need some doumentation about used placeholders.
-// These constants are used to request strings using #DC_EVENT_GET_STRING.
+// These constants are used to set stock translation strings
 
 const DC_STR_NOMESSAGES: usize = 1;
 const DC_STR_SELF: usize = 2;

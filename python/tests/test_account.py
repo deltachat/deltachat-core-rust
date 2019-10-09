@@ -148,6 +148,27 @@ class TestOfflineChat:
         chat.set_name("title2")
         assert chat.get_name() == "title2"
 
+    def test_group_chat_creation_with_translation(self, ac1):
+        ac1.set_stock_translation(const.DC_STR_NEWGROUPDRAFT, "xyz %1$s")
+        ac1._evlogger.consume_events()
+        with pytest.raises(ValueError):
+            ac1.set_stock_translation(const.DC_STR_NEWGROUPDRAFT, "xyz %2$s")
+        ac1._evlogger.get_matching("DC_EVENT_WARNING")
+        with pytest.raises(ValueError):
+            ac1.set_stock_translation(500, "xyz %1$s")
+        ac1._evlogger.get_matching("DC_EVENT_WARNING")
+        contact1 = ac1.create_contact("some1@hello.com", name="some1")
+        contact2 = ac1.create_contact("some2@hello.com", name="some2")
+        chat = ac1.create_group_chat(name="title1")
+        chat.add_contact(contact1)
+        chat.add_contact(contact2)
+        assert chat.get_name() == "title1"
+        assert contact1 in chat.get_contacts()
+        assert contact2 in chat.get_contacts()
+        assert not chat.is_promoted()
+        msg = chat.get_draft()
+        assert msg.text == "xyz title1"
+
     @pytest.mark.parametrize("verified", [True, False])
     def test_group_chat_qr(self, acfactory, ac1, verified):
         ac2 = acfactory.get_configured_offline_account()

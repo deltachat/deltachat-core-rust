@@ -57,7 +57,7 @@ pub mod qr;
 pub mod securejoin;
 mod smtp;
 pub mod sql;
-mod stock;
+pub mod stock;
 mod token;
 #[macro_use]
 mod wrapmime;

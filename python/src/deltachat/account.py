@@ -71,6 +71,18 @@ class Account(object):
             d[key.lower()] = value
         return d
 
+    def set_stock_translation(self, id, string):
+        """ set stock translation string.
+
+        :param id: id of stock string (const.DC_STR_*)
+        :param value: string to set as new transalation
+        :returns: None
+        """
+        string = string.encode("utf8")
+        res = lib.dc_set_stock_translation(self._dc_context, id, string)
+        if res == 0:
+            raise ValueError("could not set translation string")
+
     def set_config(self, name, value):
         """ set configuration values.
 

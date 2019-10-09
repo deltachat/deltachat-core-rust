@@ -125,7 +125,7 @@ impl Context {
     /// Set the stock string for the [StockMessage].
     ///
     pub fn set_stock_translation(
-        &mut self,
+        &self,
         id: StockMessage,
         stockstring: String,
     ) -> Result<(), Error> {
@@ -143,7 +143,10 @@ impl Context {
                 id.fallback()
             );
         }
-        self.translated_stockstrings.insert(id as usize, stockstring);
+        self.translated_stockstrings
+            .write()
+            .unwrap()
+            .insert(id as usize, stockstring);
         Ok(())
     }
 
@@ -152,8 +155,13 @@ impl Context {
     /// Return a translation (if it was set with set_stock_translation before)
     /// or a default (English) string.
     pub fn stock_str(&self, id: StockMessage) -> Cow<str> {
-        match self.translated_stockstrings.get(&(id as usize)) {
-            Some(x) => Cow::Borrowed(x),
+        match self
+            .translated_stockstrings
+            .read()
+            .unwrap()
+            .get(&(id as usize))
+        {
+            Some(ref x) => Cow::Owned(x.to_string()),
             None => Cow::Borrowed(id.fallback()),
         }
     }
@@ -274,7 +282,7 @@ mod tests {
 
     #[test]
     fn test_set_stock_translation() {
-        let mut t = dummy_context();
+        let t = dummy_context();
         t.ctx
             .set_stock_translation(StockMessage::NoMessages, "xyz".to_string())
             .unwrap();
@@ -283,7 +291,7 @@ mod tests {
 
     #[test]
     fn test_set_stock_translation_wrong_replacements() {
-        let mut t = dummy_context();
+        let t = dummy_context();
         assert!(t
             .ctx
             .set_stock_translation(StockMessage::NoMessages, "xyz %1$s ".to_string())
