@@ -600,93 +600,91 @@ unsafe fn add_parts(
     let icnt = mime_parser.parts.len();
     let mut txt_raw = None;
 
-    context
-        .sql
-        .prepare(
-            "INSERT INTO msgs \
-             (rfc724_mid, server_folder, server_uid, chat_id, from_id, to_id, timestamp, \
-             timestamp_sent, timestamp_rcvd, type, state, msgrmsg,  txt, txt_raw, param, \
-             bytes, hidden, mime_headers,  mime_in_reply_to, mime_references) \
-             VALUES (?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?);",
-            |mut stmt, conn| {
-                for i in 0..icnt {
-                    let part = &mut mime_parser.parts[i];
-                    if part.is_meta {
-                        continue;
-                    }
+    context.sql.prepare(
+        "INSERT INTO msgs \
+         (rfc724_mid, server_folder, server_uid, chat_id, from_id, to_id, timestamp, \
+         timestamp_sent, timestamp_rcvd, type, state, msgrmsg,  txt, txt_raw, param, \
+         bytes, hidden, mime_headers,  mime_in_reply_to, mime_references) \
+         VALUES (?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?);",
+        |mut stmt, conn| {
+            for i in 0..icnt {
+                let part = &mut mime_parser.parts[i];
+                if part.is_meta {
+                    continue;
+                }
 
-                    if let Some(ref msg) = part.msg {
-                        if mime_parser.location_kml.is_some()
-                            && icnt == 1
-                            && (msg == "-location-" || msg.is_empty())
-                        {
-                            *hidden = 1;
-                            if state == MessageState::InFresh {
-                                state = MessageState::InNoticed;
-                            }
+                if let Some(ref msg) = part.msg {
+                    if mime_parser.location_kml.is_some()
+                        && icnt == 1
+                        && (msg == "-location-" || msg.is_empty())
+                    {
+                        *hidden = 1;
+                        if state == MessageState::InFresh {
+                            state = MessageState::InNoticed;
                         }
                     }
-                    if part.typ == Viewtype::Text {
-                        let msg_raw = part.msg_raw.as_ref().cloned().unwrap_or_default();
-                        let subject = mime_parser
-                            .subject
-                            .as_ref()
-                            .map(|s| s.to_string())
-                            .unwrap_or("".into());
-                        txt_raw = Some(format!("{}\n\n{}", subject, msg_raw));
-                    }
-                    if mime_parser.is_system_message != SystemMessage::Unknown {
-                        part.param
-                            .set_int(Param::Cmd, mime_parser.is_system_message as i32);
-                    }
-
-                    /*
-                    info!(
-                        context,
-                        "received mime message {:?}",
-                        String::from_utf8_lossy(std::slice::from_raw_parts(
-                            imf_raw_not_terminated as *const u8,
-                            imf_raw_bytes,
-                        ))
-                    );
-                    */
-
-                    stmt.execute(params![
-                        rfc724_mid,
-                        server_folder.as_ref(),
-                        server_uid as libc::c_int,
-                        *chat_id as libc::c_int,
-                        *from_id as libc::c_int,
-                        *to_id as libc::c_int,
-                        sort_timestamp,
-                        *sent_timestamp,
-                        rcvd_timestamp,
-                        part.typ,
-                        state,
-                        msgrmsg,
-                        part.msg.as_ref().map_or("", String::as_str),
-                        // txt_raw might contain invalid utf8
-                        txt_raw.unwrap_or_default(),
-                        part.param.to_string(),
-                        part.bytes,
-                        *hidden,
-                        if save_mime_headers {
-                            Some(String::from_utf8_lossy(imf_raw))
-                        } else {
-                            None
-                        },
-                        mime_in_reply_to,
-                        mime_references,
-                    ])?;
-
-                    txt_raw = None;
-                    *insert_msg_id =
-                        sql::get_rowid_with_conn(context, conn, "msgs", "rfc724_mid", &rfc724_mid);
-                    created_db_entries.push((*chat_id as usize, *insert_msg_id as usize));
                 }
-                Ok(())
-            },
-        )?;
+                if part.typ == Viewtype::Text {
+                    let msg_raw = part.msg_raw.as_ref().cloned().unwrap_or_default();
+                    let subject = mime_parser
+                        .subject
+                        .as_ref()
+                        .map(|s| s.to_string())
+                        .unwrap_or("".into());
+                    txt_raw = Some(format!("{}\n\n{}", subject, msg_raw));
+                }
+                if mime_parser.is_system_message != SystemMessage::Unknown {
+                    part.param
+                        .set_int(Param::Cmd, mime_parser.is_system_message as i32);
+                }
+
+                /*
+                info!(
+                    context,
+                    "received mime message {:?}",
+                    String::from_utf8_lossy(std::slice::from_raw_parts(
+                        imf_raw_not_terminated as *const u8,
+                        imf_raw_bytes,
+                    ))
+                );
+                */
+
+                stmt.execute(params![
+                    rfc724_mid,
+                    server_folder.as_ref(),
+                    server_uid as libc::c_int,
+                    *chat_id as libc::c_int,
+                    *from_id as libc::c_int,
+                    *to_id as libc::c_int,
+                    sort_timestamp,
+                    *sent_timestamp,
+                    rcvd_timestamp,
+                    part.typ,
+                    state,
+                    msgrmsg,
+                    part.msg.as_ref().map_or("", String::as_str),
+                    // txt_raw might contain invalid utf8
+                    txt_raw.unwrap_or_default(),
+                    part.param.to_string(),
+                    part.bytes,
+                    *hidden,
+                    if save_mime_headers {
+                        Some(String::from_utf8_lossy(imf_raw))
+                    } else {
+                        None
+                    },
+                    mime_in_reply_to,
+                    mime_references,
+                ])?;
+
+                txt_raw = None;
+                *insert_msg_id =
+                    sql::get_rowid_with_conn(context, conn, "msgs", "rfc724_mid", &rfc724_mid);
+                created_db_entries.push((*chat_id as usize, *insert_msg_id as usize));
+            }
+            Ok(())
+        },
+    )?;
 
     info!(
         context,
