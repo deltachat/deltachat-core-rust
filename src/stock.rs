@@ -129,8 +129,21 @@ impl Context {
         id: StockMessage,
         stockstring: String,
     ) -> Result<(), Error> {
-        self.translated_stockstrings
-            .insert(id as usize, stockstring);
+        if stockstring.contains("%1") && !id.fallback().contains("%1") {
+            bail!(
+                "translation {} contains invalid %1 placeholder, default is {}",
+                stockstring,
+                id.fallback()
+            );
+        }
+        if stockstring.contains("%2") && !id.fallback().contains("%2") {
+            bail!(
+                "translation {} contains invalid %2 placeholder, default is {}",
+                stockstring,
+                id.fallback()
+            );
+        }
+        self.translated_stockstrings.insert(id as usize, stockstring);
         Ok(())
     }
 
@@ -266,6 +279,19 @@ mod tests {
             .set_stock_translation(StockMessage::NoMessages, "xyz".to_string())
             .unwrap();
         assert_eq!(t.ctx.stock_str(StockMessage::NoMessages), "xyz")
+    }
+
+    #[test]
+    fn test_set_stock_translation_wrong_replacements() {
+        let mut t = dummy_context();
+        assert!(t
+            .ctx
+            .set_stock_translation(StockMessage::NoMessages, "xyz %1$s ".to_string())
+            .is_err());
+        assert!(t
+            .ctx
+            .set_stock_translation(StockMessage::NoMessages, "xyz %2$s ".to_string())
+            .is_err());
     }
 
     #[test]
