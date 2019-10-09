@@ -402,6 +402,16 @@ int             dc_set_config                (dc_context_t* context, const char*
  */
 char*           dc_get_config                (dc_context_t* context, const char* key);
 
+/**
+ * Set (translated) stock string 
+ *
+ * @param context The context object
+ * @param stock_id   the integer id of the stock message 
+ * @param stock_msg  the message to be used 
+ * @return void
+ */
+int             dc_set_stock_translation(dc_context_t* context, uint32_t, const char* value);
+
 
 /**
  * Get information about the context.
@@ -4316,7 +4326,8 @@ void            dc_array_add_id              (dc_array_t*, uint32_t); // depreca
 #define DC_STR_MSGLOCATIONENABLED         64
 #define DC_STR_MSGLOCATIONDISABLED        65
 #define DC_STR_LOCATION                   66
-#define DC_STR_COUNT                      66
+#define DC_STR_STICKER                    67
+#define DC_STR_COUNT                      67
 
 void dc_str_unref (char*);
 
