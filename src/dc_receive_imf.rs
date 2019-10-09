@@ -1,7 +1,7 @@
 use std::ptr;
 
 use itertools::join;
-use libc::{free, strcmp};
+use libc::strcmp;
 use mmime::clist::*;
 use mmime::mailimf::types::*;
 use mmime::mailmime::content::*;
@@ -319,13 +319,8 @@ unsafe fn add_parts(
     let mut chat_id_blocked = Blocked::Not;
     let mut sort_timestamp = 0;
     let mut rcvd_timestamp = 0;
-    let mut mime_in_reply_to = std::ptr::null_mut();
-    let mut mime_references = std::ptr::null_mut();
-
-    let cleanup = |mime_in_reply_to: *mut libc::c_char, mime_references: *mut libc::c_char| {
-        free(mime_in_reply_to.cast());
-        free(mime_references.cast());
-    };
+    let mut mime_in_reply_to = String::new();
+    let mut mime_references = String::new();
 
     // collect the rest information, CC: is added to the to-list, BCC: is ignored
     // (we should not add BCC to groups as this would split groups. We could add them as "known contacts",
@@ -359,7 +354,6 @@ unsafe fn add_parts(
             message::update_server_uid(context, &rfc724_mid, server_folder.as_ref(), server_uid);
         }
 
-        cleanup(mime_in_reply_to, mime_references);
         bail!("Message already in DB");
     }
 
@@ -588,20 +582,14 @@ unsafe fn add_parts(
     if let Some(field) = mime_parser.lookup_field_typ("In-Reply-To", MAILIMF_FIELD_IN_REPLY_TO) {
         let fld_in_reply_to = (*field).fld_data.fld_in_reply_to;
         if !fld_in_reply_to.is_null() {
-            mime_in_reply_to = dc_str_from_clist(
-                (*(*field).fld_data.fld_in_reply_to).mid_list,
-                b" \x00" as *const u8 as *const libc::c_char,
-            )
+            mime_in_reply_to = dc_str_from_clist((*(*field).fld_data.fld_in_reply_to).mid_list, " ")
         }
     }
 
     if let Some(field) = mime_parser.lookup_field_typ("References", MAILIMF_FIELD_REFERENCES) {
         let fld_references = (*field).fld_data.fld_references;
         if !fld_references.is_null() {
-            mime_references = dc_str_from_clist(
-                (*(*field).fld_data.fld_references).mid_list,
-                b" \x00" as *const u8 as *const libc::c_char,
-            )
+            mime_references = dc_str_from_clist((*(*field).fld_data.fld_references).mid_list, " ")
         }
     }
 
@@ -687,8 +675,8 @@ unsafe fn add_parts(
                         } else {
                             None
                         },
-                        to_string_lossy(mime_in_reply_to),
-                        to_string_lossy(mime_references),
+                        mime_in_reply_to,
+                        mime_references,
                     ])?;
 
                     txt_raw = None;
@@ -698,11 +686,7 @@ unsafe fn add_parts(
                 }
                 Ok(())
             },
-        )
-        .map_err(|err| {
-            cleanup(mime_in_reply_to, mime_references);
-            err
-        })?;
+        )?;
 
     info!(
         context,
@@ -721,8 +705,6 @@ unsafe fn add_parts(
             *create_event_to_send = Some(CreateEvent::IncomingMsg);
         }
     }
-
-    cleanup(mime_in_reply_to, mime_references);
 
     Ok(())
 }

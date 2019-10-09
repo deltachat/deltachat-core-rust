@@ -74,36 +74,18 @@ pub(crate) fn dc_truncate(buf: &str, approx_chars: usize, do_unwrap: bool) -> Co
     }
 }
 
-pub(crate) unsafe fn dc_str_from_clist(
-    list: *const clist,
-    delimiter: *const libc::c_char,
-) -> *mut libc::c_char {
+pub(crate) fn dc_str_from_clist(list: *const clist, delimiter: &str) -> String {
     let mut res = String::new();
 
     if !list.is_null() {
-        let mut cur: *mut clistiter = (*list).first;
-        while !cur.is_null() {
-            let rfc724_mid = (if !cur.is_null() {
-                (*cur).data
-            } else {
-                ptr::null_mut()
-            }) as *const libc::c_char;
-
-            if !rfc724_mid.is_null() {
-                if !res.is_empty() && !delimiter.is_null() {
-                    res += as_str(delimiter);
-                }
-                res += as_str(rfc724_mid);
+        for rfc724_mid in unsafe { (*list).into_iter() } {
+            if !res.is_empty() {
+                res += delimiter;
             }
-            cur = if !cur.is_null() {
-                (*cur).next
-            } else {
-                ptr::null_mut()
-            }
+            res += as_str(rfc724_mid as *const libc::c_char);
         }
     }
-
-    res.strdup()
+    res
 }
 
 pub(crate) fn dc_str_to_clist(str: &str, delimiter: &str) -> *mut clist {
@@ -1060,17 +1042,11 @@ mod tests {
         unsafe {
             let list: *mut clist = dc_str_to_clist("foo bar test", " ");
             assert_eq!((*list).count, 3);
-            let str: *mut libc::c_char =
-                dc_str_from_clist(list, b" \x00" as *const u8 as *const libc::c_char);
-
-            assert_eq!(
-                CStr::from_ptr(str as *const libc::c_char).to_str().unwrap(),
-                "foo bar test"
-            );
+            let str = dc_str_from_clist(list, " ");
+            assert_eq!(str, "foo bar test");
 
             clist_free_content(list);
             clist_free(list);
-            free(str as *mut libc::c_void);
         }
     }
 
