@@ -343,6 +343,29 @@ pub unsafe extern "C" fn dc_get_config(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_set_stock_translation(
+    context: *mut dc_context_t,
+    stock_id: u32,
+    stock_msg: *mut libc::c_char,
+) -> libc::c_int {
+    if context.is_null() || stock_msg.is_null() {
+        eprintln!("ignoring careless call to dc_set_stock_string");
+        return;
+    }
+    let msg = as_str(stock_msg);
+    let ffi_context = &*context;
+    ffi_context
+        .with_inner(|ctx| match ctx.set_stock_translation(stock_id, msg) {
+            Ok(()) => 1,
+            Err(err) => {
+                warn!(ctx, "could not set translation: {}", err);
+                0
+            }
+        })
+        .unwrap_or(())
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_get_info(context: *mut dc_context_t) -> *mut libc::c_char {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_get_info()");

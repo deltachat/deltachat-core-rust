@@ -5,8 +5,7 @@ use strum_macros::EnumProperty;
 
 use crate::contact::*;
 use crate::context::Context;
-use crate::dc_tools::*;
-use crate::events::Event;
+use crate::error::Error;
 
 /// Stock strings
 ///
@@ -123,19 +122,26 @@ impl StockMessage {
 }
 
 impl Context {
+    /// Set the stock string for the [StockMessage].
+    ///
+    pub fn set_stock_translation(
+        &mut self,
+        id: StockMessage,
+        stockstring: String,
+    ) -> Result<(), Error> {
+        self.translated_stockstrings
+            .insert(id as usize, stockstring);
+        Ok(())
+    }
+
     /// Return the stock string for the [StockMessage].
     ///
-    /// If the context callback responds with a string to use, e.g. a
-    /// translation, then this string will be returned.  Otherwise a
-    /// default (English) string is returned.
+    /// Return a translation (if it was set with set_stock_translation before)
+    /// or a default (English) string.
     pub fn stock_str(&self, id: StockMessage) -> Cow<str> {
-        let ptr = self.call_cb(Event::GetString { id, count: 0 }) as *mut libc::c_char;
-        if ptr.is_null() {
-            Cow::Borrowed(id.fallback())
-        } else {
-            let ret = to_string_lossy(ptr);
-            unsafe { libc::free(ptr as *mut libc::c_void) };
-            Cow::Owned(ret)
+        match self.translated_stockstrings.get(&(id as usize)) {
+            Some(x) => Cow::Borrowed(x),
+            None => Cow::Borrowed(id.fallback()),
         }
     }
 
@@ -239,7 +245,6 @@ mod tests {
     use crate::test_utils::*;
 
     use crate::constants::DC_CONTACT_ID_SELF;
-    use libc::uintptr_t;
 
     use num_traits::ToPrimitive;
 
@@ -255,25 +260,18 @@ mod tests {
     }
 
     #[test]
-    fn test_stock_str() {
-        let t = dummy_context();
-        assert_eq!(t.ctx.stock_str(StockMessage::NoMessages), "No messages.");
-    }
-
-    fn test_stock_str_no_fallback_cb(_ctx: &Context, evt: Event) -> uintptr_t {
-        match evt {
-            Event::GetString {
-                id: StockMessage::NoMessages,
-                ..
-            } => unsafe { "Hello there".strdup() as usize },
-            _ => 0,
-        }
+    fn test_set_stock_translation() {
+        let mut t = dummy_context();
+        t.ctx
+            .set_stock_translation(StockMessage::NoMessages, "xyz".to_string())
+            .unwrap();
+        assert_eq!(t.ctx.stock_str(StockMessage::NoMessages), "xyz")
     }
 
     #[test]
-    fn test_stock_str_no_fallback() {
-        let t = test_context(Some(Box::new(test_stock_str_no_fallback_cb)));
-        assert_eq!(t.ctx.stock_str(StockMessage::NoMessages), "Hello there");
+    fn test_stock_str() {
+        let t = dummy_context();
+        assert_eq!(t.ctx.stock_str(StockMessage::NoMessages), "No messages.");
     }
 
     #[test]
