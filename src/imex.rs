@@ -806,7 +806,7 @@ mod tests {
     }
 
     #[test]
-    fn otest_render_setup_file_newline_replace() {
+    fn test_render_setup_file_newline_replace() {
         let t = dummy_context();
         t.ctx
             .set_stock_translation(StockMessage::AcSetupMsgBody, "hello\r\nthere".to_string())

@@ -63,7 +63,7 @@ pub struct Context {
     pub running_state: Arc<RwLock<RunningState>>,
     /// Mutex to avoid generating the key for the user more than once.
     pub generating_key_mutex: Mutex<()>,
-    pub translated_stockstrings: Arc<RwLock<HashMap<usize, String>>>,
+    pub translated_stockstrings: RwLock<HashMap<usize, String>>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -146,7 +146,7 @@ impl Context {
             probe_imap_network: Arc::new(RwLock::new(false)),
             perform_inbox_jobs_needed: Arc::new(RwLock::new(false)),
             generating_key_mutex: Mutex::new(()),
-            translated_stockstrings: Arc::new(RwLock::new(HashMap::new())),
+            translated_stockstrings: RwLock::new(HashMap::new()),
         };
 
         ensure!(

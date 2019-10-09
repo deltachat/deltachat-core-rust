@@ -4201,16 +4201,10 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
 
 
 /**
- * Requeste a localized string from the frontend.
+ * (DEPRECATED, DC_EVENT_GET_STRING is not emmitted anymore.  Use
+ * dc_set_stock_translation() to pre-fill translations for stock
+ * messages. 
  *
- * @param data1 (int) ID of the string to request, one of the DC_STR_* constants.
- * @param data2 (int) The count. If the requested string contains a placeholder for a numeric value,
- *     the ui may use this value to return different strings on different plural forms.
- * @return (const char*) Null-terminated UTF-8 string.
- *     The string will be free()'d by the core,
- *     so it must be allocated using malloc() or a compatible function.
- *     Return 0 if the ui cannot provide the requested string
- *     the core will use a default string in english language then.
  */
 #define DC_EVENT_GET_STRING               2091
 
