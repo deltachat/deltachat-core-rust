@@ -12,6 +12,10 @@ pub(crate) use libc::{
 };
 
 pub(crate) unsafe fn strcasecmp(s1: *const libc::c_char, s2: *const libc::c_char) -> libc::c_int {
+    if s1.is_null() || s2.is_null() {
+        return 1;
+    }
+
     let s1 = std::ffi::CStr::from_ptr(s1)
         .to_string_lossy()
         .to_lowercase();
@@ -30,16 +34,23 @@ pub(crate) unsafe fn strncasecmp(
     s2: *const libc::c_char,
     n: libc::size_t,
 ) -> libc::c_int {
-    let s1 = std::ffi::CStr::from_ptr(s1)
-        .to_string_lossy()
-        .to_lowercase();
-    let s2 = std::ffi::CStr::from_ptr(s2)
-        .to_string_lossy()
-        .to_lowercase();
-    let m1 = std::cmp::min(n, s1.len());
-    let m2 = std::cmp::min(n, s2.len());
+    if s1.is_null() || s2.is_null() {
+        return 1;
+    }
 
-    if s1[..m1] == s2[..m2] {
+    // s1 and s2 might not be null terminated.
+
+    let s1_slice = std::slice::from_raw_parts(s1 as *const u8, n);
+    let s2_slice = std::slice::from_raw_parts(s2 as *const u8, n);
+
+    let s1 = std::ffi::CStr::from_bytes_with_nul_unchecked(s1_slice)
+        .to_string_lossy()
+        .to_lowercase();
+    let s2 = std::ffi::CStr::from_bytes_with_nul_unchecked(s2_slice)
+        .to_string_lossy()
+        .to_lowercase();
+
+    if s1 == s2 {
         0
     } else {
         1
