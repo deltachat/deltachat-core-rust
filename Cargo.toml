@@ -19,7 +19,7 @@ reqwest = "0.9.15"
 num-derive = "0.2.5"
 num-traits = "0.2.6"
 native-tls = "0.2.3"
-lettre = "0.9.0"
+lettre = { git = "https://github.com/deltachat/lettre" }
 imap = { git = "https://github.com/jonhoo/rust-imap", rev = "281d2eb8ab50dc656ceff2ae749ca5045f334e15" }
 base64 = "0.10"
 charset = "0.1"
