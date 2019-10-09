@@ -3902,7 +3902,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 0
  * @param data2 (const char*) Info string in english language.
- *     Must not be released or modified and is valid only until the callback returns.
+ *     Must not be unref'd or modified and is valid only until the callback returns.
  * @return 0
  */
 #define DC_EVENT_INFO                     100
@@ -3913,7 +3913,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 0
  * @param data2 (const char*) Info string in english language.
- *     Must not be released or modified and is valid only until the callback returns.
+ *     Must not be unref'd or modified and is valid only until the callback returns.
  * @return 0
  */
 #define DC_EVENT_SMTP_CONNECTED           101
@@ -3924,7 +3924,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 0
  * @param data2 (const char*) Info string in english language.
- *     Must not be released or modified and is valid only until the callback returns.
+ *     Must not be unref'd or modified and is valid only until the callback returns.
  * @return 0
  */
 #define DC_EVENT_IMAP_CONNECTED           102
@@ -3934,7 +3934,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 0
  * @param data2 (const char*) Info string in english language.
- *     Must not be released or modified and is valid only until the callback returns.
+ *     Must not be unref'd or modified and is valid only until the callback returns.
  * @return 0
  */
 #define DC_EVENT_SMTP_MESSAGE_SENT        103
@@ -3944,7 +3944,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 0
  * @param data2 (const char*) Info string in english language.
- *     Must not be released or modified and is valid only until the callback returns.
+ *     Must not be unref'd or modified and is valid only until the callback returns.
  * @return 0
  */
 #define DC_EVENT_IMAP_MESSAGE_DELETED   104
@@ -3954,7 +3954,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 0
  * @param data2 (const char*) Info string in english language.
- *     Must not be released or modified and is valid only until the callback returns.
+ *     Must not be unref'd or modified and is valid only until the callback returns.
  * @return 0
  */
 #define DC_EVENT_IMAP_MESSAGE_MOVED   105
@@ -3964,7 +3964,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 0
  * @param data2 (const char*) path name 
- *     Must not be released or modified and is valid only until the callback returns.
+ *     Must not be unref'd or modified and is valid only until the callback returns.
  * @return 0
  */
 #define DC_EVENT_NEW_BLOB_FILE 150
@@ -3974,7 +3974,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 0
  * @param data2 (const char*) path name 
- *     Must not be released or modified and is valid only until the callback returns.
+ *     Must not be unref'd or modified and is valid only until the callback returns.
  * @return 0
  */
 #define DC_EVENT_DELETED_BLOB_FILE 151
@@ -3987,7 +3987,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 0
  * @param data2 (const char*) Warning string in english language.
- *     Must not be released or modified and is valid only until the callback returns.
+ *     Must not be unref'd or modified and is valid only until the callback returns.
  * @return 0
  */
 #define DC_EVENT_WARNING                  300
@@ -4010,7 +4010,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * @param data2 (const char*) Error string, always set, never NULL.
  *     Some error strings are taken from dc_set_stock_translation(),
  *     however, most error strings will be in english language.
- *     Must not be released or modified and is valid only until the callback returns.
+ *     Must not be unref'd or modified and is valid only until the callback returns.
  * @return 0
  */
 #define DC_EVENT_ERROR                    400
@@ -4034,7 +4034,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * @param data1 (int) 1=first/new network error, should be reported the user;
  *     0=subsequent network error, should be logged only
  * @param data2 (const char*) Error string, always set, never NULL.
- *     Must not be released or modified and is valid only until the callback returns.
+ *     Must not be unref'd or modified and is valid only until the callback returns.
  * @return 0
  */
 #define DC_EVENT_ERROR_NETWORK            401
@@ -4049,7 +4049,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 0
  * @param data2 (const char*) Info string in english language.
- *     Must not be released or modified
+ *     Must not be unref'd or modified
  *     and is valid only until the callback returns.
  * @return 0
  */
@@ -4180,7 +4180,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * services.
  *
  * @param data1 (const char*) Path and file name.
- *     Must not be released or modified and is valid only until the callback returns.
+ *     Must not be unref'd or modified and is valid only until the callback returns.
  * @param data2 0
  * @return 0
  */
@@ -4226,16 +4226,16 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  */
 
 
-#define DC_EVENT_FILE_COPIED         2055 // deprecated
-#define DC_EVENT_IS_OFFLINE          2081 // deprecated
-#define DC_EVENT_GET_STRING          2091 // deprecated, use dc_set_stock_translation()
-#define DC_ERROR_SEE_STRING          0    // deprecated
-#define DC_ERROR_SELF_NOT_IN_GROUP   1    // deprecated
-#define DC_STR_SELFNOTINGRP          21   // deprecated
+#define DC_EVENT_FILE_COPIED         2055 // not used anymore
+#define DC_EVENT_IS_OFFLINE          2081 // not used anymore
+#define DC_EVENT_GET_STRING          2091 // not used anymore, use dc_set_stock_translation()
+#define DC_ERROR_SEE_STRING          0    // not used anymore
+#define DC_ERROR_SELF_NOT_IN_GROUP   1    // not used anymore
+#define DC_STR_SELFNOTINGRP          21   // not used anymore
 #define DC_EVENT_DATA1_IS_STRING(e)  ((e)==DC_EVENT_IMEX_FILE_WRITTEN || (e)==DC_EVENT_FILE_COPIED)
 #define DC_EVENT_DATA2_IS_STRING(e)  ((e)>=100 && (e)<=499)
-#define DC_EVENT_RETURNS_INT(e)      ((e)==DC_EVENT_IS_OFFLINE) // deprecated
-#define DC_EVENT_RETURNS_STRING(e)   ((e)==DC_EVENT_GET_STRING) // deprecated
+#define DC_EVENT_RETURNS_INT(e)      ((e)==DC_EVENT_IS_OFFLINE) // not used anymore
+#define DC_EVENT_RETURNS_STRING(e)   ((e)==DC_EVENT_GET_STRING) // not used anymore
 char*           dc_get_version_str           (void); // deprecated
 void            dc_array_add_id              (dc_array_t*, uint32_t); // deprecated
 
