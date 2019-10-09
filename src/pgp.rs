@@ -235,7 +235,7 @@ mod tests {
     #[test]
     fn test_split_armored_data_2() {
         let (typ, headers, base64) = split_armored_data(
-            b"-----BEGIN PGP PRIVATE KEY BLOCK-----\nAutocrypt-Prefer-Encrypt: mutual \n\nbase64\n-----END PGP PRIVATE KEY BLOCK-----"
+            b"-----BEGIN PGP PRIVATE KEY BLOCK-----\nAutocrypt-Prefer-Encrypt: mutual \n\naGVsbG8gd29ybGQ=\n-----END PGP PRIVATE KEY BLOCK-----"
         )
             .unwrap();
 
