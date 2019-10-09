@@ -134,7 +134,7 @@ typedef struct _dc_provider dc_provider_t;
  *
  *     printf("Message %i: %s\n", i+1, text);
  *
- *     free(text);
+ *     dc_str_unref(text);
  *     dc_msg_unref(msg);
  * }
  * dc_array_unref(msglist);
@@ -320,7 +320,7 @@ int             dc_is_open                   (const dc_context_t* context);
  * @memberof dc_context_t
  * @param context The context object as created by dc_context_new().
  * @return Blob directory associated with the context object, empty string if unset or on errors. NULL is never returned.
- *     The returned string must be free()'d.
+ *     The returned string must be released using dc_str_unref().
  */
 char*           dc_get_blobdir               (const dc_context_t* context);
 
@@ -396,7 +396,7 @@ int             dc_set_config                (dc_context_t* context, const char*
  * @param context The context object as created by dc_context_new(). For querying system values, this can be NULL.
  * @param key The key to query.
  * @return Returns current value of "key", if "key" is unset, the default
- *     value is returned.  The returned value must be free()'d, NULL is never
+ *     value is returned.  The returned value must be released using dc_str_unref(), NULL is never
  *     returned.  If there is an error an empty string will be returned.
  */
 char*           dc_get_config                (dc_context_t* context, const char* key);
@@ -427,7 +427,7 @@ int             dc_set_stock_translation(dc_context_t* context, uint32_t stock_i
  *
  * @memberof dc_context_t
  * @param context The context as created by dc_context_new().
- * @return String which must be free()'d after usage.  Never returns NULL.
+ * @return String which must be released using dc_str_unref() after usage.  Never returns NULL.
  */
 char*           dc_get_info                  (dc_context_t* context);
 
@@ -458,6 +458,7 @@ char*           dc_get_info                  (dc_context_t* context);
  *     `https://localhost:PORT/PATH`, `urn:ietf:wg:oauth:2.0:oob`
  *     (the latter just displays the code the user can copy+paste then)
  * @return URL that can be opened in the browser to start OAuth2.
+ *     Returned strings must be released using dc_str_unref().
  *     If OAuth2 is not possible for the given e-mail-address, NULL is returned.
  */
 char*           dc_get_oauth2_url            (dc_context_t* context, const char* addr, const char* redirect_uri);
@@ -705,6 +706,7 @@ void            dc_perform_mvbox_idle        (dc_context_t* context);
  * @return None.
  */
 void            dc_interrupt_mvbox_idle      (dc_context_t* context);
+
 
 /**
  * Execute pending sentbox-jobs.
@@ -1477,7 +1479,7 @@ int             dc_set_chat_profile_image    (dc_context_t* context, uint32_t ch
  * @memberof dc_context_t
  * @param context The context object as created by dc_context_new().
  * @param msg_id The message id for which information should be generated
- * @return Text string, must be free()'d after usage
+ * @return Text string, must be released using dc_str_unref() after usage
  */
 char*           dc_get_msg_info              (dc_context_t* context, uint32_t msg_id);
 
@@ -1491,7 +1493,7 @@ char*           dc_get_msg_info              (dc_context_t* context, uint32_t ms
  * @memberof dc_context_t
  * @param context The context object as created by dc_context_new().
  * @param msg_id The message id, must be the id of an incoming message.
- * @return Raw headers as a multi-line string, must be free()'d after usage.
+ * @return Raw headers as a multi-line string, must be released using dc_str_unref() after usage.
  *     Returns NULL if there are no headers saved for the given message,
  *     eg. because of save_mime_headers is not set
  *     or the message is not incoming.
@@ -1732,7 +1734,7 @@ void            dc_block_contact             (dc_context_t* context, uint32_t co
  * @memberof dc_context_t
  * @param context The context object as created by dc_context_new().
  * @param contact_id ID of the contact to get the encryption info for.
- * @return Multi-line text, must be free()'d after usage.
+ * @return Multi-line text, must be released using dc_str_unref() after usage.
  */
 char*           dc_get_contact_encrinfo      (dc_context_t* context, uint32_t contact_id);
 
@@ -1868,7 +1870,8 @@ void            dc_imex                      (dc_context_t* context, int what, c
  * @memberof dc_context_t
  * @param context The context as created by dc_context_new().
  * @param dir Directory to search backups in.
- * @return String with the backup file, typically given to dc_imex(), returned strings must be free()'d.
+ * @return String with the backup file, typically given to dc_imex(),
+ *     returned strings must be released using dc_str_unref().
  *     The function returns NULL if no backup was found.
  */
 char*           dc_imex_has_backup           (dc_context_t* context, const char* dir);
@@ -1916,7 +1919,7 @@ char*           dc_imex_has_backup           (dc_context_t* context, const char*
  *
  * @memberof dc_context_t
  * @param context The context object.
- * @return The setup code. Must be free()'d after usage.
+ * @return The setup code. Must be released using dc_str_unref() after usage.
  *     On errors, eg. if the message could not be sent, NULL is returned.
  */
 char*           dc_initiate_key_transfer     (dc_context_t* context);
@@ -2021,7 +2024,7 @@ dc_lot_t*       dc_check_qr                  (dc_context_t* context, const char*
  *     If set to 0, the setup-Verified-contact-protocol is offered in the QR code.
  * @return Text that should go to the QR code,
  *     On errors, an empty QR code is returned, NULL is never returned.
- *     The returned string must be free()'d after usage.
+ *     The returned string must be released using dc_str_unref() after usage.
  */
 char*           dc_get_securejoin_qr         (dc_context_t* context, uint32_t chat_id);
 
@@ -2192,6 +2195,21 @@ void        dc_delete_all_locations         (dc_context_t* context);
 
 
 /**
+ * Release a string returned by another deltachat-core function.
+ * - Strings returned by any deltachat-core-function
+ *   MUST NOT be released by the standard free() function;
+ *   always use dc_str_unref() for this purpose.
+ * - dc_str_unref() MUST NOT be called for strings not returned by deltachat-core.
+ * - dc_str_unref() MUST NOT be called for other objectes returned by deltachat-core.
+ *
+ * @memberof dc_context_t
+ * @param str The string to release.
+ * @return None.
+ */
+void dc_str_unref (char* str);
+
+
+/**
  * @class dc_array_t
  *
  * An object containing a simple array.
@@ -2331,7 +2349,7 @@ uint32_t         dc_array_get_msg_id         (const dc_array_t* array, size_t in
  * @param index Index of the item. Must be between 0 and dc_array_get_cnt()-1.
  * @return Marker-character of the item at the given index.
  *     NULL if there is no marker-character bound to the given item.
- *     The returned value must be free()'d after usage.
+ *     The returned value must be released using dc_str_unref() after usage.
  */
 char*            dc_array_get_marker         (const dc_array_t* array, size_t index);
 
@@ -2586,7 +2604,7 @@ int             dc_chat_get_type             (const dc_chat_t* chat);
  *
  * @memberof dc_chat_t
  * @param chat The chat object.
- * @return Chat name as a string. Must be free()'d after usage. Never NULL.
+ * @return Chat name as a string. Must be released using dc_str_unref() after usage. Never NULL.
  */
 char*           dc_chat_get_name             (const dc_chat_t* chat);
 
@@ -2599,7 +2617,7 @@ char*           dc_chat_get_name             (const dc_chat_t* chat);
  *
  * @memberof dc_chat_t
  * @param chat The chat object to calulate the subtitle for.
- * @return Subtitle as a string. Must be free()'d after usage. Never NULL.
+ * @return Subtitle as a string. Must be released using dc_str_unref() after usage. Never NULL.
  */
 char*           dc_chat_get_subtitle         (const dc_chat_t* chat);
 
@@ -2615,7 +2633,7 @@ char*           dc_chat_get_subtitle         (const dc_chat_t* chat);
  * @param chat The chat object.
  * @return Path and file if the profile image, if any.
  *     NULL otherwise.
- *     Must be free()'d after usage.
+ *     Must be released using dc_str_unref() after usage.
  */
 char*           dc_chat_get_profile_image    (const dc_chat_t* chat);
 
@@ -2919,7 +2937,7 @@ int64_t          dc_msg_get_sort_timestamp     (const dc_msg_t* msg);
  *
  * @memberof dc_msg_t
  * @param msg The message object.
- * @return Message text. The result must be free()'d. Never returns NULL.
+ * @return Message text. The result must be released using dc_str_unref(). Never returns NULL.
  */
 char*           dc_msg_get_text               (const dc_msg_t* msg);
 
@@ -2933,9 +2951,9 @@ char*           dc_msg_get_text               (const dc_msg_t* msg);
  *
  * @memberof dc_msg_t
  * @param msg The message object.
- * @return Full path, file name and extension of the file associated with the
- *     message.  If there is no file associated with the message, an emtpy
- *     string is returned.  NULL is never returned and the returned value must be free()'d.
+ * @return Full path, file name and extension of the file associated with the message.
+ *     If there is no file associated with the message, an emtpy string is returned.
+ *     NULL is never returned and the returned value must be released using dc_str_unref().
  */
 char*           dc_msg_get_file               (const dc_msg_t* msg);
 
@@ -2948,7 +2966,7 @@ char*           dc_msg_get_file               (const dc_msg_t* msg);
  * @param msg The message object.
  * @return Base file name plus extension without part.  If there is no file
  *     associated with the message, an empty string is returned.  The returned
- *     value must be free()'d.
+ *     value must be released using dc_str_unref().
  */
 char*           dc_msg_get_filename           (const dc_msg_t* msg);
 
@@ -2960,7 +2978,8 @@ char*           dc_msg_get_filename           (const dc_msg_t* msg);
  *
  * @memberof dc_msg_t
  * @param msg The message object.
- * @return String containing the mime type. Must be free()'d after usage. NULL is never returned.
+ * @return String containing the mime type.
+ *     Must be released using dc_str_unref() after usage. NULL is never returned.
  */
 char*           dc_msg_get_filemime           (const dc_msg_t* msg);
 
@@ -3068,7 +3087,8 @@ dc_lot_t*       dc_msg_get_summary            (const dc_msg_t* msg, const dc_cha
  * @memberof dc_msg_t
  * @param msg The message object.
  * @param approx_characters Rough length of the expected string.
- * @return A summary for the given messages. The returned string must be free()'d.
+ * @return A summary for the given messages.
+ *     The returned string must be released using dc_str_unref().
  *     Returns an empty string on errors, never returns NULL.
  */
 char*           dc_msg_get_summarytext        (const dc_msg_t* msg, int approx_characters);
@@ -3213,7 +3233,7 @@ int             dc_msg_is_setupmessage        (const dc_msg_t* msg);
  * @memberof dc_msg_t
  * @param msg The message object.
  * @return Typically, the first two digits of the setup code or an empty string if unknown.
- *     NULL is never returned. Must be free()'d when done.
+ *     NULL is never returned. Must be released using dc_str_unref() when done.
  */
 char*           dc_msg_get_setupcodebegin     (const dc_msg_t* msg);
 
@@ -3370,7 +3390,8 @@ uint32_t        dc_contact_get_id            (const dc_contact_t* contact);
  *
  * @memberof dc_contact_t
  * @param contact The contact object.
- * @return String with the email address, must be free()'d. Never returns NULL.
+ * @return String with the email address,
+ *     must be released using dc_str_unref(). Never returns NULL.
  */
 char*           dc_contact_get_addr          (const dc_contact_t* contact);
 
@@ -3384,7 +3405,8 @@ char*           dc_contact_get_addr          (const dc_contact_t* contact);
  *
  * @memberof dc_contact_t
  * @param contact The contact object.
- * @return String with the name to display, must be free()'d. Empty string if unset, never returns NULL.
+ * @return String with the name to display, must be released using dc_str_unref().
+ *     Empty string if unset, never returns NULL.
  */
 char*           dc_contact_get_name          (const dc_contact_t* contact);
 
@@ -3398,7 +3420,8 @@ char*           dc_contact_get_name          (const dc_contact_t* contact);
  *
  * @memberof dc_contact_t
  * @param contact The contact object.
- * @return String with the name to display, must be free()'d. Never returns NULL.
+ * @return String with the name to display, must be released using dc_str_unref().
+ *     Never returns NULL.
  */
 char*           dc_contact_get_display_name  (const dc_contact_t* contact);
 
@@ -3414,7 +3437,8 @@ char*           dc_contact_get_display_name  (const dc_contact_t* contact);
  *
  * @memberof dc_contact_t
  * @param contact The contact object.
- * @return Summary string, must be free()'d. Never returns NULL.
+ * @return Summary string, must be released using dc_str_unref().
+ *     Never returns NULL.
  */
 char*           dc_contact_get_name_n_addr   (const dc_contact_t* contact);
 
@@ -3426,7 +3450,8 @@ char*           dc_contact_get_name_n_addr   (const dc_contact_t* contact);
  *
  * @memberof dc_contact_t
  * @param contact The contact object.
- * @return String with the name to display, must be free()'d. Never returns NULL.
+ * @return String with the name to display, must be released using dc_str_unref().
+ *     Never returns NULL.
  */
 char*           dc_contact_get_first_name    (const dc_contact_t* contact);
 
@@ -3440,7 +3465,7 @@ char*           dc_contact_get_first_name    (const dc_contact_t* contact);
  * @param contact The contact object.
  * @return Path and file if the profile image, if any.
  *     NULL otherwise.
- *     Must be free()'d after usage.
+ *     Must be released using dc_str_unref() after usage.
  */
 char*           dc_contact_get_profile_image (const dc_contact_t* contact);
 
@@ -3521,7 +3546,7 @@ dc_provider_t*  dc_provider_new_from_email            (const char* email);
  *
  * @memberof dc_provider_t
  * @param provider The dc_provider_t struct.
- * @return A string which must be free()d.
+ * @return A string which must be released using dc_str_unref().
  */
 char*           dc_provider_get_overview_page         (const dc_provider_t* provider);
 
@@ -3533,7 +3558,7 @@ char*           dc_provider_get_overview_page         (const dc_provider_t* prov
  *
  * @memberof dc_provider_t
  * @param provider The dc_provider_t struct.
- * @return A string which must be free()d.
+ * @return A string which must be released using dc_str_unref().
  */
 char*           dc_provider_get_name                  (const dc_provider_t* provider);
 
@@ -3546,7 +3571,7 @@ char*           dc_provider_get_name                  (const dc_provider_t* prov
  *
  * @memberof dc_provider_t
  * @param provider The dc_provider_t struct.
- * @return A string which must be free()d.
+ * @return A string which must be released using dc_str_unref().
  */
 char*           dc_provider_get_markdown              (const dc_provider_t* provider);
 
@@ -3558,7 +3583,7 @@ char*           dc_provider_get_markdown              (const dc_provider_t* prov
  *
  * @memberof dc_provider_t
  * @param provider The dc_provider_t struct.
- * @return A string which must be free()d.
+ * @return A string which must be released using dc_str_unref().
  */
 char*           dc_provider_get_status_date           (const dc_provider_t* provider);
 
@@ -3620,7 +3645,9 @@ void            dc_lot_unref             (dc_lot_t* lot);
  *
  * @memberof dc_lot_t
  * @param lot The lot object.
- * @return A string, the string may be empty and the returned value must be free()'d. NULL if there is no such string.
+ * @return A string, the string may be empty
+ *     and the returned value must be released using dc_str_unref().
+ *     NULL if there is no such string.
  */
 char*           dc_lot_get_text1         (const dc_lot_t* lot);
 
@@ -3629,10 +3656,10 @@ char*           dc_lot_get_text1         (const dc_lot_t* lot);
  * Get second string. The meaning of the string is defined by the creator of the object.
  *
  * @memberof dc_lot_t
- *
  * @param lot The lot object.
- *
- * @return A string, the string may be empty and the returned value must be free()'d	. NULL if there is no such string.
+ * @return A string, the string may be empty
+ *     and the returned value must be released using dc_str_unref().
+ *     NULL if there is no such string.
  */
 char*           dc_lot_get_text2         (const dc_lot_t* lot);
 
@@ -3653,9 +3680,7 @@ int             dc_lot_get_text1_meaning (const dc_lot_t* lot);
  * Get the associated state. The meaning of the state is defined by the creator of the object.
  *
  * @memberof dc_lot_t
- *
  * @param lot The lot object.
- *
  * @return The state as defined by the creator of the object. 0 if there is not state or on errors.
  */
 int             dc_lot_get_state         (const dc_lot_t* lot);
@@ -3677,9 +3702,7 @@ uint32_t        dc_lot_get_id            (const dc_lot_t* lot);
  * The meaning of the timestamp is defined by the creator of the object.
  *
  * @memberof dc_lot_t
- *
  * @param lot The lot object.
- *
  * @return The timestamp as defined by the creator of the object. 0 if there is not timestamp or on errors.
  */
 int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
@@ -3879,7 +3902,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 0
  * @param data2 (const char*) Info string in english language.
- *     Must not be free()'d or modified and is valid only until the callback returns.
+ *     Must not be released or modified and is valid only until the callback returns.
  * @return 0
  */
 #define DC_EVENT_INFO                     100
@@ -3890,7 +3913,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 0
  * @param data2 (const char*) Info string in english language.
- *     Must not be free()'d or modified and is valid only until the callback returns.
+ *     Must not be released or modified and is valid only until the callback returns.
  * @return 0
  */
 #define DC_EVENT_SMTP_CONNECTED           101
@@ -3901,7 +3924,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 0
  * @param data2 (const char*) Info string in english language.
- *     Must not be free()'d or modified and is valid only until the callback returns.
+ *     Must not be released or modified and is valid only until the callback returns.
  * @return 0
  */
 #define DC_EVENT_IMAP_CONNECTED           102
@@ -3911,7 +3934,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 0
  * @param data2 (const char*) Info string in english language.
- *     Must not be free()'d or modified and is valid only until the callback returns.
+ *     Must not be released or modified and is valid only until the callback returns.
  * @return 0
  */
 #define DC_EVENT_SMTP_MESSAGE_SENT        103
@@ -3921,7 +3944,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 0
  * @param data2 (const char*) Info string in english language.
- *     Must not be free()'d or modified and is valid only until the callback returns.
+ *     Must not be released or modified and is valid only until the callback returns.
  * @return 0
  */
 #define DC_EVENT_IMAP_MESSAGE_DELETED   104
@@ -3931,7 +3954,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 0
  * @param data2 (const char*) Info string in english language.
- *     Must not be free()'d or modified and is valid only until the callback returns.
+ *     Must not be released or modified and is valid only until the callback returns.
  * @return 0
  */
 #define DC_EVENT_IMAP_MESSAGE_MOVED   105
@@ -3941,7 +3964,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 0
  * @param data2 (const char*) path name 
- *     Must not be free()'d or modified and is valid only until the callback returns.
+ *     Must not be released or modified and is valid only until the callback returns.
  * @return 0
  */
 #define DC_EVENT_NEW_BLOB_FILE 150
@@ -3951,7 +3974,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 0
  * @param data2 (const char*) path name 
- *     Must not be free()'d or modified and is valid only until the callback returns.
+ *     Must not be released or modified and is valid only until the callback returns.
  * @return 0
  */
 #define DC_EVENT_DELETED_BLOB_FILE 151
@@ -3964,7 +3987,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 0
  * @param data2 (const char*) Warning string in english language.
- *     Must not be free()'d or modified and is valid only until the callback returns.
+ *     Must not be released or modified and is valid only until the callback returns.
  * @return 0
  */
 #define DC_EVENT_WARNING                  300
@@ -3987,7 +4010,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * @param data2 (const char*) Error string, always set, never NULL.
  *     Some error strings are taken from dc_set_stock_translation(),
  *     however, most error strings will be in english language.
- *     Must not be free()'d or modified and is valid only until the callback returns.
+ *     Must not be released or modified and is valid only until the callback returns.
  * @return 0
  */
 #define DC_EVENT_ERROR                    400
@@ -4011,7 +4034,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * @param data1 (int) 1=first/new network error, should be reported the user;
  *     0=subsequent network error, should be logged only
  * @param data2 (const char*) Error string, always set, never NULL.
- *     Must not be free()'d or modified and is valid only until the callback returns.
+ *     Must not be released or modified and is valid only until the callback returns.
  * @return 0
  */
 #define DC_EVENT_ERROR_NETWORK            401
@@ -4026,7 +4049,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 0
  * @param data2 (const char*) Info string in english language.
- *     Must not be free()'d or modified
+ *     Must not be released or modified
  *     and is valid only until the callback returns.
  * @return 0
  */
@@ -4157,7 +4180,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * services.
  *
  * @param data1 (const char*) Path and file name.
- *     Must not be free()'d or modified and is valid only until the callback returns.
+ *     Must not be released or modified and is valid only until the callback returns.
  * @param data2 0
  * @return 0
  */
@@ -4316,9 +4339,6 @@ void            dc_array_add_id              (dc_array_t*, uint32_t); // depreca
 #define DC_STR_LOCATION                   66
 #define DC_STR_STICKER                    67
 #define DC_STR_COUNT                      67
-
-void dc_str_unref (char*);
-
 
 /*
  * @}
