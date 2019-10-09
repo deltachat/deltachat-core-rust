@@ -2,8 +2,6 @@ use std::path::PathBuf;
 
 use strum::EnumProperty;
 
-use crate::stock::StockMessage;
-
 impl Event {
     /// Returns the corresponding Event id.
     pub fn as_id(&self) -> i32 {
@@ -237,17 +235,4 @@ pub enum Event {
     /// @return 0
     #[strum(props(id = "2061"))]
     SecurejoinJoinerProgress { contact_id: u32, progress: usize },
-
-    // the following events are functions that should be provided by the frontends
-    /// Requeste a localized string from the frontend.
-    /// @param data1 (int) ID of the string to request, one of the DC_STR_/// constants.
-    /// @param data2 (int) The count. If the requested string contains a placeholder for a numeric value,
-    ///     the ui may use this value to return different strings on different plural forms.
-    /// @return (const char*) Null-terminated UTF-8 string.
-    ///     The string will be free()'d by the core,
-    ///     so it must be allocated using malloc() or a compatible function.
-    ///     Return 0 if the ui cannot provide the requested string
-    ///     the core will use a default string in english language then.
-    #[strum(props(id = "2091"))]
-    GetString { id: StockMessage, count: usize },
 }

@@ -43,7 +43,6 @@ use self::cmdline::*;
 
 fn receive_event(_context: &Context, event: Event) -> libc::uintptr_t {
     match event {
-        Event::GetString { .. } => {}
         Event::Info(msg) => {
             /* do not show the event as this would fill the screen */
             println!("{}", msg);

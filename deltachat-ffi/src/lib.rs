@@ -167,12 +167,6 @@ impl ContextWrapper {
                         contact_id as uintptr_t,
                         progress as uintptr_t,
                     ),
-                    Event::GetString { id, count } => ffi_cb(
-                        self,
-                        event_id,
-                        id.to_u32().unwrap_or_default() as uintptr_t,
-                        count as uintptr_t,
-                    ),
                 }
             }
             None => 0,
