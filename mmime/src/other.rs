@@ -8,7 +8,7 @@ use crate::mailmime::types_helper::*;
 
 pub(crate) use libc::{
     calloc, close, free, isalpha, isdigit, malloc, memcmp, memcpy, memmove, memset, realloc,
-    strcpy, strlen, strncmp, strncpy,
+    strcpy, strlen, strncmp, strncpy, strnlen,
 };
 
 pub(crate) unsafe fn strcasecmp(s1: *const libc::c_char, s2: *const libc::c_char) -> libc::c_int {
@@ -40,8 +40,8 @@ pub(crate) unsafe fn strncasecmp(
 
     // s1 and s2 might not be null terminated.
 
-    let s1_slice = std::slice::from_raw_parts(s1 as *const u8, n);
-    let s2_slice = std::slice::from_raw_parts(s2 as *const u8, n);
+    let s1_slice = std::slice::from_raw_parts(s1 as *const u8, strnlen(s1 as *const i8, n));
+    let s2_slice = std::slice::from_raw_parts(s2 as *const u8, strnlen(s2 as *const i8, n));
 
     let s1 = std::ffi::CStr::from_bytes_with_nul_unchecked(s1_slice)
         .to_string_lossy()
@@ -1691,6 +1691,14 @@ mod tests {
                 CString::new("helloworld").unwrap().as_ptr(),
                 CString::new("Helloward").unwrap().as_ptr(),
                 4,
+            )
+        });
+
+        assert_eq!(0, unsafe {
+            strncasecmp(
+                CString::new("hell").unwrap().as_ptr(),
+                CString::new("Hell").unwrap().as_ptr(),
+                100_000_000,
             )
         });
     }
