@@ -78,8 +78,7 @@ typedef struct _dc_provider dc_provider_t;
  *
  * The example above uses "pthreads",
  * however, you can also use anything else for thread handling.
- * NB: The deltachat-core library itself does not create any threads on its own,
- * however, functions, unless stated otherwise, are thread-safe.
+ * All deltachat-core-functions, unless stated otherwise, are thread-safe.
  *
  * After that you can  **define and open a database.**
  * The database is a normal sqlite-file and is created as needed:
@@ -407,12 +406,13 @@ char*           dc_get_config                (dc_context_t* context, const char*
  *
  * The function will emit warnings if it returns an error state. 
  *
+ * @memberof dc_context_t
  * @param context The context object
  * @param stock_id   the integer id of the stock message (DC_STR_*)
  * @param stock_msg  the message to be used 
  * @return int (==0 on error, 1 on success)
  */
-int             dc_set_stock_translation(dc_context_t* context, uint32_t, const char* value);
+int             dc_set_stock_translation(dc_context_t* context, uint32_t stock_id, const char* stock_msg);
 
 
 /**
@@ -3984,8 +3984,9 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * in a messasge box then.
  *
  * @param data1 0
- * @param data2 (const char*) Error string, always set, never NULL. Frequent error strings are
- *     localized using #DC_EVENT_GET_STRING, however, most error strings will be in english language.
+ * @param data2 (const char*) Error string, always set, never NULL.
+ *     Some error strings are taken from dc_set_stock_translation(),
+ *     however, most error strings will be in english language.
  *     Must not be free()'d or modified and is valid only until the callback returns.
  * @return 0
  */
@@ -4197,30 +4198,21 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
 #define DC_EVENT_SECUREJOIN_JOINER_PROGRESS       2061
 
 
-// the following events are functions that should be provided by the frontends
-
-
-/**
- * (DEPRECATED, DC_EVENT_GET_STRING is not emmitted anymore.  Use
- * dc_set_stock_translation() to pre-fill translations for stock
- * messages. 
- *
- */
-#define DC_EVENT_GET_STRING               2091
-
 /**
  * @}
  */
 
+
 #define DC_EVENT_FILE_COPIED         2055 // deprecated
 #define DC_EVENT_IS_OFFLINE          2081 // deprecated
+#define DC_EVENT_GET_STRING          2091 // deprecated, use dc_set_stock_translation()
 #define DC_ERROR_SEE_STRING          0    // deprecated
 #define DC_ERROR_SELF_NOT_IN_GROUP   1    // deprecated
 #define DC_STR_SELFNOTINGRP          21   // deprecated
 #define DC_EVENT_DATA1_IS_STRING(e)  ((e)==DC_EVENT_IMEX_FILE_WRITTEN || (e)==DC_EVENT_FILE_COPIED)
 #define DC_EVENT_DATA2_IS_STRING(e)  ((e)>=100 && (e)<=499)
-#define DC_EVENT_RETURNS_INT(e)      ((e)==DC_EVENT_IS_OFFLINE)
-#define DC_EVENT_RETURNS_STRING(e)   ((e)==DC_EVENT_GET_STRING)
+#define DC_EVENT_RETURNS_INT(e)      ((e)==DC_EVENT_IS_OFFLINE) // deprecated
+#define DC_EVENT_RETURNS_STRING(e)   ((e)==DC_EVENT_GET_STRING) // deprecated
 char*           dc_get_version_str           (void); // deprecated
 void            dc_array_add_id              (dc_array_t*, uint32_t); // deprecated
 
