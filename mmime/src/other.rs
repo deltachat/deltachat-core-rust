@@ -42,11 +42,11 @@ pub(crate) unsafe fn strncasecmp(
 
     let s1_slice = std::slice::from_raw_parts(
         s1 as *const u8,
-        std::cmp::min(n, strnlen(s1 as *const i8, n)),
+        strnlen(s1 as *const i8, n),
     );
     let s2_slice = std::slice::from_raw_parts(
         s2 as *const u8,
-        std::cmp::min(n, strnlen(s2 as *const i8, n)),
+        strnlen(s2 as *const i8, n),
     );
 
     let s1 = std::ffi::CStr::from_bytes_with_nul_unchecked(s1_slice)
