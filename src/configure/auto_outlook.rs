@@ -170,3 +170,35 @@ fn outlk_autodiscover_endtag_cb(event: &BytesEnd, outlk_ad: &mut OutlookAutodisc
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_redirect() {
+        let res = outlk_parse_xml("
+<?xml version=\"1.0\" encoding=\"utf-8\"?>
+  <Autodiscover xmlns=\"http://schemas.microsoft.com/exchange/autodiscover/responseschema/2006\">
+    <Response xmlns=\"http://schemas.microsoft.com/exchange/autodiscover/outlook/responseschema/2006a\">
+      <Account>
+        <AccountType>email</AccountType>
+        <Action>redirectUrl</Action>
+        <RedirectUrl>https://mail.example.com/autodiscover/autodiscover.xml</RedirectUrl>
+      </Account>
+    </Response>
+  </Autodiscover>
+ ").expect("XML is not parsed successfully");
+        match res {
+            ParsingResult::LoginParam(_lp) => {
+                panic!("redirecturl is not found");
+            }
+            ParsingResult::RedirectUrl(url) => {
+                assert_eq!(
+                    url,
+                    "https://mail.example.com/autodiscover/autodiscover.xml"
+                );
+            }
+        }
+    }
+}
