@@ -10,7 +10,7 @@ deltachat_derive = { path = "./deltachat_derive" }
 mmime = { version = "0.1.2", path = "./mmime" }
 
 libc = "0.2.51"
-pgp = "0.2.3"
+pgp = { version = "0.2.3", default-features = false }
 hex = "0.3.2"
 sha2 = "0.8.0"
 rand = "0.6.5"
