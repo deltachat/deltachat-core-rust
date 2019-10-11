@@ -270,7 +270,7 @@ impl Chatlist {
 
         let lastmsg = if 0 != lastmsg_id {
             if let Ok(lastmsg) = Message::load_from_db(context, lastmsg_id) {
-                if lastmsg.from_id != 1 as libc::c_uint
+                if lastmsg.from_id != 1
                     && (chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup)
                 {
                     lastcontact = Contact::load_from_db(context, lastmsg.from_id).ok();
