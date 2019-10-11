@@ -3,6 +3,7 @@ use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
 use crate::constants::*;
 use crate::context::Context;
+use crate::error::Error;
 use crate::login_param::LoginParam;
 
 use super::read_autoconf_file;
@@ -11,7 +12,7 @@ use super::read_autoconf_file;
  ******************************************************************************/
 /* documentation: https://developer.mozilla.org/en-US/docs/Mozilla/Thunderbird/Autoconfiguration */
 struct MozAutoconfigure<'a> {
-    pub in_0: &'a LoginParam,
+    pub in_emailaddr: &'a str,
     pub in_emaildomain: &'a str,
     pub in_emaillocalpart: &'a str,
     pub out: LoginParam,
@@ -35,25 +36,20 @@ enum MozConfigTag {
     Username,
 }
 
-pub fn moz_autoconfigure(
-    context: &Context,
-    url: &str,
-    param_in: &LoginParam,
-) -> Option<LoginParam> {
-    let xml_raw = read_autoconf_file(context, url)?;
-
-    // Split address into local part and domain part.
-    let p = param_in.addr.find('@')?;
-    let (in_emaillocalpart, in_emaildomain) = param_in.addr.split_at(p);
-    let in_emaildomain = &in_emaildomain[1..];
-
-    let mut reader = quick_xml::Reader::from_str(&xml_raw);
+pub fn moz_parse_xml(in_emailaddr: &str, xml_raw: &str) -> Result<LoginParam, Error> {
+    let mut reader = quick_xml::Reader::from_str(xml_raw);
     reader.trim_text(true);
 
-    let mut buf = Vec::new();
+    // Split address into local part and domain part.
+    let p = match in_emailaddr.find('@') {
+        Some(i) => i,
+        None => bail!("Email address {} does not contain @", in_emailaddr),
+    };
+    let (in_emaillocalpart, in_emaildomain) = in_emailaddr.split_at(p);
+    let in_emaildomain = &in_emaildomain[1..];
 
     let mut moz_ac = MozAutoconfigure {
-        in_0: param_in,
+        in_emailaddr,
         in_emaildomain,
         in_emaillocalpart,
         out: LoginParam::new(),
@@ -62,6 +58,8 @@ pub fn moz_autoconfigure(
         tag_server: MozServer::Undefined,
         tag_config: MozConfigTag::Undefined,
     };
+
+    let mut buf = Vec::new();
     loop {
         match reader.read_event(&mut buf) {
             Ok(quick_xml::events::Event::Start(ref e)) => {
@@ -72,8 +70,7 @@ pub fn moz_autoconfigure(
                 moz_autoconfigure_text_cb(e, &mut moz_ac, &reader)
             }
             Err(e) => {
-                warn!(
-                    context,
+                bail!(
                     "Configure xml: Error at position {}: {:?}",
                     reader.buffer_position(),
                     e
@@ -91,11 +88,26 @@ pub fn moz_autoconfigure(
         || moz_ac.out.send_port == 0
     {
         let r = moz_ac.out.to_string();
-        warn!(context, "Bad or incomplete autoconfig: {}", r,);
-        return None;
+        bail!("Bad or incomplete autoconfig: {}", r,);
     }
 
-    Some(moz_ac.out)
+    Ok(moz_ac.out)
+}
+
+pub fn moz_autoconfigure(
+    context: &Context,
+    url: &str,
+    param_in: &LoginParam,
+) -> Option<LoginParam> {
+    let xml_raw = read_autoconf_file(context, url)?;
+
+    match moz_parse_xml(&param_in.addr, &xml_raw) {
+        Err(err) => {
+            warn!(context, "{}", err);
+            None
+        }
+        Ok(lp) => Some(lp),
+    }
 }
 
 fn moz_autoconfigure_text_cb<B: std::io::BufRead>(
@@ -105,7 +117,7 @@ fn moz_autoconfigure_text_cb<B: std::io::BufRead>(
 ) {
     let val = event.unescape_and_decode(reader).unwrap_or_default();
 
-    let addr = &moz_ac.in_0.addr;
+    let addr = moz_ac.in_emailaddr;
     let email_local = moz_ac.in_emaillocalpart;
     let email_domain = moz_ac.in_emaildomain;
 
