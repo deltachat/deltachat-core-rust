@@ -133,7 +133,7 @@ impl Job {
             let connected = context.smtp.lock().unwrap().connect(context, &loginparam);
 
             if !connected {
-                self.try_again_later(3i32, None);
+                self.try_again_later(3, None);
                 return;
             }
         }
@@ -172,7 +172,7 @@ impl Job {
                         Err(err) => {
                             sock.disconnect();
                             warn!(context, "smtp failed: {}", err);
-                            self.try_again_later(-1i32, Some(err.to_string()));
+                            self.try_again_later(-1, Some(err.to_string()));
                         }
                         Ok(()) => {
                             // smtp success, update db ASAP, then delete smtp file
@@ -207,7 +207,7 @@ impl Job {
     }
 
     // this value does not increase the number of tries
-    fn try_again_later(&mut self, try_again: libc::c_int, pending_error: Option<String>) {
+    fn try_again_later(&mut self, try_again: i32, pending_error: Option<String>) {
         self.try_again = try_again;
         self.pending_error = pending_error;
     }
