@@ -229,3 +229,89 @@ fn moz_autoconfigure_starttag_cb<B: std::io::BufRead>(
         moz_ac.tag_config = MozConfigTag::Username;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_outlook_autoconfig() {
+        // Copied from https://autoconfig.thunderbird.net/v1.1/outlook.com on 2019-10-11
+        let xml_raw =
+"<clientConfig version=\"1.1\">
+  <emailProvider id=\"outlook.com\">
+    <domain>hotmail.com</domain>
+    <domain>hotmail.co.uk</domain>
+    <domain>hotmail.co.jp</domain>
+    <domain>hotmail.com.br</domain>
+    <domain>hotmail.de</domain>
+    <domain>hotmail.fr</domain>
+    <domain>hotmail.it</domain>
+    <domain>hotmail.es</domain>
+    <domain>live.com</domain>
+    <domain>live.co.uk</domain>
+    <domain>live.co.jp</domain>
+    <domain>live.de</domain>
+    <domain>live.fr</domain>
+    <domain>live.it</domain>
+    <domain>live.jp</domain>
+    <domain>msn.com</domain>
+    <domain>outlook.com</domain>
+    <displayName>Outlook.com (Microsoft)</displayName>
+    <displayShortName>Outlook</displayShortName>
+    <incomingServer type=\"exchange\">
+      <hostname>outlook.office365.com</hostname>
+      <port>443</port>
+      <username>%EMAILADDRESS%</username>
+      <socketType>SSL</socketType>
+      <authentication>OAuth2</authentication>
+      <owaURL>https://outlook.office365.com/owa/</owaURL>
+      <ewsURL>https://outlook.office365.com/ews/exchange.asmx</ewsURL>
+      <useGlobalPreferredServer>true</useGlobalPreferredServer>
+    </incomingServer>
+    <incomingServer type=\"imap\">
+      <hostname>outlook.office365.com</hostname>
+      <port>993</port>
+      <socketType>SSL</socketType>
+      <authentication>password-cleartext</authentication>
+      <username>%EMAILADDRESS%</username>
+    </incomingServer>
+    <incomingServer type=\"pop3\">
+      <hostname>outlook.office365.com</hostname>
+      <port>995</port>
+      <socketType>SSL</socketType>
+      <authentication>password-cleartext</authentication>
+      <username>%EMAILADDRESS%</username>
+      <pop3>
+        <leaveMessagesOnServer>true</leaveMessagesOnServer>
+        <!-- Outlook.com docs specifically mention that POP3 deletes have effect on the main inbox on webmail and IMAP -->
+      </pop3>
+    </incomingServer>
+    <outgoingServer type=\"smtp\">
+      <hostname>smtp.office365.com</hostname>
+      <port>587</port>
+      <socketType>STARTTLS</socketType>
+      <authentication>password-cleartext</authentication>
+      <username>%EMAILADDRESS%</username>
+    </outgoingServer>
+    <documentation url=\"http://windows.microsoft.com/en-US/windows/outlook/send-receive-from-app\">
+      <descr lang=\"en\">Set up an email app with Outlook.com</descr>
+    </documentation>
+  </emailProvider>
+  <webMail>
+    <loginPage url=\"https://www.outlook.com/\"/>
+    <loginPageInfo url=\"https://www.outlook.com/\">
+      <username>%EMAILADDRESS%</username>
+      <usernameField id=\"i0116\" name=\"login\"/>
+      <passwordField id=\"i0118\" name=\"passwd\"/>
+      <loginButton id=\"idSIButton9\" name=\"SI\"/>
+    </loginPageInfo>
+  </webMail>
+</clientConfig>";
+        let res = moz_parse_xml("example@outlook.com", xml_raw).expect("XML parsing failed");
+        assert_eq!(res.mail_server, "outlook.office365.com");
+        assert_eq!(res.mail_port, 993);
+        assert_eq!(res.send_server, "smtp.office365.com");
+        assert_eq!(res.send_port, 587);
+    }
+}
