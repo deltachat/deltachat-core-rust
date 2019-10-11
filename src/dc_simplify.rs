@@ -142,8 +142,8 @@ impl Simplify {
             ret += "[...]";
         }
         /* we write empty lines only in case and non-empty line follows */
-        let mut pending_linebreaks: libc::c_int = 0i32;
-        let mut content_lines_added: libc::c_int = 0i32;
+        let mut pending_linebreaks = 0;
+        let mut content_lines_added = 0;
         for l in l_first..l_last {
             let line = lines[l];
             if is_empty_line(line) {
