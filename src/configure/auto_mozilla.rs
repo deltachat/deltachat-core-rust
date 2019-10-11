@@ -22,6 +22,7 @@ struct MozAutoconfigure<'a> {
     pub tag_config: MozConfigTag,
 }
 
+#[derive(PartialEq)]
 enum MozServer {
     Undefined,
     Imap,
@@ -172,13 +173,17 @@ fn moz_autoconfigure_endtag_cb(event: &BytesEnd, moz_ac: &mut MozAutoconfigure) 
     let tag = String::from_utf8_lossy(event.name()).trim().to_lowercase();
 
     if tag == "incomingserver" {
+        if moz_ac.tag_server == MozServer::Imap {
+            moz_ac.out_imap_set = true;
+        }
         moz_ac.tag_server = MozServer::Undefined;
         moz_ac.tag_config = MozConfigTag::Undefined;
-        moz_ac.out_imap_set = true;
     } else if tag == "outgoingserver" {
+        if moz_ac.tag_server == MozServer::Smtp {
+            moz_ac.out_smtp_set = true;
+        }
         moz_ac.tag_server = MozServer::Undefined;
         moz_ac.tag_config = MozConfigTag::Undefined;
-        moz_ac.out_smtp_set = true;
     } else {
         moz_ac.tag_config = MozConfigTag::Undefined;
     }
