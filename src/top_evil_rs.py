@@ -16,18 +16,20 @@ if __name__ == "__main__":
         free = s.count("free(")
         unsafe_fn = s.count("unsafe fn")
         chars = s.count("c_char") + s.count("CStr")
-        filestats.append((fn, unsafe, free, unsafe_fn, chars))
+        libc = s.count("libc")
+        filestats.append((fn, unsafe, free, unsafe_fn, chars, libc))
 
-    sum_unsafe, sum_free, sum_unsafe_fn, sum_chars = 0, 0, 0, 0
+    sum_unsafe, sum_free, sum_unsafe_fn, sum_chars, sum_libc = 0, 0, 0, 0, 0
 
-    for fn, unsafe, free, unsafe_fn, chars in reversed(sorted(filestats, key=lambda x: sum(x[1:]))):
-        if unsafe + free + unsafe_fn + chars == 0:
+    for fn, unsafe, free, unsafe_fn, chars, libc in reversed(sorted(filestats, key=lambda x: sum(x[1:]))):
+        if unsafe + free + unsafe_fn + chars + libc == 0:
             continue
-        print("{0: <25} unsafe: {1: >3} free: {2: >3} unsafe-fn: {3: >3} chars: {4: >3}".format(str(fn), unsafe, free, unsafe_fn, chars))
+        print("{0: <25} unsafe: {1: >3} free: {2: >3} unsafe-fn: {3: >3} chars: {4: >3} libc: {5: >3}".format(str(fn), unsafe, free, unsafe_fn, chars, libc))
         sum_unsafe += unsafe
         sum_free += free
         sum_unsafe_fn += unsafe_fn
         sum_chars += chars
+        sum_libc += libc
 
 
     print()
@@ -35,3 +37,4 @@ if __name__ == "__main__":
     print("total free:", sum_free)
     print("total unsafe-fn:", sum_unsafe_fn)
     print("total c_chars:", sum_chars)
+    print("total libc:", sum_libc)
