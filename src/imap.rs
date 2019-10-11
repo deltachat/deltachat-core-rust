@@ -598,9 +598,9 @@ impl Imap {
         self.config.write().unwrap().watch_folder = Some(watch_folder);
     }
 
-    pub fn fetch(&self, context: &Context) -> libc::c_int {
+    pub fn fetch(&self, context: &Context) -> bool {
         if !self.is_connected() || !context.sql.is_open() {
-            return 0;
+            return false;
         }
 
         self.setup_handle_if_needed(context);
@@ -616,9 +616,9 @@ impl Imap {
                     break;
                 }
             }
-            1
+            true
         } else {
-            0
+            false
         }
     }
 
