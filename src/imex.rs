@@ -87,7 +87,7 @@ pub fn has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result<Strin
                 let name = name.to_string_lossy();
                 if name.starts_with("delta-chat") && name.ends_with(".bak") {
                     let sql = Sql::new();
-                    if sql.open(context, &path, 0x1) {
+                    if sql.open(context, &path, true) {
                         let curr_backup_time =
                             sql.get_raw_config_int(context, "backup_time")
                                 .unwrap_or_default() as u64;
@@ -413,7 +413,7 @@ fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) -> Resul
     /* error already logged */
     /* re-open copied database file */
     ensure!(
-        context.sql.open(&context, &context.get_dbfile(), 0),
+        context.sql.open(&context, &context.get_dbfile(), false),
         "could not re-open db"
     );
 
@@ -496,7 +496,7 @@ fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
         dest_path_filename.display(),
     );
     let copied = dc_copy_file(context, context.get_dbfile(), &dest_path_filename);
-    context.sql.open(&context, &context.get_dbfile(), 0);
+    context.sql.open(&context, &context.get_dbfile(), false);
     if !copied {
         let s = dest_path_filename.to_string_lossy().to_string();
         bail!(
@@ -526,7 +526,7 @@ fn add_files_to_export(context: &Context, dest_path_filename: &PathBuf) -> Resul
     // the source to be locked, neigher the destination as it is used only here)
     let sql = Sql::new();
     ensure!(
-        sql.open(context, &dest_path_filename, 0),
+        sql.open(context, &dest_path_filename, false),
         "could not open db"
     );
     if !sql.table_exists("backup_blobs") {

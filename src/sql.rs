@@ -11,8 +11,6 @@ use crate::error::{Error, Result};
 use crate::param::*;
 use crate::peerstate::*;
 
-const DC_OPEN_READONLY: usize = 0x01;
-
 /// A wrapper around the underlying Sqlite3 object.
 #[derive(DebugStub)]
 pub struct Sql {
@@ -42,8 +40,8 @@ impl Sql {
     }
 
     // return true on success, false on failure
-    pub fn open(&self, context: &Context, dbfile: &std::path::Path, flags: libc::c_int) -> bool {
-        match open(context, self, dbfile, flags) {
+    pub fn open(&self, context: &Context, dbfile: &std::path::Path, readonly: bool) -> bool {
+        match open(context, self, dbfile, readonly) {
             Ok(_) => true,
             Err(Error::SqlAlreadyOpen) => false,
             Err(_) => {
@@ -320,7 +318,7 @@ fn open(
     context: &Context,
     sql: &Sql,
     dbfile: impl AsRef<std::path::Path>,
-    flags: libc::c_int,
+    readonly: bool,
 ) -> Result<()> {
     if sql.is_open() {
         error!(
@@ -332,7 +330,7 @@ fn open(
     }
 
     let mut open_flags = OpenFlags::SQLITE_OPEN_NO_MUTEX;
-    if 0 != (flags & DC_OPEN_READONLY as i32) {
+    if readonly {
         open_flags.insert(OpenFlags::SQLITE_OPEN_READ_ONLY);
     } else {
         open_flags.insert(OpenFlags::SQLITE_OPEN_READ_WRITE);
@@ -351,7 +349,7 @@ fn open(
         *sql.pool.write().unwrap() = Some(pool);
     }
 
-    if 0 == flags & DC_OPEN_READONLY as i32 {
+    if !readonly {
         let mut exists_before_update = 0;
         let mut dbversion_before_update = 0;
         /* Init tables to dbversion=0 */
