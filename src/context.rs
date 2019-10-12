@@ -150,7 +150,7 @@ impl Context {
         };
 
         ensure!(
-            ctx.sql.open(&ctx, &ctx.dbfile, 0),
+            ctx.sql.open(&ctx, &ctx.dbfile, false),
             "Failed opening sqlite database"
         );
 
