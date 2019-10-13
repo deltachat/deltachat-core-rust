@@ -197,7 +197,7 @@ pub fn send_locations_to_chat(context: &Context, chat_id: u32, seconds: i64) {
     let now = time();
     let mut msg: Message;
     let is_sending_locations_before: bool;
-    if !(seconds < 0 || chat_id <= 9i32 as libc::c_uint) {
+    if !(seconds < 0 || chat_id <= DC_CHAT_ID_LAST_SPECIAL) {
         is_sending_locations_before = is_sending_locations_to_chat(context, chat_id);
         if sql::execute(
             context,
