@@ -3,6 +3,7 @@ use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
 use crate::constants::*;
 use crate::context::Context;
+use crate::error::Error;
 use crate::login_param::LoginParam;
 
 use super::read_autoconf_file;
@@ -11,7 +12,7 @@ use super::read_autoconf_file;
  ******************************************************************************/
 /* documentation: https://developer.mozilla.org/en-US/docs/Mozilla/Thunderbird/Autoconfiguration */
 struct MozAutoconfigure<'a> {
-    pub in_0: &'a LoginParam,
+    pub in_emailaddr: &'a str,
     pub in_emaildomain: &'a str,
     pub in_emaillocalpart: &'a str,
     pub out: LoginParam,
@@ -21,6 +22,7 @@ struct MozAutoconfigure<'a> {
     pub tag_config: MozConfigTag,
 }
 
+#[derive(PartialEq)]
 enum MozServer {
     Undefined,
     Imap,
@@ -35,25 +37,20 @@ enum MozConfigTag {
     Username,
 }
 
-pub fn moz_autoconfigure(
-    context: &Context,
-    url: &str,
-    param_in: &LoginParam,
-) -> Option<LoginParam> {
-    let xml_raw = read_autoconf_file(context, url)?;
-
-    // Split address into local part and domain part.
-    let p = param_in.addr.find('@')?;
-    let (in_emaillocalpart, in_emaildomain) = param_in.addr.split_at(p);
-    let in_emaildomain = &in_emaildomain[1..];
-
-    let mut reader = quick_xml::Reader::from_str(&xml_raw);
+pub fn moz_parse_xml(in_emailaddr: &str, xml_raw: &str) -> Result<LoginParam, Error> {
+    let mut reader = quick_xml::Reader::from_str(xml_raw);
     reader.trim_text(true);
 
-    let mut buf = Vec::new();
+    // Split address into local part and domain part.
+    let p = match in_emailaddr.find('@') {
+        Some(i) => i,
+        None => bail!("Email address {} does not contain @", in_emailaddr),
+    };
+    let (in_emaillocalpart, in_emaildomain) = in_emailaddr.split_at(p);
+    let in_emaildomain = &in_emaildomain[1..];
 
     let mut moz_ac = MozAutoconfigure {
-        in_0: param_in,
+        in_emailaddr,
         in_emaildomain,
         in_emaillocalpart,
         out: LoginParam::new(),
@@ -62,6 +59,8 @@ pub fn moz_autoconfigure(
         tag_server: MozServer::Undefined,
         tag_config: MozConfigTag::Undefined,
     };
+
+    let mut buf = Vec::new();
     loop {
         match reader.read_event(&mut buf) {
             Ok(quick_xml::events::Event::Start(ref e)) => {
@@ -72,8 +71,7 @@ pub fn moz_autoconfigure(
                 moz_autoconfigure_text_cb(e, &mut moz_ac, &reader)
             }
             Err(e) => {
-                warn!(
-                    context,
+                bail!(
                     "Configure xml: Error at position {}: {:?}",
                     reader.buffer_position(),
                     e
@@ -91,11 +89,26 @@ pub fn moz_autoconfigure(
         || moz_ac.out.send_port == 0
     {
         let r = moz_ac.out.to_string();
-        warn!(context, "Bad or incomplete autoconfig: {}", r,);
-        return None;
+        bail!("Bad or incomplete autoconfig: {}", r,);
     }
 
-    Some(moz_ac.out)
+    Ok(moz_ac.out)
+}
+
+pub fn moz_autoconfigure(
+    context: &Context,
+    url: &str,
+    param_in: &LoginParam,
+) -> Option<LoginParam> {
+    let xml_raw = read_autoconf_file(context, url)?;
+
+    match moz_parse_xml(&param_in.addr, &xml_raw) {
+        Err(err) => {
+            warn!(context, "{}", err);
+            None
+        }
+        Ok(lp) => Some(lp),
+    }
 }
 
 fn moz_autoconfigure_text_cb<B: std::io::BufRead>(
@@ -105,7 +118,7 @@ fn moz_autoconfigure_text_cb<B: std::io::BufRead>(
 ) {
     let val = event.unescape_and_decode(reader).unwrap_or_default();
 
-    let addr = &moz_ac.in_0.addr;
+    let addr = moz_ac.in_emailaddr;
     let email_local = moz_ac.in_emaillocalpart;
     let email_domain = moz_ac.in_emaildomain;
 
@@ -160,13 +173,17 @@ fn moz_autoconfigure_endtag_cb(event: &BytesEnd, moz_ac: &mut MozAutoconfigure) 
     let tag = String::from_utf8_lossy(event.name()).trim().to_lowercase();
 
     if tag == "incomingserver" {
+        if moz_ac.tag_server == MozServer::Imap {
+            moz_ac.out_imap_set = true;
+        }
         moz_ac.tag_server = MozServer::Undefined;
         moz_ac.tag_config = MozConfigTag::Undefined;
-        moz_ac.out_imap_set = true;
     } else if tag == "outgoingserver" {
+        if moz_ac.tag_server == MozServer::Smtp {
+            moz_ac.out_smtp_set = true;
+        }
         moz_ac.tag_server = MozServer::Undefined;
         moz_ac.tag_config = MozConfigTag::Undefined;
-        moz_ac.out_smtp_set = true;
     } else {
         moz_ac.tag_config = MozConfigTag::Undefined;
     }
@@ -215,5 +232,91 @@ fn moz_autoconfigure_starttag_cb<B: std::io::BufRead>(
         moz_ac.tag_config = MozConfigTag::Sockettype;
     } else if tag == "username" {
         moz_ac.tag_config = MozConfigTag::Username;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_outlook_autoconfig() {
+        // Copied from https://autoconfig.thunderbird.net/v1.1/outlook.com on 2019-10-11
+        let xml_raw =
+"<clientConfig version=\"1.1\">
+  <emailProvider id=\"outlook.com\">
+    <domain>hotmail.com</domain>
+    <domain>hotmail.co.uk</domain>
+    <domain>hotmail.co.jp</domain>
+    <domain>hotmail.com.br</domain>
+    <domain>hotmail.de</domain>
+    <domain>hotmail.fr</domain>
+    <domain>hotmail.it</domain>
+    <domain>hotmail.es</domain>
+    <domain>live.com</domain>
+    <domain>live.co.uk</domain>
+    <domain>live.co.jp</domain>
+    <domain>live.de</domain>
+    <domain>live.fr</domain>
+    <domain>live.it</domain>
+    <domain>live.jp</domain>
+    <domain>msn.com</domain>
+    <domain>outlook.com</domain>
+    <displayName>Outlook.com (Microsoft)</displayName>
+    <displayShortName>Outlook</displayShortName>
+    <incomingServer type=\"exchange\">
+      <hostname>outlook.office365.com</hostname>
+      <port>443</port>
+      <username>%EMAILADDRESS%</username>
+      <socketType>SSL</socketType>
+      <authentication>OAuth2</authentication>
+      <owaURL>https://outlook.office365.com/owa/</owaURL>
+      <ewsURL>https://outlook.office365.com/ews/exchange.asmx</ewsURL>
+      <useGlobalPreferredServer>true</useGlobalPreferredServer>
+    </incomingServer>
+    <incomingServer type=\"imap\">
+      <hostname>outlook.office365.com</hostname>
+      <port>993</port>
+      <socketType>SSL</socketType>
+      <authentication>password-cleartext</authentication>
+      <username>%EMAILADDRESS%</username>
+    </incomingServer>
+    <incomingServer type=\"pop3\">
+      <hostname>outlook.office365.com</hostname>
+      <port>995</port>
+      <socketType>SSL</socketType>
+      <authentication>password-cleartext</authentication>
+      <username>%EMAILADDRESS%</username>
+      <pop3>
+        <leaveMessagesOnServer>true</leaveMessagesOnServer>
+        <!-- Outlook.com docs specifically mention that POP3 deletes have effect on the main inbox on webmail and IMAP -->
+      </pop3>
+    </incomingServer>
+    <outgoingServer type=\"smtp\">
+      <hostname>smtp.office365.com</hostname>
+      <port>587</port>
+      <socketType>STARTTLS</socketType>
+      <authentication>password-cleartext</authentication>
+      <username>%EMAILADDRESS%</username>
+    </outgoingServer>
+    <documentation url=\"http://windows.microsoft.com/en-US/windows/outlook/send-receive-from-app\">
+      <descr lang=\"en\">Set up an email app with Outlook.com</descr>
+    </documentation>
+  </emailProvider>
+  <webMail>
+    <loginPage url=\"https://www.outlook.com/\"/>
+    <loginPageInfo url=\"https://www.outlook.com/\">
+      <username>%EMAILADDRESS%</username>
+      <usernameField id=\"i0116\" name=\"login\"/>
+      <passwordField id=\"i0118\" name=\"passwd\"/>
+      <loginButton id=\"idSIButton9\" name=\"SI\"/>
+    </loginPageInfo>
+  </webMail>
+</clientConfig>";
+        let res = moz_parse_xml("example@outlook.com", xml_raw).expect("XML parsing failed");
+        assert_eq!(res.mail_server, "outlook.office365.com");
+        assert_eq!(res.mail_port, 993);
+        assert_eq!(res.send_server, "smtp.office365.com");
+        assert_eq!(res.send_port, 587);
     }
 }
