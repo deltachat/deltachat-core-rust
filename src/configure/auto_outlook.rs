@@ -201,4 +201,47 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn test_parse_loginparam() {
+        let res = outlk_parse_xml(
+            "\
+<?xml version=\"1.0\" encoding=\"utf-8\"?>
+<Autodiscover xmlns=\"http://schemas.microsoft.com/exchange/autodiscover/responseschema/2006\">
+  <Response xmlns=\"http://schemas.microsoft.com/exchange/autodiscover/outlook/responseschema/2006a\">
+    <Account>
+      <AccountType>email</AccountType>
+      <Action>settings</Action>
+      <Protocol>
+        <Type>IMAP</Type>
+        <Server>example.com</Server>
+        <Port>993</Port>
+        <SSL>on</SSL>
+        <AuthRequired>on</AuthRequired>
+      </Protocol>
+      <Protocol>
+        <Type>SMTP</Type>
+        <Server>smtp.example.com</Server>
+        <Port>25</Port>
+        <SSL>off</SSL>
+        <AuthRequired>on</AuthRequired>
+      </Protocol>
+    </Account>
+  </Response>
+</Autodiscover>",
+        )
+        .expect("XML is not parsed successfully");
+
+        match res {
+            ParsingResult::LoginParam(lp) => {
+                assert_eq!(lp.mail_server, "example.com");
+                assert_eq!(lp.mail_port, 993);
+                assert_eq!(lp.send_server, "smtp.example.com");
+                assert_eq!(lp.send_port, 25);
+            }
+            ParsingResult::RedirectUrl(_) => {
+                panic!("RedirectUrl is not expected");
+            }
+        }
+    }
 }
