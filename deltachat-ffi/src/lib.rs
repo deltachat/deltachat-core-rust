@@ -1744,7 +1744,7 @@ pub unsafe extern "C" fn dc_set_location(
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| location::set(ctx, latitude, longitude, accuracy))
-        .unwrap_or(0)
+        .unwrap_or(false) as _
 }
 
 #[no_mangle]

@@ -741,7 +741,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             let longitude = arg2.parse()?;
 
             let continue_streaming = location::set(context, latitude, longitude, 0.);
-            if 0 != continue_streaming {
+            if continue_streaming {
                 println!("Success, streaming should be continued.");
             } else {
                 println!("Success, streaming can be stoppped.");

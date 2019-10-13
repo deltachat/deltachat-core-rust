@@ -257,9 +257,9 @@ pub fn is_sending_locations_to_chat(context: &Context, chat_id: u32) -> bool {
         .unwrap_or_default()
 }
 
-pub fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64) -> libc::c_int {
+pub fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64) -> bool {
     if latitude == 0.0 && longitude == 0.0 {
-        return 1;
+        return true;
     }
     let mut continue_streaming = false;
 
@@ -293,7 +293,7 @@ pub fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64) -> l
         schedule_MAYBE_SEND_LOCATIONS(context, 0);
     }
 
-    continue_streaming as libc::c_int
+    continue_streaming
 }
 
 pub fn get_range(
