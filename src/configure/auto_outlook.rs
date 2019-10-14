@@ -70,7 +70,9 @@ fn outlk_parse_xml(xml_raw: &str) -> Result<ParsingResult, Error> {
 
                 if let Some(ref tag) = current_tag {
                     match tag.as_str() {
-                        "type" => outlk_ad.config_type = Some(val.trim().to_string()),
+                        "type" => {
+                            outlk_ad.config_type = Some(val.trim().to_lowercase().to_string())
+                        }
                         "server" => outlk_ad.config_server = val.trim().to_string(),
                         "port" => outlk_ad.config_port = val.trim().parse().unwrap_or_default(),
                         "ssl" => outlk_ad.config_ssl = val.trim().to_string(),
