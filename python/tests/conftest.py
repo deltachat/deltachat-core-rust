@@ -150,6 +150,11 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig):
             lib.dc_set_config(ac._dc_context, b"configured", b"1")
             return ac
 
+        def peek_online_config(self):
+            if not session_liveconfig:
+                pytest.skip("specify DCC_PY_LIVECONFIG or --liveconfig")
+            return session_liveconfig.get(self.live_count)
+
         def get_online_config(self):
             if not session_liveconfig:
                 pytest.skip("specify DCC_PY_LIVECONFIG or --liveconfig")
