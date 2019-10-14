@@ -123,14 +123,37 @@ pub fn dc_get_oauth2_access_token(
                     false,
                 )
             };
-        let mut token_url = replace_in_uri(&token_url, "$CLIENT_ID", oauth2.client_id);
-        token_url = replace_in_uri(&token_url, "$REDIRECT_URI", &redirect_uri);
-        token_url = replace_in_uri(&token_url, "$CODE", code.as_ref());
-        if let Some(ref token) = refresh_token {
-            token_url = replace_in_uri(&token_url, "$REFRESH_TOKEN", token);
+
+        // to allow easier specification of different configurations,
+        // token_url is in GET-method-format, sth. as https://domain?param1=val1&param2=val2 -
+        // convert this to POST-format ...
+        let mut parts = token_url.splitn(2, '?');
+        let post_url = parts.next().unwrap_or_default();
+        let post_args = parts.next().unwrap_or_default();
+        let mut post_param = HashMap::new();
+        for key_value_pair in post_args.split('&') {
+            let mut parts = key_value_pair.splitn(2, '=');
+            let key = parts.next().unwrap_or_default();
+            let mut value = parts.next().unwrap_or_default();
+
+            if value == "$CLIENT_ID" {
+                value = oauth2.client_id;
+            } else if value == "$REDIRECT_URI" {
+                value = &redirect_uri;
+            } else if value == "$CODE" {
+                value = code.as_ref();
+            } else if value == "$REFRESH_TOKEN" && refresh_token.is_some() {
+                value = refresh_token.as_ref().unwrap();
+            }
+
+            post_param.insert(key, value);
         }
 
-        let response = reqwest::Client::new().post(&token_url).send();
+        // ... and POST
+        let response = reqwest::Client::new()
+            .post(post_url)
+            .form(&post_param)
+            .send();
         if response.is_err() {
             warn!(
                 context,
