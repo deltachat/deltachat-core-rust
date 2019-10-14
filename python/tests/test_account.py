@@ -389,7 +389,8 @@ class TestOnlineAccount:
 
     def test_one_account_send_bcc_setting(self, acfactory, lp):
         ac1 = acfactory.get_online_configuring_account()
-        c2 = ac1.create_contact(email="notexists@testrun.org")
+        ac2_config = acfactory.peek_online_config()
+        c2 = ac1.create_contact(email=ac2_config["addr"])
         chat = ac1.create_chat_by_contact(c2)
         assert chat.id > const.DC_CHAT_ID_LAST_SPECIAL
         wait_successful_IMAP_SMTP_connection(ac1)
