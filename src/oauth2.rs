@@ -142,7 +142,7 @@ pub fn dc_get_oauth2_access_token(
         if !response.status().is_success() {
             warn!(
                 context,
-                "Error calling OAuth2 at {}: {:?}",
+                "Unsuccessful response when calling OAuth2 at {}: {:?}",
                 token_url,
                 response.status()
             );
