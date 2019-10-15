@@ -7,6 +7,7 @@ use crate::context::Context;
 use crate::dc_tools::*;
 
 const OAUTH2_GMAIL: Oauth2 = Oauth2 {
+    // see https://developers.google.com/identity/protocols/OAuth2InstalledApp
     client_id: "959970109878-4mvtgf6feshskf7695nfln6002mom908.apps.googleusercontent.com",
     get_code: "https://accounts.google.com/o/oauth2/auth?client_id=$CLIENT_ID&redirect_uri=$REDIRECT_URI&response_type=code&scope=https%3A%2F%2Fmail.google.com%2F%20email&access_type=offline",
     init_token: "https://accounts.google.com/o/oauth2/token?client_id=$CLIENT_ID&redirect_uri=$REDIRECT_URI&code=$CODE&grant_type=authorization_code",
@@ -15,6 +16,7 @@ const OAUTH2_GMAIL: Oauth2 = Oauth2 {
 };
 
 const OAUTH2_YANDEX: Oauth2 = Oauth2 {
+    // see https://tech.yandex.com/oauth/doc/dg/reference/auto-code-client-docpage/
     client_id: "c4d0b6735fc8420a816d7e1303469341",
     get_code: "https://oauth.yandex.com/authorize?client_id=$CLIENT_ID&response_type=code&scope=mail%3Aimap_full%20mail%3Asmtp&force_confirm=true",
     init_token: "https://oauth.yandex.com/token?grant_type=authorization_code&code=$CODE&client_id=$CLIENT_ID&client_secret=58b8c6e94cf44fbe952da8511955dacf",
@@ -89,6 +91,7 @@ pub fn dc_get_oauth2_access_token(
             }
         }
 
+        // generate new token: build & call auth url
         let refresh_token = context.sql.get_raw_config(context, "oauth2_refresh_token");
         let refresh_token_for = context
             .sql
@@ -120,14 +123,37 @@ pub fn dc_get_oauth2_access_token(
                     false,
                 )
             };
-        let mut token_url = replace_in_uri(&token_url, "$CLIENT_ID", oauth2.client_id);
-        token_url = replace_in_uri(&token_url, "$REDIRECT_URI", &redirect_uri);
-        token_url = replace_in_uri(&token_url, "$CODE", code.as_ref());
-        if let Some(ref token) = refresh_token {
-            token_url = replace_in_uri(&token_url, "$REFRESH_TOKEN", token);
+
+        // to allow easier specification of different configurations,
+        // token_url is in GET-method-format, sth. as https://domain?param1=val1&param2=val2 -
+        // convert this to POST-format ...
+        let mut parts = token_url.splitn(2, '?');
+        let post_url = parts.next().unwrap_or_default();
+        let post_args = parts.next().unwrap_or_default();
+        let mut post_param = HashMap::new();
+        for key_value_pair in post_args.split('&') {
+            let mut parts = key_value_pair.splitn(2, '=');
+            let key = parts.next().unwrap_or_default();
+            let mut value = parts.next().unwrap_or_default();
+
+            if value == "$CLIENT_ID" {
+                value = oauth2.client_id;
+            } else if value == "$REDIRECT_URI" {
+                value = &redirect_uri;
+            } else if value == "$CODE" {
+                value = code.as_ref();
+            } else if value == "$REFRESH_TOKEN" && refresh_token.is_some() {
+                value = refresh_token.as_ref().unwrap();
+            }
+
+            post_param.insert(key, value);
         }
 
-        let response = reqwest::Client::new().post(&token_url).send();
+        // ... and POST
+        let response = reqwest::Client::new()
+            .post(post_url)
+            .form(&post_param)
+            .send();
         if response.is_err() {
             warn!(
                 context,
@@ -139,13 +165,14 @@ pub fn dc_get_oauth2_access_token(
         if !response.status().is_success() {
             warn!(
                 context,
-                "Error calling OAuth2 at {}: {:?}",
+                "Unsuccessful response when calling OAuth2 at {}: {:?}",
                 token_url,
                 response.status()
             );
             return None;
         }
 
+        // generate new token: parse returned json
         let parsed: reqwest::Result<Response> = response.json();
         if parsed.is_err() {
             warn!(
@@ -155,6 +182,8 @@ pub fn dc_get_oauth2_access_token(
             return None;
         }
         println!("response: {:?}", &parsed);
+
+        // update refresh_token if given, typically on the first round, but we update it later as well.
         let response = parsed.unwrap();
         if let Some(ref token) = response.refresh_token {
             context
