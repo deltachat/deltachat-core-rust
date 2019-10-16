@@ -24,7 +24,9 @@ use num_traits::{FromPrimitive, ToPrimitive};
 
 use deltachat::contact::Contact;
 use deltachat::context::Context;
-use deltachat::dc_tools::{as_path, as_str, dc_strdup, to_string_lossy, OsStrExt, StrExt};
+use deltachat::dc_tools::{
+    as_opt_str, as_path, as_str, dc_strdup, to_string_lossy, OsStrExt, StrExt,
+};
 use deltachat::stock::StockMessage;
 use deltachat::*;
 
@@ -2918,14 +2920,6 @@ pub unsafe extern "C" fn dc_lot_get_timestamp(lot: *mut dc_lot_t) -> i64 {
 #[no_mangle]
 pub unsafe extern "C" fn dc_str_unref(s: *mut libc::c_char) {
     libc::free(s as *mut _)
-}
-
-fn as_opt_str<'a>(s: *const libc::c_char) -> Option<&'a str> {
-    if s.is_null() {
-        return None;
-    }
-
-    Some(as_str(s))
 }
 
 pub mod providers;
