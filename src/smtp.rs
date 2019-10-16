@@ -71,7 +71,7 @@ impl Smtp {
         let tls = dc_build_tls(lp.smtp_certificate_checks).unwrap();
         let tls_parameters = ClientTlsParameters::new(domain.to_string(), tls);
 
-        let creds = if 0 != lp.server_flags & (DC_LP_AUTH_OAUTH2 as i32) {
+        let (creds, mechanism) = if 0 != lp.server_flags & (DC_LP_AUTH_OAUTH2 as i32) {
             // oauth2
             let addr = &lp.addr;
             let send_pw = &lp.send_pw;
@@ -81,15 +81,24 @@ impl Smtp {
             }
             let user = &lp.send_user;
 
-            lettre::smtp::authentication::Credentials::new(
-                user.to_string(),
-                access_token.unwrap_or_default(),
+            (
+                lettre::smtp::authentication::Credentials::new(
+                    user.to_string(),
+                    access_token.unwrap_or_default(),
+                ),
+                vec![lettre::smtp::authentication::Mechanism::Xoauth2],
             )
         } else {
             // plain
             let user = lp.send_user.clone();
             let pw = lp.send_pw.clone();
-            lettre::smtp::authentication::Credentials::new(user, pw)
+            (
+                lettre::smtp::authentication::Credentials::new(user, pw),
+                vec![
+                    lettre::smtp::authentication::Mechanism::Plain,
+                    lettre::smtp::authentication::Mechanism::Login,
+                ],
+            )
         };
 
         let security = if 0
@@ -105,6 +114,7 @@ impl Smtp {
                 let client = client
                     .smtp_utf8(true)
                     .credentials(creds)
+                    .authentication_mechanism(mechanism)
                     .connection_reuse(lettre::smtp::ConnectionReuseParameters::ReuseUnlimited);
                 self.transport = Some(client.transport());
                 context.call_cb(Event::SmtpConnected(format!(

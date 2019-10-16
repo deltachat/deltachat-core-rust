@@ -19,7 +19,7 @@ reqwest = "0.9.15"
 num-derive = "0.2.5"
 num-traits = "0.2.6"
 native-tls = "0.2.3"
-lettre = { git = "https://github.com/deltachat/lettre" }
+lettre = { git = "https://github.com/deltachat/lettre", branch = "feat/multi-auth" }
 imap = { git = "https://github.com/dignifiedquire/rust-imap", branch = "feat/expose-read-greeting" }
 base64 = "0.10"
 charset = "0.1"
