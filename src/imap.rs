@@ -116,8 +116,8 @@ impl Client {
         let s = stream.try_clone().expect("cloning the stream failed");
         let tls_stream = native_tls::TlsConnector::connect(&tls, domain.as_ref(), s)?;
 
-        let client = imap::Client::new(tls_stream);
-        // TODO: Read greeting
+        let mut client = imap::Client::new(tls_stream);
+        client.read_greeting()?;
 
         Ok(Client::Secure(client, stream))
     }
@@ -125,8 +125,8 @@ impl Client {
     pub fn connect_insecure<A: net::ToSocketAddrs>(addr: A) -> imap::error::Result<Self> {
         let stream = net::TcpStream::connect(addr)?;
 
-        let client = imap::Client::new(stream.try_clone().unwrap());
-        // TODO: Read greeting
+        let mut client = imap::Client::new(stream.try_clone().unwrap());
+        client.read_greeting()?;
 
         Ok(Client::Insecure(client, stream))
     }
