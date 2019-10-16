@@ -1761,9 +1761,12 @@ pub fn forward_msgs(context: &Context, msg_ids: &[u32], chat_id: u32) -> Result<
             }
             let mut msg = msg.unwrap();
             let original_param = msg.param.clone();
-            if msg.from_id != DC_CONTACT_ID_SELF {
-                msg.param.set_int(Param::Forwarded, 1);
-            }
+
+            // we tested a sort of broadcast
+            // by not marking own forwarded messages as such,
+            // however, this turned out to be to confusing and unclear.
+            msg.param.set_int(Param::Forwarded, 1);
+
             msg.param.remove(Param::GuranteeE2ee);
             msg.param.remove(Param::ForcePlaintext);
             msg.param.remove(Param::Cmd);
