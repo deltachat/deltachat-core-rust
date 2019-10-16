@@ -112,6 +112,7 @@ pub fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
                         dc_get_oauth2_addr(context, &param.addr, &param.mail_pw)
                             .and_then(|e| e.parse().ok())
                     {
+                        info!(context, "Authorized address is {}", oauth2_addr);
                         param.addr = oauth2_addr;
                         context
                             .sql

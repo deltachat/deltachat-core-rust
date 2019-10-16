@@ -297,7 +297,7 @@ impl Oauth2 {
             return None;
         }
 
-        let parsed: reqwest::Result<HashMap<String, String>> = response.json();
+        let parsed: reqwest::Result<HashMap<String, serde_json::Value>> = response.json();
         if parsed.is_err() {
             warn!(
                 context,
@@ -306,11 +306,13 @@ impl Oauth2 {
             return None;
         }
         if let Ok(response) = parsed {
+            // serde_json::Value.as_str() removes the quotes of json-strings
             let addr = response.get("email");
             if addr.is_none() {
                 warn!(context, "E-mail missing in userinfo.");
+                return None;
             }
-
+            let addr = addr.unwrap().as_str();
             addr.map(|addr| addr.to_string())
         } else {
             warn!(context, "Failed to parse userinfo.");
