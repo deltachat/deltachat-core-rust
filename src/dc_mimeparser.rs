@@ -607,12 +607,8 @@ impl<'a> MimeParser<'a> {
 
         /* regard `Content-Transfer-Encoding:` */
         let mut desired_filename = String::default();
-        let mut simplifier: Option<Simplify> = None;
         match mime_type {
             DC_MIMETYPE_TEXT_PLAIN | DC_MIMETYPE_TEXT_HTML => {
-                if simplifier.is_none() {
-                    simplifier = Some(Simplify::new());
-                }
                 /* get from `Content-Type: text/...; charset=utf-8`; must not be free()'d */
                 let charset = mailmime_content_charset_get((*mime).mm_content_type);
                 if !charset.is_null()
@@ -640,13 +636,14 @@ impl<'a> MimeParser<'a> {
                 /* check header directly as is_send_by_messenger is not yet set up */
                 let is_msgrmsg = self.lookup_optional_field("Chat-Version").is_some();
 
+                let mut simplifier = Simplify::new();
                 let simplified_txt = if decoded_data.is_empty() {
                     "".into()
                 } else {
                     let input = std::string::String::from_utf8_lossy(&decoded_data);
                     let is_html = mime_type == 70;
 
-                    simplifier.unwrap().simplify(&input, is_html, is_msgrmsg)
+                    simplifier.simplify(&input, is_html, is_msgrmsg)
                 };
                 if !simplified_txt.is_empty() {
                     let mut part = Part::default();
@@ -658,7 +655,7 @@ impl<'a> MimeParser<'a> {
                     self.do_add_single_part(part);
                 }
 
-                if simplifier.unwrap().is_forwarded {
+                if simplifier.is_forwarded {
                     self.is_forwarded = true;
                 }
             }
