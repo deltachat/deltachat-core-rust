@@ -192,7 +192,7 @@ unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
     let msgtext = msg.get_text();
     info!(
         context,
-        "{}#{}{}{}: {} (Contact#{}): {} {}{}{}{} [{}]",
+        "{}#{}{}{}: {} (Contact#{}): {} {}{}{}{}{} [{}]",
         prefix.as_ref(),
         msg.get_id() as libc::c_int,
         if msg.get_showpadlock() { "🔒" } else { "" },
@@ -211,6 +211,11 @@ unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
             "[FRESH]"
         },
         if msg.is_info() { "[INFO]" } else { "" },
+        if msg.is_forwarded() {
+            "[FORWARDED]"
+        } else {
+            ""
+        },
         statestr,
         &temp2,
     );
