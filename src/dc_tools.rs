@@ -1012,21 +1012,6 @@ mod tests {
         }
     }
 
-    fn strndup(s: *const libc::c_char, n: libc::c_ulong) -> *mut libc::c_char {
-        if s.is_null() {
-            return std::ptr::null_mut();
-        }
-
-        let end = std::cmp::min(n as usize, unsafe { strlen(s) });
-        unsafe {
-            let result = libc::malloc(end + 1);
-            memcpy(result, s as *const _, end);
-            std::ptr::write_bytes(result.offset(end as isize), b'\x00', 1);
-
-            result as *mut _
-        }
-    }
-
     #[test]
     fn test_dc_str_to_clist_1() {
         unsafe {
@@ -1303,19 +1288,6 @@ mod tests {
             .into_owned();
         dc_make_rel_path(&t.ctx, &mut foo);
         assert_eq!(foo, format!("$BLOBDIR{}foo", std::path::MAIN_SEPARATOR));
-    }
-
-    #[test]
-    fn test_strndup() {
-        unsafe {
-            let res = strndup(b"helloworld\x00" as *const u8 as *const libc::c_char, 4);
-            assert_eq!(
-                to_string_lossy(res),
-                to_string_lossy(b"hell\x00" as *const u8 as *const libc::c_char)
-            );
-            assert_eq!(strlen(res), 4);
-            free(res as *mut _);
-        }
     }
 
     #[test]
