@@ -1,4 +1,3 @@
-use std::path::Path;
 use std::ptr;
 
 use chrono::TimeZone;
@@ -12,6 +11,7 @@ use mmime::mailmime::write_mem::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
 
+use crate::blob::BlobObject;
 use crate::chat::{self, Chat};
 use crate::config::Config;
 use crate::constants::*;
@@ -794,26 +794,26 @@ fn build_body_file(
     msg: &Message,
     base_name: &str,
 ) -> Result<(*mut Mailmime, String), Error> {
-    let path_filename = match msg.param.get(Param::File) {
-        None => {
-            bail!("msg has no filename");
-        }
-        Some(path) => path,
+    let param = msg
+        .param
+        .get(Param::File)
+        .ok_or_else(|| format_err!("msg has no filename"))?;
+    let file = ParamsFile::from_param(context, param)?;
+    let blob = match file {
+        ParamsFile::FsPath(path) => BlobObject::create_from_path(context, path)?,
+        ParamsFile::Blob(blob) => blob,
     };
-    let suffix = dc_get_filesuffix_lc(path_filename).unwrap_or_else(|| "dat".into());
+    let suffix = blob.suffix().unwrap_or("dat");
 
-    /* get file name to use for sending
-    (for privacy purposes, we do not transfer the original filenames eg. for images;
-    these names are normally not needed and contain timestamps, running numbers etc.) */
-    let filename_to_send = match msg.type_0 {
+    // Get file name to use for sending.  For privacy purposes, we do
+    // not transfer the original filenames eg. for images; these names
+    // are normally not needed and contain timestamps, running numbers
+    // etc.
+    let filename_to_send: String = match msg.type_0 {
         Viewtype::Voice => chrono::Utc
             .timestamp(msg.timestamp_sort as i64, 0)
-            .format(&format!("voice-message_%Y-%m-%d_%H-%M-%S.{}", suffix))
+            .format(&format!("voice-message_%Y-%m-%d_%H-%M-%S.{}", &suffix))
             .to_string(),
-        Viewtype::Audio => Path::new(path_filename)
-            .file_name()
-            .map(|c| c.to_string_lossy().to_string())
-            .unwrap_or_default(),
         Viewtype::Image | Viewtype::Gif => format!(
             "{}.{}",
             if base_name.is_empty() {
@@ -824,18 +824,14 @@ fn build_body_file(
             &suffix,
         ),
         Viewtype::Video => format!("video.{}", &suffix),
-        _ => Path::new(path_filename)
-            .file_name()
-            .map(|c| c.to_string_lossy().to_string())
-            .unwrap_or_default(),
+        _ => blob.as_file_name().to_string(),
     };
 
     /* check mimetype */
     let mimetype = match msg.param.get(Param::MimeType) {
         Some(mtype) => mtype,
         None => {
-            let path = Path::new(path_filename);
-            if let Some(res) = message::guess_msgtype_from_suffix(&path) {
+            if let Some(res) = message::guess_msgtype_from_suffix(blob.as_rel_path()) {
                 res.1
             } else {
                 "application/octet-stream"
@@ -895,7 +891,7 @@ fn build_body_file(
         wrapmime::append_ct_param(content, "name", &filename_encoded)?;
 
         let mime_sub = mailmime_new_empty(content, mime_fields);
-        let abs_path = dc_get_abs_path(context, path_filename).to_c_string()?;
+        let abs_path = blob.to_abs_path().to_c_string()?;
         mailmime_set_body_file(mime_sub, dc_strdup(abs_path.as_ptr()));
         Ok((mime_sub, filename_to_send))
     }
@@ -912,13 +908,18 @@ pub(crate) fn vec_contains_lowercase(vec: &[String], part: &str) -> bool {
 }
 
 fn is_file_size_okay(context: &Context, msg: &Message) -> bool {
-    let mut file_size_okay = true;
-    let path = msg.param.get(Param::File).unwrap_or_default();
-    let bytes = dc_get_filebytes(context, &path);
-
-    if bytes > (49 * 1024 * 1024 / 4 * 3) {
-        file_size_okay = false;
+    match msg
+        .param
+        .get(Param::File)
+        .and_then(|param| ParamsFile::from_param(context, param).ok())
+        .map(|file| match file {
+            ParamsFile::FsPath(path) => path,
+            ParamsFile::Blob(blob) => blob.to_abs_path(),
+        }) {
+        Some(path) => {
+            let bytes = dc_get_filebytes(context, &path);
+            bytes <= (49 * 1024 * 1024 / 4 * 3)
+        }
+        None => false,
     }
-
-    file_size_okay
 }

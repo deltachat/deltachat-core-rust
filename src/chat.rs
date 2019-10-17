@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 
+use crate::blob::{BlobErrorKind, BlobObject};
 use crate::chatlist::*;
 use crate::config::*;
 use crate::constants::*;
@@ -673,30 +674,24 @@ pub fn msgtype_has_file(msgtype: Viewtype) -> bool {
 
 fn prepare_msg_common(context: &Context, chat_id: u32, msg: &mut Message) -> Result<u32, Error> {
     msg.id = 0;
-
     if msg.type_0 == Viewtype::Text {
         // the caller should check if the message text is empty
     } else if msgtype_has_file(msg.type_0) {
-        let path_filename = msg.param.get(Param::File);
-
-        ensure!(
-            path_filename.is_some(),
-            "Attachment missing for message of type #{}.",
-            msg.type_0
-        );
-
-        let mut path_filename = path_filename.unwrap().to_string();
-
-        if msg.state == MessageState::OutPreparing && !dc_is_blobdir_path(context, &path_filename) {
-            bail!("Files must be created in the blob-directory.");
-        }
-
-        ensure!(
-            dc_make_rel_and_copy(context, &mut path_filename),
-            "Failed to copy"
-        );
-
-        msg.param.set(Param::File, &path_filename);
+        let param = msg.param.get(Param::File).ok_or_else(|| {
+            format_err!("Attachment missing for message of type #{}.", msg.type_0)
+        })?;
+        let file = ParamsFile::from_param(context, param)?;
+        let blob = match file {
+            ParamsFile::FsPath(path) => {
+                if msg.is_increation() {
+                    BlobObject::from_path(context, path)?
+                } else {
+                    BlobObject::create_from_path(context, path)?
+                }
+            }
+            ParamsFile::Blob(blob) => blob,
+        };
+        msg.param.set(Param::File, blob.as_name());
         if msg.type_0 == Viewtype::File || msg.type_0 == Viewtype::Image {
             // Correct the type, take care not to correct already very special
             // formats as GIF or VOICE.
@@ -705,19 +700,21 @@ fn prepare_msg_common(context: &Context, chat_id: u32, msg: &mut Message) -> Res
             // - from FILE to AUDIO/VIDEO/IMAGE
             // - from FILE/IMAGE to GIF */
             if let Some((better_type, better_mime)) =
-                message::guess_msgtype_from_suffix(Path::new(&path_filename))
+                message::guess_msgtype_from_suffix(&blob.to_abs_path())
             {
                 msg.type_0 = better_type;
                 msg.param.set(Param::MimeType, better_mime);
             }
         } else if !msg.param.exists(Param::MimeType) {
-            if let Some((_, mime)) = message::guess_msgtype_from_suffix(Path::new(&path_filename)) {
+            if let Some((_, mime)) = message::guess_msgtype_from_suffix(&blob.to_abs_path()) {
                 msg.param.set(Param::MimeType, mime);
             }
         }
         info!(
             context,
-            "Attaching \"{}\" for message type #{}.", &path_filename, msg.type_0
+            "Attaching \"{}\" for message type #{}.",
+            blob.to_abs_path().display(),
+            msg.type_0
         );
     } else {
         bail!("Cannot send messages of type #{}.", msg.type_0);
@@ -726,6 +723,11 @@ fn prepare_msg_common(context: &Context, chat_id: u32, msg: &mut Message) -> Res
     unarchive(context, chat_id)?;
 
     let mut chat = Chat::load_from_db(context, chat_id)?;
+
+    // The OutPreparing state is set by dc_prepare_msg() before it
+    // calls this function and the message is left in the OutPreparing
+    // state.  Otherwise we got called by send_msg() and we change the
+    // state to OutPending.
     if msg.state != MessageState::OutPreparing {
         msg.state = MessageState::OutPending;
     }
@@ -788,6 +790,10 @@ pub fn unarchive(context: &Context, chat_id: u32) -> Result<(), Error> {
 /// sending may be delayed eg. due to network problems. However, from your
 /// view, you're done with the message. Sooner or later it will find its way.
 pub fn send_msg(context: &Context, chat_id: u32, msg: &mut Message) -> Result<u32, Error> {
+    // dc_prepare_msg() leaves the message state to OutPreparing, we
+    // only have to change the state to OutPending in this case.
+    // Otherwise we still have to prepare the message, which will set
+    // the state to OutPending.
     if msg.state != MessageState::OutPreparing {
         // automatically prepare normal messages
         prepare_msg_common(context, chat_id, msg)?;
@@ -874,28 +880,36 @@ fn maybe_delete_draft(context: &Context, chat_id: u32) -> bool {
 /// Set provided message as draft message for specified chat.
 ///
 /// Return true on success, false on database error.
-fn do_set_draft(context: &Context, chat_id: u32, msg: &mut Message) -> bool {
+fn do_set_draft(context: &Context, chat_id: u32, msg: &mut Message) -> Result<(), Error> {
     match msg.type_0 {
-        Viewtype::Unknown => return false,
-        Viewtype::Text => {
-            if msg.text.as_ref().map_or(false, |s| s.is_empty()) {
-                return false;
+        Viewtype::Unknown => bail!("Can not set draft of unknown type."),
+        Viewtype::Text => match msg.text.as_ref() {
+            Some(text) => {
+                if text.is_empty() {
+                    bail!("No text in draft");
+                }
             }
-        }
+            None => bail!("No text in draft"),
+        },
         _ => {
-            if let Some(path_filename) = msg.param.get(Param::File) {
-                let mut path_filename = path_filename.to_string();
-                if msg.is_increation() && !dc_is_blobdir_path(context, &path_filename) {
-                    return false;
+            let param = msg
+                .param
+                .get(Param::File)
+                .ok_or_else(|| format_err!("No file stored in params"))?;
+            let file = ParamsFile::from_param(context, param)?;
+            let blob = match file {
+                ParamsFile::FsPath(path) => {
+                    if msg.is_increation() {
+                        BlobObject::from_path(context, path)?
+                    } else {
+                        BlobObject::create_from_path(context, path)?
+                    }
                 }
-                if !dc_make_rel_and_copy(context, &mut path_filename) {
-                    return false;
-                }
-                msg.param.set(Param::File, path_filename);
-            }
+                ParamsFile::Blob(blob) => blob,
+            };
+            msg.param.set(Param::File, blob.as_name());
         }
     }
-
     sql::execute(
         context,
         &context.sql,
@@ -912,13 +926,12 @@ fn do_set_draft(context: &Context, chat_id: u32, msg: &mut Message) -> bool {
             1,
         ],
     )
-    .is_ok()
 }
 
 // similar to as dc_set_draft() but does not emit an event
 fn set_draft_raw(context: &Context, chat_id: u32, msg: &mut Message) -> bool {
     let deleted = maybe_delete_draft(context, chat_id);
-    let set = do_set_draft(context, chat_id, msg);
+    let set = do_set_draft(context, chat_id, msg).is_ok();
 
     // Can't inline. Both functions above must be called, no shortcut!
     deleted || set
@@ -1657,6 +1670,11 @@ pub fn set_chat_name(
     Ok(())
 }
 
+/// Set a new profile image for the chat.
+///
+/// The profile image can only be set when you are a member of the
+/// chat.  To remove the profile image pass an empty string for the
+/// `new_image` parameter.
 #[allow(non_snake_case)]
 pub fn set_chat_profile_image(
     context: &Context,
@@ -1664,63 +1682,62 @@ pub fn set_chat_profile_image(
     new_image: impl AsRef<str>, // XXX use PathBuf
 ) -> Result<(), Error> {
     ensure!(chat_id > DC_CHAT_ID_LAST_SPECIAL, "Invalid chat ID");
-
     let mut chat = Chat::load_from_db(context, chat_id)?;
-
-    if real_group_exists(context, chat_id) {
-        /* we should respect this - whatever we send to the group, it gets discarded anyway! */
-        if !is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF) {
-            emit_event!(
-                context,
-                Event::ErrorSelfNotInGroup(
-                    "Cannot set chat profile image; self not in group.".into()
-                )
-            );
-            bail!("Failed to set profile image");
-        }
-        let mut new_image_rel: String;
-        if !new_image.as_ref().is_empty() {
-            new_image_rel = new_image.as_ref().to_string();
-            if !dc_make_rel_and_copy(context, &mut new_image_rel) {
-                bail!("Failed to get relative path for profile image");
-            }
-        } else {
-            new_image_rel = "".to_string();
-        }
-
-        chat.param.set(Param::ProfileImage, &new_image_rel);
-        if chat.update_param(context).is_ok() {
-            if chat.is_promoted() {
-                let mut msg = Message::default();
-                msg.param
-                    .set_int(Param::Cmd, SystemMessage::GroupImageChanged as i32);
-                msg.type_0 = Viewtype::Text;
-                msg.text = Some(context.stock_system_msg(
-                    if new_image_rel == "" {
-                        msg.param.remove(Param::Arg);
-                        StockMessage::MsgGrpImgDeleted
-                    } else {
-                        msg.param.set(Param::Arg, &new_image_rel);
-                        StockMessage::MsgGrpImgChanged
-                    },
-                    "",
-                    "",
-                    DC_CONTACT_ID_SELF,
-                ));
-                msg.id = send_msg(context, chat_id, &mut msg)?;
-                emit_event!(
-                    context,
-                    Event::MsgsChanged {
-                        chat_id,
-                        msg_id: msg.id
-                    }
-                );
-            }
-            emit_event!(context, Event::ChatModified(chat_id));
-            return Ok(());
-        }
+    ensure!(
+        real_group_exists(context, chat_id),
+        "Failed to set profile image; group does not exist"
+    );
+    /* we should respect this - whatever we send to the group, it gets discarded anyway! */
+    if !is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF) {
+        emit_event!(
+            context,
+            Event::ErrorSelfNotInGroup("Cannot set chat profile image; self not in group.".into())
+        );
+        bail!("Failed to set profile image");
     }
-    bail!("Failed to set profile image");
+    let mut msg = Message::new(Viewtype::Text);
+    msg.param
+        .set_int(Param::Cmd, SystemMessage::GroupImageChanged as i32);
+    if new_image.as_ref().is_empty() {
+        chat.param.remove(Param::ProfileImage);
+        msg.param.remove(Param::Arg);
+        msg.text = Some(context.stock_system_msg(
+            StockMessage::MsgGrpImgDeleted,
+            "",
+            "",
+            DC_CONTACT_ID_SELF,
+        ));
+    } else {
+        let image_blob = BlobObject::from_path(context, Path::new(new_image.as_ref())).or_else(
+            |err| match err.kind() {
+                BlobErrorKind::WrongBlobdir => {
+                    BlobObject::create_and_copy(context, Path::new(new_image.as_ref()))
+                }
+                _ => Err(err),
+            },
+        )?;
+        chat.param.set(Param::ProfileImage, image_blob.as_name());
+        msg.param.set(Param::Arg, image_blob.as_name());
+        msg.text = Some(context.stock_system_msg(
+            StockMessage::MsgGrpImgChanged,
+            "",
+            "",
+            DC_CONTACT_ID_SELF,
+        ));
+    }
+    chat.update_param(context)?;
+    if chat.is_promoted() {
+        msg.id = send_msg(context, chat_id, &mut msg)?;
+        emit_event!(
+            context,
+            Event::MsgsChanged {
+                chat_id,
+                msg_id: msg.id
+            }
+        );
+    }
+    emit_event!(context, Event::ChatModified(chat_id));
+    Ok(())
 }
 
 pub fn forward_msgs(context: &Context, msg_ids: &[u32], chat_id: u32) -> Result<(), Error> {

@@ -13,6 +13,7 @@ use mmime::mailmime::types::*;
 use mmime::mailmime::*;
 use mmime::other::*;
 
+use crate::blob::BlobObject;
 use crate::constants::Viewtype;
 use crate::contact::*;
 use crate::context::Context;
@@ -771,8 +772,8 @@ impl<'a> MimeParser<'a> {
         desired_filename: &str,
     ) {
         /* write decoded data to new blob file */
-        let bpath = match self.context.new_blob_file(desired_filename, decoded_data) {
-            Ok(path) => path,
+        let blob = match BlobObject::create(self.context, desired_filename, decoded_data) {
+            Ok(blob) => blob,
             Err(err) => {
                 error!(
                     self.context,
@@ -786,7 +787,7 @@ impl<'a> MimeParser<'a> {
         part.typ = msg_type;
         part.mimetype = mime_type;
         part.bytes = decoded_data.len() as libc::c_int;
-        part.param.set(Param::File, bpath);
+        part.param.set(Param::File, blob.as_name());
         if let Some(raw_mime) = raw_mime {
             part.param.set(Param::MimeType, raw_mime);
         }
@@ -1220,6 +1221,7 @@ mod tests {
     }
 
     proptest! {
+        #[ignore]
         #[test]
         fn test_dc_mailmime_parse_crash_fuzzy(data in "[!-~\t ]{2000,}") {
             // this test doesn't exercise much of dc_mimeparser anymore

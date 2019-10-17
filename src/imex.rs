@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use num_traits::FromPrimitive;
 use rand::{thread_rng, Rng};
 
+use crate::blob::BlobObject;
 use crate::chat;
 use crate::config::Config;
 use crate::configure::*;
@@ -122,7 +123,8 @@ fn do_initiate_key_transfer(context: &Context) -> Result<String> {
     let setup_file_content = render_setup_file(context, &setup_code)?;
     /* encrypting may also take a while ... */
     ensure!(!context.shall_stop_ongoing(), "canceled");
-    let setup_file_name = context.new_blob_file(
+    let setup_file_blob = BlobObject::create(
+        context,
         "autocrypt-setup-message.html",
         setup_file_content.as_bytes(),
     )?;
@@ -130,7 +132,7 @@ fn do_initiate_key_transfer(context: &Context) -> Result<String> {
     let chat_id = chat::create_by_contact_id(context, 1)?;
     msg = Message::default();
     msg.type_0 = Viewtype::File;
-    msg.param.set(Param::File, setup_file_name);
+    msg.param.set(Param::File, setup_file_blob.as_name());
 
     msg.param
         .set(Param::MimeType, "application/autocrypt-setup");
@@ -402,7 +404,7 @@ fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) -> Resul
     context.sql.close(&context);
     dc_delete_file(context, context.get_dbfile());
     ensure!(
-        !dc_file_exist(context, context.get_dbfile()),
+        !context.get_dbfile().exists(),
         "Cannot delete old database."
     );
 

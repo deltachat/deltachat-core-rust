@@ -10,6 +10,7 @@ use mmime::mailmime::*;
 use mmime::other::*;
 use sha2::{Digest, Sha256};
 
+use crate::blob::BlobObject;
 use crate::chat::{self, Chat};
 use crate::config::Config;
 use crate::constants::*;
@@ -1219,7 +1220,7 @@ unsafe fn create_or_lookup_group(
             "grp-image-change {} chat {}", X_MrGrpImageChanged, chat_id
         );
         let mut changed = false;
-        let mut grpimage = "".to_string();
+        let mut grpimage: Option<BlobObject> = None;
         if X_MrGrpImageChanged == "0" {
             changed = true;
         } else {
@@ -1228,21 +1229,32 @@ unsafe fn create_or_lookup_group(
                     grpimage = part
                         .param
                         .get(Param::File)
-                        .map(|s| s.to_string())
-                        .unwrap_or_else(|| "".to_string());
+                        .and_then(|param| ParamsFile::from_param(context, param).ok())
+                        .and_then(|file| match file {
+                            ParamsFile::FsPath(path) => {
+                                BlobObject::create_from_path(context, path).ok()
+                            }
+                            ParamsFile::Blob(blob) => Some(blob),
+                        });
                     info!(context, "found image {:?}", grpimage);
                     changed = true;
                 }
             }
         }
         if changed {
-            info!(context, "New group image set to '{}'.", grpimage);
+            info!(
+                context,
+                "New group image set to '{}'.",
+                grpimage
+                    .as_ref()
+                    .map(|blob| blob.as_name().to_string())
+                    .unwrap_or_default()
+            );
             if let Ok(mut chat) = Chat::load_from_db(context, chat_id) {
-                if grpimage.is_empty() {
-                    chat.param.remove(Param::ProfileImage);
-                } else {
-                    chat.param.set(Param::ProfileImage, grpimage);
-                }
+                match grpimage {
+                    Some(blob) => chat.param.set(Param::ProfileImage, blob.as_name()),
+                    None => chat.param.remove(Param::ProfileImage),
+                };
                 chat.update_param(context)?;
                 send_EVENT_CHAT_MODIFIED = 1;
             }

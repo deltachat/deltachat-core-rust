@@ -1,9 +1,12 @@
 use std::collections::BTreeMap;
 use std::fmt;
+use std::path::PathBuf;
 use std::str;
 
 use num_traits::FromPrimitive;
 
+use crate::blob::{BlobError, BlobObject};
+use crate::context::Context;
 use crate::dc_mimeparser::SystemMessage;
 use crate::error;
 
@@ -204,9 +207,39 @@ impl Params {
     }
 }
 
+/// The value contained in [Param::File].
+///
+/// Because the only way to construct this object is from a valid
+/// UTF-8 string it is always safe to convert the value contained
+/// within the [ParamsFile::FsPath] back to a [String] or [&str].
+/// Despite the type itself does not guarantee this.
+#[derive(Debug)]
+pub enum ParamsFile<'c> {
+    FsPath(PathBuf),
+    Blob(BlobObject<'c>),
+}
+
+impl<'c> ParamsFile<'c> {
+    /// Parse the [Param::File] value into an object.
+    ///
+    /// If the value was stored into the [Params] correctly this
+    /// should not fail.
+    pub fn from_param(context: &'c Context, src: &str) -> Result<ParamsFile<'c>, BlobError> {
+        let param = match src.starts_with("$BLOBDIR/") {
+            true => ParamsFile::Blob(BlobObject::from_name(context, src.to_string())?),
+            false => ParamsFile::FsPath(PathBuf::from(src)),
+        };
+        Ok(param)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use std::path::Path;
+
+    use crate::test_utils::*;
 
     #[test]
     fn test_dc_param() {
@@ -250,5 +283,25 @@ mod tests {
             .parse()
             .unwrap();
         assert_eq!(p1.get(Param::Forwarded).unwrap(), "cli%40deltachat.de");
+    }
+
+    #[test]
+    fn test_params_file_fs_path() {
+        let t = dummy_context();
+        if let ParamsFile::FsPath(p) = ParamsFile::from_param(&t.ctx, "/foo/bar/baz").unwrap() {
+            assert_eq!(p, Path::new("/foo/bar/baz"));
+        } else {
+            assert!(false, "Wrong enum variant");
+        }
+    }
+
+    #[test]
+    fn test_params_file_blob() {
+        let t = dummy_context();
+        if let ParamsFile::Blob(b) = ParamsFile::from_param(&t.ctx, "$BLOBDIR/foo").unwrap() {
+            assert_eq!(b.as_name(), "$BLOBDIR/foo");
+        } else {
+            assert!(false, "Wrong enum variant");
+        }
     }
 }
