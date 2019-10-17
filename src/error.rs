@@ -30,6 +30,8 @@ pub enum Error {
     Base64Decode(base64::DecodeError),
     #[fail(display = "{:?}", _0)]
     FromUtf8(std::string::FromUtf8Error),
+    #[fail(display = "{}", _0)]
+    BlobError(#[cause] crate::blob::BlobError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -91,6 +93,12 @@ impl From<pgp::errors::Error> for Error {
 impl From<std::string::FromUtf8Error> for Error {
     fn from(err: std::string::FromUtf8Error) -> Error {
         Error::FromUtf8(err)
+    }
+}
+
+impl From<crate::blob::BlobError> for Error {
+    fn from(err: crate::blob::BlobError) -> Error {
+        Error::BlobError(err)
     }
 }
 

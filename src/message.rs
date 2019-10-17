@@ -147,7 +147,11 @@ impl Message {
     pub fn get_file(&self, context: &Context) -> Option<PathBuf> {
         self.param
             .get(Param::File)
-            .map(|f| dc_get_abs_path(context, f))
+            .map_or(None, |param| ParamsFile::from_param(context, param).ok())
+            .map(|file| match file {
+                ParamsFile::FsPath(path) => path,
+                ParamsFile::Blob(blob) => blob.to_abs_path(),
+            })
     }
 
     /// Check if a message has a location bound to it.
@@ -238,7 +242,12 @@ impl Message {
     pub fn get_filebytes(&self, context: &Context) -> u64 {
         self.param
             .get(Param::File)
-            .map(|file| dc_get_filebytes(context, &file))
+            .and_then(|param| ParamsFile::from_param(context, param).ok())
+            .map(|file| match file {
+                ParamsFile::FsPath(path) => path,
+                ParamsFile::Blob(blob) => blob.to_abs_path(),
+            })
+            .map(|path| dc_get_filebytes(context, &path))
             .unwrap_or_default()
     }
 
@@ -321,6 +330,14 @@ impl Message {
             || cmd != SystemMessage::Unknown && cmd != SystemMessage::AutocryptSetupMessage
     }
 
+    /// Whether the message is still being created.
+    ///
+    /// Messages with attachments might be created before the
+    /// attachment is ready.  In this case some more restrictions on
+    /// the attachment apply, e.g. if the file to be attached is still
+    /// being written to or otherwise will still change it can not be
+    /// copied to the blobdir.  Thus those attachments need to be
+    /// created immediately in the blobdir with a valid filename.
     pub fn is_increation(&self) -> bool {
         chat::msgtype_has_file(self.type_0) && self.state == MessageState::OutPreparing
     }
@@ -812,12 +829,17 @@ pub fn get_summarytext_by_raw(
                     .stock_str(StockMessage::AcSetupMsgSubject)
                     .to_string()
             } else {
-                let file_name: String = if let Some(file_path) = param.get(Param::File) {
-                    if let Some(file_name) = Path::new(file_path).file_name() {
-                        Some(file_name.to_string_lossy().into_owned())
-                    } else {
-                        None
-                    }
+                let file_name: String = if let Some(param) = param.get(Param::File) {
+                    ParamsFile::from_param(context, param)
+                        .ok()
+                        .map(|file| match file {
+                            ParamsFile::FsPath(path) => path,
+                            ParamsFile::Blob(blob) => blob.to_abs_path(),
+                        })
+                        .and_then(|path| {
+                            path.file_name()
+                                .map(|fname| fname.to_string_lossy().into_owned())
+                        })
                 } else {
                     None
                 }

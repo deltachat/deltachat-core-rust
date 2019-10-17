@@ -3,6 +3,7 @@ use std::time::Duration;
 use deltachat_derive::{FromSql, ToSql};
 use rand::{thread_rng, Rng};
 
+use crate::blob::BlobObject;
 use crate::chat;
 use crate::config::Config;
 use crate::configure::*;
@@ -138,8 +139,16 @@ impl Job {
             }
         }
 
-        if let Some(filename) = self.param.get(Param::File) {
-            if let Ok(body) = dc_read_file(context, filename) {
+        if let Some(filename) = self
+            .param
+            .get(Param::File)
+            .and_then(|param| ParamsFile::from_param(context, param).ok())
+            .map(|file| match file {
+                ParamsFile::FsPath(path) => path,
+                ParamsFile::Blob(blob) => blob.to_abs_path(),
+            })
+        {
+            if let Ok(body) = dc_read_file(context, &filename) {
                 if let Some(recipients) = self.param.get(Param::Recipients) {
                     let recipients_list = recipients
                         .split('\x1e')
@@ -568,7 +577,11 @@ pub fn job_send_msg(context: &Context, msg_id: u32) -> Result<(), Error> {
             .msg
             .param
             .get(Param::File)
-            .map(|s| s.to_string());
+            .and_then(|param| ParamsFile::from_param(context, param).ok())
+            .map(|file| match file {
+                ParamsFile::FsPath(path) => path,
+                ParamsFile::Blob(blob) => blob.to_abs_path(),
+            });
         if let Some(pathNfilename) = file_param {
             if (mimefactory.msg.type_0 == Viewtype::Image
                 || mimefactory.msg.type_0 == Viewtype::Gif)
@@ -933,9 +946,9 @@ fn add_smtp_job(context: &Context, action: Action, mimefactory: &MimeFactory) ->
             (*mimefactory.out).len,
         )
     };
-    let bpath = context.new_blob_file(&mimefactory.rfc724_mid, bytes)?;
+    let blob = BlobObject::create(context, &mimefactory.rfc724_mid, bytes)?;
     let recipients = mimefactory.recipients_addr.join("\x1e");
-    param.set(Param::File, &bpath);
+    param.set(Param::File, blob.as_name());
     param.set(Param::Recipients, &recipients);
     job_add(
         context,

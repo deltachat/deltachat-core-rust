@@ -392,10 +392,6 @@ pub(crate) fn dc_get_abs_path<P: AsRef<std::path::Path>>(
     }
 }
 
-pub(crate) fn dc_file_exist(context: &Context, path: impl AsRef<std::path::Path>) -> bool {
-    dc_get_abs_path(context, &path).exists()
-}
-
 pub(crate) fn dc_get_filebytes(context: &Context, path: impl AsRef<std::path::Path>) -> u64 {
     let path_abs = dc_get_abs_path(context, &path);
     match fs::metadata(&path_abs) {
@@ -543,41 +539,6 @@ pub(crate) fn dc_get_next_backup_path(
         }
     }
     bail!("could not create backup file, disk full?");
-}
-
-pub(crate) fn dc_is_blobdir_path(context: &Context, path: impl AsRef<str>) -> bool {
-    context
-        .get_blobdir()
-        .to_str()
-        .map(|s| path.as_ref().starts_with(s))
-        .unwrap_or_default()
-        || path.as_ref().starts_with("$BLOBDIR")
-}
-
-fn dc_make_rel_path(context: &Context, path: &mut String) {
-    if context
-        .get_blobdir()
-        .to_str()
-        .map(|s| path.starts_with(s))
-        .unwrap_or_default()
-    {
-        *path = path.replace(
-            context.get_blobdir().to_str().unwrap_or_default(),
-            "$BLOBDIR",
-        );
-    }
-}
-
-pub(crate) fn dc_make_rel_and_copy(context: &Context, path: &mut String) -> bool {
-    if dc_is_blobdir_path(context, &path) {
-        dc_make_rel_path(context, path);
-        return true;
-    }
-    if let Ok(blobdir_path) = context.copy_to_blobdir(&path) {
-        *path = blobdir_path;
-        return true;
-    }
-    false
 }
 
 /// Error type for the [OsStrExt] trait
@@ -1286,19 +1247,6 @@ mod tests {
     }
 
     #[test]
-    fn test_dc_make_rel_path() {
-        let t = dummy_context();
-        let mut foo: String = t
-            .ctx
-            .get_blobdir()
-            .join("foo")
-            .to_string_lossy()
-            .into_owned();
-        dc_make_rel_path(&t.ctx, &mut foo);
-        assert_eq!(foo, format!("$BLOBDIR{}foo", std::path::MAIN_SEPARATOR));
-    }
-
-    #[test]
     fn test_file_get_safe_basename() {
         assert_eq!(get_safe_basename("12312/hello"), "hello");
         assert_eq!(get_safe_basename("12312\\hello"), "hello");
@@ -1315,6 +1263,11 @@ mod tests {
     fn test_file_handling() {
         let t = dummy_context();
         let context = &t.ctx;
+        let dc_file_exist = |ctx: &Context, fname: &str| {
+            ctx.get_blobdir()
+                .join(Path::new(fname).file_name().unwrap())
+                .exists()
+        };
 
         assert!(!dc_delete_file(context, "$BLOBDIR/lkqwjelqkwlje"));
         if dc_file_exist(context, "$BLOBDIR/foobar")
@@ -1338,10 +1291,6 @@ mod tests {
             .to_string_lossy()
             .to_string();
 
-        assert!(dc_is_blobdir_path(context, &abs_path));
-
-        assert!(dc_is_blobdir_path(context, "$BLOBDIR/fofo",));
-        assert!(!dc_is_blobdir_path(context, "/BLOBDIR/fofo",));
         assert!(dc_file_exist(context, &abs_path));
 
         assert!(dc_copy_file(context, "$BLOBDIR/foobar", "$BLOBDIR/dada",));
