@@ -735,6 +735,14 @@ pub fn to_string_lossy(s: *const libc::c_char) -> String {
     cstr.to_string_lossy().to_string()
 }
 
+pub fn to_opt_string_lossy(s: *const libc::c_char) -> Option<String> {
+    if s.is_null() {
+        return None;
+    }
+
+    Some(to_string_lossy(s))
+}
+
 pub fn as_str<'a>(s: *const libc::c_char) -> &'a str {
     as_str_safe(s).unwrap_or_else(|err| panic!("{}", err))
 }
