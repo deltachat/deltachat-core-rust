@@ -25,7 +25,7 @@ use num_traits::{FromPrimitive, ToPrimitive};
 use deltachat::contact::Contact;
 use deltachat::context::Context;
 use deltachat::dc_tools::{
-    as_opt_str, as_path, as_str, dc_strdup, to_string_lossy, OsStrExt, StrExt,
+    as_path, as_str, dc_strdup, to_opt_string_lossy, to_string_lossy, OsStrExt, StrExt,
 };
 use deltachat::stock::StockMessage;
 use deltachat::*;
@@ -309,7 +309,10 @@ pub unsafe extern "C" fn dc_set_config(
         // When ctx.set_config() fails it already logged the error.
         // TODO: Context::set_config() should not log this
         Ok(key) => ffi_context
-            .with_inner(|ctx| ctx.set_config(key, as_opt_str(value)).is_ok() as libc::c_int)
+            .with_inner(|ctx| {
+                ctx.set_config(key, to_opt_string_lossy(value).as_ref().map(|x| x.as_str()))
+                    .is_ok() as libc::c_int
+            })
             .unwrap_or(0),
         Err(_) => {
             ffi_context.error("dc_set_config(): invalid key");
@@ -1569,7 +1572,7 @@ pub unsafe extern "C" fn dc_imex(
 
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| imex::imex(ctx, what, as_opt_str(param1)))
+        .with_inner(|ctx| imex::imex(ctx, what, to_opt_string_lossy(param1)))
         .ok();
 }
 
@@ -2612,8 +2615,7 @@ pub unsafe extern "C" fn dc_msg_set_text(msg: *mut dc_msg_t, text: *const libc::
         return;
     }
     let ffi_msg = &mut *msg;
-    // TODO: {text} equal to NULL is treated as "", which is strange. Does anyone rely on it?
-    ffi_msg.message.set_text(as_opt_str(text).map(Into::into))
+    ffi_msg.message.set_text(to_opt_string_lossy(text))
 }
 
 #[no_mangle]
@@ -2627,7 +2629,10 @@ pub unsafe extern "C" fn dc_msg_set_file(
         return;
     }
     let ffi_msg = &mut *msg;
-    ffi_msg.message.set_file(as_str(file), as_opt_str(filemime))
+    ffi_msg.message.set_file(
+        as_str(file),
+        to_opt_string_lossy(filemime).as_ref().map(|x| x.as_str()),
+    )
 }
 
 #[no_mangle]
