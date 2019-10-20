@@ -86,7 +86,7 @@ impl Chatlist {
         query: Option<&str>,
         query_contact_id: Option<u32>,
     ) -> Result<Self> {
-        let mut add_archived_link_item = 0;
+        let mut add_archived_link_item = false;
 
         // select with left join and minimum:
         // - the inner select must use `hidden` and _not_ `m.hidden`
@@ -184,12 +184,12 @@ impl Chatlist {
                 if last_deaddrop_fresh_msg_id > 0 {
                     ids.insert(0, (DC_CHAT_ID_DEADDROP, last_deaddrop_fresh_msg_id));
                 }
-                add_archived_link_item = 1;
+                add_archived_link_item = true;
             }
             ids
         };
 
-        if 0 != add_archived_link_item && dc_get_archived_cnt(context) > 0 {
+        if add_archived_link_item && dc_get_archived_cnt(context) > 0 {
             if ids.is_empty() && 0 != listflags & DC_GCL_ADD_ALLDONE_HINT {
                 ids.push((DC_CHAT_ID_ALLDONE_HINT, 0));
             }
