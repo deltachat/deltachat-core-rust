@@ -16,6 +16,7 @@ use crate::imap::*;
 use crate::imex::*;
 use crate::location;
 use crate::login_param::LoginParam;
+use crate::message::MsgId;
 use crate::message::{self, Message, MessageState};
 use crate::mimefactory::{vec_contains_lowercase, Loaded, MimeFactory};
 use crate::param::*;
@@ -156,7 +157,9 @@ impl Job {
                     /* if there is a msg-id and it does not exist in the db, cancel sending.
                     this happends if dc_delete_msgs() was called
                     before the generated mime was sent out */
-                    if 0 != self.foreign_id && !message::exists(context, self.foreign_id) {
+                    if 0 != self.foreign_id
+                        && !message::exists(context, MsgId::new(self.foreign_id))
+                    {
                         warn!(
                             context,
                             "Not sending Message {} as it was deleted", self.foreign_id
@@ -180,7 +183,7 @@ impl Job {
                             if 0 != self.foreign_id {
                                 message::update_msg_state(
                                     context,
-                                    self.foreign_id,
+                                    MsgId::new(self.foreign_id),
                                     MessageState::OutDelivered,
                                 );
                                 let chat_id: i32 = context
@@ -193,7 +196,7 @@ impl Job {
                                     .unwrap_or_default();
                                 context.call_cb(Event::MsgDelivered {
                                     chat_id: chat_id as u32,
-                                    msg_id: self.foreign_id,
+                                    msg_id: MsgId::new(self.foreign_id),
                                 });
                             }
                             // now also delete the generated file
@@ -217,7 +220,7 @@ impl Job {
     fn do_DC_JOB_MOVE_MSG(&mut self, context: &Context) {
         let inbox = context.inbox.read().unwrap();
 
-        if let Ok(msg) = Message::load_from_db(context, self.foreign_id) {
+        if let Ok(msg) = Message::load_from_db(context, MsgId::new(self.foreign_id)) {
             if context
                 .sql
                 .get_raw_config_int(context, "folders_configured")
@@ -262,7 +265,7 @@ impl Job {
     fn do_DC_JOB_DELETE_MSG_ON_IMAP(&mut self, context: &Context) {
         let inbox = context.inbox.read().unwrap();
 
-        if let Ok(mut msg) = Message::load_from_db(context, self.foreign_id) {
+        if let Ok(mut msg) = Message::load_from_db(context, MsgId::new(self.foreign_id)) {
             if !msg.rfc724_mid.is_empty() {
                 /* eg. device messages have no Message-ID */
                 if message::rfc724_mid_cnt(context, &msg.rfc724_mid) > 1 {
@@ -290,7 +293,7 @@ impl Job {
     fn do_DC_JOB_MARKSEEN_MSG_ON_IMAP(&mut self, context: &Context) {
         let inbox = context.inbox.read().unwrap();
 
-        if let Ok(msg) = Message::load_from_db(context, self.foreign_id) {
+        if let Ok(msg) = Message::load_from_db(context, MsgId::new(self.foreign_id)) {
             let folder = msg.server_folder.as_ref().unwrap();
             match inbox.set_seen(context, folder, msg.server_uid) {
                 ImapResult::RetryLater => {
@@ -561,7 +564,7 @@ pub fn job_action_exists(context: &Context, action: Action) -> bool {
 
 /* special case for DC_JOB_SEND_MSG_TO_SMTP */
 #[allow(non_snake_case)]
-pub fn job_send_msg(context: &Context, msg_id: u32) -> Result<(), Error> {
+pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<(), Error> {
     let mut mimefactory = MimeFactory::load_msg(context, msg_id)?;
 
     if chat::msgtype_has_file(mimefactory.msg.type_0) {
@@ -858,7 +861,11 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                 }
             } else {
                 if job.action == Action::SendMsgToSmtp {
-                    message::set_msg_failed(context, job.foreign_id, job.pending_error.as_ref());
+                    message::set_msg_failed(
+                        context,
+                        MsgId::new(job.foreign_id),
+                        job.pending_error.as_ref(),
+                    );
                 }
                 job.delete(context);
             }
@@ -909,7 +916,7 @@ pub fn connect_to_inbox(context: &Context, inbox: &Imap) -> libc::c_int {
     ret_connected
 }
 
-fn send_mdn(context: &Context, msg_id: u32) -> Result<(), Error> {
+fn send_mdn(context: &Context, msg_id: MsgId) -> Result<(), Error> {
     let mut mimefactory = MimeFactory::load_mdn(context, msg_id)?;
     unsafe { mimefactory.render()? };
     add_smtp_job(context, Action::SendMdn, &mut mimefactory)?;
@@ -938,7 +945,7 @@ fn add_smtp_job(context: &Context, action: Action, mimefactory: &MimeFactory) ->
         context,
         action,
         (if mimefactory.loaded == Loaded::Message {
-            mimefactory.msg.id
+            mimefactory.msg.id.to_u32() as i32
         } else {
             0
         }) as libc::c_int,

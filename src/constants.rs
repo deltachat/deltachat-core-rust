@@ -68,7 +68,7 @@ pub const DC_GCL_ARCHIVED_ONLY: usize = 0x01;
 pub const DC_GCL_NO_SPECIALS: usize = 0x02;
 pub const DC_GCL_ADD_ALLDONE_HINT: usize = 0x04;
 
-const DC_GCM_ADDDAYMARKER: usize = 0x01;
+pub const DC_GCM_ADDDAYMARKER: u32 = 0x01;
 
 pub const DC_GCL_VERIFIED_ONLY: usize = 0x01;
 pub const DC_GCL_ADD_SELF: usize = 0x02;
@@ -120,7 +120,7 @@ impl Default for Chattype {
 }
 
 pub const DC_MSG_ID_MARKER1: u32 = 1;
-const DC_MSG_ID_DAYMARKER: u32 = 9;
+pub const DC_MSG_ID_DAYMARKER: u32 = 9;
 pub const DC_MSG_ID_LAST_SPECIAL: u32 = 9;
 
 /// approx. max. length returned by dc_msg_get_text()

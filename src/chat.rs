@@ -1,5 +1,7 @@
 use std::path::{Path, PathBuf};
 
+use itertools::Itertools;
+
 use crate::blob::{BlobErrorKind, BlobObject};
 use crate::chatlist::*;
 use crate::config::*;
@@ -11,7 +13,7 @@ use crate::dc_tools::*;
 use crate::error::Error;
 use crate::events::Event;
 use crate::job::*;
-use crate::message::{self, Message, MessageState};
+use crate::message::{self, InvalidMsgId, Message, MessageState, MsgId};
 use crate::param::*;
 use crate::sql::{self, Sql};
 use crate::stock::StockMessage;
@@ -238,7 +240,7 @@ impl Chat {
         context: &Context,
         msg: &mut Message,
         timestamp: i64,
-    ) -> Result<u32, Error> {
+    ) -> Result<MsgId, Error> {
         let mut do_guarantee_e2ee: bool;
         let e2ee_enabled: bool;
         let mut new_references = "".into();
@@ -252,7 +254,7 @@ impl Chat {
             || self.typ == Chattype::VerifiedGroup)
         {
             error!(context, "Cannot send to chat type #{}.", self.typ,);
-            return Ok(0);
+            bail!("Cannot set to chat type #{}", self.typ);
         }
 
         if (self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup)
@@ -262,7 +264,7 @@ impl Chat {
                 context,
                 Event::ErrorSelfNotInGroup("Cannot send message; self not in group.".into())
             );
-            return Ok(0);
+            bail!("Cannot set message; self not in group.");
         }
 
         if let Some(from) = context.get_config(Config::ConfiguredAddr) {
@@ -286,7 +288,10 @@ impl Chat {
                         context,
                         "Cannot send message, contact for chat #{} not found.", self.id,
                     );
-                    return Ok(0);
+                    bail!(
+                        "Cannot set message, contact for chat #{} not found.",
+                        self.id
+                    );
                 }
             } else {
                 if self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup {
@@ -472,7 +477,7 @@ impl Chat {
             error!(context, "Cannot send message, not configured.",);
         }
 
-        Ok(msg_id)
+        Ok(MsgId::new(msg_id))
     }
 }
 
@@ -494,7 +499,7 @@ impl Chat {
 /// to the message and, depending on the contacts origin, messages from the
 /// same group may be shown or not - so, all in all, it is fine to show the
 /// contact name only.
-pub fn create_by_msg_id(context: &Context, msg_id: u32) -> Result<u32, Error> {
+pub fn create_by_msg_id(context: &Context, msg_id: MsgId) -> Result<u32, Error> {
     let mut chat_id = 0;
     let mut send_event = false;
 
@@ -514,7 +519,7 @@ pub fn create_by_msg_id(context: &Context, msg_id: u32) -> Result<u32, Error> {
     if send_event {
         context.call_cb(Event::MsgsChanged {
             chat_id: 0,
-            msg_id: 0,
+            msg_id: MsgId::new(0),
         });
     }
 
@@ -557,7 +562,7 @@ pub fn create_by_contact_id(context: &Context, contact_id: u32) -> Result<u32, E
 
     context.call_cb(Event::MsgsChanged {
         chat_id: 0,
-        msg_id: 0,
+        msg_id: MsgId::new(0),
     });
 
     Ok(chat_id)
@@ -643,7 +648,7 @@ pub fn prepare_msg<'a>(
     context: &'a Context,
     chat_id: u32,
     msg: &mut Message,
-) -> Result<u32, Error> {
+) -> Result<MsgId, Error> {
     ensure!(
         chat_id > DC_CHAT_ID_LAST_SPECIAL,
         "Cannot prepare message for special chat"
@@ -672,8 +677,8 @@ pub fn msgtype_has_file(msgtype: Viewtype) -> bool {
     }
 }
 
-fn prepare_msg_common(context: &Context, chat_id: u32, msg: &mut Message) -> Result<u32, Error> {
-    msg.id = 0;
+fn prepare_msg_common(context: &Context, chat_id: u32, msg: &mut Message) -> Result<MsgId, Error> {
+    msg.id = MsgId::new_unset();
     if msg.type_0 == Viewtype::Text {
         // the caller should check if the message text is empty
     } else if msgtype_has_file(msg.type_0) {
@@ -779,7 +784,7 @@ pub fn unarchive(context: &Context, chat_id: u32) -> Result<(), Error> {
 /// However, this does not imply, the message really reached the recipient -
 /// sending may be delayed eg. due to network problems. However, from your
 /// view, you're done with the message. Sooner or later it will find its way.
-pub fn send_msg(context: &Context, chat_id: u32, msg: &mut Message) -> Result<u32, Error> {
+pub fn send_msg(context: &Context, chat_id: u32, msg: &mut Message) -> Result<MsgId, Error> {
     // dc_prepare_msg() leaves the message state to OutPreparing, we
     // only have to change the state to OutPending in this case.
     // Otherwise we still have to prepare the message, which will set
@@ -811,12 +816,17 @@ pub fn send_msg(context: &Context, chat_id: u32, msg: &mut Message) -> Result<u3
         let forwards = msg.param.get(Param::PrepForwards);
         if let Some(forwards) = forwards {
             for forward in forwards.split(' ') {
-                let id: i32 = forward.parse().unwrap_or_default();
-                if 0 == id {
-                    // avoid hanging if user tampers with db
-                    break;
-                } else if let Ok(mut copy) = Message::load_from_db(context, id as u32) {
-                    send_msg(context, 0, &mut copy)?;
+                match forward
+                    .parse::<u32>()
+                    .map_err(|_| InvalidMsgId)
+                    .map(|id| MsgId::new(id))
+                {
+                    Ok(msg_id) => {
+                        if let Ok(mut msg) = Message::load_from_db(context, msg_id) {
+                            send_msg(context, 0, &mut msg)?;
+                        };
+                    }
+                    Err(_) => (),
                 }
             }
             msg.param.remove(Param::PrepForwards);
@@ -827,7 +837,11 @@ pub fn send_msg(context: &Context, chat_id: u32, msg: &mut Message) -> Result<u3
     Ok(msg.id)
 }
 
-pub fn send_text_msg(context: &Context, chat_id: u32, text_to_send: String) -> Result<u32, Error> {
+pub fn send_text_msg(
+    context: &Context,
+    chat_id: u32,
+    text_to_send: String,
+) -> Result<MsgId, Error> {
     ensure!(
         chat_id > DC_CHAT_ID_LAST_SPECIAL,
         "bad chat_id = {} <= 9",
@@ -851,7 +865,10 @@ pub fn set_draft(context: &Context, chat_id: u32, msg: Option<&mut Message>) {
     };
 
     if changed {
-        context.call_cb(Event::MsgsChanged { chat_id, msg_id: 0 });
+        context.call_cb(Event::MsgsChanged {
+            chat_id,
+            msg_id: MsgId::new(0),
+        });
     }
 }
 
@@ -859,12 +876,13 @@ pub fn set_draft(context: &Context, chat_id: u32, msg: Option<&mut Message>) {
 ///
 /// Return {true}, if message was deleted, {false} otherwise.
 fn maybe_delete_draft(context: &Context, chat_id: u32) -> bool {
-    let draft = get_draft_msg_id(context, chat_id);
-    if draft != 0 {
-        Message::delete_from_db(context, draft);
-        return true;
+    match get_draft_msg_id(context, chat_id) {
+        Some(msg_id) => {
+            Message::delete_from_db(context, msg_id);
+            true
+        }
+        None => false,
     }
-    false
 }
 
 /// Set provided message as draft message for specified chat.
@@ -916,97 +934,113 @@ fn set_draft_raw(context: &Context, chat_id: u32, msg: &mut Message) -> bool {
     deleted || set
 }
 
-fn get_draft_msg_id(context: &Context, chat_id: u32) -> u32 {
-    context
-        .sql
-        .query_get_value::<_, i32>(
-            context,
-            "SELECT id FROM msgs WHERE chat_id=? AND state=?;",
-            params![chat_id as i32, MessageState::OutDraft],
-        )
-        .unwrap_or_default() as u32
+fn get_draft_msg_id(context: &Context, chat_id: u32) -> Option<MsgId> {
+    context.sql.query_get_value::<_, MsgId>(
+        context,
+        "SELECT id FROM msgs WHERE chat_id=? AND state=?;",
+        params![chat_id as i32, MessageState::OutDraft],
+    )
 }
 
 pub fn get_draft(context: &Context, chat_id: u32) -> Result<Option<Message>, Error> {
     if chat_id <= DC_CHAT_ID_LAST_SPECIAL {
         return Ok(None);
     }
-    let draft_msg_id = get_draft_msg_id(context, chat_id);
-    if draft_msg_id == 0 {
-        return Ok(None);
+    match get_draft_msg_id(context, chat_id) {
+        Some(draft_msg_id) => Ok(Some(Message::load_from_db(context, draft_msg_id)?)),
+        None => Ok(None),
     }
-    Ok(Some(Message::load_from_db(context, draft_msg_id)?))
 }
 
-pub fn get_chat_msgs(context: &Context, chat_id: u32, flags: u32, marker1before: u32) -> Vec<u32> {
-    let mut ret = Vec::new();
-
-    let mut last_day = 0;
-    let cnv_to_local = dc_gm2local_offset();
-
-    let process_row = |row: &rusqlite::Row| Ok((row.get::<_, i32>(0)?, row.get::<_, i64>(1)?));
+pub fn get_chat_msgs(
+    context: &Context,
+    chat_id: u32,
+    flags: u32,
+    marker1before: Option<MsgId>,
+) -> Vec<MsgId> {
+    let process_row =
+        |row: &rusqlite::Row| Ok((row.get::<_, MsgId>("id")?, row.get::<_, i64>("timestamp")?));
     let process_rows = |rows: rusqlite::MappedRows<_>| {
+        let mut ret = Vec::new();
+        let mut last_day = 0;
+        let cnv_to_local = dc_gm2local_offset();
         for row in rows {
             let (curr_id, ts) = row?;
-            if curr_id as u32 == marker1before {
-                ret.push(DC_MSG_ID_MARKER1);
+            if let Some(marker_id) = marker1before {
+                if curr_id == marker_id {
+                    ret.push(MsgId::new(DC_MSG_ID_MARKER1));
+                }
             }
-            if 0 != flags & 0x1 {
+            if (flags & DC_GCM_ADDDAYMARKER) != 0 {
                 let curr_local_timestamp = ts + cnv_to_local;
                 let curr_day = curr_local_timestamp / 86400;
                 if curr_day != last_day {
-                    ret.push(DC_MSG_ID_LAST_SPECIAL);
+                    ret.push(MsgId::new(DC_MSG_ID_DAYMARKER));
                     last_day = curr_day;
                 }
             }
-            ret.push(curr_id as u32);
+            ret.push(curr_id);
         }
-        Ok(())
+        Ok(ret)
     };
-
-    let success = if chat_id == 1 {
+    let success = if chat_id == DC_CHAT_ID_DEADDROP {
         let show_emails = context.get_config_int(Config::ShowEmails);
         context.sql.query_map(
-            "SELECT m.id, m.timestamp FROM msgs m \
-             LEFT JOIN chats ON m.chat_id=chats.id \
-             LEFT JOIN contacts ON m.from_id=contacts.id WHERE m.from_id!=1   \
-             AND m.from_id!=2   \
-             AND m.hidden=0    \
-             AND chats.blocked=2   \
-             AND contacts.blocked=0   \
-             AND m.msgrmsg>=?  \
-             ORDER BY m.timestamp,m.id;",
+            concat!(
+                "SELECT m.id AS id, m.timestamp AS timestamp",
+                " FROM msgs m",
+                " LEFT JOIN chats",
+                "        ON m.chat_id=chats.id",
+                " LEFT JOIN contacts",
+                "        ON m.from_id=contacts.id",
+                " WHERE m.from_id!=1",
+                "   AND m.from_id!=2",
+                "   AND m.hidden=0",
+                "   AND chats.blocked=2",
+                "   AND contacts.blocked=0",
+                "   AND m.msgrmsg>=?",
+                " ORDER BY m.timestamp,m.id;"
+            ),
             params![if show_emails == 2 { 0 } else { 1 }],
             process_row,
             process_rows,
         )
-    } else if chat_id == 5 {
+    } else if chat_id == DC_CHAT_ID_STARRED {
         context.sql.query_map(
-            "SELECT m.id, m.timestamp FROM msgs m \
-             LEFT JOIN contacts ct ON m.from_id=ct.id WHERE m.starred=1    \
-             AND m.hidden=0    \
-             AND ct.blocked=0 \
-             ORDER BY m.timestamp,m.id;",
+            concat!(
+                "SELECT m.id AS id, m.timestamp AS timestamp",
+                " FROM msgs m",
+                " LEFT JOIN contacts ct",
+                "        ON m.from_id=ct.id",
+                " WHERE m.starred=1",
+                "   AND m.hidden=0",
+                "   AND ct.blocked=0",
+                " ORDER BY m.timestamp,m.id;"
+            ),
             params![],
             process_row,
             process_rows,
         )
     } else {
         context.sql.query_map(
-            "SELECT m.id, m.timestamp FROM msgs m \
-             WHERE m.chat_id=?    \
-             AND m.hidden=0  \
-             ORDER BY m.timestamp,m.id;",
+            concat!(
+                "SELECT m.id AS id, m.timestamp AS timestamp",
+                " FROM msgs m",
+                " WHERE m.chat_id=?",
+                "   AND m.hidden=0",
+                " ORDER BY m.timestamp, m.id;"
+            ),
             params![chat_id as i32],
             process_row,
             process_rows,
         )
     };
-
-    if success.is_ok() {
-        ret
-    } else {
-        Vec::new()
+    match success {
+        Ok(ret) => ret,
+        Err(e) => {
+            error!(context, "Failed to get chat messages: {}", e);
+            Vec::new()
+        }
     }
 }
 
@@ -1053,7 +1087,7 @@ pub fn marknoticed_chat(context: &Context, chat_id: u32) -> Result<(), Error> {
 
     context.call_cb(Event::MsgsChanged {
         chat_id: 0,
-        msg_id: 0,
+        msg_id: MsgId::new(0),
     });
 
     Ok(())
@@ -1077,7 +1111,7 @@ pub fn marknoticed_all_chats(context: &Context) -> Result<(), Error> {
     )?;
 
     context.call_cb(Event::MsgsChanged {
-        msg_id: 0,
+        msg_id: MsgId::new(0),
         chat_id: 0,
     });
 
@@ -1090,31 +1124,44 @@ pub fn get_chat_media(
     msg_type: Viewtype,
     msg_type2: Viewtype,
     msg_type3: Viewtype,
-) -> Vec<u32> {
-    context.sql.query_map(
-        "SELECT id FROM msgs WHERE chat_id=? AND (type=? OR type=? OR type=?) ORDER BY timestamp, id;",
-        params![
-            chat_id as i32,
-            msg_type,
-            if msg_type2 != Viewtype::Unknown {
-                msg_type2
-            } else {
-                msg_type
-            }, if msg_type3 != Viewtype::Unknown {
-                msg_type3
-            } else {
-                msg_type
+) -> Vec<MsgId> {
+    context
+        .sql
+        .query_map(
+            concat!(
+                "SELECT",
+                "    id",
+                " FROM msgs",
+                " WHERE chat_id=? AND (type=? OR type=? OR type=?)",
+                " ORDER BY timestamp, id;"
+            ),
+            params![
+                chat_id as i32,
+                msg_type,
+                if msg_type2 != Viewtype::Unknown {
+                    msg_type2
+                } else {
+                    msg_type
+                },
+                if msg_type3 != Viewtype::Unknown {
+                    msg_type3
+                } else {
+                    msg_type
+                },
+            ],
+            |row| row.get::<_, MsgId>(0),
+            |ids| {
+                let mut ret = Vec::new();
+                for id in ids {
+                    match id {
+                        Ok(msg_id) => ret.push(msg_id),
+                        Err(_) => (),
+                    }
+                }
+                Ok(ret)
             },
-        ],
-        |row| row.get::<_, i32>(0),
-        |ids| {
-            let mut ret = Vec::new();
-            for id in ids {
-                ret.push(id? as u32);
-            }
-            Ok(ret)
-        }
-    ).unwrap_or_default()
+        )
+        .unwrap_or_default()
 }
 
 /// Indicates the direction over which to iterate.
@@ -1127,16 +1174,16 @@ pub enum Direction {
 
 pub fn get_next_media(
     context: &Context,
-    curr_msg_id: u32,
+    curr_msg_id: MsgId,
     direction: Direction,
     msg_type: Viewtype,
     msg_type2: Viewtype,
     msg_type3: Viewtype,
-) -> u32 {
-    let mut ret = 0;
+) -> Option<MsgId> {
+    let mut ret: Option<MsgId> = None;
 
     if let Ok(msg) = Message::load_from_db(context, curr_msg_id) {
-        let list = get_chat_media(
+        let list: Vec<MsgId> = get_chat_media(
             context,
             msg.chat_id,
             if msg_type != Viewtype::Unknown {
@@ -1152,12 +1199,12 @@ pub fn get_next_media(
                 match direction {
                     Direction::Forward => {
                         if i + 1 < list.len() {
-                            ret = list[i + 1]
+                            ret = Some(list[i + 1]);
                         }
                     }
                     Direction::Backward => {
                         if i >= 1 {
-                            ret = list[i - 1];
+                            ret = Some(list[i - 1]);
                         }
                     }
                 }
@@ -1196,7 +1243,7 @@ pub fn archive(context: &Context, chat_id: u32, archive: bool) -> Result<(), Err
     )?;
 
     context.call_cb(Event::MsgsChanged {
-        msg_id: 0,
+        msg_id: MsgId::new(0),
         chat_id: 0,
     });
 
@@ -1241,7 +1288,7 @@ pub fn delete(context: &Context, chat_id: u32) -> Result<(), Error> {
     )?;
 
     context.call_cb(Event::MsgsChanged {
-        msg_id: 0,
+        msg_id: MsgId::new(0),
         chat_id: 0,
     });
 
@@ -1310,7 +1357,7 @@ pub fn create_group_chat(
         }
 
         context.call_cb(Event::MsgsChanged {
-            msg_id: 0,
+            msg_id: MsgId::new(0),
             chat_id: 0,
         });
     }
@@ -1425,10 +1472,13 @@ pub(crate) fn add_contact_to_chat_ex(
         msg.id = send_msg(context, chat_id, &mut msg)?;
         context.call_cb(Event::MsgsChanged {
             chat_id,
-            msg_id: msg.id,
+            msg_id: MsgId::from(msg.id),
         });
     }
-    context.call_cb(Event::MsgsChanged { chat_id, msg_id: 0 });
+    context.call_cb(Event::MsgsChanged {
+        chat_id,
+        msg_id: MsgId::new(0),
+    });
     Ok(true)
 }
 
@@ -1719,39 +1769,33 @@ pub fn set_chat_profile_image(
     Ok(())
 }
 
-pub fn forward_msgs(context: &Context, msg_ids: &[u32], chat_id: u32) -> Result<(), Error> {
-    ensure!(!msg_ids.is_empty(), "empty msgs_ids: no one to forward to");
+pub fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: u32) -> Result<(), Error> {
+    ensure!(!msg_ids.is_empty(), "empty msgs_ids: nothing to forward");
     ensure!(
         chat_id > DC_CHAT_ID_LAST_SPECIAL,
         "can not forward to special chat"
     );
 
-    let mut created_db_entries = Vec::new();
+    let mut created_chats: Vec<u32> = Vec::new();
+    let mut created_msgs: Vec<MsgId> = Vec::new();
     let mut curr_timestamp: i64;
 
     unarchive(context, chat_id)?;
     if let Ok(mut chat) = Chat::load_from_db(context, chat_id) {
         curr_timestamp = dc_create_smeared_timestamps(context, msg_ids.len());
-        let idsstr = msg_ids
-            .iter()
-            .enumerate()
-            .fold(String::with_capacity(2 * msg_ids.len()), |acc, (i, n)| {
-                (if i == 0 { acc } else { acc + "," }) + &n.to_string()
-            });
-
         let ids = context.sql.query_map(
             format!(
                 "SELECT id FROM msgs WHERE id IN({}) ORDER BY timestamp,id",
-                idsstr
+                msg_ids.iter().map(|_| "?").join(",")
             ),
-            params![],
-            |row| row.get::<_, i32>(0),
+            msg_ids,
+            |row| row.get::<_, MsgId>(0),
             |ids| ids.collect::<Result<Vec<_>, _>>().map_err(Into::into),
         )?;
 
         for id in ids {
-            let src_msg_id = id;
-            let msg = Message::load_from_db(context, src_msg_id as u32);
+            let src_msg_id: MsgId = id;
+            let msg = Message::load_from_db(context, src_msg_id);
             if msg.is_err() {
                 break;
             }
@@ -1767,22 +1811,21 @@ pub fn forward_msgs(context: &Context, msg_ids: &[u32], chat_id: u32) -> Result<
             msg.param.remove(Param::ForcePlaintext);
             msg.param.remove(Param::Cmd);
 
-            let new_msg_id: u32;
+            let new_msg_id: MsgId;
             if msg.state == MessageState::OutPreparing {
                 let fresh9 = curr_timestamp;
                 curr_timestamp += 1;
-                new_msg_id = chat
-                    .prepare_msg_raw(context, &mut msg, fresh9)
-                    .unwrap_or_default();
+                new_msg_id = chat.prepare_msg_raw(context, &mut msg, fresh9)?;
                 let save_param = msg.param.clone();
                 msg.param = original_param;
-                msg.id = src_msg_id as u32;
+                msg.id = src_msg_id;
 
                 if let Some(old_fwd) = msg.param.get(Param::PrepForwards) {
-                    let new_fwd = format!("{} {}", old_fwd, new_msg_id);
+                    let new_fwd = format!("{} {}", old_fwd, new_msg_id.to_u32());
                     msg.param.set(Param::PrepForwards, new_fwd);
                 } else {
-                    msg.param.set(Param::PrepForwards, new_msg_id.to_string());
+                    msg.param
+                        .set(Param::PrepForwards, new_msg_id.to_u32().to_string());
                 }
 
                 msg.save_param_to_disk(context);
@@ -1791,23 +1834,19 @@ pub fn forward_msgs(context: &Context, msg_ids: &[u32], chat_id: u32) -> Result<
                 msg.state = MessageState::OutPending;
                 let fresh10 = curr_timestamp;
                 curr_timestamp += 1;
-                new_msg_id = chat
-                    .prepare_msg_raw(context, &mut msg, fresh10)
-                    .unwrap_or_default();
+                new_msg_id = chat.prepare_msg_raw(context, &mut msg, fresh10)?;
                 job_send_msg(context, new_msg_id)?;
             }
-            created_db_entries.push(chat_id);
-            created_db_entries.push(new_msg_id);
+            created_chats.push(chat_id);
+            created_msgs.push(new_msg_id);
         }
     }
-
-    for i in (0..created_db_entries.len()).step_by(2) {
+    for (chat_id, msg_id) in created_chats.iter().zip(created_msgs.iter()) {
         context.call_cb(Event::MsgsChanged {
-            chat_id: created_db_entries[i],
-            msg_id: created_db_entries[i + 1],
+            chat_id: *chat_id,
+            msg_id: *msg_id,
         });
     }
-
     Ok(())
 }
 
@@ -1874,8 +1913,11 @@ pub fn add_device_msg(context: &Context, chat_id: u32, text: impl AsRef<str>) {
         return;
     }
 
-    let msg_id = sql::get_rowid(context, &context.sql, "msgs", "rfc724_mid", &rfc724_mid);
-    context.call_cb(Event::MsgsChanged { chat_id, msg_id });
+    let row_id = sql::get_rowid(context, &context.sql, "msgs", "rfc724_mid", &rfc724_mid);
+    context.call_cb(Event::MsgsChanged {
+        chat_id,
+        msg_id: MsgId::new(row_id),
+    });
 }
 
 #[cfg(test)]

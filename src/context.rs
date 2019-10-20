@@ -17,7 +17,7 @@ use crate::job_thread::JobThread;
 use crate::key::*;
 use crate::login_param::LoginParam;
 use crate::lot::Lot;
-use crate::message::{self, Message};
+use crate::message::{self, Message, MsgId};
 use crate::param::Params;
 use crate::smtp::*;
 use crate::sql::Sql;
@@ -313,24 +313,30 @@ impl Context {
         res
     }
 
-    pub fn get_fresh_msgs(&self) -> Vec<u32> {
+    pub fn get_fresh_msgs(&self) -> Vec<MsgId> {
         let show_deaddrop = 0;
-
         self.sql
             .query_map(
-                "SELECT m.id FROM msgs m LEFT JOIN contacts ct \
-                 ON m.from_id=ct.id LEFT JOIN chats c ON m.chat_id=c.id WHERE m.state=?   \
-                 AND m.hidden=0   \
-                 AND m.chat_id>?   \
-                 AND ct.blocked=0   \
-                 AND (c.blocked=0 OR c.blocked=?) ORDER BY m.timestamp DESC,m.id DESC;",
+                concat!(
+                    "SELECT m.id",
+                    " FROM msgs m",
+                    " LEFT JOIN contacts ct",
+                    "        ON m.from_id=ct.id",
+                    " LEFT JOIN chats c",
+                    "        ON m.chat_id=c.id",
+                    " WHERE m.state=?",
+                    "   AND m.hidden=0",
+                    "   AND m.chat_id>?",
+                    "   AND ct.blocked=0",
+                    "   AND (c.blocked=0 OR c.blocked=?)",
+                    " ORDER BY m.timestamp DESC,m.id DESC;"
+                ),
                 &[10, 9, if 0 != show_deaddrop { 2 } else { 0 }],
-                |row| row.get(0),
+                |row| row.get::<_, MsgId>(0),
                 |rows| {
                     let mut ret = Vec::new();
                     for row in rows {
-                        let id: u32 = row?;
-                        ret.push(id);
+                        ret.push(row?);
                     }
                     Ok(ret)
                 },
@@ -339,7 +345,7 @@ impl Context {
     }
 
     #[allow(non_snake_case)]
-    pub fn search_msgs(&self, chat_id: u32, query: impl AsRef<str>) -> Vec<u32> {
+    pub fn search_msgs(&self, chat_id: u32, query: impl AsRef<str>) -> Vec<MsgId> {
         let real_query = query.as_ref().trim();
         if real_query.is_empty() {
             return Vec::new();
@@ -348,25 +354,43 @@ impl Context {
         let strLikeBeg = format!("{}%", real_query);
 
         let query = if 0 != chat_id {
-            "SELECT m.id, m.timestamp FROM msgs m LEFT JOIN contacts ct ON m.from_id=ct.id WHERE m.chat_id=?  \
-         AND m.hidden=0  \
-         AND ct.blocked=0 AND (txt LIKE ? OR ct.name LIKE ?) ORDER BY m.timestamp,m.id;"
+            concat!(
+                "SELECT m.id AS id, m.timestamp AS timestamp",
+                " FROM msgs m",
+                " LEFT JOIN contacts ct",
+                "        ON m.from_id=ct.id",
+                " WHERE m.chat_id=?",
+                "   AND m.hidden=0",
+                "   AND ct.blocked=0",
+                "   AND (txt LIKE ? OR ct.name LIKE ?)",
+                " ORDER BY m.timestamp,m.id;"
+            )
         } else {
-            "SELECT m.id, m.timestamp FROM msgs m LEFT JOIN contacts ct ON m.from_id=ct.id \
-         LEFT JOIN chats c ON m.chat_id=c.id WHERE m.chat_id>9 AND m.hidden=0  \
-         AND (c.blocked=0 OR c.blocked=?) \
-         AND ct.blocked=0 AND (m.txt LIKE ? OR ct.name LIKE ?) ORDER BY m.timestamp DESC,m.id DESC;"
+            concat!(
+                "SELECT m.id AS id, m.timestamp AS timestamp",
+                " FROM msgs m",
+                " LEFT JOIN contacts ct",
+                "        ON m.from_id=ct.id",
+                " LEFT JOIN chats c",
+                "        ON m.chat_id=c.id",
+                " WHERE m.chat_id>9",
+                "   AND m.hidden=0",
+                "   AND (c.blocked=0 OR c.blocked=?)",
+                "   AND ct.blocked=0",
+                "   AND (m.txt LIKE ? OR ct.name LIKE ?)",
+                " ORDER BY m.timestamp DESC,m.id DESC;"
+            )
         };
 
         self.sql
             .query_map(
                 query,
                 params![chat_id as i32, &strLikeInText, &strLikeBeg],
-                |row| row.get::<_, i32>(0),
+                |row| row.get::<_, MsgId>("id"),
                 |rows| {
                     let mut ret = Vec::new();
                     for id in rows {
-                        ret.push(id? as u32);
+                        ret.push(id?);
                     }
                     Ok(ret)
                 },
@@ -397,7 +421,7 @@ impl Context {
         }
     }
 
-    pub fn do_heuristics_moves(&self, folder: &str, msg_id: u32) {
+    pub fn do_heuristics_moves(&self, folder: &str, msg_id: MsgId) {
         if !self.get_config_bool(Config::MvboxMove) {
             return;
         }
@@ -422,7 +446,7 @@ impl Context {
                 job_add(
                     self,
                     Action::MoveMsg,
-                    msg.id as libc::c_int,
+                    msg.id.to_u32() as i32,
                     Params::new(),
                     0,
                 );

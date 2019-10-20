@@ -14,7 +14,7 @@ use deltachat::imex::*;
 use deltachat::job::*;
 use deltachat::location;
 use deltachat::lot::LotState;
-use deltachat::message::{self, Message, MessageState};
+use deltachat::message::{self, Message, MessageState, MsgId};
 use deltachat::peerstate::*;
 use deltachat::qr::*;
 use deltachat::sql;
@@ -86,7 +86,7 @@ pub unsafe fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
 
     context.call_cb(Event::MsgsChanged {
         chat_id: 0,
-        msg_id: 0,
+        msg_id: MsgId::new(0),
     });
 
     1
@@ -170,7 +170,7 @@ fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int {
     if read_cnt > 0 {
         context.call_cb(Event::MsgsChanged {
             chat_id: 0,
-            msg_id: 0,
+            msg_id: MsgId::new(0),
         });
     }
     1
@@ -194,7 +194,7 @@ unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
         context,
         "{}#{}{}{}: {} (Contact#{}): {} {}{}{}{}{} [{}]",
         prefix.as_ref(),
-        msg.get_id() as libc::c_int,
+        msg.get_id(),
         if msg.get_showpadlock() { "🔒" } else { "" },
         if msg.has_location() { "📍" } else { "" },
         &contact_name,
@@ -221,17 +221,17 @@ unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
     );
 }
 
-unsafe fn log_msglist(context: &Context, msglist: &Vec<u32>) -> Result<(), Error> {
+unsafe fn log_msglist(context: &Context, msglist: &Vec<MsgId>) -> Result<(), Error> {
     let mut lines_out = 0;
     for &msg_id in msglist {
-        if msg_id == 9 as libc::c_uint {
+        if msg_id.is_daymarker() {
             info!(
                 context,
                 "--------------------------------------------------------------------------------"
             );
 
             lines_out += 1
-        } else if msg_id > 0 {
+        } else if !msg_id.is_special() {
             if lines_out == 0 {
                 info!(
                     context,
@@ -418,7 +418,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         },
         "get-setupcodebegin" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
-            let msg_id: u32 = arg1.parse()?;
+            let msg_id: MsgId = MsgId::new(arg1.parse()?);
             let msg = Message::load_from_db(context, msg_id)?;
             if msg.is_setupmessage() {
                 let setupcodebegin = msg.get_setupcodebegin(context);
@@ -436,7 +436,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 !arg1.is_empty() && !arg2.is_empty(),
                 "Arguments <msg-id> <setup-code> expected"
             );
-            continue_key_transfer(context, arg1.parse()?, &arg2)?;
+            continue_key_transfer(context, MsgId::new(arg1.parse()?), &arg2)?;
         }
         "has-backup" => {
             has_backup(context, blobdir)?;
@@ -581,7 +581,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(sel_chat.is_some(), "Failed to select chat");
             let sel_chat = sel_chat.as_ref().unwrap();
 
-            let msglist = chat::get_chat_msgs(context, sel_chat.get_id(), 0x1, 0);
+            let msglist = chat::get_chat_msgs(context, sel_chat.get_id(), 0x1, None);
             let temp2 = sel_chat.get_subtitle(context);
             let temp_name = sel_chat.get_name();
             info!(
@@ -617,7 +617,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "createchatbymsg" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing");
-            let msg_id: u32 = arg1.parse()?;
+            let msg_id = MsgId::new(arg1.parse()?);
             let chat_id = chat::create_by_msg_id(context, msg_id)?;
             let chat = Chat::load_from_db(context, chat_id)?;
 
@@ -849,7 +849,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "msginfo" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
-            let id = arg1.parse()?;
+            let id = MsgId::new(arg1.parse()?);
             let res = message::get_msg_info(context, id);
             println!("{}", res);
         }
@@ -865,27 +865,27 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 "Arguments <msg-id> <chat-id> expected"
             );
 
-            let mut msg_ids = [0; 1];
+            let mut msg_ids = [MsgId::new(0); 1];
             let chat_id = arg2.parse()?;
-            msg_ids[0] = arg1.parse()?;
+            msg_ids[0] = MsgId::new(arg1.parse()?);
             chat::forward_msgs(context, &msg_ids, chat_id)?;
         }
         "markseen" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
-            let mut msg_ids = [0; 1];
-            msg_ids[0] = arg1.parse()?;
+            let mut msg_ids = [MsgId::new(0); 1];
+            msg_ids[0] = MsgId::new(arg1.parse()?);
             message::markseen_msgs(context, &msg_ids);
         }
         "star" | "unstar" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
-            let mut msg_ids = [0; 1];
-            msg_ids[0] = arg1.parse()?;
+            let mut msg_ids = [MsgId::new(0); 1];
+            msg_ids[0] = MsgId::new(arg1.parse()?);
             message::star_msgs(context, &msg_ids, arg0 == "star");
         }
         "delmsg" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
-            let mut ids = [0; 1];
-            ids[0] = arg1.parse()?;
+            let mut ids = [MsgId::new(0); 1];
+            ids[0] = MsgId::new(arg1.parse()?);
             message::delete_msgs(context, &ids);
         }
         "listcontacts" | "contacts" | "listverified" => {

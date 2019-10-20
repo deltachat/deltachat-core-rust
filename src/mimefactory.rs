@@ -22,6 +22,7 @@ use crate::dc_tools::*;
 use crate::e2ee::*;
 use crate::error::Error;
 use crate::location;
+use crate::message::MsgId;
 use crate::message::{self, Message};
 use crate::param::*;
 use crate::stock::StockMessage;
@@ -107,7 +108,7 @@ impl<'a> MimeFactory<'a> {
         Ok(())
     }
 
-    pub fn load_mdn(context: &'a Context, msg_id: u32) -> Result<MimeFactory, Error> {
+    pub fn load_mdn(context: &'a Context, msg_id: MsgId) -> Result<MimeFactory, Error> {
         if !context.get_config_bool(Config::MdnsEnabled) {
             // MDNs not enabled - check this is late, in the job. the
             // user may have changed its choice while offline ...
@@ -653,8 +654,8 @@ impl<'a> MimeFactory<'a> {
         Ok(())
     }
 
-    pub fn load_msg(context: &Context, msg_id: u32) -> Result<MimeFactory, Error> {
-        ensure!(msg_id > DC_CHAT_ID_LAST_SPECIAL, "Invalid chat id");
+    pub fn load_msg(context: &Context, msg_id: MsgId) -> Result<MimeFactory, Error> {
+        ensure!(!msg_id.is_special(), "Invalid chat id");
 
         let msg = Message::load_from_db(context, msg_id)?;
         let chat = Chat::load_from_db(context, msg.chat_id)?;
@@ -720,7 +721,7 @@ impl<'a> MimeFactory<'a> {
         }
         let row = context.sql.query_row(
             "SELECT mime_in_reply_to, mime_references FROM msgs WHERE id=?",
-            params![factory.msg.id as i32],
+            params![factory.msg.id],
             |row| {
                 let in_reply_to: String = row.get(0)?;
                 let references: String = row.get(1)?;

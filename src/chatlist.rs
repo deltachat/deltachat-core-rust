@@ -4,7 +4,7 @@ use crate::contact::*;
 use crate::context::*;
 use crate::error::Result;
 use crate::lot::Lot;
-use crate::message::Message;
+use crate::message::{Message, MsgId};
 use crate::stock::StockMessage;
 
 /// An object representing a single chatlist in memory.
@@ -34,7 +34,7 @@ use crate::stock::StockMessage;
 #[derive(Debug)]
 pub struct Chatlist {
     /// Stores pairs of `chat_id, message_id`
-    ids: Vec<(u32, u32)>,
+    ids: Vec<(u32, MsgId)>,
 }
 
 impl Chatlist {
@@ -86,25 +86,12 @@ impl Chatlist {
         query: Option<&str>,
         query_contact_id: Option<u32>,
     ) -> Result<Self> {
-        let mut add_archived_link_item = 0;
-
-        // select with left join and minimum:
-        // - the inner select must use `hidden` and _not_ `m.hidden`
-        //   which would refer the outer select and take a lot of time
-        // - `GROUP BY` is needed several messages may have the same timestamp
-        // - the list starts with the newest chats
-        // nb: the query currently shows messages from blocked contacts in groups.
-        // however, for normal-groups, this is okay as the message is also returned by dc_get_chat_msgs()
-        // (otherwise it would be hard to follow conversations, wa and tg do the same)
-        // for the deaddrop, however, they should really be hidden, however, _currently_ the deaddrop is not
-        // shown at all permanent in the chatlist.
+        let mut add_archived_link_item = false;
 
         let process_row = |row: &rusqlite::Row| {
-            let chat_id: i32 = row.get(0)?;
-            // TODO: verify that it is okay for this to be Null
-            let msg_id: i32 = row.get(1).unwrap_or_default();
-
-            Ok((chat_id as u32, msg_id as u32))
+            let chat_id: u32 = row.get(0)?;
+            let msg_id: MsgId = row.get(1).unwrap_or_default();
+            Ok((chat_id, msg_id))
         };
 
         let process_rows = |rows: rusqlite::MappedRows<_>| {
@@ -112,36 +99,63 @@ impl Chatlist {
                 .map_err(Into::into)
         };
 
-        // nb: the query currently shows messages from blocked contacts in groups.
-        // however, for normal-groups, this is okay as the message is also returned by dc_get_chat_msgs()
-        // (otherwise it would be hard to follow conversations, wa and tg do the same)
-        // for the deaddrop, however, they should really be hidden, however, _currently_ the deaddrop is not
+        // select with left join and minimum:
+        //
+        // - the inner select must use `hidden` and _not_ `m.hidden`
+        //   which would refer the outer select and take a lot of time
+        // - `GROUP BY` is needed several messages may have the same
+        //   timestamp
+        // - the list starts with the newest chats
+        //
+        // nb: the query currently shows messages from blocked
+        // contacts in groups.  however, for normal-groups, this is
+        // okay as the message is also returned by dc_get_chat_msgs()
+        // (otherwise it would be hard to follow conversations, wa and
+        // tg do the same) for the deaddrop, however, they should
+        // really be hidden, however, _currently_ the deaddrop is not
         // shown at all permanent in the chatlist.
-
         let mut ids = if let Some(query_contact_id) = query_contact_id {
             // show chats shared with a given contact
             context.sql.query_map(
-            "SELECT c.id, m.id FROM chats c  LEFT JOIN msgs m         \
-             ON c.id=m.chat_id        \
-             AND m.timestamp=( SELECT MAX(timestamp)   \
-             FROM msgs  WHERE chat_id=c.id    \
-             AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   \
-             AND c.blocked=0 AND c.id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?)  \
-             GROUP BY c.id  ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
-            params![query_contact_id as i32],
-            process_row,
-            process_rows,
-        )?
+                concat!(
+                    "SELECT c.id, m.id",
+                    " FROM chats c",
+                    " LEFT JOIN msgs m",
+                    "        ON c.id=m.chat_id",
+                    "       AND m.timestamp=(",
+                    "               SELECT MAX(timestamp)",
+                    "                 FROM msgs",
+                    "                WHERE chat_id=c.id",
+                    "                  AND (hidden=0 OR (hidden=1 AND state=19)))",
+                    " WHERE c.id>9",
+                    "   AND c.blocked=0",
+                    "   AND c.id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?)",
+                    " GROUP BY c.id",
+                    " ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;"
+                ),
+                params![query_contact_id as i32],
+                process_row,
+                process_rows,
+            )?
         } else if 0 != listflags & DC_GCL_ARCHIVED_ONLY {
             // show archived chats
             context.sql.query_map(
-                "SELECT c.id, m.id FROM chats c  LEFT JOIN msgs m         \
-                 ON c.id=m.chat_id        \
-                 AND m.timestamp=( SELECT MAX(timestamp)   \
-                 FROM msgs  WHERE chat_id=c.id    \
-                 AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   \
-                 AND c.blocked=0 AND c.archived=1  GROUP BY c.id  \
-                 ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
+                concat!(
+                    "SELECT c.id, m.id",
+                    " FROM chats c",
+                    " LEFT JOIN msgs m",
+                    "        ON c.id=m.chat_id",
+                    "       AND m.timestamp=(",
+                    "               SELECT MAX(timestamp)",
+                    "                 FROM msgs",
+                    "                WHERE chat_id=c.id",
+                    "                  AND (hidden=0 OR (hidden=1 AND state=19)))",
+                    " WHERE c.id>9",
+                    "   AND c.blocked=0",
+                    "   AND c.archived=1",
+                    " GROUP BY c.id",
+                    " ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;"
+                ),
                 params![],
                 process_row,
                 process_rows,
@@ -152,13 +166,22 @@ impl Chatlist {
 
             let str_like_cmd = format!("%{}%", query);
             context.sql.query_map(
-                "SELECT c.id, m.id FROM chats c  LEFT JOIN msgs m         \
-                 ON c.id=m.chat_id        \
-                 AND m.timestamp=( SELECT MAX(timestamp)   \
-                 FROM msgs  WHERE chat_id=c.id    \
-                 AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   \
-                 AND c.blocked=0 AND c.name LIKE ?  \
-                 GROUP BY c.id  ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
+                concat!(
+                    "SELECT c.id, m.id",
+                    " FROM chats c",
+                    " LEFT JOIN msgs m",
+                    "        ON c.id=m.chat_id",
+                    "       AND m.timestamp=(",
+                    "               SELECT MAX(timestamp)",
+                    "                 FROM msgs",
+                    "                WHERE chat_id=c.id",
+                    "                  AND (hidden=0 OR (hidden=1 AND state=19)))",
+                    " WHERE c.id>9",
+                    "   AND c.blocked=0",
+                    "   AND c.name LIKE ?",
+                    " GROUP BY c.id",
+                    " ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;"
+                ),
                 params![str_like_cmd],
                 process_row,
                 process_rows,
@@ -166,34 +189,40 @@ impl Chatlist {
         } else {
             //  show normal chatlist
             let mut ids = context.sql.query_map(
-                "SELECT c.id, m.id FROM chats c  \
-                 LEFT JOIN msgs m         \
-                 ON c.id=m.chat_id        \
-                 AND m.timestamp=( SELECT MAX(timestamp)   \
-                 FROM msgs  WHERE chat_id=c.id    \
-                 AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   \
-                 AND c.blocked=0 AND c.archived=0  \
-                 GROUP BY c.id  \
-                 ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
+                concat!(
+                    "SELECT c.id, m.id",
+                    " FROM chats c",
+                    " LEFT JOIN msgs m",
+                    "        ON c.id=m.chat_id",
+                    "       AND m.timestamp=(",
+                    "               SELECT MAX(timestamp)",
+                    "                 FROM msgs",
+                    "                WHERE chat_id=c.id",
+                    "                  AND (hidden=0 OR (hidden=1 AND state=19)))",
+                    " WHERE c.id>9",
+                    "   AND c.blocked=0",
+                    "   AND c.archived=0",
+                    " GROUP BY c.id",
+                    " ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;"
+                ),
                 params![],
                 process_row,
                 process_rows,
             )?;
             if 0 == listflags & DC_GCL_NO_SPECIALS {
-                let last_deaddrop_fresh_msg_id = get_last_deaddrop_fresh_msg(context);
-                if last_deaddrop_fresh_msg_id > 0 {
+                if let Some(last_deaddrop_fresh_msg_id) = get_last_deaddrop_fresh_msg(context) {
                     ids.insert(0, (DC_CHAT_ID_DEADDROP, last_deaddrop_fresh_msg_id));
                 }
-                add_archived_link_item = 1;
+                add_archived_link_item = true;
             }
             ids
         };
 
-        if 0 != add_archived_link_item && dc_get_archived_cnt(context) > 0 {
+        if add_archived_link_item && dc_get_archived_cnt(context) > 0 {
             if ids.is_empty() && 0 != listflags & DC_GCL_ADD_ALLDONE_HINT {
-                ids.push((DC_CHAT_ID_ALLDONE_HINT, 0));
+                ids.push((DC_CHAT_ID_ALLDONE_HINT, MsgId::new(0)));
             }
-            ids.push((DC_CHAT_ID_ARCHIVED_LINK, 0));
+            ids.push((DC_CHAT_ID_ARCHIVED_LINK, MsgId::new(0)));
         }
 
         Ok(Chatlist { ids })
@@ -221,12 +250,9 @@ impl Chatlist {
     /// Get a single message ID of a chatlist.
     ///
     /// To get the message object from the message ID, use dc_get_msg().
-    pub fn get_msg_id(&self, index: usize) -> u32 {
-        if index >= self.ids.len() {
-            return 0;
-        }
-
-        self.ids[index].1
+    pub fn get_msg_id(&self, index: usize) -> Result<MsgId> {
+        ensure!(index >= self.ids.len(), "Chatlist index out of range");
+        Ok(self.ids[index].1)
     }
 
     /// Get a summary for a chatlist index.
@@ -268,7 +294,7 @@ impl Chatlist {
         let lastmsg_id = self.ids[index].1;
         let mut lastcontact = None;
 
-        let lastmsg = if 0 != lastmsg_id {
+        let lastmsg = if !lastmsg_id.is_special() {
             if let Ok(lastmsg) = Message::load_from_db(context, lastmsg_id) {
                 if lastmsg.from_id != 1
                     && (chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup)
@@ -308,19 +334,21 @@ pub fn dc_get_archived_cnt(context: &Context) -> u32 {
         .unwrap_or_default()
 }
 
-fn get_last_deaddrop_fresh_msg(context: &Context) -> u32 {
-    // We have an index over the state-column, this should be sufficient as there are typically
-    // only few fresh messages.
-    context
-        .sql
-        .query_get_value(
-            context,
-            "SELECT m.id  FROM msgs m  LEFT JOIN chats c ON c.id=m.chat_id  \
-             WHERE m.state=10   \
-             AND m.hidden=0    \
-             AND c.blocked=2 \
-             ORDER BY m.timestamp DESC, m.id DESC;",
-            params![],
-        )
-        .unwrap_or_default()
+fn get_last_deaddrop_fresh_msg(context: &Context) -> Option<MsgId> {
+    // We have an index over the state-column, this should be
+    // sufficient as there are typically only few fresh messages.
+    context.sql.query_get_value(
+        context,
+        concat!(
+            "SELECT m.id",
+            " FROM msgs m",
+            " LEFT JOIN chats c",
+            "        ON c.id=m.chat_id",
+            " WHERE m.state=10",
+            "   AND m.hidden=0",
+            "   AND c.blocked=2",
+            " ORDER BY m.timestamp DESC, m.id DESC;"
+        ),
+        params![],
+    )
 }

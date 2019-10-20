@@ -22,11 +22,13 @@ use std::sync::RwLock;
 use libc::uintptr_t;
 use num_traits::{FromPrimitive, ToPrimitive};
 
+use deltachat::constants::DC_MSG_ID_LAST_SPECIAL;
 use deltachat::contact::Contact;
 use deltachat::context::Context;
 use deltachat::dc_tools::{
     as_path, dc_strdup, to_opt_string_lossy, to_string_lossy, OsStrExt, StrExt,
 };
+use deltachat::message::MsgId;
 use deltachat::stock::StockMessage;
 use deltachat::*;
 
@@ -141,9 +143,12 @@ impl ContextWrapper {
                     | Event::IncomingMsg { chat_id, msg_id }
                     | Event::MsgDelivered { chat_id, msg_id }
                     | Event::MsgFailed { chat_id, msg_id }
-                    | Event::MsgRead { chat_id, msg_id } => {
-                        ffi_cb(self, event_id, chat_id as uintptr_t, msg_id as uintptr_t)
-                    }
+                    | Event::MsgRead { chat_id, msg_id } => ffi_cb(
+                        self,
+                        event_id,
+                        chat_id as uintptr_t,
+                        msg_id.to_u32() as uintptr_t,
+                    ),
                     Event::ChatModified(chat_id) => ffi_cb(self, event_id, chat_id as uintptr_t, 0),
                     Event::ContactsChanged(id) | Event::LocationChanged(id) => {
                         let id = id.unwrap_or_default();
@@ -681,7 +686,8 @@ pub unsafe extern "C" fn dc_create_chat_by_msg_id(context: *mut dc_context_t, ms
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| {
-            chat::create_by_msg_id(ctx, msg_id).unwrap_or_log_default(ctx, "Failed to create chat")
+            chat::create_by_msg_id(ctx, MsgId::new(msg_id))
+                .unwrap_or_log_default(ctx, "Failed to create chat")
         })
         .unwrap_or(0)
 }
@@ -736,6 +742,7 @@ pub unsafe extern "C" fn dc_prepare_msg(
             chat::prepare_msg(ctx, chat_id, &mut ffi_msg.message)
                 .unwrap_or_log_default(ctx, "Failed to prepare message")
         })
+        .map(|msg_id| msg_id.to_u32())
         .unwrap_or(0)
 }
 
@@ -756,6 +763,7 @@ pub unsafe extern "C" fn dc_send_msg(
             chat::send_msg(ctx, chat_id, &mut ffi_msg.message)
                 .unwrap_or_log_default(ctx, "Failed to send message")
         })
+        .map(|msg_id| msg_id.to_u32())
         .unwrap_or(0)
 }
 
@@ -774,6 +782,7 @@ pub unsafe extern "C" fn dc_send_text_msg(
     ffi_context
         .with_inner(|ctx| {
             chat::send_text_msg(ctx, chat_id, text_to_send)
+                .map(|msg_id| msg_id.to_u32())
                 .unwrap_or_log_default(ctx, "Failed to send text message")
         })
         .unwrap_or(0)
@@ -838,9 +847,19 @@ pub unsafe extern "C" fn dc_get_chat_msgs(
         return ptr::null_mut();
     }
     let ffi_context = &*context;
+    let marker_flag = if marker1before <= DC_MSG_ID_LAST_SPECIAL {
+        None
+    } else {
+        Some(MsgId::new(marker1before))
+    };
     ffi_context
         .with_inner(|ctx| {
-            let arr = dc_array_t::from(chat::get_chat_msgs(ctx, chat_id, flags, marker1before));
+            let arr = dc_array_t::from(
+                chat::get_chat_msgs(ctx, chat_id, flags, marker_flag)
+                    .iter()
+                    .map(|msg_id| msg_id.to_u32())
+                    .collect::<Vec<u32>>(),
+            );
             Box::into_raw(Box::new(arr))
         })
         .unwrap_or_else(|_| ptr::null_mut())
@@ -884,7 +903,12 @@ pub unsafe extern "C" fn dc_get_fresh_msgs(
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| {
-            let arr = dc_array_t::from(ctx.get_fresh_msgs());
+            let arr = dc_array_t::from(
+                ctx.get_fresh_msgs()
+                    .iter()
+                    .map(|msg_id| msg_id.to_u32())
+                    .collect::<Vec<u32>>(),
+            );
             Box::into_raw(Box::new(arr))
         })
         .unwrap_or_else(|_| ptr::null_mut())
@@ -946,13 +970,12 @@ pub unsafe extern "C" fn dc_get_chat_media(
         from_prim(or_msg_type3).expect(&format!("incorrect or_msg_type3 = {}", or_msg_type3));
     ffi_context
         .with_inner(|ctx| {
-            let arr = dc_array_t::from(chat::get_chat_media(
-                ctx,
-                chat_id,
-                msg_type,
-                or_msg_type2,
-                or_msg_type3,
-            ));
+            let arr = dc_array_t::from(
+                chat::get_chat_media(ctx, chat_id, msg_type, or_msg_type2, or_msg_type3)
+                    .iter()
+                    .map(|msg_id| msg_id.to_u32())
+                    .collect::<Vec<u32>>(),
+            );
             Box::into_raw(Box::new(arr))
         })
         .unwrap_or_else(|_| ptr::null_mut())
@@ -985,7 +1008,16 @@ pub unsafe extern "C" fn dc_get_next_media(
         from_prim(or_msg_type3).expect(&format!("incorrect or_msg_type3 = {}", or_msg_type3));
     ffi_context
         .with_inner(|ctx| {
-            chat::get_next_media(ctx, msg_id, direction, msg_type, or_msg_type2, or_msg_type3)
+            chat::get_next_media(
+                ctx,
+                MsgId::new(msg_id),
+                direction,
+                msg_type,
+                or_msg_type2,
+                or_msg_type3,
+            )
+            .map(|msg_id| msg_id.to_u32())
+            .unwrap_or(0)
         })
         .unwrap_or(0)
 }
@@ -1056,7 +1088,12 @@ pub unsafe extern "C" fn dc_search_msgs(
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| {
-            let arr = dc_array_t::from(ctx.search_msgs(chat_id, to_string_lossy(query)));
+            let arr = dc_array_t::from(
+                ctx.search_msgs(chat_id, to_string_lossy(query))
+                    .iter()
+                    .map(|msg_id| msg_id.to_u32())
+                    .collect::<Vec<u32>>(),
+            );
             Box::into_raw(Box::new(arr))
         })
         .unwrap_or_else(|_| ptr::null_mut())
@@ -1208,7 +1245,7 @@ pub unsafe extern "C" fn dc_get_msg_info(
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| message::get_msg_info(ctx, msg_id).strdup())
+        .with_inner(|ctx| message::get_msg_info(ctx, MsgId::new(msg_id)).strdup())
         .unwrap_or_else(|_| ptr::null_mut())
 }
 
@@ -1224,7 +1261,7 @@ pub unsafe extern "C" fn dc_get_mime_headers(
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| {
-            message::get_mime_headers(ctx, msg_id)
+            message::get_mime_headers(ctx, MsgId::new(msg_id))
                 .map(|s| s.strdup())
                 .unwrap_or_else(|| ptr::null_mut())
         })
@@ -1242,11 +1279,10 @@ pub unsafe extern "C" fn dc_delete_msgs(
         return;
     }
     let ffi_context = &*context;
-
     let ids = std::slice::from_raw_parts(msg_ids, msg_cnt as usize);
-
+    let msg_ids: Vec<MsgId> = ids.iter().map(|id| MsgId::new(*id)).collect();
     ffi_context
-        .with_inner(|ctx| message::delete_msgs(ctx, ids))
+        .with_inner(|ctx| message::delete_msgs(ctx, &msg_ids[..]))
         .unwrap_or(())
 }
 
@@ -1266,11 +1302,11 @@ pub unsafe extern "C" fn dc_forward_msgs(
         return;
     }
     let ids = std::slice::from_raw_parts(msg_ids, msg_cnt as usize);
-
+    let msg_ids: Vec<MsgId> = ids.iter().map(|id| MsgId::new(*id)).collect();
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| {
-            chat::forward_msgs(ctx, ids, chat_id)
+            chat::forward_msgs(ctx, &msg_ids[..], chat_id)
                 .unwrap_or_log_default(ctx, "Failed to forward message")
         })
         .unwrap_or_default()
@@ -1299,10 +1335,14 @@ pub unsafe extern "C" fn dc_markseen_msgs(
         return;
     }
     let ids = std::slice::from_raw_parts(msg_ids, msg_cnt as usize);
-
+    let msg_ids: Vec<MsgId> = ids
+        .iter()
+        .filter(|id| **id > DC_MSG_ID_LAST_SPECIAL)
+        .map(|id| MsgId::new(*id))
+        .collect();
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| message::markseen_msgs(ctx, ids))
+        .with_inner(|ctx| message::markseen_msgs(ctx, &msg_ids[..]))
         .ok();
 }
 
@@ -1317,12 +1357,11 @@ pub unsafe extern "C" fn dc_star_msgs(
         eprintln!("ignoring careless call to dc_star_msgs()");
         return;
     }
-
     let ids = std::slice::from_raw_parts(msg_ids, msg_cnt as usize);
-
+    let msg_ids: Vec<MsgId> = ids.iter().map(|id| MsgId::new(*id)).collect();
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| message::star_msgs(ctx, ids, star == 1))
+        .with_inner(|ctx| message::star_msgs(ctx, &msg_ids[..], star == 1))
         .ok();
 }
 
@@ -1335,7 +1374,7 @@ pub unsafe extern "C" fn dc_get_msg(context: *mut dc_context_t, msg_id: u32) -> 
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| {
-            let message = match message::Message::load_from_db(ctx, msg_id) {
+            let message = match message::Message::load_from_db(ctx, MsgId::new(msg_id)) {
                 Ok(msg) => msg,
                 Err(e) => {
                     error!(ctx, "Error getting msg #{}: {}", msg_id, e);
@@ -1622,7 +1661,8 @@ pub unsafe extern "C" fn dc_continue_key_transfer(
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| {
-            match imex::continue_key_transfer(ctx, msg_id, &to_string_lossy(setup_code)) {
+            match imex::continue_key_transfer(ctx, MsgId::new(msg_id), &to_string_lossy(setup_code))
+            {
                 Ok(()) => 1,
                 Err(err) => {
                     error!(ctx, "dc_continue_key_transfer: {}", err);
@@ -2033,7 +2073,11 @@ pub unsafe extern "C" fn dc_chatlist_get_msg_id(
         return 0;
     }
     let ffi_list = &*chatlist;
-    ffi_list.list.get_msg_id(index as usize)
+    ffi_list
+        .list
+        .get_msg_id(index as usize)
+        .map(|msg_id| msg_id.to_u32())
+        .unwrap_or(0)
 }
 
 #[no_mangle]
@@ -2275,7 +2319,7 @@ pub unsafe extern "C" fn dc_msg_get_id(msg: *mut dc_msg_t) -> u32 {
         return 0;
     }
     let ffi_msg = &*msg;
-    ffi_msg.message.get_id()
+    ffi_msg.message.get_id().to_u32()
 }
 
 #[no_mangle]

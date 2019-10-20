@@ -1540,7 +1540,7 @@ fn precheck_imf(context: &Context, rfc724_mid: &str, server_folder: &str, server
             job_add(
                 context,
                 Action::MarkseenMsgOnImap,
-                msg_id as libc::c_int,
+                msg_id.to_u32() as i32,
                 Params::new(),
                 0,
             );
