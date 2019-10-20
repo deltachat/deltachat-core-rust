@@ -1378,5 +1378,9 @@ mod tests {
         assert!(listflags_has(listflags, DC_GCL_ADD_SELF) == true);
         let listflags: u32 = DC_GCL_VERIFIED_ONLY.try_into().unwrap();
         assert!(listflags_has(listflags, DC_GCL_ADD_SELF) == false);
+
+        let listflags: u32 = DC_GCL_ADD_DRAFTS.try_into().unwrap();
+        assert!(listflags_has(listflags, DC_GCL_ADD_ALLDONE_HINT) == false);
+        assert!(listflags_has(listflags, 0x8) == true);
     }
 }

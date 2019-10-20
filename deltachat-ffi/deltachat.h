@@ -861,6 +861,7 @@ void            dc_maybe_network             (dc_context_t* context);
 #define         DC_GCL_ARCHIVED_ONLY         0x01
 #define         DC_GCL_NO_SPECIALS           0x02
 #define         DC_GCL_ADD_ALLDONE_HINT      0x04
+#define         DC_GCL_ADD_DRAFTS            0x08
 
 
 /**
@@ -904,6 +905,12 @@ void            dc_maybe_network             (dc_context_t* context);
  *       not needed when DC_GCL_ARCHIVED_ONLY is already set)
  *     - if the flag DC_GCL_ADD_ALLDONE_HINT is set, DC_CHAT_ID_ALLDONE_HINT
  *       is added as needed.
+ *     - if the flag DC_GCL_ADD_DRAFTS is set
+ *       and a chat has a recent draft,
+ *       the draft is returned by dc_chatlist_get_msg_id().
+ *       if the chatlist is shown permanently eg. on desktop,
+ *       you may not want to add this flags
+ *       as the resorting on dc_set_draft() is easily confusing.
  * @param query_str An optional query for filtering the list.  Only chats matching this query
  *     are returned.  Give NULL for no filtering.
  * @param query_id An optional contact ID for filtering the list.  Only chats including this contact ID

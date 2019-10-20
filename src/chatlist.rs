@@ -88,6 +88,16 @@ impl Chatlist {
     ) -> Result<Self> {
         let mut add_archived_link_item = false;
 
+        // drafts are hidden in the database.
+        // if add_drafts is set, this will be expanded to `hidden=1 AND state=DC_STATE_OUT_DRAFT`.
+        // otherwise, this results in `hidden=0 AND state=DC_STATE_OUT_DRAFT` in the sql statement
+        // and no additional messages will be regarded
+        let add_drafts = if 0 != listflags & DC_GCL_ADD_DRAFTS {
+            1
+        } else {
+            0
+        };
+
         // select with left join and minimum:
         // - the inner select must use `hidden` and _not_ `m.hidden`
         //   which would refer the outer select and take a lot of time
@@ -125,10 +135,10 @@ impl Chatlist {
              ON c.id=m.chat_id        \
              AND m.timestamp=( SELECT MAX(timestamp)   \
              FROM msgs  WHERE chat_id=c.id    \
-             AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   \
+             AND (hidden=0 OR (hidden=? AND state=19))) WHERE c.id>9   \
              AND c.blocked=0 AND c.id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?)  \
              GROUP BY c.id  ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
-            params![query_contact_id as i32],
+            params![add_drafts, query_contact_id as i32],
             process_row,
             process_rows,
         )?
@@ -139,10 +149,10 @@ impl Chatlist {
                  ON c.id=m.chat_id        \
                  AND m.timestamp=( SELECT MAX(timestamp)   \
                  FROM msgs  WHERE chat_id=c.id    \
-                 AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   \
+                 AND (hidden=0 OR (hidden=? AND state=19))) WHERE c.id>9   \
                  AND c.blocked=0 AND c.archived=1  GROUP BY c.id  \
                  ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
-                params![],
+                params![add_drafts],
                 process_row,
                 process_rows,
             )?
@@ -156,10 +166,10 @@ impl Chatlist {
                  ON c.id=m.chat_id        \
                  AND m.timestamp=( SELECT MAX(timestamp)   \
                  FROM msgs  WHERE chat_id=c.id    \
-                 AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   \
+                 AND (hidden=0 OR (hidden=? AND state=19))) WHERE c.id>9   \
                  AND c.blocked=0 AND c.name LIKE ?  \
                  GROUP BY c.id  ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
-                params![str_like_cmd],
+                params![add_drafts, str_like_cmd],
                 process_row,
                 process_rows,
             )?
@@ -171,11 +181,11 @@ impl Chatlist {
                  ON c.id=m.chat_id        \
                  AND m.timestamp=( SELECT MAX(timestamp)   \
                  FROM msgs  WHERE chat_id=c.id    \
-                 AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   \
+                 AND (hidden=0 OR (hidden=? AND state=19))) WHERE c.id>9   \
                  AND c.blocked=0 AND c.archived=0  \
                  GROUP BY c.id  \
                  ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
-                params![],
+                params![add_drafts],
                 process_row,
                 process_rows,
             )?;
