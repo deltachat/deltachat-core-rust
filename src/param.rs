@@ -49,6 +49,14 @@ pub enum Param {
     /// For Messages
     Error = b'L',
     /// For Messages: space-separated list of messaged IDs of forwarded copies.
+    ///
+    /// This is used when a [Message] is in the
+    /// [MessageState::OutPending] state but is already forwarded.
+    /// In this case the forwarded messages are written to the
+    /// database and their message IDs are added to this parameter of
+    /// the original message, which is also saved in the database.
+    /// When the original message is then finally sent this parameter
+    /// is used to also send all the forwarded messages.
     PrepForwards = b'P',
     /// For Jobs
     SetLatitude = b'l',

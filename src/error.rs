@@ -32,6 +32,8 @@ pub enum Error {
     FromUtf8(std::string::FromUtf8Error),
     #[fail(display = "{}", _0)]
     BlobError(#[cause] crate::blob::BlobError),
+    #[fail(display = "Invalid Message ID.")]
+    InvalidMsgId,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -99,6 +101,12 @@ impl From<std::string::FromUtf8Error> for Error {
 impl From<crate::blob::BlobError> for Error {
     fn from(err: crate::blob::BlobError) -> Error {
         Error::BlobError(err)
+    }
+}
+
+impl From<crate::message::InvalidMsgId> for Error {
+    fn from(_err: crate::message::InvalidMsgId) -> Error {
+        Error::InvalidMsgId
     }
 }
 

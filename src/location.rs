@@ -10,7 +10,7 @@ use crate::dc_tools::*;
 use crate::error::Error;
 use crate::events::Event;
 use crate::job::*;
-use crate::message::Message;
+use crate::message::{Message, MsgId};
 use crate::param::*;
 use crate::sql;
 use crate::stock::StockMessage;
@@ -476,12 +476,16 @@ pub fn set_kml_sent_timestamp(
     Ok(())
 }
 
-pub fn set_msg_location_id(context: &Context, msg_id: u32, location_id: u32) -> Result<(), Error> {
+pub fn set_msg_location_id(
+    context: &Context,
+    msg_id: MsgId,
+    location_id: u32,
+) -> Result<(), Error> {
     sql::execute(
         context,
         &context.sql,
         "UPDATE msgs SET location_id=? WHERE id=?;",
-        params![location_id, msg_id as i32],
+        params![location_id, msg_id],
     )?;
 
     Ok(())

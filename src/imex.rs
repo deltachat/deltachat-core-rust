@@ -16,7 +16,7 @@ use crate::error::*;
 use crate::events::Event;
 use crate::job::*;
 use crate::key::*;
-use crate::message::Message;
+use crate::message::{Message, MsgId};
 use crate::param::*;
 use crate::pgp;
 use crate::sql::{self, Sql};
@@ -227,8 +227,8 @@ pub fn create_setup_code(_context: &Context) -> String {
     ret
 }
 
-pub fn continue_key_transfer(context: &Context, msg_id: u32, setup_code: &str) -> Result<()> {
-    ensure!(msg_id > DC_MSG_ID_LAST_SPECIAL, "wrong id");
+pub fn continue_key_transfer(context: &Context, msg_id: MsgId, setup_code: &str) -> Result<()> {
+    ensure!(!msg_id.is_special(), "wrong id");
 
     let msg = Message::load_from_db(context, msg_id);
     if msg.is_err() {

@@ -14,7 +14,7 @@ use crate::error::Result;
 use crate::events::Event;
 use crate::key::*;
 use crate::login_param::LoginParam;
-use crate::message::MessageState;
+use crate::message::{MessageState, MsgId};
 use crate::peerstate::*;
 use crate::sql;
 use crate::stock::StockMessage;
@@ -243,7 +243,7 @@ impl Contact {
         {
             context.call_cb(Event::MsgsChanged {
                 chat_id: 0,
-                msg_id: 0,
+                msg_id: MsgId::new(0),
             });
         }
     }

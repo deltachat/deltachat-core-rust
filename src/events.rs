@@ -2,6 +2,8 @@ use std::path::PathBuf;
 
 use strum::EnumProperty;
 
+use crate::message::MsgId;
+
 impl Event {
     /// Returns the corresponding Event id.
     pub fn as_id(&self) -> i32 {
@@ -125,7 +127,7 @@ pub enum Event {
     ///
     /// @return 0
     #[strum(props(id = "2000"))]
-    MsgsChanged { chat_id: u32, msg_id: u32 },
+    MsgsChanged { chat_id: u32, msg_id: MsgId },
 
     /// There is a fresh message. Typically, the user will show an notification
     /// when receiving this message.
@@ -134,28 +136,28 @@ pub enum Event {
     ///
     /// @return 0
     #[strum(props(id = "2005"))]
-    IncomingMsg { chat_id: u32, msg_id: u32 },
+    IncomingMsg { chat_id: u32, msg_id: MsgId },
 
     /// A single message is sent successfully. State changed from  DC_STATE_OUT_PENDING to
     /// DC_STATE_OUT_DELIVERED, see dc_msg_get_state().
     ///
     /// @return 0
     #[strum(props(id = "2010"))]
-    MsgDelivered { chat_id: u32, msg_id: u32 },
+    MsgDelivered { chat_id: u32, msg_id: MsgId },
 
     /// A single message could not be sent. State changed from DC_STATE_OUT_PENDING or DC_STATE_OUT_DELIVERED to
     /// DC_STATE_OUT_FAILED, see dc_msg_get_state().
     ///
     /// @return 0
     #[strum(props(id = "2012"))]
-    MsgFailed { chat_id: u32, msg_id: u32 },
+    MsgFailed { chat_id: u32, msg_id: MsgId },
 
     /// A single message is read by the receiver. State changed from DC_STATE_OUT_DELIVERED to
     /// DC_STATE_OUT_MDN_RCVD, see dc_msg_get_state().
     ///
     /// @return 0
     #[strum(props(id = "2015"))]
-    MsgRead { chat_id: u32, msg_id: u32 },
+    MsgRead { chat_id: u32, msg_id: MsgId },
 
     /// Chat changed.  The name or the image of a chat group was changed or members were added or removed.
     /// Or the verify state of a chat has changed.

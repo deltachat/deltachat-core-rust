@@ -193,6 +193,8 @@ impl<'a> BlobObject<'a> {
     /// the database.  Do not use this unless you're about to store
     /// this string in the database or [Params].  Eventually even
     /// those conversions should be handled by the type system.
+    ///
+    /// [Params]: crate::param::Params
     pub fn as_name(&self) -> &str {
         &self.name
     }

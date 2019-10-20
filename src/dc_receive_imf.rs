@@ -25,7 +25,7 @@ use crate::error::Result;
 use crate::events::Event;
 use crate::job::*;
 use crate::location;
-use crate::message::{self, MessageState};
+use crate::message::{self, MessageState, MsgId};
 use crate::param::*;
 use crate::peerstate::*;
 use crate::securejoin::handle_securejoin_handshake;
@@ -85,7 +85,7 @@ pub unsafe fn dc_receive_imf(
     let mut hidden = 0;
 
     let mut needs_delete_job = false;
-    let mut insert_msg_id = 0;
+    let mut insert_msg_id = MsgId::new_unset();
 
     let mut sent_timestamp = 0;
     let mut created_db_entries = Vec::new();
@@ -97,17 +97,17 @@ pub unsafe fn dc_receive_imf(
     // helper method to handle early exit and memory cleanup
     let cleanup = |context: &Context,
                    create_event_to_send: &Option<CreateEvent>,
-                   created_db_entries: &Vec<(usize, usize)>,
-                   rr_event_to_send: &Vec<(u32, u32)>| {
+                   created_db_entries: &Vec<(usize, MsgId)>,
+                   rr_event_to_send: &Vec<(u32, MsgId)>| {
         if let Some(create_event_to_send) = create_event_to_send {
             for (chat_id, msg_id) in created_db_entries {
                 let event = match create_event_to_send {
                     CreateEvent::MsgsChanged => Event::MsgsChanged {
-                        msg_id: *msg_id as u32,
+                        msg_id: *msg_id,
                         chat_id: *chat_id as u32,
                     },
                     CreateEvent::IncomingMsg => Event::IncomingMsg {
-                        msg_id: *msg_id as u32,
+                        msg_id: *msg_id,
                         chat_id: *chat_id as u32,
                     },
                 };
@@ -273,7 +273,7 @@ pub unsafe fn dc_receive_imf(
         job_add(
             context,
             Action::DeleteMsgOnImap,
-            created_db_entries[0].1 as i32,
+            created_db_entries[0].1.to_u32() as i32,
             Params::new(),
             0,
         );
@@ -313,8 +313,8 @@ unsafe fn add_parts(
     flags: u32,
     needs_delete_job: &mut bool,
     to_self: i32,
-    insert_msg_id: &mut u32,
-    created_db_entries: &mut Vec<(usize, usize)>,
+    insert_msg_id: &mut MsgId,
+    created_db_entries: &mut Vec<(usize, MsgId)>,
     create_event_to_send: &mut Option<CreateEvent>,
 ) -> Result<()> {
     let mut state: MessageState;
@@ -684,9 +684,10 @@ unsafe fn add_parts(
                 ])?;
 
                 txt_raw = None;
-                *insert_msg_id =
+                let row_id =
                     sql::get_rowid_with_conn(context, conn, "msgs", "rfc724_mid", &rfc724_mid);
-                created_db_entries.push((*chat_id as usize, *insert_msg_id as usize));
+                *insert_msg_id = MsgId::new(row_id);
+                created_db_entries.push((*chat_id as usize, *insert_msg_id));
             }
             Ok(())
         },
@@ -719,7 +720,7 @@ unsafe fn handle_reports(
     mime_parser: &MimeParser,
     from_id: u32,
     sent_timestamp: i64,
-    rr_event_to_send: &mut Vec<(u32, u32)>,
+    rr_event_to_send: &mut Vec<(u32, MsgId)>,
     server_folder: impl AsRef<str>,
     server_uid: u32,
 ) {
@@ -810,20 +811,15 @@ unsafe fn handle_reports(
                                     if let Ok(rfc724_mid) = wrapmime::parse_message_id(as_str(
                                         (*of_org_msgid).fld_value,
                                     )) {
-                                        let mut chat_id_0 = 0;
-                                        let mut msg_id = 0;
-
-                                        if message::mdn_from_ext(
+                                        if let Some((chat_id, msg_id)) = message::mdn_from_ext(
                                             context,
                                             from_id,
                                             &rfc724_mid,
                                             sent_timestamp,
-                                            &mut chat_id_0,
-                                            &mut msg_id,
                                         ) {
-                                            rr_event_to_send.push((chat_id_0, msg_id));
+                                            rr_event_to_send.push((chat_id, msg_id));
+                                            mdn_consumed = 1;
                                         }
-                                        mdn_consumed = (msg_id != 0) as libc::c_int;
                                     }
                                 }
                             }
@@ -851,7 +847,7 @@ fn save_locations(
     mime_parser: &MimeParser,
     chat_id: u32,
     from_id: u32,
-    insert_msg_id: u32,
+    insert_msg_id: MsgId,
     hidden: i32,
 ) {
     let mut location_id_written = false;
