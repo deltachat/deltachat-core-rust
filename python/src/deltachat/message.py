@@ -109,6 +109,10 @@ class Message(object):
         """ return True if this message was encrypted. """
         return bool(lib.dc_msg_get_showpadlock(self._dc_msg))
 
+    def is_forwarded(self):
+        """ return True if this message was forwarded. """
+        return bool(lib.dc_msg_is_forwarded(self._dc_msg))
+
     def get_message_info(self):
         """ Return informational text for a single message.
 
