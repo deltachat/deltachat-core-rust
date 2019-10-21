@@ -1025,7 +1025,7 @@ impl Imap {
                 info!(context, "IMAP-IDLE has data.");
             }
             Err(err) => match err {
-                imap::error::Error::ConnectionLost => {
+                imap::error::Error::Io(_) | imap::error::Error::ConnectionLost => {
                     info!(context, "IMAP-IDLE wait cancelled, we will reconnect soon.");
                     self.should_reconnect.store(true, Ordering::Relaxed);
                 }
