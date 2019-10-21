@@ -116,18 +116,27 @@ impl Smtp {
                     .credentials(creds)
                     .authentication_mechanism(mechanism)
                     .connection_reuse(lettre::smtp::ConnectionReuseParameters::ReuseUnlimited);
-                self.transport = Some(client.transport());
-                context.call_cb(Event::SmtpConnected(format!(
-                    "SMTP-LOGIN as {} ok",
-                    lp.send_user,
-                )));
-                true
+                let mut trans = client.transport();
+                match trans.connect() {
+                    Ok(()) => {
+                        self.transport = Some(trans);
+                        self.transport_connected = true;
+                        context.call_cb(Event::SmtpConnected(format!(
+                            "SMTP-LOGIN as {} ok",
+                            lp.send_user,
+                        )));
+                        return true;
+                    }
+                    Err(err) => {
+                        warn!(context, "SMTP: failed to connect {:?}", err);
+                    }
+                }
             }
             Err(err) => {
-                warn!(context, "SMTP: failed to establish connection {:?}", err);
-                false
+                warn!(context, "SMTP: failed to setup connection {:?}", err);
             }
         }
+        false
     }
 
     /// SMTP-Send a prepared mail to recipients.
