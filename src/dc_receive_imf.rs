@@ -1228,14 +1228,8 @@ unsafe fn create_or_lookup_group(
                 if part.typ == Viewtype::Image {
                     grpimage = part
                         .param
-                        .get(Param::File)
-                        .and_then(|param| ParamsFile::from_param(context, param).ok())
-                        .and_then(|file| match file {
-                            ParamsFile::FsPath(path) => {
-                                BlobObject::create_from_path(context, path).ok()
-                            }
-                            ParamsFile::Blob(blob) => Some(blob),
-                        });
+                        .get_blob(Param::File, context, true)
+                        .unwrap_or(None);
                     info!(context, "found image {:?}", grpimage);
                     changed = true;
                 }

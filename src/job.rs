@@ -139,15 +139,7 @@ impl Job {
             }
         }
 
-        if let Some(filename) = self
-            .param
-            .get(Param::File)
-            .and_then(|param| ParamsFile::from_param(context, param).ok())
-            .map(|file| match file {
-                ParamsFile::FsPath(path) => path,
-                ParamsFile::Blob(blob) => blob.to_abs_path(),
-            })
-        {
+        if let Some(filename) = self.param.get_path(Param::File, context).unwrap_or(None) {
             if let Ok(body) = dc_read_file(context, &filename) {
                 if let Some(recipients) = self.param.get(Param::Recipients) {
                     let recipients_list = recipients
@@ -573,15 +565,7 @@ pub fn job_send_msg(context: &Context, msg_id: u32) -> Result<(), Error> {
     let mut mimefactory = MimeFactory::load_msg(context, msg_id)?;
 
     if chat::msgtype_has_file(mimefactory.msg.type_0) {
-        let file_param = mimefactory
-            .msg
-            .param
-            .get(Param::File)
-            .and_then(|param| ParamsFile::from_param(context, param).ok())
-            .map(|file| match file {
-                ParamsFile::FsPath(path) => path,
-                ParamsFile::Blob(blob) => blob.to_abs_path(),
-            });
+        let file_param = mimefactory.msg.param.get_path(Param::File, context)?;
         if let Some(pathNfilename) = file_param {
             if (mimefactory.msg.type_0 == Viewtype::Image
                 || mimefactory.msg.type_0 == Viewtype::Gif)

@@ -11,7 +11,6 @@ use mmime::mailmime::write_mem::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
 
-use crate::blob::BlobObject;
 use crate::chat::{self, Chat};
 use crate::config::Config;
 use crate::constants::*;
@@ -794,15 +793,10 @@ fn build_body_file(
     msg: &Message,
     base_name: &str,
 ) -> Result<(*mut Mailmime, String), Error> {
-    let param = msg
+    let blob = msg
         .param
-        .get(Param::File)
+        .get_blob(Param::File, context, true)?
         .ok_or_else(|| format_err!("msg has no filename"))?;
-    let file = ParamsFile::from_param(context, param)?;
-    let blob = match file {
-        ParamsFile::FsPath(path) => BlobObject::create_from_path(context, path)?,
-        ParamsFile::Blob(blob) => blob,
-    };
     let suffix = blob.suffix().unwrap_or("dat");
 
     // Get file name to use for sending.  For privacy purposes, we do
@@ -908,14 +902,7 @@ pub(crate) fn vec_contains_lowercase(vec: &[String], part: &str) -> bool {
 }
 
 fn is_file_size_okay(context: &Context, msg: &Message) -> bool {
-    match msg
-        .param
-        .get(Param::File)
-        .and_then(|param| ParamsFile::from_param(context, param).ok())
-        .map(|file| match file {
-            ParamsFile::FsPath(path) => path,
-            ParamsFile::Blob(blob) => blob.to_abs_path(),
-        }) {
+    match msg.param.get_path(Param::File, context).unwrap_or(None) {
         Some(path) => {
             let bytes = dc_get_filebytes(context, &path);
             bytes <= (49 * 1024 * 1024 / 4 * 3)
