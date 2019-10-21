@@ -145,13 +145,7 @@ impl Message {
     }
 
     pub fn get_file(&self, context: &Context) -> Option<PathBuf> {
-        self.param
-            .get(Param::File)
-            .map_or(None, |param| ParamsFile::from_param(context, param).ok())
-            .map(|file| match file {
-                ParamsFile::FsPath(path) => path,
-                ParamsFile::Blob(blob) => blob.to_abs_path(),
-            })
+        self.param.get_path(Param::File, context).unwrap_or(None)
     }
 
     /// Check if a message has a location bound to it.
@@ -241,12 +235,8 @@ impl Message {
 
     pub fn get_filebytes(&self, context: &Context) -> u64 {
         self.param
-            .get(Param::File)
-            .and_then(|param| ParamsFile::from_param(context, param).ok())
-            .map(|file| match file {
-                ParamsFile::FsPath(path) => path,
-                ParamsFile::Blob(blob) => blob.to_abs_path(),
-            })
+            .get_path(Param::File, context)
+            .unwrap_or(None)
             .map(|path| dc_get_filebytes(context, &path))
             .unwrap_or_default()
     }
@@ -829,22 +819,14 @@ pub fn get_summarytext_by_raw(
                     .stock_str(StockMessage::AcSetupMsgSubject)
                     .to_string()
             } else {
-                let file_name: String = if let Some(param) = param.get(Param::File) {
-                    ParamsFile::from_param(context, param)
-                        .ok()
-                        .map(|file| match file {
-                            ParamsFile::FsPath(path) => path,
-                            ParamsFile::Blob(blob) => blob.to_abs_path(),
-                        })
-                        .and_then(|path| {
-                            path.file_name()
-                                .map(|fname| fname.to_string_lossy().into_owned())
-                        })
-                } else {
-                    None
-                }
-                .unwrap_or_else(|| "ErrFileName".to_string());
-
+                let file_name: String = param
+                    .get_path(Param::File, context)
+                    .unwrap_or(None)
+                    .and_then(|path| {
+                        path.file_name()
+                            .map(|fname| fname.to_string_lossy().into_owned())
+                    })
+                    .unwrap_or_else(|| String::from("ErrFileName"));
                 let label = context.stock_str(if viewtype == Viewtype::Audio {
                     StockMessage::Audio
                 } else {

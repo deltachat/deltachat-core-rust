@@ -677,20 +677,10 @@ fn prepare_msg_common(context: &Context, chat_id: u32, msg: &mut Message) -> Res
     if msg.type_0 == Viewtype::Text {
         // the caller should check if the message text is empty
     } else if msgtype_has_file(msg.type_0) {
-        let param = msg.param.get(Param::File).ok_or_else(|| {
-            format_err!("Attachment missing for message of type #{}.", msg.type_0)
-        })?;
-        let file = ParamsFile::from_param(context, param)?;
-        let blob = match file {
-            ParamsFile::FsPath(path) => {
-                if msg.is_increation() {
-                    BlobObject::from_path(context, path)?
-                } else {
-                    BlobObject::create_from_path(context, path)?
-                }
-            }
-            ParamsFile::Blob(blob) => blob,
-        };
+        let blob = msg
+            .param
+            .get_blob(Param::File, context, !msg.is_increation())?
+            .ok_or_else(|| format_err!("Attachment missing for message of type #{}", msg.type_0))?;
         msg.param.set(Param::File, blob.as_name());
         if msg.type_0 == Viewtype::File || msg.type_0 == Viewtype::Image {
             // Correct the type, take care not to correct already very special
@@ -892,21 +882,10 @@ fn do_set_draft(context: &Context, chat_id: u32, msg: &mut Message) -> Result<()
             None => bail!("No text in draft"),
         },
         _ => {
-            let param = msg
+            let blob = msg
                 .param
-                .get(Param::File)
+                .get_blob(Param::File, context, !msg.is_increation())?
                 .ok_or_else(|| format_err!("No file stored in params"))?;
-            let file = ParamsFile::from_param(context, param)?;
-            let blob = match file {
-                ParamsFile::FsPath(path) => {
-                    if msg.is_increation() {
-                        BlobObject::from_path(context, path)?
-                    } else {
-                        BlobObject::create_from_path(context, path)?
-                    }
-                }
-                ParamsFile::Blob(blob) => blob,
-            };
             msg.param.set(Param::File, blob.as_name());
         }
     }

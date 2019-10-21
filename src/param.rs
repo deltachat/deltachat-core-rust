@@ -194,6 +194,72 @@ impl Params {
         self.get(key).and_then(|s| s.parse().ok())
     }
 
+    /// Gets the given parameter and parse as [ParamsFile].
+    ///
+    /// See also [Params::get_blob] and [Params::get_path] which may
+    /// be more convenient.
+    pub fn get_file<'a>(
+        &self,
+        key: Param,
+        context: &'a Context,
+    ) -> Result<Option<ParamsFile<'a>>, BlobError> {
+        let val = match self.get(key) {
+            Some(val) => val,
+            None => return Ok(None),
+        };
+        ParamsFile::from_param(context, val).map(|file| Some(file))
+    }
+
+    /// Gets the parameter and returns a [BlobObject] for it.
+    ///
+    /// This parses the parameter value as a [ParamsFile] and than
+    /// tries to return a [BlobObject] for that file.  If the file is
+    /// not yet a valid blob, one will be created by copying the file
+    /// only if `create` is set to `true`, otherwise the a [BlobError]
+    /// will result.
+    ///
+    /// Note that in the [ParamsFile::FsPath] case the blob can be
+    /// created without copying if the path already referes to a valid
+    /// blob.  If so a [BlobObject] will be returned regardless of the
+    /// `create` argument.
+    pub fn get_blob<'a>(
+        &self,
+        key: Param,
+        context: &'a Context,
+        create: bool,
+    ) -> Result<Option<BlobObject<'a>>, BlobError> {
+        let val = match self.get(key) {
+            Some(val) => val,
+            None => return Ok(None),
+        };
+        let file = ParamsFile::from_param(context, val)?;
+        let blob = match file {
+            ParamsFile::FsPath(path) => match create {
+                true => BlobObject::create_from_path(context, path)?,
+                false => BlobObject::from_path(context, path)?,
+            },
+            ParamsFile::Blob(blob) => blob,
+        };
+        Ok(Some(blob))
+    }
+
+    /// Gets the parameter and returns a [PathBuf] for it.
+    ///
+    /// This parses the parameter value as a [ParamsFile] and returns
+    /// a [PathBuf] to the file.
+    pub fn get_path(&self, key: Param, context: &Context) -> Result<Option<PathBuf>, BlobError> {
+        let val = match self.get(key) {
+            Some(val) => val,
+            None => return Ok(None),
+        };
+        let file = ParamsFile::from_param(context, val)?;
+        let path = match file {
+            ParamsFile::FsPath(path) => path,
+            ParamsFile::Blob(blob) => blob.to_abs_path(),
+        };
+        Ok(Some(path))
+    }
+
     /// Set the given paramter to the passed in `i32`.
     pub fn set_int(&mut self, key: Param, value: i32) -> &mut Self {
         self.set(key, format!("{}", value));
@@ -213,18 +279,18 @@ impl Params {
 /// UTF-8 string it is always safe to convert the value contained
 /// within the [ParamsFile::FsPath] back to a [String] or [&str].
 /// Despite the type itself does not guarantee this.
-#[derive(Debug)]
-pub enum ParamsFile<'c> {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ParamsFile<'a> {
     FsPath(PathBuf),
-    Blob(BlobObject<'c>),
+    Blob(BlobObject<'a>),
 }
 
-impl<'c> ParamsFile<'c> {
+impl<'a> ParamsFile<'a> {
     /// Parse the [Param::File] value into an object.
     ///
     /// If the value was stored into the [Params] correctly this
     /// should not fail.
-    pub fn from_param(context: &'c Context, src: &str) -> Result<ParamsFile<'c>, BlobError> {
+    pub fn from_param(context: &'a Context, src: &str) -> Result<ParamsFile<'a>, BlobError> {
         let param = match src.starts_with("$BLOBDIR/") {
             true => ParamsFile::Blob(BlobObject::from_name(context, src.to_string())?),
             false => ParamsFile::FsPath(PathBuf::from(src)),
@@ -237,8 +303,10 @@ impl<'c> ParamsFile<'c> {
 mod tests {
     use super::*;
 
+    use std::fs;
     use std::path::Path;
 
+    use crate::blob::BlobErrorKind;
     use crate::test_utils::*;
 
     #[test]
@@ -303,5 +371,45 @@ mod tests {
         } else {
             assert!(false, "Wrong enum variant");
         }
+    }
+
+    // Tests for Params::get_file(), Params::get_path() and Params::get_blob().
+    #[test]
+    fn test_params_get_fileparam() {
+        let t = dummy_context();
+        let fname = t.dir.path().join("foo");
+        let mut p = Params::new();
+        p.set(Param::File, fname.to_str().unwrap());
+
+        let file = p.get_file(Param::File, &t.ctx).unwrap().unwrap();
+        assert_eq!(file, ParamsFile::FsPath(fname.clone()));
+
+        let path = p.get_path(Param::File, &t.ctx).unwrap().unwrap();
+        assert_eq!(path, fname);
+
+        // Blob does not exist yet, expect BlobError.
+        let err = p.get_blob(Param::File, &t.ctx, false).unwrap_err();
+        assert_eq!(err.kind(), BlobErrorKind::WrongBlobdir);
+
+        fs::write(fname, b"boo").unwrap();
+        let blob = p.get_blob(Param::File, &t.ctx, true).unwrap().unwrap();
+        assert_eq!(
+            blob,
+            BlobObject::from_name(&t.ctx, "foo".to_string()).unwrap()
+        );
+
+        // Blob in blobdir, expect blob.
+        let bar = t.ctx.get_blobdir().join("bar");
+        p.set(Param::File, bar.to_str().unwrap());
+        let blob = p.get_blob(Param::File, &t.ctx, false).unwrap().unwrap();
+        assert_eq!(
+            blob,
+            BlobObject::from_name(&t.ctx, "bar".to_string()).unwrap()
+        );
+
+        p.remove(Param::File);
+        assert!(p.get_file(Param::File, &t.ctx).unwrap().is_none());
+        assert!(p.get_path(Param::File, &t.ctx).unwrap().is_none());
+        assert!(p.get_blob(Param::File, &t.ctx, false).unwrap().is_none());
     }
 }
