@@ -20,7 +20,7 @@ num-derive = "0.2.5"
 num-traits = "0.2.6"
 native-tls = "0.2.3"
 lettre = { git = "https://github.com/deltachat/lettre", branch = "master" }
-imap = { git = "https://github.com/dignifiedquire/rust-imap", branch = "fix/oauth-response" }
+imap = { git = "https://github.com/jonhoo/rust-imap", branch = "master" }
 base64 = "0.10"
 charset = "0.1"
 percent-encoding = "2.0"
