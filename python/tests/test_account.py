@@ -365,10 +365,12 @@ class TestOfflineChat:
 
 
 class TestOnlineAccount:
-    def get_chat(self, ac1, ac2):
+    def get_chat(self, ac1, ac2, both_created=False):
         c2 = ac1.create_contact(email=ac2.get_config("addr"))
         chat = ac1.create_chat_by_contact(c2)
         assert chat.id > const.DC_CHAT_ID_LAST_SPECIAL
+        if both_created:
+            ac2.create_chat_by_contact(ac2.create_contact(email=ac1.get_config("addr")))
         return chat
 
     def test_configure_canceled(self, acfactory):
@@ -411,6 +413,7 @@ class TestOnlineAccount:
         lp.sec("send out message without bcc")
         ac1.set_config("bcc_self", "0")
         msg_out = chat.send_text("message3")
+        assert not msg_out.is_forwarded()
         ev = ac1._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
         assert ev[2] == msg_out.id
         ev = ac1._evlogger.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
@@ -453,6 +456,7 @@ class TestOnlineAccount:
         # check the message arrived in contact-requests/deaddrop
         chat2 = msg_in.chat
         assert msg_in in chat2.get_messages()
+        assert not msg_in.is_forwarded()
         assert chat2.is_deaddrop()
         assert chat2 == ac2.get_deaddrop_chat()
         chat3 = ac2.create_group_chat("newgroup")
@@ -460,8 +464,34 @@ class TestOnlineAccount:
         ac2.forward_messages([msg_in], chat3)
         assert chat3.is_promoted()
         messages = chat3.get_messages()
+        msg = messages[-1]
+        assert msg.is_forwarded()
         ac2.delete_messages(messages)
         assert not chat3.get_messages()
+
+    def test_forward_own_message(self, acfactory, lp):
+        ac1, ac2 = acfactory.get_two_online_accounts()
+        chat = self.get_chat(ac1, ac2, both_created=True)
+
+        lp.sec("sending message")
+        msg_out = chat.send_text("message2")
+
+        lp.sec("receiving message")
+        ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG")
+        msg_in = ac2.get_message_by_id(ev[2])
+        assert msg_in.text == "message2"
+        assert not msg_in.is_forwarded()
+
+        lp.sec("ac1: creating group chat, and forward own message")
+        group = ac1.create_group_chat("newgroup2")
+        group.add_contact(ac1.create_contact(ac2.get_config("addr")))
+        ac1.forward_messages([msg_out], group)
+
+        # wait for other account to receive
+        ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG")
+        msg_in = ac2.get_message_by_id(ev[2])
+        assert msg_in.text == "message2"
+        assert msg_in.is_forwarded()
 
     def test_send_and_receive_message_markseen(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
@@ -482,6 +512,7 @@ class TestOnlineAccount:
         assert ev[2] == msg_out.id
         msg_in = ac2.get_message_by_id(msg_out.id)
         assert msg_in.text == "message1"
+        assert not msg_in.is_forwarded()
 
         lp.sec("check the message arrived in contact-requets/deaddrop")
         chat2 = msg_in.chat
