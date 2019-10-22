@@ -227,7 +227,7 @@ pub fn send_locations_to_chat(context: &Context, chat_id: u32, seconds: i64) {
             }
             context.call_cb(Event::ChatModified(chat_id));
             if 0 != seconds {
-                schedule_MAYBE_SEND_LOCATIONS(context, 0i32);
+                schedule_MAYBE_SEND_LOCATIONS(context, false);
                 job_add(
                     context,
                     Action::MaybeSendLocationsEnded,
@@ -241,8 +241,8 @@ pub fn send_locations_to_chat(context: &Context, chat_id: u32, seconds: i64) {
 }
 
 #[allow(non_snake_case)]
-fn schedule_MAYBE_SEND_LOCATIONS(context: &Context, flags: i32) {
-    if 0 != flags & 0x1 || !job_action_exists(context, Action::MaybeSendLocations) {
+fn schedule_MAYBE_SEND_LOCATIONS(context: &Context, force_schedule: bool) {
+    if force_schedule || !job_action_exists(context, Action::MaybeSendLocations) {
         job_add(context, Action::MaybeSendLocations, 0, Params::new(), 60);
     };
 }
@@ -290,7 +290,7 @@ pub fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64) -> b
         if continue_streaming {
             context.call_cb(Event::LocationChanged(Some(1)));
         };
-        schedule_MAYBE_SEND_LOCATIONS(context, 0);
+        schedule_MAYBE_SEND_LOCATIONS(context, false);
     }
 
     continue_streaming
@@ -540,7 +540,7 @@ pub fn save(
 #[allow(non_snake_case)]
 pub fn job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: &Job) {
     let now = time();
-    let mut continue_streaming: libc::c_int = 1;
+    let mut continue_streaming = false;
     info!(
         context,
         " ----------------- MAYBE_SEND_LOCATIONS -------------- ",
@@ -555,7 +555,7 @@ pub fn job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: &Job) {
             let chat_id: i32 = row.get(0)?;
             let locations_send_begin: i64 = row.get(1)?;
             let locations_last_sent: i64 = row.get(2)?;
-            continue_streaming = 1;
+            continue_streaming = true;
 
             // be a bit tolerant as the timer may not align exactly with time(NULL)
             if now - locations_last_sent < (60 - 3) {
@@ -618,8 +618,8 @@ pub fn job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: &Job) {
             chat::send_msg(context, chat_id as u32, &mut msg).unwrap_or_default();
         }
     }
-    if 0 != continue_streaming {
-        schedule_MAYBE_SEND_LOCATIONS(context, 0x1);
+    if continue_streaming {
+        schedule_MAYBE_SEND_LOCATIONS(context, true);
     }
 }
 
