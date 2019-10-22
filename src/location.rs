@@ -227,7 +227,7 @@ pub fn send_locations_to_chat(context: &Context, chat_id: u32, seconds: i64) {
             }
             context.call_cb(Event::ChatModified(chat_id));
             if 0 != seconds {
-                schedule_MAYBE_SEND_LOCATIONS(context, 0i32);
+                schedule_MAYBE_SEND_LOCATIONS(context, false);
                 job_add(
                     context,
                     Action::MaybeSendLocationsEnded,
@@ -241,8 +241,8 @@ pub fn send_locations_to_chat(context: &Context, chat_id: u32, seconds: i64) {
 }
 
 #[allow(non_snake_case)]
-fn schedule_MAYBE_SEND_LOCATIONS(context: &Context, flags: i32) {
-    if 0 != flags & 0x1 || !job_action_exists(context, Action::MaybeSendLocations) {
+fn schedule_MAYBE_SEND_LOCATIONS(context: &Context, force_schedule: bool) {
+    if force_schedule || !job_action_exists(context, Action::MaybeSendLocations) {
         job_add(context, Action::MaybeSendLocations, 0, Params::new(), 60);
     };
 }
@@ -290,7 +290,7 @@ pub fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64) -> b
         if continue_streaming {
             context.call_cb(Event::LocationChanged(Some(1)));
         };
-        schedule_MAYBE_SEND_LOCATIONS(context, 0);
+        schedule_MAYBE_SEND_LOCATIONS(context, false);
     }
 
     continue_streaming
@@ -619,7 +619,7 @@ pub fn job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: &Job) {
         }
     }
     if 0 != continue_streaming {
-        schedule_MAYBE_SEND_LOCATIONS(context, 0x1);
+        schedule_MAYBE_SEND_LOCATIONS(context, true);
     }
 }
 
