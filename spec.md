@@ -334,9 +334,7 @@ only on image changes.
 
 # Miscellaneous
 
-Messengers SHOULD use the header `Chat-Predecessor`
-instead of `In-Reply-To` as the latter one results
-in infinite threads on typical MUAs.
+Messengers SHOULD use the header `In-Reply-To` as usual.
 
 Messengers SHOULD add a `Chat-Voice-message: 1` header
 if an attached audio file is a voice message.
@@ -346,7 +344,7 @@ to specify the duration of attached audio or video files.
 The value MUST be the duration in milliseconds.
 This allows the receiver to show the time without knowing the file format.
 
-    Chat-Predecessor: foo123@domain
+    In-Reply-To: Gr.12345uvwxyZ.0005@domain
     Chat-Voice-Message: 1
     Chat-Duration: 10000
 
