@@ -540,7 +540,7 @@ pub fn save(
 #[allow(non_snake_case)]
 pub fn job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: &Job) {
     let now = time();
-    let mut continue_streaming = true;
+    let mut continue_streaming = false;
     info!(
         context,
         " ----------------- MAYBE_SEND_LOCATIONS -------------- ",
