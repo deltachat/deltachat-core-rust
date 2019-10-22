@@ -1,4 +1,24 @@
-# API changes
+# Changelog 
+
+## 1.0.0-beta2
+
+- https://c.delta.chat docs are now regenerated again through our CI 
+
+- several rPGP cleanups, security fixes and better multi-platform support 
+
+- reconnect on io errors and broken pipes (imap)
+
+- probe SMTP with real connection not just setup
+
+- various imap/smtp related fixes
+
+- use to_string_lossy in most places instead of relying on valid utf-8
+  encodings
+ 
+- rework, rustify and test autoconfig-reading and parsing 
+
+- some rustifications/boolifications of c-ints 
+
 
 ## 1.0.0-beta1 
 
