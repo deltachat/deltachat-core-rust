@@ -540,7 +540,7 @@ pub fn save(
 #[allow(non_snake_case)]
 pub fn job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: &Job) {
     let now = time();
-    let mut continue_streaming: libc::c_int = 1;
+    let mut continue_streaming = true;
     info!(
         context,
         " ----------------- MAYBE_SEND_LOCATIONS -------------- ",
@@ -555,7 +555,7 @@ pub fn job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: &Job) {
             let chat_id: i32 = row.get(0)?;
             let locations_send_begin: i64 = row.get(1)?;
             let locations_last_sent: i64 = row.get(2)?;
-            continue_streaming = 1;
+            continue_streaming = true;
 
             // be a bit tolerant as the timer may not align exactly with time(NULL)
             if now - locations_last_sent < (60 - 3) {
@@ -618,7 +618,7 @@ pub fn job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: &Job) {
             chat::send_msg(context, chat_id as u32, &mut msg).unwrap_or_default();
         }
     }
-    if 0 != continue_streaming {
+    if continue_streaming {
         schedule_MAYBE_SEND_LOCATIONS(context, true);
     }
 }
