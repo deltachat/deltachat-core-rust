@@ -21,7 +21,9 @@ use num_traits::FromPrimitive;
 
 use crate::aheader::*;
 use crate::config::Config;
+use crate::constants::Viewtype;
 use crate::context::Context;
+use crate::dc_mimeparser::MimeParser;
 use crate::dc_tools::*;
 use crate::error::*;
 use crate::key::*;
@@ -696,12 +698,102 @@ pub fn ensure_secret_key_exists(context: &Context) -> Result<String> {
     Ok(self_addr)
 }
 
+/// Decrypt message in memory and return decrypted message parts as string.
+pub fn decrypt_message_in_memory(
+    context: &Context,
+    content_type: &str,
+    content: &str,
+    sender_addr: &str,
+) -> Result<Vec<Option<String>>> {
+    let self_addr = context
+        .get_config(Config::ConfiguredAddr)
+        .unwrap_or_default();
+
+    let full_mime_msg = format!(
+        "To: {}\r\nFrom: {}\r\nContent-Type: {}\r\n\r\n{}",
+        self_addr, sender_addr, content_type, content
+    );
+
+    let mut mime_parser = MimeParser::new(context);
+    let () = unsafe { mime_parser.parse(full_mime_msg.as_bytes())? };
+
+    if mime_parser.header.is_empty() {
+        bail!("No headers");
+    }
+
+    Ok(mime_parser
+        .parts
+        .iter()
+        .map(|part| {
+            if part.typ == Viewtype::Text {
+                part.msg_raw.clone()
+            } else {
+                None
+            }
+        })
+        .collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use libc::free;
 
     use crate::test_utils::*;
+
+    mod decryption {
+        use super::*;
+
+        #[test]
+        fn test_decrypt_message_in_memory() {
+            let content_type = r###"multipart/encrypted; boundary="5d8b0f2e_f8f75182_bb0c"; protocol="application/pgp-encrypted"###;
+            let content = r###"--5d8b0f2e_f8f75182_bb0c
+Content-Type: application/pgp-encrypted
+Content-Transfer-Encoding: 7bit
+
+Version: 1
+
+--5d8b0f2e_f8f75182_bb0c
+Content-Type: application/octet-stream
+Content-Transfer-Encoding: 7bit
+
+-----BEGIN PGP MESSAGE-----
+
+wcBMA5Og3DZG63HoAQgAgBg2d0d11+HCsZUtR7vGZgRHzgKwoC/IijTJ/L59PWoX
+jXTZs2gF5xlzBbIx13m9UWew6BgauqSWjDaZxgSZxv7z1VJS8aKcRhnfdhF1x2LS
+bCKjoteG7RqAN6CJ4JX4VKST4GWr0yDWEeMnlQMiT5qdijKFoQ/UEbrc6YLVf3R3
+TIwyzOKcM8i2OHlwVm6Bo+DGI0oSBe4GdXjLZZFtycejuyB6tH9ReEXJkr9ys6ly
+vefnuwrsQZ4q9W1ghXrawwZDrOir30erlQH1BWQP2Snyijn/1VXZHkQnLj55MyQv
+K7qudU5eZu7obXV57z5ZL0YTnvah31tKH8y3awTvNtLA1gEJatSsX1Rnj4tLwki5
+WSZ3FhSSPCdIEhn7jQyOjz7YZeRWRQOC+3idGAowFXChcJleYkmauEgQv3Ft3im6
+WwrpYVS/EeTira6qam157fazxwHXw0feuvsHi4t3yWRjXaekg+0ehCFaI2KueoEO
+kHzDcW6X/z6V6IssZYJPFwht5NbISQzd/xhIgVX//uL8DhV9+NHO7RO3JxiGkf3v
+nfoKXZGCqGZtOch3f82d4BRVhXSBslwp0UJMVsnC79redk332VoFFeU80qMMoQMj
+H3mtC6kDQUbhZrt56x2zJPMVlDmLG9FMV8kyXge6toffcLWSLfO8dX3KT+1jv/FH
+X9efMtElJ/7QMn6rUUJfN3vdbVJhxFiBltxV0awwF4qkpy0TXC6QX/hPn2wjEiTz
+sSTZFaEi6rrfPROK4xz9c7v/m2sztI6M9xGybkaWAa8qGJox9z6WKUjwg7qFr4ln
+sTNI20MIqT6P7VyEpAN3H3c8REPbKTPjVm2ws+3no1AbGaOm9mu4rlZZxz5wVyJz
+DNDHEY81V98=
+=sMwj
+-----END PGP MESSAGE-----
+
+--5d8b0f2e_f8f75182_bb0c--
+
+"###;
+            let t = dummy_context();
+            let test_addr = configure_alice_keypair(&t.ctx);
+
+            let mut peerstate = Peerstate::new(&t.ctx);
+            peerstate.addr = Some(test_addr.clone());
+            peerstate.public_key = Key::from_self_public(&t.ctx, test_addr.clone(), &t.ctx.sql);
+            peerstate.save_to_db(&t.ctx.sql, true).unwrap();
+
+            assert_eq!(
+                vec![Some(String::from("This is a message"))],
+                decrypt_message_in_memory(&t.ctx, content_type, content, &test_addr).unwrap()
+            );
+        }
+    }
 
     mod ensure_secret_key_exists {
         use super::*;

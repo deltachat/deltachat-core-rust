@@ -27,14 +27,14 @@ use crate::param::*;
 use crate::stock::StockMessage;
 use crate::wrapmime;
 
-#[derive(Clone, Copy, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Loaded {
     Nothing,
     Message,
     MDN, // TODO: invent more descriptive name
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MimeFactory<'a> {
     pub from_addr: String,
     pub from_displayname: String,
