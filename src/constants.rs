@@ -54,7 +54,7 @@ pub enum ShowEmails {
 
 impl Default for ShowEmails {
     fn default() -> Self {
-        ShowEmails::Off
+        ShowEmails::Off // also change Config.ShowEmails props(default) on changes
     }
 }
 

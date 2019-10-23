@@ -45,7 +45,7 @@ pub enum Config {
     MvboxWatch,
     #[strum(props(default = "1"))]
     MvboxMove,
-    #[strum(props(default = "0"))]
+    #[strum(props(default = "0"))] // also change ShowEmails.default() on changes
     ShowEmails,
     SaveMimeHeaders,
     ConfiguredAddr,

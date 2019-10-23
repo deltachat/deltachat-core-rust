@@ -369,9 +369,10 @@ unsafe fn add_parts(
     // incoming non-chat messages may be discarded;
     // maybe this can be optimized later, by checking the state before the message body is downloaded
     let mut allow_creation = 1;
+    let show_emails =
+        ShowEmails::from_i32(context.get_config_int(Config::ShowEmails)).unwrap_or_default();
     if mime_parser.is_system_message != SystemMessage::AutocryptSetupMessage && msgrmsg == 0 {
-        let show_emails =
-            ShowEmails::from_i32(context.get_config_int(Config::ShowEmails)).unwrap_or_default();
+        // this message is a classic email not a chat-message nor a reply to one
         if show_emails == ShowEmails::Off {
             *chat_id = DC_CHAT_ID_TRASH;
             allow_creation = 0
@@ -490,12 +491,13 @@ unsafe fn add_parts(
         }
 
         // if the chat_id is blocked,
-        // for unknown senders and non-delta messages set the state to NOTICED
-        // to not result in a contact request (this would require the state FRESH)
+        // for unknown senders and non-delta-messages set the state to NOTICED
+        // to not result in a chatlist-contact-request (this would require the state FRESH)
         if Blocked::Not != chat_id_blocked
             && state == MessageState::InFresh
             && !incoming_origin.is_verified()
             && msgrmsg == 0
+            && show_emails != ShowEmails::All
         {
             state = MessageState::InNoticed;
         }
