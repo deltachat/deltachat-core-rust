@@ -10,6 +10,8 @@ use mmime::mailmime::*;
 use mmime::other::*;
 use sha2::{Digest, Sha256};
 
+use num_traits::FromPrimitive;
+
 use crate::blob::BlobObject;
 use crate::chat::{self, Chat};
 use crate::config::Config;
@@ -368,11 +370,12 @@ unsafe fn add_parts(
     // maybe this can be optimized later, by checking the state before the message body is downloaded
     let mut allow_creation = 1;
     if mime_parser.is_system_message != SystemMessage::AutocryptSetupMessage && msgrmsg == 0 {
-        let show_emails = context.get_config_int(Config::ShowEmails);
-        if show_emails == 0 {
-            *chat_id = 3;
+        let show_emails =
+            ShowEmails::from_i32(context.get_config_int(Config::ShowEmails)).unwrap_or_default();
+        if show_emails == ShowEmails::Off {
+            *chat_id = DC_CHAT_ID_TRASH;
             allow_creation = 0
-        } else if show_emails == 1 {
+        } else if show_emails == ShowEmails::AcceptedContacts {
             allow_creation = 0
         }
     }
@@ -440,7 +443,7 @@ unsafe fn add_parts(
         if *chat_id == 0 {
             // check if the message belongs to a mailing list
             if mime_parser.is_mailinglist_message() {
-                *chat_id = 3;
+                *chat_id = DC_CHAT_ID_TRASH;
                 info!(context, "Message belongs to a mailing list and is ignored.",);
             }
         }
