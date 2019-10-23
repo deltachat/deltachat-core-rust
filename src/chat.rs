@@ -1366,8 +1366,8 @@ pub(crate) fn add_contact_to_chat_ex(
         chat_id
     );
     ensure!(
-        Contact::real_exists_by_id(context, contact_id) && contact_id != DC_CONTACT_ID_SELF,
-        "invalid contact_id {} for removal in group",
+        Contact::real_exists_by_id(context, contact_id) || contact_id == DC_CONTACT_ID_SELF,
+        "invalid contact_id {} for adding to group",
         contact_id
     );
 
@@ -1387,10 +1387,10 @@ pub(crate) fn add_contact_to_chat_ex(
         .get_config(Config::ConfiguredAddr)
         .unwrap_or_default();
     if contact.get_addr() == &self_addr {
+        // ourself is added using DC_CONTACT_ID_SELF, do not add this address explicitly.
+        // if SELF is not in the group, members cannot be added at all.
         bail!("invalid attempt to add self e-mail address to group");
     }
-    // ourself is added using DC_CONTACT_ID_SELF, do not add it explicitly.
-    // if SELF is not in the group, members cannot be added at all.
 
     if is_contact_in_chat(context, chat_id, contact_id) {
         if !from_handshake {
