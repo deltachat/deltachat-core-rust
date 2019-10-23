@@ -44,6 +44,20 @@ impl Default for Blocked {
     }
 }
 
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql)]
+#[repr(u8)]
+pub enum ShowEmails {
+    Off = 0,
+    AcceptedContacts = 1,
+    All = 2,
+}
+
+impl Default for ShowEmails {
+    fn default() -> Self {
+        ShowEmails::Off
+    }
+}
+
 pub const DC_IMAP_SEEN: u32 = 0x1;
 
 pub const DC_HANDSHAKE_CONTINUE_NORMAL_PROCESSING: i32 = 0x01;
@@ -250,11 +264,6 @@ const DC_EVENT_IS_OFFLINE: usize = 2081; // deprecated;
 const DC_ERROR_SEE_STRING: usize = 0; // deprecated;
 const DC_ERROR_SELF_NOT_IN_GROUP: usize = 1; // deprecated;
 const DC_STR_SELFNOTINGRP: usize = 21; // deprecated;
-
-/// Values for dc_get|set_config("show_emails")
-const DC_SHOW_EMAILS_OFF: usize = 0;
-const DC_SHOW_EMAILS_ACCEPTED_CONTACTS: usize = 1;
-const DC_SHOW_EMAILS_ALL: usize = 2;
 
 // TODO: Strings need some doumentation about used placeholders.
 // These constants are used to set stock translation strings
