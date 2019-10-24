@@ -1005,7 +1005,7 @@ dependencies = [
 [[package]]
 name = "imap"
 version = "1.0.2"
-source = "git+https://github.com/deltachat/rust-imap?branch=fix-imap-hang1#5b1f48cb97ad5e424704e035959c1a4b3bbe7916"
+source = "git+https://github.com/deltachat/rust-imap?branch=fix-imap-hang1#2f7a7415d32b3ad71b92b9ef26036c34640501c9"
 dependencies = [
  "base64 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "bufstream 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
