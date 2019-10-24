@@ -5,6 +5,7 @@ use std::sync::{
 };
 use std::time::{Duration, SystemTime};
 
+use crate::configure::dc_connect_to_configured_imap;
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_receive_imf::dc_receive_imf;
@@ -18,6 +19,7 @@ use crate::param::Params;
 use crate::wrapmime;
 
 const DC_IMAP_SEEN: usize = 0x0001;
+const DCC_IMAP_DEBUG: &str = "DCC_IMAP_DEBUG";
 
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq)]
 pub enum ImapResult {
@@ -117,7 +119,9 @@ impl Client {
         let tls_stream = native_tls::TlsConnector::connect(&tls, domain.as_ref(), s)?;
 
         let mut client = imap::Client::new(tls_stream);
-        client.debug = true;
+        if std::env::var(DCC_IMAP_DEBUG).is_ok() {
+            client.debug = true;
+        }
         client.read_greeting()?;
 
         Ok(Client::Secure(client, stream))
@@ -127,6 +131,9 @@ impl Client {
         let stream = net::TcpStream::connect(addr)?;
 
         let mut client = imap::Client::new(stream.try_clone().unwrap());
+        if std::env::var(DCC_IMAP_DEBUG).is_ok() {
+            client.debug = true;
+        }
         client.read_greeting()?;
 
         Ok(Client::Insecure(client, stream))
@@ -372,18 +379,15 @@ impl Imap {
     }
 
     fn setup_handle_if_needed(&self, context: &Context) -> bool {
-        println!("setup_handle_if_needed");
         if self.config.read().unwrap().imap_server.is_empty() {
             return false;
         }
 
         if self.should_reconnect() {
-            println!("unsetup_handle");
             self.unsetup_handle(context);
         }
 
         if self.is_connected() && self.stream.read().unwrap().is_some() {
-            println!("already connected");
             self.should_reconnect.store(false, Ordering::Relaxed);
             return true;
         }
@@ -396,7 +400,6 @@ impl Imap {
                 let imap_server: &str = config.imap_server.as_ref();
                 let imap_port = config.imap_port;
 
-                println!("trying to connect insecure {}:{}", imap_server, imap_port);
                 Client::connect_insecure((imap_server, imap_port)).and_then(|client| {
                     if (server_flags & DC_LP_IMAP_SOCKET_STARTTLS) != 0 {
                         client.secure(imap_server, config.certificate_checks)
@@ -409,7 +412,6 @@ impl Imap {
                 let imap_server: &str = config.imap_server.as_ref();
                 let imap_port = config.imap_port;
 
-                println!("trying to connect secure {}:{}", imap_server, imap_port);
                 Client::connect_secure(
                     (imap_server, imap_port),
                     imap_server,
@@ -477,13 +479,11 @@ impl Imap {
     }
 
     fn unsetup_handle(&self, context: &Context) {
-        info!(context, "IMAP unsetup_handle starts");
-
         info!(context, "IMAP unsetup_handle step 1 (closing down stream).");
         let stream = self.stream.write().unwrap().take();
         if let Some(stream) = stream {
             if let Err(err) = stream.shutdown(net::Shutdown::Both) {
-                eprintln!("failed to shutdown connection: {:?}", err);
+                warn!(context, "failed to shutdown connection: {:?}", err);
             }
         }
 
@@ -493,7 +493,7 @@ impl Imap {
         );
         if let Some(mut session) = self.session.lock().unwrap().take() {
             if let Err(err) = session.close() {
-                eprintln!("failed to close connection: {:?}", err);
+                warn!(context, "failed to close connection: {:?}", err);
             }
         }
 
@@ -657,7 +657,7 @@ impl Imap {
                     match session.close() {
                         Ok(_) => {}
                         Err(err) => {
-                            eprintln!("failed to close session: {:?}", err);
+                            warn!(context, "failed to close session: {:?}", err);
                         }
                     }
                 } else {
@@ -672,11 +672,9 @@ impl Imap {
             if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
                 match session.select(folder) {
                     Ok(mailbox) => {
-                        println!("session.select returned");
                         let mut config = self.config.write().unwrap();
                         config.selected_folder = Some(folder.as_ref().to_string());
                         config.selected_mailbox = Some(mailbox);
-                        println!("session.select ok-handling complete");
                     }
                     Err(err) => {
                         info!(
@@ -741,7 +739,6 @@ impl Imap {
 
             return 0;
         }
-        println!("select_folder completed");
 
         // compare last seen UIDVALIDITY against the current one
         let (mut uid_validity, mut last_seen_uid) = self.get_config_last_seen_uid(context, &folder);
@@ -1007,27 +1004,28 @@ impl Imap {
                                 // a good value that is also used by other MUAs is 23 minutes.
                                 // if needed, the ui can call dc_imap_interrupt_idle() to trigger a reconnect.
                                 // idle.set_keepalive(Duration::from_secs(23 * 60));
-                                idle.set_keepalive(Duration::from_secs(20));
-                                println!("entering idle wait_keepalive");
+                                idle.set_keepalive(Duration::from_secs(23 * 60));
                                 idle.wait_keepalive()
                             }
                             Err(err) => {
-                                sender.send(Err(imap::error::Error::Bad(err.to_string())));
+                                let _ = sender.send(Err(imap::error::Error::Bad(err.to_string())));
                                 break;
                             }
                         };
                         match res {
                             Ok(true) => {
-                                println!("wait_keepalive returned data, idle-finished");
-                                sender.send(Ok(()));
-                                break ;
+                                // println!("wait_keepalive returned data, idle-finished");
+                                let _ = sender.send(Ok(()));
+                                break;
                             }
                             Ok(false) => {
-                                println!("wait_keepalive returned no data, let's re-enter idle");
+                                // println!("wait_keepalive returned no data, let's re-enter idle");
                             }
-                            Err(err) => {
-                                eprintln!("wait_keepalive returned error {} -- SHUTTING DOWN", err);
-                                sender.send(Err(imap::error::Error::Bad("wait_keepalive failed".to_string())));
+                            Err(_err) => {
+                                // eprintln!("wait_keepalive returned error {} -- SHUTTING DOWN", _err);
+                                let _ = sender.send(Err(imap::error::Error::Bad(
+                                    "wait_keepalive failed".to_string(),
+                                )));
                                 break;
                             }
                         }
@@ -1049,7 +1047,9 @@ impl Imap {
                 info!(context, "IMAP-IDLE has data.");
             }
             Err(err) => match err {
-                imap::error::Error::Io(_) | imap::error::Error::ConnectionLost | imap::error::Error::Bad(_) => {
+                imap::error::Error::Io(_)
+                | imap::error::Error::ConnectionLost
+                | imap::error::Error::Bad(_) => {
                     info!(context, "IMAP-IDLE wait cancelled, we will reconnect soon.");
                     self.unsetup_handle(context);
                     info!(context, "IMAP-IDLE has SHUTDOWN");
@@ -1108,8 +1108,8 @@ impl Imap {
             let mut watch = lock.lock().unwrap();
 
             loop {
+                println!("wait_timeout");
                 let res = cvar.wait_timeout(watch, seconds_to_wait).unwrap();
-                println!("returned wait_timeout");
                 watch = res.0;
                 if *watch {
                     do_fake_idle = false;
@@ -1118,7 +1118,7 @@ impl Imap {
                     break;
                 }
             }
-            println!("fake-idle: wait_timeout finished");
+            println!("wait_timeout ended");
 
             *watch = false;
 
@@ -1126,30 +1126,30 @@ impl Imap {
                 return;
             }
 
-            // check for new messages. fetch_from_single_folder() has the side-effect that messages
-            // are also downloaded, however, typically this would take place in the FETCH command
-            // following IDLE otherwise, so this seems okay here.
-            if self.setup_handle_if_needed(context) {
-                let mut res: Option<String> = None;
-                if let Some(ref watch_folder) = self.config.read().unwrap().watch_folder {
-                    res = Some(watch_folder.to_string())
+            // check if we want to finish fake-idling.
+            if !self.is_connected() {
+                // try to connect with proper login params
+                // (setup_handle_if_needed might not know about them if we
+                // never successfully connected)
+                if dc_connect_to_configured_imap(context, &self) != 0 {
+                    return;
                 }
-                if let Some(watch_folder) = res {
-                    println!("before fetch_from_single_folder");
-                    if 0 != self.fetch_from_single_folder(context, watch_folder) {
-                        do_fake_idle = false;
-                    }
-                    if self.is_connected() {
-                        do_fake_idle = false;
-                    }
-                    println!("after fetch_from_single_folder do_fake_idle={}", do_fake_idle);
-                }
-            } else {
-                // if we cannot connect, set the starting time to a small value which will
-                // result in larger timeouts (60 instead of 5 seconds) for re-checking the availablility of network.
-                // to get the _exact_ moment of re-available network, the ui should call interrupt_idle()
+                // we cannot connect, wait long next time (currently 60 secs, see above)
                 wait_long = true;
+                continue;
             }
+            // we are connected, let's see if fetching messages results
+            // in anything.  If so, we behave as if IDLE had data but
+            // will have already fetched the messages so perform_*_fetch
+            // will not find any new.
+
+            let watch_folder = self.config.read().unwrap().watch_folder.clone();
+            if let Some(watch_folder) = watch_folder {
+                if 0 != self.fetch_from_single_folder(context, watch_folder) {
+                    do_fake_idle = false;
+                }
+            }
+            println!("do_fake_idle={}", do_fake_idle);
         }
     }
 
