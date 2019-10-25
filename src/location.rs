@@ -6,6 +6,7 @@ use crate::chat;
 use crate::config::Config;
 use crate::constants::*;
 use crate::context::*;
+use crate::dc_mimeparser::SystemMessage;
 use crate::dc_tools::*;
 use crate::error::Error;
 use crate::events::Event;
@@ -218,7 +219,7 @@ pub fn send_locations_to_chat(context: &Context, chat_id: u32, seconds: i64) {
                 msg = Message::new(Viewtype::Text);
                 msg.text =
                     Some(context.stock_system_msg(StockMessage::MsgLocationEnabled, "", "", 0));
-                msg.param.set_int(Param::Cmd, 8);
+                msg.param.set_cmd(SystemMessage::LocationStreamingEnabled);
                 chat::send_msg(context, chat_id, &mut msg).unwrap_or_default();
             } else if 0 == seconds && is_sending_locations_before {
                 let stock_str =
@@ -603,7 +604,7 @@ pub fn job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: &Job) {
                                 // and dc_set_location() is typically called periodically, this is ok)
                                 let mut msg = Message::new(Viewtype::Text);
                                 msg.hidden = true;
-                                msg.param.set_int(Param::Cmd, 9);
+                                msg.param.set_cmd(SystemMessage::LocationOnly);
                                 Some((chat_id, msg))
                             }
                         })
