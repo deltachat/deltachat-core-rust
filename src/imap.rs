@@ -1014,18 +1014,15 @@ impl Imap {
                         };
                         match res {
                             Ok(true) => {
-                                // println!("wait_keepalive returned data, idle-finished");
                                 let _ = sender.send(Ok(()));
                                 break;
                             }
-                            Ok(false) => {
-                                // println!("wait_keepalive returned no data, let's re-enter idle");
-                            }
-                            Err(_err) => {
-                                // eprintln!("wait_keepalive returned error {} -- SHUTTING DOWN", _err);
-                                let _ = sender.send(Err(imap::error::Error::Bad(
-                                    "wait_keepalive failed".to_string(),
-                                )));
+                            Ok(false) => {} // continue loop
+                            Err(err) => {
+                                let _ = sender.send(Err(imap::error::Error::Bad(format!(
+                                    "wait_keepalive failed {}",
+                                    err
+                                ))));
                                 break;
                             }
                         }
@@ -1108,7 +1105,6 @@ impl Imap {
             let mut watch = lock.lock().unwrap();
 
             loop {
-                println!("wait_timeout");
                 let res = cvar.wait_timeout(watch, seconds_to_wait).unwrap();
                 watch = res.0;
                 if *watch {
@@ -1118,7 +1114,6 @@ impl Imap {
                     break;
                 }
             }
-            println!("wait_timeout ended");
 
             *watch = false;
 
@@ -1149,7 +1144,6 @@ impl Imap {
                     do_fake_idle = false;
                 }
             }
-            println!("do_fake_idle={}", do_fake_idle);
         }
     }
 
