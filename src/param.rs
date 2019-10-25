@@ -189,6 +189,11 @@ impl Params {
             .unwrap_or_default()
     }
 
+    /// Set the parameter behind `Param::Cmd`.
+    pub fn set_cmd(&mut self, value: SystemMessage) {
+        self.set_int(Param::Cmd, value as i32);
+    }
+
     /// Get the given parameter and parse as `f64`.
     pub fn get_float(&self, key: Param) -> Option<f64> {
         self.get(key).and_then(|s| s.parse().ok())

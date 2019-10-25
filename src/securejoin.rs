@@ -257,7 +257,7 @@ fn send_handshake_msg(
     msg.type_0 = Viewtype::Text;
     msg.text = Some(format!("Secure-Join: {}", step));
     msg.hidden = true;
-    msg.param.set_int(Param::Cmd, 7);
+    msg.param.set_cmd(SystemMessage::SecurejoinMessage);
     if step.is_empty() {
         msg.param.remove(Param::Arg);
     } else {

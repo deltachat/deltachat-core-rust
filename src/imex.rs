@@ -10,6 +10,7 @@ use crate::config::Config;
 use crate::configure::*;
 use crate::constants::*;
 use crate::context::Context;
+use crate::dc_mimeparser::SystemMessage;
 use crate::dc_tools::*;
 use crate::e2ee;
 use crate::error::*;
@@ -136,7 +137,7 @@ fn do_initiate_key_transfer(context: &Context) -> Result<String> {
 
     msg.param
         .set(Param::MimeType, "application/autocrypt-setup");
-    msg.param.set_int(Param::Cmd, 6);
+    msg.param.set_cmd(SystemMessage::AutocryptSetupMessage);
     msg.param
         .set_int(Param::ForcePlaintext, DC_FP_NO_AUTOCRYPT_HEADER);
 

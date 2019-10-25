@@ -1419,7 +1419,7 @@ pub(crate) fn add_contact_to_chat_ex(
             "",
             DC_CONTACT_ID_SELF as u32,
         ));
-        msg.param.set_int(Param::Cmd, 4);
+        msg.param.set_cmd(SystemMessage::MemberAddedToGroup);
         msg.param.set(Param::Arg, contact.get_addr());
         msg.param.set_int(Param::Arg2, from_handshake.into());
         msg.id = send_msg(context, chat_id, &mut msg)?;
@@ -1531,7 +1531,7 @@ pub fn remove_contact_from_chat(
                                 DC_CONTACT_ID_SELF,
                             ));
                         }
-                        msg.param.set_int(Param::Cmd, 5);
+                        msg.param.set_cmd(SystemMessage::MemberRemovedFromGroup);
                         msg.param.set(Param::Arg, contact.get_addr());
                         msg.id = send_msg(context, chat_id, &mut msg)?;
                         context.call_cb(Event::MsgsChanged {
@@ -1626,7 +1626,7 @@ pub fn set_chat_name(
                         new_name.as_ref(),
                         DC_CONTACT_ID_SELF,
                     ));
-                    msg.param.set_int(Param::Cmd, 2);
+                    msg.param.set_cmd(SystemMessage::GroupNameChanged);
                     if !chat.name.is_empty() {
                         msg.param.set(Param::Arg, &chat.name);
                     }
