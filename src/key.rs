@@ -180,15 +180,15 @@ impl Key {
 
         let encoded = base64::encode(&buf);
         encoded
-            .as_bytes()
-            .chunks(break_every)
-            .fold(String::new(), |mut res, buf| {
-                // safe because we are using a base64 encoded string
-                res += unsafe { std::str::from_utf8_unchecked(buf) };
-                res += " ";
+            .chars()
+            .enumerate()
+            .fold(String::new(), |mut res, (i, c)| {
+                if i > 0 && i % break_every == 0 {
+                    res.push(' ')
+                }
+                res.push(c);
                 res
             })
-            .trim()
             .to_string()
     }
 
