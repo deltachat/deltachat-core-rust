@@ -65,6 +65,10 @@ DC_LP_IMAP_SOCKET_PLAIN = 0x400
 DC_LP_SMTP_SOCKET_STARTTLS = 0x10000
 DC_LP_SMTP_SOCKET_SSL = 0x20000
 DC_LP_SMTP_SOCKET_PLAIN = 0x40000
+DC_CERTCK_AUTO = 0
+DC_CERTCK_STRICT = 1
+DC_CERTCK_ACCEPT_INVALID_HOSTNAMES = 2
+DC_CERTCK_ACCEPT_INVALID_CERTIFICATES = 3
 DC_EVENT_INFO = 100
 DC_EVENT_SMTP_CONNECTED = 101
 DC_EVENT_IMAP_CONNECTED = 102
@@ -147,8 +151,8 @@ DC_STR_COUNT = 67
 
 
 def read_event_defines(f):
-    rex = re.compile(r'#define\s+((?:DC_EVENT_|DC_QR|DC_MSG|DC_LP|DC_STATE_|DC_STR|'
-                     r'DC_CONTACT_ID_|DC_GCL|DC_CHAT|DC_PROVIDER)\S+)\s+([x\d]+).*')
+    rex = re.compile(r'#define\s+((?:DC_EVENT|DC_QR|DC_MSG|DC_LP|DC_CERTCK|DC_STATE|DC_STR|'
+                     r'DC_CONTACT_ID|DC_GCL|DC_CHAT|DC_PROVIDER)_\S+)\s+([x\d]+).*')
     for line in f:
         m = rex.match(line)
         if m:

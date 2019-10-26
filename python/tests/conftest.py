@@ -4,6 +4,7 @@ import pytest
 import requests
 import time
 from deltachat import Account
+from deltachat import const
 from deltachat.capi import lib
 import tempfile
 
@@ -164,8 +165,8 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig):
                 configdict["e2ee_enabled"] = "1"
 
             # Enable strict certificate checks for online accounts
-            configdict["imap_certificate_checks"] = "1"
-            configdict["smtp_certificate_checks"] = "1"
+            configdict["imap_certificate_checks"] = str(const.DC_CERTCK_STRICT)
+            configdict["smtp_certificate_checks"] = str(const.DC_CERTCK_STRICT)
 
             tmpdb = tmpdir.join("livedb%d" % self.live_count)
             ac = self.make_account(tmpdb.strpath, logid="ac{}".format(self.live_count))

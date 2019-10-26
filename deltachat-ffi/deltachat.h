@@ -3879,7 +3879,43 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
 #define DC_LP_IMAP_SOCKET_FLAGS (DC_LP_IMAP_SOCKET_STARTTLS|DC_LP_IMAP_SOCKET_SSL|DC_LP_IMAP_SOCKET_PLAIN) // if none of these flags are set, the default is chosen
 #define DC_LP_SMTP_SOCKET_FLAGS (DC_LP_SMTP_SOCKET_STARTTLS|DC_LP_SMTP_SOCKET_SSL|DC_LP_SMTP_SOCKET_PLAIN) // if none of these flags are set, the default is chosen
 
+/**
+ * @defgroup DC_CERTCK DC_CERTCK
+ *
+ * These constants configure TLS certificate checks for IMAP and SMTP connections.
+ *
+ * These constants are set via dc_set_config
+ * using keys "imap_certificate_checks" and "smtp_certificate_checks".
+ *
+ * @addtogroup DC_CERTCK
+ * @{
+ */
 
+/**
+ * Configure certificate checks automatically.
+ */
+#define DC_CERTCK_AUTO 0
+
+/**
+ * Strictly check TLS certificates.
+ * Require that both the certificate and hostname are valid.
+ */
+#define DC_CERTCK_STRICT 1
+
+/**
+ * Accept invalid hostnames, but not invalid certificates.
+ */
+#define DC_CERTCK_ACCEPT_INVALID_HOSTNAMES 2
+
+/**
+ * Accept invalid certificates, including self-signed ones
+ * or having incorrect hostname.
+ */
+#define DC_CERTCK_ACCEPT_INVALID_CERTIFICATES 3
+
+/**
+ * @}
+ */
 
 /**
  * @defgroup DC_EVENT DC_EVENT
