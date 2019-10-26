@@ -25,7 +25,7 @@ pub enum Param {
     /// For Messages
     MimeType = b'm',
     /// For Messages: message is encryoted, outgoing: guarantee E2EE or the message is not send
-    GuranteeE2ee = b'c',
+    GuaranteeE2ee = b'c',
     /// For Messages: decrypted with validation errors or without mutual set, if neither
     /// 'c' nor 'e' are preset, the messages is only transport encrypted.
     ErroneousE2ee = b'e',
@@ -331,7 +331,7 @@ mod tests {
 
         p1.set(Param::Forwarded, "foo")
             .set_int(Param::File, 2)
-            .remove(Param::GuranteeE2ee)
+            .remove(Param::GuaranteeE2ee)
             .set_int(Param::Duration, 4);
 
         assert_eq!(p1.to_string(), "a=foo\nd=4\nf=2");
