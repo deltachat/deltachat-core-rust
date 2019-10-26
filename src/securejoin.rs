@@ -278,7 +278,7 @@ fn send_handshake_msg(
             ForcePlaintext::AddAutocryptHeader as i32,
         );
     } else {
-        msg.param.set_int(Param::GuranteeE2ee, 1);
+        msg.param.set_int(Param::GuaranteeE2ee, 1);
     }
     // TODO. handle cleanup on error
     chat::send_msg(context, contact_chat_id, &mut msg).unwrap_or_default();

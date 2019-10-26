@@ -256,7 +256,7 @@ impl<'a> MimeFactory<'a> {
                         e2ee_guaranteed = self
                             .msg
                             .param
-                            .get_int(Param::GuranteeE2ee)
+                            .get_int(Param::GuaranteeE2ee)
                             .unwrap_or_default()
                             != 0;
                     }
@@ -537,7 +537,7 @@ impl<'a> MimeFactory<'a> {
                     != self
                         .msg
                         .param
-                        .get_int(Param::GuranteeE2ee)
+                        .get_int(Param::GuaranteeE2ee)
                         .unwrap_or_default()
                 {
                     self.context

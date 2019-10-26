@@ -361,7 +361,7 @@ impl Chat {
                 }
             }
             if do_guarantee_e2ee {
-                msg.param.set_int(Param::GuranteeE2ee, 1);
+                msg.param.set_int(Param::GuaranteeE2ee, 1);
             }
             // reset eg. for forwarding
             msg.param.remove(Param::ErroneousE2ee);
@@ -739,7 +739,7 @@ fn last_msg_in_chat_encrypted(context: &Context, sql: &Sql, chat_id: u32) -> boo
 
     if let Some(ref packed) = packed {
         match packed.parse::<Params>() {
-            Ok(param) => param.exists(Param::GuranteeE2ee),
+            Ok(param) => param.exists(Param::GuaranteeE2ee),
             Err(err) => {
                 error!(context, "invalid params stored: '{}', {:?}", packed, err);
                 false
@@ -1763,7 +1763,7 @@ pub fn forward_msgs(context: &Context, msg_ids: &[u32], chat_id: u32) -> Result<
             // however, this turned out to be to confusing and unclear.
             msg.param.set_int(Param::Forwarded, 1);
 
-            msg.param.remove(Param::GuranteeE2ee);
+            msg.param.remove(Param::GuaranteeE2ee);
             msg.param.remove(Param::ForcePlaintext);
             msg.param.remove(Param::Cmd);
 

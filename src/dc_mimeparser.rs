@@ -803,7 +803,7 @@ impl<'a> MimeParser<'a> {
 
     fn do_add_single_part(&mut self, mut part: Part) {
         if self.encrypted && self.signatures.len() > 0 {
-            part.param.set_int(Param::GuranteeE2ee, 1);
+            part.param.set_int(Param::GuaranteeE2ee, 1);
         } else if self.encrypted {
             part.param.set_int(Param::ErroneousE2ee, 0x2);
         }

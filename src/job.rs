@@ -594,7 +594,7 @@ pub fn job_send_msg(context: &Context, msg_id: u32) -> Result<(), Error> {
     if 0 != mimefactory
         .msg
         .param
-        .get_int(Param::GuranteeE2ee)
+        .get_int(Param::GuaranteeE2ee)
         .unwrap_or_default()
         && !mimefactory.out_encrypted
     {
@@ -607,7 +607,7 @@ pub fn job_send_msg(context: &Context, msg_id: u32) -> Result<(), Error> {
         bail!(
             "e2e encryption unavailable {} - {:?}",
             msg_id,
-            mimefactory.msg.param.get_int(Param::GuranteeE2ee),
+            mimefactory.msg.param.get_int(Param::GuaranteeE2ee),
         );
     }
     if context.get_config_bool(Config::BccSelf)
@@ -649,11 +649,11 @@ pub fn job_send_msg(context: &Context, msg_id: u32) -> Result<(), Error> {
         && mimefactory
             .msg
             .param
-            .get_int(Param::GuranteeE2ee)
+            .get_int(Param::GuaranteeE2ee)
             .unwrap_or_default()
             == 0
     {
-        mimefactory.msg.param.set_int(Param::GuranteeE2ee, 1);
+        mimefactory.msg.param.set_int(Param::GuaranteeE2ee, 1);
         mimefactory.msg.save_param_to_disk(context);
     }
     add_smtp_job(context, Action::SendMsgToSmtp, &mut mimefactory)?;

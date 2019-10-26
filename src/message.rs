@@ -254,7 +254,7 @@ impl Message {
     }
 
     pub fn get_showpadlock(&self) -> bool {
-        self.param.get_int(Param::GuranteeE2ee).unwrap_or_default() != 0
+        self.param.get_int(Param::GuaranteeE2ee).unwrap_or_default() != 0
     }
 
     pub fn get_summary(&mut self, context: &Context, chat: Option<&Chat>) -> Lot {
@@ -605,7 +605,7 @@ pub fn get_msg_info(context: &Context, msg_id: u32) -> String {
         if 0 != e2ee_errors & 0x2 {
             ret += ", Encrypted, no valid signature";
         }
-    } else if 0 != msg.param.get_int(Param::GuranteeE2ee).unwrap_or_default() {
+    } else if 0 != msg.param.get_int(Param::GuaranteeE2ee).unwrap_or_default() {
         ret += ", Encrypted";
     }
 
