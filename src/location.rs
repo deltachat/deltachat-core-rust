@@ -196,10 +196,8 @@ impl Kml {
 // location streaming
 pub fn send_locations_to_chat(context: &Context, chat_id: u32, seconds: i64) {
     let now = time();
-    let mut msg: Message;
-    let is_sending_locations_before: bool;
     if !(seconds < 0 || chat_id <= DC_CHAT_ID_LAST_SPECIAL) {
-        is_sending_locations_before = is_sending_locations_to_chat(context, chat_id);
+        let is_sending_locations_before = is_sending_locations_to_chat(context, chat_id);
         if sql::execute(
             context,
             &context.sql,
@@ -216,7 +214,7 @@ pub fn send_locations_to_chat(context: &Context, chat_id: u32, seconds: i64) {
         .is_ok()
         {
             if 0 != seconds && !is_sending_locations_before {
-                msg = Message::new(Viewtype::Text);
+                let mut msg = Message::new(Viewtype::Text);
                 msg.text =
                     Some(context.stock_system_msg(StockMessage::MsgLocationEnabled, "", "", 0));
                 msg.param.set_cmd(SystemMessage::LocationStreamingEnabled);
@@ -289,7 +287,7 @@ pub fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64) -> b
             }
         }
         if continue_streaming {
-            context.call_cb(Event::LocationChanged(Some(1)));
+            context.call_cb(Event::LocationChanged(Some(DC_CONTACT_ID_SELF)));
         };
         schedule_MAYBE_SEND_LOCATIONS(context, false);
     }
@@ -404,7 +402,7 @@ pub fn get_kml(context: &Context, chat_id: u32) -> Result<(String, u32), Error> 
              AND independent=0 \
              GROUP BY timestamp \
              ORDER BY timestamp;",
-            params![1, locations_send_begin, locations_last_sent, 1],
+            params![DC_CONTACT_ID_SELF, locations_send_begin, locations_last_sent, DC_CONTACT_ID_SELF],
             |row| {
                 let location_id: i32 = row.get(0)?;
                 let latitude: f64 = row.get(1)?;
@@ -495,7 +493,7 @@ pub fn save(
     locations: &[Location],
     independent: i32,
 ) -> Result<u32, Error> {
-    ensure!(chat_id > 9, "Invalid chat id");
+    ensure!(chat_id > DC_CHAT_ID_LAST_SPECIAL, "Invalid chat id");
     context.sql.prepare2(
         "SELECT id FROM locations WHERE timestamp=? AND from_id=?",
         "INSERT INTO locations\
@@ -586,7 +584,11 @@ pub fn job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: &Job) {
                         .into_iter()
                         .filter_map(|(chat_id, locations_send_begin, locations_last_sent)| {
                             if !stmt_locations
-                                .exists(params![1, locations_send_begin, locations_last_sent,])
+                                .exists(params![
+                                    DC_CONTACT_ID_SELF,
+                                    locations_send_begin,
+                                    locations_last_sent,
+                                ])
                                 .unwrap_or_default()
                             {
                                 // if there is no new location, there's nothing to send.
