@@ -717,7 +717,7 @@ pub unsafe extern "C" fn dc_get_chat_id_by_contact_id(
     ffi_context
         .with_inner(|ctx| {
             chat::get_by_contact_id(ctx, contact_id)
-                .unwrap_or_log_default(ctx, "Failed to get chat")
+                .unwrap_or(0)
         })
         .unwrap_or(0)
 }
