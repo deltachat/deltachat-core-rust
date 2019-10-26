@@ -850,7 +850,9 @@ pub fn get_summarytext_by_raw(
     }
 
     if let Some(text) = text {
-        if prefix.is_empty() {
+        if text.as_ref().is_empty() {
+            prefix
+        } else if prefix.is_empty() {
             dc_truncate(text.as_ref(), approx_characters, true).to_string()
         } else {
             let tmp = format!("{} – {}", prefix, text.as_ref());
