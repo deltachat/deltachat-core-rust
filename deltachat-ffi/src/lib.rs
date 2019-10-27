@@ -715,10 +715,7 @@ pub unsafe extern "C" fn dc_get_chat_id_by_contact_id(
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| {
-            chat::get_by_contact_id(ctx, contact_id)
-                .unwrap_or(0)
-        })
+        .with_inner(|ctx| chat::get_by_contact_id(ctx, contact_id).unwrap_or(0))
         .unwrap_or(0)
 }
 
