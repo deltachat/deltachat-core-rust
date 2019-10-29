@@ -493,6 +493,18 @@ class TestOnlineAccount:
         assert msg_in.text == "message2"
         assert msg_in.is_forwarded()
 
+    def test_send_self_message_and_empty_folder(self, acfactory, lp):
+        ac1 = acfactory.get_one_online_account()
+        lp.sec("ac1: create self chat")
+        chat = ac1.create_chat_by_contact(ac1.get_self_contact())
+        chat.send_text("hello")
+        ac1._evlogger.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
+        ac1.empty_server_folders(inbox=True, mvbox=True)
+        ev = ac1._evlogger.get_matching("DC_EVENT_IMAP_FOLDER_EMPTIED")
+        assert ev[2] == "DeltaChat"
+        ev = ac1._evlogger.get_matching("DC_EVENT_IMAP_FOLDER_EMPTIED")
+        assert ev[2] == "INBOX"
+
     def test_send_and_receive_message_markseen(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
 

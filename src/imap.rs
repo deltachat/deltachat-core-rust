@@ -651,7 +651,8 @@ impl Imap {
         }
 
         // deselect existing folder, if needed (it's also done implicitly by SELECT, however, without EXPUNGE then)
-        if self.config.read().unwrap().selected_folder_needs_expunge {
+        let needs_expunge = { self.config.read().unwrap().selected_folder_needs_expunge };
+        if needs_expunge {
             if let Some(ref folder) = self.config.read().unwrap().selected_folder {
                 info!(context, "Expunge messages in \"{}\".", folder);
 
@@ -659,16 +660,19 @@ impl Imap {
                 // https://tools.ietf.org/html/rfc3501#section-6.4.2
                 if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
                     match session.close() {
-                        Ok(_) => {}
+                        Ok(_) => {
+                            info!(context, "close/expunge succeeded");
+                        }
                         Err(err) => {
                             warn!(context, "failed to close session: {:?}", err);
+                            return 0;
                         }
                     }
                 } else {
                     return 0;
                 }
-                self.config.write().unwrap().selected_folder_needs_expunge = true;
             }
+            self.config.write().unwrap().selected_folder_needs_expunge = false;
         }
 
         // select new folder
@@ -1510,10 +1514,10 @@ impl Imap {
             if self.select_folder::<String>(context, None) == 0 {
                 warn!(
                     context,
-                    "could not perform expunge on empty folder {}", folder
+                    "could not perform expunge on empty-marked folder {}", folder
                 );
             } else {
-                info!(context, "Emptying folder '{}' done.", folder);
+                emit_event!(context, Event::ImapFolderEmptied(folder.to_string()));
             }
         }
     }

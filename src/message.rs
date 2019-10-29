@@ -1276,6 +1276,12 @@ pub fn update_server_uid(
     }
 }
 
+#[allow(dead_code)]
+pub fn dc_empty_server(context: &Context, flags: u32) {
+    job_kill_action(context, Action::EmptyServer);
+    job_add(context, Action::EmptyServer, flags as i32, Params::new(), 0);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

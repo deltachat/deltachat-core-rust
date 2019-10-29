@@ -130,6 +130,7 @@ impl ContextWrapper {
                     | Event::SmtpMessageSent(msg)
                     | Event::ImapMessageDeleted(msg)
                     | Event::ImapMessageMoved(msg)
+                    | Event::ImapFolderEmptied(msg)
                     | Event::NewBlobFile(msg)
                     | Event::DeletedBlobFile(msg)
                     | Event::Warning(msg)
@@ -1283,6 +1284,18 @@ pub unsafe extern "C" fn dc_delete_msgs(
     let msg_ids: Vec<MsgId> = ids.iter().map(|id| MsgId::new(*id)).collect();
     ffi_context
         .with_inner(|ctx| message::delete_msgs(ctx, &msg_ids[..]))
+        .unwrap_or(())
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_empty_server(context: *mut dc_context_t, flags: u32) {
+    if context.is_null() || flags == 0 {
+        eprintln!("ignoring careless call to dc_empty_server()");
+        return;
+    }
+    let ffi_context = &*context;
+    ffi_context
+        .with_inner(|ctx| message::dc_empty_server(ctx, flags))
         .unwrap_or(())
 }
 
