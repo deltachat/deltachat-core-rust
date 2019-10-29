@@ -54,6 +54,12 @@ pub enum Event {
     #[strum(props(id = "105"))]
     ImapMessageMoved(String),
 
+    /// Emitted when an IMAP folder was emptied
+    ///
+    /// @return 0
+    #[strum(props(id = "106"))]
+    ImapFolderEmptied(String),
+
     /// Emitted when an new file in the $BLOBDIR was created
     ///
     /// @return 0

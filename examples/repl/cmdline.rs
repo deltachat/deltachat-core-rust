@@ -404,6 +404,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                  checkqr <qr-content>\n\
                  event <event-id to test>\n\
                  fileinfo <file>\n\
+                 emptyserver <flags> (1=MVBOX 2=INBOX)\n\
                  clear -- clear screen\n\
                  exit or quit\n\
                  ============================================="
@@ -975,6 +976,11 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             } else {
                 bail!("Command failed.");
             }
+        }
+        "emptyserver" => {
+            ensure!(!arg1.is_empty(), "Argument <flags> missing");
+
+            message::dc_empty_server(context, arg1.parse()?);
         }
         "" => (),
         _ => bail!("Unknown command: \"{}\" type ? for help.", arg0),

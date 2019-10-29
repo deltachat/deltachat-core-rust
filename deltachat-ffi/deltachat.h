@@ -1513,6 +1513,16 @@ char*           dc_get_mime_headers          (dc_context_t* context, uint32_t ms
  */
 void            dc_delete_msgs               (dc_context_t* context, const uint32_t* msg_ids, int msg_cnt);
 
+/**
+ * Empty IMAP server folder: delete all messages. 
+ *
+ * @memberof dc_context_t
+ * @param context The context object as created by dc_context_new()
+ * @param flags uint32_t with DC_EMPTY_* flags 
+ * @return None.
+ */
+void            dc_empty_server              (dc_context_t* context, const uint32_t flags);
+
 
 /**
  * Forward messages to another chat.
@@ -3929,6 +3939,30 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * @{
  */
 
+/**
+ * @defgroup DC_EMPTY
+ *
+ * These constants configure emptying imap folders. 
+ *
+ * @addtogroup DC_EMPTY
+ * @{
+ */
+
+/**
+ * Clear all mvbox messages.
+ */
+#define DC_EMPTY_MVBOX 0x01
+
+/**
+ * Clear all INBOX messages.
+ */
+#define DC_EMPTY_INBOX 0x02
+
+/**
+ * @}
+ */
+
+
 
 /**
  * The library-user may write an informational string to the log.
@@ -3994,6 +4028,16 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * @return 0
  */
 #define DC_EVENT_IMAP_MESSAGE_MOVED   105
+
+/**
+ * Emitted when an IMAP folder was emptied. 
+ *
+ * @param data1 0
+ * @param data2 (const char*) folder name. 
+ *     Must not be unref'd or modified and is valid only until the callback returns.
+ * @return 0
+ */
+#define DC_EVENT_IMAP_FOLDER_EMPTIED  106
 
 /**
  * Emitted when a new blob file was successfully written 

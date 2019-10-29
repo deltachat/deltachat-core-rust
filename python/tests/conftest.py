@@ -180,6 +180,12 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig):
             ac.start_threads(mvbox=mvbox, sentbox=sentbox)
             return ac
 
+        def get_one_online_account(self):
+            ac1 = self.get_online_configuring_account()
+            wait_successful_IMAP_SMTP_connection(ac1)
+            wait_configuration_progress(ac1, 1000)
+            return ac1
+
         def get_two_online_accounts(self):
             ac1 = self.get_online_configuring_account()
             ac2 = self.get_online_configuring_account()
