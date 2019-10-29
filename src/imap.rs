@@ -32,6 +32,7 @@ pub enum ImapResult {
 
 const PREFETCH_FLAGS: &str = "(UID ENVELOPE)";
 const BODY_FLAGS: &str = "(FLAGS BODY.PEEK[])";
+const SELECT_ALL: &str = "1:*";
 
 #[derive(Debug)]
 pub struct Imap {
@@ -1241,18 +1242,22 @@ impl Imap {
         if server_uid == 0 {
             return true; // might be moved but we don't want to have a stuck job
         }
+        let s = server_uid.to_string();
+        self.add_flag_finalized_with_set(context, &s, flag)
+    }
+
+    fn add_flag_finalized_with_set(&self, context: &Context, uid_set: &str, flag: &str) -> bool {
         if self.should_reconnect() {
             return false;
         }
         if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
-            let set = format!("{}", server_uid);
             let query = format!("+FLAGS ({})", flag);
-            match session.uid_store(&set, &query) {
+            match session.uid_store(uid_set, &query) {
                 Ok(_) => {}
                 Err(err) => {
                     warn!(
                         context,
-                        "IMAP failed to store: ({}, {}) {:?}", set, query, err
+                        "IMAP failed to store: ({}, {}) {:?}", uid_set, query, err
                     );
                 }
             }
@@ -1486,6 +1491,30 @@ impl Imap {
             }
         } else {
             None
+        }
+    }
+
+    pub fn empty_folder(&self, context: &Context, folder: &str) {
+        info!(context, "emptying folder {}", folder);
+
+        if folder.is_empty() || self.select_folder(context, Some(&folder)) == 0 {
+            warn!(context, "Cannot select folder '{}' for emptying", folder);
+            return;
+        }
+
+        if !self.add_flag_finalized_with_set(context, SELECT_ALL, "\\Deleted") {
+            warn!(context, "Cannot empty folder {}", folder);
+        } else {
+            // we now trigger expunge to actually delete messages
+            self.config.write().unwrap().selected_folder_needs_expunge = true;
+            if self.select_folder::<String>(context, None) == 0 {
+                warn!(
+                    context,
+                    "could not perform expunge on empty folder {}", folder
+                );
+            } else {
+                info!(context, "Emptying folder '{}' done.", folder);
+            }
         }
     }
 }

@@ -44,6 +44,7 @@ pub enum Action {
 
     // Jobs in the INBOX-thread, range from DC_IMAP_THREAD..DC_IMAP_THREAD+999
     Housekeeping = 105, // low priority ...
+    EmptyServer = 107,
     DeleteMsgOnImap = 110,
     MarkseenMdnOnImap = 120,
     MarkseenMsgOnImap = 130,
@@ -75,6 +76,7 @@ impl From<Action> for Thread {
 
             Housekeeping => Thread::Imap,
             DeleteMsgOnImap => Thread::Imap,
+            EmptyServer => Thread::Imap,
             MarkseenMdnOnImap => Thread::Imap,
             MarkseenMsgOnImap => Thread::Imap,
             MoveMsg => Thread::Imap,
@@ -286,6 +288,22 @@ impl Job {
                 }
                 Message::delete_from_db(context, msg.id);
             }
+        }
+    }
+
+    #[allow(non_snake_case)]
+    fn do_DC_JOB_EMPTY_SERVER(&mut self, context: &Context) {
+        let inbox = context.inbox.read().unwrap();
+        if self.foreign_id & DC_EMPTY_MVBOX > 0 {
+            if let Some(mvbox_folder) = context
+                .sql
+                .get_raw_config(context, "configured_mvbox_folder")
+            {
+                inbox.empty_folder(context, &mvbox_folder);
+            }
+        }
+        if self.foreign_id & DC_EMPTY_INBOX > 0 {
+            inbox.empty_folder(context, "INBOX");
         }
     }
 
@@ -776,6 +794,7 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                     warn!(context, "Unknown job id found");
                 }
                 Action::SendMsgToSmtp => job.do_DC_JOB_SEND(context),
+                Action::EmptyServer => job.do_DC_JOB_EMPTY_SERVER(context),
                 Action::DeleteMsgOnImap => job.do_DC_JOB_DELETE_MSG_ON_IMAP(context),
                 Action::MarkseenMsgOnImap => job.do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context),
                 Action::MarkseenMdnOnImap => job.do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context),

@@ -135,6 +135,11 @@ pub const DC_CONTACT_ID_LAST_SPECIAL: u32 = 9;
 
 pub const DC_CREATE_MVBOX: usize = 1;
 
+// Flags for empty server job
+
+pub const DC_EMPTY_MVBOX: u32 = 0x01;
+pub const DC_EMPTY_INBOX: u32 = 0x02;
+
 // Flags for configuring IMAP and SMTP servers.
 // These flags are optional
 // and may be set together with the username, password etc.
