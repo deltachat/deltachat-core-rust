@@ -467,9 +467,8 @@ impl Imap {
                 true
             }
             Err((err, _)) => {
-                let config = self.config.read().unwrap();
-                let imap_user: &str = config.imap_user.as_ref();
-                let message = context.stock_string_repl_str(StockMessage::CannotLogin, imap_user);
+                let imap_user = self.config.read().unwrap().imap_user.to_owned();
+                let message = context.stock_string_repl_str(StockMessage::CannotLogin, &imap_user);
 
                 emit_event!(
                     context,
