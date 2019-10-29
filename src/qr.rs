@@ -90,7 +90,8 @@ fn decode_openpgp(context: &Context, qr: &str) -> Lot {
 
     // what is up with that param name?
     let name = if let Some(encoded_name) = param.get(Param::SetLongitude) {
-        match percent_decode_str(encoded_name).decode_utf8() {
+        let encoded_name = encoded_name.replace("+", "%20"); // sometimes spaces are encoded as `+`
+        match percent_decode_str(&encoded_name).decode_utf8() {
             Ok(name) => name.to_string(),
             Err(err) => return format_err!("Invalid name: {}", err).into(),
         }
@@ -104,7 +105,8 @@ fn decode_openpgp(context: &Context, qr: &str) -> Lot {
 
     let grpname = if grpid.is_some() {
         if let Some(encoded_name) = param.get(Param::GroupName) {
-            match percent_decode_str(encoded_name).decode_utf8() {
+            let encoded_name = encoded_name.replace("+", "%20"); // sometimes spaces are encoded as `+`
+            match percent_decode_str(&encoded_name).decode_utf8() {
                 Ok(name) => Some(name.to_string()),
                 Err(err) => return format_err!("Invalid group name: {}", err).into(),
             }
@@ -434,12 +436,13 @@ mod tests {
 
         let res = check_qr(
             &ctx.ctx,
-            "OPENPGP4FPR:79252762C34C5096AF57958F4FC3D21A81B0F0A7#a=cli%40deltachat.de&g=testtesttest&x=h-0oKQf2CDK&i=9JEXlxAqGM0&s=0V7LzL9cxRL"
+            "OPENPGP4FPR:79252762C34C5096AF57958F4FC3D21A81B0F0A7#a=cli%40deltachat.de&g=test%20%3F+test%20%21&x=h-0oKQf2CDK&i=9JEXlxAqGM0&s=0V7LzL9cxRL"
         );
 
         println!("{:?}", res);
         assert_eq!(res.get_state(), LotState::QrAskVerifyGroup);
         assert_ne!(res.get_id(), 0);
+        assert_eq!(res.get_text1().unwrap(), "test ? test !");
 
         let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).unwrap();
         assert_eq!(contact.get_addr(), "cli@deltachat.de");
@@ -451,7 +454,7 @@ mod tests {
 
         let res = check_qr(
             &ctx.ctx,
-            "OPENPGP4FPR:79252762C34C5096AF57958F4FC3D21A81B0F0A7#a=cli%40deltachat.de&n=&i=TbnwJ6lSvD5&s=0ejvbdFSQxB"
+            "OPENPGP4FPR:79252762C34C5096AF57958F4FC3D21A81B0F0A7#a=cli%40deltachat.de&n=J%C3%B6rn%20P.+P.&i=TbnwJ6lSvD5&s=0ejvbdFSQxB"
         );
 
         println!("{:?}", res);
@@ -460,5 +463,6 @@ mod tests {
 
         let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).unwrap();
         assert_eq!(contact.get_addr(), "cli@deltachat.de");
+        assert_eq!(contact.get_name(), "Jörn P. P.");
     }
 }
