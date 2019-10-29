@@ -57,7 +57,7 @@ pub enum ConfigItem {
     E2eeEnabled(String),
     ImapCertificateChecks(String),
     ImapFolder(String),
-    InboxWatch(String),
+    InboxWatch(bool),
     MailPort(String),
     MailPw(String),
     MailServer(String),
@@ -109,7 +109,7 @@ impl ConfigKey {
             Self::BccSelf => Some(ConfigItem::BccSelf(String::from("1"))),
             Self::E2eeEnabled => Some(ConfigItem::E2eeEnabled(String::from("1"))),
             Self::ImapFolder => Some(ConfigItem::ImapFolder(String::from("INBOX"))),
-            Self::InboxWatch => Some(ConfigItem::InboxWatch(String::from("1"))),
+            Self::InboxWatch => Some(ConfigItem::InboxWatch(true)),
             Self::MdnsEnabled => Some(ConfigItem::MdnsEnabled(String::from("1"))),
             Self::MvboxMove => Some(ConfigItem::MvboxMove(String::from("1"))),
             Self::MvboxWatch => Some(ConfigItem::MvboxWatch(String::from("1"))),
@@ -137,6 +137,7 @@ impl rusqlite::types::ToSql for ConfigItem {
                     .map_err(|err| rusqlite::Error::ToSqlConversionFailure(Box::new(err)))?;
                 rusqlite::types::Value::Text(rel_path.to_string_lossy().into_owned())
             }
+            ConfigItem::InboxWatch(value) => rusqlite::types::Value::Integer(*value as i64),
             ConfigItem::Addr(value)
             | ConfigItem::BccSelf(value)
             | ConfigItem::Configured(value)
@@ -159,7 +160,6 @@ impl rusqlite::types::ToSql for ConfigItem {
             | ConfigItem::E2eeEnabled(value)
             | ConfigItem::ImapCertificateChecks(value)
             | ConfigItem::ImapFolder(value)
-            | ConfigItem::InboxWatch(value)
             | ConfigItem::MailPort(value)
             | ConfigItem::MailPw(value)
             | ConfigItem::MailServer(value)
@@ -225,6 +225,39 @@ impl Context {
                 .map(|s| s.to_string())
                 .ok()
         };
+        let to_int = |raw: rusqlite::types::ValueRef| -> Option<i64> {
+            match raw {
+                // Current way this is stored.
+                rusqlite::types::ValueRef::Integer(val) => Some(val),
+                // Backward compatibility.
+                rusqlite::types::ValueRef::Text(val) => std::str::from_utf8(val)
+                    .map_err(|e| {
+                        warn!(self, "ConfigItem {}; not UTF-8: {}", key, e);
+                    })
+                    .ok()
+                    .and_then(|v| match v.parse::<i64>() {
+                        Ok(i) => Some(i),
+                        Err(e) => {
+                            warn!(self, "ConfigItem {}; not parsed as int: {}", key, e);
+                            None
+                        }
+                    }),
+                _ => {
+                    warn!(self, "ConfigItem {}; bad SQLite type: {:?}", key, raw);
+                    None
+                }
+            }
+        };
+        let to_bool = |raw: rusqlite::types::ValueRef| -> Option<bool> {
+            to_int(raw).and_then(|i| match i {
+                0 => Some(false),
+                1 => Some(true),
+                v => {
+                    warn!(self, "ConfigItem {}; bad bool value: {}", key, v);
+                    None
+                }
+            })
+        };
         match key {
             ConfigKey::Addr => to_string(raw).map(|val| ConfigItem::Addr(val)),
             ConfigKey::BccSelf => to_string(raw).map(|val| ConfigItem::BccSelf(val)),
@@ -278,7 +311,7 @@ impl Context {
                 to_string(raw).map(|val| ConfigItem::ImapCertificateChecks(val))
             }
             ConfigKey::ImapFolder => to_string(raw).map(|val| ConfigItem::ImapFolder(val)),
-            ConfigKey::InboxWatch => to_string(raw).map(|val| ConfigItem::InboxWatch(val)),
+            ConfigKey::InboxWatch => to_bool(raw).map(|val| ConfigItem::InboxWatch(val)),
             ConfigKey::MailPort => to_string(raw).map(|val| ConfigItem::MailPort(val)),
             ConfigKey::MailPw => to_string(raw).map(|val| ConfigItem::MailPw(val)),
             ConfigKey::MailServer => to_string(raw).map(|val| ConfigItem::MailServer(val)),
@@ -371,6 +404,9 @@ impl Context {
     pub fn get_config(&self, key: Config) -> Option<String> {
         if let Some(item) = self.get_config_item(key) {
             let value = match item {
+                // Bool values.
+                ConfigItem::InboxWatch(value) => format!("{}", value as u32),
+                // String values.
                 ConfigItem::Addr(value)
                 | ConfigItem::BccSelf(value)
                 | ConfigItem::Configured(value)
@@ -393,7 +429,6 @@ impl Context {
                 | ConfigItem::E2eeEnabled(value)
                 | ConfigItem::ImapCertificateChecks(value)
                 | ConfigItem::ImapFolder(value)
-                | ConfigItem::InboxWatch(value)
                 | ConfigItem::MailPort(value)
                 | ConfigItem::MailPw(value)
                 | ConfigItem::MailServer(value)
@@ -481,7 +516,14 @@ impl Context {
                 ConfigKey::E2eeEnabled => ConfigItem::E2eeEnabled(v),
                 ConfigKey::ImapCertificateChecks => ConfigItem::ImapCertificateChecks(v),
                 ConfigKey::ImapFolder => ConfigItem::ImapFolder(v),
-                ConfigKey::InboxWatch => ConfigItem::InboxWatch(v),
+                ConfigKey::InboxWatch => {
+                    let val = match v.parse::<u32>() {
+                        Ok(0) => false,
+                        Ok(1) => true,
+                        _ => bail!("set_config for {}: not a bool: {}", key, v),
+                    };
+                    ConfigItem::InboxWatch(val)
+                }
                 ConfigKey::MailPort => ConfigItem::MailPort(v),
                 ConfigKey::MailPw => ConfigItem::MailPw(v),
                 ConfigKey::MailServer => ConfigItem::MailServer(v),
@@ -642,5 +684,49 @@ mod tests {
         let avatar_cfg = t.ctx.get_config(Config::Selfavatar);
         assert_eq!(avatar_cfg, avatar_src.to_str().map(|s| s.to_string()));
         Ok(())
+    }
+
+    #[test]
+    fn test_config_item_bool() {
+        let t = test_context(Some(Box::new(logging_cb)));
+
+        // Backwards compatible value.
+        t.ctx
+            .sql
+            .execute(
+                "INSERT INTO config (keyname, value) VALUES (?, ?)",
+                params![ConfigKey::InboxWatch.to_string(), "0"],
+            )
+            .unwrap();
+        let item = t.ctx.get_config_item(ConfigKey::InboxWatch).unwrap();
+        assert_eq!(item, ConfigItem::InboxWatch(false));
+        t.ctx
+            .sql
+            .execute(
+                "UPDATE config SET value=? WHERE keyname=?",
+                params!["1", ConfigKey::InboxWatch.to_string()],
+            )
+            .unwrap();
+        let item = t.ctx.get_config_item(ConfigKey::InboxWatch).unwrap();
+        assert_eq!(item, ConfigItem::InboxWatch(true));
+        t.ctx
+            .sql
+            .execute(
+                "UPDATE config SET value=? WHERE keyname=?",
+                params!["bad", ConfigKey::InboxWatch.to_string()],
+            )
+            .unwrap();
+        let item = t.ctx.get_config_item(ConfigKey::InboxWatch);
+        assert!(item.is_none());
+
+        // Normal value.
+        t.ctx.set_config_item(ConfigItem::InboxWatch(true)).unwrap();
+        let item = t.ctx.get_config_item(ConfigKey::InboxWatch).unwrap();
+        assert_eq!(item, ConfigItem::InboxWatch(true));
+        t.ctx
+            .set_config_item(ConfigItem::InboxWatch(false))
+            .unwrap();
+        let item = t.ctx.get_config_item(ConfigKey::InboxWatch).unwrap();
+        assert_eq!(item, ConfigItem::InboxWatch(false));
     }
 }

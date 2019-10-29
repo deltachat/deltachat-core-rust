@@ -5,7 +5,7 @@ use rand::{thread_rng, Rng};
 
 use crate::blob::BlobObject;
 use crate::chat;
-use crate::config::Config;
+use crate::config::{Config, ConfigItem, ConfigKey};
 use crate::configure::*;
 use crate::constants::*;
 use crate::context::Context;
@@ -368,7 +368,12 @@ pub fn job_kill_action(context: &Context, action: Action) -> bool {
 }
 
 pub fn perform_inbox_fetch(context: &Context) {
-    let use_network = context.get_config_bool(Config::InboxWatch);
+    let use_network =
+        if let Some(ConfigItem::InboxWatch(val)) = context.get_config_item(ConfigKey::InboxWatch) {
+            val
+        } else {
+            false
+        };
 
     context
         .inbox_thread
@@ -405,7 +410,12 @@ pub fn perform_inbox_idle(context: &Context) {
         );
         return;
     }
-    let use_network = context.get_config_bool(Config::InboxWatch);
+    let use_network =
+        if let Some(ConfigItem::InboxWatch(val)) = context.get_config_item(Config::InboxWatch) {
+            val
+        } else {
+            false
+        };
 
     context
         .inbox_thread

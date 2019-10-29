@@ -6,7 +6,7 @@ use std::sync::{Arc, Condvar, Mutex, RwLock};
 use libc::uintptr_t;
 
 use crate::chat::*;
-use crate::config::Config;
+use crate::config::{Config, ConfigItem, ConfigKey};
 use crate::constants::*;
 use crate::contact::*;
 use crate::error::*;
@@ -269,7 +269,6 @@ impl Context {
             "<Not yet calculated>".into()
         };
 
-        let inbox_watch = self.get_config_int(Config::InboxWatch);
         let sentbox_watch = self.get_config_int(Config::SentboxWatch);
         let mvbox_watch = self.get_config_int(Config::MvboxWatch);
         let mvbox_move = self.get_config_int(Config::MvboxMove);
@@ -299,7 +298,9 @@ impl Context {
         res.insert("is_configured", is_configured.to_string());
         res.insert("entered_account_settings", l.to_string());
         res.insert("used_account_settings", l2.to_string());
-        res.insert("inbox_watch", inbox_watch.to_string());
+        if let Some(ConfigItem::InboxWatch(val)) = self.get_config_item(ConfigKey::InboxWatch) {
+            res.insert("inbox_watch", val.to_string());
+        }
         res.insert("sentbox_watch", sentbox_watch.to_string());
         res.insert("mvbox_watch", mvbox_watch.to_string());
         res.insert("mvbox_move", mvbox_move.to_string());
