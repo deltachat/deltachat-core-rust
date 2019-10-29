@@ -186,7 +186,7 @@ fn decode_mailto(context: &Context, qr: &str) -> Lot {
     let addr = if let Some(query_index) = payload.find('?') {
         &payload[..query_index]
     } else {
-        return format_err!("Invalid mailto found").into();
+        payload
     };
 
     let addr = match normalize_address(addr) {
@@ -405,13 +405,21 @@ mod tests {
             &ctx.ctx,
             "mailto:stress@test.local?subject=hello&body=world",
         );
-
         println!("{:?}", res);
         assert_eq!(res.get_state(), LotState::QrAddr);
         assert_ne!(res.get_id(), 0);
-
         let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).unwrap();
         assert_eq!(contact.get_addr(), "stress@test.local");
+
+        let res = check_qr(&ctx.ctx, "mailto:no-questionmark@example.org");
+        assert_eq!(res.get_state(), LotState::QrAddr);
+        assert_ne!(res.get_id(), 0);
+        let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).unwrap();
+        assert_eq!(contact.get_addr(), "no-questionmark@example.org");
+
+        let res = check_qr(&ctx.ctx, "mailto:no-addr");
+        assert_eq!(res.get_state(), LotState::QrError);
+        assert!(res.get_text1().is_some());
     }
 
     #[test]
