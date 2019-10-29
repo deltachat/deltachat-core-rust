@@ -337,12 +337,16 @@ pub unsafe extern "C" fn dc_get_config(
         return "".strdup();
     }
     let ffi_context = &*context;
-    match config::Config::from_str(&to_string_lossy(key)) {
+    match config::Config::from_key_str(&to_string_lossy(key)) {
         Ok(key) => ffi_context
             .with_inner(|ctx| ctx.get_config(key).unwrap_or_default().strdup())
             .unwrap_or_else(|_| "".strdup()),
-        Err(_) => {
-            ffi_context.error("dc_get_config(): invalid key");
+        Err(err) => {
+            ffi_context.error(&format!(
+                "dc_get_config(): invalid key {} ({})",
+                &to_string_lossy(key),
+                err
+            ));
             "".strdup()
         }
     }
