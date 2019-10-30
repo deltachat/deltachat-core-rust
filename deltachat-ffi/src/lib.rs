@@ -426,14 +426,10 @@ pub unsafe extern "C" fn dc_get_version_str() -> *mut libc::c_char {
 #[no_mangle]
 pub unsafe extern "C" fn dc_decrypt_message_in_memory(
     context: *mut dc_context_t,
-    content_type: *const libc::c_char,
-    content: *const libc::c_char,
-    sender_addr: *const libc::c_char,
+    mime_msg: *const libc::c_char,
     extract_part: libc::c_int,
     out_total_number_of_parts: *mut libc::c_int,
 ) -> *mut libc::c_char {
-    use deltachat::dc_tools::as_str;
-
     if context.is_null() {
         eprintln!("ignoring careless call to dc_decrypt_msg_in_memory()");
         return ptr::null_mut();
@@ -443,9 +439,7 @@ pub unsafe extern "C" fn dc_decrypt_message_in_memory(
     if let Ok(Ok(msg_parts)) = ffi_context.with_inner(|ctx| {
         e2ee::decrypt_message_in_memory(
             ctx,
-            as_str(content_type),
-            as_str(content),
-            as_str(sender_addr),
+            &to_string_lossy(mime_msg),
         )
     }) {
         if out_total_number_of_parts.is_null() {

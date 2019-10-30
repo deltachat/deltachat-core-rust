@@ -701,21 +701,10 @@ pub fn ensure_secret_key_exists(context: &Context) -> Result<String> {
 /// Decrypt message in memory and return decrypted message parts as string.
 pub fn decrypt_message_in_memory(
     context: &Context,
-    content_type: &str,
-    content: &str,
-    sender_addr: &str,
+    mime_msg: &str,
 ) -> Result<Vec<Option<String>>> {
-    let self_addr = context
-        .get_config(Config::ConfiguredAddr)
-        .unwrap_or_default();
-
-    let full_mime_msg = format!(
-        "To: {}\r\nFrom: {}\r\nContent-Type: {}\r\n\r\n{}",
-        self_addr, sender_addr, content_type, content
-    );
-
     let mut mime_parser = MimeParser::new(context);
-    let () = unsafe { mime_parser.parse(full_mime_msg.as_bytes())? };
+    let () = unsafe { mime_parser.parse(mime_msg.as_bytes())? };
 
     if mime_parser.header.is_empty() {
         bail!("No headers");
@@ -746,8 +735,11 @@ mod tests {
 
         #[test]
         fn test_decrypt_message_in_memory() {
-            let content_type = r###"multipart/encrypted; boundary="5d8b0f2e_f8f75182_bb0c"; protocol="application/pgp-encrypted"###;
-            let content = r###"--5d8b0f2e_f8f75182_bb0c
+            let mime_msg = r###"To: alice@example.org
+From: alice@example.org
+Content-Type: multipart/encrypted; boundary="5d8b0f2e_f8f75182_bb0c"; protocol="application/pgp-encrypted"
+
+--5d8b0f2e_f8f75182_bb0c
 Content-Type: application/pgp-encrypted
 Content-Transfer-Encoding: 7bit
 
@@ -782,6 +774,7 @@ DNDHEY81V98=
 "###;
             let t = dummy_context();
             let test_addr = configure_alice_keypair(&t.ctx);
+            assert_eq!("alice@example.org", test_addr);
 
             let mut peerstate = Peerstate::new(&t.ctx);
             peerstate.addr = Some(test_addr.clone());
@@ -790,7 +783,7 @@ DNDHEY81V98=
 
             assert_eq!(
                 vec![Some(String::from("This is a message"))],
-                decrypt_message_in_memory(&t.ctx, content_type, content, &test_addr).unwrap()
+                decrypt_message_in_memory(&t.ctx, mime_msg).unwrap()
             );
         }
     }
