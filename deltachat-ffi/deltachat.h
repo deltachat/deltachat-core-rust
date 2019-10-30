@@ -1521,7 +1521,7 @@ void            dc_delete_msgs               (dc_context_t* context, const uint3
  * @param flags What to delete, a combination of the @ref DC_EMPTY flags
  * @return None.
  */
-void            dc_empty_server              (dc_context_t* context, const uint32_t flags);
+void            dc_empty_server              (dc_context_t* context, uint32_t flags);
 
 
 /**
