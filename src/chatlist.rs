@@ -294,18 +294,14 @@ impl Chatlist {
         let lastmsg_id = self.ids[index].1;
         let mut lastcontact = None;
 
-        let lastmsg = if !lastmsg_id.is_special() {
-            if let Ok(lastmsg) = Message::load_from_db(context, lastmsg_id) {
-                if lastmsg.from_id != 1
-                    && (chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup)
-                {
-                    lastcontact = Contact::load_from_db(context, lastmsg.from_id).ok();
-                }
-
-                Some(lastmsg)
-            } else {
-                None
+        let lastmsg = if let Ok(lastmsg) = Message::load_from_db(context, lastmsg_id) {
+            if lastmsg.from_id != 1
+                && (chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup)
+            {
+                lastcontact = Contact::load_from_db(context, lastmsg.from_id).ok();
             }
+
+            Some(lastmsg)
         } else {
             None
         };
