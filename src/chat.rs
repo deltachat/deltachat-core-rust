@@ -1966,4 +1966,13 @@ mod tests {
         let draft_text = draft.get_text();
         assert_eq!(msg_text, draft_text);
     }
+
+    #[test]
+    fn test_add_contact_to_chat_ex_add_self() {
+        // Adding self to a contact should succeed, even though it's pointless.
+        let t = test_context(Some(Box::new(logging_cb)));
+        let chat_id = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo").unwrap();
+        let added = add_contact_to_chat_ex(&t.ctx, chat_id, DC_CONTACT_ID_SELF, false).unwrap();
+        assert_eq!(added, false);
+    }
 }
