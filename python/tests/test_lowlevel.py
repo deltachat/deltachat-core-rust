@@ -95,6 +95,13 @@ def test_markseen_invalid_message_ids(acfactory):
     ac1._evlogger.ensure_event_not_queued("DC_EVENT_WARNING|DC_EVENT_ERROR")
 
 
+def test_get_special_message_id_returns_empty_message(acfactory):
+    ac1 = acfactory.get_configured_offline_account()
+    for i in range(1, 10):
+        msg = ac1.get_message_by_id(i)
+        assert msg.id == 0
+
+
 def test_provider_info():
     provider = lib.dc_provider_new_from_email(cutil.as_dc_charpointer("ex@example.com"))
     assert cutil.from_dc_charpointer(
