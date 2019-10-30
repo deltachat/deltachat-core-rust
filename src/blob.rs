@@ -254,12 +254,13 @@ impl<'a> BlobObject<'a> {
             windows: true,
             replacement: "",
         };
+
         let clean = sanitize_filename::sanitize_with_options(name, opts);
         let mut iter = clean.rsplitn(2, '.');
         let mut ext = iter.next().unwrap_or_default().to_string();
         let mut stem = iter.next().unwrap_or_default().to_string();
         ext.truncate(32);
-        stem.truncate(32);
+        stem.truncate(64);
         match stem.len() {
             0 => (ext, "".to_string()),
             _ => (stem, format!(".{}", ext).to_lowercase()),
@@ -563,10 +564,10 @@ mod tests {
     #[test]
     fn test_create_long_names() {
         let t = dummy_context();
-        let s = "12312312039182039182039812039810293810293810293810293801293801293123123";
-        let blob = BlobObject::create(&t.ctx, s, b"data").unwrap();
+        let s = "1".repeat(150);
+        let blob = BlobObject::create(&t.ctx, &s, b"data").unwrap();
         let blobname = blob.as_name().split('/').last().unwrap();
-        assert!(s.len() > blobname.len());
+        assert!(blobname.len() < 128);
     }
 
     #[test]
@@ -602,5 +603,16 @@ mod tests {
         assert_eq!(blob.as_name(), "$BLOBDIR/internal");
         let data = fs::read(blob.to_abs_path()).unwrap();
         assert_eq!(data, b"boo");
+    }
+    #[test]
+    fn test_create_from_name_long() {
+        let t = dummy_context();
+        let src_ext = t.dir.path().join("autocrypt-setup-message-4137848473.html");
+        fs::write(&src_ext, b"boo").unwrap();
+        let blob = BlobObject::create_from_path(&t.ctx, &src_ext).unwrap();
+        assert_eq!(
+            blob.as_name(),
+            "$BLOBDIR/autocrypt-setup-message-4137848473.html"
+        );
     }
 }
