@@ -143,7 +143,8 @@ pub fn get_field_date(imffields: *mut mailimf_fields) -> Result<i64, Error> {
 
 fn mailimf_get_recipients_add_addr(recipients: &mut HashSet<String>, mb: *mut mailimf_mailbox) {
     if !mb.is_null() {
-        let addr_norm = addr_normalize(as_str(unsafe { (*mb).mb_addr_spec }));
+        let addr = to_string_lossy(unsafe { (*mb).mb_addr_spec });
+        let addr_norm = addr_normalize(&addr);
         recipients.insert(addr_norm.into());
     }
 }
@@ -382,8 +383,8 @@ pub fn mailimf_find_first_addr(mb_list: *const mailimf_mailbox_list) -> Option<S
     for cur in unsafe { (*(*mb_list).mb_list).into_iter() } {
         let mb = cur as *mut mailimf_mailbox;
         if !mb.is_null() && !unsafe { (*mb).mb_addr_spec.is_null() } {
-            let addr = unsafe { as_str((*mb).mb_addr_spec) };
-            return Some(addr_normalize(addr).to_string());
+            let addr = unsafe { to_string_lossy((*mb).mb_addr_spec) };
+            return Some(addr_normalize(&addr).to_string());
         }
     }
 
@@ -489,7 +490,9 @@ pub fn content_type_needs_encoding(content: *const mailmime_content) -> bool {
         if (*(*content).ct_type).tp_type == MAILMIME_TYPE_COMPOSITE_TYPE as libc::c_int {
             let composite = (*(*content).ct_type).tp_data.tp_composite_type;
             match (*composite).ct_type as u32 {
-                MAILMIME_COMPOSITE_TYPE_MESSAGE => as_str((*content).ct_subtype) != "rfc822",
+                MAILMIME_COMPOSITE_TYPE_MESSAGE => {
+                    to_string_lossy((*content).ct_subtype) != "rfc822"
+                }
                 MAILMIME_COMPOSITE_TYPE_MULTIPART => false,
                 _ => false,
             }

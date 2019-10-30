@@ -630,7 +630,7 @@ impl<'a> MimeParser<'a> {
                             self.context,
                             "Cannot convert {} bytes from \"{}\" to \"utf-8\".",
                             decoded_data.len(),
-                            as_str(charset),
+                            to_string_lossy(charset),
                         );
                     }
                 }
@@ -729,8 +729,10 @@ impl<'a> MimeParser<'a> {
                     if !(*mime).mm_content_type.is_null()
                         && !(*(*mime).mm_content_type).ct_subtype.is_null()
                     {
-                        desired_filename =
-                            format!("file.{}", as_str((*(*mime).mm_content_type).ct_subtype));
+                        desired_filename = format!(
+                            "file.{}",
+                            to_string_lossy((*(*mime).mm_content_type).ct_subtype)
+                        );
                     } else {
                         return false;
                     }
@@ -850,7 +852,8 @@ impl<'a> MimeParser<'a> {
             }) as *mut mailimf_mailbox;
 
             if !mb.is_null() {
-                let from_addr_norm = addr_normalize(as_str((*mb).mb_addr_spec));
+                let from_addr = to_string_lossy((*mb).mb_addr_spec);
+                let from_addr_norm = addr_normalize(&from_addr);
                 let recipients = wrapmime::mailimf_get_recipients(self.header_root);
                 if recipients.len() == 1 && recipients.contains(from_addr_norm) {
                     sender_equals_recipient = true;

@@ -449,7 +449,7 @@ fn update_gossip_peerstates(
 
             let optional_field = unsafe { *optional_field };
             if !optional_field.fld_name.is_null()
-                && as_str(optional_field.fld_name) == "Autocrypt-Gossip"
+                && to_string_lossy(optional_field.fld_name) == "Autocrypt-Gossip"
             {
                 let value = to_string_lossy(optional_field.fld_value);
                 let gossip_header = Aheader::from_str(&value);
@@ -655,7 +655,7 @@ fn contains_report(mime: *mut Mailmime) -> bool {
 
         if tp_type == MAILMIME_TYPE_COMPOSITE_TYPE as libc::c_int
             && ct_type == MAILMIME_COMPOSITE_TYPE_MULTIPART as libc::c_int
-            && as_str(unsafe { (*mime.mm_content_type).ct_subtype }) == "report"
+            && to_string_lossy(unsafe { (*mime.mm_content_type).ct_subtype }) == "report"
         {
             return true;
         }

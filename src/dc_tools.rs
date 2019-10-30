@@ -82,7 +82,7 @@ pub(crate) fn dc_str_from_clist(list: *const clist, delimiter: &str) -> String {
             if !res.is_empty() {
                 res += delimiter;
             }
-            res += as_str(rfc724_mid as *const libc::c_char);
+            res += &to_string_lossy(rfc724_mid as *const libc::c_char);
         }
     }
     res
@@ -303,9 +303,9 @@ pub(crate) fn dc_extract_grpid_from_rfc724_mid_list(list: *const clist) -> *mut 
     if !list.is_null() {
         unsafe {
             for cur in (*list).into_iter() {
-                let mid = as_str(cur as *const libc::c_char);
+                let mid = to_string_lossy(cur as *const libc::c_char);
 
-                if let Some(grpid) = dc_extract_grpid_from_rfc724_mid(mid) {
+                if let Some(grpid) = dc_extract_grpid_from_rfc724_mid(&mid) {
                     return grpid.strdup();
                 }
             }

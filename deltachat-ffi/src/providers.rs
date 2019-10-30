@@ -2,7 +2,7 @@ extern crate deltachat_provider_database;
 
 use std::ptr;
 
-use deltachat::dc_tools::{as_str, StrExt};
+use deltachat::dc_tools::{to_string_lossy, StrExt};
 use deltachat_provider_database::StatusState;
 
 #[no_mangle]
@@ -12,7 +12,7 @@ pub type dc_provider_t = deltachat_provider_database::Provider;
 pub unsafe extern "C" fn dc_provider_new_from_domain(
     domain: *const libc::c_char,
 ) -> *const dc_provider_t {
-    match deltachat_provider_database::get_provider_info(as_str(domain)) {
+    match deltachat_provider_database::get_provider_info(&to_string_lossy(domain)) {
         Some(provider) => provider,
         None => ptr::null(),
     }
@@ -22,7 +22,8 @@ pub unsafe extern "C" fn dc_provider_new_from_domain(
 pub unsafe extern "C" fn dc_provider_new_from_email(
     email: *const libc::c_char,
 ) -> *const dc_provider_t {
-    let domain = deltachat_provider_database::get_domain_from_email(as_str(email));
+    let email = to_string_lossy(email);
+    let domain = deltachat_provider_database::get_domain_from_email(&email);
     match deltachat_provider_database::get_provider_info(domain) {
         Some(provider) => provider,
         None => ptr::null(),
