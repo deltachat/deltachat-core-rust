@@ -1386,8 +1386,7 @@ pub unsafe extern "C" fn dc_get_msg(context: *mut dc_context_t, msg_id: u32) -> 
                         // C-core API returns empty messages, do the same
                         warn!(
                             ctx,
-                            "dc_get_msg called with special msg_id={}, returning empty msg",
-                            msg_id
+                            "dc_get_msg called with special msg_id={}, returning empty msg", msg_id
                         );
                         message::Message::default()
                     } else {
@@ -3035,4 +3034,3 @@ fn convert_and_prune_message_ids(msg_ids: *const u32, msg_cnt: libc::c_int) -> V
 
     msg_ids
 }
-

@@ -231,11 +231,7 @@ pub fn create_setup_code(_context: &Context) -> String {
 pub fn continue_key_transfer(context: &Context, msg_id: MsgId, setup_code: &str) -> Result<()> {
     ensure!(!msg_id.is_special(), "wrong id");
 
-    let msg = Message::load_from_db(context, msg_id);
-    if msg.is_err() {
-        bail!("Message is no Autocrypt Setup Message.");
-    }
-    let msg = msg.unwrap_or_default();
+    let msg = Message::load_from_db(context, msg_id)?;
     ensure!(
         msg.is_setupmessage(),
         "Message is no Autocrypt Setup Message."
