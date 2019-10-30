@@ -1211,7 +1211,7 @@ void            dc_marknoticed_all_chats     (dc_context_t* context);
  * @memberof dc_context_t
  * @param context The context object as returned from dc_context_new().
  * @param chat_id The chat ID to get all messages with media from.
- * @param msg_type Specify a message type to query here, one of the DC_MSG_* constats.
+ * @param msg_type Specify a message type to query here, one of the @ref DC_MSG constants.
  * @param msg_type2 Alternative message type to search for. 0 to skip.
  * @param msg_type3 Alternative message type to search for. 0 to skip.
  * @return An array with messages from the given chat ID that have the wanted message types.
@@ -1518,7 +1518,7 @@ void            dc_delete_msgs               (dc_context_t* context, const uint3
  *
  * @memberof dc_context_t
  * @param context The context object as created by dc_context_new()
- * @param flags uint32_t with DC_EMPTY_* flags 
+ * @param flags What to delete, a combination of the @ref DC_EMPTY flags
  * @return None.
  */
 void            dc_empty_server              (dc_context_t* context, const uint32_t flags);
@@ -3927,22 +3927,11 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * @}
  */
 
-/**
- * @defgroup DC_EVENT DC_EVENT
- *
- * These constants are used as events
- * reported to the callback given to dc_context_new().
- * If you do not want to handle an event, it is always safe to return 0,
- * so there is no need to add a "case" for every event.
- *
- * @addtogroup DC_EVENT
- * @{
- */
 
 /**
- * @defgroup DC_EMPTY
+ * @defgroup DC_EMPTY DC_EMPTY
  *
- * These constants configure emptying imap folders. 
+ * These constants configure emptying imap folders with dc_empty_server()
  *
  * @addtogroup DC_EMPTY
  * @{
@@ -3963,6 +3952,17 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  */
 
 
+/**
+ * @defgroup DC_EVENT DC_EVENT
+ *
+ * These constants are used as events
+ * reported to the callback given to dc_context_new().
+ * If you do not want to handle an event, it is always safe to return 0,
+ * so there is no need to add a "case" for every event.
+ *
+ * @addtogroup DC_EVENT
+ * @{
+ */
 
 /**
  * The library-user may write an informational string to the log.
