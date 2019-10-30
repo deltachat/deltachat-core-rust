@@ -1436,7 +1436,11 @@ pub(crate) fn add_contact_to_chat_ex(
     if contact.get_addr() == &self_addr {
         // ourself is added using DC_CONTACT_ID_SELF, do not add this address explicitly.
         // if SELF is not in the group, members cannot be added at all.
-        bail!("invalid attempt to add self e-mail address to group");
+        warn!(
+            context,
+            "invalid attempt to add self e-mail address to group"
+        );
+        return Ok(false);
     }
 
     if is_contact_in_chat(context, chat_id, contact_id) {
