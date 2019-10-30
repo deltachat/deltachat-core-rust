@@ -1280,8 +1280,7 @@ pub unsafe extern "C" fn dc_delete_msgs(
         return;
     }
     let ffi_context = &*context;
-    let ids = std::slice::from_raw_parts(msg_ids, msg_cnt as usize);
-    let msg_ids: Vec<MsgId> = ids.iter().map(|id| MsgId::new(*id)).collect();
+    let msg_ids = convert_and_prune_message_ids(msg_ids, msg_cnt);
     ffi_context
         .with_inner(|ctx| message::delete_msgs(ctx, &msg_ids[..]))
         .unwrap_or(())
@@ -1314,8 +1313,7 @@ pub unsafe extern "C" fn dc_forward_msgs(
         eprintln!("ignoring careless call to dc_forward_msgs()");
         return;
     }
-    let ids = std::slice::from_raw_parts(msg_ids, msg_cnt as usize);
-    let msg_ids: Vec<MsgId> = ids.iter().map(|id| MsgId::new(*id)).collect();
+    let msg_ids = convert_and_prune_message_ids(msg_ids, msg_cnt);
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| {
@@ -1347,12 +1345,7 @@ pub unsafe extern "C" fn dc_markseen_msgs(
         eprintln!("ignoring careless call to dc_markseen_msgs()");
         return;
     }
-    let ids = std::slice::from_raw_parts(msg_ids, msg_cnt as usize);
-    let msg_ids: Vec<MsgId> = ids
-        .iter()
-        .filter(|id| **id > DC_MSG_ID_LAST_SPECIAL)
-        .map(|id| MsgId::new(*id))
-        .collect();
+    let msg_ids = convert_and_prune_message_ids(msg_ids, msg_cnt);
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| message::markseen_msgs(ctx, &msg_ids[..]))
@@ -1370,8 +1363,7 @@ pub unsafe extern "C" fn dc_star_msgs(
         eprintln!("ignoring careless call to dc_star_msgs()");
         return;
     }
-    let ids = std::slice::from_raw_parts(msg_ids, msg_cnt as usize);
-    let msg_ids: Vec<MsgId> = ids.iter().map(|id| MsgId::new(*id)).collect();
+    let msg_ids = convert_and_prune_message_ids(msg_ids, msg_cnt);
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| message::star_msgs(ctx, &msg_ids[..], star == 1))
@@ -1390,7 +1382,7 @@ pub unsafe extern "C" fn dc_get_msg(context: *mut dc_context_t, msg_id: u32) -> 
             let message = match message::Message::load_from_db(ctx, MsgId::new(msg_id)) {
                 Ok(msg) => msg,
                 Err(e) => {
-                    error!(ctx, "Error getting msg #{}: {}", msg_id, e);
+                    warn!(ctx, "Error getting msg #{}: {}", msg_id, e);
                     return ptr::null_mut();
                 }
             };
@@ -3019,3 +3011,15 @@ impl<T, E> ResultNullableExt<T> for Result<T, E> {
         }
     }
 }
+
+fn convert_and_prune_message_ids(msg_ids: *const u32, msg_cnt: libc::c_int) -> Vec<MsgId> {
+    let ids = unsafe { std::slice::from_raw_parts(msg_ids, msg_cnt as usize) };
+    let msg_ids: Vec<MsgId> = ids
+        .iter()
+        .filter(|id| **id > DC_MSG_ID_LAST_SPECIAL)
+        .map(|id| MsgId::new(*id))
+        .collect();
+
+    msg_ids
+}
+
