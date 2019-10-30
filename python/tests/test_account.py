@@ -682,6 +682,27 @@ class TestOnlineAccount:
         msg.continue_key_transfer(setup_code)
         assert ac1.get_info()["fingerprint"] == ac2.get_info()["fingerprint"]
 
+    def test_ac_setup_message_twice(self, acfactory, lp):
+        ac1 = acfactory.get_online_configuring_account()
+        ac2 = acfactory.clone_online_account(ac1)
+        ac2._evlogger.set_timeout(30)
+        wait_configuration_progress(ac2, 1000)
+        wait_configuration_progress(ac1, 1000)
+        lp.sec("trigger ac setup message but ignore")
+        assert ac1.get_info()["fingerprint"] != ac2.get_info()["fingerprint"]
+        ac1.initiate_key_transfer()
+        ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
+
+        lp.sec("trigger second ac setup message, wait for receive ")
+        setup_code2 = ac1.initiate_key_transfer()
+        ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
+        msg = ac2.get_message_by_id(ev[2])
+        assert msg.is_setup_message()
+        assert msg.get_setupcodebegin() == setup_code2[:2]
+        lp.sec("process second setup message")
+        msg.continue_key_transfer(setup_code2)
+        assert ac1.get_info()["fingerprint"] == ac2.get_info()["fingerprint"]
+
     def test_qr_setup_contact(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
         lp.sec("ac1: create QR code and let ac2 scan it, starting the securejoin")
