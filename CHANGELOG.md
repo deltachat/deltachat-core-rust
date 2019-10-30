@@ -1,5 +1,13 @@
 # Changelog 
 
+## 1.0.0-beta4
+
+- fix more than one sending of autocrypt setup message
+
+- fix recognition of mailto-address-qr-codes, add tests
+
+- tune down error to warning when adding self to chat
+
 ## 1.0.0-beta3
 
 - add back `dc_empty_server()` #682
