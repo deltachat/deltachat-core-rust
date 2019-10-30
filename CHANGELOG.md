@@ -2,12 +2,14 @@
 
 ## 1.0.0-beta3
 
-- add `dc_empty_server()`
+- add back `dc_empty_server()` #682
 
 - if `show_emails` is set to `DC_SHOW_EMAILS_ALL`,
   email-based contact requests are added to the chatlist directly
 
-- serveral rPGP and IMAP cleanups and fixes
+- fix IMAP hangs #717 and cleanups
+
+- several rPGP fixes
 
 - code streamlining and rustifications
 
