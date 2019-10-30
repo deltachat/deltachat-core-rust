@@ -1,10 +1,10 @@
 # Changelog 
 
-## 1.0.0-beta5
+## 1.0.0-beta.5
 
 - fix dc_get_msg() to return empty messages when asked for special ones 
 
-## 1.0.0-beta4
+## 1.0.0-beta.4
 
 - fix more than one sending of autocrypt setup message
 
@@ -12,7 +12,7 @@
 
 - tune down error to warning when adding self to chat
 
-## 1.0.0-beta3
+## 1.0.0-beta.3
 
 - add back `dc_empty_server()` #682
 
@@ -26,7 +26,7 @@
 - code streamlining and rustifications
 
 
-## 1.0.0-beta2
+## 1.0.0-beta.2
 
 - https://c.delta.chat docs are now regenerated again through our CI 
 
@@ -46,7 +46,7 @@
 - some rustifications/boolifications of c-ints 
 
 
-## 1.0.0-beta1 
+## 1.0.0-beta.1 
 
 - first beta of the Delta Chat Rust core library. many fixes of crashes
   and other issues compared to 1.0.0-alpha.5.
