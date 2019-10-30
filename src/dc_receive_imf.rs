@@ -808,9 +808,9 @@ unsafe fn handle_reports(
                                     && !of_org_msgid.is_null()
                                     && !(*of_org_msgid).fld_value.is_null()
                                 {
-                                    if let Ok(rfc724_mid) = wrapmime::parse_message_id(as_str(
-                                        (*of_org_msgid).fld_value,
-                                    )) {
+                                    if let Ok(rfc724_mid) = wrapmime::parse_message_id(
+                                        &to_string_lossy((*of_org_msgid).fld_value),
+                                    ) {
                                         if let Some((chat_id, msg_id)) = message::mdn_from_ext(
                                             context,
                                             from_id,
@@ -993,7 +993,7 @@ unsafe fn create_or_lookup_group(
             let fld_message_id = (*field).fld_data.fld_message_id;
             if !fld_message_id.is_null() {
                 if let Some(extracted_grpid) =
-                    dc_extract_grpid_from_rfc724_mid(as_str((*fld_message_id).mid_value))
+                    dc_extract_grpid_from_rfc724_mid(&to_string_lossy((*fld_message_id).mid_value))
                 {
                     grpid = extracted_grpid.to_string();
                 } else {
@@ -1731,7 +1731,7 @@ fn is_known_rfc724_mid(context: &Context, rfc724_mid: *const libc::c_char) -> li
              LEFT JOIN chats c ON m.chat_id=c.id  \
              WHERE m.rfc724_mid=?  \
              AND m.chat_id>9 AND c.blocked=0;",
-            params![as_str(rfc724_mid)],
+            params![to_string_lossy(rfc724_mid)],
         )
         .unwrap_or_default() as libc::c_int
 }
@@ -1783,11 +1783,7 @@ unsafe fn is_msgrmsg_rfc724_mid_in_list(context: &Context, mid_list: *const clis
         while !cur.is_null() {
             if 0 != is_msgrmsg_rfc724_mid(
                 context,
-                if !cur.is_null() {
-                    as_str((*cur).data as *const libc::c_char)
-                } else {
-                    ""
-                },
+                &to_string_lossy((*cur).data as *const libc::c_char),
             ) {
                 return 1;
             }
@@ -1923,7 +1919,7 @@ unsafe fn add_or_lookup_contact_by_addr(
         .get_config(Config::ConfiguredAddr)
         .unwrap_or_default();
 
-    if addr_cmp(self_addr, as_str(addr_spec)) {
+    if addr_cmp(self_addr, to_string_lossy(addr_spec)) {
         *check_self = 1;
     }
 
@@ -1933,13 +1929,18 @@ unsafe fn add_or_lookup_contact_by_addr(
     /* add addr_spec if missing, update otherwise */
     let mut display_name_dec = "".to_string();
     if !display_name_enc.is_null() {
-        let tmp = dc_decode_header_words(as_str(display_name_enc));
+        let tmp = dc_decode_header_words(&to_string_lossy(display_name_enc));
         display_name_dec = normalize_name(&tmp);
     }
     /*can be NULL*/
-    let row_id = Contact::add_or_lookup(context, display_name_dec, as_str(addr_spec), origin)
-        .map(|(id, _)| id)
-        .unwrap_or_default();
+    let row_id = Contact::add_or_lookup(
+        context,
+        display_name_dec,
+        to_string_lossy(addr_spec),
+        origin,
+    )
+    .map(|(id, _)| id)
+    .unwrap_or_default();
     if 0 != row_id && !ids.contains(&row_id) {
         ids.push(row_id);
     };
