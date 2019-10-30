@@ -1,5 +1,17 @@
 # Changelog 
 
+## 1.0.0-beta3
+
+- add `dc_empty_server()`
+
+- if `show_emails` is set to `DC_SHOW_EMAILS_ALL`,
+  email-based contact requests are added to the chatlist directly
+
+- serveral rPGP and IMAP cleanups and fixes
+
+- code streamlining and rustifications
+
+
 ## 1.0.0-beta2
 
 - https://c.delta.chat docs are now regenerated again through our CI 
