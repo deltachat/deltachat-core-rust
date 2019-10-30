@@ -1,5 +1,9 @@
 # Changelog 
 
+## 1.0.0-beta5
+
+- fix dc_get_msg() to return empty messages when asked for special ones 
+
 ## 1.0.0-beta4
 
 - fix more than one sending of autocrypt setup message

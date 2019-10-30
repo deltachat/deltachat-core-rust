@@ -1382,8 +1382,21 @@ pub unsafe extern "C" fn dc_get_msg(context: *mut dc_context_t, msg_id: u32) -> 
             let message = match message::Message::load_from_db(ctx, MsgId::new(msg_id)) {
                 Ok(msg) => msg,
                 Err(e) => {
-                    warn!(ctx, "Error getting msg #{}: {}", msg_id, e);
-                    return ptr::null_mut();
+                    if msg_id <= constants::DC_MSG_ID_LAST_SPECIAL {
+                        // C-core API returns empty messages, do the same
+                        warn!(
+                            ctx,
+                            "dc_get_msg called with special msg_id={}, returning empty msg",
+                            msg_id
+                        );
+                        message::Message::default()
+                    } else {
+                        error!(
+                            ctx,
+                            "dc_get_msg could not retrieve msg_id {}: {}", msg_id, e
+                        );
+                        return ptr::null_mut();
+                    }
                 }
             };
             let ffi_msg = MessageWrapper { context, message };

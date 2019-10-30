@@ -655,8 +655,6 @@ impl<'a> MimeFactory<'a> {
     }
 
     pub fn load_msg(context: &Context, msg_id: MsgId) -> Result<MimeFactory, Error> {
-        ensure!(!msg_id.is_special(), "Invalid chat id");
-
         let msg = Message::load_from_db(context, msg_id)?;
         let chat = Chat::load_from_db(context, msg.chat_id)?;
         let mut factory = MimeFactory::new(context, msg);
