@@ -251,7 +251,7 @@ impl Chatlist {
     ///
     /// To get the message object from the message ID, use dc_get_msg().
     pub fn get_msg_id(&self, index: usize) -> Result<MsgId> {
-        ensure!(index >= self.ids.len(), "Chatlist index out of range");
+        ensure!(index < self.ids.len(), "Chatlist index out of range");
         Ok(self.ids[index].1)
     }
 
