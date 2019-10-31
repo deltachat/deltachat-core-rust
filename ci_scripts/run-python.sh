@@ -43,8 +43,8 @@ if [ -n "$TESTS" ]; then
     # we split out qr-tests run to minimize likelyness of flaky tests
     # (some qr tests are pretty heavy in terms of send/received
     # messages and rust's imap code likely has concurrency problems) 
-    tox --workdir "$TOXWORKDIR" -e py37 -- -k "not qr"
-    tox --workdir "$TOXWORKDIR" -e py37 -- -k "qr"
+    tox --workdir "$TOXWORKDIR" -e py37 -- --reruns 3 -k "not qr"
+    tox --workdir "$TOXWORKDIR" -e py37 -- --reruns 3 -k "qr"
     unset DCC_PY_LIVECONFIG
     tox --workdir "$TOXWORKDIR" -p4 -e lint,py35,py36,doc
     tox --workdir "$TOXWORKDIR" -e auditwheels
