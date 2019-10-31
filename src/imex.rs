@@ -490,7 +490,7 @@ fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     context.sql.close(context);
     info!(
         context,
-        "Backup \"{}\" to \"{}\".",
+        "Backup '{}' to '{}'.",
         context.get_dbfile().display(),
         dest_path_filename.display(),
     );
@@ -499,8 +499,8 @@ fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     if !copied {
         let s = dest_path_filename.to_string_lossy().to_string();
         bail!(
-            "could not copy file from {:?} to {:?}",
-            context.get_dbfile(),
+            "could not copy file from '{}' to '{}'",
+            context.get_dbfile().display(),
             s
         );
     }
