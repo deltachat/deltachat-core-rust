@@ -127,8 +127,12 @@ impl<'a> MimeParser<'a> {
             if let Some(field) = self.lookup_field("Subject") {
                 if (*field).fld_type == MAILIMF_FIELD_SUBJECT as libc::c_int {
                     let subj = (*(*field).fld_data.fld_subject).sbj_value;
-
-                    self.subject = as_opt_str(subj).map(dc_decode_header_words);
+                    let subj = to_opt_string_lossy(subj);
+                    self.subject = if subj.is_some() {
+                        Some(dc_decode_header_words(&subj.unwrap()))
+                    } else {
+                        None
+                    };
                 }
             }
 
@@ -992,15 +996,16 @@ unsafe fn mailmime_get_mime_type(mime: *mut Mailmime) -> (libc::c_int, Viewtype,
                     }
                 }
 
-                let raw_mime = reconcat_mime(Some("text"), as_opt_str((*c).ct_subtype));
+                let raw_mime = reconcat_mime(Some("text"), to_opt_string_lossy((*c).ct_subtype));
                 (DC_MIMETYPE_FILE, Viewtype::File, Some(raw_mime))
             }
             MAILMIME_DISCRETE_TYPE_IMAGE => {
-                let subtype = as_opt_str((*c).ct_subtype);
-                let msg_type = match subtype {
+                let subtype = to_opt_string_lossy((*c).ct_subtype);
+                let msg_type = match subtype.as_ref().map(|x| x.as_str()) {
                     Some("gif") => Viewtype::Gif,
                     Some("svg+xml") => {
-                        let raw_mime = reconcat_mime(Some("image"), as_opt_str((*c).ct_subtype));
+                        let raw_mime =
+                            reconcat_mime(Some("image"), to_opt_string_lossy((*c).ct_subtype));
                         return (DC_MIMETYPE_FILE, Viewtype::File, Some(raw_mime));
                     }
                     _ => Viewtype::Image,
@@ -1010,11 +1015,11 @@ unsafe fn mailmime_get_mime_type(mime: *mut Mailmime) -> (libc::c_int, Viewtype,
                 (DC_MIMETYPE_IMAGE, msg_type, Some(raw_mime))
             }
             MAILMIME_DISCRETE_TYPE_AUDIO => {
-                let raw_mime = reconcat_mime(Some("audio"), as_opt_str((*c).ct_subtype));
+                let raw_mime = reconcat_mime(Some("audio"), to_opt_string_lossy((*c).ct_subtype));
                 (DC_MIMETYPE_AUDIO, Viewtype::Audio, Some(raw_mime))
             }
             MAILMIME_DISCRETE_TYPE_VIDEO => {
-                let raw_mime = reconcat_mime(Some("video"), as_opt_str((*c).ct_subtype));
+                let raw_mime = reconcat_mime(Some("video"), to_opt_string_lossy((*c).ct_subtype));
                 (DC_MIMETYPE_VIDEO, Viewtype::Video, Some(raw_mime))
             }
             _ => {
@@ -1025,13 +1030,15 @@ unsafe fn mailmime_get_mime_type(mime: *mut Mailmime) -> (libc::c_int, Viewtype,
                         b"autocrypt-setup\x00" as *const u8 as *const libc::c_char,
                     ) == 0i32
                 {
-                    let raw_mime = reconcat_mime(None, as_opt_str((*c).ct_subtype));
+                    let raw_mime = reconcat_mime(None, to_opt_string_lossy((*c).ct_subtype));
                     return (DC_MIMETYPE_AC_SETUP_FILE, Viewtype::File, Some(raw_mime));
                 }
 
                 let raw_mime = reconcat_mime(
-                    as_opt_str((*(*(*c).ct_type).tp_data.tp_discrete_type).dt_extension),
-                    as_opt_str((*c).ct_subtype),
+                    to_opt_string_lossy((*(*(*c).ct_type).tp_data.tp_discrete_type).dt_extension)
+                        .as_ref()
+                        .map(|x| x.as_str()),
+                    to_opt_string_lossy((*c).ct_subtype),
                 );
 
                 (DC_MIMETYPE_FILE, Viewtype::File, Some(raw_mime))
@@ -1041,9 +1048,9 @@ unsafe fn mailmime_get_mime_type(mime: *mut Mailmime) -> (libc::c_int, Viewtype,
             if (*(*(*c).ct_type).tp_data.tp_composite_type).ct_type
                 == MAILMIME_COMPOSITE_TYPE_MULTIPART as libc::c_int
             {
-                let subtype = as_opt_str((*c).ct_subtype);
+                let subtype = to_opt_string_lossy((*c).ct_subtype);
 
-                let mime_type = match subtype {
+                let mime_type = match subtype.as_ref().map(|x| x.as_str()) {
                     Some("alternative") => DC_MIMETYPE_MP_ALTERNATIVE,
                     Some("related") => DC_MIMETYPE_MP_RELATED,
                     Some("encrypted") => {
@@ -1078,9 +1085,9 @@ unsafe fn mailmime_get_mime_type(mime: *mut Mailmime) -> (libc::c_int, Viewtype,
     }
 }
 
-fn reconcat_mime(typ: Option<&str>, subtype: Option<&str>) -> String {
+fn reconcat_mime(typ: Option<&str>, subtype: Option<String>) -> String {
     let typ = typ.unwrap_or("application");
-    let subtype = subtype.unwrap_or("octet-stream");
+    let subtype = subtype.unwrap_or("octet-stream".to_string());
 
     format!("{}/{}", typ, subtype)
 }
