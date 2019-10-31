@@ -436,12 +436,13 @@ pub(crate) fn dc_copy_file(
     let dest_abs = dc_get_abs_path(context, &dest);
     match fs::copy(&src_abs, &dest_abs) {
         Ok(_) => true,
-        Err(_) => {
+        Err(err) => {
             error!(
                 context,
-                "Cannot copy \"{}\" to \"{}\".",
+                "Cannot copy \"{}\" to \"{}\": {}",
                 src.as_ref().display(),
                 dest.as_ref().display(),
+                err,
             );
             false
         }
