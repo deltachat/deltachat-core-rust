@@ -1,5 +1,9 @@
 # Changelog 
 
+## 1.0.0-beta.6
+
+- fix chatlist.get_msg_id to return id, instead of wrongly erroring
+
 ## 1.0.0-beta.5
 
 - fix dc_get_msg() to return empty messages when asked for special ones 
