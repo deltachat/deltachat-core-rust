@@ -709,19 +709,6 @@ pub fn to_opt_string_lossy(s: *const libc::c_char) -> Option<String> {
     Some(to_string_lossy(s))
 }
 
-pub fn as_str<'a>(s: *const libc::c_char) -> &'a str {
-    as_str_safe(s).unwrap_or_else(|err| panic!("{}", err))
-}
-
-fn as_str_safe<'a>(s: *const libc::c_char) -> Result<&'a str, Error> {
-    assert!(!s.is_null(), "cannot be used on null pointers");
-
-    let cstr = unsafe { CStr::from_ptr(s) };
-
-    cstr.to_str()
-        .map_err(|err| format_err!("Non utf8 string: '{:?}' ({:?})", cstr.to_bytes(), err))
-}
-
 /// Convert a C `*char` pointer to a [std::path::Path] slice.
 ///
 /// This converts a `*libc::c_char` pointer to a [Path] slice.  This
@@ -758,7 +745,11 @@ pub fn as_path<'a>(s: *const libc::c_char) -> &'a std::path::Path {
 #[allow(dead_code)]
 fn as_path_unicode<'a>(s: *const libc::c_char) -> &'a std::path::Path {
     assert!(!s.is_null(), "cannot be used on null pointers");
-    std::path::Path::new(as_str(s))
+
+    let cstr = unsafe { CStr::from_ptr(s) };
+    let str = cstr.to_str().unwrap_or_else(|err| panic!("{}", err));
+
+    std::path::Path::new(str)
 }
 
 pub(crate) fn time() -> i64 {
