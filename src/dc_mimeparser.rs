@@ -127,12 +127,7 @@ impl<'a> MimeParser<'a> {
             if let Some(field) = self.lookup_field("Subject") {
                 if (*field).fld_type == MAILIMF_FIELD_SUBJECT as libc::c_int {
                     let subj = (*(*field).fld_data.fld_subject).sbj_value;
-                    let subj = to_opt_string_lossy(subj);
-                    self.subject = if subj.is_some() {
-                        Some(dc_decode_header_words(&subj.unwrap()))
-                    } else {
-                        None
-                    };
+                    self.subject = to_opt_string_lossy(subj).map(|x| dc_decode_header_words(&x));
                 }
             }
 
