@@ -1,3 +1,4 @@
+use std::ffi::OsStr;
 use std::fmt;
 use std::fs;
 use std::io::Write;
@@ -145,6 +146,9 @@ impl<'a> BlobObject<'a> {
             .as_ref()
             .strip_prefix(context.get_blobdir())
             .map_err(|_| BlobError::new_wrong_blobdir(context.get_blobdir(), path.as_ref()))?;
+        if !BlobObject::is_acceptible_blob_name(&rel_path) {
+            return Err(BlobError::new_wrong_name(path.as_ref()));
+        }
         let name = rel_path
             .to_str()
             .ok_or_else(|| BlobError::new_wrong_name(path.as_ref()))?;
@@ -171,8 +175,7 @@ impl<'a> BlobObject<'a> {
             true => name.splitn(2, '/').last().unwrap().to_string(),
             false => name,
         };
-        let (stem, ext) = BlobObject::sanitise_name(name.clone());
-        if format!("{}{}", stem, ext) != name.as_ref() {
+        if !BlobObject::is_acceptible_blob_name(&name) {
             return Err(BlobError::new_wrong_name(name));
         }
         Ok(BlobObject {
@@ -265,6 +268,28 @@ impl<'a> BlobObject<'a> {
             0 => (ext, "".to_string()),
             _ => (stem, format!(".{}", ext).to_lowercase()),
         }
+    }
+
+    /// Checks whether a name is a valid blob name.
+    ///
+    /// This is slightly less strict than stanitise_name, presumably
+    /// someone already created a file with such a name so we just
+    /// ensure it's not actually a path in disguise is actually utf-8.
+    fn is_acceptible_blob_name(name: impl AsRef<OsStr>) -> bool {
+        let uname = match name.as_ref().to_str() {
+            Some(name) => name,
+            None => return false,
+        };
+        if uname.find('/').is_some() {
+            return false;
+        }
+        if uname.find('\\').is_some() {
+            return false;
+        }
+        if uname.find('\0').is_some() {
+            return false;
+        }
+        true
     }
 }
 
@@ -614,5 +639,15 @@ mod tests {
             blob.as_name(),
             "$BLOBDIR/autocrypt-setup-message-4137848473.html"
         );
+    }
+
+    #[test]
+    fn test_is_blob_name() {
+        assert!(BlobObject::is_acceptible_blob_name("foo"));
+        assert!(BlobObject::is_acceptible_blob_name("foo.txt"));
+        assert!(BlobObject::is_acceptible_blob_name("f".repeat(128)));
+        assert!(!BlobObject::is_acceptible_blob_name("foo/bar"));
+        assert!(!BlobObject::is_acceptible_blob_name("foo\\bar"));
+        assert!(!BlobObject::is_acceptible_blob_name("foo\x00bar"));
     }
 }
