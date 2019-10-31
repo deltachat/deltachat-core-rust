@@ -420,8 +420,8 @@ pub(crate) fn dc_delete_file(context: &Context, path: impl AsRef<std::path::Path
             context.call_cb(Event::DeletedBlobFile(dpath));
             true
         }
-        Err(_err) => {
-            warn!(context, "Cannot delete \"{}\".", dpath);
+        Err(err) => {
+            warn!(context, "Cannot delete \"{}\": {}", dpath, err);
             false
         }
     }
@@ -442,7 +442,7 @@ pub(crate) fn dc_copy_file(
                 "Cannot copy \"{}\" to \"{}\": {}",
                 src.as_ref().display(),
                 dest.as_ref().display(),
-                err,
+                err
             );
             false
         }
@@ -454,11 +454,12 @@ pub(crate) fn dc_create_folder(context: &Context, path: impl AsRef<std::path::Pa
     if !path_abs.exists() {
         match fs::create_dir_all(path_abs) {
             Ok(_) => true,
-            Err(_err) => {
+            Err(err) => {
                 warn!(
                     context,
-                    "Cannot create directory \"{}\".",
+                    "Cannot create directory \"{}\": {}",
                     path.as_ref().display(),
+                    err
                 );
                 false
             }
@@ -471,12 +472,13 @@ pub(crate) fn dc_create_folder(context: &Context, path: impl AsRef<std::path::Pa
 /// Write a the given content to provied file path.
 pub(crate) fn dc_write_file(context: &Context, path: impl AsRef<Path>, buf: &[u8]) -> bool {
     let path_abs = dc_get_abs_path(context, &path);
-    if let Err(_err) = fs::write(&path_abs, buf) {
+    if let Err(err) = fs::write(&path_abs, buf) {
         warn!(
             context,
-            "Cannot write {} bytes to \"{}\".",
+            "Cannot write {} bytes to \"{}\": {}",
             buf.len(),
             path.as_ref().display(),
+            err
         );
         false
     } else {
@@ -495,8 +497,9 @@ pub fn dc_read_file<P: AsRef<std::path::Path>>(
         Err(err) => {
             warn!(
                 context,
-                "Cannot read \"{}\" or file is empty.",
-                path.as_ref().display()
+                "Cannot read \"{}\" or file is empty: {}",
+                path.as_ref().display(),
+                err
             );
             Err(err.into())
         }
@@ -514,8 +517,9 @@ pub fn dc_open_file<P: AsRef<std::path::Path>>(
         Err(err) => {
             warn!(
                 context,
-                "Cannot read \"{}\" or file is empty.",
-                path.as_ref().display()
+                "Cannot read \"{}\" or file is empty: {}",
+                path.as_ref().display(),
+                err
             );
             Err(err.into())
         }
