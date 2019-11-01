@@ -517,15 +517,13 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
 
                 for i in (0..cnt).rev() {
                     let chat = Chat::load_from_db(context, chatlist.get_chat_id(i))?;
-                    let temp_subtitle = chat.get_subtitle(context);
                     let temp_name = chat.get_name();
                     info!(
                         context,
-                        "{}#{}: {} [{}] [{} fresh]",
+                        "{}#{}: {} [{} fresh]",
                         chat_prefix(&chat),
                         chat.get_id(),
                         temp_name,
-                        temp_subtitle,
                         chat::get_fresh_msg_cnt(context, chat.get_id()),
                     );
                     let lot = chatlist.get_summary(context, i, Some(&chat));
@@ -583,7 +581,13 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             let sel_chat = sel_chat.as_ref().unwrap();
 
             let msglist = chat::get_chat_msgs(context, sel_chat.get_id(), 0x1, None);
-            let temp2 = sel_chat.get_subtitle(context);
+            let members = chat::get_chat_contacts(context, sel_chat.id);
+            let temp2 = if sel_chat.get_type() == Chattype::Single && members.len() >= 1 {
+                let contact = Contact::get_by_id(context, members[0])?;
+                contact.get_addr().to_string()
+            } else {
+                format!("{} member(s)", members.len())
+            };
             let temp_name = sel_chat.get_name();
             info!(
                 context,

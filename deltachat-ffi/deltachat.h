@@ -2610,8 +2610,6 @@ int             dc_chat_get_type             (const dc_chat_t* chat);
  *
  * To change the name, use dc_set_chat_name()
  *
- * See also: dc_chat_get_subtitle()
- *
  * @memberof dc_chat_t
  * @param chat The chat object.
  * @return Chat name as a string. Must be released using dc_str_unref() after usage. Never NULL.
@@ -2619,13 +2617,13 @@ int             dc_chat_get_type             (const dc_chat_t* chat);
 char*           dc_chat_get_name             (const dc_chat_t* chat);
 
 
-/**
+/*
  * Get a subtitle for a chat.  The subtitle is eg. the email-address or the
  * number of group members.
  *
- * See also: dc_chat_get_name()
+ * Deprecated function. Subtitles should be created in the ui
+ * where plural forms and other specials can be handled more gracefully.
  *
- * @memberof dc_chat_t
  * @param chat The chat object to calulate the subtitle for.
  * @return Subtitle as a string. Must be released using dc_str_unref() after usage. Never NULL.
  */
