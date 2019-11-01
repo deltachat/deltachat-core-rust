@@ -65,12 +65,12 @@ pub unsafe fn dc_receive_imf(
 
     let mut mime_parser = MimeParser::new(context);
     if let Err(err) = mime_parser.parse(imf_raw) {
-        error!(context, "dc_receive_imf parse error: {}", err);
+        warn!(context, "dc_receive_imf parse error: {}", err);
     };
 
     if mime_parser.header.is_empty() {
         // Error - even adding an empty record won't help as we do not know the message ID
-        info!(context, "No header.");
+        warn!(context, "No header.");
         return;
     }
 

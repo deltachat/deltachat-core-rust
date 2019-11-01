@@ -117,11 +117,24 @@ impl<'a> MimeParser<'a> {
         );
 
         if r == MAILIMF_NO_ERROR as libc::c_int && !self.mimeroot.is_null() {
-            let (encrypted, signatures, gossipped_addr) =
-                e2ee::try_decrypt(self.context, self.mimeroot)?;
-            self.encrypted = encrypted;
-            self.signatures = signatures;
-            self.gossipped_addr = gossipped_addr;
+            match e2ee::try_decrypt(self.context, self.mimeroot) {
+                Ok((encrypted, signatures, gossipped_addr)) => {
+                    self.encrypted = encrypted;
+                    self.signatures = signatures;
+                    self.gossipped_addr = gossipped_addr;
+                }
+                Err(err) => {
+                    // continue with the current, still encrypted, mime tree.
+                    // unencrypted parts will be replaced by an error message
+                    // that is added as "the message" to the chat then.
+                    //
+                    // if we just return here, the header is missing
+                    // and the caller cannot display the message
+                    // and try to assign the message to a chat
+                    warn!(self.context, "decryption failed: {}", err);
+                }
+            }
+
             self.parse_mime_recursive(self.mimeroot);
 
             if let Some(field) = self.lookup_field("Subject") {
