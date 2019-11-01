@@ -338,6 +338,8 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  * - `send_pw`      = SMTP-password, guessed if left out
  * - `send_port`    = SMTP-port, guessed if left out
  * - `server_flags` = IMAP-/SMTP-flags as a combination of @ref DC_LP flags, guessed if left out
+ * - `imap_certificate_checks` = how to check IMAP certificates, one of the @ref DC_CERTCK flags, defaults to #DC_CERTCK_AUTO (0)
+ * - `smtp_certificate_checks` = how to check SMTP certificates, one of the @ref DC_CERTCK flags, defaults to #DC_CERTCK_AUTO (0)
  * - `displayname`  = Own name to use when sending messages.  MUAs are allowed to spread this way eg. using CC, defaults to empty
  * - `selfstatus`   = Own status to display eg. in email footers, defaults to a standard text
  * - `selfavatar`   = File containing avatar. Will be copied to blob directory.
@@ -3892,7 +3894,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * These constants configure TLS certificate checks for IMAP and SMTP connections.
  *
- * These constants are set via dc_set_config
+ * These constants are set via dc_set_config()
  * using keys "imap_certificate_checks" and "smtp_certificate_checks".
  *
  * @addtogroup DC_CERTCK
@@ -3905,8 +3907,8 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
 #define DC_CERTCK_AUTO 0
 
 /**
- * Strictly check TLS certificates.
- * Require that both the certificate and hostname are valid.
+ * Strictly check TLS certificates;
+ * require that both the certificate and hostname are valid.
  */
 #define DC_CERTCK_STRICT 1
 
