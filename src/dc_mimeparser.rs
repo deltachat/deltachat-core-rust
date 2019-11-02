@@ -813,9 +813,6 @@ impl<'a> MimeParser<'a> {
     }
 
     fn do_add_single_part(&mut self, mut part: Part) {
-        // we transfer the encryption-state to each part
-        // because each part lands to each part ? Autocrypt does not define "partially encrypted"
-        // so either the whole message is encrypted properly or nothing
         if self.encrypted {
             if self.signatures.len() > 0 {
                 part.param.set_int(Param::GuaranteeE2ee, 1);
