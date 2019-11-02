@@ -25,7 +25,8 @@ impl<'a> BlobObject<'a> {
     /// Creates a new file in the blob directory.  The name will be
     /// derived from the platform-agnostic basename of the suggested
     /// name, followed by a random number and followed by a possible
-    /// extension.  The `data` will be written into the file.
+    /// extension.  The `data` will be written into the file without
+    /// race-conditions.
     ///
     /// # Errors
     ///
@@ -42,29 +43,33 @@ impl<'a> BlobObject<'a> {
         data: &[u8],
     ) -> std::result::Result<BlobObject<'a>, BlobError> {
         let blobdir = context.get_blobdir();
-        let (stem, ext) = BlobObject::sanitise_name(suggested_name.as_ref().to_string());
-        let mut name = format!("{}{}", stem, ext);
+        let (stem, ext) = BlobObject::sanitise_name(suggested_name.as_ref());
+        let (name, mut file) = BlobObject::create_new_file(&blobdir, &stem, &ext)?;
+        file.write_all(data)
+            .map_err(|err| BlobError::new_write_failure(blobdir, &name, err))?;
+        let blob = BlobObject {
+            blobdir,
+            name: format!("$BLOBDIR/{}", name),
+        };
+        context.call_cb(Event::NewBlobFile(blob.as_name().to_string()));
+        Ok(blob)
+    }
+
+    // Creates a new file, returning a tuple of the name and the handle.
+    fn create_new_file(dir: &Path, stem: &str, ext: &str) -> Result<(String, fs::File), BlobError> {
         let max_attempt = 15;
+        let mut name = format!("{}{}", stem, ext);
         for attempt in 0..max_attempt {
-            let path = blobdir.join(&name);
+            let path = dir.join(&name);
             match fs::OpenOptions::new()
                 .create_new(true)
                 .write(true)
                 .open(&path)
             {
-                Ok(mut file) => {
-                    file.write_all(data)
-                        .map_err(|err| BlobError::new_write_failure(blobdir, &name, err))?;
-                    let blob = BlobObject {
-                        blobdir,
-                        name: format!("$BLOBDIR/{}", name),
-                    };
-                    context.call_cb(Event::NewBlobFile(blob.as_name().to_string()));
-                    return Ok(blob);
-                }
+                Ok(file) => return Ok((name, file)),
                 Err(err) => {
                     if attempt == max_attempt {
-                        return Err(BlobError::new_create_failure(blobdir, &name, err));
+                        return Err(BlobError::new_create_failure(dir, &name, err));
                     } else {
                         name = format!("{}-{}{}", stem, rand::random::<u32>(), ext);
                     }
@@ -72,7 +77,7 @@ impl<'a> BlobObject<'a> {
             }
         }
         Err(BlobError::new_create_failure(
-            blobdir,
+            dir,
             &name,
             format_err!("Unreachable code - supposedly"),
         ))
@@ -81,7 +86,9 @@ impl<'a> BlobObject<'a> {
     /// Creates a new blob object with unique name by copying an existing file.
     ///
     /// This creates a new blob as described in [BlobObject::create]
-    /// but also copies an existing file into it.
+    /// but also copies an existing file into it.  This is done in a
+    /// in way which avoids race-conditions when multiple files are
+    /// concurrently created.
     ///
     /// # Errors
     ///
@@ -92,11 +99,24 @@ impl<'a> BlobObject<'a> {
         context: &'a Context,
         src: impl AsRef<Path>,
     ) -> std::result::Result<BlobObject<'a>, BlobError> {
-        let blob = BlobObject::create(context, src.as_ref().to_string_lossy(), b"")?;
-        fs::copy(src.as_ref(), blob.to_abs_path()).map_err(|err| {
-            fs::remove_file(blob.to_abs_path()).ok();
-            BlobError::new_copy_failure(blob.blobdir, &blob.name, src.as_ref(), err)
+        let mut src_file = fs::File::open(src.as_ref()).map_err(|err| {
+            BlobError::new_copy_failure(context.get_blobdir(), "", src.as_ref(), err)
         })?;
+        let (stem, ext) = BlobObject::sanitise_name(&src.as_ref().to_string_lossy());
+        let (name, mut dst_file) = BlobObject::create_new_file(context.get_blobdir(), &stem, &ext)?;
+        std::io::copy(&mut src_file, &mut dst_file).map_err(|err| {
+            {
+                // Attempt to remove the failed file, swallow errors resulting from that.
+                let path = context.get_blobdir().join(&name);
+                fs::remove_file(path).ok();
+            }
+            BlobError::new_copy_failure(context.get_blobdir(), &name, src.as_ref(), err)
+        })?;
+        let blob = BlobObject {
+            blobdir: context.get_blobdir(),
+            name: format!("$BLOBDIR/{}", name),
+        };
+        context.call_cb(Event::NewBlobFile(blob.as_name().to_string()));
         Ok(blob)
     }
 
@@ -239,7 +259,8 @@ impl<'a> BlobObject<'a> {
     /// ".txt")` while "bar" is returned as `("bar", "")`.
     ///
     /// The extension part will always be lowercased.
-    fn sanitise_name(mut name: String) -> (String, String) {
+    fn sanitise_name(name: &str) -> (String, String) {
+        let mut name = name.to_string();
         for part in name.rsplit('/') {
             if part.len() > 0 {
                 name = part.to_string();
