@@ -843,7 +843,7 @@ class TestOnlineAccount:
         ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG")  # text message with location
 
         locations = chat2.get_locations()
-        assert len(locations) >= 1
+        assert len(locations) == 1
         assert locations[0].latitude == 2.0
         assert locations[0].longitude == 3.0
         assert locations[0].accuracy == 0.5
@@ -851,7 +851,7 @@ class TestOnlineAccount:
 
         contact = ac2.create_contact(ac1.get_config("addr"))
         locations2 = chat2.get_locations(contact=contact)
-        assert len(locations2) >= 1
+        assert len(locations2) == 1
         assert locations2 == locations
 
         contact = ac2.create_contact("nonexisting@example.org")

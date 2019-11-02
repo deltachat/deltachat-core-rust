@@ -840,18 +840,11 @@ fn save_locations(
     insert_msg_id: MsgId,
     hidden: i32,
 ) {
-    if chat_id <= DC_CHAT_ID_LAST_SPECIAL as libc::c_uint {
+    if chat_id <= DC_CHAT_ID_LAST_SPECIAL {
         return ();
     }
     let mut location_id_written = false;
     let mut send_event = false;
-
-    info!(
-        context,
-        "saving locations chat_id={} insert_msg_id={}",
-        chat_id,
-        insert_msg_id.to_u32()
-    );
 
     if mime_parser.message_kml.is_some() {
         let locations = &mime_parser.message_kml.as_ref().unwrap().locations;
