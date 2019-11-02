@@ -62,14 +62,11 @@ impl Kml {
         Default::default()
     }
 
-    pub fn parse(context: &Context, content: impl AsRef<str>) -> Result<Self, Error> {
-        ensure!(
-            content.as_ref().len() <= (1024 * 1024),
-            "A kml-files with {} bytes is larger than reasonably expected.",
-            content.as_ref().len()
-        );
+    pub fn parse(context: &Context, content: &[u8]) -> Result<Self, Error> {
+        ensure!(content.len() <= (1024 * 1024), "kml-file too large");
 
-        let mut reader = quick_xml::Reader::from_str(content.as_ref());
+        let to_parse = String::from_utf8_lossy(content);
+        let mut reader = quick_xml::Reader::from_str(&to_parse);
         reader.trim_text(true);
 
         let mut kml = Kml::new();
@@ -674,7 +671,7 @@ mod tests {
         let xml =
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n<Document addr=\"user@example.org\">\n<Placemark><Timestamp><when>2019-03-06T21:09:57Z</when></Timestamp><Point><coordinates accuracy=\"32.000000\">9.423110,53.790302</coordinates></Point></Placemark>\n<PlaceMARK>\n<Timestamp><WHEN > \n\t2018-12-13T22:11:12Z\t</WHEN></Timestamp><Point><coordinates aCCuracy=\"2.500000\"> 19.423110 \t , \n 63.790302\n </coordinates></Point></PlaceMARK>\n</Document>\n</kml>";
 
-        let kml = Kml::parse(&context.ctx, &xml).expect("parsing failed");
+        let kml = Kml::parse(&context.ctx, &(xml.as_bytes())).expect("parsing failed");
 
         assert!(kml.addr.is_some());
         assert_eq!(kml.addr.as_ref().unwrap(), "user@example.org",);

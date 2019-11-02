@@ -766,14 +766,11 @@ impl<'a> MimeParser<'a> {
             // XXX what if somebody sends eg an "location-highlights.kml"
             // attachment unrelated to location streaming?
             if filename.starts_with("location") || filename.starts_with("message") {
-                let d = std::string::String::from_utf8_lossy(&decoded_data);
-                let parsed = match location::Kml::parse(self.context, &d) {
-                    Ok(res) => Some(res),
-                    Err(err) => {
+                let parsed = location::Kml::parse(self.context, decoded_data)
+                    .map_err(|err| {
                         warn!(self.context, "failed to parse kml part: {}", err);
-                        None
-                    }
-                };
+                    })
+                    .ok();
                 if filename.starts_with("location") {
                     self.location_kml = parsed;
                 } else {

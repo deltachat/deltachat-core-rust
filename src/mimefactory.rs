@@ -503,10 +503,6 @@ impl<'a> MimeFactory<'a> {
                 if location::is_sending_locations_to_chat(context, self.msg.chat_id) {
                     match location::get_kml(context, self.msg.chat_id) {
                         Ok((kml_content, last_added_location_id)) => {
-                            info!(
-                                context,
-                                "adding location.kml to mime message: {}", kml_content
-                            );
                             wrapmime::add_filename_part(
                                 message,
                                 "location.kml",
