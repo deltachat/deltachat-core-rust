@@ -1,58 +1,13 @@
-""" chatting related objects: Contact, Chat, Message. """
+""" Chat and Location related API. """
 
 import mimetypes
 import calendar
 from datetime import datetime
 import os
-from . import props
 from .cutil import as_dc_charpointer, from_dc_charpointer, iter_array
 from .capi import lib, ffi
 from . import const
 from .message import Message
-
-
-class Contact(object):
-    """ Delta-Chat Contact.
-
-    You obtain instances of it through :class:`deltachat.account.Account`.
-    """
-    def __init__(self, dc_context, id):
-        self._dc_context = dc_context
-        self.id = id
-
-    def __eq__(self, other):
-        return self._dc_context == other._dc_context and self.id == other.id
-
-    def __ne__(self, other):
-        return not (self == other)
-
-    def __repr__(self):
-        return "<Contact id={} addr={} dc_context={}>".format(self.id, self.addr, self._dc_context)
-
-    @property
-    def _dc_contact(self):
-        return ffi.gc(
-            lib.dc_get_contact(self._dc_context, self.id),
-            lib.dc_contact_unref
-        )
-
-    @props.with_doc
-    def addr(self):
-        """ normalized e-mail address for this account. """
-        return from_dc_charpointer(lib.dc_contact_get_addr(self._dc_contact))
-
-    @props.with_doc
-    def display_name(self):
-        """ display name for this contact. """
-        return from_dc_charpointer(lib.dc_contact_get_display_name(self._dc_contact))
-
-    def is_blocked(self):
-        """ Return True if the contact is blocked. """
-        return lib.dc_contact_is_blocked(self._dc_contact)
-
-    def is_verified(self):
-        """ Return True if the contact is verified. """
-        return lib.dc_contact_is_verified(self._dc_contact)
 
 
 class Chat(object):
@@ -314,9 +269,10 @@ class Chat(object):
     def get_contacts(self):
         """ get all contacts for this chat.
         :params: contact object.
-        :returns: list of :class:`deltachat.chatting.Contact` objects for this chat
+        :returns: list of :class:`deltachat.contact.Contact` objects for this chat
 
         """
+        from .contact import Contact
         dc_array = ffi.gc(
             lib.dc_get_chat_contacts(self._dc_context, self.id),
             lib.dc_array_unref
@@ -368,6 +324,8 @@ class Chat(object):
             return None
         return from_dc_charpointer(dc_res)
 
+    # ------  group management API ------------------------------
+
     def is_sending_locations(self):
         """return True if this chat has location-sending enabled currently.
         :returns: True if location sending is enabled.
@@ -387,7 +345,7 @@ class Chat(object):
         :param contact: the contact for which locations shall be returned.
         :param timespan_from: a datetime object or None (indicating "since beginning")
         :param timespan_to: a datetime object or None (indicating up till now)
-        :returns: list of :class:`deltachat.chatting.Location` objects.
+        :returns: list of :class:`deltachat.chat.Location` objects.
         """
         if timestamp_from is None:
             time_from = 0

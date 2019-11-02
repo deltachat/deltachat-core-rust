@@ -15,12 +15,14 @@ import deltachat
 from . import const
 from .capi import ffi, lib
 from .cutil import as_dc_charpointer, from_dc_charpointer, iter_array, DCLot
-from .chatting import Contact, Chat, Message
+from .chat import Chat
+from .message import Message
+from .contact import Contact
 
 
 class Account(object):
     """ Each account is tied to a sqlite database file which is fully managed
-    by the underlying deltachat c-library.  All public Account methods are
+    by the underlying deltachat core library.  All public Account methods are
     meant to be memory-safe and return memory-safe objects.
     """
     def __init__(self, db_path, logid=None, eventlogging=True, debug=True):
@@ -160,9 +162,9 @@ class Account(object):
         return from_dc_charpointer(lib.dc_get_blobdir(self._dc_context))
 
     def get_self_contact(self):
-        """ return this account's identity as a :class:`deltachat.chatting.Contact`.
+        """ return this account's identity as a :class:`deltachat.contact.Contact`.
 
-        :returns: :class:`deltachat.chatting.Contact`
+        :returns: :class:`deltachat.contact.Contact`
         """
         self.check_is_configured()
         return Contact(self._dc_context, const.DC_CONTACT_ID_SELF)
@@ -174,7 +176,7 @@ class Account(object):
 
         :param email: email-address (text type)
         :param name: display name for this contact (optional)
-        :returns: :class:`deltachat.chatting.Contact` instance.
+        :returns: :class:`deltachat.contact.Contact` instance.
         """
         name = as_dc_charpointer(name)
         email = as_dc_charpointer(email)
@@ -200,7 +202,7 @@ class Account(object):
                       whose name or e-mail matches query.
         :param only_verified: if true only return verified contacts.
         :param with_self: if true the self-contact is also returned.
-        :returns: list of :class:`deltachat.chatting.Contact` objects.
+        :returns: list of :class:`deltachat.contact.Contact` objects.
         """
         flags = 0
         query = as_dc_charpointer(query)
@@ -218,7 +220,7 @@ class Account(object):
         """ create or get an existing 1:1 chat object for the specified contact or contact id.
 
         :param contact: chat_id (int) or contact object.
-        :returns: a :class:`deltachat.chatting.Chat` object.
+        :returns: a :class:`deltachat.chat.Chat` object.
         """
         if hasattr(contact, "id"):
             if contact._dc_context != self._dc_context:
@@ -235,7 +237,7 @@ class Account(object):
         the specified message.
 
         :param message: messsage id or message instance.
-        :returns: a :class:`deltachat.chatting.Chat` object.
+        :returns: a :class:`deltachat.chat.Chat` object.
         """
         if hasattr(message, "id"):
             if self._dc_context != message._dc_context:
@@ -253,7 +255,7 @@ class Account(object):
         Chats are unpromoted until the first message is sent.
 
         :param verified: if true only verified contacts can be added.
-        :returns: a :class:`deltachat.chatting.Chat` object.
+        :returns: a :class:`deltachat.chat.Chat` object.
         """
         bytes_name = name.encode("utf8")
         chat_id = lib.dc_create_group_chat(self._dc_context, int(verified), bytes_name)
@@ -262,7 +264,7 @@ class Account(object):
     def get_chats(self):
         """ return list of chats.
 
-        :returns: a list of :class:`deltachat.chatting.Chat` objects.
+        :returns: a list of :class:`deltachat.chat.Chat` objects.
         """
         dc_chatlist = ffi.gc(
             lib.dc_get_chatlist(self._dc_context, 0, ffi.NULL, 0),
@@ -299,7 +301,7 @@ class Account(object):
         """ Forward list of messages to a chat.
 
         :param messages: list of :class:`deltachat.message.Message` object.
-        :param chat: :class:`deltachat.chatting.Chat` object.
+        :param chat: :class:`deltachat.chat.Chat` object.
         :returns: None
         """
         msg_ids = [msg.id for msg in messages]
@@ -411,7 +413,7 @@ class Account(object):
         """ setup contact and return a Chat after contact is established.
 
         Note that this function may block for a long time as messages are exchanged
-        with the emitter of the QR code.  On success a :class:`deltachat.chatting.Chat` instance
+        with the emitter of the QR code.  On success a :class:`deltachat.chat.Chat` instance
         is returned.
         :param qr: valid "setup contact" QR code (all other QR codes will result in an exception)
         """
@@ -425,7 +427,7 @@ class Account(object):
         """ join a chat group through a QR code.
 
         Note that this function may block for a long time as messages are exchanged
-        with the emitter of the QR code.  On success a :class:`deltachat.chatting.Chat` instance
+        with the emitter of the QR code.  On success a :class:`deltachat.chat.Chat` instance
         is returned which is the chat that we just joined.
 
         :param qr: valid "join-group" QR code (all other QR codes will result in an exception)
