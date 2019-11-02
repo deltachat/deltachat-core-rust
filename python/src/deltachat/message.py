@@ -1,4 +1,4 @@
-""" chatting related objects: Contact, Chat, Message. """
+""" The Message object. """
 
 import os
 import shutil
@@ -13,7 +13,7 @@ class Message(object):
     """ Message object.
 
     You obtain instances of it through :class:`deltachat.account.Account` or
-    :class:`deltachat.chatting.Chat`.
+    :class:`deltachat.chat.Chat`.
     """
     def __init__(self, account, dc_msg):
         self.account = account
@@ -169,18 +169,18 @@ class Message(object):
     def chat(self):
         """chat this message was posted in.
 
-        :returns: :class:`deltachat.chatting.Chat` object
+        :returns: :class:`deltachat.chat.Chat` object
         """
-        from .chatting import Chat
+        from .chat import Chat
         chat_id = lib.dc_msg_get_chat_id(self._dc_msg)
         return Chat(self.account, chat_id)
 
     def get_sender_contact(self):
         """return the contact of who wrote the message.
 
-        :returns: :class:`deltachat.chatting.Contact` instance
+        :returns: :class:`deltachat.chat.Contact` instance
         """
-        from .chatting import Contact
+        from .contact import Contact
         contact_id = lib.dc_msg_get_from_id(self._dc_msg)
         return Contact(self._dc_context, contact_id)
 
