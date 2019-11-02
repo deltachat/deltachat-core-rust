@@ -227,7 +227,7 @@ pub unsafe fn dc_receive_imf(
             &mut created_db_entries,
             &mut create_event_to_send,
         ) {
-            info!(context, "{}", err);
+            warn!(context, "{}", err);
 
             cleanup(
                 context,
@@ -257,7 +257,7 @@ pub unsafe fn dc_receive_imf(
         );
     }
 
-    if !mime_parser.message_kml.is_none() && chat_id > DC_CHAT_ID_LAST_SPECIAL {
+    if mime_parser.location_kml.is_some() || mime_parser.message_kml.is_some() {
         save_locations(
             context,
             &mime_parser,
@@ -604,6 +604,7 @@ unsafe fn add_parts(
     // into only one message; mails sent by other clients may result in several messages
     // (eg. one per attachment))
     let icnt = mime_parser.parts.len();
+
     let mut txt_raw = None;
 
     context.sql.prepare(
@@ -643,17 +644,6 @@ unsafe fn add_parts(
                     part.param
                         .set_int(Param::Cmd, mime_parser.is_system_message as i32);
                 }
-
-                /*
-                info!(
-                    context,
-                    "received mime message {:?}",
-                    String::from_utf8_lossy(std::slice::from_raw_parts(
-                        imf_raw_not_terminated as *const u8,
-                        imf_raw_bytes,
-                    ))
-                );
-                */
 
                 stmt.execute(params![
                     rfc724_mid,
@@ -850,10 +840,20 @@ fn save_locations(
     insert_msg_id: MsgId,
     hidden: i32,
 ) {
+    if chat_id <= DC_CHAT_ID_LAST_SPECIAL as libc::c_uint {
+        return ();
+    }
     let mut location_id_written = false;
     let mut send_event = false;
 
-    if !mime_parser.message_kml.is_none() && chat_id > DC_CHAT_ID_LAST_SPECIAL as libc::c_uint {
+    info!(
+        context,
+        "saving locations chat_id={} insert_msg_id={}",
+        chat_id,
+        insert_msg_id.to_u32()
+    );
+
+    if mime_parser.message_kml.is_some() {
         let locations = &mime_parser.message_kml.as_ref().unwrap().locations;
         let newest_location_id =
             location::save(context, chat_id, from_id, locations, 1).unwrap_or_default();
@@ -865,12 +865,10 @@ fn save_locations(
         }
     }
 
-    if !mime_parser.location_kml.is_none() && chat_id > DC_CHAT_ID_LAST_SPECIAL as libc::c_uint {
+    if mime_parser.location_kml.is_some() {
         if let Some(ref addr) = mime_parser.location_kml.as_ref().unwrap().addr {
             if let Ok(contact) = Contact::get_by_id(context, from_id) {
-                if !contact.get_addr().is_empty()
-                    && contact.get_addr().to_lowercase() == addr.to_lowercase()
-                {
+                if contact.get_addr().to_lowercase() == addr.to_lowercase() {
                     let locations = &mime_parser.location_kml.as_ref().unwrap().locations;
                     let newest_location_id =
                         location::save(context, chat_id, from_id, locations, 0).unwrap_or_default();

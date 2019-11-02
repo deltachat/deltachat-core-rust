@@ -417,7 +417,7 @@ class Chat(object):
 
 class Location:
     def __init__(self, latitude, longitude, accuracy, timestamp):
-        assert isinstance(timestamp, datetime.datetime)
+        assert isinstance(timestamp, datetime)
         self.latitude = latitude
         self.longitude = longitude
         self.accuracy = accuracy

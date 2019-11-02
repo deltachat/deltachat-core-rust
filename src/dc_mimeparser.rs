@@ -598,7 +598,7 @@ impl<'a> MimeParser<'a> {
         let mut decoded_data = match wrapmime::mailmime_transfer_decode(mime) {
             Ok(decoded_data) => decoded_data,
             Err(_) => {
-                // Note that it's now always an error - might be no data
+                // Note that it's not always an error - might be no data
                 return false;
             }
         };
@@ -736,27 +736,13 @@ impl<'a> MimeParser<'a> {
                         return false;
                     }
                 }
-                if desired_filename.starts_with("location") && desired_filename.ends_with(".kml") {
-                    if !decoded_data.is_empty() {
-                        let d = std::string::String::from_utf8_lossy(&decoded_data);
-                        self.location_kml = location::Kml::parse(self.context, &d).ok();
-                    }
-                } else if desired_filename.starts_with("message")
-                    && desired_filename.ends_with(".kml")
-                {
-                    if !decoded_data.is_empty() {
-                        let d = std::string::String::from_utf8_lossy(&decoded_data);
-                        self.message_kml = location::Kml::parse(self.context, &d).ok();
-                    }
-                } else if !decoded_data.is_empty() {
-                    self.do_add_single_file_part(
-                        msg_type,
-                        mime_type,
-                        raw_mime.as_ref(),
-                        &decoded_data,
-                        &desired_filename,
-                    );
-                }
+                self.do_add_single_file_part(
+                    msg_type,
+                    mime_type,
+                    raw_mime.as_ref(),
+                    &decoded_data,
+                    &desired_filename,
+                );
             }
             _ => {}
         }
@@ -770,20 +756,47 @@ impl<'a> MimeParser<'a> {
         mime_type: libc::c_int,
         raw_mime: Option<&String>,
         decoded_data: &[u8],
-        desired_filename: &str,
+        filename: &str,
     ) {
-        /* write decoded data to new blob file */
-        let blob = match BlobObject::create(self.context, desired_filename, decoded_data) {
+        if decoded_data.is_empty() {
+            return;
+        }
+        // treat location/message kml file attachments specially
+        if filename.ends_with(".kml") {
+            // XXX what if somebody sends eg an "location-highlights.kml"
+            // attachment unrelated to location streaming?
+            if filename.starts_with("location") || filename.starts_with("message") {
+                let d = std::string::String::from_utf8_lossy(&decoded_data);
+                let parsed = match location::Kml::parse(self.context, &d) {
+                    Ok(res) => Some(res),
+                    Err(err) => {
+                        warn!(self.context, "failed to parse kml part: {}", err);
+                        None
+                    }
+                };
+                if filename.starts_with("location") {
+                    self.location_kml = parsed;
+                } else {
+                    self.message_kml = parsed;
+                }
+                return;
+            }
+        }
+        /* we have a regular file attachment,
+        write decoded data to new blob object */
+
+        let blob = match BlobObject::create(self.context, filename, decoded_data) {
             Ok(blob) => blob,
             Err(err) => {
                 error!(
                     self.context,
-                    "Could not add blob for mime part {}, error {}", desired_filename, err
+                    "Could not add blob for mime part {}, error {}", filename, err
                 );
                 return;
             }
         };
 
+        /* create and register Mime part referencing the new Blob object */
         let mut part = Part::default();
         part.typ = msg_type;
         part.mimetype = mime_type;
@@ -803,10 +816,18 @@ impl<'a> MimeParser<'a> {
     }
 
     fn do_add_single_part(&mut self, mut part: Part) {
-        if self.encrypted && self.signatures.len() > 0 {
-            part.param.set_int(Param::GuaranteeE2ee, 1);
-        } else if self.encrypted {
-            part.param.set_int(Param::ErroneousE2ee, 0x2);
+        // we transfer the encryption-state to each part
+        // because each part lands to each part ? Autocrypt does not define "partially encrypted"
+        // so either the whole message is encrypted properly or nothing
+        if self.encrypted {
+            if self.signatures.len() > 0 {
+                part.param.set_int(Param::GuaranteeE2ee, 1);
+            } else {
+                // XXX if the message was encrypted but not signed
+                // it's not neccessarily an error we need to signal.
+                // we could just treat it as if it was not encrypted.
+                part.param.set_int(Param::ErroneousE2ee, 0x2);
+            }
         }
         self.parts.push(part);
     }
