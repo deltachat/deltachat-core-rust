@@ -811,6 +811,7 @@ class TestOnlineAccount:
         assert chat.get_profile_image() is None
 
     def test_send_receive_locations(self, acfactory, lp):
+        now = datetime.utcnow()
         ac1, ac2 = acfactory.get_two_online_accounts()
 
         lp.sec("ac1: create chat with ac2")
@@ -829,7 +830,7 @@ class TestOnlineAccount:
         assert chat1.is_sending_locations()
         ac1._evlogger.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
 
-        ac1.set_location(latitude=2.0, longitude=3.0)
+        ac1.set_location(latitude=2.0, longitude=3.0, accuracy=0.5)
         ac1._evlogger.get_matching("DC_EVENT_LOCATION_CHANGED")
         chat1.send_text("hello")
         ac1._evlogger.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
@@ -841,9 +842,21 @@ class TestOnlineAccount:
         ac2._evlogger.get_matching("DC_EVENT_LOCATION_CHANGED")
         ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG")  # text message with location
 
-        # contact = ac2.create_contact(ac1.get_config("addr"))
-        locations = chat2.get_locations()  # XXX per contact
+        locations = chat2.get_locations()
         assert len(locations) >= 1
+        assert locations[0].latitude == 2.0
+        assert locations[0].longitude == 3.0
+        assert locations[0].accuracy == 0.5
+        assert locations[0].timestamp > now
+
+        contact = ac2.create_contact(ac1.get_config("addr"))
+        locations2 = chat2.get_locations(contact=contact)
+        assert len(locations2) >= 1
+        assert locations2 == locations
+
+        contact = ac2.create_contact("nonexisting@example.org")
+        locations3 = chat2.get_locations(contact=contact)
+        assert not locations3
 
 
 class TestOnlineConfigureFails:

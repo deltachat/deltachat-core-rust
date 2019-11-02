@@ -410,7 +410,7 @@ class Chat(object):
                 latitude=lib.dc_array_get_latitude(dc_array, i),
                 longitude=lib.dc_array_get_longitude(dc_array, i),
                 accuracy=lib.dc_array_get_accuracy(dc_array, i),
-                timestamp=datetime.utcfromtimestamp(lib.dc_array_get_accuracy(dc_array, i)),
+                timestamp=datetime.utcfromtimestamp(lib.dc_array_get_timestamp(dc_array, i)),
             ))
         return locations
 
@@ -422,3 +422,6 @@ class Location:
         self.longitude = longitude
         self.accuracy = accuracy
         self.timestamp = timestamp
+
+    def __eq__(self, other):
+        return self.__dict__ == other.__dict__
