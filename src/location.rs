@@ -369,9 +369,6 @@ pub fn delete_all(context: &Context) -> Result<(), Error> {
 }
 
 pub fn get_kml(context: &Context, chat_id: u32) -> Result<(String, u32), Error> {
-    let now = time();
-    let mut location_count = 0;
-    let mut ret = String::new();
     let mut last_added_location_id = 0;
 
     let self_addr = context
@@ -388,14 +385,17 @@ pub fn get_kml(context: &Context, chat_id: u32) -> Result<(String, u32), Error> 
             Ok((send_begin, send_until, last_sent))
         })?;
 
-    if !(locations_send_begin == 0 || now > locations_send_until) {
+    let now = time();
+    let mut location_count = 0;
+    let mut ret = String::new();
+    if locations_send_begin != 0 && now <= locations_send_until {
         ret += &format!(
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n<Document addr=\"{}\">\n",
             self_addr,
         );
 
         context.sql.query_map(
-            "SELECT id, latitude, longitude, accuracy, timestamp\
+            "SELECT id, latitude, longitude, accuracy, timestamp \
              FROM locations  WHERE from_id=? \
              AND timestamp>=? \
              AND (timestamp>=? OR timestamp=(SELECT MAX(timestamp) FROM locations WHERE from_id=?)) \
@@ -416,7 +416,7 @@ pub fn get_kml(context: &Context, chat_id: u32) -> Result<(String, u32), Error> 
                 for row in rows {
                     let (location_id, latitude, longitude, accuracy, timestamp) = row?;
                     ret += &format!(
-                        "<Placemark><Timestamp><when>{}</when></Timestamp><Point><coordinates accuracy=\"{}\">{},{}</coordinates></Point></Placemark>\n\x00",
+                        "<Placemark><Timestamp><when>{}</when></Timestamp><Point><coordinates accuracy=\"{}\">{},{}</coordinates></Point></Placemark>\n",
                         timestamp,
                         accuracy,
                         longitude,
@@ -428,10 +428,10 @@ pub fn get_kml(context: &Context, chat_id: u32) -> Result<(String, u32), Error> 
                 Ok(())
             }
         )?;
+        ret += "</Document>\n</kml>";
     }
 
     ensure!(location_count > 0, "No locations processed");
-    ret += "</Document>\n</kml>";
 
     Ok((ret, last_added_location_id))
 }

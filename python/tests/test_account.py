@@ -823,9 +823,12 @@ class TestOnlineAccount:
 
         ac1._evlogger.consume_events()
         ac2._evlogger.consume_events()
+
         lp.sec("ac1: enable location sending in chat")
         chat1.enable_sending_locations(seconds=100)
         assert chat1.is_sending_locations()
+
+        lp.sec("ac1: setting location")
         ac1.set_location(latitude=1.0, longitude=2.0)
         ac1._evlogger.get_matching("DC_EVENT_LOCATION_CHANGED")
         chat1.send_text("hello")
