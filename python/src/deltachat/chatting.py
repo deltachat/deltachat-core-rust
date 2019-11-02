@@ -404,15 +404,14 @@ class Chat(object):
             contact_id = contact.id
 
         dc_array = lib.dc_get_locations(self._dc_context, self.id, contact_id, time_from, time_to)
-        locations = []
-        for i in range(0, lib.dc_array_get_cnt(dc_array)):
-            locations.append(Location(
+        return [
+            Location(
                 latitude=lib.dc_array_get_latitude(dc_array, i),
                 longitude=lib.dc_array_get_longitude(dc_array, i),
                 accuracy=lib.dc_array_get_accuracy(dc_array, i),
-                timestamp=datetime.utcfromtimestamp(lib.dc_array_get_timestamp(dc_array, i)),
-            ))
-        return locations
+                timestamp=datetime.utcfromtimestamp(lib.dc_array_get_timestamp(dc_array, i)))
+            for i in range(lib.dc_array_get_cnt(dc_array))
+        ]
 
 
 class Location:
