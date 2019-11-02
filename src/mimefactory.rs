@@ -484,6 +484,7 @@ impl<'a> MimeFactory<'a> {
                 if !meta_part.is_null() {
                     mailmime_smart_add_part(message, meta_part);
                 }
+
                 if self.msg.param.exists(Param::SetLatitude) {
                     let param = &self.msg.param;
                     let kml_file = location::get_message_kml(
@@ -500,18 +501,25 @@ impl<'a> MimeFactory<'a> {
                 }
 
                 if location::is_sending_locations_to_chat(context, self.msg.chat_id) {
-                    if let Ok((kml_file, last_added_location_id)) =
-                        location::get_kml(context, self.msg.chat_id)
-                    {
-                        wrapmime::add_filename_part(
-                            message,
-                            "location.kml",
-                            "application/vnd.google-earth.kml+xml",
-                            &kml_file,
-                        )?;
-                        if !self.msg.param.exists(Param::SetLatitude) {
-                            // otherwise, the independent location is already filed
-                            self.out_last_added_location_id = last_added_location_id;
+                    match location::get_kml(context, self.msg.chat_id) {
+                        Ok((kml_content, last_added_location_id)) => {
+                            info!(
+                                context,
+                                "adding location.kml to mime message: {}", kml_content
+                            );
+                            wrapmime::add_filename_part(
+                                message,
+                                "location.kml",
+                                "application/vnd.google-earth.kml+xml",
+                                &kml_content,
+                            )?;
+                            if !self.msg.param.exists(Param::SetLatitude) {
+                                // otherwise, the independent location is already filed
+                                self.out_last_added_location_id = last_added_location_id;
+                            }
+                        }
+                        Err(err) => {
+                            warn!(context, "mimefactory: could not get location: {}", err);
                         }
                     }
                 }
