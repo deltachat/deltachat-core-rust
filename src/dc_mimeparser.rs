@@ -1242,13 +1242,13 @@ mod tests {
         #[ignore]
         #[test]
         fn test_dc_mailmime_parse_crash_fuzzy(data in "[!-~\t ]{2000,}") {
-            // this test doesn't exercise much of dc_mimeparser anymore
-            // because a missing From-field early aborts parsing
             let context = dummy_context();
             let mut mimeparser = MimeParser::new(&context.ctx);
-            unsafe {
-                assert!(mimeparser.parse(data.as_bytes()).is_err());
-            }
+
+            // parsing should always succeed
+            // but the returned header will normally be empty on random data
+            assert!(unsafe {mimeparser.parse(data.as_bytes()).is_ok()});
+            assert!(mimeparser.header.is_empty());
         }
     }
 
