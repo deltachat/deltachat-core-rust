@@ -1,5 +1,19 @@
 # Changelog 
 
+## untagged 1.0.0-beta.7 
+
+- fix location-streaming #782
+
+- fix display of messages that could not be decrypted #785
+ 
+- fix smtp MAILER-DAEMON bug #786 
+
+- fix a logging of durations #783
+
+- add more error logging #779
+
+- do not panic on some bad utf-8 mime #776
+
 ## 1.0.0-beta.6
 
 - fix chatlist.get_msg_id to return id, instead of wrongly erroring
