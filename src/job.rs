@@ -134,9 +134,13 @@ impl Job {
         /* connect to SMTP server, if not yet done */
         if !context.smtp.lock().unwrap().is_connected() {
             let loginparam = LoginParam::from_database(context, "configured_");
-            let connected = context.smtp.lock().unwrap().connect(context, &loginparam);
-
-            if !connected {
+            if context
+                .smtp
+                .lock()
+                .unwrap()
+                .connect(context, &loginparam)
+                .is_err()
+            {
                 self.try_again_later(3, None);
                 return;
             }
