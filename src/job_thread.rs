@@ -15,7 +15,7 @@ pub struct JobThread {
 #[derive(Clone, Debug, Default)]
 pub struct JobState {
     idle: bool,
-    jobs_needed: i32,
+    jobs_needed: bool,
     suspended: bool,
     using_handle: bool,
 }
@@ -58,7 +58,7 @@ impl JobThread {
 
     pub fn interrupt_idle(&self, context: &Context) {
         {
-            self.state.0.lock().unwrap().jobs_needed = 1;
+            self.state.0.lock().unwrap().jobs_needed = true;
         }
 
         info!(context, "Interrupting {}-IDLE...", self.name);
@@ -139,13 +139,13 @@ impl JobThread {
             let &(ref lock, ref cvar) = &*self.state.clone();
             let mut state = lock.lock().unwrap();
 
-            if 0 != state.jobs_needed {
+            if state.jobs_needed {
                 info!(
                     context,
                     "{}-IDLE will not be started as it was interrupted while not ideling.",
                     self.name,
                 );
-                state.jobs_needed = 0;
+                state.jobs_needed = false;
                 return;
             }
 
