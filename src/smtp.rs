@@ -137,12 +137,13 @@ impl Smtp {
     }
 
     /// SMTP-Send a prepared mail to recipients.
-    /// returns boolean whether send was successful.
+    /// on successful send out Ok() is returned.
     pub fn send<'a>(
         &mut self,
         context: &Context,
         recipients: Vec<EmailAddress>,
         message: Vec<u8>,
+        job_id: u32,
     ) -> Result<(), Error> {
         let message_len = message.len();
 
@@ -153,12 +154,15 @@ impl Smtp {
             .join(",");
 
         if let Some(ref mut transport) = self.transport {
-            let envelope = Envelope::new(self.from.clone(), recipients);
-            ensure!(envelope.is_ok(), "internal smtp-message construction fail");
-            let envelope = envelope.unwrap();
+            let envelope = match Envelope::new(self.from.clone(), recipients) {
+                Ok(env) => env,
+                Err(err) => {
+                    bail!("{}", err);
+                }
+            };
             let mail = SendableEmail::new(
                 envelope,
-                "mail-id".into(), // TODO: random id
+                format!("{}", job_id), // only used for internal logging
                 message,
             );
 
