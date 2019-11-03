@@ -249,12 +249,10 @@ pub(crate) fn dc_create_incoming_rfc724_mid(
     contact_id_from: u32,
     contact_ids_to: &[u32],
 ) -> Option<String> {
-    if contact_ids_to.is_empty() {
-        return None;
-    }
-    /* find out the largest receiver ID (we could also take the smallest, but it should be unique) */
-    let largest_id_to = contact_ids_to.iter().max().copied().unwrap_or_default();
+    /* create a deterministic rfc724_mid from input such that
+    repeatedly calling it with the same input results in the same Message-id */
 
+    let largest_id_to = contact_ids_to.iter().max().copied().unwrap_or_default();
     let result = format!(
         "{}-{}-{}@stub",
         message_timestamp, contact_id_from, largest_id_to
@@ -1232,6 +1230,8 @@ mod tests {
     fn test_dc_create_incoming_rfc724_mid() {
         let res = dc_create_incoming_rfc724_mid(123, 45, &vec![6, 7]);
         assert_eq!(res, Some("123-45-7@stub".into()));
+        let res = dc_create_incoming_rfc724_mid(123, 45, &vec![]);
+        assert_eq!(res, Some("123-45-0@stub".into()));
     }
 
     #[test]
