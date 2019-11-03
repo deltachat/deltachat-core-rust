@@ -295,7 +295,7 @@ impl Chatlist {
         let mut lastcontact = None;
 
         let lastmsg = if let Ok(lastmsg) = Message::load_from_db(context, lastmsg_id) {
-            if lastmsg.from_id != 1
+            if lastmsg.from_id != DC_CONTACT_ID_SELF
                 && (chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup)
             {
                 lastcontact = Contact::load_from_db(context, lastmsg.from_id).ok();

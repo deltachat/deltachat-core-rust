@@ -258,7 +258,7 @@ impl Chat {
         }
 
         if (self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup)
-            && !is_contact_in_chat(context, self.id, 1 as u32)
+            && !is_contact_in_chat(context, self.id, DC_CONTACT_ID_SELF)
         {
             emit_event!(
                 context,
@@ -414,7 +414,7 @@ impl Chat {
                     &context.sql,
                     "INSERT INTO locations \
                      (timestamp,from_id,chat_id, latitude,longitude,independent)\
-                     VALUES (?,?,?, ?,?,1);",
+                     VALUES (?,?,?, ?,?,1);", // 1=DC_CONTACT_ID_SELF
                     params![
                         timestamp,
                         DC_CONTACT_ID_SELF,
@@ -446,7 +446,7 @@ impl Chat {
                         params![
                             new_rfc724_mid,
                             self.id as i32,
-                            1i32,
+                            DC_CONTACT_ID_SELF,
                             to_id as i32,
                             timestamp,
                             msg.type_0,
@@ -914,7 +914,7 @@ fn do_set_draft(context: &Context, chat_id: u32, msg: &mut Message) -> Result<()
          VALUES (?,?,?, ?,?,?,?,?);",
         params![
             chat_id as i32,
-            1,
+            DC_CONTACT_ID_SELF,
             time(),
             msg.type_0,
             MessageState::OutDraft,
@@ -993,8 +993,8 @@ pub fn get_chat_msgs(
                 "        ON m.chat_id=chats.id",
                 " LEFT JOIN contacts",
                 "        ON m.from_id=contacts.id",
-                " WHERE m.from_id!=1",
-                "   AND m.from_id!=2",
+                " WHERE m.from_id!=1", // 1=DC_CONTACT_ID_SELF
+                "   AND m.from_id!=2", // 2=DC_CONTACT_ID_DEVICE
                 "   AND m.hidden=0",
                 "   AND chats.blocked=2",
                 "   AND contacts.blocked=0",
@@ -1350,7 +1350,7 @@ pub fn create_group_chat(
     let chat_id = sql::get_rowid(context, &context.sql, "chats", "grpid", grpid);
 
     if chat_id != 0 {
-        if add_to_chat_contacts_table(context, chat_id, 1) {
+        if add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF) {
             let mut draft_msg = Message::new(Viewtype::Text);
             draft_msg.set_text(Some(draft_txt));
             set_draft_raw(context, chat_id, &mut draft_msg);
@@ -1557,7 +1557,7 @@ pub fn remove_contact_from_chat(
     /* this allows to delete pending references to deleted contacts.  Of course, this should _not_ happen. */
     if let Ok(chat) = Chat::load_from_db(context, chat_id) {
         if real_group_exists(context, chat_id) {
-            if !is_contact_in_chat(context, chat_id, 1 as u32) {
+            if !is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF) {
                 emit_event!(
                     context,
                     Event::ErrorSelfNotInGroup(
@@ -1653,7 +1653,7 @@ pub fn set_chat_name(
     if real_group_exists(context, chat_id) {
         if chat.name == new_name.as_ref() {
             success = true;
-        } else if !is_contact_in_chat(context, chat_id, 1) {
+        } else if !is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF) {
             emit_event!(
                 context,
                 Event::ErrorSelfNotInGroup("Cannot set chat name; self not in group".into())
@@ -1905,8 +1905,8 @@ pub fn add_device_msg(context: &Context, chat_id: u32, text: impl AsRef<str>) {
         "INSERT INTO msgs (chat_id,from_id,to_id, timestamp,type,state, txt,rfc724_mid) VALUES (?,?,?, ?,?,?, ?,?);",
         params![
             chat_id as i32,
-            2,
-            2,
+            DC_CONTACT_ID_DEVICE,
+            DC_CONTACT_ID_DEVICE,
             dc_create_smeared_timestamp(context),
             Viewtype::Text,
             MessageState::InNoticed,

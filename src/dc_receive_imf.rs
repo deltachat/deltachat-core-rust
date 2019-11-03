@@ -391,7 +391,7 @@ unsafe fn add_parts(
         } else {
             MessageState::InFresh
         };
-        *to_id = 1;
+        *to_id = DC_CONTACT_ID_SELF;
         // handshake messages must be processed _before_ chats are created
         // (eg. contacs may be marked as verified)
         if mime_parser.lookup_field("Secure-Join").is_some() {
@@ -551,8 +551,9 @@ unsafe fn add_parts(
             if to_ids.is_empty() && 0 != to_self {
                 // from_id==to_id==DC_CONTACT_ID_SELF - this is a self-sent messages,
                 // maybe an Autocrypt Setup Messag
-                let (id, bl) = chat::create_or_lookup_by_contact_id(context, 1, Blocked::Not)
-                    .unwrap_or_default();
+                let (id, bl) =
+                    chat::create_or_lookup_by_contact_id(context, DC_CONTACT_ID_SELF, Blocked::Not)
+                        .unwrap_or_default();
                 *chat_id = id;
                 chat_id_blocked = bl;
 
@@ -1350,8 +1351,8 @@ unsafe fn create_or_lookup_adhoc_group(
     if !member_ids.contains(&from_id) {
         member_ids.push(from_id);
     }
-    if !member_ids.contains(&1) {
-        member_ids.push(1);
+    if !member_ids.contains(&DC_CONTACT_ID_SELF) {
+        member_ids.push(DC_CONTACT_ID_SELF);
     }
     if member_ids.len() < 3 {
         // too few contacts given
@@ -1471,7 +1472,7 @@ fn create_adhoc_grp_id(context: &Context, member_ids: &[u32]) -> String {
         .sql
         .query_map(
             format!(
-                "SELECT addr FROM contacts WHERE id IN({}) AND id!=1",
+                "SELECT addr FROM contacts WHERE id IN({}) AND id!=1", // 1=DC_CONTACT_ID_SELF
                 member_ids_str
             ),
             params![],
@@ -1525,7 +1526,7 @@ fn search_chat_ids_by_contact_ids(
                        WHERE cc.chat_id IN(SELECT chat_id FROM chats_contacts WHERE contact_id IN({})) \
                          AND c.type=120 \
                          AND cc.contact_id!=1 \
-                       ORDER BY cc.chat_id, cc.contact_id;",
+                       ORDER BY cc.chat_id, cc.contact_id;", // 1=DC_CONTACT_ID_GROUP
                     contact_ids_str
                 ),
                 params![],
