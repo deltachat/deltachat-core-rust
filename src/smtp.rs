@@ -44,26 +44,23 @@ impl Smtp {
     }
 
     /// Connect using the provided login params
-    pub fn connect(&mut self, context: &Context, lp: &LoginParam) -> bool {
+    pub fn connect(&mut self, context: &Context, lp: &LoginParam) -> Result<(), Error> {
         if self.is_connected() {
             warn!(context, "SMTP already connected.");
-            return true;
+            return Ok(());
         }
 
         if lp.send_server.is_empty() || lp.send_port == 0 {
             context.call_cb(Event::ErrorNetwork("SMTP bad parameters.".into()));
+            bail!("SMTP Bad parameters");
         }
 
-        self.from = if let Ok(addr) = EmailAddress::new(lp.addr.clone()) {
-            Some(addr)
-        } else {
-            None
+        self.from = match EmailAddress::new(lp.addr.clone()) {
+            Ok(addr) => Some(addr),
+            Err(err) => {
+                bail!("invalid login address {}: {}", lp.addr, err);
+            }
         };
-
-        if self.from.is_none() {
-            // TODO: print error
-            return false;
-        }
 
         let domain = &lp.send_server;
         let port = lp.send_port as u16;
@@ -76,11 +73,12 @@ impl Smtp {
             let addr = &lp.addr;
             let send_pw = &lp.send_pw;
             let access_token = dc_get_oauth2_access_token(context, addr, send_pw, false);
-            if access_token.is_none() {
-                return false;
-            }
+            ensure!(
+                access_token.is_some(),
+                "could not get oaut2_access token addr={}",
+                addr
+            );
             let user = &lp.send_user;
-
             (
                 lettre::smtp::authentication::Credentials::new(
                     user.to_string(),
@@ -125,18 +123,17 @@ impl Smtp {
                             "SMTP-LOGIN as {} ok",
                             lp.send_user,
                         )));
-                        return true;
+                        return Ok(());
                     }
                     Err(err) => {
-                        warn!(context, "SMTP: failed to connect {:?}", err);
+                        bail!("SMTP: failed to connect {:?}", err);
                     }
                 }
             }
             Err(err) => {
-                warn!(context, "SMTP: failed to setup connection {:?}", err);
+                bail!("SMTP: failed to setup connection {:?}", err);
             }
         }
-        false
     }
 
     /// SMTP-Send a prepared mail to recipients.

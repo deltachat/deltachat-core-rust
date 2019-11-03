@@ -531,21 +531,26 @@ fn try_smtp_one_param(context: &Context, param: &LoginParam) -> Option<bool> {
         param.send_user, param.send_server, param.send_port, param.server_flags
     );
     info!(context, "Trying: {}", inf);
-    if context
+    match context
         .smtp
         .clone()
         .lock()
         .unwrap()
         .connect(context, &param)
     {
-        info!(context, "success: {}", inf);
-        return Some(true);
+        Ok(()) => {
+            info!(context, "success: {}", inf);
+            Some(true)
+        }
+        Err(err) => {
+            if context.shall_stop_ongoing() {
+                Some(false)
+            } else {
+                warn!(context, "could not connect: {}", err);
+                None
+            }
+        }
     }
-    if context.shall_stop_ongoing() {
-        return Some(false);
-    }
-    info!(context, "could not connect: {}", inf);
-    None
 }
 
 /*******************************************************************************
