@@ -353,6 +353,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                  configure\n\
                  connect\n\
                  disconnect\n\
+                 interrupt\n\
                  maybenetwork\n\
                  housekeeping\n\
                  help imex (Import/Export)\n\
@@ -492,6 +493,9 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "info" => {
             println!("{:#?}", context.get_info());
+        }
+        "interrupt" => {
+            interrupt_imap_idle(context);
         }
         "maybenetwork" => {
             maybe_network(context);
