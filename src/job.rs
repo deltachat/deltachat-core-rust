@@ -134,13 +134,8 @@ impl Job {
         /* connect to SMTP server, if not yet done */
         if !context.smtp.lock().unwrap().is_connected() {
             let loginparam = LoginParam::from_database(context, "configured_");
-            if context
-                .smtp
-                .lock()
-                .unwrap()
-                .connect(context, &loginparam)
-                .is_err()
-            {
+            let connected = context.smtp.lock().unwrap().connect(context, &loginparam);
+            if connected.is_err() {
                 self.try_again_later(3, None);
                 return;
             }
@@ -177,10 +172,10 @@ impl Job {
                     // its ok/error response processing. Note that if a message
                     // was sent we need to mark it in the database ASAP as we
                     // otherwise might send it twice.
-                    let mut sock = context.smtp.lock().unwrap();
-                    match sock.send(context, recipients_list, body) {
+                    let mut smtp = context.smtp.lock().unwrap();
+                    match smtp.send(context, recipients_list, body, self.job_id) {
                         Err(err) => {
-                            sock.disconnect();
+                            smtp.disconnect();
                             warn!(context, "smtp failed: {}", err);
                             self.try_again_later(-1, Some(err.to_string()));
                         }
