@@ -505,6 +505,8 @@ pub fn perform_smtp_jobs(context: &Context) {
     }
 }
 
+pub fn perform_smtp_fetch(_context: &Context) {}
+
 pub fn perform_smtp_idle(context: &Context) {
     info!(context, "SMTP-idle started...",);
     {

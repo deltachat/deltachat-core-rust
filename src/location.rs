@@ -190,7 +190,13 @@ impl Kml {
     }
 }
 
-// location streaming
+/// Starts streaming locations to a chat.
+///
+/// # Parameters
+///
+/// * `context` - The [Context].
+/// * `chat_id` - The ID of the chat to send locations to.
+/// * `seconds` - The duration for which to stream the location.
 pub fn send_locations_to_chat(context: &Context, chat_id: u32, seconds: i64) {
     let now = time();
     if !(seconds < 0 || chat_id <= DC_CHAT_ID_LAST_SPECIAL) {
