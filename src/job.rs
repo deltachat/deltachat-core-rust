@@ -1023,8 +1023,9 @@ pub fn interrupt_smtp_idle(context: &Context) {
 }
 
 pub fn interrupt_imap_idle(context: &Context) {
-    info!(context, "Interrupting IMAP-IDLE...",);
+    info!(context, "Interrupting INBOX-IDLE...",);
 
     *context.perform_inbox_jobs_needed.write().unwrap() = true;
+
     context.inbox.read().unwrap().interrupt_idle();
 }
