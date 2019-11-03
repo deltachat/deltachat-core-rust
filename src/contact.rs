@@ -264,7 +264,7 @@ impl Contact {
             .unwrap_or_default();
 
         if addr_normalized == addr_self {
-            return 1;
+            return DC_CONTACT_ID_SELF;
         }
 
         context.sql.query_get_value(
@@ -301,7 +301,7 @@ impl Contact {
             .unwrap_or_default();
 
         if addr == addr_self {
-            return Ok((1, sth_modified));
+            return Ok((DC_CONTACT_ID_SELF, sth_modified));
         }
 
         if !may_be_valid_addr(&addr) {

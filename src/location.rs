@@ -275,7 +275,7 @@ pub fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64) -> b
                         accuracy,
                         time(),
                         chat_id,
-                        1,
+                        DC_CONTACT_ID_SELF,
                     ]
             ) {
                 warn!(context, "failed to store location {:?}", err);

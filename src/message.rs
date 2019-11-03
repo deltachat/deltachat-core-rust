@@ -714,7 +714,7 @@ pub fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
         ret += "\n";
     }
 
-    if msg.from_id == 2 || msg.to_id == 2 {
+    if msg.from_id == DC_CONTACT_ID_DEVICE || msg.to_id == DC_CONTACT_ID_DEVICE {
         // device-internal message, no further details needed
         return ret;
     }
