@@ -282,8 +282,23 @@ class Account(object):
         return Chat(self, const.DC_CHAT_ID_DEADDROP)
 
     def get_message_by_id(self, msg_id):
-        """ return Message instance. """
+        """ return Message instance.
+        :param msg_id: integer id of this message.
+        :returns: :class:`deltachat.message.Message` instance.
+        """
         return Message.from_db(self, msg_id)
+
+    def get_chat_by_id(self, chat_id):
+        """ return Chat instance.
+        :param chat_id: integer id of this chat.
+        :returns: :class:`deltachat.chat.Chat` instance.
+        :raises: ValueError if chat does not exist.
+        """
+        res = lib.dc_get_chat(self._dc_context, chat_id)
+        if res == ffi.NULL:
+            raise ValueError("cannot get chat with id={}".format(chat_id))
+        lib.dc_chat_unref(res)
+        return Chat(self, chat_id)
 
     def mark_seen_messages(self, messages):
         """ mark the given set of messages as seen.
@@ -495,7 +510,8 @@ class Account(object):
         self._imex_events.put(data1)
 
     def set_location(self, latitude=0.0, longitude=0.0, accuracy=0.0):
-        """set location for this chat.
+        """set a new location. It effects all chats where we currently
+        have enabled location streaming.
 
         :param latitude: float (use 0.0 if not known)
         :param longitude: float (use 0.0 if not known)

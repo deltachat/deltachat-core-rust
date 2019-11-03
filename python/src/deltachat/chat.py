@@ -324,7 +324,7 @@ class Chat(object):
             return None
         return from_dc_charpointer(dc_res)
 
-    # ------  group management API ------------------------------
+    # ------  location streaming API ------------------------------
 
     def is_sending_locations(self):
         """return True if this chat has location-sending enabled currently.

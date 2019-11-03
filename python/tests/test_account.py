@@ -121,6 +121,12 @@ class TestOfflineChat:
         str(chat1)
         repr(chat1)
 
+    def test_chat_by_id(self, chat1):
+        chat2 = chat1.account.get_chat_by_id(chat1.id)
+        assert chat2 == chat1
+        with pytest.raises(ValueError):
+            chat1.account.get_chat_by_id(123123)
+
     def test_chat_idempotent(self, chat1, ac1):
         contact1 = chat1.get_contacts()[0]
         chat2 = ac1.create_chat_by_contact(contact1.id)
