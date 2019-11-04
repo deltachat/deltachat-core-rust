@@ -109,6 +109,14 @@ impl Chat {
         self.param.exists(Param::Selftalk)
     }
 
+    pub fn is_device_talk(&self) -> bool {
+        self.param.exists(Param::Devicetalk)
+    }
+
+    pub fn is_writable(&self) -> bool {
+        self.id > DC_CHAT_ID_LAST_SPECIAL && !self.is_device_talk()
+    }
+
     pub fn update_param(&mut self, context: &Context) -> Result<(), Error> {
         sql::execute(
             context,
@@ -605,7 +613,11 @@ pub fn create_or_lookup_by_contact_id(
             "INSERT INTO chats (type, name, param, blocked, grpid) VALUES({}, '{}', '{}', {}, '{}')",
             100,
             chat_name,
-            if contact_id == DC_CONTACT_ID_SELF as u32 { "K=1" } else { "" },
+            match contact_id {
+                DC_CONTACT_ID_SELF => "K=1", // K = Param::Selftalk
+                DC_CONTACT_ID_DEVICE => "D=1", // K = Param::Devicetalk
+                _ => ""
+            },
             create_blocked as u8,
             contact.get_addr(),
         ),
