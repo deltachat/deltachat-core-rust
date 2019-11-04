@@ -153,6 +153,14 @@ class Account(object):
         self.check_is_configured()
         return from_dc_charpointer(lib.dc_get_info(self._dc_context))
 
+    def get_latest_backupfile(self, backupdir):
+        """ return the latest backup file in a given directory.
+        """
+        res = lib.dc_imex_has_backup(self._dc_context, as_dc_charpointer(backupdir))
+        if res == ffi.NULL:
+            return None
+        return from_dc_charpointer(res)
+
     def get_blobdir(self):
         """ return the directory for files.
 
@@ -477,8 +485,9 @@ class Account(object):
 
     def stop_threads(self, wait=True):
         """ stop IMAP/SMTP threads. """
-        self.stop_ongoing()
-        self._threads.stop(wait=wait)
+        if self._threads.is_started():
+            self.stop_ongoing()
+            self._threads.stop(wait=wait)
 
     def shutdown(self, wait=True):
         """ stop threads and close and remove underlying dc_context and callbacks. """
