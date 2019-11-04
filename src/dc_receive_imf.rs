@@ -1526,7 +1526,7 @@ fn search_chat_ids_by_contact_ids(
                        WHERE cc.chat_id IN(SELECT chat_id FROM chats_contacts WHERE contact_id IN({})) \
                          AND c.type=120 \
                          AND cc.contact_id!=1 \
-                       ORDER BY cc.chat_id, cc.contact_id;", // 1=DC_CONTACT_ID_GROUP
+                       ORDER BY cc.chat_id, cc.contact_id;", // 1=DC_CONTACT_ID_SELF
                     contact_ids_str
                 ),
                 params![],
