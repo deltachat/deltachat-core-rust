@@ -110,6 +110,8 @@ pub enum StockMessage {
     Location = 66,
     #[strum(props(fallback = "Sticker"))]
     Sticker = 67,
+    #[strum(props(fallback = "Device Messages"))]
+    DeviceMessages = 68,
 }
 
 impl StockMessage {
