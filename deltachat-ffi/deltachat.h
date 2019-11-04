@@ -2766,7 +2766,7 @@ int             dc_chat_is_device_talk       (const dc_chat_t* chat);
  * @param chat The chat object.
  * @return 1=chat is writable, 0=chat is not writable
  */
-int             dc_chat_is_writable           (const dc_chat_t* chat);
+int             dc_chat_can_send              (const dc_chat_t* chat);
 
 
 /**

@@ -2292,13 +2292,13 @@ pub unsafe extern "C" fn dc_chat_is_device_talk(chat: *mut dc_chat_t) -> libc::c
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_chat_is_writable(chat: *mut dc_chat_t) -> libc::c_int {
+pub unsafe extern "C" fn dc_chat_can_send(chat: *mut dc_chat_t) -> libc::c_int {
     if chat.is_null() {
-        eprintln!("ignoring careless call to dc_chat_is_writable()");
+        eprintln!("ignoring careless call to dc_chat_can_send()");
         return 0;
     }
     let ffi_chat = &*chat;
-    ffi_chat.chat.is_writable() as libc::c_int
+    ffi_chat.chat.can_send() as libc::c_int
 }
 
 #[no_mangle]
