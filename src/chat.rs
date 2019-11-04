@@ -1914,6 +1914,37 @@ pub fn get_chat_id_by_grpid(context: &Context, grpid: impl AsRef<str>) -> (u32, 
         .unwrap_or((0, false, Blocked::Not))
 }
 
+pub fn add_device_msg(context: &Context, msg: &mut Message) -> Result<MsgId, Error> {
+    let (chat_id, _blocked) =
+        create_or_lookup_by_contact_id(context, DC_CONTACT_ID_DEVICE, Blocked::Not)?;
+    let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
+
+    prepare_msg_blob(context, msg)?;
+    unarchive(context, chat_id)?;
+
+    context.sql.execute(
+        "INSERT INTO msgs (chat_id,from_id,to_id, timestamp,type,state, txt,param,rfc724_mid) \
+         VALUES (?,?,?, ?,?,?, ?,?,?);",
+        params![
+            chat_id,
+            DC_CONTACT_ID_DEVICE,
+            DC_CONTACT_ID_SELF,
+            dc_create_smeared_timestamp(context),
+            msg.type_0,
+            MessageState::InFresh,
+            msg.text.as_ref().map_or("", String::as_str),
+            msg.param.to_string(),
+            rfc724_mid,
+        ],
+    )?;
+
+    let row_id = sql::get_rowid(context, &context.sql, "msgs", "rfc724_mid", &rfc724_mid);
+    let msg_id = MsgId::new(row_id);
+    context.call_cb(Event::IncomingMsg { chat_id, msg_id });
+
+    Ok(msg_id)
+}
+
 pub fn add_info_msg(context: &Context, chat_id: u32, text: impl AsRef<str>) {
     let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
 
