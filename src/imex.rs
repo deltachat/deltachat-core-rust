@@ -75,7 +75,7 @@ pub fn imex(context: &Context, what: ImexMode, param1: Option<impl AsRef<Path>>)
     job_add(context, Action::ImexImap, 0, param, 0);
 }
 
-/// Returns the filename of the backup if found, nullptr otherwise.
+/// Returns the filename of the backup found (otherwise an error) 
 pub fn has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result<String> {
     let dir_name = dir_name.as_ref();
     let dir_iter = std::fs::read_dir(dir_name)?;
@@ -105,7 +105,7 @@ pub fn has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result<Strin
     }
     match newest_backup_path {
         Some(path) => Ok(path.to_string_lossy().into_owned()),
-        None => bail!("no backup found"),
+        None => bail!("no backup found in {}", dir_name.display()),
     }
 }
 
