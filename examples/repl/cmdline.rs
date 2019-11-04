@@ -596,7 +596,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             };
             info!(
                 context,
-                "{}#{}: {} [{}]{}",
+                "{}#{}: {} [{}]{}{}",
                 chat_prefix(sel_chat),
                 sel_chat.get_id(),
                 sel_chat.get_name(),
@@ -605,6 +605,13 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                     "📍"
                 } else {
                     ""
+                },
+                match sel_chat.get_profile_image(context) {
+                    Some(icon) => match icon.to_str() {
+                        Some(icon) => format!(" Icon: {}", icon),
+                        _ => " Icon: Err".to_string(),
+                    },
+                    _ => "".to_string(),
                 },
             );
             log_msglist(context, &msglist)?;
