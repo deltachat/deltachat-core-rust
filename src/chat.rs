@@ -115,7 +115,7 @@ impl Chat {
         self.param.exists(Param::Devicetalk)
     }
 
-    pub fn is_writable(&self) -> bool {
+    pub fn can_send(&self) -> bool {
         self.id > DC_CHAT_ID_LAST_SPECIAL && !self.is_device_talk()
     }
 
