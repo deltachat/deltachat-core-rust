@@ -76,6 +76,8 @@ pub enum Param {
     ProfileImage = b'i',
     // For Chats
     Selftalk = b'K',
+    // For Chats
+    Devicetalk = b'D',
     // For QR
     Auth = b's',
     // For QR

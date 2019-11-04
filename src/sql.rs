@@ -383,8 +383,8 @@ fn open(
             )?;
             sql.execute(
                 "INSERT INTO contacts (id,name,origin) VALUES \
-                 (1,'self',262144), (2,'device',262144), (3,'rsvd',262144), \
-                 (4,'rsvd',262144), (5,'rsvd',262144), (6,'rsvd',262144), \
+                 (1,'self',262144), (2,'info',262144), (3,'rsvd',262144), \
+                 (4,'rsvd',262144), (5,'device',262144), (6,'rsvd',262144), \
                  (7,'rsvd',262144), (8,'rsvd',262144), (9,'rsvd',262144);",
                 params![],
             )?;
