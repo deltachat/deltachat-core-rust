@@ -1099,6 +1099,27 @@ void            dc_set_draft                 (dc_context_t* context, uint32_t ch
 
 
 /**
+ * Add a message to the device-chat.
+ * Device-messages usually contain update information
+ * and some hints that are added during the program runs, multi-device etc.
+ *
+ * Device-messages may be added from the core,
+ * however, with this function, this can be done from the ui as well.
+ * If needed, the device-chat is created before.
+ *
+ * Sends the event #DC_EVENT_MSGS_CHANGED on success.
+ * To check, if a given chat is a device-chat, see dc_chat_is_device_talk()
+ *
+ * @memberof dc_context_t
+ * @param context The context as created by dc_context_new().
+ * @param msg Message to be added to the device-chat.
+ *     The message appears to the user as an incoming message.
+ * @return None.
+ */
+void            dc_add_device_msg            (dc_context_t* context, dc_msg_t* msg);
+
+
+/**
  * Get draft for a chat, if any.
  * See dc_set_draft() for more details about drafts.
  *
@@ -2716,6 +2737,39 @@ int             dc_chat_is_self_talk         (const dc_chat_t* chat);
 
 
 /**
+ * Check if a chat is a device-talk.
+ * Device-talks contain update information
+ * and some hints that are added during the program runs, multi-device etc.
+ *
+ * From the ui view, device-talks are not very special,
+ * the user can delete and forward messages, archive the chat, set notifications etc.
+ *
+ * Messages may be added from the core to the device chat,
+ * so the chat just pops up as usual.
+ * However, if needed the ui can also add messages using dc_add_device_msg()
+ *
+ * @memberof dc_chat_t
+ * @param chat The chat object.
+ * @return 1=chat is device-talk, 0=chat is no device-talk
+ */
+int             dc_chat_is_device_talk       (const dc_chat_t* chat);
+
+
+/**
+ * Check if messages can be sent to a give chat.
+ * This is not true eg. for the deaddrop or for the device-talk, cmp. dc_chat_is_device_talk().
+ *
+ * Calling dc_send_msg() for these chats will fail
+ * and the ui may decide to hide input controls therefore.
+ *
+ * @memberof dc_chat_t
+ * @param chat The chat object.
+ * @return 1=chat is writable, 0=chat is not writable
+ */
+int             dc_chat_is_writable           (const dc_chat_t* chat);
+
+
+/**
  * Check if a chat is verified.  Verified chats contain only verified members
  * and encryption is alwasy enabled.  Verified chats are created using
  * dc_create_group_chat() by setting the 'verified' parameter to true.
@@ -3370,7 +3424,8 @@ void            dc_msg_latefiling_mediasize   (dc_msg_t* msg, int width, int hei
 
 
 #define         DC_CONTACT_ID_SELF           1
-#define         DC_CONTACT_ID_INFO           2
+#define         DC_CONTACT_ID_INFO           2 // centered messages as "member added", used in all chats
+#define         DC_CONTACT_ID_DEVICE         5 // messages "update info" in the device-chat
 #define         DC_CONTACT_ID_LAST_SPECIAL   9
 
 
