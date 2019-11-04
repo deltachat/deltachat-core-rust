@@ -249,6 +249,8 @@ impl Default for Viewtype {
     }
 }
 
+pub const DC_MSG_TRUNCATE_THRESHOLD:usize = 30000;
+
 #[cfg(test)]
 mod tests {
     use super::*;

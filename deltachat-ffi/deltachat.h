@@ -2951,6 +2951,32 @@ int64_t          dc_msg_get_sort_timestamp     (const dc_msg_t* msg);
  */
 char*           dc_msg_get_text               (const dc_msg_t* msg);
 
+/**
+ * Get the text of the message.
+ * If there is no text associated with the message, an empty string is returned.
+ * NULL is never returned.
+ *
+ * Same as dc_msg_get_text, but isn't truncated
+ *
+ * To get information about the message and more/raw text, use dc_get_msg_info().
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return Message text. The result must be released using dc_str_unref(). Never returns NULL.
+ */
+char*           dc_msg_get_full_text          (const dc_msg_t* msg);
+
+
+/**
+ * Check if a message is truncated.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return 1=message is truncated, 0=message not truncated.
+ */
+int             dc_msg_is_truncated            (const dc_msg_t* msg);
+
+// define DC_MSG_TRUNCATE_THRESHOLD
 
 /**
  * Find out full path, file name and extension of the file associated with a

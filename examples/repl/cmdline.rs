@@ -189,7 +189,7 @@ unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
         _ => "",
     };
     let temp2 = dc_timestamp_to_str(msg.get_timestamp());
-    let msgtext = msg.get_text();
+    let msgtext = msg.get_text(false);
     info!(
         context,
         "{}#{}{}{}: {} (Contact#{}): {} {}{}{}{}{} [{}]",

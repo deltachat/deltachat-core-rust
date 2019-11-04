@@ -2420,7 +2420,26 @@ pub unsafe extern "C" fn dc_msg_get_text(msg: *mut dc_msg_t) -> *mut libc::c_cha
         return dc_strdup(ptr::null());
     }
     let ffi_msg = &*msg;
-    ffi_msg.message.get_text().unwrap_or_default().strdup()
+    ffi_msg.message.get_text(false).unwrap_or_default().strdup()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_full_text(msg: *mut dc_msg_t) -> *mut libc::c_char {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_get_full_text()");
+        return dc_strdup(ptr::null());
+    }
+    let ffi_msg = &*msg;
+    ffi_msg.message.get_text(true).unwrap_or_default().strdup()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn is_truncated(msg: *mut dc_msg_t) -> libc::c_int {
+    if msg.is_null() {
+        return 0
+    }
+    let ffi_msg = &*msg;
+    ffi_msg.message.is_truncated().into()
 }
 
 #[no_mangle]

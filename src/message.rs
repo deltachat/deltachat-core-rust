@@ -381,10 +381,23 @@ impl Message {
         self.timestamp_sort
     }
 
-    pub fn get_text(&self) -> Option<String> {
-        self.text
+    pub fn is_truncated(&self) -> bool {
+        if let Some(text) = &self.text {
+            return text.chars().count() > DC_MSG_TRUNCATE_THRESHOLD
+        }
+        false
+    }
+
+    pub fn get_text(&self, full_message: bool) -> Option<String> {
+        if full_message {
+            self.text
             .as_ref()
-            .map(|text| dc_truncate(text, 30000, false).to_string())
+            .map(|text| text.to_string())
+        } else {
+            self.text
+                .as_ref()
+                .map(|text| dc_truncate(text, DC_MSG_TRUNCATE_THRESHOLD, false).to_string())
+        }
     }
 
     pub fn get_filename(&self) -> Option<String> {
