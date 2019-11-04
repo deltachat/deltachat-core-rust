@@ -812,6 +812,23 @@ pub unsafe extern "C" fn dc_set_draft(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_add_device_msg(context: *mut dc_context_t, msg: *mut dc_msg_t) -> u32 {
+    if context.is_null() || msg.is_null() {
+        eprintln!("ignoring careless call to dc_add_device_msg()");
+        return 0;
+    }
+    let ffi_context = &mut *context;
+    let ffi_msg = &mut *msg;
+    ffi_context
+        .with_inner(|ctx| {
+            chat::add_device_msg(ctx, &mut ffi_msg.message)
+                .unwrap_or_log_default(ctx, "Failed to add device message")
+        })
+        .map(|msg_id| msg_id.to_u32())
+        .unwrap_or(0)
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_get_draft(context: *mut dc_context_t, chat_id: u32) -> *mut dc_msg_t {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_get_draft()");
