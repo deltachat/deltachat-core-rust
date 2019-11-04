@@ -427,21 +427,55 @@ pub(crate) fn dc_delete_file(context: &Context, path: impl AsRef<std::path::Path
 
 pub(crate) fn dc_copy_file(
     context: &Context,
-    src: impl AsRef<std::path::Path>,
-    dest: impl AsRef<std::path::Path>,
+    src_path: impl AsRef<std::path::Path>,
+    dest_path: impl AsRef<std::path::Path>,
 ) -> bool {
-    let src_abs = dc_get_abs_path(context, &src);
-    let dest_abs = dc_get_abs_path(context, &dest);
-    match fs::copy(&src_abs, &dest_abs) {
+    let src_abs = dc_get_abs_path(context, &src_path);
+    let mut src_file = match fs::File::open(&src_abs) {
+        Ok(file) => file,
+        Err(err) => {
+            warn!(
+                context,
+                "failed to open for read '{}': {}",
+                src_abs.display(),
+                err
+            );
+            return false;
+        }
+    };
+
+    let dest_abs = dc_get_abs_path(context, &dest_path);
+    let mut dest_file = match fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(&dest_abs)
+    {
+        Ok(file) => file,
+        Err(err) => {
+            warn!(
+                context,
+                "failed to open for write '{}': {}",
+                dest_abs.display(),
+                err
+            );
+            return false;
+        }
+    };
+
+    match std::io::copy(&mut src_file, &mut dest_file) {
         Ok(_) => true,
         Err(err) => {
             error!(
                 context,
                 "Cannot copy \"{}\" to \"{}\": {}",
-                src.as_ref().display(),
-                dest.as_ref().display(),
+                src_abs.display(),
+                dest_abs.display(),
                 err
             );
+            {
+                // Attempt to remove the failed file, swallow errors resulting from that.
+                fs::remove_file(dest_abs).ok();
+            }
             false
         }
     }
@@ -1282,6 +1316,9 @@ mod tests {
         assert!(dc_file_exist(context, &abs_path));
 
         assert!(dc_copy_file(context, "$BLOBDIR/foobar", "$BLOBDIR/dada",));
+
+        // attempting to copy a second time should fail
+        assert!(!dc_copy_file(context, "$BLOBDIR/foobar", "$BLOBDIR/dada",));
 
         assert_eq!(dc_get_filebytes(context, "$BLOBDIR/dada",), 7);
 
