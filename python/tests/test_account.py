@@ -2,6 +2,7 @@ from __future__ import print_function
 import pytest
 import os
 import queue
+import time
 from deltachat import const, Account
 from deltachat.message import Message
 from datetime import datetime, timedelta
@@ -641,18 +642,29 @@ class TestOnlineAccount:
         assert os.path.exists(msg_in.filename)
         assert os.stat(msg_in.filename).st_size == os.stat(path).st_size
 
-    def test_import_export_online_all(self, acfactory, tmpdir):
+    def test_import_export_online_all(self, acfactory, tmpdir, lp):
         ac1 = acfactory.get_online_configuring_account()
         wait_configuration_progress(ac1, 1000)
 
+        lp.sec("create some chat content")
         contact1 = ac1.create_contact("some1@hello.com", name="some1")
         chat = ac1.create_chat_by_contact(contact1)
         chat.send_text("msg1")
         backupdir = tmpdir.mkdir("backup")
+
+        lp.sec("export all to {}".format(backupdir))
         path = ac1.export_all(backupdir.strpath)
         assert os.path.exists(path)
+        t = time.time()
 
+        lp.sec("get fresh empty account")
         ac2 = acfactory.get_unconfigured_account()
+
+        lp.sec("get latest backup file")
+        path2 = ac2.get_latest_backupfile(backupdir.strpath)
+        assert path2 == path
+
+        lp.sec("import backup and check it's proper")
         ac2.import_all(path)
         contacts = ac2.get_contacts(query="some1")
         assert len(contacts) == 1
@@ -662,6 +674,18 @@ class TestOnlineAccount:
         messages = chat2.get_messages()
         assert len(messages) == 1
         assert messages[0].text == "msg1"
+
+        pytest.xfail("cannot export twice yet, probably due to interrupt_idle failing")
+        # wait until a second passed since last backup
+        # because get_latest_backupfile() shall return the latest backup
+        # from a UI it's unlikely anyone manages to export two
+        # backups in one second.
+        time.sleep(max(0, 1 - (time.time() - t)))
+        lp.sec("Second-time export all to {}".format(backupdir))
+        path2 = ac1.export_all(backupdir.strpath)
+        assert os.path.exists(path2)
+        assert path2 != path
+        assert ac2.get_latest_backupfile(backupdir.strpath) == path2
 
     def test_ac_setup_message(self, acfactory, lp):
         # note that the receiving account needs to be configured and running

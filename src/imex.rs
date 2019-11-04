@@ -1,5 +1,5 @@
 use core::cmp::{max, min};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use num_traits::FromPrimitive;
 use rand::{thread_rng, Rng};
@@ -75,7 +75,7 @@ pub fn imex(context: &Context, what: ImexMode, param1: Option<impl AsRef<Path>>)
     job_add(context, Action::ImexImap, 0, param, 0);
 }
 
-/// Returns the filename of the backup found (otherwise an error) 
+/// Returns the filename of the backup found (otherwise an error)
 pub fn has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result<String> {
     let dir_name = dir_name.as_ref();
     let dir_iter = std::fs::read_dir(dir_name)?;
@@ -90,13 +90,15 @@ pub fn has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result<Strin
                 if name.starts_with("delta-chat") && name.ends_with(".bak") {
                     let sql = Sql::new();
                     if sql.open(context, &path, true) {
-                        let curr_backup_time =
-                            sql.get_raw_config_int(context, "backup_time")
-                                .unwrap_or_default() as u64;
+                        let curr_backup_time = sql
+                            .get_raw_config_int(context, "backup_time")
+                            .unwrap_or_default();
                         if curr_backup_time > newest_backup_time {
                             newest_backup_path = Some(path);
                             newest_backup_time = curr_backup_time;
                         }
+                        info!(context, "backup_time of {} is {}", name, curr_backup_time);
+                        sql.close(&context);
                     }
                 }
             }
@@ -483,10 +485,13 @@ fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     // let dest_path_filename = dc_get_next_backup_file(context, dir, res);
     let now = time();
     let dest_path_filename = dc_get_next_backup_path(dir, now)?;
+    let dest_path_string = dest_path_filename.to_string_lossy().to_string();
 
     sql::housekeeping(context);
 
     sql::try_execute(context, &context.sql, "VACUUM;").ok();
+
+    // we close the database during the copy of the dbfile
     context.sql.close(context);
     info!(
         context,
@@ -496,38 +501,40 @@ fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     );
     let copied = dc_copy_file(context, context.get_dbfile(), &dest_path_filename);
     context.sql.open(&context, &context.get_dbfile(), false);
+
     if !copied {
-        let s = dest_path_filename.to_string_lossy().to_string();
         bail!(
             "could not copy file from '{}' to '{}'",
             context.get_dbfile().display(),
-            s
+            dest_path_string
         );
     }
-    match add_files_to_export(context, &dest_path_filename) {
+    let dest_sql = Sql::new();
+    ensure!(
+        dest_sql.open(context, &dest_path_filename, false),
+        "could not open exported database {}",
+        dest_path_string
+    );
+    let res = match add_files_to_export(context, &dest_sql) {
         Err(err) => {
             dc_delete_file(context, &dest_path_filename);
             error!(context, "backup failed: {}", err);
             Err(err)
         }
         Ok(()) => {
-            context
-                .sql
-                .set_raw_config_int(context, "backup_time", now as i32)?;
+            dest_sql.set_raw_config_int(context, "backup_time", now as i32)?;
             context.call_cb(Event::ImexFileWritten(dest_path_filename.clone()));
             Ok(())
         }
-    }
+    };
+    dest_sql.close(context);
+
+    res
 }
 
-fn add_files_to_export(context: &Context, dest_path_filename: &PathBuf) -> Result<()> {
+fn add_files_to_export(context: &Context, sql: &Sql) -> Result<()> {
     // add all files as blobs to the database copy (this does not require
     // the source to be locked, neigher the destination as it is used only here)
-    let sql = Sql::new();
-    ensure!(
-        sql.open(context, &dest_path_filename, false),
-        "could not open db"
-    );
     if !sql.table_exists("backup_blobs") {
         sql::execute(
             context,
