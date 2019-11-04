@@ -592,6 +592,12 @@ pub fn set_blocking(context: &Context, chat_id: u32, new_blocking: Blocked) -> b
     .is_ok()
 }
 
+fn copy_device_icon_to_blobs(context: &Context) -> Result<String, Error> {
+    let icon = include_bytes!("../assets/icon-device.png");
+    let blob = BlobObject::create(context, "icon-device.png".to_string(), icon)?;
+    Ok(blob.as_name().to_string())
+}
+
 pub fn create_or_lookup_by_contact_id(
     context: &Context,
     contact_id: u32,
@@ -616,9 +622,12 @@ pub fn create_or_lookup_by_contact_id(
             100,
             chat_name,
             match contact_id {
-                DC_CONTACT_ID_SELF => "K=1", // K = Param::Selftalk
-                DC_CONTACT_ID_DEVICE => "D=1", // K = Param::Devicetalk
-                _ => ""
+                DC_CONTACT_ID_SELF => "K=1".to_string(), // K = Param::Selftalk
+                DC_CONTACT_ID_DEVICE => {
+                    let icon = copy_device_icon_to_blobs(context)?;
+                    format!("D=1\ni={}", icon) // D = Param::Devicetalk, i = Param::ProfileImage
+                },
+                _ => "".to_string()
             },
             create_blocked as u8,
             contact.get_addr(),
