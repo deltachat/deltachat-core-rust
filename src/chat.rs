@@ -689,8 +689,7 @@ pub fn msgtype_has_file(msgtype: Viewtype) -> bool {
     }
 }
 
-fn prepare_msg_common(context: &Context, chat_id: u32, msg: &mut Message) -> Result<MsgId, Error> {
-    msg.id = MsgId::new_unset();
+fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<(), Error> {
     if msg.type_0 == Viewtype::Text {
         // the caller should check if the message text is empty
     } else if msgtype_has_file(msg.type_0) {
@@ -726,7 +725,12 @@ fn prepare_msg_common(context: &Context, chat_id: u32, msg: &mut Message) -> Res
     } else {
         bail!("Cannot send messages of type #{}.", msg.type_0);
     }
+    Ok(())
+}
 
+fn prepare_msg_common(context: &Context, chat_id: u32, msg: &mut Message) -> Result<MsgId, Error> {
+    msg.id = MsgId::new_unset();
+    prepare_msg_blob(context, msg)?;
     unarchive(context, chat_id)?;
 
     let mut chat = Chat::load_from_db(context, chat_id)?;
