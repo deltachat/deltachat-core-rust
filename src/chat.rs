@@ -994,7 +994,7 @@ pub fn get_chat_msgs(
                 " LEFT JOIN contacts",
                 "        ON m.from_id=contacts.id",
                 " WHERE m.from_id!=1", // 1=DC_CONTACT_ID_SELF
-                "   AND m.from_id!=2", // 2=DC_CONTACT_ID_DEVICE
+                "   AND m.from_id!=2", // 2=DC_CONTACT_ID_INFO
                 "   AND m.hidden=0",
                 "   AND chats.blocked=2",
                 "   AND contacts.blocked=0",
@@ -1898,15 +1898,15 @@ pub fn get_chat_id_by_grpid(context: &Context, grpid: impl AsRef<str>) -> (u32, 
         .unwrap_or((0, false, Blocked::Not))
 }
 
-pub fn add_device_msg(context: &Context, chat_id: u32, text: impl AsRef<str>) {
+pub fn add_info_msg(context: &Context, chat_id: u32, text: impl AsRef<str>) {
     let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
 
     if context.sql.execute(
         "INSERT INTO msgs (chat_id,from_id,to_id, timestamp,type,state, txt,rfc724_mid) VALUES (?,?,?, ?,?,?, ?,?);",
         params![
             chat_id as i32,
-            DC_CONTACT_ID_DEVICE,
-            DC_CONTACT_ID_DEVICE,
+            DC_CONTACT_ID_INFO,
+            DC_CONTACT_ID_INFO,
             dc_create_smeared_timestamp(context),
             Viewtype::Text,
             MessageState::InNoticed,

@@ -3370,7 +3370,7 @@ void            dc_msg_latefiling_mediasize   (dc_msg_t* msg, int width, int hei
 
 
 #define         DC_CONTACT_ID_SELF           1
-#define         DC_CONTACT_ID_DEVICE         2
+#define         DC_CONTACT_ID_INFO           2
 #define         DC_CONTACT_ID_LAST_SPECIAL   9
 
 

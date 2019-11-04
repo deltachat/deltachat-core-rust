@@ -130,7 +130,7 @@ const DC_MAX_GET_INFO_LEN: usize = 100000;
 
 pub const DC_CONTACT_ID_UNDEFINED: u32 = 0;
 pub const DC_CONTACT_ID_SELF: u32 = 1;
-pub const DC_CONTACT_ID_DEVICE: u32 = 2;
+pub const DC_CONTACT_ID_INFO: u32 = 2;
 pub const DC_CONTACT_ID_LAST_SPECIAL: u32 = 9;
 
 pub const DC_CREATE_MVBOX: usize = 1;
