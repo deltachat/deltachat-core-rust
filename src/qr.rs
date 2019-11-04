@@ -150,7 +150,7 @@ fn decode_openpgp(context: &Context, qr: &str) -> Lot {
             let (id, _) = chat::create_or_lookup_by_contact_id(context, lot.id, Blocked::Deaddrop)
                 .unwrap_or_default();
 
-            chat::add_device_msg(
+            chat::add_info_msg(
                 context,
                 id,
                 format!("{} verified.", peerstate.addr.unwrap_or_default()),

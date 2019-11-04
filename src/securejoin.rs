@@ -638,7 +638,7 @@ fn secure_connection_established(context: &Context, contact_chat_id: u32) {
         "?"
     };
     let msg = context.stock_string_repl_str(StockMessage::ContactVerified, addr);
-    chat::add_device_msg(context, contact_chat_id, msg);
+    chat::add_info_msg(context, contact_chat_id, msg);
     emit_event!(context, Event::ChatModified(contact_chat_id));
 }
 
@@ -654,7 +654,7 @@ fn could_not_establish_secure_connection(context: &Context, contact_chat_id: u32
         },
     );
 
-    chat::add_device_msg(context, contact_chat_id, &msg);
+    chat::add_info_msg(context, contact_chat_id, &msg);
     error!(context, "{} ({})", &msg, details);
 }
 
@@ -735,7 +735,7 @@ pub fn handle_degrade_event(context: &Context, peerstate: &Peerstate) -> Result<
             };
             let msg = context.stock_string_repl_str(StockMessage::ContactSetupChanged, peeraddr);
 
-            chat::add_device_msg(context, contact_chat_id, msg);
+            chat::add_info_msg(context, contact_chat_id, msg);
             emit_event!(context, Event::ChatModified(contact_chat_id));
         }
     }

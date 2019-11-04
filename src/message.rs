@@ -476,8 +476,8 @@ impl Message {
 
     pub fn is_info(&self) -> bool {
         let cmd = self.param.get_cmd();
-        self.from_id == DC_CONTACT_ID_DEVICE as libc::c_uint
-            || self.to_id == DC_CONTACT_ID_DEVICE as libc::c_uint
+        self.from_id == DC_CONTACT_ID_INFO as libc::c_uint
+            || self.to_id == DC_CONTACT_ID_INFO as libc::c_uint
             || cmd != SystemMessage::Unknown && cmd != SystemMessage::AutocryptSetupMessage
     }
 
@@ -714,7 +714,7 @@ pub fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
         ret += "\n";
     }
 
-    if msg.from_id == DC_CONTACT_ID_DEVICE || msg.to_id == DC_CONTACT_ID_DEVICE {
+    if msg.from_id == DC_CONTACT_ID_INFO || msg.to_id == DC_CONTACT_ID_INFO {
         // device-internal message, no further details needed
         return ret;
     }

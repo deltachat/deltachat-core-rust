@@ -219,7 +219,7 @@ pub fn send_locations_to_chat(context: &Context, chat_id: u32, seconds: i64) {
             } else if 0 == seconds && is_sending_locations_before {
                 let stock_str =
                     context.stock_system_msg(StockMessage::MsgLocationDisabled, "", "", 0);
-                chat::add_device_msg(context, chat_id, stock_str);
+                chat::add_info_msg(context, chat_id, stock_str);
             }
             context.call_cb(Event::ChatModified(chat_id));
             if 0 != seconds {
@@ -651,7 +651,7 @@ pub fn job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context: &Context, job: &mut Job) {
                     params![chat_id as i32],
                 ).is_ok() {
                     let stock_str = context.stock_system_msg(StockMessage::MsgLocationDisabled, "", "", 0);
-                    chat::add_device_msg(context, chat_id, stock_str);
+                    chat::add_info_msg(context, chat_id, stock_str);
                     context.call_cb(Event::ChatModified(chat_id));
                 }
             }
