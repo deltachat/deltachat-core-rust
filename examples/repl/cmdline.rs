@@ -379,6 +379,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                  sendimage <file> [<text>]\n\
                  sendfile <file> [<text>]\n\
                  draft [<text>]\n\
+                 devicemsg <text>\n\
                  listmedia\n\
                  archive <chat-id>\n\
                  unarchive <chat-id>\n\
@@ -521,13 +522,12 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
 
                 for i in (0..cnt).rev() {
                     let chat = Chat::load_from_db(context, chatlist.get_chat_id(i))?;
-                    let temp_name = chat.get_name();
                     info!(
                         context,
                         "{}#{}: {} [{} fresh]",
                         chat_prefix(&chat),
                         chat.get_id(),
-                        temp_name,
+                        chat.get_name(),
                         chat::get_fresh_msg_cnt(context, chat.get_id()),
                     );
                     let lot = chatlist.get_summary(context, i, Some(&chat));
@@ -586,20 +586,21 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
 
             let msglist = chat::get_chat_msgs(context, sel_chat.get_id(), 0x1, None);
             let members = chat::get_chat_contacts(context, sel_chat.id);
-            let temp2 = if sel_chat.get_type() == Chattype::Single && members.len() >= 1 {
+            let subtitle = if sel_chat.is_device_talk() {
+                "device-talk".to_string()
+            } else if sel_chat.get_type() == Chattype::Single && members.len() >= 1 {
                 let contact = Contact::get_by_id(context, members[0])?;
                 contact.get_addr().to_string()
             } else {
                 format!("{} member(s)", members.len())
             };
-            let temp_name = sel_chat.get_name();
             info!(
                 context,
                 "{}#{}: {} [{}]{}",
                 chat_prefix(sel_chat),
                 sel_chat.get_id(),
-                temp_name,
-                temp2,
+                sel_chat.get_name(),
+                subtitle,
                 if sel_chat.is_sending_locations() {
                     "📍"
                 } else {
@@ -821,6 +822,15 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 chat::set_draft(context, sel_chat.as_ref().unwrap().get_id(), None);
                 println!("Draft deleted.");
             }
+        }
+        "devicemsg" => {
+            ensure!(
+                !arg1.is_empty(),
+                "Please specify text to add as device message."
+            );
+            let mut msg = Message::new(Viewtype::Text);
+            msg.set_text(Some(arg1.to_string()));
+            chat::add_device_msg(context, &mut msg)?;
         }
         "listmedia" => {
             ensure!(sel_chat.is_some(), "No chat selected.");
