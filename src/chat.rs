@@ -97,6 +97,8 @@ impl Chat {
 
                         if chat.param.exists(Param::Selftalk) {
                             chat.name = context.stock_str(StockMessage::SelfMsg).into();
+                        } else if chat.param.exists(Param::Devicetalk) {
+                            chat.name = context.stock_str(StockMessage::DeviceMessages).into();
                         }
                     }
                 }

@@ -153,7 +153,16 @@ impl Contact {
                 blocked: false,
                 origin: Origin::Unknown,
             };
-
+            return Ok(contact);
+        } else if contact_id == DC_CONTACT_ID_DEVICE {
+            let contact = Contact {
+                id: contact_id,
+                name: context.stock_str(StockMessage::DeviceMessages).into(),
+                authname: "".into(),
+                addr: "device@localhost".into(),
+                blocked: false,
+                origin: Origin::Unknown,
+            };
             return Ok(contact);
         }
 
