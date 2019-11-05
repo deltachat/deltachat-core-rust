@@ -1,6 +1,6 @@
 # Changelog 
 
-## untagged 1.0.0-beta.7 
+## 1.0.0-beta.7
 
 - fix location-streaming #782
 
