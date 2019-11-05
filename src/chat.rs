@@ -745,6 +745,7 @@ fn prepare_msg_common(context: &Context, chat_id: u32, msg: &mut Message) -> Res
     unarchive(context, chat_id)?;
 
     let mut chat = Chat::load_from_db(context, chat_id)?;
+    ensure!(chat.can_send(), "cannot send to chat #{}", chat_id);
 
     // The OutPreparing state is set by dc_prepare_msg() before it
     // calls this function and the message is left in the OutPreparing
