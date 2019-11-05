@@ -1114,9 +1114,9 @@ void            dc_set_draft                 (dc_context_t* context, uint32_t ch
  * @param context The context as created by dc_context_new().
  * @param msg Message to be added to the device-chat.
  *     The message appears to the user as an incoming message.
- * @return None.
+ * @return The ID of the added message.
  */
-void            dc_add_device_msg            (dc_context_t* context, dc_msg_t* msg);
+uint32_t        dc_add_device_msg            (dc_context_t* context, dc_msg_t* msg);
 
 
 /**
