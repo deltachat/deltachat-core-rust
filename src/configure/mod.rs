@@ -421,6 +421,16 @@ pub fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
         );
     }
     */
+
+    // remember the entered parameters on success
+    // and restore to last-entered on failure.
+    // this way, the parameters visible to the ui are always in-sync with the current configuration.
+    if success {
+        LoginParam::from_database(context, "").save_to_database(context, "configured_raw_");
+    } else {
+        LoginParam::from_database(context, "configured_raw_").save_to_database(context, "");
+    }
+
     context.free_ongoing();
     progress!(context, if success { 1000 } else { 0 });
 }
