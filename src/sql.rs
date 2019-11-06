@@ -92,8 +92,7 @@ impl Sql {
         self.start_stmt(sql.to_string());
         self.with_conn(|conn| {
             let stmt = conn.prepare(sql)?;
-            let res = g(stmt, conn)?;
-            Ok(res)
+            g(stmt, conn)
         })
     }
 
@@ -106,8 +105,7 @@ impl Sql {
             let stmt1 = conn.prepare(sql1)?;
             let stmt2 = conn.prepare(sql2)?;
 
-            let res = g(stmt1, stmt2, conn)?;
-            Ok(res)
+            g(stmt1, stmt2, conn)
         })
     }
 
