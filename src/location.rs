@@ -492,7 +492,7 @@ pub fn save(
     chat_id: u32,
     contact_id: u32,
     locations: &[Location],
-    independent: i32,
+    independent: bool,
 ) -> Result<u32, Error> {
     ensure!(chat_id > DC_CHAT_ID_LAST_SPECIAL, "Invalid chat id");
     context.sql.prepare2(
@@ -507,7 +507,7 @@ pub fn save(
             for location in locations {
                 let exists = stmt_test.exists(params![location.timestamp, contact_id as i32])?;
 
-                if 0 != independent || !exists {
+                if independent || !exists {
                     stmt_insert.execute(params![
                         location.timestamp,
                         contact_id as i32,
