@@ -94,29 +94,91 @@ pub fn get_info() -> HashMap<&'static str, String> {
     res
 }
 
-impl Context {
-    /// Creates new context.
-    pub fn new(cb: Box<ContextCallback>, os_name: String, dbfile: PathBuf) -> Result<Context> {
-        let mut blob_fname = OsString::new();
-        blob_fname.push(dbfile.file_name().unwrap_or_default());
+/// Builder for [Context].
+///
+/// # Example
+///
+/// ```
+/// use deltachat::context::ContextBuilder;
+/// let dir = tempfile::tempdir().unwrap();
+/// let dbfile = dir.path().join("my-context.db");
+/// let ctx = ContextBuilder::new(Box::new(|_, _| 0), "AppName".into(), dbfile)
+///     .blobdir(dir.path().join("my-context-blobs"))
+///     .logdir(dir.path().join("my-context-logs"))
+///     .create()
+///     .unwrap();
+/// assert_eq!(ctx.get_blobdir(), dir.path().join("my-context-blobs"));
+/// ```
+#[derive(DebugStub)]
+pub struct ContextBuilder {
+    #[debug_stub = "Callback"]
+    cb: Box<ContextCallback>,
+    os_name: String,
+    dbfile: PathBuf,
+    blobdir: PathBuf,
+    logdir: PathBuf,
+}
+
+impl ContextBuilder {
+    pub fn new(cb: Box<ContextCallback>, os_name: String, dbfile: PathBuf) -> Self {
+        let db_fname = OsString::from(dbfile.file_name().unwrap_or(&OsString::from("dc-context")));
+        let mut blob_fname = db_fname.clone();
         blob_fname.push("-blobs");
-        let blobdir = dbfile.with_file_name(blob_fname);
-        if !blobdir.exists() {
-            std::fs::create_dir_all(&blobdir)?;
+        let mut log_fname = db_fname.clone();
+        log_fname.push("-logs");
+        ContextBuilder {
+            cb,
+            os_name,
+            blobdir: dbfile.with_file_name(blob_fname),
+            logdir: dbfile.with_file_name(log_fname),
+            dbfile,
         }
-        Context::with_blobdir(cb, os_name, dbfile, blobdir)
     }
 
-    pub fn with_blobdir(
+    pub fn blobdir(mut self, path: PathBuf) -> Self {
+        self.blobdir = path;
+        self
+    }
+
+    pub fn logdir(mut self, path: PathBuf) -> Self {
+        self.logdir = path;
+        self
+    }
+
+    pub fn create(self) -> Result<Context> {
+        if !self.blobdir.exists() {
+            std::fs::create_dir_all(&self.blobdir)?;
+        }
+        if !self.logdir.exists() {
+            std::fs::create_dir_all(&self.logdir)?;
+        }
+        Context::new(
+            self.cb,
+            self.os_name,
+            self.dbfile,
+            self.blobdir,
+            self.logdir,
+        )
+    }
+}
+
+impl Context {
+    fn new(
         cb: Box<ContextCallback>,
         os_name: String,
         dbfile: PathBuf,
         blobdir: PathBuf,
+        logdir: PathBuf,
     ) -> Result<Context> {
         ensure!(
             blobdir.is_dir(),
             "Blobdir does not exist: {}",
             blobdir.display()
+        );
+        ensure!(
+            logdir.is_dir(),
+            "Logdir does not exist: {}",
+            logdir.display()
         );
         let ctx = Context {
             blobdir,
@@ -526,7 +588,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         std::fs::write(&dbfile, b"123").unwrap();
-        let res = Context::new(Box::new(|_, _| 0), "FakeOs".into(), dbfile);
+        let res = ContextBuilder::new(Box::new(|_, _| 0), "FakeOs".into(), dbfile).create();
         assert!(res.is_err());
     }
 
@@ -541,7 +603,9 @@ mod tests {
     fn test_blobdir_exists() {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
-        Context::new(Box::new(|_, _| 0), "FakeOS".into(), dbfile).unwrap();
+        ContextBuilder::new(Box::new(|_, _| 0), "FakeOS".into(), dbfile)
+            .create()
+            .unwrap();
         let blobdir = tmp.path().join("db.sqlite-blobs");
         assert!(blobdir.is_dir());
     }
@@ -552,7 +616,7 @@ mod tests {
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = tmp.path().join("db.sqlite-blobs");
         std::fs::write(&blobdir, b"123").unwrap();
-        let res = Context::new(Box::new(|_, _| 0), "FakeOS".into(), dbfile);
+        let res = ContextBuilder::new(Box::new(|_, _| 0), "FakeOS".into(), dbfile).create();
         assert!(res.is_err());
     }
 
@@ -562,7 +626,9 @@ mod tests {
         let subdir = tmp.path().join("subdir");
         let dbfile = subdir.join("db.sqlite");
         let dbfile2 = dbfile.clone();
-        Context::new(Box::new(|_, _| 0), "FakeOS".into(), dbfile).unwrap();
+        ContextBuilder::new(Box::new(|_, _| 0), "FakeOS".into(), dbfile)
+            .create()
+            .unwrap();
         assert!(subdir.is_dir());
         assert!(dbfile2.is_file());
     }
@@ -572,7 +638,9 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = PathBuf::new();
-        let res = Context::with_blobdir(Box::new(|_, _| 0), "FakeOS".into(), dbfile, blobdir);
+        let res = ContextBuilder::new(Box::new(|_, _| 0), "FakeOS".into(), dbfile)
+            .blobdir(blobdir)
+            .create();
         assert!(res.is_err());
     }
 
@@ -581,8 +649,34 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = tmp.path().join("blobs");
-        let res = Context::with_blobdir(Box::new(|_, _| 0), "FakeOS".into(), dbfile, blobdir);
+        ContextBuilder::new(Box::new(|_, _| 0), "FakeOS".into(), dbfile)
+            .blobdir(blobdir.clone())
+            .create()
+            .unwrap();
+        assert!(blobdir.is_dir());
+    }
+
+    #[test]
+    fn test_with_empty_logdir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dbfile = tmp.path().join("db.sqlite");
+        let logdir = PathBuf::new();
+        let res = ContextBuilder::new(Box::new(|_, _| 0), "FakeOS".into(), dbfile)
+            .logdir(logdir)
+            .create();
         assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_with_logdir_not_exists() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dbfile = tmp.path().join("db.sqlite");
+        let logdir = tmp.path().join("logs");
+        ContextBuilder::new(Box::new(|_, _| 0), "FakeOS".into(), dbfile)
+            .logdir(logdir.clone())
+            .create()
+            .unwrap();
+        assert!(logdir.is_dir());
     }
 
     #[test]

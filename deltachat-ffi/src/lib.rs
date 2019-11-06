@@ -24,7 +24,7 @@ use num_traits::{FromPrimitive, ToPrimitive};
 
 use deltachat::constants::DC_MSG_ID_LAST_SPECIAL;
 use deltachat::contact::Contact;
-use deltachat::context::Context;
+use deltachat::context::{Context, ContextBuilder};
 use deltachat::dc_tools::{
     as_path, dc_strdup, to_opt_string_lossy, to_string_lossy, OsStrExt, StrExt,
 };
@@ -248,22 +248,15 @@ pub unsafe extern "C" fn dc_open(
     }
     let ffi_context = &*context;
     let rust_cb = move |_ctx: &Context, evt: Event| ffi_context.translate_cb(evt);
-
-    let ctx = if blobdir.is_null() || *blobdir == 0 {
-        Context::new(
-            Box::new(rust_cb),
-            ffi_context.os_name.clone(),
-            as_path(dbfile).to_path_buf(),
-        )
-    } else {
-        Context::with_blobdir(
-            Box::new(rust_cb),
-            ffi_context.os_name.clone(),
-            as_path(dbfile).to_path_buf(),
-            as_path(blobdir).to_path_buf(),
-        )
-    };
-    match ctx {
+    let mut builder = ContextBuilder::new(
+        Box::new(rust_cb),
+        ffi_context.os_name.clone(),
+        as_path(dbfile).to_path_buf(),
+    );
+    if !blobdir.is_null() && *blobdir != 0 {
+        builder = builder.blobdir(as_path(blobdir).to_path_buf());
+    }
+    match builder.create() {
         Ok(ctx) => {
             let mut inner_guard = ffi_context.inner.write().unwrap();
             *inner_guard = Some(ctx);

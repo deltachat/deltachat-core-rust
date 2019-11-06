@@ -366,11 +366,12 @@ fn main_0(args: Vec<String>) -> Result<(), failure::Error> {
         println!("Error: Bad arguments, expected [db-name].");
         return Err(format_err!("No db-name specified"));
     }
-    let context = Context::new(
+    let context = ContextBuilder::new(
         Box::new(receive_event),
         "CLI".into(),
         Path::new(&args[1]).to_path_buf(),
-    )?;
+    )
+    .create()?;
 
     println!("Delta Chat Core is awaiting your commands.");
 

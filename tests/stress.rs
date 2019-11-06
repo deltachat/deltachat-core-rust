@@ -219,7 +219,9 @@ struct TestContext {
 fn create_test_context() -> TestContext {
     let dir = tempdir().unwrap();
     let dbfile = dir.path().join("db.sqlite");
-    let ctx = Context::new(Box::new(cb), "FakeOs".into(), dbfile).unwrap();
+    let ctx = ContextBuilder::new(Box::new(cb), "FakeOs".into(), dbfile)
+        .create()
+        .unwrap();
     TestContext { ctx, dir }
 }
 

@@ -7,7 +7,7 @@ use tempfile::{tempdir, TempDir};
 
 use crate::config::Config;
 use crate::constants::KeyType;
-use crate::context::{Context, ContextCallback};
+use crate::context::{Context, ContextBuilder, ContextCallback};
 use crate::events::Event;
 use crate::key;
 
@@ -33,7 +33,9 @@ pub fn test_context(callback: Option<Box<ContextCallback>>) -> TestContext {
         Some(cb) => cb,
         None => Box::new(|_, _| 0),
     };
-    let ctx = Context::new(cb, "FakeOs".into(), dbfile).unwrap();
+    let ctx = ContextBuilder::new(cb, "FakeOs".into(), dbfile)
+        .create()
+        .unwrap();
     TestContext { ctx: ctx, dir: dir }
 }
 
