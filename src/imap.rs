@@ -502,8 +502,8 @@ impl Imap {
         }
 
         info!(context, "IMAP unsetup_handle step 3 (clearing config).");
-        self.config.write().unwrap().selected_folder = None;
-        self.config.write().unwrap().selected_mailbox = None;
+        // self.config.write().unwrap().selected_folder = None;
+        // self.config.write().unwrap().selected_mailbox = None;
         info!(context, "IMAP unsetup_handle step 4 (disconnected).",);
     }
 
