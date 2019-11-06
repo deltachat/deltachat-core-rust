@@ -642,7 +642,7 @@ class TestOnlineAccount:
         assert os.path.exists(msg_in.filename)
         assert os.stat(msg_in.filename).st_size == os.stat(path).st_size
 
-    def test_import_export_online_all(self, acfactory, tmpdir, lp):
+    def test_import_export_online_all_twice(self, acfactory, tmpdir, lp):
         ac1 = acfactory.get_online_configuring_account()
         wait_configuration_progress(ac1, 1000)
 
@@ -675,7 +675,6 @@ class TestOnlineAccount:
         assert len(messages) == 1
         assert messages[0].text == "msg1"
 
-        pytest.xfail("cannot export twice yet, probably due to interrupt_idle failing")
         # wait until a second passed since last backup
         # because get_latest_backupfile() shall return the latest backup
         # from a UI it's unlikely anyone manages to export two
