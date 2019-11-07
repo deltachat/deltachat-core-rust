@@ -291,19 +291,20 @@ impl Job {
     }
 
     #[allow(non_snake_case)]
-    fn do_DC_JOB_EMPTY_SERVER(&mut self, context: &Context) {
+    fn do_DC_JOB_EMPTY_SERVER(&mut self, context: &Context) -> Result<(), Error> {
         let inbox = context.inbox.read().unwrap();
         if self.foreign_id & DC_EMPTY_MVBOX > 0 {
             if let Some(mvbox_folder) = context
                 .sql
                 .get_raw_config(context, "configured_mvbox_folder")
             {
-                inbox.empty_folder(context, &mvbox_folder);
+                inbox.empty_folder(context, &mvbox_folder)?;
             }
         }
         if self.foreign_id & DC_EMPTY_INBOX > 0 {
-            inbox.empty_folder(context, "INBOX");
+            inbox.empty_folder(context, "INBOX")?;
         }
+        Ok(())
     }
 
     #[allow(non_snake_case)]
@@ -793,7 +794,14 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                     warn!(context, "Unknown job id found");
                 }
                 Action::SendMsgToSmtp => job.do_DC_JOB_SEND(context),
-                Action::EmptyServer => job.do_DC_JOB_EMPTY_SERVER(context),
+                Action::EmptyServer => {
+                    match job.do_DC_JOB_EMPTY_SERVER(context) {
+                        Ok(()) => {},
+                        Err(err) => {
+                            warn!(context, "emptying server folder(s) failed: {}", err);
+                        }
+                    }
+                }
                 Action::DeleteMsgOnImap => job.do_DC_JOB_DELETE_MSG_ON_IMAP(context),
                 Action::MarkseenMsgOnImap => job.do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context),
                 Action::MarkseenMdnOnImap => job.do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context),

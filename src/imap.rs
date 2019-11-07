@@ -380,10 +380,8 @@ impl Imap {
         self.should_reconnect.load(Ordering::Relaxed)
     }
 
-    fn setup_handle_if_needed(&self, context: &Context) -> bool {
-        if self.config.read().unwrap().imap_server.is_empty() {
-            return false;
-        }
+    fn setup_handle_if_needed(&self, context: &Context) -> Result<(), Error> {
+        ensure!(!self.config.read().unwrap().imap_server.is_empty(), "no imap server configured");
 
         if self.should_reconnect() {
             self.unsetup_handle(context);
@@ -391,7 +389,7 @@ impl Imap {
 
         if self.is_connected() && self.stream.read().unwrap().is_some() {
             self.should_reconnect.store(false, Ordering::Relaxed);
-            return true;
+            return Ok(());
         }
 
         let server_flags = self.config.read().unwrap().server_flags as i32;
@@ -437,7 +435,7 @@ impl Imap {
                         };
                         client.authenticate("XOAUTH2", &auth)
                     } else {
-                        return false;
+                        bail!("could not authenticate with XOAUTH2");
                     }
                 } else {
                     client.login(imap_user, imap_pw)
@@ -455,7 +453,7 @@ impl Imap {
 
                 emit_event!(context, Event::ErrorNetwork(message));
 
-                return false;
+                bail!("login error: {}", err);
             }
         };
 
@@ -465,7 +463,7 @@ impl Imap {
             Ok((session, stream)) => {
                 *self.session.lock().unwrap() = Some(session);
                 *self.stream.write().unwrap() = Some(stream);
-                true
+                Ok(())
             }
             Err((err, _)) => {
                 let imap_user = self.config.read().unwrap().imap_user.to_owned();
@@ -477,7 +475,7 @@ impl Imap {
                 );
                 self.unsetup_handle(context);
 
-                false
+                bail!("{}", err)
             }
         }
     }
@@ -549,7 +547,7 @@ impl Imap {
             config.server_flags = server_flags;
         }
 
-        if !self.setup_handle_if_needed(context) {
+        if self.setup_handle_if_needed(context).is_err() {
             self.free_connect_params();
             return false;
         }
@@ -622,7 +620,7 @@ impl Imap {
             // get any more. if IDLE is called directly after, there is only a small chance that
             // messages are missed and delayed until the next IDLE call
             loop {
-                if self.fetch_from_single_folder(context, watch_folder) == 0 {
+                if self.fetch_from_single_folder(context, watch_folder).is_err() {
                     break;
                 }
             }
@@ -656,19 +654,19 @@ impl Imap {
         true
     }
 
-    fn select_folder(&self, context: &Context, folder: &str) -> usize {
+    fn select_folder(&self, context: &Context, folder: &str) -> Result<(), Error> {
         if self.session.lock().unwrap().is_none() {
             let mut cfg = self.config.write().unwrap();
             cfg.selected_folder = None;
             cfg.selected_folder_needs_expunge = false;
-            return 0;
+            bail!("select_folder: session is closed");
         }
 
         // if there is a new folder and the new folder is equal to the selected one, there's nothing to do.
         // if there is _no_ new folder, we continue as we might want to expunge below.
         if let Some(ref selected_folder) = self.config.read().unwrap().selected_folder {
             if folder == selected_folder {
-                return 1;
+                return Ok(());
             }
         }
 
@@ -688,23 +686,16 @@ impl Imap {
                     config.selected_mailbox = Some(mailbox);
                 }
                 Err(err) => {
-                    info!(
-                        context,
-                        "Cannot select folder: {}; {:?}.",
-                        folder,
-                        err
-                    );
-
                     self.config.write().unwrap().selected_folder = None;
                     self.should_reconnect.store(true, Ordering::Relaxed);
-                    return 0;
+                    bail!("Cannot select folder: {}; {:?}.", folder, err);
                 }
             }
         } else {
             unreachable!();
         }
 
-        1
+        Ok(())
     }
 
     fn get_config_last_seen_uid(&self, context: &Context, folder: &str) -> (u32, u32) {
@@ -729,49 +720,25 @@ impl Imap {
         }
     }
 
-    fn fetch_from_single_folder(&self, context: &Context, folder: &str) -> usize {
-        if !self.is_connected() {
-            info!(
-                context,
-                "Cannot fetch from \"{}\" - not connected.",
-                folder
-            );
 
-            return 0;
-        }
-
-        if self.select_folder(context, &folder) == 0 {
-            info!(
-                context,
-                "Cannot select folder \"{}\" for fetching.",
-                folder
-            );
-
-            return 0;
-        }
-
+    fn 
+        
         // compare last seen UIDVALIDITY against the current one
-        let (mut uid_validity, mut last_seen_uid) = self.get_config_last_seen_uid(context, &folder);
-        /*
+        let (last_uid_validity, last_seen_uid) = self.get_config_last_seen_uid(context, &folder);
+        let mailbox = self.config.read().unwrap().selected_mailbox.as_ref().expect("just selected");
 
-        let uid_validity = self.config.read().unwrap().selected_mailbox.as_ref().expect("just selected").uid_validity;
+        ensure!(mailbox.uid_validity.is_some(),
+            "Cannot get UIDVALIDITY for folder \"{}\".", folder,);
 
-        if uid_validity.is_none() {
-            error!(
-                context,
-                "Cannot get UIDVALIDITY for folder \"{}\".",
-                folder.as_ref(),
-            );
+        let mailbox = mailbox.unwrap();
+        let current_uid_validity = mailbox.uid_validity.unwrap_or_default();
 
-            return 0;
-        }
-
-        if .uid_validity.unwrap_or_default() != uid_validity {
-            // first time this folder is selected or UIDVALIDITY has changed, init lastseenuid and save it to config
+        if current_uid_validity != last_uid_validity {
+            // first time this folder is selected or UIDVALIDITY has changed, 
+            // init lastseenuid and save it to config
 
             if mailbox.exists == 0 {
-                info!(context, "Folder \"{}\" is empty.", folder.as_ref());
-
+                info!(context, "Folder \"{}\" is empty.", folder);
                 // set lastseenuid=0 for empty folders.
                 // id we do not do this here, we'll miss the first message
                 // as we will get in here again and fetch from lastseenuid+1 then
@@ -779,10 +746,10 @@ impl Imap {
                 self.set_config_last_seen_uid(
                     context,
                     &folder,
-                    mailbox.uid_validity.unwrap_or_default(),
+                    current_uid_validity,
                     0,
                 );
-                return 0;
+                return Ok(false);
             }
 
             let list = if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
@@ -790,57 +757,57 @@ impl Imap {
                 let set = format!("{}", mailbox.exists);
                 match session.fetch(set, PREFETCH_FLAGS) {
                     Ok(list) => list,
-                    Err(_err) => {
+                    Err(err) => {
                         self.should_reconnect.store(true, Ordering::Relaxed);
-                        info!(
-                            context,
-                            "No result returned for folder \"{}\".",
-                            folder.as_ref()
-                        );
-
-                        return 0;
+                        bail!("IMAP FETCH {} {} failed on folder '{}': {}'", 
+                              set, PREFETCH_FLAGS, folder, err);
                     }
                 }
             } else {
-                return 0;
+                unreachable!();
             };
 
-            last_seen_uid = list[0].uid.unwrap_or_else(|| 0);
+            last_seen_uid = list[0].uid.unwrap_or_default();
 
             // if the UIDVALIDITY has _changed_, decrease lastseenuid by one to avoid gaps (well add 1 below
-            if uid_validity > 0 && last_seen_uid > 1 {
+            if last_uid_validity > 0 && last_seen_uid > 1 {
                 last_seen_uid -= 1;
             }
 
-            uid_validity = mailbox.uid_validity.unwrap_or_default();
             self.set_config_last_seen_uid(context, &folder, uid_validity, last_seen_uid);
             info!(
                 context,
                 "lastseenuid initialized to {} for {}@{}",
                 last_seen_uid,
-                folder.as_ref(),
+                folder,
                 uid_validity,
             );
+            Ok(true)
         }
-        */
+
+    fn fetch_from_single_folder(&self, context: &Context, folder: &str) -> Result<(), Error> {
+        self.select_folder(context, &folder)?;
+
+        if self.folder_is_uidvalid_and_empty(&self, context: &Context, folder: &str)? {
+            return  
 
         let mut read_cnt = 0;
         let mut read_errors = 0;
         let mut new_last_seen_uid = 0;
 
+        let set = format!("{}:*", last_seen_uid + 1);
         let list = if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
             // fetch messages with larger UID than the last one seen
             // (`UID FETCH lastseenuid+1:*)`, see RFC 4549
-            let set = format!("{}:*", last_seen_uid + 1);
             match session.uid_fetch(set, PREFETCH_FLAGS) {
                 Ok(list) => list,
                 Err(err) => {
                     warn!(context, "failed to fetch uids: {}", err);
-                    return 0;
+                    bail!("failed to fetch uids: {}", err)
                 }
             }
         } else {
-            return 0;
+            unreachable!();
         };
 
         // go through all mails in folder (this is typically _fast_ as we already have the whole list)
@@ -901,7 +868,7 @@ impl Imap {
             );
         }
 
-        read_cnt
+        Ok(read_cnt)
     }
 
     fn set_config_last_seen_uid(
@@ -985,19 +952,16 @@ impl Imap {
         1
     }
 
-    pub fn idle(&self, context: &Context) {
+    pub fn idle(&self, context: &Context) -> Result<(), Error> {
         if !self.config.read().unwrap().can_idle {
-            return self.fake_idle(context);
+            self.fake_idle(context);
         }
 
-        self.setup_handle_if_needed(context);
+        self.setup_handle_if_needed(context)?;
 
         let watch_folder = self.config.read().unwrap().watch_folder.clone();
         if let Some(wfolder) = watch_folder {
-            if self.select_folder(context, &wfolder) == 0 {
-                warn!(context, "IMAP-IDLE not setup.",);
-                return self.fake_idle(context);
-            }
+            self.select_folder(context, &wfolder)?;
         }
 
         let session = self.session.clone();
@@ -1091,6 +1055,7 @@ impl Imap {
         }
 
         *watch = false;
+        Ok(())
     }
 
     fn fake_idle(&self, context: &Context) {
@@ -1152,7 +1117,7 @@ impl Imap {
 
             let watch_folder = self.config.read().unwrap().watch_folder.clone();
             if let Some(watch_folder) = watch_folder {
-                if 0 != self.fetch_from_single_folder(context, &watch_folder) {
+                if self.fetch_from_single_folder(context, &watch_folder).is_ok() {
                     do_fake_idle = false;
                 }
             }
@@ -1289,14 +1254,12 @@ impl Imap {
                 return Some(ImapResult::RetryLater);
             }
         }
-        if self.select_folder(context, &folder) == 0 {
-            warn!(
-                context,
-                "Cannot select folder {} for preparing IMAP operation", folder
-            );
-            Some(ImapResult::RetryLater)
-        } else {
-            None
+        match self.select_folder(context, &folder) {
+            Ok(()) => None,
+            Err(err) => { 
+                warn!(context, "Cannot select folder {}: {}", folder, err);
+                Some(ImapResult::RetryLater)
+            }
         }
     }
 
@@ -1502,21 +1465,17 @@ impl Imap {
         }
     }
 
-    pub fn empty_folder(&self, context: &Context, folder: &str) {
+    pub fn empty_folder(&self, context: &Context, folder: &str) -> Result<(), Error> {
         info!(context, "emptying folder {}", folder);
 
-        if folder.is_empty() || self.select_folder(context, &folder) == 0 {
-            warn!(context, "Cannot select folder '{}' for emptying", folder);
-            return;
-        }
+        self.select_folder(context, &folder)?;
 
-        if !self.add_flag_finalized_with_set(context, SELECT_ALL, "\\Deleted") {
-            warn!(context, "Cannot empty folder {}", folder);
-        } else {
-            if self.expunge_folder(context) {
-                emit_event!(context, Event::ImapFolderEmptied(folder.to_string()));
-            }
-        }
+        ensure!(self.add_flag_finalized_with_set(context, SELECT_ALL, "\\Deleted"),
+                "Could not set \\Deleted flags to empty {}", folder);
+
+        ensure!(self.expunge_folder(context), "Could not expunge");
+        emit_event!(context, Event::ImapFolderEmptied(folder.to_string()));
+        Ok(())
     }
 }
 
