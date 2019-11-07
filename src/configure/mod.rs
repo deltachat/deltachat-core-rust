@@ -62,16 +62,16 @@ pub fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
 
     let mut param_autoconfig: Option<LoginParam> = None;
 
-    context.inbox.read().unwrap().disconnect(context);
+    context.inbox.write().unwrap().disconnect(context);
     context
         .sentbox_thread
-        .read()
+        .write()
         .unwrap()
         .imap
         .disconnect(context);
     context
         .mvbox_thread
-        .read()
+        .write()
         .unwrap()
         .imap
         .disconnect(context);
@@ -357,7 +357,7 @@ pub fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
                 };
                 context
                     .inbox
-                    .read()
+                    .write()
                     .unwrap()
                     .configure_folders(context, flags);
                 true
@@ -398,7 +398,7 @@ pub fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
         }
     }
     if imap_connected_here {
-        context.inbox.read().unwrap().disconnect(context);
+        context.inbox.write().unwrap().disconnect(context);
     }
     if smtp_connected_here {
         context.smtp.clone().lock().unwrap().disconnect();
@@ -484,7 +484,7 @@ fn try_imap_one_param(context: &Context, param: &LoginParam) -> Option<bool> {
         param.mail_user, param.mail_server, param.mail_port, param.server_flags
     );
     info!(context, "Trying: {}", inf);
-    if context.inbox.read().unwrap().connect(context, &param) {
+    if context.inbox.write().unwrap().connect(context, &param) {
         info!(context, "success: {}", inf);
         return Some(true);
     }
@@ -556,7 +556,7 @@ fn try_smtp_one_param(context: &Context, param: &LoginParam) -> Option<bool> {
 /*******************************************************************************
  * Connect to configured account
  ******************************************************************************/
-pub fn dc_connect_to_configured_imap(context: &Context, imap: &Imap) -> libc::c_int {
+pub fn dc_connect_to_configured_imap(context: &Context, imap: &mut Imap) -> libc::c_int {
     let mut ret_connected = 0;
 
     if imap.is_connected() {

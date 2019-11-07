@@ -9,6 +9,7 @@ pub struct JobThread {
     pub name: &'static str,
     pub folder_config_name: &'static str,
     pub imap: Imap,
+    watch: Arc<(Mutex<bool>, Condvar)>,
     pub state: Arc<(Mutex<JobState>, Condvar)>,
 }
 
@@ -21,11 +22,15 @@ pub struct JobState {
 }
 
 impl JobThread {
-    pub fn new(name: &'static str, folder_config_name: &'static str, imap: Imap) -> Self {
+    pub fn new(name: &'static str, folder_config_name: &'static str) -> Self {
+        let watch = Arc::new((Mutex::new(false), Condvar::new()));
+        let imap = Imap::new(watch.clone());
+
         JobThread {
             name,
             folder_config_name,
             imap,
+            watch,
             state: Arc::new((Mutex::new(Default::default()), Condvar::new())),
         }
     }
@@ -63,13 +68,22 @@ impl JobThread {
 
         info!(context, "Interrupting {}-IDLE...", self.name);
 
-        self.imap.interrupt_idle();
+        // interrupt imap idle
+        let &(ref lock, ref cvar) = &*self.watch.clone();
+        {
+            let mut watch = lock.lock().unwrap();
+
+            *watch = true;
+            cvar.notify_one();
+        }
 
         let &(ref lock, ref cvar) = &*self.state.clone();
-        let mut state = lock.lock().unwrap();
-
-        state.idle = true;
+        {
+            let mut state = lock.lock().unwrap();
+            state.idle = true;
+        }
         cvar.notify_one();
+        info!(context, "{}-idle interrupt done", self.name);
     }
 
     pub fn fetch(&mut self, context: &Context, use_network: bool) {
@@ -106,12 +120,12 @@ impl JobThread {
         self.state.0.lock().unwrap().using_handle = false;
     }
 
-    fn connect_to_imap(&self, context: &Context) -> bool {
+    fn connect_to_imap(&mut self, context: &Context) -> bool {
         if self.imap.is_connected() {
             return true;
         }
 
-        let mut ret_connected = dc_connect_to_configured_imap(context, &self.imap) != 0;
+        let mut ret_connected = dc_connect_to_configured_imap(context, &mut self.imap) != 0;
 
         if ret_connected {
             if context
@@ -134,7 +148,7 @@ impl JobThread {
         ret_connected
     }
 
-    pub fn idle(&self, context: &Context, use_network: bool) {
+    pub fn idle(&mut self, context: &Context, use_network: bool) {
         {
             let &(ref lock, ref cvar) = &*self.state.clone();
             let mut state = lock.lock().unwrap();

@@ -43,6 +43,7 @@ pub struct Context {
     blobdir: PathBuf,
     pub sql: Sql,
     pub inbox: Arc<RwLock<Imap>>,
+    pub(crate) inbox_watch: Arc<(Mutex<bool>, Condvar)>,
     pub perform_inbox_jobs_needed: Arc<RwLock<bool>>,
     pub probe_imap_network: Arc<RwLock<bool>>,
     pub sentbox_thread: Arc<RwLock<JobThread>>,
@@ -115,10 +116,15 @@ impl Context {
             "Blobdir does not exist: {}",
             blobdir.display()
         );
+
+        let inbox_watch = Arc::new((Mutex::new(false), Condvar::new()));
+        let inbox = Arc::new(RwLock::new(Imap::new(inbox_watch.clone())));
+
         let ctx = Context {
             blobdir,
             dbfile,
-            inbox: Arc::new(RwLock::new(Imap::new())),
+            inbox,
+            inbox_watch,
             cb,
             os_name: Some(os_name),
             running_state: Arc::new(RwLock::new(Default::default())),
@@ -132,12 +138,10 @@ impl Context {
             sentbox_thread: Arc::new(RwLock::new(JobThread::new(
                 "SENTBOX",
                 "configured_sentbox_folder",
-                Imap::new(),
             ))),
             mvbox_thread: Arc::new(RwLock::new(JobThread::new(
                 "MVBOX",
                 "configured_mvbox_folder",
-                Imap::new(),
             ))),
             probe_imap_network: Arc::new(RwLock::new(false)),
             perform_inbox_jobs_needed: Arc::new(RwLock::new(false)),
@@ -454,19 +458,28 @@ impl Context {
             }
         }
     }
+
+    pub fn interrupt_inbox_idle(&self) {
+        let &(ref lock, ref cvar) = &*self.inbox_watch.clone();
+        let mut watch = lock.lock().unwrap();
+
+        *watch = true;
+        cvar.notify_one();
+    }
 }
 
 impl Drop for Context {
     fn drop(&mut self) {
         info!(self, "disconnecting INBOX-watch",);
-        self.inbox.read().unwrap().disconnect(self);
+        self.inbox.write().unwrap().disconnect(self);
         info!(self, "disconnecting sentbox-thread",);
-        self.sentbox_thread.read().unwrap().imap.disconnect(self);
+        self.sentbox_thread.write().unwrap().imap.disconnect(self);
         info!(self, "disconnecting mvbox-thread",);
-        self.mvbox_thread.read().unwrap().imap.disconnect(self);
+        self.mvbox_thread.write().unwrap().imap.disconnect(self);
         info!(self, "disconnecting SMTP");
         self.smtp.clone().lock().unwrap().disconnect();
         self.sql.close(self);
+        info!(self, "Context closed");
     }
 }
 

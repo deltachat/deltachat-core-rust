@@ -490,12 +490,15 @@ class Account(object):
             self._threads.stop(wait=wait)
 
     def shutdown(self, wait=True):
+        print("SHUTDOWN", self)
         """ stop threads and close and remove underlying dc_context and callbacks. """
         if hasattr(self, "_dc_context") and hasattr(self, "_threads"):
-            # print("SHUTDOWN", self)
-            self.stop_threads(wait=False)
+            print("stop_threads", self)
+            self.stop_threads(wait=wait)
+            print("close", self)
             lib.dc_close(self._dc_context)
-            self.stop_threads(wait=wait)  # to wait for threads
+            print("clear", self)
+            #self.stop_threads(wait=wait)  # to wait for threads
             deltachat.clear_context_callback(self._dc_context)
             del self._dc_context
             atexit.unregister(self.shutdown)
@@ -567,37 +570,45 @@ class IOThreads:
         lib.dc_interrupt_sentbox_idle(self._dc_context)
         if wait:
             for name, thread in self._name2thread.items():
+                print("joining", name)
                 thread.join()
 
     def imap_thread_run(self):
         self._log_event("py-bindings-info", 0, "INBOX THREAD START")
         while not self._thread_quitflag:
             lib.dc_perform_imap_jobs(self._dc_context)
-            lib.dc_perform_imap_fetch(self._dc_context)
-            lib.dc_perform_imap_idle(self._dc_context)
+            if not self._thread_quitflag:
+                lib.dc_perform_imap_fetch(self._dc_context)
+            if not self._thread_quitflag:
+                lib.dc_perform_imap_idle(self._dc_context)
         self._log_event("py-bindings-info", 0, "INBOX THREAD FINISHED")
 
     def mvbox_thread_run(self):
         self._log_event("py-bindings-info", 0, "MVBOX THREAD START")
         while not self._thread_quitflag:
             lib.dc_perform_mvbox_jobs(self._dc_context)
-            lib.dc_perform_mvbox_fetch(self._dc_context)
-            lib.dc_perform_mvbox_idle(self._dc_context)
+            if not self._thread_quitflag:
+                lib.dc_perform_mvbox_fetch(self._dc_context)
+            if not self._thread_quitflag:
+                lib.dc_perform_mvbox_idle(self._dc_context)
         self._log_event("py-bindings-info", 0, "MVBOX THREAD FINISHED")
 
     def sentbox_thread_run(self):
         self._log_event("py-bindings-info", 0, "SENTBOX THREAD START")
         while not self._thread_quitflag:
             lib.dc_perform_sentbox_jobs(self._dc_context)
-            lib.dc_perform_sentbox_fetch(self._dc_context)
-            lib.dc_perform_sentbox_idle(self._dc_context)
+            if not self._thread_quitflag:
+                lib.dc_perform_sentbox_fetch(self._dc_context)
+            if not self._thread_quitflag:
+                lib.dc_perform_sentbox_idle(self._dc_context)
         self._log_event("py-bindings-info", 0, "SENTBOX THREAD FINISHED")
 
     def smtp_thread_run(self):
         self._log_event("py-bindings-info", 0, "SMTP THREAD START")
         while not self._thread_quitflag:
             lib.dc_perform_smtp_jobs(self._dc_context)
-            lib.dc_perform_smtp_idle(self._dc_context)
+            if not self._thread_quitflag:
+                lib.dc_perform_smtp_idle(self._dc_context)
         self._log_event("py-bindings-info", 0, "SMTP THREAD FINISHED")
 
 
