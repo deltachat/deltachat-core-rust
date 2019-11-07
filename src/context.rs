@@ -398,24 +398,21 @@ impl Context {
             .unwrap_or_default()
     }
 
-    pub fn is_inbox(&self, folder_name: impl AsRef<str>) -> bool {
-        folder_name.as_ref() == "INBOX"
+    pub fn is_inbox(&self, folder_name: &str) -> bool {
+        folder_name == "INBOX"
     }
 
-    pub fn is_sentbox(&self, folder_name: impl AsRef<str>) -> bool {
-        let sentbox_name = self.sql.get_raw_config(self, "configured_sentbox_folder");
-        if let Some(name) = sentbox_name {
-            name == folder_name.as_ref()
+    pub fn is_sentbox(&self, folder_name: &str) -> bool {
+        if let Some(name) = self.sql.get_raw_config(self, "configured_sentbox_folder") {
+            name == folder_name
         } else {
             false
         }
     }
 
-    pub fn is_mvbox(&self, folder_name: impl AsRef<str>) -> bool {
-        let mvbox_name = self.sql.get_raw_config(self, "configured_mvbox_folder");
-
-        if let Some(name) = mvbox_name {
-            name == folder_name.as_ref()
+    pub fn is_mvbox(&self, folder_name: &str) -> bool {
+        if let Some(name) = self.sql.get_raw_config(self, "configured_mvbox_folder") {
+            name == folder_name
         } else {
             false
         }
