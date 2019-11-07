@@ -192,7 +192,7 @@ unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
     let msgtext = msg.get_text();
     info!(
         context,
-        "{}#{}{}{}: {} (Contact#{}): {} {}{}{}{}{} [{}]",
+        "{}{}{}{}: {} (Contact#{}): {} {}{}{}{}{} [{}]",
         prefix.as_ref(),
         msg.get_id(),
         if msg.get_showpadlock() { "🔒" } else { "" },
@@ -240,7 +240,7 @@ unsafe fn log_msglist(context: &Context, msglist: &Vec<MsgId>) -> Result<(), Err
                 lines_out += 1
             }
             let msg = Message::load_from_db(context, msg_id)?;
-            log_msg(context, "Msg", &msg);
+            log_msg(context, "", &msg);
         }
     }
     if lines_out > 0 {
@@ -426,12 +426,12 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             if msg.is_setupmessage() {
                 let setupcodebegin = msg.get_setupcodebegin(context);
                 println!(
-                    "The setup code for setup message Msg#{} starts with: {}",
+                    "The setup code for setup message {} starts with: {}",
                     msg_id,
                     setupcodebegin.unwrap_or_default(),
                 );
             } else {
-                bail!("Msg#{} is no setup message.", msg_id,);
+                bail!("{} is no setup message.", msg_id,);
             }
         }
         "continue-key-transfer" => {
@@ -726,7 +726,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 let marker = location.marker.as_ref().unwrap_or(&default_marker);
                 info!(
                     context,
-                    "Loc#{}: {}: lat={} lng={} acc={} Chat#{} Contact#{} Msg#{} {}",
+                    "Loc#{}: {}: lat={} lng={} acc={} Chat#{} Contact#{} {} {}",
                     location.location_id,
                     dc_timestamp_to_str(location.timestamp),
                     location.latitude,
@@ -852,9 +852,9 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             println!("{} images or videos: ", images.len());
             for (i, data) in images.iter().enumerate() {
                 if 0 == i {
-                    print!("Msg#{}", data);
+                    print!("{}", data);
                 } else {
-                    print!(", Msg#{}", data);
+                    print!(", {}", data);
                 }
             }
             print!("\n");
