@@ -126,7 +126,7 @@ impl Chatlist {
                     "               SELECT MAX(timestamp)",
                     "                 FROM msgs",
                     "                WHERE chat_id=c.id",
-                    "                  AND (hidden=0 OR (hidden=1 AND state=19)))",
+                    "                  AND hidden=0)",
                     " WHERE c.id>9",
                     "   AND c.blocked=0",
                     "   AND c.id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?)",
@@ -149,7 +149,7 @@ impl Chatlist {
                     "               SELECT MAX(timestamp)",
                     "                 FROM msgs",
                     "                WHERE chat_id=c.id",
-                    "                  AND (hidden=0 OR (hidden=1 AND state=19)))",
+                    "                  AND hidden=0)",
                     " WHERE c.id>9",
                     "   AND c.blocked=0",
                     "   AND c.archived=1",
@@ -175,7 +175,7 @@ impl Chatlist {
                     "               SELECT MAX(timestamp)",
                     "                 FROM msgs",
                     "                WHERE chat_id=c.id",
-                    "                  AND (hidden=0 OR (hidden=1 AND state=19)))",
+                    "                  AND hidden=0)",
                     " WHERE c.id>9",
                     "   AND c.blocked=0",
                     "   AND c.name LIKE ?",
@@ -198,7 +198,7 @@ impl Chatlist {
                     "               SELECT MAX(timestamp)",
                     "                 FROM msgs",
                     "                WHERE chat_id=c.id",
-                    "                  AND (hidden=0 OR (hidden=1 AND state=19)))",
+                    "                  AND hidden=0)",
                     " WHERE c.id>9",
                     "   AND c.blocked=0",
                     "   AND c.archived=0",
@@ -294,7 +294,7 @@ impl Chatlist {
         let lastmsg_id = self.ids[index].1;
         let mut lastcontact = None;
 
-        let lastmsg = if let Ok(lastmsg) = Message::load_from_db(context, lastmsg_id) {
+        let mut lastmsg = if let Ok(lastmsg) = Message::load_from_db(context, lastmsg_id) {
             if lastmsg.from_id != DC_CONTACT_ID_SELF
                 && (chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup)
             {
@@ -305,6 +305,16 @@ impl Chatlist {
         } else {
             None
         };
+
+        if let Ok(draft) = get_draft(context, chat.id) {
+            if draft.is_some()
+                && (lastmsg.is_none()
+                    || draft.as_ref().unwrap().timestamp_sort
+                        > lastmsg.as_ref().unwrap().timestamp_sort)
+            {
+                lastmsg = draft;
+            }
+        }
 
         if chat.id == DC_CHAT_ID_ARCHIVED_LINK {
             ret.text2 = None;
