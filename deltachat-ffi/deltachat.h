@@ -501,15 +501,9 @@ char*           dc_get_oauth2_url            (dc_context_t* context, const char*
  * To interrupt a configuration prematurely, use dc_stop_ongoing_process();
  * this is not needed if #DC_EVENT_CONFIGURE_PROGRESS reports success.
  *
- * On a successfull configuration,
- * the core makes a copy of the parameters mentioned above:
- * the original parameters as are never modified by the core.
- *
- * UI-implementors should keep this in mind -
- * eg. if the UI wants to prefill a configure-edit-dialog with these parameters,
- * the UI should reset them if the user cancels the dialog
- * after a configure-attempts has failed.
- * Otherwise the parameters may not reflect the current configuation.
+ * If #DC_EVENT_CONFIGURE_PROGRESS reports failure,
+ * the core continues to use the last working configuration
+ * and parameters as `addr`, `mail_pw` etc. are set to that.
  *
  * @memberof dc_context_t
  * @param context The context object as created by dc_context_new().
