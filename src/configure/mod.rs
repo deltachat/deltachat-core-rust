@@ -569,7 +569,7 @@ fn try_smtp_one_param(context: &Context, param: &LoginParam) -> Option<bool> {
 pub fn dc_connect_to_configured_imap(context: &Context, imap: &Imap) -> libc::c_int {
     let mut ret_connected = 0;
 
-    if imap.is_connected() {
+    if async_std::task::block_on(async move { imap.is_connected().await }) {
         ret_connected = 1
     } else if !context.sql.get_raw_config_bool(context, "configured") {
         warn!(context, "Not configured, cannot connect.",);
