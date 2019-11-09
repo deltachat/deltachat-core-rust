@@ -20,7 +20,10 @@ num-derive = "0.2.5"
 num-traits = "0.2.6"
 native-tls = "0.2.3"
 lettre = { git = "https://github.com/deltachat/lettre", branch = "master" }
-imap = { git = "https://github.com/deltachat/rust-imap", branch = "master" }
+# imap = { git = "https://github.com/deltachat/rust-imap", branch = "master" }
+async-imap = { path = "../../async-imap" }#, git = "https://github.com/dignifiedquire/async-imap", branch = "master" }
+async-tls = { git = "https://github.com/async-rs/async-tls", branch = "master" }
+async-std = { git = "https://github.com/async-rs/async-std", branch = "master", features = ["unstable"] }
 base64 = "0.10"
 charset = "0.1"
 percent-encoding = "2.0"
