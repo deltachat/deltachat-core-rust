@@ -85,6 +85,7 @@ dependencies = [
 [[package]]
 name = "async-imap"
 version = "0.1.0"
+source = "git+https://github.com/dignifiedquire/async-imap#a06f0ef86c6a8c8be80ef0a6d305bcf6050fcafc"
 dependencies = [
  "async-attributes 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "async-std 0.99.12 (git+https://github.com/async-rs/async-std)",
@@ -627,7 +628,7 @@ dependencies = [
 name = "deltachat"
 version = "1.0.0-beta.7"
 dependencies = [
- "async-imap 0.1.0",
+ "async-imap 0.1.0 (git+https://github.com/dignifiedquire/async-imap)",
  "async-std 0.99.12 (git+https://github.com/async-rs/async-std)",
  "async-tls 0.5.0 (git+https://github.com/async-rs/async-tls)",
  "backtrace 0.3.40 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3313,6 +3314,7 @@ dependencies = [
 "checksum arrayvec 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)" = "cd9fd44efafa8690358b7408d253adf110036b88f55672a933f01d616ad9b1b9"
 "checksum ascii_utils 0.9.3 (registry+https://github.com/rust-lang/crates.io-index)" = "71938f30533e4d95a6d17aa530939da3842c2ab6f4f84b9dae68447e4129f74a"
 "checksum async-attributes 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "efd3d156917d94862e779f356c5acae312b08fd3121e792c857d7928c8088423"
+"checksum async-imap 0.1.0 (git+https://github.com/dignifiedquire/async-imap)" = "<none>"
 "checksum async-macros 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "e421d59b24c1feea2496e409b3e0a8de23e5fc130a2ddc0b012e551f3b272bba"
 "checksum async-std 0.99.12 (git+https://github.com/async-rs/async-std)" = "<none>"
 "checksum async-std 0.99.12 (registry+https://github.com/rust-lang/crates.io-index)" = "44501a9f7961bb539b67be0c428b3694e26557046a52759ca7eaf790030a64cc"
