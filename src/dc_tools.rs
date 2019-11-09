@@ -159,8 +159,10 @@ pub fn dc_timestamp_to_str(wanted: i64) -> String {
 }
 
 pub(crate) fn dc_gm2local_offset() -> i64 {
+    /* returns the offset that must be _added_ to an UTC/GMT-time to create the localtime.
+    the function may return negative values. */
     let lt = Local::now();
-    ((lt.offset().local_minus_utc() / (60 * 60)) * 100) as i64
+    lt.offset().local_minus_utc() as i64
 }
 
 /* timesmearing */
