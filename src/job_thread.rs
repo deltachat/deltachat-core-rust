@@ -107,7 +107,7 @@ impl JobThread {
     }
 
     fn connect_to_imap(&self, context: &Context) -> bool {
-        if self.imap.is_connected() {
+        if async_std::task::block_on(async move { self.imap.is_connected().await }) {
             return true;
         }
 
