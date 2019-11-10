@@ -50,7 +50,7 @@ bitflags = "1.1.0"
 jetscii = "0.4.4"
 debug_stub_derive = "0.3.0"
 sanitize-filename = "0.2.1"
-stop-token = { git = "https://github.com/async-rs/stop-token" }
+stop-token = { version = "0.1.1", features = ["unstable"] }
 rustls = "0.16.0"
 webpki-roots = "0.18.0"
 
