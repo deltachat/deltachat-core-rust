@@ -251,28 +251,28 @@ fn get_readable_flags(flags: i32) -> String {
     res
 }
 
-pub fn dc_build_tls(
-    certificate_checks: CertificateChecks,
-) -> Result<native_tls::TlsConnector, native_tls::Error> {
-    let mut tls_builder = native_tls::TlsConnector::builder();
-    match certificate_checks {
-        CertificateChecks::Automatic => {
-            // Same as AcceptInvalidCertificates for now.
-            // TODO: use provider database when it becomes available
-            tls_builder
-                .danger_accept_invalid_hostnames(true)
-                .danger_accept_invalid_certs(true)
-        }
-        CertificateChecks::Strict => &mut tls_builder,
-        CertificateChecks::AcceptInvalidHostnames => {
-            tls_builder.danger_accept_invalid_hostnames(true)
-        }
-        CertificateChecks::AcceptInvalidCertificates => tls_builder
-            .danger_accept_invalid_hostnames(true)
-            .danger_accept_invalid_certs(true),
-    }
-    .build()
-}
+// pub fn dc_build_tls(
+//     certificate_checks: CertificateChecks,
+// ) -> Result<native_tls::TlsConnector, native_tls::Error> {
+//     let mut tls_builder = native_tls::TlsConnector::builder();
+//     match certificate_checks {
+//         CertificateChecks::Automatic => {
+//             // Same as AcceptInvalidCertificates for now.
+//             // TODO: use provider database when it becomes available
+//             tls_builder
+//                 .danger_accept_invalid_hostnames(true)
+//                 .danger_accept_invalid_certs(true)
+//         }
+//         CertificateChecks::Strict => &mut tls_builder,
+//         CertificateChecks::AcceptInvalidHostnames => {
+//             tls_builder.danger_accept_invalid_hostnames(true)
+//         }
+//         CertificateChecks::AcceptInvalidCertificates => tls_builder
+//             .danger_accept_invalid_hostnames(true)
+//             .danger_accept_invalid_certs(true),
+//     }
+//     .build()
+// }
 
 #[cfg(test)]
 mod tests {
