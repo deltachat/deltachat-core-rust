@@ -138,8 +138,6 @@ jobs:
     steps:
       - *restore-workspace
       - *restore-cache
-      - run: rustup install $(cat rust-toolchain)
-      - run: rustup default $(cat rust-toolchain)
       - run:
           name: build docs, run tests and build wheels
           command: ci_scripts/run-python.sh
