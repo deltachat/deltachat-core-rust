@@ -5,7 +5,7 @@ use crate::constants::*;
 use crate::context::Context;
 use crate::error::Error;
 use crate::events::Event;
-use crate::login_param::{dc_build_tls, LoginParam};
+use crate::login_param::LoginParam;
 use crate::oauth2::*;
 
 #[derive(DebugStub)]
@@ -65,8 +65,11 @@ impl Smtp {
         let domain = &lp.send_server;
         let port = lp.send_port as u16;
 
-        let tls = dc_build_tls(lp.smtp_certificate_checks).unwrap();
-        let tls_parameters = ClientTlsParameters::new(domain.to_string(), tls);
+        let mut tls_config = rustls::ClientConfig::new();
+        tls_config
+            .root_store
+            .add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
+        let tls_parameters = ClientTlsParameters::new(domain.to_string(), tls_config);
 
         let (creds, mechanism) = if 0 != lp.server_flags & (DC_LP_AUTH_OAUTH2 as i32) {
             // oauth2
