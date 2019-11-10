@@ -4467,7 +4467,8 @@ void            dc_array_add_id              (dc_array_t*, uint32_t); // depreca
 #define DC_STR_MSGLOCATIONDISABLED        65
 #define DC_STR_LOCATION                   66
 #define DC_STR_STICKER                    67
-#define DC_STR_COUNT                      67
+#define DC_STR_DEVICE_MESSAGES            68
+#define DC_STR_COUNT                      68
 
 /*
  * @}
