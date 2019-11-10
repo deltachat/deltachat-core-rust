@@ -1,10 +1,13 @@
-use async_std::net;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, SystemTime};
+
+use async_imap::{
+    error::Result as ImapResult,
+    types::{Fetch, Flag, Mailbox, Name, NameAttribute},
+};
 use async_std::prelude::*;
 use async_std::sync::{Arc, Mutex, RwLock};
 use async_std::task;
-
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::{Duration, SystemTime};
 
 use crate::configure::dc_connect_to_configured_imap;
 use crate::constants::*;
@@ -12,6 +15,7 @@ use crate::context::Context;
 use crate::dc_receive_imf::dc_receive_imf;
 use crate::error::Error;
 use crate::events::Event;
+use crate::imap_client::*;
 use crate::job::{connect_to_inbox, job_add, Action};
 use crate::login_param::{CertificateChecks, LoginParam};
 use crate::message::{self, update_msg_move_state, update_server_uid};
@@ -21,10 +25,9 @@ use crate::stock::StockMessage;
 use crate::wrapmime;
 
 const DC_IMAP_SEEN: usize = 0x0001;
-const DCC_IMAP_DEBUG: &str = "DCC_IMAP_DEBUG";
 
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq)]
-pub enum ImapResult {
+pub enum ImapActionResult {
     Failed,
     RetryLater,
     AlreadyDone,
@@ -55,8 +58,7 @@ struct OAuth2 {
 impl async_imap::Authenticator for OAuth2 {
     type Response = String;
 
-    #[allow(unused_variables)]
-    fn process(&self, data: &[u8]) -> Self::Response {
+    fn process(&self, _data: &[u8]) -> Self::Response {
         format!(
             "user={}\x01auth=Bearer {}\x01\x01",
             self.user, self.access_token
@@ -72,309 +74,6 @@ enum FolderMeaning {
 }
 
 #[derive(Debug)]
-enum Client {
-    Secure(async_imap::Client<async_tls::client::TlsStream<net::TcpStream>>),
-    Insecure(async_imap::Client<net::TcpStream>),
-}
-
-#[derive(Debug)]
-enum Session {
-    Secure(async_imap::Session<async_tls::client::TlsStream<net::TcpStream>>),
-    Insecure(async_imap::Session<net::TcpStream>),
-}
-
-#[derive(Debug)]
-enum IdleHandle {
-    Secure(async_imap::extensions::idle::Handle<async_tls::client::TlsStream<net::TcpStream>>),
-    Insecure(async_imap::extensions::idle::Handle<net::TcpStream>),
-}
-
-impl Client {
-    pub async fn connect_secure<A: net::ToSocketAddrs, S: AsRef<str>>(
-        addr: A,
-        domain: S,
-        _certificate_checks: CertificateChecks,
-    ) -> async_imap::error::Result<Self> {
-        let stream = net::TcpStream::connect(addr).await?;
-        let tls = async_tls::TlsConnector::new();
-
-        let tls_stream = tls.connect(domain.as_ref(), stream)?.await?;
-
-        let mut client = async_imap::Client::new(tls_stream);
-        if std::env::var(DCC_IMAP_DEBUG).is_ok() {
-            client.debug = true;
-        }
-
-        let _greeting = client
-            .read_response()
-            .await
-            .expect("failed to read greeting");
-
-        Ok(Client::Secure(client))
-    }
-
-    pub async fn connect_insecure<A: net::ToSocketAddrs>(
-        addr: A,
-    ) -> async_imap::error::Result<Self> {
-        let stream = net::TcpStream::connect(addr).await?;
-
-        let mut client = async_imap::Client::new(stream);
-        if std::env::var(DCC_IMAP_DEBUG).is_ok() {
-            client.debug = true;
-        }
-        let _greeting = client
-            .read_response()
-            .await
-            .expect("failed to read greeting");
-
-        Ok(Client::Insecure(client))
-    }
-
-    pub async fn secure<S: AsRef<str>>(
-        self,
-        domain: S,
-        _certificate_checks: CertificateChecks,
-    ) -> async_imap::error::Result<Client> {
-        match self {
-            Client::Insecure(client) => {
-                let tls = async_tls::TlsConnector::new();
-
-                let client_sec = client.secure(domain, &tls).await?;
-
-                Ok(Client::Secure(client_sec))
-            }
-            // Nothing to do
-            Client::Secure(_) => Ok(self),
-        }
-    }
-
-    pub async fn authenticate<A: async_imap::Authenticator, S: AsRef<str>>(
-        self,
-        auth_type: S,
-        authenticator: &A,
-    ) -> Result<Session, (async_imap::error::Error, Client)> {
-        match self {
-            Client::Secure(i) => match i.authenticate(auth_type, authenticator).await {
-                Ok(session) => Ok(Session::Secure(session)),
-                Err((err, c)) => Err((err, Client::Secure(c))),
-            },
-            Client::Insecure(i) => match i.authenticate(auth_type, authenticator).await {
-                Ok(session) => Ok(Session::Insecure(session)),
-                Err((err, c)) => Err((err, Client::Insecure(c))),
-            },
-        }
-    }
-
-    pub async fn login<U: AsRef<str>, P: AsRef<str>>(
-        self,
-        username: U,
-        password: P,
-    ) -> Result<Session, (async_imap::error::Error, Client)> {
-        match self {
-            Client::Secure(i) => match i.login(username, password).await {
-                Ok(session) => Ok(Session::Secure(session)),
-                Err((err, c)) => Err((err, Client::Secure(c))),
-            },
-            Client::Insecure(i) => match i.login(username, password).await {
-                Ok(session) => Ok(Session::Insecure(session)),
-                Err((err, c)) => Err((err, Client::Insecure(c))),
-            },
-        }
-    }
-}
-
-impl Session {
-    pub async fn capabilities(
-        &mut self,
-    ) -> async_imap::error::Result<async_imap::types::Capabilities> {
-        let res = match self {
-            Session::Secure(i) => i.capabilities().await?,
-            Session::Insecure(i) => i.capabilities().await?,
-        };
-
-        Ok(res)
-    }
-
-    pub async fn list(
-        &mut self,
-        reference_name: Option<&str>,
-        mailbox_pattern: Option<&str>,
-    ) -> async_imap::error::Result<Vec<async_imap::types::Name>> {
-        let res = match self {
-            Session::Secure(i) => {
-                i.list(reference_name, mailbox_pattern)
-                    .await?
-                    .collect::<async_imap::error::Result<_>>()
-                    .await?
-            }
-            Session::Insecure(i) => {
-                i.list(reference_name, mailbox_pattern)
-                    .await?
-                    .collect::<async_imap::error::Result<_>>()
-                    .await?
-            }
-        };
-        Ok(res)
-    }
-
-    pub async fn create<S: AsRef<str>>(
-        &mut self,
-        mailbox_name: S,
-    ) -> async_imap::error::Result<()> {
-        match self {
-            Session::Secure(i) => i.create(mailbox_name).await?,
-            Session::Insecure(i) => i.create(mailbox_name).await?,
-        }
-        Ok(())
-    }
-
-    pub async fn subscribe<S: AsRef<str>>(&mut self, mailbox: S) -> async_imap::error::Result<()> {
-        match self {
-            Session::Secure(i) => i.subscribe(mailbox).await?,
-            Session::Insecure(i) => i.subscribe(mailbox).await?,
-        }
-        Ok(())
-    }
-
-    pub async fn close(&mut self) -> async_imap::error::Result<()> {
-        match self {
-            Session::Secure(i) => i.close().await?,
-            Session::Insecure(i) => i.close().await?,
-        }
-        Ok(())
-    }
-
-    pub async fn select<S: AsRef<str>>(
-        &mut self,
-        mailbox_name: S,
-    ) -> async_imap::error::Result<async_imap::types::Mailbox> {
-        let mbox = match self {
-            Session::Secure(i) => i.select(mailbox_name).await?,
-            Session::Insecure(i) => i.select(mailbox_name).await?,
-        };
-
-        Ok(mbox)
-    }
-
-    pub async fn fetch<S1, S2>(
-        &mut self,
-        sequence_set: S1,
-        query: S2,
-    ) -> async_imap::error::Result<Vec<async_imap::types::Fetch>>
-    where
-        S1: AsRef<str>,
-        S2: AsRef<str>,
-    {
-        let res = match self {
-            Session::Secure(i) => {
-                i.fetch(sequence_set, query)
-                    .await?
-                    .collect::<async_imap::error::Result<_>>()
-                    .await?
-            }
-            Session::Insecure(i) => {
-                i.fetch(sequence_set, query)
-                    .await?
-                    .collect::<async_imap::error::Result<_>>()
-                    .await?
-            }
-        };
-        Ok(res)
-    }
-
-    pub async fn uid_fetch<S1, S2>(
-        &mut self,
-        uid_set: S1,
-        query: S2,
-    ) -> async_imap::error::Result<Vec<async_imap::types::Fetch>>
-    where
-        S1: AsRef<str>,
-        S2: AsRef<str>,
-    {
-        let res = match self {
-            Session::Secure(i) => {
-                i.uid_fetch(uid_set, query)
-                    .await?
-                    .collect::<async_imap::error::Result<_>>()
-                    .await?
-            }
-            Session::Insecure(i) => {
-                i.uid_fetch(uid_set, query)
-                    .await?
-                    .collect::<async_imap::error::Result<_>>()
-                    .await?
-            }
-        };
-
-        Ok(res)
-    }
-
-    pub fn idle(self) -> IdleHandle {
-        match self {
-            Session::Secure(i) => {
-                let h = i.idle();
-                IdleHandle::Secure(h)
-            }
-            Session::Insecure(i) => {
-                let h = i.idle();
-                IdleHandle::Insecure(h)
-            }
-        }
-    }
-
-    pub async fn uid_store<S1, S2>(
-        &mut self,
-        uid_set: S1,
-        query: S2,
-    ) -> async_imap::error::Result<Vec<async_imap::types::Fetch>>
-    where
-        S1: AsRef<str>,
-        S2: AsRef<str>,
-    {
-        let res = match self {
-            Session::Secure(i) => {
-                i.uid_store(uid_set, query)
-                    .await?
-                    .collect::<async_imap::error::Result<_>>()
-                    .await?
-            }
-            Session::Insecure(i) => {
-                i.uid_store(uid_set, query)
-                    .await?
-                    .collect::<async_imap::error::Result<_>>()
-                    .await?
-            }
-        };
-        Ok(res)
-    }
-
-    pub async fn uid_mv<S1: AsRef<str>, S2: AsRef<str>>(
-        &mut self,
-        uid_set: S1,
-        mailbox_name: S2,
-    ) -> async_imap::error::Result<()> {
-        match self {
-            Session::Secure(i) => i.uid_mv(uid_set, mailbox_name).await?,
-            Session::Insecure(i) => i.uid_mv(uid_set, mailbox_name).await?,
-        }
-        Ok(())
-    }
-
-    pub async fn uid_copy<S1: AsRef<str>, S2: AsRef<str>>(
-        &mut self,
-        uid_set: S1,
-        mailbox_name: S2,
-    ) -> async_imap::error::Result<()> {
-        match self {
-            Session::Secure(i) => i.uid_copy(uid_set, mailbox_name).await?,
-            Session::Insecure(i) => i.uid_copy(uid_set, mailbox_name).await?,
-        }
-
-        Ok(())
-    }
-}
-
-#[derive(Debug)]
 struct ImapConfig {
     pub addr: String,
     pub imap_server: String,
@@ -384,7 +83,7 @@ struct ImapConfig {
     pub certificate_checks: CertificateChecks,
     pub server_flags: usize,
     pub selected_folder: Option<String>,
-    pub selected_mailbox: Option<async_imap::types::Mailbox>,
+    pub selected_mailbox: Option<Mailbox>,
     pub selected_folder_needs_expunge: bool,
     pub can_idle: bool,
     pub has_xlist: bool,
@@ -449,7 +148,7 @@ impl Imap {
 
             let server_flags = self.config.read().await.server_flags as i32;
 
-            let connection_res: async_imap::error::Result<Client> =
+            let connection_res: ImapResult<Client> =
                 if (server_flags & (DC_LP_IMAP_SOCKET_STARTTLS | DC_LP_IMAP_SOCKET_PLAIN)) != 0 {
                     let config = self.config.read().await;
                     let imap_server: &str = config.imap_server.as_ref();
@@ -1026,11 +725,11 @@ impl Imap {
 
             // XXX put flags into a set and pass them to dc_receive_imf
             let is_deleted = msg.flags().any(|flag| match flag {
-                async_imap::types::Flag::Deleted => true,
+                Flag::Deleted => true,
                 _ => false,
             });
             let is_seen = msg.flags().any(|flag| match flag {
-                async_imap::types::Flag::Seen => true,
+                Flag::Seen => true,
                 _ => false,
             });
 
@@ -1175,7 +874,7 @@ impl Imap {
         uid: u32,
         dest_folder: &str,
         dest_uid: &mut u32,
-    ) -> ImapResult {
+    ) -> ImapActionResult {
         task::block_on(async move {
             if folder == dest_folder {
                 info!(
@@ -1185,7 +884,7 @@ impl Imap {
                     uid,
                     dest_folder,
                 );
-                return ImapResult::AlreadyDone;
+                return ImapActionResult::AlreadyDone;
             }
             if let Some(imapresult) = self.prepare_imap_operation_on_msg(context, folder, uid) {
                 return imapresult;
@@ -1207,7 +906,7 @@ impl Imap {
                                 display_folder_id, dest_folder
                             ))
                         );
-                        return ImapResult::Success;
+                        return ImapActionResult::Success;
                     }
                     Err(err) => {
                         warn!(
@@ -1229,15 +928,15 @@ impl Imap {
                     Ok(_) => {
                         if !self.add_flag_finalized(context, uid, "\\Deleted").await {
                             warn!(context, "Cannot mark {} as \"Deleted\" after copy.", uid);
-                            ImapResult::Failed
+                            ImapActionResult::Failed
                         } else {
                             self.config.write().await.selected_folder_needs_expunge = true;
-                            ImapResult::Success
+                            ImapActionResult::Success
                         }
                     }
                     Err(err) => {
                         warn!(context, "Could not copy message: {}", err);
-                        ImapResult::Failed
+                        ImapActionResult::Failed
                     }
                 }
             } else {
@@ -1290,14 +989,14 @@ impl Imap {
         context: &Context,
         folder: &str,
         uid: u32,
-    ) -> Option<ImapResult> {
+    ) -> Option<ImapActionResult> {
         task::block_on(async move {
             if uid == 0 {
-                return Some(ImapResult::Failed);
+                return Some(ImapActionResult::Failed);
             } else if !self.is_connected().await {
                 connect_to_inbox(context, &self);
                 if !self.is_connected().await {
-                    return Some(ImapResult::RetryLater);
+                    return Some(ImapActionResult::RetryLater);
                 }
             }
             if self.select_folder(context, Some(&folder)).await == 0 {
@@ -1305,14 +1004,14 @@ impl Imap {
                     context,
                     "Cannot select folder {} for preparing IMAP operation", folder
                 );
-                Some(ImapResult::RetryLater)
+                Some(ImapActionResult::RetryLater)
             } else {
                 None
             }
         })
     }
 
-    pub fn set_seen(&self, context: &Context, folder: &str, uid: u32) -> ImapResult {
+    pub fn set_seen(&self, context: &Context, folder: &str, uid: u32) -> ImapActionResult {
         task::block_on(async move {
             if let Some(imapresult) = self.prepare_imap_operation_on_msg(context, folder, uid) {
                 return imapresult;
@@ -1321,13 +1020,13 @@ impl Imap {
             info!(context, "Marking message {}/{} as seen...", folder, uid,);
 
             if self.add_flag_finalized(context, uid, "\\Seen").await {
-                ImapResult::Success
+                ImapActionResult::Success
             } else {
                 warn!(
                     context,
                     "Cannot mark message {} in folder {} as seen, ignoring.", uid, folder
                 );
-                ImapResult::Failed
+                ImapActionResult::Failed
             }
         })
     }
@@ -1339,7 +1038,7 @@ impl Imap {
         message_id: &str,
         folder: &str,
         uid: &mut u32,
-    ) -> ImapResult {
+    ) -> ImapActionResult {
         task::block_on(async move {
             if let Some(imapresult) = self.prepare_imap_operation_on_msg(context, folder, *uid) {
                 return imapresult;
@@ -1361,7 +1060,7 @@ impl Imap {
                                 display_imap_id,
                                 message_id,
                             );
-                            return ImapResult::Failed;
+                            return ImapActionResult::Failed;
                         }
                         let remote_message_id =
                             prefetch_get_message_id(msgs.first().unwrap()).unwrap_or_default();
@@ -1393,7 +1092,7 @@ impl Imap {
                     context,
                     "Cannot mark message {} as \"Deleted\".", display_imap_id
                 );
-                ImapResult::Failed
+                ImapActionResult::Failed
             } else {
                 emit_event!(
                     context,
@@ -1403,7 +1102,7 @@ impl Imap {
                     ))
                 );
                 self.config.write().await.selected_folder_needs_expunge = true;
-                ImapResult::Success
+                ImapActionResult::Success
             }
         })
     }
@@ -1504,7 +1203,7 @@ impl Imap {
         &self,
         session: &'a mut Session,
         context: &Context,
-    ) -> Option<Vec<async_imap::types::Name>> {
+    ) -> Option<Vec<Name>> {
         // TODO: use xlist when available
         match session.list(Some(""), Some("*")).await {
             Ok(list) => {
@@ -1558,7 +1257,7 @@ impl Imap {
 // only watching this folder is not working. at least, this is no show stopper.
 // CAVE: if possible, take care not to add a name here that is "sent" in one language
 // but sth. different in others - a hard job.
-fn get_folder_meaning_by_name(folder_name: &async_imap::types::Name) -> FolderMeaning {
+fn get_folder_meaning_by_name(folder_name: &Name) -> FolderMeaning {
     let sent_names = vec!["sent", "sent objects", "gesendet"];
     let lower = folder_name.name().to_lowercase();
 
@@ -1569,7 +1268,7 @@ fn get_folder_meaning_by_name(folder_name: &async_imap::types::Name) -> FolderMe
     }
 }
 
-fn get_folder_meaning(folder_name: &async_imap::types::Name) -> FolderMeaning {
+fn get_folder_meaning(folder_name: &Name) -> FolderMeaning {
     if folder_name.attributes().is_empty() {
         return FolderMeaning::Unknown;
     }
@@ -1579,7 +1278,7 @@ fn get_folder_meaning(folder_name: &async_imap::types::Name) -> FolderMeaning {
 
     for attr in folder_name.attributes() {
         match attr {
-            async_imap::types::NameAttribute::Custom(ref label) => {
+            NameAttribute::Custom(ref label) => {
                 if special_names.iter().find(|s| *s == label).is_some() {
                     res = FolderMeaning::Other;
                 } else if label == "\\Sent" {
@@ -1623,7 +1322,7 @@ fn precheck_imf(context: &Context, rfc724_mid: &str, server_folder: &str, server
     }
 }
 
-fn prefetch_get_message_id(prefetch_msg: &async_imap::types::Fetch) -> Result<String, Error> {
+fn prefetch_get_message_id(prefetch_msg: &Fetch) -> Result<String, Error> {
     let message_id = prefetch_msg.envelope().unwrap().message_id.unwrap();
     wrapmime::parse_message_id(&message_id)
 }
