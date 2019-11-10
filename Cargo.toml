@@ -15,11 +15,10 @@ hex = "0.3.2"
 sha2 = "0.8.0"
 rand = "0.6.5"
 smallvec = "0.6.9"
-reqwest = "0.9.15"
+reqwest = { version = "0.9.15", default-features = false, features = ["rustls-tls"] }
 num-derive = "0.2.5"
 num-traits = "0.2.6"
-native-tls = "0.2.3"
-lettre = { git = "https://github.com/deltachat/lettre", branch = "master" }
+lettre = { git = "https://github.com/deltachat/lettre", branch = "feat/rustls" }
 async-imap = { git = "https://github.com/dignifiedquire/async-imap", branch = "master" }
 async-tls = { git = "https://github.com/async-rs/async-tls", branch = "master" }
 async-std = { git = "https://github.com/async-rs/async-std", branch = "master", features = ["unstable"] }
@@ -52,6 +51,8 @@ jetscii = "0.4.4"
 debug_stub_derive = "0.3.0"
 sanitize-filename = "0.2.1"
 stop-token = { git = "https://github.com/async-rs/stop-token" }
+rustls = "0.16.0"
+webpki-roots = "0.18.0"
 
 [dev-dependencies]
 tempfile = "3.0"
@@ -77,6 +78,6 @@ path = "examples/repl/main.rs"
 
 [features]
 default = ["nightly", "ringbuf"]
-vendored = ["native-tls/vendored", "reqwest/default-tls-vendored"]
+vendored = []
 nightly = ["pgp/nightly"]
 ringbuf = ["pgp/ringbuf"]
