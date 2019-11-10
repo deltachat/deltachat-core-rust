@@ -3,10 +3,7 @@ use async_std::prelude::*;
 use async_std::sync::{Arc, Mutex, RwLock};
 use async_std::task;
 
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Condvar,
-};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, SystemTime};
 
 use crate::configure::dc_connect_to_configured_imap;
@@ -41,10 +38,10 @@ const SELECT_ALL: &str = "1:*";
 #[derive(Debug)]
 pub struct Imap {
     config: Arc<RwLock<ImapConfig>>,
-    watch: Arc<(Mutex<bool>, Condvar)>,
 
     session: Arc<Mutex<Option<Session>>>,
     connected: Arc<Mutex<bool>>,
+    interrupt: Arc<Mutex<Option<stop_token::StopSource>>>,
 
     should_reconnect: AtomicBool,
 }
@@ -92,13 +89,11 @@ enum IdleHandle {
     Insecure(async_imap::extensions::idle::Handle<net::TcpStream>),
 }
 
-impl IdleHandle {}
-
 impl Client {
     pub async fn connect_secure<A: net::ToSocketAddrs, S: AsRef<str>>(
         addr: A,
         domain: S,
-        certificate_checks: CertificateChecks,
+        _certificate_checks: CertificateChecks,
     ) -> async_imap::error::Result<Self> {
         let stream = net::TcpStream::connect(addr).await?;
         let tls = async_tls::TlsConnector::new();
@@ -138,7 +133,7 @@ impl Client {
     pub async fn secure<S: AsRef<str>>(
         self,
         domain: S,
-        certificate_checks: CertificateChecks,
+        _certificate_checks: CertificateChecks,
     ) -> async_imap::error::Result<Client> {
         match self {
             Client::Insecure(client) => {
@@ -314,7 +309,7 @@ impl Session {
         Ok(res)
     }
 
-    pub async fn idle(self) -> IdleHandle {
+    pub fn idle(self) -> IdleHandle {
         match self {
             Session::Secure(i) => {
                 let h = i.idle();
@@ -423,7 +418,7 @@ impl Imap {
         Imap {
             session: Arc::new(Mutex::new(None)),
             config: Arc::new(RwLock::new(ImapConfig::default())),
-            watch: Arc::new((Mutex::new(false), Condvar::new())),
+            interrupt: Arc::new(Mutex::new(None)),
             connected: Arc::new(Mutex::new(false)),
             should_reconnect: AtomicBool::new(false),
         }
@@ -1069,7 +1064,50 @@ impl Imap {
                 return;
             }
 
-            // TODO: IMPLEMENT ME
+            let session = self.session.lock().await.take();
+            let timeout = Duration::from_secs(23 * 60);
+            if let Some(session) = session {
+                match session.idle() {
+                    IdleHandle::Secure(mut handle) => {
+                        if let Err(err) = handle.init().await {
+                            warn!(context, "Failed to establish IDLE connection: {:?}", err);
+                            return;
+                        }
+                        let (idle_wait, interrupt) = handle.wait_with_timeout(timeout);
+                        *self.interrupt.lock().await = Some(interrupt);
+
+                        let res = idle_wait.await;
+                        info!(context, "Idle finished: {:?}", res);
+                        match handle.done().await {
+                            Ok(session) => {
+                                *self.session.lock().await = Some(Session::Secure(session));
+                            }
+                            Err(err) => {
+                                warn!(context, "Failed to close IMAP IDLE connection: {:?}", err);
+                            }
+                        }
+                    }
+                    IdleHandle::Insecure(mut handle) => {
+                        if let Err(err) = handle.init().await {
+                            warn!(context, "Failed to establish IDLE connection: {:?}", err);
+                            return;
+                        }
+                        let (idle_wait, interrupt) = handle.wait_with_timeout(timeout);
+                        *self.interrupt.lock().await = Some(interrupt);
+
+                        let res = idle_wait.await;
+                        info!(context, "Idle finished: {:?}", res);
+                        match handle.done().await {
+                            Ok(session) => {
+                                *self.session.lock().await = Some(Session::Insecure(session));
+                            }
+                            Err(err) => {
+                                warn!(context, "Failed to close IMAP IDLE connection: {:?}", err);
+                            }
+                        }
+                    }
+                }
+            }
         });
     }
 
@@ -1077,72 +1115,57 @@ impl Imap {
         // Idle using timeouts. This is also needed if we're not yet configured -
         // in this case, we're waiting for a configure job
         let fake_idle_start_time = SystemTime::now();
-        let mut wait_long = false;
 
         info!(context, "IMAP-fake-IDLEing...");
 
-        let mut do_fake_idle = true;
-        while do_fake_idle {
-            // wait a moment: every 5 seconds in the first 3 minutes after a new message, after that every 60 seconds.
-            let seconds_to_wait = if fake_idle_start_time.elapsed().unwrap_or_default()
-                < Duration::new(3 * 60, 0)
-                && !wait_long
-            {
-                Duration::new(5, 0)
-            } else {
-                Duration::new(60, 0)
-            };
+        task::block_on(async move {
+            let interrupt = stop_token::StopSource::new();
 
-            // TODO: implement me better
+            // TODO: More flexible interval
+            let interval = async_std::stream::interval(Duration::from_secs(10));
+            let mut interrupt_interval = interrupt.stop_token().stop_stream(interval);
+            *self.interrupt.lock().await = Some(interrupt);
 
-            // let &(ref lock, ref cvar) = &*self.watch.clone();
-            // let mut watch = lock.lock().await;
+            while let Some(_) = interrupt_interval.next().await {
+                // check if we want to finish fake-idling.
+                if !self.is_connected().await {
+                    // try to connect with proper login params
+                    // (setup_handle_if_needed might not know about them if we
+                    // never successfully connected)
+                    if dc_connect_to_configured_imap(context, &self) != 0 {
+                        self.interrupt.lock().await.take();
+                    }
+                }
+                // we are connected, let's see if fetching messages results
+                // in anything.  If so, we behave as if IDLE had data but
+                // will have already fetched the messages so perform_*_fetch
+                // will not find any new.
 
-            // loop {
-            //     let res = cvar.wait_timeout(watch, seconds_to_wait).await;
-            //     watch = res.0;
-            //     if *watch {
-            //         do_fake_idle = false;
-            //     }
-            //     if *watch || res.1.timed_out() {
-            //         break;
-            //     }
-            // }
+                let watch_folder = self.config.read().await.watch_folder.clone();
+                if let Some(watch_folder) = watch_folder {
+                    if 0 != self.fetch_from_single_folder(context, watch_folder).await {
+                        self.interrupt.lock().await.take();
+                        break;
+                    }
+                }
+            }
+        });
 
-            // *watch = false;
-
-            // if !do_fake_idle {
-            //     return;
-            // }
-
-            // // check if we want to finish fake-idling.
-            // if !self.is_connected() {
-            //     // try to connect with proper login params
-            //     // (setup_handle_if_needed might not know about them if we
-            //     // never successfully connected)
-            //     if dc_connect_to_configured_imap(context, &self) != 0 {
-            //         return;
-            //     }
-            //     // we cannot connect, wait long next time (currently 60 secs, see above)
-            //     wait_long = true;
-            //     continue;
-            // }
-            // // we are connected, let's see if fetching messages results
-            // // in anything.  If so, we behave as if IDLE had data but
-            // // will have already fetched the messages so perform_*_fetch
-            // // will not find any new.
-
-            // let watch_folder = self.config.read().await.watch_folder.clone();
-            // if let Some(watch_folder) = watch_folder {
-            //     if 0 != self.fetch_from_single_folder(context, watch_folder) {
-            //         do_fake_idle = false;
-            //     }
-            // }
-        }
+        info!(
+            context,
+            "IMAP-fake-IDLE done after {:.4}s",
+            SystemTime::now()
+                .duration_since(fake_idle_start_time)
+                .unwrap()
+                .as_millis() as f64
+                / 1000.,
+        );
     }
 
     pub fn interrupt_idle(&self) {
-        // TODO: implement me
+        task::block_on(async move {
+            let _ = self.interrupt.lock().await.take();
+        });
     }
 
     pub fn mv(
