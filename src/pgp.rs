@@ -5,7 +5,7 @@ use std::io::Cursor;
 use pgp::armor::BlockType;
 use pgp::composed::{
     Deserializable, KeyType as PgpKeyType, Message, SecretKeyParamsBuilder, SignedPublicKey,
-    SignedSecretKey, SubkeyParamsBuilder,
+    SignedPublicSubKey, SignedSecretKey, SubkeyParamsBuilder,
 };
 use pgp::crypto::{HashAlgorithm, SymmetricKeyAlgorithm};
 use pgp::types::{CompressionAlgorithm, KeyTrait, SecretKeyTrait, StringToKey};
@@ -97,18 +97,29 @@ pub fn create_keypair(addr: impl AsRef<str>) -> Option<(Key, Key)> {
     Some((Key::Public(public_key), Key::Secret(private_key)))
 }
 
+/// Select subkey of the public key to use for encryption.
+///
+/// Currently the first subkey is selected.
+fn select_pk_for_encryption(key: &SignedPublicKey) -> Option<&SignedPublicSubKey> {
+    key.public_subkeys.iter().find(|_k|
+        // TODO: check if it is an encryption subkey
+        true)
+}
+
 pub fn pk_encrypt(
     plain: &[u8],
     public_keys_for_encryption: &Keyring,
     private_key_for_signing: Option<&Key>,
 ) -> Result<String, Error> {
     let lit_msg = Message::new_literal_bytes("", plain);
-    let pkeys: Vec<&SignedPublicKey> = public_keys_for_encryption
+    let pkeys: Vec<&SignedPublicSubKey> = public_keys_for_encryption
         .keys()
         .iter()
         .filter_map(|key| {
-            let k: &Key = &key;
-            k.try_into().ok()
+            key.as_ref()
+                .try_into()
+                .ok()
+                .and_then(select_pk_for_encryption)
         })
         .collect();
 
