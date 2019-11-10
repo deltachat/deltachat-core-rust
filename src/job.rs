@@ -245,10 +245,10 @@ impl Job {
                     &dest_folder,
                     &mut dest_uid,
                 ) {
-                    ImapResult::RetryLater => {
+                    ImapActionResult::RetryLater => {
                         self.try_again_later(3i32, None);
                     }
-                    ImapResult::Success => {
+                    ImapActionResult::Success => {
                         message::update_server_uid(
                             context,
                             &msg.rfc724_mid,
@@ -256,7 +256,7 @@ impl Job {
                             dest_uid,
                         );
                     }
-                    ImapResult::Failed | ImapResult::AlreadyDone => {}
+                    ImapActionResult::Failed | ImapActionResult::AlreadyDone => {}
                 }
             }
         }
@@ -280,7 +280,7 @@ impl Job {
                     let mid = msg.rfc724_mid;
                     let server_folder = msg.server_folder.as_ref().unwrap();
                     let res = inbox.delete_msg(context, &mid, server_folder, &mut msg.server_uid);
-                    if res == ImapResult::RetryLater {
+                    if res == ImapActionResult::RetryLater {
                         self.try_again_later(-1i32, None);
                         return;
                     }
@@ -313,11 +313,11 @@ impl Job {
         if let Ok(msg) = Message::load_from_db(context, MsgId::new(self.foreign_id)) {
             let folder = msg.server_folder.as_ref().unwrap();
             match inbox.set_seen(context, folder, msg.server_uid) {
-                ImapResult::RetryLater => {
+                ImapActionResult::RetryLater => {
                     self.try_again_later(3i32, None);
                 }
-                ImapResult::AlreadyDone => {}
-                ImapResult::Success | ImapResult::Failed => {
+                ImapActionResult::AlreadyDone => {}
+                ImapActionResult::Success | ImapActionResult::Failed => {
                     // XXX the message might just have been moved
                     // we want to send out an MDN anyway
                     // The job will not be retried so locally
@@ -343,7 +343,7 @@ impl Job {
             .to_string();
         let uid = self.param.get_int(Param::ServerUid).unwrap_or_default() as u32;
         let inbox = context.inbox.read().unwrap();
-        if inbox.set_seen(context, &folder, uid) == ImapResult::RetryLater {
+        if inbox.set_seen(context, &folder, uid) == ImapActionResult::RetryLater {
             self.try_again_later(3i32, None);
             return;
         }
@@ -361,7 +361,7 @@ impl Job {
                 .get_raw_config(context, "configured_mvbox_folder");
             if let Some(dest_folder) = dest_folder {
                 let mut dest_uid = 0;
-                if ImapResult::RetryLater
+                if ImapActionResult::RetryLater
                     == inbox.mv(context, &folder, uid, &dest_folder, &mut dest_uid)
                 {
                     self.try_again_later(3, None);
