@@ -29,44 +29,44 @@ impl From<SignedSecretKey> for Key {
     }
 }
 
-impl std::convert::TryInto<SignedSecretKey> for Key {
+impl std::convert::TryFrom<Key> for SignedSecretKey {
     type Error = ();
 
-    fn try_into(self) -> Result<SignedSecretKey, Self::Error> {
-        match self {
+    fn try_from(value: Key) -> Result<Self, Self::Error> {
+        match value {
             Key::Public(_) => Err(()),
             Key::Secret(key) => Ok(key),
         }
     }
 }
 
-impl<'a> std::convert::TryInto<&'a SignedSecretKey> for &'a Key {
+impl<'a> std::convert::TryFrom<&'a Key> for &'a SignedSecretKey {
     type Error = ();
 
-    fn try_into(self) -> Result<&'a SignedSecretKey, Self::Error> {
-        match self {
+    fn try_from(value: &'a Key) -> Result<Self, Self::Error> {
+        match value {
             Key::Public(_) => Err(()),
             Key::Secret(key) => Ok(key),
         }
     }
 }
 
-impl std::convert::TryInto<SignedPublicKey> for Key {
+impl std::convert::TryFrom<Key> for SignedPublicKey {
     type Error = ();
 
-    fn try_into(self) -> Result<SignedPublicKey, Self::Error> {
-        match self {
+    fn try_from(value: Key) -> Result<Self, Self::Error> {
+        match value {
             Key::Public(key) => Ok(key),
             Key::Secret(_) => Err(()),
         }
     }
 }
 
-impl<'a> std::convert::TryInto<&'a SignedPublicKey> for &'a Key {
+impl<'a> std::convert::TryFrom<&'a Key> for &'a SignedPublicKey {
     type Error = ();
 
-    fn try_into(self) -> Result<&'a SignedPublicKey, Self::Error> {
-        match self {
+    fn try_from(value: &'a Key) -> Result<Self, Self::Error> {
+        match value {
             Key::Public(key) => Ok(key),
             Key::Secret(_) => Err(()),
         }
