@@ -498,7 +498,7 @@ fn decrypt_if_autocrypt_message(
     public_keyring_for_validate: &Keyring,
     ret_valid_signatures: &mut HashSet<String>,
     ret_gossip_headers: *mut *mut mailimf_fields,
-) -> Result<(bool)> {
+) -> Result<bool> {
     /* The returned bool is true if we detected an Autocrypt-encrypted
     message and successfully decrypted it. Decryption then modifies the
     passed in mime structure in place. The returned bool is false
