@@ -396,12 +396,16 @@ impl Imap {
         })
     }
 
-    async fn select_folder<S: AsRef<str>>(&self, context: &Context, folder: Option<S>) -> usize {
+    async fn select_folder<S: AsRef<str>>(
+        &self,
+        context: &Context,
+        folder: Option<S>,
+    ) -> ImapActionResult {
         if self.session.lock().await.is_none() {
             let mut cfg = self.config.write().await;
             cfg.selected_folder = None;
             cfg.selected_folder_needs_expunge = false;
-            return 0;
+            return ImapActionResult::Failed;
         }
 
         // if there is a new folder and the new folder is equal to the selected one, there's nothing to do.
@@ -409,7 +413,7 @@ impl Imap {
         if let Some(ref folder) = folder {
             if let Some(ref selected_folder) = self.config.read().await.selected_folder {
                 if folder.as_ref() == selected_folder {
-                    return 1;
+                    return ImapActionResult::AlreadyDone;
                 }
             }
         }
@@ -429,11 +433,11 @@ impl Imap {
                         }
                         Err(err) => {
                             warn!(context, "failed to close session: {:?}", err);
-                            return 0;
+                            return ImapActionResult::Failed;
                         }
                     }
                 } else {
-                    return 0;
+                    return ImapActionResult::Failed;
                 }
             }
             self.config.write().await.selected_folder_needs_expunge = false;
@@ -449,7 +453,7 @@ impl Imap {
                         config.selected_mailbox = Some(mailbox);
                     }
                     Err(err) => {
-                        info!(
+                        warn!(
                             context,
                             "Cannot select folder: {}; {:?}.",
                             folder.as_ref(),
@@ -458,7 +462,7 @@ impl Imap {
 
                         self.config.write().await.selected_folder = None;
                         self.should_reconnect.store(true, Ordering::Relaxed);
-                        return 0;
+                        return ImapActionResult::Failed;
                     }
                 }
             } else {
@@ -466,7 +470,7 @@ impl Imap {
             }
         }
 
-        1
+        ImapActionResult::Success
     }
 
     fn get_config_last_seen_uid<S: AsRef<str>>(&self, context: &Context, folder: S) -> (u32, u32) {
@@ -502,13 +506,13 @@ impl Imap {
             return 0;
         }
 
-        if self.select_folder(context, Some(&folder)).await == 0 {
+        let res = self.select_folder(context, Some(&folder)).await;
+        if res == ImapActionResult::Failed || res == ImapActionResult::RetryLater {
             info!(
                 context,
                 "Cannot select folder \"{}\" for fetching.",
                 folder.as_ref()
             );
-
             return 0;
         }
 
@@ -748,6 +752,9 @@ impl Imap {
 
     pub fn idle(&self, context: &Context) {
         task::block_on(async move {
+            if self.config.read().await.selected_folder.is_none() {
+                return;
+            }
             if !self.config.read().await.can_idle {
                 self.fake_idle(context).await;
                 return;
@@ -756,11 +763,18 @@ impl Imap {
             self.setup_handle_if_needed(context);
 
             let watch_folder = self.config.read().await.watch_folder.clone();
-            if self.select_folder(context, watch_folder.as_ref()).await == 0 {
-                warn!(context, "IMAP-IDLE not setup.");
+            match self.select_folder(context, watch_folder.as_ref()).await {
+                ImapActionResult::Success | ImapActionResult::AlreadyDone => {}
 
-                self.fake_idle(context).await;
-                return;
+                ImapActionResult::Failed | ImapActionResult::RetryLater => {
+                    warn!(
+                        context,
+                        "idle select_folder failed {:?}",
+                        watch_folder.as_ref()
+                    );
+                    self.fake_idle(context).await;
+                    return;
+                }
             }
 
             let session = self.session.lock().await.take();
@@ -999,14 +1013,16 @@ impl Imap {
                     return Some(ImapActionResult::RetryLater);
                 }
             }
-            if self.select_folder(context, Some(&folder)).await == 0 {
-                warn!(
-                    context,
-                    "Cannot select folder {} for preparing IMAP operation", folder
-                );
-                Some(ImapActionResult::RetryLater)
-            } else {
-                None
+            match self.select_folder(context, Some(&folder)).await {
+                ImapActionResult::Success | ImapActionResult::AlreadyDone => None,
+                res => {
+                    warn!(
+                        context,
+                        "Cannot select folder {} for preparing IMAP operation", folder
+                    );
+
+                    Some(res)
+                }
             }
         })
     }
@@ -1225,26 +1241,34 @@ impl Imap {
         task::block_on(async move {
             info!(context, "emptying folder {}", folder);
 
-            if folder.is_empty() || self.select_folder(context, Some(&folder)).await == 0 {
-                warn!(context, "Cannot select folder '{}' for emptying", folder);
+            if !folder.is_empty() {
+                warn!(context, "cannot perform empty, folder not set");
                 return;
             }
-
-            if !self
-                .add_flag_finalized_with_set(context, SELECT_ALL, "\\Deleted")
-                .await
-            {
-                warn!(context, "Cannot empty folder {}", folder);
-            } else {
-                // we now trigger expunge to actually delete messages
-                self.config.write().await.selected_folder_needs_expunge = true;
-                if self.select_folder::<String>(context, None).await == 0 {
-                    warn!(
-                        context,
-                        "could not perform expunge on empty-marked folder {}", folder
-                    );
-                } else {
-                    emit_event!(context, Event::ImapFolderEmptied(folder.to_string()));
+            match self.select_folder(context, Some(&folder)).await {
+                ImapActionResult::Success | ImapActionResult::AlreadyDone => {
+                    if !self
+                        .add_flag_finalized_with_set(context, SELECT_ALL, "\\Deleted")
+                        .await
+                    {
+                        warn!(context, "Cannot empty folder {}", folder);
+                    } else {
+                        // we now trigger expunge to actually delete messages
+                        self.config.write().await.selected_folder_needs_expunge = true;
+                        if self.select_folder::<String>(context, None).await
+                            == ImapActionResult::Success
+                        {
+                            emit_event!(context, Event::ImapFolderEmptied(folder.to_string()));
+                        } else {
+                            warn!(
+                                context,
+                                "could not perform expunge on empty-marked folder {}", folder
+                            );
+                        }
+                    }
+                }
+                ImapActionResult::Failed | ImapActionResult::RetryLater => {
+                    warn!(context, "could not select folder {}", folder);
                 }
             }
         });
