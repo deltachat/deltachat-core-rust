@@ -45,8 +45,7 @@ pub struct Imap {
     session: Arc<Mutex<Option<Session>>>,
     connected: Arc<Mutex<bool>>,
     interrupt: Arc<Mutex<Option<stop_token::StopSource>>>,
-    skip_next_idle_wait: Arc<Mutex<bool>>,
-
+    skip_next_idle_wait: AtomicBool,
     should_reconnect: AtomicBool,
 }
 
@@ -120,7 +119,7 @@ impl Imap {
             config: Arc::new(RwLock::new(ImapConfig::default())),
             interrupt: Arc::new(Mutex::new(None)),
             connected: Arc::new(Mutex::new(false)),
-            skip_next_idle_wait: Arc::new(Mutex::new(false)),
+            skip_next_idle_wait: AtomicBool::new(false),
             should_reconnect: AtomicBool::new(false),
         }
     }
@@ -783,10 +782,10 @@ impl Imap {
                         let (idle_wait, interrupt) = handle.wait_with_timeout(timeout);
                         *self.interrupt.lock().await = Some(interrupt);
 
-                        if *self.skip_next_idle_wait.lock().await {
+                        if self.skip_next_idle_wait.load(Ordering::Relaxed) {
                             // interrupt_idle has happened before we
                             // provided self.interrupt
-                            *self.skip_next_idle_wait.lock().await = false;
+                            self.skip_next_idle_wait.store(false, Ordering::Relaxed);
                             std::mem::drop(idle_wait);
                             info!(context, "Idle wait was skipped");
                         } else {
@@ -811,10 +810,10 @@ impl Imap {
                         let (idle_wait, interrupt) = handle.wait_with_timeout(timeout);
                         *self.interrupt.lock().await = Some(interrupt);
 
-                        if *self.skip_next_idle_wait.lock().await {
+                        if self.skip_next_idle_wait.load(Ordering::Relaxed) {
                             // interrupt_idle has happened before we
                             // provided self.interrupt
-                            *self.skip_next_idle_wait.lock().await = false;
+                            self.skip_next_idle_wait.store(false, Ordering::Relaxed);
                             std::mem::drop(idle_wait);
                             info!(context, "Idle wait was skipped");
                         } else {
@@ -891,8 +890,11 @@ impl Imap {
     pub fn interrupt_idle(&self) {
         task::block_on(async move {
             if self.interrupt.lock().await.take().is_none() {
-                // idle wait is not running
-                *self.skip_next_idle_wait.lock().await = true;
+                // idle wait is not running, signal it needs to skip
+                self.skip_next_idle_wait.store(true, Ordering::Relaxed);
+
+                // meanwhile idle-wait may have produced the interrupter
+                let _ = self.interrupt.lock().await.take();
             }
         });
     }
