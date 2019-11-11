@@ -398,6 +398,7 @@ impl Imap {
 
     async fn select_folder<S: AsRef<str>>(&self, context: &Context, folder: Option<S>) -> usize {
         if self.session.lock().await.is_none() {
+            info!(context, "select_folder detects there is a shutdown ongoing");
             let mut cfg = self.config.write().await;
             cfg.selected_folder = None;
             cfg.selected_folder_needs_expunge = false;
@@ -748,13 +749,16 @@ impl Imap {
 
     pub fn idle(&self, context: &Context) {
         task::block_on(async move {
+            info!(context, "imap.idle entered");
             if !self.config.read().await.can_idle {
                 self.fake_idle(context).await;
                 return;
             }
 
+            info!(context, "setting up handle if needed");
             self.setup_handle_if_needed(context);
 
+            info!(context, "select watch folder");
             let watch_folder = self.config.read().await.watch_folder.clone();
             if self.select_folder(context, watch_folder.as_ref()).await == 0 {
                 warn!(context, "IMAP-IDLE not setup.");
@@ -763,6 +767,7 @@ impl Imap {
                 return;
             }
 
+            info!(context, "starting to enter idle loop");
             let session = self.session.lock().await.take();
             let timeout = Duration::from_secs(23 * 60);
             if let Some(session) = session {

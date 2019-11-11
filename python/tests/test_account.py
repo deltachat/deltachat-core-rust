@@ -427,15 +427,19 @@ class TestOnlineAccount:
         assert self_addr not in ev[2]
         ev = ac1._evlogger.get_matching("DC_EVENT_DELETED_BLOB_FILE")
 
-    def test_mvbox_sentbox_threads(self, acfactory):
+    def test_mvbox_sentbox_threads(self, acfactory, lp):
         ac1 = acfactory.get_online_configuring_account(mvbox=True, sentbox=True)
         ac2 = acfactory.get_online_configuring_account()
         wait_configuration_progress(ac2, 1000)
         wait_configuration_progress(ac1, 1000)
+        lp.sec("configuration completed for both accounts")
         chat = self.get_chat(ac1, ac2)
+        lp.sec("ac1: send text to chat with ac2")
         chat.send_text("message1")
+        lp.sec("ac2: wait for incoming message")
         ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
         assert ev[2] > const.DC_CHAT_ID_LAST_SPECIAL
+        lp.sec("message arrived, test ends")
 
     def test_move_works(self, acfactory):
         ac1 = acfactory.get_online_configuring_account()
