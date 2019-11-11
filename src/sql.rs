@@ -5,6 +5,7 @@ use std::time::Duration;
 use rusqlite::{Connection, OpenFlags, Statement, NO_PARAMS};
 use thread_local_object::ThreadLocal;
 
+use crate::constants::ShowEmails;
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::error::{Error, Result};
@@ -736,7 +737,7 @@ fn open(
         if dbversion < 50 {
             info!(context, "[migration] v50");
             if exists_before_update {
-                sql.set_raw_config_int(context, "show_emails", 2)?;
+                sql.set_raw_config_int(context, "show_emails", ShowEmails::All as i32)?;
             }
             dbversion = 50;
             sql.set_raw_config_int(context, "dbversion", 50)?;
