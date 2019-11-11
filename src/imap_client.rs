@@ -8,7 +8,7 @@ use async_std::net::{self, TcpStream};
 use async_std::prelude::*;
 use async_tls::client::TlsStream;
 
-use crate::login_param::CertificateChecks;
+use crate::login_param::{dc_build_tls, CertificateChecks};
 
 const DCC_IMAP_DEBUG: &str = "DCC_IMAP_DEBUG";
 
@@ -34,11 +34,10 @@ impl Client {
     pub async fn connect_secure<A: net::ToSocketAddrs, S: AsRef<str>>(
         addr: A,
         domain: S,
-        _certificate_checks: CertificateChecks,
+        certificate_checks: CertificateChecks,
     ) -> ImapResult<Self> {
         let stream = TcpStream::connect(addr).await?;
-        let tls = async_tls::TlsConnector::new();
-
+        let tls = dc_build_tls(certificate_checks);
         let tls_stream = tls.connect(domain.as_ref(), stream)?.await?;
 
         let mut client = ImapClient::new(tls_stream);
