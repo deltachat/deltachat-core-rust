@@ -348,7 +348,7 @@ fn open(
     }
 
     if !readonly {
-        let mut exists_before_update = 0;
+        let mut exists_before_update = false;
         let mut dbversion_before_update = 0;
         /* Init tables to dbversion=0 */
         if !sql.table_exists("config") {
@@ -478,7 +478,7 @@ fn open(
                 sql.set_raw_config_int(context, "dbversion", 0)?;
             }
         } else {
-            exists_before_update = 1;
+            exists_before_update = true;
             dbversion_before_update = sql
                 .get_raw_config_int(context, "dbversion")
                 .unwrap_or_default();
@@ -735,7 +735,7 @@ fn open(
         }
         if dbversion < 50 {
             info!(context, "[migration] v50");
-            if 0 != exists_before_update {
+            if exists_before_update {
                 sql.set_raw_config_int(context, "show_emails", 2)?;
             }
             dbversion = 50;
