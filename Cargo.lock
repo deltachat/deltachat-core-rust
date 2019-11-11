@@ -90,7 +90,7 @@ dependencies = [
 [[package]]
 name = "async-imap"
 version = "0.1.1"
-source = "git+https://github.com/dignifiedquire/async-imap#b826695748267897d6b067f9ce25f65df6b86d5b"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "async-attributes 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "async-std 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -114,32 +114,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "futures-core 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "pin-utils 0.1.0-alpha.4 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "async-std"
-version = "1.1.0"
-source = "git+https://github.com/async-rs/async-std#50cefce803c88f3cd321b3bc181427b2bc4b30ce"
-dependencies = [
- "async-macros 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "async-task 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "broadcaster 0.2.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "crossbeam-channel 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "crossbeam-deque 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "crossbeam-utils 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "futures-core 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "futures-io 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "futures-timer 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "kv-log-macro 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "memchr 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "mio 0.6.20 (registry+https://github.com/rust-lang/crates.io-index)",
- "mio-uds 0.6.7 (registry+https://github.com/rust-lang/crates.io-index)",
- "num_cpus 1.11.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "once_cell 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "pin-project-lite 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "pin-utils 0.1.0-alpha.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "slab 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -174,17 +148,6 @@ version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "crossbeam-utils 0.6.6 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "async-tls"
-version = "0.6.0"
-source = "git+https://github.com/async-rs/async-tls#9b6b1b9b8325e104a67f367cf160e994d1189bc7"
-dependencies = [
- "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustls 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "webpki 0.21.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "webpki-roots 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -647,9 +610,9 @@ dependencies = [
 name = "deltachat"
 version = "1.0.0-beta.7"
 dependencies = [
- "async-imap 0.1.1 (git+https://github.com/dignifiedquire/async-imap)",
- "async-std 1.1.0 (git+https://github.com/async-rs/async-std)",
- "async-tls 0.6.0 (git+https://github.com/async-rs/async-tls)",
+ "async-imap 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "async-std 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "async-tls 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "backtrace 0.3.40 (registry+https://github.com/rust-lang/crates.io-index)",
  "base64 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "bitflags 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3303,12 +3266,10 @@ dependencies = [
 "checksum arrayvec 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "cff77d8686867eceff3105329d4698d96c2391c176d5d03adc90c7389162b5b8"
 "checksum ascii_utils 0.9.3 (registry+https://github.com/rust-lang/crates.io-index)" = "71938f30533e4d95a6d17aa530939da3842c2ab6f4f84b9dae68447e4129f74a"
 "checksum async-attributes 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "efd3d156917d94862e779f356c5acae312b08fd3121e792c857d7928c8088423"
-"checksum async-imap 0.1.1 (git+https://github.com/dignifiedquire/async-imap)" = "<none>"
+"checksum async-imap 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "ead31adf9bcfa6d52605882b93458c63432f06c428edf4558f956807ad7103be"
 "checksum async-macros 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "644a5a8de80f2085a1e7e57cd1544a2a7438f6e003c0790999bd43b92a77cdb2"
-"checksum async-std 1.1.0 (git+https://github.com/async-rs/async-std)" = "<none>"
 "checksum async-std 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "56933da6903b273923d13f4746d829f66ff9b444173f6743d831e80f4da15446"
 "checksum async-task 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "de6bd58f7b9cc49032559422595c81cbfcf04db2f2133592f70af19e258a1ced"
-"checksum async-tls 0.6.0 (git+https://github.com/async-rs/async-tls)" = "<none>"
 "checksum async-tls 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)" = "6ce6977f57fa68da77ffe5542950d47e9c23d65f5bc7cb0a9f8700996913eec7"
 "checksum atty 0.2.13 (registry+https://github.com/rust-lang/crates.io-index)" = "1803c647a3ec87095e7ae7acfca019e98de5ec9a7d01343f611cf3152ed71a90"
 "checksum autocfg 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)" = "1d49d90015b3c36167a20fe2810c5cd875ad504b39cff3d4eae7977e6b7c1cb2"
