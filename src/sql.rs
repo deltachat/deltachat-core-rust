@@ -489,6 +489,7 @@ fn open(
         // this should be done before updates that use high-level objects that
         // rely themselves on the low-level structure.
         // --------------------------------------------------------------------
+
         let mut dbversion = dbversion_before_update;
         let mut recalc_fingerprints = 0;
         let mut update_file_paths = 0;
@@ -589,6 +590,8 @@ fn open(
         }
         if dbversion < 27 {
             info!(context, "[migration] v27");
+            // chat.id=1 and chat.id=2 are the old deaddrops,
+            // the current ones are defined by chats.blocked=2
             sql.execute("DELETE FROM msgs WHERE chat_id=1 OR chat_id=2;", params![])?;
             sql.execute(
                 "CREATE INDEX chats_contacts_index2 ON chats_contacts (contact_id);",
@@ -654,6 +657,9 @@ fn open(
                 params![],
             )?;
             if dbversion_before_update == 34 {
+                // migrate database from the use of verified-flags to verified_key,
+                // _only_ version 34 (0.17.0) has the fields public_key_verified and gossip_key_verified
+                // this block can be deleted in half a year or so (created 5/2018)
                 sql.execute(
                     "UPDATE acpeerstates SET verified_key=gossip_key, verified_key_fingerprint=gossip_key_fingerprint WHERE gossip_key_verified=2;",
                     params![]
@@ -683,6 +689,8 @@ fn open(
         }
         if dbversion < 42 {
             info!(context, "[migration] v42");
+            // older versions set the txt-field to the filenames, for debugging and fulltext search.
+            // to allow text+attachment compound messages, we need to reset these fields.
             sql.execute("UPDATE msgs SET txt='' WHERE type!=10", params![])?;
             dbversion = 42;
             sql.set_raw_config_int(context, "dbversion", 42)?;
@@ -736,6 +744,9 @@ fn open(
         }
         if dbversion < 50 {
             info!(context, "[migration] v50");
+            // installations <= 0.100.1 used DC_SHOW_EMAILS_ALL implicitly;
+            // keep this default and use DC_SHOW_EMAILS_NO
+            // only for new installations
             if exists_before_update {
                 sql.set_raw_config_int(context, "show_emails", ShowEmails::All as i32)?;
             }
@@ -744,6 +755,8 @@ fn open(
         }
         if dbversion < 53 {
             info!(context, "[migration] v53");
+            // the messages containing _only_ locations
+            // are also added to the database as _hidden_.
             sql.execute(
                 "CREATE TABLE locations ( id INTEGER PRIMARY KEY AUTOINCREMENT, latitude REAL DEFAULT 0.0, longitude REAL DEFAULT 0.0, accuracy REAL DEFAULT 0.0, timestamp INTEGER DEFAULT 0, chat_id INTEGER DEFAULT 0, from_id INTEGER DEFAULT 0);",
                 params![]
@@ -794,6 +807,10 @@ fn open(
 
             sql.set_raw_config_int(context, "dbversion", 55)?;
         }
+
+        // (2) updates that require high-level objects
+        // (the structure is complete now and all objects are usable)
+        // --------------------------------------------------------------------
 
         if 0 != recalc_fingerprints {
             info!(context, "[migration] recalc fingerprints");
