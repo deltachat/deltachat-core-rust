@@ -49,13 +49,15 @@ fn main() {
     let ctx1 = ctx.clone();
     let r1 = running.clone();
     let t1 = thread::spawn(move || {
+        let mut inbox = ctx1.create_inbox();
+
         while *r1.read().unwrap() {
-            perform_imap_jobs(&ctx1);
+            perform_imap_jobs(&ctx1, &mut inbox);
             if *r1.read().unwrap() {
-                perform_imap_fetch(&ctx1);
+                perform_imap_fetch(&ctx1, &mut inbox);
 
                 if *r1.read().unwrap() {
-                    perform_imap_idle(&ctx1);
+                    perform_imap_idle(&ctx1, &mut inbox);
                 }
             }
         }
@@ -113,7 +115,7 @@ fn main() {
     println!("stopping threads");
 
     *running.clone().write().unwrap() = false;
-    deltachat::job::interrupt_imap_idle(&ctx);
+    // not needed anymore I believe. deltachat::job::interrupt_imap_idle(&ctx);
     deltachat::job::interrupt_smtp_idle(&ctx);
 
     println!("joining");

@@ -46,7 +46,7 @@ pub fn dc_is_configured(context: &Context) -> bool {
  ******************************************************************************/
 // the other dc_job_do_DC_JOB_*() functions are declared static in the c-file
 #[allow(non_snake_case, unused_must_use)]
-pub fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
+pub fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, inbox: &mut Imap) {
     if !context.sql.is_open() {
         error!(context, "Cannot configure, database not opened.",);
         progress!(context, 0);
@@ -62,19 +62,9 @@ pub fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
 
     let mut param_autoconfig: Option<LoginParam> = None;
 
-    context.inbox.read().unwrap().disconnect(context);
-    context
-        .sentbox_thread
-        .read()
-        .unwrap()
-        .imap
-        .disconnect(context);
-    context
-        .mvbox_thread
-        .read()
-        .unwrap()
-        .imap
-        .disconnect(context);
+    inbox.disconnect();
+    context.sentbox_thread.write().unwrap().imap.disconnect();
+    context.mvbox_thread.write().unwrap().imap.disconnect();
     context.smtp.clone().lock().unwrap().disconnect();
     info!(context, "Configure ...",);
 
@@ -337,7 +327,7 @@ pub fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
                 /* try to connect to IMAP - if we did not got an autoconfig,
                 do some further tries with different settings and username variations */
                 imap_connected_here =
-                    try_imap_connections(context, &mut param, param_autoconfig.is_some());
+                    try_imap_connections(context, &mut param, param_autoconfig.is_some(), inbox);
                 imap_connected_here
             }
             15 => {
@@ -355,11 +345,7 @@ pub fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
                 } else {
                     0
                 };
-                context
-                    .inbox
-                    .read()
-                    .unwrap()
-                    .configure_folders(context, flags);
+                inbox.configure_folders(context, flags);
                 true
             }
             17 => {
@@ -398,7 +384,7 @@ pub fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
         }
     }
     if imap_connected_here {
-        context.inbox.read().unwrap().disconnect(context);
+        inbox.disconnect();
     }
     if smtp_connected_here {
         context.smtp.clone().lock().unwrap().disconnect();
@@ -439,9 +425,10 @@ fn try_imap_connections(
     context: &Context,
     mut param: &mut LoginParam,
     was_autoconfig: bool,
+    inbox: &mut Imap,
 ) -> bool {
     // progress 650 and 660
-    if let Some(res) = try_imap_connection(context, &mut param, was_autoconfig, 0) {
+    if let Some(res) = try_imap_connection(context, &mut param, was_autoconfig, 0, inbox) {
         return res;
     }
     progress!(context, 670);
@@ -456,7 +443,7 @@ fn try_imap_connections(
         param.send_user = param.send_user.split_at(at).0.to_string();
     }
     // progress 680 and 690
-    if let Some(res) = try_imap_connection(context, &mut param, was_autoconfig, 1) {
+    if let Some(res) = try_imap_connection(context, &mut param, was_autoconfig, 1, inbox) {
         res
     } else {
         false
@@ -468,8 +455,9 @@ fn try_imap_connection(
     param: &mut LoginParam,
     was_autoconfig: bool,
     variation: usize,
+    inbox: &mut Imap,
 ) -> Option<bool> {
-    if let Some(res) = try_imap_one_param(context, &param) {
+    if let Some(res) = try_imap_one_param(context, &param, inbox) {
         return Some(res);
     }
     if was_autoconfig {
@@ -478,23 +466,23 @@ fn try_imap_connection(
     progress!(context, 650 + variation * 30);
     param.server_flags &= !(DC_LP_IMAP_SOCKET_FLAGS);
     param.server_flags |= DC_LP_IMAP_SOCKET_STARTTLS;
-    if let Some(res) = try_imap_one_param(context, &param) {
+    if let Some(res) = try_imap_one_param(context, &param, inbox) {
         return Some(res);
     }
 
     progress!(context, 660 + variation * 30);
     param.mail_port = 143;
 
-    try_imap_one_param(context, &param)
+    try_imap_one_param(context, &param, inbox)
 }
 
-fn try_imap_one_param(context: &Context, param: &LoginParam) -> Option<bool> {
+fn try_imap_one_param(context: &Context, param: &LoginParam, inbox: &mut Imap) -> Option<bool> {
     let inf = format!(
         "imap: {}@{}:{} flags=0x{:x}",
         param.mail_user, param.mail_server, param.mail_port, param.server_flags
     );
     info!(context, "Trying: {}", inf);
-    if context.inbox.read().unwrap().connect(context, &param) {
+    if inbox.connect(context, &param) {
         info!(context, "success: {}", inf);
         return Some(true);
     }
@@ -566,23 +554,25 @@ fn try_smtp_one_param(context: &Context, param: &LoginParam) -> Option<bool> {
 /*******************************************************************************
  * Connect to configured account
  ******************************************************************************/
-pub fn dc_connect_to_configured_imap(context: &Context, imap: &Imap) -> libc::c_int {
-    let mut ret_connected = 0;
+pub fn dc_connect_to_configured_imap(context: &Context, imap: &mut Imap) -> libc::c_int {
+    async_std::task::block_on(async move {
+        let mut ret_connected = 0;
 
-    if async_std::task::block_on(async move { imap.is_connected().await }) {
-        ret_connected = 1
-    } else if !context.sql.get_raw_config_bool(context, "configured") {
-        warn!(context, "Not configured, cannot connect.",);
-    } else {
-        let param = LoginParam::from_database(context, "configured_");
-        // the trailing underscore is correct
+        if imap.is_connected().await {
+            ret_connected = 1
+        } else if !context.sql.get_raw_config_bool(context, "configured") {
+            warn!(context, "Not configured, cannot connect.",);
+        } else {
+            let param = LoginParam::from_database(context, "configured_");
+            // the trailing underscore is correct
 
-        if imap.connect(context, &param) {
-            ret_connected = 2;
+            if imap.connect(context, &param) {
+                ret_connected = 2;
+            }
         }
-    }
 
-    ret_connected
+        ret_connected
+    })
 }
 
 /*******************************************************************************
@@ -620,6 +610,8 @@ mod tests {
             .set_config(Config::Addr, Some("probably@unexistant.addr"))
             .unwrap();
         t.ctx.set_config(Config::MailPw, Some("123456")).unwrap();
-        dc_job_do_DC_JOB_CONFIGURE_IMAP(&t.ctx);
+
+        let mut inbox = t.ctx.create_inbox();
+        dc_job_do_DC_JOB_CONFIGURE_IMAP(&t.ctx, &mut inbox);
     }
 }

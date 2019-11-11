@@ -218,9 +218,7 @@ impl Job {
     }
 
     #[allow(non_snake_case)]
-    fn do_DC_JOB_MOVE_MSG(&mut self, context: &Context) {
-        let inbox = context.inbox.read().unwrap();
-
+    fn do_DC_JOB_MOVE_MSG(&mut self, context: &Context, inbox: &mut Imap) {
         if let Ok(msg) = Message::load_from_db(context, MsgId::new(self.foreign_id)) {
             if context
                 .sql
@@ -263,9 +261,7 @@ impl Job {
     }
 
     #[allow(non_snake_case)]
-    fn do_DC_JOB_DELETE_MSG_ON_IMAP(&mut self, context: &Context) {
-        let inbox = context.inbox.read().unwrap();
-
+    fn do_DC_JOB_DELETE_MSG_ON_IMAP(&mut self, context: &Context, inbox: &mut Imap) {
         if let Ok(mut msg) = Message::load_from_db(context, MsgId::new(self.foreign_id)) {
             if !msg.rfc724_mid.is_empty() {
                 /* eg. device messages have no Message-ID */
@@ -291,8 +287,7 @@ impl Job {
     }
 
     #[allow(non_snake_case)]
-    fn do_DC_JOB_EMPTY_SERVER(&mut self, context: &Context) {
-        let inbox = context.inbox.read().unwrap();
+    fn do_DC_JOB_EMPTY_SERVER(&mut self, context: &Context, inbox: &mut Imap) {
         if self.foreign_id & DC_EMPTY_MVBOX > 0 {
             if let Some(mvbox_folder) = context
                 .sql
@@ -307,9 +302,7 @@ impl Job {
     }
 
     #[allow(non_snake_case)]
-    fn do_DC_JOB_MARKSEEN_MSG_ON_IMAP(&mut self, context: &Context) {
-        let inbox = context.inbox.read().unwrap();
-
+    fn do_DC_JOB_MARKSEEN_MSG_ON_IMAP(&mut self, context: &Context, inbox: &mut Imap) {
         if let Ok(msg) = Message::load_from_db(context, MsgId::new(self.foreign_id)) {
             let folder = msg.server_folder.as_ref().unwrap();
             match inbox.set_seen(context, folder, msg.server_uid) {
@@ -335,14 +328,13 @@ impl Job {
     }
 
     #[allow(non_snake_case)]
-    fn do_DC_JOB_MARKSEEN_MDN_ON_IMAP(&mut self, context: &Context) {
+    fn do_DC_JOB_MARKSEEN_MDN_ON_IMAP(&mut self, context: &Context, inbox: &mut Imap) {
         let folder = self
             .param
             .get(Param::ServerFolder)
             .unwrap_or_default()
             .to_string();
         let uid = self.param.get_int(Param::ServerUid).unwrap_or_default() as u32;
-        let inbox = context.inbox.read().unwrap();
         if inbox.set_seen(context, &folder, uid) == ImapActionResult::RetryLater {
             self.try_again_later(3i32, None);
             return;
@@ -382,11 +374,10 @@ pub fn job_kill_action(context: &Context, action: Action) -> bool {
     .is_ok()
 }
 
-pub fn perform_imap_fetch(context: &Context) {
-    let inbox = context.inbox.read().unwrap();
+pub fn perform_imap_fetch(context: &Context, inbox: &mut Imap) {
     let start = std::time::Instant::now();
 
-    if 0 == connect_to_inbox(context, &inbox) {
+    if 0 == connect_to_inbox(context, inbox) {
         return;
     }
     if !context.get_config_bool(Config::InboxWatch) {
@@ -406,10 +397,8 @@ pub fn perform_imap_fetch(context: &Context) {
     );
 }
 
-pub fn perform_imap_idle(context: &Context) {
-    let inbox = context.inbox.read().unwrap();
-
-    connect_to_inbox(context, &inbox);
+pub fn perform_imap_idle(context: &Context, inbox: &mut Imap) {
+    connect_to_inbox(context, inbox);
 
     if *context.perform_inbox_jobs_needed.clone().read().unwrap() {
         info!(
@@ -438,13 +427,17 @@ pub fn perform_mvbox_idle(context: &Context) {
 
     context
         .mvbox_thread
-        .read()
+        .write()
         .unwrap()
         .idle(context, use_network);
 }
 
 pub fn interrupt_mvbox_idle(context: &Context) {
-    context.mvbox_thread.read().unwrap().interrupt_idle(context);
+    context
+        .mvbox_thread
+        .write()
+        .unwrap()
+        .interrupt_idle(context);
 }
 
 pub fn perform_sentbox_fetch(context: &Context) {
@@ -462,7 +455,7 @@ pub fn perform_sentbox_idle(context: &Context) {
 
     context
         .sentbox_thread
-        .read()
+        .write()
         .unwrap()
         .idle(context, use_network);
 }
@@ -470,7 +463,7 @@ pub fn perform_sentbox_idle(context: &Context) {
 pub fn interrupt_sentbox_idle(context: &Context) {
     context
         .sentbox_thread
-        .read()
+        .write()
         .unwrap()
         .interrupt_idle(context);
 }
@@ -493,7 +486,7 @@ pub fn perform_smtp_jobs(context: &Context) {
     };
 
     info!(context, "SMTP-jobs started...",);
-    job_perform(context, Thread::Smtp, probe_smtp_network);
+    job_perform(context, Thread::Smtp, probe_smtp_network, None);
     info!(context, "SMTP-jobs ended.");
 
     {
@@ -557,7 +550,7 @@ fn get_next_wakeup_time(context: &Context, thread: Thread) -> Duration {
     wakeup_time
 }
 
-pub fn maybe_network(context: &Context) {
+pub fn maybe_network(context: &Context, inbox: &mut Imap) {
     {
         let &(ref lock, _) = &*context.smtp_state.clone();
         let mut state = lock.lock().unwrap();
@@ -567,7 +560,7 @@ pub fn maybe_network(context: &Context) {
     }
 
     interrupt_smtp_idle(context);
-    interrupt_imap_idle(context);
+    interrupt_imap_idle(context, inbox);
     interrupt_mvbox_idle(context);
     interrupt_sentbox_idle(context);
 }
@@ -681,14 +674,14 @@ pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn perform_imap_jobs(context: &Context) {
+pub fn perform_imap_jobs(context: &Context, inbox: &mut Imap) {
     info!(context, "dc_perform_imap_jobs starting.",);
 
     let probe_imap_network = *context.probe_imap_network.clone().read().unwrap();
     *context.probe_imap_network.write().unwrap() = false;
     *context.perform_inbox_jobs_needed.write().unwrap() = false;
 
-    job_perform(context, Thread::Imap, probe_imap_network);
+    job_perform(context, Thread::Imap, probe_imap_network, Some(inbox));
     info!(context, "dc_perform_imap_jobs ended.",);
 }
 
@@ -700,7 +693,12 @@ pub fn perform_sentbox_jobs(context: &Context) {
     info!(context, "dc_perform_sentbox_jobs EMPTY (for now).",);
 }
 
-fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
+fn job_perform(
+    context: &Context,
+    thread: Thread,
+    probe_network: bool,
+    mut inbox: Option<&mut Imap>,
+) {
     let query = if !probe_network {
         // processing for first-try and after backoff-timeouts:
         // process jobs in the order they were added.
@@ -768,18 +766,8 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
         // - they can be re-executed one time AT_ONCE, but they are not save in the database for later execution
         if Action::ConfigureImap == job.action || Action::ImexImap == job.action {
             job_kill_action(context, job.action);
-            context
-                .sentbox_thread
-                .clone()
-                .read()
-                .unwrap()
-                .suspend(context);
-            context
-                .mvbox_thread
-                .clone()
-                .read()
-                .unwrap()
-                .suspend(context);
+            context.sentbox_thread.write().unwrap().suspend(context);
+            context.mvbox_thread.write().unwrap().suspend(context);
             suspend_smtp_thread(context, true);
         }
 
@@ -793,13 +781,21 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                     warn!(context, "Unknown job id found");
                 }
                 Action::SendMsgToSmtp => job.do_DC_JOB_SEND(context),
-                Action::EmptyServer => job.do_DC_JOB_EMPTY_SERVER(context),
-                Action::DeleteMsgOnImap => job.do_DC_JOB_DELETE_MSG_ON_IMAP(context),
-                Action::MarkseenMsgOnImap => job.do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context),
-                Action::MarkseenMdnOnImap => job.do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context),
-                Action::MoveMsg => job.do_DC_JOB_MOVE_MSG(context),
+                Action::EmptyServer => job.do_DC_JOB_EMPTY_SERVER(context, inbox.as_mut().unwrap()),
+                Action::DeleteMsgOnImap => {
+                    job.do_DC_JOB_DELETE_MSG_ON_IMAP(context, inbox.as_mut().unwrap())
+                }
+                Action::MarkseenMsgOnImap => {
+                    job.do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context, inbox.as_mut().unwrap())
+                }
+                Action::MarkseenMdnOnImap => {
+                    job.do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context, inbox.as_mut().unwrap())
+                }
+                Action::MoveMsg => job.do_DC_JOB_MOVE_MSG(context, inbox.as_mut().unwrap()),
                 Action::SendMdn => job.do_DC_JOB_SEND(context),
-                Action::ConfigureImap => dc_job_do_DC_JOB_CONFIGURE_IMAP(context),
+                Action::ConfigureImap => {
+                    dc_job_do_DC_JOB_CONFIGURE_IMAP(context, inbox.as_mut().unwrap())
+                }
                 Action::ImexImap => match job_do_DC_JOB_IMEX_IMAP(context, &job) {
                     Ok(()) => {}
                     Err(err) => {
@@ -926,7 +922,7 @@ fn suspend_smtp_thread(context: &Context, suspend: bool) {
     }
 }
 
-pub fn connect_to_inbox(context: &Context, inbox: &Imap) -> libc::c_int {
+pub fn connect_to_inbox(context: &Context, inbox: &mut Imap) -> libc::c_int {
     let ret_connected = dc_connect_to_configured_imap(context, inbox);
     if 0 != ret_connected {
         inbox.set_watch_folder("INBOX".into());
@@ -1004,7 +1000,7 @@ pub fn job_add(
     ).ok();
 
     match thread {
-        Thread::Imap => interrupt_imap_idle(context),
+        Thread::Imap => {} //FIXME interrupt_imap_idle(context),
         Thread::Smtp => interrupt_smtp_idle(context),
         Thread::Unknown => {}
     }
@@ -1021,10 +1017,9 @@ pub fn interrupt_smtp_idle(context: &Context) {
     cvar.notify_one();
 }
 
-pub fn interrupt_imap_idle(context: &Context) {
+pub fn interrupt_imap_idle(context: &Context, inbox: &mut Imap) {
     info!(context, "Interrupting INBOX-IDLE...",);
 
     *context.perform_inbox_jobs_needed.write().unwrap() = true;
-
-    context.inbox.read().unwrap().interrupt_idle();
+    inbox.interrupt_idle();
 }

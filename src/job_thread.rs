@@ -30,7 +30,7 @@ impl JobThread {
         }
     }
 
-    pub fn suspend(&self, context: &Context) {
+    pub fn suspend(&mut self, context: &Context) {
         info!(context, "Suspending {}-thread.", self.name,);
         {
             self.state.0.lock().unwrap().suspended = true;
@@ -56,7 +56,7 @@ impl JobThread {
         cvar.notify_one();
     }
 
-    pub fn interrupt_idle(&self, context: &Context) {
+    pub fn interrupt_idle(&mut self, context: &Context) {
         {
             self.state.0.lock().unwrap().jobs_needed = true;
         }
@@ -106,35 +106,39 @@ impl JobThread {
         self.state.0.lock().unwrap().using_handle = false;
     }
 
-    fn connect_to_imap(&self, context: &Context) -> bool {
-        if async_std::task::block_on(async move { self.imap.is_connected().await }) {
-            return true;
-        }
-
-        let mut ret_connected = dc_connect_to_configured_imap(context, &self.imap) != 0;
-
-        if ret_connected {
-            if context
-                .sql
-                .get_raw_config_int(context, "folders_configured")
-                .unwrap_or_default()
-                < 3
-            {
-                self.imap.configure_folders(context, 0x1);
+    fn connect_to_imap(&mut self, context: &Context) -> bool {
+        async_std::task::block_on(async move {
+            if self.imap.is_connected().await {
+                return true;
             }
 
-            if let Some(mvbox_name) = context.sql.get_raw_config(context, self.folder_config_name) {
-                self.imap.set_watch_folder(mvbox_name);
-            } else {
-                self.imap.disconnect(context);
-                ret_connected = false;
-            }
-        }
+            let mut ret_connected = dc_connect_to_configured_imap(context, &mut self.imap) != 0;
 
-        ret_connected
+            if ret_connected {
+                if context
+                    .sql
+                    .get_raw_config_int(context, "folders_configured")
+                    .unwrap_or_default()
+                    < 3
+                {
+                    self.imap.configure_folders(context, 0x1);
+                }
+
+                if let Some(mvbox_name) =
+                    context.sql.get_raw_config(context, self.folder_config_name)
+                {
+                    self.imap.set_watch_folder(mvbox_name);
+                } else {
+                    self.imap.disconnect();
+                    ret_connected = false;
+                }
+            }
+
+            ret_connected
+        })
     }
 
-    pub fn idle(&self, context: &Context, use_network: bool) {
+    pub fn idle(&mut self, context: &Context, use_network: bool) {
         {
             let &(ref lock, ref cvar) = &*self.state.clone();
             let mut state = lock.lock().unwrap();

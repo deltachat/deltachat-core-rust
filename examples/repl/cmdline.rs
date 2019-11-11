@@ -496,10 +496,12 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             println!("{:#?}", context.get_info());
         }
         "interrupt" => {
-            interrupt_imap_idle(context);
+            // interrupt_imap_idle(context);
+            unimplemented!()
         }
         "maybenetwork" => {
-            maybe_network(context);
+            // maybe_network(context);
+            unimplemented!()
         }
         "housekeeping" => {
             sql::housekeeping(context);
