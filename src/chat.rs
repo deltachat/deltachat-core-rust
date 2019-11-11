@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use itertools::Itertools;
+use num_traits::FromPrimitive;
 
 use crate::blob::{BlobErrorKind, BlobObject};
 use crate::chatlist::*;
@@ -1012,7 +1013,8 @@ pub fn get_chat_msgs(
         Ok(ret)
     };
     let success = if chat_id == DC_CHAT_ID_DEADDROP {
-        let show_emails = context.get_config_int(Config::ShowEmails);
+        let show_emails =
+            ShowEmails::from_i32(context.get_config_int(Config::ShowEmails)).unwrap_or_default();
         context.sql.query_map(
             concat!(
                 "SELECT m.id AS id, m.timestamp AS timestamp",
@@ -1029,7 +1031,7 @@ pub fn get_chat_msgs(
                 "   AND m.msgrmsg>=?",
                 " ORDER BY m.timestamp,m.id;"
             ),
-            params![if show_emails == 2 { 0 } else { 1 }],
+            params![if show_emails == ShowEmails::All { 0 } else { 1 }],
             process_row,
             process_rows,
         )
