@@ -31,7 +31,7 @@ pub enum Config {
     Displayname,
     Selfstatus,
     Selfavatar,
-    #[strum(props(default = "1"))]
+    #[strum(props(default = "0"))]
     BccSelf,
     #[strum(props(default = "1"))]
     E2eeEnabled,

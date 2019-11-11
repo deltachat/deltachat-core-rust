@@ -804,8 +804,14 @@ fn open(
                 "ALTER TABLE locations ADD COLUMN independent INTEGER DEFAULT 0;",
                 params![],
             )?;
-
             sql.set_raw_config_int(context, "dbversion", 55)?;
+        }
+        if dbversion < 56 {
+            info!(context, "[migration] v56");
+            if exists_before_update && sql.get_raw_config_int(context, "bcc_self").is_none() {
+                sql.set_raw_config_int(context, "bcc_self", 1)?;
+            }
+            sql.set_raw_config_int(context, "dbversion", 56)?;
         }
 
         // (2) updates that require high-level objects
