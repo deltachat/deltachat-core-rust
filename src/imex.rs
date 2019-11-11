@@ -155,6 +155,11 @@ fn do_initiate_key_transfer(context: &Context) -> Result<String> {
             }
         }
     }
+    // no maybe_add_bcc_self_device_msg() here.
+    // the ui shows the dialog with the setup code on this device,
+    // it would be too much noise to have two things popping up at the same time.
+    // maybe_add_bcc_self_device_msg() is called on the other device
+    // once the transfer is completed.
     Ok(setup_code)
 }
 
@@ -230,6 +235,21 @@ pub fn create_setup_code(_context: &Context) -> String {
     ret
 }
 
+fn maybe_add_bcc_self_device_msg(context: &Context) -> Result<()> {
+    if !context.sql.get_raw_config_bool(context, "bcc_self") {
+        let mut msg = Message::new(Viewtype::Text);
+        // TODO: define this as a stockstring once the wording is settled.
+        msg.text = Some(
+            "It seems you are using multiple devices with Delta Chat. Great!\n\n\
+             If you also want to synchronize outgoing messages accross all devices, \
+             go to the settings and enable \"Send copy to self\"."
+                .to_string(),
+        );
+        chat::add_device_msg(context, &mut msg)?;
+    }
+    Ok(())
+}
+
 pub fn continue_key_transfer(context: &Context, msg_id: MsgId, setup_code: &str) -> Result<()> {
     ensure!(!msg_id.is_special(), "wrong id");
 
@@ -244,6 +264,7 @@ pub fn continue_key_transfer(context: &Context, msg_id: MsgId, setup_code: &str)
         let sc = normalize_setup_code(setup_code);
         let armored_key = decrypt_setup_file(context, &sc, file)?;
         set_self_key(context, &armored_key, true, true)?;
+        maybe_add_bcc_self_device_msg(context)?;
 
         Ok(())
     } else {
