@@ -45,7 +45,7 @@ pub struct Imap {
     session: Arc<Mutex<Option<Session>>>,
     connected: Arc<Mutex<bool>>,
     interrupt: Arc<Mutex<Option<stop_token::StopSource>>>,
-
+    skip_next_idle_wait: AtomicBool,
     should_reconnect: AtomicBool,
 }
 
@@ -119,6 +119,7 @@ impl Imap {
             config: Arc::new(RwLock::new(ImapConfig::default())),
             interrupt: Arc::new(Mutex::new(None)),
             connected: Arc::new(Mutex::new(false)),
+            skip_next_idle_wait: AtomicBool::new(false),
             should_reconnect: AtomicBool::new(false),
         }
     }
@@ -496,24 +497,16 @@ impl Imap {
     }
 
     async fn fetch_from_single_folder<S: AsRef<str>>(&self, context: &Context, folder: S) -> usize {
-        if !self.is_connected().await {
-            info!(
-                context,
-                "Cannot fetch from \"{}\" - not connected.",
-                folder.as_ref()
-            );
-
-            return 0;
-        }
-
-        let res = self.select_folder(context, Some(&folder)).await;
-        if res == ImapActionResult::Failed || res == ImapActionResult::RetryLater {
-            info!(
-                context,
-                "Cannot select folder \"{}\" for fetching.",
-                folder.as_ref()
-            );
-            return 0;
+        match self.select_folder(context, Some(&folder)).await {
+            ImapActionResult::Failed | ImapActionResult::RetryLater => {
+                warn!(
+                    context,
+                    "Cannot select folder \"{}\" for fetching.",
+                    folder.as_ref()
+                );
+                return 0;
+            }
+            ImapActionResult::Success | ImapActionResult::AlreadyDone => {}
         }
 
         // compare last seen UIDVALIDITY against the current one
@@ -789,8 +782,17 @@ impl Imap {
                         let (idle_wait, interrupt) = handle.wait_with_timeout(timeout);
                         *self.interrupt.lock().await = Some(interrupt);
 
-                        let res = idle_wait.await;
-                        info!(context, "Idle finished: {:?}", res);
+                        if self.skip_next_idle_wait.load(Ordering::Relaxed) {
+                            // interrupt_idle has happened before we
+                            // provided self.interrupt
+                            self.skip_next_idle_wait.store(false, Ordering::Relaxed);
+                            std::mem::drop(idle_wait);
+                            info!(context, "Idle wait was skipped");
+                        } else {
+                            info!(context, "Idle entering wait-on-remote state");
+                            let res = idle_wait.await;
+                            info!(context, "Idle finished wait-on-remote: {:?}", res);
+                        }
                         match handle.done().await {
                             Ok(session) => {
                                 *self.session.lock().await = Some(Session::Secure(session));
@@ -808,8 +810,18 @@ impl Imap {
                         let (idle_wait, interrupt) = handle.wait_with_timeout(timeout);
                         *self.interrupt.lock().await = Some(interrupt);
 
-                        let res = idle_wait.await;
-                        info!(context, "Idle finished: {:?}", res);
+                        if self.skip_next_idle_wait.load(Ordering::Relaxed) {
+                            // interrupt_idle has happened before we
+                            // provided self.interrupt
+                            self.skip_next_idle_wait.store(false, Ordering::Relaxed);
+                            std::mem::drop(idle_wait);
+                            info!(context, "Idle wait was skipped");
+                        } else {
+                            info!(context, "Idle entering wait-on-remote state");
+                            let res = idle_wait.await;
+                            info!(context, "Idle finished wait-on-remote: {:?}", res);
+                        }
+
                         match handle.done().await {
                             Ok(session) => {
                                 *self.session.lock().await = Some(Session::Insecure(session));
@@ -877,7 +889,13 @@ impl Imap {
 
     pub fn interrupt_idle(&self) {
         task::block_on(async move {
-            let _ = self.interrupt.lock().await.take();
+            if self.interrupt.lock().await.take().is_none() {
+                // idle wait is not running, signal it needs to skip
+                self.skip_next_idle_wait.store(true, Ordering::Relaxed);
+
+                // meanwhile idle-wait may have produced the interrupter
+                let _ = self.interrupt.lock().await.take();
+            }
         });
     }
 
@@ -1241,7 +1259,7 @@ impl Imap {
         task::block_on(async move {
             info!(context, "emptying folder {}", folder);
 
-            if !folder.is_empty() {
+            if folder.is_empty() {
                 warn!(context, "cannot perform empty, folder not set");
                 return;
             }
