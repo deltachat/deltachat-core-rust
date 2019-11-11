@@ -53,6 +53,7 @@ sanitize-filename = "0.2.1"
 stop-token = { version = "0.1.1", features = ["unstable"] }
 rustls = "0.16.0"
 webpki-roots = "0.18.0"
+webpki = "0.21.0"
 
 [dev-dependencies]
 tempfile = "3.0"
