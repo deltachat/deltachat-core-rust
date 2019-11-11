@@ -6,9 +6,10 @@ use async_imap::{
 };
 use async_std::net::{self, TcpStream};
 use async_std::prelude::*;
+use async_std::sync::Arc;
 use async_tls::client::TlsStream;
 
-use crate::login_param::{dc_build_tls, CertificateChecks};
+use crate::login_param::{dc_build_tls_config, CertificateChecks};
 
 const DCC_IMAP_DEBUG: &str = "DCC_IMAP_DEBUG";
 
@@ -37,9 +38,9 @@ impl Client {
         certificate_checks: CertificateChecks,
     ) -> ImapResult<Self> {
         let stream = TcpStream::connect(addr).await?;
-        let tls = dc_build_tls(certificate_checks);
-        let tls_stream = tls.connect(domain.as_ref(), stream)?.await?;
-
+        let tls_config = dc_build_tls_config(certificate_checks);
+        let tls_connector: async_tls::TlsConnector = Arc::new(tls_config).into();
+        let tls_stream = tls_connector.connect(domain.as_ref(), stream)?.await?;
         let mut client = ImapClient::new(tls_stream);
         if std::env::var(DCC_IMAP_DEBUG).is_ok() {
             client.debug = true;
