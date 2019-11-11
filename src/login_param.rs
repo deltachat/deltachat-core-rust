@@ -4,7 +4,6 @@ use std::fmt;
 use crate::context::Context;
 use crate::error::Error;
 use async_std::sync::Arc;
-use async_tls;
 use rustls;
 use webpki;
 
@@ -269,7 +268,7 @@ impl rustls::ServerCertVerifier for NoCertificateVerification {
     }
 }
 
-pub fn dc_build_tls(certificate_checks: CertificateChecks) -> async_tls::TlsConnector {
+pub fn dc_build_tls_config(certificate_checks: CertificateChecks) -> rustls::ClientConfig {
     let mut config = rustls::ClientConfig::new();
     match certificate_checks {
         CertificateChecks::Strict => {}
@@ -293,7 +292,7 @@ pub fn dc_build_tls(certificate_checks: CertificateChecks) -> async_tls::TlsConn
                 .set_certificate_verifier(Arc::new(NoCertificateVerification {}));
         }
     }
-    Arc::new(config).into()
+    config
 }
 
 #[cfg(test)]
