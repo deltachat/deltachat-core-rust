@@ -130,12 +130,10 @@ impl Context {
             sentbox_thread: Arc::new(RwLock::new(JobThread::new(
                 "SENTBOX",
                 "configured_sentbox_folder",
-                Imap::new(),
             ))),
             mvbox_thread: Arc::new(RwLock::new(JobThread::new(
                 "MVBOX",
                 "configured_mvbox_folder",
-                Imap::new(),
             ))),
             probe_imap_network: Arc::new(RwLock::new(false)),
             perform_inbox_jobs_needed: Arc::new(RwLock::new(false)),
@@ -152,6 +150,14 @@ impl Context {
     }
 
     pub fn create_inbox(&self) -> Imap {
+        Imap::new()
+    }
+
+    pub fn create_mvbox(&self) -> Imap {
+        Imap::new()
+    }
+
+    pub fn create_sentbox(&self) -> Imap {
         Imap::new()
     }
 

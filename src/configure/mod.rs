@@ -62,9 +62,11 @@ pub fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, inbox: &mut Imap) {
 
     let mut param_autoconfig: Option<LoginParam> = None;
 
-    inbox.disconnect();
-    context.sentbox_thread.write().unwrap().imap.disconnect();
-    context.mvbox_thread.write().unwrap().imap.disconnect();
+    // TODO: these need to be disconnected manually now, before starting configure
+    // inbox.disconnect();
+    // context.sentbox_thread.write().unwrap().imap.disconnect();
+    // context.mvbox_thread.write().unwrap().imap.disconnect();
+
     context.smtp.clone().lock().unwrap().disconnect();
     info!(context, "Configure ...",);
 

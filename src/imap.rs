@@ -369,6 +369,8 @@ impl Imap {
 
     pub fn disconnect(&mut self) {
         task::block_on(async move {
+            self.interrupt.take();
+
             if self.is_connected().await {
                 self.unsetup_handle(None).await;
                 self.free_connect_params().await;

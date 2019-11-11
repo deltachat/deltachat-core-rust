@@ -39,7 +39,7 @@ pub mod constants;
 pub mod contact;
 pub mod context;
 mod e2ee;
-mod imap;
+pub mod imap;
 mod imap_client;
 pub mod imex;
 pub mod job;

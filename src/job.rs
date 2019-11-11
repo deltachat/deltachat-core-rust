@@ -412,60 +412,60 @@ pub fn perform_imap_idle(context: &Context, inbox: &mut Imap) {
     info!(context, "INBOX-IDLE ended.");
 }
 
-pub fn perform_mvbox_fetch(context: &Context) {
+pub fn perform_mvbox_fetch(context: &Context, imap: &mut Imap) {
     let use_network = context.get_config_bool(Config::MvboxWatch);
 
     context
         .mvbox_thread
-        .write()
+        .read()
         .unwrap()
-        .fetch(context, use_network);
+        .fetch(context, use_network, imap);
 }
 
-pub fn perform_mvbox_idle(context: &Context) {
+pub fn perform_mvbox_idle(context: &Context, imap: &mut Imap) {
     let use_network = context.get_config_bool(Config::MvboxWatch);
 
     context
         .mvbox_thread
-        .write()
+        .read()
         .unwrap()
-        .idle(context, use_network);
+        .idle(context, use_network, imap);
 }
 
-pub fn interrupt_mvbox_idle(context: &Context) {
+pub fn interrupt_mvbox_idle(context: &Context, imap: &mut Imap) {
     context
         .mvbox_thread
-        .write()
+        .read()
         .unwrap()
-        .interrupt_idle(context);
+        .interrupt_idle(context, imap);
 }
 
-pub fn perform_sentbox_fetch(context: &Context) {
+pub fn perform_sentbox_fetch(context: &Context, imap: &mut Imap) {
     let use_network = context.get_config_bool(Config::SentboxWatch);
 
     context
         .sentbox_thread
-        .write()
+        .read()
         .unwrap()
-        .fetch(context, use_network);
+        .fetch(context, use_network, imap);
 }
 
-pub fn perform_sentbox_idle(context: &Context) {
+pub fn perform_sentbox_idle(context: &Context, imap: &mut Imap) {
     let use_network = context.get_config_bool(Config::SentboxWatch);
 
     context
         .sentbox_thread
-        .write()
+        .read()
         .unwrap()
-        .idle(context, use_network);
+        .idle(context, use_network, imap);
 }
 
-pub fn interrupt_sentbox_idle(context: &Context) {
+pub fn interrupt_sentbox_idle(context: &Context, imap: &mut Imap) {
     context
         .sentbox_thread
-        .write()
+        .read()
         .unwrap()
-        .interrupt_idle(context);
+        .interrupt_idle(context, imap);
 }
 
 pub fn perform_smtp_jobs(context: &Context) {
@@ -550,7 +550,7 @@ fn get_next_wakeup_time(context: &Context, thread: Thread) -> Duration {
     wakeup_time
 }
 
-pub fn maybe_network(context: &Context, inbox: &mut Imap) {
+pub fn maybe_network(context: &Context, _inbox: &mut Imap) {
     {
         let &(ref lock, _) = &*context.smtp_state.clone();
         let mut state = lock.lock().unwrap();
@@ -560,9 +560,10 @@ pub fn maybe_network(context: &Context, inbox: &mut Imap) {
     }
 
     interrupt_smtp_idle(context);
-    interrupt_imap_idle(context, inbox);
-    interrupt_mvbox_idle(context);
-    interrupt_sentbox_idle(context);
+    // TODO: manually
+    // interrupt_imap_idle(context, inbox);
+    // interrupt_mvbox_idle(context);
+    // interrupt_sentbox_idle(context);
 }
 
 pub fn job_action_exists(context: &Context, action: Action) -> bool {
@@ -766,8 +767,9 @@ fn job_perform(
         // - they can be re-executed one time AT_ONCE, but they are not save in the database for later execution
         if Action::ConfigureImap == job.action || Action::ImexImap == job.action {
             job_kill_action(context, job.action);
-            context.sentbox_thread.write().unwrap().suspend(context);
-            context.mvbox_thread.write().unwrap().suspend(context);
+            // TODO: figure out better way
+            // context.sentbox_thread.write().unwrap().suspend(context);
+            // context.mvbox_thread.write().unwrap().suspend(context);
             suspend_smtp_thread(context, true);
         }
 

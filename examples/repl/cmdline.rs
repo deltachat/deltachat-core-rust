@@ -1,5 +1,6 @@
 use std::path::Path;
 use std::str::FromStr;
+use std::sync::{Arc, Mutex};
 
 use deltachat::chat::{self, Chat};
 use deltachat::chatlist::*;
@@ -10,6 +11,7 @@ use deltachat::context::*;
 use deltachat::dc_receive_imf::*;
 use deltachat::dc_tools::*;
 use deltachat::error::Error;
+use deltachat::imap::Imap;
 use deltachat::imex::*;
 use deltachat::job::*;
 use deltachat::location;
@@ -304,7 +306,11 @@ fn chat_prefix(chat: &Chat) -> &'static str {
     chat.typ.into()
 }
 
-pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
+pub unsafe fn dc_cmdline(
+    context: &Context,
+    inbox: Arc<Mutex<Imap>>,
+    line: &str,
+) -> Result<(), failure::Error> {
     let chat_id = *context.cmdline_sel_chat_id.read().unwrap();
     let mut sel_chat = if chat_id > 0 {
         Chat::load_from_db(context, chat_id).ok()
@@ -496,7 +502,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             println!("{:#?}", context.get_info());
         }
         "interrupt" => {
-            // interrupt_imap_idle(context);
+            interrupt_imap_idle(context, &mut inbox.lock().unwrap());
             unimplemented!()
         }
         "maybenetwork" => {

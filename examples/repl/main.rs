@@ -23,6 +23,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use deltachat::config;
 use deltachat::configure::*;
 use deltachat::context::*;
+use deltachat::imap::Imap;
 use deltachat::job::*;
 use deltachat::oauth2::*;
 use deltachat::securejoin::*;
@@ -139,44 +140,51 @@ macro_rules! while_running {
     };
 }
 
-fn start_threads(c: Arc<RwLock<Context>>) {
+fn start_threads(c: Arc<RwLock<Context>>) -> Option<Arc<Mutex<Imap>>> {
     if HANDLE.clone().lock().unwrap().is_some() {
-        return;
+        return None;
     }
 
     println!("Starting threads");
     IS_RUNNING.store(true, Ordering::Relaxed);
-
+    let inbox = Arc::new(Mutex::new(c.read().unwrap().create_inbox()));
+    let inbox2 = inbox.clone();
     let ctx = c.clone();
-    let handle_imap = std::thread::spawn(move || loop {
-        let mut inbox = ctx.read().unwrap().create_inbox();
+    let handle_imap = std::thread::spawn(move || {
+        let inbox = inbox2;
 
-        while_running!({
-            perform_imap_jobs(&ctx.read().unwrap(), &mut inbox);
-            perform_imap_fetch(&ctx.read().unwrap(), &mut inbox);
+        loop {
             while_running!({
-                let context = ctx.read().unwrap();
-                perform_imap_idle(&context, &mut inbox);
-            });
-        });
+                perform_imap_jobs(&ctx.read().unwrap(), &mut inbox.lock().unwrap());
+                perform_imap_fetch(&ctx.read().unwrap(), &mut inbox.lock().unwrap());
+                while_running!({
+                    let context = ctx.read().unwrap();
+                    perform_imap_idle(&context, &mut inbox.lock().unwrap());
+                });
+            })
+        }
     });
 
     let ctx = c.clone();
     let handle_mvbox = std::thread::spawn(move || loop {
+        let mut mvbox = ctx.read().unwrap().create_inbox();
+
         while_running!({
-            perform_mvbox_fetch(&ctx.read().unwrap());
+            perform_mvbox_fetch(&ctx.read().unwrap(), &mut mvbox);
             while_running!({
-                perform_mvbox_idle(&ctx.read().unwrap());
+                perform_mvbox_idle(&ctx.read().unwrap(), &mut mvbox);
             });
         });
     });
 
     let ctx = c.clone();
     let handle_sentbox = std::thread::spawn(move || loop {
+        let mut sentbox = ctx.read().unwrap().create_inbox();
+
         while_running!({
-            perform_sentbox_fetch(&ctx.read().unwrap());
+            perform_sentbox_fetch(&ctx.read().unwrap(), &mut sentbox);
             while_running!({
-                perform_sentbox_idle(&ctx.read().unwrap());
+                perform_sentbox_idle(&ctx.read().unwrap(), &mut sentbox);
             });
         });
     });
@@ -197,17 +205,14 @@ fn start_threads(c: Arc<RwLock<Context>>) {
         handle_sentbox: Some(handle_sentbox),
         handle_smtp: Some(handle_smtp),
     });
+
+    Some(inbox)
 }
 
-fn stop_threads(context: &Context) {
+fn stop_threads(_context: &Context) {
     if let Some(ref mut handle) = *HANDLE.clone().lock().unwrap() {
-        println!("Stopping threads");
+        !("Stopping threads");
         IS_RUNNING.store(false, Ordering::Relaxed);
-
-        // interrupt_imap_idle(context);
-        interrupt_mvbox_idle(context);
-        interrupt_sentbox_idle(context);
-        interrupt_smtp_idle(context);
 
         handle.handle_imap.take().unwrap().join().unwrap();
         handle.handle_mvbox.take().unwrap().join().unwrap();
@@ -441,11 +446,16 @@ unsafe fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult
     let arg0 = args.next().unwrap_or_default();
     let arg1 = args.next().unwrap_or_default();
 
+    let mut inbox = None;
+
     match arg0 {
         "connect" => {
-            start_threads(ctx);
+            if let Some(i) = start_threads(ctx.clone()) {
+                inbox = Some(i);
+            };
         }
         "disconnect" => {
+            let _ = inbox.take();
             stop_threads(&ctx.read().unwrap());
         }
         "smtp-jobs" => {
@@ -459,12 +469,16 @@ unsafe fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult
             if HANDLE.clone().lock().unwrap().is_some() {
                 println!("imap-jobs are already running in a thread.");
             } else {
-                // perform_imap_jobs(&ctx.read().unwrap());
-                unimplemented!()
+                perform_imap_jobs(
+                    &ctx.read().unwrap(),
+                    &mut inbox.expect("not connected").lock().unwrap(),
+                );
             }
         }
         "configure" => {
-            start_threads(ctx.clone());
+            if let Some(i) = start_threads(ctx.clone()) {
+                inbox = Some(i);
+            };
             configure(&ctx.read().unwrap());
         }
         "oauth2" => {
@@ -488,7 +502,9 @@ unsafe fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult
             print!("\x1b[1;1H\x1b[2J");
         }
         "getqr" | "getbadqr" => {
-            start_threads(ctx.clone());
+            if let Some(i) = start_threads(ctx.clone()) {
+                inbox = Some(i);
+            };
             if let Some(mut qr) =
                 dc_get_securejoin_qr(&ctx.read().unwrap(), arg1.parse().unwrap_or_default())
             {
@@ -507,13 +523,19 @@ unsafe fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult
             }
         }
         "joinqr" => {
-            start_threads(ctx.clone());
+            if let Some(i) = start_threads(ctx.clone()) {
+                inbox = Some(i);
+            };
             if !arg0.is_empty() {
                 dc_join_securejoin(&ctx.read().unwrap(), arg1);
             }
         }
         "exit" | "quit" => return Ok(ExitResult::Exit),
-        _ => dc_cmdline(&ctx.read().unwrap(), line)?,
+        _ => dc_cmdline(
+            &ctx.read().unwrap(),
+            inbox.expect("not started").clone(),
+            line,
+        )?,
     }
 
     Ok(ExitResult::Continue)

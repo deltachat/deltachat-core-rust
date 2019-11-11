@@ -8,7 +8,6 @@ use crate::imap::Imap;
 pub struct JobThread {
     pub name: &'static str,
     pub folder_config_name: &'static str,
-    pub imap: Imap,
     pub state: Arc<(Mutex<JobState>, Condvar)>,
 }
 
@@ -21,21 +20,20 @@ pub struct JobState {
 }
 
 impl JobThread {
-    pub fn new(name: &'static str, folder_config_name: &'static str, imap: Imap) -> Self {
+    pub fn new(name: &'static str, folder_config_name: &'static str) -> Self {
         JobThread {
             name,
             folder_config_name,
-            imap,
             state: Arc::new((Mutex::new(Default::default()), Condvar::new())),
         }
     }
 
-    pub fn suspend(&mut self, context: &Context) {
+    pub fn suspend(&self, context: &Context, imap: &mut Imap) {
         info!(context, "Suspending {}-thread.", self.name,);
         {
             self.state.0.lock().unwrap().suspended = true;
         }
-        self.interrupt_idle(context);
+        self.interrupt_idle(context, imap);
         loop {
             let using_handle = self.state.0.lock().unwrap().using_handle;
             if !using_handle {
@@ -56,14 +54,14 @@ impl JobThread {
         cvar.notify_one();
     }
 
-    pub fn interrupt_idle(&mut self, context: &Context) {
+    pub fn interrupt_idle(&self, context: &Context, imap: &mut Imap) {
         {
             self.state.0.lock().unwrap().jobs_needed = true;
         }
 
         info!(context, "Interrupting {}-IDLE...", self.name);
 
-        self.imap.interrupt_idle();
+        imap.interrupt_idle();
 
         let &(ref lock, ref cvar) = &*self.state.clone();
         let mut state = lock.lock().unwrap();
@@ -72,7 +70,7 @@ impl JobThread {
         cvar.notify_one();
     }
 
-    pub fn fetch(&mut self, context: &Context, use_network: bool) {
+    pub fn fetch(&self, context: &Context, use_network: bool, imap: &mut Imap) {
         {
             let &(ref lock, _) = &*self.state.clone();
             let mut state = lock.lock().unwrap();
@@ -86,13 +84,13 @@ impl JobThread {
 
         if use_network {
             let start = std::time::Instant::now();
-            if self.connect_to_imap(context) {
+            if self.connect_to_imap(context, imap) {
                 info!(context, "{}-fetch started...", self.name);
-                self.imap.fetch(context);
+                imap.fetch(context);
 
-                if self.imap.should_reconnect() {
+                if imap.should_reconnect() {
                     info!(context, "{}-fetch aborted, starting over...", self.name,);
-                    self.imap.fetch(context);
+                    imap.fetch(context);
                 }
                 info!(
                     context,
@@ -106,13 +104,13 @@ impl JobThread {
         self.state.0.lock().unwrap().using_handle = false;
     }
 
-    fn connect_to_imap(&mut self, context: &Context) -> bool {
+    fn connect_to_imap(&self, context: &Context, imap: &mut Imap) -> bool {
         async_std::task::block_on(async move {
-            if self.imap.is_connected().await {
+            if imap.is_connected().await {
                 return true;
             }
 
-            let mut ret_connected = dc_connect_to_configured_imap(context, &mut self.imap) != 0;
+            let mut ret_connected = dc_connect_to_configured_imap(context, imap) != 0;
 
             if ret_connected {
                 if context
@@ -121,15 +119,15 @@ impl JobThread {
                     .unwrap_or_default()
                     < 3
                 {
-                    self.imap.configure_folders(context, 0x1);
+                    imap.configure_folders(context, 0x1);
                 }
 
                 if let Some(mvbox_name) =
                     context.sql.get_raw_config(context, self.folder_config_name)
                 {
-                    self.imap.set_watch_folder(mvbox_name);
+                    imap.set_watch_folder(mvbox_name);
                 } else {
-                    self.imap.disconnect();
+                    imap.disconnect();
                     ret_connected = false;
                 }
             }
@@ -138,7 +136,7 @@ impl JobThread {
         })
     }
 
-    pub fn idle(&mut self, context: &Context, use_network: bool) {
+    pub fn idle(&self, context: &Context, use_network: bool, imap: &mut Imap) {
         {
             let &(ref lock, ref cvar) = &*self.state.clone();
             let mut state = lock.lock().unwrap();
@@ -174,9 +172,9 @@ impl JobThread {
             }
         }
 
-        self.connect_to_imap(context);
-        info!(context, "{}-IDLE started...", self.name,);
-        self.imap.idle(context);
+        self.connect_to_imap(context, imap);
+        info!(context, "{}-IDLE started...", self.name);
+        imap.idle(context);
         info!(context, "{}-IDLE ended.", self.name);
 
         self.state.0.lock().unwrap().using_handle = false;

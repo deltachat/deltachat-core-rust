@@ -5,7 +5,7 @@ use crate::constants::DC_VERSION_STR;
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::error::Error;
-use crate::job::*;
+// use crate::job::*;
 use crate::stock::StockMessage;
 
 /// The available configuration keys.
@@ -129,7 +129,7 @@ impl Context {
             }
             Config::MvboxWatch => {
                 let ret = self.sql.set_raw_config(self, key, value);
-                interrupt_mvbox_idle(self);
+                // interrupt_mvbox_idle(self);
                 ret
             }
             Config::Selfstatus => {
