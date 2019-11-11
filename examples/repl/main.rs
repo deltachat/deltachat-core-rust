@@ -211,7 +211,7 @@ fn start_threads(c: Arc<RwLock<Context>>) -> Option<Arc<Mutex<Imap>>> {
 
 fn stop_threads(_context: &Context) {
     if let Some(ref mut handle) = *HANDLE.clone().lock().unwrap() {
-        !("Stopping threads");
+        println!("Stopping threads");
         IS_RUNNING.store(false, Ordering::Relaxed);
 
         handle.handle_imap.take().unwrap().join().unwrap();

@@ -1,6 +1,6 @@
 extern crate deltachat;
 
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use std::{thread, time};
 use tempfile::tempdir;
 
@@ -11,7 +11,8 @@ use deltachat::configure::*;
 use deltachat::contact::*;
 use deltachat::context::*;
 use deltachat::job::{
-    perform_imap_fetch, perform_imap_idle, perform_imap_jobs, perform_smtp_idle, perform_smtp_jobs,
+    interrupt_imap_idle, perform_imap_fetch, perform_imap_idle, perform_imap_jobs,
+    perform_smtp_idle, perform_smtp_jobs,
 };
 use deltachat::Event;
 
@@ -45,19 +46,22 @@ fn main() {
     let duration = time::Duration::from_millis(4000);
     println!("info: {:#?}", info);
 
+    let inbox = Arc::new(Mutex::new(ctx.create_inbox()));
+    let inbox2 = inbox.clone();
     let ctx = Arc::new(ctx);
     let ctx1 = ctx.clone();
+
     let r1 = running.clone();
     let t1 = thread::spawn(move || {
-        let mut inbox = ctx1.create_inbox();
+        let inbox = inbox2;
 
         while *r1.read().unwrap() {
-            perform_imap_jobs(&ctx1, &mut inbox);
+            perform_imap_jobs(&ctx1, &mut inbox.lock().unwrap());
             if *r1.read().unwrap() {
-                perform_imap_fetch(&ctx1, &mut inbox);
+                perform_imap_fetch(&ctx1, &mut inbox.lock().unwrap());
 
                 if *r1.read().unwrap() {
-                    perform_imap_idle(&ctx1, &mut inbox);
+                    perform_imap_idle(&ctx1, &mut inbox.lock().unwrap());
                 }
             }
         }
@@ -81,6 +85,8 @@ fn main() {
     ctx.set_config(config::Config::Addr, Some("d@testrun.org"))
         .unwrap();
     ctx.set_config(config::Config::MailPw, Some(&pw)).unwrap();
+
+    interrupt_imap_idle(&ctx, &mut inbox.lock().unwrap());
     configure(&ctx);
 
     thread::sleep(duration);
