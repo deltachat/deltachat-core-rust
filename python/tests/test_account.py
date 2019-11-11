@@ -896,7 +896,7 @@ class TestOnlineConfigureFails:
         ac1.start_threads()
         wait_configuration_progress(ac1, 500)
         ev1 = ac1._evlogger.get_matching("DC_EVENT_ERROR_NETWORK")
-        assert "authentication failed" in ev1[2].lower()
+        assert "cannot login" in ev1[2].lower()
         wait_configuration_progress(ac1, 0, 0)
 
     def test_invalid_user(self, acfactory):
@@ -905,7 +905,7 @@ class TestOnlineConfigureFails:
         ac1.start_threads()
         wait_configuration_progress(ac1, 500)
         ev1 = ac1._evlogger.get_matching("DC_EVENT_ERROR_NETWORK")
-        assert "authentication failed" in ev1[2].lower()
+        assert "cannot login" in ev1[2].lower()
         wait_configuration_progress(ac1, 0, 0)
 
     def test_invalid_domain(self, acfactory):
