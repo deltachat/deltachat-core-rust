@@ -44,7 +44,7 @@ jobs:
         command: test
         args: --all --release -- --ignored
 
-  check_fmt_clippy:
+  check_fmt:
     name: Checking fmt and docs
     runs-on: ubuntu-latest
     steps:
@@ -60,11 +60,8 @@ jobs:
     - name: fmt
       run: cargo fmt --all -- --check
 
-    - name: clippy
-      run: cargo clippy --all
-
-  python_tests:
-    name: Python Tests 3
+  clippy_check:
+    name: Clippy check
     runs-on: ubuntu-latest
 
     steps:
@@ -75,3 +72,29 @@ jobs:
           profile: minimal
           toolchain: nightly
           override: true
+          components: clippy
+
+    - name: clippy
+      run: cargo clippy --all
+
+  python_tests:
+    name: Python Tests
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v1
+
+    - uses: actions-rs/toolchain@v1
+      with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+
+    - uses: actions/setup-python@v1
+      with:
+          python-version: '3.x'
+          architecture: 'x64'
+
+    - name: Tests
+      shell: bash
+      run: ci_scripts/run-python.sh
