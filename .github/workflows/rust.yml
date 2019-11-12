@@ -44,7 +44,7 @@ jobs:
         command: test
         args: --all --release -- --ignored
 
-  check_fmt:
+  check_fmt_clippy:
     name: Checking fmt and docs
     runs-on: ubuntu-latest
     steps:
@@ -55,24 +55,10 @@ jobs:
           profile: minimal
           toolchain: nightly
           override: true
-          components: rustfmt
+          components: rustfmt clipopy
 
     - name: fmt
       run: cargo fmt --all -- --check
-
-  clippy_check:
-    name: Clippy check
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v1
-
-    - uses: actions-rs/toolchain@v1
-      with:
-          profile: minimal
-          toolchain: nightly
-          override: true
-          components: clippy
 
     - name: clippy
       run: cargo clippy --all
