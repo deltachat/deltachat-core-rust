@@ -73,13 +73,3 @@ jobs:
 
     - name: clippy
       run: cargo clippy --all
-
-  python_tests:
-    name: Python Tests
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v1
-
-    - name: Tests
-      run: bash ci_scripts/run-python.sh
