@@ -1929,9 +1929,26 @@ pub fn get_chat_id_by_grpid(context: &Context, grpid: impl AsRef<str>) -> (u32, 
 }
 
 pub fn add_device_msg(context: &Context, msg: &mut Message) -> Result<MsgId, Error> {
+    let label = format!("info-{}", dc_create_id());
+    add_device_msg_once(context, &label, msg)
+}
+
+pub fn add_device_msg_once(
+    context: &Context,
+    label: &str,
+    msg: &mut Message,
+) -> Result<MsgId, Error> {
     let (chat_id, _blocked) =
         create_or_lookup_by_contact_id(context, DC_CONTACT_ID_DEVICE, Blocked::Not)?;
-    let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
+    let rfc724_mid = format!("{}@device", label);
+
+    if let Ok((_, _, msg_id)) = message::rfc724_mid_exists(context, &rfc724_mid) {
+        info!(
+            context,
+            "device-message {} already exist as {}", label, msg_id
+        );
+        return Ok(msg_id);
+    }
 
     prepare_msg_blob(context, msg)?;
     unarchive(context, chat_id)?;
@@ -1955,6 +1972,7 @@ pub fn add_device_msg(context: &Context, msg: &mut Message) -> Result<MsgId, Err
     let row_id = sql::get_rowid(context, &context.sql, "msgs", "rfc724_mid", &rfc724_mid);
     let msg_id = MsgId::new(row_id);
     context.call_cb(Event::IncomingMsg { chat_id, msg_id });
+    info!(context, "device-message {} added as {}", label, msg_id);
 
     Ok(msg_id)
 }
