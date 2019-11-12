@@ -32,8 +32,8 @@ if [[ $NORUN == "1" ]]; then
     export CARGO_SUBCMD="build"
 else
     export CARGO_SUBCMD="test --all"
-    export OPT="${OPT} "
-    export OPT_RELEASE="${OPT_RELEASE} "
+    export OPT="-j1 ${OPT} "
+    export OPT_RELEASE="-j2 ${OPT_RELEASE} "
     export OPT_RELEASE_IGNORED="${OPT_RELEASE} -- --ignored"
 fi
 
