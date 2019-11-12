@@ -2584,7 +2584,7 @@ dc_context_t*    dc_chatlist_get_context     (dc_chatlist_t* chatlist);
 
  * @return a utf8-encoded json string containing all requested info. Must be freed using dc_lot_unref().  NULL is never returned.
  */
-char*            dc_chat_get_info_json(dc_context_t* context, size_t chat_id)
+char*            dc_chat_get_info_json       (dc_context_t* context, size_t chat_id);
 
 /**
  * @class dc_chat_t

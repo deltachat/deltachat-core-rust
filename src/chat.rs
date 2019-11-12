@@ -1884,6 +1884,11 @@ pub fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: u32) -> Resul
     Ok(())
 }
 
+pub fn get_info_json(context: &Context, chat_id: u32) -> Result<String, Error> {
+    let s = format!("{{\n {:?}: {:?}\n}}", "chat_id", chat_id);
+    Ok(s)
+}
+
 pub fn get_chat_contact_cnt(context: &Context, chat_id: u32) -> usize {
     context
         .sql
