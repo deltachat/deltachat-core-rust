@@ -32,20 +32,19 @@ jobs:
         command:  check
         args: --all --bins --examples --tests
 
-    - name: check bench
-      uses: actions-rs/cargo@v1
-      if: matrix.rust == 'nightly'
-      with:
-        command:  check
-        args: --benches
-
     - name: tests
       uses: actions-rs/cargo@v1
       with:
         command: test
         args: --all
 
-  check_fmt_and_docs:
+    - name: tests ignored
+      uses: actions-rs/cargo@v1
+      with:
+        command: test
+        args: --all --release -- --ignored
+
+  check_fmt:
     name: Checking fmt and docs
     runs-on: ubuntu-latest
     steps:
@@ -61,17 +60,19 @@ jobs:
     - name: fmt
       run: cargo fmt --all -- --check
 
-    - name: Docs
-      run: cargo doc
-
   clippy_check:
     name: Clippy check
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v1
-      - name: Install rust
-        run: rustup update beta && rustup default beta
-      - name: Install clippy
-        run: rustup component add clippy
-      - name: clippy
-        run: cargo clippy --all
+    - uses: actions/checkout@v1
+
+    - uses: actions-rs/toolchain@v1
+      with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+          components: clippy
+
+    - name: clippy
+      run: cargo clippy --all
