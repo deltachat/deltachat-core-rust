@@ -6,6 +6,7 @@ use crate::error::Error;
 use async_std::sync::Arc;
 use rustls;
 use webpki;
+use webpki_roots;
 
 #[derive(Copy, Clone, Debug, Display, FromPrimitive)]
 #[repr(i32)]
@@ -270,6 +271,10 @@ impl rustls::ServerCertVerifier for NoCertificateVerification {
 
 pub fn dc_build_tls_config(certificate_checks: CertificateChecks) -> rustls::ClientConfig {
     let mut config = rustls::ClientConfig::new();
+    config
+        .root_store
+        .add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
+
     match certificate_checks {
         CertificateChecks::Strict => {}
         CertificateChecks::Automatic => {
