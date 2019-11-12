@@ -1,4 +1,4 @@
-name: CI
+name: DCC unit and integration tests 
 
 on:
   pull_request:
