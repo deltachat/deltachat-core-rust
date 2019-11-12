@@ -5,7 +5,7 @@ set -ex
 export RUST_TEST_THREADS=1
 export RUST_BACKTRACE=1
 export RUSTFLAGS='--deny warnings'
-export OPT="-j1 --target=$TARGET"
+export OPT="--target=$TARGET"
 export OPT_RELEASE="--release ${OPT}"
 export OPT_FFI_RELEASE="--manifest-path=deltachat-ffi/Cargo.toml --release"
 
@@ -32,9 +32,9 @@ if [[ $NORUN == "1" ]]; then
     export CARGO_SUBCMD="build"
 else
     export CARGO_SUBCMD="test --all"
-    export OPT="${OPT} "
-    export OPT_RELEASE="${OPT_RELEASE} "
-    export OPT_RELEASE_IGNORED="${OPT_RELEASE} -- --ignored"
+    export OPT="-j1 ${OPT} "
+    export OPT_RELEASE="-j2 ${OPT_RELEASE} "
+    export OPT_RELEASE_IGNORED="-j2 ${OPT_RELEASE} -- --ignored"
 fi
 
 # Run all the test configurations:
