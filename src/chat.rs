@@ -2080,6 +2080,34 @@ mod tests {
     }
 
     #[test]
+    fn test_self_talk() {
+        let t = dummy_context();
+        let chat_id = create_by_contact_id(&t.ctx, DC_CONTACT_ID_SELF).unwrap();
+        assert_eq!(DC_CONTACT_ID_SELF, 1);
+        assert!(chat_id > DC_CHAT_ID_LAST_SPECIAL);
+        let chat = Chat::load_from_db(&t.ctx, chat_id).unwrap();
+        assert_eq!(chat.id, chat_id);
+        assert!(chat.is_self_talk());
+        assert!(!chat.archived);
+        assert!(!chat.is_device_talk());
+        assert!(chat.can_send());
+        assert_eq!(chat.name, t.ctx.stock_str(StockMessage::SelfMsg));
+    }
+
+    #[test]
+    fn test_deaddrop_chat() {
+        let t = dummy_context();
+        let chat = Chat::load_from_db(&t.ctx, DC_CHAT_ID_DEADDROP).unwrap();
+        assert_eq!(DC_CHAT_ID_DEADDROP, 1);
+        assert_eq!(chat.id, DC_CHAT_ID_DEADDROP);
+        assert!(!chat.is_self_talk());
+        assert!(!chat.archived);
+        assert!(!chat.is_device_talk());
+        assert!(!chat.can_send());
+        assert_eq!(chat.name, t.ctx.stock_str(StockMessage::DeadDrop));
+    }
+
+    #[test]
     fn test_add_device_msg() {
         let t = test_context(Some(Box::new(logging_cb)));
 
