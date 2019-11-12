@@ -21,7 +21,7 @@ class TestOfflineAccountBasic:
         d = ac1.get_info()
         assert d["arch"]
         assert d["number_of_chats"] == "0"
-        assert d["bcc_self"] == "1"
+        assert d["bcc_self"] == "0"
 
     def test_is_not_configured(self, acfactory):
         ac1 = acfactory.get_unconfigured_account()
@@ -43,7 +43,7 @@ class TestOfflineAccountBasic:
     def test_has_bccself(self, acfactory):
         ac1 = acfactory.get_unconfigured_account()
         assert "bcc_self" in ac1.get_config("sys.config_keys").split()
-        assert ac1.get_config("bcc_self") == "1"
+        assert ac1.get_config("bcc_self") == "0"
 
     def test_selfcontact_if_unconfigured(self, acfactory):
         ac1 = acfactory.get_unconfigured_account()
@@ -404,6 +404,9 @@ class TestOnlineAccount:
         assert chat.id > const.DC_CHAT_ID_LAST_SPECIAL
         wait_successful_IMAP_SMTP_connection(ac1)
         wait_configuration_progress(ac1, 1000)
+
+        lp.sec("ac1: setting bcc_self=1")
+        ac1.set_config("bcc_self", "1")
 
         lp.sec("send out message with bcc to ourselves")
         msg_out = chat.send_text("message2")
