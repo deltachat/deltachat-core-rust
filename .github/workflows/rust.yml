@@ -84,12 +84,6 @@ jobs:
     steps:
     - uses: actions/checkout@v1
 
-    - uses: actions-rs/toolchain@v1
-      with:
-          profile: minimal
-          toolchain: nightly
-          override: true
-
     - uses: actions/setup-python@v1
       with:
           python-version: '3.x'
