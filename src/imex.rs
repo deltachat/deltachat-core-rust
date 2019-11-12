@@ -160,7 +160,6 @@ fn do_initiate_key_transfer(context: &Context) -> Result<String> {
     // it would be too much noise to have two things popping up at the same time.
     // maybe_add_bcc_self_device_msg() is called on the other device
     // once the transfer is completed.
-    maybe_add_bcc_self_device_msg(context)?;
     Ok(setup_code)
 }
 
