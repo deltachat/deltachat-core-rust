@@ -110,9 +110,14 @@ impl JobThread {
         if async_std::task::block_on(async move { self.imap.is_connected().await }) {
             return true;
         }
+        let watch_folder_name = match context.sql.get_raw_config(context, self.folder_config_name) {
+            Some(name) => name,
+            None => {
+                return false;
+            }
+        };
 
-        let mut ret_connected = dc_connect_to_configured_imap(context, &self.imap) != 0;
-
+        let ret_connected = dc_connect_to_configured_imap(context, &self.imap) != 0;
         if ret_connected {
             if context
                 .sql
@@ -123,12 +128,7 @@ impl JobThread {
                 self.imap.configure_folders(context, 0x1);
             }
 
-            if let Some(mvbox_name) = context.sql.get_raw_config(context, self.folder_config_name) {
-                self.imap.set_watch_folder(mvbox_name);
-            } else {
-                self.imap.disconnect(context);
-                ret_connected = false;
-            }
+            self.imap.set_watch_folder(watch_folder_name);
         }
 
         ret_connected
@@ -170,10 +170,18 @@ impl JobThread {
             }
         }
 
-        self.connect_to_imap(context);
-        info!(context, "{}-IDLE started...", self.name,);
-        self.imap.idle(context);
-        info!(context, "{}-IDLE ended.", self.name);
+        if self.connect_to_imap(context) {
+            info!(context, "{}-IDLE started...", self.name,);
+            self.imap.idle(context);
+            info!(context, "{}-IDLE ended.", self.name);
+        } else {
+            // It's probably wrong that the thread even runs
+            // but let's call fake_idle and tell it to not try network at all.
+            // (once we move to rust-managed threads this problem goes away)
+            info!(context, "{}-IDLE not connected, fake-idling", self.name);
+            async_std::task::block_on(async move { self.imap.fake_idle(context, false).await });
+            info!(context, "{}-IDLE fake-idling finished", self.name);
+        }
 
         self.state.0.lock().unwrap().using_handle = false;
     }
