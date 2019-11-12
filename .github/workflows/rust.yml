@@ -41,6 +41,27 @@ jobs:
         command: test
         args: --all --release -- --ignored
 
+  python_tests:
+    name: 3.7 python tests against core
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@master
+
+      - uses: actions-rs/toolchain@v1
+        with:
+           profile: minimal
+           toolchain: nightly
+           override: true
+           components: rustfmt
+ 
+      - name: Setup python
+        uses: actions/setup-python@v1
+        with:
+          python-version: 3.x
+          architecture: x64
+
+      - run: bash ci_scripts/run-python.sh 
+
   check_fmt:
     name: Checking fmt and docs
     runs-on: ubuntu-latest
@@ -73,25 +94,3 @@ jobs:
 
     - name: clippy
       run: cargo clippy --all
-
-  python_tests:
-    name: Python Tests 3.7
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v1
-
-    - uses: actions-rs/toolchain@v1
-      with:
-          profile: minimal
-          toolchain: nightly
-          override: true
-
-    - uses: actions/setup-python@v1
-      with:
-          python-version: '3.x'
-          architecture: 'x64'
-
-    - name: Run tests
-      shell: bash
-      run: ci_scripts/run-python.sh
