@@ -4,9 +4,6 @@ on:
   pull_request:
   push:
 
-env:
-  RUSTFLAGS: -Dwarnings
-
 jobs:
   build_and_test:
     name: Build and test
@@ -75,7 +72,7 @@ jobs:
           components: clippy
 
     - name: clippy
-      run: cargo clippy
+      run: cargo clippy --all
 
   python_tests:
     name: Python Tests 3.7
