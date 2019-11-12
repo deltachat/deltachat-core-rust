@@ -4,6 +4,9 @@ on:
   pull_request:
   push:
 
+env:
+  RUSTFLAGS: -Dwarnings
+
 jobs:
   build:
     name: 3.7 python tests against core
@@ -17,7 +20,7 @@ jobs:
            toolchain: nightly
            override: true
            components: rustfmt
- 
+
       - name: Setup python
         uses: actions/setup-python@v1
         with:
