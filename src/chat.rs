@@ -1929,8 +1929,7 @@ pub fn get_chat_id_by_grpid(context: &Context, grpid: impl AsRef<str>) -> (u32, 
 }
 
 pub fn add_device_msg(context: &Context, msg: &mut Message) -> Result<MsgId, Error> {
-    let label = format!("info-{}", dc_create_id());
-    add_device_msg_once(context, &label, msg)
+    add_device_msg_maybe_labelled(context, None, msg)
 }
 
 pub fn add_device_msg_once(
@@ -1938,24 +1937,34 @@ pub fn add_device_msg_once(
     label: &str,
     msg: &mut Message,
 ) -> Result<MsgId, Error> {
+    add_device_msg_maybe_labelled(context, Some(label), msg)
+}
+
+fn add_device_msg_maybe_labelled(
+    context: &Context,
+    label: Option<&str>,
+    msg: &mut Message,
+) -> Result<MsgId, Error> {
     let (chat_id, _blocked) =
         create_or_lookup_by_contact_id(context, DC_CONTACT_ID_DEVICE, Blocked::Not)?;
     let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
 
     // chat_id has an sql-index so it makes sense to add this although redundant
-    if let Ok(msg_id) = context.sql.query_row(
-        "SELECT id FROM msgs WHERE chat_id=? AND label=?",
-        params![chat_id, label],
-        |row| {
-            let msg_id: MsgId = row.get(0)?;
-            Ok(msg_id)
-        },
-    ) {
-        info!(
-            context,
-            "device-message {} already exist as {}", label, msg_id
-        );
-        return Ok(msg_id);
+    if let Some(label) = label {
+        if let Ok(msg_id) = context.sql.query_row(
+            "SELECT id FROM msgs WHERE chat_id=? AND label=?",
+            params![chat_id, label],
+            |row| {
+                let msg_id: MsgId = row.get(0)?;
+                Ok(msg_id)
+            },
+        ) {
+            info!(
+                context,
+                "device-message {} already exist as {}", label, msg_id
+            );
+            return Ok(msg_id);
+        }
     }
 
     prepare_msg_blob(context, msg)?;
@@ -1974,14 +1983,19 @@ pub fn add_device_msg_once(
             msg.text.as_ref().map_or("", String::as_str),
             msg.param.to_string(),
             rfc724_mid,
-            label,
+            label.unwrap_or_default(),
         ],
     )?;
 
     let row_id = sql::get_rowid(context, &context.sql, "msgs", "rfc724_mid", &rfc724_mid);
     let msg_id = MsgId::new(row_id);
     context.call_cb(Event::IncomingMsg { chat_id, msg_id });
-    info!(context, "device-message {} added as {}", label, msg_id);
+    info!(
+        context,
+        "device-message {} added as {}",
+        label.unwrap_or("without label"),
+        msg_id
+    );
 
     Ok(msg_id)
 }
