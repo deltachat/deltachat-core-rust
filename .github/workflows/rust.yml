@@ -4,9 +4,6 @@ on:
   pull_request:
   push:
 
-env:
-  RUSTFLAGS: -Dwarnings
-
 jobs:
   build_and_test:
     name: Build and test
@@ -85,5 +82,4 @@ jobs:
     - uses: actions/checkout@v1
 
     - name: Tests
-      shell: bash
-      run: ci_scripts/run-python.sh
+      run: bash ci_scripts/run-python.sh
