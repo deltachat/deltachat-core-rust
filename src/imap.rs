@@ -746,10 +746,13 @@ impl Imap {
     pub fn idle(&self, context: &Context) {
         task::block_on(async move {
             if self.config.read().await.selected_folder.is_none() {
+                // this probably means that we are in teardown
+                // in any case we can't perform any idling
                 return;
             }
+
             if !self.config.read().await.can_idle {
-                self.fake_idle(context).await;
+                self.fake_idle(context, true).await;
                 return;
             }
 
@@ -765,7 +768,7 @@ impl Imap {
                         "idle select_folder failed {:?}",
                         watch_folder.as_ref()
                     );
-                    self.fake_idle(context).await;
+                    self.fake_idle(context, true).await;
                     return;
                 }
             }
@@ -836,7 +839,7 @@ impl Imap {
         });
     }
 
-    async fn fake_idle(&self, context: &Context) {
+    pub(crate) async fn fake_idle(&self, context: &Context, use_network: bool) {
         // Idle using timeouts. This is also needed if we're not yet configured -
         // in this case, we're waiting for a configure job
         let fake_idle_start_time = SystemTime::now();
@@ -846,13 +849,20 @@ impl Imap {
         task::block_on(async move {
             let interrupt = stop_token::StopSource::new();
 
-            // TODO: More flexible interval
-            let interval = async_std::stream::interval(Duration::from_secs(10));
+            // we use 1000 minutes if we are told to not try network
+            // which can happen because the watch_folder is not defined
+            // but clients are still calling us in a loop.
+            // if we are to use network, we check every minute if there
+            // is new mail -- TODO: make this more flexible
+            let secs = if use_network { 60 } else { 60000 };
+            let interval = async_std::stream::interval(Duration::from_secs(secs));
             let mut interrupt_interval = interrupt.stop_token().stop_stream(interval);
             *self.interrupt.lock().await = Some(interrupt);
 
             while let Some(_) = interrupt_interval.next().await {
-                // check if we want to finish fake-idling.
+                if !use_network {
+                    continue;
+                }
                 if !self.is_connected().await {
                     // try to connect with proper login params
                     // (setup_handle_if_needed might not know about them if we
@@ -1154,13 +1164,6 @@ impl Imap {
                     .list_folders(session, context)
                     .await
                     .expect("no folders found");
-                let delimiter = self.config.read().await.imap_delimiter;
-                let fallback_folder = format!("INBOX{}DeltaChat", delimiter);
-
-                let mut mvbox_folder = folders
-                    .iter()
-                    .find(|folder| folder.name() == "DeltaChat" || folder.name() == fallback_folder)
-                    .map(|n| n.name().to_string());
 
                 let sentbox_folder =
                     folders
@@ -1169,6 +1172,15 @@ impl Imap {
                             FolderMeaning::SentObjects => true,
                             _ => false,
                         });
+                info!(context, "sentbox folder is {:?}", sentbox_folder);
+
+                let delimiter = self.config.read().await.imap_delimiter;
+                let fallback_folder = format!("INBOX{}DeltaChat", delimiter);
+
+                let mut mvbox_folder = folders
+                    .iter()
+                    .find(|folder| folder.name() == "DeltaChat" || folder.name() == fallback_folder)
+                    .map(|n| n.name().to_string());
 
                 if mvbox_folder.is_none() && 0 != (flags as usize & DC_CREATE_MVBOX) {
                     info!(context, "Creating MVBOX-folder \"DeltaChat\"...",);
