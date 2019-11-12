@@ -2377,6 +2377,27 @@ pub unsafe extern "C" fn dc_chat_is_sending_locations(chat: *mut dc_chat_t) -> l
     ffi_chat.chat.is_sending_locations() as libc::c_int
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn dc_chat_get_info_json(
+    context: *mut dc_context_t,
+    chat_id: u32,
+) -> *mut libc::c_char {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_get_oauth2_url()");
+        return ptr::null_mut(); // NULL explicitly defined as "unknown"
+    }
+    let ffi_context = &*context;
+    ffi_context
+        .with_inner(|ctx| match chat::get_info_json(ctx, chat_id) {
+            Ok(s) => s.strdup(),
+            Err(err) => {
+                error!(ctx, "get_info_json({}) returned: {}", chat_id, err);
+                "".strdup()
+            }
+        })
+        .unwrap_or_else(|_| ptr::null_mut())
+}
+
 // dc_msg_t
 
 /// FFI struct for [dc_msg_t]

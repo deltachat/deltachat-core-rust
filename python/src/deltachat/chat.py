@@ -2,6 +2,7 @@
 
 import mimetypes
 import calendar
+import json
 from datetime import datetime
 import os
 from .cutil import as_dc_charpointer, from_dc_charpointer, iter_array
@@ -241,6 +242,12 @@ class Chat(object):
         Noticed messages are no longer fresh.
         """
         return lib.dc_marknoticed_chat(self._dc_context, self.id)
+
+    def get_summary(self):
+        """ return dictionary with summary information. """
+        dc_res = lib.dc_chat_get_info_json(self._dc_context, self.id)
+        s = from_dc_charpointer(dc_res)
+        return json.loads(s)
 
     # ------  group management API ------------------------------
 
