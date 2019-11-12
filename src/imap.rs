@@ -312,18 +312,21 @@ impl Imap {
                 return false;
             }
 
-            let (teardown, can_idle, has_xlist) = match &mut *self.session.lock().await {
+            let teardown = match &mut *self.session.lock().await {
                 Some(ref mut session) => match session.capabilities().await {
                     Ok(caps) => {
                         if !context.sql.is_open() {
                             warn!(context, "IMAP-LOGIN as {} ok but ABORTING", lp.mail_user,);
-                            (true, false, false)
+                            true
                         } else {
                             let can_idle = caps.has_str("IDLE");
                             let has_xlist = caps.has_str("XLIST");
                             let caps_list = caps
                                 .iter()
                                 .fold(String::new(), |s, c| s + &format!(" {:?}", c));
+                            self.config.write().await.can_idle = can_idle;
+                            self.config.write().await.has_xlist = has_xlist;
+                            *self.connected.lock().await = true;
                             emit_event!(
                                 context,
                                 Event::ImapConnected(format!(
@@ -331,25 +334,22 @@ impl Imap {
                                     lp.mail_user, caps_list,
                                 ))
                             );
-                            (false, can_idle, has_xlist)
+                            false
                         }
                     }
                     Err(err) => {
                         info!(context, "CAPABILITY command error: {}", err);
-                        (true, false, false)
+                        true
                     }
                 },
-                None => (true, false, false),
+                None => true,
             };
 
             if teardown {
-                self.unsetup_handle(context).await;
-                self.free_connect_params().await;
+                self.disconnect(context);
+
                 false
             } else {
-                self.config.write().await.can_idle = can_idle;
-                self.config.write().await.has_xlist = has_xlist;
-                *self.connected.lock().await = true;
                 true
             }
         })
