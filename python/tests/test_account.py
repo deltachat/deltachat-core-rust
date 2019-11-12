@@ -155,6 +155,9 @@ class TestOfflineChat:
         chat.set_name("title2")
         assert chat.get_name() == "title2"
 
+        d = chat.get_summary()
+        assert d["chat_id"] == chat.id
+
     def test_group_chat_creation_with_translation(self, ac1):
         ac1.set_stock_translation(const.DC_STR_NEWGROUPDRAFT, "xyz %1$s")
         ac1._evlogger.consume_events()
