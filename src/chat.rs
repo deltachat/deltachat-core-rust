@@ -2077,4 +2077,80 @@ mod tests {
         let added = add_contact_to_chat_ex(&t.ctx, chat_id, DC_CONTACT_ID_SELF, false).unwrap();
         assert_eq!(added, false);
     }
+
+    #[test]
+    fn test_add_device_msg() {
+        let t = test_context(Some(Box::new(logging_cb)));
+
+        // add two device-messages
+        let mut msg1 = Message::new(Viewtype::Text);
+        msg1.text = Some("first message".to_string());
+        let msg1_id = add_device_msg(&t.ctx, &mut msg1);
+        assert!(msg1_id.is_ok());
+
+        let mut msg2 = Message::new(Viewtype::Text);
+        msg2.text = Some("second message".to_string());
+        let msg2_id = add_device_msg(&t.ctx, &mut msg2);
+        assert!(msg2_id.is_ok());
+        assert_ne!(msg1_id.as_ref().unwrap(), msg2_id.as_ref().unwrap());
+
+        // check added messages
+        let msg1 = message::Message::load_from_db(&t.ctx, msg1_id.unwrap());
+        assert!(msg1.is_ok());
+        let msg1 = msg1.unwrap();
+        assert_eq!(msg1.text.as_ref().unwrap(), "first message");
+        assert_eq!(msg1.from_id, DC_CONTACT_ID_DEVICE);
+        assert_eq!(msg1.to_id, DC_CONTACT_ID_SELF);
+        assert!(!msg1.is_info());
+        assert!(!msg1.is_setupmessage());
+
+        let msg2 = message::Message::load_from_db(&t.ctx, msg2_id.unwrap());
+        assert!(msg2.is_ok());
+        let msg2 = msg2.unwrap();
+        assert_eq!(msg2.text.as_ref().unwrap(), "second message");
+
+        // check device chat
+        assert_eq!(get_msg_cnt(&t.ctx, msg2.chat_id), 2);
+    }
+
+    #[test]
+    fn test_add_device_msg_once() {
+        let t = test_context(Some(Box::new(logging_cb)));
+
+        // add two device-messages with the same label (second attempt is not added)
+        let mut msg1 = Message::new(Viewtype::Text);
+        msg1.text = Some("first message".to_string());
+        let msg1_id = add_device_msg_once(&t.ctx, "any-label", &mut msg1);
+        assert!(msg1_id.is_ok());
+
+        let mut msg2 = Message::new(Viewtype::Text);
+        msg2.text = Some("second message".to_string());
+        let msg2_id = add_device_msg_once(&t.ctx, "any-label", &mut msg2);
+        assert!(msg2_id.is_ok());
+        assert_eq!(msg1_id.as_ref().unwrap(), msg2_id.as_ref().unwrap());
+
+        // check added message
+        let msg2 = message::Message::load_from_db(&t.ctx, msg2_id.unwrap());
+        assert!(msg2.is_ok());
+        let msg2 = msg2.unwrap();
+        assert_eq!(msg1_id.unwrap(), msg2.id);
+        assert_eq!(msg2.text.as_ref().unwrap(), "first message");
+        assert_eq!(msg2.from_id, DC_CONTACT_ID_DEVICE);
+        assert_eq!(msg2.to_id, DC_CONTACT_ID_SELF);
+        assert!(!msg2.is_info());
+        assert!(!msg2.is_setupmessage());
+
+        // check device chat
+        let chat_id = msg2.chat_id;
+        assert_eq!(get_msg_cnt(&t.ctx, chat_id), 1);
+        assert!(chat_id > DC_CHAT_ID_LAST_SPECIAL);
+        let chat = Chat::load_from_db(&t.ctx, chat_id);
+        assert!(chat.is_ok());
+        let chat = chat.unwrap();
+        assert!(chat.is_device_talk());
+        assert!(!chat.is_self_talk());
+        assert!(!chat.can_send());
+        assert_eq!(chat.name, t.ctx.stock_str(StockMessage::DeviceMessages));
+        assert!(chat.get_profile_image(&t.ctx).is_some());
+    }
 }
