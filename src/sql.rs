@@ -806,12 +806,19 @@ fn open(
             )?;
             sql.set_raw_config_int(context, "dbversion", 55)?;
         }
-        if dbversion < 56 {
-            info!(context, "[migration] v56");
+        if dbversion < 57 {
+            info!(context, "[migration] v57");
+            // label is a unique name and is currently used for device-messages only.
+            // in contrast to rfc724_mid and other fields, the label is generated on the device
+            // and allows reliable identifications this way.
+            sql.execute(
+                "ALTER TABLE msgs ADD COLUMN label TEXT DEFAULT '';",
+                params![],
+            )?;
             if exists_before_update && sql.get_raw_config_int(context, "bcc_self").is_none() {
                 sql.set_raw_config_int(context, "bcc_self", 1)?;
             }
-            sql.set_raw_config_int(context, "dbversion", 56)?;
+            sql.set_raw_config_int(context, "dbversion", 57)?;
         }
 
         // (2) updates that require high-level objects

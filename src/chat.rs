@@ -1940,9 +1940,17 @@ pub fn add_device_msg_once(
 ) -> Result<MsgId, Error> {
     let (chat_id, _blocked) =
         create_or_lookup_by_contact_id(context, DC_CONTACT_ID_DEVICE, Blocked::Not)?;
-    let rfc724_mid = format!("{}@device", label);
+    let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
 
-    if let Ok((_, _, msg_id)) = message::rfc724_mid_exists(context, &rfc724_mid) {
+    // chat_id has an sql-index so it makes sense to add this although redundant
+    if let Ok(msg_id) = context.sql.query_row(
+        "SELECT id FROM msgs WHERE chat_id=? AND label=?",
+        params![chat_id, label],
+        |row| {
+            let msg_id: MsgId = row.get(0)?;
+            Ok(msg_id)
+        },
+    ) {
         info!(
             context,
             "device-message {} already exist as {}", label, msg_id
@@ -1954,8 +1962,8 @@ pub fn add_device_msg_once(
     unarchive(context, chat_id)?;
 
     context.sql.execute(
-        "INSERT INTO msgs (chat_id,from_id,to_id, timestamp,type,state, txt,param,rfc724_mid) \
-         VALUES (?,?,?, ?,?,?, ?,?,?);",
+        "INSERT INTO msgs (chat_id,from_id,to_id, timestamp,type,state, txt,param,rfc724_mid,label) \
+         VALUES (?,?,?, ?,?,?, ?,?,?,?);",
         params![
             chat_id,
             DC_CONTACT_ID_DEVICE,
@@ -1966,6 +1974,7 @@ pub fn add_device_msg_once(
             msg.text.as_ref().map_or("", String::as_str),
             msg.param.to_string(),
             rfc724_mid,
+            label,
         ],
     )?;
 
