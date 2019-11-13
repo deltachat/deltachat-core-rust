@@ -1117,7 +1117,12 @@ mod tests {
     fn test_add_or_lookup() {
         // add some contacts, this also tests add_address_book()
         let t = dummy_context();
-        let book = "  Name one  \n one@eins.org \nName two\ntwo@deux.net\n\nthree@drei.sam\nName two\ntwo@deux.net\n";
+        let book = concat!(
+            "  Name one  \n one@eins.org \n",
+            "Name two\ntwo@deux.net\n",
+            "\nthree@drei.sam\n",
+            "Name two\ntwo@deux.net\n" // should not be added again
+        );
         assert_eq!(Contact::add_address_book(&t.ctx, book).unwrap(), 3);
 
         // check first added contact, this does not modify because of lower origin
