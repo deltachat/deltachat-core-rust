@@ -1053,6 +1053,8 @@ fn split_address_book(book: &str) -> Vec<(&str, &str)> {
 mod tests {
     use super::*;
 
+    use crate::test_utils::*;
+
     #[test]
     fn test_may_be_valid_addr() {
         assert_eq!(may_be_valid_addr(""), false);
@@ -1093,5 +1095,105 @@ mod tests {
             list,
             vec![("Name one", "Address one"), ("Name two", "Address two")]
         )
+    }
+
+    #[test]
+    fn test_get_contacts() {
+        let context = dummy_context();
+        let contacts = Contact::get_all(&context.ctx, 0, Some("some2")).unwrap();
+        assert_eq!(contacts.len(), 0);
+
+        let id = Contact::create(&context.ctx, "bob", "bob@mail.de").unwrap();
+        assert_ne!(id, 0);
+
+        let contacts = Contact::get_all(&context.ctx, 0, Some("bob")).unwrap();
+        assert_eq!(contacts.len(), 1);
+
+        let contacts = Contact::get_all(&context.ctx, 0, Some("alice")).unwrap();
+        assert_eq!(contacts.len(), 0);
+    }
+
+    #[test]
+    fn test_add_or_lookup() {
+        // add some contacts, this also tests add_address_book()
+        let t = dummy_context();
+        let book = "  Name one  \n one@eins.org \nName two\ntwo@deux.net\n\nthree@drei.sam\nName two\ntwo@deux.net\n";
+        assert_eq!(Contact::add_address_book(&t.ctx, book).unwrap(), 3);
+
+        // check first added contact, this does not modify because of lower origin
+        let (contact_id, sth_modified) =
+            Contact::add_or_lookup(&t.ctx, "bla foo", "one@eins.org", Origin::IncomingUnknownTo)
+                .unwrap();
+        assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
+        assert_eq!(sth_modified, Modifier::None);
+        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        assert_eq!(contact.get_id(), contact_id);
+        assert_eq!(contact.get_name(), "Name one");
+        assert_eq!(contact.get_display_name(), "Name one");
+        assert_eq!(contact.get_addr(), "one@eins.org");
+        assert_eq!(contact.get_name_n_addr(), "Name one (one@eins.org)");
+
+        // modify first added contact
+        let (contact_id_test, sth_modified) = Contact::add_or_lookup(
+            &t.ctx,
+            "Real one",
+            " one@eins.org  ",
+            Origin::ManuallyCreated,
+        )
+        .unwrap();
+        assert_eq!(contact_id, contact_id_test);
+        assert_eq!(sth_modified, Modifier::Modified);
+        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        assert_eq!(contact.get_name(), "Real one");
+        assert_eq!(contact.get_addr(), "one@eins.org");
+        assert!(!contact.is_blocked());
+
+        // check third added contact (contact without name)
+        let (contact_id, sth_modified) =
+            Contact::add_or_lookup(&t.ctx, "", "three@drei.sam", Origin::IncomingUnknownTo)
+                .unwrap();
+        assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
+        assert_eq!(sth_modified, Modifier::None);
+        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        assert_eq!(contact.get_name(), "");
+        assert_eq!(contact.get_display_name(), "three@drei.sam");
+        assert_eq!(contact.get_addr(), "three@drei.sam");
+        assert_eq!(contact.get_name_n_addr(), "three@drei.sam");
+
+        // add name to third contact from incoming message (this becomes authorized name)
+        let (contact_id_test, sth_modified) = Contact::add_or_lookup(
+            &t.ctx,
+            "m. serious",
+            "three@drei.sam",
+            Origin::IncomingUnknownFrom,
+        )
+        .unwrap();
+        assert_eq!(contact_id, contact_id_test);
+        assert_eq!(sth_modified, Modifier::Modified);
+        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        assert_eq!(contact.get_name_n_addr(), "m. serious (three@drei.sam)");
+        assert!(!contact.is_blocked());
+
+        // manually edit name of third contact (does not changed authorized name)
+        let (contact_id_test, sth_modified) = Contact::add_or_lookup(
+            &t.ctx,
+            "schnucki",
+            "three@drei.sam",
+            Origin::ManuallyCreated,
+        )
+        .unwrap();
+        assert_eq!(contact_id, contact_id_test);
+        assert_eq!(sth_modified, Modifier::Modified);
+        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        assert_eq!(contact.get_authname(), "m. serious");
+        assert_eq!(contact.get_name_n_addr(), "schnucki (three@drei.sam)");
+        assert!(!contact.is_blocked());
+
+        // check SELF
+        let contact = Contact::load_from_db(&t.ctx, DC_CONTACT_ID_SELF).unwrap();
+        assert_eq!(DC_CONTACT_ID_SELF, 1);
+        assert_eq!(contact.get_name(), t.ctx.stock_str(StockMessage::SelfMsg));
+        assert_eq!(contact.get_addr(), ""); // we're not configured
+        assert!(!contact.is_blocked());
     }
 }

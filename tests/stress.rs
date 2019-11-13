@@ -262,22 +262,6 @@ fn test_stress_tests() {
 }
 
 #[test]
-fn test_get_contacts() {
-    let context = create_test_context();
-    let contacts = Contact::get_all(&context.ctx, 0, Some("some2")).unwrap();
-    assert_eq!(contacts.len(), 0);
-
-    let id = Contact::create(&context.ctx, "bob", "bob@mail.de").unwrap();
-    assert_ne!(id, 0);
-
-    let contacts = Contact::get_all(&context.ctx, 0, Some("bob")).unwrap();
-    assert_eq!(contacts.len(), 1);
-
-    let contacts = Contact::get_all(&context.ctx, 0, Some("alice")).unwrap();
-    assert_eq!(contacts.len(), 0);
-}
-
-#[test]
 fn test_chat() {
     let context = create_test_context();
     let contact1 = Contact::create(&context.ctx, "bob", "bob@mail.de").unwrap();
