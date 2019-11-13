@@ -797,7 +797,8 @@ pub fn is_contact_in_chat(context: &Context, chat_id: u32, contact_id: u32) -> b
         .unwrap_or_default()
 }
 
-// Should return Result
+// note that unarchive() is not the same as archive(false) -
+// eg. unarchive() does not send events as done for archive(false).
 pub fn unarchive(context: &Context, chat_id: u32) -> Result<(), Error> {
     sql::execute(
         context,
@@ -2152,5 +2153,61 @@ mod tests {
         assert!(!chat.can_send());
         assert_eq!(chat.name, t.ctx.stock_str(StockMessage::DeviceMessages));
         assert!(chat.get_profile_image(&t.ctx).is_some());
+    }
+
+    fn chatlist_len(ctx: &Context, listflags: usize) -> usize {
+        Chatlist::try_load(ctx, listflags, None, None)
+            .unwrap()
+            .len()
+    }
+
+    #[test]
+    fn test_archive() {
+        // create two chats
+        let t = dummy_context();
+        let mut msg = Message::new(Viewtype::Text);
+        msg.text = Some("foo".to_string());
+        let msg_id = add_device_msg(&t.ctx, &mut msg).unwrap();
+        let chat_id1 = message::Message::load_from_db(&t.ctx, msg_id)
+            .unwrap()
+            .chat_id;
+        let chat_id2 = create_by_contact_id(&t.ctx, DC_CONTACT_ID_SELF).unwrap();
+        assert!(chat_id1 > DC_CHAT_ID_LAST_SPECIAL);
+        assert!(chat_id2 > DC_CHAT_ID_LAST_SPECIAL);
+        assert_eq!(get_chat_cnt(&t.ctx), 2);
+        assert_eq!(chatlist_len(&t.ctx, 0), 2);
+        assert_eq!(chatlist_len(&t.ctx, DC_GCL_NO_SPECIALS), 2);
+        assert_eq!(chatlist_len(&t.ctx, DC_GCL_ARCHIVED_ONLY), 0);
+        assert_eq!(DC_GCL_ARCHIVED_ONLY, 0x01);
+        assert_eq!(DC_GCL_NO_SPECIALS, 0x02);
+
+        // archive first chat
+        assert!(archive(&t.ctx, chat_id1, true).is_ok());
+        assert!(Chat::load_from_db(&t.ctx, chat_id1).unwrap().is_archived());
+        assert!(!Chat::load_from_db(&t.ctx, chat_id2).unwrap().is_archived());
+        assert_eq!(get_chat_cnt(&t.ctx), 2);
+        assert_eq!(chatlist_len(&t.ctx, 0), 2); // including DC_CHAT_ID_ARCHIVED_LINK now
+        assert_eq!(chatlist_len(&t.ctx, DC_GCL_NO_SPECIALS), 1);
+        assert_eq!(chatlist_len(&t.ctx, DC_GCL_ARCHIVED_ONLY), 1);
+
+        // archive second chat
+        assert!(archive(&t.ctx, chat_id2, true).is_ok());
+        assert!(Chat::load_from_db(&t.ctx, chat_id1).unwrap().is_archived());
+        assert!(Chat::load_from_db(&t.ctx, chat_id2).unwrap().is_archived());
+        assert_eq!(get_chat_cnt(&t.ctx), 2);
+        assert_eq!(chatlist_len(&t.ctx, 0), 1); // only DC_CHAT_ID_ARCHIVED_LINK now
+        assert_eq!(chatlist_len(&t.ctx, DC_GCL_NO_SPECIALS), 0);
+        assert_eq!(chatlist_len(&t.ctx, DC_GCL_ARCHIVED_ONLY), 2);
+
+        // archive already archived first chat, unarchive second chat two times
+        assert!(archive(&t.ctx, chat_id1, true).is_ok());
+        assert!(archive(&t.ctx, chat_id2, false).is_ok());
+        assert!(archive(&t.ctx, chat_id2, false).is_ok());
+        assert!(Chat::load_from_db(&t.ctx, chat_id1).unwrap().is_archived());
+        assert!(!Chat::load_from_db(&t.ctx, chat_id2).unwrap().is_archived());
+        assert_eq!(get_chat_cnt(&t.ctx), 2);
+        assert_eq!(chatlist_len(&t.ctx, 0), 2);
+        assert_eq!(chatlist_len(&t.ctx, DC_GCL_NO_SPECIALS), 1);
+        assert_eq!(chatlist_len(&t.ctx, DC_GCL_ARCHIVED_ONLY), 1);
     }
 }
