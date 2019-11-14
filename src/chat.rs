@@ -1904,7 +1904,67 @@ pub fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: u32) -> Resul
 }
 
 pub fn get_info_json(context: &Context, chat_id: u32) -> Result<String, Error> {
-    let s = format!("{{\n {:?}: {:?}\n}}", "chat_id", chat_id);
+    let chat = Chat::load_from_db(context, chat_id).unwrap();
+
+    // ToDo: 
+    // - [x] id
+    // - [x] type
+    // - [x] name
+    // - [x] archived
+    // - [x] color
+    // - [x] profileImage
+    // - [x] subtitle
+    // - [x] draft,
+    // - [ ] deaddrop,
+    // - [ ] summary,
+    // - [ ] lastUpdated,
+    // - [ ] freshMessageCounter,
+    // - [ ] email
+
+    let profile_image = match chat.get_profile_image(context) {
+        Some(path) => path.into_os_string().into_string().unwrap(),
+        None => "".to_string()
+    };
+
+    let draft = match get_draft(context, chat_id) {
+        Ok(message) => {
+            match message {
+              Some(m) => m.text.unwrap_or("".to_string())   ,
+              None => "".to_string()
+            } 
+        },
+        Err(_) => "".to_string()
+    };
+      
+    let s = format!("{{\
+                    \"id\": {:?},\
+                    \"type\": {:?},\
+                    \"name\": {:?},\
+                    \"archived\": {:?},\
+                    \"grpid\": {:?},\
+                    \"blocked\": {:?},\
+                    \"param\": {:?},\
+                    \"gossiped_timestamp\": {:?},\
+                    \"is_sending_locations\": {:?},\
+                    \"color\": {:?},\
+                    \"profile_image\": {:?},\
+                    \"subtitle\": {:?},\
+                    \"draft\": {:?}\
+                    }}",
+                    chat.id,
+                    chat.typ as u32,
+                    chat.name,
+                    chat.archived,
+                    chat.grpid,
+                    chat.blocked as u32,
+                    chat.param.to_string(),
+                    chat.gossiped_timestamp,
+                    chat.is_sending_locations,
+                    chat.get_color(context),
+                    profile_image,
+                    chat.get_subtitle(context),
+                    draft);
+                    
     Ok(s)
 }
 
