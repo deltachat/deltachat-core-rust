@@ -1,3 +1,5 @@
+//! OAuth 2 module
+
 use std::collections::HashMap;
 
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
@@ -33,12 +35,14 @@ struct Oauth2 {
     get_userinfo: Option<&'static str>,
 }
 
+/// OAuth 2 Access Token Response
 #[derive(Debug, Deserialize)]
 struct Response {
     // Should always be there according to: https://www.oauth.com/oauth2-servers/access-tokens/access-token-response/
     // but previous code handled its abscense.
     access_token: Option<String>,
     token_type: String,
+    /// Duration of time the token is granted for, in seconds
     expires_in: Option<u64>,
     refresh_token: Option<String>,
     scope: Option<String>,
@@ -205,7 +209,7 @@ pub fn dc_get_oauth2_access_token(
                 .ok();
             let expires_in = response
                 .expires_in
-                // refresh a bet before
+                // refresh a bit before
                 .map(|t| time() + t as i64 - 5)
                 .unwrap_or_else(|| 0);
             context

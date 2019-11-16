@@ -1,3 +1,5 @@
+//! # Chat list module
+
 use crate::chat::*;
 use crate::constants::*;
 use crate::contact::*;
@@ -233,6 +235,7 @@ impl Chatlist {
         self.ids.len()
     }
 
+    /// Returns true if chatlist is empty.
     pub fn is_empty(&self) -> bool {
         self.ids.is_empty()
     }
@@ -329,6 +332,7 @@ impl Chatlist {
     }
 }
 
+/// Get the number of archived chats
 pub fn dc_get_archived_cnt(context: &Context) -> u32 {
     context
         .sql

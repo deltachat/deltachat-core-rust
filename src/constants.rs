@@ -1,4 +1,4 @@
-//! Constants
+//! # Constants
 #![allow(non_camel_case_types, dead_code)]
 
 use deltachat_derive::*;

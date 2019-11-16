@@ -1,3 +1,5 @@
+//! # Key-value configuration management
+
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
 

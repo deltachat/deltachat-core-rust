@@ -39,7 +39,9 @@ pub type ContextCallback = dyn Fn(&Context, Event) -> uintptr_t + Send + Sync;
 
 #[derive(DebugStub)]
 pub struct Context {
+    /// Database file path
     dbfile: PathBuf,
+    /// Blob directory path
     blobdir: PathBuf,
     pub sql: Sql,
     pub inbox: Arc<RwLock<Imap>>,
@@ -93,6 +95,7 @@ pub fn get_info() -> HashMap<&'static str, String> {
 }
 
 impl Context {
+    /// Creates new context.
     pub fn new(cb: Box<ContextCallback>, os_name: String, dbfile: PathBuf) -> Result<Context> {
         let mut blob_fname = OsString::new();
         blob_fname.push(dbfile.file_name().unwrap_or_default());
@@ -153,10 +156,12 @@ impl Context {
         Ok(ctx)
     }
 
+    /// Returns database file path.
     pub fn get_dbfile(&self) -> &Path {
         self.dbfile.as_path()
     }
 
+    /// Returns blob directory path.
     pub fn get_blobdir(&self) -> &Path {
         self.blobdir.as_path()
     }

@@ -47,8 +47,8 @@ pub struct Contact {
     /// May be empty, initially set to `authname`.
     name: String,
     /// Name authorized by the contact himself. Only this name may be spread to others,
-    /// e.g. in To:-lists. May be empty. It is recommended to use `Contact::get_name`,
-    /// `Contact::get_display_name` or `Contact::get_name_n_addr` to access this field.
+    /// e.g. in To:-lists. May be empty. It is recommended to use `Contact::get_authname`,
+    /// to access this field.
     authname: String,
     /// E-Mail-Address of the contact. It is recommended to use `Contact::get_addr`` to access this field.
     addr: String,
@@ -717,6 +717,7 @@ impl Contact {
         &self.addr
     }
 
+    /// Get name authorized by the contact.
     pub fn get_authname(&self) -> &str {
         &self.authname
     }
@@ -899,6 +900,7 @@ impl Contact {
     }
 }
 
+/// Extracts first name from full name.
 fn get_first_name<'a>(full_name: &'a str) -> &'a str {
     full_name.splitn(2, ' ').next().unwrap_or_default()
 }
@@ -909,6 +911,7 @@ pub fn may_be_valid_addr(addr: &str) -> bool {
     res.is_ok()
 }
 
+/// Returns address with whitespace trimmed and `mailto:` prefix removed.
 pub fn addr_normalize(addr: &str) -> &str {
     let norm = addr.trim();
 

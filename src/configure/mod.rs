@@ -1,3 +1,5 @@
+//! Email accounts autoconfiguration process module
+
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use crate::config::Config;
@@ -563,9 +565,7 @@ fn try_smtp_one_param(context: &Context, param: &LoginParam) -> Option<bool> {
     }
 }
 
-/*******************************************************************************
- * Connect to configured account
- ******************************************************************************/
+/// Connects to the configured account
 pub fn dc_connect_to_configured_imap(context: &Context, imap: &Imap) -> libc::c_int {
     let mut ret_connected = 0;
 

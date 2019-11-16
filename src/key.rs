@@ -1,3 +1,5 @@
+//! Cryptographic key module
+
 use std::collections::BTreeMap;
 use std::io::Cursor;
 use std::path::Path;
@@ -11,6 +13,7 @@ use crate::context::Context;
 use crate::dc_tools::*;
 use crate::sql::{self, Sql};
 
+/// Cryptographic key
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Key {
     Public(SignedPublicKey),

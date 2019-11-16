@@ -1,3 +1,5 @@
+//! # QR code module
+
 use lazy_static::lazy_static;
 use percent_encoding::percent_decode_str;
 

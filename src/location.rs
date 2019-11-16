@@ -1,3 +1,5 @@
+//! Location handling
+
 use bitflags::bitflags;
 use quick_xml;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
@@ -16,7 +18,7 @@ use crate::param::*;
 use crate::sql;
 use crate::stock::StockMessage;
 
-// location handling
+/// Location record
 #[derive(Debug, Clone, Default)]
 pub struct Location {
     pub location_id: u32,

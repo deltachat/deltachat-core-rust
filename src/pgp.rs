@@ -1,3 +1,5 @@
+//! OpenPGP helper module
+
 use std::collections::{BTreeMap, HashSet};
 use std::convert::TryInto;
 use std::io::Cursor;
@@ -106,6 +108,8 @@ fn select_pk_for_encryption(key: &SignedPublicKey) -> Option<&SignedPublicSubKey
         true)
 }
 
+/// Encrypts `plain` text using `public_keys_for_encryption`
+/// and signs it using `private_key_for_signing`.
 pub fn pk_encrypt(
     plain: &[u8],
     public_keys_for_encryption: &Keyring,
