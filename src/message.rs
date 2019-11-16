@@ -841,6 +841,11 @@ pub fn get_mime_headers(context: &Context, msg_id: MsgId) -> Option<String> {
 
 pub fn delete_msgs(context: &Context, msg_ids: &[MsgId]) {
     for msg_id in msg_ids.iter() {
+        if let Ok(msg) = Message::load_from_db(context, *msg_id) {
+            if msg.location_id > 0 {
+                delete_poi_location(context, msg.location_id);
+            }
+        }
         update_msg_chat_id(context, *msg_id, DC_CHAT_ID_TRASH);
         job_add(
             context,
@@ -867,6 +872,16 @@ fn update_msg_chat_id(context: &Context, msg_id: MsgId, chat_id: u32) -> bool {
         &context.sql,
         "UPDATE msgs SET chat_id=? WHERE id=?;",
         params![chat_id as i32, msg_id],
+    )
+    .is_ok()
+}
+
+fn delete_poi_location(context: &Context, location_id: u32) -> bool {
+    sql::execute(
+        context,
+        &context.sql,
+        "DELETE FROM locations WHERE independent = 1 AND id=?;",
+        params![location_id as i32],
     )
     .is_ok()
 }
