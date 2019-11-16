@@ -100,7 +100,7 @@ impl Chat {
                         }
 
                         if chat.param.exists(Param::Selftalk) {
-                            chat.name = context.stock_str(StockMessage::SelfMsg).into();
+                            chat.name = context.stock_str(StockMessage::SavedMessages).into();
                         } else if chat.param.exists(Param::Devicetalk) {
                             chat.name = context.stock_str(StockMessage::DeviceMessages).into();
                         }
@@ -603,6 +603,20 @@ fn copy_device_icon_to_blobs(context: &Context) -> Result<String, Error> {
     Ok(blob.as_name().to_string())
 }
 
+pub fn update_saved_messages_icon(context: &Context) -> Result<(), Error> {
+    // if there is no saved-messages chat, there is nothing to update. this is no error.
+    if let Ok((chat_id, _)) = lookup_by_contact_id(context, DC_CONTACT_ID_SELF) {
+        let icon = include_bytes!("../assets/icon-saved-messages.png");
+        let blob = BlobObject::create(context, "icon-saved-messages.png".to_string(), icon)?;
+        let icon = blob.as_name().to_string();
+
+        let mut chat = Chat::load_from_db(context, chat_id)?;
+        chat.param.set(Param::ProfileImage, icon);
+        chat.update_param(context)?;
+    }
+    Ok(())
+}
+
 pub fn create_or_lookup_by_contact_id(
     context: &Context,
     contact_id: u32,
@@ -651,6 +665,10 @@ pub fn create_or_lookup_by_contact_id(
         ),
         params![],
     )?;
+
+    if contact_id == DC_CONTACT_ID_SELF {
+        update_saved_messages_icon(context)?;
+    }
 
     Ok((chat_id, create_blocked))
 }

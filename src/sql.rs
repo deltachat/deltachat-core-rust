@@ -7,6 +7,7 @@ use std::time::Duration;
 use rusqlite::{Connection, OpenFlags, Statement, NO_PARAMS};
 use thread_local_object::ThreadLocal;
 
+use crate::chat::update_saved_messages_icon;
 use crate::constants::ShowEmails;
 use crate::context::Context;
 use crate::dc_tools::*;
@@ -495,6 +496,7 @@ fn open(
         let mut dbversion = dbversion_before_update;
         let mut recalc_fingerprints = 0;
         let mut update_file_paths = 0;
+        let mut update_icons = false;
 
         if dbversion < 1 {
             info!(context, "[migration] v1");
@@ -822,6 +824,11 @@ fn open(
             }
             sql.set_raw_config_int(context, "dbversion", 57)?;
         }
+        if dbversion < 58 {
+            info!(context, "[migration] v58");
+            update_icons = true;
+            sql.set_raw_config_int(context, "dbversion", 58)?;
+        }
 
         // (2) updates that require high-level objects
         // (the structure is complete now and all objects are usable)
@@ -872,6 +879,9 @@ fn open(
             )?;
 
             sql.set_raw_config(context, "backup_for", None)?;
+        }
+        if update_icons {
+            update_saved_messages_icon(context)?;
         }
     }
 
