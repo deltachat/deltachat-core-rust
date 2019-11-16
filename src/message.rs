@@ -1104,7 +1104,7 @@ pub fn mdn_from_ext(
     rfc724_mid: &str,
     timestamp_sent: i64,
 ) -> Option<(u32, MsgId)> {
-    if from_id <= 9 || rfc724_mid.is_empty() {
+    if from_id <= DC_MSG_ID_LAST_SPECIAL || rfc724_mid.is_empty() {
         return None;
     }
 
