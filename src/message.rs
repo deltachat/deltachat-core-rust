@@ -843,7 +843,7 @@ pub fn delete_msgs(context: &Context, msg_ids: &[MsgId]) {
     for msg_id in msg_ids.iter() {
         if let Ok(msg) = Message::load_from_db(context, *msg_id) {
             if msg.location_id > 0 {
-                update_location_chat_id(context, msg.location_id, DC_CHAT_ID_TRASH);
+                delete_poi_location(context, msg.location_id);
             }
         }
         update_msg_chat_id(context, *msg_id, DC_CHAT_ID_TRASH);
@@ -876,12 +876,12 @@ fn update_msg_chat_id(context: &Context, msg_id: MsgId, chat_id: u32) -> bool {
     .is_ok()
 }
 
-fn update_location_chat_id(context: &Context, location_id: u32, chat_id: u32) -> bool {
+fn delete_poi_location(context: &Context, location_id: u32) -> bool {
     sql::execute(
         context,
         &context.sql,
-        "UPDATE locations SET chat_id=? WHERE id=?;",
-        params![chat_id as i32, location_id as i32],
+        "DELETE FROM locations WHERE independent = 1 AND id=?;",
+        params![location_id as i32],
     )
     .is_ok()
 }
