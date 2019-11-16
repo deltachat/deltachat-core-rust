@@ -1,3 +1,5 @@
+//! # Logging macros
+
 #[macro_export]
 macro_rules! info {
     ($ctx:expr,  $msg:expr) => {

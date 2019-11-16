@@ -1,3 +1,5 @@
+//! # Import/export module
+
 use core::cmp::{max, min};
 use std::path::Path;
 

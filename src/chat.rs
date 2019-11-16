@@ -1,3 +1,5 @@
+//! # Chat module
+
 use std::path::{Path, PathBuf};
 
 use itertools::Itertools;
@@ -37,6 +39,7 @@ pub struct Chat {
 }
 
 impl Chat {
+    /// Loads chat from the database by its ID.
     pub fn load_from_db(context: &Context, chat_id: u32) -> Result<Self, Error> {
         let res = context.sql.query_row(
             "SELECT c.id,c.type,c.name, c.grpid,c.param,c.archived, \
@@ -226,6 +229,7 @@ impl Chat {
         color
     }
 
+    /// Returns true if the chat is archived.
     pub fn is_archived(&self) -> bool {
         self.archived
     }

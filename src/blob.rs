@@ -1,3 +1,5 @@
+//! # Blob directory management
+
 use std::ffi::OsStr;
 use std::fmt;
 use std::fs;

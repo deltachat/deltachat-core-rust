@@ -1,3 +1,4 @@
+//! Thunderbird's Autoconfiguration implementation
 use quick_xml;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 

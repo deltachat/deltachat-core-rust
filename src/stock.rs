@@ -1,3 +1,5 @@
+//! Module to work with translatable stock strings
+
 use std::borrow::Cow;
 
 use strum::EnumProperty;

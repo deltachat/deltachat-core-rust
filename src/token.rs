@@ -1,4 +1,8 @@
+//! # Token module
+//!
 //! Functions to read/write token from/to the database. A token is any string associated with a key.
+//!
+//! Tokens are used in countermitm verification protocols.
 
 use deltachat_derive::*;
 
@@ -6,7 +10,7 @@ use crate::context::Context;
 use crate::dc_tools::*;
 use crate::sql;
 
-// Token namespaces
+/// Token namespace
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql)]
 #[repr(i32)]
 pub enum Namespace {
@@ -21,6 +25,8 @@ impl Default for Namespace {
     }
 }
 
+/// Creates a new token and saves it into the database.
+/// Returns created token.
 pub fn save(context: &Context, namespace: Namespace, foreign_id: u32) -> String {
     // foreign_id may be 0
     let token = dc_create_id();

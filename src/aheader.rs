@@ -1,3 +1,7 @@
+//! # Autocrypt header module
+//!
+//! Parse and create [Autocrypt-headers](https://autocrypt.org/en/latest/level1.html#the-autocrypt-header).
+
 use std::collections::BTreeMap;
 use std::ffi::CStr;
 use std::str::FromStr;
@@ -46,7 +50,7 @@ impl str::FromStr for EncryptPreference {
     }
 }
 
-/// Parse and create [Autocrypt-headers](https://autocrypt.org/en/latest/level1.html#the-autocrypt-header).
+/// Autocrypt header
 #[derive(Debug)]
 pub struct Aheader {
     pub addr: String,
@@ -55,6 +59,7 @@ pub struct Aheader {
 }
 
 impl Aheader {
+    /// Creates new autocrypt header
     pub fn new(addr: String, public_key: Key, prefer_encrypt: EncryptPreference) -> Self {
         Aheader {
             addr,
