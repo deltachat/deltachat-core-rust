@@ -1,4 +1,4 @@
-//! OpenPGP helper module
+//! OpenPGP helper module using [rPGP facilities](https://github.com/rpgp/rpgp)
 
 use std::collections::{BTreeMap, HashSet};
 use std::convert::TryInto;
