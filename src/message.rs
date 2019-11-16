@@ -842,10 +842,9 @@ pub fn get_mime_headers(context: &Context, msg_id: MsgId) -> Option<String> {
 pub fn delete_msgs(context: &Context, msg_ids: &[MsgId]) {
     for msg_id in msg_ids.iter() {
         if let Ok(msg) = Message::load_from_db(context, *msg_id) {
-          if msg.location_id > 0 {
-            update_location_chat_id(context, msg.location_id, DC_CHAT_ID_TRASH);
-          }
-        } else {
+            if msg.location_id > 0 {
+                update_location_chat_id(context, msg.location_id, DC_CHAT_ID_TRASH);
+            }
         }
         update_msg_chat_id(context, *msg_id, DC_CHAT_ID_TRASH);
         job_add(
