@@ -875,7 +875,7 @@ impl Contact {
     }
 
     pub fn real_exists_by_id(context: &Context, contact_id: u32) -> bool {
-        if !context.sql.is_open() || contact_id <= 9 {
+        if !context.sql.is_open() || contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
             return false;
         }
 
@@ -920,7 +920,7 @@ pub fn addr_normalize(addr: &str) -> &str {
 }
 
 fn set_block_contact(context: &Context, contact_id: u32, new_blocking: bool) {
-    if contact_id <= 9 {
+    if contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
         return;
     }
 

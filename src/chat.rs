@@ -874,7 +874,7 @@ pub fn send_text_msg(
 ) -> Result<MsgId, Error> {
     ensure!(
         chat_id > DC_CHAT_ID_LAST_SPECIAL,
-        "bad chat_id = {} <= 9",
+        "bad chat_id = {} <= DC_CHAT_ID_LAST_SPECIAL",
         chat_id
     );
 
@@ -1249,7 +1249,7 @@ pub fn get_next_media(
 pub fn archive(context: &Context, chat_id: u32, archive: bool) -> Result<(), Error> {
     ensure!(
         chat_id > DC_CHAT_ID_LAST_SPECIAL,
-        "bad chat_id = {} <= 9",
+        "bad chat_id = {} <= DC_CHAT_ID_LAST_SPECIAL",
         chat_id
     );
 
@@ -1284,7 +1284,7 @@ pub fn archive(context: &Context, chat_id: u32, archive: bool) -> Result<(), Err
 pub fn delete(context: &Context, chat_id: u32) -> Result<(), Error> {
     ensure!(
         chat_id > DC_CHAT_ID_LAST_SPECIAL,
-        "bad chat_id = {} <= 9",
+        "bad chat_id = {} <= DC_CHAT_ID_LAST_SPECIAL",
         chat_id
     );
     /* Up to 2017-11-02 deleting a group also implied leaving it, see above why we have changed this. */
@@ -1573,7 +1573,7 @@ pub fn remove_contact_from_chat(
 ) -> Result<(), Error> {
     ensure!(
         chat_id > DC_CHAT_ID_LAST_SPECIAL,
-        "bad chat_id = {} <= 9",
+        "bad chat_id = {} <= DC_CHAT_ID_LAST_SPECIAL",
         chat_id
     );
     ensure!(
