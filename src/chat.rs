@@ -2114,7 +2114,8 @@ mod tests {
         assert!(!chat.archived);
         assert!(!chat.is_device_talk());
         assert!(chat.can_send());
-        assert_eq!(chat.name, t.ctx.stock_str(StockMessage::SelfMsg));
+        assert_eq!(chat.name, t.ctx.stock_str(StockMessage::SavedMessages));
+        assert!(chat.get_profile_image(&t.ctx).is_some());
     }
 
     #[test]
