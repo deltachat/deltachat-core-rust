@@ -382,11 +382,11 @@ impl<'a> Peerstate<'a> {
             sql::execute(
                 self.context,
                 sql,
-		"UPDATE acpeerstates \
-		 SET last_seen=?, last_seen_autocrypt=?, prefer_encrypted=?, \
-		 public_key=?, gossip_timestamp=?, gossip_key=?, public_key_fingerprint=?, gossip_key_fingerprint=?, \
+                "UPDATE acpeerstates \
+                 SET last_seen=?, last_seen_autocrypt=?, prefer_encrypted=?, \
+                 public_key=?, gossip_timestamp=?, gossip_key=?, public_key_fingerprint=?, gossip_key_fingerprint=?, \
                  verified_key=?, verified_key_fingerprint=? \
-		 WHERE addr=?;",
+                 WHERE addr=?;",
                 params![
                     self.last_seen,
                     self.last_seen_autocrypt,
