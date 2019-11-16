@@ -690,6 +690,8 @@ pub fn prepare_msg<'a>(
 
 pub fn msgtype_has_file(msgtype: Viewtype) -> bool {
     match msgtype {
+        Viewtype::Unknown => false,
+        Viewtype::Text => false,
         Viewtype::Image => true,
         Viewtype::Gif => true,
         Viewtype::Sticker => true,
@@ -697,7 +699,6 @@ pub fn msgtype_has_file(msgtype: Viewtype) -> bool {
         Viewtype::Voice => true,
         Viewtype::Video => true,
         Viewtype::File => true,
-        _ => false,
     }
 }
 
