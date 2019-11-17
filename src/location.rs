@@ -304,16 +304,15 @@ pub fn get_range(
     if timestamp_to == 0 {
         timestamp_to = time() + 10;
     }
-
     context
         .sql
         .query_map(
             "SELECT l.id, l.latitude, l.longitude, l.accuracy, l.timestamp, l.independent, \
-             m.id, l.from_id, l.chat_id, m.txt \
+             COALESCE(m.id, 0) AS msg_id, l.from_id, l.chat_id, COALESCE(m.txt, '') AS txt \
              FROM locations l  LEFT JOIN msgs m ON l.id=m.location_id  WHERE (? OR l.chat_id=?) \
              AND (? OR l.from_id=?) \
              AND (l.independent=1 OR (l.timestamp>=? AND l.timestamp<=?)) \
-             ORDER BY l.timestamp DESC, l.id DESC, m.id DESC;",
+             ORDER BY l.timestamp DESC, l.id DESC, msg_id DESC;",
             params![
                 if chat_id == 0 { 1 } else { 0 },
                 chat_id as i32,
@@ -330,7 +329,6 @@ pub fn get_range(
                 } else {
                     None
                 };
-
                 let loc = Location {
                     location_id: row.get(0)?,
                     latitude: row.get(1)?,
