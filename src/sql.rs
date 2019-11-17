@@ -1172,6 +1172,29 @@ fn maybe_add_from_param(
 #[cfg(test)]
 mod test {
     use super::*;
+    use indoc::indoc;
+
+    #[test]
+    fn test_literals() {
+        // sql formatted with the rust-multiline-literal will easily fail.
+        let a = "SELECT a\
+                 FROM b";
+        assert_eq!(a, "SELECT aFROM b");
+
+        // sql formatted with the concat-macro with also easily fail.
+        // also you cannot convince `cargo fmt` to align the statements.
+        let a = concat!("SELECT a", "FROM b");
+        assert_eq!(a, "SELECT aFROM b");
+
+        // the indoc-macro keeps lineends so that spaces are not needed.
+        // sqlite treats the lineends as normal whitespace so things are fine.
+        // also `cargo fmt` does not destroy the layout and there is less boilerplate.
+        let a = indoc!(
+            "SELECT a
+             FROM b"
+        );
+        assert_eq!(a, "SELECT a\nFROM b");
+    }
 
     #[test]
     fn test_maybe_add_file() {

@@ -49,6 +49,7 @@ bitflags = "1.1.0"
 jetscii = "0.4.4"
 debug_stub_derive = "0.3.0"
 sanitize-filename = "0.2.1"
+indoc = "0.3"
 
 [dev-dependencies]
 tempfile = "3.0"
