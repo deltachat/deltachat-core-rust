@@ -132,6 +132,10 @@ impl Imap {
         self.should_reconnect.load(Ordering::Relaxed)
     }
 
+    fn trigger_reconnect(&self) {
+        self.should_reconnect.store(true, Ordering::Relaxed)
+    }
+
     fn setup_handle_if_needed(&self, context: &Context) -> bool {
         task::block_on(async move {
             if self.config.read().await.imap_server.is_empty() {
@@ -140,10 +144,8 @@ impl Imap {
 
             if self.should_reconnect() {
                 self.unsetup_handle(context).await;
-            }
-
-            if self.is_connected().await {
                 self.should_reconnect.store(false, Ordering::Relaxed);
+            } else if self.is_connected().await {
                 return true;
             }
 
@@ -373,7 +375,8 @@ impl Imap {
 
     pub fn fetch(&self, context: &Context) -> bool {
         task::block_on(async move {
-            if !self.is_connected().await || !context.sql.is_open() {
+            if !context.sql.is_open() {
+                // probably shutdown
                 return false;
             }
 
@@ -462,7 +465,7 @@ impl Imap {
                         );
 
                         self.config.write().await.selected_folder = None;
-                        self.should_reconnect.store(true, Ordering::Relaxed);
+                        self.trigger_reconnect();
                         return ImapActionResult::Failed;
                     }
                 }
@@ -550,7 +553,7 @@ impl Imap {
                 match session.fetch(set, PREFETCH_FLAGS).await {
                     Ok(list) => list,
                     Err(_err) => {
-                        self.should_reconnect.store(true, Ordering::Relaxed);
+                        self.trigger_reconnect();
                         info!(
                             context,
                             "No result returned for folder \"{}\".",
@@ -694,7 +697,7 @@ impl Imap {
             match session.uid_fetch(set, BODY_FLAGS).await {
                 Ok(msgs) => msgs,
                 Err(err) => {
-                    self.should_reconnect.store(true, Ordering::Relaxed);
+                    self.trigger_reconnect();
                     warn!(
                         context,
                         "Error on fetching message #{} from folder \"{}\"; retry={}; error={}.",
@@ -777,6 +780,10 @@ impl Imap {
             let timeout = Duration::from_secs(23 * 60);
             if let Some(session) = session {
                 match session.idle() {
+
+                    // BEWARE: If you change the Secure branch you
+                    // typically also need to change the Insecure branch.
+
                     IdleHandle::Secure(mut handle) => {
                         if let Err(err) = handle.init().await {
                             warn!(context, "Failed to establish IDLE connection: {:?}", err);
@@ -801,7 +808,11 @@ impl Imap {
                                 *self.session.lock().await = Some(Session::Secure(session));
                             }
                             Err(err) => {
-                                warn!(context, "Failed to close IMAP IDLE connection: {:?}", err);
+                                // if we cannot terminate IDLE it probably
+                                // means that we waited long (with idle_wait)
+                                // but the network went away/changed 
+                                self.trigger_reconnect();
+                                warn!(context, "Failed to terminate IMAP IDLE connection: {:?}", err);
                             }
                         }
                     }
@@ -830,6 +841,10 @@ impl Imap {
                                 *self.session.lock().await = Some(Session::Insecure(session));
                             }
                             Err(err) => {
+                                // if we cannot terminate IDLE it probably
+                                // means that we waited long (with idle_wait)
+                                // but the network went away/changed 
+                                self.trigger_reconnect();
                                 warn!(context, "Failed to close IMAP IDLE connection: {:?}", err);
                             }
                         }
