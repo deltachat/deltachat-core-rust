@@ -1176,17 +1176,22 @@ mod test {
 
     #[test]
     fn test_literals() {
-        // sql formatted with the rust-multiline-literal will easily fail.
+        // (a) sql formatted with the rust-multiline-literal will easily fail.
         let a = "SELECT a\
                  FROM b";
         assert_eq!(a, "SELECT aFROM b");
 
-        // sql formatted with the concat-macro with also easily fail.
+        // (b) if used without the trailing backspace, things are fine.
+        let a = "SELECT a
+                 FROM b";
+        assert_eq!(a, "SELECT a\n                 FROM b");
+
+        // (c) sql formatted with the concat-macro with also easily fail.
         // also you cannot convince `cargo fmt` to align the statements.
         let a = concat!("SELECT a", "FROM b");
         assert_eq!(a, "SELECT aFROM b");
 
-        // the indoc-macro keeps lineends so that spaces are not needed.
+        // (d) the indoc-macro keeps lineends so that spaces are not needed.
         // sqlite treats the lineends as normal whitespace so things are fine.
         // also `cargo fmt` does not destroy the layout and there is less boilerplate.
         let a = indoc!(
@@ -1194,6 +1199,13 @@ mod test {
              FROM b"
         );
         assert_eq!(a, "SELECT a\nFROM b");
+
+        // (e) when adding a trailing backslash, things will fail, though.
+        let a = indoc!(
+            "SELECT a\
+             FROM b"
+        );
+        assert_eq!(a, "SELECT aFROM b");
     }
 
     #[test]
