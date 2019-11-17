@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, HashSet};
 use std::convert::TryInto;
+use std::io;
 use std::io::Cursor;
 
 use pgp::armor::BlockType;
@@ -10,8 +11,10 @@ use pgp::composed::{
     SignedPublicSubKey, SignedSecretKey, SubkeyParamsBuilder,
 };
 use pgp::crypto::{HashAlgorithm, SymmetricKeyAlgorithm};
-use pgp::types::{CompressionAlgorithm, KeyTrait, SecretKeyTrait, StringToKey};
-use rand::thread_rng;
+use pgp::types::{
+    CompressionAlgorithm, KeyTrait, Mpi, PublicKeyTrait, SecretKeyTrait, StringToKey,
+};
+use rand::{thread_rng, CryptoRng, Rng};
 
 use crate::error::Error;
 use crate::key::*;
@@ -19,6 +22,68 @@ use crate::keyring::*;
 
 pub const HEADER_AUTOCRYPT: &str = "autocrypt-prefer-encrypt";
 pub const HEADER_SETUPCODE: &str = "passphrase-begin";
+
+/// A wrapper for rPGP public key types
+#[derive(Debug)]
+enum SignedPublicKeyOrSubkey<'a> {
+    Key(&'a SignedPublicKey),
+    Subkey(&'a SignedPublicSubKey),
+}
+
+impl<'a> KeyTrait for SignedPublicKeyOrSubkey<'a> {
+    fn fingerprint(&self) -> Vec<u8> {
+        match self {
+            Self::Key(k) => k.fingerprint(),
+            Self::Subkey(k) => k.fingerprint(),
+        }
+    }
+
+    fn key_id(&self) -> pgp::types::KeyId {
+        match self {
+            Self::Key(k) => k.key_id(),
+            Self::Subkey(k) => k.key_id(),
+        }
+    }
+
+    fn algorithm(&self) -> pgp::crypto::PublicKeyAlgorithm {
+        match self {
+            Self::Key(k) => k.algorithm(),
+            Self::Subkey(k) => k.algorithm(),
+        }
+    }
+}
+
+impl<'a> PublicKeyTrait for SignedPublicKeyOrSubkey<'a> {
+    fn verify_signature(
+        &self,
+        hash: HashAlgorithm,
+        data: &[u8],
+        sig: &[Mpi],
+    ) -> pgp::errors::Result<()> {
+        match self {
+            Self::Key(k) => k.verify_signature(hash, data, sig),
+            Self::Subkey(k) => k.verify_signature(hash, data, sig),
+        }
+    }
+
+    fn encrypt<R: Rng + CryptoRng>(
+        &self,
+        rng: &mut R,
+        plain: &[u8],
+    ) -> pgp::errors::Result<Vec<Mpi>> {
+        match self {
+            Self::Key(k) => k.encrypt(rng, plain),
+            Self::Subkey(k) => k.encrypt(rng, plain),
+        }
+    }
+
+    fn to_writer_old(&self, writer: &mut impl io::Write) -> pgp::errors::Result<()> {
+        match self {
+            Self::Key(k) => k.to_writer_old(writer),
+            Self::Subkey(k) => k.to_writer_old(writer),
+        }
+    }
+}
 
 /// Split data from PGP Armored Data as defined in https://tools.ietf.org/html/rfc4880#section-6.2.
 ///
@@ -99,13 +164,28 @@ pub fn create_keypair(addr: impl AsRef<str>) -> Option<(Key, Key)> {
     Some((Key::Public(public_key), Key::Secret(private_key)))
 }
 
-/// Select subkey of the public key to use for encryption.
+/// Select public key or subkey to use for encryption.
 ///
-/// Currently the first subkey is selected.
-fn select_pk_for_encryption(key: &SignedPublicKey) -> Option<&SignedPublicSubKey> {
-    key.public_subkeys.iter().find(|_k|
-        // TODO: check if it is an encryption subkey
-        true)
+/// First, tries to use subkeys. If none of the subkeys are suitable
+/// for encryption, tries to use primary key. Returns `None` if the public
+/// key cannot be used for encryption.
+///
+/// TODO: take key flags and expiration dates into account
+fn select_pk_for_encryption(key: &SignedPublicKey) -> Option<SignedPublicKeyOrSubkey> {
+    key.public_subkeys
+        .iter()
+        .find(|subkey| subkey.is_encryption_key())
+        .map_or_else(
+            || {
+                // No usable subkey found, try primary key
+                if key.is_encryption_key() {
+                    Some(SignedPublicKeyOrSubkey::Key(key))
+                } else {
+                    None
+                }
+            },
+            |subkey| Some(SignedPublicKeyOrSubkey::Subkey(subkey)),
+        )
 }
 
 /// Encrypts `plain` text using `public_keys_for_encryption`
@@ -116,7 +196,7 @@ pub fn pk_encrypt(
     private_key_for_signing: Option<&Key>,
 ) -> Result<String, Error> {
     let lit_msg = Message::new_literal_bytes("", plain);
-    let pkeys: Vec<&SignedPublicSubKey> = public_keys_for_encryption
+    let pkeys: Vec<SignedPublicKeyOrSubkey> = public_keys_for_encryption
         .keys()
         .iter()
         .filter_map(|key| {
@@ -126,6 +206,7 @@ pub fn pk_encrypt(
                 .and_then(select_pk_for_encryption)
         })
         .collect();
+    let pkeys_refs: Vec<&SignedPublicKeyOrSubkey> = pkeys.iter().collect();
 
     let mut rng = thread_rng();
 
@@ -138,9 +219,9 @@ pub fn pk_encrypt(
         lit_msg
             .sign(skey, || "".into(), Default::default())
             .and_then(|msg| msg.compress(CompressionAlgorithm::ZLIB))
-            .and_then(|msg| msg.encrypt_to_keys(&mut rng, Default::default(), &pkeys))
+            .and_then(|msg| msg.encrypt_to_keys(&mut rng, Default::default(), &pkeys_refs))
     } else {
-        lit_msg.encrypt_to_keys(&mut rng, Default::default(), &pkeys)
+        lit_msg.encrypt_to_keys(&mut rng, Default::default(), &pkeys_refs)
     };
 
     let msg = encrypted_msg?;
