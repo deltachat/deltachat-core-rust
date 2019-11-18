@@ -810,24 +810,23 @@ fn open(
             )?;
             sql.set_raw_config_int(context, "dbversion", 55)?;
         }
-        if dbversion < 57 {
-            info!(context, "[migration] v57");
-            // label is a unique name and is currently used for device-messages only.
-            // in contrast to rfc724_mid and other fields, the label is generated on the device
-            // and allows reliable identifications this way.
+        if dbversion < 59 {
+            info!(context, "[migration] v59");
+            // records in the devmsglabels are kept when the message is deleted.
+            // so, msg_id may or may not exist.
             sql.execute(
-                "ALTER TABLE msgs ADD COLUMN label TEXT DEFAULT '';",
-                params![],
+                "CREATE TABLE devmsglabels (id INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT, msg_id INTEGER);",
+                NO_PARAMS,
+            )?;
+            sql.execute(
+                "CREATE INDEX devmsglabels_index1 ON devmsglabels (label);",
+                NO_PARAMS,
             )?;
             if exists_before_update && sql.get_raw_config_int(context, "bcc_self").is_none() {
                 sql.set_raw_config_int(context, "bcc_self", 1)?;
             }
-            sql.set_raw_config_int(context, "dbversion", 57)?;
-        }
-        if dbversion < 58 {
-            info!(context, "[migration] v58");
             update_icons = true;
-            sql.set_raw_config_int(context, "dbversion", 58)?;
+            sql.set_raw_config_int(context, "dbversion", 59)?;
         }
 
         // (2) updates that require high-level objects

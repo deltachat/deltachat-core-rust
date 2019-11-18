@@ -1971,32 +1971,27 @@ fn add_device_msg_maybe_labelled(
 ) -> Result<MsgId, Error> {
     let (chat_id, _blocked) =
         create_or_lookup_by_contact_id(context, DC_CONTACT_ID_DEVICE, Blocked::Not)?;
-    let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
 
-    // chat_id has an sql-index so it makes sense to add this although redundant
+    // if the device message is labeled and was ever added, do nothing
     if let Some(label) = label {
-        if let Ok(msg_id) = context.sql.query_row(
-            "SELECT id FROM msgs WHERE chat_id=? AND label=?",
-            params![chat_id, label],
-            |row| {
-                let msg_id: MsgId = row.get(0)?;
-                Ok(msg_id)
-            },
+        if let Ok(()) = context.sql.query_row(
+            "SELECT label FROM devmsglabels WHERE label=?",
+            params![label],
+            |_| Ok(()),
         ) {
-            info!(
-                context,
-                "device-message {} already exist as {}", label, msg_id
-            );
-            return Ok(msg_id);
+            info!(context, "device-message {} already added", label);
+            return Ok(MsgId::new_unset());
         }
     }
 
+    // insert the device message
+    let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
     prepare_msg_blob(context, msg)?;
     unarchive(context, chat_id)?;
 
     context.sql.execute(
-        "INSERT INTO msgs (chat_id,from_id,to_id, timestamp,type,state, txt,param,rfc724_mid,label) \
-         VALUES (?,?,?, ?,?,?, ?,?,?,?);",
+        "INSERT INTO msgs (chat_id,from_id,to_id, timestamp,type,state, txt,param,rfc724_mid) \
+         VALUES (?,?,?, ?,?,?, ?,?,?);",
         params![
             chat_id,
             DC_CONTACT_ID_DEVICE,
@@ -2007,19 +2002,22 @@ fn add_device_msg_maybe_labelled(
             msg.text.as_ref().map_or("", String::as_str),
             msg.param.to_string(),
             rfc724_mid,
-            label.unwrap_or_default(),
         ],
     )?;
 
     let row_id = sql::get_rowid(context, &context.sql, "msgs", "rfc724_mid", &rfc724_mid);
     let msg_id = MsgId::new(row_id);
-    context.call_cb(Event::IncomingMsg { chat_id, msg_id });
-    info!(
-        context,
-        "device-message {} added as {}",
-        label.unwrap_or("without label"),
-        msg_id
-    );
+
+    if let Some(label) = label {
+        context.sql.execute(
+            "INSERT INTO devmsglabels (label, msg_id) VALUES (?, ?);",
+            params![label, msg_id],
+        )?;
+    }
+
+    if !msg_id.is_unset() {
+        context.call_cb(Event::IncomingMsg { chat_id, msg_id });
+    }
 
     Ok(msg_id)
 }
@@ -2175,26 +2173,27 @@ mod tests {
         msg1.text = Some("first message".to_string());
         let msg1_id = add_device_msg_once(&t.ctx, "any-label", &mut msg1);
         assert!(msg1_id.is_ok());
+        assert!(!msg1_id.as_ref().unwrap().is_unset());
 
         let mut msg2 = Message::new(Viewtype::Text);
         msg2.text = Some("second message".to_string());
         let msg2_id = add_device_msg_once(&t.ctx, "any-label", &mut msg2);
         assert!(msg2_id.is_ok());
-        assert_eq!(msg1_id.as_ref().unwrap(), msg2_id.as_ref().unwrap());
+        assert!(msg2_id.as_ref().unwrap().is_unset());
 
         // check added message
-        let msg2 = message::Message::load_from_db(&t.ctx, msg2_id.unwrap());
-        assert!(msg2.is_ok());
-        let msg2 = msg2.unwrap();
-        assert_eq!(msg1_id.unwrap(), msg2.id);
-        assert_eq!(msg2.text.as_ref().unwrap(), "first message");
-        assert_eq!(msg2.from_id, DC_CONTACT_ID_DEVICE);
-        assert_eq!(msg2.to_id, DC_CONTACT_ID_SELF);
-        assert!(!msg2.is_info());
-        assert!(!msg2.is_setupmessage());
+        let msg1 = message::Message::load_from_db(&t.ctx, *msg1_id.as_ref().unwrap());
+        assert!(msg1.is_ok());
+        let msg1 = msg1.unwrap();
+        assert_eq!(msg1_id.as_ref().unwrap(), &msg1.id);
+        assert_eq!(msg1.text.as_ref().unwrap(), "first message");
+        assert_eq!(msg1.from_id, DC_CONTACT_ID_DEVICE);
+        assert_eq!(msg1.to_id, DC_CONTACT_ID_SELF);
+        assert!(!msg1.is_info());
+        assert!(!msg1.is_setupmessage());
 
         // check device chat
-        let chat_id = msg2.chat_id;
+        let chat_id = msg1.chat_id;
         assert_eq!(get_msg_cnt(&t.ctx, chat_id), 1);
         assert!(chat_id > DC_CHAT_ID_LAST_SPECIAL);
         let chat = Chat::load_from_db(&t.ctx, chat_id);
@@ -2205,6 +2204,14 @@ mod tests {
         assert!(!chat.can_send());
         assert_eq!(chat.name, t.ctx.stock_str(StockMessage::DeviceMessages));
         assert!(chat.get_profile_image(&t.ctx).is_some());
+
+        // delete device message, make sure it is not added again
+        message::delete_msgs(&t.ctx, &[*msg1_id.as_ref().unwrap()]);
+        let msg1 = message::Message::load_from_db(&t.ctx, *msg1_id.as_ref().unwrap());
+        assert!(msg1.is_err() || msg1.unwrap().chat_id == DC_CHAT_ID_TRASH);
+        let msg3_id = add_device_msg_once(&t.ctx, "any-label", &mut msg2);
+        assert!(msg3_id.is_ok());
+        assert!(msg2_id.as_ref().unwrap().is_unset());
     }
 
     fn chatlist_len(ctx: &Context, listflags: usize) -> usize {

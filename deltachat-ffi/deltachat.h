@@ -1117,7 +1117,7 @@ uint32_t        dc_add_device_msg            (dc_context_t* context, dc_msg_t* m
  * Add a message only one time to the device-chat.
  * The device-message is defined by a name.
  * If a message with the same name was added before,
- * the message is not added again.
+ * the message is not added again, even if the message was deleted in between.
  * Use dc_add_device_msg() to add device-messages unconditionally.
  *
  * Sends the event #DC_EVENT_MSGS_CHANGED on success.
@@ -1130,7 +1130,7 @@ uint32_t        dc_add_device_msg            (dc_context_t* context, dc_msg_t* m
  * @param msg Message to be added to the device-chat.
  *     The message appears to the user as an incoming message.
  * @return The ID of the added message,
- *     this might be the id of an older message with the same name.
+ *     if the message was already added before or on errors, 0 is returned.
  */
 uint32_t        dc_add_device_msg_once       (dc_context_t* context, const char* label, dc_msg_t* msg);
 
