@@ -850,6 +850,24 @@ pub unsafe extern "C" fn dc_add_device_msg_once(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_skip_device_msg(
+    context: *mut dc_context_t,
+    label: *const libc::c_char,
+) {
+    if context.is_null() || label.is_null() {
+        eprintln!("ignoring careless call to dc_skip_device_msg()");
+        return;
+    }
+    let ffi_context = &mut *context;
+    ffi_context
+        .with_inner(|ctx| {
+            chat::skip_device_msg(ctx, &to_string_lossy(label))
+                .unwrap_or_log_default(ctx, "Failed to skip device message")
+        })
+        .unwrap_or(())
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_get_draft(context: *mut dc_context_t, chat_id: u32) -> *mut dc_msg_t {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_get_draft()");

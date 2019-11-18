@@ -1974,6 +1974,7 @@ fn add_device_msg_maybe_labelled(
 
     // if the device message is labeled and was ever added, do nothing
     if let Some(label) = label {
+        ensure!(!label.is_empty(), "cannot add empty label");
         if let Ok(()) = context.sql.query_row(
             "SELECT label FROM devmsglabels WHERE label=?",
             params![label],
@@ -2009,10 +2010,7 @@ fn add_device_msg_maybe_labelled(
     let msg_id = MsgId::new(row_id);
 
     if let Some(label) = label {
-        context.sql.execute(
-            "INSERT INTO devmsglabels (label, msg_id) VALUES (?, ?);",
-            params![label, msg_id],
-        )?;
+        skip_device_msg(context, label)?;
     }
 
     if !msg_id.is_unset() {
@@ -2020,6 +2018,25 @@ fn add_device_msg_maybe_labelled(
     }
 
     Ok(msg_id)
+}
+
+pub fn skip_device_msg(context: &Context, label: &str) -> Result<(), Error> {
+    ensure!(!label.is_empty(), "cannot skip empty label");
+    if let Ok(()) = context.sql.query_row(
+        "SELECT label FROM devmsglabels WHERE label=?",
+        params![label],
+        |_| Ok(()),
+    ) {
+        info!(context, "device-message {} already added", label);
+        return Ok(());
+    }
+
+    context.sql.execute(
+        "INSERT INTO devmsglabels (label) VALUES (?);",
+        params![label],
+    )?;
+
+    Ok(())
 }
 
 pub fn add_info_msg(context: &Context, chat_id: u32, text: impl AsRef<str>) {
@@ -2212,6 +2229,26 @@ mod tests {
         let msg3_id = add_device_msg_once(&t.ctx, "any-label", &mut msg2);
         assert!(msg3_id.is_ok());
         assert!(msg2_id.as_ref().unwrap().is_unset());
+    }
+
+    #[test]
+    fn test_skip_device_msg() {
+        let t = test_context(Some(Box::new(logging_cb)));
+        let res = skip_device_msg(&t.ctx, "");
+        assert!(res.is_err());
+        let res = skip_device_msg(&t.ctx, "some-label");
+        assert!(res.is_ok());
+
+        let mut msg = Message::new(Viewtype::Text);
+        msg.text = Some("message text".to_string());
+
+        let msg_id = add_device_msg_once(&t.ctx, "some-label", &mut msg);
+        assert!(msg_id.is_ok());
+        assert!(msg_id.as_ref().unwrap().is_unset());
+
+        let msg_id = add_device_msg_once(&t.ctx, "unused-label", &mut msg);
+        assert!(msg_id.is_ok());
+        assert!(!msg_id.as_ref().unwrap().is_unset());
     }
 
     fn chatlist_len(ctx: &Context, listflags: usize) -> usize {

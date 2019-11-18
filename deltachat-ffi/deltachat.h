@@ -1136,6 +1136,44 @@ uint32_t        dc_add_device_msg_once       (dc_context_t* context, const char*
 
 
 /**
+ * Skip a device-message permanently.
+ * Subsequent calls to dc_add_device_msg_once() with the same label
+ * won't add the device-message then.
+ * This might be handy if you want to add
+ * eg. different messages for first-install and updates.
+ *
+ * @memberof dc_context_t
+ * @param context The context as created by dc_context_new().
+ * @param label A unique name for the message to skip.
+ *     The label is typically not displayed to the user and
+ *     must be created from the characters `A-Z`, `a-z`, `0-9`, `_` or `-`.
+ *     If a message with that label already exist,
+ *     nothing happens.
+ * @return None.
+ *
+ * Example:
+ * ~~~
+ * dc_msg_t* welcome_msg = dc_msg_new(DC_MSG_TEXT);
+ * dc_msg_set_text(welcome_msg, "great that you give this app a try!");
+ *
+ * dc_msg_t* changelog_msg = dc_msg_new(DC_MSG_TEXT);
+ * dc_msg_set_text(changelog_msg, "we have added 3 new emojis :)");
+ *
+ * if (dc_add_device_msg_once(context, "welcome", welcome_msg)) {
+ *     // do not add the changelog on a new installations -
+ *     // not now and not when this code is executed again
+ *     dc_skip_device_msg(context, "update-123");
+ * } else {
+ *     // welcome message was not added now, this is an oder installation,
+ *     // add a changelog
+ *     dc_add_device_msg_once(context, "update-123", changelog_msg);
+ * }
+ * ~~~
+ */
+void            dc_skip_device_msg           (dc_context_t* context, const char* label);
+
+
+/**
  * Get draft for a chat, if any.
  * See dc_set_draft() for more details about drafts.
  *

@@ -815,7 +815,7 @@ fn open(
             // records in the devmsglabels are kept when the message is deleted.
             // so, msg_id may or may not exist.
             sql.execute(
-                "CREATE TABLE devmsglabels (id INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT, msg_id INTEGER);",
+                "CREATE TABLE devmsglabels (id INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT, msg_id INTEGER DEFAULT 0);",
                 NO_PARAMS,
             )?;
             sql.execute(
