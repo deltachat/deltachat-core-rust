@@ -383,14 +383,15 @@ pub fn job_kill_action(context: &Context, action: Action) -> bool {
 }
 
 pub fn perform_imap_fetch(context: &Context) {
+    if !context.get_config_bool(Config::InboxWatch) {
+        info!(context, "INBOX-fetch skipped: INBOX-watch is disabled.");
+        return;
+    }
     let inbox = context.inbox.read().unwrap();
     let start = std::time::Instant::now();
 
-    if 0 == connect_to_inbox(context, &inbox) {
-        return;
-    }
-    if !context.get_config_bool(Config::InboxWatch) {
-        info!(context, "INBOX-watch disabled.",);
+    if let Err(err) = connect_to_inbox(context, &inbox) {
+        warn!(context, "could not connect to inbox: {:?}", err);
         return;
     }
     info!(context, "INBOX-fetch started...",);
@@ -407,10 +408,6 @@ pub fn perform_imap_fetch(context: &Context) {
 }
 
 pub fn perform_imap_idle(context: &Context) {
-    let inbox = context.inbox.read().unwrap();
-
-    connect_to_inbox(context, &inbox);
-
     if *context.perform_inbox_jobs_needed.clone().read().unwrap() {
         info!(
             context,
@@ -418,9 +415,48 @@ pub fn perform_imap_idle(context: &Context) {
         );
         return;
     }
-    info!(context, "INBOX-IDLE started...");
-    inbox.idle(context);
-    info!(context, "INBOX-IDLE ended.");
+    let inbox = context.inbox.read().unwrap();
+    let poll_mode = if !context.get_config_bool(Config::InboxWatch) {
+        Some(IdlePollMode::Never)
+    } else {
+        match connect_to_inbox(context, &inbox) {
+            Err(Error::ImapConnectionFailed(param)) => {
+                warn!(context, "perform_imap_idle could not connect {:?}", param);
+                Some(IdlePollMode::Often)
+            }
+            Err(err) => {
+                warn!(context, "perform_imap_idle error: {}", err);
+                // anything else than a plain connection error
+                // hints at configuration issues.
+                Some(IdlePollMode::Never)
+            }
+
+            Ok(()) => {
+                info!(context, "INBOX-IDLE starting...");
+                let res = inbox.idle(context);
+                info!(context, "INBOX-IDLE ended.");
+
+                match res {
+                    Ok(()) => None,
+                    Err(Error::ImapConnectionFailed(param)) => {
+                        warn!(
+                            context,
+                            "perform_imap_idle IDLE could not connect {:?}", param
+                        );
+                        Some(IdlePollMode::Often)
+                    }
+                    Err(err) => {
+                        warn!(context, "perform_imap_idle IDLE error: {}", err);
+                        Some(IdlePollMode::Never)
+                    }
+                }
+            }
+        }
+    };
+
+    if let Some(poll_mode) = poll_mode {
+        inbox.fake_idle(context, poll_mode);
+    }
 }
 
 pub fn perform_mvbox_fetch(context: &Context) {
@@ -722,32 +758,31 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
         params_probe
     };
 
-    let jobs: Result<Vec<Job>, _> = context.sql.query_map(
-        query,
-        params,
-        |row| {
-            let job = Job {
-                job_id: row.get(0)?,
-                action: row.get(1)?,
-                foreign_id: row.get(2)?,
-                desired_timestamp: row.get(5)?,
-                added_timestamp: row.get(4)?,
-                tries: row.get(6)?,
-                param: row.get::<_, String>(3)?.parse().unwrap_or_default(),
-                try_again: 0,
-                pending_error: None,
-            };
+    let jobs: Result<Vec<Job>, _> = context
+        .sql
+        .query_map(
+            query,
+            params,
+            |row| {
+                let job = Job {
+                    job_id: row.get(0)?,
+                    action: row.get(1)?,
+                    foreign_id: row.get(2)?,
+                    desired_timestamp: row.get(5)?,
+                    added_timestamp: row.get(4)?,
+                    tries: row.get(6)?,
+                    param: row.get::<_, String>(3)?.parse().unwrap_or_default(),
+                    try_again: 0,
+                    pending_error: None,
+                };
 
-            Ok(job)
-        },
-        |jobs| jobs.collect::<Result<Vec<Job>, _>>().map_err(Into::into),
-    );
-    match jobs {
-        Ok(ref _res) => {}
-        Err(ref err) => {
-            info!(context, "query failed: {:?}", err);
-        }
-    }
+                Ok(job)
+            },
+            |jobs| jobs.collect::<Result<Vec<Job>, _>>().map_err(Into::into),
+        )
+        .map_err(|err| {
+            warn!(context, "query failed: {:?}", err);
+        });
 
     for mut job in jobs.unwrap_or_default() {
         info!(
@@ -926,12 +961,10 @@ fn suspend_smtp_thread(context: &Context, suspend: bool) {
     }
 }
 
-pub fn connect_to_inbox(context: &Context, inbox: &Imap) -> libc::c_int {
-    let ret_connected = dc_connect_to_configured_imap(context, inbox);
-    if 0 != ret_connected {
-        inbox.set_watch_folder("INBOX".into());
-    }
-    ret_connected
+pub fn connect_to_inbox(context: &Context, imap: &Imap) -> Result<(), Error> {
+    dc_connect_to_configured_imap(context, imap)?;
+    imap.set_watch_folder("INBOX".into());
+    Ok(())
 }
 
 fn send_mdn(context: &Context, msg_id: MsgId) -> Result<(), Error> {
