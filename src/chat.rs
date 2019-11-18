@@ -2021,12 +2021,7 @@ fn add_device_msg_maybe_labelled(
 }
 
 pub fn skip_device_msg(context: &Context, label: &str) -> Result<(), Error> {
-    ensure!(!label.is_empty(), "cannot skip empty label");
-    if let Ok(()) = context.sql.query_row(
-        "SELECT label FROM devmsglabels WHERE label=?",
-        params![label],
-        |_| Ok(()),
-    ) {
+    if has_device_msg(context, label)? {
         info!(context, "device-message {} already added", label);
         return Ok(());
     }
@@ -2037,6 +2032,19 @@ pub fn skip_device_msg(context: &Context, label: &str) -> Result<(), Error> {
     )?;
 
     Ok(())
+}
+
+pub fn has_device_msg(context: &Context, label: &str) -> Result<bool, Error> {
+    ensure!(!label.is_empty(), "empty label");
+    if let Ok(()) = context.sql.query_row(
+        "SELECT label FROM devmsglabels WHERE label=?",
+        params![label],
+        |_| Ok(()),
+    ) {
+        return Ok(true);
+    }
+
+    Ok(false)
 }
 
 pub fn add_info_msg(context: &Context, chat_id: u32, text: impl AsRef<str>) {
@@ -2249,6 +2257,22 @@ mod tests {
         let msg_id = add_device_msg_once(&t.ctx, "unused-label", &mut msg);
         assert!(msg_id.is_ok());
         assert!(!msg_id.as_ref().unwrap().is_unset());
+    }
+
+    #[test]
+    fn test_has_device_msg() {
+        let t = test_context(Some(Box::new(logging_cb)));
+        skip_device_msg(&t.ctx, "some-label").ok();
+        assert!(has_device_msg(&t.ctx, "some-label").unwrap());
+
+        let mut msg = Message::new(Viewtype::Text);
+        msg.text = Some("message text".to_string());
+        add_device_msg_once(&t.ctx, "another-label", &mut msg).ok();
+        assert!(has_device_msg(&t.ctx, "another-label").unwrap());
+
+        assert!(!has_device_msg(&t.ctx, "unused-label").unwrap());
+
+        assert!(has_device_msg(&t.ctx, "").is_err());
     }
 
     fn chatlist_len(ctx: &Context, listflags: usize) -> usize {

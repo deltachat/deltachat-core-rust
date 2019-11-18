@@ -1171,6 +1171,21 @@ uint32_t        dc_add_device_msg_unlabelled(dc_context_t* context, dc_msg_t* ms
 void            dc_skip_device_msg           (dc_context_t* context, const char* label);
 
 
+
+/**
+ * Check if a device-message was ever added or skipped.
+ * Device-messages can be added or skipped
+ * using dc_add_device_msg_once() or dc_skip_device_msg().
+ *
+ * @memberof dc_context_t
+ * @param context The context as created by dc_context_new().
+ * @param label Label of the message to check.
+ * @return 1=A message with this label was added or skipped at some point,
+ *     0=A message with this label was never added nor skipped.
+ */
+int             dc_has_device_msg            (dc_context_t* context, const char* label);
+
+
 /**
  * Get draft for a chat, if any.
  * See dc_set_draft() for more details about drafts.

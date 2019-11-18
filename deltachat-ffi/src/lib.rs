@@ -871,6 +871,23 @@ pub unsafe extern "C" fn dc_skip_device_msg(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_has_device_msg(
+    context: *mut dc_context_t,
+    label: *const libc::c_char,
+) -> libc::c_int {
+    if context.is_null() || label.is_null() {
+        eprintln!("ignoring careless call to dc_has_device_msg()");
+        return 0;
+    }
+    let ffi_context = &mut *context;
+    ffi_context
+        .with_inner(|ctx| {
+            chat::has_device_msg(ctx, &to_string_lossy(label)).unwrap_or(false) as libc::c_int
+        })
+        .unwrap_or(0)
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_get_draft(context: *mut dc_context_t, chat_id: u32) -> *mut dc_msg_t {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_get_draft()");
