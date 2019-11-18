@@ -34,6 +34,16 @@ pub enum Error {
     BlobError(#[cause] crate::blob::BlobError),
     #[fail(display = "Invalid Message ID.")]
     InvalidMsgId,
+    #[fail(display = "Watch folder not found {:?}", _0)]
+    WatchFolderNotFound(String),
+    #[fail(display = "Connection Failed params: {}", _0)]
+    ImapConnectionFailed(String),
+    #[fail(display = "Cannot idle")]
+    ImapMissesIdle,
+    #[fail(display = "Imap IDLE protocol failed to init/complete")]
+    ImapIdleProtocolFailed(String),
+    #[fail(display = "Connect without configured params")]
+    ConnectWithoutConfigure,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
