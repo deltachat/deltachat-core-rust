@@ -1952,7 +1952,7 @@ pub fn get_chat_id_by_grpid(context: &Context, grpid: impl AsRef<str>) -> (u32, 
         .unwrap_or((0, false, Blocked::Not))
 }
 
-pub fn add_device_msg(context: &Context, msg: &mut Message) -> Result<MsgId, Error> {
+pub fn add_device_msg_unlabelled(context: &Context, msg: &mut Message) -> Result<MsgId, Error> {
     add_device_msg_maybe_labelled(context, None, msg)
 }
 
@@ -2147,18 +2147,18 @@ mod tests {
     }
 
     #[test]
-    fn test_add_device_msg() {
+    fn test_add_device_msg_unlabelled() {
         let t = test_context(Some(Box::new(logging_cb)));
 
         // add two device-messages
         let mut msg1 = Message::new(Viewtype::Text);
         msg1.text = Some("first message".to_string());
-        let msg1_id = add_device_msg(&t.ctx, &mut msg1);
+        let msg1_id = add_device_msg_unlabelled(&t.ctx, &mut msg1);
         assert!(msg1_id.is_ok());
 
         let mut msg2 = Message::new(Viewtype::Text);
         msg2.text = Some("second message".to_string());
-        let msg2_id = add_device_msg(&t.ctx, &mut msg2);
+        let msg2_id = add_device_msg_unlabelled(&t.ctx, &mut msg2);
         assert!(msg2_id.is_ok());
         assert_ne!(msg1_id.as_ref().unwrap(), msg2_id.as_ref().unwrap());
 
@@ -2263,7 +2263,7 @@ mod tests {
         let t = dummy_context();
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some("foo".to_string());
-        let msg_id = add_device_msg(&t.ctx, &mut msg).unwrap();
+        let msg_id = add_device_msg_unlabelled(&t.ctx, &mut msg).unwrap();
         let chat_id1 = message::Message::load_from_db(&t.ctx, msg_id)
             .unwrap()
             .chat_id;
