@@ -1,7 +1,7 @@
 //! Some tools and enhancements to the used libraries, there should be
 //! no references to Context and other "larger" entities here.
 
-use core::cmp::max;
+use core::cmp::{max, min};
 use std::borrow::Cow;
 use std::ffi::{CStr, CString};
 use std::path::{Path, PathBuf};
@@ -166,10 +166,12 @@ pub(crate) fn dc_gm2local_offset() -> i64 {
 }
 
 /* timesmearing */
+const MAX_SECONDS_TO_LEND_FROM_FUTURE: i64 = 5;
+
 pub(crate) fn dc_smeared_time(context: &Context) -> i64 {
     /* function returns a corrected time(NULL) */
     let mut now = time();
-    let ts = *context.last_smeared_timestamp.clone().read().unwrap();
+    let ts = *context.last_smeared_timestamp.read().unwrap();
     if ts >= now {
         now = ts + 1;
     }
@@ -181,28 +183,29 @@ pub(crate) fn dc_create_smeared_timestamp(context: &Context) -> i64 {
     let now = time();
     let mut ret = now;
 
-    let ts = *context.last_smeared_timestamp.clone().write().unwrap();
-    if ret <= ts {
-        ret = ts + 1;
-        if ret - now > 5 {
-            ret = now + 5
+    let mut last_smeared_timestamp = context.last_smeared_timestamp.write().unwrap();
+    if ret <= *last_smeared_timestamp {
+        ret = *last_smeared_timestamp + 1;
+        if ret - now > MAX_SECONDS_TO_LEND_FROM_FUTURE {
+            ret = now + MAX_SECONDS_TO_LEND_FROM_FUTURE
         }
     }
 
+    *last_smeared_timestamp = ret;
     ret
 }
 
 pub(crate) fn dc_create_smeared_timestamps(context: &Context, count: usize) -> i64 {
     /* get a range to timestamps that can be used uniquely */
     let now = time();
-    let start = now + (if count < 5 { count } else { 5 }) as i64 - count as i64;
+    let count = count as i64;
+    let mut start = now + min(count, MAX_SECONDS_TO_LEND_FROM_FUTURE) - count;
 
-    let ts = *context.last_smeared_timestamp.clone().write().unwrap();
-    if ts + 1 > start {
-        ts + 1
-    } else {
-        start
-    }
+    let mut last_smeared_timestamp = context.last_smeared_timestamp.write().unwrap();
+    start = max(*last_smeared_timestamp + 1, start);
+
+    *last_smeared_timestamp = start + count - 1;
+    start
 }
 
 /* Message-ID tools */
@@ -1354,5 +1357,35 @@ mod tests {
         assert!(listflags_has(listflags, DC_GCL_ADD_SELF) == true);
         let listflags: u32 = DC_GCL_VERIFIED_ONLY.try_into().unwrap();
         assert!(listflags_has(listflags, DC_GCL_ADD_SELF) == false);
+    }
+
+    #[test]
+    fn test_create_smeared_timestamp() {
+        let t = dummy_context();
+        assert_ne!(
+            dc_create_smeared_timestamp(&t.ctx),
+            dc_create_smeared_timestamp(&t.ctx)
+        );
+        assert!(
+            dc_create_smeared_timestamp(&t.ctx)
+                >= SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs() as i64
+        );
+    }
+
+    #[test]
+    fn test_create_smeared_timestamps() {
+        let t = dummy_context();
+        let count = MAX_SECONDS_TO_LEND_FROM_FUTURE - 1;
+        let start = dc_create_smeared_timestamps(&t.ctx, count as usize);
+        let next = dc_smeared_time(&t.ctx);
+        assert!((start + count - 1) < next);
+
+        let count = MAX_SECONDS_TO_LEND_FROM_FUTURE + 30;
+        let start = dc_create_smeared_timestamps(&t.ctx, count as usize);
+        let next = dc_smeared_time(&t.ctx);
+        assert!((start + count - 1) < next);
     }
 }

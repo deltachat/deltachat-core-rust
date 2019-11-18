@@ -57,7 +57,7 @@ pub struct Context {
     pub os_name: Option<String>,
     pub cmdline_sel_chat_id: Arc<RwLock<u32>>,
     pub bob: Arc<RwLock<BobStatus>>,
-    pub last_smeared_timestamp: Arc<RwLock<i64>>,
+    pub last_smeared_timestamp: RwLock<i64>,
     pub running_state: Arc<RwLock<RunningState>>,
     /// Mutex to avoid generating the key for the user more than once.
     pub generating_key_mutex: Mutex<()>,
@@ -130,7 +130,7 @@ impl Context {
             smtp_state: Arc::new((Mutex::new(Default::default()), Condvar::new())),
             oauth2_critical: Arc::new(Mutex::new(())),
             bob: Arc::new(RwLock::new(Default::default())),
-            last_smeared_timestamp: Arc::new(RwLock::new(0)),
+            last_smeared_timestamp: RwLock::new(0),
             cmdline_sel_chat_id: Arc::new(RwLock::new(0)),
             sentbox_thread: Arc::new(RwLock::new(JobThread::new(
                 "SENTBOX",
