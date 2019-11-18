@@ -34,6 +34,12 @@ pub enum ImapActionResult {
     Success,
 }
 
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq)]
+pub enum IdlePollMode {
+    Often,
+    Never,
+}
+
 const PREFETCH_FLAGS: &str = "(UID ENVELOPE)";
 const BODY_FLAGS: &str = "(FLAGS BODY.PEEK[])";
 const SELECT_ALL: &str = "1:*";
@@ -746,17 +752,15 @@ impl Imap {
         1
     }
 
-    pub fn idle(&self, context: &Context) {
+    pub fn idle(&self, context: &Context) -> Result<(), Error> {
         task::block_on(async move {
-            if self.config.read().await.selected_folder.is_none() {
-                // this probably means that we are in teardown
-                // in any case we can't perform any idling
-                return;
-            }
+            ensure!(
+                self.config.read().await.selected_folder.is_some(),
+                "no folder selected, probably in teardown?"
+            );
 
             if !self.config.read().await.can_idle {
-                self.fake_idle(context, true).await;
-                return;
+                return Err(Error::ImapMissesIdle);
             }
 
             self.setup_handle_if_needed(context);
@@ -766,13 +770,7 @@ impl Imap {
                 ImapActionResult::Success | ImapActionResult::AlreadyDone => {}
 
                 ImapActionResult::Failed | ImapActionResult::RetryLater => {
-                    warn!(
-                        context,
-                        "idle select_folder failed {:?}",
-                        watch_folder.as_ref()
-                    );
-                    self.fake_idle(context, true).await;
-                    return;
+                    bail!("IMAP select failed for {:?}", watch_folder.as_ref());
                 }
             }
 
@@ -784,9 +782,9 @@ impl Imap {
                     // typically also need to change the Insecure branch.
                     IdleHandle::Secure(mut handle) => {
                         if let Err(err) = handle.init().await {
-                            warn!(context, "Failed to establish IDLE connection: {:?}", err);
-                            return;
+                            bail!("IDLE init failed: {}", err);
                         }
+
                         let (idle_wait, interrupt) = handle.wait_with_timeout(timeout);
                         *self.interrupt.lock().await = Some(interrupt);
 
@@ -810,18 +808,15 @@ impl Imap {
                                 // means that we waited long (with idle_wait)
                                 // but the network went away/changed
                                 self.trigger_reconnect();
-                                warn!(
-                                    context,
-                                    "Failed to terminate IMAP IDLE connection: {:?}", err
-                                );
+                                return Err(Error::ImapIdleProtocolFailed(format!("{}", err)));
                             }
                         }
                     }
                     IdleHandle::Insecure(mut handle) => {
                         if let Err(err) = handle.init().await {
-                            warn!(context, "Failed to establish IDLE connection: {:?}", err);
-                            return;
+                            bail!("IDLE init failed: {}", err);
                         }
+
                         let (idle_wait, interrupt) = handle.wait_with_timeout(timeout);
                         *self.interrupt.lock().await = Some(interrupt);
 
@@ -836,7 +831,6 @@ impl Imap {
                             let res = idle_wait.await;
                             info!(context, "Idle finished wait-on-remote: {:?}", res);
                         }
-
                         match handle.done().await {
                             Ok(session) => {
                                 *self.session.lock().await = Some(Session::Insecure(session));
@@ -846,23 +840,24 @@ impl Imap {
                                 // means that we waited long (with idle_wait)
                                 // but the network went away/changed
                                 self.trigger_reconnect();
-                                warn!(context, "Failed to close IMAP IDLE connection: {:?}", err);
+                                return Err(Error::ImapIdleProtocolFailed(format!("{}", err)));
                             }
                         }
                     }
                 }
             }
-        });
+
+            Ok(())
+        })
     }
 
-    pub(crate) async fn fake_idle(&self, context: &Context, use_network: bool) {
-        // Idle using timeouts. This is also needed if we're not yet configured -
-        // in this case, we're waiting for a configure job
-        let fake_idle_start_time = SystemTime::now();
-
-        info!(context, "IMAP-fake-IDLEing...");
-
+    pub(crate) fn fake_idle(&self, context: &Context, poll_mode: IdlePollMode) {
+        // Idle using polling.
         task::block_on(async move {
+            let fake_idle_start_time = SystemTime::now();
+
+            info!(context, "IMAP-fake-IDLEing...");
+
             let interrupt = stop_token::StopSource::new();
 
             // we use 1000 minutes if we are told to not try network
@@ -870,21 +865,29 @@ impl Imap {
             // but clients are still calling us in a loop.
             // if we are to use network, we check every minute if there
             // is new mail -- TODO: make this more flexible
-            let secs = if use_network { 60 } else { 60000 };
+            let secs = match poll_mode {
+                IdlePollMode::Never => 60000,
+                IdlePollMode::Often => 60,
+            };
             let interval = async_std::stream::interval(Duration::from_secs(secs));
             let mut interrupt_interval = interrupt.stop_token().stop_stream(interval);
             *self.interrupt.lock().await = Some(interrupt);
 
+            // loop until we are interrupted or if we fetched something
             while let Some(_) = interrupt_interval.next().await {
-                if !use_network {
+                if poll_mode == IdlePollMode::Never {
                     continue;
                 }
                 if !self.is_connected().await {
                     // try to connect with proper login params
                     // (setup_handle_if_needed might not know about them if we
                     // never successfully connected)
-                    if dc_connect_to_configured_imap(context, &self) != 0 {
-                        self.interrupt.lock().await.take();
+                    match dc_connect_to_configured_imap(context, &self) {
+                        Ok(()) => {}
+                        Err(err) => {
+                            warn!(context, "fake_idle: could not connect: {}", err);
+                            continue;
+                        }
                     }
                 }
                 // we are connected, let's see if fetching messages results
@@ -895,22 +898,22 @@ impl Imap {
                 let watch_folder = self.config.read().await.watch_folder.clone();
                 if let Some(watch_folder) = watch_folder {
                     if 0 != self.fetch_from_single_folder(context, watch_folder).await {
-                        self.interrupt.lock().await.take();
                         break;
                     }
                 }
             }
-        });
+            self.interrupt.lock().await.take();
 
-        info!(
-            context,
-            "IMAP-fake-IDLE done after {:.4}s",
-            SystemTime::now()
-                .duration_since(fake_idle_start_time)
-                .unwrap()
-                .as_millis() as f64
-                / 1000.,
-        );
+            info!(
+                context,
+                "IMAP-fake-IDLE done after {:.4}s",
+                SystemTime::now()
+                    .duration_since(fake_idle_start_time)
+                    .unwrap()
+                    .as_millis() as f64
+                    / 1000.,
+            );
+        })
     }
 
     pub fn interrupt_idle(&self) {
@@ -1052,8 +1055,8 @@ impl Imap {
             if uid == 0 {
                 return Some(ImapActionResult::Failed);
             } else if !self.is_connected().await {
-                connect_to_inbox(context, &self);
-                if !self.is_connected().await {
+                if let Err(err) = connect_to_inbox(context, &self) {
+                    warn!(context, "prepare_imap_op failed: {}", err);
                     return Some(ImapActionResult::RetryLater);
                 }
             }

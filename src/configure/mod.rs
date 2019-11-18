@@ -7,6 +7,7 @@ use crate::constants::*;
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::e2ee;
+use crate::error::*;
 use crate::imap::*;
 use crate::job::*;
 use crate::login_param::LoginParam;
@@ -566,23 +567,23 @@ fn try_smtp_one_param(context: &Context, param: &LoginParam) -> Option<bool> {
 }
 
 /// Connects to the configured account
-pub fn dc_connect_to_configured_imap(context: &Context, imap: &Imap) -> libc::c_int {
-    let mut ret_connected = 0;
-
+pub fn dc_connect_to_configured_imap(context: &Context, imap: &Imap) -> Result<()> {
     if async_std::task::block_on(async move { imap.is_connected().await }) {
-        ret_connected = 1
-    } else if !context.sql.get_raw_config_bool(context, "configured") {
-        warn!(context, "Not configured, cannot connect.",);
-    } else {
-        let param = LoginParam::from_database(context, "configured_");
-        // the trailing underscore is correct
-
-        if imap.connect(context, &param) {
-            ret_connected = 2;
-        }
+        return Ok(());
+    }
+    if !context.sql.get_raw_config_bool(context, "configured") {
+        return Err(Error::ConnectWithoutConfigure);
     }
 
-    ret_connected
+    let param = LoginParam::from_database(context, "configured_");
+    // the trailing underscore is correct
+
+    if imap.connect(context, &param) {
+        return Ok(());
+    }
+    return Err(Error::ImapConnectionFailed(
+        format!("{}", param).to_string(),
+    ));
 }
 
 /*******************************************************************************

@@ -2,7 +2,8 @@ use std::sync::{Arc, Condvar, Mutex};
 
 use crate::configure::*;
 use crate::context::Context;
-use crate::imap::Imap;
+use crate::error::Error;
+use crate::imap::{IdlePollMode, Imap};
 
 #[derive(Debug)]
 pub struct JobThread {
@@ -86,52 +87,60 @@ impl JobThread {
 
         if use_network {
             let start = std::time::Instant::now();
-            if self.connect_to_imap(context) {
-                info!(context, "{}-fetch started...", self.name);
-                self.imap.fetch(context);
-
-                if self.imap.should_reconnect() {
-                    info!(context, "{}-fetch aborted, starting over...", self.name,);
+            let prefix = format!("{}-fetch", self.name);
+            match self.connect_to_imap(context) {
+                Ok(()) => {
+                    info!(context, "{} started...", prefix);
                     self.imap.fetch(context);
+
+                    if self.imap.should_reconnect() {
+                        info!(context, "{} aborted, starting over...", prefix);
+                        self.imap.fetch(context);
+                    }
+                    info!(
+                        context,
+                        "{} done in {:.3} ms.",
+                        prefix,
+                        start.elapsed().as_millis(),
+                    );
                 }
-                info!(
-                    context,
-                    "{}-fetch done in {:.3} ms.",
-                    self.name,
-                    start.elapsed().as_millis(),
-                );
+                Err(err) => {
+                    warn!(
+                        context,
+                        "{} skipped, could not connect to imap {:?}", prefix, err
+                    );
+                }
             }
         }
 
         self.state.0.lock().unwrap().using_handle = false;
     }
 
-    fn connect_to_imap(&self, context: &Context) -> bool {
+    fn connect_to_imap(&self, context: &Context) -> Result<(), Error> {
         if async_std::task::block_on(async move { self.imap.is_connected().await }) {
-            return true;
+            return Ok(());
         }
         let watch_folder_name = match context.sql.get_raw_config(context, self.folder_config_name) {
             Some(name) => name,
             None => {
-                return false;
+                return Err(Error::WatchFolderNotFound(
+                    self.folder_config_name.to_string(),
+                ));
             }
         };
 
-        let ret_connected = dc_connect_to_configured_imap(context, &self.imap) != 0;
-        if ret_connected {
-            if context
-                .sql
-                .get_raw_config_int(context, "folders_configured")
-                .unwrap_or_default()
-                < 3
-            {
-                self.imap.configure_folders(context, 0x1);
-            }
-
-            self.imap.set_watch_folder(watch_folder_name);
+        dc_connect_to_configured_imap(context, &self.imap)?;
+        if context
+            .sql
+            .get_raw_config_int(context, "folders_configured")
+            .unwrap_or_default()
+            < 3
+        {
+            self.imap.configure_folders(context, 0x1);
         }
+        self.imap.set_watch_folder(watch_folder_name);
 
-        ret_connected
+        Ok(())
     }
 
     pub fn idle(&self, context: &Context, use_network: bool) {
@@ -170,17 +179,30 @@ impl JobThread {
             }
         }
 
-        if self.connect_to_imap(context) {
-            info!(context, "{}-IDLE started...", self.name,);
-            self.imap.idle(context);
-            info!(context, "{}-IDLE ended.", self.name);
-        } else {
-            // It's probably wrong that the thread even runs
-            // but let's call fake_idle and tell it to not try network at all.
-            // (once we move to rust-managed threads this problem goes away)
-            info!(context, "{}-IDLE not connected, fake-idling", self.name);
-            async_std::task::block_on(async move { self.imap.fake_idle(context, false).await });
-            info!(context, "{}-IDLE fake-idling finished", self.name);
+        let poll_mode = match self.connect_to_imap(context) {
+            Ok(()) => {
+                info!(context, "{}-IDLE started...", self.name,);
+                let res = self.imap.idle(context);
+                info!(context, "{}-IDLE ended.", self.name);
+                match res {
+                    Ok(()) => None,
+                    Err(Error::ImapConnectionFailed(err)) => {
+                        warn!(context, "idle connection failed: {}", err);
+                        Some(IdlePollMode::Often)
+                    }
+                    Err(err) => {
+                        warn!(context, "idle failed: {}", err);
+                        Some(IdlePollMode::Never)
+                    }
+                }
+            }
+            Err(err) => {
+                info!(context, "{}-IDLE fail: {:?}", self.name, err);
+                Some(IdlePollMode::Never)
+            }
+        };
+        if let Some(poll_mode) = poll_mode {
+            self.imap.fake_idle(context, poll_mode);
         }
 
         self.state.0.lock().unwrap().using_handle = false;
