@@ -42,8 +42,12 @@ pub enum Error {
     ImapMissesIdle,
     #[fail(display = "Imap IDLE protocol failed to init/complete")]
     ImapIdleProtocolFailed(String),
+    #[fail(display = "Imap IDLE failed to select folder {:?}", _0)]
+    ImapSelectFailed(String),
     #[fail(display = "Connect without configured params")]
     ConnectWithoutConfigure,
+    #[fail(display = "imap operation attempted while imap is torn down")]
+    ImapInTeardown,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

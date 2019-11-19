@@ -16,7 +16,7 @@ use crate::dc_receive_imf::dc_receive_imf;
 use crate::error::Error;
 use crate::events::Event;
 use crate::imap_client::*;
-use crate::job::{connect_to_inbox, job_add, Action};
+use crate::job::{job_add, Action};
 use crate::login_param::{CertificateChecks, LoginParam};
 use crate::message::{self, update_msg_move_state, update_server_uid};
 use crate::oauth2::dc_get_oauth2_access_token;
@@ -138,7 +138,7 @@ impl Imap {
         self.should_reconnect.load(Ordering::Relaxed)
     }
 
-    fn trigger_reconnect(&self) {
+    pub fn trigger_reconnect(&self) {
         self.should_reconnect.store(true, Ordering::Relaxed)
     }
 
@@ -534,8 +534,16 @@ impl Imap {
             return 0;
         }
 
-        if mailbox.uid_validity.unwrap_or_default() != uid_validity {
-            // first time this folder is selected or UIDVALIDITY has changed, init lastseenuid and save it to config
+        if mailbox.uid_validity.unwrap() != uid_validity {
+            // First time this folder is selected or UIDVALIDITY has changed.
+            // Init lastseenuid and save it to config.
+            info!(
+                context,
+                "uid_validity={} local uid_validity={} lastseenuid={}",
+                mailbox.uid_validity.unwrap(),
+                uid_validity,
+                last_seen_uid
+            );
 
             if mailbox.exists == 0 {
                 info!(context, "Folder \"{}\" is empty.", folder.as_ref());
@@ -703,20 +711,23 @@ impl Imap {
             match session.uid_fetch(set, BODY_FLAGS).await {
                 Ok(msgs) => msgs,
                 Err(err) => {
+                    // TODO maybe differentiate between IO and input/parsing problems
+                    // so we don't reconnect if we have a (rare) input/output parsing problem?
                     self.trigger_reconnect();
                     warn!(
                         context,
-                        "Error on fetching message #{} from folder \"{}\"; retry={}; error={}.",
+                        "Error on fetching message #{} from folder \"{}\"; error={}.",
                         server_uid,
                         folder.as_ref(),
-                        self.should_reconnect(),
                         err
                     );
                     return 0;
                 }
             }
         } else {
-            return 1;
+            // we could not get a valid imap session, this should be retried
+            self.trigger_reconnect();
+            return 0;
         };
 
         if msgs.is_empty() {
@@ -754,11 +765,6 @@ impl Imap {
 
     pub fn idle(&self, context: &Context) -> Result<(), Error> {
         task::block_on(async move {
-            ensure!(
-                self.config.read().await.selected_folder.is_some(),
-                "no folder selected, probably in teardown?"
-            );
-
             if !self.config.read().await.can_idle {
                 return Err(Error::ImapMissesIdle);
             }
@@ -766,11 +772,17 @@ impl Imap {
             self.setup_handle_if_needed(context);
 
             let watch_folder = self.config.read().await.watch_folder.clone();
+            if watch_folder.is_none() {
+                return Err(Error::ImapInTeardown);
+            }
             match self.select_folder(context, watch_folder.as_ref()).await {
                 ImapActionResult::Success | ImapActionResult::AlreadyDone => {}
 
                 ImapActionResult::Failed | ImapActionResult::RetryLater => {
-                    bail!("IMAP select failed for {:?}", watch_folder.as_ref());
+                    return Err(Error::ImapSelectFailed(format!(
+                        "{:?}",
+                        watch_folder.as_ref()
+                    )));
                 }
             }
 
@@ -782,16 +794,16 @@ impl Imap {
                     // typically also need to change the Insecure branch.
                     IdleHandle::Secure(mut handle) => {
                         if let Err(err) = handle.init().await {
-                            bail!("IDLE init failed: {}", err);
+                            return Err(Error::ImapIdleProtocolFailed(format!("{}", err)));
                         }
 
                         let (idle_wait, interrupt) = handle.wait_with_timeout(timeout);
                         *self.interrupt.lock().await = Some(interrupt);
 
-                        if self.skip_next_idle_wait.load(Ordering::Relaxed) {
+                        if self.skip_next_idle_wait.load(Ordering::SeqCst) {
                             // interrupt_idle has happened before we
                             // provided self.interrupt
-                            self.skip_next_idle_wait.store(false, Ordering::Relaxed);
+                            self.skip_next_idle_wait.store(false, Ordering::SeqCst);
                             std::mem::drop(idle_wait);
                             info!(context, "Idle wait was skipped");
                         } else {
@@ -814,16 +826,16 @@ impl Imap {
                     }
                     IdleHandle::Insecure(mut handle) => {
                         if let Err(err) = handle.init().await {
-                            bail!("IDLE init failed: {}", err);
+                            return Err(Error::ImapIdleProtocolFailed(format!("{}", err)));
                         }
 
                         let (idle_wait, interrupt) = handle.wait_with_timeout(timeout);
                         *self.interrupt.lock().await = Some(interrupt);
 
-                        if self.skip_next_idle_wait.load(Ordering::Relaxed) {
+                        if self.skip_next_idle_wait.load(Ordering::SeqCst) {
                             // interrupt_idle has happened before we
                             // provided self.interrupt
-                            self.skip_next_idle_wait.store(false, Ordering::Relaxed);
+                            self.skip_next_idle_wait.store(false, Ordering::SeqCst);
                             std::mem::drop(idle_wait);
                             info!(context, "Idle wait was skipped");
                         } else {
@@ -918,12 +930,18 @@ impl Imap {
 
     pub fn interrupt_idle(&self) {
         task::block_on(async move {
-            if self.interrupt.lock().await.take().is_none() {
+            let mut interrupt: Option<stop_token::StopSource> = self.interrupt.lock().await.take();
+            if interrupt.is_none() {
                 // idle wait is not running, signal it needs to skip
-                self.skip_next_idle_wait.store(true, Ordering::Relaxed);
+                self.skip_next_idle_wait.store(true, Ordering::SeqCst);
 
-                // meanwhile idle-wait may have produced the interrupter
-                let _ = self.interrupt.lock().await.take();
+                // meanwhile idle-wait may have produced the StopSource
+                interrupt = self.interrupt.lock().await.take();
+            }
+            // let's manually drop the StopSource
+            if interrupt.is_some() {
+                eprintln!("low-level: dropping stop-source to interrupt idle");
+                std::mem::drop(interrupt)
             }
         });
     }
@@ -1055,7 +1073,12 @@ impl Imap {
             if uid == 0 {
                 return Some(ImapActionResult::Failed);
             } else if !self.is_connected().await {
-                if let Err(err) = connect_to_inbox(context, &self) {
+                // currently jobs are only performed on the INBOX thread
+                // TODO: make INBOX/SENT/MVBOX perform the jobs on their
+                // respective folders to avoid select_folder network traffic
+                // and the involved error states
+                let inbox_thread = context.inbox_thread.read().unwrap();
+                if let Err(err) = inbox_thread.connect_to_imap(context) {
                     warn!(context, "prepare_imap_op failed: {}", err);
                     return Some(ImapActionResult::RetryLater);
                 }
@@ -1239,10 +1262,9 @@ impl Imap {
                         session.subscribe(mvbox).await.expect("failed to subscribe");
                     }
                 }
-
                 context
                     .sql
-                    .set_raw_config_int(context, "folders_configured", 3)
+                    .set_raw_config(context, "configured_inbox_folder", Some("INBOX"))
                     .ok();
                 if let Some(ref mvbox_folder) = mvbox_folder {
                     context
@@ -1260,6 +1282,10 @@ impl Imap {
                         )
                         .ok();
                 }
+                context
+                    .sql
+                    .set_raw_config_int(context, "folders_configured", 3)
+                    .ok();
             }
         })
     }
