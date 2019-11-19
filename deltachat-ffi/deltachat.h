@@ -1096,9 +1096,9 @@ void            dc_set_draft                 (dc_context_t* context, uint32_t ch
  * Add a message to the device-chat.
  * Device-messages usually contain update information
  * and some hints that are added during the program runs, multi-device etc.
- *
- * Device-messages may be added from the core,
- * however, with this function, this can be done from the ui as well.
+ * The device-message may be defined by a label;
+ * if a message with the same label was added or skipped before,
+ * the message is not added again, even if the message was deleted in between.
  * If needed, the device-chat is created before.
  *
  * Sends the event #DC_EVENT_MSGS_CHANGED on success.
@@ -1106,33 +1106,50 @@ void            dc_set_draft                 (dc_context_t* context, uint32_t ch
  *
  * @memberof dc_context_t
  * @param context The context as created by dc_context_new().
- * @param msg Message to be added to the device-chat.
- *     The message appears to the user as an incoming message.
- * @return The ID of the added message.
- */
-uint32_t        dc_add_device_msg            (dc_context_t* context, dc_msg_t* msg);
-
-
-/**
- * Add a message only one time to the device-chat.
- * The device-message is defined by a name.
- * If a message with the same name was added before,
- * the message is not added again.
- * Use dc_add_device_msg() to add device-messages unconditionally.
- *
- * Sends the event #DC_EVENT_MSGS_CHANGED on success.
- *
- * @memberof dc_context_t
- * @param context The context as created by dc_context_new().
  * @param label A unique name for the message to add.
  *     The label is typically not displayed to the user and
  *     must be created from the characters `A-Z`, `a-z`, `0-9`, `_` or `-`.
+ *     If you pass NULL here, the message is added unconditionally.
  * @param msg Message to be added to the device-chat.
  *     The message appears to the user as an incoming message.
- * @return The ID of the added message,
- *     this might be the id of an older message with the same name.
+ *     If you pass NULL here, only the given label will be added
+ *     and block adding messages with that label in the future.
+ * @return The ID of the just added message,
+ *     if the message was already added or no message to add is given, 0 is returned.
+ *
+ * Example:
+ * ~~~
+ * dc_msg_t* welcome_msg = dc_msg_new(DC_MSG_TEXT);
+ * dc_msg_set_text(welcome_msg, "great that you give this app a try!");
+ *
+ * dc_msg_t* changelog_msg = dc_msg_new(DC_MSG_TEXT);
+ * dc_msg_set_text(changelog_msg, "we have added 3 new emojis :)");
+ *
+ * if (dc_add_device_msg(context, "welcome", welcome_msg)) {
+ *     // do not add the changelog on a new installations -
+ *     // not now and not when this code is executed again
+ *     dc_add_device_msg(context, "update-123", NULL);
+ * } else {
+ *     // welcome message was not added now, this is an oder installation,
+ *     // add a changelog
+ *     dc_add_device_msg(context, "update-123", changelog_msg);
+ * }
+ * ~~~
  */
-uint32_t        dc_add_device_msg_once       (dc_context_t* context, const char* label, dc_msg_t* msg);
+uint32_t        dc_add_device_msg            (dc_context_t* context, const char* label, dc_msg_t* msg);
+
+
+/**
+ * Check if a device-message with a given label was ever added.
+ * Device-messages can be added dc_add_device_msg().
+ *
+ * @memberof dc_context_t
+ * @param context The context as created by dc_context_new().
+ * @param label Label of the message to check.
+ * @return 1=A message with this label was added at some point,
+ *     0=A message with this label was never added.
+ */
+int             dc_was_device_msg_ever_added (dc_context_t* context, const char* label);
 
 
 /**
@@ -2760,9 +2777,7 @@ int             dc_chat_is_self_talk         (const dc_chat_t* chat);
  * From the ui view, device-talks are not very special,
  * the user can delete and forward messages, archive the chat, set notifications etc.
  *
- * Messages may be added from the core to the device chat,
- * so the chat just pops up as usual.
- * However, if needed the ui can also add messages using dc_add_device_msg()
+ * Messages can be added to the device-talk using dc_add_device_msg()
  *
  * @memberof dc_chat_t
  * @param chat The chat object.

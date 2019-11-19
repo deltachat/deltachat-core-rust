@@ -812,40 +812,50 @@ pub unsafe extern "C" fn dc_set_draft(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_add_device_msg(context: *mut dc_context_t, msg: *mut dc_msg_t) -> u32 {
-    if context.is_null() || msg.is_null() {
+pub unsafe extern "C" fn dc_add_device_msg(
+    context: *mut dc_context_t,
+    label: *const libc::c_char,
+    msg: *mut dc_msg_t,
+) -> u32 {
+    if context.is_null() || (label.is_null() && msg.is_null()) {
         eprintln!("ignoring careless call to dc_add_device_msg()");
         return 0;
     }
     let ffi_context = &mut *context;
-    let ffi_msg = &mut *msg;
+    let msg = if msg.is_null() {
+        None
+    } else {
+        let ffi_msg: &mut MessageWrapper = &mut *msg;
+        Some(&mut ffi_msg.message)
+    };
     ffi_context
         .with_inner(|ctx| {
-            chat::add_device_msg(ctx, &mut ffi_msg.message)
-                .unwrap_or_log_default(ctx, "Failed to add device message")
+            chat::add_device_msg(
+                ctx,
+                to_opt_string_lossy(label).as_ref().map(|x| x.as_str()),
+                msg,
+            )
+            .unwrap_or_log_default(ctx, "Failed to add device message")
         })
         .map(|msg_id| msg_id.to_u32())
         .unwrap_or(0)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_add_device_msg_once(
+pub unsafe extern "C" fn dc_was_device_msg_ever_added(
     context: *mut dc_context_t,
     label: *const libc::c_char,
-    msg: *mut dc_msg_t,
-) -> u32 {
-    if context.is_null() || label.is_null() || msg.is_null() {
-        eprintln!("ignoring careless call to dc_add_device_msg_once()");
+) -> libc::c_int {
+    if context.is_null() || label.is_null() {
+        eprintln!("ignoring careless call to dc_was_device_msg_ever_added()");
         return 0;
     }
     let ffi_context = &mut *context;
-    let ffi_msg = &mut *msg;
     ffi_context
         .with_inner(|ctx| {
-            chat::add_device_msg_once(ctx, &to_string_lossy(label), &mut ffi_msg.message)
-                .unwrap_or_log_default(ctx, "Failed to add device message once")
+            chat::was_device_msg_ever_added(ctx, &to_string_lossy(label)).unwrap_or(false)
+                as libc::c_int
         })
-        .map(|msg_id| msg_id.to_u32())
         .unwrap_or(0)
 }
 
