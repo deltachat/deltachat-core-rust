@@ -295,6 +295,14 @@ impl Imap {
         // the trailing underscore is correct
 
         if self.connect(context, &param) {
+            if context
+                .sql
+                .get_raw_config_int(context, "folders_configured")
+                .unwrap_or_default()
+                < 3
+            {
+                self.configure_folders(context, 0x1);
+            }
             return Ok(());
         }
         return Err(Error::ImapConnectionFailed(
@@ -1069,8 +1077,7 @@ impl Imap {
                 // TODO: make INBOX/SENT/MVBOX perform the jobs on their
                 // respective folders to avoid select_folder network traffic
                 // and the involved error states
-                let inbox_thread = context.inbox_thread.read().unwrap();
-                if let Err(err) = inbox_thread.connect_to_imap(context) {
+                if let Err(err) = self.connect_configured(context) {
                     warn!(context, "prepare_imap_op failed: {}", err);
                     return Some(ImapActionResult::RetryLater);
                 }

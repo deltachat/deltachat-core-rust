@@ -1,7 +1,7 @@
 use std::sync::{Arc, Condvar, Mutex};
 
 use crate::context::Context;
-use crate::error::{Error, Result};
+use crate::error::Error;
 use crate::imap::Imap;
 
 #[derive(Debug)]
@@ -86,7 +86,7 @@ impl JobThread {
 
         if use_network {
             let prefix = format!("{}-fetch", self.name);
-            match self.connect_to_imap(context) {
+            match self.imap.connect_configured(context) {
                 Ok(()) => {
                     if let Some(watch_folder) = self.get_watch_folder(context) {
                         let start = std::time::Instant::now();
@@ -102,7 +102,7 @@ impl JobThread {
                         if let Err(err) = res {
                             warn!(context, "fetch failed: {}, reconnect & retry", err);
                             self.imap.trigger_reconnect();
-                            match self.connect_to_imap(context) {
+                            match self.imap.connect_configured(context) {
                                 Ok(()) => {
                                     if let Err(err) = self.imap.fetch(context, &watch_folder) {
                                         error!(context, "fetch failed: {}", err);
@@ -139,21 +139,6 @@ impl JobThread {
                 }
             }
         }
-    }
-
-    pub fn connect_to_imap(&self, context: &Context) -> Result<()> {
-        self.imap.connect_configured(context)?;
-
-        if context
-            .sql
-            .get_raw_config_int(context, "folders_configured")
-            .unwrap_or_default()
-            < 3
-        {
-            self.imap.configure_folders(context, 0x1);
-        }
-
-        Ok(())
     }
 
     pub fn idle(&self, context: &Context, use_network: bool) {
@@ -193,7 +178,7 @@ impl JobThread {
         }
 
         let prefix = format!("{}-IDLE", self.name);
-        let do_fake_idle = match self.connect_to_imap(context) {
+        let do_fake_idle = match self.imap.connect_configured(context) {
             Ok(()) => {
                 info!(context, "{} started...", prefix);
                 let watch_folder = self.get_watch_folder(context);
