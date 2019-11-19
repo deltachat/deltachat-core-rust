@@ -51,7 +51,7 @@ pub enum ImexMode {
 
 /// Import/export things.
 /// For this purpose, the function creates a job that is executed in the IMAP-thread then;
-/// this requires to call dc_perform_imap_jobs() regularly.
+/// this requires to call dc_perform_inbox_jobs() regularly.
 ///
 /// What to do is defined by the _what_ parameter.
 ///

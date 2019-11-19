@@ -203,7 +203,7 @@ impl Job {
 
     #[allow(non_snake_case)]
     fn do_DC_JOB_MOVE_MSG(&mut self, context: &Context) {
-        let inbox = context.inbox.read().unwrap();
+        let imap_inbox = &context.inbox_thread.read().unwrap().imap;
 
         if let Ok(msg) = Message::load_from_db(context, MsgId::new(self.foreign_id)) {
             if context
@@ -212,7 +212,7 @@ impl Job {
                 .unwrap_or_default()
                 < 3
             {
-                inbox.configure_folders(context, 0x1i32);
+                imap_inbox.configure_folders(context, 0x1i32);
             }
             let dest_folder = context
                 .sql
@@ -222,7 +222,7 @@ impl Job {
                 let server_folder = msg.server_folder.as_ref().unwrap();
                 let mut dest_uid = 0;
 
-                match inbox.mv(
+                match imap_inbox.mv(
                     context,
                     server_folder,
                     msg.server_uid,
@@ -248,7 +248,7 @@ impl Job {
 
     #[allow(non_snake_case)]
     fn do_DC_JOB_DELETE_MSG_ON_IMAP(&mut self, context: &Context) {
-        let inbox = context.inbox.read().unwrap();
+        let imap_inbox = &context.inbox_thread.read().unwrap().imap;
 
         if let Ok(mut msg) = Message::load_from_db(context, MsgId::new(self.foreign_id)) {
             if !msg.rfc724_mid.is_empty() {
@@ -263,7 +263,8 @@ impl Job {
                     we delete the message from the server */
                     let mid = msg.rfc724_mid;
                     let server_folder = msg.server_folder.as_ref().unwrap();
-                    let res = inbox.delete_msg(context, &mid, server_folder, &mut msg.server_uid);
+                    let res =
+                        imap_inbox.delete_msg(context, &mid, server_folder, &mut msg.server_uid);
                     if res == ImapActionResult::RetryLater {
                         self.try_again_later(-1i32, None);
                         return;
@@ -276,27 +277,27 @@ impl Job {
 
     #[allow(non_snake_case)]
     fn do_DC_JOB_EMPTY_SERVER(&mut self, context: &Context) {
-        let inbox = context.inbox.read().unwrap();
+        let imap_inbox = &context.inbox_thread.read().unwrap().imap;
         if self.foreign_id & DC_EMPTY_MVBOX > 0 {
             if let Some(mvbox_folder) = context
                 .sql
                 .get_raw_config(context, "configured_mvbox_folder")
             {
-                inbox.empty_folder(context, &mvbox_folder);
+                imap_inbox.empty_folder(context, &mvbox_folder);
             }
         }
         if self.foreign_id & DC_EMPTY_INBOX > 0 {
-            inbox.empty_folder(context, "INBOX");
+            imap_inbox.empty_folder(context, "INBOX");
         }
     }
 
     #[allow(non_snake_case)]
     fn do_DC_JOB_MARKSEEN_MSG_ON_IMAP(&mut self, context: &Context) {
-        let inbox = context.inbox.read().unwrap();
+        let imap_inbox = &context.inbox_thread.read().unwrap().imap;
 
         if let Ok(msg) = Message::load_from_db(context, MsgId::new(self.foreign_id)) {
             let folder = msg.server_folder.as_ref().unwrap();
-            match inbox.set_seen(context, folder, msg.server_uid) {
+            match imap_inbox.set_seen(context, folder, msg.server_uid) {
                 ImapActionResult::RetryLater => {
                     self.try_again_later(3i32, None);
                 }
@@ -326,8 +327,8 @@ impl Job {
             .unwrap_or_default()
             .to_string();
         let uid = self.param.get_int(Param::ServerUid).unwrap_or_default() as u32;
-        let inbox = context.inbox.read().unwrap();
-        if inbox.set_seen(context, &folder, uid) == ImapActionResult::RetryLater {
+        let imap_inbox = &context.inbox_thread.read().unwrap().imap;
+        if imap_inbox.set_seen(context, &folder, uid) == ImapActionResult::RetryLater {
             self.try_again_later(3i32, None);
             return;
         }
@@ -338,7 +339,7 @@ impl Job {
                 .unwrap_or_default()
                 < 3
             {
-                inbox.configure_folders(context, 0x1i32);
+                imap_inbox.configure_folders(context, 0x1i32);
             }
             let dest_folder = context
                 .sql
@@ -346,7 +347,7 @@ impl Job {
             if let Some(dest_folder) = dest_folder {
                 let mut dest_uid = 0;
                 if ImapActionResult::RetryLater
-                    == inbox.mv(context, &folder, uid, &dest_folder, &mut dest_uid)
+                    == imap_inbox.mv(context, &folder, uid, &dest_folder, &mut dest_uid)
                 {
                     self.try_again_later(3, None);
                 }
@@ -366,81 +367,14 @@ pub fn job_kill_action(context: &Context, action: Action) -> bool {
     .is_ok()
 }
 
-pub fn perform_imap_fetch(context: &Context) {
-    if !context.get_config_bool(Config::InboxWatch) {
-        info!(context, "INBOX-fetch skipped: INBOX-watch is disabled.");
-        return;
-    }
-    let inbox = context.inbox.read().unwrap();
-    let start = std::time::Instant::now();
+pub fn perform_inbox_fetch(context: &Context) {
+    let use_network = context.get_config_bool(Config::InboxWatch);
 
-    if let Err(err) = connect_to_inbox(context, &inbox) {
-        warn!(context, "could not connect to inbox: {:?}", err);
-        return;
-    }
-    info!(context, "INBOX-fetch started...",);
-    inbox.fetch(context);
-    if inbox.should_reconnect() {
-        info!(context, "INBOX-fetch aborted, starting over...",);
-        inbox.fetch(context);
-    }
-    info!(
-        context,
-        "INBOX-fetch done in {:.4} ms.",
-        start.elapsed().as_nanos() as f64 / 1_000_000.0,
-    );
-}
-
-pub fn perform_imap_idle(context: &Context) {
-    if *context.perform_inbox_jobs_needed.clone().read().unwrap() {
-        info!(
-            context,
-            "INBOX-IDLE will not be started because of waiting jobs."
-        );
-        return;
-    }
-    let inbox = context.inbox.read().unwrap();
-    let poll_mode = if !context.get_config_bool(Config::InboxWatch) {
-        Some(IdlePollMode::Never)
-    } else {
-        match connect_to_inbox(context, &inbox) {
-            Err(Error::ImapConnectionFailed(param)) => {
-                warn!(context, "perform_imap_idle could not connect {:?}", param);
-                Some(IdlePollMode::Often)
-            }
-            Err(err) => {
-                warn!(context, "perform_imap_idle error: {}", err);
-                // anything else than a plain connection error
-                // hints at configuration issues.
-                Some(IdlePollMode::Never)
-            }
-
-            Ok(()) => {
-                info!(context, "INBOX-IDLE starting...");
-                let res = inbox.idle(context);
-                info!(context, "INBOX-IDLE ended.");
-
-                match res {
-                    Ok(()) => None,
-                    Err(Error::ImapConnectionFailed(param)) => {
-                        warn!(
-                            context,
-                            "perform_imap_idle IDLE could not connect {:?}", param
-                        );
-                        Some(IdlePollMode::Often)
-                    }
-                    Err(err) => {
-                        warn!(context, "perform_imap_idle IDLE error: {}", err);
-                        Some(IdlePollMode::Never)
-                    }
-                }
-            }
-        }
-    };
-
-    if let Some(poll_mode) = poll_mode {
-        inbox.fake_idle(context, poll_mode);
-    }
+    context
+        .inbox_thread
+        .write()
+        .unwrap()
+        .fetch(context, use_network);
 }
 
 pub fn perform_mvbox_fetch(context: &Context) {
@@ -453,20 +387,6 @@ pub fn perform_mvbox_fetch(context: &Context) {
         .fetch(context, use_network);
 }
 
-pub fn perform_mvbox_idle(context: &Context) {
-    let use_network = context.get_config_bool(Config::MvboxWatch);
-
-    context
-        .mvbox_thread
-        .read()
-        .unwrap()
-        .idle(context, use_network);
-}
-
-pub fn interrupt_mvbox_idle(context: &Context) {
-    context.mvbox_thread.read().unwrap().interrupt_idle(context);
-}
-
 pub fn perform_sentbox_fetch(context: &Context) {
     let use_network = context.get_config_bool(Config::SentboxWatch);
 
@@ -477,6 +397,33 @@ pub fn perform_sentbox_fetch(context: &Context) {
         .fetch(context, use_network);
 }
 
+pub fn perform_inbox_idle(context: &Context) {
+    if *context.perform_inbox_jobs_needed.clone().read().unwrap() {
+        info!(
+            context,
+            "INBOX-IDLE will not be started because of waiting jobs."
+        );
+        return;
+    }
+    let use_network = context.get_config_bool(Config::InboxWatch);
+
+    context
+        .inbox_thread
+        .read()
+        .unwrap()
+        .idle(context, use_network);
+}
+
+pub fn perform_mvbox_idle(context: &Context) {
+    let use_network = context.get_config_bool(Config::MvboxWatch);
+
+    context
+        .mvbox_thread
+        .read()
+        .unwrap()
+        .idle(context, use_network);
+}
+
 pub fn perform_sentbox_idle(context: &Context) {
     let use_network = context.get_config_bool(Config::SentboxWatch);
 
@@ -485,6 +432,27 @@ pub fn perform_sentbox_idle(context: &Context) {
         .read()
         .unwrap()
         .idle(context, use_network);
+}
+
+pub fn interrupt_inbox_idle(context: &Context, block: bool) {
+    info!(context, "interrupt_inbox_idle called blocking={}", block);
+    if block {
+        context.inbox_thread.read().unwrap().interrupt_idle(context);
+    } else {
+        match context.inbox_thread.try_read() {
+            Ok(inbox_thread) => {
+                inbox_thread.interrupt_idle(context);
+            }
+            Err(err) => {
+                *context.perform_inbox_jobs_needed.write().unwrap() = true;
+                warn!(context, "could not interrupt idle: {}", err);
+            }
+        }
+    }
+}
+
+pub fn interrupt_mvbox_idle(context: &Context) {
+    context.mvbox_thread.read().unwrap().interrupt_idle(context);
 }
 
 pub fn interrupt_sentbox_idle(context: &Context) {
@@ -587,7 +555,7 @@ pub fn maybe_network(context: &Context) {
     }
 
     interrupt_smtp_idle(context);
-    interrupt_imap_idle(context);
+    interrupt_inbox_idle(context, true);
     interrupt_mvbox_idle(context);
     interrupt_sentbox_idle(context);
 }
@@ -719,15 +687,15 @@ pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn perform_imap_jobs(context: &Context) {
-    info!(context, "dc_perform_imap_jobs starting.",);
+pub fn perform_inbox_jobs(context: &Context) {
+    info!(context, "dc_perform_inbox_jobs starting.",);
 
     let probe_imap_network = *context.probe_imap_network.clone().read().unwrap();
     *context.probe_imap_network.write().unwrap() = false;
     *context.perform_inbox_jobs_needed.write().unwrap() = false;
 
     job_perform(context, Thread::Imap, probe_imap_network);
-    info!(context, "dc_perform_imap_jobs ended.",);
+    info!(context, "dc_perform_inbox_jobs ended.",);
 }
 
 pub fn perform_mvbox_jobs(context: &Context) {
@@ -963,12 +931,6 @@ fn suspend_smtp_thread(context: &Context, suspend: bool) {
     }
 }
 
-pub fn connect_to_inbox(context: &Context, imap: &Imap) -> Result<(), Error> {
-    dc_connect_to_configured_imap(context, imap)?;
-    imap.set_watch_folder("INBOX".into());
-    Ok(())
-}
-
 fn send_mdn(context: &Context, msg_id: MsgId) -> Result<(), Error> {
     let mut mimefactory = MimeFactory::load_mdn(context, msg_id)?;
     unsafe { mimefactory.render()? };
@@ -1039,7 +1001,7 @@ pub fn job_add(
     ).ok();
 
     match thread {
-        Thread::Imap => interrupt_imap_idle(context),
+        Thread::Imap => interrupt_inbox_idle(context, false),
         Thread::Smtp => interrupt_smtp_idle(context),
         Thread::Unknown => {}
     }
@@ -1054,12 +1016,4 @@ pub fn interrupt_smtp_idle(context: &Context) {
     state.perform_jobs_needed = 1;
     state.idle = true;
     cvar.notify_one();
-}
-
-pub fn interrupt_imap_idle(context: &Context) {
-    info!(context, "Interrupting INBOX-IDLE...",);
-
-    *context.perform_inbox_jobs_needed.write().unwrap() = true;
-
-    context.inbox.read().unwrap().interrupt_idle();
 }

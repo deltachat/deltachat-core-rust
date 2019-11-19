@@ -461,7 +461,7 @@ pub unsafe extern "C" fn dc_perform_imap_jobs(context: *mut dc_context_t) {
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| job::perform_imap_jobs(ctx))
+        .with_inner(|ctx| job::perform_inbox_jobs(ctx))
         .unwrap_or(())
 }
 
@@ -473,19 +473,20 @@ pub unsafe extern "C" fn dc_perform_imap_fetch(context: *mut dc_context_t) {
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| job::perform_imap_fetch(ctx))
+        .with_inner(|ctx| job::perform_inbox_fetch(ctx))
         .unwrap_or(())
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_perform_imap_idle(context: *mut dc_context_t) {
+    // TODO rename function in co-ordination with UIs
     if context.is_null() {
         eprintln!("ignoring careless call to dc_perform_imap_idle()");
         return;
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| job::perform_imap_idle(ctx))
+        .with_inner(|ctx| job::perform_inbox_idle(ctx))
         .unwrap_or(())
 }
 
@@ -497,7 +498,7 @@ pub unsafe extern "C" fn dc_interrupt_imap_idle(context: *mut dc_context_t) {
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| job::interrupt_imap_idle(ctx))
+        .with_inner(|ctx| job::interrupt_inbox_idle(ctx, true))
         .unwrap_or(())
 }
 

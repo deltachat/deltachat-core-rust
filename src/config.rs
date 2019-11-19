@@ -121,7 +121,7 @@ impl Context {
             }
             Config::InboxWatch => {
                 let ret = self.sql.set_raw_config(self, key, value);
-                interrupt_imap_idle(self);
+                interrupt_inbox_idle(self, true);
                 ret
             }
             Config::SentboxWatch => {

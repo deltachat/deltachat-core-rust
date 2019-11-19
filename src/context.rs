@@ -44,9 +44,9 @@ pub struct Context {
     /// Blob directory path
     blobdir: PathBuf,
     pub sql: Sql,
-    pub inbox: Arc<RwLock<Imap>>,
     pub perform_inbox_jobs_needed: Arc<RwLock<bool>>,
     pub probe_imap_network: Arc<RwLock<bool>>,
+    pub inbox_thread: Arc<RwLock<JobThread>>,
     pub sentbox_thread: Arc<RwLock<JobThread>>,
     pub mvbox_thread: Arc<RwLock<JobThread>>,
     pub smtp: Arc<Mutex<Smtp>>,
@@ -121,7 +121,6 @@ impl Context {
         let ctx = Context {
             blobdir,
             dbfile,
-            inbox: Arc::new(RwLock::new(Imap::new())),
             cb,
             os_name: Some(os_name),
             running_state: Arc::new(RwLock::new(Default::default())),
@@ -132,6 +131,11 @@ impl Context {
             bob: Arc::new(RwLock::new(Default::default())),
             last_smeared_timestamp: RwLock::new(0),
             cmdline_sel_chat_id: Arc::new(RwLock::new(0)),
+            inbox_thread: Arc::new(RwLock::new(JobThread::new(
+                "INBOX",
+                "configured_inbox_folder",
+                Imap::new(),
+            ))),
             sentbox_thread: Arc::new(RwLock::new(JobThread::new(
                 "SENTBOX",
                 "configured_sentbox_folder",
@@ -463,8 +467,8 @@ impl Context {
 
 impl Drop for Context {
     fn drop(&mut self) {
-        info!(self, "disconnecting INBOX-watch",);
-        self.inbox.read().unwrap().disconnect(self);
+        info!(self, "disconnecting inbox-thread",);
+        self.inbox_thread.read().unwrap().imap.disconnect(self);
         info!(self, "disconnecting sentbox-thread",);
         self.sentbox_thread.read().unwrap().imap.disconnect(self);
         info!(self, "disconnecting mvbox-thread",);
