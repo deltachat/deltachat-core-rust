@@ -3,6 +3,7 @@ use std::time::{Duration, SystemTime};
 
 use async_imap::{
     error::Result as ImapResult,
+    extensions::idle::IdleResponse,
     types::{Fetch, Flag, Mailbox, Name, NameAttribute},
 };
 use async_std::prelude::*;
@@ -808,8 +809,20 @@ impl Imap {
                             info!(context, "Idle wait was skipped");
                         } else {
                             info!(context, "Idle entering wait-on-remote state");
-                            let res = idle_wait.await;
-                            info!(context, "Idle finished wait-on-remote: {:?}", res);
+                            match idle_wait.await {
+                                IdleResponse::NewData(_) => {
+                                    info!(context, "Idle finished with NewData");
+                                }
+                                IdleResponse::Timeout => {
+                                    warn!(context, "Idle wait timed out");
+                                    return Err(Error::ImapIdleProtocolFailed(
+                                        "timeout".to_string(),
+                                    ));
+                                }
+                                IdleResponse::ManualInterrupt => {
+                                    warn!(context, "Idle wait was interrupted");
+                                }
+                            }
                         }
                         match handle.done().await {
                             Ok(session) => {
