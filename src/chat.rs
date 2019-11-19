@@ -1962,12 +1962,7 @@ pub fn add_device_msg(
 
     // if the device message is labeled and was ever added, do nothing
     if let Some(label) = label {
-        ensure!(!label.is_empty(), "cannot add empty label");
-        if let Ok(()) = context.sql.query_row(
-            "SELECT label FROM devmsglabels WHERE label=?",
-            params![label],
-            |_| Ok(()),
-        ) {
+        if has_device_msg(context, label)? {
             info!(context, "device-message {} already added", label);
             return Ok(MsgId::new_unset());
         }
