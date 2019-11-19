@@ -65,7 +65,12 @@ pub fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
 
     let mut param_autoconfig: Option<LoginParam> = None;
 
-    context.inbox.read().unwrap().disconnect(context);
+    context
+        .inbox_thread
+        .read()
+        .unwrap()
+        .imap
+        .disconnect(context);
     context
         .sentbox_thread
         .read()
@@ -359,9 +364,10 @@ pub fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
                     0
                 };
                 context
-                    .inbox
+                    .inbox_thread
                     .read()
                     .unwrap()
+                    .imap
                     .configure_folders(context, flags);
                 true
             }
@@ -401,7 +407,12 @@ pub fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
         }
     }
     if imap_connected_here {
-        context.inbox.read().unwrap().disconnect(context);
+        context
+            .inbox_thread
+            .read()
+            .unwrap()
+            .imap
+            .disconnect(context);
     }
     if smtp_connected_here {
         context.smtp.clone().lock().unwrap().disconnect();
@@ -497,7 +508,13 @@ fn try_imap_one_param(context: &Context, param: &LoginParam) -> Option<bool> {
         param.mail_user, param.mail_server, param.mail_port, param.server_flags
     );
     info!(context, "Trying: {}", inf);
-    if context.inbox.read().unwrap().connect(context, &param) {
+    if context
+        .inbox_thread
+        .read()
+        .unwrap()
+        .imap
+        .connect(context, &param)
+    {
         info!(context, "success: {}", inf);
         return Some(true);
     }

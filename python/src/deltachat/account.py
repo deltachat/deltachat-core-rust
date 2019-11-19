@@ -573,8 +573,10 @@ class IOThreads:
         self._log_event("py-bindings-info", 0, "INBOX THREAD START")
         while not self._thread_quitflag:
             lib.dc_perform_imap_jobs(self._dc_context)
-            lib.dc_perform_imap_fetch(self._dc_context)
-            lib.dc_perform_imap_idle(self._dc_context)
+            if not self._thread_quitflag:
+                lib.dc_perform_imap_fetch(self._dc_context)
+            if not self._thread_quitflag:
+                lib.dc_perform_imap_idle(self._dc_context)
         self._log_event("py-bindings-info", 0, "INBOX THREAD FINISHED")
 
     def mvbox_thread_run(self):

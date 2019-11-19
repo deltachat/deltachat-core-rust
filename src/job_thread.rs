@@ -2,7 +2,7 @@ use std::sync::{Arc, Condvar, Mutex};
 
 use crate::configure::*;
 use crate::context::Context;
-use crate::error::Error;
+use crate::error::{Error, Result};
 use crate::imap::{IdlePollMode, Imap};
 
 #[derive(Debug)]
@@ -86,10 +86,10 @@ impl JobThread {
         }
 
         if use_network {
-            let start = std::time::Instant::now();
             let prefix = format!("{}-fetch", self.name);
             match self.connect_to_imap(context) {
                 Ok(()) => {
+                    let start = std::time::Instant::now();
                     info!(context, "{} started...", prefix);
                     self.imap.fetch(context);
 
@@ -116,7 +116,7 @@ impl JobThread {
         self.state.0.lock().unwrap().using_handle = false;
     }
 
-    fn connect_to_imap(&self, context: &Context) -> Result<(), Error> {
+    pub fn connect_to_imap(&self, context: &Context) -> Result<()> {
         if async_std::task::block_on(async move { self.imap.is_connected().await }) {
             return Ok(());
         }
@@ -179,26 +179,33 @@ impl JobThread {
             }
         }
 
+        let prefix = format!("{}-IDLE", self.name);
         let poll_mode = match self.connect_to_imap(context) {
             Ok(()) => {
-                info!(context, "{}-IDLE started...", self.name,);
+                info!(context, "{} started...", prefix);
                 let res = self.imap.idle(context);
-                info!(context, "{}-IDLE ended.", self.name);
+                info!(context, "{} ended...", prefix);
                 match res {
                     Ok(()) => None,
-                    Err(Error::ImapConnectionFailed(err)) => {
-                        warn!(context, "idle connection failed: {}", err);
+                    Err(Error::ImapConnectionFailed(err))
+                    | Err(Error::ImapIdleProtocolFailed(err)) => {
+                        self.imap.trigger_reconnect();
+                        warn!(context, "{} failed: {}, reconnecting", prefix, err);
                         Some(IdlePollMode::Often)
                     }
+                    Err(Error::ImapInTeardown) => {
+                        warn!(context, "{} aborting as imap is in teardown", prefix);
+                        None
+                    }
                     Err(err) => {
-                        warn!(context, "idle failed: {}", err);
+                        warn!(context, "{} failed fundamentally: {}", prefix, err);
                         Some(IdlePollMode::Never)
                     }
                 }
             }
             Err(err) => {
-                info!(context, "{}-IDLE fail: {:?}", self.name, err);
-                Some(IdlePollMode::Never)
+                info!(context, "{}-IDLE connection fail: {:?}", self.name, err);
+                Some(IdlePollMode::Often)
             }
         };
         if let Some(poll_mode) = poll_mode {

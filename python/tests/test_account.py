@@ -430,15 +430,25 @@ class TestOnlineAccount:
         assert self_addr not in ev[2]
         ev = ac1._evlogger.get_matching("DC_EVENT_DELETED_BLOB_FILE")
 
-    def test_mvbox_sentbox_threads(self, acfactory):
+    def test_mvbox_sentbox_threads(self, acfactory, lp):
+        lp.sec("ac1: start with mvbox/sentbox threads")
         ac1 = acfactory.get_online_configuring_account(mvbox=True, sentbox=True)
+
+        lp.sec("ac2: start without mvbox/sentbox threads")
         ac2 = acfactory.get_online_configuring_account()
+
+        lp.sec("ac2: waiting for configuration")
         wait_configuration_progress(ac2, 1000)
+
+        lp.sec("ac1: waiting for configuration")
         wait_configuration_progress(ac1, 1000)
+
+        lp.sec("ac1: send message and wait for ac2 to receive it")
         chat = self.get_chat(ac1, ac2)
         chat.send_text("message1")
         ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
         assert ev[2] > const.DC_CHAT_ID_LAST_SPECIAL
+        lp.sec("test finished")
 
     def test_move_works(self, acfactory):
         ac1 = acfactory.get_online_configuring_account()
@@ -720,6 +730,7 @@ class TestOnlineAccount:
         ac2._evlogger.set_timeout(30)
         wait_configuration_progress(ac2, 1000)
         wait_configuration_progress(ac1, 1000)
+
         lp.sec("trigger ac setup message but ignore")
         assert ac1.get_info()["fingerprint"] != ac2.get_info()["fingerprint"]
         ac1.initiate_key_transfer()
@@ -731,6 +742,7 @@ class TestOnlineAccount:
         msg = ac2.get_message_by_id(ev[2])
         assert msg.is_setup_message()
         assert msg.get_setupcodebegin() == setup_code2[:2]
+
         lp.sec("process second setup message")
         msg.continue_key_transfer(setup_code2)
         assert ac1.get_info()["fingerprint"] == ac2.get_info()["fingerprint"]
