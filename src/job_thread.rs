@@ -123,9 +123,14 @@ impl JobThread {
         let watch_folder_name = match context.sql.get_raw_config(context, self.folder_config_name) {
             Some(name) => name,
             None => {
-                return Err(Error::WatchFolderNotFound(
-                    self.folder_config_name.to_string(),
-                ));
+                if self.folder_config_name == "configured_inbox_folder" {
+                    // operating on an old database?
+                    "INBOX".to_string()
+                } else {
+                    return Err(Error::WatchFolderNotFound(
+                        self.folder_config_name.to_string(),
+                    ));
+                }
             }
         };
 
