@@ -1952,19 +1952,7 @@ pub fn get_chat_id_by_grpid(context: &Context, grpid: impl AsRef<str>) -> (u32, 
         .unwrap_or((0, false, Blocked::Not))
 }
 
-pub fn add_device_msg_unlabelled(context: &Context, msg: &mut Message) -> Result<MsgId, Error> {
-    add_device_msg_maybe_labelled(context, None, msg)
-}
-
-pub fn add_device_msg_once(
-    context: &Context,
-    label: &str,
-    msg: &mut Message,
-) -> Result<MsgId, Error> {
-    add_device_msg_maybe_labelled(context, Some(label), msg)
-}
-
-fn add_device_msg_maybe_labelled(
+pub fn add_device_msg(
     context: &Context,
     label: Option<&str>,
     msg: &mut Message,
@@ -2161,12 +2149,12 @@ mod tests {
         // add two device-messages
         let mut msg1 = Message::new(Viewtype::Text);
         msg1.text = Some("first message".to_string());
-        let msg1_id = add_device_msg_unlabelled(&t.ctx, &mut msg1);
+        let msg1_id = add_device_msg(&t.ctx, None, &mut msg1);
         assert!(msg1_id.is_ok());
 
         let mut msg2 = Message::new(Viewtype::Text);
         msg2.text = Some("second message".to_string());
-        let msg2_id = add_device_msg_unlabelled(&t.ctx, &mut msg2);
+        let msg2_id = add_device_msg(&t.ctx, None, &mut msg2);
         assert!(msg2_id.is_ok());
         assert_ne!(msg1_id.as_ref().unwrap(), msg2_id.as_ref().unwrap());
 
@@ -2190,19 +2178,19 @@ mod tests {
     }
 
     #[test]
-    fn test_add_device_msg_once() {
+    fn test_add_device_msg_labelled() {
         let t = test_context(Some(Box::new(logging_cb)));
 
         // add two device-messages with the same label (second attempt is not added)
         let mut msg1 = Message::new(Viewtype::Text);
         msg1.text = Some("first message".to_string());
-        let msg1_id = add_device_msg_once(&t.ctx, "any-label", &mut msg1);
+        let msg1_id = add_device_msg(&t.ctx, Some("any-label"), &mut msg1);
         assert!(msg1_id.is_ok());
         assert!(!msg1_id.as_ref().unwrap().is_unset());
 
         let mut msg2 = Message::new(Viewtype::Text);
         msg2.text = Some("second message".to_string());
-        let msg2_id = add_device_msg_once(&t.ctx, "any-label", &mut msg2);
+        let msg2_id = add_device_msg(&t.ctx, Some("any-label"), &mut msg2);
         assert!(msg2_id.is_ok());
         assert!(msg2_id.as_ref().unwrap().is_unset());
 
@@ -2234,7 +2222,7 @@ mod tests {
         message::delete_msgs(&t.ctx, &[*msg1_id.as_ref().unwrap()]);
         let msg1 = message::Message::load_from_db(&t.ctx, *msg1_id.as_ref().unwrap());
         assert!(msg1.is_err() || msg1.unwrap().chat_id == DC_CHAT_ID_TRASH);
-        let msg3_id = add_device_msg_once(&t.ctx, "any-label", &mut msg2);
+        let msg3_id = add_device_msg(&t.ctx, Some("any-label"), &mut msg2);
         assert!(msg3_id.is_ok());
         assert!(msg2_id.as_ref().unwrap().is_unset());
     }
@@ -2250,11 +2238,11 @@ mod tests {
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some("message text".to_string());
 
-        let msg_id = add_device_msg_once(&t.ctx, "some-label", &mut msg);
+        let msg_id = add_device_msg(&t.ctx, Some("some-label"), &mut msg);
         assert!(msg_id.is_ok());
         assert!(msg_id.as_ref().unwrap().is_unset());
 
-        let msg_id = add_device_msg_once(&t.ctx, "unused-label", &mut msg);
+        let msg_id = add_device_msg(&t.ctx, Some("unused-label"), &mut msg);
         assert!(msg_id.is_ok());
         assert!(!msg_id.as_ref().unwrap().is_unset());
     }
@@ -2267,7 +2255,7 @@ mod tests {
 
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some("message text".to_string());
-        add_device_msg_once(&t.ctx, "another-label", &mut msg).ok();
+        add_device_msg(&t.ctx, Some("another-label"), &mut msg).ok();
         assert!(has_device_msg(&t.ctx, "another-label").unwrap());
 
         assert!(!has_device_msg(&t.ctx, "unused-label").unwrap());
@@ -2287,7 +2275,7 @@ mod tests {
         let t = dummy_context();
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some("foo".to_string());
-        let msg_id = add_device_msg_unlabelled(&t.ctx, &mut msg).unwrap();
+        let msg_id = add_device_msg(&t.ctx, None, &mut msg).unwrap();
         let chat_id1 = message::Message::load_from_db(&t.ctx, msg_id)
             .unwrap()
             .chat_id;

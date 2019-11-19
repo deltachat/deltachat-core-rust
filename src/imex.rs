@@ -247,7 +247,7 @@ fn maybe_add_bcc_self_device_msg(context: &Context) -> Result<()> {
              go to the settings and enable \"Send copy to self\"."
                 .to_string(),
         );
-        chat::add_device_msg_once(context, "bcc-self-hint", &mut msg)?;
+        chat::add_device_msg(context, Some("bcc-self-hint"), &mut msg)?;
     }
     Ok(())
 }

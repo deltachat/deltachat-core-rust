@@ -1096,8 +1096,8 @@ void            dc_set_draft                 (dc_context_t* context, uint32_t ch
  * Add a message to the device-chat.
  * Device-messages usually contain update information
  * and some hints that are added during the program runs, multi-device etc.
- * The device-message is defined by a label;
- * If a message with the same label was added or skipped before,
+ * The device-message may be defined by a label;
+ * if a message with the same label was added or skipped before,
  * the message is not added again, even if the message was deleted in between.
  * If needed, the device-chat is created before.
  *
@@ -1109,6 +1109,7 @@ void            dc_set_draft                 (dc_context_t* context, uint32_t ch
  * @param label A unique name for the message to add.
  *     The label is typically not displayed to the user and
  *     must be created from the characters `A-Z`, `a-z`, `0-9`, `_` or `-`.
+ *     If you pass NULL here, the message is added unconditionally.
  * @param msg Message to be added to the device-chat.
  *     The message appears to the user as an incoming message.
  * @return The ID of the added message,
@@ -1122,39 +1123,23 @@ void            dc_set_draft                 (dc_context_t* context, uint32_t ch
  * dc_msg_t* changelog_msg = dc_msg_new(DC_MSG_TEXT);
  * dc_msg_set_text(changelog_msg, "we have added 3 new emojis :)");
  *
- * if (dc_add_device_msg_once(context, "welcome", welcome_msg)) {
+ * if (dc_add_device_msg(context, "welcome", welcome_msg)) {
  *     // do not add the changelog on a new installations -
  *     // not now and not when this code is executed again
  *     dc_skip_device_msg(context, "update-123");
  * } else {
  *     // welcome message was not added now, this is an oder installation,
  *     // add a changelog
- *     dc_add_device_msg_once(context, "update-123", changelog_msg);
+ *     dc_add_device_msg(context, "update-123", changelog_msg);
  * }
  * ~~~
  */
-uint32_t        dc_add_device_msg_once       (dc_context_t* context, const char* label, dc_msg_t* msg);
-
-
-/**
- * Add a message to the device-chat unconditionally.
- * As this skips the test if the message was added before,
- * normally, you should prefer dc_add_device_msg_once() over this function
- *
- * Sends the event #DC_EVENT_MSGS_CHANGED on success.
- *
- * @memberof dc_context_t
- * @param context The context as created by dc_context_new().
- * @param msg Message to be added to the device-chat.
- *     The message appears to the user as an incoming message.
- * @return The ID of the added message.
- */
-uint32_t        dc_add_device_msg_unlabelled(dc_context_t* context, dc_msg_t* msg);
+uint32_t        dc_add_device_msg            (dc_context_t* context, const char* label, dc_msg_t* msg);
 
 
 /**
  * Skip a device-message permanently.
- * Subsequent calls to dc_add_device_msg_once() with the same label
+ * Subsequent calls to dc_add_device_msg() with the same label
  * won't add the device-message then.
  * This might be handy if you want to add
  * eg. different messages for first-install and updates.
@@ -1175,7 +1160,7 @@ void            dc_skip_device_msg           (dc_context_t* context, const char*
 /**
  * Check if a device-message was ever added or skipped.
  * Device-messages can be added or skipped
- * using dc_add_device_msg_once() or dc_skip_device_msg().
+ * using dc_add_device_msg() or dc_skip_device_msg().
  *
  * @memberof dc_context_t
  * @param context The context as created by dc_context_new().
@@ -2811,7 +2796,7 @@ int             dc_chat_is_self_talk         (const dc_chat_t* chat);
  * From the ui view, device-talks are not very special,
  * the user can delete and forward messages, archive the chat, set notifications etc.
  *
- * Messages can be added to the device-talk using dc_add_device_msg_once()
+ * Messages can be added to the device-talk using dc_add_device_msg()
  *
  * @memberof dc_chat_t
  * @param chat The chat object.
