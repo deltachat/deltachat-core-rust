@@ -38,7 +38,7 @@ pub fn dc_encode_header_words(input: impl AsRef<str>) -> String {
 fn must_encode(byte: u8) -> bool {
     static SPECIALS: &[u8] = b",:!\"#$@[\\]^`{|}~=?_";
 
-    SPECIALS.into_iter().any(|b| *b == byte)
+    SPECIALS.iter().any(|b| *b == byte)
 }
 
 fn quote_word(word: &[u8]) -> String {

@@ -522,7 +522,7 @@ pub fn perform_smtp_idle(context: &Context) {
                 let res = cvar.wait_timeout(state, dur).unwrap();
                 state = res.0;
 
-                if state.idle == true || res.1.timed_out() {
+                if state.idle || res.1.timed_out() {
                     // We received the notification and the value has been updated, we can leave.
                     break;
                 }

@@ -138,7 +138,7 @@ impl Smtp {
 
     /// SMTP-Send a prepared mail to recipients.
     /// on successful send out Ok() is returned.
-    pub fn send<'a>(
+    pub fn send(
         &mut self,
         context: &Context,
         recipients: Vec<EmailAddress>,

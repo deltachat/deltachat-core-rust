@@ -140,9 +140,10 @@ impl<'a> BlobObject<'a> {
         context: &Context,
         src: impl AsRef<Path>,
     ) -> std::result::Result<BlobObject, BlobError> {
-        match src.as_ref().starts_with(context.get_blobdir()) {
-            true => BlobObject::from_path(context, src),
-            false => BlobObject::create_and_copy(context, src),
+        if src.as_ref().starts_with(context.get_blobdir()) {
+            BlobObject::from_path(context, src)
+        } else {
+            BlobObject::create_and_copy(context, src)
         }
     }
 
@@ -264,13 +265,13 @@ impl<'a> BlobObject<'a> {
     fn sanitise_name(name: &str) -> (String, String) {
         let mut name = name.to_string();
         for part in name.rsplit('/') {
-            if part.len() > 0 {
+            if !part.is_empty() {
                 name = part.to_string();
                 break;
             }
         }
         for part in name.rsplit('\\') {
-            if part.len() > 0 {
+            if !part.is_empty() {
                 name = part.to_string();
                 break;
             }

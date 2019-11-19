@@ -92,7 +92,7 @@ pub fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
     const STEP_3_INDEX: u8 = 13;
     let mut step_counter: u8 = 0;
     while !context.shall_stop_ongoing() {
-        step_counter = step_counter + 1;
+        step_counter += 1;
 
         let success = match step_counter {
             // Read login parameters from the database
