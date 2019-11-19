@@ -41,7 +41,7 @@ def test_dc_close_events(tmpdir):
             else:
                 print("skipping event", *ev)
 
-    find("disconnecting INBOX-watch")
+    find("disconnecting inbox-thread")
     find("disconnecting sentbox-thread")
     find("disconnecting mvbox-thread")
     find("disconnecting SMTP")
