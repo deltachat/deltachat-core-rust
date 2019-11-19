@@ -866,7 +866,8 @@ impl Imap {
     }
 
     pub(crate) fn fake_idle(&self, context: &Context, watch_folder: Option<String>) {
-        // Idle using polling.
+        // Idle using polling. This is also needed if we're not yet configured -
+        // in this case, we're waiting for a configure job (and an interrupt).
         task::block_on(async move {
             let fake_idle_start_time = SystemTime::now();
 
@@ -1072,7 +1073,8 @@ impl Imap {
         task::block_on(async move {
             if uid == 0 {
                 return Some(ImapActionResult::Failed);
-            } else if !self.is_connected().await {
+            }
+            if !self.is_connected().await {
                 // currently jobs are only performed on the INBOX thread
                 // TODO: make INBOX/SENT/MVBOX perform the jobs on their
                 // respective folders to avoid select_folder network traffic

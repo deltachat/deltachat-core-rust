@@ -1,7 +1,7 @@
 use std::sync::{Arc, Condvar, Mutex};
 
 use crate::context::Context;
-use crate::error::Error;
+use crate::error::{Error, Result};
 use crate::imap::Imap;
 
 #[derive(Debug)]
@@ -85,46 +85,35 @@ impl JobThread {
         }
 
         if use_network {
-            let prefix = format!("{}-fetch", self.name);
-            match self.imap.connect_configured(context) {
-                Ok(()) => {
-                    if let Some(watch_folder) = self.get_watch_folder(context) {
-                        let start = std::time::Instant::now();
-                        info!(context, "{} started...", prefix);
-                        let res = self.imap.fetch(context, &watch_folder);
-                        info!(
-                            context,
-                            "{} done in {:.3} ms.",
-                            prefix,
-                            start.elapsed().as_millis(),
-                        );
-
-                        if let Err(err) = res {
-                            warn!(context, "fetch failed: {}, reconnect & retry", err);
-                            self.imap.trigger_reconnect();
-                            match self.imap.connect_configured(context) {
-                                Ok(()) => {
-                                    if let Err(err) = self.imap.fetch(context, &watch_folder) {
-                                        error!(context, "fetch failed: {}", err);
-                                    }
-                                }
-                                Err(err) => {
-                                    error!(context, "connect failed: {}", err);
-                                }
-                            }
-                        }
-                    }
-                }
-                Err(err) => {
-                    warn!(
-                        context,
-                        "{} skipped, could not connect to imap {:?}", prefix, err
-                    );
+            if let Err(err) = self.connect_and_fetch(context) {
+                warn!(context, "connect+fetch failed: {}, reconnect & retry", err);
+                self.imap.trigger_reconnect();
+                if let Err(err) = self.connect_and_fetch(context) {
+                    warn!(context, "connect+fetch failed: {}", err);
                 }
             }
         }
-
         self.state.0.lock().unwrap().using_handle = false;
+    }
+
+    fn connect_and_fetch(&mut self, context: &Context) -> Result<()> {
+        let prefix = format!("{}-fetch", self.name);
+        match self.imap.connect_configured(context) {
+            Ok(()) => {
+                if let Some(watch_folder) = self.get_watch_folder(context) {
+                    let start = std::time::Instant::now();
+                    info!(context, "{} started...", prefix);
+                    let res = self.imap.fetch(context, &watch_folder);
+                    let elapsed = start.elapsed().as_millis();
+                    info!(context, "{} done in {:.3} ms.", prefix, elapsed);
+
+                    res
+                } else {
+                    Err(Error::WatchFolderNotFound("not-set".to_string()))
+                }
+            }
+            Err(err) => Err(err),
+        }
     }
 
     fn get_watch_folder(&self, context: &Context) -> Option<String> {
@@ -201,7 +190,6 @@ impl JobThread {
                 // if the connection fails, use fake_idle to retry periodically
                 // fake_idle() will be woken up by interrupt_idle() as
                 // well so will act on maybe_network events
-                //
                 true
             }
         };

@@ -431,7 +431,7 @@ class TestOnlineAccount:
         ev = ac1._evlogger.get_matching("DC_EVENT_DELETED_BLOB_FILE")
 
     def test_mvbox_sentbox_threads(self, acfactory, lp):
-        lp.sec("ac1: start with mvbox/sentbox threads")
+        lp.sec("ac1: start with mvbox thread")
         ac1 = acfactory.get_online_configuring_account(mvbox=True, sentbox=True)
 
         lp.sec("ac2: start without mvbox/sentbox threads")
