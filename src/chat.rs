@@ -1966,7 +1966,7 @@ pub fn add_device_msg(
     let mut msg_id = MsgId::new_unset();
 
     if let Some(label) = label {
-        if has_device_msg(context, label)? {
+        if was_device_msg_ever_added(context, label)? {
             info!(context, "device-message {} already added", label);
             return Ok(msg_id);
         }
@@ -2011,7 +2011,7 @@ pub fn add_device_msg(
     Ok(msg_id)
 }
 
-pub fn has_device_msg(context: &Context, label: &str) -> Result<bool, Error> {
+pub fn was_device_msg_ever_added(context: &Context, label: &str) -> Result<bool, Error> {
     ensure!(!label.is_empty(), "empty label");
     if let Ok(()) = context.sql.query_row(
         "SELECT label FROM devmsglabels WHERE label=?",
@@ -2237,19 +2237,19 @@ mod tests {
     }
 
     #[test]
-    fn test_has_device_msg() {
+    fn test_was_device_msg_ever_added() {
         let t = test_context(Some(Box::new(logging_cb)));
         add_device_msg(&t.ctx, Some("some-label"), None).ok();
-        assert!(has_device_msg(&t.ctx, "some-label").unwrap());
+        assert!(was_device_msg_ever_added(&t.ctx, "some-label").unwrap());
 
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some("message text".to_string());
         add_device_msg(&t.ctx, Some("another-label"), Some(&mut msg)).ok();
-        assert!(has_device_msg(&t.ctx, "another-label").unwrap());
+        assert!(was_device_msg_ever_added(&t.ctx, "another-label").unwrap());
 
-        assert!(!has_device_msg(&t.ctx, "unused-label").unwrap());
+        assert!(!was_device_msg_ever_added(&t.ctx, "unused-label").unwrap());
 
-        assert!(has_device_msg(&t.ctx, "").is_err());
+        assert!(was_device_msg_ever_added(&t.ctx, "").is_err());
     }
 
     fn chatlist_len(ctx: &Context, listflags: usize) -> usize {

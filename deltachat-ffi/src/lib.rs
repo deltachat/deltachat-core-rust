@@ -842,18 +842,19 @@ pub unsafe extern "C" fn dc_add_device_msg(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_has_device_msg(
+pub unsafe extern "C" fn dc_was_device_msg_ever_added(
     context: *mut dc_context_t,
     label: *const libc::c_char,
 ) -> libc::c_int {
     if context.is_null() || label.is_null() {
-        eprintln!("ignoring careless call to dc_has_device_msg()");
+        eprintln!("ignoring careless call to dc_was_device_msg_ever_added()");
         return 0;
     }
     let ffi_context = &mut *context;
     ffi_context
         .with_inner(|ctx| {
-            chat::has_device_msg(ctx, &to_string_lossy(label)).unwrap_or(false) as libc::c_int
+            chat::was_device_msg_ever_added(ctx, &to_string_lossy(label)).unwrap_or(false)
+                as libc::c_int
         })
         .unwrap_or(0)
 }

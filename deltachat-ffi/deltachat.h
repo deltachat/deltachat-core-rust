@@ -1149,7 +1149,7 @@ uint32_t        dc_add_device_msg            (dc_context_t* context, const char*
  * @return 1=A message with this label was added at some point,
  *     0=A message with this label was never added.
  */
-int             dc_has_device_msg            (dc_context_t* context, const char* label);
+int             dc_was_device_msg_ever_added (dc_context_t* context, const char* label);
 
 
 /**
