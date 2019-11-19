@@ -1207,9 +1207,8 @@ pub fn get_chat_media(
             |ids| {
                 let mut ret = Vec::new();
                 for id in ids {
-                    match id {
-                        Ok(msg_id) => ret.push(msg_id),
-                        Err(_) => (),
+                    if let Ok(msg_id) = id {
+                        ret.push(msg_id)
                     }
                 }
                 Ok(ret)
@@ -1530,7 +1529,7 @@ pub(crate) fn add_contact_to_chat_ex(
         msg.id = send_msg(context, chat_id, &mut msg)?;
         context.call_cb(Event::MsgsChanged {
             chat_id,
-            msg_id: MsgId::from(msg.id),
+            msg_id: msg.id,
         });
     }
     context.call_cb(Event::MsgsChanged {
