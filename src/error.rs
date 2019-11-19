@@ -38,6 +38,10 @@ pub enum Error {
     WatchFolderNotFound(String),
     #[fail(display = "Connection Failed params: {}", _0)]
     ImapConnectionFailed(String),
+    #[fail(display = "Could not get OAUTH token")]
+    ImapOauthError,
+    #[fail(display = "Could not login as {}", _0)]
+    ImapLoginFailed(String),
     #[fail(display = "Cannot idle")]
     ImapMissesIdle,
     #[fail(display = "Imap IDLE protocol failed to init/complete")]
@@ -48,6 +52,8 @@ pub enum Error {
     ConnectWithoutConfigure,
     #[fail(display = "imap operation attempted while imap is torn down")]
     ImapInTeardown,
+    #[fail(display = "No IMAP Connection established")]
+    ImapNoConnection,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

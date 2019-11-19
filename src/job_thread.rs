@@ -1,9 +1,8 @@
 use std::sync::{Arc, Condvar, Mutex};
 
-use crate::configure::*;
 use crate::context::Context;
 use crate::error::{Error, Result};
-use crate::imap::{IdlePollMode, Imap};
+use crate::imap::Imap;
 
 #[derive(Debug)]
 pub struct JobThread {
@@ -89,20 +88,32 @@ impl JobThread {
             let prefix = format!("{}-fetch", self.name);
             match self.connect_to_imap(context) {
                 Ok(()) => {
-                    let start = std::time::Instant::now();
-                    info!(context, "{} started...", prefix);
-                    self.imap.fetch(context);
+                    if let Some(watch_folder) = self.get_watch_folder(context) {
+                        let start = std::time::Instant::now();
+                        info!(context, "{} started...", prefix);
+                        let res = self.imap.fetch(context, &watch_folder);
+                        info!(
+                            context,
+                            "{} done in {:.3} ms.",
+                            prefix,
+                            start.elapsed().as_millis(),
+                        );
 
-                    if self.imap.should_reconnect() {
-                        info!(context, "{} aborted, starting over...", prefix);
-                        self.imap.fetch(context);
+                        if let Err(err) = res {
+                            warn!(context, "fetch failed: {}, reconnect & retry", err);
+                            self.imap.trigger_reconnect();
+                            match self.connect_to_imap(context) {
+                                Ok(()) => {
+                                    if let Err(err) = self.imap.fetch(context, &watch_folder) {
+                                        error!(context, "fetch failed: {}", err);
+                                    }
+                                }
+                                Err(err) => {
+                                    error!(context, "connect failed: {}", err);
+                                }
+                            }
+                        }
                     }
-                    info!(
-                        context,
-                        "{} done in {:.3} ms.",
-                        prefix,
-                        start.elapsed().as_millis(),
-                    );
                 }
                 Err(err) => {
                     warn!(
@@ -116,25 +127,23 @@ impl JobThread {
         self.state.0.lock().unwrap().using_handle = false;
     }
 
-    pub fn connect_to_imap(&self, context: &Context) -> Result<()> {
-        if async_std::task::block_on(async move { self.imap.is_connected().await }) {
-            return Ok(());
-        }
-        let watch_folder_name = match context.sql.get_raw_config(context, self.folder_config_name) {
-            Some(name) => name,
+    fn get_watch_folder(&self, context: &Context) -> Option<String> {
+        match context.sql.get_raw_config(context, self.folder_config_name) {
+            Some(name) => Some(name),
             None => {
                 if self.folder_config_name == "configured_inbox_folder" {
-                    // operating on an old database?
-                    "INBOX".to_string()
+                    // initialized with old version, so has not set configured_inbox_folder
+                    Some("INBOX".to_string())
                 } else {
-                    return Err(Error::WatchFolderNotFound(
-                        self.folder_config_name.to_string(),
-                    ));
+                    None
                 }
             }
-        };
+        }
+    }
 
-        dc_connect_to_configured_imap(context, &self.imap)?;
+    pub fn connect_to_imap(&self, context: &Context) -> Result<()> {
+        self.imap.connect_configured(context)?;
+
         if context
             .sql
             .get_raw_config_int(context, "folders_configured")
@@ -143,7 +152,6 @@ impl JobThread {
         {
             self.imap.configure_folders(context, 0x1);
         }
-        self.imap.set_watch_folder(watch_folder_name);
 
         Ok(())
     }
@@ -185,36 +193,36 @@ impl JobThread {
         }
 
         let prefix = format!("{}-IDLE", self.name);
-        let poll_mode = match self.connect_to_imap(context) {
+        let do_fake_idle = match self.connect_to_imap(context) {
             Ok(()) => {
                 info!(context, "{} started...", prefix);
-                let res = self.imap.idle(context);
+                let watch_folder = self.get_watch_folder(context);
+                let res = self.imap.idle(context, watch_folder);
                 info!(context, "{} ended...", prefix);
                 match res {
-                    Ok(()) => None,
-                    Err(Error::ImapConnectionFailed(err))
-                    | Err(Error::ImapIdleProtocolFailed(err)) => {
-                        self.imap.trigger_reconnect();
-                        warn!(context, "{} failed: {}, reconnecting", prefix, err);
-                        Some(IdlePollMode::Often)
-                    }
-                    Err(Error::ImapInTeardown) => {
-                        warn!(context, "{} aborting as imap is in teardown", prefix);
-                        None
-                    }
+                    Ok(()) => false,
+                    Err(Error::ImapMissesIdle) => true, // we have to do fake_idle
                     Err(err) => {
-                        warn!(context, "{} failed fundamentally: {}", prefix, err);
-                        Some(IdlePollMode::Never)
+                        warn!(context, "{} failed: {} -> reconnecting", prefix, err);
+                        // something is borked, let's start afresh on the next occassion
+                        self.imap.disconnect(context);
+
+                        false
                     }
                 }
             }
             Err(err) => {
                 info!(context, "{}-IDLE connection fail: {:?}", self.name, err);
-                Some(IdlePollMode::Often)
+                // if the connection fails, use fake_idle to retry periodically
+                // fake_idle() will be woken up by interrupt_idle() as
+                // well so will act on maybe_network events
+                //
+                true
             }
         };
-        if let Some(poll_mode) = poll_mode {
-            self.imap.fake_idle(context, poll_mode);
+        if do_fake_idle {
+            let watch_folder = self.get_watch_folder(context);
+            self.imap.fake_idle(context, watch_folder);
         }
 
         self.state.0.lock().unwrap().using_handle = false;
