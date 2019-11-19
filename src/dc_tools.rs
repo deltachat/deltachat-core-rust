@@ -165,11 +165,24 @@ pub(crate) fn dc_gm2local_offset() -> i64 {
     lt.offset().local_minus_utc() as i64
 }
 
-/* timesmearing */
+// timesmearing
+// - as e-mails typically only use a second-based-resolution for timestamps,
+//   the order of two mails sent withing one second is unclear.
+//   this is bad eg. when forwarding some messages from a chat -
+//   these messages will appear at the recipient easily out of order.
+// - we work around this issue by not sending out two mails with the same timestamp.
+// - for this purpose, in short, we track the last timestamp used in `last_smeared_timestamp`
+//   when another timestamp is needed in the same second, we use `last_smeared_timestamp+1`
+// - after some moments without messages sent out,
+//   `last_smeared_timestamp` is again in sync with the normal time.
+// - however, we do not do all this for the far future,
+//   but at max `MAX_SECONDS_TO_LEND_FROM_FUTURE`
 const MAX_SECONDS_TO_LEND_FROM_FUTURE: i64 = 5;
 
+// returns the currently smeared timestamp,
+// may be used to check if call to dc_create_smeared_timestamp() is needed or not.
+// the returned timestamp MUST NOT be used to be sent out or saved in the database!
 pub(crate) fn dc_smeared_time(context: &Context) -> i64 {
-    /* function returns a corrected time(NULL) */
     let mut now = time();
     let ts = *context.last_smeared_timestamp.read().unwrap();
     if ts >= now {
@@ -179,6 +192,7 @@ pub(crate) fn dc_smeared_time(context: &Context) -> i64 {
     now
 }
 
+// returns a timestamp that is guaranteed to be unique.
 pub(crate) fn dc_create_smeared_timestamp(context: &Context) -> i64 {
     let now = time();
     let mut ret = now;
@@ -195,8 +209,10 @@ pub(crate) fn dc_create_smeared_timestamp(context: &Context) -> i64 {
     ret
 }
 
+// creates `count` timestamps that are guaranteed to be unique.
+// the frist created timestamps is returned directly,
+// get the other timestamps just by adding 1..count-1
 pub(crate) fn dc_create_smeared_timestamps(context: &Context, count: usize) -> i64 {
-    /* get a range to timestamps that can be used uniquely */
     let now = time();
     let count = count as i64;
     let mut start = now + min(count, MAX_SECONDS_TO_LEND_FROM_FUTURE) - count;
