@@ -1112,8 +1112,10 @@ void            dc_set_draft                 (dc_context_t* context, uint32_t ch
  *     If you pass NULL here, the message is added unconditionally.
  * @param msg Message to be added to the device-chat.
  *     The message appears to the user as an incoming message.
- * @return The ID of the added message,
- *     if the message was already added or skipped before or on errors, 0 is returned.
+ *     If you pass NULL here, only the given label will be added
+ *     and block adding messages with that label in the future.
+ * @return The ID of the just added message,
+ *     if the message was already added or no message to add is given, 0 is returned.
  *
  * Example:
  * ~~~
@@ -1126,7 +1128,7 @@ void            dc_set_draft                 (dc_context_t* context, uint32_t ch
  * if (dc_add_device_msg(context, "welcome", welcome_msg)) {
  *     // do not add the changelog on a new installations -
  *     // not now and not when this code is executed again
- *     dc_skip_device_msg(context, "update-123");
+ *     dc_add_device_msg(context, "update-123", NULL);
  * } else {
  *     // welcome message was not added now, this is an oder installation,
  *     // add a changelog
@@ -1138,35 +1140,14 @@ uint32_t        dc_add_device_msg            (dc_context_t* context, const char*
 
 
 /**
- * Skip a device-message permanently.
- * Subsequent calls to dc_add_device_msg() with the same label
- * won't add the device-message then.
- * This might be handy if you want to add
- * eg. different messages for first-install and updates.
- *
- * @memberof dc_context_t
- * @param context The context as created by dc_context_new().
- * @param label A unique name for the message to skip.
- *     The label is typically not displayed to the user and
- *     must be created from the characters `A-Z`, `a-z`, `0-9`, `_` or `-`.
- *     If a message with that label already exist,
- *     nothing happens.
- * @return None.
- */
-void            dc_skip_device_msg           (dc_context_t* context, const char* label);
-
-
-
-/**
- * Check if a device-message was ever added or skipped.
- * Device-messages can be added or skipped
- * using dc_add_device_msg() or dc_skip_device_msg().
+ * Check if a device-message with a given label was ever added.
+ * Device-messages can be added dc_add_device_msg().
  *
  * @memberof dc_context_t
  * @param context The context as created by dc_context_new().
  * @param label Label of the message to check.
- * @return 1=A message with this label was added or skipped at some point,
- *     0=A message with this label was never added nor skipped.
+ * @return 1=A message with this label was added at some point,
+ *     0=A message with this label was never added.
  */
 int             dc_has_device_msg            (dc_context_t* context, const char* label);
 

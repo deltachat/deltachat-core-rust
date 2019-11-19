@@ -817,41 +817,28 @@ pub unsafe extern "C" fn dc_add_device_msg(
     label: *const libc::c_char,
     msg: *mut dc_msg_t,
 ) -> u32 {
-    if context.is_null() || label.is_null() || msg.is_null() {
+    if context.is_null() || (label.is_null() && msg.is_null()) {
         eprintln!("ignoring careless call to dc_add_device_msg()");
         return 0;
     }
     let ffi_context = &mut *context;
-    let ffi_msg = &mut *msg;
+    let msg = if msg.is_null() {
+        None
+    } else {
+        let ffi_msg: &mut MessageWrapper = &mut *msg;
+        Some(&mut ffi_msg.message)
+    };
     ffi_context
         .with_inner(|ctx| {
             chat::add_device_msg(
                 ctx,
                 to_opt_string_lossy(label).as_ref().map(|x| x.as_str()),
-                &mut ffi_msg.message,
+                msg,
             )
             .unwrap_or_log_default(ctx, "Failed to add device message")
         })
         .map(|msg_id| msg_id.to_u32())
         .unwrap_or(0)
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_skip_device_msg(
-    context: *mut dc_context_t,
-    label: *const libc::c_char,
-) {
-    if context.is_null() || label.is_null() {
-        eprintln!("ignoring careless call to dc_skip_device_msg()");
-        return;
-    }
-    let ffi_context = &mut *context;
-    ffi_context
-        .with_inner(|ctx| {
-            chat::skip_device_msg(ctx, &to_string_lossy(label))
-                .unwrap_or_log_default(ctx, "Failed to skip device message")
-        })
-        .unwrap_or(())
 }
 
 #[no_mangle]
