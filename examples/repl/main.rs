@@ -150,11 +150,11 @@ fn start_threads(c: Arc<RwLock<Context>>) {
     let ctx = c.clone();
     let handle_imap = std::thread::spawn(move || loop {
         while_running!({
-            perform_imap_jobs(&ctx.read().unwrap());
-            perform_imap_fetch(&ctx.read().unwrap());
+            perform_inbox_jobs(&ctx.read().unwrap());
+            perform_inbox_fetch(&ctx.read().unwrap());
             while_running!({
                 let context = ctx.read().unwrap();
-                perform_imap_idle(&context);
+                perform_inbox_idle(&context);
             });
         });
     });
@@ -202,7 +202,7 @@ fn stop_threads(context: &Context) {
         println!("Stopping threads");
         IS_RUNNING.store(false, Ordering::Relaxed);
 
-        interrupt_imap_idle(context);
+        interrupt_inbox_idle(context, true);
         interrupt_mvbox_idle(context);
         interrupt_sentbox_idle(context);
         interrupt_smtp_idle(context);
@@ -455,9 +455,9 @@ unsafe fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult
         }
         "imap-jobs" => {
             if HANDLE.clone().lock().unwrap().is_some() {
-                println!("imap-jobs are already running in a thread.");
+                println!("inbox-jobs are already running in a thread.");
             } else {
-                perform_imap_jobs(&ctx.read().unwrap());
+                perform_inbox_jobs(&ctx.read().unwrap());
             }
         }
         "configure" => {

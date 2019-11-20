@@ -496,7 +496,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             println!("{:#?}", context.get_info());
         }
         "interrupt" => {
-            interrupt_imap_idle(context);
+            interrupt_inbox_idle(context, true);
         }
         "maybenetwork" => {
             maybe_network(context);
