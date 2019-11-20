@@ -182,23 +182,7 @@ impl Job {
                         Ok(()) => {
                             // smtp success, update db ASAP, then delete smtp file
                             if 0 != self.foreign_id {
-                                message::update_msg_state(
-                                    context,
-                                    MsgId::new(self.foreign_id),
-                                    MessageState::OutDelivered,
-                                );
-                                let chat_id: i32 = context
-                                    .sql
-                                    .query_get_value(
-                                        context,
-                                        "SELECT chat_id FROM msgs WHERE id=?",
-                                        params![self.foreign_id as i32],
-                                    )
-                                    .unwrap_or_default();
-                                context.call_cb(Event::MsgDelivered {
-                                    chat_id: chat_id as u32,
-                                    msg_id: MsgId::new(self.foreign_id),
-                                });
+                                set_delivered(context, MsgId::new(self.foreign_id));
                             }
                             // now also delete the generated file
                             dc_delete_file(context, filename);
@@ -579,6 +563,22 @@ pub fn job_action_exists(context: &Context, action: Action) -> bool {
         .unwrap_or_default()
 }
 
+fn set_delivered(context: &Context, msg_id: MsgId) {
+    message::update_msg_state(context, msg_id, MessageState::OutDelivered);
+    let chat_id: i32 = context
+        .sql
+        .query_get_value(
+            context,
+            "SELECT chat_id FROM msgs WHERE id=?",
+            params![msg_id],
+        )
+        .unwrap_or_default();
+    context.call_cb(Event::MsgDelivered {
+        chat_id: chat_id as u32,
+        msg_id: msg_id,
+    });
+}
+
 /* special case for DC_JOB_SEND_MSG_TO_SMTP */
 #[allow(non_snake_case)]
 pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<(), Error> {
@@ -640,10 +640,12 @@ pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<(), Error> {
     }
 
     if mimefactory.recipients_addr.is_empty() {
-        warn!(
+        // may happen eg. for groups with only SELF and bcc_self disabled
+        info!(
             context,
             "message {} has no recipient, skipping smtp-send", msg_id
         );
+        set_delivered(context, msg_id);
         return Ok(());
     }
 
