@@ -1,3 +1,8 @@
+//! # Imap handling module
+//!
+//! uses [async-email/async-imap](https://github.com/async-email/async-imap)
+//! to implement connect, fetch, delete functionality with standard IMAP servers.
+
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, SystemTime};
 
@@ -280,7 +285,7 @@ impl Imap {
         cfg.has_xlist = false;
     }
 
-    /// Connects to configured account
+    /// Connects to imap account using already-configured parameters.
     pub fn connect_configured(&self, context: &Context) -> Result<()> {
         if async_std::task::block_on(async move {
             self.is_connected().await && !self.should_reconnect()
@@ -310,6 +315,8 @@ impl Imap {
         ));
     }
 
+    /// tries connecting to imap account using the specific login
+    /// parameters
     pub fn connect(&self, context: &Context, lp: &LoginParam) -> bool {
         task::block_on(async move {
             if lp.mail_server.is_empty() || lp.mail_user.is_empty() || lp.mail_pw.is_empty() {
