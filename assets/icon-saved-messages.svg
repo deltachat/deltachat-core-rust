@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   inkscape:export-ydpi="204.8"
+   inkscape:export-xdpi="204.8"
+   inkscape:export-filename="/Users/bpetersen/Documents/deltachat/icons/saved-messages.png"
+   version="1.0"
+   width="60"
+   height="60"
+   viewBox="0 0 45 45"
+   preserveAspectRatio="xMidYMid meet"
+   id="svg4344"
+   sodipodi:docname="saved-messages.svg"
+   inkscape:version="1.0beta1 (32d4812, 2019-09-19)">
+  <defs
+     id="defs4348">
+    <linearGradient
+       inkscape:collect="always"
+       id="linearGradient906">
+      <stop
+         style="stop-color:#046cdb;stop-opacity:1"
+         offset="0"
+         id="stop902" />
+      <stop
+         id="stop845"
+         offset="1"
+         style="stop-color:#ffffff;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient
+       y2="-11.049108"
+       x2="-3.1473193"
+       y1="31.473215"
+       x1="36.160713"
+       gradientUnits="userSpaceOnUse"
+       id="linearGradient847"
+       xlink:href="#linearGradient906"
+       inkscape:collect="always" />
+  </defs>
+  <sodipodi:namedview
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     inkscape:document-rotation="0"
+     borderopacity="1"
+     objecttolerance="10"
+     gridtolerance="10"
+     guidetolerance="10"
+     inkscape:pageopacity="0"
+     inkscape:pageshadow="2"
+     inkscape:window-width="1600"
+     inkscape:window-height="1035"
+     id="namedview4346"
+     showgrid="false"
+     units="px"
+     inkscape:zoom="2.8"
+     inkscape:cx="48.214285"
+     inkscape:cy="55"
+     inkscape:window-x="45"
+     inkscape:window-y="23"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="svg4344"
+     inkscape:lockguides="false" />
+  <metadata
+     id="metadata4336">
+Created by potrace 1.15, written by Peter Selinger 2001-2017
+<rdf:RDF>
+  <cc:Work
+     rdf:about="">
+    <dc:format>image/svg+xml</dc:format>
+    <dc:type
+       rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+    <dc:title />
+  </cc:Work>
+</rdf:RDF>
+</metadata>
+  <circle
+     r="22.5"
+     cy="22.5"
+     cx="22.5"
+     id="path859"
+     style="opacity:1;fill:#ffffff;fill-opacity:1;stroke-width:0.731071" />
+  <circle
+     style="fill:url(#linearGradient847);fill-opacity:1;stroke-width:0.588554"
+     id="path4917"
+     cx="22.5"
+     cy="22.5"
+     r="22.5" />
+  <path
+     id="rect846"
+     style="fill:#ffffff;stroke-width:0.84832"
+     d="M 17 9 L 17 55 L 17.125 55 L 30.048828 40.9375 L 42.974609 55 L 43 55 L 43 9 L 17 9 z M 30.005859 15 L 32.720703 22.121094 L 40 22.646484 L 34.396484 27.558594 L 36.169922 35 L 29.992188 30.916016 L 23.808594 34.988281 L 25.595703 27.550781 L 20 22.626953 L 27.28125 22.115234 L 30.005859 15 z "
+     transform="scale(0.75)" />
+</svg>
