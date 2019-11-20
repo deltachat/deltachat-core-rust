@@ -1,15 +1,20 @@
 //! # Logging support
 
+use std::io;
 use std::fmt;
+use std::fs;
 use std::io::prelude::*;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// A logger for a [Context].
 #[derive(Debug)]
 pub struct Logger {
     logdir: PathBuf,
-    logfile: std::ffi::OsString,
-    file_handle: std::fs::File,
+    logfile: String,
+    file_handle: fs::File,
+    max_files: u32,
+    max_filesize: usize,
+    bytes_written: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,21 +48,54 @@ impl fmt::Display for Callsite<'_> {
 }
 
 impl Logger {
-    pub fn new(logdir: PathBuf) -> Result<Logger, std::io::Error> {
-        let fname = format!(
-            "{}.log",
-            chrono::offset::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
-        );
-        let file = std::fs::OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(logdir.join(&fname))?;
+    pub fn new(logdir: PathBuf) -> Result<Logger, io::Error> {
+        let (fname, file) = Self::open(&logdir)?;
+        let max_files = 5;
+        Self::prune(&logdir, max_files);
         Ok(Logger {
             logdir,
-            logfile: fname.into(),
+            logfile: fname,
             file_handle: file,
+            max_files,
+            max_filesize: 4 * 1024 * 1024, // 4 Mb
+            bytes_written: 0,
         })
+    }
+
+    /// Opens a new logfile, returning a tuple of (file_name, file_handle).
+    ///
+    /// This tries to create a new logfile based on the current time,
+    /// creating .0.log, .1.log etc if this file already exists (up to 32).
+    fn open(logdir: &Path) -> Result<(String, fs::File), io::Error> {
+        let basename =
+            chrono::offset::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+        let mut fname = format!("{}.log", &basename);
+        let mut counter = 0;
+        loop {
+            match std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(logdir.join(&fname))
+            {
+                Ok(file) => {
+                    return Ok((fname, file));
+                }
+                Err(e) => {
+                    if counter >= 32 {
+                        return Err(e);
+                    } else {
+                        counter += 1;
+                        fname = format!("{}.{}.log", &basename, counter);
+                        continue;
+                    }
+                }
+            }
+        }
+    }
+
+    /// Cleans up old logfiles.
+    fn prune(logdir: &Path, max_files: u32) {
+        // TODO
     }
 
     pub fn log(
@@ -66,7 +104,16 @@ impl Logger {
         callsite: Callsite,
         msg: &str,
     ) -> Result<(), std::io::Error> {
-        write!(&mut self.file_handle, "{} [{}]: {}\n", level, callsite, msg)
+        if self.bytes_written > self.max_filesize {
+            let (fname, handle) = Self::open(&self.logdir)?;
+            self.logfile = fname;
+            self.file_handle = handle;
+            Self::prune(&self.logdir, self.max_files);
+        }
+        let msg = format!("{} [{}]: {}\n", level, callsite, msg);
+        self.file_handle.write_all(msg.as_bytes())?;
+        self.bytes_written += msg.len();
+        Ok(())
     }
 
     pub fn flush(&mut self) -> Result<(), std::io::Error> {
@@ -137,8 +184,8 @@ mod tests {
         logger.log(LogLevel::Info, callsite!(), "foo").unwrap();
         logger.log(LogLevel::Warning, callsite!(), "bar").unwrap();
         logger.log(LogLevel::Error, callsite!(), "baz").unwrap();
-        logger.flush();
-        let log = std::fs::read_to_string(logger.logdir.join(logger.logfile)).unwrap();
+        logger.flush().unwrap();
+        let log = fs::read_to_string(logger.logdir.join(logger.logfile)).unwrap();
         println!("{}", log);
         let lines: Vec<&str> = log.lines().collect();
 
@@ -156,5 +203,39 @@ mod tests {
         assert!(lines[2].contains("src/log.rs"));
         assert!(lines[2].contains("deltachat::log::tests"));
         assert!(lines[2].contains("baz"));
+    }
+
+    #[test]
+    fn test_reopen_logfile() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        let mut logger = Logger::new(dir.to_path_buf()).unwrap();
+        logger.max_filesize = 5;
+
+        let fname0 = logger.logfile.clone();
+        assert!(fname0.ends_with(".log"));
+        logger
+            .log(LogLevel::Info, callsite!(), "more than 5 bytes are written")
+            .unwrap();
+        logger.log(LogLevel::Info, callsite!(), "2nd msg").unwrap();
+        let fname1 = logger.logfile.clone();
+        assert!(fname1.ends_with(".1.log"));
+        assert_ne!(fname0, fname1);
+        let log0 = fs::read_to_string(logger.logdir.join(&fname0)).unwrap();
+        assert!(log0.contains("more than 5 bytes are written"));
+        let log1 = fs::read_to_string(logger.logdir.join(&fname1)).unwrap();
+        assert!(log1.contains("2nd msg"));
+
+        let mut count = 0;
+        loop {
+            if count > 40 {
+                assert!(false, "Failed to find error");
+            }
+            count += 1;
+            match logger.log(LogLevel::Info, callsite!(), "more reopens please") {
+                Ok(_) => continue,
+                Err(_) => break,
+            }
+        }
     }
 }
