@@ -10,8 +10,7 @@ export OPT_RELEASE="--release ${OPT}"
 export OPT_FFI_RELEASE="--manifest-path=deltachat-ffi/Cargo.toml --release"
 
 # Select cargo command: use cross by default
-# export CARGO_CMD=cross
-export CARGO_CMD=cargo
+export CARGO_CMD=cross
 
 # On Appveyor (windows) and Travis (x86_64-unknown-linux-gnu and apple) native targets we use cargo (no need to cross-compile):
 if [[ $TARGET = *"windows"* ]] || [[ $TARGET == "x86_64-unknown-linux-gnu" ]] || [[ $TARGET = *"apple"* ]]; then
@@ -19,9 +18,9 @@ if [[ $TARGET = *"windows"* ]] || [[ $TARGET == "x86_64-unknown-linux-gnu" ]] ||
 fi
 
 # Install cross if necessary:
-#if [[ $CARGO_CMD == "cross" ]]; then
-#    cargo install --git https://github.com/dignifiedquire/cross --rev fix-tty --force
-##fi
+if [[ $CARGO_CMD == "cross" ]]; then
+    cargo install --git https://github.com/dignifiedquire/cross --rev fix-tty --force
+fi
 
 # Make sure TARGET is installed when using cargo:
 if [[ $CARGO_CMD == "cargo" ]]; then
