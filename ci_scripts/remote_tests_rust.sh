@@ -1,13 +1,12 @@
 #!/bin/bash 
+
 export BRANCH=${CIRCLE_BRANCH:?branch to build}
-
-export GITURL=${CIRCLE_REPOSITORY_URL:?git url of core-rust repo}
-
+export REPONAME=${CIRCLE_PROJECT_REPONAME:?repository name}
 export SSHTARGET=ci@b1.delta.chat
 
 # we construct the BUILDDIR such that we can easily share the
 # CARGO_TARGET_DIR between runs ("..")
-export BUILDDIR=ci_builds/$BRANCH/${CIRCLE_JOB:?jobname}/${CIRCLE_BUILD_NUM:?circle-build-number}
+export BUILDDIR=ci_builds/$REPONAME/$BRANCH/${CIRCLE_JOB:?jobname}/${CIRCLE_BUILD_NUM:?circle-build-number}
 
 set -e
 
