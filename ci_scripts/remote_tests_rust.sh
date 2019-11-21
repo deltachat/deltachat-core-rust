@@ -13,8 +13,8 @@ set -e
 echo "--- Copying files to $SSHTARGET:$BUILDDIR"
 
 ssh -oStrictHostKeyChecking=no  $SSHTARGET mkdir -p "$BUILDDIR"
-git ls-tree -r $BRANCH -r --name-only >.rsynclist 
-rsync --files-from=.rsynclist -az ./ "$SSHTARGET:$BUILDDIR"
+git ls-files >.rsynclist 
+rsync --delete --files-from=.rsynclist -az ./ "$SSHTARGET:$BUILDDIR"
 
 echo "--- Running $CIRCLE_JOB remotely"
 

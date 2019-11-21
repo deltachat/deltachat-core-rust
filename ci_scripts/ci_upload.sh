@@ -14,12 +14,12 @@ DOXYDOCDIR=${3:?directory where doxygen docs to be found}
 export BRANCH=${CIRCLE_BRANCH:?specify branch for uploading purposes}
 
 
-# python docs to py.delta.chat
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null delta@py.delta.chat mkdir -p build/${BRANCH}
-rsync -avz \
-  -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
-  "$PYDOCDIR/html/" \
-  delta@py.delta.chat:build/${BRANCH}
+# DISABLED: python docs to py.delta.chat
+#ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null delta@py.delta.chat mkdir -p build/${BRANCH}
+#rsync -avz \
+#  -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+#  "$PYDOCDIR/html/" \
+#  delta@py.delta.chat:build/${BRANCH}
 
 # C docs to c.delta.chat
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null delta@c.delta.chat mkdir -p build-c/${BRANCH}
@@ -27,6 +27,10 @@ rsync -avz \
   -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
   "$DOXYDOCDIR/html/" \
   delta@c.delta.chat:build-c/${BRANCH}
+
+exit 0
+
+# OUTDATED -- for re-use from python release-scripts 
 
 echo -----------------------
 echo upload wheels 
