@@ -780,10 +780,8 @@ impl Imap {
             let timeout = Duration::from_secs(23 * 60);
             if let Some(session) = session {
                 match session.idle() {
-
                     // BEWARE: If you change the Secure branch you
                     // typically also need to change the Insecure branch.
-
                     IdleHandle::Secure(mut handle) => {
                         if let Err(err) = handle.init().await {
                             warn!(context, "Failed to establish IDLE connection: {:?}", err);
@@ -810,9 +808,12 @@ impl Imap {
                             Err(err) => {
                                 // if we cannot terminate IDLE it probably
                                 // means that we waited long (with idle_wait)
-                                // but the network went away/changed 
+                                // but the network went away/changed
                                 self.trigger_reconnect();
-                                warn!(context, "Failed to terminate IMAP IDLE connection: {:?}", err);
+                                warn!(
+                                    context,
+                                    "Failed to terminate IMAP IDLE connection: {:?}", err
+                                );
                             }
                         }
                     }
@@ -843,7 +844,7 @@ impl Imap {
                             Err(err) => {
                                 // if we cannot terminate IDLE it probably
                                 // means that we waited long (with idle_wait)
-                                // but the network went away/changed 
+                                // but the network went away/changed
                                 self.trigger_reconnect();
                                 warn!(context, "Failed to close IMAP IDLE connection: {:?}", err);
                             }
