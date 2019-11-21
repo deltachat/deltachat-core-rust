@@ -10,7 +10,7 @@ X=${DCC_PY_LIVECONFIG:?need env var to run Online tests}
 set -x
 
 # for core-building and python install step
-export DCC_RS_TARGET=release 
+export DCC_RS_TARGET=release
 export DCC_RS_DEV=`pwd`
 
 cd python
