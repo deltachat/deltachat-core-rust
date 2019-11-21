@@ -283,13 +283,13 @@ impl<'a> BlobObject<'a> {
         };
 
         let clean = sanitize_filename::sanitize_with_options(name, opts);
-        let mut iter = clean.rsplitn(2, '.');
-        let mut ext = iter.next().unwrap_or_default().to_string();
+        let mut iter = clean.splitn(2, '.');
         let mut stem = iter.next().unwrap_or_default().to_string();
-        ext.truncate(32);
+        let mut ext = iter.next().unwrap_or_default().to_string();
         stem.truncate(64);
-        match stem.len() {
-            0 => (ext, "".to_string()),
+        ext.truncate(32);
+        match ext.len() {
+            0 => (stem, "".to_string()),
             _ => (stem, format!(".{}", ext).to_lowercase()),
         }
     }
@@ -606,6 +606,26 @@ mod tests {
                 let name = fname.to_str().unwrap();
                 assert!(name.starts_with("foo"));
                 assert!(name.ends_with(".txt"));
+            }
+        }
+    }
+
+    #[test]
+    fn test_double_ext_preserved() {
+        let t = dummy_context();
+        BlobObject::create(&t.ctx, "foo.tar.gz", b"hello").unwrap();
+        let foo = t.ctx.get_blobdir().join("foo.tar.gz");
+        assert!(foo.exists());
+        BlobObject::create(&t.ctx, "foo.tar.gz", b"world").unwrap();
+        for dirent in fs::read_dir(t.ctx.get_blobdir()).unwrap() {
+            let fname = dirent.unwrap().file_name();
+            if fname == foo.file_name().unwrap() {
+                assert_eq!(fs::read(&foo).unwrap(), b"hello");
+            } else {
+                let name = fname.to_str().unwrap();
+                println!("{}", name);
+                assert!(name.starts_with("foo"));
+                assert!(name.ends_with(".tar.gz"));
             }
         }
     }
