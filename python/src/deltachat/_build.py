@@ -29,7 +29,10 @@ def ffibuilder():
             extra_link_args = []
         else:
             raise NotImplementedError("Compilation not supported yet on Windows, can you help?")
-        objs = [os.path.join(projdir, 'target', target, 'libdeltachat.a')]
+        target_dir = os.environ.get("CARGO_TARGET_DIR")
+        if target_dir is None:
+            target_dir = os.path.join(projdir, 'target')
+        objs = [os.path.join(target_dir, target, 'libdeltachat.a')]
         assert os.path.exists(objs[0]), objs
         incs = [os.path.join(projdir, 'deltachat-ffi')]
     else:

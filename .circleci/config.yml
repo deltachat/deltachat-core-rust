@@ -155,13 +155,19 @@ jobs:
             - py-docs
             - wheelhouse
 
-  remote_tests:
+  remote_tests_rust:
+    machine: true
+    steps:
+      - checkout
+      - run: ci_scripts/remote_tests_rust.sh
+    
+  remote_tests_python:
     machine: true
     steps:
       - checkout
       #- attach_workspace:
       #    at: workspace
-      - run: ci_scripts/remote_tests.sh
+      - run: ci_scripts/remote_tests_python.sh
     # workspace/py-docs workspace/wheelhouse workspace/c-docs
 
   upload_docs_wheels:
@@ -192,7 +198,10 @@ workflows:
       - cargo_fetch
       # - build_doxygen
 
-      - remote_tests
+      - remote_tests_rust
+
+      - remote_tests_python
+
       # - upload_docs_wheels:
       #     requires:
       #       - build_test_docs_wheel
