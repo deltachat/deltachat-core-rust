@@ -27,8 +27,7 @@ ssh $SSHTARGET <<_HERE
     # let's share the target dir with our last run on this branch/job-type
     # cargo will make sure to block/unblock us properly 
     export CARGO_TARGET_DIR=\`pwd\`/../target
-    export TARGET=x86_64-unknown-linux-gnu
-    export RUSTC_WRAPPER=sccache
+    export TARGET=release
     export DCC_PY_LIVECONFIG=$DCC_PY_LIVECONFIG
 
     rm -rf virtualenv venv
