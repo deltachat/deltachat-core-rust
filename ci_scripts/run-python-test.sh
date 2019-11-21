@@ -3,11 +3,7 @@
 # Run functional tests for Delta Chat core using the python bindings 
 # and tox/pytest. 
 
-set -e +x
-
-# make sure we have proper settings to run Online tests 
-X=${DCC_PY_LIVECONFIG:?need env var to run Online tests}
-set -x
+set -e -x
 
 # for core-building and python install step
 export DCC_RS_TARGET=release
@@ -15,7 +11,7 @@ export DCC_RS_DEV=`pwd`
 
 cd python
 
-python install_python_bindings.py 
+python install_python_bindings.py onlybuild
 
 # remove and inhibit writing PYC files 
 rm -rf tests/__pycache__
@@ -23,6 +19,4 @@ rm -rf src/deltachat/__pycache__
 export PYTHONDONTWRITEBYTECODE=1
 
 # run python tests (tox invokes pytest to run tests in python/tests)
-tox -e lint,py37 
-unset DCC_PY_LIVECONFIG
-
+tox -e lintdoc,py37 

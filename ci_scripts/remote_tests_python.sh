@@ -8,15 +8,17 @@ export SSHTARGET=ci@b1.delta.chat
 # CARGO_TARGET_DIR between runs ("..")
 export BUILDDIR=ci_builds/$REPONAME/$BRANCH/${CIRCLE_JOB:?jobname}/${CIRCLE_BUILD_NUM:?circle-build-number}
 
-set -e
-
 echo "--- Copying files to $SSHTARGET:$BUILDDIR"
 
+set -xe
+
 ssh -oStrictHostKeyChecking=no  $SSHTARGET mkdir -p "$BUILDDIR"
-git ls-tree -r $BRANCH -r --name-only >.rsynclist 
-rsync --files-from=.rsynclist -az ./ "$SSHTARGET:$BUILDDIR"
+git ls-files >.rsynclist 
 # we seem to need .git for setuptools_scm versioning 
-rsync -az .git "$SSHTARGET:$BUILDDIR"
+find .git >>.rsynclist
+rsync --delete --files-from=.rsynclist -az ./ "$SSHTARGET:$BUILDDIR"
+
+set +x
 
 echo "--- Running $CIRCLE_JOB remotely"
 
