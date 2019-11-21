@@ -196,7 +196,6 @@ workflows:
   test:
     jobs:
       - cargo_fetch
-      # - build_doxygen
 
       - remote_tests_rust
 
@@ -212,6 +211,8 @@ workflows:
       - clippy:
           requires:
            - cargo_fetch
+
+      - build_doxygen
 
       # Linux Desktop 64bit
       # - test_x86_64-unknown-linux-gnu:
