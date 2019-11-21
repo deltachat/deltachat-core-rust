@@ -2,7 +2,7 @@
 
 set -ex
 
-export RUST_TEST_THREADS=1
+#export RUST_TEST_THREADS=1
 export RUST_BACKTRACE=1
 export RUSTFLAGS='--deny warnings'
 export OPT="--target=$TARGET"
@@ -38,7 +38,9 @@ else
     export OPT_RELEASE_IGNORED="${OPT_RELEASE} -- --ignored"
 fi
 
-# Run all the test configurations:
+# Run all the test configurations 
+# RUSTC_WRAPPER=SCCACHE seems to destroy parallelism / prolong the test
+unset RUSTC_WRAPPER
 $CARGO_CMD $CARGO_SUBCMD $OPT
 $CARGO_CMD $CARGO_SUBCMD $OPT_RELEASE
 $CARGO_CMD $CARGO_SUBCMD $OPT_RELEASE_IGNORED
