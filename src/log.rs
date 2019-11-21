@@ -1,8 +1,8 @@
 //! # Logging support
 
-use std::io;
 use std::fmt;
 use std::fs;
+use std::io;
 use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 
@@ -51,7 +51,7 @@ impl Logger {
     pub fn new(logdir: PathBuf) -> Result<Logger, io::Error> {
         let (fname, file) = Self::open(&logdir)?;
         let max_files = 5;
-        Self::prune(&logdir, max_files);
+        Self::prune(&logdir, max_files)?;
         Ok(Logger {
             logdir,
             logfile: fname,
@@ -94,8 +94,21 @@ impl Logger {
     }
 
     /// Cleans up old logfiles.
-    fn prune(logdir: &Path, max_files: u32) {
-        // TODO
+    fn prune(logdir: &Path, max_files: u32) -> Result<(), io::Error> {
+        let mut names: Vec<std::ffi::OsString> = Vec::new();
+        for dirent in fs::read_dir(logdir)? {
+            names.push(dirent?.file_name());
+        }
+        // Sorting like this sorts: 23.log, 24.1.log, 24.2.log,
+        // 24.log, 25.log.  That is 24.log is out of sequence.  Oh well.
+        names.sort();
+        names.reverse();
+        while names.len() > max_files as usize {
+            if let Some(name) = names.pop() {
+                fs::remove_file(logdir.join(name))?;
+            }
+        }
+        Ok(())
     }
 
     pub fn log(
@@ -105,10 +118,11 @@ impl Logger {
         msg: &str,
     ) -> Result<(), std::io::Error> {
         if self.bytes_written > self.max_filesize {
+            self.flush()?;
             let (fname, handle) = Self::open(&self.logdir)?;
             self.logfile = fname;
             self.file_handle = handle;
-            Self::prune(&self.logdir, self.max_files);
+            Self::prune(&self.logdir, self.max_files)?;
         }
         let msg = format!("{} [{}]: {}\n", level, callsite, msg);
         self.file_handle.write_all(msg.as_bytes())?;
@@ -225,17 +239,20 @@ mod tests {
         assert!(log0.contains("more than 5 bytes are written"));
         let log1 = fs::read_to_string(logger.logdir.join(&fname1)).unwrap();
         assert!(log1.contains("2nd msg"));
+    }
 
-        let mut count = 0;
-        loop {
-            if count > 40 {
-                assert!(false, "Failed to find error");
-            }
-            count += 1;
-            match logger.log(LogLevel::Info, callsite!(), "more reopens please") {
-                Ok(_) => continue,
-                Err(_) => break,
-            }
-        }
+    #[test]
+    fn test_prune() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        Logger::new(dir.to_path_buf()).unwrap();
+        Logger::new(dir.to_path_buf()).unwrap();
+        Logger::new(dir.to_path_buf()).unwrap();
+        Logger::new(dir.to_path_buf()).unwrap();
+        let dirents0: Vec<fs::DirEntry> = fs::read_dir(&dir).unwrap().map(|r| r.unwrap()).collect();
+        assert_eq!(dirents0.len(), 4);
+        Logger::prune(&dir, 3).unwrap();
+        let dirents1: Vec<fs::DirEntry> = fs::read_dir(&dir).unwrap().map(|r| r.unwrap()).collect();
+        assert_eq!(dirents1.len(), 3);
     }
 }
