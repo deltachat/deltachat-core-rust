@@ -31,11 +31,12 @@ ssh $SSHTARGET <<_HERE
     export TARGET=release
     export DCC_PY_LIVECONFIG=$DCC_PY_LIVECONFIG
 
-    rm -rf virtualenv venv
-    virtualenv -q -p python3.7 venv 
-    source venv/bin/activate
+    #we rely on tox/virtualenv being available in the host
+    #rm -rf virtualenv venv
+    #virtualenv -q -p python3.7 venv 
+    #source venv/bin/activate
     set -x
 
-    pip install -q tox virtualenv
+    #pip install -q tox virtualenv
     bash ci_scripts/run-python-test.sh 
 _HERE
