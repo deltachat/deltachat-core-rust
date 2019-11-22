@@ -25,7 +25,7 @@ if __name__ == "__main__":
     ])
     subprocess.check_call("rm -rf build/ src/deltachat/*.so" , shell=True)
 
-    if len(sys.argv) > 1 and sys.argv[1] != "onlybuild":
+    if len(sys.argv) <= 1 or sys.argv[1] != "onlybuild":
         subprocess.check_call([
             sys.executable, "-m", "pip", "install", "-e", "."
         ])
