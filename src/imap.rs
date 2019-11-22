@@ -219,12 +219,12 @@ impl Imap {
                         context.stock_string_repl_str2(
                             StockMessage::ServerResponse,
                             format!("{}:{}", imap_server, imap_port),
-                            format!("{}", err),
+                            err.to_string(),
                         )
                     };
                     // IMAP connection failures are reported to users
                     emit_event!(context, Event::ErrorNetwork(message));
-                    return Err(Error::ImapConnectionFailed(format!("{}", err)));
+                    return Err(Error::ImapConnectionFailed(err.to_string()));
                 }
             };
 
@@ -779,7 +779,7 @@ impl Imap {
                     // typically also need to change the Insecure branch.
                     IdleHandle::Secure(mut handle) => {
                         if let Err(err) = handle.init().await {
-                            return Err(Error::ImapIdleProtocolFailed(format!("{}", err)));
+                            return Err(Error::ImapIdleProtocolFailed(err.to_string()));
                         }
 
                         let (idle_wait, interrupt) = handle.wait_with_timeout(timeout);
@@ -817,13 +817,13 @@ impl Imap {
                                 // means that we waited long (with idle_wait)
                                 // but the network went away/changed
                                 self.trigger_reconnect();
-                                return Err(Error::ImapIdleProtocolFailed(format!("{}", err)));
+                                return Err(Error::ImapIdleProtocolFailed(err.to_string()));
                             }
                         }
                     }
                     IdleHandle::Insecure(mut handle) => {
                         if let Err(err) = handle.init().await {
-                            return Err(Error::ImapIdleProtocolFailed(format!("{}", err)));
+                            return Err(Error::ImapIdleProtocolFailed(err.to_string()));
                         }
 
                         let (idle_wait, interrupt) = handle.wait_with_timeout(timeout);
@@ -861,7 +861,7 @@ impl Imap {
                                 // means that we waited long (with idle_wait)
                                 // but the network went away/changed
                                 self.trigger_reconnect();
-                                return Err(Error::ImapIdleProtocolFailed(format!("{}", err)));
+                                return Err(Error::ImapIdleProtocolFailed(err.to_string()));
                             }
                         }
                     }
