@@ -19,4 +19,5 @@ rm -rf src/deltachat/__pycache__
 export PYTHONDONTWRITEBYTECODE=1
 
 # run python tests (tox invokes pytest to run tests in python/tests)
-tox -e lintdoc,py37 
+TOX_PARALLEL_NO_SPINNER=1 tox -p2 -e lint,doc
+tox -e py37

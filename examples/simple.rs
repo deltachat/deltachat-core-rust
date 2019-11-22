@@ -11,7 +11,8 @@ use deltachat::configure::*;
 use deltachat::contact::*;
 use deltachat::context::*;
 use deltachat::job::{
-    perform_imap_fetch, perform_imap_idle, perform_imap_jobs, perform_smtp_idle, perform_smtp_jobs,
+    perform_inbox_fetch, perform_inbox_idle, perform_inbox_jobs, perform_smtp_idle,
+    perform_smtp_jobs,
 };
 use deltachat::Event;
 
@@ -50,12 +51,12 @@ fn main() {
     let r1 = running.clone();
     let t1 = thread::spawn(move || {
         while *r1.read().unwrap() {
-            perform_imap_jobs(&ctx1);
+            perform_inbox_jobs(&ctx1);
             if *r1.read().unwrap() {
-                perform_imap_fetch(&ctx1);
+                perform_inbox_fetch(&ctx1);
 
                 if *r1.read().unwrap() {
-                    perform_imap_idle(&ctx1);
+                    perform_inbox_idle(&ctx1);
                 }
             }
         }
@@ -113,7 +114,7 @@ fn main() {
     println!("stopping threads");
 
     *running.clone().write().unwrap() = false;
-    deltachat::job::interrupt_imap_idle(&ctx);
+    deltachat::job::interrupt_inbox_idle(&ctx, true);
     deltachat::job::interrupt_smtp_idle(&ctx);
 
     println!("joining");
