@@ -35,8 +35,12 @@ ssh $SSHTARGET <<_HERE
     #rm -rf virtualenv venv
     #virtualenv -q -p python3.7 venv 
     #source venv/bin/activate
-    set -x
-
     #pip install -q tox virtualenv
+
+    set -x
+    which python
+    source \$HOME/venv/bin/activate
+    which python
+
     bash ci_scripts/run-python-test.sh 
 _HERE
