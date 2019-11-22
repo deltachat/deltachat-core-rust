@@ -128,32 +128,32 @@ jobs:
           paths:
             - c-docs
 
-  build_test_docs_wheel:
-    docker:
-      - image: deltachat/coredeps
-        environment:
-            TESTS: 1
-            DOCS: 1
-    working_directory: /mnt/crate
-    steps:
-      - *restore-workspace
-      - *restore-cache
-      - run:
-          name: build docs, run tests and build wheels
-          command: ci_scripts/run-python.sh
-      - run:
-           name: copying docs and wheels to workspace
-           command: |
-             mkdir -p workspace/python
-             # cp -av docs workspace/c-docs
-             cp -av python/.docker-tox/wheelhouse workspace/
-             cp -av python/doc/_build/ workspace/py-docs
-      - persist_to_workspace:
-          root: workspace
-          paths:
-            # - c-docs
-            - py-docs
-            - wheelhouse
+  # build_test_docs_wheel:
+  #   docker:
+  #     - image: deltachat/coredeps
+  #       environment:
+  #           TESTS: 1
+  #           DOCS: 1
+  #   working_directory: /mnt/crate
+  #   steps:
+  #     - *restore-workspace
+  #     - *restore-cache
+  #     - run:
+  #         name: build docs, run tests and build wheels
+  #         command: ci_scripts/run-python.sh
+  #     - run:
+  #          name: copying docs and wheels to workspace
+  #          command: |
+  #            mkdir -p workspace/python
+  #            # cp -av docs workspace/c-docs
+  #            cp -av python/.docker-tox/wheelhouse workspace/
+  #            cp -av python/doc/_build/ workspace/py-docs
+  #     - persist_to_workspace:
+  #         root: workspace
+  #         paths:
+  #           # - c-docs
+  #           - py-docs
+  #           - wheelhouse
 
   remote_tests_rust:
     machine: true
