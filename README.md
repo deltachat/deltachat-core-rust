@@ -1,10 +1,8 @@
 # Delta Chat Rust
 
-> Project porting deltachat-core to rust
+> Deltachat-core written in Rust 
 
 [![CircleCI build status][circle-shield]][circle] [![Appveyor build status][appveyor-shield]][appveyor]
-
-Current commit on deltachat/deltachat-core: `12ef73c8e76185f9b78e844ea673025f56a959ab`.
 
 ## Installing Rust and Cargo
 
