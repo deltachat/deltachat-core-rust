@@ -90,7 +90,7 @@ dependencies = [
 [[package]]
 name = "async-imap"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+source = "git+https://github.com/link2xt/async-imap?branch=imap_proto_u8#1873d3d3d2cb91211d9b4d8cec99732360729077"
 dependencies = [
  "async-attributes 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "async-std 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -100,7 +100,7 @@ dependencies = [
  "chrono 0.4.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures_codec 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "imap-proto 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "imap-proto 0.9.1 (git+https://github.com/djc/tokio-imap)",
  "nom 5.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "pin-utils 0.1.0-alpha.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "rental 0.5.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -610,7 +610,7 @@ dependencies = [
 name = "deltachat"
 version = "1.0.0-beta.7"
 dependencies = [
- "async-imap 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "async-imap 0.1.1 (git+https://github.com/link2xt/async-imap?branch=imap_proto_u8)",
  "async-std 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "async-tls 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "backtrace 0.3.40 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1264,7 +1264,7 @@ dependencies = [
 [[package]]
 name = "imap-proto"
 version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+source = "git+https://github.com/djc/tokio-imap#a26056915f1d715f97935da1f0c97c6d0174f292"
 dependencies = [
  "nom 5.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -3267,7 +3267,7 @@ dependencies = [
 "checksum arrayvec 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "cff77d8686867eceff3105329d4698d96c2391c176d5d03adc90c7389162b5b8"
 "checksum ascii_utils 0.9.3 (registry+https://github.com/rust-lang/crates.io-index)" = "71938f30533e4d95a6d17aa530939da3842c2ab6f4f84b9dae68447e4129f74a"
 "checksum async-attributes 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "efd3d156917d94862e779f356c5acae312b08fd3121e792c857d7928c8088423"
-"checksum async-imap 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "ead31adf9bcfa6d52605882b93458c63432f06c428edf4558f956807ad7103be"
+"checksum async-imap 0.1.1 (git+https://github.com/link2xt/async-imap?branch=imap_proto_u8)" = "<none>"
 "checksum async-macros 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "644a5a8de80f2085a1e7e57cd1544a2a7438f6e003c0790999bd43b92a77cdb2"
 "checksum async-std 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "56933da6903b273923d13f4746d829f66ff9b444173f6743d831e80f4da15446"
 "checksum async-task 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "de6bd58f7b9cc49032559422595c81cbfcf04db2f2133592f70af19e258a1ced"
@@ -3391,7 +3391,7 @@ dependencies = [
 "checksum idna 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)" = "38f09e0f0b1fb55fdee1f17470ad800da77af5186a1a76c026b679358b7e844e"
 "checksum idna 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "02e2673c30ee86b5b96a9cb52ad15718aa1f966f5ab9ad54a8b95d5ca33120a9"
 "checksum image-meta 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b00861cbbb254a627d8acc0cec786b484297d896ab8f20fdc8e28536a3e918ef"
-"checksum imap-proto 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)" = "e0690d689f8afe8111dfe1daedd9ef0d232868c7819da3c1f9252fd260aff7f7"
+"checksum imap-proto 0.9.1 (git+https://github.com/djc/tokio-imap)" = "<none>"
 "checksum indexmap 1.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "712d7b3ea5827fcb9d4fda14bf4da5f136f0db2ae9c8f4bd4e2d1c6fde4e6db2"
 "checksum iovec 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)" = "b2b3ea6ff95e175473f8ffe6a7eb7c00d054240321b84c57051175fe3c1e075e"
 "checksum itertools 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)" = "87fa75c9dea7b07be3138c49abbb83fd4bea199b5cdc76f9804458edc5da0d6e"

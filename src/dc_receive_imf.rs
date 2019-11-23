@@ -799,9 +799,12 @@ unsafe fn handle_reports(
                                     && !of_org_msgid.is_null()
                                     && !(*of_org_msgid).fld_value.is_null()
                                 {
-                                    if let Ok(rfc724_mid) = wrapmime::parse_message_id(
-                                        &to_string_lossy((*of_org_msgid).fld_value),
-                                    ) {
+                                    if let Ok(rfc724_mid) =
+                                        wrapmime::parse_message_id(std::slice::from_raw_parts(
+                                            (*of_org_msgid).fld_value as *const u8,
+                                            libc::strlen((*of_org_msgid).fld_value),
+                                        ))
+                                    {
                                         if let Some((chat_id, msg_id)) = message::mdn_from_ext(
                                             context,
                                             from_id,
