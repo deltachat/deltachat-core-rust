@@ -12,7 +12,7 @@ echo "--- Copying files to $SSHTARGET:$BUILDDIR"
 
 set -xe
 
-ssh -oStrictHostKeyChecking=no  $SSHTARGET mkdir -p "$BUILDDIR"
+ssh -oBatchMode=yes -oStrictHostKeyChecking=no  $SSHTARGET mkdir -p "$BUILDDIR"
 git ls-files >.rsynclist 
 # we seem to need .git for setuptools_scm versioning 
 find .git >>.rsynclist
