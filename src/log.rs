@@ -153,6 +153,9 @@ macro_rules! info {
     };
     ($ctx:expr, $msg:expr, $($args:expr),* $(,)?) => {{
         let formatted = format!($msg, $($args),*);
+        if let Ok(mut logger) = $ctx.logger.write() {
+            logger.log($crate::log::LogLevel::Info, callsite!(), &formatted).ok();
+        }
         emit_event!($ctx, $crate::Event::Info(formatted));
     }};
 }
@@ -164,6 +167,9 @@ macro_rules! warn {
     };
     ($ctx:expr, $msg:expr, $($args:expr),* $(,)?) => {{
         let formatted = format!($msg, $($args),*);
+        if let Ok(mut logger) = $ctx.logger.write() {
+            logger.log($crate::log::LogLevel::Warning, callsite!(), &formatted).ok();
+        }
         emit_event!($ctx, $crate::Event::Warning(formatted));
     }};
 }
@@ -175,6 +181,9 @@ macro_rules! error {
     };
     ($ctx:expr, $msg:expr, $($args:expr),* $(,)?) => {{
         let formatted = format!($msg, $($args),*);
+        if let Ok(mut logger) = $ctx.logger.write() {
+            logger.log($crate::log::LogLevel::Error, callsite!(), &formatted).ok();
+        }
         emit_event!($ctx, $crate::Event::Error(formatted));
     }};
 }

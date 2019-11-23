@@ -15,6 +15,7 @@ use crate::imap::*;
 use crate::job::*;
 use crate::job_thread::JobThread;
 use crate::key::*;
+use crate::log;
 use crate::login_param::LoginParam;
 use crate::lot::Lot;
 use crate::message::{self, Message, MsgId};
@@ -62,6 +63,7 @@ pub struct Context {
     /// Mutex to avoid generating the key for the user more than once.
     pub generating_key_mutex: Mutex<()>,
     pub translated_stockstrings: RwLock<HashMap<usize, String>>,
+    pub logger: RwLock<log::Logger>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -212,6 +214,7 @@ impl Context {
             perform_inbox_jobs_needed: Arc::new(RwLock::new(false)),
             generating_key_mutex: Mutex::new(()),
             translated_stockstrings: RwLock::new(HashMap::new()),
+            logger: RwLock::new(log::Logger::new(logdir)?),
         };
 
         ensure!(
