@@ -1430,6 +1430,11 @@ fn precheck_imf(context: &Context, rfc724_mid: &str, server_folder: &str, server
 }
 
 fn prefetch_get_message_id(prefetch_msg: &Fetch) -> Result<String> {
-    let message_id = prefetch_msg.envelope().unwrap().message_id.unwrap();
-    wrapmime::parse_message_id(&message_id)
+    ensure!(
+        prefetch_msg.envelope().is_some(),
+        "Fetched message has no envelope"
+    );
+    let message_id = prefetch_msg.envelope().unwrap().message_id;
+    ensure!(message_id.is_some(), "No message ID found");
+    wrapmime::parse_message_id(&message_id.unwrap())
 }
