@@ -69,7 +69,7 @@ impl Logger {
     fn open(logdir: &Path) -> Result<(String, fs::File), io::Error> {
         let basename =
             chrono::offset::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-        let mut fname = format!("{}.log", &basename);
+        let mut fname = sanitize_filename::sanitize(format!("{}.log", &basename));
         let mut counter = 0;
         loop {
             match std::fs::OpenOptions::new()
@@ -85,7 +85,8 @@ impl Logger {
                         return Err(e);
                     } else {
                         counter += 1;
-                        fname = format!("{}.{}.log", &basename, counter);
+                        fname =
+                            sanitize_filename::sanitize(format!("{}-{}.log", &basename, counter));
                         continue;
                     }
                 }
@@ -224,7 +225,7 @@ mod tests {
         assert!(lines[0].contains(format!("{:?}", std::thread::current().id()).as_str()));
         assert!(lines[0]
             .contains(format!("{}", std::thread::current().name().unwrap_or("unnamed")).as_str()));
-        assert!(lines[0].contains("src/log.rs"));
+        assert!(lines[0].contains(&format!("src{}log.rs", std::path::MAIN_SEPARATOR)));
         assert!(lines[0].contains("deltachat::log::tests"));
         assert!(lines[0].contains("foo"));
 
@@ -232,7 +233,7 @@ mod tests {
         assert!(lines[1].contains(format!("{:?}", std::thread::current().id()).as_str()));
         assert!(lines[1]
             .contains(format!("{}", std::thread::current().name().unwrap_or("unnamed")).as_str()));
-        assert!(lines[1].contains("src/log.rs"));
+        assert!(lines[1].contains(&format!("src{}log.rs", std::path::MAIN_SEPARATOR)));
         assert!(lines[1].contains("deltachat::log::tests"));
         assert!(lines[1].contains("bar"));
 
@@ -240,7 +241,7 @@ mod tests {
         assert!(lines[2].contains(format!("{:?}", std::thread::current().id()).as_str()));
         assert!(lines[2]
             .contains(format!("{}", std::thread::current().name().unwrap_or("unnamed")).as_str()));
-        assert!(lines[2].contains("src/log.rs"));
+        assert!(lines[2].contains(&format!("src{}log.rs", std::path::MAIN_SEPARATOR)));
         assert!(lines[2].contains("deltachat::log::tests"));
         assert!(lines[2].contains("baz"));
     }
@@ -259,7 +260,7 @@ mod tests {
             .unwrap();
         logger.log(LogLevel::Info, callsite!(), "2nd msg").unwrap();
         let fname1 = logger.logfile.clone();
-        assert!(fname1.ends_with(".1.log"));
+        assert!(fname1.ends_with("-1.log"));
         assert_ne!(fname0, fname1);
         let log0 = fs::read_to_string(logger.logdir.join(&fname0)).unwrap();
         assert!(log0.contains("more than 5 bytes are written"));
