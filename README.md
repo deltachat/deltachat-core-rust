@@ -14,7 +14,7 @@ curl https://sh.rustup.rs -sSf | sh
 
 ## Using the CLI client
 
-Compile and run Delta Chat Core using `cargo`:
+Compile and run Delta Chat Core command line utility, using `cargo`:
 
 ```
 cargo run --example repl -- /path/to/db
