@@ -11,7 +11,7 @@ mmime = { version = "0.1.2", path = "./mmime" }
 
 libc = "0.2.51"
 pgp = { git = "https://github.com/rpgp/rpgp", branch = "master", default-features = false }
-hex = "0.3.2"
+hex = "0.4.0"
 sha2 = "0.8.0"
 rand = "0.6.5"
 smallvec = "0.6.9"
