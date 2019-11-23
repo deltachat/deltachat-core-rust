@@ -124,7 +124,15 @@ impl Logger {
             self.file_handle = handle;
             Self::prune(&self.logdir, self.max_files)?;
         }
-        let msg = format!("{} [{}]: {}\n", level, callsite, msg);
+        let thread = std::thread::current();
+        let msg = format!(
+            "{} {:?}/{} [{}]: {}\n",
+            level,
+            thread.id(),
+            thread.name().unwrap_or("unnamed"),
+            callsite,
+            msg
+        );
         self.file_handle.write_all(msg.as_bytes())?;
         self.bytes_written += msg.len();
         Ok(())
@@ -213,16 +221,25 @@ mod tests {
         let lines: Vec<&str> = log.lines().collect();
 
         assert!(lines[0].starts_with("I"));
+        assert!(lines[0].contains(format!("{:?}", std::thread::current().id()).as_str()));
+        assert!(lines[0]
+            .contains(format!("{}", std::thread::current().name().unwrap_or("unnamed")).as_str()));
         assert!(lines[0].contains("src/log.rs"));
         assert!(lines[0].contains("deltachat::log::tests"));
         assert!(lines[0].contains("foo"));
 
         assert!(lines[1].starts_with("W"));
+        assert!(lines[1].contains(format!("{:?}", std::thread::current().id()).as_str()));
+        assert!(lines[1]
+            .contains(format!("{}", std::thread::current().name().unwrap_or("unnamed")).as_str()));
         assert!(lines[1].contains("src/log.rs"));
         assert!(lines[1].contains("deltachat::log::tests"));
         assert!(lines[1].contains("bar"));
 
         assert!(lines[2].starts_with("E"));
+        assert!(lines[2].contains(format!("{:?}", std::thread::current().id()).as_str()));
+        assert!(lines[2]
+            .contains(format!("{}", std::thread::current().name().unwrap_or("unnamed")).as_str()));
         assert!(lines[2].contains("src/log.rs"));
         assert!(lines[2].contains("deltachat::log::tests"));
         assert!(lines[2].contains("baz"));
