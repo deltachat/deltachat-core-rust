@@ -16,25 +16,14 @@ use crate::stock::StockMessage;
 ///
 /// There is also an enum called `ConfigKey` which has the same enum
 /// variants but does not carry any data.
-#[derive(
-    Debug,
-    Clone,
-    Display,
-    PartialEq,
-    Eq,
-    EnumDiscriminants,
-    EnumProperty,
-    EnumString,
-    EnumIter,
-    AsRefStr,
-)]
+#[derive(Debug, Clone, Display, PartialEq, Eq, EnumDiscriminants, EnumProperty, AsRefStr)]
 #[strum(serialize_all = "snake_case")]
 #[strum_discriminants(
     name(ConfigKey),
-    derive(Display, EnumString),
+    derive(Display, EnumString, EnumIter),
     strum(serialize_all = "snake_case")
 )]
-pub enum ConfigItem {
+pub enum ConfigItem<'a> {
     Addr(String),
     BccSelf(String),
     Configured(String),
@@ -66,7 +55,7 @@ pub enum ConfigItem {
     MvboxMove(String),
     MvboxWatch(String),
     SaveMimeHeaders(String),
-    Selfavatar(String),
+    Selfavatar(BlobObject<'a>),
     Selfstatus(String),
     SendPort(String),
     SendPw(String),
@@ -76,11 +65,8 @@ pub enum ConfigItem {
     ServerFlags(String),
     ShowEmails(String),
     SmtpCertificateChecks(String),
-    #[strum(serialize = "sys.config_keys")]
     SysConfigKeys(String),
-    #[strum(serialize = "sys.msgsize_max_recommended")]
     SysMsgsizeMaxRecommended(String),
-    #[strum(serialize = "sys.version")]
     SysVersion(String),
 }
 
@@ -100,13 +86,24 @@ impl ConfigKey {
         }
     }
 
+    /// Returns a string version of the [ConfigKey].
+    ///
+    /// Use this rather than [ConfigKey::to_string].
+    pub fn to_key_string(&self) -> String {
+        let mut s = self.to_string();
+        if s.starts_with("sys_") {
+            s = s.replacen("sys_", "sys.", 1);
+        }
+        s
+    }
+
     /// Default values for configuration options.
     ///
     /// These are returned in case there is no value stored in the
     /// database.
-    fn default_item(&self, context: &Context) -> Option<ConfigItem> {
+    fn default_item<'a>(&self, context: &Context) -> Option<ConfigItem<'a>> {
         match self {
-            Self::BccSelf => Some(ConfigItem::BccSelf(String::from("1"))),
+            Self::BccSelf => Some(ConfigItem::BccSelf(String::from("0"))),
             Self::E2eeEnabled => Some(ConfigItem::E2eeEnabled(String::from("1"))),
             Self::ImapFolder => Some(ConfigItem::ImapFolder(String::from("INBOX"))),
             Self::InboxWatch => Some(ConfigItem::InboxWatch(true)),
@@ -129,13 +126,11 @@ impl ConfigKey {
     }
 }
 
-impl rusqlite::types::ToSql for ConfigItem {
+impl<'a> rusqlite::types::ToSql for ConfigItem<'a> {
     fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
         let sql_obj = match self {
-            ConfigItem::Selfavatar(value) => {
-                let rel_path = std::fs::canonicalize(value)
-                    .map_err(|err| rusqlite::Error::ToSqlConversionFailure(Box::new(err)))?;
-                rusqlite::types::Value::Text(rel_path.to_string_lossy().into_owned())
+            ConfigItem::Selfavatar(blob) => {
+                rusqlite::types::Value::Text(blob.as_name().to_string())
             }
             ConfigItem::InboxWatch(value) => rusqlite::types::Value::Integer(*value as i64),
             ConfigItem::Addr(value)
@@ -190,11 +185,12 @@ impl Context {
     /// Gets a configuration option.
     ///
     /// If there is no value set in the database returns the default
-    /// value from [ConfigKey::default_item].
+    /// value from [ConfigKey::default_item].  Any `Sys*` key should
+    /// always end up with the default.
     pub fn get_config_item(&self, key: ConfigKey) -> Option<ConfigItem> {
         let res = self.sql.query_row(
             "SELECT value FROM config WHERE keyname=?;",
-            params![key.to_string()],
+            params![key.to_key_string()],
             |row| {
                 row.get_raw_checked(0)
                     .map(|valref| self.sql_raw_to_config_item(key, valref))
@@ -224,6 +220,16 @@ impl Context {
                 })
                 .map(|s| s.to_string())
                 .ok()
+        };
+        let to_blob = |raw: rusqlite::types::ValueRef| -> Option<BlobObject> {
+            // from_path() case because there was a time when
+            // rust-core inserted absolute filenames into the database
+            // and we want to gracefully recover from this.
+            to_string(raw).and_then(|s| {
+                BlobObject::from_name(&self, s.clone())
+                    .or_else(|_| BlobObject::from_path(&self, s))
+                    .ok()
+            })
         };
         let to_int = |raw: rusqlite::types::ValueRef| -> Option<i64> {
             match raw {
@@ -322,7 +328,7 @@ impl Context {
             ConfigKey::SaveMimeHeaders => {
                 to_string(raw).map(|val| ConfigItem::SaveMimeHeaders(val))
             }
-            ConfigKey::Selfavatar => to_string(raw).map(|val| ConfigItem::Selfavatar(val)),
+            ConfigKey::Selfavatar => to_blob(raw).map(|val| ConfigItem::Selfavatar(val)),
             ConfigKey::Selfstatus => to_string(raw).map(|val| ConfigItem::Selfstatus(val)),
             ConfigKey::SendPort => to_string(raw).map(|val| ConfigItem::SendPort(val)),
             ConfigKey::SendPw => to_string(raw).map(|val| ConfigItem::SendPw(val)),
@@ -349,28 +355,29 @@ impl Context {
     /// You can not store any of the [ConfigItem::SysVersion],
     /// [ConfigItem::SysMsgsizemaxrecommended] or
     /// [ConfigItem::SysConfigkeys] variants.
-    pub fn set_config_item(&self, item: ConfigItem) -> Result<ConfigItem, Error> {
+    pub fn set_config_item<'a>(&self, item: ConfigItem<'a>) -> Result<ConfigItem<'a>, Error> {
         match item {
             ConfigItem::SysConfigKeys(_)
             | ConfigItem::SysMsgsizeMaxRecommended(_)
             | ConfigItem::SysVersion(_) => bail!("Can not set config item {}", item),
             _ => (),
         }
+        let keyname = ConfigKey::from(&item).to_key_string();
         // Would prefer to use INSERT OR REPLACE but this needs a
         // uniqueness constraint on the keyname column which does not
         // yet exist.
         if self.sql.exists(
             "SELECT value FROM config WHERE keyname=?;",
-            params![item.to_string()],
+            params![keyname],
         )? {
             self.sql.execute(
                 "UPDATE config SET value=? WHERE keyname=?",
-                params![item, item.to_string()],
+                params![item, keyname],
             )?;
         } else {
             self.sql.execute(
                 "INSERT INTO config (keyname, value) VALUES (?, ?)",
-                params![item.to_string(), item],
+                params![keyname, item],
             )?;
         }
         match item {
@@ -437,7 +444,6 @@ impl Context {
                 | ConfigItem::MvboxMove(value)
                 | ConfigItem::MvboxWatch(value)
                 | ConfigItem::SaveMimeHeaders(value)
-                | ConfigItem::Selfavatar(value)
                 | ConfigItem::Selfstatus(value)
                 | ConfigItem::SendPort(value)
                 | ConfigItem::SendPw(value)
@@ -450,6 +456,8 @@ impl Context {
                 | ConfigItem::SysConfigKeys(value)
                 | ConfigItem::SysMsgsizeMaxRecommended(value)
                 | ConfigItem::SysVersion(value) => value,
+                // Blob values
+                ConfigItem::Selfavatar(blob) => blob.to_abs_path().to_string_lossy().into_owned(),
             };
             Some(value)
         } else {
@@ -532,7 +540,9 @@ impl Context {
                 ConfigKey::MvboxMove => ConfigItem::MvboxMove(v),
                 ConfigKey::MvboxWatch => ConfigItem::MvboxWatch(v),
                 ConfigKey::SaveMimeHeaders => ConfigItem::SaveMimeHeaders(v),
-                ConfigKey::Selfavatar => ConfigItem::Selfavatar(v),
+                ConfigKey::Selfavatar => {
+                    ConfigItem::Selfavatar(BlobObject::create_from_path(self, v)?)
+                }
                 ConfigKey::Selfstatus => ConfigItem::Selfstatus(v),
                 ConfigKey::SendPort => ConfigItem::SendPort(v),
                 ConfigKey::SendPw => ConfigItem::SendPw(v),
@@ -555,8 +565,8 @@ impl Context {
 
 /// Returns all available configuration keys concated together.
 fn get_config_keys_string() -> String {
-    let keys = ConfigItem::iter().fold(String::new(), |mut acc, key| {
-        acc += key.as_ref();
+    let keys = ConfigKey::iter().fold(String::new(), |mut acc, key| {
+        acc += &key.to_key_string();
         acc += " ";
         acc
     });
@@ -567,50 +577,33 @@ fn get_config_keys_string() -> String {
 mod tests {
     use super::*;
 
-    use std::str::FromStr;
     use std::string::ToString;
 
     use crate::test_utils::*;
 
-    impl ConfigKey {
-        fn to_key_string(&self) -> String {
-            let s = self.to_string();
-            if s.starts_with("sys_") {
-                s.replacen("sys_", "sys.", 1)
-            } else {
-                s
-            }
-        }
+    #[test]
+    fn test_string_conversions() {
+        assert_eq!(ConfigKey::MailServer.to_key_string(), "mail_server");
+        assert_eq!(
+            ConfigKey::from_key_str("mail_server"),
+            Ok(ConfigKey::MailServer)
+        );
+
+        assert_eq!(ConfigKey::SysConfigKeys.to_key_string(), "sys.config_keys");
+        assert_eq!(
+            ConfigKey::from_key_str("sys.config_keys"),
+            Ok(ConfigKey::SysConfigKeys)
+        );
     }
 
     #[test]
-    fn test_to_string() {
-        assert_eq!(
-            ConfigItem::MailServer(Default::default()).to_string(),
-            "mail_server"
-        );
-        assert_eq!(
-            ConfigItem::from_str("mail_server"),
-            Ok(ConfigItem::MailServer(Default::default()))
-        );
-
-        assert_eq!(
-            ConfigItem::SysConfigKeys(Default::default()).to_string(),
-            "sys.config_keys"
-        );
-        assert_eq!(
-            ConfigItem::from_str("sys.config_keys"),
-            Ok(ConfigItem::SysConfigKeys(Default::default()))
-        );
-
-        // The ConfigItem.to_string() is used as key in the SQL table
-        // on set operations and ConfigKey.to_string() is the key used
-        // on get operations.  Therefore we want to make sure they are
-        // the same keys.
-        for item in ConfigItem::iter() {
-            let name = item.to_string();
-            let key = ConfigKey::from_key_str(&name).unwrap();
-            assert_eq!(name, key.to_key_string());
+    fn test_sys_config_keys() {
+        let t = dummy_context();
+        if let Some(ConfigItem::SysConfigKeys(s)) = t.ctx.get_config_item(ConfigKey::SysConfigKeys)
+        {
+            assert!(s.contains(" sys.msgsize_max_recommended "));
+            assert!(s.contains(" sys.version "));
+            assert!(s.contains(" imap_folder "));
         }
     }
 

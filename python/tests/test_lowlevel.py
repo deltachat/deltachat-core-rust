@@ -1,4 +1,7 @@
 from __future__ import print_function
+
+import pytest
+
 from deltachat import capi, cutil, const, set_context_callback, clear_context_callback
 from deltachat.capi import ffi
 from deltachat.capi import lib
@@ -155,3 +158,41 @@ def test_is_open_actually_open(tmpdir):
     db_fname = tmpdir.join("test.db")
     lib.dc_open(ctx, db_fname.strpath.encode("ascii"), ffi.NULL)
     assert lib.dc_is_open(ctx) == 1
+
+
+class TestConfig:
+
+    @pytest.fixture
+    def ctx(self, tmpdir):
+        ctx = ffi.gc(
+            lib.dc_context_new(lib.py_dc_callback, ffi.NULL, ffi.NULL),
+            lib.dc_context_unref,
+        )
+        db_fname = tmpdir.join("test.db")
+        lib.dc_open(ctx, db_fname.strpath.encode("ascii"), ffi.NULL)
+        assert lib.dc_is_open(ctx) == 1
+        return ctx
+
+    def test_selfavatar_copy(self, ctx, tmpdir):
+        # Setting an avatar outside of the blobdir should copy it into
+        # the blobdir.
+        avatar_src = tmpdir.join("avatar.jpg")
+        avatar_src.write("avatar")
+        lib.dc_set_config(ctx, b"selfavatar",
+                          cutil.as_dc_charpointer(avatar_src.strpath))
+        avatar_blob = tmpdir.join("test.db-blobs/avatar.jpg")
+        assert avatar_blob.exists()
+        assert avatar_blob.read() == "avatar"
+        avatar_cfg = cutil.from_dc_charpointer(
+            lib.dc_get_config(ctx, b"selfavatar"))
+        assert avatar_cfg == avatar_blob
+
+    def test_selfavatar_nocopy(self, ctx, tmpdir):
+        # Setting an avatar already in the blobdir should not copy it.
+        avatar_src = tmpdir.join("test.db-blobs/avatar.jpg")
+        avatar_src.write("avatar")
+        lib.dc_set_config(ctx, b"selfavatar",
+                          cutil.as_dc_charpointer(avatar_src.strpath))
+        avatar_cfg = cutil.from_dc_charpointer(
+            lib.dc_get_config(ctx, b"selfavatar"))
+        assert avatar_src == avatar_cfg
