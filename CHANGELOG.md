@@ -1,5 +1,37 @@
 # Changelog 
 
+## 1.0.0-beta.8
+
+- now uses async-email/async-imap as the new base 
+  which makes imap-idle interruptible and thus fixes
+  several issues around the imap thread being in zombie state . 
+  thanks @dignifiedquire, @hpk42 and @link2xt. 
+
+- fixes imap-protocol parsing bugs that lead to infinitely
+  repeated crashing while trying to receive messages with
+  a subjec that contained non-utf8. thanks @link2xt
+
+- fixed logic to find encryption subkey -- previously 
+  delta chat would use the primary key for encryption
+  (which works with RSA but not ECC). thanks @link2xt
+
+- introduce a new device chat where core and UIs can 
+  add "device" messages.  Android uses it for an initial
+  welcome message. thanks @r10s
+
+- fix time smearing (when two message are virtually send
+  in the same second, there would be misbehaviour because
+  we didn't persist smeared time). thanks @r10s
+
+- fix double-dotted extensions like .html.zip or .tar.gz  
+  to not mangle them when creating blobfiles.  thanks @flub
+
+- fix backup/exports where the wrong sql file would be modified,
+  leading to problems when exporting twice.  thanks @hpk42
+
+- several other little fixes and improvements 
+
+
 ## 1.0.0-beta.7
 
 - fix location-streaming #782
