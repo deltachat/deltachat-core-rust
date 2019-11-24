@@ -3,6 +3,7 @@
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
 
+use crate::blob::BlobObject;
 use crate::constants::DC_VERSION_STR;
 use crate::context::Context;
 use crate::dc_tools::*;
@@ -115,9 +116,8 @@ impl Context {
     pub fn set_config(&self, key: Config, value: Option<&str>) -> Result<(), Error> {
         match key {
             Config::Selfavatar if value.is_some() => {
-                let rel_path = std::fs::canonicalize(value.unwrap())?;
-                self.sql
-                    .set_raw_config(self, key, Some(&rel_path.to_string_lossy()))
+                let blob = BlobObject::create_and_copy(&self, value.unwrap())?;
+                self.sql.set_raw_config(self, key, Some(blob.as_name()))
             }
             Config::InboxWatch => {
                 let ret = self.sql.set_raw_config(self, key, value);
@@ -167,6 +167,8 @@ mod tests {
     use std::str::FromStr;
     use std::string::ToString;
 
+    use crate::test_utils::*;
+
     #[test]
     fn test_to_string() {
         assert_eq!(Config::MailServer.to_string(), "mail_server");
@@ -182,5 +184,20 @@ mod tests {
     #[test]
     fn test_default_prop() {
         assert_eq!(Config::ImapFolder.get_str("default"), Some("INBOX"));
+    }
+
+    #[test]
+    fn test_selfavatar() -> failure::Fallible<()> {
+        let t = dummy_context();
+        let avatar_src = t.dir.path().join("avatar.jpg");
+        std::fs::write(&avatar_src, b"avatar")?;
+        let avatar_blob = t.ctx.get_blobdir().join("avatar.jpg");
+        assert!(!avatar_blob.exists());
+        t.ctx
+            .set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))?;
+        assert!(avatar_blob.exists());
+        let avatar_cfg = t.ctx.get_config(Config::Selfavatar);
+        assert_eq!(avatar_cfg, avatar_blob.to_str().map(|s| s.to_string()));
+        Ok(())
     }
 }
