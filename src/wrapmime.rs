@@ -54,7 +54,7 @@ pub fn parse_message_id(message_id: &[u8]) -> Result<String, Error> {
     let mut rfc724_mid_c = std::ptr::null_mut();
     if unsafe {
         mailimf_msg_id_parse(
-            message_id.as_ptr() as *const i8,
+            message_id.as_ptr() as *const libc::c_char,
             message_id.len(),
             &mut dummy,
             &mut rfc724_mid_c,
