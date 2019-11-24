@@ -116,7 +116,7 @@ impl Context {
     pub fn set_config(&self, key: Config, value: Option<&str>) -> Result<(), Error> {
         match key {
             Config::Selfavatar if value.is_some() => {
-                let blob = BlobObject::create_and_copy(&self, value.unwrap())?;
+                let blob = BlobObject::create_from_path(&self, value.unwrap())?;
                 self.sql.set_raw_config(self, key, Some(blob.as_name()))
             }
             Config::InboxWatch => {
@@ -196,8 +196,21 @@ mod tests {
         t.ctx
             .set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))?;
         assert!(avatar_blob.exists());
+        assert_eq!(std::fs::read(&avatar_blob)?, b"avatar");
         let avatar_cfg = t.ctx.get_config(Config::Selfavatar);
         assert_eq!(avatar_cfg, avatar_blob.to_str().map(|s| s.to_string()));
+        Ok(())
+    }
+
+    #[test]
+    fn test_selfavatar_in_blobdir() -> failure::Fallible<()> {
+        let t = dummy_context();
+        let avatar_src = t.ctx.get_blobdir().join("avatar.jpg");
+        std::fs::write(&avatar_src, b"avatar")?;
+        t.ctx
+            .set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))?;
+        let avatar_cfg = t.ctx.get_config(Config::Selfavatar);
+        assert_eq!(avatar_cfg, avatar_src.to_str().map(|s| s.to_string()));
         Ok(())
     }
 }
