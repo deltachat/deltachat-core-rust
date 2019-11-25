@@ -90,7 +90,7 @@ dependencies = [
 [[package]]
 name = "async-imap"
 version = "0.1.1"
-source = "git+https://github.com/async-email/async-imap#1327f678cf5515842fc309636459372e6ab40db2"
+source = "git+https://github.com/async-email/async-imap?branch=improved-response-handling#a79795381622e536f035a96c2c249272e9fbcece"
 dependencies = [
  "async-attributes 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "async-std 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -610,7 +610,7 @@ dependencies = [
 name = "deltachat"
 version = "1.0.0-beta.8"
 dependencies = [
- "async-imap 0.1.1 (git+https://github.com/async-email/async-imap)",
+ "async-imap 0.1.1 (git+https://github.com/async-email/async-imap?branch=improved-response-handling)",
  "async-std 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "async-tls 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "backtrace 0.3.40 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3245,7 +3245,7 @@ dependencies = [
 "checksum arrayvec 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "cff77d8686867eceff3105329d4698d96c2391c176d5d03adc90c7389162b5b8"
 "checksum ascii_utils 0.9.3 (registry+https://github.com/rust-lang/crates.io-index)" = "71938f30533e4d95a6d17aa530939da3842c2ab6f4f84b9dae68447e4129f74a"
 "checksum async-attributes 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "efd3d156917d94862e779f356c5acae312b08fd3121e792c857d7928c8088423"
-"checksum async-imap 0.1.1 (git+https://github.com/async-email/async-imap)" = "<none>"
+"checksum async-imap 0.1.1 (git+https://github.com/async-email/async-imap?branch=improved-response-handling)" = "<none>"
 "checksum async-macros 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "644a5a8de80f2085a1e7e57cd1544a2a7438f6e003c0790999bd43b92a77cdb2"
 "checksum async-std 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "56933da6903b273923d13f4746d829f66ff9b444173f6743d831e80f4da15446"
 "checksum async-task 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "de6bd58f7b9cc49032559422595c81cbfcf04db2f2133592f70af19e258a1ced"
