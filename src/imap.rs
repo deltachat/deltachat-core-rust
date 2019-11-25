@@ -886,37 +886,43 @@ impl Imap {
             let interval = async_std::stream::interval(Duration::from_secs(60));
             let mut interrupt_interval = interrupt.stop_token().stop_stream(interval);
             *self.interrupt.lock().await = Some(interrupt);
+            if self.skip_next_idle_wait.load(Ordering::SeqCst) {
+                // interrupt_idle has happened before we
+                // provided self.interrupt
+                self.skip_next_idle_wait.store(false, Ordering::SeqCst);
+                info!(context, "fake-idle wait was skipped");
+            } else {
+                // loop until we are interrupted or if we fetched something
+                while let Some(_) = interrupt_interval.next().await {
+                    // try to connect with proper login params
+                    // (setup_handle_if_needed might not know about them if we
+                    // never successfully connected)
+                    if let Err(err) = self.connect_configured(context) {
+                        warn!(context, "fake_idle: could not connect: {}", err);
+                        continue;
+                    }
+                    if self.config.read().await.can_idle {
+                        // we only fake-idled because network was gone during IDLE, probably
+                        break;
+                    }
+                    info!(context, "fake_idle is connected");
+                    // we are connected, let's see if fetching messages results
+                    // in anything.  If so, we behave as if IDLE had data but
+                    // will have already fetched the messages so perform_*_fetch
+                    // will not find any new.
 
-            // loop until we are interrupted or if we fetched something
-            while let Some(_) = interrupt_interval.next().await {
-                // try to connect with proper login params
-                // (setup_handle_if_needed might not know about them if we
-                // never successfully connected)
-                if let Err(err) = self.connect_configured(context) {
-                    warn!(context, "fake_idle: could not connect: {}", err);
-                    continue;
-                }
-                if self.config.read().await.can_idle {
-                    // we only fake-idled because network was gone during IDLE, probably
-                    break;
-                }
-                info!(context, "fake_idle is connected");
-                // we are connected, let's see if fetching messages results
-                // in anything.  If so, we behave as if IDLE had data but
-                // will have already fetched the messages so perform_*_fetch
-                // will not find any new.
-
-                if let Some(ref watch_folder) = watch_folder {
-                    match self.fetch_from_single_folder(context, watch_folder).await {
-                        Ok(res) => {
-                            info!(context, "fetch_from_single_folder returned {:?}", res);
-                            if res {
-                                break;
+                    if let Some(ref watch_folder) = watch_folder {
+                        match self.fetch_from_single_folder(context, watch_folder).await {
+                            Ok(res) => {
+                                info!(context, "fetch_from_single_folder returned {:?}", res);
+                                if res {
+                                    break;
+                                }
                             }
-                        }
-                        Err(err) => {
-                            error!(context, "could not fetch from folder: {}", err);
-                            self.trigger_reconnect()
+                            Err(err) => {
+                                error!(context, "could not fetch from folder: {}", err);
+                                self.trigger_reconnect()
+                            }
                         }
                     }
                 }

@@ -1011,4 +1011,5 @@ pub fn interrupt_smtp_idle(context: &Context) {
     state.perform_jobs_needed = 1;
     state.idle = true;
     cvar.notify_one();
+    info!(context, "Interrupting SMTP-idle... ended",);
 }
