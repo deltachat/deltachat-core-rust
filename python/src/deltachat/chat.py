@@ -331,6 +331,12 @@ class Chat(object):
             return None
         return from_dc_charpointer(dc_res)
 
+    def get_color(self):
+        return lib.dc_chat_get_color(self._dc_chat)
+
+    def get_subtitle(self):
+        return from_dc_charpointer(lib.dc_chat_get_subtitle(self._dc_chat))
+
     # ------  location streaming API ------------------------------
 
     def is_sending_locations(self):
@@ -338,6 +344,9 @@ class Chat(object):
         :returns: True if location sending is enabled.
         """
         return lib.dc_is_sending_locations_to_chat(self._dc_context, self.id)
+
+    def is_archived(self):
+        return lib.dc_chat_get_archived(self._dc_chat) 
 
     def enable_sending_locations(self, seconds):
         """enable sending locations for this chat.
