@@ -753,7 +753,8 @@ fn job_perform(context: &Context, thread: ThreadExecutor, probe_network: bool) {
         "SELECT j.id, j.action, j.foreign_id, j.param, j.added_timestamp, j.desired_timestamp, j.tries \
          FROM jobs j \
          LEFT JOIN msgs m\
-         WHERE j.thread=? AND j.desired_timestamp<=? AND m.server_folder=? \
+         WHERE j.thread=? AND j.desired_timestamp<=? \
+         ((j.foreign_id NOT NULL AND m.server_folder=?) OR (j.foreign_id IS NULL)) \
          ORDER BY j.action DESC, j.added_timestamp;"
     } else {
         // processing after call to dc_maybe_network():
@@ -763,7 +764,8 @@ fn job_perform(context: &Context, thread: ThreadExecutor, probe_network: bool) {
          j.id, j.action, j.foreign_id, j.param, j.added_timestamp, j.desired_timestamp, j.tries \
          FROM jobs j \
          LEFT JOIN msgs m \
-         WHERE j.thread=? AND j.tries>0 AND m.server_folder=? \
+         WHERE j.thread=? AND j.tries>0 AND \
+         ((j.foreign_id NOT NULL AND m.server_folder=?) OR (j.foreign_id IS NULL)) \
          ORDER BY j.desired_timestamp, j.action DESC;"
     };
 
