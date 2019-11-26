@@ -243,4 +243,11 @@ pub enum Event {
     /// @return 0
     #[strum(props(id = "2061"))]
     SecurejoinJoinerProgress { contact_id: u32, progress: usize },
+
+    /// This event is sent out to the inviter when a joiner successfully joined a group.
+    /// @param data1 (int) chat_id
+    /// @param data2 (int) contact_id
+    /// @return 0
+    #[strum(props(id = "2062"))]
+    SecurejoinSucceeded { chat_id: u32, contact_id: u32 },
 }

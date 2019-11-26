@@ -4388,6 +4388,16 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
 
 
 /**
+ * This event is sent out to the inviter when a joiner successfully joined a group.
+ *
+ * @param data1 (int) chat_id
+ * @param data2 (int) contact_id
+ * @return 0
+ */
+#define DC_EVENT_SECUREJOIN_SUCCEEDED             2062
+
+
+/**
  * @}
  */
 
