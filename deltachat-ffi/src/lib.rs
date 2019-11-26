@@ -175,6 +175,15 @@ impl ContextWrapper {
                         contact_id as uintptr_t,
                         progress as uintptr_t,
                     ),
+                    Event::SecurejoinSucceeded {
+                        chat_id,
+                        contact_id,
+                    } => ffi_cb(
+                        self,
+                        event_id,
+                        chat_id as uintptr_t,
+                        contact_id as uintptr_t,
+                    ),
                 }
             }
             None => 0,
