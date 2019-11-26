@@ -346,7 +346,7 @@ class Chat(object):
         return lib.dc_is_sending_locations_to_chat(self._dc_context, self.id)
 
     def is_archived(self):
-        return lib.dc_chat_get_archived(self._dc_chat) 
+        return lib.dc_chat_get_archived(self._dc_chat)
 
     def enable_sending_locations(self, seconds):
         """enable sending locations for this chat.
