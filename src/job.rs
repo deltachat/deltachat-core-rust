@@ -220,7 +220,7 @@ impl Job {
 
     #[allow(non_snake_case)]
     fn do_DC_JOB_MOVE_MSG(&mut self, context: &Context, thread: ThreadExecutor) {
-        let t = get_inbox_for_executor(context, thread);
+        let t = get_mailbox_for_executor(context, thread);
         let imap_inbox = &t.read().unwrap().imap;
 
         if let Ok(msg) = Message::load_from_db(context, MsgId::new(self.foreign_id)) {
@@ -266,7 +266,7 @@ impl Job {
 
     #[allow(non_snake_case)]
     fn do_DC_JOB_DELETE_MSG_ON_IMAP(&mut self, context: &Context, thread: ThreadExecutor) {
-        let t = get_inbox_for_executor(context, thread);
+        let t = get_mailbox_for_executor(context, thread);
         let imap_inbox = &t.read().unwrap().imap;
 
         if let Ok(mut msg) = Message::load_from_db(context, MsgId::new(self.foreign_id)) {
@@ -296,7 +296,7 @@ impl Job {
 
     #[allow(non_snake_case)]
     fn do_DC_JOB_EMPTY_SERVER(&mut self, context: &Context, thread: ThreadExecutor) {
-        let t = get_inbox_for_executor(context, thread);
+        let t = get_mailbox_for_executor(context, thread);
         let imap_inbox = &t.read().unwrap().imap;
 
         if thread == ThreadExecutor::Mvbox && DC_EMPTY_MVBOX > 0 {
@@ -313,7 +313,7 @@ impl Job {
 
     #[allow(non_snake_case)]
     fn do_DC_JOB_MARKSEEN_MSG_ON_IMAP(&mut self, context: &Context, thread: ThreadExecutor) {
-        let t = get_inbox_for_executor(context, thread);
+        let t = get_mailbox_for_executor(context, thread);
         let imap_inbox = &t.read().unwrap().imap;
 
         if let Ok(msg) = Message::load_from_db(context, MsgId::new(self.foreign_id)) {
@@ -349,7 +349,7 @@ impl Job {
             .to_string();
         let uid = self.param.get_int(Param::ServerUid).unwrap_or_default() as u32;
 
-        let t = get_inbox_for_executor(context, thread);
+        let t = get_mailbox_for_executor(context, thread);
         let imap_inbox = &t.read().unwrap().imap;
 
         if imap_inbox.set_seen(context, &folder, uid) == ImapActionResult::RetryLater {
@@ -751,7 +751,7 @@ fn job_perform(context: &Context, thread: ThreadExecutor, probe_network: bool) {
         // only select non empty ones on the inbox thread or smtp
         " OR (j.foreign_id IS NULL))"
     } else {
-        ""
+        ")"
     };
 
     let query = if !probe_network {
@@ -1049,7 +1049,7 @@ pub fn job_add(
                 )
                 .unwrap_or_default();
 
-            let mbox_thread = get_matching_inbox(context, &folder);
+            let mbox_thread = get_matching_mailbox(context, &folder);
             let res = mbox_thread.try_read();
             match res {
                 Ok(mbox_thread) => {
@@ -1067,12 +1067,12 @@ pub fn job_add(
 }
 
 fn get_folder_for_executor(context: &Context, thread: ThreadExecutor) -> String {
-    let t = get_inbox_for_executor(context, thread);
+    let t = get_mailbox_for_executor(context, thread);
     let b = t.read().unwrap();
     b.get_watch_folder(context).unwrap_or_default().to_string()
 }
 
-fn get_inbox_for_executor(context: &Context, thread: ThreadExecutor) -> Arc<RwLock<JobThread>> {
+fn get_mailbox_for_executor(context: &Context, thread: ThreadExecutor) -> Arc<RwLock<JobThread>> {
     match thread {
         ThreadExecutor::Inbox => context.inbox_thread.clone(),
         ThreadExecutor::Mvbox => context.mvbox_thread.clone(),
@@ -1081,7 +1081,7 @@ fn get_inbox_for_executor(context: &Context, thread: ThreadExecutor) -> Arc<RwLo
     }
 }
 
-fn get_matching_inbox(context: &Context, folder: &String) -> Arc<RwLock<JobThread>> {
+fn get_matching_mailbox(context: &Context, folder: &String) -> Arc<RwLock<JobThread>> {
     let mvbox_folder = context
         .mvbox_thread
         .read()
