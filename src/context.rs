@@ -498,8 +498,6 @@ pub struct BobStatus {
 #[derive(Default, Debug)]
 pub struct SmtpState {
     pub idle: bool,
-    pub suspended: bool,
-    pub doing_jobs: bool,
     pub perform_jobs_needed: i32,
     pub probe_network: bool,
 }

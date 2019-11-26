@@ -16,7 +16,6 @@ pub struct JobThread {
 pub struct JobState {
     idle: bool,
     jobs_needed: bool,
-    suspended: bool,
     using_handle: bool,
 }
 
@@ -28,32 +27,6 @@ impl JobThread {
             imap,
             state: Arc::new((Mutex::new(Default::default()), Condvar::new())),
         }
-    }
-
-    pub fn suspend(&self, context: &Context) {
-        info!(context, "Suspending {}-thread.", self.name,);
-        {
-            self.state.0.lock().unwrap().suspended = true;
-        }
-        self.interrupt_idle(context);
-        loop {
-            let using_handle = self.state.0.lock().unwrap().using_handle;
-            if !using_handle {
-                return;
-            }
-            std::thread::sleep(std::time::Duration::from_micros(300 * 1000));
-        }
-    }
-
-    pub fn unsuspend(&self, context: &Context) {
-        info!(context, "Unsuspending {}-thread.", self.name);
-
-        let &(ref lock, ref cvar) = &*self.state.clone();
-        let mut state = lock.lock().unwrap();
-
-        state.suspended = false;
-        state.idle = true;
-        cvar.notify_one();
     }
 
     pub fn interrupt_idle(&self, context: &Context) {
@@ -76,10 +49,6 @@ impl JobThread {
         {
             let &(ref lock, _) = &*self.state.clone();
             let mut state = lock.lock().unwrap();
-
-            if state.suspended {
-                return;
-            }
 
             state.using_handle = true;
         }
@@ -142,14 +111,6 @@ impl JobThread {
                     self.name,
                 );
                 state.jobs_needed = false;
-                return;
-            }
-
-            if state.suspended {
-                while !state.idle {
-                    state = cvar.wait(state).unwrap();
-                }
-                state.idle = false;
                 return;
             }
 

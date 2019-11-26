@@ -479,24 +479,12 @@ pub fn perform_smtp_jobs(context: &Context) {
         state.probe_network = false;
         state.perform_jobs_needed = 0;
 
-        if state.suspended {
-            info!(context, "SMTP-jobs suspended.",);
-            return;
-        }
-        state.doing_jobs = true;
         probe_smtp_network
     };
 
     info!(context, "SMTP-jobs started...",);
     job_perform(context, Thread::Smtp, probe_smtp_network);
     info!(context, "SMTP-jobs ended.");
-
-    {
-        let &(ref lock, _) = &*context.smtp_state.clone();
-        let mut state = lock.lock().unwrap();
-
-        state.doing_jobs = false;
-    }
 }
 
 pub fn perform_smtp_idle(context: &Context) {
@@ -775,24 +763,9 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
         );
 
         // some configuration jobs are "exclusive":
-        // - they are always executed in the imap-thread and the smtp-thread is suspended during execution
-        // - they may change the database handle change the database handle; we do not keep old pointers therefore
         // - they can be re-executed one time AT_ONCE, but they are not save in the database for later execution
         if Action::ConfigureImap == job.action || Action::ImexImap == job.action {
             job_kill_action(context, job.action);
-            context
-                .sentbox_thread
-                .clone()
-                .read()
-                .unwrap()
-                .suspend(context);
-            context
-                .mvbox_thread
-                .clone()
-                .read()
-                .unwrap()
-                .suspend(context);
-            suspend_smtp_thread(context, true);
         }
 
         let mut tries = 0;
@@ -834,19 +807,6 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
             tries += 1
         }
         if Action::ConfigureImap == job.action || Action::ImexImap == job.action {
-            context
-                .sentbox_thread
-                .clone()
-                .read()
-                .unwrap()
-                .unsuspend(context);
-            context
-                .mvbox_thread
-                .clone()
-                .read()
-                .unwrap()
-                .unsuspend(context);
-            suspend_smtp_thread(context, false);
             break;
         } else if job.try_again == TryAgain::AtOnce || job.try_again == TryAgain::StandardDelay {
             let tries = job.tries + 1;
@@ -912,18 +872,6 @@ fn get_backoff_time_offset(c_tries: libc::c_int) -> i64 {
         seconds = 1;
     }
     seconds as i64
-}
-
-fn suspend_smtp_thread(context: &Context, suspend: bool) {
-    context.smtp_state.0.lock().unwrap().suspended = suspend;
-    if suspend {
-        loop {
-            if !context.smtp_state.0.lock().unwrap().doing_jobs {
-                return;
-            }
-            std::thread::sleep(std::time::Duration::from_micros(300 * 1000));
-        }
-    }
 }
 
 fn send_mdn(context: &Context, msg_id: MsgId) -> Result<(), Error> {
