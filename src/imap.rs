@@ -12,7 +12,7 @@ use async_imap::{
     types::{Fetch, Flag, Mailbox, Name, NameAttribute},
 };
 use async_std::prelude::*;
-use async_std::sync::{Arc, Mutex, RwLock};
+use async_std::sync::{Mutex, RwLock};
 use async_std::task;
 
 use crate::constants::*;
@@ -45,11 +45,10 @@ const SELECT_ALL: &str = "1:*";
 
 #[derive(Debug)]
 pub struct Imap {
-    config: Arc<RwLock<ImapConfig>>,
-
-    session: Arc<Mutex<Option<Session>>>,
-    connected: Arc<Mutex<bool>>,
-    interrupt: Arc<Mutex<Option<stop_token::StopSource>>>,
+    config: RwLock<ImapConfig>,
+    session: Mutex<Option<Session>>,
+    connected: Mutex<bool>,
+    interrupt: Mutex<Option<stop_token::StopSource>>,
     skip_next_idle_wait: AtomicBool,
     should_reconnect: AtomicBool,
 }
@@ -118,10 +117,10 @@ impl Default for ImapConfig {
 impl Imap {
     pub fn new() -> Self {
         Imap {
-            session: Arc::new(Mutex::new(None)),
-            config: Arc::new(RwLock::new(ImapConfig::default())),
-            interrupt: Arc::new(Mutex::new(None)),
-            connected: Arc::new(Mutex::new(false)),
+            session: Mutex::new(None),
+            config: RwLock::new(ImapConfig::default()),
+            interrupt: Mutex::new(None),
+            connected: Mutex::new(false),
             skip_next_idle_wait: AtomicBool::new(false),
             should_reconnect: AtomicBool::new(false),
         }
