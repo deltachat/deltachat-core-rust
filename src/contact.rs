@@ -585,7 +585,12 @@ impl Contact {
 
             let mut self_key = Key::from_self_public(context, &loginparam.addr, &context.sql);
 
-            if peerstate.is_some() && peerstate.as_ref().and_then(|p| p.peek_key(0)).is_some() {
+            if peerstate.is_some()
+                && peerstate
+                    .as_ref()
+                    .and_then(|p| p.peek_key(PeerstateVerifiedStatus::Unverified))
+                    .is_some()
+            {
                 let peerstate = peerstate.as_ref().unwrap();
                 let p =
                     context.stock_str(if peerstate.prefer_encrypt == EncryptPreference::Mutual {
@@ -605,11 +610,11 @@ impl Contact {
                     .map(|k| k.formatted_fingerprint())
                     .unwrap_or_default();
                 let fingerprint_other_verified = peerstate
-                    .peek_key(2)
+                    .peek_key(PeerstateVerifiedStatus::BidirectVerified)
                     .map(|k| k.formatted_fingerprint())
                     .unwrap_or_default();
                 let fingerprint_other_unverified = peerstate
-                    .peek_key(0)
+                    .peek_key(PeerstateVerifiedStatus::Unverified)
                     .map(|k| k.formatted_fingerprint())
                     .unwrap_or_default();
                 if peerstate.addr.is_some() && &loginparam.addr < peerstate.addr.as_ref().unwrap() {

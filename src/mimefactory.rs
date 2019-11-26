@@ -230,7 +230,7 @@ impl<'a> MimeFactory<'a> {
 
         // 1=add Autocrypt-header (needed eg. for handshaking), 2=no Autocrypte-header (used for MDN)
         let mut e2ee_guaranteed = false;
-        let mut min_verified: libc::c_int = 0;
+        let mut min_verified = crate::peerstate::PeerstateVerifiedStatus::Unverified;
         let mut do_gossip = false;
         let mut grpimage = None;
         let force_plaintext: libc::c_int;
@@ -246,7 +246,7 @@ impl<'a> MimeFactory<'a> {
                     wrapmime::new_custom_field(imf_fields, "Chat-Verified", "1");
                     force_plaintext = 0;
                     e2ee_guaranteed = true;
-                    min_verified = 2
+                    min_verified = crate::peerstate::PeerstateVerifiedStatus::BidirectVerified;
                 } else {
                     force_plaintext = self
                         .msg

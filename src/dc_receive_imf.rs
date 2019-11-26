@@ -1640,7 +1640,11 @@ fn check_verified_properties(
                 info!(context, "{} has verified {}.", contact.get_addr(), to_addr,);
                 let fp = peerstate.gossip_key_fingerprint.clone();
                 if let Some(fp) = fp {
-                    peerstate.set_verified(0, &fp, 2);
+                    peerstate.set_verified(
+                        DC_PS_GOSSIP_KEY,
+                        &fp,
+                        PeerstateVerifiedStatus::BidirectVerified,
+                    );
                     peerstate.save_to_db(&context.sql, false)?;
                     is_verified = true;
                 }
