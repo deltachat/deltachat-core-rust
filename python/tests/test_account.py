@@ -768,6 +768,7 @@ class TestOnlineAccount:
         ac1._evlogger.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED")
         ac2._evlogger.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED")
         wait_securejoin_inviter_progress(ac1, 1000)
+        ac1._evlogger.get_matching("DC_EVENT_SECUREJOIN_SUCCEEDED")
 
     def test_qr_verified_group_and_chatting(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
