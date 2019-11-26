@@ -1907,7 +1907,7 @@ pub fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: u32) -> Resul
 pub fn get_info_json(context: &Context, chat_id: u32) -> Result<String, Error> {
     let chat = Chat::load_from_db(context, chat_id).unwrap();
 
-    // ToDo: 
+    // ToDo:
     // - [x] id
     // - [x] type
     // - [x] name
@@ -1924,19 +1924,17 @@ pub fn get_info_json(context: &Context, chat_id: u32) -> Result<String, Error> {
 
     let profile_image = match chat.get_profile_image(context) {
         Some(path) => path.into_os_string().into_string().unwrap(),
-        None => "".to_string()
+        None => "".to_string(),
     };
 
     let draft = match get_draft(context, chat_id) {
-        Ok(message) => {
-            match message {
-              Some(m) => m.text.unwrap_or("".to_string())   ,
-              None => "".to_string()
-            } 
+        Ok(message) => match message {
+            Some(m) => m.text.unwrap_or("".to_string()),
+            None => "".to_string(),
         },
-        Err(_) => "".to_string()
+        Err(_) => "".to_string(),
     };
-      
+
     let s = json!({
          "id": chat.id,
          "type": chat.typ as u32,
@@ -1950,7 +1948,7 @@ pub fn get_info_json(context: &Context, chat_id: u32) -> Result<String, Error> {
          "subtitle": chat.get_subtitle(context),
          "draft": draft
     });
-                    
+
     Ok(s.to_string())
 }
 
