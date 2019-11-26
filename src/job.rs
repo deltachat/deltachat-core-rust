@@ -747,26 +747,39 @@ pub fn perform_sentbox_jobs(context: &Context) {
 fn job_perform(context: &Context, thread: ThreadExecutor, probe_network: bool) {
     let folder = get_folder_for_executor(context, thread);
 
+    let fallback = if thread == ThreadExecutor::Inbox || thread == ThreadExecutor::Smtp {
+        // only select non empty ones on the inbox thread or smtp
+        " OR (j.foreign_id IS NULL))"
+    } else {
+        ""
+    };
+
     let query = if !probe_network {
         // processing for first-try and after backoff-timeouts:
         // process jobs in the order they were added.
-        "SELECT j.id, j.action, j.foreign_id, j.param, j.added_timestamp, j.desired_timestamp, j.tries \
-         FROM jobs j \
-         LEFT JOIN msgs m\
-         WHERE j.thread=? AND j.desired_timestamp<=? \
-         ((j.foreign_id NOT NULL AND m.server_folder=?) OR (j.foreign_id IS NULL)) \
-         ORDER BY j.action DESC, j.added_timestamp;"
+        format!(
+            "SELECT j.id, j.action, j.foreign_id, j.param, j.added_timestamp, j.desired_timestamp, j.tries \
+             FROM jobs j \
+             LEFT JOIN msgs m\
+             WHERE j.thread=? AND j.desired_timestamp<=? \
+             ((j.foreign_id NOT NULL AND m.server_folder=?) {} \
+             ORDER BY j.action DESC, j.added_timestamp;",
+            fallback
+        )
     } else {
         // processing after call to dc_maybe_network():
         // process _all_ pending jobs that failed before
         // in the order of their backoff-times.
-        "SELECT \
-         j.id, j.action, j.foreign_id, j.param, j.added_timestamp, j.desired_timestamp, j.tries \
-         FROM jobs j \
-         LEFT JOIN msgs m \
-         WHERE j.thread=? AND j.tries>0 AND \
-         ((j.foreign_id NOT NULL AND m.server_folder=?) OR (j.foreign_id IS NULL)) \
-         ORDER BY j.desired_timestamp, j.action DESC;"
+        format!(
+            "SELECT \
+             j.id, j.action, j.foreign_id, j.param, j.added_timestamp, j.desired_timestamp, j.tries \
+             FROM jobs j \
+             LEFT JOIN msgs m \
+             WHERE j.thread=? AND j.tries>0 AND \
+             ((j.foreign_id NOT NULL AND m.server_folder=?) {} \
+             ORDER BY j.desired_timestamp, j.action DESC;",
+            fallback
+        )
     };
 
     let params_no_probe = params![thread as i64, time(), folder];
