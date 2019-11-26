@@ -12,6 +12,17 @@ use crate::error::*;
 use crate::key::*;
 use crate::sql::{self, Sql};
 
+pub const DC_PS_GOSSIP_KEY: u32 = 0;
+pub const DC_PS_PUBLIC_KEY: u32 = 1;
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy, FromPrimitive)]
+#[repr(u8)]
+pub enum PeerstateVerifiedStatus {
+    Unverified = 0,
+    //Verified = 1, // not used
+    BidirectVerified = 2,
+}
+
 /// Peerstate represents the state of an Autocrypt peer.
 pub struct Peerstate<'a> {
     pub context: &'a Context,
@@ -311,7 +322,7 @@ impl<'a> Peerstate<'a> {
         };
     }
 
-    pub fn render_gossip_header(&self, min_verified: usize) -> Option<String> {
+    pub fn render_gossip_header(&self, min_verified: PeerstateVerifiedStatus) -> Option<String> {
         if let Some(ref addr) = self.addr {
             if let Some(key) = self.peek_key(min_verified) {
                 // TODO: avoid cloning
@@ -327,12 +338,12 @@ impl<'a> Peerstate<'a> {
         None
     }
 
-    pub fn peek_key(&self, min_verified: usize) -> Option<&Key> {
+    pub fn peek_key(&self, min_verified: PeerstateVerifiedStatus) -> Option<&Key> {
         if self.public_key.is_none() && self.gossip_key.is_none() && self.verified_key.is_none() {
             return None;
         }
 
-        if 0 != min_verified {
+        if min_verified != PeerstateVerifiedStatus::Unverified {
             return self.verified_key.as_ref();
         }
         if self.public_key.is_some() {
@@ -342,10 +353,17 @@ impl<'a> Peerstate<'a> {
         self.gossip_key.as_ref()
     }
 
-    pub fn set_verified(&mut self, which_key: usize, fingerprint: &str, verified: usize) -> bool {
+    pub fn set_verified(
+        &mut self,
+        which_key: u32,
+        fingerprint: &str,
+        verified: PeerstateVerifiedStatus,
+    ) -> bool {
         let mut success = false;
-        if !(which_key != 0 && which_key != 1 || verified != 2) {
-            if which_key == 1
+        if !(which_key != DC_PS_GOSSIP_KEY && which_key != DC_PS_PUBLIC_KEY
+            || verified != PeerstateVerifiedStatus::BidirectVerified)
+        {
+            if which_key == DC_PS_PUBLIC_KEY
                 && self.public_key_fingerprint.is_some()
                 && self.public_key_fingerprint.as_ref().unwrap() == fingerprint
             {
@@ -354,7 +372,7 @@ impl<'a> Peerstate<'a> {
                 self.verified_key_fingerprint = self.public_key_fingerprint.clone();
                 success = true;
             }
-            if which_key == 0
+            if which_key == DC_PS_GOSSIP_KEY
                 && self.gossip_key_fingerprint.is_some()
                 && self.gossip_key_fingerprint.as_ref().unwrap() == fingerprint
             {

@@ -75,7 +75,7 @@ impl EncryptHelper {
         &mut self,
         factory: &mut MimeFactory,
         e2ee_guaranteed: bool,
-        min_verified: libc::c_int,
+        min_verified: PeerstateVerifiedStatus,
         do_gossip: bool,
         mut in_out_message: *mut Mailmime,
         imffields_unprotected: *mut mailimf_fields,
@@ -118,10 +118,10 @@ impl EncryptHelper {
                 return Ok(false);
             }
 
-            if let Some(key) = peerstate.peek_key(min_verified as usize) {
+            if let Some(key) = peerstate.peek_key(min_verified) {
                 keyring.add_owned(key.clone());
                 if do_gossip {
-                    if let Some(header) = peerstate.render_gossip_header(min_verified as usize) {
+                    if let Some(header) = peerstate.render_gossip_header(min_verified) {
                         gossip_headers.push(header.to_string());
                     }
                 }

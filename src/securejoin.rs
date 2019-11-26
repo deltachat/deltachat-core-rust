@@ -672,7 +672,11 @@ fn mark_peer_as_verified(context: &Context, fingerprint: impl AsRef<str>) -> Res
     if let Some(ref mut peerstate) =
         Peerstate::from_fingerprint(context, &context.sql, fingerprint.as_ref())
     {
-        if peerstate.set_verified(1, fingerprint.as_ref(), 2) {
+        if peerstate.set_verified(
+            DC_PS_PUBLIC_KEY,
+            fingerprint.as_ref(),
+            PeerstateVerifiedStatus::BidirectVerified,
+        ) {
             peerstate.prefer_encrypt = EncryptPreference::Mutual;
             peerstate.to_save = Some(ToSave::All);
             peerstate
