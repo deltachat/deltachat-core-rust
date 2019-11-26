@@ -116,7 +116,7 @@ impl JobThread {
         }
     }
 
-    fn get_watch_folder(&self, context: &Context) -> Option<String> {
+    pub(crate) fn get_watch_folder(&self, context: &Context) -> Option<String> {
         match context.sql.get_raw_config(context, self.folder_config_name) {
             Some(name) => Some(name),
             None => {
