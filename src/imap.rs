@@ -287,32 +287,32 @@ impl Imap {
 
     /// Connects to imap account using already-configured parameters.
     pub fn connect_configured(&self, context: &Context) -> Result<()> {
-        if async_std::task::block_on(async move {
-            self.is_connected().await && !self.should_reconnect()
-        }) {
-            return Ok(());
-        }
-        if !context.sql.get_raw_config_bool(context, "configured") {
-            return Err(Error::ConnectWithoutConfigure);
-        }
-
-        let param = LoginParam::from_database(context, "configured_");
-        // the trailing underscore is correct
-
-        if self.connect(context, &param) {
-            if context
-                .sql
-                .get_raw_config_int(context, "folders_configured")
-                .unwrap_or_default()
-                < 3
-            {
-                self.configure_folders(context, 0x1);
+        async_std::task::block_on(async move {
+            if self.is_connected().await && !self.should_reconnect() {
+                return Ok(());
             }
-            return Ok(());
-        }
-        return Err(Error::ImapConnectionFailed(
-            format!("{}", param).to_string(),
-        ));
+
+            if !context.sql.get_raw_config_bool(context, "configured") {
+                return Err(Error::ConnectWithoutConfigure);
+            }
+
+            let param = LoginParam::from_database(context, "configured_");
+            // the trailing underscore is correct
+
+            if self.connect(context, &param) {
+                if context
+                    .sql
+                    .get_raw_config_int(context, "folders_configured")
+                    .unwrap_or_default()
+                    < 3
+                {
+                    self.configure_folders(context, 0x1);
+                }
+                return Ok(());
+            }
+
+            Err(Error::ImapConnectionFailed(format!("{}", param)))
+        })
     }
 
     /// tries connecting to imap account using the specific login

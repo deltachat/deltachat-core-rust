@@ -1,3 +1,4 @@
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use deltachat_derive::{FromSql, ToSql};
@@ -14,6 +15,7 @@ use crate::error::Error;
 use crate::events::Event;
 use crate::imap::*;
 use crate::imex::*;
+use crate::job_thread::JobThread;
 use crate::location;
 use crate::login_param::LoginParam;
 use crate::message::MsgId;
@@ -210,17 +212,19 @@ impl Job {
 
     #[allow(non_snake_case)]
     fn do_DC_JOB_MOVE_MSG(&mut self, context: &Context) {
-        let imap_inbox = &context.inbox_thread.read().unwrap().imap;
-
         if let Ok(msg) = Message::load_from_db(context, MsgId::new(self.foreign_id)) {
+            let imap_inbox = self.get_matching_inbox(context, msg.server_folder.as_ref());
+            let inbox = &imap_inbox.read().unwrap().imap;
+
             if context
                 .sql
                 .get_raw_config_int(context, "folders_configured")
                 .unwrap_or_default()
                 < 3
             {
-                imap_inbox.configure_folders(context, 0x1i32);
+                inbox.configure_folders(context, 0x1i32);
             }
+
             let dest_folder = context
                 .sql
                 .get_raw_config(context, "configured_mvbox_folder");
@@ -229,7 +233,7 @@ impl Job {
                 let server_folder = msg.server_folder.as_ref().unwrap();
                 let mut dest_uid = 0;
 
-                match imap_inbox.mv(
+                match inbox.mv(
                     context,
                     server_folder,
                     msg.server_uid,
@@ -253,10 +257,33 @@ impl Job {
         }
     }
 
+    fn get_matching_inbox(
+        &self,
+        context: &Context,
+        folder: Option<&String>,
+    ) -> Arc<RwLock<JobThread>> {
+        let mvbox_folder = context
+            .mvbox_thread
+            .read()
+            .unwrap()
+            .get_watch_folder(context);
+        let sentbox_folder = context
+            .sentbox_thread
+            .read()
+            .unwrap()
+            .get_watch_folder(context);
+
+        if folder == mvbox_folder.as_ref() {
+            context.mvbox_thread.clone()
+        } else if folder == sentbox_folder.as_ref() {
+            context.sentbox_thread.clone()
+        } else {
+            context.inbox_thread.clone()
+        }
+    }
+
     #[allow(non_snake_case)]
     fn do_DC_JOB_DELETE_MSG_ON_IMAP(&mut self, context: &Context) {
-        let imap_inbox = &context.inbox_thread.read().unwrap().imap;
-
         if let Ok(mut msg) = Message::load_from_db(context, MsgId::new(self.foreign_id)) {
             if !msg.rfc724_mid.is_empty() {
                 /* eg. device messages have no Message-ID */
@@ -270,8 +297,11 @@ impl Job {
                     we delete the message from the server */
                     let mid = msg.rfc724_mid;
                     let server_folder = msg.server_folder.as_ref().unwrap();
-                    let res =
-                        imap_inbox.delete_msg(context, &mid, server_folder, &mut msg.server_uid);
+
+                    let imap_inbox = self.get_matching_inbox(context, msg.server_folder.as_ref());
+                    let inbox = &imap_inbox.read().unwrap().imap;
+
+                    let res = inbox.delete_msg(context, &mid, server_folder, &mut msg.server_uid);
                     if res == ImapActionResult::RetryLater {
                         self.try_again_later(TryAgain::AtOnce, None);
                         return;
@@ -284,27 +314,29 @@ impl Job {
 
     #[allow(non_snake_case)]
     fn do_DC_JOB_EMPTY_SERVER(&mut self, context: &Context) {
-        let imap_inbox = &context.inbox_thread.read().unwrap().imap;
         if self.foreign_id & DC_EMPTY_MVBOX > 0 {
             if let Some(mvbox_folder) = context
                 .sql
                 .get_raw_config(context, "configured_mvbox_folder")
             {
-                imap_inbox.empty_folder(context, &mvbox_folder);
+                let inbox = &context.mvbox_thread.read().unwrap().imap;
+                inbox.empty_folder(context, &mvbox_folder);
             }
         }
         if self.foreign_id & DC_EMPTY_INBOX > 0 {
-            imap_inbox.empty_folder(context, "INBOX");
+            let inbox = &context.inbox_thread.read().unwrap().imap;
+            inbox.empty_folder(context, "INBOX");
         }
     }
 
     #[allow(non_snake_case)]
     fn do_DC_JOB_MARKSEEN_MSG_ON_IMAP(&mut self, context: &Context) {
-        let imap_inbox = &context.inbox_thread.read().unwrap().imap;
-
         if let Ok(msg) = Message::load_from_db(context, MsgId::new(self.foreign_id)) {
             let folder = msg.server_folder.as_ref().unwrap();
-            match imap_inbox.set_seen(context, folder, msg.server_uid) {
+            let imap_inbox = self.get_matching_inbox(context, msg.server_folder.as_ref());
+            let inbox = &imap_inbox.read().unwrap().imap;
+
+            match inbox.set_seen(context, folder, msg.server_uid) {
                 ImapActionResult::RetryLater => {
                     self.try_again_later(TryAgain::StandardDelay, None);
                 }
@@ -334,8 +366,11 @@ impl Job {
             .unwrap_or_default()
             .to_string();
         let uid = self.param.get_int(Param::ServerUid).unwrap_or_default() as u32;
-        let imap_inbox = &context.inbox_thread.read().unwrap().imap;
-        if imap_inbox.set_seen(context, &folder, uid) == ImapActionResult::RetryLater {
+
+        let imap_inbox = self.get_matching_inbox(context, Some(&folder));
+        let inbox = &imap_inbox.read().unwrap().imap;
+
+        if inbox.set_seen(context, &folder, uid) == ImapActionResult::RetryLater {
             self.try_again_later(TryAgain::StandardDelay, None);
             return;
         }
@@ -346,7 +381,7 @@ impl Job {
                 .unwrap_or_default()
                 < 3
             {
-                imap_inbox.configure_folders(context, 0x1i32);
+                inbox.configure_folders(context, 0x1i32);
             }
             let dest_folder = context
                 .sql
@@ -354,7 +389,7 @@ impl Job {
             if let Some(dest_folder) = dest_folder {
                 let mut dest_uid = 0;
                 if ImapActionResult::RetryLater
-                    == imap_inbox.mv(context, &folder, uid, &dest_folder, &mut dest_uid)
+                    == inbox.mv(context, &folder, uid, &dest_folder, &mut dest_uid)
                 {
                     self.try_again_later(TryAgain::StandardDelay, None);
                 }
