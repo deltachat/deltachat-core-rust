@@ -161,11 +161,12 @@ class TestOfflineChat:
         assert d["type"] == chat.get_type()
         assert d["name"] == chat.get_name()
         assert d["archived"] == chat.is_archived()
-        #assert d["param"] == chat.param
+        # assert d["param"] == chat.param
         assert d["color"] == chat.get_color()
-        assert d["profile_image"] ==  "" if chat.get_profile_image() is None else chat.get_profile_image()
+        assert d["profile_image"] == "" if chat.get_profile_image() is None else chat.get_profile_image()
         assert d["subtitle"] == chat.get_subtitle()
         assert d["draft"] == "" if chat.get_draft() is None else chat.get_draft()
+
     def test_group_chat_creation_with_translation(self, ac1):
         ac1.set_stock_translation(const.DC_STR_NEWGROUPDRAFT, "xyz %1$s")
         ac1._evlogger.consume_events()
