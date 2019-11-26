@@ -31,6 +31,13 @@ enum Thread {
     Smtp = 5000,
 }
 
+#[derive(Debug, Display, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive)]
+enum TryAgain {
+    Dont,
+    AtOnce,
+    StandardDelay,
+}
+
 impl Default for Thread {
     fn default() -> Self {
         Thread::Unknown
@@ -102,7 +109,7 @@ pub struct Job {
     pub added_timestamp: i64,
     pub tries: i32,
     pub param: Params,
-    pub try_again: i32,
+    try_again: TryAgain,
     pub pending_error: Option<String>,
 }
 
@@ -136,7 +143,7 @@ impl Job {
             let loginparam = LoginParam::from_database(context, "configured_");
             let connected = context.smtp.lock().unwrap().connect(context, &loginparam);
             if connected.is_err() {
-                self.try_again_later(3, None);
+                self.try_again_later(TryAgain::StandardDelay, None);
                 return;
             }
         }
@@ -177,7 +184,7 @@ impl Job {
                         Err(err) => {
                             smtp.disconnect();
                             warn!(context, "smtp failed: {}", err);
-                            self.try_again_later(-1, Some(err.to_string()));
+                            self.try_again_later(TryAgain::AtOnce, Some(err.to_string()));
                         }
                         Ok(()) => {
                             // smtp success, update db ASAP, then delete smtp file
@@ -196,7 +203,7 @@ impl Job {
     }
 
     // this value does not increase the number of tries
-    fn try_again_later(&mut self, try_again: i32, pending_error: Option<String>) {
+    fn try_again_later(&mut self, try_again: TryAgain, pending_error: Option<String>) {
         self.try_again = try_again;
         self.pending_error = pending_error;
     }
@@ -230,7 +237,7 @@ impl Job {
                     &mut dest_uid,
                 ) {
                     ImapActionResult::RetryLater => {
-                        self.try_again_later(3i32, None);
+                        self.try_again_later(TryAgain::StandardDelay, None);
                     }
                     ImapActionResult::Success => {
                         message::update_server_uid(
@@ -266,7 +273,7 @@ impl Job {
                     let res =
                         imap_inbox.delete_msg(context, &mid, server_folder, &mut msg.server_uid);
                     if res == ImapActionResult::RetryLater {
-                        self.try_again_later(-1i32, None);
+                        self.try_again_later(TryAgain::AtOnce, None);
                         return;
                     }
                 }
@@ -299,7 +306,7 @@ impl Job {
             let folder = msg.server_folder.as_ref().unwrap();
             match imap_inbox.set_seen(context, folder, msg.server_uid) {
                 ImapActionResult::RetryLater => {
-                    self.try_again_later(3i32, None);
+                    self.try_again_later(TryAgain::StandardDelay, None);
                 }
                 ImapActionResult::AlreadyDone => {}
                 ImapActionResult::Success | ImapActionResult::Failed => {
@@ -329,7 +336,7 @@ impl Job {
         let uid = self.param.get_int(Param::ServerUid).unwrap_or_default() as u32;
         let imap_inbox = &context.inbox_thread.read().unwrap().imap;
         if imap_inbox.set_seen(context, &folder, uid) == ImapActionResult::RetryLater {
-            self.try_again_later(3i32, None);
+            self.try_again_later(TryAgain::StandardDelay, None);
             return;
         }
         if 0 != self.param.get_int(Param::AlsoMove).unwrap_or_default() {
@@ -349,7 +356,7 @@ impl Job {
                 if ImapActionResult::RetryLater
                     == imap_inbox.mv(context, &folder, uid, &dest_folder, &mut dest_uid)
                 {
-                    self.try_again_later(3, None);
+                    self.try_again_later(TryAgain::StandardDelay, None);
                 }
             }
         }
@@ -742,7 +749,7 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                     added_timestamp: row.get(4)?,
                     tries: row.get(6)?,
                     param: row.get::<_, String>(3)?.parse().unwrap_or_default(),
-                    try_again: 0,
+                    try_again: TryAgain::Dont,
                     pending_error: None,
                 };
 
@@ -791,7 +798,7 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
         let mut tries = 0;
         while tries <= 1 {
             // this can be modified by a job using dc_job_try_again_later()
-            job.try_again = 0;
+            job.try_again = TryAgain::Dont;
 
             match job.action {
                 Action::Unknown => {
@@ -821,7 +828,7 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                 Action::SendMdnOld => {}
                 Action::SendMsgToSmtpOld => {}
             }
-            if job.try_again != -1 {
+            if job.try_again != TryAgain::AtOnce {
                 break;
             }
             tries += 1
@@ -841,19 +848,7 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                 .unsuspend(context);
             suspend_smtp_thread(context, false);
             break;
-        } else if job.try_again == 2 {
-            // just try over next loop unconditionally, the ui typically interrupts idle when the file (video) is ready
-            info!(
-                context,
-                "{}-job #{} not yet ready and will be delayed.",
-                if thread == Thread::Imap {
-                    "INBOX"
-                } else {
-                    "SMTP"
-                },
-                job.job_id
-            );
-        } else if job.try_again == -1 || job.try_again == 3 {
+        } else if job.try_again == TryAgain::AtOnce || job.try_again == TryAgain::StandardDelay {
             let tries = job.tries + 1;
             if tries < 17 {
                 job.tries = tries;
