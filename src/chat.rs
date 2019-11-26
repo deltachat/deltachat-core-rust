@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use itertools::Itertools;
 use num_traits::FromPrimitive;
+use serde_json::json;
 
 use crate::blob::{BlobError, BlobObject};
 use crate::chatlist::*;
@@ -1936,36 +1937,21 @@ pub fn get_info_json(context: &Context, chat_id: u32) -> Result<String, Error> {
         Err(_) => "".to_string()
     };
       
-    let s = format!("{{\
-                    \"id\": {:?},\
-                    \"type\": {:?},\
-                    \"name\": {:?},\
-                    \"archived\": {:?},\
-                    \"grpid\": {:?},\
-                    \"blocked\": {:?},\
-                    \"param\": {:?},\
-                    \"gossiped_timestamp\": {:?},\
-                    \"is_sending_locations\": {:?},\
-                    \"color\": {:?},\
-                    \"profile_image\": {:?},\
-                    \"subtitle\": {:?},\
-                    \"draft\": {:?}\
-                    }}",
-                    chat.id,
-                    chat.typ as u32,
-                    chat.name,
-                    chat.archived,
-                    chat.grpid,
-                    chat.blocked as u32,
-                    chat.param.to_string(),
-                    chat.gossiped_timestamp,
-                    chat.is_sending_locations,
-                    chat.get_color(context),
-                    profile_image,
-                    chat.get_subtitle(context),
-                    draft);
+    let s = json!({
+         "id": chat.id,
+         "type": chat.typ as u32,
+         "name": chat.name,
+         "archived": chat.archived,
+         "param": chat.param.to_string(),
+         "gossiped_timestamp": chat.gossiped_timestamp,
+         "is_sending_locations": chat.is_sending_locations,
+         "color": chat.get_color(context),
+         "profile_image": profile_image,
+         "subtitle": chat.get_subtitle(context),
+         "draft": draft
+    });
                     
-    Ok(s)
+    Ok(s.to_string())
 }
 
 pub fn get_chat_contact_cnt(context: &Context, chat_id: u32) -> usize {
