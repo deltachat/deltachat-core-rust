@@ -33,7 +33,7 @@ pub struct MimeParser<'a, 'b> {
     pub parts: Vec<Part>,
     mail: Option<mailparse::ParsedMail<'b>>,
     pub mimeroot: *mut Mailmime,
-    pub header: HashMap<String, *mut mailimf_field>,
+    pub header: HashMap<String, String>,
     pub header_root: *mut mailimf_fields,
     pub header_protected: *mut mailimf_fields,
     pub subject: Option<String>,
@@ -347,16 +347,10 @@ impl<'a, 'b> MimeParser<'a, 'b> {
             .as_ref()
             .unwrap_or_else(|| self.mail.as_ref().unwrap());
 
-        let ctype = mailparse::parse_content_type(
-            &self
-                .lookup_field("Content-Type")
-                .unwrap()
-                .get_value()
-                .unwrap(),
-        );
+        println!("ctype {:?}", mail.ctype);
 
-        if let Some(protected_headers) = ctype.params.get("protected-headers") {
-            if mail.subparts.is_empty() && ctype.mimetype == "text/rfc822-headers" {
+        if mail.ctype.params.get("protected-headers").is_some() {
+            if mail.subparts.is_empty() && mail.ctype.mimetype == "text/rfc822-headers" {
                 info!(
                     self.context,
                     "Protected headers found in text/rfc822-headers attachment: Will be ignored.",
@@ -365,23 +359,18 @@ impl<'a, 'b> MimeParser<'a, 'b> {
             }
 
             if self.header_protected.is_null() {
-                // TODO:
+                // use the most outer protected header - this is typically
+                // created in sync with the normal, unprotected header
 
-                // /* use the most outer protected header - this is typically
-                // created in sync with the normal, unprotected header */
-                // let mut dummy = 0;
-                // if mailimf_envelope_and_optional_fields_parse(
-                //     mime.mm_mime_start,
-                //     mime.mm_length,
-                //     &mut dummy,
-                //     &mut self.header_protected,
-                // ) != MAILIMF_NO_ERROR as libc::c_int
-                //     || self.header_protected.is_null()
-                // {
-                //     warn!(self.context, "Protected headers parsing error.",);
-                // } else {
-                //     hash_header(&mut self.header, self.header_protected);
-                // }
+                if let Some(part) = mail.subparts.first() {
+                    let raw = part.get_body_raw().unwrap();
+                    if let Ok((protected_headers, _)) = mailparse::parse_headers(&raw) {
+                        drop(mail); // I have won against the borrow checker!!!!11
+                        hash_header(&mut self.header, &protected_headers);
+                    } else {
+                        warn!(self.context, "Protected headers parsing error.",);
+                    }
+                }
             } else {
                 info!(
                     self.context,
@@ -389,6 +378,10 @@ impl<'a, 'b> MimeParser<'a, 'b> {
                 );
             }
         }
+
+        let mail = omail
+            .as_ref()
+            .unwrap_or_else(|| self.mail.as_ref().unwrap());
 
         // single = multipart/* only one
         // multiple = multipart/* multiple
@@ -554,11 +547,13 @@ impl<'a, 'b> MimeParser<'a, 'b> {
         // }
 
         // any_part_added
-        unimplemented!()
+        // unimplemented!()
+        false
     }
 
     fn add_single_part_if_known(&mut self, omail: Option<mailparse::ParsedMail<'_>>) -> bool {
-        unimplemented!()
+        false
+        // unimplemented!()
         // // return true if a part was added
         // let (mime_type, msg_type, raw_mime) = mailmime_get_mime_type(mime);
 
@@ -900,50 +895,14 @@ pub struct Part {
     pub param: Params,
 }
 
-unsafe fn hash_header(out: &mut HashMap<String, *mut mailimf_field>, in_0: *const mailimf_fields) {
-    if in_0.is_null() {
-        return;
-    }
-
-    for cur in (*(*in_0).fld_list).into_iter() {
-        let field = cur as *mut mailimf_field;
-        // TODO match on enums /rtn
-
-        let key = match (*field).fld_type as libc::c_uint {
-            MAILIMF_FIELD_RETURN_PATH => Some("Return-Path".to_string()),
-            MAILIMF_FIELD_ORIG_DATE => Some("Date".to_string()),
-            MAILIMF_FIELD_FROM => Some("From".to_string()),
-            MAILIMF_FIELD_SENDER => Some("Sender".to_string()),
-            MAILIMF_FIELD_REPLY_TO => Some("Reply-To".to_string()),
-            MAILIMF_FIELD_TO => Some("To".to_string()),
-            MAILIMF_FIELD_CC => Some("Cc".to_string()),
-            MAILIMF_FIELD_BCC => Some("Bcc".to_string()),
-            MAILIMF_FIELD_MESSAGE_ID => Some("Message-ID".to_string()),
-            MAILIMF_FIELD_IN_REPLY_TO => Some("In-Reply-To".to_string()),
-            MAILIMF_FIELD_REFERENCES => Some("References".to_string()),
-            MAILIMF_FIELD_SUBJECT => Some("Subject".to_string()),
-            MAILIMF_FIELD_OPTIONAL_FIELD => {
-                // MAILIMF_FIELD_OPTIONAL_FIELD
-                let optional_field = (*field).fld_data.fld_optional_field;
-                // XXX the optional field sometimes contains invalid UTF8
-                // which should not happen (according to the mime standard).
-                // This might point to a bug in our mime parsing/processing
-                // logic. As mmime/dc_mimeparser is scheduled fore replacement
-                // anyway we just use a lossy conversion.
-
-                if !optional_field.is_null() {
-                    Some(to_string_lossy((*optional_field).fld_name))
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        };
-        if let Some(key) = key {
+fn hash_header(out: &mut HashMap<String, String>, fields: &[mailparse::MailHeader<'_>]) {
+    for field in fields {
+        if let Ok(key) = field.get_key() {
             if !out.contains_key(&key) || // key already exists, only overwrite known types (protected headers)
-                (*field).fld_type != MAILIMF_FIELD_OPTIONAL_FIELD as i32 || key.starts_with("Chat-")
+                key.starts_with("Chat-")
             {
-                out.insert(key, field);
+                // TODO: only overwrite known fields
+                out.insert(key, field.get_value().unwrap());
             }
         }
     }
