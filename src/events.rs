@@ -249,5 +249,5 @@ pub enum Event {
     /// @param data2 (int) contact_id
     /// @return 0
     #[strum(props(id = "2062"))]
-    SecurejoinSucceeded { chat_id: u32, contact_id: u32 },
+    SecurejoinMemberAdded { chat_id: u32, contact_id: u32 },
 }
