@@ -615,7 +615,7 @@ pub fn handle_securejoin_handshake(
                     .lookup_optional_field("Secure-Join-Group")
                     .unwrap_or_default();
                 let (group_chat_id, _, _) = chat::get_chat_id_by_grpid(context, &field_grpid);
-                context.call_cb(Event::SecurejoinSucceeded {
+                context.call_cb(Event::SecurejoinMemberAdded {
                     chat_id: group_chat_id,
                     contact_id: contact_id,
                 });

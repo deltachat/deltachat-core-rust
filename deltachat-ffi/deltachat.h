@@ -4394,7 +4394,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * @param data2 (int) contact_id
  * @return 0
  */
-#define DC_EVENT_SECUREJOIN_SUCCEEDED             2062
+#define DC_EVENT_SECUREJOIN_MEMBER_ADDED 2062
 
 
 /**

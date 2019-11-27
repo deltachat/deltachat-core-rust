@@ -175,7 +175,7 @@ impl ContextWrapper {
                         contact_id as uintptr_t,
                         progress as uintptr_t,
                     ),
-                    Event::SecurejoinSucceeded {
+                    Event::SecurejoinMemberAdded {
                         chat_id,
                         contact_id,
                     } => ffi_cb(
