@@ -132,10 +132,8 @@ fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int {
         real_spec = rs.unwrap();
     }
     if let Some(suffix) = dc_get_filesuffix_lc(&real_spec) {
-        if suffix == "eml" {
-            if dc_poke_eml_file(context, &real_spec).is_ok() {
-                read_cnt += 1
-            }
+        if suffix == "eml" && dc_poke_eml_file(context, &real_spec).is_ok() {
+            read_cnt += 1
         }
     } else {
         /* import a directory */
@@ -588,7 +586,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             let members = chat::get_chat_contacts(context, sel_chat.id);
             let subtitle = if sel_chat.is_device_talk() {
                 "device-talk".to_string()
-            } else if sel_chat.get_type() == Chattype::Single && members.len() >= 1 {
+            } else if sel_chat.get_type() == Chattype::Single && !members.is_empty() {
                 let contact = Contact::get_by_id(context, members[0])?;
                 contact.get_addr().to_string()
             } else {
@@ -862,11 +860,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         "archive" | "unarchive" => {
             ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
             let chat_id = arg1.parse()?;
-            chat::archive(
-                context,
-                chat_id,
-                if arg0 == "archive" { true } else { false },
-            )?;
+            chat::archive(context, chat_id, arg0 == "archive")?;
         }
         "delchat" => {
             ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");

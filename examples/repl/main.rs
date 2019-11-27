@@ -235,7 +235,7 @@ impl Completer for DcHelper {
     }
 }
 
-const IMEX_COMMANDS: [&'static str; 12] = [
+const IMEX_COMMANDS: [&str; 12] = [
     "initiate-key-transfer",
     "get-setupcodebegin",
     "continue-key-transfer",
@@ -250,7 +250,7 @@ const IMEX_COMMANDS: [&'static str; 12] = [
     "stop",
 ];
 
-const DB_COMMANDS: [&'static str; 11] = [
+const DB_COMMANDS: [&str; 11] = [
     "info",
     "open",
     "close",
@@ -264,7 +264,7 @@ const DB_COMMANDS: [&'static str; 11] = [
     "housekeeping",
 ];
 
-const CHAT_COMMANDS: [&'static str; 24] = [
+const CHAT_COMMANDS: [&str; 24] = [
     "listchats",
     "listarchived",
     "chat",
@@ -290,7 +290,7 @@ const CHAT_COMMANDS: [&'static str; 24] = [
     "unarchive",
     "delchat",
 ];
-const MESSAGE_COMMANDS: [&'static str; 8] = [
+const MESSAGE_COMMANDS: [&str; 8] = [
     "listmsgs",
     "msginfo",
     "listfresh",
@@ -300,7 +300,7 @@ const MESSAGE_COMMANDS: [&'static str; 8] = [
     "unstar",
     "delmsg",
 ];
-const CONTACT_COMMANDS: [&'static str; 6] = [
+const CONTACT_COMMANDS: [&str; 6] = [
     "listcontacts",
     "listverified",
     "addcontact",
@@ -308,7 +308,7 @@ const CONTACT_COMMANDS: [&'static str; 6] = [
     "delcontact",
     "cleanupcontacts",
 ];
-const MISC_COMMANDS: [&'static str; 9] = [
+const MISC_COMMANDS: [&str; 9] = [
     "getqr", "getbadqr", "checkqr", "event", "fileinfo", "clear", "exit", "quit", "help",
 ];
 
@@ -334,8 +334,8 @@ impl Hinter for DcHelper {
     }
 }
 
-static COLORED_PROMPT: &'static str = "\x1b[1;32m> \x1b[0m";
-static PROMPT: &'static str = "> ";
+static COLORED_PROMPT: &str = "\x1b[1;32m> \x1b[0m";
+static PROMPT: &str = "> ";
 
 impl Highlighter for DcHelper {
     fn highlight_prompt<'p>(&self, prompt: &'p str) -> Cow<'p, str> {

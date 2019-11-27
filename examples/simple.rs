@@ -113,7 +113,7 @@ fn main() {
 
     println!("stopping threads");
 
-    *running.clone().write().unwrap() = false;
+    *running.write().unwrap() = false;
     deltachat::job::interrupt_inbox_idle(&ctx, true);
     deltachat::job::interrupt_smtp_idle(&ctx);
 

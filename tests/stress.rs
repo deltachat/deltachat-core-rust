@@ -128,7 +128,7 @@ fn test_encryption_decryption() {
     public_keyring.add_ref(&public_key);
 
     let mut public_keyring2 = Keyring::default();
-    public_keyring2.add_owned(public_key2.clone());
+    public_keyring2.add_owned(public_key2);
 
     let mut valid_signatures: HashSet<String> = Default::default();
 
@@ -220,7 +220,7 @@ fn create_test_context() -> TestContext {
     let dir = tempdir().unwrap();
     let dbfile = dir.path().join("db.sqlite");
     let ctx = Context::new(Box::new(cb), "FakeOs".into(), dbfile).unwrap();
-    TestContext { ctx: ctx, dir: dir }
+    TestContext { ctx, dir }
 }
 
 #[test]
