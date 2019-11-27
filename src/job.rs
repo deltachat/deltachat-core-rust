@@ -758,11 +758,18 @@ fn job_perform(context: &Context, thread: ThreadExecutor, probe_network: bool) {
         // processing for first-try and after backoff-timeouts:
         // process jobs in the order they were added.
         format!(
-            "SELECT j.id, j.action, j.foreign_id, j.param, j.added_timestamp, j.desired_timestamp, j.tries \
+            "SELECT \
+             j.id AS id, \
+             j.action AS action, \
+             j.foreign_id AS foreign_id, \
+             j.param AS param, \
+             j.added_timestamp AS added_timestamp, \
+             j.desired_timestamp AS desired_timestamp, \
+             j.tries AS tries \
              FROM jobs j \
              LEFT JOIN msgs m\
              WHERE j.thread=? AND j.desired_timestamp<=? \
-             ((j.foreign_id NOT NULL AND m.server_folder=?) {} \
+             ((j.foreign_id IS NOT NULL AND m.server_folder=?) {} \
              ORDER BY j.action DESC, j.added_timestamp;",
             fallback
         )
@@ -772,11 +779,17 @@ fn job_perform(context: &Context, thread: ThreadExecutor, probe_network: bool) {
         // in the order of their backoff-times.
         format!(
             "SELECT \
-             j.id, j.action, j.foreign_id, j.param, j.added_timestamp, j.desired_timestamp, j.tries \
+             j.id AS id, \
+             j.action AS action, \
+             j.foreign_id AS foreign_id, \
+             j.param AS param, \
+             j.added_timestamp AS added_timestamp, \
+             j.desired_timestamp AS desired_timestamp, \
+             j.tries AS tries \
              FROM jobs j \
              LEFT JOIN msgs m \
              WHERE j.thread=? AND j.tries>0 AND \
-             ((j.foreign_id NOT NULL AND m.server_folder=?) {} \
+             ((j.foreign_id IS NOT NULL AND m.server_folder=?) {} \
              ORDER BY j.desired_timestamp, j.action DESC;",
             fallback
         )
