@@ -69,18 +69,6 @@ pub fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
         .unwrap()
         .imap
         .disconnect(context);
-    context
-        .sentbox_thread
-        .read()
-        .unwrap()
-        .imap
-        .disconnect(context);
-    context
-        .mvbox_thread
-        .read()
-        .unwrap()
-        .imap
-        .disconnect(context);
     context.smtp.clone().lock().unwrap().disconnect();
     info!(context, "Configure ...",);
 
