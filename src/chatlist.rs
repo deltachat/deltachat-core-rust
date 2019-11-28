@@ -119,22 +119,20 @@ impl Chatlist {
         let mut ids = if let Some(query_contact_id) = query_contact_id {
             // show chats shared with a given contact
             context.sql.query_map(
-                concat!(
-                    "SELECT c.id, m.id",
-                    " FROM chats c",
-                    " LEFT JOIN msgs m",
-                    "        ON c.id=m.chat_id",
-                    "       AND m.timestamp=(",
-                    "               SELECT MAX(timestamp)",
-                    "                 FROM msgs",
-                    "                WHERE chat_id=c.id",
-                    "                  AND hidden=0)",
-                    " WHERE c.id>9",
-                    "   AND c.blocked=0",
-                    "   AND c.id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?)",
-                    " GROUP BY c.id",
-                    " ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;"
-                ),
+                "SELECT c.id, m.id
+                 FROM chats c
+                 LEFT JOIN msgs m
+                        ON c.id=m.chat_id
+                       AND m.timestamp=(
+                               SELECT MAX(timestamp)
+                                 FROM msgs
+                                WHERE chat_id=c.id
+                                  AND hidden=0)
+                 WHERE c.id>9
+                   AND c.blocked=0
+                   AND c.id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?)
+                 GROUP BY c.id
+                 ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
                 params![query_contact_id as i32],
                 process_row,
                 process_rows,
@@ -142,22 +140,20 @@ impl Chatlist {
         } else if 0 != listflags & DC_GCL_ARCHIVED_ONLY {
             // show archived chats
             context.sql.query_map(
-                concat!(
-                    "SELECT c.id, m.id",
-                    " FROM chats c",
-                    " LEFT JOIN msgs m",
-                    "        ON c.id=m.chat_id",
-                    "       AND m.timestamp=(",
-                    "               SELECT MAX(timestamp)",
-                    "                 FROM msgs",
-                    "                WHERE chat_id=c.id",
-                    "                  AND hidden=0)",
-                    " WHERE c.id>9",
-                    "   AND c.blocked=0",
-                    "   AND c.archived=1",
-                    " GROUP BY c.id",
-                    " ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;"
-                ),
+                "SELECT c.id, m.id
+                 FROM chats c
+                 LEFT JOIN msgs m
+                        ON c.id=m.chat_id
+                       AND m.timestamp=(
+                               SELECT MAX(timestamp)
+                                 FROM msgs
+                                WHERE chat_id=c.id
+                                  AND hidden=0)
+                 WHERE c.id>9
+                   AND c.blocked=0
+                   AND c.archived=1
+                 GROUP BY c.id
+                 ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
                 params![],
                 process_row,
                 process_rows,
@@ -168,22 +164,20 @@ impl Chatlist {
 
             let str_like_cmd = format!("%{}%", query);
             context.sql.query_map(
-                concat!(
-                    "SELECT c.id, m.id",
-                    " FROM chats c",
-                    " LEFT JOIN msgs m",
-                    "        ON c.id=m.chat_id",
-                    "       AND m.timestamp=(",
-                    "               SELECT MAX(timestamp)",
-                    "                 FROM msgs",
-                    "                WHERE chat_id=c.id",
-                    "                  AND hidden=0)",
-                    " WHERE c.id>9",
-                    "   AND c.blocked=0",
-                    "   AND c.name LIKE ?",
-                    " GROUP BY c.id",
-                    " ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;"
-                ),
+                "SELECT c.id, m.id
+                 FROM chats c
+                 LEFT JOIN msgs m
+                        ON c.id=m.chat_id
+                       AND m.timestamp=(
+                               SELECT MAX(timestamp)
+                                 FROM msgs
+                                WHERE chat_id=c.id
+                                  AND hidden=0)
+                 WHERE c.id>9
+                   AND c.blocked=0
+                   AND c.name LIKE ?
+                 GROUP BY c.id
+                 ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
                 params![str_like_cmd],
                 process_row,
                 process_rows,
@@ -191,22 +185,20 @@ impl Chatlist {
         } else {
             //  show normal chatlist
             let mut ids = context.sql.query_map(
-                concat!(
-                    "SELECT c.id, m.id",
-                    " FROM chats c",
-                    " LEFT JOIN msgs m",
-                    "        ON c.id=m.chat_id",
-                    "       AND m.timestamp=(",
-                    "               SELECT MAX(timestamp)",
-                    "                 FROM msgs",
-                    "                WHERE chat_id=c.id",
-                    "                  AND hidden=0)",
-                    " WHERE c.id>9",
-                    "   AND c.blocked=0",
-                    "   AND c.archived=0",
-                    " GROUP BY c.id",
-                    " ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;"
-                ),
+                "SELECT c.id, m.id
+                 FROM chats c
+                 LEFT JOIN msgs m
+                        ON c.id=m.chat_id
+                       AND m.timestamp=(
+                               SELECT MAX(timestamp)
+                                 FROM msgs
+                                WHERE chat_id=c.id
+                                  AND hidden=0)
+                 WHERE c.id>9
+                   AND c.blocked=0
+                   AND c.archived=0
+                 GROUP BY c.id
+                 ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
                 params![],
                 process_row,
                 process_rows,
