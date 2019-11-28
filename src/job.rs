@@ -8,7 +8,7 @@ use crate::chat;
 use crate::config::Config;
 use crate::configure::*;
 use crate::constants::*;
-use crate::context::Context;
+use crate::context::{Context, PerformJobsNeeded};
 use crate::dc_tools::*;
 use crate::error::Error;
 use crate::events::Event;
@@ -480,7 +480,7 @@ pub fn perform_smtp_jobs(context: &Context) {
 
         let probe_smtp_network = state.probe_network;
         state.probe_network = false;
-        state.perform_jobs_needed = 0;
+        state.perform_jobs_needed = PerformJobsNeeded::Not;
 
         if state.suspended {
             info!(context, "SMTP-jobs suspended.",);
@@ -508,7 +508,7 @@ pub fn perform_smtp_idle(context: &Context) {
         let &(ref lock, ref cvar) = &*context.smtp_state.clone();
         let mut state = lock.lock().unwrap();
 
-        if state.perform_jobs_needed == 1 {
+        if state.perform_jobs_needed == PerformJobsNeeded::AtOnce {
             info!(
                 context,
                 "SMTP-idle will not be started because of waiting jobs.",
@@ -876,7 +876,7 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                         .0
                         .lock()
                         .unwrap()
-                        .perform_jobs_needed = 2;
+                        .perform_jobs_needed = PerformJobsNeeded::AvoidDos;
                 }
             } else {
                 if job.action == Action::SendMsgToSmtp {
@@ -1008,7 +1008,7 @@ pub fn interrupt_smtp_idle(context: &Context) {
     let &(ref lock, ref cvar) = &*context.smtp_state.clone();
     let mut state = lock.lock().unwrap();
 
-    state.perform_jobs_needed = 1;
+    state.perform_jobs_needed = PerformJobsNeeded::AtOnce;
     state.idle = true;
     cvar.notify_one();
     info!(context, "Interrupting SMTP-idle... ended",);

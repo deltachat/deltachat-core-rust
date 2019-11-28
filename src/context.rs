@@ -489,12 +489,25 @@ pub struct BobStatus {
     pub qr_scan: Option<Lot>,
 }
 
+#[derive(Debug, PartialEq)]
+pub enum PerformJobsNeeded {
+    Not,
+    AtOnce,
+    AvoidDos,
+}
+
+impl Default for PerformJobsNeeded {
+    fn default() -> Self {
+        Self::Not
+    }
+}
+
 #[derive(Default, Debug)]
 pub struct SmtpState {
     pub idle: bool,
     pub suspended: bool,
     pub doing_jobs: bool,
-    pub perform_jobs_needed: i32,
+    pub perform_jobs_needed: PerformJobsNeeded,
     pub probe_network: bool,
 }
 
