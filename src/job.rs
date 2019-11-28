@@ -986,7 +986,7 @@ fn load_jobs(context: &Context, thread: Thread, probe_network: bool) -> Vec<Job>
         // process _all_ pending jobs that failed before
         // in the order of their backoff-times.
         "SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries \
-         FROM jobs WHERE thread=? AND tries>0 ORDER BY desired_timestamp, action DESC;"
+         FROM jobs WHERE thread=? ORDER BY desired_timestamp, action DESC;"
     };
 
     let params_no_probe = params![thread as i64, time()];
