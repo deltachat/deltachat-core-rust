@@ -1413,6 +1413,7 @@ fn precheck_imf(context: &Context, rfc724_mid: &str, server_folder: &str, server
     {
         if old_server_folder.is_empty() && old_server_uid == 0 {
             info!(context, "[move] detected bbc-self {}", rfc724_mid,);
+            context.do_heuristics_moves(server_folder.as_ref(), msg_id);
             job_add(
                 context,
                 Action::MarkseenMsgOnImap,
