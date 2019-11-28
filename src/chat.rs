@@ -637,7 +637,7 @@ pub fn create_or_lookup_by_contact_id(
         context,
         &context.sql,
         format!(
-            "INSERT INTO chats (type, name, param, blocked, grpid) VALUES({}, '{}', '{}', {}, '{}')",
+            "INSERT INTO chats (type, name, param, blocked, grpid, created_timestamp) VALUES({}, '{}', '{}', {}, '{}', {})",
             100,
             chat_name,
             match contact_id {
@@ -650,6 +650,7 @@ pub fn create_or_lookup_by_contact_id(
             },
             create_blocked as u8,
             contact.get_addr(),
+            dc_create_smeared_timestamp(context),
         ),
         params![],
     )?;
@@ -1388,7 +1389,7 @@ pub fn create_group_chat(
     sql::execute(
         context,
         &context.sql,
-        "INSERT INTO chats (type, name, grpid, param) VALUES(?, ?, ?, \'U=1\');",
+        "INSERT INTO chats (type, name, grpid, param, created_timestamp) VALUES(?, ?, ?, \'U=1\', ?);",
         params![
             if verified != VerifiedStatus::Unverified {
                 Chattype::VerifiedGroup
@@ -1396,7 +1397,8 @@ pub fn create_group_chat(
                 Chattype::Group
             },
             chat_name.as_ref(),
-            grpid
+            grpid,
+            dc_create_smeared_timestamp(context),
         ],
     )?;
 

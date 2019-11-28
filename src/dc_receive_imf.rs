@@ -1439,7 +1439,7 @@ fn create_group_record(
     if sql::execute(
         context,
         &context.sql,
-        "INSERT INTO chats (type, name, grpid, blocked) VALUES(?, ?, ?, ?);",
+        "INSERT INTO chats (type, name, grpid, blocked, created_timestamp) VALUES(?, ?, ?, ?, ?);",
         params![
             if VerifiedStatus::Unverified != create_verified {
                 Chattype::VerifiedGroup
@@ -1449,6 +1449,7 @@ fn create_group_record(
             grpname.as_ref(),
             grpid.as_ref(),
             create_blocked,
+            dc_create_smeared_timestamp(context),
         ],
     )
     .is_err()
