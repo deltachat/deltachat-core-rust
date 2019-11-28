@@ -1026,17 +1026,16 @@ fn cat_fingerprint(
 }
 
 pub fn addr_cmp(addr1: impl AsRef<str>, addr2: impl AsRef<str>) -> bool {
-    let norm1 = addr_normalize(addr1.as_ref());
-    let norm2 = addr_normalize(addr2.as_ref());
+    let norm1 = addr_normalize(addr1.as_ref()).to_lowercase();
+    let norm2 = addr_normalize(addr2.as_ref()).to_lowercase();
 
     norm1 == norm2
 }
 
 pub fn addr_equals_self(context: &Context, addr: impl AsRef<str>) -> bool {
     if !addr.as_ref().is_empty() {
-        let normalized_addr = addr_normalize(addr.as_ref());
         if let Some(self_addr) = context.get_config(Config::ConfiguredAddr) {
-            return normalized_addr == self_addr;
+            return addr_cmp(addr, self_addr);
         }
     }
     false
