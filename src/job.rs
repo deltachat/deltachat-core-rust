@@ -22,6 +22,9 @@ use crate::mimefactory::{vec_contains_lowercase, Loaded, MimeFactory};
 use crate::param::*;
 use crate::sql;
 
+// results in ~3 weeks for the last backoff timespan
+const JOB_RETRIES: i32 = 17;
+
 /// Thread IDs
 #[derive(Debug, Display, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql)]
 #[repr(i32)]
@@ -848,7 +851,7 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
             break;
         } else if job.try_again == TryAgain::AtOnce || job.try_again == TryAgain::StandardDelay {
             let tries = job.tries + 1;
-            if tries < 17 {
+            if tries < JOB_RETRIES {
                 job.tries = tries;
                 let time_offset = get_backoff_time_offset(tries);
                 job.desired_timestamp = job.added_timestamp + time_offset;
@@ -866,7 +869,7 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                     time_offset,
                     job.added_timestamp + time_offset - time()
                 );
-                if thread == Thread::Smtp && tries < 17 - 1 {
+                if thread == Thread::Smtp && tries < JOB_RETRIES - 1 {
                     context
                         .smtp_state
                         .clone()
@@ -901,7 +904,6 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
 
 #[allow(non_snake_case)]
 fn get_backoff_time_offset(c_tries: libc::c_int) -> i64 {
-    // results in ~3 weeks for the last backoff timespan
     let N = 2_i32.pow((c_tries - 1) as u32) * 60;
     let mut rng = thread_rng();
     let n: i32 = rng.gen();
