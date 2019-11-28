@@ -976,17 +976,19 @@ pub fn interrupt_smtp_idle(context: &Context) {
 /// jobs, this is tricky and probably wrong currently.  Look at the
 /// SQL queries for details.
 fn load_jobs(context: &Context, thread: Thread, probe_network: bool) -> Vec<Job> {
-    let query = if !probe_network {
-        // processing for first-try and after backoff-timeouts:
-        // process jobs in the order they were added.
-        "SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries \
-         FROM jobs WHERE thread=? AND desired_timestamp<=? ORDER BY action DESC, added_timestamp;"
+    let query = if probe_network {
+        // Processing after call to dc_maybe_network():
+        // process all pending jobs in the order of their priority.
+        // If jobs have the same priority, process the
+        // one that was added earlier.
+        "SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries
+         FROM jobs WHERE thread=? ORDER BY action DESC, added_timestamp;"
     } else {
-        // processing after call to dc_maybe_network():
-        // process _all_ pending jobs that failed before
-        // in the order of their backoff-times.
-        "SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries \
-         FROM jobs WHERE thread=? ORDER BY desired_timestamp, action DESC;"
+        // Processing for the first try and after backoff-timeouts:
+        // process jobs that have their backoff expired
+        // in the order of their backoff times.
+        "SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries
+         FROM jobs WHERE thread=? AND desired_timestamp<=? ORDER BY desired_timestamp;"
     };
 
     let params_no_probe = params![thread as i64, time()];
