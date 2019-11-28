@@ -801,8 +801,7 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
             suspend_smtp_thread(context, true);
         }
 
-        let mut tries = 0;
-        while tries <= 1 {
+        for _tries in 0..2 {
             // this can be modified by a job using dc_job_try_again_later()
             job.try_again = TryAgain::Dont;
 
@@ -835,7 +834,6 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
             if job.try_again != TryAgain::AtOnce {
                 break;
             }
-            tries += 1
         }
         if Action::ConfigureImap == job.action || Action::ImexImap == job.action {
             context
