@@ -137,7 +137,7 @@ impl Job {
     }
 
     #[allow(non_snake_case)]
-    fn do_DC_JOB_SEND(&mut self, context: &Context) {
+    fn SendMsgToSmtp(&mut self, context: &Context) {
         /* connect to SMTP server, if not yet done */
         if !context.smtp.lock().unwrap().is_connected() {
             let loginparam = LoginParam::from_database(context, "configured_");
@@ -209,7 +209,7 @@ impl Job {
     }
 
     #[allow(non_snake_case)]
-    fn do_DC_JOB_MOVE_MSG(&mut self, context: &Context) {
+    fn MoveMsg(&mut self, context: &Context) {
         let imap_inbox = &context.inbox_thread.read().unwrap().imap;
 
         if let Ok(msg) = Message::load_from_db(context, MsgId::new(self.foreign_id)) {
@@ -254,7 +254,7 @@ impl Job {
     }
 
     #[allow(non_snake_case)]
-    fn do_DC_JOB_DELETE_MSG_ON_IMAP(&mut self, context: &Context) {
+    fn DeleteMsgOnImap(&mut self, context: &Context) {
         let imap_inbox = &context.inbox_thread.read().unwrap().imap;
 
         if let Ok(mut msg) = Message::load_from_db(context, MsgId::new(self.foreign_id)) {
@@ -283,7 +283,7 @@ impl Job {
     }
 
     #[allow(non_snake_case)]
-    fn do_DC_JOB_EMPTY_SERVER(&mut self, context: &Context) {
+    fn EmptyServer(&mut self, context: &Context) {
         let imap_inbox = &context.inbox_thread.read().unwrap().imap;
         if self.foreign_id & DC_EMPTY_MVBOX > 0 {
             if let Some(mvbox_folder) = context
@@ -299,7 +299,7 @@ impl Job {
     }
 
     #[allow(non_snake_case)]
-    fn do_DC_JOB_MARKSEEN_MSG_ON_IMAP(&mut self, context: &Context) {
+    fn MarkseenMsgOnImap(&mut self, context: &Context) {
         let imap_inbox = &context.inbox_thread.read().unwrap().imap;
 
         if let Ok(msg) = Message::load_from_db(context, MsgId::new(self.foreign_id)) {
@@ -327,7 +327,7 @@ impl Job {
     }
 
     #[allow(non_snake_case)]
-    fn do_DC_JOB_MARKSEEN_MDN_ON_IMAP(&mut self, context: &Context) {
+    fn MarkseenMdnOnImap(&mut self, context: &Context) {
         let folder = self
             .param
             .get(Param::ServerFolder)
@@ -802,27 +802,25 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
 
             match job.action {
                 Action::Unknown => {
-                    warn!(context, "Unknown job id found");
+                    info!(context, "Unknown job id found");
                 }
-                Action::SendMsgToSmtp => job.do_DC_JOB_SEND(context),
-                Action::EmptyServer => job.do_DC_JOB_EMPTY_SERVER(context),
-                Action::DeleteMsgOnImap => job.do_DC_JOB_DELETE_MSG_ON_IMAP(context),
-                Action::MarkseenMsgOnImap => job.do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context),
-                Action::MarkseenMdnOnImap => job.do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context),
-                Action::MoveMsg => job.do_DC_JOB_MOVE_MSG(context),
-                Action::SendMdn => job.do_DC_JOB_SEND(context),
-                Action::ConfigureImap => dc_job_do_DC_JOB_CONFIGURE_IMAP(context),
-                Action::ImexImap => match job_do_DC_JOB_IMEX_IMAP(context, &job) {
+                Action::SendMsgToSmtp => job.SendMsgToSmtp(context),
+                Action::EmptyServer => job.EmptyServer(context),
+                Action::DeleteMsgOnImap => job.DeleteMsgOnImap(context),
+                Action::MarkseenMsgOnImap => job.MarkseenMsgOnImap(context),
+                Action::MarkseenMdnOnImap => job.MarkseenMdnOnImap(context),
+                Action::MoveMsg => job.MoveMsg(context),
+                Action::SendMdn => job.SendMsgToSmtp(context),
+                Action::ConfigureImap => JobConfigureImap(context),
+                Action::ImexImap => match JobImexImap(context, &job) {
                     Ok(()) => {}
                     Err(err) => {
                         error!(context, "{}", err);
                     }
                 },
-                Action::MaybeSendLocations => {
-                    location::job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context, &job)
-                }
+                Action::MaybeSendLocations => location::JobMaybeSendLocations(context, &job),
                 Action::MaybeSendLocationsEnded => {
-                    location::job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context, &mut job)
+                    location::JobMaybeSendLocationsEnded(context, &mut job)
                 }
                 Action::Housekeeping => sql::housekeeping(context),
                 Action::SendMdnOld => {}

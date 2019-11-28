@@ -367,7 +367,7 @@ pub fn normalize_setup_code(s: &str) -> String {
 }
 
 #[allow(non_snake_case)]
-pub fn job_do_DC_JOB_IMEX_IMAP(context: &Context, job: &Job) -> Result<()> {
+pub fn JobImexImap(context: &Context, job: &Job) -> Result<()> {
     ensure!(context.alloc_ongoing(), "could not allocate ongoing");
     let what: Option<ImexMode> = job.param.get_int(Param::Cmd).and_then(ImexMode::from_i32);
     let param = job.param.get(Param::Arg).unwrap_or_default();
