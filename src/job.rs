@@ -810,11 +810,11 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
             if tries < JOB_RETRIES {
                 job.tries = tries;
                 let time_offset = get_backoff_time_offset(tries);
-                job.desired_timestamp = job.added_timestamp + time_offset;
+                job.desired_timestamp = time() + time_offset;
                 job.update(context);
                 info!(
                     context,
-                    "{}-job #{} not succeeded on try #{}, retry in ADD_TIME+{} (in {} seconds).",
+                    "{}-job #{} not succeeded on try #{}, retry in {} seconds.",
                     if thread == Thread::Imap {
                         "INBOX"
                     } else {
@@ -822,8 +822,7 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                     },
                     job.job_id as u32,
                     tries,
-                    time_offset,
-                    job.added_timestamp + time_offset - time()
+                    time_offset
                 );
                 if thread == Thread::Smtp && tries < JOB_RETRIES - 1 {
                     context
