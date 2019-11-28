@@ -119,8 +119,6 @@ pub const DC_CONTACT_ID_INFO: u32 = 2;
 pub const DC_CONTACT_ID_DEVICE: u32 = 5;
 pub const DC_CONTACT_ID_LAST_SPECIAL: u32 = 9;
 
-pub const DC_CREATE_MVBOX: usize = 1;
-
 // Flags for empty server job
 
 pub const DC_EMPTY_MVBOX: u32 = 0x01;

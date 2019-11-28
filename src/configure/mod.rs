@@ -354,19 +354,14 @@ pub fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
             }
             16 => {
                 progress!(context, 900);
-                let flags: libc::c_int = if context.get_config_bool(Config::MvboxWatch)
-                    || context.get_config_bool(Config::MvboxMove)
-                {
-                    DC_CREATE_MVBOX as i32
-                } else {
-                    0
-                };
+                let create_mvbox = context.get_config_bool(Config::MvboxWatch)
+                    || context.get_config_bool(Config::MvboxMove);
                 context
                     .inbox_thread
                     .read()
                     .unwrap()
                     .imap
-                    .configure_folders(context, flags);
+                    .configure_folders(context, create_mvbox);
                 true
             }
             17 => {

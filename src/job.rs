@@ -219,7 +219,7 @@ impl Job {
                 .unwrap_or_default()
                 < 3
             {
-                imap_inbox.configure_folders(context, 0x1i32);
+                imap_inbox.configure_folders(context, true);
             }
             let dest_folder = context
                 .sql
@@ -346,7 +346,7 @@ impl Job {
                 .unwrap_or_default()
                 < 3
             {
-                imap_inbox.configure_folders(context, 0x1i32);
+                imap_inbox.configure_folders(context, true);
             }
             let dest_folder = context
                 .sql

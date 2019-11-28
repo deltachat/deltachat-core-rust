@@ -305,7 +305,7 @@ impl Imap {
                 .unwrap_or_default()
                 < 3
             {
-                self.configure_folders(context, 0x1);
+                self.configure_folders(context, true);
             }
             return Ok(());
         }
@@ -1206,7 +1206,7 @@ impl Imap {
         })
     }
 
-    pub fn configure_folders(&self, context: &Context, flags: libc::c_int) {
+    pub fn configure_folders(&self, context: &Context, create_mvbox: bool) {
         task::block_on(async move {
             if !self.is_connected().await {
                 return;
@@ -1237,7 +1237,7 @@ impl Imap {
                     .find(|folder| folder.name() == "DeltaChat" || folder.name() == fallback_folder)
                     .map(|n| n.name().to_string());
 
-                if mvbox_folder.is_none() && 0 != (flags as usize & DC_CREATE_MVBOX) {
+                if mvbox_folder.is_none() && create_mvbox {
                     info!(context, "Creating MVBOX-folder \"DeltaChat\"...",);
 
                     match session.create("DeltaChat").await {
