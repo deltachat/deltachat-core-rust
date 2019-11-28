@@ -749,9 +749,9 @@ fn job_perform(context: &Context, thread: ThreadExecutor, probe_network: bool) {
 
     let fallback = if thread == ThreadExecutor::Inbox || thread == ThreadExecutor::Smtp {
         // only select non empty ones on the inbox thread or smtp
-        " OR (j.foreign_id IS NULL))"
+        "OR (j.foreign_id IS NULL)) "
     } else {
-        ")"
+        ") "
     };
 
     let query_start = concat!(
@@ -764,14 +764,14 @@ fn job_perform(context: &Context, thread: ThreadExecutor, probe_network: bool) {
         "j.desired_timestamp AS desired_timestamp, ",
         "j.tries AS tries ",
         "FROM jobs j ",
-        "LEFT JOIN msgs m",
+        "LEFT JOIN msgs m ON j.foreign_id=m.id ",
     )
     .to_string();
     let query = if !probe_network {
         // processing for first-try and after backoff-timeouts:
         // process jobs in the order they were added.
         query_start
-            + "WHERE j.thread=? AND j.desired_timestamp<=? "
+            + "WHERE j.thread=? AND j.desired_timestamp<=? AND "
             + "((j.foreign_id IS NOT NULL AND m.server_folder=?) "
             + fallback
             + "ORDER BY j.action DESC, j.added_timestamp;"
