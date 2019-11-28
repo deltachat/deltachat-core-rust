@@ -23,7 +23,7 @@ use crate::events::Event;
 use crate::imap_client::*;
 use crate::job::{job_add, Action};
 use crate::login_param::{CertificateChecks, LoginParam};
-use crate::message::{self, update_msg_move_state, update_server_uid};
+use crate::message::{self, update_server_uid};
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::param::Params;
 use crate::stock::StockMessage;
@@ -1423,7 +1423,6 @@ fn precheck_imf(context: &Context, rfc724_mid: &str, server_folder: &str, server
             );
         } else if old_server_folder != server_folder {
             info!(context, "[move] detected moved message {}", rfc724_mid,);
-            update_msg_move_state(context, &rfc724_mid, MoveState::Stay);
         }
 
         if old_server_folder != server_folder || old_server_uid != server_uid {

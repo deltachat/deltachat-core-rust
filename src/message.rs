@@ -159,7 +159,6 @@ pub struct Message {
     pub(crate) from_id: u32,
     pub(crate) to_id: u32,
     pub(crate) chat_id: u32,
-    pub(crate) move_state: MoveState,
     pub(crate) type_0: Viewtype,
     pub(crate) state: MessageState,
     pub(crate) hidden: bool,
@@ -200,7 +199,6 @@ impl Message {
                 "    m.mime_in_reply_to AS mime_in_reply_to,",
                 "    m.server_folder AS server_folder,",
                 "    m.server_uid AS server_uid,",
-                "    m.move_state as move_state,",
                 "    m.chat_id AS chat_id,",
                 "    m.from_id AS from_id,",
                 "    m.to_id AS to_id,",
@@ -228,7 +226,6 @@ impl Message {
                 msg.in_reply_to = row.get::<_, Option<String>>("mime_in_reply_to")?;
                 msg.server_folder = row.get::<_, Option<String>>("server_folder")?;
                 msg.server_uid = row.get("server_uid")?;
-                msg.move_state = row.get("move_state")?;
                 msg.chat_id = row.get("chat_id")?;
                 msg.from_id = row.get("from_id")?;
                 msg.to_id = row.get("to_id")?;
@@ -1072,18 +1069,6 @@ pub fn exists(context: &Context, msg_id: MsgId) -> bool {
     } else {
         false
     }
-}
-
-pub fn update_msg_move_state(context: &Context, rfc724_mid: &str, state: MoveState) -> bool {
-    // we update the move_state for all messages belonging to a given Message-ID
-    // so that the state stay intact when parts are deleted
-    sql::execute(
-        context,
-        &context.sql,
-        "UPDATE msgs SET move_state=? WHERE rfc724_mid=?;",
-        params![state as i32, rfc724_mid],
-    )
-    .is_ok()
 }
 
 pub fn set_msg_failed(context: &Context, msg_id: MsgId, error: Option<impl AsRef<str>>) {
