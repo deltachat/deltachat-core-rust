@@ -72,11 +72,12 @@ impl Client {
     pub async fn secure<S: AsRef<str>>(
         self,
         domain: S,
-        _certificate_checks: CertificateChecks,
+        certificate_checks: CertificateChecks,
     ) -> ImapResult<Client> {
         match self {
             Client::Insecure(client) => {
-                let tls = async_tls::TlsConnector::new();
+                let tls_config = dc_build_tls_config(certificate_checks);
+                let tls: async_tls::TlsConnector = Arc::new(tls_config).into();
 
                 let client_sec = client.secure(domain, &tls).await?;
 
