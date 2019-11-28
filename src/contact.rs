@@ -1087,6 +1087,10 @@ mod tests {
     fn test_normalize_addr() {
         assert_eq!(addr_normalize("mailto:john@doe.com"), "john@doe.com");
         assert_eq!(addr_normalize("  hello@world.com   "), "hello@world.com");
+
+        // normalisation preserves case to allow user-defined spelling.
+        // however, case is ignored on addr_cmp()
+        assert_ne!(addr_normalize("John@Doe.com"), "john@doe.com");
     }
 
     #[test]
@@ -1207,5 +1211,12 @@ mod tests {
         assert_eq!(contact.get_name(), t.ctx.stock_str(StockMessage::SelfMsg));
         assert_eq!(contact.get_addr(), ""); // we're not configured
         assert!(!contact.is_blocked());
+    }
+
+    #[test]
+    fn test_addr_cmp() {
+        assert!(addr_cmp("AA@AA.ORG", "aa@aa.ORG"));
+        assert!(addr_cmp(" aa@aa.ORG ", "AA@AA.ORG"));
+        assert!(addr_cmp(" mailto:AA@AA.ORG", "Aa@Aa.orG"));
     }
 }
