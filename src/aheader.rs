@@ -44,8 +44,8 @@ impl str::FromStr for EncryptPreference {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "mutual" => Ok(EncryptPreference::Mutual),
-            "reset" => Ok(EncryptPreference::Reset),
-            _ => Ok(EncryptPreference::NoPreference),
+            "nopreference" => Ok(EncryptPreference::NoPreference),
+            _ => Err(()),
         }
     }
 }
