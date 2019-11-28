@@ -23,7 +23,7 @@ use crate::param::*;
 use crate::sql;
 
 // results in ~3 weeks for the last backoff timespan
-const JOB_RETRIES: i32 = 17;
+const JOB_RETRIES: u32 = 17;
 
 /// Thread IDs
 #[derive(Debug, Display, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql)]
@@ -110,7 +110,7 @@ pub struct Job {
     pub foreign_id: u32,
     pub desired_timestamp: i64,
     pub added_timestamp: i64,
-    pub tries: i32,
+    pub tries: u32,
     pub param: Params,
     try_again: TryAgain,
     pub pending_error: Option<String>,
@@ -903,12 +903,11 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
     }
 }
 
-#[allow(non_snake_case)]
-fn get_backoff_time_offset(c_tries: libc::c_int) -> i64 {
-    let N = 2_i32.pow((c_tries - 1) as u32) * 60;
+fn get_backoff_time_offset(tries: u32) -> i64 {
+    let n = 2_i32.pow(tries - 1) * 60;
     let mut rng = thread_rng();
-    let n: i32 = rng.gen();
-    let mut seconds = n % (N + 1);
+    let r: i32 = rng.gen();
+    let mut seconds = r % (n + 1);
     if seconds < 1 {
         seconds = 1;
     }
