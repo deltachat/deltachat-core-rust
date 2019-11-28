@@ -508,24 +508,27 @@ pub fn perform_smtp_idle(context: &Context) {
         let &(ref lock, ref cvar) = &*context.smtp_state.clone();
         let mut state = lock.lock().unwrap();
 
-        if state.perform_jobs_needed == PerformJobsNeeded::AtOnce {
-            info!(
-                context,
-                "SMTP-idle will not be started because of waiting jobs.",
-            );
-        } else {
-            let dur = get_next_wakeup_time(context, Thread::Smtp);
-
-            loop {
-                let res = cvar.wait_timeout(state, dur).unwrap();
-                state = res.0;
-
-                if state.idle || res.1.timed_out() {
-                    // We received the notification and the value has been updated, we can leave.
-                    break;
-                }
+        match state.perform_jobs_needed {
+            PerformJobsNeeded::AtOnce => {
+                info!(
+                    context,
+                    "SMTP-idle will not be started because of waiting jobs.",
+                );
             }
-            state.idle = false;
+            PerformJobsNeeded::Not | PerformJobsNeeded::AvoidDos => {
+                let dur = get_next_wakeup_time(context, Thread::Smtp);
+
+                loop {
+                    let res = cvar.wait_timeout(state, dur).unwrap();
+                    state = res.0;
+
+                    if state.idle || res.1.timed_out() {
+                        // We received the notification and the value has been updated, we can leave.
+                        break;
+                    }
+                }
+                state.idle = false;
+            }
         }
     }
 
