@@ -650,7 +650,7 @@ pub fn create_or_lookup_by_contact_id(
             },
             create_blocked as u8,
             contact.get_addr(),
-            dc_create_smeared_timestamp(context),
+            time(),
         ),
         params![],
     )?;
@@ -1398,7 +1398,7 @@ pub fn create_group_chat(
             },
             chat_name.as_ref(),
             grpid,
-            dc_create_smeared_timestamp(context),
+            time(),
         ],
     )?;
 

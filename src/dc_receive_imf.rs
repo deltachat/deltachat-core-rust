@@ -1449,7 +1449,7 @@ fn create_group_record(
             grpname.as_ref(),
             grpid.as_ref(),
             create_blocked,
-            dc_create_smeared_timestamp(context),
+            time(),
         ],
     )
     .is_err()
