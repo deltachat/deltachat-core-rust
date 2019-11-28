@@ -825,9 +825,7 @@ impl Imap {
 
             if !is_deleted && msg.body().is_some() {
                 let body = msg.body().unwrap_or_default();
-                unsafe {
-                    dc_receive_imf(context, &body, folder.as_ref(), server_uid, flags as u32);
-                }
+                dc_receive_imf(context, &body, folder.as_ref(), server_uid, flags as u32);
             }
         }
 
