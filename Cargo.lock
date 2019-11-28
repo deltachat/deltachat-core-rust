@@ -90,7 +90,7 @@ dependencies = [
 [[package]]
 name = "async-imap"
 version = "0.1.1"
-source = "git+https://github.com/async-email/async-imap#1327f678cf5515842fc309636459372e6ab40db2"
+source = "git+https://github.com/async-email/async-imap#377d40837028b454c6365ff13e3f35cc341a908e"
 dependencies = [
  "async-attributes 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "async-std 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
