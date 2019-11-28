@@ -538,7 +538,7 @@ pub fn save(
 }
 
 #[allow(non_snake_case)]
-pub fn job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: &Job) {
+pub fn JobMaybeSendLocations(context: &Context, _job: &Job) {
     let now = time();
     let mut continue_streaming = false;
     info!(
@@ -628,7 +628,7 @@ pub fn job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: &Job) {
 }
 
 #[allow(non_snake_case)]
-pub fn job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context: &Context, job: &mut Job) {
+pub fn JobMaybeSendLocationsEnded(context: &Context, job: &mut Job) {
     // this function is called when location-streaming _might_ have ended for a chat.
     // the function checks, if location-streaming is really ended;
     // if so, a device-message is added if not yet done.

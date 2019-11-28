@@ -45,9 +45,8 @@ pub fn dc_is_configured(context: &Context) -> bool {
 /*******************************************************************************
  * Configure JOB
  ******************************************************************************/
-// the other dc_job_do_DC_JOB_*() functions are declared static in the c-file
 #[allow(non_snake_case, unused_must_use)]
-pub fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context) {
+pub fn JobConfigureImap(context: &Context) {
     if !context.sql.is_open() {
         error!(context, "Cannot configure, database not opened.",);
         progress!(context, 0);
@@ -606,7 +605,7 @@ pub fn read_autoconf_file(context: &Context, url: &str) -> Option<String> {
 mod tests {
 
     use crate::config::*;
-    use crate::configure::dc_job_do_DC_JOB_CONFIGURE_IMAP;
+    use crate::configure::JobConfigureImap;
     use crate::test_utils::*;
 
     #[test]
@@ -616,6 +615,6 @@ mod tests {
             .set_config(Config::Addr, Some("probably@unexistant.addr"))
             .unwrap();
         t.ctx.set_config(Config::MailPw, Some("123456")).unwrap();
-        dc_job_do_DC_JOB_CONFIGURE_IMAP(&t.ctx);
+        JobConfigureImap(&t.ctx);
     }
 }
