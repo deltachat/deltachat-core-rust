@@ -5,8 +5,6 @@ use std::ptr;
 
 use charset::Charset;
 use libc::free;
-use mmime::mailmime::decode::mailmime_encoded_phrase_parse;
-use mmime::other::*;
 use percent_encoding::{percent_decode, utf8_percent_encode, AsciiSet, CONTROLS};
 
 use crate::dc_tools::*;
@@ -67,31 +65,6 @@ fn quote_word(word: &[u8]) -> String {
 /* ******************************************************************************
  * Encode/decode header words, RFC 2047
  ******************************************************************************/
-
-pub(crate) fn dc_decode_header_words(input: &str) -> String {
-    static FROM_ENCODING: &[u8] = b"iso-8859-1\x00";
-    static TO_ENCODING: &[u8] = b"utf-8\x00";
-    let mut out = ptr::null_mut();
-    let mut cur_token = 0;
-    let input_c = CString::yolo(input);
-    unsafe {
-        let r = mailmime_encoded_phrase_parse(
-            FROM_ENCODING.as_ptr().cast(),
-            input_c.as_ptr(),
-            input.len(),
-            &mut cur_token,
-            TO_ENCODING.as_ptr().cast(),
-            &mut out,
-        );
-        if r as u32 != MAILIMF_NO_ERROR || out.is_null() {
-            input.to_string()
-        } else {
-            let res = to_string_lossy(out);
-            free(out.cast());
-            res
-        }
-    }
-}
 
 pub fn dc_needs_ext_header(to_check: impl AsRef<str>) -> bool {
     let to_check = to_check.as_ref();
@@ -157,33 +130,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_dc_decode_header_words() {
-        assert_eq!(
-            dc_decode_header_words("=?utf-8?B?dGVzdMOkw7bDvC50eHQ=?="),
-            std::string::String::from_utf8(b"test\xc3\xa4\xc3\xb6\xc3\xbc.txt".to_vec()).unwrap(),
-        );
-
-        assert_eq!(dc_decode_header_words("just ascii test"), "just ascii test");
-
-        assert_eq!(dc_encode_header_words("abcdef"), "abcdef");
-
-        let r = dc_encode_header_words(
-            std::string::String::from_utf8(b"test\xc3\xa4\xc3\xb6\xc3\xbc.txt".to_vec()).unwrap(),
-        );
-        assert!(r.starts_with("=?utf-8"));
-
-        assert_eq!(
-            dc_decode_header_words(&r),
-            std::string::String::from_utf8(b"test\xc3\xa4\xc3\xb6\xc3\xbc.txt".to_vec()).unwrap(),
-        );
-
-        assert_eq!(
-                dc_decode_header_words("=?ISO-8859-1?Q?attachment=3B=0D=0A_filename=3D?= =?ISO-8859-1?Q?=22test=E4=F6=FC=2Etxt=22=3B=0D=0A_size=3D39?="),
-                std::string::String::from_utf8(b"attachment;\r\n filename=\"test\xc3\xa4\xc3\xb6\xc3\xbc.txt\";\r\n size=39".to_vec()).unwrap(),
-            );
-    }
-
-    #[test]
     fn test_dc_encode_ext_header() {
         let buf1 = dc_encode_ext_header("Björn Petersen");
         assert_eq!(&buf1, "utf-8\'\'Bj%C3%B6rn%20Petersen");
@@ -238,14 +184,6 @@ mod tests {
         fn test_ext_header_decode_anything(buf: Vec<u8>) {
             // make sure this never panics
             let _decoded = dc_decode_ext_header(&buf);
-        }
-
-        #[test]
-        fn test_dc_header_roundtrip(input: String) {
-            let encoded = dc_encode_header_words(&input);
-            let decoded = dc_decode_header_words(&encoded);
-
-            assert_eq!(input, decoded);
         }
     }
 }

@@ -7,7 +7,6 @@ license = "MPL"
 
 [dependencies]
 deltachat_derive = { path = "./deltachat_derive" }
-mmime = { version = "0.1.2", path = "./mmime" }
 
 libc = "0.2.51"
 pgp = { git = "https://github.com/rpgp/rpgp", branch = "master", default-features = false }
@@ -19,6 +18,7 @@ reqwest = { version = "0.9.15", default-features = false, features = ["rustls-tl
 num-derive = "0.2.5"
 num-traits = "0.2.6"
 lettre = { git = "https://github.com/deltachat/lettre", branch = "feat/rustls" }
+lettre_email = { git = "https://github.com/deltachat/lettre", branch = "feat/rustls" }
 async-imap = { git = "https://github.com/async-email/async-imap", branch="master" }
 async-tls = "0.6"
 async-std = { version = "1.0", features = ["unstable"] }
@@ -54,7 +54,7 @@ stop-token = { version = "0.1.1", features = ["unstable"] }
 rustls = "0.16.0"
 webpki-roots = "0.18.0"
 webpki = "0.21.0"
-mailparse = "0.9.2"
+mailparse = "0.10.1"
 
 [dev-dependencies]
 tempfile = "3.0"
@@ -66,7 +66,6 @@ proptest = "0.9.4"
 members = [
   "deltachat-ffi",
   "deltachat_derive",
-  "mmime",
 ]
 
 [[example]]

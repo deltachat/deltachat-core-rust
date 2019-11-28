@@ -628,7 +628,7 @@ pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<(), Error> {
     }
 
     /* create message */
-    if let Err(msg) = unsafe { mimefactory.render() } {
+    if let Err(msg) = mimefactory.render() {
         let e = msg.to_string();
         message::set_msg_failed(context, msg_id, Some(e));
         return Err(msg);
@@ -887,7 +887,7 @@ fn suspend_smtp_thread(context: &Context, suspend: bool) {
 
 fn send_mdn(context: &Context, msg_id: MsgId) -> Result<(), Error> {
     let mut mimefactory = MimeFactory::load_mdn(context, msg_id)?;
-    unsafe { mimefactory.render()? };
+    mimefactory.render()?;
     add_smtp_job(context, Action::SendMdn, &mut mimefactory)?;
 
     Ok(())
@@ -900,12 +900,7 @@ fn add_smtp_job(context: &Context, action: Action, mimefactory: &MimeFactory) ->
         "no recipients for smtp job set"
     );
     let mut param = Params::new();
-    let bytes = unsafe {
-        std::slice::from_raw_parts(
-            (*mimefactory.out).str_0 as *const u8,
-            (*mimefactory.out).len,
-        )
-    };
+    let bytes = &mimefactory.out;
     let blob = BlobObject::create(context, &mimefactory.rfc724_mid, bytes)?;
     let recipients = mimefactory.recipients_addr.join("\x1e");
     param.set(Param::File, blob.as_name());

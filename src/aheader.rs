@@ -3,11 +3,8 @@
 //! Parse and create [Autocrypt-headers](https://autocrypt.org/en/latest/level1.html#the-autocrypt-header).
 
 use std::collections::BTreeMap;
-use std::ffi::CStr;
 use std::str::FromStr;
 use std::{fmt, str};
-
-use mmime::mailimf::types::*;
 
 use crate::constants::*;
 use crate::contact::*;
@@ -68,45 +65,21 @@ impl Aheader {
         }
     }
 
-    pub fn from_imffields(wanted_from: &str, header: *const mailimf_fields) -> Option<Self> {
-        if header.is_null() {
-            return None;
-        }
+    pub fn from_imffields(
+        wanted_from: &str,
+        headers: &[mailparse::MailHeader<'_>],
+    ) -> Option<Self> {
+        use mailparse::MailHeaderMap;
 
-        let mut fine_header = None;
-        let mut cur = unsafe { (*(*header).fld_list).first };
-
-        while !cur.is_null() {
-            let field = unsafe { (*cur).data as *mut mailimf_field };
-            if !field.is_null()
-                && unsafe { (*field).fld_type } == MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int
-            {
-                let optional_field = unsafe { (*field).fld_data.fld_optional_field };
-                if !optional_field.is_null()
-                    && unsafe { !(*optional_field).fld_name.is_null() }
-                    && unsafe { CStr::from_ptr((*optional_field).fld_name).to_string_lossy() }
-                        == "Autocrypt"
-                {
-                    let value =
-                        unsafe { CStr::from_ptr((*optional_field).fld_value).to_string_lossy() };
-
-                    if let Ok(test) = Self::from_str(&value) {
-                        if addr_cmp(&test.addr, wanted_from) {
-                            if fine_header.is_none() {
-                                fine_header = Some(test);
-                            } else {
-                                // TODO: figure out what kind of error case this is
-                                return None;
-                            }
-                        }
-                    }
+        if let Ok(Some(value)) = headers.get_first_value("Autocrypt") {
+            if let Ok(test) = Self::from_str(&value) {
+                if addr_cmp(&test.addr, wanted_from) {
+                    return Some(test);
                 }
             }
-
-            cur = unsafe { (*cur).next };
         }
 
-        fine_header
+        None
     }
 }
 

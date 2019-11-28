@@ -28,6 +28,8 @@ pub enum Error {
     InvalidMsgId,
     #[fail(display = "Watch folder not found {:?}", _0)]
     WatchFolderNotFound(String),
+    #[fail(display = "Inalid Email: {:?}", _0)]
+    MailParseError(mailparse::MailParseError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -95,6 +97,12 @@ impl From<crate::blob::BlobError> for Error {
 impl From<crate::message::InvalidMsgId> for Error {
     fn from(_err: crate::message::InvalidMsgId) -> Error {
         Error::InvalidMsgId
+    }
+}
+
+impl From<mailparse::MailParseError> for Error {
+    fn from(err: mailparse::MailParseError) -> Error {
+        Error::MailParseError(err)
     }
 }
 

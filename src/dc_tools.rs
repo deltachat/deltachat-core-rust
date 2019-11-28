@@ -11,8 +11,6 @@ use std::{fmt, fs, ptr};
 
 use chrono::{Local, TimeZone};
 use libc::{memcpy, strlen};
-use mmime::clist::*;
-use mmime::mailimf::types::*;
 use rand::{thread_rng, Rng};
 
 use crate::context::Context;
@@ -74,36 +72,12 @@ pub(crate) fn dc_truncate(buf: &str, approx_chars: usize, do_unwrap: bool) -> Co
     }
 }
 
-pub(crate) fn dc_str_from_clist(list: *const clist, delimiter: &str) -> String {
-    let mut res = String::new();
-
-    if !list.is_null() {
-        for rfc724_mid in unsafe { (*list).into_iter() } {
-            if !res.is_empty() {
-                res += delimiter;
-            }
-            res += &to_string_lossy(rfc724_mid as *const libc::c_char);
-        }
-    }
-    res
-}
-
-pub(crate) fn dc_str_to_clist(str: &str, delimiter: &str) -> *mut clist {
-    unsafe {
-        let list: *mut clist = clist_new();
-        for cur in str.split(&delimiter) {
-            clist_insert_after(list, (*list).last, cur.strdup().cast());
-        }
-        list
-    }
-}
-
-/* the colors must fulfill some criterions as:
-- contrast to black and to white
-- work as a text-color
-- being noticeable on a typical map
-- harmonize together while being different enough
-(therefore, we cannot just use random rgb colors :) */
+/// the colors must fulfill some criterions as:
+/// - contrast to black and to white
+/// - work as a text-color
+/// - being noticeable on a typical map
+/// - harmonize together while being different enough
+/// (therefore, we cannot just use random rgb colors :)
 const COLORS: [u32; 16] = [
     0xe56555, 0xf28c48, 0x8e85ee, 0x76c84d, 0x5bb6cc, 0x549cdd, 0xd25c99, 0xb37800, 0xf23030,
     0x39b249, 0xbb243b, 0x964078, 0x66874f, 0x308ab9, 0x127ed0, 0xbe450c,
@@ -124,30 +98,30 @@ pub(crate) fn dc_str_to_color(s: impl AsRef<str>) -> u32 {
 
 /* date/time tools */
 /* the result is UTC or DC_INVALID_TIMESTAMP */
-pub(crate) fn dc_timestamp_from_date(date_time: *mut mailimf_date_time) -> i64 {
-    assert!(!date_time.is_null());
-    let dt = unsafe { *date_time };
+// pub(crate) fn dc_timestamp_from_date(date_time: *mut mailimf_date_time) -> i64 {
+//     assert!(!date_time.is_null());
+//     let dt =  { *date_time };
 
-    let sec = dt.dt_sec;
-    let min = dt.dt_min;
-    let hour = dt.dt_hour;
-    let day = dt.dt_day;
-    let month = dt.dt_month;
-    let year = dt.dt_year;
+//     let sec = dt.dt_sec;
+//     let min = dt.dt_min;
+//     let hour = dt.dt_hour;
+//     let day = dt.dt_day;
+//     let month = dt.dt_month;
+//     let year = dt.dt_year;
 
-    let ts = chrono::NaiveDateTime::new(
-        chrono::NaiveDate::from_ymd(year, month as u32, day as u32),
-        chrono::NaiveTime::from_hms(hour as u32, min as u32, sec as u32),
-    );
+//     let ts = chrono::NaiveDateTime::new(
+//         chrono::NaiveDate::from_ymd(year, month as u32, day as u32),
+//         chrono::NaiveTime::from_hms(hour as u32, min as u32, sec as u32),
+//     );
 
-    let (zone_hour, zone_min) = if dt.dt_zone >= 0 {
-        (dt.dt_zone / 100, dt.dt_zone % 100)
-    } else {
-        (-(-dt.dt_zone / 100), -(-dt.dt_zone % 100))
-    };
+//     let (zone_hour, zone_min) = if dt.dt_zone >= 0 {
+//         (dt.dt_zone / 100, dt.dt_zone % 100)
+//     } else {
+//         (-(-dt.dt_zone / 100), -(-dt.dt_zone % 100))
+//     };
 
-    ts.timestamp() - (zone_hour * 3600 + zone_min * 60) as i64
-}
+//     ts.timestamp() - (zone_hour * 3600 + zone_min * 60) as i64
+// }
 
 /* ******************************************************************************
  * date/time tools
@@ -316,22 +290,6 @@ pub(crate) fn dc_extract_grpid_from_rfc724_mid(mid: &str) -> Option<&str> {
     }
 
     None
-}
-
-pub(crate) fn dc_extract_grpid_from_rfc724_mid_list(list: *const clist) -> *mut libc::c_char {
-    if !list.is_null() {
-        unsafe {
-            for cur in (*list).into_iter() {
-                let mid = to_string_lossy(cur as *const libc::c_char);
-
-                if let Some(grpid) = dc_extract_grpid_from_rfc724_mid(&mid) {
-                    return grpid.strdup();
-                }
-            }
-        }
-    }
-
-    ptr::null_mut()
 }
 
 pub(crate) fn dc_ensure_no_slash_safe(path: &str) -> &str {
@@ -1007,44 +965,6 @@ mod tests {
             dc_truncate("𑒀ὐ￠🜀\u{1e01b}A a🟠bcd", 6, false),
             "𑒀ὐ￠🜀\u{1e01b}A[...]",
         );
-    }
-
-    /* calls free() for each item content */
-    unsafe fn clist_free_content(haystack: *const clist) {
-        let mut iter = (*haystack).first;
-
-        while !iter.is_null() {
-            free((*iter).data);
-            (*iter).data = ptr::null_mut();
-            iter = if !iter.is_null() {
-                (*iter).next
-            } else {
-                ptr::null_mut()
-            }
-        }
-    }
-
-    #[test]
-    fn test_dc_str_to_clist_1() {
-        unsafe {
-            let list = dc_str_to_clist("", " ");
-            assert_eq!((*list).count, 1);
-            clist_free_content(list);
-            clist_free(list);
-        }
-    }
-
-    #[test]
-    fn test_dc_str_to_clist_4() {
-        unsafe {
-            let list: *mut clist = dc_str_to_clist("foo bar test", " ");
-            assert_eq!((*list).count, 3);
-            let str = dc_str_from_clist(list, " ");
-            assert_eq!(str, "foo bar test");
-
-            clist_free_content(list);
-            clist_free(list);
-        }
     }
 
     #[test]

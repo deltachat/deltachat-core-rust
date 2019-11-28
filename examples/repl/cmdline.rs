@@ -95,7 +95,7 @@ pub unsafe fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
 fn dc_poke_eml_file(context: &Context, filename: impl AsRef<Path>) -> Result<(), Error> {
     let data = dc_read_file(context, filename)?;
 
-    unsafe { dc_receive_imf(context, &data, "import", 0, 0) };
+    dc_receive_imf(context, &data, "import", 0, 0);
     Ok(())
 }
 

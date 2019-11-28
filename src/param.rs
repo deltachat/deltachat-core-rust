@@ -7,8 +7,8 @@ use num_traits::FromPrimitive;
 
 use crate::blob::{BlobError, BlobObject};
 use crate::context::Context;
-use crate::dc_mimeparser::SystemMessage;
 use crate::error;
+use crate::mimeparser::SystemMessage;
 
 /// Available param keys.
 #[derive(PartialEq, Eq, Debug, Clone, Copy, Hash, PartialOrd, Ord, FromPrimitive)]
