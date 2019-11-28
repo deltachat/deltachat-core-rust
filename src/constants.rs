@@ -8,21 +8,6 @@ lazy_static! {
     pub static ref DC_VERSION_STR: String = env!("CARGO_PKG_VERSION").to_string();
 }
 
-#[repr(u8)]
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql)]
-pub enum MoveState {
-    Undefined = 0,
-    Pending = 1,
-    Stay = 2,
-    Moving = 3,
-}
-
-impl Default for MoveState {
-    fn default() -> Self {
-        MoveState::Undefined
-    }
-}
-
 // some defaults
 const DC_E2EE_DEFAULT_ENABLED: i32 = 1;
 const DC_INBOX_WATCH_DEFAULT: i32 = 1;

@@ -729,6 +729,7 @@ fn open(
         }
         if dbversion < 48 {
             info!(context, "[migration] v48");
+            // NOTE: move_state is not used anymore
             sql.execute(
                 "ALTER TABLE msgs ADD COLUMN move_state INTEGER DEFAULT 1;",
                 params![],

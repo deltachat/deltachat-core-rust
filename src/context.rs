@@ -435,19 +435,14 @@ impl Context {
             return;
         }
 
-        if !self.is_inbox(folder) && !self.is_sentbox(folder) {
+        if self.is_mvbox(folder) {
             return;
         }
-
         if let Ok(msg) = Message::load_from_db(self, msg_id) {
             if msg.is_setupmessage() {
                 // do not move setup messages;
                 // there may be a non-delta device that wants to handle it
                 return;
-            }
-
-            if self.is_mvbox(folder) {
-                message::update_msg_move_state(self, &msg.rfc724_mid, MoveState::Stay);
             }
 
             // 1 = dc message, 2 = reply to dc message
@@ -459,7 +454,6 @@ impl Context {
                     Params::new(),
                     0,
                 );
-                message::update_msg_move_state(self, &msg.rfc724_mid, MoveState::Moving);
             }
         }
     }
