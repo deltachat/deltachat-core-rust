@@ -272,7 +272,7 @@ impl Contact {
             .get_config(Config::ConfiguredAddr)
             .unwrap_or_default();
 
-        if addr_normalized == addr_self {
+        if addr_cmp(addr_normalized, addr_self) {
             return DC_CONTACT_ID_SELF;
         }
 
@@ -309,7 +309,7 @@ impl Contact {
             .get_config(Config::ConfiguredAddr)
             .unwrap_or_default();
 
-        if addr == addr_self {
+        if addr_cmp(addr, addr_self) {
             return Ok((DC_CONTACT_ID_SELF, sth_modified));
         }
 

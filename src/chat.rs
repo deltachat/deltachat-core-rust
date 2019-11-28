@@ -1488,7 +1488,7 @@ pub(crate) fn add_contact_to_chat_ex(
     let self_addr = context
         .get_config(Config::ConfiguredAddr)
         .unwrap_or_default();
-    if contact.get_addr() == &self_addr {
+    if addr_cmp(contact.get_addr(), &self_addr) {
         // ourself is added using DC_CONTACT_ID_SELF, do not add this address explicitly.
         // if SELF is not in the group, members cannot be added at all.
         warn!(
