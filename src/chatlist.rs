@@ -132,7 +132,7 @@ impl Chatlist {
                    AND c.blocked=0
                    AND c.id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?)
                  GROUP BY c.id
-                 ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
+                 ORDER BY IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
                 params![query_contact_id as i32],
                 process_row,
                 process_rows,
@@ -153,7 +153,7 @@ impl Chatlist {
                    AND c.blocked=0
                    AND c.archived=1
                  GROUP BY c.id
-                 ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
+                 ORDER BY IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
                 params![],
                 process_row,
                 process_rows,
@@ -177,7 +177,7 @@ impl Chatlist {
                    AND c.blocked=0
                    AND c.name LIKE ?
                  GROUP BY c.id
-                 ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
+                 ORDER BY IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
                 params![str_like_cmd],
                 process_row,
                 process_rows,
@@ -198,7 +198,7 @@ impl Chatlist {
                    AND c.blocked=0
                    AND c.archived=0
                  GROUP BY c.id
-                 ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
+                 ORDER BY IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
                 params![],
                 process_row,
                 process_rows,
