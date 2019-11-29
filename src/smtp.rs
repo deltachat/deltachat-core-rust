@@ -1,6 +1,8 @@
 use lettre::smtp::client::net::*;
 use lettre::*;
 
+use failure::Fail;
+
 use crate::constants::*;
 use crate::context::Context;
 use crate::error::Error;
@@ -15,6 +17,16 @@ pub struct Smtp {
     transport_connected: bool,
     /// Email address we are sending from.
     from: Option<EmailAddress>,
+}
+
+#[derive(Debug, Fail)]
+pub enum SmtpError {
+    #[fail(display = "Envelope error: {}", _0)]
+    EnvelopeError(lettre::error::Error),
+    #[fail(display = "Send error: {}", _0)]
+    SendError(lettre::smtp::error::Error),
+    #[fail(display = "SMTP has no transport")]
+    NoTransport,
 }
 
 impl Smtp {
@@ -144,7 +156,7 @@ impl Smtp {
         recipients: Vec<EmailAddress>,
         message: Vec<u8>,
         job_id: u32,
-    ) -> Result<(), Error> {
+    ) -> Result<(), SmtpError> {
         let message_len = message.len();
 
         let recipients_display = recipients
@@ -155,10 +167,8 @@ impl Smtp {
 
         if let Some(ref mut transport) = self.transport {
             let envelope = match Envelope::new(self.from.clone(), recipients) {
-                Ok(env) => env,
-                Err(err) => {
-                    bail!("{}", err);
-                }
+                Ok(envelope) => envelope,
+                Err(e) => return Err(SmtpError::EnvelopeError(e)),
             };
             let mail = SendableEmail::new(
                 envelope,
@@ -175,15 +185,14 @@ impl Smtp {
                     self.transport_connected = true;
                     Ok(())
                 }
-                Err(err) => {
-                    bail!("SMTP failed len={}: error: {}", message_len, err);
-                }
+                Err(err) => return Err(SmtpError::SendError(err)),
             }
         } else {
-            bail!(
-                "uh? SMTP has no transport,  failed to send to {:?}",
-                recipients_display
+            warn!(
+                context,
+                "uh? SMTP has no transport, failed to send to {}", recipients_display
             );
+            return Err(SmtpError::NoTransport);
         }
     }
 }
