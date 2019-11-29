@@ -1,3 +1,5 @@
+//! # Messages and their identifiers
+
 use std::path::{Path, PathBuf};
 
 use deltachat_derive::{FromSql, ToSql};

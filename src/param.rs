@@ -50,8 +50,8 @@ pub enum Param {
     Error = b'L',
     /// For Messages: space-separated list of messaged IDs of forwarded copies.
     ///
-    /// This is used when a [Message] is in the
-    /// [MessageState::OutPending] state but is already forwarded.
+    /// This is used when a [crate::message::Message] is in the
+    /// [crate::message::MessageState::OutPending] state but is already forwarded.
     /// In this case the forwarded messages are written to the
     /// database and their message IDs are added to this parameter of
     /// the original message, which is also saved in the database.

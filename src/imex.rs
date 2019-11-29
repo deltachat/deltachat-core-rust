@@ -53,7 +53,7 @@ pub enum ImexMode {
 /// For this purpose, the function creates a job that is executed in the IMAP-thread then;
 /// this requires to call dc_perform_inbox_jobs() regularly.
 ///
-/// What to do is defined by the _what_ parameter.
+/// What to do is defined by the *what* parameter.
 ///
 /// While dc_imex() returns immediately, the started job may take a while,
 /// you can stop it using dc_stop_ongoing_process(). During execution of the job,

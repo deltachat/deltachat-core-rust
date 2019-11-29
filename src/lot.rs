@@ -5,7 +5,7 @@ use deltachat_derive::{FromSql, ToSql};
 /// Lot objects are created
 /// eg. by chatlist.get_summary() or dc_msg_get_summary().
 ///
-/// _Lot_ is used in the meaning _heap_ here.
+/// *Lot* is used in the meaning *heap* here.
 #[derive(Default, Debug, Clone)]
 pub struct Lot {
     pub(crate) text1_meaning: Meaning,
