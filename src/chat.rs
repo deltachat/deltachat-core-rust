@@ -64,13 +64,15 @@ impl Chat {
         );
 
         match res {
-            Err(err @ crate::error::Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => Err(err),
+            Err(err @ crate::sql::Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => {
+                Err(err.into())
+            }
             Err(err) => {
                 error!(
                     context,
                     "chat: failed to load from db {}: {:?}", chat_id, err
                 );
-                Err(err)
+                Err(err.into())
             }
             Ok(mut chat) => {
                 match chat.id {
@@ -129,7 +131,8 @@ impl Chat {
             &context.sql,
             "UPDATE chats SET param=? WHERE id=?",
             params![self.param.to_string(), self.id as i32],
-        )
+        )?;
+        Ok(())
     }
 
     pub fn get_id(&self) -> u32 {
@@ -681,7 +684,7 @@ pub fn lookup_by_contact_id(context: &Context, contact_id: u32) -> Result<(u32, 
         "SELECT c.id, c.blocked FROM chats c INNER JOIN chats_contacts j ON c.id=j.chat_id WHERE c.type=100 AND c.id>9 AND j.contact_id=?;",
         params![contact_id as i32],
         |row| Ok((row.get(0)?, row.get::<_, Option<_>>(1)?.unwrap_or_default())),
-    )
+    ).map_err(Into::into)
 }
 
 pub fn get_by_contact_id(context: &Context, contact_id: u32) -> Result<u32, Error> {
@@ -829,7 +832,8 @@ pub fn unarchive(context: &Context, chat_id: u32) -> Result<(), Error> {
         &context.sql,
         "UPDATE chats SET archived=0 WHERE id=?",
         params![chat_id as i32],
-    )
+    )?;
+    Ok(())
 }
 
 /// Send a message defined by a dc_msg_t object to a chat.
@@ -976,7 +980,8 @@ fn do_set_draft(context: &Context, chat_id: u32, msg: &mut Message) -> Result<()
             msg.param.to_string(),
             1,
         ],
-    )
+    )?;
+    Ok(())
 }
 
 // similar to as dc_set_draft() but does not emit an event
@@ -1688,7 +1693,7 @@ pub fn is_group_explicitly_left(context: &Context, grpid: impl AsRef<str>) -> Re
     context.sql.exists(
         "SELECT id FROM leftgrps WHERE grpid=?;",
         params![grpid.as_ref()],
-    )
+    ).map_err(Into::into)
 }
 
 pub fn set_chat_name(

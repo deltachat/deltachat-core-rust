@@ -141,7 +141,7 @@ pub enum VerifiedStatus {
 }
 
 impl Contact {
-    pub fn load_from_db(context: &Context, contact_id: u32) -> Result<Self> {
+    pub fn load_from_db(context: &Context, contact_id: u32) -> crate::sql::Result<Self> {
         if contact_id == DC_CONTACT_ID_SELF {
             let contact = Contact {
                 id: contact_id,
@@ -691,7 +691,7 @@ impl Contact {
                 }
                 Err(err) => {
                     error!(context, "delete_contact {} failed ({})", contact_id, err);
-                    return Err(err);
+                    return Err(err.into());
                 }
             }
         }
@@ -709,7 +709,7 @@ impl Contact {
     /// like "Me" in the selected language and the email address
     /// defined by dc_set_config().
     pub fn get_by_id(context: &Context, contact_id: u32) -> Result<Contact> {
-        Contact::load_from_db(context, contact_id)
+        Ok(Contact::load_from_db(context, contact_id)?)
     }
 
     /// Get the ID of the contact.

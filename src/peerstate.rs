@@ -8,7 +8,6 @@ use crate::aheader::*;
 use crate::chat::*;
 use crate::constants::*;
 use crate::context::Context;
-use crate::error::*;
 use crate::key::*;
 use crate::sql::{self, Sql};
 
@@ -377,7 +376,7 @@ impl<'a> Peerstate<'a> {
         success
     }
 
-    pub fn save_to_db(&self, sql: &Sql, create: bool) -> Result<()> {
+    pub fn save_to_db(&self, sql: &Sql, create: bool) -> crate::sql::Result<()> {
         if create {
             sql::execute(
                 self.context,
