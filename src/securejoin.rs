@@ -242,7 +242,8 @@ pub fn dc_join_securejoin(context: &Context, qr: &str) -> u32 {
 
     // Bob -> Alice
     while !context.shall_stop_ongoing() {
-        std::thread::sleep(std::time::Duration::new(0, 3_000_000));
+        // Don't sleep too long, the user is waiting.
+        std::thread::sleep(std::time::Duration::from_millis(200));
     }
     cleanup(&context, contact_chat_id, true, join_vg)
 }
