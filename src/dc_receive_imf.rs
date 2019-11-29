@@ -392,6 +392,8 @@ unsafe fn add_parts(
             MessageState::InFresh
         };
         *to_id = DC_CONTACT_ID_SELF;
+        let mut needs_stop_ongoing_process = false;
+
         // handshake messages must be processed _before_ chats are created
         // (eg. contacs may be marked as verified)
         if mime_parser.lookup_field("Secure-Join").is_some() {
@@ -399,11 +401,24 @@ unsafe fn add_parts(
             msgrmsg = 1;
             *chat_id = 0;
             allow_creation = 1;
-            let handshake = handle_securejoin_handshake(context, mime_parser, *from_id);
-            if 0 != handshake & DC_HANDSHAKE_STOP_NORMAL_PROCESSING {
-                *hidden = 1;
-                *needs_delete_job = 0 != handshake & DC_HANDSHAKE_ADD_DELETE_JOB;
-                state = MessageState::InSeen;
+            match handle_securejoin_handshake(context, mime_parser, *from_id) {
+                Ok(ret) => {
+                    if ret.hide_this_msg {
+                        *hidden = 1;
+                        *needs_delete_job = ret.delete_this_msg;
+                        state = MessageState::InSeen;
+                    }
+                    if let Some(status) = ret.bob_securejoin_success {
+                        context.bob.write().unwrap().status = status as i32;
+                    }
+                    needs_stop_ongoing_process = ret.stop_ongoing_process;
+                }
+                Err(err) => {
+                    warn!(
+                        context,
+                        "Unexpected messaged passed to Secure-Join handshake protocol: {}", err
+                    );
+                }
             }
         }
 
@@ -500,6 +515,13 @@ unsafe fn add_parts(
             && show_emails != ShowEmails::All
         {
             state = MessageState::InNoticed;
+        }
+
+        if needs_stop_ongoing_process {
+            // The Secure-Join protocol finished and the group
+            // creation handling is done.  Stopping the ongoing
+            // process will let dc_join_securejoin() return.
+            context.stop_ongoing();
         }
     } else {
         // Outgoing
