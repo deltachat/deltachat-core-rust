@@ -217,15 +217,18 @@ impl Key {
             .expect("failed to serialize key")
     }
 
-    pub fn write_asc_to_file(&self, file: impl AsRef<Path>, context: &Context) -> bool {
+    pub fn write_asc_to_file(
+        &self,
+        file: impl AsRef<Path>,
+        context: &Context,
+    ) -> std::io::Result<()> {
         let file_content = self.to_asc(None).into_bytes();
 
-        if dc_write_file(context, &file, &file_content) {
-            true
-        } else {
+        let res = dc_write_file(context, &file, &file_content);
+        if res.is_err() {
             error!(context, "Cannot write key to {}", file.as_ref().display());
-            false
         }
+        res
     }
 
     pub fn fingerprint(&self) -> String {

@@ -523,9 +523,13 @@ pub(crate) fn dc_create_folder(context: &Context, path: impl AsRef<std::path::Pa
 }
 
 /// Write a the given content to provied file path.
-pub(crate) fn dc_write_file(context: &Context, path: impl AsRef<Path>, buf: &[u8]) -> bool {
+pub(crate) fn dc_write_file(
+    context: &Context,
+    path: impl AsRef<Path>,
+    buf: &[u8],
+) -> Result<(), std::io::Error> {
     let path_abs = dc_get_abs_path(context, &path);
-    if let Err(err) = fs::write(&path_abs, buf) {
+    fs::write(&path_abs, buf).map_err(|err| {
         warn!(
             context,
             "Cannot write {} bytes to \"{}\": {}",
@@ -533,10 +537,8 @@ pub(crate) fn dc_write_file(context: &Context, path: impl AsRef<Path>, buf: &[u8
             path.as_ref().display(),
             err
         );
-        false
-    } else {
-        true
-    }
+        err
+    })
 }
 
 pub fn dc_read_file<P: AsRef<std::path::Path>>(
@@ -1323,7 +1325,7 @@ mod tests {
             dc_delete_file(context, "$BLOBDIR/foobar.dadada");
             dc_delete_file(context, "$BLOBDIR/foobar-folder");
         }
-        assert!(dc_write_file(context, "$BLOBDIR/foobar", b"content"));
+        assert!(dc_write_file(context, "$BLOBDIR/foobar", b"content").is_ok());
         assert!(dc_file_exist(context, "$BLOBDIR/foobar",));
         assert!(!dc_file_exist(context, "$BLOBDIR/foobarx"));
         assert_eq!(dc_get_filebytes(context, "$BLOBDIR/foobar"), 7);
@@ -1355,7 +1357,7 @@ mod tests {
         assert!(!dc_delete_file(context, "$BLOBDIR/foobar-folder"));
 
         let fn0 = "$BLOBDIR/data.data";
-        assert!(dc_write_file(context, &fn0, b"content"));
+        assert!(dc_write_file(context, &fn0, b"content").is_ok());
 
         assert!(dc_delete_file(context, &fn0));
         assert!(!dc_file_exist(context, &fn0));
