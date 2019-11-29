@@ -166,27 +166,22 @@ impl Smtp {
             .join(",");
 
         if let Some(ref mut transport) = self.transport {
-            let envelope = match Envelope::new(self.from.clone(), recipients) {
-                Ok(envelope) => envelope,
-                Err(e) => return Err(SmtpError::EnvelopeError(e)),
-            };
+            let envelope =
+                Envelope::new(self.from.clone(), recipients).map_err(SmtpError::EnvelopeError)?;
             let mail = SendableEmail::new(
                 envelope,
                 format!("{}", job_id), // only used for internal logging
                 message,
             );
 
-            match transport.send(mail) {
-                Ok(_) => {
-                    context.call_cb(Event::SmtpMessageSent(format!(
-                        "Message len={} was smtp-sent to {}",
-                        message_len, recipients_display
-                    )));
-                    self.transport_connected = true;
-                    Ok(())
-                }
-                Err(err) => return Err(SmtpError::SendError(err)),
-            }
+            transport.send(mail).map_err(SmtpError::SendError)?;
+
+            context.call_cb(Event::SmtpMessageSent(format!(
+                "Message len={} was smtp-sent to {}",
+                message_len, recipients_display
+            )));
+            self.transport_connected = true;
+            Ok(())
         } else {
             warn!(
                 context,
