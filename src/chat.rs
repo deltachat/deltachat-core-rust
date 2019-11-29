@@ -497,7 +497,7 @@ impl Chat {
 /// chat messages, use dc_get_chat_msgs().
 ///
 /// If the user is asked before creation, he should be
-/// asked whether he wants to chat with the _contact_ belonging to the message;
+/// asked whether he wants to chat with the *contact* belonging to the message;
 /// the group names may be really weird when taken from the subject of implicit
 /// groups and this may look confusing.
 ///

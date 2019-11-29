@@ -1,3 +1,8 @@
+//! # Job module
+//!
+//! This module implements a job queue maintained in the SQLite database
+//! and job types.
+
 use std::time::Duration;
 
 use deltachat_derive::{FromSql, ToSql};
@@ -117,6 +122,7 @@ pub struct Job {
 }
 
 impl Job {
+    /// Deletes the job from the database.
     fn delete(&self, context: &Context) -> bool {
         context
             .sql
@@ -124,6 +130,9 @@ impl Job {
             .is_ok()
     }
 
+    /// Updates the job already stored in the database.
+    ///
+    /// To add a new job, use [job_add].
     fn update(&self, context: &Context) -> bool {
         sql::execute(
             context,
@@ -893,6 +902,8 @@ fn add_smtp_job(
     Ok(())
 }
 
+/// Adds a job to the database, scheduling it `delay_seconds`
+/// after the current time.
 pub fn job_add(
     context: &Context,
     action: Action,

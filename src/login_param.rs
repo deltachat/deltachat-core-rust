@@ -1,3 +1,5 @@
+//! # Login parameters
+
 use std::borrow::Cow;
 use std::fmt;
 

@@ -23,15 +23,17 @@ use crate::stock::StockMessage;
 const DC_ORIGIN_MIN_CONTACT_LIST: i32 = 0x100;
 
 /// An object representing a single contact in memory.
+///
 /// The contact object is not updated.
 /// If you want an update, you have to recreate the object.
 ///
 /// The library makes sure
 /// only to use names _authorized_ by the contact in `To:` or `Cc:`.
-/// _Given-names _as "Daddy" or "Honey" are not used there.
+/// *Given-names* as "Daddy" or "Honey" are not used there.
 /// For this purpose, internally, two names are tracked -
-/// authorized-name and given-name.
+/// authorized name and given name.
 /// By default, these names are equal, but functions working with contact names
+/// only affect the given name.
 #[derive(Debug)]
 pub struct Contact {
     /// The contact ID.
@@ -203,7 +205,7 @@ impl Contact {
     /// Add a single contact as a result of an _explicit_ user action.
     ///
     /// We assume, the contact name, if any, is entered by the user and is used "as is" therefore,
-    /// normalize() is _not_ called for the name. If the contact is blocked, it is unblocked.
+    /// normalize() is *not* called for the name. If the contact is blocked, it is unblocked.
     ///
     /// To add a number of contacts, see `dc_add_address_book()` which is much faster for adding
     /// a bunch of addresses.
@@ -233,7 +235,7 @@ impl Contact {
     }
 
     /// Mark all messages sent by the given contact
-    /// as _noticed_.  See also dc_marknoticed_chat() and dc_markseen_msgs()
+    /// as *noticed*.  See also dc_marknoticed_chat() and dc_markseen_msgs()
     ///
     /// Calling this function usually results in the event `#DC_EVENT_MSGS_CHANGED`.
     pub fn mark_noticed(context: &Context, id: u32) {
@@ -423,7 +425,7 @@ impl Contact {
     /// the event `DC_EVENT_CONTACTS_CHANGED` is sent.
     ///
     /// To add a single contact entered by the user, you should prefer `Contact::create`,
-    /// however, for adding a bunch of addresses, this function is _much_ faster.
+    /// however, for adding a bunch of addresses, this function is much faster.
     ///
     /// The `addr_book` is a multiline string in the format `Name one\nAddress one\nName two\nAddress two`.
     ///

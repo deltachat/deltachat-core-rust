@@ -60,7 +60,7 @@ impl Chatlist {
     ///   or "Not now".
     ///   The UI can also offer a "Close" button that calls dc_marknoticed_contact() then.
     /// - DC_CHAT_ID_ARCHIVED_LINK (6) - this special chat is present if the user has
-    ///   archived _any_ chat using dc_archive_chat(). The UI should show a link as
+    ///   archived *any* chat using dc_archive_chat(). The UI should show a link as
     ///   "Show archived chats", if the user clicks this item, the UI should show a
     ///   list of all archived chats that can be created by this function hen using
     ///   the DC_GCL_ARCHIVED_ONLY flag.
@@ -71,7 +71,7 @@ impl Chatlist {
     /// The `listflags` is a combination of flags:
     /// - if the flag DC_GCL_ARCHIVED_ONLY is set, only archived chats are returned.
     ///   if DC_GCL_ARCHIVED_ONLY is not set, only unarchived chats are returned and
-    ///   the pseudo-chat DC_CHAT_ID_ARCHIVED_LINK is added if there are _any_ archived
+    ///   the pseudo-chat DC_CHAT_ID_ARCHIVED_LINK is added if there are *any* archived
     ///   chats
     /// - if the flag DC_GCL_NO_SPECIALS is set, deaddrop and archive link are not added
     ///   to the list (may be used eg. for selecting chats on forwarding, the flag is
