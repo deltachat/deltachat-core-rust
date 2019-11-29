@@ -22,9 +22,9 @@ pub struct Smtp {
 #[derive(Debug, Fail)]
 pub enum SmtpError {
     #[fail(display = "Envelope error: {}", _0)]
-    EnvelopeError(lettre::error::Error),
+    EnvelopeError(#[cause] lettre::error::Error),
     #[fail(display = "Send error: {}", _0)]
-    SendError(lettre::smtp::error::Error),
+    SendError(#[cause] lettre::smtp::error::Error),
     #[fail(display = "SMTP has no transport")]
     NoTransport,
 }
