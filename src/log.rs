@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 /// A logger for a [Context].
 #[derive(Debug)]
 pub struct Logger {
+    created: std::time::Instant,
     logdir: PathBuf,
     logfile: String,
     file_handle: fs::File,
@@ -52,6 +53,7 @@ impl Logger {
         let max_files = 5;
         Self::prune(&logdir, max_files)?;
         Ok(Logger {
+            created: std::time::Instant::now(),
             logdir,
             logfile: fname,
             file_handle: file,
@@ -126,12 +128,13 @@ impl Logger {
         }
         let thread = std::thread::current();
         let msg = format!(
-            "{} {:?}/{} [{}]: {}\n",
-            level,
-            thread.id(),
-            thread.name().unwrap_or("unnamed"),
-            callsite,
-            msg
+            "{time:8.2} {level} {thid:?}/{thname} [{callsite}]: {msg}\n",
+            time = self.created.elapsed().as_secs_f64(),
+            level = level,
+            thid = thread.id(),
+            thname = thread.name().unwrap_or("unnamed"),
+            callsite = callsite,
+            msg = msg,
         );
         self.file_handle.write_all(msg.as_bytes())?;
         self.bytes_written += msg.len();
@@ -219,21 +222,21 @@ mod tests {
         println!("{}", log);
         let lines: Vec<&str> = log.lines().collect();
 
-        assert!(lines[0].starts_with("I"));
+        assert!(lines[0].contains(" I "));
         assert!(lines[0].contains(format!("{:?}", std::thread::current().id()).as_str()));
         assert!(lines[0]
             .contains(format!("{}", std::thread::current().name().unwrap_or("unnamed")).as_str()));
         assert!(lines[0].contains(&format!("src{}log.rs", std::path::MAIN_SEPARATOR)));
         assert!(lines[0].contains("foo"));
 
-        assert!(lines[1].starts_with("W"));
+        assert!(lines[1].contains(" W "));
         assert!(lines[1].contains(format!("{:?}", std::thread::current().id()).as_str()));
         assert!(lines[1]
             .contains(format!("{}", std::thread::current().name().unwrap_or("unnamed")).as_str()));
         assert!(lines[1].contains(&format!("src{}log.rs", std::path::MAIN_SEPARATOR)));
         assert!(lines[1].contains("bar"));
 
-        assert!(lines[2].starts_with("E"));
+        assert!(lines[2].contains(" E "));
         assert!(lines[2].contains(format!("{:?}", std::thread::current().id()).as_str()));
         assert!(lines[2]
             .contains(format!("{}", std::thread::current().name().unwrap_or("unnamed")).as_str()));
