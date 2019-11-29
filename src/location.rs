@@ -534,7 +534,7 @@ pub fn save(
             }
             Ok(newest_location_id)
         },
-    )
+    ).map_err(Into::into)
 }
 
 #[allow(non_snake_case)]

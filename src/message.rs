@@ -266,7 +266,7 @@ impl Message {
 
                 Ok(msg)
             },
-        )
+        ).map_err(Into::into)
     }
 
     pub fn delete_from_db(context: &Context, msg_id: MsgId) {
@@ -1256,7 +1256,7 @@ pub(crate) fn rfc724_mid_exists(
 
             Ok((server_folder, server_uid, msg_id))
         },
-    )
+    ).map_err(Into::into)
 }
 
 pub fn update_server_uid(

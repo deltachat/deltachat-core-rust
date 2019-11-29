@@ -462,7 +462,9 @@ fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) -> Resul
         |files| {
             for (processed_files_cnt, file) in files.enumerate() {
                 let (file_name, file_blob) = file?;
-                ensure!(!context.shall_stop_ongoing(), "received stop signal");
+                if context.shall_stop_ongoing() {
+                    return Ok(false);
+                }
                 let mut permille = processed_files_cnt * 1000 / total_files_cnt;
                 if permille < 10 {
                     permille = 10
@@ -476,26 +478,25 @@ fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) -> Resul
                 }
 
                 let path_filename = context.get_blobdir().join(file_name);
-                if dc_write_file(context, &path_filename, &file_blob).is_err() {
-                    bail!(
-                        "Storage full? Cannot write file {} with {} bytes.",
-                        path_filename.display(),
-                        file_blob.len(),
-                    );
-                } else {
-                    continue;
-                }
+                dc_write_file(context, &path_filename, &file_blob)?;
             }
-            Ok(())
+            Ok(true)
         },
     );
 
-    res.and_then(|_| {
-        // only delete backup_blobs if all files were successfully extracted
-        sql::execute(context, &context.sql, "DROP TABLE backup_blobs;", params![])?;
-        sql::try_execute(context, &context.sql, "VACUUM;").ok();
-        Ok(())
-    })
+    match res {
+        Ok(all_files_extracted) => {
+            if all_files_extracted {
+                // only delete backup_blobs if all files were successfully extracted
+                sql::execute(context, &context.sql, "DROP TABLE backup_blobs;", params![])?;
+                sql::try_execute(context, &context.sql, "VACUUM;").ok();
+                Ok(())
+            } else {
+                bail!("received stop signal");
+            }
+        }
+        Err(err) => Err(err.into()),
+    }
 }
 
 /*******************************************************************************
@@ -553,7 +554,7 @@ fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     };
     dest_sql.close(context);
 
-    res
+    Ok(res?)
 }
 
 fn add_files_to_export(context: &Context, sql: &Sql) -> Result<()> {
@@ -576,16 +577,15 @@ fn add_files_to_export(context: &Context, sql: &Sql) -> Result<()> {
     info!(context, "EXPORT: total_files_cnt={}", total_files_cnt);
     // scan directory, pass 2: copy files
     let dir_handle = std::fs::read_dir(&dir)?;
-    sql.prepare(
+    let exported_all_files = sql.prepare(
         "INSERT INTO backup_blobs (file_name, file_content) VALUES (?, ?);",
         |mut stmt, _| {
             let mut processed_files_cnt = 0;
             for entry in dir_handle {
                 let entry = entry?;
-                ensure!(
-                    !context.shall_stop_ongoing(),
-                    "canceled during export-files"
-                );
+                if context.shall_stop_ongoing() {
+                    return Ok(false);
+                }
                 processed_files_cnt += 1;
                 let permille = max(min(processed_files_cnt * 1000 / total_files_cnt, 990), 10);
                 context.call_cb(Event::ImexProgress(permille));
@@ -605,9 +605,10 @@ fn add_files_to_export(context: &Context, sql: &Sql) -> Result<()> {
                     stmt.execute(params![name, buf])?;
                 }
             }
-            Ok(())
+            Ok(true)
         },
     )?;
+    ensure!(exported_all_files, "canceled during export-files");
     Ok(())
 }
 

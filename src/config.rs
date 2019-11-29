@@ -7,7 +7,6 @@ use crate::blob::BlobObject;
 use crate::constants::DC_VERSION_STR;
 use crate::context::Context;
 use crate::dc_tools::*;
-use crate::error::Error;
 use crate::job::*;
 use crate::stock::StockMessage;
 
@@ -113,7 +112,7 @@ impl Context {
 
     /// Set the given config key.
     /// If `None` is passed as a value the value is cleared and set to the default if there is one.
-    pub fn set_config(&self, key: Config, value: Option<&str>) -> Result<(), Error> {
+    pub fn set_config(&self, key: Config, value: Option<&str>) -> crate::sql::Result<()> {
         match key {
             Config::Selfavatar if value.is_some() => {
                 let blob = BlobObject::create_from_path(&self, value.unwrap())?;
