@@ -70,7 +70,14 @@ impl Logger {
     fn open(logdir: &Path) -> Result<(String, fs::File), io::Error> {
         let basename =
             chrono::offset::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-        let mut fname = sanitize_filename::sanitize(format!("{}.log", &basename));
+        let mut fname = sanitize_filename::sanitize_with_options(
+            format!("{}.log", &basename),
+            sanitize_filename::Options {
+                truncate: true,
+                windows: true,
+                replacement: ".",
+            },
+        );
         let mut counter = 0;
         loop {
             match std::fs::OpenOptions::new()
