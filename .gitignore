@@ -23,3 +23,5 @@ python/liveconfig*
 # ignore doxgen generated files
 deltachat-ffi/html
 deltachat-ffi/xml
+
+.rsynclist
