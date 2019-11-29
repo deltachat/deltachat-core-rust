@@ -36,14 +36,13 @@ impl fmt::Display for LogLevel {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Callsite<'a> {
-    pub module: &'a str,
     pub file: &'a str,
     pub line: u32,
 }
 
 impl fmt::Display for Callsite<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{} in {}", self.file, self.line, self.module)
+        write!(f, "{}:{}", self.file, self.line)
     }
 }
 
@@ -148,7 +147,6 @@ impl Logger {
 macro_rules! callsite {
     () => {
         $crate::log::Callsite {
-            module: module_path!(),
             file: file!(),
             line: line!(),
         }
@@ -226,7 +224,6 @@ mod tests {
         assert!(lines[0]
             .contains(format!("{}", std::thread::current().name().unwrap_or("unnamed")).as_str()));
         assert!(lines[0].contains(&format!("src{}log.rs", std::path::MAIN_SEPARATOR)));
-        assert!(lines[0].contains("deltachat::log::tests"));
         assert!(lines[0].contains("foo"));
 
         assert!(lines[1].starts_with("W"));
@@ -234,7 +231,6 @@ mod tests {
         assert!(lines[1]
             .contains(format!("{}", std::thread::current().name().unwrap_or("unnamed")).as_str()));
         assert!(lines[1].contains(&format!("src{}log.rs", std::path::MAIN_SEPARATOR)));
-        assert!(lines[1].contains("deltachat::log::tests"));
         assert!(lines[1].contains("bar"));
 
         assert!(lines[2].starts_with("E"));
@@ -242,7 +238,6 @@ mod tests {
         assert!(lines[2]
             .contains(format!("{}", std::thread::current().name().unwrap_or("unnamed")).as_str()));
         assert!(lines[2].contains(&format!("src{}log.rs", std::path::MAIN_SEPARATOR)));
-        assert!(lines[2].contains("deltachat::log::tests"));
         assert!(lines[2].contains("baz"));
     }
 
