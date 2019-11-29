@@ -476,14 +476,15 @@ fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) -> Resul
                 }
 
                 let path_filename = context.get_blobdir().join(file_name);
-                if dc_write_file(context, &path_filename, &file_blob) {
+                if dc_write_file(context, &path_filename, &file_blob).is_err() {
+                    bail!(
+                        "Storage full? Cannot write file {} with {} bytes.",
+                        path_filename.display(),
+                        file_blob.len(),
+                    );
+                } else {
                     continue;
                 }
-                bail!(
-                    "Storage full? Cannot write file {} with {} bytes.",
-                    path_filename.display(),
-                    file_blob.len(),
-                );
             }
             Ok(())
         },
@@ -686,14 +687,14 @@ fn export_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
                 let (id, public_key, private_key, is_default) = key_pair?;
                 let id = Some(id).filter(|_| is_default != 0);
                 if let Some(key) = public_key {
-                    if !export_key_to_asc_file(context, &dir, id, &key) {
+                    if export_key_to_asc_file(context, &dir, id, &key).is_err() {
                         export_errors += 1;
                     }
                 } else {
                     export_errors += 1;
                 }
                 if let Some(key) = private_key {
-                    if !export_key_to_asc_file(context, &dir, id, &key) {
+                    if export_key_to_asc_file(context, &dir, id, &key).is_err() {
                         export_errors += 1;
                     }
                 } else {
@@ -717,8 +718,7 @@ fn export_key_to_asc_file(
     dir: impl AsRef<Path>,
     id: Option<i64>,
     key: &Key,
-) -> bool {
-    let mut success = false;
+) -> std::io::Result<()> {
     let file_name = {
         let kind = if key.is_public() { "public" } else { "private" };
         let id = id.map_or("default".into(), |i| i.to_string());
@@ -728,14 +728,13 @@ fn export_key_to_asc_file(
     info!(context, "Exporting key {}", file_name.display());
     dc_delete_file(context, &file_name);
 
-    if !key.write_asc_to_file(&file_name, context) {
+    let res = key.write_asc_to_file(&file_name, context);
+    if res.is_err() {
         error!(context, "Cannot write key to {}", file_name.display());
     } else {
         context.call_cb(Event::ImexFileWritten(file_name));
-        success = true;
     }
-
-    success
+    res
 }
 
 #[cfg(test)]
@@ -799,7 +798,7 @@ mod tests {
         let base64 = include_str!("../test-data/key/public.asc");
         let key = Key::from_base64(base64, KeyType::Public).unwrap();
         let blobdir = "$BLOBDIR";
-        assert!(export_key_to_asc_file(&context.ctx, blobdir, None, &key));
+        assert!(export_key_to_asc_file(&context.ctx, blobdir, None, &key).is_ok());
         let blobdir = context.ctx.get_blobdir().to_str().unwrap();
         let filename = format!("{}/public-key-default.asc", blobdir);
         let bytes = std::fs::read(&filename).unwrap();
