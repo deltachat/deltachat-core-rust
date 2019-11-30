@@ -1,6 +1,6 @@
-use std::ptr;
-
 use chrono::TimeZone;
+use lettre::Envelope;
+use lettre_email::{Address, Header, MimeMessage, MimeMultipartType, PartBuilder};
 
 use crate::chat::{self, Chat};
 use crate::config::Config;
@@ -16,8 +16,8 @@ use crate::message::MsgId;
 use crate::message::{self, Message};
 use crate::mimeparser::SystemMessage;
 use crate::param::*;
+use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::stock::StockMessage;
-use crate::wrapmime;
 
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub enum Loaded {
@@ -43,6 +43,7 @@ pub struct MimeFactory<'a> {
     pub references: String,
     pub req_mdn: bool,
     pub out: Vec<u8>,
+    pub envelope: Option<Envelope>,
     pub out_encrypted: bool,
     pub out_gossiped: bool,
     pub out_last_added_location_id: u32,
@@ -50,7 +51,7 @@ pub struct MimeFactory<'a> {
 }
 
 impl<'a> MimeFactory<'a> {
-    fn new(context: &'a Context, msg: Message) -> Self {
+    fn from_message(context: &'a Context, msg: Message) -> Self {
         MimeFactory {
             from_addr: context
                 .get_config(Config::ConfiguredAddr)
@@ -71,6 +72,7 @@ impl<'a> MimeFactory<'a> {
             references: String::default(),
             req_mdn: false,
             out: Vec::new(),
+            envelope: None,
             out_encrypted: false,
             out_gossiped: false,
             out_last_added_location_id: 0,
@@ -78,36 +80,22 @@ impl<'a> MimeFactory<'a> {
         }
     }
 
-    pub fn finalize_mime_message(
-        &mut self,
-        message: &mut lettre_email::Email,
-        encrypted: bool,
-        gossiped: bool,
-    ) -> Result<(), Error> {
-        {
-            // assert!(self.out.is_null()); // guard against double-calls
-            // self.out = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
-            // let mut col: libc::c_int = 0;
-            // ensure_eq!(
-            //     mailmime_write_mem(self.out, &mut col, message),
-            //     0,
-            //     "mem-error"
-            // );
-        }
+    pub fn finalize_mime_message(&mut self, encrypted: bool, gossiped: bool) -> Result<(), Error> {
         self.out_encrypted = encrypted;
         self.out_gossiped = encrypted && gossiped;
         Ok(())
     }
 
-    pub fn load_mdn(context: &'a Context, msg_id: MsgId) -> Result<MimeFactory, Error> {
-        if !context.get_config_bool(Config::MdnsEnabled) {
-            // MDNs not enabled - check this is late, in the job. the
-            // user may have changed its choice while offline ...
-            bail!("MDNs meanwhile disabled")
-        }
+    pub fn load_mdn(context: &'a Context, msg_id: MsgId) -> Result<Self, Error> {
+        // MDNs not enabled - check this is late, in the job. the
+        // user may have changed its choice while offline ...
+        ensure!(
+            context.get_config_bool(Config::MdnsEnabled),
+            "MDNs meanwhile disabled"
+        );
 
         let msg = Message::load_from_db(context, msg_id)?;
-        let mut factory = MimeFactory::new(context, msg);
+        let mut factory = MimeFactory::from_message(context, msg);
         let contact = Contact::load_from_db(factory.context, factory.msg.from_id)?;
 
         // Do not send MDNs trash etc.; chats.blocked is already checked by the caller
@@ -132,527 +120,616 @@ impl<'a> MimeFactory<'a> {
     /*******************************************************************************
      * Render a basic email
      ******************************************************************************/
-    // XXX restrict unsafe to parts, introduce wrapmime helpers where appropriate
-    pub fn render(&mut self) -> Result<(), Error> {
-        if self.loaded == Loaded::Nothing || !self.out.is_empty() {
-            bail!("Invalid use of mimefactory-object.");
+
+    fn peerstates_for_recipients(&self) -> Result<Vec<(Option<Peerstate>, &str)>, Error> {
+        let self_addr = self
+            .context
+            .get_config(Config::ConfiguredAddr)
+            .ok_or_else(|| format_err!("Not configured"))?;
+
+        Ok(self
+            .recipients_addr
+            .iter()
+            .filter(|addr| *addr != &self_addr)
+            .map(|addr| {
+                (
+                    Peerstate::from_addr(self.context, &self.context.sql, addr),
+                    addr.as_str(),
+                )
+            })
+            .collect())
+    }
+
+    fn is_e2ee_guranteed(&self) -> Result<bool, Error> {
+        match self.loaded {
+            Loaded::Message => {
+                if self.chat.as_ref().unwrap().typ == Chattype::VerifiedGroup {
+                    return Ok(true);
+                }
+
+                let force_plaintext = self
+                    .msg
+                    .param
+                    .get_int(Param::ForcePlaintext)
+                    .unwrap_or_default();
+
+                if force_plaintext == 0 {
+                    return Ok(self
+                        .msg
+                        .param
+                        .get_int(Param::GuaranteeE2ee)
+                        .unwrap_or_default()
+                        != 0);
+                }
+
+                Ok(false)
+            }
+            Loaded::MDN => Ok(false),
+            Loaded::Nothing => bail!("No message loaded"),
         }
+    }
+
+    fn min_verified(&self) -> Result<PeerstateVerifiedStatus, Error> {
+        match self.loaded {
+            Loaded::Message => {
+                let chat = self.chat.as_ref().unwrap();
+                if chat.typ == Chattype::VerifiedGroup {
+                    Ok(PeerstateVerifiedStatus::BidirectVerified)
+                } else {
+                    Ok(PeerstateVerifiedStatus::Unverified)
+                }
+            }
+            Loaded::MDN => Ok(PeerstateVerifiedStatus::Unverified),
+            Loaded::Nothing => bail!("No message loaded"),
+        }
+    }
+
+    fn should_force_plaintext(&self) -> Result<i32, Error> {
+        match self.loaded {
+            Loaded::Message => {
+                let chat = self.chat.as_ref().unwrap();
+                if chat.typ == Chattype::VerifiedGroup {
+                    Ok(0)
+                } else {
+                    Ok(self
+                        .msg
+                        .param
+                        .get_int(Param::ForcePlaintext)
+                        .unwrap_or_default())
+                }
+            }
+            Loaded::MDN => Ok(DC_FP_NO_AUTOCRYPT_HEADER),
+            Loaded::Nothing => bail!("No message loaded"),
+        }
+    }
+
+    fn should_do_gossip(&self) -> Result<bool, Error> {
+        match self.loaded {
+            Loaded::Message => {
+                let chat = self.chat.as_ref().unwrap();
+                // beside key- and member-changes, force re-gossip every 48 hours
+                if chat.gossiped_timestamp == 0
+                    || (chat.gossiped_timestamp + (2 * 24 * 60 * 60)) < time()
+                {
+                    return Ok(true);
+                }
+
+                let cmd = self.msg.param.get_cmd();
+                match cmd {
+                    SystemMessage::MemberAddedToGroup => {
+                        return Ok(true);
+                    }
+                    _ => {}
+                }
+
+                Ok(false)
+            }
+            Loaded::MDN => Ok(false),
+            Loaded::Nothing => bail!("No message loaded"),
+        }
+    }
+
+    fn grpimage(&self) -> Result<Option<String>, Error> {
+        match self.loaded {
+            Loaded::Message => {
+                let chat = self.chat.as_ref().unwrap();
+                let cmd = self.msg.param.get_cmd();
+
+                match cmd {
+                    SystemMessage::MemberAddedToGroup => {
+                        return Ok(chat.param.get(Param::ProfileImage).map(Into::into));
+                    }
+                    SystemMessage::GroupImageChanged => {
+                        return Ok(self.msg.param.get(Param::Arg).map(Into::into))
+                    }
+                    _ => {}
+                }
+
+                Ok(None)
+            }
+            Loaded::MDN => Ok(None),
+            Loaded::Nothing => bail!("No message loaded"),
+        }
+    }
+
+    fn subject_str(&self) -> Result<String, Error> {
+        match self.loaded {
+            Loaded::Message => {
+                match self.chat {
+                    Some(ref chat) => {
+                        let raw_subject = message::get_summarytext_by_raw(
+                            self.msg.type_0,
+                            self.msg.text.as_ref(),
+                            &self.msg.param,
+                            32,
+                            self.context,
+                        );
+
+                        let afwd_email = self.msg.param.exists(Param::Forwarded);
+                        let fwd = if afwd_email { "Fwd: " } else { "" };
+
+                        if self.msg.param.get_cmd() == SystemMessage::AutocryptSetupMessage {
+                            // do not add the "Chat:" prefix for setup messages
+                            Ok(self
+                                .context
+                                .stock_str(StockMessage::AcSetupMsgSubject)
+                                .into_owned())
+                        } else if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup
+                        {
+                            Ok(format!("Chat: {}: {}{}", chat.name, fwd, raw_subject,))
+                        } else {
+                            Ok(format!("Chat: {}{}", fwd, raw_subject))
+                        }
+                    }
+                    None => Ok(String::default()),
+                }
+            }
+            Loaded::MDN => {
+                let e = self.context.stock_str(StockMessage::ReadRcpt);
+                Ok(format!("Chat: {}", e).to_string())
+            }
+            Loaded::Nothing => bail!("No message loaded"),
+        }
+    }
+
+    pub fn render(&mut self) -> Result<(), Error> {
+        // TODO: take self
+
+        ensure!(
+            self.loaded != Loaded::Nothing && self.out.is_empty(),
+            "Invalid use of mimefactory-object."
+        );
+
         let context = &self.context;
-        unimplemented!();
-        // let from = wrapmime::new_mailbox_list(&self.from_displayname, &self.from_addr);
+        let peerstates = self.peerstates_for_recipients()?;
+        let e2ee_guranteed = self.is_e2ee_guranteed()?;
 
-        // let to = mailimf_address_list_new_empty();
-        // let name_iter = self.recipients_names.iter();
-        // let addr_iter = self.recipients_addr.iter();
-        // for (name, addr) in name_iter.zip(addr_iter) {
-        //     mailimf_address_list_add(
-        //         to,
-        //         mailimf_address_new(
-        //             MAILIMF_ADDRESS_MAILBOX as libc::c_int,
-        //             mailimf_mailbox_new(
-        //                 if !name.is_empty() {
-        //                     dc_encode_header_words(&name).strdup()
-        //                 } else {
-        //                     ptr::null_mut()
-        //                 },
-        //                 addr.strdup(),
-        //             ),
-        //             ptr::null_mut(),
-        //         ),
-        //     );
-        // }
-        // let references_list = if !self.references.is_empty() {
-        //     dc_str_to_clist(&self.references, " ")
-        // } else {
-        //     ptr::null_mut()
-        // };
-        // let in_reply_to_list = if !self.in_reply_to.is_empty() {
-        //     dc_str_to_clist(&self.in_reply_to, " ")
-        // } else {
-        //     ptr::null_mut()
-        // };
+        let mut encrypt_helper = EncryptHelper::new(&context)?;
+        let should_encrypt =
+            encrypt_helper.should_encrypt(self.context, e2ee_guranteed, &peerstates)?;
 
-        // let imf_fields = mailimf_fields_new_with_data_all(
-        //     mailimf_get_date(self.timestamp as i64),
-        //     from,
-        //     ptr::null_mut(),
-        //     ptr::null_mut(),
-        //     to,
-        //     ptr::null_mut(),
-        //     ptr::null_mut(),
-        //     self.rfc724_mid.strdup(),
-        //     in_reply_to_list,
-        //     references_list,
-        //     ptr::null_mut(),
-        // );
+        // Headers that are encrypted
+        // - Chat-*, except Chat-Version
+        // - Secure-Join*
+        // - Subject
+        let mut protected_headers: Vec<Header> = Vec::new();
 
-        // let os_name = &self.context.os_name;
-        // let os_part = os_name
-        //     .as_ref()
-        //     .map(|s| format!("/{}", s))
-        //     .unwrap_or_default();
-        // let version = get_version_str();
-        // let headerval = format!("Delta Chat Core {}{}", version, os_part);
+        // All other headers
+        let mut unprotected_headers: Vec<Header> = Vec::new();
 
-        // /* Add a X-Mailer header.
+        let from = Address::new_mailbox_with_name(
+            dc_encode_header_words(&self.from_displayname),
+            self.from_addr.clone(),
+        );
+
+        let mut to = Vec::with_capacity(self.recipients_names.len());
+        let name_iter = self.recipients_names.iter();
+        let addr_iter = self.recipients_addr.iter();
+        for (name, addr) in name_iter.zip(addr_iter) {
+            if name.is_empty() {
+                to.push(Address::new_mailbox(addr.clone()));
+            } else {
+                to.push(Address::new_mailbox_with_name(
+                    dc_encode_header_words(name),
+                    addr.clone(),
+                ));
+            }
+        }
+
+        if !self.references.is_empty() {
+            unprotected_headers.push(Header::new("References".into(), self.references.clone()));
+        }
+
+        if !self.in_reply_to.is_empty() {
+            unprotected_headers.push(Header::new("In-Reply-To".into(), self.in_reply_to.clone()));
+        }
+
+        let date = chrono::Utc
+            .from_local_datetime(&chrono::NaiveDateTime::from_timestamp(self.timestamp, 0))
+            .unwrap()
+            .to_rfc2822();
+
+        let os_name = &self.context.os_name;
+        let os_part = os_name
+            .as_ref()
+            .map(|s| format!("/{}", s))
+            .unwrap_or_default();
+        let version = get_version_str();
+
+        // Add a X-Mailer header.
         // This is only informational for debugging and may be removed in the release.
-        // We do not rely on this header as it may be removed by MTAs. */
-        // wrapmime::new_custom_field(imf_fields, "X-Mailer", &headerval);
-        // wrapmime::new_custom_field(imf_fields, "Chat-Version", "1.0");
-        // if self.req_mdn {
-        //     /* we use "Chat-Disposition-Notification-To"
-        //     because replies to "Disposition-Notification-To" are weird in many cases
-        //     eg. are just freetext and/or do not follow any standard. */
-        //     wrapmime::new_custom_field(
-        //         imf_fields,
-        //         "Chat-Disposition-Notification-To",
-        //         &self.from_addr,
-        //     );
-        // }
+        // We do not rely on this header as it may be removed by MTAs.
 
-        // let cleanup = |message: *mut Mailmime| {
-        //     if !message.is_null() {
-        //         mailmime_free(message);
-        //     }
-        // };
-        // let message = mailmime_new_message_data(0 as *mut Mailmime);
-        // ensure!(!message.is_null(), "could not create mime message data");
+        unprotected_headers.push(Header::new(
+            "X-Mailer".into(),
+            format!("Delta Chat Core {}{}", version, os_part),
+        ));
+        unprotected_headers.push(Header::new("Chat-Version".to_string(), "1.0".to_string()));
 
-        // mailmime_set_imf_fields(message, imf_fields);
+        if self.req_mdn {
+            // we use "Chat-Disposition-Notification-To"
+            // because replies to "Disposition-Notification-To" are weird in many cases
+            // eg. are just freetext and/or do not follow any standard.
+            protected_headers.push(Header::new(
+                "Chat-Disposition-Notification-To".into(),
+                self.from_addr.clone(),
+            ));
+        }
 
-        // // 1=add Autocrypt-header (needed eg. for handshaking), 2=no Autocrypte-header (used for MDN)
-        // let mut e2ee_guaranteed = false;
-        // let mut min_verified = crate::peerstate::PeerstateVerifiedStatus::Unverified;
-        // let mut do_gossip = false;
-        // let mut grpimage = None;
-        // let force_plaintext: libc::c_int;
-        // let subject_str = match self.loaded {
-        //     Loaded::Message => {
-        //         /* Render a normal message
-        //          *********************************************************************/
-        //         let chat = self.chat.as_ref().unwrap();
-        //         let mut meta_part: *mut Mailmime = ptr::null_mut();
-        //         let mut placeholdertext = None;
+        // 1=add Autocrypt-header (needed eg. for handshaking), 2=no Autocrypte-header (used for MDN)
 
-        //         if chat.typ == Chattype::VerifiedGroup {
-        //             wrapmime::new_custom_field(imf_fields, "Chat-Verified", "1");
-        //             force_plaintext = 0;
-        //             e2ee_guaranteed = true;
-        //             min_verified = crate::peerstate::PeerstateVerifiedStatus::BidirectVerified;
-        //         } else {
-        //             force_plaintext = self
-        //                 .msg
-        //                 .param
-        //                 .get_int(Param::ForcePlaintext)
-        //                 .unwrap_or_default();
-        //             if force_plaintext == 0 {
-        //                 e2ee_guaranteed = self
-        //                     .msg
-        //                     .param
-        //                     .get_int(Param::GuaranteeE2ee)
-        //                     .unwrap_or_default()
-        //                     != 0;
-        //             }
-        //         }
+        let min_verified = self.min_verified()?;
+        let do_gossip = self.should_do_gossip()?;
+        let grpimage = self.grpimage()?;
+        let force_plaintext = self.should_force_plaintext()?;
+        let subject_str = self.subject_str()?;
 
-        //         /* beside key- and member-changes, force re-gossip every 48 hours */
-        //         if chat.gossiped_timestamp == 0
-        //             || (chat.gossiped_timestamp + (2 * 24 * 60 * 60)) < time()
-        //         {
-        //             do_gossip = true
-        //         }
+        let subject = dc_encode_header_words(subject_str);
 
-        //         /* build header etc. */
-        //         let command = self.msg.param.get_cmd();
-        //         if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
-        //             wrapmime::new_custom_field(imf_fields, "Chat-Group-ID", &chat.grpid);
+        let mut message = match self.loaded {
+            Loaded::Message => {
+                self.render_message(&mut protected_headers, &mut unprotected_headers, &grpimage)?
+            }
+            Loaded::MDN => self.render_mdn(&mut protected_headers, &mut unprotected_headers)?,
+            Loaded::Nothing => bail!("No message loaded"),
+        };
 
-        //             let encoded = dc_encode_header_words(&chat.name);
-        //             wrapmime::new_custom_field(imf_fields, "Chat-Group-Name", &encoded);
+        if force_plaintext != DC_FP_NO_AUTOCRYPT_HEADER {
+            // unless determined otherwise we add the Autocrypt header
+            let aheader = encrypt_helper.get_aheader().to_string();
+            unprotected_headers.push(Header::new("Autocrypt".into(), aheader));
+        }
 
-        //             match command {
-        //                 SystemMessage::MemberRemovedFromGroup => {
-        //                     let email_to_remove =
-        //                         self.msg.param.get(Param::Arg).unwrap_or_default();
-        //                     if !email_to_remove.is_empty() {
-        //                         wrapmime::new_custom_field(
-        //                             imf_fields,
-        //                             "Chat-Group-Member-Removed",
-        //                             &email_to_remove,
-        //                         );
-        //                     }
-        //                 }
-        //                 SystemMessage::MemberAddedToGroup => {
-        //                     let msg = &self.msg;
-        //                     do_gossip = true;
-        //                     let email_to_add = msg.param.get(Param::Arg).unwrap_or_default();
-        //                     if !email_to_add.is_empty() {
-        //                         wrapmime::new_custom_field(
-        //                             imf_fields,
-        //                             "Chat-Group-Member-Added",
-        //                             &email_to_add,
-        //                         );
-        //                         grpimage = chat.param.get(Param::ProfileImage);
-        //                     }
-        //                     if 0 != msg.param.get_int(Param::Arg2).unwrap_or_default() & 0x1 {
-        //                         info!(
-        //                             context,
-        //                             "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>",
-        //                             "vg-member-added",
-        //                         );
-        //                         wrapmime::new_custom_field(
-        //                             imf_fields,
-        //                             "Secure-Join",
-        //                             "vg-member-added",
-        //                         );
-        //                     }
-        //                 }
-        //                 SystemMessage::GroupNameChanged => {
-        //                     let msg = &self.msg;
-        //                     let value_to_add = msg.param.get(Param::Arg).unwrap_or_default();
+        let mut outer_message = if should_encrypt && force_plaintext == 0 {
+            for header in protected_headers.into_iter() {
+                message = message.header(header);
+            }
 
-        //                     wrapmime::new_custom_field(
-        //                         imf_fields,
-        //                         "Chat-Group-Name-Changed",
-        //                         &value_to_add,
-        //                     );
-        //                 }
-        //                 SystemMessage::GroupImageChanged => {
-        //                     let msg = &self.msg;
-        //                     grpimage = msg.param.get(Param::Arg);
-        //                     if grpimage.is_none() {
-        //                         wrapmime::new_custom_field(imf_fields, "Chat-Group-Image", "0");
-        //                     }
-        //                 }
-        //                 _ => {}
-        //             }
-        //         }
+            let mut outer_message = PartBuilder::new();
+            for header in unprotected_headers.into_iter() {
+                outer_message = outer_message.header(header);
+            }
+            //     if let Some(encrypted) = encrypt_helper.try_encrypt(
+            //         self,
+            //         e2ee_guaranteed,
+            //         min_verified,
+            //         do_gossip,
+            //         message,
+            //         imffields_unprotected,
+            //     )? {
 
-        //         match command {
-        //             SystemMessage::LocationStreamingEnabled => {
-        //                 wrapmime::new_custom_field(
-        //                     imf_fields,
-        //                     "Chat-Content",
-        //                     "location-streaming-enabled",
-        //                 );
-        //             }
-        //             SystemMessage::AutocryptSetupMessage => {
-        //                 wrapmime::new_custom_field(imf_fields, "Autocrypt-Setup-Message", "v1");
-        //                 placeholdertext = Some(
-        //                     self.context
-        //                         .stock_str(StockMessage::AcSetupMsgBody)
-        //                         .to_string(),
-        //                 );
-        //             }
-        //             SystemMessage::SecurejoinMessage => {
-        //                 let msg = &self.msg;
-        //                 let step = msg.param.get(Param::Arg).unwrap_or_default();
-        //                 if !step.is_empty() {
-        //                     info!(
-        //                         context,
-        //                         "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>",
-        //                         step,
-        //                     );
-        //                     wrapmime::new_custom_field(imf_fields, "Secure-Join", &step);
-        //                     let param2 = msg.param.get(Param::Arg2).unwrap_or_default();
-        //                     if !param2.is_empty() {
-        //                         wrapmime::new_custom_field(
-        //                             imf_fields,
-        //                             if step == "vg-request-with-auth"
-        //                                 || step == "vc-request-with-auth"
-        //                             {
-        //                                 "Secure-Join-Auth"
-        //                             } else {
-        //                                 "Secure-Join-Invitenumber"
-        //                             },
-        //                             param2,
-        //                         )
-        //                     }
-        //                     let fingerprint = msg.param.get(Param::Arg3).unwrap_or_default();
-        //                     if !fingerprint.is_empty() {
-        //                         wrapmime::new_custom_field(
-        //                             imf_fields,
-        //                             "Secure-Join-Fingerprint",
-        //                             &fingerprint,
-        //                         );
-        //                     }
-        //                     if let Some(id) = msg.param.get(Param::Arg4) {
-        //                         wrapmime::new_custom_field(imf_fields, "Secure-Join-Group", &id);
-        //                     };
-        //                 }
-        //             }
-        //             _ => {}
-        //         }
+            outer_message
+        } else {
+            // In the unencrypted case, we add all headers to the outer message.
+            for header in protected_headers.into_iter() {
+                message = message.header(header);
+            }
+            for header in unprotected_headers.into_iter() {
+                message = message.header(header);
+            }
+            self.finalize_mime_message(false, false)?;
 
-        //         if let Some(grpimage) = grpimage {
-        //             info!(self.context, "setting group image '{}'", grpimage);
-        //             let mut meta = Message::default();
-        //             meta.type_0 = Viewtype::Image;
-        //             meta.param.set(Param::File, grpimage);
+            message
+        };
 
-        //             let res = build_body_file(context, &meta, "group-image")?;
-        //             meta_part = res.0;
-        //             let filename_as_sent = res.1;
-        //             if !meta_part.is_null() {
-        //                 wrapmime::new_custom_field(
-        //                     imf_fields,
-        //                     "Chat-Group-Image",
-        //                     &filename_as_sent,
-        //                 )
-        //             }
-        //         }
+        outer_message = outer_message
+            .header(Header::new_with_value("To".into(), to).unwrap())
+            .header(Header::new_with_value("From".into(), vec![from]).unwrap())
+            .header(Header::new("Subject".into(), subject));
 
-        //         if self.msg.type_0 == Viewtype::Sticker {
-        //             wrapmime::new_custom_field(imf_fields, "Chat-Content", "sticker");
-        //         }
+        // TODO
+        // self.envelope = Some(Envelope::new(Some(from), to).expect("setting from"));
+        self.out = outer_message.build().as_string().into_bytes();
 
-        //         if self.msg.type_0 == Viewtype::Voice
-        //             || self.msg.type_0 == Viewtype::Audio
-        //             || self.msg.type_0 == Viewtype::Video
-        //         {
-        //             if self.msg.type_0 == Viewtype::Voice {
-        //                 wrapmime::new_custom_field(imf_fields, "Chat-Voice-Message", "1");
-        //             }
-        //             let duration_ms = self.msg.param.get_int(Param::Duration).unwrap_or_default();
-        //             if duration_ms > 0 {
-        //                 let dur = duration_ms.to_string();
-        //                 wrapmime::new_custom_field(imf_fields, "Chat-Duration", &dur);
-        //             }
-        //         }
-
-        //         /* add text part - we even add empty text and force a MIME-multipart-message as:
-        //         - some Apps have problems with Non-text in the main part (eg. "Mail" from stock Android)
-        //         - we can add "forward hints" this way
-        //         - it looks better */
-        //         let afwd_email = self.msg.param.exists(Param::Forwarded);
-        //         let fwdhint = if afwd_email {
-        //             Some(
-        //                 "---------- Forwarded message ----------\r\nFrom: Delta Chat\r\n\r\n"
-        //                     .to_string(),
-        //             )
-        //         } else {
-        //             None
-        //         };
-
-        //         let final_text = {
-        //             if let Some(ref text) = placeholdertext {
-        //                 text
-        //             } else if let Some(ref text) = self.msg.text {
-        //                 text
-        //             } else {
-        //                 ""
-        //             }
-        //         };
-
-        //         let footer = &self.selfstatus;
-        //         let message_text = format!(
-        //             "{}{}{}{}{}",
-        //             fwdhint.unwrap_or_default(),
-        //             &final_text,
-        //             if !final_text.is_empty() && !footer.is_empty() {
-        //                 "\r\n\r\n"
-        //             } else {
-        //                 ""
-        //             },
-        //             if !footer.is_empty() { "-- \r\n" } else { "" },
-        //             footer
-        //         );
-        //         let text_part = wrapmime::build_body_text(&message_text)?;
-        //         mailmime_smart_add_part(message, text_part);
-
-        //         /* add attachment part */
-        //         if chat::msgtype_has_file(self.msg.type_0) {
-        //             if !is_file_size_okay(context, &self.msg) {
-        //                 cleanup(message);
-        //                 bail!(
-        //                     "Message exceeds the recommended {} MB.",
-        //                     24 * 1024 * 1024 / 4 * 3 / 1000 / 1000,
-        //                 );
-        //             } else {
-        //                 let (file_part, _) = build_body_file(context, &self.msg, "")?;
-        //                 mailmime_smart_add_part(message, file_part);
-        //             }
-        //         }
-        //         if !meta_part.is_null() {
-        //             mailmime_smart_add_part(message, meta_part);
-        //         }
-
-        //         if self.msg.param.exists(Param::SetLatitude) {
-        //             let param = &self.msg.param;
-        //             let kml_file = location::get_message_kml(
-        //                 self.msg.timestamp_sort,
-        //                 param.get_float(Param::SetLatitude).unwrap_or_default(),
-        //                 param.get_float(Param::SetLongitude).unwrap_or_default(),
-        //             );
-        //             wrapmime::add_filename_part(
-        //                 message,
-        //                 "message.kml",
-        //                 "application/vnd.google-earth.kml+xml",
-        //                 &kml_file,
-        //             )?;
-        //         }
-
-        //         if location::is_sending_locations_to_chat(context, self.msg.chat_id) {
-        //             match location::get_kml(context, self.msg.chat_id) {
-        //                 Ok((kml_content, last_added_location_id)) => {
-        //                     wrapmime::add_filename_part(
-        //                         message,
-        //                         "location.kml",
-        //                         "application/vnd.google-earth.kml+xml",
-        //                         &kml_content,
-        //                     )?;
-        //                     if !self.msg.param.exists(Param::SetLatitude) {
-        //                         // otherwise, the independent location is already filed
-        //                         self.out_last_added_location_id = last_added_location_id;
-        //                     }
-        //                 }
-        //                 Err(err) => {
-        //                     warn!(context, "mimefactory: could not get location: {}", err);
-        //                 }
-        //             }
-        //         }
-        //         get_subject(context, self.chat.as_ref(), &mut self.msg, afwd_email)
-        //     }
-        //     Loaded::MDN => {
-        //         /* Render a MDN
-        //          *********************************************************************/
-        //         /* RFC 6522, this also requires the `report-type` parameter which is equal
-        //         to the MIME subtype of the second body part of the multipart/report */
-        //         let multipart = mailmime_multiple_new(
-        //             b"multipart/report\x00" as *const u8 as *const libc::c_char,
-        //         );
-        //         wrapmime::append_ct_param(
-        //             (*multipart).mm_content_type,
-        //             "report-type",
-        //             "disposition-notification",
-        //         )?;
-
-        //         mailmime_add_part(message, multipart);
-
-        //         /* first body part: always human-readable, always REQUIRED by RFC 6522 */
-        //         let p1 = if 0
-        //             != self
-        //                 .msg
-        //                 .param
-        //                 .get_int(Param::GuaranteeE2ee)
-        //                 .unwrap_or_default()
-        //         {
-        //             self.context
-        //                 .stock_str(StockMessage::EncryptedMsg)
-        //                 .into_owned()
-        //         } else {
-        //             self.msg.get_summarytext(context, 32)
-        //         };
-        //         let p2 = self
-        //             .context
-        //             .stock_string_repl_str(StockMessage::ReadRcptMailBody, p1);
-        //         let message_text = format!("{}\r\n", p2);
-        //         let human_mime_part = wrapmime::build_body_text(&message_text)?;
-        //         mailmime_add_part(multipart, human_mime_part);
-
-        //         /* second body part: machine-readable, always REQUIRED by RFC 6522 */
-        //         let version = get_version_str();
-        //         let message_text2 = format!(
-        //             "Reporting-UA: Delta Chat {}\r\nOriginal-Recipient: rfc822;{}\r\nFinal-Recipient: rfc822;{}\r\nOriginal-Message-ID: <{}>\r\nDisposition: manual-action/MDN-sent-automatically; displayed\r\n",
-        //             version,
-        //             self.from_addr,
-        //             self.from_addr,
-        //             self.msg.rfc724_mid
-        //         );
-
-        //         let content_type_0 =
-        //             wrapmime::new_content_type("message/disposition-notification")?;
-        //         let mime_fields_0: *mut mailmime_fields =
-        //             mailmime_fields_new_encoding(MAILMIME_MECHANISM_8BIT as libc::c_int);
-        //         let mach_mime_part: *mut Mailmime =
-        //             mailmime_new_empty(content_type_0, mime_fields_0);
-        //         wrapmime::set_body_text(mach_mime_part, &message_text2)?;
-        //         mailmime_add_part(multipart, mach_mime_part);
-        //         force_plaintext = DC_FP_NO_AUTOCRYPT_HEADER;
-        //         /* currently, we do not send MDNs encrypted:
-        //         - in a multi-device-setup that is not set up properly, MDNs would disturb the communication as they
-        //           are send automatically which may lead to spreading outdated Autocrypt headers.
-        //         - they do not carry any information but the Message-ID
-        //         - this save some KB
-        //         - in older versions, we did not encrypt messages to ourself when they to to SMTP - however, if these messages
-        //           are forwarded for any reasons (eg. gmail always forwards to IMAP), we have no chance to decrypt them;
-        //           this issue is fixed with 0.9.4 */
-        //         let e = self.context.stock_str(StockMessage::ReadRcpt);
-        //         format!("Chat: {}", e).to_string()
-        //     }
-        //     _ => {
-        //         cleanup(message);
-        //         bail!("No message loaded.");
-        //     }
-        // };
-
-        // /* Create the mime message
-        //  *************************************************************************/
-        // mailimf_fields_add(
-        //     imf_fields,
-        //     mailimf_field_new(
-        //         MAILIMF_FIELD_SUBJECT as libc::c_int,
-        //         ptr::null_mut(),
-        //         ptr::null_mut(),
-        //         ptr::null_mut(),
-        //         ptr::null_mut(),
-        //         ptr::null_mut(),
-        //         ptr::null_mut(),
-        //         ptr::null_mut(),
-        //         ptr::null_mut(),
-        //         ptr::null_mut(),
-        //         ptr::null_mut(),
-        //         ptr::null_mut(),
-        //         ptr::null_mut(),
-        //         ptr::null_mut(),
-        //         ptr::null_mut(),
-        //         ptr::null_mut(),
-        //         ptr::null_mut(),
-        //         ptr::null_mut(),
-        //         ptr::null_mut(),
-        //         mailimf_subject_new(dc_encode_header_words(subject_str).strdup()),
-        //         ptr::null_mut(),
-        //         ptr::null_mut(),
-        //         ptr::null_mut(),
-        //     ),
-        // );
-
-        // /*just a pointer into mailmime structure, must not be freed*/
-        // let imffields_unprotected = wrapmime::mailmime_find_mailimf_fields(message);
-        // ensure!(
-        //     !imffields_unprotected.is_null(),
-        //     "could not find mime fields"
-        // );
-
-        // let mut encrypt_helper = EncryptHelper::new(&context)?;
-        // if force_plaintext != DC_FP_NO_AUTOCRYPT_HEADER {
-        //     // unless determined otherwise we add Autocrypt header
-        //     let aheader = encrypt_helper.get_aheader().to_string();
-        //     wrapmime::new_custom_field(imffields_unprotected, "Autocrypt", &aheader);
-        // }
-        // let finalized = if force_plaintext == 0 {
-        //     encrypt_helper.try_encrypt(
-        //         self,
-        //         e2ee_guaranteed,
-        //         min_verified,
-        //         do_gossip,
-        //         message,
-        //         imffields_unprotected,
-        //     )?
-        // } else {
-        //     false
-        // };
-        // if !finalized {
-        //     self.finalize_mime_message(message, false, false)?;
-        // }
-        // cleanup(message);
         Ok(())
     }
 
-    pub fn load_msg(context: &Context, msg_id: MsgId) -> Result<MimeFactory, Error> {
+    fn render_message(
+        &mut self,
+        protected_headers: &mut Vec<Header>,
+        unprotected_headers: &mut Vec<Header>,
+        grpimage: &Option<String>,
+    ) -> Result<PartBuilder, Error> {
+        let context = self.context;
+        let chat = self.chat.as_ref().unwrap();
+        let command = self.msg.param.get_cmd();
+        let mut placeholdertext = None;
+        let mut meta_part = None;
+
+        if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
+            protected_headers.push(Header::new("Chat-Group-ID".into(), chat.grpid.clone()));
+
+            let encoded = dc_encode_header_words(&chat.name);
+            protected_headers.push(Header::new("Chat-Group-Name".into(), encoded));
+
+            match command {
+                SystemMessage::MemberRemovedFromGroup => {
+                    let email_to_remove = self.msg.param.get(Param::Arg).unwrap_or_default();
+                    if !email_to_remove.is_empty() {
+                        protected_headers.push(Header::new(
+                            "Chat-Group-Member-Removed".into(),
+                            email_to_remove.into(),
+                        ));
+                    }
+                }
+                SystemMessage::MemberAddedToGroup => {
+                    let email_to_add = self.msg.param.get(Param::Arg).unwrap_or_default();
+                    if !email_to_add.is_empty() {
+                        protected_headers.push(Header::new(
+                            "Chat-Group-Member-Added".into(),
+                            email_to_add.into(),
+                        ));
+                    }
+                    if 0 != self.msg.param.get_int(Param::Arg2).unwrap_or_default() & 0x1 {
+                        info!(
+                            context,
+                            "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>",
+                            "vg-member-added",
+                        );
+                        protected_headers.push(Header::new(
+                            "Secure-Join".to_string(),
+                            "vg-member-added".to_string(),
+                        ));
+                    }
+                }
+                SystemMessage::GroupNameChanged => {
+                    let value_to_add = self.msg.param.get(Param::Arg).unwrap_or_default();
+
+                    protected_headers.push(Header::new(
+                        "Chat-Group-Name-Changed".into(),
+                        value_to_add.into(),
+                    ));
+                }
+                SystemMessage::GroupImageChanged => {
+                    if grpimage.is_none() {
+                        protected_headers
+                            .push(Header::new("Chat-Group-Image".to_string(), "0".to_string()));
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        match command {
+            SystemMessage::LocationStreamingEnabled => {
+                protected_headers.push(Header::new(
+                    "Chat-Content".into(),
+                    "location-streaming-enabled".into(),
+                ));
+            }
+            SystemMessage::AutocryptSetupMessage => {
+                unprotected_headers
+                    .push(Header::new("Autocrypt-Setup-Message".into(), "v1".into()));
+
+                placeholdertext = Some(
+                    self.context
+                        .stock_str(StockMessage::AcSetupMsgBody)
+                        .to_string(),
+                );
+            }
+            SystemMessage::SecurejoinMessage => {
+                let msg = &self.msg;
+                let step = msg.param.get(Param::Arg).unwrap_or_default();
+                if !step.is_empty() {
+                    info!(
+                        context,
+                        "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>", step,
+                    );
+                    protected_headers.push(Header::new("Secure-Join".into(), step.into()));
+
+                    let param2 = msg.param.get(Param::Arg2).unwrap_or_default();
+                    if !param2.is_empty() {
+                        protected_headers.push(Header::new(
+                            if step == "vg-request-with-auth" || step == "vc-request-with-auth" {
+                                "Secure-Join-Auth".into()
+                            } else {
+                                "Secure-Join-Invitenumber".into()
+                            },
+                            param2.into(),
+                        ));
+                    }
+
+                    let fingerprint = msg.param.get(Param::Arg3).unwrap_or_default();
+                    if !fingerprint.is_empty() {
+                        protected_headers.push(Header::new(
+                            "Secure-Join-Fingerprint".into(),
+                            fingerprint.into(),
+                        ));
+                    }
+                    if let Some(id) = msg.param.get(Param::Arg4) {
+                        protected_headers.push(Header::new("Secure-Join-Group".into(), id.into()));
+                    };
+                }
+            }
+            _ => {}
+        }
+
+        if let Some(grpimage) = grpimage {
+            info!(self.context, "setting group image '{}'", grpimage);
+            let mut meta = Message::default();
+            meta.type_0 = Viewtype::Image;
+            meta.param.set(Param::File, grpimage);
+
+            let (mail, filename_as_sent) = build_body_file(context, &meta, "group-image")?;
+            meta_part = Some(mail);
+            protected_headers.push(Header::new("Chat-Group-Image".into(), filename_as_sent));
+        }
+
+        if self.msg.type_0 == Viewtype::Sticker {
+            protected_headers.push(Header::new("Chat-Content".into(), "sticker".into()));
+        }
+
+        if self.msg.type_0 == Viewtype::Voice
+            || self.msg.type_0 == Viewtype::Audio
+            || self.msg.type_0 == Viewtype::Video
+        {
+            if self.msg.type_0 == Viewtype::Voice {
+                protected_headers.push(Header::new("Chat-Voice-Message".into(), "1".into()));
+            }
+            let duration_ms = self.msg.param.get_int(Param::Duration).unwrap_or_default();
+            if duration_ms > 0 {
+                let dur = duration_ms.to_string();
+                protected_headers.push(Header::new("Chat-Duration".into(), dur));
+            }
+        }
+
+        // add text part - we even add empty text and force a MIME-multipart-message as:
+        // - some Apps have problems with Non-text in the main part (eg. "Mail" from stock Android)
+        // - we can add "forward hints" this way
+        // - it looks better
+
+        let afwd_email = self.msg.param.exists(Param::Forwarded);
+        let fwdhint = if afwd_email {
+            Some(
+                "---------- Forwarded message ----------\r\n\
+                 From: Delta Chat\r\n\
+                 \r\n"
+                    .to_string(),
+            )
+        } else {
+            None
+        };
+        let final_text = {
+            if let Some(ref text) = placeholdertext {
+                text
+            } else if let Some(ref text) = self.msg.text {
+                text
+            } else {
+                ""
+            }
+        };
+
+        let footer = &self.selfstatus;
+        let message_text = format!(
+            "{}{}{}{}{}",
+            fwdhint.unwrap_or_default(),
+            &final_text,
+            if !final_text.is_empty() && !footer.is_empty() {
+                "\r\n\r\n"
+            } else {
+                ""
+            },
+            if !footer.is_empty() { "-- \r\n" } else { "" },
+            footer
+        );
+
+        // Message is sent as text/plain, with charset = utf-8
+        let mut message = lettre_email::PartBuilder::new()
+            .content_type(&mime::TEXT_PLAIN_UTF_8)
+            .body(message_text);
+        let mut is_multipart = false;
+
+        // add attachment part
+        if chat::msgtype_has_file(self.msg.type_0) {
+            if !is_file_size_okay(context, &self.msg) {
+                bail!(
+                    "Message exceeds the recommended {} MB.",
+                    24 * 1024 * 1024 / 4 * 3 / 1000 / 1000,
+                );
+            } else {
+                let (file_part, _) = build_body_file(context, &self.msg, "")?;
+                message = message.child(file_part);
+                is_multipart = true;
+            }
+        }
+
+        if let Some(meta_part) = meta_part {
+            message = message.child(meta_part);
+            is_multipart = true;
+        }
+
+        if self.msg.param.exists(Param::SetLatitude) {
+            let param = &self.msg.param;
+            let kml_file = location::get_message_kml(
+                self.msg.timestamp_sort,
+                param.get_float(Param::SetLatitude).unwrap_or_default(),
+                param.get_float(Param::SetLongitude).unwrap_or_default(),
+            );
+            message = message.child(
+                lettre_email::PartBuilder::new()
+                    .content_type(
+                        &"application/vnd.google-earth.kml+xml"
+                            .parse::<mime::Mime>()
+                            .unwrap(),
+                    )
+                    .header((
+                        "Content-Disposition",
+                        "attachment; filename=\"message.kml\"",
+                    ))
+                    .body(kml_file)
+                    .build(),
+            );
+            is_multipart = true;
+        }
+
+        if location::is_sending_locations_to_chat(context, self.msg.chat_id) {
+            match location::get_kml(context, self.msg.chat_id) {
+                Ok((kml_content, last_added_location_id)) => {
+                    message = message.child(
+                        lettre_email::PartBuilder::new()
+                            .content_type(
+                                &"application/vnd.google-earth.kml+xml"
+                                    .parse::<mime::Mime>()
+                                    .unwrap(),
+                            )
+                            .header((
+                                "Content-Disposition",
+                                "attachment; filename=\"message.kml\"",
+                            ))
+                            .body(kml_content)
+                            .build(),
+                    );
+                    is_multipart = true;
+                    if !self.msg.param.exists(Param::SetLatitude) {
+                        // otherwise, the independent location is already filed
+                        self.out_last_added_location_id = last_added_location_id;
+                    }
+                }
+                Err(err) => {
+                    warn!(context, "mimefactory: could not get location: {}", err);
+                }
+            }
+        }
+
+        if is_multipart {
+            message = message.message_type(MimeMultipartType::Mixed);
+        }
+
+        Ok(message)
+    }
+
+    fn render_mdn(
+        &mut self,
+        protected_headers: &mut Vec<Header>,
+        unprotected_headers: &mut Vec<Header>,
+    ) -> Result<PartBuilder, Error> {
+        unimplemented!()
+    }
+
+    pub fn load_msg(context: &Context, msg_id: MsgId) -> Result<MimeFactory<'_>, Error> {
         let msg = Message::load_from_db(context, msg_id)?;
         let chat = Chat::load_from_db(context, msg.chat_id)?;
-        let mut factory = MimeFactory::new(context, msg);
+        let mut factory = MimeFactory::from_message(context, msg);
         factory.chat = Some(chat);
 
         // just set the chat above
@@ -744,135 +821,79 @@ impl<'a> MimeFactory<'a> {
     }
 }
 
-fn get_subject(
+fn build_body_file(
     context: &Context,
-    chat: Option<&Chat>,
-    msg: &mut Message,
-    afwd_email: bool,
-) -> String {
-    if chat.is_none() {
-        return String::default();
-    }
+    msg: &Message,
+    base_name: &str,
+) -> Result<(MimeMessage, String), Error> {
+    let blob = msg
+        .param
+        .get_blob(Param::File, context, true)?
+        .ok_or_else(|| format_err!("msg has no filename"))?;
+    let suffix = blob.suffix().unwrap_or("dat");
 
-    let chat = chat.unwrap();
-    let raw_subject =
-        message::get_summarytext_by_raw(msg.type_0, msg.text.as_ref(), &mut msg.param, 32, context);
-    let fwd = if afwd_email { "Fwd: " } else { "" };
+    // Get file name to use for sending.  For privacy purposes, we do
+    // not transfer the original filenames eg. for images; these names
+    // are normally not needed and contain timestamps, running numbers
+    // etc.
+    let filename_to_send: String = match msg.type_0 {
+        Viewtype::Voice => chrono::Utc
+            .timestamp(msg.timestamp_sort as i64, 0)
+            .format(&format!("voice-message_%Y-%m-%d_%H-%M-%S.{}", &suffix))
+            .to_string(),
+        Viewtype::Image | Viewtype::Gif => format!(
+            "{}.{}",
+            if base_name.is_empty() {
+                "image"
+            } else {
+                base_name
+            },
+            &suffix,
+        ),
+        Viewtype::Video => format!("video.{}", &suffix),
+        _ => blob.as_file_name().to_string(),
+    };
 
-    if msg.param.get_cmd() == SystemMessage::AutocryptSetupMessage {
-        /* do not add the "Chat:" prefix for setup messages */
-        context
-            .stock_str(StockMessage::AcSetupMsgSubject)
-            .into_owned()
-    } else if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
-        format!("Chat: {}: {}{}", chat.name, fwd, raw_subject,)
+    /* check mimetype */
+    let mimetype: mime::Mime = match msg.param.get(Param::MimeType) {
+        Some(mtype) => mtype.parse()?,
+        None => {
+            if let Some(res) = message::guess_msgtype_from_suffix(blob.as_rel_path()) {
+                res.1.parse()?
+            } else {
+                mime::APPLICATION_OCTET_STREAM
+            }
+        }
+    };
+
+    let needs_ext = dc_needs_ext_header(&filename_to_send);
+
+    // create mime part, for Content-Disposition, see RFC 2183.
+    // `Content-Disposition: attachment` seems not to make a difference to `Content-Disposition: inline`
+    // at least on tested Thunderbird and Gma'l in 2017.
+    // But I've heard about problems with inline and outl'k, so we just use the attachment-type until we
+    // run into other problems ...
+    let cd_value = if needs_ext {
+        format!("attachment; filename=\"{}\"", &filename_to_send)
     } else {
-        format!("Chat: {}{}", fwd, raw_subject)
-    }
+        format!(
+            "attachment; filename*=\"{}\"",
+            dc_encode_header_words(&filename_to_send)
+        )
+    };
+
+    let body = std::fs::read(blob.to_abs_path())?;
+    let encoded_body = base64::encode(&body);
+
+    let mail = PartBuilder::new()
+        .content_type(&mimetype)
+        .header(("Content-Disposition", cd_value))
+        .header(("Content-Transfer-Encoding", "base64"))
+        .body(encoded_body)
+        .build();
+
+    Ok((mail, filename_to_send))
 }
-
-// fn build_body_file(
-//     context: &Context,
-//     msg: &Message,
-//     base_name: &str,
-// ) -> Result<(*mut Mailmime, String), Error> {
-//     let blob = msg
-//         .param
-//         .get_blob(Param::File, context, true)?
-//         .ok_or_else(|| format_err!("msg has no filename"))?;
-//     let suffix = blob.suffix().unwrap_or("dat");
-
-//     // Get file name to use for sending.  For privacy purposes, we do
-//     // not transfer the original filenames eg. for images; these names
-//     // are normally not needed and contain timestamps, running numbers
-//     // etc.
-//     let filename_to_send: String = match msg.type_0 {
-//         Viewtype::Voice => chrono::Utc
-//             .timestamp(msg.timestamp_sort as i64, 0)
-//             .format(&format!("voice-message_%Y-%m-%d_%H-%M-%S.{}", &suffix))
-//             .to_string(),
-//         Viewtype::Image | Viewtype::Gif => format!(
-//             "{}.{}",
-//             if base_name.is_empty() {
-//                 "image"
-//             } else {
-//                 base_name
-//             },
-//             &suffix,
-//         ),
-//         Viewtype::Video => format!("video.{}", &suffix),
-//         _ => blob.as_file_name().to_string(),
-//     };
-
-//     /* check mimetype */
-//     let mimetype = match msg.param.get(Param::MimeType) {
-//         Some(mtype) => mtype,
-//         None => {
-//             if let Some(res) = message::guess_msgtype_from_suffix(blob.as_rel_path()) {
-//                 res.1
-//             } else {
-//                 "application/octet-stream"
-//             }
-//         }
-//     };
-
-//     let needs_ext = dc_needs_ext_header(&filename_to_send);
-
-//      {
-//         /* create mime part, for Content-Disposition, see RFC 2183.
-//         `Content-Disposition: attachment` seems not to make a difference to `Content-Disposition: inline` at least on tested Thunderbird and Gma'l in 2017.
-//         But I've heard about problems with inline and outl'k, so we just use the attachment-type until we run into other problems ... */
-//         let mime_fields = mailmime_fields_new_filename(
-//             MAILMIME_DISPOSITION_TYPE_ATTACHMENT as libc::c_int,
-//             if needs_ext {
-//                 ptr::null_mut()
-//             } else {
-//                 filename_to_send.strdup()
-//             },
-//             MAILMIME_MECHANISM_BASE64 as libc::c_int,
-//         );
-//         if needs_ext {
-//             for cur_data in (*(*mime_fields).fld_list).into_iter() {
-//                 let field: *mut mailmime_field = cur_data as *mut _;
-//                 if (*field).fld_type == MAILMIME_FIELD_DISPOSITION as libc::c_int
-//                     && !(*field).fld_data.fld_disposition.is_null()
-//                 {
-//                     let file_disposition = (*field).fld_data.fld_disposition;
-//                     if !file_disposition.is_null() {
-//                         let parm = mailmime_disposition_parm_new(
-//                             MAILMIME_DISPOSITION_PARM_PARAMETER as libc::c_int,
-//                             ptr::null_mut(),
-//                             ptr::null_mut(),
-//                             ptr::null_mut(),
-//                             ptr::null_mut(),
-//                             0 as libc::size_t,
-//                             mailmime_parameter_new(
-//                                 strdup(b"filename*\x00" as *const u8 as *const libc::c_char),
-//                                 dc_encode_ext_header(&filename_to_send).strdup(),
-//                             ),
-//                         );
-//                         if !parm.is_null() {
-//                             clist_insert_after(
-//                                 (*file_disposition).dsp_parms,
-//                                 (*(*file_disposition).dsp_parms).last,
-//                                 parm as *mut libc::c_void,
-//                             );
-//                         }
-//                     }
-//                     break;
-//                 }
-//             }
-//         }
-//         let content = wrapmime::new_content_type(&mimetype)?;
-//         let filename_encoded = dc_encode_header_words(&filename_to_send);
-//         wrapmime::append_ct_param(content, "name", &filename_encoded)?;
-
-//         let mime_sub = mailmime_new_empty(content, mime_fields);
-//         let abs_path = blob.to_abs_path().to_c_string()?;
-//         mailmime_set_body_file(mime_sub, dc_strdup(abs_path.as_ptr()));
-//         Ok((mime_sub, filename_to_send))
-//     }
-// }
 
 pub(crate) fn vec_contains_lowercase(vec: &[String], part: &str) -> bool {
     let partlc = part.to_lowercase();

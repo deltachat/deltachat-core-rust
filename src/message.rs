@@ -987,7 +987,7 @@ pub fn star_msgs(context: &Context, msg_ids: &[MsgId], star: bool) -> bool {
 pub fn get_summarytext_by_raw(
     viewtype: Viewtype,
     text: Option<impl AsRef<str>>,
-    param: &mut Params,
+    param: &Params,
     approx_characters: usize,
     context: &Context,
 ) -> String {

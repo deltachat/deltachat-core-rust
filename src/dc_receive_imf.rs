@@ -9,7 +9,6 @@ use crate::config::Config;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
-use crate::dc_strencode::*;
 use crate::dc_tools::*;
 use crate::error::Result;
 use crate::events::Event;
