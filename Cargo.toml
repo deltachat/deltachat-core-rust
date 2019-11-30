@@ -17,12 +17,12 @@ smallvec = "0.6.9"
 reqwest = { version = "0.9.15", default-features = false, features = ["rustls-tls"] }
 num-derive = "0.2.5"
 num-traits = "0.2.6"
-lettre = { git = "https://github.com/deltachat/lettre", branch = "feat/rustls" }
-lettre_email = { git = "https://github.com/deltachat/lettre", branch = "feat/rustls" }
+lettre = { git = "https://github.com/deltachat/lettre", branch = "feat/mail" }
+lettre_email = { git = "https://github.com/deltachat/lettre", branch = "feat/mail" }
 async-imap = { git = "https://github.com/async-email/async-imap", branch="master" }
 async-tls = "0.6"
 async-std = { version = "1.0", features = ["unstable"] }
-base64 = "0.10"
+base64 = "0.11"
 charset = "0.1"
 percent-encoding = "2.0"
 serde = { version = "1.0", features = ["derive"] }
