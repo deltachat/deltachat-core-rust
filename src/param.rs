@@ -321,7 +321,6 @@ mod tests {
     use std::fs;
     use std::path::Path;
 
-    use crate::blob::BlobErrorKind;
     use crate::test_utils::*;
 
     #[test]
@@ -404,7 +403,10 @@ mod tests {
 
         // Blob does not exist yet, expect BlobError.
         let err = p.get_blob(Param::File, &t.ctx, false).unwrap_err();
-        assert_eq!(err.kind(), BlobErrorKind::WrongBlobdir);
+        match err {
+            BlobError::WrongBlobdir { .. } => (),
+            _ => panic!("wrong error type/variant: {:?}", err),
+        }
 
         fs::write(fname, b"boo").unwrap();
         let blob = p.get_blob(Param::File, &t.ctx, true).unwrap().unwrap();

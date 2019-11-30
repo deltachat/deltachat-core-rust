@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use itertools::Itertools;
 use num_traits::FromPrimitive;
 
-use crate::blob::{BlobErrorKind, BlobObject};
+use crate::blob::{BlobError, BlobObject};
 use crate::chatlist::*;
 use crate::config::*;
 use crate::constants::*;
@@ -1797,8 +1797,8 @@ pub fn set_chat_profile_image(
         ));
     } else {
         let image_blob = BlobObject::from_path(context, Path::new(new_image.as_ref())).or_else(
-            |err| match err.kind() {
-                BlobErrorKind::WrongBlobdir => {
+            |err| match err {
+                BlobError::WrongBlobdir { .. } => {
                     BlobObject::create_and_copy(context, Path::new(new_image.as_ref()))
                 }
                 _ => Err(err),
