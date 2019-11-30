@@ -344,3 +344,44 @@ fn get_last_deaddrop_fresh_msg(context: &Context) -> Option<MsgId> {
         params![],
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::chat;
+    use crate::test_utils::*;
+
+    #[test]
+    fn test_try_load() {
+        let t = dummy_context();
+        let chat_id1 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "a chat").unwrap();
+        let chat_id2 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "b chat").unwrap();
+        let chat_id3 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "c chat").unwrap();
+
+        // check that the chatlist starts with the most recent message
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        assert_eq!(chats.len(), 3);
+        assert_eq!(chats.get_chat_id(0), chat_id3);
+        assert_eq!(chats.get_chat_id(1), chat_id2);
+        assert_eq!(chats.get_chat_id(2), chat_id1);
+
+        // drafts are sorted to the top
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text(Some("hello".to_string()));
+        set_draft(&t.ctx, chat_id2, Some(&mut msg));
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        assert_eq!(chats.get_chat_id(0), chat_id2);
+
+        // check chatlist query and archive functionality
+        let chats = Chatlist::try_load(&t.ctx, 0, Some("b"), None).unwrap();
+        assert_eq!(chats.len(), 1);
+
+        let chats = Chatlist::try_load(&t.ctx, DC_GCL_ARCHIVED_ONLY, None, None).unwrap();
+        assert_eq!(chats.len(), 0);
+
+        chat::archive(&t.ctx, chat_id1, true).ok();
+        let chats = Chatlist::try_load(&t.ctx, DC_GCL_ARCHIVED_ONLY, None, None).unwrap();
+        assert_eq!(chats.len(), 1);
+    }
+}
