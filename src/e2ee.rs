@@ -137,14 +137,14 @@ impl EncryptHelper {
 pub fn try_decrypt(
     context: &Context,
     mail: &mailparse::ParsedMail<'_>,
-) -> Result<(Option<Vec<u8>>, HashSet<String>, HashSet<String>)> {
+) -> Result<(Option<Vec<u8>>, HashSet<String>, i64)> {
     use mailparse::MailHeaderMap;
 
     let from = mail.headers.get_first_value("From")?.unwrap_or_default();
     let message_time = mail
         .headers
         .get_first_value("Date")?
-        .and_then(|v| v.parse().ok())
+        .and_then(|v| mailparse::dateparse(&v).ok())
         .unwrap_or_default();
 
     let mut peerstate = None;
@@ -171,7 +171,6 @@ pub fn try_decrypt(
     let mut private_keyring = Keyring::default();
     let mut public_keyring_for_validate = Keyring::default();
     let mut out_mail = None;
-    let mut gossipped_addr = HashSet::default();
     let mut signatures = HashSet::default();
     let self_addr = context.get_config(Config::ConfiguredAddr);
 
@@ -199,15 +198,9 @@ pub fn try_decrypt(
                 &public_keyring_for_validate,
                 &mut signatures,
             )?;
-
-            // TODO:
-            // if !gossip_headers.is_empty() {
-            // gossipped_addr =
-            // update_gossip_peerstates(context, message_time, imffields, gossip_headers)?;
-            // }
         }
     }
-    Ok((out_mail, signatures, gossipped_addr))
+    Ok((out_mail, signatures, message_time))
 }
 
 /// Load public key from database or generate a new one.
@@ -257,74 +250,6 @@ fn load_or_generate_self_public_key(context: &Context, self_addr: impl AsRef<str
     }
 }
 
-// fn update_gossip_peerstates(
-//     context: &Context,
-//     message_time: i64,
-//     imffields: *mut mailimf_fields,
-//     gossip_headers: *const mailimf_fields,
-// ) -> Result<HashSet<String>> {
-//     // XXX split the parsing from the modification part
-//     let mut recipients: Option<HashSet<String>> = None;
-//     let mut gossipped_addr: HashSet<String> = Default::default();
-
-//     for cur_data in  { (*(*gossip_headers).fld_list).into_iter() } {
-//         let field = cur_data as *mut mailimf_field;
-//         if field.is_null() {
-//             continue;
-//         }
-
-//         let field =  { *field };
-
-//         if field.fld_type == MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int {
-//             let optional_field =  { field.fld_data.fld_optional_field };
-//             if optional_field.is_null() {
-//                 continue;
-//             }
-
-//             let optional_field =  { *optional_field };
-//             if !optional_field.fld_name.is_null()
-//                 && to_string_lossy(optional_field.fld_name) == "Autocrypt-Gossip"
-//             {
-//                 let value = to_string_lossy(optional_field.fld_value);
-//                 let gossip_header = Aheader::from_str(&value);
-
-//                 if let Ok(ref header) = gossip_header {
-//                     if recipients.is_none() {
-//                         recipients = Some(mailimf_get_recipients(imffields));
-//                     }
-//                     if recipients.as_ref().unwrap().contains(&header.addr) {
-//                         let mut peerstate =
-//                             Peerstate::from_addr(context, &context.sql, &header.addr);
-//                         if let Some(ref mut peerstate) = peerstate {
-//                             peerstate.apply_gossip(header, message_time);
-//                             peerstate.save_to_db(&context.sql, false)?;
-//                         } else {
-//                             let p = Peerstate::from_gossip(context, header, message_time);
-//                             p.save_to_db(&context.sql, true)?;
-//                             peerstate = Some(p);
-//                         }
-//                         if let Some(peerstate) = peerstate {
-//                             if peerstate.degrade_event.is_some() {
-//                                 handle_degrade_event(context, &peerstate)?;
-//                             }
-//                         }
-
-//                         gossipped_addr.insert(header.addr.clone());
-//                     } else {
-//                         info!(
-//                             context,
-//                             "Ignoring gossipped \"{}\" as the address is not in To/Cc list.",
-//                             &header.addr,
-//                         );
-//                     }
-//                 }
-//             }
-//         }
-//     }
-
-//     Ok(gossipped_addr)
-// }
-
 fn decrypt_if_autocrypt_message<'a>(
     context: &Context,
     mail: &mailparse::ParsedMail<'a>,
@@ -347,35 +272,13 @@ fn decrypt_if_autocrypt_message<'a>(
         Ok(res) => res,
     };
 
-    let decrypted = decrypt_part(
+    decrypt_part(
         context,
         encrypted_data_part,
         private_keyring,
         public_keyring_for_validate,
         ret_valid_signatures,
-    )?;
-
-    // finally, let's also return gossip headers
-    // XXX better return parsed headers so that upstream
-    // does not need to dive into mmime-stuff again.
-    // {
-    //     if (*ret_gossip_headers).is_null() && !ret_valid_signatures.is_empty() {
-    //         let mut dummy: libc::size_t = 0;
-    //         let mut test: *mut mailimf_fields = ptr::null_mut();
-    //         if mailimf_envelope_and_optional_fields_parse(
-    //             (*decrypted_mime).mm_mime_start,
-    //             (*decrypted_mime).mm_length,
-    //             &mut dummy,
-    //             &mut test,
-    //         ) == MAILIMF_NO_ERROR as libc::c_int
-    //             && !test.is_null()
-    //         {
-    //             *ret_gossip_headers = test;
-    //         }
-    //     }
-    // }
-
-    Ok(decrypted)
+    )
 }
 
 /// Returns Ok(None) if nothing encrypted was found.
