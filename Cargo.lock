@@ -99,7 +99,7 @@ dependencies = [
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "futures_codec 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures_codec 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "imap-proto 0.9.1 (git+https://github.com/djc/tokio-imap)",
  "nom 5.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "pin-utils 0.1.0-alpha.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1116,7 +1116,7 @@ dependencies = [
 
 [[package]]
 name = "futures_codec"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3483,7 +3483,7 @@ dependencies = [
 "checksum futures-timer 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)" = "a1de7508b218029b0f01662ed8f61b1c964b3ae99d6f25462d0f55a595109df6"
 "checksum futures-util 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "c0d66274fb76985d3c62c886d1da7ac4c0903a8c9f754e8fe0f35a6a6cc39e76"
 "checksum futures-util-preview 0.3.0-alpha.19 (registry+https://github.com/rust-lang/crates.io-index)" = "5ce968633c17e5f97936bd2797b6e38fb56cf16a7422319f7ec2e30d3c470e8d"
-"checksum futures_codec 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)" = "b4043054a6220de5dc5c814eb82ab6fd7cd2b6574a844406f651ec688cfa6fcc"
+"checksum futures_codec 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "793d2283ff61ffff52d51cc631be0c8e75370d96056a38e09f124a67263913da"
 "checksum generic-array 0.12.3 (registry+https://github.com/rust-lang/crates.io-index)" = "c68f0274ae0e023facc3c97b2e00f076be70e254bc851d972503b328db79b2ec"
 "checksum getrandom 0.1.13 (registry+https://github.com/rust-lang/crates.io-index)" = "e7db7ca94ed4cd01190ceee0d8a8052f08a247aa1b469a7f68c6a3b71afcf407"
 "checksum glob 0.2.11 (registry+https://github.com/rust-lang/crates.io-index)" = "8be18de09a56b60ed0edf84bc9df007e30040691af7acd1c41874faac5895bfb"

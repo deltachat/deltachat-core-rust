@@ -300,13 +300,9 @@ impl<'a> MimeFactory<'a> {
             "Invalid use of mimefactory-object."
         );
 
-        let context = &self.context;
-        let peerstates = self.peerstates_for_recipients()?;
         let e2ee_guranteed = self.is_e2ee_guranteed()?;
 
-        let mut encrypt_helper = EncryptHelper::new(&context)?;
-        let should_encrypt =
-            encrypt_helper.should_encrypt(self.context, e2ee_guranteed, &peerstates)?;
+        let mut encrypt_helper = EncryptHelper::new(self.context)?;
 
         // Headers that are encrypted
         // - Chat-*, except Chat-Version
@@ -400,23 +396,62 @@ impl<'a> MimeFactory<'a> {
             unprotected_headers.push(Header::new("Autocrypt".into(), aheader));
         }
 
+        protected_headers.push(Header::new("Subject".into(), subject));
+
+        let peerstates = self.peerstates_for_recipients()?;
+        let should_encrypt =
+            encrypt_helper.should_encrypt(self.context, e2ee_guranteed, &peerstates)?;
+
         let mut outer_message = if should_encrypt && force_plaintext == 0 {
             for header in protected_headers.into_iter() {
                 message = message.header(header);
             }
 
-            let mut outer_message = PartBuilder::new();
+            // Manual Content-Type only works with https://github.com/niax/rust-email/pull/51
+            // At the moment the boundary will not be inserted.
+            let mut outer_message = PartBuilder::new().header((
+                "Content-Type".to_string(),
+                "multipart/encrypted; protocol=\"application/pgp-encrypted\"".to_string(),
+            ));
+
             for header in unprotected_headers.into_iter() {
                 outer_message = outer_message.header(header);
             }
-            //     if let Some(encrypted) = encrypt_helper.try_encrypt(
-            //         self,
-            //         e2ee_guaranteed,
-            //         min_verified,
-            //         do_gossip,
-            //         message,
-            //         imffields_unprotected,
-            //     )? {
+
+            let encrypted = encrypt_helper.encrypt(
+                self.context,
+                e2ee_guranteed,
+                min_verified,
+                do_gossip,
+                message,
+                &peerstates,
+            )?;
+
+            outer_message = outer_message
+                .child(
+                    // Autocrypt part 1
+                    PartBuilder::new()
+                        .content_type(&"application/pgp-encrypted".parse::<mime::Mime>().unwrap())
+                        .header(("Content-Description", "PGP/MIME version identification"))
+                        .body("Version: 1")
+                        .build(),
+                )
+                .child(
+                    // Autocrypt part 2
+                    PartBuilder::new()
+                        .content_type(
+                            &"application/octet-stream; name=\"encrypted.asc\""
+                                .parse::<mime::Mime>()
+                                .unwrap(),
+                        )
+                        .header(("Content-Description", "OpenPGP encrypted message"))
+                        .header(("Content-Disposition", "inline; filename=\"encrypted.asc\""))
+                        .body(encrypted)
+                        .build(),
+                )
+                .header(("Subject".to_string(), "...".to_string()));
+
+            self.finalize_mime_message(true, do_gossip && !peerstates.is_empty())?;
 
             outer_message
         } else {
@@ -434,8 +469,7 @@ impl<'a> MimeFactory<'a> {
 
         outer_message = outer_message
             .header(Header::new_with_value("To".into(), to).unwrap())
-            .header(Header::new_with_value("From".into(), vec![from]).unwrap())
-            .header(Header::new("Subject".into(), subject));
+            .header(Header::new_with_value("From".into(), vec![from]).unwrap());
 
         // TODO
         // self.envelope = Some(Envelope::new(Some(from), to).expect("setting from"));
