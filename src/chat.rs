@@ -1962,8 +1962,7 @@ pub fn add_device_msg(
         label.is_some() || msg.is_some(),
         "device-messages need label, msg or both"
     );
-    let (chat_id, _blocked) =
-        create_or_lookup_by_contact_id(context, DC_CONTACT_ID_DEVICE, Blocked::Not)?;
+    let mut chat_id = 0;
     let mut msg_id = MsgId::new_unset();
 
     if let Some(label) = label {
@@ -1974,6 +1973,8 @@ pub fn add_device_msg(
     }
 
     if let Some(msg) = msg {
+        chat_id = create_or_lookup_by_contact_id(context, DC_CONTACT_ID_DEVICE, Blocked::Not)?.0;
+
         let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
         prepare_msg_blob(context, msg)?;
         unarchive(context, chat_id)?;
