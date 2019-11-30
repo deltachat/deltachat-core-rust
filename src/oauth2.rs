@@ -355,6 +355,8 @@ fn normalize_addr(addr: &str) -> &str {
 mod tests {
     use super::*;
 
+    use crate::test_utils::*;
+
     #[test]
     fn test_normalize_addr() {
         assert_eq!(normalize_addr(" hello@mail.de  "), "hello@mail.de");
@@ -383,5 +385,25 @@ mod tests {
         assert_eq!(Oauth2::from_address("hello@yandex.ru"), Some(OAUTH2_YANDEX));
 
         assert_eq!(Oauth2::from_address("hello@web.de"), None);
+    }
+
+    #[test]
+    fn test_dc_get_oauth2_addr() {
+        let ctx = dummy_context();
+        let addr = "dignifiedquire@gmail.com";
+        let code = "fail";
+        let res = dc_get_oauth2_addr(&ctx.ctx, addr, code);
+        // this should fail as it is an invalid password
+        assert_eq!(res, None);
+    }
+
+    #[test]
+    fn test_dc_get_oauth2_token() {
+        let ctx = dummy_context();
+        let addr = "dignifiedquire@gmail.com";
+        let code = "fail";
+        let res = dc_get_oauth2_access_token(&ctx.ctx, addr, code, false);
+        // this should fail as it is an invalid password
+        assert_eq!(res, None);
     }
 }
