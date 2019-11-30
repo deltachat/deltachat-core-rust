@@ -18,7 +18,6 @@ use async_std::task;
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_receive_imf::dc_receive_imf;
-use crate::error::Error;
 use crate::events::Event;
 use crate::imap_client::*;
 use crate::job::{job_add, Action};
@@ -30,6 +29,77 @@ use crate::stock::StockMessage;
 use crate::wrapmime;
 
 const DC_IMAP_SEEN: usize = 0x0001;
+
+type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Debug, Fail)]
+pub enum Error {
+    #[fail(display = "IMAP Could not obtain imap-session object.")]
+    NoSession,
+
+    #[fail(display = "IMAP Connect without configured params")]
+    ConnectWithoutConfigure,
+
+    #[fail(display = "IMAP Connection Failed params: {}", _0)]
+    ConnectionFailed(String),
+
+    #[fail(display = "IMAP No Connection established")]
+    NoConnection,
+
+    #[fail(display = "IMAP Could not get OAUTH token")]
+    OauthError,
+
+    #[fail(display = "IMAP Could not login as {}", _0)]
+    LoginFailed(String),
+
+    #[fail(display = "IMAP Could not fetch {}", _0)]
+    FetchFailed(#[cause] async_imap::error::Error),
+
+    #[fail(display = "IMAP IDLE protocol failed to init/complete")]
+    IdleProtocolFailed(#[cause] async_imap::error::Error),
+
+    #[fail(display = "IMAP server does not have IDLE capability")]
+    IdleAbilityMissing,
+
+    #[fail(display = "IMAP Connection Lost or no connection established")]
+    ConnectionLost,
+
+    #[fail(display = "IMAP close/expunge failed: {}", _0)]
+    CloseExpungeFailed(#[cause] async_imap::error::Error),
+
+    #[fail(display = "IMAP Folder name invalid: {:?}", _0)]
+    BadFolderName(String),
+
+    #[fail(display = "IMAP operation attempted while it is torn down")]
+    InTeardown,
+
+    #[fail(display = "IMAP operation attempted while it is torn down")]
+    SqlError(#[cause] rusqlite::Error),
+
+    #[fail(display = "IMAP got error from elsewhere: {:?}", _0)]
+    WrappedError(#[cause] crate::error::Error),
+
+    #[fail(display = "IMAP other error: {:?}", _0)]
+    Other(String),
+}
+
+impl From<rusqlite::Error> for Error {
+    fn from(err: rusqlite::Error) -> Error {
+        Error::SqlError(err)
+    }
+}
+
+impl From<crate::error::Error> for Error {
+    fn from(err: crate::error::Error) -> Error {
+        Error::WrappedError(err)
+    }
+}
+
+impl From<Error> for crate::error::Error {
+    fn from(err: Error) -> crate::error::Error {
+        crate::error::Error::Other(err.to_string())
+    }
+}
 
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq)]
 pub enum ImapActionResult {
@@ -115,24 +185,6 @@ impl Default for ImapConfig {
     }
 }
 
-#[derive(Debug, Fail)]
-enum SelectError {
-    #[fail(display = "Could not obtain imap-session object.")]
-    NoSession,
-
-    #[fail(display = "Connection Lost or no connection established")]
-    ConnectionLost,
-
-    #[fail(display = "imap-close (to expunge messages) failed: {}", _0)]
-    CloseExpungeFailed(#[cause] async_imap::error::Error),
-
-    #[fail(display = "Folder name invalid: {:?}", _0)]
-    BadFolderName(String),
-
-    #[fail(display = "async-imap select error: {:?}", _0)]
-    Other(String),
-}
-
 impl Imap {
     pub fn new() -> Self {
         Imap {
@@ -157,10 +209,10 @@ impl Imap {
         self.should_reconnect.store(true, Ordering::Relaxed)
     }
 
-    fn setup_handle_if_needed(&self, context: &Context) -> Result<(), Error> {
+    fn setup_handle_if_needed(&self, context: &Context) -> Result<()> {
         task::block_on(async move {
             if self.config.read().await.imap_server.is_empty() {
-                return Err(Error::ImapInTeardown);
+                return Err(Error::InTeardown);
             }
 
             if self.should_reconnect() {
@@ -222,7 +274,7 @@ impl Imap {
                             let res = client.authenticate("XOAUTH2", &auth).await;
                             res
                         } else {
-                            return Err(Error::ImapOauthError);
+                            return Err(Error::OauthError);
                         }
                     } else {
                         let res = client.login(imap_user, imap_pw).await;
@@ -242,7 +294,7 @@ impl Imap {
                     };
                     // IMAP connection failures are reported to users
                     emit_event!(context, Event::ErrorNetwork(message));
-                    return Err(Error::ImapConnectionFailed(err.to_string()));
+                    return Err(Error::ConnectionFailed(err.to_string()));
                 }
             };
 
@@ -263,10 +315,7 @@ impl Imap {
                         Event::ErrorNetwork(format!("{} ({})", message, err))
                     );
                     self.trigger_reconnect();
-                    Err(Error::ImapLoginFailed(format!(
-                        "cannot login as {}",
-                        imap_user
-                    )))
+                    Err(Error::LoginFailed(format!("cannot login as {}", imap_user)))
                 }
             }
         })
@@ -304,7 +353,7 @@ impl Imap {
     }
 
     /// Connects to imap account using already-configured parameters.
-    pub fn connect_configured(&self, context: &Context) -> Result<(), Error> {
+    pub fn connect_configured(&self, context: &Context) -> Result<()> {
         if async_std::task::block_on(async move {
             self.is_connected().await && !self.should_reconnect()
         }) {
@@ -320,9 +369,7 @@ impl Imap {
         if self.connect(context, &param) {
             self.ensure_configured_folders(context, true)
         } else {
-            Err(Error::ImapConnectionFailed(
-                format!("{}", param).to_string(),
-            ))
+            Err(Error::ConnectionFailed(format!("{}", param).to_string()))
         }
     }
 
@@ -408,11 +455,11 @@ impl Imap {
         });
     }
 
-    pub fn fetch(&self, context: &Context, watch_folder: &str) -> Result<(), Error> {
+    pub fn fetch(&self, context: &Context, watch_folder: &str) -> Result<()> {
         task::block_on(async move {
             if !context.sql.is_open() {
                 // probably shutdown
-                return Err(Error::ImapInTeardown);
+                return Err(Error::InTeardown);
             }
             while self
                 .fetch_from_single_folder(context, &watch_folder)
@@ -430,12 +477,12 @@ impl Imap {
         &self,
         context: &Context,
         folder: Option<S>,
-    ) -> Result<(), SelectError> {
+    ) -> Result<()> {
         if self.session.lock().await.is_none() {
             let mut cfg = self.config.write().await;
             cfg.selected_folder = None;
             cfg.selected_folder_needs_expunge = false;
-            return Err(SelectError::NoSession);
+            return Err(Error::NoSession);
         }
 
         // if there is a new folder and the new folder is equal to the selected one, there's nothing to do.
@@ -462,11 +509,11 @@ impl Imap {
                             info!(context, "close/expunge succeeded");
                         }
                         Err(err) => {
-                            return Err(SelectError::CloseExpungeFailed(err));
+                            return Err(Error::CloseExpungeFailed(err));
                         }
                     }
                 } else {
-                    return Err(SelectError::NoSession);
+                    return Err(Error::NoSession);
                 }
             }
             self.config.write().await.selected_folder_needs_expunge = false;
@@ -491,19 +538,19 @@ impl Imap {
                     Err(async_imap::error::Error::ConnectionLost) => {
                         self.trigger_reconnect();
                         self.config.write().await.selected_folder = None;
-                        Err(SelectError::ConnectionLost)
+                        Err(Error::ConnectionLost)
                     }
                     Err(async_imap::error::Error::Validate(_)) => {
-                        Err(SelectError::BadFolderName(folder.as_ref().to_string()))
+                        Err(Error::BadFolderName(folder.as_ref().to_string()))
                     }
                     Err(err) => {
                         self.config.write().await.selected_folder = None;
                         self.trigger_reconnect();
-                        Err(SelectError::Other(err.to_string()))
+                        Err(Error::Other(err.to_string()))
                     }
                 }
             } else {
-                Err(SelectError::NoSession)
+                Err(Error::NoSession)
             }
         } else {
             Ok(())
@@ -537,11 +584,9 @@ impl Imap {
         &self,
         context: &Context,
         folder: &str,
-    ) -> Result<(u32, u32), Error> {
+    ) -> Result<(u32, u32)> {
         task::block_on(async move {
-            if let Err(err) = self.select_folder(context, Some(folder)).await {
-                bail!("could not select folder {:?}: {:?}", folder, err);
-            }
+            self.select_folder(context, Some(folder)).await?;
 
             // compare last seen UIDVALIDITY against the current one
             let (uid_validity, last_seen_uid) = self.get_config_last_seen_uid(context, &folder);
@@ -551,7 +596,10 @@ impl Imap {
 
             let new_uid_validity = match mailbox.uid_validity {
                 Some(v) => v,
-                None => bail!("Cannot get UIDVALIDITY for folder {:?}", folder),
+                None => {
+                    let s = format!("No UIDVALIDITY for folder {:?}", folder);
+                    return Err(Error::Other(s));
+                }
             };
 
             if new_uid_validity == uid_validity {
@@ -588,11 +636,11 @@ impl Imap {
                         match session.fetch(set, JUST_UID).await {
                             Ok(list) => list[0].uid.unwrap_or_default(),
                             Err(err) => {
-                                bail!("fetch failed: {:?}", err);
+                                return Err(Error::FetchFailed(err));
                             }
                         }
                     } else {
-                        return Err(Error::ImapNoConnection);
+                        return Err(Error::NoConnection);
                     }
                 }
             };
@@ -614,7 +662,7 @@ impl Imap {
         &self,
         context: &Context,
         folder: S,
-    ) -> Result<bool, Error> {
+    ) -> Result<bool> {
         let (uid_validity, last_seen_uid) =
             self.select_with_uidvalidity(context, folder.as_ref())?;
 
@@ -627,11 +675,11 @@ impl Imap {
             match session.uid_fetch(set, PREFETCH_FLAGS).await {
                 Ok(list) => list,
                 Err(err) => {
-                    bail!("uid_fetch failed: {}", err);
+                    return Err(Error::FetchFailed(err));
                 }
             }
         } else {
-            return Err(Error::ImapNoConnection);
+            return Err(Error::NoConnection);
         };
 
         // prefetch info from all unfetched mails
@@ -645,7 +693,7 @@ impl Imap {
             if cur_uid <= last_seen_uid {
                 warn!(
                     context,
-                    "wrong uid {}, last seen was {}", cur_uid, last_seen_uid
+                    "unexpected uid {}, last seen was {}", cur_uid, last_seen_uid
                 );
                 continue;
             }
@@ -786,20 +834,15 @@ impl Imap {
         1
     }
 
-    pub fn idle(&self, context: &Context, watch_folder: Option<String>) -> Result<(), Error> {
+    pub fn idle(&self, context: &Context, watch_folder: Option<String>) -> Result<()> {
         task::block_on(async move {
             if !self.config.read().await.can_idle {
-                return Err(Error::ImapMissesIdle);
+                return Err(Error::IdleAbilityMissing);
             }
 
             self.setup_handle_if_needed(context)?;
 
-            if let Err(err) = self.select_folder(context, watch_folder.clone()).await {
-                return Err(Error::ImapSelectFailed(format!(
-                    "{:?}: {:?}",
-                    watch_folder, err
-                )));
-            }
+            self.select_folder(context, watch_folder.clone()).await?;
 
             let session = self.session.lock().await.take();
             let timeout = Duration::from_secs(23 * 60);
@@ -809,7 +852,7 @@ impl Imap {
                     // typically also need to change the Insecure branch.
                     IdleHandle::Secure(mut handle) => {
                         if let Err(err) = handle.init().await {
-                            return Err(Error::ImapIdleProtocolFailed(err.to_string()));
+                            return Err(Error::IdleProtocolFailed(err));
                         }
 
                         let (idle_wait, interrupt) = handle.wait_with_timeout(timeout);
@@ -847,13 +890,13 @@ impl Imap {
                                 // means that we waited long (with idle_wait)
                                 // but the network went away/changed
                                 self.trigger_reconnect();
-                                return Err(Error::ImapIdleProtocolFailed(err.to_string()));
+                                return Err(Error::IdleProtocolFailed(err));
                             }
                         }
                     }
                     IdleHandle::Insecure(mut handle) => {
                         if let Err(err) = handle.init().await {
-                            return Err(Error::ImapIdleProtocolFailed(err.to_string()));
+                            return Err(Error::IdleProtocolFailed(err));
                         }
 
                         let (idle_wait, interrupt) = handle.wait_with_timeout(timeout);
@@ -891,7 +934,7 @@ impl Imap {
                                 // means that we waited long (with idle_wait)
                                 // but the network went away/changed
                                 self.trigger_reconnect();
-                                return Err(Error::ImapIdleProtocolFailed(err.to_string()));
+                                return Err(Error::IdleProtocolFailed(err));
                             }
                         }
                     }
@@ -1129,15 +1172,15 @@ impl Imap {
             }
             match self.select_folder(context, Some(&folder)).await {
                 Ok(()) => None,
-                Err(SelectError::ConnectionLost) => {
+                Err(Error::ConnectionLost) => {
                     warn!(context, "Lost imap connection");
                     Some(ImapActionResult::RetryLater)
                 }
-                Err(SelectError::NoSession) => {
+                Err(Error::NoSession) => {
                     warn!(context, "no imap session");
                     Some(ImapActionResult::Failed)
                 }
-                Err(SelectError::BadFolderName(folder_name)) => {
+                Err(Error::BadFolderName(folder_name)) => {
                     warn!(context, "invalid folder name: {:?}", folder_name);
                     Some(ImapActionResult::Failed)
                 }
@@ -1245,11 +1288,7 @@ impl Imap {
         })
     }
 
-    pub fn ensure_configured_folders(
-        &self,
-        context: &Context,
-        create_mvbox: bool,
-    ) -> Result<(), Error> {
+    pub fn ensure_configured_folders(&self, context: &Context, create_mvbox: bool) -> Result<()> {
         let folders_configured = context
             .sql
             .get_raw_config_int(context, "folders_configured");
@@ -1260,10 +1299,9 @@ impl Imap {
         }
 
         task::block_on(async move {
-            ensure!(
-                self.is_connected().await,
-                "cannot configure folders: not connected"
-            );
+            if !self.is_connected().await {
+                return Err(Error::NoConnection);
+            }
 
             info!(context, "Configuring IMAP-folders.");
 
@@ -1271,7 +1309,7 @@ impl Imap {
                 let folders = match self.list_folders(session, context).await {
                     Some(f) => f,
                     None => {
-                        bail!("could not obtain list of imap folders");
+                        return Err(Error::Other("list_folders failed".to_string()));
                     }
                 };
 
@@ -1490,12 +1528,17 @@ fn precheck_imf(context: &Context, rfc724_mid: &str, server_folder: &str, server
     }
 }
 
-fn prefetch_get_message_id(prefetch_msg: &Fetch) -> Result<String, Error> {
-    ensure!(
-        prefetch_msg.envelope().is_some(),
-        "Fetched message has no envelope"
-    );
+fn prefetch_get_message_id(prefetch_msg: &Fetch) -> Result<String> {
+    if prefetch_msg.envelope().is_none() {
+        return Err(Error::Other(
+            "prefectch: message has no envelope".to_string(),
+        ));
+    }
+
     let message_id = prefetch_msg.envelope().unwrap().message_id;
-    ensure!(message_id.is_some(), "No message ID found");
-    wrapmime::parse_message_id(&message_id.unwrap())
+    if message_id.is_none() {
+        return Err(Error::Other("prefetch: No message ID found".to_string()));
+    }
+
+    wrapmime::parse_message_id(&message_id.unwrap()).map_err(Into::into)
 }
