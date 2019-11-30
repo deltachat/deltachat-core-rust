@@ -20,7 +20,6 @@ use crate::message::MsgId;
 use crate::message::{self, Message, MessageState};
 use crate::mimefactory::{vec_contains_lowercase, Loaded, MimeFactory};
 use crate::param::*;
-use crate::smtp::SmtpError;
 use crate::sql;
 
 // results in ~3 weeks for the last backoff timespan
@@ -185,18 +184,18 @@ impl Job {
                     // otherwise might send it twice.
                     let mut smtp = context.smtp.lock().unwrap();
                     match smtp.send(context, recipients_list, body, self.job_id) {
-                        Err(SmtpError::SendError(err)) => {
+                        Err(crate::smtp::send::Error::SendError(err)) => {
                             // Remote error, retry later.
                             smtp.disconnect();
                             info!(context, "SMTP failed to send: {}", err);
                             self.try_again_later(TryAgain::AtOnce, Some(err.to_string()));
                         }
-                        Err(SmtpError::EnvelopeError(err)) => {
+                        Err(crate::smtp::send::Error::EnvelopeError(err)) => {
                             // Local error, job is invalid, do not retry.
                             smtp.disconnect();
                             warn!(context, "SMTP job is invalid: {}", err);
                         }
-                        Err(SmtpError::NoTransport) => {
+                        Err(crate::smtp::send::Error::NoTransport) => {
                             // Should never happen.
                             // It does not even make sense to disconnect here.
                             error!(context, "SMTP job failed because SMTP has no transport");
