@@ -2253,6 +2253,22 @@ mod tests {
         assert!(was_device_msg_ever_added(&t.ctx, "").is_err());
     }
 
+    #[test]
+    fn test_delete_device_chat() {
+        let t = test_context(Some(Box::new(logging_cb)));
+
+        let mut msg = Message::new(Viewtype::Text);
+        msg.text = Some("message text".to_string());
+        add_device_msg(&t.ctx, Some("some-label"), Some(&mut msg)).ok();
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        assert_eq!(chats.len(), 1);
+
+        // after the device-chat and all messages are deleted, a re-adding should do nothing
+        delete(&t.ctx, chats.get_chat_id(0)).ok();
+        add_device_msg(&t.ctx, Some("some-label"), Some(&mut msg)).ok();
+        assert_eq!(chatlist_len(&t.ctx, 0), 0)
+    }
+
     fn chatlist_len(ctx: &Context, listflags: usize) -> usize {
         Chatlist::try_load(ctx, listflags, None, None)
             .unwrap()
