@@ -115,7 +115,7 @@ impl Default for ImapConfig {
     }
 }
 
-#[derive(Debug, Fail, Clone, Eq, PartialEq)]
+#[derive(Debug, Fail)]
 enum SelectError {
     #[fail(display = "Could not obtain imap-session object.")]
     NoSession,
@@ -124,7 +124,7 @@ enum SelectError {
     ConnectionLost,
 
     #[fail(display = "imap-close (to expunge messages) failed: {}", _0)]
-    CloseExpungeFailed(String),
+    CloseExpungeFailed(#[cause] async_imap::error::Error),
 
     #[fail(display = "Folder name invalid: {:?}", _0)]
     BadFolderName(String),
@@ -462,7 +462,7 @@ impl Imap {
                             info!(context, "close/expunge succeeded");
                         }
                         Err(err) => {
-                            return Err(SelectError::CloseExpungeFailed(err.to_string()));
+                            return Err(SelectError::CloseExpungeFailed(err));
                         }
                     }
                 } else {
