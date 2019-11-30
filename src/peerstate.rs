@@ -26,7 +26,7 @@ pub enum PeerstateVerifiedStatus {
 /// Peerstate represents the state of an Autocrypt peer.
 pub struct Peerstate<'a> {
     pub context: &'a Context,
-    pub addr: Option<String>,
+    pub addr: String,
     pub last_seen: i64,
     pub last_seen_autocrypt: i64,
     pub prefer_encrypt: EncryptPreference,
@@ -98,10 +98,10 @@ pub enum DegradeEvent {
 }
 
 impl<'a> Peerstate<'a> {
-    pub fn new(context: &'a Context) -> Self {
+    pub fn new(context: &'a Context, addr: String) -> Self {
         Peerstate {
             context,
-            addr: None,
+            addr,
             last_seen: 0,
             last_seen_autocrypt: 0,
             prefer_encrypt: Default::default(),
@@ -118,9 +118,8 @@ impl<'a> Peerstate<'a> {
     }
 
     pub fn from_header(context: &'a Context, header: &Aheader, message_time: i64) -> Self {
-        let mut res = Self::new(context);
+        let mut res = Self::new(context, header.addr.clone());
 
-        res.addr = Some(header.addr.clone());
         res.last_seen = message_time;
         res.last_seen_autocrypt = message_time;
         res.to_save = Some(ToSave::All);
@@ -132,9 +131,8 @@ impl<'a> Peerstate<'a> {
     }
 
     pub fn from_gossip(context: &'a Context, gossip_header: &Aheader, message_time: i64) -> Self {
-        let mut res = Self::new(context);
+        let mut res = Self::new(context, gossip_header.addr.clone());
 
-        res.addr = Some(gossip_header.addr.clone());
         res.gossip_timestamp = message_time;
         res.to_save = Some(ToSave::All);
         res.gossip_key = Some(gossip_header.public_key.clone());
@@ -177,9 +175,8 @@ impl<'a> Peerstate<'a> {
                 public_key, gossip_timestamp, gossip_key, public_key_fingerprint,
                 gossip_key_fingerprint, verified_key, verified_key_fingerprint
                 */
-                let mut res = Self::new(context);
+                let mut res = Self::new(context, row.get(0)?);
 
-                res.addr = Some(row.get(0)?);
                 res.last_seen = row.get(1)?;
                 res.last_seen_autocrypt = row.get(2)?;
                 res.prefer_encrypt = EncryptPreference::from_i32(row.get(3)?).unwrap_or_default();
@@ -273,9 +270,7 @@ impl<'a> Peerstate<'a> {
     }
 
     pub fn apply_header(&mut self, header: &Aheader, message_time: i64) {
-        if self.addr.is_none()
-            || self.addr.as_ref().unwrap().to_lowercase() != header.addr.to_lowercase()
-        {
+        if self.addr.to_lowercase() != header.addr.to_lowercase() {
             return;
         }
 
@@ -305,9 +300,7 @@ impl<'a> Peerstate<'a> {
     }
 
     pub fn apply_gossip(&mut self, gossip_header: &Aheader, message_time: i64) {
-        if self.addr.is_none()
-            || self.addr.as_ref().unwrap().to_lowercase() != gossip_header.addr.to_lowercase()
-        {
+        if self.addr.to_lowercase() != gossip_header.addr.to_lowercase() {
             return;
         }
 
@@ -323,19 +316,17 @@ impl<'a> Peerstate<'a> {
     }
 
     pub fn render_gossip_header(&self, min_verified: PeerstateVerifiedStatus) -> Option<String> {
-        if let Some(ref addr) = self.addr {
-            if let Some(key) = self.peek_key(min_verified) {
-                // TODO: avoid cloning
-                let header = Aheader::new(
-                    addr.to_string(),
-                    key.clone(),
-                    EncryptPreference::NoPreference,
-                );
-                return Some(header.to_string());
-            }
+        if let Some(key) = self.peek_key(min_verified) {
+            // TODO: avoid cloning
+            let header = Aheader::new(
+                self.addr.clone(),
+                key.clone(),
+                EncryptPreference::NoPreference,
+            );
+            Some(header.to_string())
+        } else {
+            None
         }
-
-        None
     }
 
     pub fn peek_key(&self, min_verified: PeerstateVerifiedStatus) -> Option<&Key> {
@@ -387,13 +378,12 @@ impl<'a> Peerstate<'a> {
     }
 
     pub fn save_to_db(&self, sql: &Sql, create: bool) -> Result<()> {
-        ensure!(!self.addr.is_none(), "self.addr is not configured");
         if create {
             sql::execute(
                 self.context,
                 sql,
                 "INSERT INTO acpeerstates (addr) VALUES(?);",
-                params![self.addr.as_ref().unwrap()],
+                params![self.addr],
             )?;
         }
 
@@ -471,7 +461,7 @@ mod tests {
 
         let mut peerstate = Peerstate {
             context: &ctx.ctx,
-            addr: Some(addr.into()),
+            addr: addr.into(),
             last_seen: 10,
             last_seen_autocrypt: 11,
             prefer_encrypt: EncryptPreference::Mutual,
@@ -516,7 +506,7 @@ mod tests {
 
         let peerstate = Peerstate {
             context: &ctx.ctx,
-            addr: Some(addr.into()),
+            addr: addr.into(),
             last_seen: 10,
             last_seen_autocrypt: 11,
             prefer_encrypt: EncryptPreference::Mutual,
@@ -554,7 +544,7 @@ mod tests {
 
         let mut peerstate = Peerstate {
             context: &ctx.ctx,
-            addr: Some(addr.into()),
+            addr: addr.into(),
             last_seen: 10,
             last_seen_autocrypt: 11,
             prefer_encrypt: EncryptPreference::Mutual,
