@@ -1,4 +1,4 @@
-use crate::dc_dehtml::*;
+use crate::dehtml::*;
 
 #[derive(Copy, Clone)]
 pub struct Simplify {
@@ -34,7 +34,7 @@ impl Simplify {
     /// The data returned from simplify() must be free()'d when no longer used.
     pub fn simplify(&mut self, input: &str, is_html: bool, is_msgrmsg: bool) -> String {
         let mut out = if is_html {
-            dc_dehtml(input)
+            dehtml(input)
         } else {
             input.to_string()
         };

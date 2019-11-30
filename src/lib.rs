@@ -65,12 +65,12 @@ mod token;
 mod wrapmime;
 
 pub mod dc_array;
-mod dc_dehtml;
 pub mod dc_mimeparser;
 pub mod dc_receive_imf;
 mod dc_simplify;
 mod dc_strencode;
 pub mod dc_tools;
+mod dehtml;
 
 #[cfg(test)]
 mod test_utils;
