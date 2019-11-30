@@ -478,7 +478,7 @@ impl<'a> MimeParser<'a> {
                             /* eg. `report-type=delivery-status`;
                             maybe we should show them as a little error icon */
                             if let Some(first) = mail.subparts.iter().next() {
-                                any_part_added = self.parse_mime_recursive(mail)?;
+                                any_part_added = self.parse_mime_recursive(first)?;
                             }
                         }
                     }

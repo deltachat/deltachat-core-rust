@@ -345,6 +345,8 @@ impl<'a> MimeFactory<'a> {
             .unwrap()
             .to_rfc2822();
 
+        unprotected_headers.push(Header::new("Date".into(), date));
+
         let os_name = &self.context.os_name;
         let os_part = os_name
             .as_ref()
@@ -420,7 +422,6 @@ impl<'a> MimeFactory<'a> {
 
             let encrypted = encrypt_helper.encrypt(
                 self.context,
-                e2ee_guranteed,
                 min_verified,
                 do_gossip,
                 message,
@@ -433,7 +434,7 @@ impl<'a> MimeFactory<'a> {
                     PartBuilder::new()
                         .content_type(&"application/pgp-encrypted".parse::<mime::Mime>().unwrap())
                         .header(("Content-Description", "PGP/MIME version identification"))
-                        .body("Version: 1")
+                        .body("Version: 1\r\n")
                         .build(),
                 )
                 .child(
@@ -451,7 +452,8 @@ impl<'a> MimeFactory<'a> {
                 )
                 .header(("Subject".to_string(), "...".to_string()));
 
-            self.finalize_mime_message(true, do_gossip && !peerstates.is_empty())?;
+            let gossiped = do_gossip && !peerstates.is_empty();
+            self.finalize_mime_message(true, gossiped)?;
 
             outer_message
         } else {

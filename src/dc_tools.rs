@@ -7,7 +7,7 @@ use std::ffi::{CStr, CString};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::SystemTime;
-use std::{fmt, fs, ptr};
+use std::{fmt, fs};
 
 use chrono::{Local, TimeZone};
 use libc::{memcpy, strlen};
@@ -855,20 +855,6 @@ pub(crate) unsafe fn strdup(s: *const libc::c_char) -> *mut libc::c_char {
 
     memcpy(result, s as *const _, slen + 1);
     result as *mut _
-}
-
-pub(crate) unsafe fn strcasecmp(s1: *const libc::c_char, s2: *const libc::c_char) -> libc::c_int {
-    let s1 = std::ffi::CStr::from_ptr(s1)
-        .to_string_lossy()
-        .to_lowercase();
-    let s2 = std::ffi::CStr::from_ptr(s2)
-        .to_string_lossy()
-        .to_lowercase();
-    if s1 == s2 {
-        0
-    } else {
-        1
-    }
 }
 
 #[cfg(test)]
