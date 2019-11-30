@@ -32,11 +32,11 @@ impl<'a> BlobObject<'a> {
     ///
     /// # Errors
     ///
-    /// [BlobErrorKind::CreateFailure] is used when the file could not
+    /// [BlobError::CreateFailure] is used when the file could not
     /// be created.  You can expect [BlobError.cause] to contain an
     /// underlying error.
     ///
-    /// [BlobErrorKind::WriteFailure] is used when the file could not
+    /// [BlobError::WriteFailure] is used when the file could not
     /// be written to.  You can expect [BlobError.cause] to contain an
     /// underlying error.
     pub fn create(
@@ -48,7 +48,12 @@ impl<'a> BlobObject<'a> {
         let (stem, ext) = BlobObject::sanitise_name(suggested_name.as_ref());
         let (name, mut file) = BlobObject::create_new_file(&blobdir, &stem, &ext)?;
         file.write_all(data)
-            .map_err(|err| BlobError::new_write_failure(blobdir, &name, err))?;
+            .map_err(|err| BlobError::WriteFailure {
+                blobdir: blobdir.to_path_buf(),
+                blobname: name.clone(),
+                cause: err,
+                backtrace: failure::Backtrace::new(),
+            })?;
         let blob = BlobObject {
             blobdir,
             name: format!("$BLOBDIR/{}", name),
@@ -71,18 +76,25 @@ impl<'a> BlobObject<'a> {
                 Ok(file) => return Ok((name, file)),
                 Err(err) => {
                     if attempt == max_attempt {
-                        return Err(BlobError::new_create_failure(dir, &name, err));
+                        return Err(BlobError::CreateFailure {
+                            blobdir: dir.to_path_buf(),
+                            blobname: name,
+                            cause: err,
+                            backtrace: failure::Backtrace::new(),
+                        });
                     } else {
                         name = format!("{}-{}{}", stem, rand::random::<u32>(), ext);
                     }
                 }
             }
         }
-        Err(BlobError::new_create_failure(
-            dir,
-            &name,
-            format_err!("Unreachable code - supposedly"),
-        ))
+        // This is supposed to be unreachable, but the compiler doesn't know.
+        Err(BlobError::CreateFailure {
+            blobdir: dir.to_path_buf(),
+            blobname: name,
+            cause: std::io::Error::new(std::io::ErrorKind::Other, "supposedly unreachable"),
+            backtrace: failure::Backtrace::new(),
+        })
     }
 
     /// Creates a new blob object with unique name by copying an existing file.
@@ -95,24 +107,35 @@ impl<'a> BlobObject<'a> {
     /// # Errors
     ///
     /// In addition to the errors in [BlobObject::create] the
-    /// [BlobErrorKind::CopyFailure] is used when the data can not be
+    /// [BlobError::CopyFailure] is used when the data can not be
     /// copied.
     pub fn create_and_copy(
         context: &'a Context,
         src: impl AsRef<Path>,
     ) -> std::result::Result<BlobObject<'a>, BlobError> {
-        let mut src_file = fs::File::open(src.as_ref()).map_err(|err| {
-            BlobError::new_copy_failure(context.get_blobdir(), "", src.as_ref(), err)
+        let mut src_file = fs::File::open(src.as_ref()).map_err(|err| BlobError::CopyFailure {
+            blobdir: context.get_blobdir().to_path_buf(),
+            blobname: String::from(""),
+            src: src.as_ref().to_path_buf(),
+            cause: err,
+            backtrace: failure::Backtrace::new(),
         })?;
         let (stem, ext) = BlobObject::sanitise_name(&src.as_ref().to_string_lossy());
         let (name, mut dst_file) = BlobObject::create_new_file(context.get_blobdir(), &stem, &ext)?;
+        let name_for_err = name.clone();
         std::io::copy(&mut src_file, &mut dst_file).map_err(|err| {
             {
                 // Attempt to remove the failed file, swallow errors resulting from that.
-                let path = context.get_blobdir().join(&name);
+                let path = context.get_blobdir().join(&name_for_err);
                 fs::remove_file(path).ok();
             }
-            BlobError::new_copy_failure(context.get_blobdir(), &name, src.as_ref(), err)
+            BlobError::CopyFailure {
+                blobdir: context.get_blobdir().to_path_buf(),
+                blobname: name_for_err,
+                src: src.as_ref().to_path_buf(),
+                cause: err,
+                backtrace: failure::Backtrace::new(),
+            }
         })?;
         let blob = BlobObject {
             blobdir: context.get_blobdir(),
@@ -156,10 +179,10 @@ impl<'a> BlobObject<'a> {
     ///
     /// # Errors
     ///
-    /// [BlobErrorKind::WrongBlobdir] is used if the path is not in
+    /// [BlobError::WrongBlobdir] is used if the path is not in
     /// the blob directory.
     ///
-    /// [BlobErrorKind::WrongName] is used if the file name does not
+    /// [BlobError::WrongName] is used if the file name does not
     /// remain identical after sanitisation.
     pub fn from_path(
         context: &Context,
@@ -168,13 +191,21 @@ impl<'a> BlobObject<'a> {
         let rel_path = path
             .as_ref()
             .strip_prefix(context.get_blobdir())
-            .map_err(|_| BlobError::new_wrong_blobdir(context.get_blobdir(), path.as_ref()))?;
+            .map_err(|_| BlobError::WrongBlobdir {
+                blobdir: context.get_blobdir().to_path_buf(),
+                src: path.as_ref().to_path_buf(),
+                backtrace: failure::Backtrace::new(),
+            })?;
         if !BlobObject::is_acceptible_blob_name(&rel_path) {
-            return Err(BlobError::new_wrong_name(path.as_ref()));
+            return Err(BlobError::WrongName {
+                blobname: path.as_ref().to_path_buf(),
+                backtrace: failure::Backtrace::new(),
+            });
         }
-        let name = rel_path
-            .to_str()
-            .ok_or_else(|| BlobError::new_wrong_name(path.as_ref()))?;
+        let name = rel_path.to_str().ok_or_else(|| BlobError::WrongName {
+            blobname: path.as_ref().to_path_buf(),
+            backtrace: failure::Backtrace::new(),
+        })?;
         BlobObject::from_name(context, name.to_string())
     }
 
@@ -187,7 +218,7 @@ impl<'a> BlobObject<'a> {
     ///
     /// # Errors
     ///
-    /// [BlobErrorKind::WrongName] is used if the name is not a valid
+    /// [BlobError::WrongName] is used if the name is not a valid
     /// blobname, i.e. if [BlobObject::sanitise_name] does modify the
     /// provided name.
     pub fn from_name(
@@ -199,7 +230,10 @@ impl<'a> BlobObject<'a> {
             false => name,
         };
         if !BlobObject::is_acceptible_blob_name(&name) {
-            return Err(BlobError::new_wrong_name(name));
+            return Err(BlobError::WrongName {
+                blobname: PathBuf::from(name),
+                backtrace: failure::Backtrace::new(),
+            });
         }
         Ok(BlobObject {
             blobdir: context.get_blobdir(),
@@ -324,171 +358,50 @@ impl<'a> fmt::Display for BlobObject<'a> {
 }
 
 /// Errors for the [BlobObject].
-///
-/// To keep the return type small and thus the happy path fast this
-/// stores everything on the heap.
-#[derive(Debug)]
-pub struct BlobError {
-    inner: Box<BlobErrorInner>,
-}
-
-#[derive(Debug)]
-struct BlobErrorInner {
-    kind: BlobErrorKind,
-    data: BlobErrorData,
-    backtrace: failure::Backtrace,
-}
-
-/// Error kind for [BlobError].
-///
-/// Each error kind has associated data in the [BlobErrorData].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BlobErrorKind {
-    /// Failed to create the blob.
-    CreateFailure,
-    /// Failed to write data to blob.
-    WriteFailure,
-    /// Failed to copy data to blob.
-    CopyFailure,
-    /// Blob is not in the blobdir.
-    WrongBlobdir,
-    /// Blob has a bad name.
-    ///
-    /// E.g. the name is not sanitised correctly or contains a
-    /// sub-directory.
-    WrongName,
-}
-
-/// Associated data for each [BlobError] error kind.
-///
-/// This is not stored directly on the [BlobErrorKind] so that the
-/// kind can stay trivially Copy and Eq.  It is however possible to
-/// create a [BlobError] with mismatching [BlobErrorKind] and
-/// [BlobErrorData], don't do that.
-///
-/// Any blobname stored here is the bare name, without the `$BLOBDIR`
-/// prefix.  All data is owned so that errors do not need to be tied
-/// to any lifetimes.
-#[derive(Debug)]
-enum BlobErrorData {
+#[derive(Fail, Debug)]
+pub enum BlobError {
     CreateFailure {
         blobdir: PathBuf,
         blobname: String,
-        cause: failure::Error,
+        #[cause]
+        cause: std::io::Error,
+        backtrace: failure::Backtrace,
     },
     WriteFailure {
         blobdir: PathBuf,
         blobname: String,
-        cause: failure::Error,
+        #[cause]
+        cause: std::io::Error,
+        backtrace: failure::Backtrace,
     },
     CopyFailure {
         blobdir: PathBuf,
         blobname: String,
         src: PathBuf,
-        cause: failure::Error,
+        #[cause]
+        cause: std::io::Error,
+        backtrace: failure::Backtrace,
     },
     WrongBlobdir {
         blobdir: PathBuf,
         src: PathBuf,
+        backtrace: failure::Backtrace,
     },
     WrongName {
         blobname: PathBuf,
+        backtrace: failure::Backtrace,
     },
 }
 
-impl BlobError {
-    pub fn kind(&self) -> BlobErrorKind {
-        self.inner.kind
-    }
-
-    fn new_create_failure(
-        blobdir: impl Into<PathBuf>,
-        blobname: impl Into<String>,
-        cause: impl Into<failure::Error>,
-    ) -> BlobError {
-        BlobError {
-            inner: Box::new(BlobErrorInner {
-                kind: BlobErrorKind::CreateFailure,
-                data: BlobErrorData::CreateFailure {
-                    blobdir: blobdir.into(),
-                    blobname: blobname.into(),
-                    cause: cause.into(),
-                },
-                backtrace: failure::Backtrace::new(),
-            }),
-        }
-    }
-
-    fn new_write_failure(
-        blobdir: impl Into<PathBuf>,
-        blobname: impl Into<String>,
-        cause: impl Into<failure::Error>,
-    ) -> BlobError {
-        BlobError {
-            inner: Box::new(BlobErrorInner {
-                kind: BlobErrorKind::WriteFailure,
-                data: BlobErrorData::WriteFailure {
-                    blobdir: blobdir.into(),
-                    blobname: blobname.into(),
-                    cause: cause.into(),
-                },
-                backtrace: failure::Backtrace::new(),
-            }),
-        }
-    }
-
-    fn new_copy_failure(
-        blobdir: impl Into<PathBuf>,
-        blobname: impl Into<String>,
-        src: impl Into<PathBuf>,
-        cause: impl Into<failure::Error>,
-    ) -> BlobError {
-        BlobError {
-            inner: Box::new(BlobErrorInner {
-                kind: BlobErrorKind::CopyFailure,
-                data: BlobErrorData::CopyFailure {
-                    blobdir: blobdir.into(),
-                    blobname: blobname.into(),
-                    src: src.into(),
-                    cause: cause.into(),
-                },
-                backtrace: failure::Backtrace::new(),
-            }),
-        }
-    }
-
-    fn new_wrong_blobdir(blobdir: impl Into<PathBuf>, src: impl Into<PathBuf>) -> BlobError {
-        BlobError {
-            inner: Box::new(BlobErrorInner {
-                kind: BlobErrorKind::WrongBlobdir,
-                data: BlobErrorData::WrongBlobdir {
-                    blobdir: blobdir.into(),
-                    src: src.into(),
-                },
-                backtrace: failure::Backtrace::new(),
-            }),
-        }
-    }
-
-    fn new_wrong_name(blobname: impl Into<PathBuf>) -> BlobError {
-        BlobError {
-            inner: Box::new(BlobErrorInner {
-                kind: BlobErrorKind::WrongName,
-                data: BlobErrorData::WrongName {
-                    blobname: blobname.into(),
-                },
-                backtrace: failure::Backtrace::new(),
-            }),
-        }
-    }
-}
-
+// Implementing Display is done by hand because the failure
+// #[fail(display = "...")] syntax does not allow using
+// `blobdir.display()`.
 impl fmt::Display for BlobError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // Match on the data rather than kind, they are equivalent for
         // identifying purposes but contain the actual data we need.
-        match &self.inner.data {
-            BlobErrorData::CreateFailure {
+        match &self {
+            BlobError::CreateFailure {
                 blobdir, blobname, ..
             } => write!(
                 f,
@@ -496,7 +409,7 @@ impl fmt::Display for BlobError {
                 blobname,
                 blobdir.display()
             ),
-            BlobErrorData::WriteFailure {
+            BlobError::WriteFailure {
                 blobdir, blobname, ..
             } => write!(
                 f,
@@ -504,7 +417,7 @@ impl fmt::Display for BlobError {
                 blobname,
                 blobdir.display()
             ),
-            BlobErrorData::CopyFailure {
+            BlobError::CopyFailure {
                 blobdir,
                 blobname,
                 src,
@@ -516,31 +429,16 @@ impl fmt::Display for BlobError {
                 blobname,
                 blobdir.display(),
             ),
-            BlobErrorData::WrongBlobdir { blobdir, src } => write!(
+            BlobError::WrongBlobdir { blobdir, src, .. } => write!(
                 f,
                 "File path {} is not in blobdir {}",
                 src.display(),
                 blobdir.display(),
             ),
-            BlobErrorData::WrongName { blobname } => {
+            BlobError::WrongName { blobname, .. } => {
                 write!(f, "Blob has a bad name: {}", blobname.display(),)
             }
         }
-    }
-}
-
-impl failure::Fail for BlobError {
-    fn cause(&self) -> Option<&dyn failure::Fail> {
-        match &self.inner.data {
-            BlobErrorData::CreateFailure { cause, .. }
-            | BlobErrorData::WriteFailure { cause, .. }
-            | BlobErrorData::CopyFailure { cause, .. } => Some(cause.as_fail()),
-            _ => None,
-        }
-    }
-
-    fn backtrace(&self) -> Option<&failure::Backtrace> {
-        Some(&self.inner.backtrace)
     }
 }
 
