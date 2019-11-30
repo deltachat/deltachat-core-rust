@@ -464,7 +464,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             Loaded::Message => {
                 self.render_message(&mut protected_headers, &mut unprotected_headers, &grpimage)?
             }
-            Loaded::MDN => self.render_mdn(&mut protected_headers, &mut unprotected_headers)?,
+            Loaded::MDN => self.render_mdn()?,
         };
 
         if force_plaintext != DC_FP_NO_AUTOCRYPT_HEADER {
@@ -850,12 +850,69 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         Ok(message)
     }
 
-    fn render_mdn(
-        &mut self,
-        protected_headers: &mut Vec<Header>,
-        unprotected_headers: &mut Vec<Header>,
-    ) -> Result<PartBuilder, Error> {
-        unimplemented!()
+    /// Render an MDN
+    fn render_mdn(&mut self) -> Result<PartBuilder, Error> {
+        // RFC 6522, this also requires the `report-type` parameter which is equal
+        // to the MIME subtype of the second body part of the multipart/report */
+        //
+        // currently, we do not send MDNs encrypted:
+        // - in a multi-device-setup that is not set up properly, MDNs would disturb the communication as they
+        //   are send automatically which may lead to spreading outdated Autocrypt headers.
+        // - they do not carry any information but the Message-ID
+        // - this save some KB
+        // - in older versions, we did not encrypt messages to ourself when they to to SMTP - however, if these messages
+        //   are forwarded for any reasons (eg. gmail always forwards to IMAP), we have no chance to decrypt them;
+        //   this issue is fixed with 0.9.4
+
+        let mut message = PartBuilder::new().header((
+            "Content-Type".to_string(),
+            "multipart/report; report-type=disposition-notification".to_string(),
+        ));
+
+        // first body part: always human-readable, always REQUIRED by RFC 6522
+        let p1 = if 0
+            != self
+                .msg
+                .param
+                .get_int(Param::GuaranteeE2ee)
+                .unwrap_or_default()
+        {
+            self.context
+                .stock_str(StockMessage::EncryptedMsg)
+                .into_owned()
+        } else {
+            self.msg.get_summarytext(self.context, 32)
+        };
+        let p2 = self
+            .context
+            .stock_string_repl_str(StockMessage::ReadRcptMailBody, p1);
+        let message_text = format!("{}\r\n", p2);
+        message = message.child(
+            PartBuilder::new()
+                .content_type(&mime::TEXT_PLAIN_UTF_8)
+                .body(message_text)
+                .build(),
+        );
+
+        // second body part: machine-readable, always REQUIRED by RFC 6522
+        let version = get_version_str();
+        let message_text2 = format!(
+            "Reporting-UA: Delta Chat {}\r\n\
+             Original-Recipient: rfc822;{}\r\n\
+             Final-Recipient: rfc822;{}\r\n\
+             Original-Message-ID: <{}>\r\n\
+             Disposition: manual-action/MDN-sent-automatically; displayed\r\n",
+            version, self.from_addr, self.from_addr, self.msg.rfc724_mid
+        );
+
+        message = message.child(
+            PartBuilder::new()
+                .content_type(&"message/disposition-notification".parse().unwrap())
+                .body(message_text2)
+                .build(),
+        );
+
+        Ok(message)
     }
 }
 

@@ -470,11 +470,11 @@ impl Message {
         ret
     }
 
-    pub fn get_summarytext(&mut self, context: &Context, approx_characters: usize) -> String {
+    pub fn get_summarytext(&self, context: &Context, approx_characters: usize) -> String {
         get_summarytext_by_raw(
             self.type_0,
             self.text.as_ref(),
-            &mut self.param,
+            &self.param,
             approx_characters,
             context,
         )
