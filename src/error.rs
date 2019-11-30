@@ -29,7 +29,11 @@ pub enum Error {
     #[fail(display = "Watch folder not found {:?}", _0)]
     WatchFolderNotFound(String),
     #[fail(display = "Inalid Email: {:?}", _0)]
-    MailParseError(mailparse::MailParseError),
+    MailParseError(#[cause] mailparse::MailParseError),
+    #[fail(display = "Building invalid Email: {:?}", _0)]
+    LettreError(#[cause] lettre_email::error::Error),
+    #[fail(display = "FromStr error: {:?}", _0)]
+    FromStr(#[cause] mime::FromStrError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -103,6 +107,18 @@ impl From<crate::message::InvalidMsgId> for Error {
 impl From<mailparse::MailParseError> for Error {
     fn from(err: mailparse::MailParseError) -> Error {
         Error::MailParseError(err)
+    }
+}
+
+impl From<lettre_email::error::Error> for Error {
+    fn from(err: lettre_email::error::Error) -> Error {
+        Error::LettreError(err)
+    }
+}
+
+impl From<mime::FromStrError> for Error {
+    fn from(err: mime::FromStrError) -> Error {
+        Error::FromStr(err)
     }
 }
 

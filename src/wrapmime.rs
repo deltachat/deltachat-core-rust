@@ -48,16 +48,6 @@ pub fn get_autocrypt_mime<'a, 'b>(mail: &'a ParsedMail<'b>) -> Result<&'a Parsed
     Ok(&mail.subparts[1])
 }
 
-pub fn has_decryptable_data(mail: &ParsedMail<'_>) -> bool {
-    false
-    // /* MAILMIME_DATA_FILE indicates, the data is in a file; AFAIK this is not used on parsing */
-    //  {
-    //     (*mime_data).dt_type == MAILMIME_DATA_TEXT as libc::c_int
-    //         && !(*mime_data).dt_data.dt_text.dt_data.is_null()
-    //         && (*mime_data).dt_data.dt_text.dt_length > 0
-    // }
-}
-
 // returned addresses are normalized.
 pub fn mailimf_get_recipients(headers: &HashMap<String, String>) -> HashSet<String> {
     let mut recipients: HashSet<String> = Default::default();

@@ -462,7 +462,7 @@ impl<'a> MimeParser<'a> {
                 https://k9mail.github.io/2016/11/24/OpenPGP-Considerations-Part-I.html
                 for background information why we use encrypted+signed) */
                 if let Some(first) = mail.subparts.iter().next() {
-                    any_part_added = self.parse_mime_recursive(mail)?;
+                    any_part_added = self.parse_mime_recursive(first)?;
                 }
             }
             (DC_MIMETYPE_MP_REPORT, _) => {
@@ -802,7 +802,7 @@ impl<'a> MimeParser<'a> {
         // 3. retrieve information
 
         // must be present
-        if let Some(disposition) = report_fields.get_first_value("Disposition").ok().flatten() {
+        if let Some(_disposition) = report_fields.get_first_value("Disposition").ok().flatten() {
             if let Some(original_message_id) = report_fields
                 .get_first_value("Original-Message-ID")
                 .ok()
