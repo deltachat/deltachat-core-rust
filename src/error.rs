@@ -36,24 +36,9 @@ pub enum Error {
     InvalidMsgId,
     #[fail(display = "Watch folder not found {:?}", _0)]
     WatchFolderNotFound(String),
-    #[fail(display = "Connection Failed params: {}", _0)]
-    ImapConnectionFailed(String),
-    #[fail(display = "Could not get OAUTH token")]
-    ImapOauthError,
-    #[fail(display = "Could not login as {}", _0)]
-    ImapLoginFailed(String),
-    #[fail(display = "Cannot idle")]
-    ImapMissesIdle,
-    #[fail(display = "Imap IDLE protocol failed to init/complete")]
-    ImapIdleProtocolFailed(String),
-    #[fail(display = "Imap IDLE failed to select folder {:?}", _0)]
-    ImapSelectFailed(String),
-    #[fail(display = "Connect without configured params")]
-    ConnectWithoutConfigure,
-    #[fail(display = "imap operation attempted while imap is torn down")]
-    ImapInTeardown,
-    #[fail(display = "No IMAP Connection established")]
-    ImapNoConnection,
+
+    #[fail(display = "error {:?}", _0)]
+    Other(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

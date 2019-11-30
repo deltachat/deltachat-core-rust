@@ -104,7 +104,7 @@ impl JobThread {
                 if let Some(watch_folder) = self.get_watch_folder(context) {
                     let start = std::time::Instant::now();
                     info!(context, "{} started...", prefix);
-                    let res = self.imap.fetch(context, &watch_folder);
+                    let res = self.imap.fetch(context, &watch_folder).map_err(Into::into);
                     let elapsed = start.elapsed().as_millis();
                     info!(context, "{} done in {:.3} ms.", prefix, elapsed);
 
@@ -113,7 +113,7 @@ impl JobThread {
                     Err(Error::WatchFolderNotFound("not-set".to_string()))
                 }
             }
-            Err(err) => Err(err),
+            Err(err) => Err(crate::error::Error::Other(err.to_string())),
         }
     }
 
@@ -176,7 +176,7 @@ impl JobThread {
                 info!(context, "{} ended...", prefix);
                 match res {
                     Ok(()) => false,
-                    Err(Error::ImapMissesIdle) => true, // we have to do fake_idle
+                    Err(crate::imap::Error::IdleAbilityMissing) => true, // we have to do fake_idle
                     Err(err) => {
                         warn!(context, "{} failed: {} -> reconnecting", prefix, err);
                         // something is borked, let's start afresh on the next occassion

@@ -357,7 +357,7 @@ pub fn JobConfigureImap(context: &Context) {
                     || context.get_config_bool(Config::MvboxMove);
                 let imap = &context.inbox_thread.read().unwrap().imap;
                 if let Err(err) = imap.ensure_configured_folders(context, create_mvbox) {
-                    error!(context, "configuring folders failed: {:?}", err);
+                    warn!(context, "configuring folders failed: {:?}", err);
                     false
                 } else {
                     let res = imap.select_with_uidvalidity(context, "INBOX");
