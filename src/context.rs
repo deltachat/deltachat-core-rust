@@ -19,7 +19,7 @@ use crate::login_param::LoginParam;
 use crate::lot::Lot;
 use crate::message::{self, Message, MsgId};
 use crate::param::Params;
-use crate::smtp::*;
+use crate::smtp::Smtp;
 use crate::sql::Sql;
 
 /// Callback function type for [Context]

@@ -1,3 +1,7 @@
+//! # SMTP transport module
+
+pub mod send;
+
 use lettre::smtp::client::net::*;
 use lettre::*;
 
@@ -5,10 +9,29 @@ use failure::Fail;
 
 use crate::constants::*;
 use crate::context::Context;
-use crate::error::Error;
 use crate::events::Event;
 use crate::login_param::{dc_build_tls_config, LoginParam};
 use crate::oauth2::*;
+
+#[derive(Debug, Fail)]
+pub enum Error {
+    #[fail(display = "Bad parameters")]
+    BadParameters,
+    #[fail(display = "Invalid login address {}: {}", address, error)]
+    InvalidLoginAddress {
+        address: String,
+        #[cause]
+        error: lettre::error::Error,
+    },
+    #[fail(display = "SMTP failed to connect: {:?}", _0)]
+    ConnectionFailure(#[cause] lettre::smtp::error::Error),
+    #[fail(display = "SMTP: failed to setup connection {:?}", _0)]
+    ConnectionSetupFailure(#[cause] lettre::smtp::error::Error),
+    #[fail(display = "SMTP: oauth2 error {:?}", _0)]
+    Oauth2Error { address: String },
+}
+
+pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(DebugStub)]
 pub struct Smtp {
@@ -17,16 +40,6 @@ pub struct Smtp {
     transport_connected: bool,
     /// Email address we are sending from.
     from: Option<EmailAddress>,
-}
-
-#[derive(Debug, Fail)]
-pub enum SmtpError {
-    #[fail(display = "Envelope error: {}", _0)]
-    EnvelopeError(#[cause] lettre::error::Error),
-    #[fail(display = "Send error: {}", _0)]
-    SendError(#[cause] lettre::smtp::error::Error),
-    #[fail(display = "SMTP has no transport")]
-    NoTransport,
 }
 
 impl Smtp {
@@ -56,7 +69,7 @@ impl Smtp {
     }
 
     /// Connect using the provided login params
-    pub fn connect(&mut self, context: &Context, lp: &LoginParam) -> Result<(), Error> {
+    pub fn connect(&mut self, context: &Context, lp: &LoginParam) -> Result<()> {
         if self.is_connected() {
             warn!(context, "SMTP already connected.");
             return Ok(());
@@ -64,13 +77,16 @@ impl Smtp {
 
         if lp.send_server.is_empty() || lp.send_port == 0 {
             context.call_cb(Event::ErrorNetwork("SMTP bad parameters.".into()));
-            bail!("SMTP Bad parameters");
+            return Err(Error::BadParameters);
         }
 
         self.from = match EmailAddress::new(lp.addr.clone()) {
             Ok(addr) => Some(addr),
             Err(err) => {
-                bail!("invalid login address {}: {}", lp.addr, err);
+                return Err(Error::InvalidLoginAddress {
+                    address: lp.addr.clone(),
+                    error: err,
+                })
             }
         };
 
@@ -85,11 +101,11 @@ impl Smtp {
             let addr = &lp.addr;
             let send_pw = &lp.send_pw;
             let access_token = dc_get_oauth2_access_token(context, addr, send_pw, false);
-            ensure!(
-                access_token.is_some(),
-                "could not get oaut2_access token addr={}",
-                addr
-            );
+            if access_token.is_none() {
+                return Err(Error::Oauth2Error {
+                    address: addr.to_string(),
+                });
+            }
             let user = &lp.send_user;
             (
                 lettre::smtp::authentication::Credentials::new(
@@ -137,57 +153,12 @@ impl Smtp {
                         )));
                         return Ok(());
                     }
-                    Err(err) => {
-                        bail!("SMTP: failed to connect {:?}", err);
-                    }
+                    Err(err) => return Err(Error::ConnectionFailure(err)),
                 }
             }
             Err(err) => {
-                bail!("SMTP: failed to setup connection {:?}", err);
+                return Err(Error::ConnectionSetupFailure(err));
             }
-        }
-    }
-
-    /// SMTP-Send a prepared mail to recipients.
-    /// on successful send out Ok() is returned.
-    pub fn send(
-        &mut self,
-        context: &Context,
-        recipients: Vec<EmailAddress>,
-        message: Vec<u8>,
-        job_id: u32,
-    ) -> Result<(), SmtpError> {
-        let message_len = message.len();
-
-        let recipients_display = recipients
-            .iter()
-            .map(|x| format!("{}", x))
-            .collect::<Vec<String>>()
-            .join(",");
-
-        if let Some(ref mut transport) = self.transport {
-            let envelope =
-                Envelope::new(self.from.clone(), recipients).map_err(SmtpError::EnvelopeError)?;
-            let mail = SendableEmail::new(
-                envelope,
-                format!("{}", job_id), // only used for internal logging
-                message,
-            );
-
-            transport.send(mail).map_err(SmtpError::SendError)?;
-
-            context.call_cb(Event::SmtpMessageSent(format!(
-                "Message len={} was smtp-sent to {}",
-                message_len, recipients_display
-            )));
-            self.transport_connected = true;
-            Ok(())
-        } else {
-            warn!(
-                context,
-                "uh? SMTP has no transport, failed to send to {}", recipients_display
-            );
-            return Err(SmtpError::NoTransport);
         }
     }
 }
