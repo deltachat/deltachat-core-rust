@@ -1,7 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
 use deltachat_derive::{FromSql, ToSql};
+use mailparse::MailHeaderMap;
 
+use crate::aheader::Aheader;
 use crate::blob::BlobObject;
 use crate::config::Config;
 use crate::constants::Viewtype;
@@ -16,8 +18,9 @@ use crate::location;
 use crate::message;
 use crate::message::MsgId;
 use crate::param::*;
+use crate::peerstate::Peerstate;
+use crate::securejoin::handle_degrade_event;
 use crate::stock::StockMessage;
-use crate::wrapmime;
 
 #[derive(Debug)]
 pub struct MimeParser<'a> {
@@ -100,14 +103,27 @@ impl<'a> MimeParser<'a> {
 
         let mail_raw;
         let mail = match e2ee::try_decrypt(parser.context, &mail) {
-            Ok((raw, signatures, gossipped_addr)) => {
+            Ok((raw, signatures, message_time)) => {
+                // Valid autocrypt message, encrypted
                 parser.encrypted = raw.is_some();
                 parser.signatures = signatures;
-                parser.gossipped_addr = gossipped_addr;
+
                 if let Some(raw) = raw {
                     mail_raw = raw;
-                    mailparse::parse_mail(&mail_raw)?
+                    let decrypted_mail = mailparse::parse_mail(&mail_raw)?;
+
+                    // we have a decrypted mail, that is valid, check for gossip headers
+
+                    let gossip_headers =
+                        decrypted_mail.headers.get_all_values("Autocrypt-Gossip")?;
+                    if !gossip_headers.is_empty() {
+                        parser.gossipped_addr =
+                            update_gossip_peerstates(context, message_time, &mail, gossip_headers)?;
+                    }
+
+                    decrypted_mail
                 } else {
+                    // Message was not encrypted
                     mail
                 }
             }
@@ -726,7 +742,7 @@ impl<'a> MimeParser<'a> {
                 }
                 if let mailparse::MailAddr::Single(ref info) = addrs[0] {
                     let from_addr_norm = addr_normalize(&info.addr);
-                    let recipients = wrapmime::mailimf_get_recipients(&self.header);
+                    let recipients = get_recipients(self.header.iter());
                     if recipients.len() == 1 && recipients.contains(from_addr_norm) {
                         return true;
                     }
@@ -774,8 +790,6 @@ impl<'a> MimeParser<'a> {
     }
 
     fn process_report(&self, report: &mailparse::ParsedMail<'_>) -> Result<Option<Report>> {
-        use mailparse::MailHeaderMap;
-
         let ct = report.get_content_disposition()?;
         let report_type = ct.params.get("report-type");
         if report_type.is_none() {
@@ -851,6 +865,55 @@ impl<'a> MimeParser<'a> {
             }
         }
     }
+}
+
+fn update_gossip_peerstates(
+    context: &Context,
+    message_time: i64,
+    mail: &mailparse::ParsedMail<'_>,
+    gossip_headers: Vec<String>,
+) -> Result<HashSet<String>> {
+    // XXX split the parsing from the modification part
+    let mut recipients: Option<HashSet<String>> = None;
+    let mut gossipped_addr: HashSet<String> = Default::default();
+
+    for value in &gossip_headers {
+        let gossip_header = value.parse::<Aheader>();
+
+        if let Ok(ref header) = gossip_header {
+            if recipients.is_none() {
+                recipients = Some(get_recipients(mail.headers.iter().map(|v| {
+                    // TODO: error handling
+                    (v.get_key().unwrap(), v.get_value().unwrap())
+                })));
+            }
+            if recipients.as_ref().unwrap().contains(&header.addr) {
+                let mut peerstate = Peerstate::from_addr(context, &context.sql, &header.addr);
+                if let Some(ref mut peerstate) = peerstate {
+                    peerstate.apply_gossip(header, message_time);
+                    peerstate.save_to_db(&context.sql, false)?;
+                } else {
+                    let p = Peerstate::from_gossip(context, header, message_time);
+                    p.save_to_db(&context.sql, true)?;
+                    peerstate = Some(p);
+                }
+                if let Some(peerstate) = peerstate {
+                    if peerstate.degrade_event.is_some() {
+                        handle_degrade_event(context, &peerstate)?;
+                    }
+                }
+
+                gossipped_addr.insert(header.addr.clone());
+            } else {
+                info!(
+                    context,
+                    "Ignoring gossipped \"{}\" as the address is not in To/Cc list.", &header.addr,
+                );
+            }
+        }
+    }
+
+    Ok(gossipped_addr)
 }
 
 #[derive(Debug)]
@@ -965,6 +1028,35 @@ fn mailmime_is_attachment_disposition(mail: &mailparse::ParsedMail<'_>) -> bool 
     }
 
     false
+}
+
+// returned addresses are normalized.
+fn get_recipients<'a, S: AsRef<str>, T: Iterator<Item = (S, S)>>(headers: T) -> HashSet<String> {
+    let mut recipients: HashSet<String> = Default::default();
+
+    for (hkey, hvalue) in headers {
+        let hkey = hkey.as_ref();
+        let hvalue = hvalue.as_ref();
+
+        if hkey == "to" || hkey == "cc" {
+            if let Ok(addrs) = mailparse::addrparse(hvalue) {
+                for addr in addrs.iter() {
+                    match addr {
+                        mailparse::MailAddr::Single(ref info) => {
+                            recipients.insert(addr_normalize(&info.addr).into());
+                        }
+                        mailparse::MailAddr::Group(ref infos) => {
+                            for info in &infos.addrs {
+                                recipients.insert(addr_normalize(&info.addr).into());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    recipients
 }
 
 #[cfg(test)]

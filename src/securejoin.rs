@@ -337,325 +337,329 @@ impl Default for HandshakeMessageStatus {
     }
 }
 
-/* library private: secure-join */
+/// Handle incoming secure-join handshake.
 pub(crate) fn handle_securejoin_handshake(
     context: &Context,
     mimeparser: &MimeParser,
     contact_id: u32,
 ) -> Result<HandshakeMessageStatus, Error> {
-    unimplemented!()
-    // let own_fingerprint: String;
+    let own_fingerprint: String;
 
-    // ensure!(
-    //     contact_id > DC_CONTACT_ID_LAST_SPECIAL,
-    //     "handle_securejoin_handshake(): called with special contact id"
-    // );
-    // let step = match mimeparser.lookup_optional_field("Secure-Join") {
-    //     Some(s) => s,
-    //     None => {
-    //         bail!("This message is not a Secure-Join message");
-    //     }
-    // };
-    // info!(
-    //     context,
-    //     ">>>>>>>>>>>>>>>>>>>>>>>>> secure-join message \'{}\' received", step,
-    // );
-    // let (contact_chat_id, contact_chat_id_blocked) =
-    //     chat::create_or_lookup_by_contact_id(context, contact_id, Blocked::Not).unwrap_or_default();
+    ensure!(
+        contact_id > DC_CONTACT_ID_LAST_SPECIAL,
+        "handle_securejoin_handshake(): called with special contact id"
+    );
+    let step = mimeparser
+        .lookup_field("Secure-Join")
+        .ok_or_else(|| format_err!("This message is not a Secure-Join message"))?;
 
-    // if contact_chat_id_blocked != Blocked::Not {
-    //     chat::unblock(context, contact_chat_id);
-    // }
-    // let join_vg = step.starts_with("vg-");
-    // let mut ret = HandshakeMessageStatus::default();
+    info!(
+        context,
+        ">>>>>>>>>>>>>>>>>>>>>>>>> secure-join message \'{}\' received", step,
+    );
 
-    // match step.as_str() {
-    //     "vg-request" | "vc-request" => {
-    //         /* =========================================================
-    //         ====             Alice - the inviter side            ====
-    //         ====   Step 3 in "Setup verified contact" protocol   ====
-    //         ========================================================= */
-    //         // this message may be unencrypted (Bob, the joinder and the sender, might not have Alice's key yet)
-    //         // it just ensures, we have Bobs key now. If we do _not_ have the key because eg. MitM has removed it,
-    //         // send_message() will fail with the error "End-to-end-encryption unavailable unexpectedly.", so, there is no additional check needed here.
-    //         // verify that the `Secure-Join-Invitenumber:`-header matches invitenumber written to the QR code
-    //         let invitenumber = match mimeparser.lookup_optional_field("Secure-Join-Invitenumber") {
-    //             Some(n) => n,
-    //             None => {
-    //                 warn!(context, "Secure-join denied (invitenumber missing).",);
-    //                 return Ok(ret);
-    //             }
-    //         };
-    //         if !token::exists(context, token::Namespace::InviteNumber, &invitenumber) {
-    //             warn!(context, "Secure-join denied (bad invitenumber).",);
-    //             return Ok(ret);
-    //         }
-    //         info!(context, "Secure-join requested.",);
+    let (contact_chat_id, contact_chat_id_blocked) =
+        chat::create_or_lookup_by_contact_id(context, contact_id, Blocked::Not).unwrap_or_default();
 
-    //         inviter_progress!(context, contact_id, 300);
-    //         send_handshake_msg(
-    //             context,
-    //             contact_chat_id,
-    //             &format!("{}-auth-required", &step[..2]),
-    //             "",
-    //             None,
-    //             "",
-    //         );
-    //     }
-    //     "vg-auth-required" | "vc-auth-required" => {
-    //         let cond = {
-    //             let bob = context.bob.read().unwrap();
-    //             let scan = bob.qr_scan.as_ref();
-    //             scan.is_none()
-    //                 || bob.expects != DC_VC_AUTH_REQUIRED
-    //                 || join_vg && scan.unwrap().state != LotState::QrAskVerifyGroup
-    //         };
+    if contact_chat_id_blocked != Blocked::Not {
+        chat::unblock(context, contact_chat_id);
+    }
 
-    //         if cond {
-    //             warn!(context, "auth-required message out of sync.",);
-    //             // no error, just aborted somehow or a mail from another handshake
-    //             return Ok(ret);
-    //         }
-    //         let scanned_fingerprint_of_alice = get_qr_attr!(context, fingerprint).to_string();
-    //         let auth = get_qr_attr!(context, auth).to_string();
+    let join_vg = step.starts_with("vg-");
+    let mut ret = HandshakeMessageStatus::default();
 
-    //         if !encrypted_and_signed(mimeparser, &scanned_fingerprint_of_alice) {
-    //             could_not_establish_secure_connection(
-    //                 context,
-    //                 contact_chat_id,
-    //                 if mimeparser.encrypted {
-    //                     "No valid signature."
-    //                 } else {
-    //                     "Not encrypted."
-    //                 },
-    //             );
-    //             ret.stop_ongoing_process = true;
-    //             ret.bob_securejoin_success = Some(false);
-    //             return Ok(ret);
-    //         }
-    //         if !fingerprint_equals_sender(context, &scanned_fingerprint_of_alice, contact_chat_id) {
-    //             could_not_establish_secure_connection(
-    //                 context,
-    //                 contact_chat_id,
-    //                 "Fingerprint mismatch on joiner-side.",
-    //             );
-    //             ret.stop_ongoing_process = true;
-    //             ret.bob_securejoin_success = Some(false);
-    //             return Ok(ret);
-    //         }
-    //         info!(context, "Fingerprint verified.",);
-    //         own_fingerprint = get_self_fingerprint(context).unwrap();
-    //         joiner_progress!(context, contact_id, 400);
-    //         context.bob.write().unwrap().expects = DC_VC_CONTACT_CONFIRM;
+    match step.as_str() {
+        "vg-request" | "vc-request" => {
+            /* =========================================================
+            ====             Alice - the inviter side            ====
+            ====   Step 3 in "Setup verified contact" protocol   ====
+            ========================================================= */
+            // this message may be unencrypted (Bob, the joinder and the sender, might not have Alice's key yet)
+            // it just ensures, we have Bobs key now. If we do _not_ have the key because eg. MitM has removed it,
+            // send_message() will fail with the error "End-to-end-encryption unavailable unexpectedly.", so, there is no additional check needed here.
+            // verify that the `Secure-Join-Invitenumber:`-header matches invitenumber written to the QR code
+            let invitenumber = match mimeparser.lookup_field("Secure-Join-Invitenumber") {
+                Some(n) => n,
+                None => {
+                    warn!(context, "Secure-join denied (invitenumber missing).",);
+                    return Ok(ret);
+                }
+            };
+            if !token::exists(context, token::Namespace::InviteNumber, &invitenumber) {
+                warn!(context, "Secure-join denied (bad invitenumber).",);
+                return Ok(ret);
+            }
+            info!(context, "Secure-join requested.",);
 
-    //         send_handshake_msg(
-    //             context,
-    //             contact_chat_id,
-    //             &format!("{}-request-with-auth", &step[..2]),
-    //             auth,
-    //             Some(own_fingerprint),
-    //             if join_vg {
-    //                 get_qr_attr!(context, text2).to_string()
-    //             } else {
-    //                 "".to_string()
-    //             },
-    //         );
-    //     }
-    //     "vg-request-with-auth" | "vc-request-with-auth" => {
-    //         /* ============================================================
-    //         ====              Alice - the inviter side              ====
-    //         ====   Steps 5+6 in "Setup verified contact" protocol   ====
-    //         ====  Step 6 in "Out-of-band verified groups" protocol  ====
-    //         ============================================================ */
-    //         // verify that Secure-Join-Fingerprint:-header matches the fingerprint of Bob
-    //         let fingerprint = match mimeparser.lookup_optional_field("Secure-Join-Fingerprint") {
-    //             Some(fp) => fp,
-    //             None => {
-    //                 could_not_establish_secure_connection(
-    //                     context,
-    //                     contact_chat_id,
-    //                     "Fingerprint not provided.",
-    //                 );
-    //                 return Ok(ret);
-    //             }
-    //         };
-    //         if !encrypted_and_signed(mimeparser, &fingerprint) {
-    //             could_not_establish_secure_connection(
-    //                 context,
-    //                 contact_chat_id,
-    //                 "Auth not encrypted.",
-    //             );
-    //             return Ok(ret);
-    //         }
-    //         if !fingerprint_equals_sender(context, &fingerprint, contact_chat_id) {
-    //             could_not_establish_secure_connection(
-    //                 context,
-    //                 contact_chat_id,
-    //                 "Fingerprint mismatch on inviter-side.",
-    //             );
-    //             return Ok(ret);
-    //         }
-    //         info!(context, "Fingerprint verified.",);
-    //         // verify that the `Secure-Join-Auth:`-header matches the secret written to the QR code
-    //         let auth_0 = match mimeparser.lookup_optional_field("Secure-Join-Auth") {
-    //             Some(auth) => auth,
-    //             None => {
-    //                 could_not_establish_secure_connection(
-    //                     context,
-    //                     contact_chat_id,
-    //                     "Auth not provided.",
-    //                 );
-    //                 return Ok(ret);
-    //             }
-    //         };
-    //         if !token::exists(context, token::Namespace::Auth, &auth_0) {
-    //             could_not_establish_secure_connection(context, contact_chat_id, "Auth invalid.");
-    //             return Ok(ret);
-    //         }
-    //         if mark_peer_as_verified(context, fingerprint).is_err() {
-    //             could_not_establish_secure_connection(
-    //                 context,
-    //                 contact_chat_id,
-    //                 "Fingerprint mismatch on inviter-side.",
-    //             );
-    //             return Ok(ret);
-    //         }
-    //         Contact::scaleup_origin_by_id(context, contact_id, Origin::SecurejoinInvited);
-    //         info!(context, "Auth verified.",);
-    //         secure_connection_established(context, contact_chat_id);
-    //         emit_event!(context, Event::ContactsChanged(Some(contact_id)));
-    //         inviter_progress!(context, contact_id, 600);
-    //         if join_vg {
-    //             let field_grpid = mimeparser
-    //                 .lookup_optional_field("Secure-Join-Group")
-    //                 .unwrap_or_default();
-    //             let (group_chat_id, _, _) = chat::get_chat_id_by_grpid(context, &field_grpid);
-    //             if group_chat_id == 0 {
-    //                 error!(context, "Chat {} not found.", &field_grpid);
-    //                 return Ok(ret);
-    //             } else {
-    //                 if let Err(err) =
-    //                     chat::add_contact_to_chat_ex(context, group_chat_id, contact_id, true)
-    //                 {
-    //                     error!(context, "failed to add contact: {}", err);
-    //                 }
-    //             }
-    //         } else {
-    //             send_handshake_msg(context, contact_chat_id, "vc-contact-confirm", "", None, "");
-    //             inviter_progress!(context, contact_id, 1000);
-    //         }
-    //     }
-    //     "vg-member-added" | "vc-contact-confirm" => {
-    //         if join_vg {
-    //             ret.hide_this_msg = false;
-    //         }
-    //         if context.bob.read().unwrap().expects != DC_VC_CONTACT_CONFIRM {
-    //             info!(context, "Message belongs to a different handshake.",);
-    //             return Ok(ret);
-    //         }
-    //         let cond = {
-    //             let bob = context.bob.read().unwrap();
-    //             let scan = bob.qr_scan.as_ref();
-    //             scan.is_none() || join_vg && scan.unwrap().state != LotState::QrAskVerifyGroup
-    //         };
-    //         if cond {
-    //             warn!(
-    //                 context,
-    //                 "Message out of sync or belongs to a different handshake.",
-    //             );
-    //             return Ok(ret);
-    //         }
-    //         let scanned_fingerprint_of_alice = get_qr_attr!(context, fingerprint).to_string();
+            inviter_progress!(context, contact_id, 300);
+            send_handshake_msg(
+                context,
+                contact_chat_id,
+                &format!("{}-auth-required", &step[..2]),
+                "",
+                None,
+                "",
+            );
+        }
+        "vg-auth-required" | "vc-auth-required" => {
+            let cond = {
+                let bob = context.bob.read().unwrap();
+                let scan = bob.qr_scan.as_ref();
+                scan.is_none()
+                    || bob.expects != DC_VC_AUTH_REQUIRED
+                    || join_vg && scan.unwrap().state != LotState::QrAskVerifyGroup
+            };
 
-    //         let vg_expect_encrypted = if join_vg {
-    //             let group_id = get_qr_attr!(context, text2).to_string();
-    //             let (_, is_verified_group, _) = chat::get_chat_id_by_grpid(context, group_id);
-    //             // when joining a non-verified group
-    //             // the vg-member-added message may be unencrypted
-    //             // when not all group members have keys or prefer encryption.
-    //             // So only expect encryption if this is a verified group
-    //             is_verified_group
-    //         } else {
-    //             // setup contact is always encrypted
-    //             true
-    //         };
-    //         if vg_expect_encrypted
-    //             && !encrypted_and_signed(mimeparser, &scanned_fingerprint_of_alice)
-    //         {
-    //             could_not_establish_secure_connection(
-    //                 context,
-    //                 contact_chat_id,
-    //                 "Contact confirm message not encrypted.",
-    //             );
-    //             ret.bob_securejoin_success = Some(false);
-    //             return Ok(ret);
-    //         }
+            if cond {
+                warn!(context, "auth-required message out of sync.",);
+                // no error, just aborted somehow or a mail from another handshake
+                return Ok(ret);
+            }
+            let scanned_fingerprint_of_alice = get_qr_attr!(context, fingerprint).to_string();
+            let auth = get_qr_attr!(context, auth).to_string();
 
-    //         if mark_peer_as_verified(context, &scanned_fingerprint_of_alice).is_err() {
-    //             could_not_establish_secure_connection(
-    //                 context,
-    //                 contact_chat_id,
-    //                 "Fingerprint mismatch on joiner-side.",
-    //             );
-    //             return Ok(ret);
-    //         }
-    //         Contact::scaleup_origin_by_id(context, contact_id, Origin::SecurejoinJoined);
-    //         emit_event!(context, Event::ContactsChanged(None));
-    //         let cg_member_added = mimeparser
-    //             .lookup_optional_field("Chat-Group-Member-Added")
-    //             .unwrap_or_default();
-    //         if join_vg && !addr_equals_self(context, cg_member_added) {
-    //             info!(context, "Message belongs to a different handshake (scaled up contact anyway to allow creation of group).");
-    //             return Ok(ret);
-    //         }
-    //         secure_connection_established(context, contact_chat_id);
-    //         context.bob.write().unwrap().expects = 0;
-    //         if join_vg {
-    //             send_handshake_msg(
-    //                 context,
-    //                 contact_chat_id,
-    //                 "vg-member-added-received",
-    //                 "",
-    //                 None,
-    //                 "",
-    //             );
-    //         }
-    //         ret.stop_ongoing_process = true;
-    //         ret.bob_securejoin_success = Some(true);
-    //     }
-    //     "vg-member-added-received" => {
-    //         /* ============================================================
-    //         ====              Alice - the inviter side              ====
-    //         ====  Step 8 in "Out-of-band verified groups" protocol  ====
-    //         ============================================================ */
-    //         if let Ok(contact) = Contact::get_by_id(context, contact_id) {
-    //             if contact.is_verified(context) == VerifiedStatus::Unverified {
-    //                 warn!(context, "vg-member-added-received invalid.",);
-    //                 return Ok(ret);
-    //             }
-    //             inviter_progress!(context, contact_id, 800);
-    //             inviter_progress!(context, contact_id, 1000);
-    //             let field_grpid = mimeparser
-    //                 .lookup_optional_field("Secure-Join-Group")
-    //                 .unwrap_or_default();
-    //             let (group_chat_id, _, _) = chat::get_chat_id_by_grpid(context, &field_grpid);
-    //             context.call_cb(Event::SecurejoinMemberAdded {
-    //                 chat_id: group_chat_id,
-    //                 contact_id: contact_id,
-    //             });
-    //         } else {
-    //             warn!(context, "vg-member-added-received invalid.",);
-    //             return Ok(ret);
-    //         }
-    //     }
-    //     _ => {
-    //         warn!(context, "invalid step: {}", step);
-    //     }
-    // }
-    // if ret.hide_this_msg {
-    //     ret.delete_this_msg = true;
-    // }
-    // Ok(ret)
+            if !encrypted_and_signed(mimeparser, &scanned_fingerprint_of_alice) {
+                could_not_establish_secure_connection(
+                    context,
+                    contact_chat_id,
+                    if mimeparser.encrypted {
+                        "No valid signature."
+                    } else {
+                        "Not encrypted."
+                    },
+                );
+                ret.stop_ongoing_process = true;
+                ret.bob_securejoin_success = Some(false);
+                return Ok(ret);
+            }
+            if !fingerprint_equals_sender(context, &scanned_fingerprint_of_alice, contact_chat_id) {
+                could_not_establish_secure_connection(
+                    context,
+                    contact_chat_id,
+                    "Fingerprint mismatch on joiner-side.",
+                );
+                ret.stop_ongoing_process = true;
+                ret.bob_securejoin_success = Some(false);
+                return Ok(ret);
+            }
+            info!(context, "Fingerprint verified.",);
+            own_fingerprint = get_self_fingerprint(context).unwrap();
+            joiner_progress!(context, contact_id, 400);
+            context.bob.write().unwrap().expects = DC_VC_CONTACT_CONFIRM;
+
+            send_handshake_msg(
+                context,
+                contact_chat_id,
+                &format!("{}-request-with-auth", &step[..2]),
+                auth,
+                Some(own_fingerprint),
+                if join_vg {
+                    get_qr_attr!(context, text2).to_string()
+                } else {
+                    "".to_string()
+                },
+            );
+        }
+        "vg-request-with-auth" | "vc-request-with-auth" => {
+            /* ============================================================
+            ====              Alice - the inviter side              ====
+            ====   Steps 5+6 in "Setup verified contact" protocol   ====
+            ====  Step 6 in "Out-of-band verified groups" protocol  ====
+            ============================================================ */
+            // verify that Secure-Join-Fingerprint:-header matches the fingerprint of Bob
+            let fingerprint = match mimeparser.lookup_field("Secure-Join-Fingerprint") {
+                Some(fp) => fp,
+                None => {
+                    could_not_establish_secure_connection(
+                        context,
+                        contact_chat_id,
+                        "Fingerprint not provided.",
+                    );
+                    return Ok(ret);
+                }
+            };
+            if !encrypted_and_signed(mimeparser, &fingerprint) {
+                could_not_establish_secure_connection(
+                    context,
+                    contact_chat_id,
+                    "Auth not encrypted.",
+                );
+                return Ok(ret);
+            }
+            if !fingerprint_equals_sender(context, &fingerprint, contact_chat_id) {
+                could_not_establish_secure_connection(
+                    context,
+                    contact_chat_id,
+                    "Fingerprint mismatch on inviter-side.",
+                );
+                return Ok(ret);
+            }
+            info!(context, "Fingerprint verified.",);
+            // verify that the `Secure-Join-Auth:`-header matches the secret written to the QR code
+            let auth_0 = match mimeparser.lookup_field("Secure-Join-Auth") {
+                Some(auth) => auth,
+                None => {
+                    could_not_establish_secure_connection(
+                        context,
+                        contact_chat_id,
+                        "Auth not provided.",
+                    );
+                    return Ok(ret);
+                }
+            };
+            if !token::exists(context, token::Namespace::Auth, &auth_0) {
+                could_not_establish_secure_connection(context, contact_chat_id, "Auth invalid.");
+                return Ok(ret);
+            }
+            if mark_peer_as_verified(context, fingerprint).is_err() {
+                could_not_establish_secure_connection(
+                    context,
+                    contact_chat_id,
+                    "Fingerprint mismatch on inviter-side.",
+                );
+                return Ok(ret);
+            }
+            Contact::scaleup_origin_by_id(context, contact_id, Origin::SecurejoinInvited);
+            info!(context, "Auth verified.",);
+            secure_connection_established(context, contact_chat_id);
+            emit_event!(context, Event::ContactsChanged(Some(contact_id)));
+            inviter_progress!(context, contact_id, 600);
+            if join_vg {
+                let field_grpid = mimeparser
+                    .lookup_field("Secure-Join-Group")
+                    .map(|s| s.as_str())
+                    .unwrap_or_else(|| "");
+                let (group_chat_id, _, _) = chat::get_chat_id_by_grpid(context, field_grpid);
+                if group_chat_id == 0 {
+                    error!(context, "Chat {} not found.", &field_grpid);
+                    return Ok(ret);
+                } else {
+                    if let Err(err) =
+                        chat::add_contact_to_chat_ex(context, group_chat_id, contact_id, true)
+                    {
+                        error!(context, "failed to add contact: {}", err);
+                    }
+                }
+            } else {
+                send_handshake_msg(context, contact_chat_id, "vc-contact-confirm", "", None, "");
+                inviter_progress!(context, contact_id, 1000);
+            }
+        }
+        "vg-member-added" | "vc-contact-confirm" => {
+            if join_vg {
+                ret.hide_this_msg = false;
+            }
+            if context.bob.read().unwrap().expects != DC_VC_CONTACT_CONFIRM {
+                info!(context, "Message belongs to a different handshake.",);
+                return Ok(ret);
+            }
+            let cond = {
+                let bob = context.bob.read().unwrap();
+                let scan = bob.qr_scan.as_ref();
+                scan.is_none() || join_vg && scan.unwrap().state != LotState::QrAskVerifyGroup
+            };
+            if cond {
+                warn!(
+                    context,
+                    "Message out of sync or belongs to a different handshake.",
+                );
+                return Ok(ret);
+            }
+            let scanned_fingerprint_of_alice = get_qr_attr!(context, fingerprint).to_string();
+
+            let vg_expect_encrypted = if join_vg {
+                let group_id = get_qr_attr!(context, text2).to_string();
+                let (_, is_verified_group, _) = chat::get_chat_id_by_grpid(context, group_id);
+                // when joining a non-verified group
+                // the vg-member-added message may be unencrypted
+                // when not all group members have keys or prefer encryption.
+                // So only expect encryption if this is a verified group
+                is_verified_group
+            } else {
+                // setup contact is always encrypted
+                true
+            };
+            if vg_expect_encrypted
+                && !encrypted_and_signed(mimeparser, &scanned_fingerprint_of_alice)
+            {
+                could_not_establish_secure_connection(
+                    context,
+                    contact_chat_id,
+                    "Contact confirm message not encrypted.",
+                );
+                ret.bob_securejoin_success = Some(false);
+                return Ok(ret);
+            }
+
+            if mark_peer_as_verified(context, &scanned_fingerprint_of_alice).is_err() {
+                could_not_establish_secure_connection(
+                    context,
+                    contact_chat_id,
+                    "Fingerprint mismatch on joiner-side.",
+                );
+                return Ok(ret);
+            }
+            Contact::scaleup_origin_by_id(context, contact_id, Origin::SecurejoinJoined);
+            emit_event!(context, Event::ContactsChanged(None));
+            let cg_member_added = mimeparser
+                .lookup_field("Chat-Group-Member-Added")
+                .map(|s| s.as_str())
+                .unwrap_or_else(|| "");
+            if join_vg && !addr_equals_self(context, cg_member_added) {
+                info!(context, "Message belongs to a different handshake (scaled up contact anyway to allow creation of group).");
+                return Ok(ret);
+            }
+            secure_connection_established(context, contact_chat_id);
+            context.bob.write().unwrap().expects = 0;
+            if join_vg {
+                send_handshake_msg(
+                    context,
+                    contact_chat_id,
+                    "vg-member-added-received",
+                    "",
+                    None,
+                    "",
+                );
+            }
+            ret.stop_ongoing_process = true;
+            ret.bob_securejoin_success = Some(true);
+        }
+        "vg-member-added-received" => {
+            /* ============================================================
+            ====              Alice - the inviter side              ====
+            ====  Step 8 in "Out-of-band verified groups" protocol  ====
+            ============================================================ */
+            if let Ok(contact) = Contact::get_by_id(context, contact_id) {
+                if contact.is_verified(context) == VerifiedStatus::Unverified {
+                    warn!(context, "vg-member-added-received invalid.",);
+                    return Ok(ret);
+                }
+                inviter_progress!(context, contact_id, 800);
+                inviter_progress!(context, contact_id, 1000);
+                let field_grpid = mimeparser
+                    .lookup_field("Secure-Join-Group")
+                    .map(|s| s.as_str())
+                    .unwrap_or_else(|| "");
+                let (group_chat_id, _, _) = chat::get_chat_id_by_grpid(context, &field_grpid);
+                context.call_cb(Event::SecurejoinMemberAdded {
+                    chat_id: group_chat_id,
+                    contact_id: contact_id,
+                });
+            } else {
+                warn!(context, "vg-member-added-received invalid.",);
+                return Ok(ret);
+            }
+        }
+        _ => {
+            warn!(context, "invalid step: {}", step);
+        }
+    }
+
+    if ret.hide_this_msg {
+        ret.delete_this_msg = true;
+    }
+
+    Ok(ret)
 }
 
 fn secure_connection_established(context: &Context, contact_chat_id: u32) {

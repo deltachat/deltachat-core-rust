@@ -116,8 +116,7 @@ pub fn dc_receive_imf(
 
     if let Some(value) = mime_parser.lookup_field("Date") {
         // is not yet checked against bad times! we do this later if we have the database information.
-        // sent_timestamp = dc_timestamp_from_date((*orig_date).dt_date_time)
-        // TODO
+        sent_timestamp = mailparse::dateparse(value).unwrap_or_default();
     }
 
     // get From: and check if it is known (for known From:'s we add the other To:/Cc: in the 3rd pass)
