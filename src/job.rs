@@ -228,13 +228,10 @@ impl Job {
         let imap_inbox = &context.inbox_thread.read().unwrap().imap;
 
         if let Ok(msg) = Message::load_from_db(context, MsgId::new(self.foreign_id)) {
-            if context
-                .sql
-                .get_raw_config_int(context, "folders_configured")
-                .unwrap_or_default()
-                < 3
-            {
-                imap_inbox.configure_folders(context, true);
+            if let Err(err) = imap_inbox.ensure_configured_folders(context, true) {
+                self.try_again_later(TryAgain::StandardDelay, None);
+                warn!(context, "could not configure folders: {:?}", err);
+                return;
             }
             let dest_folder = context
                 .sql
@@ -355,13 +352,10 @@ impl Job {
             return;
         }
         if 0 != self.param.get_int(Param::AlsoMove).unwrap_or_default() {
-            if context
-                .sql
-                .get_raw_config_int(context, "folders_configured")
-                .unwrap_or_default()
-                < 3
-            {
-                imap_inbox.configure_folders(context, true);
+            if let Err(err) = imap_inbox.ensure_configured_folders(context, true) {
+                self.try_again_later(TryAgain::StandardDelay, None);
+                warn!(context, "configuring folders failed: {:?}", err);
+                return;
             }
             let dest_folder = context
                 .sql

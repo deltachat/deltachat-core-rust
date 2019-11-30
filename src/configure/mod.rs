@@ -355,13 +355,14 @@ pub fn JobConfigureImap(context: &Context) {
                 progress!(context, 900);
                 let create_mvbox = context.get_config_bool(Config::MvboxWatch)
                     || context.get_config_bool(Config::MvboxMove);
-                context
-                    .inbox_thread
-                    .read()
-                    .unwrap()
-                    .imap
-                    .configure_folders(context, create_mvbox);
-                true
+                let imap = &context.inbox_thread.read().unwrap().imap;
+                if let Err(err) = imap.ensure_configured_folders(context, create_mvbox) {
+                    error!(context, "configuring folders failed: {:?}", err);
+                    false
+                } else {
+                    // XXX call fetch_from_single_folder to set last_seen_uid 
+                    true
+                }
             }
             17 => {
                 progress!(context, 910);
