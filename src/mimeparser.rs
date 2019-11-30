@@ -305,10 +305,12 @@ impl<'a> MimeParser<'a> {
 
                     if let Some(dn_to_addr) = addrs.first() {
                         if let Some(from_field) = self.lookup_field("From") {
-                            let value = from_field;
-                            let from_addrs = mailparse::addrparse(&value).unwrap();
+                            info!(self.context, "From {:?}", from_field);
+                            let from_addrs = mailparse::addrparse(&from_field).unwrap();
+
                             if let Some(from_addr) = from_addrs.first() {
-                                if from_addr == dn_to_addr {
+                                info!(self.context, "comparing {:?} - {:?}", from_addr, dn_to_addr);
+                                if compare_addrs(from_addr, dn_to_addr) {
                                     if let Some(part_4) = self.get_last_nonmeta_mut() {
                                         part_4.param.set_int(Param::WantsMdn, 1);
                                     }
@@ -484,8 +486,8 @@ impl<'a> MimeParser<'a> {
             (DC_MIMETYPE_MP_REPORT, _) => {
                 /* RFC 6522: the first part is for humans, the second for machines */
                 if mail.subparts.len() >= 2 {
-                    let ct = mail.get_content_disposition()?;
-                    if let Some(report_type) = ct.params.get("report-type") {
+                    info!(self.context, "report: {:?}", &mail.ctype);
+                    if let Some(report_type) = mail.ctype.params.get("report-type") {
                         if report_type == "disposition-notification" {
                             if let Some(report) = self.process_report(mail)? {
                                 self.reports.push(report);
@@ -790,30 +792,14 @@ impl<'a> MimeParser<'a> {
     }
 
     fn process_report(&self, report: &mailparse::ParsedMail<'_>) -> Result<Option<Report>> {
-        let ct = report.get_content_disposition()?;
-        let report_type = ct.params.get("report-type");
-        if report_type.is_none() {
-            return Ok(None);
-        }
-        let report_type = report_type.unwrap();
-        if report_type != "disposition-notification" || report.subparts.len() < 2 {
-            // the first part is for humans, the second for machines
-            return Ok(None);
-        }
-
         // to get a clear functionality, do not show incoming MDNs if the options is disabled
         if !self.mdns_enabled {
             return Ok(None);
         }
-        // 1. get content
-        let raw = report.subparts[1].get_body_raw()?;
-        let report_details = mailparse::parse_mail(&raw)?;
 
-        // 2. parse as mailheaders
-        let report_body = report_details.get_body_raw()?;
+        // parse as mailheaders
+        let report_body = report.subparts[1].get_body_raw()?;
         let (report_fields, _) = mailparse::parse_headers(&report_body)?;
-
-        // 3. retrieve information
 
         // must be present
         if let Some(_disposition) = report_fields.get_first_value("Disposition").ok().flatten() {
@@ -1057,6 +1043,24 @@ fn get_recipients<'a, S: AsRef<str>, T: Iterator<Item = (S, S)>>(headers: T) -> 
     }
 
     recipients
+}
+
+/// Check if the only addrs match, ignoring names.
+fn compare_addrs(a: &mailparse::MailAddr, b: &mailparse::MailAddr) -> bool {
+    match a {
+        mailparse::MailAddr::Group(group_a) => match b {
+            mailparse::MailAddr::Group(group_b) => group_a
+                .addrs
+                .iter()
+                .zip(group_b.addrs.iter())
+                .all(|(a, b)| a.addr == b.addr),
+            _ => false,
+        },
+        mailparse::MailAddr::Single(single_a) => match b {
+            mailparse::MailAddr::Single(single_b) => single_a.addr == single_b.addr,
+            _ => false,
+        },
+    }
 }
 
 #[cfg(test)]
