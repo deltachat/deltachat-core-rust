@@ -18,7 +18,7 @@ use crate::location;
 use crate::login_param::LoginParam;
 use crate::message::MsgId;
 use crate::message::{self, Message, MessageState};
-use crate::mimefactory::{vec_contains_lowercase, Loaded, MimeFactory};
+use crate::mimefactory::{vec_contains_lowercase, MimeFactory, RenderedEmail};
 use crate::param::*;
 use crate::sql;
 
@@ -604,42 +604,38 @@ fn set_delivered(context: &Context, msg_id: MsgId) {
 /* special case for DC_JOB_SEND_MSG_TO_SMTP */
 #[allow(non_snake_case)]
 pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<(), Error> {
-    let mut mimefactory = MimeFactory::load_msg(context, msg_id)?;
+    let mut msg = Message::load_from_db(context, msg_id)?;
 
-    if chat::msgtype_has_file(mimefactory.msg.type_0) {
-        let file_param = mimefactory.msg.param.get_path(Param::File, context)?;
+    if chat::msgtype_has_file(msg.type_0) {
+        let file_param = msg.param.get_path(Param::File, context)?;
         if let Some(pathNfilename) = file_param {
-            if (mimefactory.msg.type_0 == Viewtype::Image
-                || mimefactory.msg.type_0 == Viewtype::Gif)
-                && !mimefactory.msg.param.exists(Param::Width)
+            if (msg.type_0 == Viewtype::Image || msg.type_0 == Viewtype::Gif)
+                && !msg.param.exists(Param::Width)
             {
-                mimefactory.msg.param.set_int(Param::Width, 0);
-                mimefactory.msg.param.set_int(Param::Height, 0);
+                msg.param.set_int(Param::Width, 0);
+                msg.param.set_int(Param::Height, 0);
 
                 if let Ok(buf) = dc_read_file(context, pathNfilename) {
                     if let Ok((width, height)) = dc_get_filemeta(&buf) {
-                        mimefactory.msg.param.set_int(Param::Width, width as i32);
-                        mimefactory.msg.param.set_int(Param::Height, height as i32);
+                        msg.param.set_int(Param::Width, width as i32);
+                        msg.param.set_int(Param::Height, height as i32);
                     }
                 }
-                mimefactory.msg.save_param_to_disk(context);
+                msg.save_param_to_disk(context);
             }
         }
     }
 
     /* create message */
-    if let Err(msg) = mimefactory.render() {
-        let e = msg.to_string();
-        message::set_msg_failed(context, msg_id, Some(e));
-        return Err(msg);
-    }
-    if 0 != mimefactory
-        .msg
-        .param
-        .get_int(Param::GuaranteeE2ee)
-        .unwrap_or_default()
-        && !mimefactory.out_encrypted
-    {
+    let needs_encryption = msg.param.get_int(Param::GuaranteeE2ee).unwrap_or_default();
+
+    let mimefactory = MimeFactory::from_msg(context, &msg)?;
+    let mut rendered_msg = mimefactory.render().map_err(|err| {
+        message::set_msg_failed(context, msg_id, Some(err.to_string()));
+        err
+    })?;
+
+    if 0 != needs_encryption && !rendered_msg.is_encrypted {
         /* unrecoverable */
         message::set_msg_failed(
             context,
@@ -649,19 +645,17 @@ pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<(), Error> {
         bail!(
             "e2e encryption unavailable {} - {:?}",
             msg_id,
-            mimefactory.msg.param.get_int(Param::GuaranteeE2ee),
+            needs_encryption
         );
     }
+
     if context.get_config_bool(Config::BccSelf)
-        && !vec_contains_lowercase(&mimefactory.recipients_addr, &mimefactory.from_addr)
+        && !vec_contains_lowercase(&rendered_msg.recipients, &rendered_msg.from)
     {
-        mimefactory.recipients_names.push("".to_string());
-        mimefactory
-            .recipients_addr
-            .push(mimefactory.from_addr.to_string());
+        rendered_msg.recipients.push(rendered_msg.from.clone());
     }
 
-    if mimefactory.recipients_addr.is_empty() {
+    if rendered_msg.recipients.is_empty() {
         // may happen eg. for groups with only SELF and bcc_self disabled
         info!(
             context,
@@ -671,36 +665,27 @@ pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<(), Error> {
         return Ok(());
     }
 
-    if mimefactory.out_gossiped {
-        chat::set_gossiped_timestamp(context, mimefactory.msg.chat_id, time());
+    if rendered_msg.is_gossiped {
+        chat::set_gossiped_timestamp(context, msg.chat_id, time());
     }
-    if 0 != mimefactory.out_last_added_location_id {
-        if let Err(err) = location::set_kml_sent_timestamp(context, mimefactory.msg.chat_id, time())
-        {
+    if 0 != rendered_msg.last_added_location_id {
+        if let Err(err) = location::set_kml_sent_timestamp(context, msg.chat_id, time()) {
             error!(context, "Failed to set kml sent_timestamp: {:?}", err);
         }
-        if !mimefactory.msg.hidden {
-            if let Err(err) = location::set_msg_location_id(
-                context,
-                mimefactory.msg.id,
-                mimefactory.out_last_added_location_id,
-            ) {
+        if !msg.hidden {
+            if let Err(err) =
+                location::set_msg_location_id(context, msg.id, rendered_msg.last_added_location_id)
+            {
                 error!(context, "Failed to set msg_location_id: {:?}", err);
             }
         }
     }
-    if mimefactory.out_encrypted
-        && mimefactory
-            .msg
-            .param
-            .get_int(Param::GuaranteeE2ee)
-            .unwrap_or_default()
-            == 0
-    {
-        mimefactory.msg.param.set_int(Param::GuaranteeE2ee, 1);
-        mimefactory.msg.save_param_to_disk(context);
+    if rendered_msg.is_encrypted && needs_encryption == 0 {
+        msg.param.set_int(Param::GuaranteeE2ee, 1);
+        msg.save_param_to_disk(context);
     }
-    add_smtp_job(context, Action::SendMsgToSmtp, &mut mimefactory)?;
+
+    add_smtp_job(context, Action::SendMsgToSmtp, &rendered_msg)?;
 
     Ok(())
 }
@@ -886,33 +871,40 @@ fn suspend_smtp_thread(context: &Context, suspend: bool) {
 }
 
 fn send_mdn(context: &Context, msg_id: MsgId) -> Result<(), Error> {
-    let mut mimefactory = MimeFactory::load_mdn(context, msg_id)?;
-    mimefactory.render()?;
-    add_smtp_job(context, Action::SendMdn, &mut mimefactory)?;
+    let msg = Message::load_from_db(context, msg_id)?;
+    let mimefactory = MimeFactory::from_mdn(context, &msg)?;
+    let rendered_msg = mimefactory.render()?;
+
+    add_smtp_job(context, Action::SendMdn, &rendered_msg)?;
 
     Ok(())
 }
 
 #[allow(non_snake_case)]
-fn add_smtp_job(context: &Context, action: Action, mimefactory: &MimeFactory) -> Result<(), Error> {
+fn add_smtp_job(
+    context: &Context,
+    action: Action,
+    rendered_msg: &RenderedEmail,
+) -> Result<(), Error> {
     ensure!(
-        !mimefactory.recipients_addr.is_empty(),
+        !rendered_msg.recipients.is_empty(),
         "no recipients for smtp job set"
     );
     let mut param = Params::new();
-    let bytes = &mimefactory.out;
-    let blob = BlobObject::create(context, &mimefactory.rfc724_mid, bytes)?;
-    let recipients = mimefactory.recipients_addr.join("\x1e");
+    let bytes = &rendered_msg.message;
+    let blob = BlobObject::create(context, &rendered_msg.rfc724_mid, bytes)?;
+
+    let recipients = rendered_msg.recipients.join("\x1e");
     param.set(Param::File, blob.as_name());
     param.set(Param::Recipients, &recipients);
+
     job_add(
         context,
         action,
-        (if mimefactory.loaded == Loaded::Message {
-            mimefactory.msg.id.to_u32() as i32
-        } else {
-            0
-        }) as libc::c_int,
+        rendered_msg
+            .foreign_id
+            .map(|v| v.to_u32() as i32)
+            .unwrap_or_default(),
         param,
         0,
     );

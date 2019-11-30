@@ -1,5 +1,4 @@
 use chrono::TimeZone;
-use lettre::Envelope;
 use lettre_email::{Address, Header, MimeMessage, MimeMultipartType, PartBuilder};
 
 use crate::chat::{self, Chat};
@@ -21,38 +20,53 @@ use crate::stock::StockMessage;
 
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub enum Loaded {
-    Nothing,
     Message,
-    MDN, // TODO: invent more descriptive name
+    MDN,
 }
 
+/// Helper to construct mime messages.
 #[derive(Clone)]
-pub struct MimeFactory<'a> {
+pub struct MimeFactory<'a, 'b> {
     pub from_addr: String,
     pub from_displayname: String,
     pub selfstatus: String,
     pub recipients_names: Vec<String>,
     pub recipients_addr: Vec<String>,
     pub timestamp: i64,
-    pub rfc724_mid: String,
     pub loaded: Loaded,
-    pub msg: Message,
+    pub msg: &'b Message,
     pub chat: Option<Chat>,
     pub increation: bool,
     pub in_reply_to: String,
     pub references: String,
     pub req_mdn: bool,
-    pub out: Vec<u8>,
-    pub envelope: Option<Envelope>,
-    pub out_encrypted: bool,
-    pub out_gossiped: bool,
-    pub out_last_added_location_id: u32,
     pub context: &'a Context,
+    last_added_location_id: u32,
 }
 
-impl<'a> MimeFactory<'a> {
-    fn from_message(context: &'a Context, msg: Message) -> Self {
-        MimeFactory {
+/// Result of rendering a message, ready to be submitted to a send job.
+#[derive(Debug, Clone)]
+pub struct RenderedEmail {
+    pub message: Vec<u8>,
+    // pub envelope: Envelope,
+    pub is_encrypted: bool,
+    pub is_gossiped: bool,
+    pub last_added_location_id: u32,
+    /// None for MDN, the message id otherwise
+    pub foreign_id: Option<MsgId>,
+
+    pub from: String,
+    pub recipients: Vec<String>,
+
+    /// Message ID (Message in the sense of Email)
+    pub rfc724_mid: String,
+}
+
+impl<'a, 'b> MimeFactory<'a, 'b> {
+    pub fn from_msg(context: &'a Context, msg: &'b Message) -> Result<MimeFactory<'a, 'b>, Error> {
+        let chat = Chat::load_from_db(context, msg.chat_id)?;
+
+        let mut factory = MimeFactory {
             from_addr: context
                 .get_config(Config::ConfiguredAddr)
                 .unwrap_or_default(),
@@ -62,31 +76,103 @@ impl<'a> MimeFactory<'a> {
                 .unwrap_or_else(|| context.stock_str(StockMessage::StatusLine).to_string()),
             recipients_names: Vec::with_capacity(5),
             recipients_addr: Vec::with_capacity(5),
-            timestamp: 0,
-            rfc724_mid: String::default(),
-            loaded: Loaded::Nothing,
+            timestamp: msg.timestamp_sort,
+            loaded: Loaded::Message,
             msg,
-            chat: None,
-            increation: false,
+            chat: Some(chat),
+            increation: msg.is_increation(),
             in_reply_to: String::default(),
             references: String::default(),
             req_mdn: false,
-            out: Vec::new(),
-            envelope: None,
-            out_encrypted: false,
-            out_gossiped: false,
-            out_last_added_location_id: 0,
+            last_added_location_id: 0,
             context,
+        };
+
+        // just set the chat above
+        let chat = factory.chat.as_ref().unwrap();
+
+        if chat.is_self_talk() {
+            factory
+                .recipients_names
+                .push(factory.from_displayname.to_string());
+            factory.recipients_addr.push(factory.from_addr.to_string());
+        } else {
+            context.sql.query_map(
+                "SELECT c.authname, c.addr  \
+                 FROM chats_contacts cc  \
+                 LEFT JOIN contacts c ON cc.contact_id=c.id  \
+                 WHERE cc.chat_id=? AND cc.contact_id>9;",
+                params![factory.msg.chat_id as i32],
+                |row| {
+                    let authname: String = row.get(0)?;
+                    let addr: String = row.get(1)?;
+                    Ok((authname, addr))
+                },
+                |rows| {
+                    for row in rows {
+                        let (authname, addr) = row?;
+                        if !vec_contains_lowercase(&factory.recipients_addr, &addr) {
+                            factory.recipients_addr.push(addr);
+                            factory.recipients_names.push(authname);
+                        }
+                    }
+                    Ok(())
+                },
+            )?;
+
+            let command = factory.msg.param.get_cmd();
+            let msg = &factory.msg;
+
+            /* for added members, the list is just fine */
+            if command == SystemMessage::MemberRemovedFromGroup {
+                let email_to_remove = msg.param.get(Param::Arg).unwrap_or_default();
+
+                let self_addr = context
+                    .get_config(Config::ConfiguredAddr)
+                    .unwrap_or_default();
+
+                if !email_to_remove.is_empty() && !addr_cmp(email_to_remove, self_addr) {
+                    if !vec_contains_lowercase(&factory.recipients_addr, &email_to_remove) {
+                        factory.recipients_names.push("".to_string());
+                        factory.recipients_addr.push(email_to_remove.to_string());
+                    }
+                }
+            }
+            if command != SystemMessage::AutocryptSetupMessage
+                && command != SystemMessage::SecurejoinMessage
+                && context.get_config_bool(Config::MdnsEnabled)
+            {
+                factory.req_mdn = true;
+            }
         }
+        let row = context.sql.query_row(
+            "SELECT mime_in_reply_to, mime_references FROM msgs WHERE id=?",
+            params![msg.id],
+            |row| {
+                let in_reply_to: String = row.get(0)?;
+                let references: String = row.get(1)?;
+
+                Ok((in_reply_to, references))
+            },
+        );
+
+        match row {
+            Ok((in_reply_to, references)) => {
+                factory.in_reply_to = in_reply_to;
+                factory.references = references;
+            }
+            Err(err) => {
+                error!(
+                    context,
+                    "mimefactory: failed to load mime_in_reply_to: {:?}", err
+                );
+            }
+        }
+
+        Ok(factory)
     }
 
-    pub fn finalize_mime_message(&mut self, encrypted: bool, gossiped: bool) -> Result<(), Error> {
-        self.out_encrypted = encrypted;
-        self.out_gossiped = encrypted && gossiped;
-        Ok(())
-    }
-
-    pub fn load_mdn(context: &'a Context, msg_id: MsgId) -> Result<Self, Error> {
+    pub fn from_mdn(context: &'a Context, msg: &'b Message) -> Result<Self, Error> {
         // MDNs not enabled - check this is late, in the job. the
         // user may have changed its choice while offline ...
         ensure!(
@@ -94,32 +180,35 @@ impl<'a> MimeFactory<'a> {
             "MDNs meanwhile disabled"
         );
 
-        let msg = Message::load_from_db(context, msg_id)?;
-        let mut factory = MimeFactory::from_message(context, msg);
-        let contact = Contact::load_from_db(factory.context, factory.msg.from_id)?;
+        let contact = Contact::load_from_db(context, msg.from_id)?;
 
         // Do not send MDNs trash etc.; chats.blocked is already checked by the caller
         // in dc_markseen_msgs()
         ensure!(!contact.is_blocked(), "Contact blocked");
-        ensure!(
-            factory.msg.chat_id > DC_CHAT_ID_LAST_SPECIAL,
-            "Invalid chat id"
-        );
+        ensure!(msg.chat_id > DC_CHAT_ID_LAST_SPECIAL, "Invalid chat id");
 
-        factory
-            .recipients_names
-            .push(contact.get_authname().to_string());
-        factory.recipients_addr.push(contact.get_addr().to_string());
-        factory.timestamp = dc_create_smeared_timestamp(factory.context);
-        factory.rfc724_mid = dc_create_outgoing_rfc724_mid(None, &factory.from_addr);
-        factory.loaded = Loaded::MDN;
-
-        Ok(factory)
+        Ok(MimeFactory {
+            context,
+            from_addr: context
+                .get_config(Config::ConfiguredAddr)
+                .unwrap_or_default(),
+            from_displayname: context.get_config(Config::Displayname).unwrap_or_default(),
+            selfstatus: context
+                .get_config(Config::Selfstatus)
+                .unwrap_or_else(|| context.stock_str(StockMessage::StatusLine).to_string()),
+            recipients_names: vec![contact.get_authname().to_string()],
+            recipients_addr: vec![contact.get_addr().to_string()],
+            timestamp: dc_create_smeared_timestamp(context),
+            loaded: Loaded::MDN,
+            msg,
+            chat: None,
+            increation: false,
+            in_reply_to: String::default(),
+            references: String::default(),
+            req_mdn: false,
+            last_added_location_id: 0,
+        })
     }
-
-    /*******************************************************************************
-     * Render a basic email
-     ******************************************************************************/
 
     fn peerstates_for_recipients(&self) -> Result<Vec<(Option<Peerstate>, &str)>, Error> {
         let self_addr = self
@@ -165,7 +254,6 @@ impl<'a> MimeFactory<'a> {
                 Ok(false)
             }
             Loaded::MDN => Ok(false),
-            Loaded::Nothing => bail!("No message loaded"),
         }
     }
 
@@ -180,7 +268,6 @@ impl<'a> MimeFactory<'a> {
                 }
             }
             Loaded::MDN => Ok(PeerstateVerifiedStatus::Unverified),
-            Loaded::Nothing => bail!("No message loaded"),
         }
     }
 
@@ -199,7 +286,6 @@ impl<'a> MimeFactory<'a> {
                 }
             }
             Loaded::MDN => Ok(DC_FP_NO_AUTOCRYPT_HEADER),
-            Loaded::Nothing => bail!("No message loaded"),
         }
     }
 
@@ -225,7 +311,6 @@ impl<'a> MimeFactory<'a> {
                 Ok(false)
             }
             Loaded::MDN => Ok(false),
-            Loaded::Nothing => bail!("No message loaded"),
         }
     }
 
@@ -248,7 +333,6 @@ impl<'a> MimeFactory<'a> {
                 Ok(None)
             }
             Loaded::MDN => Ok(None),
-            Loaded::Nothing => bail!("No message loaded"),
         }
     }
 
@@ -288,18 +372,10 @@ impl<'a> MimeFactory<'a> {
                 let e = self.context.stock_str(StockMessage::ReadRcpt);
                 Ok(format!("Chat: {}", e).to_string())
             }
-            Loaded::Nothing => bail!("No message loaded"),
         }
     }
 
-    pub fn render(&mut self) -> Result<(), Error> {
-        // TODO: take self
-
-        ensure!(
-            self.loaded != Loaded::Nothing && self.out.is_empty(),
-            "Invalid use of mimefactory-object."
-        );
-
+    pub fn render(mut self) -> Result<RenderedEmail, Error> {
         let e2ee_guranteed = self.is_e2ee_guranteed()?;
 
         let mut encrypt_helper = EncryptHelper::new(self.context)?;
@@ -389,7 +465,6 @@ impl<'a> MimeFactory<'a> {
                 self.render_message(&mut protected_headers, &mut unprotected_headers, &grpimage)?
             }
             Loaded::MDN => self.render_mdn(&mut protected_headers, &mut unprotected_headers)?,
-            Loaded::Nothing => bail!("No message loaded"),
         };
 
         if force_plaintext != DC_FP_NO_AUTOCRYPT_HEADER {
@@ -403,8 +478,9 @@ impl<'a> MimeFactory<'a> {
         let peerstates = self.peerstates_for_recipients()?;
         let should_encrypt =
             encrypt_helper.should_encrypt(self.context, e2ee_guranteed, &peerstates)?;
+        let is_encrypted = should_encrypt && force_plaintext == 0;
 
-        let mut outer_message = if should_encrypt && force_plaintext == 0 {
+        let mut outer_message = if is_encrypted {
             for header in protected_headers.into_iter() {
                 message = message.header(header);
             }
@@ -452,9 +528,6 @@ impl<'a> MimeFactory<'a> {
                 )
                 .header(("Subject".to_string(), "...".to_string()));
 
-            let gossiped = do_gossip && !peerstates.is_empty();
-            self.finalize_mime_message(true, gossiped)?;
-
             outer_message
         } else {
             // In the unencrypted case, we add all headers to the outer message.
@@ -464,8 +537,6 @@ impl<'a> MimeFactory<'a> {
             for header in unprotected_headers.into_iter() {
                 message = message.header(header);
             }
-            self.finalize_mime_message(false, false)?;
-
             message
         };
 
@@ -473,11 +544,36 @@ impl<'a> MimeFactory<'a> {
             .header(Header::new_with_value("To".into(), to).unwrap())
             .header(Header::new_with_value("From".into(), vec![from]).unwrap());
 
-        // TODO
-        // self.envelope = Some(Envelope::new(Some(from), to).expect("setting from"));
-        self.out = outer_message.build().as_string().into_bytes();
+        let is_gossiped = is_encrypted && do_gossip && !peerstates.is_empty();
 
-        Ok(())
+        let MimeFactory {
+            recipients_addr,
+            from_addr,
+            last_added_location_id,
+            msg,
+            loaded,
+            ..
+        } = self;
+
+        let rfc724_mid = match loaded {
+            Loaded::Message => msg.rfc724_mid.clone(),
+            Loaded::MDN => dc_create_outgoing_rfc724_mid(None, &from_addr),
+        };
+
+        Ok(RenderedEmail {
+            message: outer_message.build().as_string().into_bytes(),
+            // envelope: Envelope::new,
+            is_encrypted,
+            is_gossiped,
+            last_added_location_id,
+            foreign_id: match loaded {
+                Loaded::Message => Some(msg.id),
+                Loaded::MDN => None,
+            },
+            recipients: recipients_addr,
+            from: from_addr,
+            rfc724_mid,
+        })
     }
 
     fn render_message(
@@ -738,7 +834,7 @@ impl<'a> MimeFactory<'a> {
                     is_multipart = true;
                     if !self.msg.param.exists(Param::SetLatitude) {
                         // otherwise, the independent location is already filed
-                        self.out_last_added_location_id = last_added_location_id;
+                        self.last_added_location_id = last_added_location_id;
                     }
                 }
                 Err(err) => {
@@ -760,100 +856,6 @@ impl<'a> MimeFactory<'a> {
         unprotected_headers: &mut Vec<Header>,
     ) -> Result<PartBuilder, Error> {
         unimplemented!()
-    }
-
-    pub fn load_msg(context: &Context, msg_id: MsgId) -> Result<MimeFactory<'_>, Error> {
-        let msg = Message::load_from_db(context, msg_id)?;
-        let chat = Chat::load_from_db(context, msg.chat_id)?;
-        let mut factory = MimeFactory::from_message(context, msg);
-        factory.chat = Some(chat);
-
-        // just set the chat above
-        let chat = factory.chat.as_ref().unwrap();
-
-        if chat.is_self_talk() {
-            factory
-                .recipients_names
-                .push(factory.from_displayname.to_string());
-            factory.recipients_addr.push(factory.from_addr.to_string());
-        } else {
-            context.sql.query_map(
-                "SELECT c.authname, c.addr  \
-                 FROM chats_contacts cc  \
-                 LEFT JOIN contacts c ON cc.contact_id=c.id  \
-                 WHERE cc.chat_id=? AND cc.contact_id>9;",
-                params![factory.msg.chat_id as i32],
-                |row| {
-                    let authname: String = row.get(0)?;
-                    let addr: String = row.get(1)?;
-                    Ok((authname, addr))
-                },
-                |rows| {
-                    for row in rows {
-                        let (authname, addr) = row?;
-                        if !vec_contains_lowercase(&factory.recipients_addr, &addr) {
-                            factory.recipients_addr.push(addr);
-                            factory.recipients_names.push(authname);
-                        }
-                    }
-                    Ok(())
-                },
-            )?;
-
-            let command = factory.msg.param.get_cmd();
-            let msg = &factory.msg;
-
-            /* for added members, the list is just fine */
-            if command == SystemMessage::MemberRemovedFromGroup {
-                let email_to_remove = msg.param.get(Param::Arg).unwrap_or_default();
-
-                let self_addr = context
-                    .get_config(Config::ConfiguredAddr)
-                    .unwrap_or_default();
-
-                if !email_to_remove.is_empty() && !addr_cmp(email_to_remove, self_addr) {
-                    if !vec_contains_lowercase(&factory.recipients_addr, &email_to_remove) {
-                        factory.recipients_names.push("".to_string());
-                        factory.recipients_addr.push(email_to_remove.to_string());
-                    }
-                }
-            }
-            if command != SystemMessage::AutocryptSetupMessage
-                && command != SystemMessage::SecurejoinMessage
-                && context.get_config_bool(Config::MdnsEnabled)
-            {
-                factory.req_mdn = true;
-            }
-        }
-        let row = context.sql.query_row(
-            "SELECT mime_in_reply_to, mime_references FROM msgs WHERE id=?",
-            params![factory.msg.id],
-            |row| {
-                let in_reply_to: String = row.get(0)?;
-                let references: String = row.get(1)?;
-
-                Ok((in_reply_to, references))
-            },
-        );
-        match row {
-            Ok((in_reply_to, references)) => {
-                factory.in_reply_to = in_reply_to;
-                factory.references = references;
-            }
-            Err(err) => {
-                error!(
-                    context,
-                    "mimefactory: failed to load mime_in_reply_to: {:?}", err
-                );
-            }
-        }
-
-        factory.loaded = Loaded::Message;
-        factory.timestamp = factory.msg.timestamp_sort;
-        factory.rfc724_mid = factory.msg.rfc724_mid.clone();
-        factory.increation = factory.msg.is_increation();
-
-        Ok(factory)
     }
 }
 
