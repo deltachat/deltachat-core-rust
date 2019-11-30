@@ -139,24 +139,20 @@ fn decode_openpgp(context: &Context, qr: &str) -> Lot {
     if invitenumber.is_none() || auth.is_none() {
         if let Some(peerstate) = peerstate {
             lot.state = LotState::QrFprOk;
-            let addr = peerstate
-                .addr
-                .as_ref()
-                .map(|s| s.as_str())
-                .unwrap_or_else(|| "");
 
-            lot.id = Contact::add_or_lookup(context, name, addr, Origin::UnhandledQrScan)
-                .map(|(id, _)| id)
-                .unwrap_or_default();
+            lot.id = Contact::add_or_lookup(
+                context,
+                name,
+                peerstate.addr.clone(),
+                Origin::UnhandledQrScan,
+            )
+            .map(|(id, _)| id)
+            .unwrap_or_default();
 
             let (id, _) = chat::create_or_lookup_by_contact_id(context, lot.id, Blocked::Deaddrop)
                 .unwrap_or_default();
 
-            chat::add_info_msg(
-                context,
-                id,
-                format!("{} verified.", peerstate.addr.unwrap_or_default()),
-            );
+            chat::add_info_msg(context, id, format!("{} verified.", peerstate.addr));
         } else {
             lot.state = LotState::QrFprWithoutAddr;
             lot.text1 = Some(dc_format_fingerprint(&fingerprint));

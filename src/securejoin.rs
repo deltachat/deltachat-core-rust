@@ -761,11 +761,8 @@ pub fn handle_degrade_event(context: &Context, peerstate: &Peerstate) -> Result<
                 chat::create_or_lookup_by_contact_id(context, contact_id as u32, Blocked::Deaddrop)
                     .unwrap_or_default();
 
-            let peeraddr: &str = match peerstate.addr {
-                Some(ref addr) => &addr,
-                None => "",
-            };
-            let msg = context.stock_string_repl_str(StockMessage::ContactSetupChanged, peeraddr);
+            let msg = context
+                .stock_string_repl_str(StockMessage::ContactSetupChanged, peerstate.addr.clone());
 
             chat::add_info_msg(context, contact_chat_id, msg);
             emit_event!(context, Event::ChatModified(contact_chat_id));

@@ -617,18 +617,18 @@ impl Contact {
                     .peek_key(PeerstateVerifiedStatus::Unverified)
                     .map(|k| k.formatted_fingerprint())
                     .unwrap_or_default();
-                if peerstate.addr.is_some() && &loginparam.addr < peerstate.addr.as_ref().unwrap() {
+                if loginparam.addr < peerstate.addr {
                     cat_fingerprint(&mut ret, &loginparam.addr, &fingerprint_self, "");
                     cat_fingerprint(
                         &mut ret,
-                        peerstate.addr.as_ref().unwrap(),
+                        peerstate.addr.clone(),
                         &fingerprint_other_verified,
                         &fingerprint_other_unverified,
                     );
                 } else {
                     cat_fingerprint(
                         &mut ret,
-                        peerstate.addr.as_ref().unwrap(),
+                        peerstate.addr.clone(),
                         &fingerprint_other_verified,
                         &fingerprint_other_unverified,
                     );
