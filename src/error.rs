@@ -54,12 +54,6 @@ pub enum Error {
     ImapInTeardown,
     #[fail(display = "No IMAP Connection established")]
     ImapNoConnection,
-    /*
-    #[fail(display = "IMAP Connection lost: {:?}", _0)]
-    ImapConnectionLost(String),
-    #[fail(display = "Failed to obtain Imap Session")]
-    CouldNotObtainImapSession,
-    */
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
