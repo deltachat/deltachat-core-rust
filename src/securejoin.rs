@@ -691,7 +691,7 @@ fn mark_peer_as_verified(context: &Context, fingerprint: impl AsRef<str>) -> Res
         Peerstate::from_fingerprint(context, &context.sql, fingerprint.as_ref())
     {
         if peerstate.set_verified(
-            DC_PS_PUBLIC_KEY,
+            PeerstateKeyType::PublicKey,
             fingerprint.as_ref(),
             PeerstateVerifiedStatus::BidirectVerified,
         ) {

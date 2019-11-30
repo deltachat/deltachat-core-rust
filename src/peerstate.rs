@@ -12,8 +12,11 @@ use crate::error::*;
 use crate::key::*;
 use crate::sql::{self, Sql};
 
-pub const DC_PS_GOSSIP_KEY: u32 = 0;
-pub const DC_PS_PUBLIC_KEY: u32 = 1;
+#[derive(Debug)]
+pub enum PeerstateKeyType {
+    GossipKey,
+    PublicKey,
+}
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, FromPrimitive)]
 #[repr(u8)]
@@ -355,35 +358,40 @@ impl<'a> Peerstate<'a> {
 
     pub fn set_verified(
         &mut self,
-        which_key: u32,
+        which_key: PeerstateKeyType,
         fingerprint: &str,
         verified: PeerstateVerifiedStatus,
     ) -> bool {
-        let mut success = false;
-        if !(which_key != DC_PS_GOSSIP_KEY && which_key != DC_PS_PUBLIC_KEY
-            || verified != PeerstateVerifiedStatus::BidirectVerified)
-        {
-            if which_key == DC_PS_PUBLIC_KEY
-                && self.public_key_fingerprint.is_some()
-                && self.public_key_fingerprint.as_ref().unwrap() == fingerprint
-            {
-                self.to_save = Some(ToSave::All);
-                self.verified_key = self.public_key.clone();
-                self.verified_key_fingerprint = self.public_key_fingerprint.clone();
-                success = true;
+        if verified == PeerstateVerifiedStatus::BidirectVerified {
+            match which_key {
+                PeerstateKeyType::PublicKey => {
+                    if self.public_key_fingerprint.is_some()
+                        && self.public_key_fingerprint.as_ref().unwrap() == fingerprint
+                    {
+                        self.to_save = Some(ToSave::All);
+                        self.verified_key = self.public_key.clone();
+                        self.verified_key_fingerprint = self.public_key_fingerprint.clone();
+                        true
+                    } else {
+                        false
+                    }
+                }
+                PeerstateKeyType::GossipKey => {
+                    if self.gossip_key_fingerprint.is_some()
+                        && self.gossip_key_fingerprint.as_ref().unwrap() == fingerprint
+                    {
+                        self.to_save = Some(ToSave::All);
+                        self.verified_key = self.gossip_key.clone();
+                        self.verified_key_fingerprint = self.gossip_key_fingerprint.clone();
+                        true
+                    } else {
+                        false
+                    }
+                }
             }
-            if which_key == DC_PS_GOSSIP_KEY
-                && self.gossip_key_fingerprint.is_some()
-                && self.gossip_key_fingerprint.as_ref().unwrap() == fingerprint
-            {
-                self.to_save = Some(ToSave::All);
-                self.verified_key = self.gossip_key.clone();
-                self.verified_key_fingerprint = self.gossip_key_fingerprint.clone();
-                success = true;
-            }
+        } else {
+            false
         }
-
-        success
     }
 
     pub fn save_to_db(&self, sql: &Sql, create: bool) -> Result<()> {
