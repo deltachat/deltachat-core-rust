@@ -794,6 +794,7 @@ class TestOnlineAccount:
         chat2 = ac2.qr_join_chat(qr)
         assert chat2.id >= 10
         wait_securejoin_inviter_progress(ac1, 1000)
+        ac1._evlogger.get_matching("DC_EVENT_SECUREJOIN_MEMBER_ADDED")
 
         lp.sec("ac2: read member added message")
         msg = ac2.wait_next_incoming_message()
