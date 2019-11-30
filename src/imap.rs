@@ -318,19 +318,12 @@ impl Imap {
         // the trailing underscore is correct
 
         if self.connect(context, &param) {
-            if context
-                .sql
-                .get_raw_config_int(context, "folders_configured")
-                .unwrap_or_default()
-                < 3
-            {
-                self.configure_folders(context, true);
-            }
-            return Ok(());
+            self.ensure_configured_folders(context, true)
+        } else {
+            Err(Error::ImapConnectionFailed(
+                format!("{}", param).to_string(),
+            ))
         }
-        return Err(Error::ImapConnectionFailed(
-            format!("{}", param).to_string(),
-        ));
     }
 
     /// tries connecting to imap account using the specific login
@@ -558,13 +551,11 @@ impl Imap {
         let config = self.config.read().await;
         let mailbox = config.selected_mailbox.as_ref().expect("just selected");
 
-        ensure!(
-            mailbox.uid_validity.is_some(),
-            "Cannot get UIDVALIDITY for folder {:?}",
-            folder.as_ref()
-        );
+        let new_uid_validity = match mailbox.uid_validity {
+            Some(v) => v,
+            None => bail!("Cannot get UIDVALIDITY for folder {:?}", folder.as_ref()),
+        };
 
-        let new_uid_validity = mailbox.uid_validity.unwrap();
         if new_uid_validity != uid_validity {
             if mailbox.exists == 0 {
                 info!(context, "Folder \"{}\" is empty.", folder.as_ref());
@@ -579,35 +570,36 @@ impl Imap {
 
             // uid_validity has changed or is being set the first time.
             // find the last seen uid within the new uid_validity scope.
-
-            let new_last_seen_uid = if mailbox.uid_next.is_none() {
-                warn!(
-                    context,
-                    "IMAP folder did not report uid_next, falling back to fetching"
-                );
-                if let Some(ref mut session) = &mut *self.session.lock().await {
-                    // `FETCH <message sequence number> (UID)`
-                    // note that we use fetch by sequence number
-                    // and thus we only need to get exactly the
-                    // last-index message.
-                    let set = format!("{}", mailbox.exists);
-                    match session.fetch(set, JUST_UID).await {
-                        Ok(list) => list[0].uid.unwrap_or_else(|| 0),
-                        Err(err) => {
-                            bail!("fetch failed: {:?}", err);
-                        }
-                    }
-                } else {
-                    return Err(Error::ImapNoConnection);
+            let new_last_seen_uid = match mailbox.uid_next {
+                Some(uid_next) => {
+                    uid_next - 1 // XXX could uid_next be 0?
                 }
-            } else {
-                max(0, mailbox.uid_next.unwrap() - 1)
+                None => {
+                    warn!(
+                        context,
+                        "IMAP folder has no uid_next, fall back to fetching"
+                    );
+                    if let Some(ref mut session) = &mut *self.session.lock().await {
+                        // note that we use fetch by sequence number
+                        // and thus we only need to get exactly the
+                        // last-index message.
+                        let set = format!("{}", mailbox.exists);
+                        match session.fetch(set, JUST_UID).await {
+                            Ok(list) => list[0].uid.unwrap_or_default(),
+                            Err(err) => {
+                                bail!("fetch failed: {:?}", err);
+                            }
+                        }
+                    } else {
+                        return Err(Error::ImapNoConnection);
+                    }
+                }
             };
 
             self.set_config_last_seen_uid(context, &folder, new_uid_validity, new_last_seen_uid);
             info!(
                 context,
-                "uid change: new {}/{} current {}/{}",
+                "uid/validity change: new {}/{} current {}/{}",
                 new_last_seen_uid,
                 new_uid_validity,
                 uid_validity,
@@ -635,9 +627,9 @@ impl Imap {
             return Err(Error::ImapNoConnection);
         };
 
-        // go through all mails in folder (this is typically _fast_ as we already have the whole list)
+        // prefetch info from all unknown mails in the folder
         for msg in &list {
-            let cur_uid = msg.uid.unwrap_or_else(|| 0);
+            let cur_uid = msg.uid.unwrap_or_default();
             if cur_uid > last_seen_uid {
                 read_cnt += 1;
 
@@ -1239,19 +1231,35 @@ impl Imap {
         })
     }
 
-    pub fn configure_folders(&self, context: &Context, create_mvbox: bool) {
+    pub fn ensure_configured_folders(
+        &self,
+        context: &Context,
+        create_mvbox: bool,
+    ) -> Result<(), Error> {
+        let folders_configured = context
+            .sql
+            .get_raw_config_int(context, "folders_configured");
+        if folders_configured.unwrap_or_default() >= 3 {
+            // the "3" here we increase if we have future updates to
+            // to folder configuration
+            return Ok(());
+        }
+
         task::block_on(async move {
-            if !self.is_connected().await {
-                return;
-            }
+            ensure!(
+                self.is_connected().await,
+                "cannot configure folders: not connected"
+            );
 
             info!(context, "Configuring IMAP-folders.");
 
             if let Some(ref mut session) = &mut *self.session.lock().await {
-                let folders = self
-                    .list_folders(session, context)
-                    .await
-                    .expect("no folders found");
+                let folders = match self.list_folders(session, context).await {
+                    Some(f) => f,
+                    None => {
+                        bail!("could not obtain list of imap folders");
+                    }
+                };
 
                 let sentbox_folder =
                     folders
@@ -1282,7 +1290,7 @@ impl Imap {
                         Err(err) => {
                             warn!(
                                 context,
-                                "Cannot create MVBOX-folder, using trying INBOX subfolder. ({})",
+                                "Cannot create MVBOX-folder, trying to create INBOX subfolder. ({})",
                                 err
                             );
 
@@ -1304,36 +1312,34 @@ impl Imap {
                     // that may be used by other MUAs to list folders.
                     // for the LIST command, the folder is always visible.
                     if let Some(ref mvbox) = mvbox_folder {
-                        // TODO: better error handling
-                        session.subscribe(mvbox).await.expect("failed to subscribe");
+                        if let Err(err) = session.subscribe(mvbox).await {
+                            warn!(context, "could not subscribe to {:?}: {:?}", mvbox, err);
+                        }
                     }
                 }
                 context
                     .sql
-                    .set_raw_config(context, "configured_inbox_folder", Some("INBOX"))
-                    .ok();
+                    .set_raw_config(context, "configured_inbox_folder", Some("INBOX"))?;
                 if let Some(ref mvbox_folder) = mvbox_folder {
-                    context
-                        .sql
-                        .set_raw_config(context, "configured_mvbox_folder", Some(mvbox_folder))
-                        .ok();
+                    context.sql.set_raw_config(
+                        context,
+                        "configured_mvbox_folder",
+                        Some(mvbox_folder),
+                    )?;
                 }
                 if let Some(ref sentbox_folder) = sentbox_folder {
-                    context
-                        .sql
-                        .set_raw_config(
-                            context,
-                            "configured_sentbox_folder",
-                            Some(sentbox_folder.name()),
-                        )
-                        .ok();
+                    context.sql.set_raw_config(
+                        context,
+                        "configured_sentbox_folder",
+                        Some(sentbox_folder.name()),
+                    )?;
                 }
                 context
                     .sql
-                    .set_raw_config_int(context, "folders_configured", 3)
-                    .ok();
+                    .set_raw_config_int(context, "folders_configured", 3)?;
             }
             info!(context, "FINISHED configuring IMAP-folders.");
+            Ok(())
         })
     }
 
