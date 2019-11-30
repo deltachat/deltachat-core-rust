@@ -40,7 +40,7 @@ pub enum ImapActionResult {
 }
 
 const PREFETCH_FLAGS: &str = "(UID ENVELOPE)";
-const JUST_UID : &str = "(UID)";
+const JUST_UID: &str = "(UID)";
 const BODY_FLAGS: &str = "(FLAGS BODY.PEEK[])";
 const SELECT_ALL: &str = "1:*";
 
@@ -577,16 +577,23 @@ impl Imap {
                 return Ok(false);
             }
 
-            // uid_validity has changed or is being set the first time. 
-            // find the last seen uid within the new uid_validity scope. 
+            // uid_validity has changed or is being set the first time.
+            // find the last seen uid within the new uid_validity scope.
 
             let new_last_seen_uid = if mailbox.uid_next.is_none() {
-                warn!(context, "IMAP folder did not report uid_next, falling back to fetching");
+                warn!(
+                    context,
+                    "IMAP folder did not report uid_next, falling back to fetching"
+                );
                 if let Some(ref mut session) = &mut *self.session.lock().await {
                     // `FETCH <message sequence number> (UID)`
                     let set = format!("{}:*", mailbox.exists);
                     match session.fetch(set, JUST_UID).await {
-                        Ok(list) => list.iter().last().and_then(|res| res.uid).unwrap_or_default(),
+                        Ok(list) => list
+                            .iter()
+                            .last()
+                            .and_then(|res| res.uid)
+                            .unwrap_or_default(),
                         Err(err) => {
                             bail!("fetch failed: {:?}", err);
                         }
@@ -597,7 +604,7 @@ impl Imap {
             } else {
                 mailbox.uid_next.unwrap() - 1
             };
-           
+
             self.set_config_last_seen_uid(context, &folder, new_uid_validity, new_last_seen_uid);
             info!(
                 context,
