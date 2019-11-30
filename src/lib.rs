@@ -17,8 +17,6 @@ extern crate strum;
 #[macro_use]
 extern crate strum_macros;
 #[macro_use]
-extern crate jetscii;
-#[macro_use]
 extern crate debug_stub_derive;
 
 #[macro_use]

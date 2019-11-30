@@ -15,10 +15,6 @@ use crate::pgp;
 use crate::securejoin::handle_degrade_event;
 use crate::wrapmime;
 
-// standard mime-version header aka b"Version: 1\r\n\x00"
-static mut VERSION_CONTENT: [libc::c_char; 13] =
-    [86, 101, 114, 115, 105, 111, 110, 58, 32, 49, 13, 10, 0];
-
 #[derive(Debug)]
 pub struct EncryptHelper {
     pub prefer_encrypt: EncryptPreference,
@@ -91,7 +87,6 @@ impl EncryptHelper {
     pub fn encrypt(
         &mut self,
         context: &Context,
-        e2ee_guaranteed: bool,
         min_verified: PeerstateVerifiedStatus,
         do_gossip: bool,
         mut mail_to_encrypt: lettre_email::PartBuilder,
@@ -214,43 +209,6 @@ pub fn try_decrypt(
     }
     Ok((out_mail, signatures, gossipped_addr))
 }
-
-// fn new_data_part(
-//     data: *mut libc::c_void,
-//     data_bytes: libc::size_t,
-//     content_type: &str,
-//     default_encoding: u32,
-// ) -> Result<*mut Mailmime> {
-//     let content = new_content_type(&content_type)?;
-//     let mut encoding = ptr::null_mut();
-//     if wrapmime::content_type_needs_encoding(content) {
-//         encoding =  { mailmime_mechanism_new(default_encoding as i32, ptr::null_mut()) };
-//         ensure!(!encoding.is_null(), "failed to create encoding");
-//     }
-//     let mime_fields = {
-//          {
-//             mailmime_fields_new_with_data(
-//                 encoding,
-//                 ptr::null_mut(),
-//                 ptr::null_mut(),
-//                 ptr::null_mut(),
-//                 ptr::null_mut(),
-//             )
-//         }
-//     };
-//     ensure!(!mime_fields.is_null(), "internal mime error");
-//
-//     let mime =  { mailmime_new_empty(content, mime_fields) };
-//     ensure!(!mime.is_null(), "internal mime error");
-//
-//     if  { (*mime).mm_type } == MAILMIME_SINGLE as libc::c_int {
-//         if !data.is_null() && data_bytes > 0 {
-//              { mailmime_set_body_text(mime, data as *mut libc::c_char, data_bytes) };
-//         }
-//     }
-//
-//     Ok(mime)
-// }
 
 /// Load public key from database or generate a new one.
 ///

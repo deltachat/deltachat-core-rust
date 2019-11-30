@@ -47,7 +47,6 @@ image-meta = "0.1.0"
 quick-xml = "0.15.0"
 escaper = "0.1.0"
 bitflags = "1.1.0"
-jetscii = "0.4.4"
 debug_stub_derive = "0.3.0"
 sanitize-filename = "0.2.1"
 stop-token = { version = "0.1.1", features = ["unstable"] }
