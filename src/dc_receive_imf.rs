@@ -1664,7 +1664,7 @@ fn check_verified_properties(
                 let fp = peerstate.gossip_key_fingerprint.clone();
                 if let Some(fp) = fp {
                     peerstate.set_verified(
-                        DC_PS_GOSSIP_KEY,
+                        PeerstateKeyType::GossipKey,
                         &fp,
                         PeerstateVerifiedStatus::BidirectVerified,
                     );
