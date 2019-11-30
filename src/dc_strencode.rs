@@ -1,8 +1,4 @@
 use itertools::Itertools;
-use std::borrow::Cow;
-
-use charset::Charset;
-use percent_encoding::{percent_decode, utf8_percent_encode, AsciiSet, CONTROLS};
 
 /// Encode non-ascii-strings as `=?UTF-8?Q?Bj=c3=b6rn_Petersen?=`.
 /// Belongs to RFC 2047: https://tools.ietf.org/html/rfc2047
