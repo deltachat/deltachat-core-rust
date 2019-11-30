@@ -1,3 +1,7 @@
+//! De-HTML
+//!
+//! A module to remove HTML tags from the email text
+
 use lazy_static::lazy_static;
 use quick_xml;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
@@ -19,22 +23,18 @@ enum AddText {
     YesPreserveLineEnds,
 }
 
-// dc_dehtml() returns way too many lineends; however, an optimisation on this issue is not needed as
-// the lineends are typically remove in further processing by the caller
-pub fn dc_dehtml(buf_terminated: &str) -> String {
-    let buf_terminated = buf_terminated.trim();
-
-    if buf_terminated.is_empty() {
-        return "".into();
-    }
+// dehtml() returns way too many newlines; however, an optimisation on this issue is not needed as
+// the newlines are typically removed in further processing by the caller
+pub fn dehtml(buf: &str) -> String {
+    let buf = buf.trim();
 
     let mut dehtml = Dehtml {
-        strbuilder: String::with_capacity(buf_terminated.len()),
+        strbuilder: String::with_capacity(buf.len()),
         add_text: AddText::YesRemoveLineEnds,
         last_href: None,
     };
 
-    let mut reader = quick_xml::Reader::from_str(buf_terminated);
+    let mut reader = quick_xml::Reader::from_str(buf);
 
     let mut buf = Vec::new();
 
@@ -171,7 +171,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_dc_dehtml() {
+    fn test_dehtml() {
         let cases = vec![
             (
                 "<a href='https://example.com'> Foo </a>",
@@ -186,7 +186,7 @@ mod tests {
             ("", ""),
         ];
         for (input, output) in cases {
-            assert_eq!(dc_dehtml(input), output);
+            assert_eq!(dehtml(input), output);
         }
     }
 }
