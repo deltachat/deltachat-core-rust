@@ -360,8 +360,13 @@ pub fn JobConfigureImap(context: &Context) {
                     error!(context, "configuring folders failed: {:?}", err);
                     false
                 } else {
-                    // XXX call fetch_from_single_folder to set last_seen_uid 
-                    true
+                    let res = imap.select_with_uidvalidity(context, "INBOX");
+                    if let Err(err) = res {
+                        error!(context, "could not read INBOX status: {:?}", err);
+                        false
+                    } else {
+                        true
+                    }
                 }
             }
             17 => {

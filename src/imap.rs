@@ -418,14 +418,14 @@ impl Imap {
                 .fetch_from_single_folder(context, &watch_folder)
                 .await?
             {
-                // During the fetch commands new messages may arrive.  So we fetch until we do not
-                // get any more. If IDLE is called directly after, there is only a small chance that
-                // messages are missed and delayed until the next IDLE call
+                // We fetch until no more new messages are there.
             }
             Ok(())
         })
     }
 
+    /// select a folder, possibly update uid_validity and, if needed,
+    /// expunge the folder to remove delete-marked messages.
     async fn select_folder<S: AsRef<str>>(
         &self,
         context: &Context,
@@ -532,40 +532,41 @@ impl Imap {
         }
     }
 
-    async fn fetch_from_single_folder<S: AsRef<str>>(
+    /// return Result with (uid_validity, last_seen_uid) tuple.
+    pub(crate) fn select_with_uidvalidity(
         &self,
         context: &Context,
-        folder: S,
-    ) -> Result<bool, Error> {
-        if let Err(err) = self.select_folder(context, Some(&folder)).await {
-            bail!(
-                "Cannot select folder {:?} for fetching: {}",
-                folder.as_ref(),
-                err
-            );
-        }
+        folder: &str,
+    ) -> Result<(u32, u32), Error> {
+        task::block_on(async move {
+            if let Err(err) = self.select_folder(context, Some(folder)).await {
+                bail!("could not select folder {:?}: {:?}", folder, err);
+            }
 
-        // compare last seen UIDVALIDITY against the current one
-        let (mut uid_validity, mut last_seen_uid) = self.get_config_last_seen_uid(context, &folder);
+            // compare last seen UIDVALIDITY against the current one
+            let (uid_validity, last_seen_uid) = self.get_config_last_seen_uid(context, &folder);
 
-        let config = self.config.read().await;
-        let mailbox = config.selected_mailbox.as_ref().expect("just selected");
+            let config = self.config.read().await;
+            let mailbox = config.selected_mailbox.as_ref().expect("just selected");
 
-        let new_uid_validity = match mailbox.uid_validity {
-            Some(v) => v,
-            None => bail!("Cannot get UIDVALIDITY for folder {:?}", folder.as_ref()),
-        };
+            let new_uid_validity = match mailbox.uid_validity {
+                Some(v) => v,
+                None => bail!("Cannot get UIDVALIDITY for folder {:?}", folder),
+            };
 
-        if new_uid_validity != uid_validity {
+            if new_uid_validity == uid_validity {
+                return Ok((uid_validity, last_seen_uid));
+            }
+
             if mailbox.exists == 0 {
-                info!(context, "Folder \"{}\" is empty.", folder.as_ref());
+                info!(context, "Folder \"{}\" is empty.", folder);
 
                 // set lastseenuid=0 for empty folders.
                 // id we do not do this here, we'll miss the first message
                 // as we will get in here again and fetch from lastseenuid+1 then
 
                 self.set_config_last_seen_uid(context, &folder, new_uid_validity, 0);
-                return Ok(false);
+                return Ok((new_uid_validity, 0));
             }
 
             // uid_validity has changed or is being set the first time.
@@ -605,15 +606,21 @@ impl Imap {
                 uid_validity,
                 last_seen_uid
             );
-            uid_validity = new_uid_validity;
-            last_seen_uid = new_last_seen_uid;
-        }
+            Ok((new_uid_validity, new_last_seen_uid))
+        })
+    }
+
+    async fn fetch_from_single_folder<S: AsRef<str>>(
+        &self,
+        context: &Context,
+        folder: S,
+    ) -> Result<bool, Error> {
+        let (uid_validity, last_seen_uid) =
+            self.select_with_uidvalidity(context, folder.as_ref())?;
 
         let mut read_cnt = 0;
-        let mut read_errors = 0;
-        let mut new_last_seen_uid = 0;
 
-        let list = if let Some(ref mut session) = &mut *self.session.lock().await {
+        let mut list = if let Some(ref mut session) = &mut *self.session.lock().await {
             // fetch messages with larger UID than the last one seen
             // (`UID FETCH lastseenuid+1:*)`, see RFC 4549
             let set = format!("{}:*", last_seen_uid + 1);
@@ -627,44 +634,51 @@ impl Imap {
             return Err(Error::ImapNoConnection);
         };
 
-        // prefetch info from all unknown mails in the folder
+        // prefetch info from all unfetched mails
+        let mut new_last_seen_uid = last_seen_uid;
+        let mut read_errors = 0;
+
+        list.sort_unstable_by_key(|msg| msg.uid.unwrap_or_default());
+
         for msg in &list {
             let cur_uid = msg.uid.unwrap_or_default();
-            if cur_uid > last_seen_uid {
-                read_cnt += 1;
+            if cur_uid <= last_seen_uid {
+                warn!(
+                    context,
+                    "wrong uid {}, last seen was {}", cur_uid, last_seen_uid
+                );
+                continue;
+            }
+            read_cnt += 1;
 
-                let message_id = prefetch_get_message_id(msg).unwrap_or_default();
+            let message_id = prefetch_get_message_id(msg).unwrap_or_default();
 
-                if !precheck_imf(context, &message_id, folder.as_ref(), cur_uid) {
-                    // check passed, go fetch the rest
-                    if self.fetch_single_msg(context, &folder, cur_uid).await == 0 {
-                        info!(
-                            context,
-                            "Read error for message {} from \"{}\", trying over later.",
-                            message_id,
-                            folder.as_ref()
-                        );
-
-                        read_errors += 1;
-                    }
-                } else {
-                    // check failed
+            if !precheck_imf(context, &message_id, folder.as_ref(), cur_uid) {
+                // check passed, go fetch the rest
+                if self.fetch_single_msg(context, &folder, cur_uid).await == 0 {
                     info!(
                         context,
-                        "Skipping message {} from \"{}\" by precheck.",
+                        "Read error for message {} from \"{}\", trying over later.",
                         message_id,
-                        folder.as_ref(),
+                        folder.as_ref()
                     );
+                    read_errors += 1;
                 }
-                if cur_uid > new_last_seen_uid {
-                    new_last_seen_uid = cur_uid
-                }
+            } else {
+                // we know the message-id already or don't want the message otherwise.
+                info!(
+                    context,
+                    "Skipping message {} from \"{}\" by precheck.",
+                    message_id,
+                    folder.as_ref(),
+                );
+            }
+            if read_errors == 0 {
+                new_last_seen_uid = cur_uid;
             }
         }
 
-        if 0 == read_errors && new_last_seen_uid > 0 {
-            // TODO: it might be better to increase the lastseenuid also on partial errors.
-            // however, this requires to sort the list before going through it above.
+        if new_last_seen_uid > last_seen_uid {
             self.set_config_last_seen_uid(context, &folder, uid_validity, new_last_seen_uid);
         }
 
