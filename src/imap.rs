@@ -587,13 +587,12 @@ impl Imap {
                 );
                 if let Some(ref mut session) = &mut *self.session.lock().await {
                     // `FETCH <message sequence number> (UID)`
-                    let set = format!("{}:*", mailbox.exists);
+                    // note that we use fetch by sequence number
+                    // and thus we only need to get exactly the
+                    // last-index message.
+                    let set = format!("{}", mailbox.exists);
                     match session.fetch(set, JUST_UID).await {
-                        Ok(list) => list
-                            .iter()
-                            .last()
-                            .and_then(|res| res.uid)
-                            .unwrap_or_default(),
+                        Ok(list) => list[0].uid.unwrap_or_else(|| 0),
                         Err(err) => {
                             bail!("fetch failed: {:?}", err);
                         }
@@ -602,7 +601,7 @@ impl Imap {
                     return Err(Error::ImapNoConnection);
                 }
             } else {
-                mailbox.uid_next.unwrap() - 1
+                max(0, mailbox.uid_next.unwrap() - 1)
             };
 
             self.set_config_last_seen_uid(context, &folder, new_uid_validity, new_last_seen_uid);
@@ -1334,6 +1333,7 @@ impl Imap {
                     .set_raw_config_int(context, "folders_configured", 3)
                     .ok();
             }
+            info!(context, "FINISHED configuring IMAP-folders.");
         })
     }
 
