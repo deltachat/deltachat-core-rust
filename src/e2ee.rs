@@ -377,9 +377,10 @@ mod tests {
         }
     }
 
-    //     #[test]
-    //     fn test_mailmime_parse() {
-    //         let plain = b"Chat-Disposition-Notification-To: holger@deltachat.de
+    // FIXME: https://github.com/staktrace/mailparse/issues/49
+    // #[test]
+    // fn test_mailmime_parse() {
+    //     let plain = b"Chat-Disposition-Notification-To: hello@world.de
     // Chat-Group-ID: CovhGgau8M-
     // Chat-Group-Name: Delta Chat Dev
     // Subject: =?utf-8?Q?Chat=3A?= Delta Chat =?utf-8?Q?Dev=3A?= sidenote for
@@ -387,36 +388,30 @@ mod tests {
     // Content-Type: text/plain; charset=\"utf-8\"; protected-headers=\"v1\"
     // Content-Transfer-Encoding: quoted-printable
 
-    // sidenote for all: rust core master is broken currently ... so dont recomm=
-    // end to try to run with desktop or ios unless you are ready to hunt bugs
+    // sidenote for all: things are trick atm recomm=
+    // end not to try to run with desktop or ios unless you are ready to hunt bugs
 
     // -- =20
     // Sent with my Delta Chat Messenger: https://delta.chat";
-    //         let plain_bytes = plain.len();
-    //         let plain_buf = plain.as_ptr() as *const libc::c_char;
+    //     let mail = mailparse::parse_mail(plain).expect("failed to parse valid message");
 
-    //         let mut index = 0;
-    //         let mut decrypted_mime = std::ptr::null_mut();
+    //     println!(
+    //         "{:?}",
+    //         mail.headers
+    //             .iter()
+    //             .map(|h| (h.get_key(), h.get_value()))
+    //             .collect::<Vec<_>>()
+    //     );
+    //     assert_eq!(mail.headers.len(), 6);
+    //     assert_eq!(
+    //         mail.get_body().unwrap(),
+    //         "    sidenote for all: things are trick atm recomm=
+    // end not to try to run with desktop or ios unless you are ready to hunt bugs
 
-    //         let res =  {
-    //             mailmime_parse(
-    //                 plain_buf as *const _,
-    //                 plain_bytes,
-    //                 &mut index,
-    //                 &mut decrypted_mime,
-    //             )
-    //         };
-    //          {
-    //             let msg1 = (*decrypted_mime).mm_data.mm_message.mm_msg_mime;
-    //             let data = mailmime_transfer_decode(msg1).unwrap();
-    //             println!("{:?}", String::from_utf8_lossy(&data));
-    //         }
-
-    //         assert_eq!(res, 0);
-    //         assert!(!decrypted_mime.is_null());
-
-    //          { free(decrypted_mime as *mut _) };
-    //     }
+    // -- =20
+    // Sent with my Delta Chat Messenger: https://delta.chat"
+    //     );
+    // }
 
     mod load_or_generate_self_public_key {
         use super::*;

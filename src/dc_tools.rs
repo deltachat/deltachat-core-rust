@@ -96,33 +96,6 @@ pub(crate) fn dc_str_to_color(s: impl AsRef<str>) -> u32 {
     COLORS[color_index]
 }
 
-/* date/time tools */
-/* the result is UTC or DC_INVALID_TIMESTAMP */
-// pub(crate) fn dc_timestamp_from_date(date_time: *mut mailimf_date_time) -> i64 {
-//     assert!(!date_time.is_null());
-//     let dt =  { *date_time };
-
-//     let sec = dt.dt_sec;
-//     let min = dt.dt_min;
-//     let hour = dt.dt_hour;
-//     let day = dt.dt_day;
-//     let month = dt.dt_month;
-//     let year = dt.dt_year;
-
-//     let ts = chrono::NaiveDateTime::new(
-//         chrono::NaiveDate::from_ymd(year, month as u32, day as u32),
-//         chrono::NaiveTime::from_hms(hour as u32, min as u32, sec as u32),
-//     );
-
-//     let (zone_hour, zone_min) = if dt.dt_zone >= 0 {
-//         (dt.dt_zone / 100, dt.dt_zone % 100)
-//     } else {
-//         (-(-dt.dt_zone / 100), -(-dt.dt_zone % 100))
-//     };
-
-//     ts.timestamp() - (zone_hour * 3600 + zone_min * 60) as i64
-// }
-
 /* ******************************************************************************
  * date/time tools
  ******************************************************************************/
