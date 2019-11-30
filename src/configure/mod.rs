@@ -383,11 +383,10 @@ pub fn JobConfigureImap(context: &Context) {
                 // (~30 seconds on a Moto G4 play) and might looks as if message sending is always that slow.
                 e2ee::ensure_secret_key_exists(context);
                 success = true;
-                info!(context, "Configure completed.");
+                info!(context, "key generation completed");
                 progress!(context, 940);
                 break; // We are done here
             }
-
             _ => {
                 error!(context, "Internal error: step counter out of bound",);
                 break;
@@ -409,24 +408,6 @@ pub fn JobConfigureImap(context: &Context) {
     if smtp_connected_here {
         context.smtp.clone().lock().unwrap().disconnect();
     }
-
-    /*
-    if !success {
-        // disconnect if configure did not succeed
-        if imap_connected_here {
-            // context.inbox.read().unwrap().disconnect(context);
-        }
-        if smtp_connected_here {
-            // context.smtp.clone().lock().unwrap().disconnect();
-        }
-    } else {
-        assert!(imap_connected_here && smtp_connected_here);
-        info!(
-            context,
-            0, "Keeping IMAP/SMTP connections open after successful configuration"
-        );
-    }
-    */
 
     // remember the entered parameters on success
     // and restore to last-entered on failure.
