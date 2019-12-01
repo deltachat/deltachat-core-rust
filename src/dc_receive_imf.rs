@@ -1272,7 +1272,7 @@ fn create_or_lookup_adhoc_group(
     context.call_cb(Event::ChatModified(chat_id));
 
     cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
-    return Ok(());
+    Ok(())
 }
 
 fn create_group_record(

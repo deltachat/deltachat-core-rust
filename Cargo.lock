@@ -1397,7 +1397,7 @@ dependencies = [
 [[package]]
 name = "lettre"
 version = "0.9.2"
-source = "git+https://github.com/deltachat/lettre?branch=feat/mail#db7fe5fc06d4abb4c1cd70534310d1e0b1e79d57"
+source = "git+https://github.com/deltachat/lettre?branch=feat/mail#00ba9db544059ddd60048f0b85d5052e4bf605da"
 dependencies = [
  "base64 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "bufstream 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1416,7 +1416,7 @@ dependencies = [
 [[package]]
 name = "lettre_email"
 version = "0.9.2"
-source = "git+https://github.com/deltachat/lettre?branch=feat/mail#db7fe5fc06d4abb4c1cd70534310d1e0b1e79d57"
+source = "git+https://github.com/deltachat/lettre?branch=feat/mail#00ba9db544059ddd60048f0b85d5052e4bf605da"
 dependencies = [
  "base64 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "email 0.0.21 (git+https://github.com/deltachat/rust-email)",

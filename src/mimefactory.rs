@@ -474,9 +474,12 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let is_encrypted = should_encrypt && force_plaintext == 0;
 
         // Add gossip headers
-        info!(self.context, "gossip: {:?}", do_gossip);
         if do_gossip {
-            info!(self.context, "Gossip headers: {:?}", &peerstates);
+            info!(
+                self.context,
+                "gossiping headers for {} peerstates",
+                peerstates.len()
+            );
             for peerstate in peerstates.iter().filter_map(|(state, _)| state.as_ref()) {
                 if peerstate.peek_key(min_verified).is_some() {
                     if let Some(header) = peerstate.render_gossip_header(min_verified) {
@@ -603,6 +606,10 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let command = self.msg.param.get_cmd();
         let mut placeholdertext = None;
         let mut meta_part = None;
+
+        if chat.typ == Chattype::VerifiedGroup {
+            protected_headers.push(Header::new("Chat-Verified".to_string(), "1".to_string()));
+        }
 
         if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
             protected_headers.push(Header::new("Chat-Group-ID".into(), chat.grpid.clone()));
