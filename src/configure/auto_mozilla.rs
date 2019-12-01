@@ -1,17 +1,36 @@
-//! Thunderbird's Autoconfiguration implementation
+//! # Thunderbird's Autoconfiguration implementation
+//!
+//! Documentation: https://developer.mozilla.org/en-US/docs/Mozilla/Thunderbird/Autoconfiguration */
+use failure::Fail;
+
 use quick_xml;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
 use crate::constants::*;
 use crate::context::Context;
-use crate::error::Error;
 use crate::login_param::LoginParam;
 
 use super::read_autoconf_file;
-/* ******************************************************************************
- * Thunderbird's Autoconfigure
- ******************************************************************************/
-/* documentation: https://developer.mozilla.org/en-US/docs/Mozilla/Thunderbird/Autoconfiguration */
+
+#[derive(Debug, Fail)]
+pub enum Error {
+    #[fail(display = "Invalid email address: {:?}", _0)]
+    InvalidEmailAddress(String),
+
+    #[fail(display = "XML error at position {}", position)]
+    InvalidXml {
+        position: usize,
+        #[cause]
+        error: quick_xml::Error,
+    },
+
+    #[fail(display = "Bad or incomplete autoconfig")]
+    IncompleteAutoconfig(LoginParam),
+}
+
+pub type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Debug)]
 struct MozAutoconfigure<'a> {
     pub in_emailaddr: &'a str,
     pub in_emaildomain: &'a str,
@@ -23,13 +42,14 @@ struct MozAutoconfigure<'a> {
     pub tag_config: MozConfigTag,
 }
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 enum MozServer {
     Undefined,
     Imap,
     Smtp,
 }
 
+#[derive(Debug)]
 enum MozConfigTag {
     Undefined,
     Hostname,
@@ -38,15 +58,14 @@ enum MozConfigTag {
     Username,
 }
 
-pub fn moz_parse_xml(in_emailaddr: &str, xml_raw: &str) -> Result<LoginParam, Error> {
+pub fn parse_xml(in_emailaddr: &str, xml_raw: &str) -> Result<LoginParam> {
     let mut reader = quick_xml::Reader::from_str(xml_raw);
     reader.trim_text(true);
 
     // Split address into local part and domain part.
-    let p = match in_emailaddr.find('@') {
-        Some(i) => i,
-        None => bail!("Email address {} does not contain @", in_emailaddr),
-    };
+    let p = in_emailaddr
+        .find('@')
+        .ok_or(Error::InvalidEmailAddress(in_emailaddr.to_string()))?;
     let (in_emaillocalpart, in_emaildomain) = in_emailaddr.split_at(p);
     let in_emaildomain = &in_emaildomain[1..];
 
@@ -63,22 +82,22 @@ pub fn moz_parse_xml(in_emailaddr: &str, xml_raw: &str) -> Result<LoginParam, Er
 
     let mut buf = Vec::new();
     loop {
-        match reader.read_event(&mut buf) {
-            Ok(quick_xml::events::Event::Start(ref e)) => {
+        let event = reader
+            .read_event(&mut buf)
+            .map_err(|error| Error::InvalidXml {
+                position: reader.buffer_position(),
+                error,
+            })?;
+
+        match event {
+            quick_xml::events::Event::Start(ref e) => {
                 moz_autoconfigure_starttag_cb(e, &mut moz_ac, &reader)
             }
-            Ok(quick_xml::events::Event::End(ref e)) => moz_autoconfigure_endtag_cb(e, &mut moz_ac),
-            Ok(quick_xml::events::Event::Text(ref e)) => {
+            quick_xml::events::Event::End(ref e) => moz_autoconfigure_endtag_cb(e, &mut moz_ac),
+            quick_xml::events::Event::Text(ref e) => {
                 moz_autoconfigure_text_cb(e, &mut moz_ac, &reader)
             }
-            Err(e) => {
-                bail!(
-                    "Configure xml: Error at position {}: {:?}",
-                    reader.buffer_position(),
-                    e
-                );
-            }
-            Ok(quick_xml::events::Event::Eof) => break,
+            quick_xml::events::Event::Eof => break,
             _ => (),
         }
         buf.clear();
@@ -89,11 +108,10 @@ pub fn moz_parse_xml(in_emailaddr: &str, xml_raw: &str) -> Result<LoginParam, Er
         || moz_ac.out.send_server.is_empty()
         || moz_ac.out.send_port == 0
     {
-        let r = moz_ac.out.to_string();
-        bail!("Bad or incomplete autoconfig: {}", r,);
+        Err(Error::IncompleteAutoconfig(moz_ac.out))
+    } else {
+        Ok(moz_ac.out)
     }
-
-    Ok(moz_ac.out)
 }
 
 pub fn moz_autoconfigure(
@@ -103,7 +121,7 @@ pub fn moz_autoconfigure(
 ) -> Option<LoginParam> {
     let xml_raw = read_autoconf_file(context, url)?;
 
-    match moz_parse_xml(&param_in.addr, &xml_raw) {
+    match parse_xml(&param_in.addr, &xml_raw) {
         Err(err) => {
             warn!(context, "{}", err);
             None
@@ -314,7 +332,7 @@ mod tests {
     </loginPageInfo>
   </webMail>
 </clientConfig>";
-        let res = moz_parse_xml("example@outlook.com", xml_raw).expect("XML parsing failed");
+        let res = parse_xml("example@outlook.com", xml_raw).expect("XML parsing failed");
         assert_eq!(res.mail_server, "outlook.office365.com");
         assert_eq!(res.mail_port, 993);
         assert_eq!(res.send_server, "smtp.office365.com");
