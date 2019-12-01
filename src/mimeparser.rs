@@ -130,7 +130,10 @@ impl<'a> MimeParser<'a> {
 
                 if let Some(raw) = raw {
                     mail_raw = raw;
+                    info!(context, "decrypted: {:?}", std::str::from_utf8(&mail_raw));
+
                     let decrypted_mail = mailparse::parse_mail(&mail_raw)?;
+
                     // Decrypted the mail
                     decrypted_mail
                 } else {
@@ -151,12 +154,13 @@ impl<'a> MimeParser<'a> {
             }
         };
 
+        parser.parse_mime_recursive(&mail)?;
+
         // Handle gossip headers
         let gossip_headers = mail.headers.get_all_values("Autocrypt-Gossip")?;
         parser.gossipped_addr =
             update_gossip_peerstates(context, message_time, &mail, gossip_headers)?;
 
-        parser.parse_mime_recursive(&mail)?;
         parser.parse_headers()?;
 
         Ok(parser)
@@ -372,7 +376,10 @@ impl<'a> MimeParser<'a> {
 
     fn parse_mime_recursive(&mut self, mail: &mailparse::ParsedMail<'_>) -> Result<bool> {
         info!(self.context, "parse mime_recursive {:?}", mail.ctype);
+
         if mail.ctype.params.get("protected-headers").is_some() {
+            info!(self.context, "found protected headers");
+
             if mail.ctype.mimetype == "text/rfc822-headers" {
                 info!(
                     self.context,
@@ -381,9 +388,11 @@ impl<'a> MimeParser<'a> {
                 return Ok(false);
             }
 
-            if !self.parsed_protected_headers {
+            if self.parsed_protected_headers {
+                warn!(self.context, "Ignoring nested protected headers");
+            } else {
                 self.hash_header(&mail.headers);
-                self.parsed_protected_headers;
+                self.parsed_protected_headers = true;
             }
         }
 
@@ -884,7 +893,8 @@ fn update_gossip_peerstates(
 
     info!(
         context,
-        "Updating gossip peerstates: {:#?}", &gossip_headers
+        "Updating gossip peerstates: {}",
+        gossip_headers.len()
     );
     for value in &gossip_headers {
         let gossip_header = value.parse::<Aheader>();
@@ -895,6 +905,7 @@ fn update_gossip_peerstates(
                 recipients = Some(get_recipients(mail.headers.iter().filter_map(|v| {
                     let key = v.get_key();
                     let value = v.get_value();
+                    info!(context, "header: {:?} - {:?}", key, value);
                     if key.is_err() || value.is_err() {
                         return None;
                     }
@@ -1141,6 +1152,19 @@ mod tests {
         let raw = include_bytes!("../test-data/message/issue_523.txt");
         let mimeparser = MimeParser::from_bytes(&context.ctx, &raw[..]).unwrap();
         assert_eq!(mimeparser.get_rfc724_mid(), None);
+    }
+
+    #[test]
+    fn test_mailparse_content_type() {
+        let ctype =
+            mailparse::parse_content_type("text/plain; charset=utf-8; protected-headers=v1;");
+
+        assert_eq!(ctype.mimetype, "text/plain");
+        assert_eq!(ctype.charset, "utf-8");
+        assert_eq!(
+            ctype.params.get("protected-headers"),
+            Some(&"v1".to_string())
+        );
     }
 
     #[test]

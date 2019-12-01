@@ -1,4 +1,5 @@
 use failure::Fail;
+use lettre_email::mime;
 
 #[derive(Debug, Fail)]
 pub enum Error {

@@ -1,5 +1,5 @@
 use chrono::TimeZone;
-use lettre_email::{Address, Header, MimeMultipartType, PartBuilder};
+use lettre_email::{mime, Address, Header, MimeMultipartType, PartBuilder};
 
 use crate::chat::{self, Chat};
 use crate::config::Config;
@@ -497,15 +497,31 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         unprotected_headers.push(Header::new_with_value("From".into(), vec![from]).unwrap());
 
         let outer_message = if is_encrypted {
+            // Store protected headers in the inner message.
             for header in protected_headers.into_iter() {
                 message = message.header(header);
             }
+            // Set the appropriate Content-Type for the inner message.
+            let mut existing_ct = message
+                .get_header("Content-Type".to_string())
+                .and_then(|h| h.get_value::<String>().ok())
+                .unwrap_or_else(|| "text/plain; charset=utf-8;".to_string());
 
-            let mut outer_message = PartBuilder::new().header((
+            if !existing_ct.ends_with(';') {
+                existing_ct += ";";
+            }
+            message = message.replace_header(Header::new(
                 "Content-Type".to_string(),
-                "multipart/encrypted; protocol=\"application/pgp-encrypted\"".to_string(),
+                format!("{} protected-headers=\"v1\";", existing_ct),
             ));
 
+            // Set the appropriate Content-Type for the outer message
+            let mut outer_message = PartBuilder::new().header((
+                "Content-Type".to_string(),
+                "multipart/encrypted; protocol=\"application/pgp-encrypted\";".to_string(),
+            ));
+
+            // Store the unprotected headers on the outer message.
             for header in unprotected_headers.into_iter() {
                 outer_message = outer_message.header(header);
             }
@@ -531,7 +547,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                                 .unwrap(),
                         )
                         .header(("Content-Description", "OpenPGP encrypted message"))
-                        .header(("Content-Disposition", "inline; filename=\"encrypted.asc\""))
+                        .header(("Content-Disposition", "inline; filename=\"encrypted.asc\";"))
                         .body(encrypted)
                         .build(),
                 )

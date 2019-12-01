@@ -372,7 +372,7 @@ fn add_parts(
 
         // handshake messages must be processed _before_ chats are created
         // (eg. contacs may be marked as verified)
-        if let Some(_) = mime_parser.lookup_field("Secure-Join") {
+        if mime_parser.lookup_field("Secure-Join").is_some() {
             // avoid discarding by show_emails setting
             msgrmsg = 1;
             *chat_id = 0;

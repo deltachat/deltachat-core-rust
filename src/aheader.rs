@@ -78,7 +78,6 @@ impl Aheader {
                 Ok(header) => {
                     info!(context, "comparing {} - {}", header.addr, wanted_from);
                     if addr_cmp(&header.addr, wanted_from) {
-                        info!(context, "found header {:?}", header);
                         return Some(header);
                     }
                 }

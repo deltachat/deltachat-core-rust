@@ -54,7 +54,6 @@ rustls = "0.16.0"
 webpki-roots = "0.18.0"
 webpki = "0.21.0"
 mailparse = "0.10.1"
-mime = "0.3.14"
 
 [dev-dependencies]
 tempfile = "3.0"
