@@ -74,7 +74,7 @@ pub enum Error {
     InTeardown,
 
     #[fail(display = "IMAP operation attempted while it is torn down")]
-    SqlError(#[cause] rusqlite::Error),
+    SqlError(#[cause] crate::sql::Error),
 
     #[fail(display = "IMAP got error from elsewhere: {:?}", _0)]
     WrappedError(#[cause] crate::error::Error),
@@ -83,8 +83,8 @@ pub enum Error {
     Other(String),
 }
 
-impl From<rusqlite::Error> for Error {
-    fn from(err: rusqlite::Error) -> Error {
+impl From<crate::sql::Error> for Error {
+    fn from(err: crate::sql::Error) -> Error {
         Error::SqlError(err)
     }
 }
