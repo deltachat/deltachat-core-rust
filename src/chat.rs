@@ -1690,10 +1690,13 @@ fn set_group_explicitly_left(context: &Context, grpid: impl AsRef<str>) -> Resul
 }
 
 pub fn is_group_explicitly_left(context: &Context, grpid: impl AsRef<str>) -> Result<bool, Error> {
-    context.sql.exists(
-        "SELECT id FROM leftgrps WHERE grpid=?;",
-        params![grpid.as_ref()],
-    ).map_err(Into::into)
+    context
+        .sql
+        .exists(
+            "SELECT id FROM leftgrps WHERE grpid=?;",
+            params![grpid.as_ref()],
+        )
+        .map_err(Into::into)
 }
 
 pub fn set_chat_name(
