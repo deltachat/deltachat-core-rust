@@ -67,13 +67,15 @@ Created by potrace 1.15, written by Peter Selinger 2001-2017
      cy="22.5"
      cx="22.5"
      id="path4917"
-     style="fill:#000000;fill-opacity:0.43921569;stroke-width:0.58855402" />
+     style="fill:#364e54;fill-opacity:0.67681497;stroke-width:0.58855402"
+     inkscape:export-xdpi="409"
+     inkscape:export-ydpi="409" />
   <g
      id="g4342"
-     stroke="none"
-     fill="#000000"
      transform="matrix(0.00255113,0,0,-0.00255113,5.586152,38.200477)"
-     style="fill:#ffffff;fill-opacity:1">
+     style="fill:#ffffff;fill-opacity:1"
+     stroke="none"
+     fill="#000000">
     <path
        inkscape:connector-curvature="0"
        id="path4338"
