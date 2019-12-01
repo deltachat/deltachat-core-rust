@@ -7,7 +7,6 @@ use deltachat::config;
 use deltachat::contact::*;
 use deltachat::context::*;
 use deltachat::keyring::*;
-use deltachat::oauth2::*;
 use deltachat::pgp;
 use deltachat::Event;
 use tempfile::{tempdir, TempDir};
@@ -221,16 +220,6 @@ fn create_test_context() -> TestContext {
     let dbfile = dir.path().join("db.sqlite");
     let ctx = Context::new(Box::new(cb), "FakeOs".into(), dbfile).unwrap();
     TestContext { ctx, dir }
-}
-
-#[test]
-fn test_dc_get_oauth2_url() {
-    let ctx = create_test_context();
-    let addr = "dignifiedquire@gmail.com";
-    let redirect_uri = "chat.delta:/com.b44t.messenger";
-    let res = dc_get_oauth2_url(&ctx.ctx, addr, redirect_uri);
-
-    assert_eq!(res, Some("https://accounts.google.com/o/oauth2/auth?client_id=959970109878%2D4mvtgf6feshskf7695nfln6002mom908%2Eapps%2Egoogleusercontent%2Ecom&redirect_uri=chat%2Edelta%3A%2Fcom%2Eb44t%2Emessenger&response_type=code&scope=https%3A%2F%2Fmail.google.com%2F%20email&access_type=offline".into()));
 }
 
 #[test]
