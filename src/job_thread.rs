@@ -113,7 +113,7 @@ impl JobThread {
                     Err(Error::WatchFolderNotFound("not-set".to_string()))
                 }
             }
-            Err(err) => Err(crate::error::Error::Other(err.to_string())),
+            Err(err) => Err(crate::error::Error::Message(err.to_string())),
         }
     }
 
