@@ -88,47 +88,29 @@ impl EncryptHelper {
         &mut self,
         context: &Context,
         min_verified: PeerstateVerifiedStatus,
-        do_gossip: bool,
-        mut mail_to_encrypt: lettre_email::PartBuilder,
+        mail_to_encrypt: lettre_email::PartBuilder,
         peerstates: &[(Option<Peerstate>, &str)],
     ) -> Result<String> {
         let mut keyring = Keyring::default();
-        let mut gossip_headers: Vec<String> = Vec::with_capacity(peerstates.len());
 
         for (peerstate, addr) in peerstates
             .iter()
             .filter_map(|(state, addr)| state.as_ref().map(|s| (s, addr)))
         {
-            if let Some(key) = peerstate.peek_key(min_verified) {
-                keyring.add_owned(key.clone());
-                if do_gossip {
-                    if let Some(header) = peerstate.render_gossip_header(min_verified) {
-                        gossip_headers.push(header.to_string());
-                    }
-                }
-            } else {
-                bail!("proper enc-key for {} missing, cannot encrypt", addr);
-            }
+            info!(context, "adding for {}: {:?}", addr, peerstate);
+            let key = peerstate.peek_key(min_verified).ok_or_else(|| {
+                format_err!("proper enc-key for {} missing, cannot encrypt", addr)
+            })?;
+            keyring.add_ref(key);
         }
 
-        // libEtPan's pgp_encrypt_mime() takes the parent as the new root.
-        // We just expect the root as being given to this function.
-        let sign_key = {
-            keyring.add_ref(&self.public_key);
-            let key = Key::from_self_private(context, self.addr.clone(), &context.sql);
-            ensure!(key.is_some(), "no own private key found");
-
-            key
-        };
-
-        // Add gossip headers
-        for header in &gossip_headers {
-            mail_to_encrypt = mail_to_encrypt.header(("Autocrypt-Gossip", header));
-        }
+        keyring.add_ref(&self.public_key);
+        let sign_key = Key::from_self_private(context, self.addr.clone(), &context.sql)
+            .ok_or_else(|| format_err!("missing own private key"))?;
 
         let raw_message = mail_to_encrypt.build().as_string().into_bytes();
 
-        let ctext = pgp::pk_encrypt(&raw_message, &keyring, sign_key.as_ref())?;
+        let ctext = pgp::pk_encrypt(&raw_message, &keyring, Some(&sign_key))?;
 
         Ok(ctext)
     }
@@ -137,18 +119,25 @@ impl EncryptHelper {
 pub fn try_decrypt(
     context: &Context,
     mail: &mailparse::ParsedMail<'_>,
-) -> Result<(Option<Vec<u8>>, HashSet<String>, i64)> {
+    message_time: i64,
+) -> Result<(Option<Vec<u8>>, HashSet<String>)> {
     use mailparse::MailHeaderMap;
+    info!(context, "trying to decrypt: {:?}", mail.get_body());
+    for part in &mail.subparts {
+        info!(context, "trying to decrypt part: {:?}", part.get_body());
+    }
 
-    let from = mail.headers.get_first_value("From")?.unwrap_or_default();
-    let message_time = mail
+    let from = mail
         .headers
-        .get_first_value("Date")?
-        .and_then(|v| mailparse::dateparse(&v).ok())
+        .get_first_value("From")?
+        .and_then(|from_addr| mailparse::addrparse(&from_addr).ok())
+        .and_then(|from| from.extract_single_info())
+        .map(|from| from.addr)
         .unwrap_or_default();
 
     let mut peerstate = None;
-    let autocryptheader = Aheader::from_imffields(&from, &mail.headers);
+    let autocryptheader = Aheader::from_headers(context, &from, &mail.headers);
+    info!(context, "got autocryptheader {:?}", &autocryptheader);
 
     if message_time > 0 {
         peerstate = Peerstate::from_addr(context, &context.sql, &from);
@@ -167,6 +156,7 @@ pub fn try_decrypt(
             peerstate = Some(p);
         }
     }
+
     /* possibly perform decryption */
     let mut private_keyring = Keyring::default();
     let mut public_keyring_for_validate = Keyring::default();
@@ -200,7 +190,7 @@ pub fn try_decrypt(
             )?;
         }
     }
-    Ok((out_mail, signatures, message_time))
+    Ok((out_mail, signatures))
 }
 
 /// Load public key from database or generate a new one.
@@ -265,8 +255,9 @@ fn decrypt_if_autocrypt_message<'a>(
     // Errors are returned for failures related to decryption of AC-messages.
 
     let encrypted_data_part = match wrapmime::get_autocrypt_mime(mail) {
-        Err(_) => {
+        Err(err) => {
             // not a proper autocrypt message, abort and ignore
+            warn!(context, "Invalid autocrypt message: {:?}", err);
             return Ok(None);
         }
         Ok(res) => res,
@@ -283,12 +274,13 @@ fn decrypt_if_autocrypt_message<'a>(
 
 /// Returns Ok(None) if nothing encrypted was found.
 fn decrypt_part(
-    _context: &Context,
+    context: &Context,
     mail: &mailparse::ParsedMail<'_>,
     private_keyring: &Keyring,
     public_keyring_for_validate: &Keyring,
     ret_valid_signatures: &mut HashSet<String>,
 ) -> Result<Option<Vec<u8>>> {
+    info!(context, "decrypting part");
     let data = mail.get_body_raw()?;
 
     if has_decrypted_pgp_armor(&data) {

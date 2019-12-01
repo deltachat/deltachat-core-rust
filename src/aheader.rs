@@ -8,6 +8,7 @@ use std::{fmt, str};
 
 use crate::constants::*;
 use crate::contact::*;
+use crate::context::Context;
 use crate::key::*;
 
 /// Possible values for encryption preference
@@ -65,16 +66,27 @@ impl Aheader {
         }
     }
 
-    pub fn from_imffields(
+    pub fn from_headers(
+        context: &Context,
         wanted_from: &str,
         headers: &[mailparse::MailHeader<'_>],
     ) -> Option<Self> {
         use mailparse::MailHeaderMap;
 
         if let Ok(Some(value)) = headers.get_first_value("Autocrypt") {
-            if let Ok(test) = Self::from_str(&value) {
-                if addr_cmp(&test.addr, wanted_from) {
-                    return Some(test);
+            match Self::from_str(&value) {
+                Ok(header) => {
+                    info!(context, "comparing {} - {}", header.addr, wanted_from);
+                    if addr_cmp(&header.addr, wanted_from) {
+                        info!(context, "found header {:?}", header);
+                        return Some(header);
+                    }
+                }
+                Err(err) => {
+                    warn!(
+                        context,
+                        "found invalid autocrypt header {}: {:?}", value, err
+                    );
                 }
             }
         }

@@ -1137,7 +1137,7 @@ pub fn mdn_from_ext(
         return None;
     }
 
-    if let Ok((msg_id, chat_id, chat_type, msg_state)) = context.sql.query_row(
+    let res = context.sql.query_row(
         concat!(
             "SELECT",
             "    m.id AS msg_id,",
@@ -1157,7 +1157,12 @@ pub fn mdn_from_ext(
                 row.get::<_, MessageState>("state")?,
             ))
         },
-    ) {
+    );
+    if let Err(ref err) = res {
+        info!(context, "Failed to select MDN {:?}", err);
+    }
+
+    if let Ok((msg_id, chat_id, chat_type, msg_state)) = res {
         let mut read_by_all = false;
 
         // if already marked as MDNS_RCVD msgstate_can_fail() returns false.
