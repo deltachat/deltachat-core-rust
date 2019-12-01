@@ -432,7 +432,7 @@ impl Message {
         };
 
         let contact = if self.from_id != DC_CONTACT_ID_SELF as libc::c_uint
-            && ((*chat).typ == Chattype::Group || (*chat).typ == Chattype::VerifiedGroup)
+            && (chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup)
         {
             Contact::get_by_id(context, self.from_id).ok()
         } else {
