@@ -38,8 +38,8 @@ pub struct MimeParser<'a> {
     pub location_kml: Option<location::Kml>,
     pub message_kml: Option<location::Kml>,
     reports: Vec<Report>,
-    parsed_header_protected: bool,
     mdns_enabled: bool,
+    parsed_protected_headers: bool,
 }
 
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql)]
@@ -62,20 +62,30 @@ impl Default for SystemMessage {
     }
 }
 
-const DC_MIMETYPE_MP_ALTERNATIVE: i32 = 10;
-const DC_MIMETYPE_MP_RELATED: i32 = 20;
-const DC_MIMETYPE_MP_MIXED: i32 = 30;
-const DC_MIMETYPE_MP_NOT_DECRYPTABLE: i32 = 40;
-const DC_MIMETYPE_MP_REPORT: i32 = 45;
-const DC_MIMETYPE_MP_SIGNED: i32 = 46;
-const DC_MIMETYPE_MP_OTHER: i32 = 50;
-const DC_MIMETYPE_TEXT_PLAIN: i32 = 60;
-const DC_MIMETYPE_TEXT_HTML: i32 = 70;
-const DC_MIMETYPE_IMAGE: i32 = 80;
-const DC_MIMETYPE_AUDIO: i32 = 90;
-const DC_MIMETYPE_VIDEO: i32 = 100;
-const DC_MIMETYPE_FILE: i32 = 110;
-const DC_MIMETYPE_AC_SETUP_FILE: i32 = 111;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DcMimeType {
+    Unknown,
+    MpAlternative,
+    MpRelated,
+    MpMixed,
+    MpNotDecryptable,
+    MpReport,
+    MpSigned,
+    MpOther,
+    TextPlain,
+    TextHtml,
+    Image,
+    Audio,
+    Video,
+    File,
+    AcSetupFile,
+}
+
+impl Default for DcMimeType {
+    fn default() -> Self {
+        DcMimeType::Unknown
+    }
+}
 
 impl<'a> MimeParser<'a> {
     pub fn from_bytes(context: &'a Context, body: &[u8]) -> Result<Self> {
@@ -85,7 +95,6 @@ impl<'a> MimeParser<'a> {
         let mut parser = MimeParser {
             parts: Vec::new(),
             header: Default::default(),
-            parsed_header_protected: false,
             subject: None,
             is_send_by_messenger: false,
             decrypting_failed: false,
@@ -99,11 +108,22 @@ impl<'a> MimeParser<'a> {
             location_kml: None,
             message_kml: None,
             mdns_enabled,
+            parsed_protected_headers: false,
         };
 
+        let message_time = mail
+            .headers
+            .get_first_value("Date")?
+            .and_then(|v| mailparse::dateparse(&v).ok())
+            .unwrap_or_default();
+
+        parser.hash_header(&mail.headers);
+
+        // Memory location for a possible decrypted message.
         let mail_raw;
-        let mail = match e2ee::try_decrypt(parser.context, &mail) {
-            Ok((raw, signatures, message_time)) => {
+
+        let mail = match e2ee::try_decrypt(parser.context, &mail, message_time) {
+            Ok((raw, signatures)) => {
                 // Valid autocrypt message, encrypted
                 parser.encrypted = raw.is_some();
                 parser.signatures = signatures;
@@ -111,16 +131,7 @@ impl<'a> MimeParser<'a> {
                 if let Some(raw) = raw {
                     mail_raw = raw;
                     let decrypted_mail = mailparse::parse_mail(&mail_raw)?;
-
-                    // we have a decrypted mail, that is valid, check for gossip headers
-
-                    let gossip_headers =
-                        decrypted_mail.headers.get_all_values("Autocrypt-Gossip")?;
-                    if !gossip_headers.is_empty() {
-                        parser.gossipped_addr =
-                            update_gossip_peerstates(context, message_time, &mail, gossip_headers)?;
-                    }
-
+                    // Decrypted the mail
                     decrypted_mail
                 } else {
                     // Message was not encrypted
@@ -140,7 +151,11 @@ impl<'a> MimeParser<'a> {
             }
         };
 
-        parser.hash_header(&mail.headers);
+        // Handle gossip headers
+        let gossip_headers = mail.headers.get_all_values("Autocrypt-Gossip")?;
+        parser.gossipped_addr =
+            update_gossip_peerstates(context, message_time, &mail, gossip_headers)?;
+
         parser.parse_mime_recursive(&mail)?;
         parser.parse_headers()?;
 
@@ -160,7 +175,7 @@ impl<'a> MimeParser<'a> {
             let has_setup_file = self
                 .parts
                 .iter()
-                .any(|p| p.mimetype == DC_MIMETYPE_AC_SETUP_FILE);
+                .any(|p| p.mimetype == DcMimeType::AcSetupFile);
 
             if has_setup_file {
                 self.is_system_message = SystemMessage::AutocryptSetupMessage;
@@ -178,7 +193,7 @@ impl<'a> MimeParser<'a> {
 
                 let mut i = 0;
                 while i != self.parts.len() {
-                    if self.parts[i].mimetype != 111 {
+                    if self.parts[i].mimetype != DcMimeType::AcSetupFile {
                         self.parts.remove(i);
                     } else {
                         i += 1;
@@ -201,6 +216,9 @@ impl<'a> MimeParser<'a> {
                 }
             }
         }
+
+        info!(self.context, "checking message parts: {:?}", &self.parts);
+
         if self.is_send_by_messenger && self.parts.len() == 2 {
             let need_drop = {
                 let textpart = &self.parts[0];
@@ -302,6 +320,7 @@ impl<'a> MimeParser<'a> {
             if let Some(dn_field) = self.lookup_field("Chat-Disposition-Notification-To") {
                 if self.get_last_nonmeta().is_some() {
                     let addrs = mailparse::addrparse(&dn_field).unwrap();
+                    info!(self.context, "last non meta addrs: {:?}", &addrs);
 
                     if let Some(dn_to_addr) = addrs.first() {
                         if let Some(from_field) = self.lookup_field("From") {
@@ -352,6 +371,7 @@ impl<'a> MimeParser<'a> {
     }
 
     fn parse_mime_recursive(&mut self, mail: &mailparse::ParsedMail<'_>) -> Result<bool> {
+        info!(self.context, "parse mime_recursive {:?}", mail.ctype);
         if mail.ctype.params.get("protected-headers").is_some() {
             if mail.ctype.mimetype == "text/rfc822-headers" {
                 info!(
@@ -361,21 +381,12 @@ impl<'a> MimeParser<'a> {
                 return Ok(false);
             }
 
-            if !self.parsed_header_protected {
-                // use the most outer protected header - this is typically
-                // created in sync with the normal, unprotected header
-
-                self.parsed_header_protected = true;
+            if !self.parsed_protected_headers {
                 self.hash_header(&mail.headers);
-            } else {
-                info!(
-                    self.context,
-                    "Protected headers found in MIME header: Will be ignored as we already found an outer one."
-                );
+                self.parsed_protected_headers;
             }
         }
 
-        // multiple = multipart/ or message/
         enum MimeS {
             Multiple,
             Single,
@@ -422,9 +433,9 @@ impl<'a> MimeParser<'a> {
             as text/plain and text/html.  If we find a multipart/mixed
             inside mutlipart/alternative, we use this (happens eg in
             apple mail: "plaintext" as an alternative to "html+PDF attachment") */
-            (DC_MIMETYPE_MP_ALTERNATIVE, _) => {
+            (DcMimeType::MpAlternative, _) => {
                 for cur_data in &mail.subparts {
-                    if mailmime_get_mime_type(cur_data).0 == DC_MIMETYPE_MP_MIXED {
+                    if mailmime_get_mime_type(cur_data).0 == DcMimeType::MpMixed {
                         any_part_added = self.parse_mime_recursive(cur_data)?;
                         break;
                     }
@@ -432,7 +443,7 @@ impl<'a> MimeParser<'a> {
                 if !any_part_added {
                     /* search for text/plain and add this */
                     for cur_data in &mail.subparts {
-                        if mailmime_get_mime_type(cur_data).0 == DC_MIMETYPE_TEXT_PLAIN {
+                        if mailmime_get_mime_type(cur_data).0 == DcMimeType::TextPlain {
                             any_part_added = self.parse_mime_recursive(cur_data)?;
                             break;
                         }
@@ -448,7 +459,7 @@ impl<'a> MimeParser<'a> {
                     }
                 }
             }
-            (DC_MIMETYPE_MP_RELATED, _) => {
+            (DcMimeType::MpRelated, _) => {
                 /* add the "root part" - the other parts may be referenced which is
                 not interesting for us (eg. embedded images) we assume he "root part"
                 being the first one, which may not be always true ...
@@ -457,7 +468,7 @@ impl<'a> MimeParser<'a> {
                     any_part_added = self.parse_mime_recursive(first)?;
                 }
             }
-            (DC_MIMETYPE_MP_NOT_DECRYPTABLE, _) => {
+            (DcMimeType::MpNotDecryptable, _) => {
                 let mut part = Part::default();
                 part.typ = Viewtype::Text;
                 let msg_body = self.context.stock_str(StockMessage::CantDecryptMsgBody);
@@ -470,7 +481,7 @@ impl<'a> MimeParser<'a> {
                 any_part_added = true;
                 self.decrypting_failed = true;
             }
-            (DC_MIMETYPE_MP_SIGNED, _) => {
+            (DcMimeType::MpSigned, _) => {
                 /* RFC 1847: "The multipart/signed content type
                 contains exactly two body parts.  The first body
                 part is the body part over which the digital signature was created [...]
@@ -483,12 +494,14 @@ impl<'a> MimeParser<'a> {
                     any_part_added = self.parse_mime_recursive(first)?;
                 }
             }
-            (DC_MIMETYPE_MP_REPORT, _) => {
+            (DcMimeType::MpReport, _) => {
+                info!(self.context, "got report {}", mail.subparts.len());
                 /* RFC 6522: the first part is for humans, the second for machines */
                 if mail.subparts.len() >= 2 {
                     info!(self.context, "report: {:?}", &mail.ctype);
                     if let Some(report_type) = mail.ctype.params.get("report-type") {
                         if report_type == "disposition-notification" {
+                            info!(self.context, "processing report");
                             if let Some(report) = self.process_report(mail)? {
                                 self.reports.push(report);
                             }
@@ -503,12 +516,12 @@ impl<'a> MimeParser<'a> {
                 }
             }
             _ => {
-                /* eg. DC_MIMETYPE_MP_MIXED - add all parts (in fact,
+                /* eg. DcMimeType::MpMixed - add all parts (in fact,
                 AddSinglePartIfKnown() later check if the parts are really supported)
                 HACK: the following lines are a hack for clients who use
                 multipart/mixed instead of multipart/alternative for
                 combined text/html messages (eg. Stock Android "Mail" does so).
-                So, if we detect such a message below, we skip the HTML
+                So, if we detect such a message below, we skip the Html
                 part.  However, not sure, if there are useful situations to use
                 plain+html in multipart/mixed - if so, we should disable the hack. */
                 let mut skip_part = -1;
@@ -518,10 +531,10 @@ impl<'a> MimeParser<'a> {
 
                 for (i, cur_data) in mail.subparts.iter().enumerate() {
                     match mailmime_get_mime_type(cur_data) {
-                        (DC_MIMETYPE_TEXT_PLAIN, _) => {
+                        (DcMimeType::TextPlain, _) => {
                             plain_cnt += 1;
                         }
-                        (DC_MIMETYPE_TEXT_HTML, _) => {
+                        (DcMimeType::TextHtml, _) => {
                             html_part = i as isize;
                             html_cnt += 1;
                         }
@@ -531,7 +544,7 @@ impl<'a> MimeParser<'a> {
                 if plain_cnt == 1 && html_cnt == 1 {
                     warn!(
                         self.context,
-                        "HACK: multipart/mixed message found with PLAIN and HTML, we\'ll skip the HTML part as this seems to be unwanted."
+                        "HACK: multipart/mixed message found with Plain and HTML, we\'ll skip the HTML part as this seems to be unwanted."
                     );
                     skip_part = html_part;
                 }
@@ -554,16 +567,16 @@ impl<'a> MimeParser<'a> {
         let (mime_type, msg_type) = mailmime_get_mime_type(mail);
         let raw_mime = mail.ctype.mimetype.to_lowercase();
 
-        if !raw_mime.starts_with("text") {
-            // MAILMIME_DATA_FILE indicates, the data is in a file; AFAIK this is not used on parsing
-            return Ok(false);
-        }
+        info!(
+            self.context,
+            "got mime type: {:?} ({})", mime_type, raw_mime
+        );
 
         let old_part_count = self.parts.len();
 
         // regard `Content-Transfer-Encoding:`
         match mime_type {
-            DC_MIMETYPE_TEXT_PLAIN | DC_MIMETYPE_TEXT_HTML => {
+            DcMimeType::TextPlain | DcMimeType::TextHtml => {
                 let decoded_data = match mail.get_body() {
                     Ok(decoded_data) => decoded_data,
                     Err(err) => {
@@ -580,7 +593,7 @@ impl<'a> MimeParser<'a> {
                 let simplified_txt = if decoded_data.is_empty() {
                     "".into()
                 } else {
-                    let is_html = mime_type == DC_MIMETYPE_TEXT_HTML;
+                    let is_html = mime_type == DcMimeType::TextHtml;
                     simplifier.simplify(&decoded_data, is_html, is_msgrmsg)
                 };
 
@@ -597,11 +610,11 @@ impl<'a> MimeParser<'a> {
                     self.is_forwarded = true;
                 }
             }
-            DC_MIMETYPE_IMAGE
-            | DC_MIMETYPE_AUDIO
-            | DC_MIMETYPE_VIDEO
-            | DC_MIMETYPE_FILE
-            | DC_MIMETYPE_AC_SETUP_FILE => {
+            DcMimeType::Image
+            | DcMimeType::Audio
+            | DcMimeType::Video
+            | DcMimeType::File
+            | DcMimeType::AcSetupFile => {
                 // try to get file name from
                 //    `Content-Disposition: ... filename*=...`
                 // or `Content-Disposition: ... filename*0*=... filename*1*=... filename*2*=...`
@@ -650,7 +663,7 @@ impl<'a> MimeParser<'a> {
     fn do_add_single_file_part(
         &mut self,
         msg_type: Viewtype,
-        mime_type: libc::c_int,
+        mime_type: DcMimeType,
         raw_mime: &String,
         decoded_data: &[u8],
         filename: &str,
@@ -698,7 +711,7 @@ impl<'a> MimeParser<'a> {
         part.param.set(Param::File, blob.as_name());
         part.param.set(Param::MimeType, raw_mime);
 
-        if mime_type == DC_MIMETYPE_IMAGE {
+        if mime_type == DcMimeType::Image {
             if let Ok((width, height)) = dc_get_filemeta(decoded_data) {
                 part.param.set_int(Param::Width, width as i32);
                 part.param.set_int(Param::Height, height as i32);
@@ -809,6 +822,7 @@ impl<'a> MimeParser<'a> {
                 .flatten()
                 .and_then(|v| parse_message_id(&v))
             {
+                info!(self.context, "got report {:?}", original_message_id);
                 return Ok(Some(Report {
                     original_message_id,
                 }));
@@ -827,6 +841,7 @@ impl<'a> MimeParser<'a> {
         server_folder: impl AsRef<str>,
         server_uid: u32,
     ) {
+        info!(self.context, "processing reports {:?}", &self.reports);
         for report in &self.reports {
             let mut mdn_consumed = false;
 
@@ -836,6 +851,10 @@ impl<'a> MimeParser<'a> {
                 &report.original_message_id,
                 sent_timestamp,
             ) {
+                info!(
+                    self.context,
+                    "found message for report {}", report.original_message_id
+                );
                 rr_event_to_send.push((chat_id, msg_id));
                 mdn_consumed = true;
             }
@@ -863,16 +882,29 @@ fn update_gossip_peerstates(
     let mut recipients: Option<HashSet<String>> = None;
     let mut gossipped_addr: HashSet<String> = Default::default();
 
+    info!(
+        context,
+        "Updating gossip peerstates: {:#?}", &gossip_headers
+    );
     for value in &gossip_headers {
         let gossip_header = value.parse::<Aheader>();
+        info!(context, "got gossip header: {:?}", gossip_header);
 
         if let Ok(ref header) = gossip_header {
             if recipients.is_none() {
-                recipients = Some(get_recipients(mail.headers.iter().map(|v| {
-                    // TODO: error handling
-                    (v.get_key().unwrap(), v.get_value().unwrap())
+                recipients = Some(get_recipients(mail.headers.iter().filter_map(|v| {
+                    let key = v.get_key();
+                    let value = v.get_value();
+                    if key.is_err() || value.is_err() {
+                        return None;
+                    }
+                    Some((v.get_key().unwrap(), v.get_value().unwrap()))
                 })));
             }
+
+            info!(context, "got recipients {:?}", recipients);
+            info!(context, "looking for addr {:?}", &header.addr);
+
             if recipients.as_ref().unwrap().contains(&header.addr) {
                 let mut peerstate = Peerstate::from_addr(context, &context.sql, &header.addr);
                 if let Some(ref mut peerstate) = peerstate {
@@ -929,15 +961,15 @@ fn is_known(key: &str) -> bool {
 pub struct Part {
     pub typ: Viewtype,
     pub is_meta: bool,
-    pub mimetype: i32,
+    pub mimetype: DcMimeType,
     pub msg: Option<String>,
     pub msg_raw: Option<String>,
     pub bytes: i32,
     pub param: Params,
 }
 
-fn mailmime_get_mime_type(mail: &mailparse::ParsedMail<'_>) -> (libc::c_int, Viewtype) {
-    let unknown_type = (0, Viewtype::Unknown);
+fn mailmime_get_mime_type(mail: &mailparse::ParsedMail<'_>) -> (DcMimeType, Viewtype) {
+    let unknown_type = (DcMimeType::Unknown, Viewtype::Unknown);
 
     let mimetype = mail.ctype.mimetype.to_lowercase();
     let mut parts = mimetype.split('/');
@@ -948,41 +980,41 @@ fn mailmime_get_mime_type(mail: &mailparse::ParsedMail<'_>) -> (libc::c_int, Vie
         "text" => {
             if !mailmime_is_attachment_disposition(mail) {
                 if subtype == "plain" {
-                    return (DC_MIMETYPE_TEXT_PLAIN, Viewtype::Text);
+                    return (DcMimeType::TextPlain, Viewtype::Text);
                 }
                 if subtype == "html" {
-                    return (DC_MIMETYPE_TEXT_HTML, Viewtype::Text);
+                    return (DcMimeType::TextHtml, Viewtype::Text);
                 }
             }
 
-            (DC_MIMETYPE_FILE, Viewtype::File)
+            (DcMimeType::File, Viewtype::File)
         }
         "image" => {
             let msg_type = match subtype {
                 "gif" => Viewtype::Gif,
                 "svg+xml" => {
-                    return (DC_MIMETYPE_FILE, Viewtype::File);
+                    return (DcMimeType::File, Viewtype::File);
                 }
                 _ => Viewtype::Image,
             };
 
-            (DC_MIMETYPE_IMAGE, msg_type)
+            (DcMimeType::Image, msg_type)
         }
-        "audio" => (DC_MIMETYPE_AUDIO, Viewtype::Audio),
-        "video" => (DC_MIMETYPE_VIDEO, Viewtype::Video),
+        "audio" => (DcMimeType::Audio, Viewtype::Audio),
+        "video" => (DcMimeType::Video, Viewtype::Video),
         "multipart" => {
             let mime_type = match subtype {
-                "alternative" => DC_MIMETYPE_MP_ALTERNATIVE,
-                "related" => DC_MIMETYPE_MP_RELATED,
+                "alternative" => DcMimeType::MpAlternative,
+                "related" => DcMimeType::MpRelated,
                 "encrypted" => {
                     // maybe try_decrypt failed to decrypt
                     // or it wasn't in proper Autocrypt format
-                    DC_MIMETYPE_MP_NOT_DECRYPTABLE
+                    DcMimeType::MpNotDecryptable
                 }
-                "signed" => DC_MIMETYPE_MP_SIGNED,
-                "mixed" => DC_MIMETYPE_MP_MIXED,
-                "report" => DC_MIMETYPE_MP_REPORT,
-                _ => DC_MIMETYPE_MP_OTHER,
+                "signed" => DcMimeType::MpSigned,
+                "mixed" => DcMimeType::MpMixed,
+                "report" => DcMimeType::MpReport,
+                _ => DcMimeType::MpOther,
             };
 
             (mime_type, Viewtype::Unknown)
@@ -993,16 +1025,16 @@ fn mailmime_get_mime_type(mail: &mailparse::ParsedMail<'_>) -> (libc::c_int, Vie
             // be handled separatedly.
             // I've not seen any messages using this, so we do not attach these parts (maybe they're used to attach replies,
             // which are unwanted at all).
-            // For now, we skip these parts at all; if desired, we could return DC_MIMETYPE_FILE/DC_MSG_FILE
+            // For now, we skip these parts at all; if desired, we could return DcMimeType::File/DC_MSG_File
             // for selected and known subparts.
             unknown_type
         }
         "application" => {
             if subtype == "autocrypt-setup" {
-                return (DC_MIMETYPE_AC_SETUP_FILE, Viewtype::File);
+                return (DcMimeType::AcSetupFile, Viewtype::File);
             }
 
-            (DC_MIMETYPE_FILE, Viewtype::File)
+            (DcMimeType::File, Viewtype::File)
         }
         _ => unknown_type,
     }

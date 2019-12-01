@@ -1,5 +1,5 @@
 use chrono::TimeZone;
-use lettre_email::{Address, Header, MimeMessage, MimeMultipartType, PartBuilder};
+use lettre_email::{Address, Header, MimeMultipartType, PartBuilder};
 
 use crate::chat::{self, Chat};
 use crate::config::Config;
@@ -229,11 +229,11 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             .collect())
     }
 
-    fn is_e2ee_guranteed(&self) -> Result<bool, Error> {
+    fn is_e2ee_guranteed(&self) -> bool {
         match self.loaded {
             Loaded::Message => {
                 if self.chat.as_ref().unwrap().typ == Chattype::VerifiedGroup {
-                    return Ok(true);
+                    return true;
                 }
 
                 let force_plaintext = self
@@ -243,78 +243,76 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                     .unwrap_or_default();
 
                 if force_plaintext == 0 {
-                    return Ok(self
+                    return self
                         .msg
                         .param
                         .get_int(Param::GuaranteeE2ee)
                         .unwrap_or_default()
-                        != 0);
+                        != 0;
                 }
 
-                Ok(false)
+                false
             }
-            Loaded::MDN => Ok(false),
+            Loaded::MDN => false,
         }
     }
 
-    fn min_verified(&self) -> Result<PeerstateVerifiedStatus, Error> {
+    fn min_verified(&self) -> PeerstateVerifiedStatus {
         match self.loaded {
             Loaded::Message => {
                 let chat = self.chat.as_ref().unwrap();
                 if chat.typ == Chattype::VerifiedGroup {
-                    Ok(PeerstateVerifiedStatus::BidirectVerified)
+                    PeerstateVerifiedStatus::BidirectVerified
                 } else {
-                    Ok(PeerstateVerifiedStatus::Unverified)
+                    PeerstateVerifiedStatus::Unverified
                 }
             }
-            Loaded::MDN => Ok(PeerstateVerifiedStatus::Unverified),
+            Loaded::MDN => PeerstateVerifiedStatus::Unverified,
         }
     }
 
-    fn should_force_plaintext(&self) -> Result<i32, Error> {
+    fn should_force_plaintext(&self) -> i32 {
         match self.loaded {
             Loaded::Message => {
                 let chat = self.chat.as_ref().unwrap();
                 if chat.typ == Chattype::VerifiedGroup {
-                    Ok(0)
+                    0
                 } else {
-                    Ok(self
-                        .msg
+                    self.msg
                         .param
                         .get_int(Param::ForcePlaintext)
-                        .unwrap_or_default())
+                        .unwrap_or_default()
                 }
             }
-            Loaded::MDN => Ok(DC_FP_NO_AUTOCRYPT_HEADER),
+            Loaded::MDN => DC_FP_NO_AUTOCRYPT_HEADER,
         }
     }
 
-    fn should_do_gossip(&self) -> Result<bool, Error> {
+    fn should_do_gossip(&self) -> bool {
         match self.loaded {
             Loaded::Message => {
                 let chat = self.chat.as_ref().unwrap();
                 // beside key- and member-changes, force re-gossip every 48 hours
                 if chat.gossiped_timestamp == 0
-                    || (chat.gossiped_timestamp + (2 * 24 * 60 * 60)) < time()
+                    || (chat.gossiped_timestamp + (2 * 24 * 60 * 60)) > time()
                 {
-                    return Ok(true);
+                    return true;
                 }
 
-                let cmd = self.msg.param.get_cmd();
-                match cmd {
+                match self.msg.param.get_cmd() {
                     SystemMessage::MemberAddedToGroup => {
-                        return Ok(true);
+                        return true;
                     }
                     _ => {}
                 }
 
-                Ok(false)
+                false
             }
-            Loaded::MDN => Ok(false),
+            Loaded::MDN => false,
         }
     }
 
-    fn grpimage(&self) -> Result<Option<String>, Error> {
+    fn grpimage(&self) -> Option<String> {
         match self.loaded {
             Loaded::Message => {
                 let chat = self.chat.as_ref().unwrap();
@@ -322,21 +320,21 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
 
                 match cmd {
                     SystemMessage::MemberAddedToGroup => {
-                        return Ok(chat.param.get(Param::ProfileImage).map(Into::into));
+                        return chat.param.get(Param::ProfileImage).map(Into::into);
                     }
                     SystemMessage::GroupImageChanged => {
-                        return Ok(self.msg.param.get(Param::Arg).map(Into::into))
+                        return self.msg.param.get(Param::Arg).map(Into::into)
                     }
                     _ => {}
                 }
 
-                Ok(None)
+                None
             }
-            Loaded::MDN => Ok(None),
+            Loaded::MDN => None,
         }
     }
 
-    fn subject_str(&self) -> Result<String, Error> {
+    fn subject_str(&self) -> String {
         match self.loaded {
             Loaded::Message => {
                 match self.chat {
@@ -354,32 +352,27 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
 
                         if self.msg.param.get_cmd() == SystemMessage::AutocryptSetupMessage {
                             // do not add the "Chat:" prefix for setup messages
-                            Ok(self
-                                .context
+                            self.context
                                 .stock_str(StockMessage::AcSetupMsgSubject)
-                                .into_owned())
+                                .into_owned()
                         } else if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup
                         {
-                            Ok(format!("Chat: {}: {}{}", chat.name, fwd, raw_subject,))
+                            format!("Chat: {}: {}{}", chat.name, fwd, raw_subject)
                         } else {
-                            Ok(format!("Chat: {}{}", fwd, raw_subject))
+                            format!("Chat: {}{}", fwd, raw_subject)
                         }
                     }
-                    None => Ok(String::default()),
+                    None => String::new(),
                 }
             }
             Loaded::MDN => {
                 let e = self.context.stock_str(StockMessage::ReadRcpt);
-                Ok(format!("Chat: {}", e).to_string())
+                format!("Chat: {}", e)
             }
         }
     }
 
     pub fn render(mut self) -> Result<RenderedEmail, Error> {
-        let e2ee_guranteed = self.is_e2ee_guranteed()?;
-
-        let mut encrypt_helper = EncryptHelper::new(self.context)?;
-
         // Headers that are encrypted
         // - Chat-*, except Chat-Version
         // - Secure-Join*
@@ -450,13 +443,13 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             ));
         }
 
-        // 1=add Autocrypt-header (needed eg. for handshaking), 2=no Autocrypte-header (used for MDN)
-
-        let min_verified = self.min_verified()?;
-        let do_gossip = self.should_do_gossip()?;
-        let grpimage = self.grpimage()?;
-        let force_plaintext = self.should_force_plaintext()?;
-        let subject_str = self.subject_str()?;
+        let min_verified = self.min_verified();
+        let do_gossip = self.should_do_gossip();
+        let grpimage = self.grpimage();
+        let force_plaintext = self.should_force_plaintext();
+        let subject_str = self.subject_str();
+        let e2ee_guranteed = self.is_e2ee_guranteed();
+        let mut encrypt_helper = EncryptHelper::new(self.context)?;
 
         let subject = dc_encode_header_words(subject_str);
 
@@ -480,13 +473,34 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             encrypt_helper.should_encrypt(self.context, e2ee_guranteed, &peerstates)?;
         let is_encrypted = should_encrypt && force_plaintext == 0;
 
-        let mut outer_message = if is_encrypted {
+        // Add gossip headers
+        info!(self.context, "gossip: {:?}", do_gossip);
+        if do_gossip {
+            info!(self.context, "Gossip headers: {:?}", &peerstates);
+            for peerstate in peerstates.iter().filter_map(|(state, _)| state.as_ref()) {
+                if peerstate.peek_key(min_verified).is_some() {
+                    if let Some(header) = peerstate.render_gossip_header(min_verified) {
+                        protected_headers.push(Header::new("Autocrypt-Gossip".into(), header));
+                    }
+                }
+            }
+        }
+
+        let rfc724_mid = match self.loaded {
+            Loaded::Message => self.msg.rfc724_mid.clone(),
+            Loaded::MDN => dc_create_outgoing_rfc724_mid(None, &self.from_addr),
+        };
+
+        protected_headers.push(Header::new("Message-ID".into(), rfc724_mid.clone()));
+
+        unprotected_headers.push(Header::new_with_value("To".into(), to).unwrap());
+        unprotected_headers.push(Header::new_with_value("From".into(), vec![from]).unwrap());
+
+        let outer_message = if is_encrypted {
             for header in protected_headers.into_iter() {
                 message = message.header(header);
             }
 
-            // Manual Content-Type only works with https://github.com/niax/rust-email/pull/51
-            // At the moment the boundary will not be inserted.
             let mut outer_message = PartBuilder::new().header((
                 "Content-Type".to_string(),
                 "multipart/encrypted; protocol=\"application/pgp-encrypted\"".to_string(),
@@ -496,13 +510,8 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                 outer_message = outer_message.header(header);
             }
 
-            let encrypted = encrypt_helper.encrypt(
-                self.context,
-                min_verified,
-                do_gossip,
-                message,
-                &peerstates,
-            )?;
+            let encrypted =
+                encrypt_helper.encrypt(self.context, min_verified, message, &peerstates)?;
 
             outer_message = outer_message
                 .child(
@@ -540,10 +549,6 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             message
         };
 
-        outer_message = outer_message
-            .header(Header::new_with_value("To".into(), to).unwrap())
-            .header(Header::new_with_value("From".into(), vec![from]).unwrap());
-
         let is_gossiped = is_encrypted && do_gossip && !peerstates.is_empty();
 
         let MimeFactory {
@@ -554,11 +559,6 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             loaded,
             ..
         } = self;
-
-        let rfc724_mid = match loaded {
-            Loaded::Message => msg.rfc724_mid.clone(),
-            Loaded::MDN => dc_create_outgoing_rfc724_mid(None, &from_addr),
-        };
 
         Ok(RenderedEmail {
             message: outer_message.build().as_string().into_bytes(),
@@ -766,10 +766,9 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         );
 
         // Message is sent as text/plain, with charset = utf-8
-        let mut message = lettre_email::PartBuilder::new()
+        let mut parts = vec![PartBuilder::new()
             .content_type(&mime::TEXT_PLAIN_UTF_8)
-            .body(message_text);
-        let mut is_multipart = false;
+            .body(message_text)];
 
         // add attachment part
         if chat::msgtype_has_file(self.msg.type_0) {
@@ -780,14 +779,12 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                 );
             } else {
                 let (file_part, _) = build_body_file(context, &self.msg, "")?;
-                message = message.child(file_part);
-                is_multipart = true;
+                parts.push(file_part);
             }
         }
 
         if let Some(meta_part) = meta_part {
-            message = message.child(meta_part);
-            is_multipart = true;
+            parts.push(meta_part);
         }
 
         if self.msg.param.exists(Param::SetLatitude) {
@@ -797,8 +794,8 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                 param.get_float(Param::SetLatitude).unwrap_or_default(),
                 param.get_float(Param::SetLongitude).unwrap_or_default(),
             );
-            message = message.child(
-                lettre_email::PartBuilder::new()
+            parts.push(
+                PartBuilder::new()
                     .content_type(
                         &"application/vnd.google-earth.kml+xml"
                             .parse::<mime::Mime>()
@@ -808,17 +805,15 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                         "Content-Disposition",
                         "attachment; filename=\"message.kml\"",
                     ))
-                    .body(kml_file)
-                    .build(),
+                    .body(kml_file),
             );
-            is_multipart = true;
         }
 
         if location::is_sending_locations_to_chat(context, self.msg.chat_id) {
             match location::get_kml(context, self.msg.chat_id) {
                 Ok((kml_content, last_added_location_id)) => {
-                    message = message.child(
-                        lettre_email::PartBuilder::new()
+                    parts.push(
+                        PartBuilder::new()
                             .content_type(
                                 &"application/vnd.google-earth.kml+xml"
                                     .parse::<mime::Mime>()
@@ -828,10 +823,8 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                                 "Content-Disposition",
                                 "attachment; filename=\"message.kml\"",
                             ))
-                            .body(kml_content)
-                            .build(),
+                            .body(kml_content),
                     );
-                    is_multipart = true;
                     if !self.msg.param.exists(Param::SetLatitude) {
                         // otherwise, the independent location is already filed
                         self.last_added_location_id = last_added_location_id;
@@ -843,8 +836,15 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             }
         }
 
-        if is_multipart {
-            message = message.message_type(MimeMultipartType::Mixed);
+        // Single part, render as regular message.
+        if parts.len() == 1 {
+            return Ok(parts.pop().unwrap());
+        }
+
+        // Multiple parts, render as multipart.
+        let mut message = PartBuilder::new().message_type(MimeMultipartType::Mixed);
+        for part in parts.into_iter() {
+            message = message.child(part.build());
         }
 
         Ok(message)
@@ -920,7 +920,7 @@ fn build_body_file(
     context: &Context,
     msg: &Message,
     base_name: &str,
-) -> Result<(MimeMessage, String), Error> {
+) -> Result<(PartBuilder, String), Error> {
     let blob = msg
         .param
         .get_blob(Param::File, context, true)?
@@ -984,8 +984,7 @@ fn build_body_file(
         .content_type(&mimetype)
         .header(("Content-Disposition", cd_value))
         .header(("Content-Transfer-Encoding", "base64"))
-        .body(encoded_body)
-        .build();
+        .body(encoded_body);
 
     Ok((mail, filename_to_send))
 }
