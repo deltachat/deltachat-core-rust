@@ -97,7 +97,7 @@ impl From<crate::error::Error> for Error {
 
 impl From<Error> for crate::error::Error {
     fn from(err: Error) -> crate::error::Error {
-        crate::error::Error::Other(err.to_string())
+        crate::error::Error::Message(err.to_string())
     }
 }
 

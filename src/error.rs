@@ -36,9 +36,6 @@ pub enum Error {
     InvalidMsgId,
     #[fail(display = "Watch folder not found {:?}", _0)]
     WatchFolderNotFound(String),
-
-    #[fail(display = "error {:?}", _0)]
-    Other(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
