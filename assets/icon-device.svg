@@ -5,10 +5,9 @@
    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
    xmlns:svg="http://www.w3.org/2000/svg"
    xmlns="http://www.w3.org/2000/svg"
-   xmlns:xlink="http://www.w3.org/1999/xlink"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   inkscape:version="1.0beta1 (32d4812, 2019-09-19)"
+   inkscape:version="0.92.4 5da689c313, 2019-01-14"
    sodipodi:docname="icon-device.svg"
    id="svg4344"
    preserveAspectRatio="xMidYMid meet"
@@ -16,46 +15,24 @@
    height="60"
    width="60"
    version="1.0"
-   inkscape:export-filename="/Users/bpetersen/Documents/deltachat/icons/device4.png"
-   inkscape:export-xdpi="96"
-   inkscape:export-ydpi="96">
+   inkscape:export-filename="/home/kerle/Workspace/deltachat-core-rust/assets/icon-device.png"
+   inkscape:export-xdpi="409.60001"
+   inkscape:export-ydpi="409.60001">
   <defs
-     id="defs4348">
-    <linearGradient
-       inkscape:collect="always"
-       id="linearGradient865">
-      <stop
-         style="stop-color:#364e59;stop-opacity:1;"
-         offset="0"
-         id="stop861" />
-      <stop
-         style="stop-color:#ffffff;stop-opacity:1"
-         offset="1"
-         id="stop863" />
-    </linearGradient>
-    <linearGradient
-       inkscape:collect="always"
-       xlink:href="#linearGradient865"
-       id="linearGradient867"
-       x1="10.227795"
-       y1="43.5238"
-       x2="-25.458139"
-       y2="-7.4257693"
-       gradientUnits="userSpaceOnUse" />
-  </defs>
+     id="defs4348" />
   <sodipodi:namedview
      inkscape:current-layer="svg4344"
      inkscape:window-maximized="0"
-     inkscape:window-y="23"
-     inkscape:window-x="45"
+     inkscape:window-y="0"
+     inkscape:window-x="0"
      inkscape:cy="28.471578"
-     inkscape:cx="41.455164"
+     inkscape:cx="28.03926"
      inkscape:zoom="5.6"
      units="px"
      showgrid="false"
      id="namedview4346"
-     inkscape:window-height="1035"
-     inkscape:window-width="1600"
+     inkscape:window-height="1019"
+     inkscape:window-width="1248"
      inkscape:pageshadow="2"
      inkscape:pageopacity="0"
      guidetolerance="10"
@@ -64,7 +41,8 @@
      borderopacity="1"
      inkscape:document-rotation="0"
      bordercolor="#666666"
-     pagecolor="#ffffff" />
+     pagecolor="#ffffff"
+     inkscape:snap-global="false" />
   <metadata
      id="metadata4336">
 Created by potrace 1.15, written by Peter Selinger 2001-2017
@@ -89,7 +67,7 @@ Created by potrace 1.15, written by Peter Selinger 2001-2017
      cy="22.5"
      cx="22.5"
      id="path4917"
-     style="fill:url(#linearGradient867);fill-opacity:1;stroke-width:0.588554" />
+     style="fill:#000000;fill-opacity:0.43921569;stroke-width:0.58855402" />
   <g
      id="g4342"
      stroke="none"
