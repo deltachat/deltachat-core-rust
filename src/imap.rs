@@ -972,7 +972,7 @@ impl Imap {
         })
     }
 
-    pub fn interrupt_idle(&self) {
+    pub fn interrupt_idle(&self, context: &Context) {
         task::block_on(async move {
             let mut interrupt: Option<stop_token::StopSource> = self.interrupt.lock().await.take();
             if interrupt.is_none() {
@@ -988,8 +988,8 @@ impl Imap {
                 // not have entered idle_wait yet, give it some time
                 // for that to happen. XXX handle this without extra wait
                 // https://github.com/deltachat/deltachat-core-rust/issues/925
-                std::thread::sleep(Duration::from_millis(50));
-                eprintln!("low-level: dropping stop-source to interrupt idle");
+                std::thread::sleep(Duration::from_millis(200));
+                info!(context, "low-level: dropping stop-source to interrupt idle");
                 std::mem::drop(interrupt)
             }
         });
