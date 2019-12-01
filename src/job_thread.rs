@@ -63,7 +63,7 @@ impl JobThread {
 
         info!(context, "Interrupting {}-IDLE...", self.name);
 
-        self.imap.interrupt_idle();
+        self.imap.interrupt_idle(context);
 
         let &(ref lock, ref cvar) = &*self.state.clone();
         let mut state = lock.lock().unwrap();
