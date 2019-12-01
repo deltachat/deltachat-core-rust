@@ -1,14 +1,29 @@
+//! Outlook's Autodiscover
+
+use failure::Fail;
+
 use quick_xml;
 use quick_xml::events::BytesEnd;
 
 use crate::constants::*;
 use crate::context::Context;
-use crate::error::Error;
 use crate::login_param::LoginParam;
 
 use super::read_autoconf_file;
 
-/// Outlook's Autodiscover
+#[derive(Debug, Fail)]
+enum Error {
+    #[fail(display = "XML error at position {}", position)]
+    InvalidXml {
+        position: usize,
+        #[cause]
+        error: quick_xml::Error,
+    },
+
+    #[fail(display = "Bad or incomplete autoconfig")]
+    IncompleteAutoconfig(LoginParam),
+}
+
 struct OutlookAutodiscover {
     pub out: LoginParam,
     pub out_imap_set: bool,
@@ -25,7 +40,7 @@ enum ParsingResult {
     RedirectUrl(String),
 }
 
-fn outlk_parse_xml(xml_raw: &str) -> Result<ParsingResult, Error> {
+fn parse_xml(xml_raw: &str) -> Result<ParsingResult, Error> {
     let mut outlk_ad = OutlookAutodiscover {
         out: LoginParam::new(),
         out_imap_set: false,
@@ -45,8 +60,15 @@ fn outlk_parse_xml(xml_raw: &str) -> Result<ParsingResult, Error> {
     let mut current_tag: Option<String> = None;
 
     loop {
-        match reader.read_event(&mut buf) {
-            Ok(quick_xml::events::Event::Start(ref e)) => {
+        let event = reader
+            .read_event(&mut buf)
+            .map_err(|error| Error::InvalidXml {
+                position: reader.buffer_position(),
+                error,
+            })?;
+
+        match event {
+            quick_xml::events::Event::Start(ref e) => {
                 let tag = String::from_utf8_lossy(e.name()).trim().to_lowercase();
 
                 if tag == "protocol" {
@@ -61,11 +83,11 @@ fn outlk_parse_xml(xml_raw: &str) -> Result<ParsingResult, Error> {
                     current_tag = Some(tag);
                 }
             }
-            Ok(quick_xml::events::Event::End(ref e)) => {
+            quick_xml::events::Event::End(ref e) => {
                 outlk_autodiscover_endtag_cb(e, &mut outlk_ad);
                 current_tag = None;
             }
-            Ok(quick_xml::events::Event::Text(ref e)) => {
+            quick_xml::events::Event::Text(ref e) => {
                 let val = e.unescape_and_decode(&reader).unwrap_or_default();
 
                 if let Some(ref tag) = current_tag {
@@ -81,21 +103,14 @@ fn outlk_parse_xml(xml_raw: &str) -> Result<ParsingResult, Error> {
                     };
                 }
             }
-            Err(e) => {
-                bail!(
-                    "Configure xml: Error at position {}: {:?}",
-                    reader.buffer_position(),
-                    e
-                );
-            }
-            Ok(quick_xml::events::Event::Eof) => break,
+            quick_xml::events::Event::Eof => break,
             _ => (),
         }
         buf.clear();
     }
 
     // XML redirect via redirecturl
-    if outlk_ad.config_redirecturl.is_none()
+    let res = if outlk_ad.config_redirecturl.is_none()
         || outlk_ad.config_redirecturl.as_ref().unwrap().is_empty()
     {
         if outlk_ad.out.mail_server.is_empty()
@@ -103,15 +118,13 @@ fn outlk_parse_xml(xml_raw: &str) -> Result<ParsingResult, Error> {
             || outlk_ad.out.send_server.is_empty()
             || outlk_ad.out.send_port == 0
         {
-            let r = outlk_ad.out.to_string();
-            bail!("Bad or incomplete autoconfig: {}", r,);
+            return Err(Error::IncompleteAutoconfig(outlk_ad.out));
         }
-        Ok(ParsingResult::LoginParam(outlk_ad.out))
+        ParsingResult::LoginParam(outlk_ad.out)
     } else {
-        Ok(ParsingResult::RedirectUrl(
-            outlk_ad.config_redirecturl.unwrap(),
-        ))
-    }
+        ParsingResult::RedirectUrl(outlk_ad.config_redirecturl.unwrap())
+    };
+    Ok(res)
 }
 
 pub fn outlk_autodiscover(
@@ -123,7 +136,7 @@ pub fn outlk_autodiscover(
     /* Follow up to 10 xml-redirects (http-redirects are followed in read_autoconf_file() */
     for _i in 0..10 {
         if let Some(xml_raw) = read_autoconf_file(context, &url) {
-            match outlk_parse_xml(&xml_raw) {
+            match parse_xml(&xml_raw) {
                 Err(err) => {
                     warn!(context, "{}", err);
                     return None;
@@ -179,7 +192,7 @@ mod tests {
 
     #[test]
     fn test_parse_redirect() {
-        let res = outlk_parse_xml("
+        let res = parse_xml("
 <?xml version=\"1.0\" encoding=\"utf-8\"?>
   <Autodiscover xmlns=\"http://schemas.microsoft.com/exchange/autodiscover/responseschema/2006\">
     <Response xmlns=\"http://schemas.microsoft.com/exchange/autodiscover/outlook/responseschema/2006a\">
@@ -206,7 +219,7 @@ mod tests {
 
     #[test]
     fn test_parse_loginparam() {
-        let res = outlk_parse_xml(
+        let res = parse_xml(
             "\
 <?xml version=\"1.0\" encoding=\"utf-8\"?>
 <Autodiscover xmlns=\"http://schemas.microsoft.com/exchange/autodiscover/responseschema/2006\">
