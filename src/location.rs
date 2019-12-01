@@ -495,46 +495,50 @@ pub fn save(
     independent: bool,
 ) -> Result<u32, Error> {
     ensure!(chat_id > DC_CHAT_ID_LAST_SPECIAL, "Invalid chat id");
-    context.sql.prepare2(
-        "SELECT id FROM locations WHERE timestamp=? AND from_id=?",
-        "INSERT INTO locations\
-         (timestamp, from_id, chat_id, latitude, longitude, accuracy, independent) \
-         VALUES (?,?,?,?,?,?,?);",
-        |mut stmt_test, mut stmt_insert, conn| {
-            let mut newest_timestamp = 0;
-            let mut newest_location_id = 0;
+    context
+        .sql
+        .prepare2(
+            "SELECT id FROM locations WHERE timestamp=? AND from_id=?",
+            "INSERT INTO locations\
+             (timestamp, from_id, chat_id, latitude, longitude, accuracy, independent) \
+             VALUES (?,?,?,?,?,?,?);",
+            |mut stmt_test, mut stmt_insert, conn| {
+                let mut newest_timestamp = 0;
+                let mut newest_location_id = 0;
 
-            for location in locations {
-                let exists = stmt_test.exists(params![location.timestamp, contact_id as i32])?;
+                for location in locations {
+                    let exists =
+                        stmt_test.exists(params![location.timestamp, contact_id as i32])?;
 
-                if independent || !exists {
-                    stmt_insert.execute(params![
-                        location.timestamp,
-                        contact_id as i32,
-                        chat_id as i32,
-                        location.latitude,
-                        location.longitude,
-                        location.accuracy,
-                        independent,
-                    ])?;
-
-                    if location.timestamp > newest_timestamp {
-                        newest_timestamp = location.timestamp;
-                        newest_location_id = sql::get_rowid2_with_conn(
-                            context,
-                            conn,
-                            "locations",
-                            "timestamp",
+                    if independent || !exists {
+                        stmt_insert.execute(params![
                             location.timestamp,
-                            "from_id",
                             contact_id as i32,
-                        );
+                            chat_id as i32,
+                            location.latitude,
+                            location.longitude,
+                            location.accuracy,
+                            independent,
+                        ])?;
+
+                        if location.timestamp > newest_timestamp {
+                            newest_timestamp = location.timestamp;
+                            newest_location_id = sql::get_rowid2_with_conn(
+                                context,
+                                conn,
+                                "locations",
+                                "timestamp",
+                                location.timestamp,
+                                "from_id",
+                                contact_id as i32,
+                            );
+                        }
                     }
                 }
-            }
-            Ok(newest_location_id)
-        },
-    ).map_err(Into::into)
+                Ok(newest_location_id)
+            },
+        )
+        .map_err(Into::into)
 }
 
 #[allow(non_snake_case)]

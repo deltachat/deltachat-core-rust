@@ -191,82 +191,85 @@ impl Message {
             !id.is_special(),
             "Can not load special message IDs from DB."
         );
-        context.sql.query_row(
-            concat!(
-                "SELECT",
-                "    m.id AS id,",
-                "    rfc724_mid AS rfc724mid,",
-                "    m.mime_in_reply_to AS mime_in_reply_to,",
-                "    m.server_folder AS server_folder,",
-                "    m.server_uid AS server_uid,",
-                "    m.chat_id AS chat_id,",
-                "    m.from_id AS from_id,",
-                "    m.to_id AS to_id,",
-                "    m.timestamp AS timestamp,",
-                "    m.timestamp_sent AS timestamp_sent,",
-                "    m.timestamp_rcvd AS timestamp_rcvd,",
-                "    m.type AS type,",
-                "    m.state AS state,",
-                "    m.msgrmsg AS msgrmsg,",
-                "    m.txt AS txt,",
-                "    m.param AS param,",
-                "    m.starred AS starred,",
-                "    m.hidden AS hidden,",
-                "    m.location_id AS location,",
-                "    c.blocked AS blocked",
-                " FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id",
-                " WHERE m.id=?;"
-            ),
-            params![id],
-            |row| {
-                let mut msg = Message::default();
-                // msg.id = row.get::<_, AnyMsgId>("id")?;
-                msg.id = row.get("id")?;
-                msg.rfc724_mid = row.get::<_, String>("rfc724mid")?;
-                msg.in_reply_to = row.get::<_, Option<String>>("mime_in_reply_to")?;
-                msg.server_folder = row.get::<_, Option<String>>("server_folder")?;
-                msg.server_uid = row.get("server_uid")?;
-                msg.chat_id = row.get("chat_id")?;
-                msg.from_id = row.get("from_id")?;
-                msg.to_id = row.get("to_id")?;
-                msg.timestamp_sort = row.get("timestamp")?;
-                msg.timestamp_sent = row.get("timestamp_sent")?;
-                msg.timestamp_rcvd = row.get("timestamp_rcvd")?;
-                msg.type_0 = row.get("type")?;
-                msg.state = row.get("state")?;
-                msg.is_dc_message = row.get("msgrmsg")?;
+        context
+            .sql
+            .query_row(
+                concat!(
+                    "SELECT",
+                    "    m.id AS id,",
+                    "    rfc724_mid AS rfc724mid,",
+                    "    m.mime_in_reply_to AS mime_in_reply_to,",
+                    "    m.server_folder AS server_folder,",
+                    "    m.server_uid AS server_uid,",
+                    "    m.chat_id AS chat_id,",
+                    "    m.from_id AS from_id,",
+                    "    m.to_id AS to_id,",
+                    "    m.timestamp AS timestamp,",
+                    "    m.timestamp_sent AS timestamp_sent,",
+                    "    m.timestamp_rcvd AS timestamp_rcvd,",
+                    "    m.type AS type,",
+                    "    m.state AS state,",
+                    "    m.msgrmsg AS msgrmsg,",
+                    "    m.txt AS txt,",
+                    "    m.param AS param,",
+                    "    m.starred AS starred,",
+                    "    m.hidden AS hidden,",
+                    "    m.location_id AS location,",
+                    "    c.blocked AS blocked",
+                    " FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id",
+                    " WHERE m.id=?;"
+                ),
+                params![id],
+                |row| {
+                    let mut msg = Message::default();
+                    // msg.id = row.get::<_, AnyMsgId>("id")?;
+                    msg.id = row.get("id")?;
+                    msg.rfc724_mid = row.get::<_, String>("rfc724mid")?;
+                    msg.in_reply_to = row.get::<_, Option<String>>("mime_in_reply_to")?;
+                    msg.server_folder = row.get::<_, Option<String>>("server_folder")?;
+                    msg.server_uid = row.get("server_uid")?;
+                    msg.chat_id = row.get("chat_id")?;
+                    msg.from_id = row.get("from_id")?;
+                    msg.to_id = row.get("to_id")?;
+                    msg.timestamp_sort = row.get("timestamp")?;
+                    msg.timestamp_sent = row.get("timestamp_sent")?;
+                    msg.timestamp_rcvd = row.get("timestamp_rcvd")?;
+                    msg.type_0 = row.get("type")?;
+                    msg.state = row.get("state")?;
+                    msg.is_dc_message = row.get("msgrmsg")?;
 
-                let text;
-                if let rusqlite::types::ValueRef::Text(buf) = row.get_raw("txt") {
-                    if let Ok(t) = String::from_utf8(buf.to_vec()) {
-                        text = t;
+                    let text;
+                    if let rusqlite::types::ValueRef::Text(buf) = row.get_raw("txt") {
+                        if let Ok(t) = String::from_utf8(buf.to_vec()) {
+                            text = t;
+                        } else {
+                            warn!(
+                                context,
+                                concat!(
+                                    "dc_msg_load_from_db: could not get ",
+                                    "text column as non-lossy utf8 id {}"
+                                ),
+                                id
+                            );
+                            text = String::from_utf8_lossy(buf).into_owned();
+                        }
                     } else {
-                        warn!(
-                            context,
-                            concat!(
-                                "dc_msg_load_from_db: could not get ",
-                                "text column as non-lossy utf8 id {}"
-                            ),
-                            id
-                        );
-                        text = String::from_utf8_lossy(buf).into_owned();
+                        text = "".to_string();
                     }
-                } else {
-                    text = "".to_string();
-                }
-                msg.text = Some(text);
+                    msg.text = Some(text);
 
-                msg.param = row.get::<_, String>("param")?.parse().unwrap_or_default();
-                msg.starred = row.get("starred")?;
-                msg.hidden = row.get("hidden")?;
-                msg.location_id = row.get("location")?;
-                msg.chat_blocked = row
-                    .get::<_, Option<Blocked>>("blocked")?
-                    .unwrap_or_default();
+                    msg.param = row.get::<_, String>("param")?.parse().unwrap_or_default();
+                    msg.starred = row.get("starred")?;
+                    msg.hidden = row.get("hidden")?;
+                    msg.location_id = row.get("location")?;
+                    msg.chat_blocked = row
+                        .get::<_, Option<Blocked>>("blocked")?
+                        .unwrap_or_default();
 
-                Ok(msg)
-            },
-        ).map_err(Into::into)
+                    Ok(msg)
+                },
+            )
+            .map_err(Into::into)
     }
 
     pub fn delete_from_db(context: &Context, msg_id: MsgId) {
@@ -1246,17 +1249,20 @@ pub(crate) fn rfc724_mid_exists(
 ) -> Result<(String, u32, MsgId), Error> {
     ensure!(!rfc724_mid.is_empty(), "empty rfc724_mid");
 
-    context.sql.query_row(
-        "SELECT server_folder, server_uid, id FROM msgs WHERE rfc724_mid=?",
-        &[rfc724_mid],
-        |row| {
-            let server_folder = row.get::<_, Option<String>>(0)?.unwrap_or_default();
-            let server_uid = row.get(1)?;
-            let msg_id: MsgId = row.get(2)?;
+    context
+        .sql
+        .query_row(
+            "SELECT server_folder, server_uid, id FROM msgs WHERE rfc724_mid=?",
+            &[rfc724_mid],
+            |row| {
+                let server_folder = row.get::<_, Option<String>>(0)?.unwrap_or_default();
+                let server_uid = row.get(1)?;
+                let msg_id: MsgId = row.get(2)?;
 
-            Ok((server_folder, server_uid, msg_id))
-        },
-    ).map_err(Into::into)
+                Ok((server_folder, server_uid, msg_id))
+            },
+        )
+        .map_err(Into::into)
 }
 
 pub fn update_server_uid(
