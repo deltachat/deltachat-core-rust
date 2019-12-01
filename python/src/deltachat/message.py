@@ -162,7 +162,7 @@ class Message(object):
         if mime_headers:
             s = ffi.string(ffi.gc(mime_headers, lib.dc_str_unref))
             if isinstance(s, bytes):
-                s = s.decode("ascii")
+                return email.message_from_bytes(s)
             return email.message_from_string(s)
 
     @property
