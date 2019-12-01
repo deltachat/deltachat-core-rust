@@ -2,6 +2,7 @@
 
 use std::collections::HashSet;
 
+use mailparse::MailHeaderMap;
 use num_traits::FromPrimitive;
 
 use crate::aheader::*;
@@ -121,11 +122,7 @@ pub fn try_decrypt(
     mail: &mailparse::ParsedMail<'_>,
     message_time: i64,
 ) -> Result<(Option<Vec<u8>>, HashSet<String>)> {
-    use mailparse::MailHeaderMap;
-    info!(context, "trying to decrypt: {:?}", mail.get_body());
-    for part in &mail.subparts {
-        info!(context, "trying to decrypt part: {:?}", part.get_body());
-    }
+    info!(context, "trying to decrypt");
 
     let from = mail
         .headers
@@ -137,7 +134,6 @@ pub fn try_decrypt(
 
     let mut peerstate = None;
     let autocryptheader = Aheader::from_headers(context, &from, &mail.headers);
-    info!(context, "got autocryptheader {:?}", &autocryptheader);
 
     if message_time > 0 {
         peerstate = Peerstate::from_addr(context, &context.sql, &from);
