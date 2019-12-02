@@ -26,98 +26,144 @@ use crate::stock::StockMessage::{DeviceMessagesHint, WelcomeMessage};
 pub enum StockMessage {
     #[strum(props(fallback = "No messages."))]
     NoMessages = 1,
+
     #[strum(props(fallback = "Me"))]
     SelfMsg = 2,
+
     #[strum(props(fallback = "Draft"))]
     Draft = 3,
+
     #[strum(props(fallback = "%1$s member(s)"))]
     Member = 4,
+
     #[strum(props(fallback = "%1$s contact(s)"))]
     Contact = 6,
+
     #[strum(props(fallback = "Voice message"))]
     VoiceMessage = 7,
+
     #[strum(props(fallback = "Contact requests"))]
     DeadDrop = 8,
+
     #[strum(props(fallback = "Image"))]
     Image = 9,
+
     #[strum(props(fallback = "Video"))]
     Video = 10,
+
     #[strum(props(fallback = "Audio"))]
     Audio = 11,
+
     #[strum(props(fallback = "File"))]
     File = 12,
+
     #[strum(props(fallback = "Sent with my Delta Chat Messenger: https://delta.chat"))]
     StatusLine = 13,
+
     #[strum(props(fallback = "Hello, I\'ve just created the group \"%1$s\" for us."))]
     NewGroupDraft = 14,
+
     #[strum(props(fallback = "Group name changed from \"%1$s\" to \"%2$s\"."))]
     MsgGrpName = 15,
+
     #[strum(props(fallback = "Group image changed."))]
     MsgGrpImgChanged = 16,
+
     #[strum(props(fallback = "Member %1$s added."))]
     MsgAddMember = 17,
+
     #[strum(props(fallback = "Member %1$s removed."))]
     MsgDelMember = 18,
+
     #[strum(props(fallback = "Group left."))]
     MsgGroupLeft = 19,
+
     #[strum(props(fallback = "GIF"))]
     Gif = 23,
+
     #[strum(props(fallback = "Encrypted message"))]
     EncryptedMsg = 24,
+
     #[strum(props(fallback = "End-to-end encryption available."))]
     E2eAvailable = 25,
+
     #[strum(props(fallback = "Transport-encryption."))]
     EncrTransp = 27,
+
     #[strum(props(fallback = "No encryption."))]
     EncrNone = 28,
+
     #[strum(props(fallback = "This message was encrypted for another setup."))]
     CantDecryptMsgBody = 29,
+
     #[strum(props(fallback = "Fingerprints"))]
     FingerPrints = 30,
+
     #[strum(props(fallback = "Return receipt"))]
     ReadRcpt = 31,
+
     #[strum(props(fallback = "This is a return receipt for the message \"%1$s\"."))]
     ReadRcptMailBody = 32,
+
     #[strum(props(fallback = "Group image deleted."))]
     MsgGrpImgDeleted = 33,
+
     #[strum(props(fallback = "End-to-end encryption preferred."))]
     E2ePreferred = 34,
+
     #[strum(props(fallback = "%1$s verified."))]
     ContactVerified = 35,
+
     #[strum(props(fallback = "Cannot verify %1$s"))]
     ContactNotVerified = 36,
+
     #[strum(props(fallback = "Changed setup for %1$s"))]
     ContactSetupChanged = 37,
+
     #[strum(props(fallback = "Archived chats"))]
     ArchivedChats = 40,
+
     #[strum(props(fallback = "Starred messages"))]
     StarredMsgs = 41,
+
     #[strum(props(fallback = "Autocrypt Setup Message"))]
     AcSetupMsgSubject = 42,
+
     #[strum(props(
         fallback = "This is the Autocrypt Setup Message used to transfer your key between clients.\n\nTo decrypt and use your key, open the message in an Autocrypt-compliant client and enter the setup code presented on the generating device."
     ))]
     AcSetupMsgBody = 43,
+
     #[strum(props(fallback = "Messages I sent to myself"))]
     SelfTalkSubTitle = 50,
+
     #[strum(props(fallback = "Cannot login as %1$s."))]
     CannotLogin = 60,
+
     #[strum(props(fallback = "Could not connect to %1$s: %2$s"))]
     ServerResponse = 61,
+
     #[strum(props(fallback = "%1$s by %2$s."))]
     MsgActionByUser = 62,
+
     #[strum(props(fallback = "%1$s by me."))]
     MsgActionByMe = 63,
+
     #[strum(props(fallback = "Location streaming enabled."))]
     MsgLocationEnabled = 64,
+
     #[strum(props(fallback = "Location streaming disabled."))]
     MsgLocationDisabled = 65,
+
     #[strum(props(fallback = "Location"))]
     Location = 66,
+
     #[strum(props(fallback = "Sticker"))]
     Sticker = 67,
+
     #[strum(props(fallback = "Device messages"))]
     DeviceMessages = 68,
+
     #[strum(props(fallback = "Saved messages"))]
     SavedMessages = 69,
 
