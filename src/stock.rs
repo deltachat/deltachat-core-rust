@@ -318,6 +318,7 @@ mod tests {
 
     use crate::constants::DC_CONTACT_ID_SELF;
 
+    use crate::chatlist::Chatlist;
     use num_traits::ToPrimitive;
 
     #[test]
@@ -472,5 +473,23 @@ mod tests {
                 .stock_system_msg(StockMessage::MsgGrpName, "Some chat", "Other chat", id,),
             "Group name changed from \"Some chat\" to \"Other chat\" by Alice (alice@example.com)."
         )
+    }
+
+    #[test]
+    fn test_update_device_chats() {
+        let t = dummy_context();
+        t.ctx.update_device_chats().ok();
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        assert_eq!(chats.len(), 2);
+
+        chat::delete(&t.ctx, chats.get_chat_id(0)).ok();
+        chat::delete(&t.ctx, chats.get_chat_id(1)).ok();
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        assert_eq!(chats.len(), 0);
+
+        // a subsequent call to update_device_chats() must not re-add manally deleted messages or chats
+        t.ctx.update_device_chats().ok();
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        assert_eq!(chats.len(), 0);
     }
 }
