@@ -28,27 +28,38 @@ pub enum Config {
     SendPort,
     SmtpCertificateChecks,
     ServerFlags,
+
     #[strum(props(default = "INBOX"))]
     ImapFolder,
+
     Displayname,
     Selfstatus,
     Selfavatar,
+
     #[strum(props(default = "0"))]
     BccSelf,
+
     #[strum(props(default = "1"))]
     E2eeEnabled,
+
     #[strum(props(default = "1"))]
     MdnsEnabled,
+
     #[strum(props(default = "1"))]
     InboxWatch,
+
     #[strum(props(default = "1"))]
     SentboxWatch,
+
     #[strum(props(default = "1"))]
     MvboxWatch,
+
     #[strum(props(default = "1"))]
     MvboxMove,
+
     #[strum(props(default = "0"))] // also change ShowEmails.default() on changes
     ShowEmails,
+
     SaveMimeHeaders,
     ConfiguredAddr,
     ConfiguredMailServer,
@@ -66,11 +77,13 @@ pub enum Config {
     ConfiguredSendSecurity,
     ConfiguredE2EEEnabled,
     Configured,
-    // Deprecated
+
     #[strum(serialize = "sys.version")]
     SysVersion,
+
     #[strum(serialize = "sys.msgsize_max_recommended")]
     SysMsgsizeMaxRecommended,
+
     #[strum(serialize = "sys.config_keys")]
     SysConfigKeys,
 }
