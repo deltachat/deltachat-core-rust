@@ -564,10 +564,6 @@ fn try_smtp_one_param(context: &Context, param: &LoginParam) -> Option<bool> {
     }
 }
 
-/*******************************************************************************
- * Configure a Context
- ******************************************************************************/
-
 #[cfg(test)]
 mod tests {
 
