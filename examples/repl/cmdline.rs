@@ -837,6 +837,9 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             msg.set_text(Some(arg1.to_string()));
             chat::add_device_msg(context, None, Some(&mut msg))?;
         }
+        "updatedevicechats" => {
+            context.update_device_chats()?;
+        }
         "listmedia" => {
             ensure!(sel_chat.is_some(), "No chat selected.");
 

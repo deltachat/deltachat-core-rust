@@ -1140,6 +1140,24 @@ uint32_t        dc_add_device_msg            (dc_context_t* context, const char*
 
 
 /**
+ * Init device-messages and saved-messages chat.
+ * This function adds the device-chat and saved-messages chat
+ * and adds one or more welcome or update-messages.
+ * The ui can add messages on its own using dc_add_device_msg() -
+ * for ordering, either before or after or even without calling this function.
+ *
+ * Chat and message creation is done only once.
+ * So if the user has manually deleted things, they won't be re-created
+ * (however, not seen device messages are added and may re-create the device-chat).
+ *
+ * @memberof dc_context_t
+ * @param context The context as created by dc_context_new().
+ * @return None.
+ */
+void            dc_update_device_chats       (dc_context_t* context);
+
+
+/**
  * Check if a device-message with a given label was ever added.
  * Device-messages can be added dc_add_device_msg().
  *
