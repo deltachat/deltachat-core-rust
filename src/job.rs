@@ -605,27 +605,7 @@ fn set_delivered(context: &Context, msg_id: MsgId) {
 #[allow(non_snake_case)]
 pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<(), Error> {
     let mut mimefactory = MimeFactory::load_msg(context, msg_id)?;
-
-    if chat::msgtype_has_file(mimefactory.msg.type_0) {
-        let file_param = mimefactory.msg.param.get_path(Param::File, context)?;
-        if let Some(pathNfilename) = file_param {
-            if (mimefactory.msg.type_0 == Viewtype::Image
-                || mimefactory.msg.type_0 == Viewtype::Gif)
-                && !mimefactory.msg.param.exists(Param::Width)
-            {
-                mimefactory.msg.param.set_int(Param::Width, 0);
-                mimefactory.msg.param.set_int(Param::Height, 0);
-
-                if let Ok(buf) = dc_read_file(context, pathNfilename) {
-                    if let Ok((width, height)) = dc_get_filemeta(&buf) {
-                        mimefactory.msg.param.set_int(Param::Width, width as i32);
-                        mimefactory.msg.param.set_int(Param::Height, height as i32);
-                    }
-                }
-                mimefactory.msg.save_param_to_disk(context);
-            }
-        }
-    }
+    mimefactory.msg.try_calc_and_set_dimensions(context).ok();
 
     /* create message */
     if let Err(msg) = unsafe { mimefactory.render() } {

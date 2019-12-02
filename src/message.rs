@@ -309,6 +309,32 @@ impl Message {
         self.param.get_path(Param::File, context).unwrap_or(None)
     }
 
+    pub fn try_calc_and_set_dimensions(&mut self, context: &Context) -> Result<(), Error> {
+        if chat::msgtype_has_file(self.type_0) {
+            let file_param = self.param.get_path(Param::File, context)?;
+            if let Some(path_and_filename) = file_param {
+                if (self.type_0 == Viewtype::Image || self.type_0 == Viewtype::Gif)
+                    && !self.param.exists(Param::Width)
+                {
+                    self.param.set_int(Param::Width, 0);
+                    self.param.set_int(Param::Height, 0);
+
+                    if let Ok(buf) = dc_read_file(context, path_and_filename) {
+                        if let Ok((width, height)) = dc_get_filemeta(&buf) {
+                            self.param.set_int(Param::Width, width as i32);
+                            self.param.set_int(Param::Height, height as i32);
+                        }
+                    }
+
+                    if !self.id.is_unset() {
+                        self.save_param_to_disk(context);
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Check if a message has a location bound to it.
     /// These messages are also returned by dc_get_locations()
     /// and the UI may decide to display a special icon beside such messages,

@@ -1984,6 +1984,7 @@ pub fn add_device_msg(
         chat_id = create_or_lookup_by_contact_id(context, DC_CONTACT_ID_DEVICE, Blocked::Not)?.0;
 
         let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
+        msg.try_calc_and_set_dimensions(context).ok();
         prepare_msg_blob(context, msg)?;
         unarchive(context, chat_id)?;
 
