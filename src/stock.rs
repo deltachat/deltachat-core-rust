@@ -121,20 +121,21 @@ pub enum StockMessage {
     #[strum(props(fallback = "Saved messages"))]
     SavedMessages = 69,
 
-    #[strum(props(fallback = "These messages in this chat \
-                              are generated locally by the Delta Chat app.\n\n\
-                              Delta Chat does not have your e-mail-address."))]
+    #[strum(props(
+        fallback = "Messages in this chat are generated locally by your Delta Chat app. \
+                    Its makers use it to inform about app updates and problems during usage."
+    ))]
     DeviceMessagesHint = 70,
 
     #[strum(props(fallback = "Welcome to Delta Chat! – \
-    Delta Chat looks and feels like other popular messenger apps, \
-    but does not involve centralized control, \
-    tracking or selling you, friends, colleagues or family out to large organizations.\n\n\
-    Technically, Delta Chat is an email application with a modern chat interface. \
-    Email in a new dress if you will 👻\n\n\
-    Use Delta Chat with anyone out of billions of people: just use their e-mail address. \
-    Recipients don't need to install Delta Chat, visit websites or sign up anywhere - \
-    however, of course, if they like, you may point them to 👉 https://get.delta.chat"))]
+                    Delta Chat looks and feels like other popular messenger apps, \
+                    but does not involve centralized control, \
+                    tracking or selling you, friends, colleagues or family out to large organizations.\n\n\
+                    Technically, Delta Chat is an email application with a modern chat interface. \
+                    Email in a new dress if you will 👻\n\n\
+                    Use Delta Chat with anyone out of billions of people: just use their e-mail address. \
+                    Recipients don't need to install Delta Chat, visit websites or sign up anywhere - \
+                    however, of course, if they like, you may point them to 👉 https://get.delta.chat"))]
     WelcomeMessage = 71,
 }
 
