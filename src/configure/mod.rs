@@ -193,7 +193,7 @@ pub fn JobConfigureImap(context: &Context) {
                         "https://{}{}/autodiscover/autodiscover.xml",
                         "", param_domain
                     );
-                    param_autoconfig = outlk_autodiscover(context, &url, &param);
+                    param_autoconfig = outlk_autodiscover(context, &url, &param).ok();
                 }
                 true
             }
@@ -204,7 +204,7 @@ pub fn JobConfigureImap(context: &Context) {
                         "https://{}{}/autodiscover/autodiscover.xml",
                         "autodiscover.", param_domain
                     );
-                    param_autoconfig = outlk_autodiscover(context, &url, &param);
+                    param_autoconfig = outlk_autodiscover(context, &url, &param).ok();
                 }
                 true
             }

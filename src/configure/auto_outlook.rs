@@ -22,9 +22,21 @@ pub enum Error {
 
     #[fail(display = "Bad or incomplete autoconfig")]
     IncompleteAutoconfig(LoginParam),
+
+    #[fail(display = "Failed to get URL {}", _0)]
+    ReadUrlError(#[cause] super::read_url::Error),
+
+    #[fail(display = "Number of redirection is exceeded")]
+    RedirectionError,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+impl From<super::read_url::Error> for Error {
+    fn from(err: super::read_url::Error) -> Error {
+        Error::ReadUrlError(err)
+    }
+}
 
 struct OutlookAutodiscover {
     pub out: LoginParam,
@@ -42,7 +54,7 @@ enum ParsingResult {
     RedirectUrl(String),
 }
 
-fn parse_xml(xml_raw: &str) -> Result<ParsingResult, Error> {
+fn parse_xml(xml_raw: &str) -> Result<ParsingResult> {
     let mut outlk_ad = OutlookAutodiscover {
         out: LoginParam::new(),
         out_imap_set: false,
@@ -133,26 +145,21 @@ pub fn outlk_autodiscover(
     context: &Context,
     url: &str,
     _param_in: &LoginParam,
-) -> Option<LoginParam> {
+) -> Result<LoginParam> {
     let mut url = url.to_string();
     /* Follow up to 10 xml-redirects (http-redirects are followed in read_url() */
     for _i in 0..10 {
-        if let Ok(xml_raw) = read_url(context, &url) {
-            match parse_xml(&xml_raw) {
-                Err(err) => {
-                    warn!(context, "{}", err);
-                    return None;
-                }
-                Ok(res) => match res {
-                    ParsingResult::RedirectUrl(redirect_url) => url = redirect_url,
-                    ParsingResult::LoginParam(login_param) => return Some(login_param),
-                },
-            }
-        } else {
-            return None;
+        let xml_raw = read_url(context, &url)?;
+        let res = parse_xml(&xml_raw);
+        if let Err(err) = &res {
+            warn!(context, "{}", err);
+        }
+        match res? {
+            ParsingResult::RedirectUrl(redirect_url) => url = redirect_url,
+            ParsingResult::LoginParam(login_param) => return Ok(login_param),
         }
     }
-    None
+    Err(Error::RedirectionError)
 }
 
 fn outlk_autodiscover_endtag_cb(event: &BytesEnd, outlk_ad: &mut OutlookAutodiscover) {
