@@ -9,10 +9,10 @@ use crate::constants::*;
 use crate::context::Context;
 use crate::login_param::LoginParam;
 
-use super::read_autoconf_file;
+use super::read_url::read_url;
 
 #[derive(Debug, Fail)]
-enum Error {
+pub enum Error {
     #[fail(display = "XML error at position {}", position)]
     InvalidXml {
         position: usize,
@@ -23,6 +23,8 @@ enum Error {
     #[fail(display = "Bad or incomplete autoconfig")]
     IncompleteAutoconfig(LoginParam),
 }
+
+pub type Result<T> = std::result::Result<T, Error>;
 
 struct OutlookAutodiscover {
     pub out: LoginParam,
@@ -133,9 +135,9 @@ pub fn outlk_autodiscover(
     _param_in: &LoginParam,
 ) -> Option<LoginParam> {
     let mut url = url.to_string();
-    /* Follow up to 10 xml-redirects (http-redirects are followed in read_autoconf_file() */
+    /* Follow up to 10 xml-redirects (http-redirects are followed in read_url() */
     for _i in 0..10 {
-        if let Some(xml_raw) = read_autoconf_file(context, &url) {
+        if let Ok(xml_raw) = read_url(context, &url) {
             match parse_xml(&xml_raw) {
                 Err(err) => {
                     warn!(context, "{}", err);

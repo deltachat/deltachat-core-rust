@@ -10,7 +10,7 @@ use crate::constants::*;
 use crate::context::Context;
 use crate::login_param::LoginParam;
 
-use super::read_autoconf_file;
+use super::read_url::read_url;
 
 #[derive(Debug, Fail)]
 pub enum Error {
@@ -119,7 +119,7 @@ pub fn moz_autoconfigure(
     url: &str,
     param_in: &LoginParam,
 ) -> Option<LoginParam> {
-    let xml_raw = read_autoconf_file(context, url)?;
+    let xml_raw = read_url(context, url).ok()?;
 
     match parse_xml(&param_in.addr, &xml_raw) {
         Err(err) => {
