@@ -101,16 +101,6 @@ fn main() {
 
     thread::sleep(duration);
 
-    // let msglist = dc_get_chat_msgs(&ctx, chat_id, 0, 0);
-    // for i in 0..dc_array_get_cnt(msglist) {
-    //     let msg_id = dc_array_get_id(msglist, i);
-    //     let msg = dc_get_msg(context, msg_id);
-    //     let text = CStr::from_ptr(dc_msg_get_text(msg)).unwrap();
-    //     println!("Message {}: {}\n", i + 1, text.to_str().unwrap());
-    //     dc_msg_unref(msg);
-    // }
-    // dc_array_unref(msglist);
-
     println!("stopping threads");
 
     *running.write().unwrap() = false;

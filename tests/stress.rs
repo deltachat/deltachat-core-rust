@@ -14,7 +14,7 @@ use tempfile::{tempdir, TempDir};
 /* some data used for testing
  ******************************************************************************/
 
-unsafe fn stress_functions(context: &Context) {
+fn stress_functions(context: &Context) {
     let res = context.get_config(config::Config::SysConfigKeys).unwrap();
 
     assert!(!res.contains(" probably_never_a_key "));
@@ -224,10 +224,8 @@ fn create_test_context() -> TestContext {
 
 #[test]
 fn test_stress_tests() {
-    unsafe {
-        let context = create_test_context();
-        stress_functions(&context.ctx);
-    }
+    let context = create_test_context();
+    stress_functions(&context.ctx);
 }
 
 #[test]
