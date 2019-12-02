@@ -58,7 +58,7 @@ enum MozConfigTag {
     Username,
 }
 
-pub fn parse_xml(in_emailaddr: &str, xml_raw: &str) -> Result<LoginParam> {
+fn parse_xml(in_emailaddr: &str, xml_raw: &str) -> Result<LoginParam> {
     let mut reader = quick_xml::Reader::from_str(xml_raw);
     reader.trim_text(true);
 
