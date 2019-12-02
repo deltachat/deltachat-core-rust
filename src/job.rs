@@ -915,7 +915,7 @@ fn add_smtp_job(
 pub fn job_add(
     context: &Context,
     action: Action,
-    foreign_id: libc::c_int,
+    foreign_id: i32,
     param: Params,
     delay_seconds: i64,
 ) {

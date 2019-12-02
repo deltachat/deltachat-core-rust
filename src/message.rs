@@ -431,7 +431,7 @@ impl Message {
             return ret;
         };
 
-        let contact = if self.from_id != DC_CONTACT_ID_SELF as libc::c_uint
+        let contact = if self.from_id != DC_CONTACT_ID_SELF as u32
             && (chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup)
         {
             Contact::get_by_id(context, self.from_id).ok()
@@ -476,8 +476,8 @@ impl Message {
 
     pub fn is_info(&self) -> bool {
         let cmd = self.param.get_cmd();
-        self.from_id == DC_CONTACT_ID_INFO as libc::c_uint
-            || self.to_id == DC_CONTACT_ID_INFO as libc::c_uint
+        self.from_id == DC_CONTACT_ID_INFO as u32
+            || self.to_id == DC_CONTACT_ID_INFO as u32
             || cmd != SystemMessage::Unknown && cmd != SystemMessage::AutocryptSetupMessage
     }
 
@@ -704,7 +704,7 @@ pub fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
     ret += &format!(" by {}", name);
     ret += "\n";
 
-    if msg.from_id != DC_CONTACT_ID_SELF as libc::c_uint {
+    if msg.from_id != DC_CONTACT_ID_SELF as u32 {
         let s = dc_timestamp_to_str(if 0 != msg.timestamp_rcvd {
             msg.timestamp_rcvd
         } else {
@@ -1201,7 +1201,7 @@ pub fn mdn_from_ext(
 }
 
 /// The number of messages assigned to real chat (!=deaddrop, !=trash)
-pub fn get_real_msg_cnt(context: &Context) -> libc::c_int {
+pub fn get_real_msg_cnt(context: &Context) -> i32 {
     match context.sql.query_row(
         "SELECT COUNT(*) \
          FROM msgs m  LEFT JOIN chats c ON c.id=m.chat_id \
@@ -1217,7 +1217,7 @@ pub fn get_real_msg_cnt(context: &Context) -> libc::c_int {
     }
 }
 
-pub fn get_deaddrop_msg_cnt(context: &Context) -> libc::size_t {
+pub fn get_deaddrop_msg_cnt(context: &Context) -> usize {
     match context.sql.query_row(
         "SELECT COUNT(*) \
          FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id \
@@ -1225,7 +1225,7 @@ pub fn get_deaddrop_msg_cnt(context: &Context) -> libc::size_t {
         rusqlite::NO_PARAMS,
         |row| row.get::<_, isize>(0),
     ) {
-        Ok(res) => res as libc::size_t,
+        Ok(res) => res as usize,
         Err(err) => {
             error!(context, "dc_get_deaddrop_msg_cnt() failed. {}", err);
             0
@@ -1233,7 +1233,7 @@ pub fn get_deaddrop_msg_cnt(context: &Context) -> libc::size_t {
     }
 }
 
-pub fn rfc724_mid_cnt(context: &Context, rfc724_mid: &str) -> libc::c_int {
+pub fn rfc724_mid_cnt(context: &Context, rfc724_mid: &str) -> i32 {
     // check the number of messages with the same rfc724_mid
     match context.sql.query_row(
         "SELECT COUNT(*) FROM msgs WHERE rfc724_mid=?;",

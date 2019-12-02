@@ -229,7 +229,7 @@ pub fn send_locations_to_chat(context: &Context, chat_id: u32, seconds: i64) {
                 job_add(
                     context,
                     Action::MaybeSendLocationsEnded,
-                    chat_id as libc::c_int,
+                    chat_id as i32,
                     Params::new(),
                     seconds + 1,
                 );

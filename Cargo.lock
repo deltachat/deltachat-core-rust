@@ -686,6 +686,7 @@ version = "1.0.0-beta.8"
 dependencies = [
  "deltachat 1.0.0-beta.8",
  "deltachat-provider-database 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "failure 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "human-panic 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.66 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-traits 0.2.10 (registry+https://github.com/rust-lang/crates.io-index)",

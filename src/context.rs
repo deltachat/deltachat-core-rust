@@ -86,7 +86,7 @@ pub fn get_info() -> HashMap<&'static str, String> {
     );
     res.insert(
         "arch",
-        (::std::mem::size_of::<*mut libc::c_void>())
+        (std::mem::size_of::<*mut libc::c_void>())
             .wrapping_mul(8)
             .to_string(),
     );

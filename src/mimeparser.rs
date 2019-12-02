@@ -232,7 +232,7 @@ impl<'a> MimeParser<'a> {
             }
         }
         if let Some(ref subject) = self.subject {
-            let mut prepend_subject: libc::c_int = 1i32;
+            let mut prepend_subject = 1i32;
             if !self.decrypting_failed {
                 let colon = subject.find(':');
                 if colon == Some(2)

@@ -286,7 +286,7 @@ fn add_parts(
     sent_timestamp: &mut i64,
     from_id: &mut u32,
     from_id_blocked: i32,
-    hidden: &mut libc::c_int,
+    hidden: &mut i32,
     chat_id: &mut u32,
     to_id: &mut u32,
     flags: u32,
@@ -297,7 +297,7 @@ fn add_parts(
     create_event_to_send: &mut Option<CreateEvent>,
 ) -> Result<()> {
     let mut state: MessageState;
-    let mut msgrmsg: libc::c_int;
+    let mut msgrmsg: i32;
     let mut chat_id_blocked = Blocked::Not;
     let mut sort_timestamp = 0;
     let mut rcvd_timestamp = 0;
@@ -640,10 +640,10 @@ fn add_parts(
                 stmt.execute(params![
                     rfc724_mid,
                     server_folder.as_ref(),
-                    server_uid as libc::c_int,
-                    *chat_id as libc::c_int,
-                    *from_id as libc::c_int,
-                    *to_id as libc::c_int,
+                    server_uid as i32,
+                    *chat_id as i32,
+                    *from_id as i32,
+                    *to_id as i32,
                     sort_timestamp,
                     *sent_timestamp,
                     rcvd_timestamp,
@@ -754,7 +754,7 @@ fn calc_timestamps(
     chat_id: u32,
     from_id: u32,
     message_timestamp: i64,
-    is_fresh_msg: libc::c_int,
+    is_fresh_msg: i32,
     sort_timestamp: &mut i64,
     sent_timestamp: &mut i64,
     rcvd_timestamp: &mut i64,
@@ -799,7 +799,7 @@ fn calc_timestamps(
 fn create_or_lookup_group(
     context: &Context,
     mime_parser: &mut MimeParser,
-    allow_creation: libc::c_int,
+    allow_creation: i32,
     create_blocked: Blocked,
     from_id: u32,
     to_ids: &mut Vec<u32>,
@@ -889,7 +889,7 @@ fn create_or_lookup_group(
         X_MrRemoveFromGrp = Some(optional_field);
         mime_parser.is_system_message = SystemMessage::MemberRemovedFromGroup;
         let left_group = (Contact::lookup_id_by_addr(context, X_MrRemoveFromGrp.as_ref().unwrap())
-            == from_id as u32) as libc::c_int;
+            == from_id as u32) as i32;
         better_msg = context.stock_system_msg(
             if 0 != left_group {
                 StockMessage::MsgGroupLeft
@@ -1167,7 +1167,7 @@ fn create_or_lookup_group(
 fn create_or_lookup_adhoc_group(
     context: &Context,
     mime_parser: &MimeParser,
-    allow_creation: libc::c_int,
+    allow_creation: i32,
     create_blocked: Blocked,
     from_id: u32,
     to_ids: &mut Vec<u32>,
@@ -1252,7 +1252,7 @@ fn create_or_lookup_adhoc_group(
     let grpname = if let Some(subject) = mime_parser.subject.as_ref().filter(|s| !s.is_empty()) {
         subject.to_string()
     } else {
-        context.stock_string_repl_int(StockMessage::Member, member_ids.len() as libc::c_int)
+        context.stock_string_repl_int(StockMessage::Member, member_ids.len() as i32)
     };
 
     // create group record
@@ -1516,7 +1516,7 @@ fn set_better_msg(mime_parser: &mut MimeParser, better_msg: impl AsRef<str>) {
     }
 }
 
-fn dc_is_reply_to_known_message(context: &Context, mime_parser: &MimeParser) -> libc::c_int {
+fn dc_is_reply_to_known_message(context: &Context, mime_parser: &MimeParser) -> i32 {
     /* check if the message is a reply to a known message; the replies are identified by the Message-ID from
     `In-Reply-To`/`References:` (to support non-Delta-Clients) */
 
@@ -1566,7 +1566,7 @@ fn is_known_rfc724_mid(context: &Context, rfc724_mid: &mailparse::MailAddr) -> b
         .unwrap_or_default()
 }
 
-fn dc_is_reply_to_messenger_message(context: &Context, mime_parser: &MimeParser) -> libc::c_int {
+fn dc_is_reply_to_messenger_message(context: &Context, mime_parser: &MimeParser) -> i32 {
     /* function checks, if the message defined by mime_parser references a message send by us from Delta Chat.
     This is similar to is_reply_to_known_message() but
     - checks also if any of the referenced IDs are send by a messenger
