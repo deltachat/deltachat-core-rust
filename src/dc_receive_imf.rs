@@ -613,17 +613,16 @@ fn add_parts(
                     continue;
                 }
 
-                if let Some(ref msg) = part.msg {
-                    if mime_parser.location_kml.is_some()
-                        && icnt == 1
-                        && (msg == "-location-" || msg.is_empty())
-                    {
-                        *hidden = 1;
-                        if state == MessageState::InFresh {
-                            state = MessageState::InNoticed;
-                        }
+                if mime_parser.location_kml.is_some()
+                    && icnt == 1
+                    && (part.msg == "-location-" || part.msg.is_empty())
+                {
+                    *hidden = 1;
+                    if state == MessageState::InFresh {
+                        state = MessageState::InNoticed;
                     }
                 }
+
                 if part.typ == Viewtype::Text {
                     let msg_raw = part.msg_raw.as_ref().cloned().unwrap_or_default();
                     let subject = mime_parser
@@ -651,11 +650,11 @@ fn add_parts(
                     part.typ,
                     state,
                     msgrmsg,
-                    part.msg.as_ref().map_or("", String::as_str),
+                    &part.msg,
                     // txt_raw might contain invalid utf8
                     txt_raw.unwrap_or_default(),
                     part.param.to_string(),
-                    part.bytes,
+                    part.bytes as isize,
                     *hidden,
                     if save_mime_headers {
                         Some(String::from_utf8_lossy(imf_raw))
@@ -1512,9 +1511,9 @@ fn set_better_msg(mime_parser: &mut MimeParser, better_msg: impl AsRef<str>) {
     if msg.len() > 0 && !mime_parser.parts.is_empty() {
         let part = &mut mime_parser.parts[0];
         if part.typ == Viewtype::Text {
-            part.msg = Some(msg.to_string());
+            part.msg = msg.to_string();
         }
-    };
+    }
 }
 
 fn dc_is_reply_to_known_message(context: &Context, mime_parser: &MimeParser) -> libc::c_int {
