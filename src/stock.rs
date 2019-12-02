@@ -5,9 +5,13 @@ use std::borrow::Cow;
 use strum::EnumProperty;
 use strum_macros::EnumProperty;
 
+use crate::chat;
+use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
 use crate::contact::*;
 use crate::context::Context;
 use crate::error::Error;
+use crate::message::Message;
+use crate::stock::StockMessage::{DeviceMessagesHint, WelcomeMessage};
 
 /// Stock strings
 ///
@@ -116,7 +120,27 @@ pub enum StockMessage {
     DeviceMessages = 68,
     #[strum(props(fallback = "Saved messages"))]
     SavedMessages = 69,
+
+    #[strum(props(fallback = "These messages in this chat \
+                              are generated locally by the Delta Chat app.\n\n\
+                              Delta Chat does not have your e-mail-address."))]
+    DeviceMessagesHint = 70,
+
+    #[strum(props(fallback = "Welcome to Delta Chat! – \
+    Delta Chat looks and feels like other popular messenger apps, \
+    but does not involve centralized control, \
+    tracking or selling you, friends, colleagues or family out to large organizations.\n\n\
+    Technically, Delta Chat is an email application with a modern chat interface. \
+    Email in a new dress if you will 👻\n\n\
+    Use Delta Chat with anyone out of billions of people: just use their e-mail address. \
+    Recipients don't need to install Delta Chat, visit websites or sign up anywhere - \
+    however, of course, if they like, you may point them to 👉 https://get.delta.chat"))]
+    WelcomeMessage = 71,
 }
+
+/*
+"
+*/
 
 impl StockMessage {
     /// Default untranslated strings for stock messages.
@@ -263,6 +287,27 @@ impl Context {
                 self.stock_string_repl_str2(StockMessage::MsgActionByUser, action1, &displayname)
             }
         }
+    }
+
+    pub fn update_device_chats(&self) -> Result<(), Error> {
+        // create saved-messages chat;
+        // we do this only once, if the user has deleted the chat, he can recreate it manually.
+        if !self.sql.get_raw_config_bool(&self, "self-chat-added") {
+            self.sql
+                .set_raw_config_bool(&self, "self-chat-added", true)?;
+            chat::create_by_contact_id(&self, DC_CONTACT_ID_SELF)?;
+        }
+
+        // add welcome-messages. by the label, this is done only once,
+        // if the user has deleted the message or the chat, it is not added again.
+        let mut msg = Message::new(Viewtype::Text);
+        msg.text = Some(self.stock_str(DeviceMessagesHint).to_string());
+        chat::add_device_msg(&self, Some("core-about-device-chat"), Some(&mut msg))?;
+
+        let mut msg = Message::new(Viewtype::Text);
+        msg.text = Some(self.stock_str(WelcomeMessage).to_string());
+        chat::add_device_msg(&self, Some("core-welcome"), Some(&mut msg))?;
+        Ok(())
     }
 }
 
