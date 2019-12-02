@@ -168,7 +168,7 @@ pub fn JobConfigureImap(context: &Context) {
                         "https://autoconfig.{}/mail/config-v1.1.xml?emailaddress={}",
                         param_domain, param_addr_urlencoded
                     );
-                    param_autoconfig = moz_autoconfigure(context, &url, &param);
+                    param_autoconfig = moz_autoconfigure(context, &url, &param).ok();
                 }
                 true
             }
@@ -180,7 +180,7 @@ pub fn JobConfigureImap(context: &Context) {
                         "https://{}/.well-known/autoconfig/mail/config-v1.1.xml?emailaddress={}",
                         param_domain, param_addr_urlencoded
                     );
-                    param_autoconfig = moz_autoconfigure(context, &url, &param);
+                    param_autoconfig = moz_autoconfigure(context, &url, &param).ok();
                 }
                 true
             }
@@ -216,7 +216,7 @@ pub fn JobConfigureImap(context: &Context) {
                         "http://autoconfig.{}/mail/config-v1.1.xml?emailaddress={}",
                         param_domain, param_addr_urlencoded
                     );
-                    param_autoconfig = moz_autoconfigure(context, &url, &param);
+                    param_autoconfig = moz_autoconfigure(context, &url, &param).ok();
                 }
                 true
             }
@@ -228,7 +228,7 @@ pub fn JobConfigureImap(context: &Context) {
                         "http://{}/.well-known/autoconfig/mail/config-v1.1.xml",
                         param_domain
                     );
-                    param_autoconfig = moz_autoconfigure(context, &url, &param);
+                    param_autoconfig = moz_autoconfigure(context, &url, &param).ok();
                 }
                 true
             }
@@ -238,7 +238,7 @@ pub fn JobConfigureImap(context: &Context) {
                 if param_autoconfig.is_none() {
                     /* always SSL for Thunderbird's database */
                     let url = format!("https://autoconfig.thunderbird.net/v1.1/{}", param_domain);
-                    param_autoconfig = moz_autoconfigure(context, &url, &param);
+                    param_autoconfig = moz_autoconfigure(context, &url, &param).ok();
                 }
                 true
             }

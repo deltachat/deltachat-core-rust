@@ -26,9 +26,18 @@ pub enum Error {
 
     #[fail(display = "Bad or incomplete autoconfig")]
     IncompleteAutoconfig(LoginParam),
+
+    #[fail(display = "Failed to get URL {}", _0)]
+    ReadUrlError(#[cause] super::read_url::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+impl From<super::read_url::Error> for Error {
+    fn from(err: super::read_url::Error) -> Error {
+        Error::ReadUrlError(err)
+    }
+}
 
 #[derive(Debug)]
 struct MozAutoconfigure<'a> {
@@ -118,16 +127,16 @@ pub fn moz_autoconfigure(
     context: &Context,
     url: &str,
     param_in: &LoginParam,
-) -> Option<LoginParam> {
-    let xml_raw = read_url(context, url).ok()?;
+) -> Result<LoginParam> {
+    let xml_raw = read_url(context, url)?;
 
-    match parse_xml(&param_in.addr, &xml_raw) {
-        Err(err) => {
-            warn!(context, "{}", err);
-            None
-        }
-        Ok(lp) => Some(lp),
-    }
+    parse_xml(&param_in.addr, &xml_raw).map_err(|err| {
+        warn!(
+            context,
+            "Failed to parse Thunderbird autoconfiguration XML: {}", err
+        );
+        err.into()
+    })
 }
 
 fn moz_autoconfigure_text_cb<B: std::io::BufRead>(
