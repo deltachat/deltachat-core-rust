@@ -1,5 +1,9 @@
 //! Email accounts autoconfiguration process module
 
+mod auto_mozilla;
+mod auto_outlook;
+mod read_url;
+
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use crate::config::Config;
@@ -12,10 +16,8 @@ use crate::login_param::LoginParam;
 use crate::oauth2::*;
 use crate::param::Params;
 
-mod auto_outlook;
-use auto_outlook::outlk_autodiscover;
-mod auto_mozilla;
 use auto_mozilla::moz_autoconfigure;
+use auto_outlook::outlk_autodiscover;
 
 macro_rules! progress {
     ($context:tt, $progress:expr) => {
@@ -565,23 +567,6 @@ fn try_smtp_one_param(context: &Context, param: &LoginParam) -> Option<bool> {
 /*******************************************************************************
  * Configure a Context
  ******************************************************************************/
-
-pub fn read_autoconf_file(context: &Context, url: &str) -> Option<String> {
-    info!(context, "Testing {} ...", url);
-
-    match reqwest::Client::new()
-        .get(url)
-        .send()
-        .and_then(|mut res| res.text())
-    {
-        Ok(res) => Some(res),
-        Err(_err) => {
-            info!(context, "Can\'t read file.",);
-
-            None
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {
