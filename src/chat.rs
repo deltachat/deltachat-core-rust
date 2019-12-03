@@ -2206,6 +2206,7 @@ mod tests {
         let chat = Chat::load_from_db(&t.ctx, chat_id);
         assert!(chat.is_ok());
         let chat = chat.unwrap();
+        assert_eq!(chat.get_type(), Chattype::Single);
         assert!(chat.is_device_talk());
         assert!(!chat.is_self_talk());
         assert!(!chat.can_send());
