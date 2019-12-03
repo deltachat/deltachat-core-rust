@@ -607,8 +607,6 @@ pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<(), Error> {
     let mut msg = Message::load_from_db(context, msg_id)?;
     msg.try_calc_and_set_dimensions(context).ok();
 
-    let mut mimefactory = MimeFactory::from_msg(context, &msg)?;
-
     /* create message */
     let needs_encryption = msg.param.get_int(Param::GuaranteeE2ee).unwrap_or_default();
 
