@@ -36,9 +36,6 @@ type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Fail)]
 pub enum Error {
-    #[fail(display = "IMAP Could not obtain imap-session object.")]
-    NoSession,
-
     #[fail(display = "IMAP Connect without configured params")]
     ConnectWithoutConfigure,
 
@@ -63,15 +60,6 @@ pub enum Error {
     #[fail(display = "IMAP server does not have IDLE capability")]
     IdleAbilityMissing,
 
-    #[fail(display = "IMAP Connection Lost or no connection established")]
-    ConnectionLost,
-
-    #[fail(display = "IMAP close/expunge failed: {}", _0)]
-    CloseExpungeFailed(#[cause] async_imap::error::Error),
-
-    #[fail(display = "IMAP Folder name invalid: {:?}", _0)]
-    BadFolderName(String),
-
     #[fail(display = "IMAP operation attempted while it is torn down")]
     InTeardown,
 
@@ -80,6 +68,9 @@ pub enum Error {
 
     #[fail(display = "IMAP got error from elsewhere: {:?}", _0)]
     WrappedError(#[cause] crate::error::Error),
+
+    #[fail(display = "IMAP select folder error")]
+    SelectFolderError(#[cause] select_folder::Error),
 
     #[fail(display = "IMAP other error: {:?}", _0)]
     Other(String),
@@ -100,6 +91,12 @@ impl From<crate::error::Error> for Error {
 impl From<Error> for crate::error::Error {
     fn from(err: Error) -> crate::error::Error {
         crate::error::Error::Message(err.to_string())
+    }
+}
+
+impl From<select_folder::Error> for Error {
+    fn from(err: select_folder::Error) -> Error {
+        Error::SelectFolderError(err)
     }
 }
 
@@ -1080,15 +1077,15 @@ impl Imap {
             }
             match self.select_folder(context, Some(&folder)).await {
                 Ok(()) => None,
-                Err(Error::ConnectionLost) => {
+                Err(select_folder::Error::ConnectionLost) => {
                     warn!(context, "Lost imap connection");
                     Some(ImapActionResult::RetryLater)
                 }
-                Err(Error::NoSession) => {
+                Err(select_folder::Error::NoSession) => {
                     warn!(context, "no imap session");
                     Some(ImapActionResult::Failed)
                 }
-                Err(Error::BadFolderName(folder_name)) => {
+                Err(select_folder::Error::BadFolderName(folder_name)) => {
                     warn!(context, "invalid folder name: {:?}", folder_name);
                     Some(ImapActionResult::Failed)
                 }

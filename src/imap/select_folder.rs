@@ -1,5 +1,26 @@
-use super::{Result, Error, Imap};
+use super::Imap;
+
 use crate::context::Context;
+
+type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Debug, Fail)]
+pub enum Error {
+    #[fail(display = "IMAP Could not obtain imap-session object.")]
+    NoSession,
+
+    #[fail(display = "IMAP Connection Lost or no connection established")]
+    ConnectionLost,
+
+    #[fail(display = "IMAP Folder name invalid: {:?}", _0)]
+    BadFolderName(String),
+
+    #[fail(display = "IMAP close/expunge failed: {}", _0)]
+    CloseExpungeFailed(#[cause] async_imap::error::Error),
+
+    #[fail(display = "IMAP other error: {:?}", _0)]
+    Other(String),
+}
 
 impl Imap {
     /// select a folder, possibly update uid_validity and, if needed,
