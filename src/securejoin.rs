@@ -533,12 +533,10 @@ pub(crate) fn handle_securejoin_handshake(
                 if group_chat_id == 0 {
                     error!(context, "Chat {} not found.", &field_grpid);
                     return Ok(ret);
-                } else {
-                    if let Err(err) =
-                        chat::add_contact_to_chat_ex(context, group_chat_id, contact_id, true)
-                    {
-                        error!(context, "failed to add contact: {}", err);
-                    }
+                } else if let Err(err) =
+                    chat::add_contact_to_chat_ex(context, group_chat_id, contact_id, true)
+                {
+                    error!(context, "failed to add contact: {}", err);
                 }
             } else {
                 send_handshake_msg(context, contact_chat_id, "vc-contact-confirm", "", None, "");
@@ -643,7 +641,7 @@ pub(crate) fn handle_securejoin_handshake(
                 let (group_chat_id, _, _) = chat::get_chat_id_by_grpid(context, &field_grpid);
                 context.call_cb(Event::SecurejoinMemberAdded {
                     chat_id: group_chat_id,
-                    contact_id: contact_id,
+                    contact_id,
                 });
             } else {
                 warn!(context, "vg-member-added-received invalid.",);

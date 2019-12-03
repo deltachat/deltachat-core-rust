@@ -33,7 +33,7 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(DebugStub)]
+#[derive(Default, DebugStub)]
 pub struct Smtp {
     #[debug_stub(some = "SmtpTransport")]
     transport: Option<lettre::smtp::SmtpTransport>,
@@ -45,11 +45,7 @@ pub struct Smtp {
 impl Smtp {
     /// Create a new Smtp instances.
     pub fn new() -> Self {
-        Smtp {
-            transport: None,
-            transport_connected: false,
-            from: None,
-        }
+        Default::default()
     }
 
     /// Disconnect the SMTP transport and drop it entirely.

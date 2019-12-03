@@ -74,7 +74,7 @@ fn parse_xml(in_emailaddr: &str, xml_raw: &str) -> Result<LoginParam> {
     // Split address into local part and domain part.
     let p = in_emailaddr
         .find('@')
-        .ok_or(Error::InvalidEmailAddress(in_emailaddr.to_string()))?;
+        .ok_or_else(|| Error::InvalidEmailAddress(in_emailaddr.to_string()))?;
     let (in_emaillocalpart, in_emaildomain) = in_emailaddr.split_at(p);
     let in_emaildomain = &in_emaildomain[1..];
 
@@ -130,13 +130,14 @@ pub fn moz_autoconfigure(
 ) -> Result<LoginParam> {
     let xml_raw = read_url(context, url)?;
 
-    parse_xml(&param_in.addr, &xml_raw).map_err(|err| {
+    let res = parse_xml(&param_in.addr, &xml_raw);
+    if let Err(err) = &res {
         warn!(
             context,
             "Failed to parse Thunderbird autoconfiguration XML: {}", err
         );
-        err.into()
-    })
+    }
+    res
 }
 
 fn moz_autoconfigure_text_cb<B: std::io::BufRead>(

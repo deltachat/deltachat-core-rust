@@ -597,7 +597,7 @@ fn set_delivered(context: &Context, msg_id: MsgId) {
         .unwrap_or_default();
     context.call_cb(Event::MsgDelivered {
         chat_id: chat_id as u32,
-        msg_id: msg_id,
+        msg_id,
     });
 }
 

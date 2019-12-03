@@ -483,23 +483,23 @@ mod tests {
     #[test]
     fn test_suffix() {
         let t = dummy_context();
-        let foo = BlobObject::create(&t.ctx, "foo.txt", b"hello").unwrap();
-        assert_eq!(foo.suffix(), Some("txt"));
-        let bar = BlobObject::create(&t.ctx, "bar", b"world").unwrap();
-        assert_eq!(bar.suffix(), None);
+        let blob = BlobObject::create(&t.ctx, "foo.txt", b"hello").unwrap();
+        assert_eq!(blob.suffix(), Some("txt"));
+        let blob = BlobObject::create(&t.ctx, "bar", b"world").unwrap();
+        assert_eq!(blob.suffix(), None);
     }
 
     #[test]
     fn test_create_dup() {
         let t = dummy_context();
         BlobObject::create(&t.ctx, "foo.txt", b"hello").unwrap();
-        let foo = t.ctx.get_blobdir().join("foo.txt");
-        assert!(foo.exists());
+        let foo_path = t.ctx.get_blobdir().join("foo.txt");
+        assert!(foo_path.exists());
         BlobObject::create(&t.ctx, "foo.txt", b"world").unwrap();
         for dirent in fs::read_dir(t.ctx.get_blobdir()).unwrap() {
             let fname = dirent.unwrap().file_name();
-            if fname == foo.file_name().unwrap() {
-                assert_eq!(fs::read(&foo).unwrap(), b"hello");
+            if fname == foo_path.file_name().unwrap() {
+                assert_eq!(fs::read(&foo_path).unwrap(), b"hello");
             } else {
                 let name = fname.to_str().unwrap();
                 assert!(name.starts_with("foo"));
@@ -512,13 +512,13 @@ mod tests {
     fn test_double_ext_preserved() {
         let t = dummy_context();
         BlobObject::create(&t.ctx, "foo.tar.gz", b"hello").unwrap();
-        let foo = t.ctx.get_blobdir().join("foo.tar.gz");
-        assert!(foo.exists());
+        let foo_path = t.ctx.get_blobdir().join("foo.tar.gz");
+        assert!(foo_path.exists());
         BlobObject::create(&t.ctx, "foo.tar.gz", b"world").unwrap();
         for dirent in fs::read_dir(t.ctx.get_blobdir()).unwrap() {
             let fname = dirent.unwrap().file_name();
-            if fname == foo.file_name().unwrap() {
-                assert_eq!(fs::read(&foo).unwrap(), b"hello");
+            if fname == foo_path.file_name().unwrap() {
+                assert_eq!(fs::read(&foo_path).unwrap(), b"hello");
             } else {
                 let name = fname.to_str().unwrap();
                 println!("{}", name);

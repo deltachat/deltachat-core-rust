@@ -44,7 +44,7 @@ impl MsgId {
     /// Whether the message ID signifies a special message.
     ///
     /// This kind of message ID can not be used for real messages.
-    pub fn is_special(&self) -> bool {
+    pub fn is_special(self) -> bool {
         match self.0 {
             0..=DC_MSG_ID_LAST_SPECIAL => true,
             _ => false,
@@ -60,21 +60,21 @@ impl MsgId {
     ///
     /// When this is `true`, [MsgId::is_special] will also always be
     /// `true`.
-    pub fn is_unset(&self) -> bool {
+    pub fn is_unset(self) -> bool {
         self.0 == 0
     }
 
     /// Whether the message ID is the special marker1 marker.
     ///
     /// See the docs of the `dc_get_chat_msgs` C API for details.
-    pub fn is_marker1(&self) -> bool {
+    pub fn is_marker1(self) -> bool {
         self.0 == DC_MSG_ID_MARKER1
     }
 
     /// Whether the message ID is the special day marker.
     ///
     /// See the docs of the `dc_get_chat_msgs` C API for details.
-    pub fn is_daymarker(&self) -> bool {
+    pub fn is_daymarker(self) -> bool {
         self.0 == DC_MSG_ID_DAYMARKER
     }
 
@@ -82,7 +82,7 @@ impl MsgId {
     ///
     /// Avoid using this, eventually types should be cleaned up enough
     /// that it is no longer necessary.
-    pub fn to_u32(&self) -> u32 {
+    pub fn to_u32(self) -> u32 {
         self.0
     }
 }
@@ -687,7 +687,7 @@ impl Lot {
         self.text2 = Some(get_summarytext_by_raw(
             msg.type_0,
             msg.text.as_ref(),
-            &mut msg.param,
+            &msg.param,
             SUMMARY_CHARACTERS,
             context,
         ));
@@ -1218,9 +1218,10 @@ pub fn mdn_from_ext(
                 } // else wait for more receipts
             }
         }
-        return match read_by_all {
-            true => Some((chat_id, msg_id)),
-            false => None,
+        return if read_by_all {
+            Some((chat_id, msg_id))
+        } else {
+            None
         };
     }
     None
@@ -1368,50 +1369,32 @@ mod tests {
         some_file.set(Param::File, "foo.bar");
 
         assert_eq!(
-            get_summarytext_by_raw(
-                Viewtype::Text,
-                some_text.as_ref(),
-                &mut Params::new(),
-                50,
-                &ctx
-            ),
+            get_summarytext_by_raw(Viewtype::Text, some_text.as_ref(), &Params::new(), 50, &ctx),
             "bla bla" // for simple text, the type is not added to the summary
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::Image, no_text.as_ref(), &mut some_file, 50, &ctx,),
+            get_summarytext_by_raw(Viewtype::Image, no_text.as_ref(), &some_file, 50, &ctx,),
             "Image" // file names are not added for images
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::Video, no_text.as_ref(), &mut some_file, 50, &ctx,),
+            get_summarytext_by_raw(Viewtype::Video, no_text.as_ref(), &some_file, 50, &ctx,),
             "Video" // file names are not added for videos
         );
 
         assert_eq!(
-            get_summarytext_by_raw(Viewtype::Gif, no_text.as_ref(), &mut some_file, 50, &ctx,),
+            get_summarytext_by_raw(Viewtype::Gif, no_text.as_ref(), &some_file, 50, &ctx,),
             "GIF" // file names are not added for GIFs
         );
 
         assert_eq!(
-            get_summarytext_by_raw(
-                Viewtype::Sticker,
-                no_text.as_ref(),
-                &mut some_file,
-                50,
-                &ctx,
-            ),
+            get_summarytext_by_raw(Viewtype::Sticker, no_text.as_ref(), &some_file, 50, &ctx,),
             "Sticker" // file names are not added for stickers
         );
 
         assert_eq!(
-            get_summarytext_by_raw(
-                Viewtype::Voice,
-                empty_text.as_ref(),
-                &mut some_file,
-                50,
-                &ctx,
-            ),
+            get_summarytext_by_raw(Viewtype::Voice, empty_text.as_ref(), &some_file, 50, &ctx,),
             "Voice message" // file names are not added for voice messages, empty text is skipped
         );
 
@@ -1421,13 +1404,7 @@ mod tests {
         );
 
         assert_eq!(
-            get_summarytext_by_raw(
-                Viewtype::Voice,
-                some_text.as_ref(),
-                &mut some_file,
-                50,
-                &ctx
-            ),
+            get_summarytext_by_raw(Viewtype::Voice, some_text.as_ref(), &some_file, 50, &ctx),
             "Voice message \u{2013} bla bla" // `\u{2013}` explicitly checks for "EN DASH"
         );
 
@@ -1437,24 +1414,12 @@ mod tests {
         );
 
         assert_eq!(
-            get_summarytext_by_raw(
-                Viewtype::Audio,
-                empty_text.as_ref(),
-                &mut some_file,
-                50,
-                &ctx,
-            ),
+            get_summarytext_by_raw(Viewtype::Audio, empty_text.as_ref(), &some_file, 50, &ctx,),
             "Audio \u{2013} foo.bar" // file name is added for audio, empty text is not added
         );
 
         assert_eq!(
-            get_summarytext_by_raw(
-                Viewtype::Audio,
-                some_text.as_ref(),
-                &mut some_file,
-                50,
-                &ctx
-            ),
+            get_summarytext_by_raw(Viewtype::Audio, some_text.as_ref(), &some_file, 50, &ctx),
             "Audio \u{2013} foo.bar \u{2013} bla bla" // file name and text added for audio
         );
 

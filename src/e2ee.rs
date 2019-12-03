@@ -213,7 +213,7 @@ fn load_or_generate_self_public_key(context: &Context, self_addr: impl AsRef<str
     );
     match pgp::create_keypair(&self_addr) {
         Some((public_key, private_key)) => {
-            match dc_key_save_self_keypair(
+            if dc_key_save_self_keypair(
                 context,
                 &public_key,
                 &private_key,
@@ -221,15 +221,14 @@ fn load_or_generate_self_public_key(context: &Context, self_addr: impl AsRef<str
                 true,
                 &context.sql,
             ) {
-                true => {
-                    info!(
-                        context,
-                        "Keypair generated in {:.3}s.",
-                        start.elapsed().as_secs()
-                    );
-                    Ok(public_key)
-                }
-                false => Err(format_err!("Failed to save keypair")),
+                info!(
+                    context,
+                    "Keypair generated in {:.3}s.",
+                    start.elapsed().as_secs()
+                );
+                Ok(public_key)
+            } else {
+                Err(format_err!("Failed to save keypair"))
             }
         }
         None => Err(format_err!("Failed to generate keypair")),

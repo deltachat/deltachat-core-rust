@@ -778,9 +778,9 @@ mod tests {
 
     #[test]
     fn test_dc_create_incoming_rfc724_mid() {
-        let res = dc_create_incoming_rfc724_mid(123, 45, &vec![6, 7]);
+        let res = dc_create_incoming_rfc724_mid(123, 45, &[6, 7]);
         assert_eq!(res, Some("123-45-7@stub".into()));
-        let res = dc_create_incoming_rfc724_mid(123, 45, &vec![]);
+        let res = dc_create_incoming_rfc724_mid(123, 45, &[]);
         assert_eq!(res, Some("123-45-0@stub".into()));
     }
 
@@ -859,15 +859,15 @@ mod tests {
     #[test]
     fn test_listflags_has() {
         let listflags: u32 = 0x1101;
-        assert!(listflags_has(listflags, 0x1) == true);
-        assert!(listflags_has(listflags, 0x10) == false);
-        assert!(listflags_has(listflags, 0x100) == true);
-        assert!(listflags_has(listflags, 0x1000) == true);
+        assert!(listflags_has(listflags, 0x1));
+        assert!(!listflags_has(listflags, 0x10));
+        assert!(listflags_has(listflags, 0x100));
+        assert!(listflags_has(listflags, 0x1000));
         let listflags: u32 = (DC_GCL_ADD_SELF | DC_GCL_VERIFIED_ONLY).try_into().unwrap();
-        assert!(listflags_has(listflags, DC_GCL_VERIFIED_ONLY) == true);
-        assert!(listflags_has(listflags, DC_GCL_ADD_SELF) == true);
+        assert!(listflags_has(listflags, DC_GCL_VERIFIED_ONLY));
+        assert!(listflags_has(listflags, DC_GCL_ADD_SELF));
         let listflags: u32 = DC_GCL_VERIFIED_ONLY.try_into().unwrap();
-        assert!(listflags_has(listflags, DC_GCL_ADD_SELF) == false);
+        assert!(!listflags_has(listflags, DC_GCL_ADD_SELF));
     }
 
     #[test]

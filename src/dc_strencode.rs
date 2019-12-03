@@ -63,12 +63,6 @@ pub fn dc_needs_ext_header(to_check: impl AsRef<str>) -> bool {
     }
 
     to_check.chars().any(|c| {
-        !(c.is_ascii_alphanumeric()
-            || c == '-'
-            || c == '_'
-            || c == '_'
-            || c == '.'
-            || c == '~'
-            || c == '%')
+        !c.is_ascii_alphanumeric() && c != '-' && c != '_' && c != '.' && c != '~' && c != '%'
     })
 }

@@ -192,7 +192,6 @@ impl Key {
                 res.push(c);
                 res
             })
-            .to_string()
     }
 
     pub fn to_armored_string(

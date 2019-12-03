@@ -172,7 +172,7 @@ pub fn dc_receive_imf(
             // client that relies in the SMTP server to generate one.
             // true eg. for the Webmailer used in all-inkl-KAS
             match dc_create_incoming_rfc724_mid(sent_timestamp, from_id, &to_ids) {
-                Some(x) => x.to_string(),
+                Some(x) => x,
                 None => {
                     error!(context, "can not create incoming rfc724_mid");
                     cleanup(
@@ -407,14 +407,12 @@ fn add_parts(
             // try to create a group
             // (groups appear automatically only if the _sender_ is known, see core issue #54)
 
-            let create_blocked = if 0 != test_normal_chat_id
-                && test_normal_chat_id_blocked == Blocked::Not
-                || incoming_origin.is_start_new_chat()
-            {
-                Blocked::Not
-            } else {
-                Blocked::Deaddrop
-            };
+            let create_blocked =
+                if 0 != test_normal_chat_id && test_normal_chat_id_blocked == Blocked::Not {
+                    Blocked::Not
+                } else {
+                    Blocked::Deaddrop
+                };
 
             create_or_lookup_group(
                 context,
@@ -442,7 +440,7 @@ fn add_parts(
 
         if *chat_id == 0 {
             // try to create a normal chat
-            let create_blocked = if incoming_origin.is_start_new_chat() || *from_id == *to_id {
+            let create_blocked = if *from_id == *to_id {
                 Blocked::Not
             } else {
                 Blocked::Deaddrop
@@ -545,20 +543,18 @@ fn add_parts(
                 }
             }
         }
-        if *chat_id == 0 {
-            if to_ids.is_empty() && to_self {
-                // from_id==to_id==DC_CONTACT_ID_SELF - this is a self-sent messages,
-                // maybe an Autocrypt Setup Messag
-                let (id, bl) =
-                    chat::create_or_lookup_by_contact_id(context, DC_CONTACT_ID_SELF, Blocked::Not)
-                        .unwrap_or_default();
-                *chat_id = id;
-                chat_id_blocked = bl;
+        if *chat_id == 0 && to_ids.is_empty() && to_self {
+            // from_id==to_id==DC_CONTACT_ID_SELF - this is a self-sent messages,
+            // maybe an Autocrypt Setup Messag
+            let (id, bl) =
+                chat::create_or_lookup_by_contact_id(context, DC_CONTACT_ID_SELF, Blocked::Not)
+                    .unwrap_or_default();
+            *chat_id = id;
+            chat_id_blocked = bl;
 
-                if 0 != *chat_id && Blocked::Not != chat_id_blocked {
-                    chat::unblock(context, *chat_id);
-                    chat_id_blocked = Blocked::Not;
-                }
+            if 0 != *chat_id && Blocked::Not != chat_id_blocked {
+                chat::unblock(context, *chat_id);
+                chat_id_blocked = Blocked::Not;
             }
         }
         if *chat_id == 0 {
@@ -629,7 +625,7 @@ fn add_parts(
                         .subject
                         .as_ref()
                         .map(|s| s.to_string())
-                        .unwrap_or("".into());
+                        .unwrap_or_else(|| "".into());
                     txt_raw = Some(format!("{}\n\n{}", subject, msg_raw));
                 }
                 if mime_parser.is_system_message != SystemMessage::Unknown {
@@ -705,7 +701,7 @@ fn save_locations(
     hidden: i32,
 ) {
     if chat_id <= DC_CHAT_ID_LAST_SPECIAL {
-        return ();
+        return;
     }
     let mut location_id_written = false;
     let mut send_event = false;
@@ -714,11 +710,12 @@ fn save_locations(
         let locations = &mime_parser.message_kml.as_ref().unwrap().locations;
         let newest_location_id =
             location::save(context, chat_id, from_id, locations, true).unwrap_or_default();
-        if 0 != newest_location_id && 0 == hidden {
-            if location::set_msg_location_id(context, insert_msg_id, newest_location_id).is_ok() {
-                location_id_written = true;
-                send_event = true;
-            }
+        if 0 != newest_location_id
+            && 0 == hidden
+            && location::set_msg_location_id(context, insert_msg_id, newest_location_id).is_ok()
+        {
+            location_id_written = true;
+            send_event = true;
         }
     }
 
@@ -772,10 +769,8 @@ fn calc_timestamps(
             params![chat_id as i32, from_id as i32, *sort_timestamp],
         );
         if let Some(last_msg_time) = last_msg_time {
-            if last_msg_time > 0 {
-                if *sort_timestamp <= last_msg_time {
-                    *sort_timestamp = last_msg_time + 1;
-                }
+            if last_msg_time > 0 && *sort_timestamp <= last_msg_time {
+                *sort_timestamp = last_msg_time + 1;
             }
         }
     }
@@ -916,11 +911,11 @@ fn create_or_lookup_group(
             )
         } else {
             let field = mime_parser.lookup_field("Chat-Group-Name-Changed");
-            if field.is_some() {
+            if let Some(field) = field {
                 X_MrGrpNameChanged = 1;
                 better_msg = context.stock_system_msg(
                     StockMessage::MsgGrpName,
-                    &field.unwrap(),
+                    field,
                     if let Some(ref name) = grpname {
                         name
                     } else {
@@ -930,23 +925,22 @@ fn create_or_lookup_group(
                 );
 
                 mime_parser.is_system_message = SystemMessage::GroupNameChanged;
-            } else {
-                if let Some(optional_field) = mime_parser.lookup_field("Chat-Group-Image").cloned()
-                {
-                    // fld_value is a pointer somewhere into mime_parser, must not be freed
-                    X_MrGrpImageChanged = optional_field;
-                    mime_parser.is_system_message = SystemMessage::GroupImageChanged;
-                    better_msg = context.stock_system_msg(
-                        if X_MrGrpImageChanged == "0" {
-                            StockMessage::MsgGrpImgDeleted
-                        } else {
-                            StockMessage::MsgGrpImgChanged
-                        },
-                        "",
-                        "",
-                        from_id as u32,
-                    )
-                }
+            } else if let Some(optional_field) =
+                mime_parser.lookup_field("Chat-Group-Image").cloned()
+            {
+                // fld_value is a pointer somewhere into mime_parser, must not be freed
+                X_MrGrpImageChanged = optional_field;
+                mime_parser.is_system_message = SystemMessage::GroupImageChanged;
+                better_msg = context.stock_system_msg(
+                    if X_MrGrpImageChanged == "0" {
+                        StockMessage::MsgGrpImgDeleted
+                    } else {
+                        StockMessage::MsgGrpImgChanged
+                    },
+                    "",
+                    "",
+                    from_id as u32,
+                )
             }
         }
     }
@@ -954,15 +948,11 @@ fn create_or_lookup_group(
 
     // check, if we have a chat with this group ID
     let (mut chat_id, chat_id_verified, _blocked) = chat::get_chat_id_by_grpid(context, &grpid);
-    if chat_id != 0 {
-        if chat_id_verified {
-            if let Err(err) =
-                check_verified_properties(context, mime_parser, from_id as u32, to_ids)
-            {
-                warn!(context, "verification problem: {}", err);
-                let s = format!("{}. See 'Info' for more details", err);
-                mime_parser.repl_msg_by_error(s);
-            }
+    if chat_id != 0 && chat_id_verified {
+        if let Err(err) = check_verified_properties(context, mime_parser, from_id as u32, to_ids) {
+            warn!(context, "verification problem: {}", err);
+            let s = format!("{}. See 'Info' for more details", err);
+            mime_parser.repl_msg_by_error(s);
         }
     }
 
@@ -1115,13 +1105,12 @@ fn create_or_lookup_group(
         if skip.is_none() || !addr_cmp(&self_addr, skip.unwrap()) {
             chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF);
         }
-        if from_id > DC_CHAT_ID_LAST_SPECIAL {
-            if !Contact::addr_equals_contact(context, &self_addr, from_id as u32)
-                && (skip.is_none()
-                    || !Contact::addr_equals_contact(context, skip.unwrap(), from_id as u32))
-            {
-                chat::add_to_chat_contacts_table(context, chat_id, from_id as u32);
-            }
+        if from_id > DC_CHAT_ID_LAST_SPECIAL
+            && !Contact::addr_equals_contact(context, &self_addr, from_id as u32)
+            && (skip.is_none()
+                || !Contact::addr_equals_contact(context, skip.unwrap(), from_id as u32))
+        {
+            chat::add_to_chat_contacts_table(context, chat_id, from_id as u32);
         }
         for &to_id in to_ids.iter() {
             if !Contact::addr_equals_contact(context, &self_addr, to_id)
@@ -1160,7 +1149,7 @@ fn create_or_lookup_group(
     }
 
     cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
-    return Ok(());
+    Ok(())
 }
 
 /// Handle groups for received messages
@@ -1352,7 +1341,7 @@ fn hex_hash(s: impl AsRef<str>) -> String {
 #[allow(non_snake_case)]
 fn search_chat_ids_by_contact_ids(
     context: &Context,
-    unsorted_contact_ids: &Vec<u32>,
+    unsorted_contact_ids: &[u32],
 ) -> Result<Vec<u32>> {
     /* searches chat_id's by the given contact IDs, may return zero, one or more chat_id's */
     let mut contact_ids = Vec::with_capacity(23);
@@ -1508,7 +1497,7 @@ fn check_verified_properties(
 
 fn set_better_msg(mime_parser: &mut MimeParser, better_msg: impl AsRef<str>) {
     let msg = better_msg.as_ref();
-    if msg.len() > 0 && !mime_parser.parts.is_empty() {
+    if !msg.is_empty() && !mime_parser.parts.is_empty() {
         let part = &mut mime_parser.parts[0];
         if part.typ == Viewtype::Text {
             part.msg = msg.to_string();
@@ -1535,12 +1524,12 @@ fn dc_is_reply_to_known_message(context: &Context, mime_parser: &MimeParser) -> 
     0
 }
 
-fn is_known_rfc724_mid_in_list(context: &Context, mid_list: &String) -> bool {
+fn is_known_rfc724_mid_in_list(context: &Context, mid_list: &str) -> bool {
     if mid_list.is_empty() {
         return false;
     }
 
-    if let Ok(ids) = mailparse::addrparse(mid_list.as_str()) {
+    if let Ok(ids) = mailparse::addrparse(mid_list) {
         for id in ids.iter() {
             if is_known_rfc724_mid(context, id) {
                 return true;
@@ -1588,8 +1577,8 @@ fn dc_is_reply_to_messenger_message(context: &Context, mime_parser: &MimeParser)
     0
 }
 
-fn is_msgrmsg_rfc724_mid_in_list(context: &Context, mid_list: &String) -> bool {
-    if let Ok(ids) = mailparse::addrparse(mid_list.as_str()) {
+fn is_msgrmsg_rfc724_mid_in_list(context: &Context, mid_list: &str) -> bool {
+    if let Ok(ids) = mailparse::addrparse(mid_list) {
         for id in ids.iter() {
             if is_msgrmsg_rfc724_mid(context, id) {
                 return true;
@@ -1661,7 +1650,7 @@ fn dc_add_or_lookup_contacts_by_address_list(
 fn add_or_lookup_contact_by_addr(
     context: &Context,
     display_name: &Option<String>,
-    addr: &String,
+    addr: &str,
     origin: Origin,
     ids: &mut Vec<u32>,
     check_self: &mut bool,

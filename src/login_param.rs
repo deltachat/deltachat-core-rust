@@ -104,7 +104,7 @@ impl LoginParam {
         let server_flags = sql.get_raw_config_int(context, key).unwrap_or_default();
 
         LoginParam {
-            addr: addr.to_string(),
+            addr,
             mail_server,
             mail_user,
             mail_pw,
@@ -198,6 +198,7 @@ impl fmt::Display for LoginParam {
     }
 }
 
+#[allow(clippy::ptr_arg)]
 fn unset_empty(s: &String) -> Cow<String> {
     if s.is_empty() {
         Cow::Owned("unset".to_string())
@@ -206,44 +207,45 @@ fn unset_empty(s: &String) -> Cow<String> {
     }
 }
 
+#[allow(clippy::useless_let_if_seq)]
 fn get_readable_flags(flags: i32) -> String {
     let mut res = String::new();
     for bit in 0..31 {
         if 0 != flags & 1 << bit {
-            let mut flag_added = 0;
+            let mut flag_added = false;
             if 1 << bit == 0x2 {
                 res += "OAUTH2 ";
-                flag_added = 1;
+                flag_added = true;
             }
             if 1 << bit == 0x4 {
                 res += "AUTH_NORMAL ";
-                flag_added = 1;
+                flag_added = true;
             }
             if 1 << bit == 0x100 {
                 res += "IMAP_STARTTLS ";
-                flag_added = 1;
+                flag_added = true;
             }
             if 1 << bit == 0x200 {
                 res += "IMAP_SSL ";
-                flag_added = 1;
+                flag_added = true;
             }
             if 1 << bit == 0x400 {
                 res += "IMAP_PLAIN ";
-                flag_added = 1;
+                flag_added = true;
             }
             if 1 << bit == 0x10000 {
                 res += "SMTP_STARTTLS ";
-                flag_added = 1
+                flag_added = true;
             }
             if 1 << bit == 0x20000 {
                 res += "SMTP_SSL ";
-                flag_added = 1
+                flag_added = true;
             }
             if 1 << bit == 0x40000 {
                 res += "SMTP_PLAIN ";
-                flag_added = 1
+                flag_added = true;
             }
-            if 0 == flag_added {
+            if flag_added {
                 res += &format!("{:#0x}", 1 << bit);
             }
         }

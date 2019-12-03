@@ -49,7 +49,7 @@ impl Simplify {
     /**
      * Simplify Plain Text
      */
-    #[allow(non_snake_case)]
+    #[allow(non_snake_case, clippy::mut_range_bound)]
     fn simplify_plain_text(&mut self, buf_terminated: &str, is_msgrmsg: bool) -> String {
         /* This function ...
         ... removes all text after the line `-- ` (footer mark)

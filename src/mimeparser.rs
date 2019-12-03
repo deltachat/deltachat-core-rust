@@ -148,11 +148,11 @@ impl<'a> MimeParser<'a> {
             self.subject = Some(field.clone());
         }
 
-        if let Some(_) = self.lookup_field("Chat-Version") {
+        if self.lookup_field("Chat-Version").is_some() {
             self.is_send_by_messenger = true
         }
 
-        if let Some(_) = self.lookup_field("Autocrypt-Setup-Message") {
+        if self.lookup_field("Autocrypt-Setup-Message").is_some() {
             let has_setup_file = self.parts.iter().any(|p| {
                 p.mimetype.is_some() && p.mimetype.as_ref().unwrap().as_ref() == MIME_AC_SETUP_FILE
             });
@@ -188,14 +188,12 @@ impl<'a> MimeParser<'a> {
                 self.is_system_message = SystemMessage::LocationStreamingEnabled;
             }
         }
-        if let Some(_) = self.lookup_field("Chat-Group-Image") {
-            if !self.parts.is_empty() {
-                let textpart = &self.parts[0];
-                if textpart.typ == Viewtype::Text && self.parts.len() >= 2 {
-                    let imgpart = &mut self.parts[1];
-                    if imgpart.typ == Viewtype::Image {
-                        imgpart.is_meta = true;
-                    }
+        if self.lookup_field("Chat-Group-Image").is_some() && !self.parts.is_empty() {
+            let textpart = &self.parts[0];
+            if textpart.typ == Viewtype::Text && self.parts.len() >= 2 {
+                let imgpart = &mut self.parts[1];
+                if imgpart.typ == Viewtype::Image {
+                    imgpart.is_meta = true;
                 }
             }
         }
@@ -264,11 +262,11 @@ impl<'a> MimeParser<'a> {
             }
         }
         if self.parts.len() == 1 {
-            if self.parts[0].typ == Viewtype::Audio {
-                if let Some(_) = self.lookup_field("Chat-Voice-Message") {
-                    let part_mut = &mut self.parts[0];
-                    part_mut.typ = Viewtype::Voice;
-                }
+            if self.parts[0].typ == Viewtype::Audio
+                && self.lookup_field("Chat-Voice-Message").is_some()
+            {
+                let part_mut = &mut self.parts[0];
+                part_mut.typ = Viewtype::Voice;
             }
             if self.parts[0].typ == Viewtype::Image {
                 if let Some(value) = self.lookup_field("Chat-Content") {
@@ -601,7 +599,7 @@ impl<'a> MimeParser<'a> {
 
                 // if there is still no filename, guess one
                 if desired_filename.is_empty() {
-                    if let Some(subtype) = mail.ctype.mimetype.split('/').skip(1).next() {
+                    if let Some(subtype) = mail.ctype.mimetype.split('/').nth(1) {
                         desired_filename = format!("file.{}", subtype,);
                     } else {
                         return Ok(false);
@@ -626,7 +624,7 @@ impl<'a> MimeParser<'a> {
         &mut self,
         msg_type: Viewtype,
         mime_type: Mime,
-        raw_mime: &String,
+        raw_mime: &str,
         decoded_data: &[u8],
         filename: &str,
     ) {
@@ -685,7 +683,7 @@ impl<'a> MimeParser<'a> {
 
     fn do_add_single_part(&mut self, mut part: Part) {
         if self.encrypted {
-            if self.signatures.len() > 0 {
+            if !self.signatures.is_empty() {
                 part.param.set_int(Param::GuaranteeE2ee, 1);
             } else {
                 // XXX if the message was encrypted but not signed
@@ -698,17 +696,15 @@ impl<'a> MimeParser<'a> {
     }
 
     pub fn is_mailinglist_message(&self) -> bool {
-        if let Some(_) = self.lookup_field("List-Id") {
+        if self.lookup_field("List-Id").is_some() {
             return true;
         }
 
         if let Some(precedence) = self.lookup_field("Precedence") {
-            if precedence == "list" || precedence == "bulk" {
-                return true;
-            }
+            precedence == "list" || precedence == "bulk"
+        } else {
+            false
         }
-
-        false
     }
 
     pub fn sender_equals_recipient(&self) -> bool {
@@ -965,7 +961,7 @@ fn mailmime_is_attachment_disposition(mail: &mailparse::ParsedMail<'_>) -> bool 
 }
 
 // returned addresses are normalized.
-fn get_recipients<'a, S: AsRef<str>, T: Iterator<Item = (S, S)>>(headers: T) -> HashSet<String> {
+fn get_recipients<S: AsRef<str>, T: Iterator<Item = (S, S)>>(headers: T) -> HashSet<String> {
     let mut recipients: HashSet<String> = Default::default();
 
     for (hkey, hvalue) in headers {

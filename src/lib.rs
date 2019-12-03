@@ -1,8 +1,16 @@
-#![deny(clippy::correctness, missing_debug_implementations)]
-// TODO: make all of these errors, such that clippy actually passes.
-#![warn(clippy::all, clippy::perf, clippy::not_unsafe_ptr_arg_deref)]
-// This is nice, but for now just annoying.
-#![allow(clippy::unreadable_literal)]
+#![deny(clippy::correctness, missing_debug_implementations, clippy::all)]
+#![warn(
+    clippy::type_complexity,
+    clippy::cognitive_complexity,
+    clippy::too_many_arguments,
+    clippy::block_in_if_condition_stmt,
+    clippy::large_enum_variant
+)]
+#![allow(
+    clippy::unreadable_literal,
+    clippy::needless_range_loop,
+    clippy::match_bool
+)]
 #![feature(ptr_wrapping_offset_from)]
 
 #[macro_use]

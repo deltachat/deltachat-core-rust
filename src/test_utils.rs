@@ -34,7 +34,7 @@ pub fn test_context(callback: Option<Box<ContextCallback>>) -> TestContext {
         None => Box::new(|_, _| 0),
     };
     let ctx = Context::new(cb, "FakeOs".into(), dbfile).unwrap();
-    TestContext { ctx: ctx, dir: dir }
+    TestContext { ctx, dir }
 }
 
 /// Return a dummy [TestContext].
