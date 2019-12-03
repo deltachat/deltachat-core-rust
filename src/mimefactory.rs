@@ -475,11 +475,6 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
 
         // Add gossip headers
         if do_gossip {
-            info!(
-                self.context,
-                "gossiping headers for {} peerstates",
-                peerstates.len()
-            );
             for peerstate in peerstates.iter().filter_map(|(state, _)| state.as_ref()) {
                 if peerstate.peek_key(min_verified).is_some() {
                     if let Some(header) = peerstate.render_gossip_header(min_verified) {
