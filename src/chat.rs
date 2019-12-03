@@ -1842,6 +1842,7 @@ pub fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: u32) -> Resul
 
     unarchive(context, chat_id)?;
     if let Ok(mut chat) = Chat::load_from_db(context, chat_id) {
+        ensure!(chat.can_send(), "cannot send to chat #{}", chat_id);
         curr_timestamp = dc_create_smeared_timestamps(context, msg_ids.len());
         let ids = context.sql.query_map(
             format!(
@@ -2270,6 +2271,22 @@ mod tests {
         delete(&t.ctx, chats.get_chat_id(0)).ok();
         add_device_msg(&t.ctx, Some("some-label"), Some(&mut msg)).ok();
         assert_eq!(chatlist_len(&t.ctx, 0), 0)
+    }
+
+    #[test]
+    fn test_device_chat_cannot_sent() {
+        let t = test_context(Some(Box::new(logging_cb)));
+        t.ctx.update_device_chats().unwrap();
+        let (device_chat_id, _) =
+            create_or_lookup_by_contact_id(&t.ctx, DC_CONTACT_ID_DEVICE, Blocked::Not).unwrap();
+
+        let mut msg = Message::new(Viewtype::Text);
+        msg.text = Some("message text".to_string());
+        assert!(send_msg(&t.ctx, device_chat_id, &mut msg).is_err());
+        assert!(prepare_msg(&t.ctx, device_chat_id, &mut msg).is_err());
+
+        let msg_id = add_device_msg(&t.ctx, None, Some(&mut msg)).unwrap();
+        assert!(forward_msgs(&t.ctx, &[msg_id], device_chat_id).is_err());
     }
 
     fn chatlist_len(ctx: &Context, listflags: usize) -> usize {
