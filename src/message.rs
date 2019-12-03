@@ -7,12 +7,12 @@ use crate::chat::{self, Chat};
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::*;
-use crate::dc_mimeparser::SystemMessage;
 use crate::dc_tools::*;
 use crate::error::Error;
 use crate::events::Event;
 use crate::job::*;
 use crate::lot::{Lot, LotState, Meaning};
+use crate::mimeparser::SystemMessage;
 use crate::param::*;
 use crate::pgp::*;
 use crate::sql;
@@ -457,8 +457,8 @@ impl Message {
             return ret;
         };
 
-        let contact = if self.from_id != DC_CONTACT_ID_SELF as libc::c_uint
-            && ((*chat).typ == Chattype::Group || (*chat).typ == Chattype::VerifiedGroup)
+        let contact = if self.from_id != DC_CONTACT_ID_SELF as u32
+            && (chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup)
         {
             Contact::get_by_id(context, self.from_id).ok()
         } else {
@@ -470,11 +470,11 @@ impl Message {
         ret
     }
 
-    pub fn get_summarytext(&mut self, context: &Context, approx_characters: usize) -> String {
+    pub fn get_summarytext(&self, context: &Context, approx_characters: usize) -> String {
         get_summarytext_by_raw(
             self.type_0,
             self.text.as_ref(),
-            &mut self.param,
+            &self.param,
             approx_characters,
             context,
         )
@@ -502,8 +502,8 @@ impl Message {
 
     pub fn is_info(&self) -> bool {
         let cmd = self.param.get_cmd();
-        self.from_id == DC_CONTACT_ID_INFO as libc::c_uint
-            || self.to_id == DC_CONTACT_ID_INFO as libc::c_uint
+        self.from_id == DC_CONTACT_ID_INFO as u32
+            || self.to_id == DC_CONTACT_ID_INFO as u32
             || cmd != SystemMessage::Unknown && cmd != SystemMessage::AutocryptSetupMessage
     }
 
@@ -730,7 +730,7 @@ pub fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
     ret += &format!(" by {}", name);
     ret += "\n";
 
-    if msg.from_id != DC_CONTACT_ID_SELF as libc::c_uint {
+    if msg.from_id != DC_CONTACT_ID_SELF as u32 {
         let s = dc_timestamp_to_str(if 0 != msg.timestamp_rcvd {
             msg.timestamp_rcvd
         } else {
@@ -1013,7 +1013,7 @@ pub fn star_msgs(context: &Context, msg_ids: &[MsgId], star: bool) -> bool {
 pub fn get_summarytext_by_raw(
     viewtype: Viewtype,
     text: Option<impl AsRef<str>>,
-    param: &mut Params,
+    param: &Params,
     approx_characters: usize,
     context: &Context,
 ) -> String {
@@ -1137,7 +1137,7 @@ pub fn mdn_from_ext(
         return None;
     }
 
-    if let Ok((msg_id, chat_id, chat_type, msg_state)) = context.sql.query_row(
+    let res = context.sql.query_row(
         concat!(
             "SELECT",
             "    m.id AS msg_id,",
@@ -1157,7 +1157,12 @@ pub fn mdn_from_ext(
                 row.get::<_, MessageState>("state")?,
             ))
         },
-    ) {
+    );
+    if let Err(ref err) = res {
+        info!(context, "Failed to select MDN {:?}", err);
+    }
+
+    if let Ok((msg_id, chat_id, chat_type, msg_state)) = res {
         let mut read_by_all = false;
 
         // if already marked as MDNS_RCVD msgstate_can_fail() returns false.
@@ -1222,7 +1227,7 @@ pub fn mdn_from_ext(
 }
 
 /// The number of messages assigned to real chat (!=deaddrop, !=trash)
-pub fn get_real_msg_cnt(context: &Context) -> libc::c_int {
+pub fn get_real_msg_cnt(context: &Context) -> i32 {
     match context.sql.query_row(
         "SELECT COUNT(*) \
          FROM msgs m  LEFT JOIN chats c ON c.id=m.chat_id \
@@ -1238,7 +1243,7 @@ pub fn get_real_msg_cnt(context: &Context) -> libc::c_int {
     }
 }
 
-pub fn get_deaddrop_msg_cnt(context: &Context) -> libc::size_t {
+pub fn get_deaddrop_msg_cnt(context: &Context) -> usize {
     match context.sql.query_row(
         "SELECT COUNT(*) \
          FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id \
@@ -1246,7 +1251,7 @@ pub fn get_deaddrop_msg_cnt(context: &Context) -> libc::size_t {
         rusqlite::NO_PARAMS,
         |row| row.get::<_, isize>(0),
     ) {
-        Ok(res) => res as libc::size_t,
+        Ok(res) => res as usize,
         Err(err) => {
             error!(context, "dc_get_deaddrop_msg_cnt() failed. {}", err);
             0
@@ -1254,7 +1259,7 @@ pub fn get_deaddrop_msg_cnt(context: &Context) -> libc::size_t {
     }
 }
 
-pub fn rfc724_mid_cnt(context: &Context, rfc724_mid: &str) -> libc::c_int {
+pub fn rfc724_mid_cnt(context: &Context, rfc724_mid: &str) -> i32 {
     // check the number of messages with the same rfc724_mid
     match context.sql.query_row(
         "SELECT COUNT(*) FROM msgs WHERE rfc724_mid=?;",

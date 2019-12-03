@@ -2,7 +2,7 @@ extern crate deltachat_provider_database;
 
 use std::ptr;
 
-use deltachat::dc_tools::{to_string_lossy, StrExt};
+use crate::string::{to_string_lossy, StrExt};
 use deltachat_provider_database::StatusState;
 
 #[no_mangle]

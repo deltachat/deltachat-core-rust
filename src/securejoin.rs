@@ -8,13 +8,13 @@ use crate::config::*;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
-use crate::dc_mimeparser::*;
 use crate::e2ee::*;
 use crate::error::Error;
 use crate::events::Event;
 use crate::key::*;
 use crate::lot::LotState;
 use crate::message::Message;
+use crate::mimeparser::*;
 use crate::param::*;
 use crate::peerstate::*;
 use crate::qr::check_qr;
@@ -337,7 +337,7 @@ impl Default for HandshakeMessageStatus {
     }
 }
 
-/* library private: secure-join */
+/// Handle incoming secure-join handshake.
 pub(crate) fn handle_securejoin_handshake(
     context: &Context,
     mimeparser: &MimeParser,
@@ -349,22 +349,22 @@ pub(crate) fn handle_securejoin_handshake(
         contact_id > DC_CONTACT_ID_LAST_SPECIAL,
         "handle_securejoin_handshake(): called with special contact id"
     );
-    let step = match mimeparser.lookup_optional_field("Secure-Join") {
-        Some(s) => s,
-        None => {
-            bail!("This message is not a Secure-Join message");
-        }
-    };
+    let step = mimeparser
+        .lookup_field("Secure-Join")
+        .ok_or_else(|| format_err!("This message is not a Secure-Join message"))?;
+
     info!(
         context,
         ">>>>>>>>>>>>>>>>>>>>>>>>> secure-join message \'{}\' received", step,
     );
+
     let (contact_chat_id, contact_chat_id_blocked) =
         chat::create_or_lookup_by_contact_id(context, contact_id, Blocked::Not).unwrap_or_default();
 
     if contact_chat_id_blocked != Blocked::Not {
         chat::unblock(context, contact_chat_id);
     }
+
     let join_vg = step.starts_with("vg-");
     let mut ret = HandshakeMessageStatus::default();
 
@@ -378,7 +378,7 @@ pub(crate) fn handle_securejoin_handshake(
             // it just ensures, we have Bobs key now. If we do _not_ have the key because eg. MitM has removed it,
             // send_message() will fail with the error "End-to-end-encryption unavailable unexpectedly.", so, there is no additional check needed here.
             // verify that the `Secure-Join-Invitenumber:`-header matches invitenumber written to the QR code
-            let invitenumber = match mimeparser.lookup_optional_field("Secure-Join-Invitenumber") {
+            let invitenumber = match mimeparser.lookup_field("Secure-Join-Invitenumber") {
                 Some(n) => n,
                 None => {
                     warn!(context, "Secure-join denied (invitenumber missing).",);
@@ -467,7 +467,7 @@ pub(crate) fn handle_securejoin_handshake(
             ====  Step 6 in "Out-of-band verified groups" protocol  ====
             ============================================================ */
             // verify that Secure-Join-Fingerprint:-header matches the fingerprint of Bob
-            let fingerprint = match mimeparser.lookup_optional_field("Secure-Join-Fingerprint") {
+            let fingerprint = match mimeparser.lookup_field("Secure-Join-Fingerprint") {
                 Some(fp) => fp,
                 None => {
                     could_not_establish_secure_connection(
@@ -496,7 +496,7 @@ pub(crate) fn handle_securejoin_handshake(
             }
             info!(context, "Fingerprint verified.",);
             // verify that the `Secure-Join-Auth:`-header matches the secret written to the QR code
-            let auth_0 = match mimeparser.lookup_optional_field("Secure-Join-Auth") {
+            let auth_0 = match mimeparser.lookup_field("Secure-Join-Auth") {
                 Some(auth) => auth,
                 None => {
                     could_not_establish_secure_connection(
@@ -526,9 +526,10 @@ pub(crate) fn handle_securejoin_handshake(
             inviter_progress!(context, contact_id, 600);
             if join_vg {
                 let field_grpid = mimeparser
-                    .lookup_optional_field("Secure-Join-Group")
-                    .unwrap_or_default();
-                let (group_chat_id, _, _) = chat::get_chat_id_by_grpid(context, &field_grpid);
+                    .lookup_field("Secure-Join-Group")
+                    .map(|s| s.as_str())
+                    .unwrap_or_else(|| "");
+                let (group_chat_id, _, _) = chat::get_chat_id_by_grpid(context, field_grpid);
                 if group_chat_id == 0 {
                     error!(context, "Chat {} not found.", &field_grpid);
                     return Ok(ret);
@@ -601,8 +602,9 @@ pub(crate) fn handle_securejoin_handshake(
             Contact::scaleup_origin_by_id(context, contact_id, Origin::SecurejoinJoined);
             emit_event!(context, Event::ContactsChanged(None));
             let cg_member_added = mimeparser
-                .lookup_optional_field("Chat-Group-Member-Added")
-                .unwrap_or_default();
+                .lookup_field("Chat-Group-Member-Added")
+                .map(|s| s.as_str())
+                .unwrap_or_else(|| "");
             if join_vg && !addr_equals_self(context, cg_member_added) {
                 info!(context, "Message belongs to a different handshake (scaled up contact anyway to allow creation of group).");
                 return Ok(ret);
@@ -635,8 +637,9 @@ pub(crate) fn handle_securejoin_handshake(
                 inviter_progress!(context, contact_id, 800);
                 inviter_progress!(context, contact_id, 1000);
                 let field_grpid = mimeparser
-                    .lookup_optional_field("Secure-Join-Group")
-                    .unwrap_or_default();
+                    .lookup_field("Secure-Join-Group")
+                    .map(|s| s.as_str())
+                    .unwrap_or_else(|| "");
                 let (group_chat_id, _, _) = chat::get_chat_id_by_grpid(context, &field_grpid);
                 context.call_cb(Event::SecurejoinMemberAdded {
                     chat_id: group_chat_id,
@@ -651,9 +654,11 @@ pub(crate) fn handle_securejoin_handshake(
             warn!(context, "invalid step: {}", step);
         }
     }
+
     if ret.hide_this_msg {
         ret.delete_this_msg = true;
     }
+
     Ok(ret)
 }
 

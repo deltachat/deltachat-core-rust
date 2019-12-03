@@ -3,52 +3,20 @@
 
 use core::cmp::{max, min};
 use std::borrow::Cow;
-use std::ffi::{CStr, CString};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::SystemTime;
-use std::{fmt, fs, ptr};
+use std::{fmt, fs};
 
 use chrono::{Local, TimeZone};
-use libc::{memcpy, strlen};
-use mmime::clist::*;
-use mmime::mailimf::types::*;
 use rand::{thread_rng, Rng};
 
 use crate::context::Context;
 use crate::error::Error;
 use crate::events::Event;
 
-pub(crate) fn dc_exactly_one_bit_set(v: libc::c_int) -> bool {
+pub(crate) fn dc_exactly_one_bit_set(v: i32) -> bool {
     0 != v && 0 == v & (v - 1)
-}
-
-/// Duplicates a string
-///
-/// returns an empty string if NULL is given, never returns NULL (exits on errors)
-///
-/// # Examples
-///
-/// ```
-/// use deltachat::dc_tools::{dc_strdup, to_string_lossy};
-/// unsafe {
-///     let str_a = b"foobar\x00" as *const u8 as *const libc::c_char;
-///     let str_a_copy = dc_strdup(str_a);
-///     assert_eq!(to_string_lossy(str_a_copy), "foobar");
-///     assert_ne!(str_a, str_a_copy);
-/// }
-/// ```
-pub unsafe fn dc_strdup(s: *const libc::c_char) -> *mut libc::c_char {
-    let ret: *mut libc::c_char;
-    if !s.is_null() {
-        ret = strdup(s);
-        assert!(!ret.is_null());
-    } else {
-        ret = libc::calloc(1, 1) as *mut libc::c_char;
-        assert!(!ret.is_null());
-    }
-
-    ret
 }
 
 /// Shortens a string to a specified length and adds "..." or "[...]" to the end of
@@ -74,36 +42,12 @@ pub(crate) fn dc_truncate(buf: &str, approx_chars: usize, do_unwrap: bool) -> Co
     }
 }
 
-pub(crate) fn dc_str_from_clist(list: *const clist, delimiter: &str) -> String {
-    let mut res = String::new();
-
-    if !list.is_null() {
-        for rfc724_mid in unsafe { (*list).into_iter() } {
-            if !res.is_empty() {
-                res += delimiter;
-            }
-            res += &to_string_lossy(rfc724_mid as *const libc::c_char);
-        }
-    }
-    res
-}
-
-pub(crate) fn dc_str_to_clist(str: &str, delimiter: &str) -> *mut clist {
-    unsafe {
-        let list: *mut clist = clist_new();
-        for cur in str.split(&delimiter) {
-            clist_insert_after(list, (*list).last, cur.strdup().cast());
-        }
-        list
-    }
-}
-
-/* the colors must fulfill some criterions as:
-- contrast to black and to white
-- work as a text-color
-- being noticeable on a typical map
-- harmonize together while being different enough
-(therefore, we cannot just use random rgb colors :) */
+/// the colors must fulfill some criterions as:
+/// - contrast to black and to white
+/// - work as a text-color
+/// - being noticeable on a typical map
+/// - harmonize together while being different enough
+/// (therefore, we cannot just use random rgb colors :)
 const COLORS: [u32; 16] = [
     0xe56555, 0xf28c48, 0x8e85ee, 0x76c84d, 0x5bb6cc, 0x549cdd, 0xd25c99, 0xb37800, 0xf23030,
     0x39b249, 0xbb243b, 0x964078, 0x66874f, 0x308ab9, 0x127ed0, 0xbe450c,
@@ -120,33 +64,6 @@ pub(crate) fn dc_str_to_color(s: impl AsRef<str>) -> u32 {
     let color_index = checksum % COLORS.len();
 
     COLORS[color_index]
-}
-
-/* date/time tools */
-/* the result is UTC or DC_INVALID_TIMESTAMP */
-pub(crate) fn dc_timestamp_from_date(date_time: *mut mailimf_date_time) -> i64 {
-    assert!(!date_time.is_null());
-    let dt = unsafe { *date_time };
-
-    let sec = dt.dt_sec;
-    let min = dt.dt_min;
-    let hour = dt.dt_hour;
-    let day = dt.dt_day;
-    let month = dt.dt_month;
-    let year = dt.dt_year;
-
-    let ts = chrono::NaiveDateTime::new(
-        chrono::NaiveDate::from_ymd(year, month as u32, day as u32),
-        chrono::NaiveTime::from_hms(hour as u32, min as u32, sec as u32),
-    );
-
-    let (zone_hour, zone_min) = if dt.dt_zone >= 0 {
-        (dt.dt_zone / 100, dt.dt_zone % 100)
-    } else {
-        (-(-dt.dt_zone / 100), -(-dt.dt_zone % 100))
-    };
-
-    ts.timestamp() - (zone_hour * 3600 + zone_min * 60) as i64
 }
 
 /* ******************************************************************************
@@ -316,22 +233,6 @@ pub(crate) fn dc_extract_grpid_from_rfc724_mid(mid: &str) -> Option<&str> {
     }
 
     None
-}
-
-pub(crate) fn dc_extract_grpid_from_rfc724_mid_list(list: *const clist) -> *mut libc::c_char {
-    if !list.is_null() {
-        unsafe {
-            for cur in (*list).into_iter() {
-                let mid = to_string_lossy(cur as *const libc::c_char);
-
-                if let Some(grpid) = dc_extract_grpid_from_rfc724_mid(&mid) {
-                    return grpid.strdup();
-                }
-            }
-        }
-    }
-
-    ptr::null_mut()
 }
 
 pub(crate) fn dc_ensure_no_slash_safe(path: &str) -> &str {
@@ -601,212 +502,6 @@ pub(crate) fn dc_get_next_backup_path(
     bail!("could not create backup file, disk full?");
 }
 
-/// Error type for the [OsStrExt] trait
-#[derive(Debug, Fail, PartialEq)]
-pub enum CStringError {
-    /// The string contains an interior null byte
-    #[fail(display = "String contains an interior null byte")]
-    InteriorNullByte,
-    /// The string is not valid Unicode
-    #[fail(display = "String is not valid unicode")]
-    NotUnicode,
-}
-
-/// Extra convenience methods on [std::ffi::OsStr] to work with `*libc::c_char`.
-///
-/// The primary function of this trait is to more easily convert
-/// [OsStr], [OsString] or [Path] into pointers to C strings.  This always
-/// allocates a new string since it is very common for the source
-/// string not to have the required terminal null byte.
-///
-/// It is implemented for `AsRef<std::ffi::OsStr>>` trait, which
-/// allows any type which implements this trait to transparently use
-/// this.  This is how the conversion for [Path] works.
-///
-/// [OsStr]: std::ffi::OsStr
-/// [OsString]: std::ffi::OsString
-/// [Path]: std::path::Path
-///
-/// # Example
-///
-/// ```
-/// use deltachat::dc_tools::{dc_strdup, OsStrExt};
-/// let path = std::path::Path::new("/some/path");
-/// let path_c = path.to_c_string().unwrap();
-/// unsafe {
-///     let mut c_ptr: *mut libc::c_char = dc_strdup(path_c.as_ptr());
-/// }
-/// ```
-pub trait OsStrExt {
-    /// Convert a  [std::ffi::OsStr] to an [std::ffi::CString]
-    ///
-    /// This is useful to convert e.g. a [std::path::Path] to
-    /// [*libc::c_char] by using
-    /// [Path::as_os_str()](std::path::Path::as_os_str) and
-    /// [CStr::as_ptr()](std::ffi::CStr::as_ptr).
-    ///
-    /// This returns [CString] and not [&CStr] because not all [OsStr]
-    /// slices end with a null byte, particularly those coming from
-    /// [Path] do not have a null byte and having to handle this as
-    /// the caller would defeat the point of this function.
-    ///
-    /// On Windows this requires that the [OsStr] contains valid
-    /// unicode, which should normally be the case for a [Path].
-    ///
-    /// [CString]: std::ffi::CString
-    /// [CStr]: std::ffi::CStr
-    /// [OsStr]: std::ffi::OsStr
-    /// [Path]: std::path::Path
-    ///
-    /// # Errors
-    ///
-    /// Since a C `*char` is terminated by a NULL byte this conversion
-    /// will fail, when the [OsStr] has an interior null byte.  The
-    /// function will return
-    /// `[Err]([CStringError::InteriorNullByte])`.  When converting
-    /// from a [Path] it should be safe to
-    /// [`.unwrap()`](std::result::Result::unwrap) this anyway since a
-    /// [Path] should not contain interior null bytes.
-    ///
-    /// On windows when the string contains invalid Unicode
-    /// `[Err]([CStringError::NotUnicode])` is returned.
-    fn to_c_string(&self) -> Result<CString, CStringError>;
-}
-
-impl<T: AsRef<std::ffi::OsStr>> OsStrExt for T {
-    #[cfg(not(target_os = "windows"))]
-    fn to_c_string(&self) -> Result<CString, CStringError> {
-        use std::os::unix::ffi::OsStrExt;
-        CString::new(self.as_ref().as_bytes()).map_err(|err| match err {
-            std::ffi::NulError { .. } => CStringError::InteriorNullByte,
-        })
-    }
-
-    #[cfg(target_os = "windows")]
-    fn to_c_string(&self) -> Result<CString, CStringError> {
-        os_str_to_c_string_unicode(&self)
-    }
-}
-
-// Implementation for os_str_to_c_string on windows.
-#[allow(dead_code)]
-fn os_str_to_c_string_unicode(
-    os_str: &dyn AsRef<std::ffi::OsStr>,
-) -> Result<CString, CStringError> {
-    match os_str.as_ref().to_str() {
-        Some(val) => CString::new(val.as_bytes()).map_err(|err| match err {
-            std::ffi::NulError { .. } => CStringError::InteriorNullByte,
-        }),
-        None => Err(CStringError::NotUnicode),
-    }
-}
-
-/// Convenience methods/associated functions for working with [CString]
-///
-/// This is helps transitioning from unsafe code.
-pub trait CStringExt {
-    /// Create a new [CString], yolo style
-    ///
-    /// This unwrap the result, panicking when there are embedded NULL
-    /// bytes.
-    fn yolo<T: Into<Vec<u8>>>(t: T) -> CString {
-        CString::new(t).expect("String contains null byte, can not be CString")
-    }
-}
-
-impl CStringExt for CString {}
-
-/// Convenience methods to make transitioning from raw C strings easier.
-///
-/// To interact with (legacy) C APIs we often need to convert from
-/// Rust strings to raw C strings.  This can be clumsy to do correctly
-/// and the compiler sometimes allows it in an unsafe way.  These
-/// methods make it more succinct and help you get it right.
-pub trait StrExt {
-    /// Allocate a new raw C `*char` version of this string.
-    ///
-    /// This allocates a new raw C string which must be freed using
-    /// `free`.  It takes care of some common pitfalls with using
-    /// [CString.as_ptr].
-    ///
-    /// [CString.as_ptr]: std::ffi::CString.as_ptr
-    ///
-    /// # Panics
-    ///
-    /// This function will panic when the original string contains an
-    /// interior null byte as this can not be represented in raw C
-    /// strings.
-    unsafe fn strdup(&self) -> *mut libc::c_char;
-}
-
-impl<T: AsRef<str>> StrExt for T {
-    unsafe fn strdup(&self) -> *mut libc::c_char {
-        let tmp = CString::yolo(self.as_ref());
-        dc_strdup(tmp.as_ptr())
-    }
-}
-
-pub fn to_string_lossy(s: *const libc::c_char) -> String {
-    if s.is_null() {
-        return "".into();
-    }
-
-    let cstr = unsafe { CStr::from_ptr(s) };
-
-    cstr.to_string_lossy().to_string()
-}
-
-pub fn to_opt_string_lossy(s: *const libc::c_char) -> Option<String> {
-    if s.is_null() {
-        return None;
-    }
-
-    Some(to_string_lossy(s))
-}
-
-/// Convert a C `*char` pointer to a [std::path::Path] slice.
-///
-/// This converts a `*libc::c_char` pointer to a [Path] slice.  This
-/// essentially has to convert the pointer to [std::ffi::OsStr] to do
-/// so and thus is the inverse of [OsStrExt::to_c_string].  Just like
-/// [OsStrExt::to_c_string] requires valid Unicode on Windows, this
-/// requires that the pointer contains valid UTF-8 on Windows.
-///
-/// Because this returns a reference the [Path] silce can not outlive
-/// the original pointer.
-///
-/// [Path]: std::path::Path
-#[cfg(not(target_os = "windows"))]
-pub fn as_path<'a>(s: *const libc::c_char) -> &'a std::path::Path {
-    assert!(!s.is_null(), "cannot be used on null pointers");
-    use std::os::unix::ffi::OsStrExt;
-    unsafe {
-        let c_str = std::ffi::CStr::from_ptr(s).to_bytes();
-        let os_str = std::ffi::OsStr::from_bytes(c_str);
-        std::path::Path::new(os_str)
-    }
-}
-
-// as_path() implementation for windows, documented above.
-#[cfg(target_os = "windows")]
-pub fn as_path<'a>(s: *const libc::c_char) -> &'a std::path::Path {
-    as_path_unicode(s)
-}
-
-// Implementation for as_path() on Windows.
-//
-// Having this as a separate function means it can be tested on unix
-// too.
-#[allow(dead_code)]
-fn as_path_unicode<'a>(s: *const libc::c_char) -> &'a std::path::Path {
-    assert!(!s.is_null(), "cannot be used on null pointers");
-
-    let cstr = unsafe { CStr::from_ptr(s) };
-    let str = cstr.to_str().unwrap_or_else(|err| panic!("{}", err));
-
-    std::path::Path::new(str)
-}
-
 pub(crate) fn time() -> i64 {
     SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
@@ -884,70 +579,13 @@ pub(crate) fn listflags_has(listflags: u32, bitindex: usize) -> bool {
     (listflags & bitindex) == bitindex
 }
 
-pub(crate) unsafe fn strdup(s: *const libc::c_char) -> *mut libc::c_char {
-    if s.is_null() {
-        return std::ptr::null_mut();
-    }
-
-    let slen = strlen(s);
-    let result = libc::malloc(slen + 1);
-    if result.is_null() {
-        return std::ptr::null_mut();
-    }
-
-    memcpy(result, s as *const _, slen + 1);
-    result as *mut _
-}
-
-pub(crate) unsafe fn strcasecmp(s1: *const libc::c_char, s2: *const libc::c_char) -> libc::c_int {
-    let s1 = std::ffi::CStr::from_ptr(s1)
-        .to_string_lossy()
-        .to_lowercase();
-    let s2 = std::ffi::CStr::from_ptr(s2)
-        .to_string_lossy()
-        .to_lowercase();
-    if s1 == s2 {
-        0
-    } else {
-        1
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use libc::{free, strcmp};
     use std::convert::TryInto;
-    use std::ffi::CStr;
 
     use crate::constants::*;
     use crate::test_utils::*;
-
-    #[test]
-    fn test_dc_strdup() {
-        unsafe {
-            let str_a = b"foobar\x00" as *const u8 as *const libc::c_char;
-            let str_a_copy = dc_strdup(str_a);
-
-            // Value of str_a_copy should equal foobar
-            assert_eq!(
-                CStr::from_ptr(str_a_copy),
-                CString::new("foobar").unwrap().as_c_str()
-            );
-            // Address of str_a should be different from str_a_copy
-            assert_ne!(str_a, str_a_copy);
-
-            let str_a = std::ptr::null() as *const libc::c_char;
-            let str_a_copy = dc_strdup(str_a);
-            // Value of str_a_copy should equal ""
-            assert_eq!(
-                CStr::from_ptr(str_a_copy),
-                CString::new("").unwrap().as_c_str()
-            );
-            assert_ne!(str_a, str_a_copy);
-        }
-    }
 
     #[test]
     fn test_rust_ftoa() {
@@ -1009,44 +647,6 @@ mod tests {
         );
     }
 
-    /* calls free() for each item content */
-    unsafe fn clist_free_content(haystack: *const clist) {
-        let mut iter = (*haystack).first;
-
-        while !iter.is_null() {
-            free((*iter).data);
-            (*iter).data = ptr::null_mut();
-            iter = if !iter.is_null() {
-                (*iter).next
-            } else {
-                ptr::null_mut()
-            }
-        }
-    }
-
-    #[test]
-    fn test_dc_str_to_clist_1() {
-        unsafe {
-            let list = dc_str_to_clist("", " ");
-            assert_eq!((*list).count, 1);
-            clist_free_content(list);
-            clist_free(list);
-        }
-    }
-
-    #[test]
-    fn test_dc_str_to_clist_4() {
-        unsafe {
-            let list: *mut clist = dc_str_to_clist("foo bar test", " ");
-            assert_eq!((*list).count, 3);
-            let str = dc_str_from_clist(list, " ");
-            assert_eq!(str, "foo bar test");
-
-            clist_free_content(list);
-            clist_free(list);
-        }
-    }
-
     #[test]
     fn test_dc_create_id() {
         let buf = dc_create_id();
@@ -1074,113 +674,6 @@ mod tests {
     }
 
     #[test]
-    fn test_os_str_to_c_string_cwd() {
-        let some_dir = std::env::current_dir().unwrap();
-        some_dir.as_os_str().to_c_string().unwrap();
-    }
-
-    #[test]
-    fn test_os_str_to_c_string_unicode() {
-        let some_str = String::from("/some/valid/utf8");
-        let some_dir = std::path::Path::new(&some_str);
-        assert_eq!(
-            some_dir.as_os_str().to_c_string().unwrap(),
-            CString::new("/some/valid/utf8").unwrap()
-        );
-    }
-
-    #[test]
-    fn test_os_str_to_c_string_nul() {
-        let some_str = std::ffi::OsString::from("foo\x00bar");
-        assert_eq!(
-            some_str.to_c_string().err().unwrap(),
-            CStringError::InteriorNullByte
-        )
-    }
-
-    #[test]
-    fn test_path_to_c_string_cwd() {
-        let some_dir = std::env::current_dir().unwrap();
-        some_dir.to_c_string().unwrap();
-    }
-
-    #[test]
-    fn test_path_to_c_string_unicode() {
-        let some_str = String::from("/some/valid/utf8");
-        let some_dir = std::path::Path::new(&some_str);
-        assert_eq!(
-            some_dir.as_os_str().to_c_string().unwrap(),
-            CString::new("/some/valid/utf8").unwrap()
-        );
-    }
-
-    #[test]
-    fn test_os_str_to_c_string_unicode_fn() {
-        let some_str = std::ffi::OsString::from("foo");
-        assert_eq!(
-            os_str_to_c_string_unicode(&some_str).unwrap(),
-            CString::new("foo").unwrap()
-        );
-    }
-
-    #[test]
-    fn test_path_to_c_string_unicode_fn() {
-        let some_str = String::from("/some/path");
-        let some_path = std::path::Path::new(&some_str);
-        assert_eq!(
-            os_str_to_c_string_unicode(&some_path).unwrap(),
-            CString::new("/some/path").unwrap()
-        );
-    }
-
-    #[test]
-    fn test_os_str_to_c_string_unicode_fn_nul() {
-        let some_str = std::ffi::OsString::from("fooz\x00bar");
-        assert_eq!(
-            os_str_to_c_string_unicode(&some_str).err().unwrap(),
-            CStringError::InteriorNullByte
-        );
-    }
-
-    #[test]
-    fn test_as_path() {
-        let some_path = CString::new("/some/path").unwrap();
-        let ptr = some_path.as_ptr();
-        assert_eq!(as_path(ptr), std::ffi::OsString::from("/some/path"))
-    }
-
-    #[test]
-    fn test_as_path_unicode_fn() {
-        let some_path = CString::new("/some/path").unwrap();
-        let ptr = some_path.as_ptr();
-        assert_eq!(as_path_unicode(ptr), std::ffi::OsString::from("/some/path"));
-    }
-
-    #[test]
-    fn test_cstring_yolo() {
-        assert_eq!(CString::new("hello").unwrap(), CString::yolo("hello"));
-    }
-
-    #[test]
-    fn test_strdup_str() {
-        unsafe {
-            let s = "hello".strdup();
-            let cmp = strcmp(s, b"hello\x00" as *const u8 as *const libc::c_char);
-            free(s as *mut libc::c_void);
-            assert_eq!(cmp, 0);
-        }
-    }
-
-    #[test]
-    fn test_strdup_string() {
-        unsafe {
-            let s = String::from("hello").strdup();
-            let cmp = strcmp(s, b"hello\x00" as *const u8 as *const libc::c_char);
-            free(s as *mut libc::c_void);
-            assert_eq!(cmp, 0);
-        }
-    }
-
     #[test]
     fn test_dc_extract_grpid_from_rfc724_mid() {
         // Should return None if we pass invalid mid

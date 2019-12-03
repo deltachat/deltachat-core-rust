@@ -19,12 +19,11 @@ use deltachat::peerstate::*;
 use deltachat::qr::*;
 use deltachat::sql;
 use deltachat::Event;
-use libc::free;
 
 /// Reset database tables. This function is called from Core cmdline.
 /// Argument is a bitmask, executing single or multiple actions in one call.
 /// e.g. bitmask 7 triggers actions definded with bits 1, 2 and 4.
-pub unsafe fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
+pub fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
     info!(context, "Resetting tables ({})...", bits);
     if 0 != bits & 1 {
         sql::execute(context, &context.sql, "DELETE FROM jobs;", params![]).unwrap();
@@ -95,7 +94,7 @@ pub unsafe fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
 fn dc_poke_eml_file(context: &Context, filename: impl AsRef<Path>) -> Result<(), Error> {
     let data = dc_read_file(context, filename)?;
 
-    unsafe { dc_receive_imf(context, &data, "import", 0, 0) };
+    dc_receive_imf(context, &data, "import", 0, 0);
     Ok(())
 }
 
@@ -107,18 +106,19 @@ fn dc_poke_eml_file(context: &Context, filename: impl AsRef<Path>) -> Result<(),
 /// @param context The context as created by dc_context_new().
 /// @param spec The file or directory to import. NULL for the last command.
 /// @return 1=success, 0=error.
-fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int {
+fn poke_spec(context: &Context, spec: Option<&str>) -> libc::c_int {
     if !context.sql.is_open() {
         error!(context, "Import: Database not opened.");
         return 0;
     }
 
-    let real_spec: String;
     let mut read_cnt = 0;
 
+    let real_spec: String;
+
     /* if `spec` is given, remember it for later usage; if it is not given, try to use the last one */
-    if !spec.is_null() {
-        real_spec = to_string_lossy(spec);
+    if let Some(spec) = spec {
+        real_spec = spec.to_string();
         context
             .sql
             .set_raw_config(context, "import_spec", Some(&real_spec))
@@ -174,7 +174,7 @@ fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int {
     1
 }
 
-unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
+fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
     let contact = Contact::get_by_id(context, msg.get_from_id()).expect("invalid contact");
     let contact_name = contact.get_name();
     let contact_id = contact.get_id();
@@ -219,7 +219,7 @@ unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
     );
 }
 
-unsafe fn log_msglist(context: &Context, msglist: &Vec<MsgId>) -> Result<(), Error> {
+fn log_msglist(context: &Context, msglist: &Vec<MsgId>) -> Result<(), Error> {
     let mut lines_out = 0;
     for &msg_id in msglist {
         if msg_id.is_daymarker() {
@@ -250,7 +250,7 @@ unsafe fn log_msglist(context: &Context, msglist: &Vec<MsgId>) -> Result<(), Err
     Ok(())
 }
 
-unsafe fn log_contactlist(context: &Context, contacts: &Vec<u32>) {
+fn log_contactlist(context: &Context, contacts: &Vec<u32>) {
     let mut contacts = contacts.clone();
     if !contacts.contains(&1) {
         contacts.push(1);
@@ -302,7 +302,7 @@ fn chat_prefix(chat: &Chat) -> &'static str {
     chat.typ.into()
 }
 
-pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
+pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
     let chat_id = *context.cmdline_sel_chat_id.read().unwrap();
     let mut sel_chat = if chat_id > 0 {
         Chat::load_from_db(context, chat_id).ok()
@@ -313,11 +313,6 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
     let mut args = line.splitn(3, ' ');
     let arg0 = args.next().unwrap_or_default();
     let arg1 = args.next().unwrap_or_default();
-    let arg1_c = if arg1.is_empty() {
-        std::ptr::null()
-    } else {
-        arg1.strdup() as *const _
-    };
     let arg2 = args.next().unwrap_or_default();
 
     let blobdir = context.get_blobdir();
@@ -467,7 +462,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             );
         }
         "poke" => {
-            ensure!(0 != poke_spec(context, arg1_c), "Poke failed");
+            ensure!(0 != poke_spec(context, Some(arg1)), "Poke failed");
         }
         "reset" => {
             ensure!(!arg1.is_empty(), "Argument <bits> missing: 1=jobs, 2=peerstates, 4=private keys, 8=rest but server config");
@@ -1007,8 +1002,6 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         "" => (),
         _ => bail!("Unknown command: \"{}\" type ? for help.", arg0),
     }
-
-    free(arg1_c as *mut _);
 
     Ok(())
 }

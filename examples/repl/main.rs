@@ -403,7 +403,7 @@ fn main_0(args: Vec<String>) -> Result<(), failure::Error> {
                 // TODO: ignore "set mail_pw"
                 rl.add_history_entry(line.as_str());
                 let ctx = ctx.clone();
-                match unsafe { handle_cmd(line.trim(), ctx) } {
+                match handle_cmd(line.trim(), ctx) {
                     Ok(ExitResult::Continue) => {}
                     Ok(ExitResult::Exit) => break,
                     Err(err) => println!("Error: {}", err),
@@ -434,7 +434,7 @@ enum ExitResult {
     Exit,
 }
 
-unsafe fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult, failure::Error> {
+fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult, failure::Error> {
     let mut args = line.splitn(2, ' ');
     let arg0 = args.next().unwrap_or_default();
     let arg1 = args.next().unwrap_or_default();

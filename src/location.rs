@@ -8,12 +8,12 @@ use crate::chat;
 use crate::config::Config;
 use crate::constants::*;
 use crate::context::*;
-use crate::dc_mimeparser::SystemMessage;
 use crate::dc_tools::*;
 use crate::error::Error;
 use crate::events::Event;
 use crate::job::*;
 use crate::message::{Message, MsgId};
+use crate::mimeparser::SystemMessage;
 use crate::param::*;
 use crate::sql;
 use crate::stock::StockMessage;
@@ -229,7 +229,7 @@ pub fn send_locations_to_chat(context: &Context, chat_id: u32, seconds: i64) {
                 job_add(
                     context,
                     Action::MaybeSendLocationsEnded,
-                    chat_id as libc::c_int,
+                    chat_id as i32,
                     Params::new(),
                     seconds + 1,
                 );

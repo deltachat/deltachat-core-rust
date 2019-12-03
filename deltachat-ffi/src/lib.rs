@@ -25,12 +25,12 @@ use num_traits::{FromPrimitive, ToPrimitive};
 use deltachat::constants::DC_MSG_ID_LAST_SPECIAL;
 use deltachat::contact::Contact;
 use deltachat::context::Context;
-use deltachat::dc_tools::{
-    as_path, dc_strdup, to_opt_string_lossy, to_string_lossy, OsStrExt, StrExt,
-};
 use deltachat::message::MsgId;
 use deltachat::stock::StockMessage;
 use deltachat::*;
+
+mod string;
+use self::string::*;
 
 // as C lacks a good and portable error handling,
 // in general, the C Interface is forgiving wrt to bad parameters.

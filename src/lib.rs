@@ -17,8 +17,6 @@ extern crate strum;
 #[macro_use]
 extern crate strum_macros;
 #[macro_use]
-extern crate jetscii;
-#[macro_use]
 extern crate debug_stub_derive;
 
 #[macro_use]
@@ -51,6 +49,7 @@ mod login_param;
 pub mod lot;
 pub mod message;
 mod mimefactory;
+pub mod mimeparser;
 pub mod oauth2;
 mod param;
 pub mod peerstate;
@@ -63,14 +62,13 @@ pub mod stock;
 mod token;
 #[macro_use]
 mod wrapmime;
+mod dehtml;
 
 pub mod dc_array;
-pub mod dc_mimeparser;
 pub mod dc_receive_imf;
 mod dc_simplify;
 mod dc_strencode;
 pub mod dc_tools;
-mod dehtml;
 
 #[cfg(test)]
 mod test_utils;

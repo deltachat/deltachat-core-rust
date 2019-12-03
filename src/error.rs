@@ -1,4 +1,5 @@
 use failure::Fail;
+use lettre_email::mime;
 
 #[derive(Debug, Fail)]
 pub enum Error {
@@ -14,8 +15,6 @@ pub enum Error {
     Image(image_meta::ImageError),
     #[fail(display = "{:?}", _0)]
     Utf8(std::str::Utf8Error),
-    #[fail(display = "{:?}", _0)]
-    CStringError(crate::dc_tools::CStringError),
     #[fail(display = "PGP: {:?}", _0)]
     Pgp(pgp::errors::Error),
     #[fail(display = "Base64Decode: {:?}", _0)]
@@ -28,6 +27,12 @@ pub enum Error {
     InvalidMsgId,
     #[fail(display = "Watch folder not found {:?}", _0)]
     WatchFolderNotFound(String),
+    #[fail(display = "Inalid Email: {:?}", _0)]
+    MailParseError(#[cause] mailparse::MailParseError),
+    #[fail(display = "Building invalid Email: {:?}", _0)]
+    LettreError(#[cause] lettre_email::error::Error),
+    #[fail(display = "FromStr error: {:?}", _0)]
+    FromStr(#[cause] mime::FromStrError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -68,12 +73,6 @@ impl From<image_meta::ImageError> for Error {
     }
 }
 
-impl From<crate::dc_tools::CStringError> for Error {
-    fn from(err: crate::dc_tools::CStringError) -> Error {
-        Error::CStringError(err)
-    }
-}
-
 impl From<pgp::errors::Error> for Error {
     fn from(err: pgp::errors::Error) -> Error {
         Error::Pgp(err)
@@ -95,6 +94,24 @@ impl From<crate::blob::BlobError> for Error {
 impl From<crate::message::InvalidMsgId> for Error {
     fn from(_err: crate::message::InvalidMsgId) -> Error {
         Error::InvalidMsgId
+    }
+}
+
+impl From<mailparse::MailParseError> for Error {
+    fn from(err: mailparse::MailParseError) -> Error {
+        Error::MailParseError(err)
+    }
+}
+
+impl From<lettre_email::error::Error> for Error {
+    fn from(err: lettre_email::error::Error) -> Error {
+        Error::LettreError(err)
+    }
+}
+
+impl From<mime::FromStrError> for Error {
+    fn from(err: mime::FromStrError) -> Error {
+        Error::FromStr(err)
     }
 }
 
