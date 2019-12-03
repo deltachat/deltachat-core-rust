@@ -80,15 +80,12 @@ impl Smtp {
             return Err(Error::BadParameters);
         }
 
-        self.from = match EmailAddress::new(lp.addr.clone()) {
-            Ok(addr) => Some(addr),
-            Err(err) => {
-                return Err(Error::InvalidLoginAddress {
-                    address: lp.addr.clone(),
-                    error: err,
-                })
-            }
-        };
+        let from =
+            EmailAddress::new(lp.addr.clone()).map_err(|err| Error::InvalidLoginAddress {
+                address: lp.addr.clone(),
+                error: err,
+            })?;
+        self.from = Some(from);
 
         let domain = &lp.send_server;
         let port = lp.send_port as u16;
@@ -135,30 +132,23 @@ impl Smtp {
             lettre::smtp::ClientSecurity::Wrapper(tls_parameters)
         };
 
-        match lettre::smtp::SmtpClient::new((domain.as_str(), port), security) {
-            Ok(client) => {
-                let client = client
-                    .smtp_utf8(true)
-                    .credentials(creds)
-                    .authentication_mechanism(mechanism)
-                    .connection_reuse(lettre::smtp::ConnectionReuseParameters::ReuseUnlimited);
-                let mut trans = client.transport();
-                match trans.connect() {
-                    Ok(()) => {
-                        self.transport = Some(trans);
-                        self.transport_connected = true;
-                        context.call_cb(Event::SmtpConnected(format!(
-                            "SMTP-LOGIN as {} ok",
-                            lp.send_user,
-                        )));
-                        return Ok(());
-                    }
-                    Err(err) => return Err(Error::ConnectionFailure(err)),
-                }
-            }
-            Err(err) => {
-                return Err(Error::ConnectionSetupFailure(err));
-            }
-        }
+        let client = lettre::smtp::SmtpClient::new((domain.as_str(), port), security)
+            .map_err(Error::ConnectionSetupFailure)?;
+
+        let client = client
+            .smtp_utf8(true)
+            .credentials(creds)
+            .authentication_mechanism(mechanism)
+            .connection_reuse(lettre::smtp::ConnectionReuseParameters::ReuseUnlimited);
+        let mut trans = client.transport();
+        trans.connect().map_err(Error::ConnectionFailure)?;
+
+        self.transport = Some(trans);
+        self.transport_connected = true;
+        context.call_cb(Event::SmtpConnected(format!(
+            "SMTP-LOGIN as {} ok",
+            lp.send_user,
+        )));
+        Ok(())
     }
 }
