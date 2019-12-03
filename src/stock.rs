@@ -5,12 +5,14 @@ use std::borrow::Cow;
 use strum::EnumProperty;
 use strum_macros::EnumProperty;
 
+use crate::blob::BlobObject;
 use crate::chat;
 use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
 use crate::contact::*;
 use crate::context::Context;
 use crate::error::Error;
 use crate::message::Message;
+use crate::param::Param;
 use crate::stock::StockMessage::{DeviceMessagesHint, WelcomeMessage};
 
 /// Stock strings
@@ -337,6 +339,13 @@ impl Context {
     }
 
     pub fn update_device_chats(&self) -> Result<(), Error> {
+        // check for the LAST added device message - if it is present, we can skip message creation.
+        // this is worthwhile as this function is typically called
+        // by the ui on every probram start or even on every opening of the chatlist.
+        if chat::was_device_msg_ever_added(&self, "core-welcome")? {
+            return Ok(());
+        }
+
         // create saved-messages chat;
         // we do this only once, if the user has deleted the chat, he can recreate it manually.
         if !self.sql.get_raw_config_bool(&self, "self-chat-added") {
@@ -350,6 +359,12 @@ impl Context {
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some(self.stock_str(DeviceMessagesHint).to_string());
         chat::add_device_msg(&self, Some("core-about-device-chat"), Some(&mut msg))?;
+
+        let image = include_bytes!("../assets/welcome-image.jpg");
+        let blob = BlobObject::create(&self, "welcome-image.jpg".to_string(), image)?;
+        let mut msg = Message::new(Viewtype::Image);
+        msg.param.set(Param::File, blob.as_name());
+        chat::add_device_msg(&self, Some("core-welcome-image"), Some(&mut msg))?;
 
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some(self.stock_str(WelcomeMessage).to_string());
