@@ -879,7 +879,7 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
         }
         "forward" => {
             ensure!(
-                !arg1.is_empty() && arg2.is_empty(),
+                !arg1.is_empty() && !arg2.is_empty(),
                 "Arguments <msg-id> <chat-id> expected"
             );
 
