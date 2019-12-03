@@ -516,7 +516,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             // Set the appropriate Content-Type for the outer message
             let mut outer_message = PartBuilder::new().header((
                 "Content-Type".to_string(),
-                "multipart/encrypted; protocol=\"application/pgp-encrypted\";".to_string(),
+                "multipart/encrypted; protocol=\"application/pgp-encrypted\"".to_string(),
             ));
 
             // Store the unprotected headers on the outer message.
