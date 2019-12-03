@@ -108,11 +108,15 @@ impl<'a> MimeParser<'a> {
 
                 if let Some(raw) = raw {
                     mail_raw = raw;
-                    info!(context, "decrypted: {:?}", std::str::from_utf8(&mail_raw));
-
                     let decrypted_mail = mailparse::parse_mail(&mail_raw)?;
 
-                    // Decrypted the mail
+                    // Handle any gossip headers if the mail was encrypted.  See section
+                    // "3.6 Key Gossip" of https://autocrypt.org/autocrypt-spec-1.1.0.pdf
+                    let gossip_headers =
+                        decrypted_mail.headers.get_all_values("Autocrypt-Gossip")?;
+                    parser.gossipped_addr =
+                        update_gossip_peerstates(context, message_time, &mail, gossip_headers)?;
+
                     decrypted_mail
                 } else {
                     // Message was not encrypted
@@ -133,11 +137,6 @@ impl<'a> MimeParser<'a> {
         };
 
         parser.parse_mime_recursive(&mail)?;
-
-        // Handle gossip headers
-        let gossip_headers = mail.headers.get_all_values("Autocrypt-Gossip")?;
-        parser.gossipped_addr =
-            update_gossip_peerstates(context, message_time, &mail, gossip_headers)?;
 
         parser.parse_headers()?;
 
@@ -200,8 +199,6 @@ impl<'a> MimeParser<'a> {
                 }
             }
         }
-
-        info!(self.context, "checking message parts: {:?}", &self.parts);
 
         if self.is_send_by_messenger && self.parts.len() == 2 {
             let need_drop = {
@@ -299,15 +296,12 @@ impl<'a> MimeParser<'a> {
             if let Some(dn_field) = self.lookup_field("Chat-Disposition-Notification-To") {
                 if self.get_last_nonmeta().is_some() {
                     let addrs = mailparse::addrparse(&dn_field).unwrap();
-                    info!(self.context, "last non meta addrs: {:?}", &addrs);
 
                     if let Some(dn_to_addr) = addrs.first() {
                         if let Some(from_field) = self.lookup_field("From") {
-                            info!(self.context, "From {:?}", from_field);
                             let from_addrs = mailparse::addrparse(&from_field).unwrap();
 
                             if let Some(from_addr) = from_addrs.first() {
-                                info!(self.context, "comparing {:?} - {:?}", from_addr, dn_to_addr);
                                 if compare_addrs(from_addr, dn_to_addr) {
                                     if let Some(part_4) = self.get_last_nonmeta_mut() {
                                         part_4.param.set_int(Param::WantsMdn, 1);
@@ -350,13 +344,9 @@ impl<'a> MimeParser<'a> {
     }
 
     fn parse_mime_recursive(&mut self, mail: &mailparse::ParsedMail<'_>) -> Result<bool> {
-        info!(self.context, "parse mime_recursive {:?}", mail.ctype);
-
         if mail.ctype.params.get("protected-headers").is_some() {
-            info!(self.context, "found protected headers");
-
             if mail.ctype.mimetype == "text/rfc822-headers" {
-                info!(
+                warn!(
                     self.context,
                     "Protected headers found in text/rfc822-headers attachment: Will be ignored.",
                 );
@@ -481,13 +471,10 @@ impl<'a> MimeParser<'a> {
                 }
             }
             (mime::MULTIPART, "report") => {
-                info!(self.context, "got report {}", mail.subparts.len());
                 /* RFC 6522: the first part is for humans, the second for machines */
                 if mail.subparts.len() >= 2 {
-                    info!(self.context, "report: {:?}", &mail.ctype);
                     if let Some(report_type) = mail.ctype.params.get("report-type") {
                         if report_type == "disposition-notification" {
-                            info!(self.context, "processing report");
                             if let Some(report) = self.process_report(mail)? {
                                 self.reports.push(report);
                             }
@@ -550,11 +537,6 @@ impl<'a> MimeParser<'a> {
         // return true if a part was added
         let (mime_type, msg_type) = get_mime_type(mail)?;
         let raw_mime = mail.ctype.mimetype.to_lowercase();
-
-        info!(
-            self.context,
-            "got mime type: {:?} ({})", mime_type, raw_mime
-        );
 
         let old_part_count = self.parts.len();
 
@@ -803,7 +785,6 @@ impl<'a> MimeParser<'a> {
                 .flatten()
                 .and_then(|v| parse_message_id(&v))
             {
-                info!(self.context, "got report {:?}", original_message_id);
                 return Ok(Some(Report {
                     original_message_id,
                 }));
@@ -822,7 +803,6 @@ impl<'a> MimeParser<'a> {
         server_folder: impl AsRef<str>,
         server_uid: u32,
     ) {
-        info!(self.context, "processing reports {:?}", &self.reports);
         for report in &self.reports {
             let mut mdn_consumed = false;
 
@@ -832,10 +812,6 @@ impl<'a> MimeParser<'a> {
                 &report.original_message_id,
                 sent_timestamp,
             ) {
-                info!(
-                    self.context,
-                    "found message for report {}", report.original_message_id
-                );
                 rr_event_to_send.push((chat_id, msg_id));
                 mdn_consumed = true;
             }
@@ -863,30 +839,20 @@ fn update_gossip_peerstates(
     let mut recipients: Option<HashSet<String>> = None;
     let mut gossipped_addr: HashSet<String> = Default::default();
 
-    info!(
-        context,
-        "Updating gossip peerstates: {}",
-        gossip_headers.len()
-    );
     for value in &gossip_headers {
         let gossip_header = value.parse::<Aheader>();
-        info!(context, "got gossip header: {:?}", gossip_header);
 
         if let Ok(ref header) = gossip_header {
             if recipients.is_none() {
                 recipients = Some(get_recipients(mail.headers.iter().filter_map(|v| {
                     let key = v.get_key();
                     let value = v.get_value();
-                    info!(context, "header: {:?} - {:?}", key, value);
                     if key.is_err() || value.is_err() {
                         return None;
                     }
                     Some((v.get_key().unwrap(), v.get_value().unwrap()))
                 })));
             }
-
-            info!(context, "got recipients {:?}", recipients);
-            info!(context, "looking for addr {:?}", &header.addr);
 
             if recipients.as_ref().unwrap().contains(&header.addr) {
                 let mut peerstate = Peerstate::from_addr(context, &context.sql, &header.addr);
@@ -906,7 +872,7 @@ fn update_gossip_peerstates(
 
                 gossipped_addr.insert(header.addr.clone());
             } else {
-                info!(
+                warn!(
                     context,
                     "Ignoring gossipped \"{}\" as the address is not in To/Cc list.", &header.addr,
                 );
