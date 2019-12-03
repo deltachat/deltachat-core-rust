@@ -2617,7 +2617,7 @@ dc_context_t*    dc_chatlist_get_context     (dc_chatlist_t* chatlist);
  * avatar-path: path-to-blobfile 
  * is_verified: yes/no
 
- * @return a utf8-encoded json string containing all requested info. Must be freed using dc_lot_unref().  NULL is never returned.
+ * @return a utf8-encoded json string containing all requested info. Must be freed using dc_str_unref().  NULL is never returned.
  */
 char*            dc_chat_get_info_json       (dc_context_t* context, size_t chat_id);
 
