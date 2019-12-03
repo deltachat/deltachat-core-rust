@@ -106,11 +106,6 @@ impl Default for Origin {
 }
 
 impl Origin {
-    /// Contacts that start a new "normal" chat, defaults to off.
-    pub fn is_start_new_chat(self) -> bool {
-        self as i32 >= 0x7FFFFFFF
-    }
-
     /// Contacts that are verified and known not to be spam.
     pub fn is_verified(self) -> bool {
         self as i32 >= 0x100
@@ -906,7 +901,7 @@ impl Contact {
 }
 
 /// Extracts first name from full name.
-fn get_first_name<'a>(full_name: &'a str) -> &'a str {
+fn get_first_name(full_name: &str) -> &str {
     full_name.splitn(2, ' ').next().unwrap_or_default()
 }
 
@@ -933,21 +928,21 @@ fn set_block_contact(context: &Context, contact_id: u32, new_blocking: bool) {
     }
 
     if let Ok(contact) = Contact::load_from_db(context, contact_id) {
-        if contact.blocked != new_blocking {
-            if sql::execute(
+        if contact.blocked != new_blocking
+            && sql::execute(
                 context,
                 &context.sql,
                 "UPDATE contacts SET blocked=? WHERE id=?;",
                 params![new_blocking as i32, contact_id as i32],
             )
             .is_ok()
-            {
-                // also (un)block all chats with _only_ this contact - we do not delete them to allow a
-                // non-destructive blocking->unblocking.
-                // (Maybe, beside normal chats (type=100) we should also block group chats with only this user.
-                // However, I'm not sure about this point; it may be confusing if the user wants to add other people;
-                // this would result in recreating the same group...)
-                if sql::execute(
+        {
+            // also (un)block all chats with _only_ this contact - we do not delete them to allow a
+            // non-destructive blocking->unblocking.
+            // (Maybe, beside normal chats (type=100) we should also block group chats with only this user.
+            // However, I'm not sure about this point; it may be confusing if the user wants to add other people;
+            // this would result in recreating the same group...)
+            if sql::execute(
                     context,
                     &context.sql,
                     "UPDATE chats SET blocked=? WHERE type=? AND id IN (SELECT chat_id FROM chats_contacts WHERE contact_id=?);",
@@ -956,7 +951,6 @@ fn set_block_contact(context: &Context, contact_id: u32, new_blocking: bool) {
                     Contact::mark_noticed(context, contact_id);
                     context.call_cb(Event::ContactsChanged(None));
                 }
-            }
         }
     }
 }

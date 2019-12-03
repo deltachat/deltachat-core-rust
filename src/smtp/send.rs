@@ -58,7 +58,7 @@ impl Smtp {
                 context,
                 "uh? SMTP has no transport, failed to send to {}", recipients_display
             );
-            return Err(Error::NoTransport);
+            Err(Error::NoTransport)
         }
     }
 }

@@ -84,27 +84,24 @@ pub fn has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result<Strin
     let mut newest_backup_time = 0;
     let mut newest_backup_path: Option<std::path::PathBuf> = None;
     for dirent in dir_iter {
-        match dirent {
-            Ok(dirent) => {
-                let path = dirent.path();
-                let name = dirent.file_name();
-                let name = name.to_string_lossy();
-                if name.starts_with("delta-chat") && name.ends_with(".bak") {
-                    let sql = Sql::new();
-                    if sql.open(context, &path, true) {
-                        let curr_backup_time = sql
-                            .get_raw_config_int(context, "backup_time")
-                            .unwrap_or_default();
-                        if curr_backup_time > newest_backup_time {
-                            newest_backup_path = Some(path);
-                            newest_backup_time = curr_backup_time;
-                        }
-                        info!(context, "backup_time of {} is {}", name, curr_backup_time);
-                        sql.close(&context);
+        if let Ok(dirent) = dirent {
+            let path = dirent.path();
+            let name = dirent.file_name();
+            let name = name.to_string_lossy();
+            if name.starts_with("delta-chat") && name.ends_with(".bak") {
+                let sql = Sql::new();
+                if sql.open(context, &path, true) {
+                    let curr_backup_time = sql
+                        .get_raw_config_int(context, "backup_time")
+                        .unwrap_or_default();
+                    if curr_backup_time > newest_backup_time {
+                        newest_backup_path = Some(path);
+                        newest_backup_time = curr_backup_time;
                     }
+                    info!(context, "backup_time of {} is {}", name, curr_backup_time);
+                    sql.close(&context);
                 }
             }
-            Err(_) => (),
         }
     }
     match newest_backup_path {
@@ -175,7 +172,7 @@ pub fn render_setup_file(context: &Context, passphrase: &str) -> Result<String> 
     );
     let self_addr = e2ee::ensure_secret_key_exists(context)?;
     let private_key = Key::from_self_private(context, self_addr, &context.sql)
-        .ok_or(format_err!("Failed to get private key."))?;
+        .ok_or_else(|| format_err!("Failed to get private key."))?;
     let ac_headers = match context.get_config_bool(Config::E2eeEnabled) {
         false => None,
         true => Some(("Autocrypt-Prefer-Encrypt", "mutual")),
@@ -222,7 +219,7 @@ pub fn create_setup_code(_context: &Context) -> String {
     for i in 0..9 {
         loop {
             random_val = rng.gen();
-            if !(random_val as usize > 60000) {
+            if random_val as usize <= 60000 {
                 break;
             }
         }
@@ -548,7 +545,7 @@ fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
         }
         Ok(()) => {
             dest_sql.set_raw_config_int(context, "backup_time", now as i32)?;
-            context.call_cb(Event::ImexFileWritten(dest_path_filename.clone()));
+            context.call_cb(Event::ImexFileWritten(dest_path_filename));
             Ok(())
         }
     };

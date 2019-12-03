@@ -193,7 +193,7 @@ impl StockMessage {
     /// Default untranslated strings for stock messages.
     ///
     /// These could be used in logging calls, so no logging here.
-    fn fallback(&self) -> &'static str {
+    fn fallback(self) -> &'static str {
         self.get_str("fallback").unwrap_or_default()
     }
 }
@@ -238,7 +238,7 @@ impl Context {
             .unwrap()
             .get(&(id as usize))
         {
-            Some(ref x) => Cow::Owned(x.to_string()),
+            Some(ref x) => Cow::Owned((*x).to_string()),
             None => Cow::Borrowed(id.fallback()),
         }
     }

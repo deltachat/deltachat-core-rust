@@ -311,13 +311,12 @@ impl Chat {
                         self.id
                     );
                 }
-            } else {
-                if self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup {
-                    if self.param.get_int(Param::Unpromoted).unwrap_or_default() == 1 {
-                        self.param.remove(Param::Unpromoted);
-                        self.update_param(context)?;
-                    }
-                }
+            } else if self.typ == Chattype::Group
+                || self.typ == Chattype::VerifiedGroup
+                    && self.param.get_int(Param::Unpromoted).unwrap_or_default() == 1
+            {
+                self.param.remove(Param::Unpromoted);
+                self.update_param(context)?;
             }
 
             /* check if we can guarantee E2EE for this message.
@@ -375,12 +374,10 @@ impl Chat {
                     }
                 }
 
-                if can_encrypt {
-                    if all_mutual {
-                        do_guarantee_e2ee = true;
-                    } else if last_msg_in_chat_encrypted(context, &context.sql, self.id) {
-                        do_guarantee_e2ee = true;
-                    }
+                if can_encrypt
+                    && (all_mutual || last_msg_in_chat_encrypted(context, &context.sql, self.id))
+                {
+                    do_guarantee_e2ee = true;
                 }
             }
             if do_guarantee_e2ee {
@@ -419,15 +416,15 @@ impl Chat {
                     } else if !parent_in_reply_to.is_empty() && !parent_rfc724_mid.is_empty() {
                         new_references = format!("{} {}", parent_in_reply_to, parent_rfc724_mid);
                     } else if !parent_in_reply_to.is_empty() {
-                        new_references = parent_in_reply_to.clone();
+                        new_references = parent_in_reply_to;
                     }
                 }
             }
 
             // add independent location to database
 
-            if msg.param.exists(Param::SetLatitude) {
-                if sql::execute(
+            if msg.param.exists(Param::SetLatitude)
+                && sql::execute(
                     context,
                     &context.sql,
                     "INSERT INTO locations \
@@ -442,17 +439,16 @@ impl Chat {
                     ],
                 )
                 .is_ok()
-                {
-                    location_id = sql::get_rowid2(
-                        context,
-                        &context.sql,
-                        "locations",
-                        "timestamp",
-                        timestamp,
-                        "from_id",
-                        DC_CONTACT_ID_SELF as i32,
-                    );
-                }
+            {
+                location_id = sql::get_rowid2(
+                    context,
+                    &context.sql,
+                    "locations",
+                    "timestamp",
+                    timestamp,
+                    "from_id",
+                    DC_CONTACT_ID_SELF as i32,
+                );
             }
 
             // add message to the database
@@ -874,17 +870,14 @@ pub fn send_msg(context: &Context, chat_id: u32, msg: &mut Message) -> Result<Ms
         let forwards = msg.param.get(Param::PrepForwards);
         if let Some(forwards) = forwards {
             for forward in forwards.split(' ') {
-                match forward
+                if let Ok(msg_id) = forward
                     .parse::<u32>()
                     .map_err(|_| InvalidMsgId)
-                    .map(|id| MsgId::new(id))
+                    .map(MsgId::new)
                 {
-                    Ok(msg_id) => {
-                        if let Ok(mut msg) = Message::load_from_db(context, msg_id) {
-                            send_msg(context, 0, &mut msg)?;
-                        };
-                    }
-                    Err(_) => (),
+                    if let Ok(mut msg) = Message::load_from_db(context, msg_id) {
+                        send_msg(context, 0, &mut msg)?;
+                    };
                 }
             }
             msg.param.remove(Param::PrepForwards);

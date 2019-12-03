@@ -230,6 +230,7 @@ pub fn pk_encrypt(
     Ok(encoded_msg)
 }
 
+#[allow(clippy::implicit_hasher)]
 pub fn pk_decrypt(
     ctext: &[u8],
     private_keys_for_decryption: &Keyring,

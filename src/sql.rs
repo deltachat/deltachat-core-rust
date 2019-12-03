@@ -68,12 +68,18 @@ pub struct Sql {
     in_use: Arc<ThreadLocal<String>>,
 }
 
-impl Sql {
-    pub fn new() -> Sql {
-        Sql {
+impl Default for Sql {
+    fn default() -> Self {
+        Self {
             pool: RwLock::new(None),
             in_use: Arc::new(ThreadLocal::new()),
         }
+    }
+}
+
+impl Sql {
+    pub fn new() -> Sql {
+        Self::default()
     }
 
     pub fn is_open(&self) -> bool {
@@ -1140,26 +1146,23 @@ pub fn housekeeping(context: &Context) {
 
                 unreferenced_count += 1;
 
-                match std::fs::metadata(entry.path()) {
-                    Ok(stats) => {
-                        let recently_created = stats.created().is_ok()
-                            && stats.created().unwrap() > keep_files_newer_than;
-                        let recently_modified = stats.modified().is_ok()
-                            && stats.modified().unwrap() > keep_files_newer_than;
-                        let recently_accessed = stats.accessed().is_ok()
-                            && stats.accessed().unwrap() > keep_files_newer_than;
+                if let Ok(stats) = std::fs::metadata(entry.path()) {
+                    let recently_created =
+                        stats.created().is_ok() && stats.created().unwrap() > keep_files_newer_than;
+                    let recently_modified = stats.modified().is_ok()
+                        && stats.modified().unwrap() > keep_files_newer_than;
+                    let recently_accessed = stats.accessed().is_ok()
+                        && stats.accessed().unwrap() > keep_files_newer_than;
 
-                        if recently_created || recently_modified || recently_accessed {
-                            info!(
-                                context,
-                                "Housekeeping: Keeping new unreferenced file #{}: {:?}",
-                                unreferenced_count,
-                                entry.file_name(),
-                            );
-                            continue;
-                        }
+                    if recently_created || recently_modified || recently_accessed {
+                        info!(
+                            context,
+                            "Housekeeping: Keeping new unreferenced file #{}: {:?}",
+                            unreferenced_count,
+                            entry.file_name(),
+                        );
+                        continue;
                     }
-                    Err(_) => {}
                 }
                 info!(
                     context,

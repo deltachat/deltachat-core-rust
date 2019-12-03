@@ -114,7 +114,7 @@ const JUST_UID: &str = "(UID)";
 const BODY_FLAGS: &str = "(FLAGS BODY.PEEK[])";
 const SELECT_ALL: &str = "1:*";
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Imap {
     config: RwLock<ImapConfig>,
     session: Mutex<Option<Session>>,
@@ -187,14 +187,7 @@ impl Default for ImapConfig {
 
 impl Imap {
     pub fn new() -> Self {
-        Imap {
-            session: Mutex::new(None),
-            config: RwLock::new(ImapConfig::default()),
-            interrupt: Mutex::new(None),
-            connected: Mutex::new(false),
-            skip_next_idle_wait: AtomicBool::new(false),
-            should_reconnect: AtomicBool::new(false),
-        }
+        Default::default()
     }
 
     pub async fn is_connected(&self) -> bool {
@@ -233,9 +226,7 @@ impl Imap {
                     match Client::connect_insecure((imap_server, imap_port)).await {
                         Ok(client) => {
                             if (server_flags & DC_LP_IMAP_SOCKET_STARTTLS) != 0 {
-                                let res =
-                                    client.secure(imap_server, config.certificate_checks).await;
-                                res
+                                client.secure(imap_server, config.certificate_checks).await
                             } else {
                                 Ok(client)
                             }
@@ -271,14 +262,12 @@ impl Imap {
                                 user: imap_user.into(),
                                 access_token: token,
                             };
-                            let res = client.authenticate("XOAUTH2", &auth).await;
-                            res
+                            client.authenticate("XOAUTH2", &auth).await
                         } else {
                             return Err(Error::OauthError);
                         }
                     } else {
-                        let res = client.login(imap_user, imap_pw).await;
-                        res
+                        client.login(imap_user, imap_pw).await
                     }
                 }
                 Err(err) => {
@@ -369,7 +358,7 @@ impl Imap {
         if self.connect(context, &param) {
             self.ensure_configured_folders(context, true)
         } else {
-            Err(Error::ConnectionFailed(format!("{}", param).to_string()))
+            Err(Error::ConnectionFailed(format!("{}", param)))
         }
     }
 
@@ -1398,11 +1387,7 @@ impl Imap {
         })
     }
 
-    async fn list_folders<'a>(
-        &self,
-        session: &'a mut Session,
-        context: &Context,
-    ) -> Option<Vec<Name>> {
+    async fn list_folders(&self, session: &mut Session, context: &Context) -> Option<Vec<Name>> {
         // TODO: use xlist when available
         match session.list(Some(""), Some("*")).await {
             Ok(list) => {
@@ -1470,7 +1455,7 @@ fn get_folder_meaning_by_name(folder_name: &Name) -> FolderMeaning {
     let sent_names = vec!["sent", "sent objects", "gesendet"];
     let lower = folder_name.name().to_lowercase();
 
-    if sent_names.into_iter().find(|s| *s == lower).is_some() {
+    if sent_names.into_iter().any(|s| s == lower) {
         FolderMeaning::SentObjects
     } else {
         FolderMeaning::Unknown
@@ -1486,15 +1471,12 @@ fn get_folder_meaning(folder_name: &Name) -> FolderMeaning {
     let special_names = vec!["\\Spam", "\\Trash", "\\Drafts", "\\Junk"];
 
     for attr in folder_name.attributes() {
-        match attr {
-            NameAttribute::Custom(ref label) => {
-                if special_names.iter().find(|s| *s == label).is_some() {
-                    res = FolderMeaning::Other;
-                } else if label == "\\Sent" {
-                    res = FolderMeaning::SentObjects
-                }
+        if let NameAttribute::Custom(ref label) = attr {
+            if special_names.iter().any(|s| *s == label) {
+                res = FolderMeaning::Other;
+            } else if label == "\\Sent" {
+                res = FolderMeaning::SentObjects
             }
-            _ => {}
         }
     }
 

@@ -222,7 +222,7 @@ impl Params {
             Some(val) => val,
             None => return Ok(None),
         };
-        ParamsFile::from_param(context, val).map(|file| Some(file))
+        ParamsFile::from_param(context, val).map(Some)
     }
 
     /// Gets the parameter and returns a [BlobObject] for it.
@@ -373,7 +373,7 @@ mod tests {
         if let ParamsFile::FsPath(p) = ParamsFile::from_param(&t.ctx, "/foo/bar/baz").unwrap() {
             assert_eq!(p, Path::new("/foo/bar/baz"));
         } else {
-            assert!(false, "Wrong enum variant");
+            panic!("Wrong enum variant");
         }
     }
 
@@ -383,7 +383,7 @@ mod tests {
         if let ParamsFile::Blob(b) = ParamsFile::from_param(&t.ctx, "$BLOBDIR/foo").unwrap() {
             assert_eq!(b.as_name(), "$BLOBDIR/foo");
         } else {
-            assert!(false, "Wrong enum variant");
+            panic!("Wrong enum variant");
         }
     }
 

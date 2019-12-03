@@ -131,11 +131,12 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                     .get_config(Config::ConfiguredAddr)
                     .unwrap_or_default();
 
-                if !email_to_remove.is_empty() && !addr_cmp(email_to_remove, self_addr) {
-                    if !vec_contains_lowercase(&factory.recipients_addr, &email_to_remove) {
-                        factory.recipients_names.push("".to_string());
-                        factory.recipients_addr.push(email_to_remove.to_string());
-                    }
+                if !email_to_remove.is_empty()
+                    && !addr_cmp(email_to_remove, self_addr)
+                    && !vec_contains_lowercase(&factory.recipients_addr, &email_to_remove)
+                {
+                    factory.recipients_names.push("".to_string());
+                    factory.recipients_addr.push(email_to_remove.to_string());
                 }
             }
             if command != SystemMessage::AutocryptSetupMessage
@@ -299,14 +300,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                     return true;
                 }
 
-                match self.msg.param.get_cmd() {
-                    SystemMessage::MemberAddedToGroup => {
-                        return true;
-                    }
-                    _ => {}
-                }
-
-                false
+                self.msg.param.get_cmd() == SystemMessage::MemberAddedToGroup
             }
             Loaded::MDN => false,
         }
