@@ -1,5 +1,32 @@
 # Changelog 
 
+## 1.0.0-beta.9
+
+- historic: we now use the mailparse crate and lettre-email to generate mime
+  messages.  This got rid of mmime completely, the C2rust generated port of the libetpan 
+  mime-parse -- IOW 22KLocs of cumbersome code removed! see 
+  https://github.com/deltachat/deltachat-core-rust/pull/904#issuecomment-561163330
+  many thanks @dignifiedquire for making everybody's life easier 
+  and @jonhoo (from rust-imap fame) for suggesting to use the mailparse crate :) 
+
+- lots of improvements and better error handling in many rust modules 
+  thanks @link2xt @flub @r10s, @hpk42 and @dignifiedquire 
+
+- @r10s introduced a new device chat which has an initial
+  welcome message.  See 
+  https://c.delta.chat/classdc__context__t.html#a1a2aad98bd23c1d21ee42374e241f389
+  for the main new FFI-API.
+
+- fix moving self-sent messages, thanks @r10s, @flub, @hpk42
+
+- fix flakyness/sometimes-failing verified/join-protocols, 
+  thanks @flub, @r10s, @hpk42
+
+- new DC_EVENT_SECUREJOIN_SUCCEEDED event 
+
+- many little fixes and rustifications (@link2xt, @flub, @hpk42)
+
+
 ## 1.0.0-beta.8
 
 - now uses async-email/async-imap as the new base 
