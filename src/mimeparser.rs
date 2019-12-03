@@ -969,9 +969,8 @@ fn get_recipients<'a, S: AsRef<str>, T: Iterator<Item = (S, S)>>(headers: T) -> 
     let mut recipients: HashSet<String> = Default::default();
 
     for (hkey, hvalue) in headers {
-        let hkey = hkey.as_ref();
+        let hkey = hkey.as_ref().to_lowercase();
         let hvalue = hvalue.as_ref();
-
         if hkey == "to" || hkey == "cc" {
             if let Ok(addrs) = mailparse::addrparse(hvalue) {
                 for addr in addrs.iter() {
@@ -1056,6 +1055,17 @@ mod tests {
         let raw = include_bytes!("../test-data/message/issue_523.txt");
         let mimeparser = MimeParser::from_bytes(&context.ctx, &raw[..]).unwrap();
         assert_eq!(mimeparser.get_rfc724_mid(), None);
+    }
+
+    #[test]
+    fn test_get_recipients() {
+        let context = dummy_context();
+        let raw = include_bytes!("../test-data/message/mail_with_cc.txt");
+        let mimeparser = MimeParser::from_bytes(&context.ctx, &raw[..]).unwrap();
+        let recipients = get_recipients(mimeparser.header.iter());
+        assert!(recipients.contains("abc@bcd.com"));
+        assert!(recipients.contains("def@def.de"));
+        assert_eq!(recipients.len(), 2);
     }
 
     #[test]
