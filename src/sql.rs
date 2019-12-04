@@ -1008,13 +1008,12 @@ pub fn get_rowid_with_conn(
     // the ORDER BY ensures, this function always returns the most recent id,
     // eg. if a Message-ID is split into different messages.
     let query = format!(
-        "SELECT id FROM {} WHERE {}='{}' ORDER BY id DESC",
+        "SELECT id FROM {} WHERE {}=? ORDER BY id DESC",
         table.as_ref(),
         field.as_ref(),
-        value.as_ref()
     );
 
-    match conn.query_row(&query, NO_PARAMS, |row| row.get::<_, u32>(0)) {
+    match conn.query_row(&query, params![value.as_ref()], |row| row.get::<_, u32>(0)) {
         Ok(id) => id,
         Err(err) => {
             error!(
