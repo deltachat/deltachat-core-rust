@@ -76,7 +76,6 @@ impl Aheader {
         if let Ok(Some(value)) = headers.get_first_value("Autocrypt") {
             match Self::from_str(&value) {
                 Ok(header) => {
-                    info!(context, "comparing {} - {}", header.addr, wanted_from);
                     if addr_cmp(&header.addr, wanted_from) {
                         return Some(header);
                     }
