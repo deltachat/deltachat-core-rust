@@ -22,6 +22,8 @@
 - fix flakyness/sometimes-failing verified/join-protocols, 
   thanks @flub, @r10s, @hpk42
 
+- fix reply-to-encrypted message to keep encryption 
+
 - new DC_EVENT_SECUREJOIN_SUCCEEDED event 
 
 - many little fixes and rustifications (@link2xt, @flub, @hpk42)
