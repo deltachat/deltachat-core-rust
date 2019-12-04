@@ -467,17 +467,6 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             encrypt_helper.should_encrypt(self.context, e2ee_guranteed, &peerstates)?;
         let is_encrypted = should_encrypt && force_plaintext == 0;
 
-        // Add gossip headers
-        if do_gossip {
-            for peerstate in peerstates.iter().filter_map(|(state, _)| state.as_ref()) {
-                if peerstate.peek_key(min_verified).is_some() {
-                    if let Some(header) = peerstate.render_gossip_header(min_verified) {
-                        protected_headers.push(Header::new("Autocrypt-Gossip".into(), header));
-                    }
-                }
-            }
-        }
-
         let rfc724_mid = match self.loaded {
             Loaded::Message => self.msg.rfc724_mid.clone(),
             Loaded::MDN => dc_create_outgoing_rfc724_mid(None, &self.from_addr),
@@ -489,10 +478,23 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         unprotected_headers.push(Header::new_with_value("From".into(), vec![from]).unwrap());
 
         let outer_message = if is_encrypted {
+            // Add gossip headers
+            if do_gossip {
+                for peerstate in peerstates.iter().filter_map(|(state, _)| state.as_ref()) {
+                    if peerstate.peek_key(min_verified).is_some() {
+                        if let Some(header) = peerstate.render_gossip_header(min_verified) {
+                            message =
+                                message.header(Header::new("Autocrypt-Gossip".into(), header));
+                        }
+                    }
+                }
+            }
+
             // Store protected headers in the inner message.
             for header in protected_headers.into_iter() {
                 message = message.header(header);
             }
+
             // Set the appropriate Content-Type for the inner message.
             let mut existing_ct = message
                 .get_header("Content-Type".to_string())
