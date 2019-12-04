@@ -259,8 +259,6 @@ impl Chat {
         msg: &mut Message,
         timestamp: i64,
     ) -> Result<MsgId, Error> {
-        let mut do_guarantee_e2ee: bool;
-        let e2ee_enabled: bool;
         let mut new_references = "".into();
         let mut new_in_reply_to = "".into();
         let mut msg_id = 0;
@@ -319,15 +317,12 @@ impl Chat {
                 self.update_param(context)?;
             }
 
-            /* check if we can guarantee E2EE for this message.
-            if we guarantee E2EE, and circumstances change
+            /* check if we want to encrypt this message.  If yes and circumstances change
             so that E2EE is no longer available at a later point (reset, changed settings),
-            we do not send the message out at all */
-            do_guarantee_e2ee = false;
-            e2ee_enabled = context.get_config_bool(Config::E2eeEnabled);
-            if e2ee_enabled && msg.param.get_int(Param::ForcePlaintext).unwrap_or_default() == 0 {
+            we might not send the message out at all */
+            if msg.param.get_int(Param::ForcePlaintext).unwrap_or_default() == 0 {
                 let mut can_encrypt = true;
-                let mut all_mutual = true;
+                let mut all_mutual = context.get_config_bool(Config::E2eeEnabled);
 
                 // take care that this statement returns NULL rows
                 // if there is no peerstates for a chat member!
@@ -377,13 +372,10 @@ impl Chat {
                 if can_encrypt
                     && (all_mutual || last_msg_in_chat_encrypted(context, &context.sql, self.id))
                 {
-                    do_guarantee_e2ee = true;
+                    msg.param.set_int(Param::GuaranteeE2ee, 1);
                 }
             }
-            if do_guarantee_e2ee {
-                msg.param.set_int(Param::GuaranteeE2ee, 1);
-            }
-            // reset eg. for forwarding
+            // reset encrypt error state eg. for forwarding
             msg.param.remove(Param::ErroneousE2ee);
 
             // set "In-Reply-To:" to identify the message to which the composed message is a reply;

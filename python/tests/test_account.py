@@ -629,6 +629,45 @@ class TestOnlineAccount:
         ev = ac1._evlogger.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
         assert not msg.is_encrypted()
 
+    def test_reply_encrypted(self, acfactory, lp):
+        ac1, ac2 = acfactory.get_two_online_accounts()
+
+        lp.sec("ac1: create chat with ac2")
+        chat = self.get_chat(ac1, ac2)
+
+        lp.sec("sending text message from ac1 to ac2")
+        msg_out = chat.send_text("message1")
+        assert not msg_out.is_encrypted()
+
+        lp.sec("wait for ac2 to receive message")
+        ev = ac2._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
+        msg_in = ac2.get_message_by_id(msg_out.id)
+        assert msg_in.text == "message1"
+        assert not msg_in.is_encrypted()
+
+        lp.sec("create new chat with contact and send back (encrypted) message")
+        chat2b = ac2.create_chat_by_message(msg_in)
+        chat2b.send_text("message-back")
+
+        lp.sec("wait for ac1 to receive message")
+        ev = ac1._evlogger.get_matching("DC_EVENT_INCOMING_MSG")
+        assert ev[1] == chat.id
+        msg_back = ac1.get_message_by_id(ev[2])
+        assert msg_back.text == "message-back"
+        assert msg_back.is_encrypted()
+
+        lp.sec("ac1: e2ee_enabled=0 and see if reply is encrypted")
+        print("ac1: e2ee_enabled={}".format(ac1.get_config("e2ee_enabled")))
+        print("ac2: e2ee_enabled={}".format(ac2.get_config("e2ee_enabled")))
+        ac1.set_config("e2ee_enabled", "0")
+        chat.send_text("message2 -- should be encrypted")
+
+        lp.sec("wait for ac2 to receive message")
+        ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG")
+        msg_in = ac2.get_message_by_id(ev[2])
+        assert msg_in.text == "message2 -- should be encrypted"
+        assert msg_in.is_encrypted()
+
     def test_saved_mime_on_received_message(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
 
