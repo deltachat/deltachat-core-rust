@@ -24,7 +24,7 @@
 
 - fix reply-to-encrypted message to keep encryption 
 
-- new DC_EVENT_SECUREJOIN_SUCCEEDED event 
+- new DC_EVENT_SECUREJOIN_MEMBER_ADDED event 
 
 - many little fixes and rustifications (@link2xt, @flub, @hpk42)
 
