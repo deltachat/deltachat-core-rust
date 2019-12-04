@@ -2383,8 +2383,8 @@ pub unsafe extern "C" fn dc_chat_get_info_json(
     chat_id: u32,
 ) -> *mut libc::c_char {
     if context.is_null() {
-        eprintln!("ignoring careless call to dc_get_oauth2_url()");
-        return ptr::null_mut(); // NULL explicitly defined as "unknown"
+        eprintln!("ignoring careless call to dc_chat_get_info_json()");
+        return ptr::null_mut(); // NULL explicitly defined as "error"
     }
     let ffi_context = &*context;
     ffi_context
@@ -2392,7 +2392,7 @@ pub unsafe extern "C" fn dc_chat_get_info_json(
             Ok(s) => s.strdup(),
             Err(err) => {
                 error!(ctx, "get_info_json({}) returned: {}", chat_id, err);
-                "".strdup()
+                return ptr::null_mut();
             }
         })
         .unwrap_or_else(|_| ptr::null_mut())
