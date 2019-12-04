@@ -2384,7 +2384,7 @@ pub unsafe extern "C" fn dc_chat_get_info_json(
 ) -> *mut libc::c_char {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_chat_get_info_json()");
-        return ptr::null_mut(); // NULL explicitly defined as "error"
+        return "".strdup();
     }
     let ffi_context = &*context;
     ffi_context
@@ -2392,10 +2392,10 @@ pub unsafe extern "C" fn dc_chat_get_info_json(
             Ok(s) => s.strdup(),
             Err(err) => {
                 error!(ctx, "get_info_json({}) returned: {}", chat_id, err);
-                return ptr::null_mut();
+                return "".strdup();
             }
         })
-        .unwrap_or_else(|_| ptr::null_mut())
+        .unwrap_or_else(|_| "".strdup())
 }
 
 // dc_msg_t
