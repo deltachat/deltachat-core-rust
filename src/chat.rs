@@ -1719,12 +1719,8 @@ pub fn set_chat_name(
             if sql::execute(
                 context,
                 &context.sql,
-                format!(
-                    "UPDATE chats SET name='{}' WHERE id={};",
-                    new_name.as_ref(),
-                    chat_id as i32
-                ),
-                params![],
+                "UPDATE chats SET name=? WHERE id=?;",
+                params![new_name.as_ref(), chat_id as i32],
             )
             .is_ok()
             {
@@ -2344,5 +2340,21 @@ mod tests {
         assert_eq!(chatlist_len(&t.ctx, 0), 2);
         assert_eq!(chatlist_len(&t.ctx, DC_GCL_NO_SPECIALS), 1);
         assert_eq!(chatlist_len(&t.ctx, DC_GCL_ARCHIVED_ONLY), 1);
+    }
+
+    #[test]
+    fn test_set_chat_name() {
+        let t = dummy_context();
+        let chat_id = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo").unwrap();
+        assert_eq!(
+            Chat::load_from_db(&t.ctx, chat_id).unwrap().get_name(),
+            "foo"
+        );
+
+        set_chat_name(&t.ctx, chat_id, "bar").unwrap();
+        assert_eq!(
+            Chat::load_from_db(&t.ctx, chat_id).unwrap().get_name(),
+            "bar"
+        );
     }
 }
