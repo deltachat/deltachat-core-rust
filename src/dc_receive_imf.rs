@@ -414,20 +414,19 @@ fn add_parts(
                     Blocked::Deaddrop
                 };
 
-            create_or_lookup_group(
+            let (new_chat_id, chat_id_blocked) = create_or_lookup_group(
                 context,
                 &mut mime_parser,
                 allow_creation,
                 create_blocked,
                 *from_id,
                 to_ids,
-                chat_id,
-                &mut chat_id_blocked,
             )?;
-            if 0 != *chat_id && Blocked::Not != chat_id_blocked && create_blocked == Blocked::Not {
-                chat::unblock(context, *chat_id);
-                chat_id_blocked = Blocked::Not;
+            if new_chat_id != 0 && chat_id_blocked != Blocked::Not && create_blocked == Blocked::Not
+            {
+                chat::unblock(context, new_chat_id);
             }
+            *chat_id = new_chat_id;
         }
 
         if *chat_id == 0 {
@@ -507,20 +506,18 @@ fn add_parts(
         if !to_ids.is_empty() {
             *to_id = to_ids[0];
             if *chat_id == 0 {
-                create_or_lookup_group(
+                let (new_chat_id, chat_id_blocked) = create_or_lookup_group(
                     context,
                     &mut mime_parser,
                     allow_creation,
                     Blocked::Not,
                     *from_id,
                     to_ids,
-                    chat_id,
-                    &mut chat_id_blocked,
                 )?;
-                if 0 != *chat_id && Blocked::Not != chat_id_blocked {
+                if new_chat_id != 0 && chat_id_blocked != Blocked::Not {
                     chat::unblock(context, *chat_id);
-                    chat_id_blocked = Blocked::Not;
                 }
+                *chat_id = new_chat_id;
             }
             if *chat_id == 0 && 0 != allow_creation {
                 let create_blocked = if 0 != msgrmsg && !Contact::is_blocked_load(context, *to_id) {
@@ -539,7 +536,6 @@ fn add_parts(
                     && Blocked::Not == create_blocked
                 {
                     chat::unblock(context, *chat_id);
-                    chat_id_blocked = Blocked::Not;
                 }
             }
         }
@@ -798,11 +794,8 @@ fn create_or_lookup_group(
     create_blocked: Blocked,
     from_id: u32,
     to_ids: &mut Vec<u32>,
-    ret_chat_id: *mut u32,
-    ret_chat_id_blocked: &mut Blocked,
-) -> Result<()> {
+) -> Result<(u32, Blocked)> {
     let group_explicitly_left: bool;
-    let mut chat_id = 0;
     let mut chat_id_blocked = Blocked::Not;
     let mut grpid = "".to_string();
     let mut grpname = None;
@@ -815,18 +808,15 @@ fn create_or_lookup_group(
     let mut X_MrGrpImageChanged = "".to_string();
     let mut better_msg: String = From::from("");
 
-    let cleanup = |ret_chat_id: *mut u32,
-                   ret_chat_id_blocked: &mut Blocked,
-                   chat_id: u32,
-                   chat_id_blocked: Blocked| {
-        if !ret_chat_id.is_null() {
-            unsafe { *ret_chat_id = chat_id };
-        }
-        *ret_chat_id_blocked = if 0 != chat_id {
-            chat_id_blocked
-        } else {
-            Blocked::Not
-        };
+    let cleanup = |chat_id: u32, chat_id_blocked: Blocked| {
+        Ok((
+            chat_id,
+            if 0 != chat_id {
+                chat_id_blocked
+            } else {
+                Blocked::Not
+            },
+        ))
     };
 
     if mime_parser.is_system_message == SystemMessage::LocationStreamingEnabled {
@@ -857,18 +847,15 @@ fn create_or_lookup_group(
                 }
 
                 if grpid.is_empty() {
-                    create_or_lookup_adhoc_group(
+                    let (new_chat_id, new_chat_id_blocked) = create_or_lookup_adhoc_group(
                         context,
                         mime_parser,
                         allow_creation,
                         create_blocked,
                         from_id,
                         to_ids,
-                        &mut chat_id,
-                        &mut chat_id_blocked,
                     )?;
-                    cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
-                    return Ok(());
+                    return cleanup(new_chat_id, new_chat_id_blocked);
                 }
             }
         }
@@ -991,8 +978,7 @@ fn create_or_lookup_group(
             }
         }
         if 0 == allow_creation {
-            cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
-            return Ok(());
+            return cleanup(chat_id, chat_id_blocked);
         }
         chat_id = create_group_record(
             context,
@@ -1007,23 +993,21 @@ fn create_or_lookup_group(
 
     // again, check chat_id
     if chat_id <= DC_CHAT_ID_LAST_SPECIAL {
-        chat_id = 0;
         if group_explicitly_left {
             chat_id = DC_CHAT_ID_TRASH;
         } else {
-            create_or_lookup_adhoc_group(
+            let (new_chat_id, new_chat_id_blocked) = create_or_lookup_adhoc_group(
                 context,
                 mime_parser,
                 allow_creation,
                 create_blocked,
                 from_id,
                 to_ids,
-                &mut chat_id,
-                &mut chat_id_blocked,
             )?;
+            chat_id = new_chat_id;
+            chat_id_blocked = new_chat_id_blocked;
         }
-        cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
-        return Ok(());
+        return cleanup(chat_id, chat_id_blocked);
     }
 
     // execute group commands
@@ -1142,14 +1126,11 @@ fn create_or_lookup_group(
                 create_blocked,
                 from_id,
                 to_ids,
-                &mut chat_id,
-                &mut chat_id_blocked,
             )?;
         }
     }
 
-    cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
-    Ok(())
+    return cleanup(chat_id, chat_id_blocked);
 }
 
 /// Handle groups for received messages
@@ -1160,30 +1141,15 @@ fn create_or_lookup_adhoc_group(
     create_blocked: Blocked,
     from_id: u32,
     to_ids: &mut Vec<u32>,
-    ret_chat_id: *mut u32,
-    ret_chat_id_blocked: &mut Blocked,
-) -> Result<()> {
+) -> Result<(u32, Blocked)> {
     // if we're here, no grpid was found, check there is an existing ad-hoc
     // group matching the to-list or if we can create one
-    let mut chat_id = 0;
-    let mut chat_id_blocked = Blocked::Not;
 
-    let cleanup = |ret_chat_id: *mut u32,
-                   ret_chat_id_blocked: &mut Blocked,
-                   chat_id: u32,
-                   chat_id_blocked: Blocked| {
-        if !ret_chat_id.is_null() {
-            unsafe { *ret_chat_id = chat_id };
-        }
-        *ret_chat_id_blocked = chat_id_blocked;
-    };
-
-    // build member list from the given ids
-    if to_ids.is_empty() || mime_parser.is_mailinglist_message() {
-        // too few contacts or a mailinglist
-        cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
-        return Ok(());
-    }
+    ensure!(!to_ids.is_empty(), "empty To-list");
+    ensure!(
+        !mime_parser.is_mailinglist_message(),
+        "mailing-list message"
+    );
 
     let mut member_ids = to_ids.clone();
     if !member_ids.contains(&from_id) {
@@ -1192,11 +1158,11 @@ fn create_or_lookup_adhoc_group(
     if !member_ids.contains(&DC_CONTACT_ID_SELF) {
         member_ids.push(DC_CONTACT_ID_SELF);
     }
-    if member_ids.len() < 3 {
-        // too few contacts given
-        cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
-        return Ok(());
-    }
+    ensure!(
+        member_ids.len() >= 3,
+        "Num-contacts={} too low",
+        member_ids.len()
+    );
 
     let chat_ids = search_chat_ids_by_contact_ids(context, &member_ids)?;
     if !chat_ids.is_empty() {
@@ -1214,28 +1180,23 @@ fn create_or_lookup_adhoc_group(
         );
 
         if let Ok((id, id_blocked)) = res {
-            chat_id = id as u32;
-            chat_id_blocked = id_blocked;
             /* success, chat found */
-            cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
-            return Ok(());
+            return Ok((id as u32, id_blocked));
         }
     }
 
-    if 0 == allow_creation {
-        cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
-        return Ok(());
-    }
+    ensure!(
+        allow_creation != 0,
+        "creating ad-hoc group prevented from caller"
+    );
+
     // we do not check if the message is a reply to another group, this may result in
     // chats with unclear member list. instead we create a new group in the following lines ...
 
     // create a new ad-hoc group
     // - there is no need to check if this group exists; otherwise we would have caught it above
     let grpid = create_adhoc_grp_id(context, &member_ids);
-    if grpid.is_empty() {
-        cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
-        return Ok(());
-    }
+    ensure!(!grpid.is_empty(), "failed to create ad-hoc grpid");
 
     // use subject as initial chat name
     let grpname = if let Some(subject) = mime_parser.subject.as_ref().filter(|s| !s.is_empty()) {
@@ -1245,22 +1206,20 @@ fn create_or_lookup_adhoc_group(
     };
 
     // create group record
-    chat_id = create_group_record(
+    let chat_id = create_group_record(
         context,
         &grpid,
         grpname,
         create_blocked,
         VerifiedStatus::Unverified,
     );
-    chat_id_blocked = create_blocked;
     for &member_id in &member_ids {
         chat::add_to_chat_contacts_table(context, chat_id, member_id);
     }
 
     context.call_cb(Event::ChatModified(chat_id));
 
-    cleanup(ret_chat_id, ret_chat_id_blocked, chat_id, chat_id_blocked);
-    Ok(())
+    Ok((chat_id, create_blocked))
 }
 
 fn create_group_record(
