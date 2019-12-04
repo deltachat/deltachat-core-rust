@@ -47,11 +47,6 @@ pub fn dc_receive_imf(
         server_uid,
     );
 
-    // Parse the imf to mailimf_message. normally, this is done by mailimf_message_parse(),
-    // however, as we also need the MIME data,
-    // we use mailmime_parse() through dc_mimeparser (both call mailimf_struct_multiple_parse()
-    // somewhen, I did not found out anything that speaks against this approach yet)
-
     let mime_parser = MimeParser::from_bytes(context, imf_raw);
     let mut mime_parser = if let Err(err) = mime_parser {
         warn!(context, "dc_receive_imf parse error: {}", err);
@@ -210,7 +205,7 @@ pub fn dc_receive_imf(
             &mut created_db_entries,
             &mut create_event_to_send,
         ) {
-            warn!(context, "{}", err);
+            warn!(context, "add_parts error: {:?}", err);
 
             cleanup(
                 context,
@@ -414,7 +409,7 @@ fn add_parts(
                     Blocked::Deaddrop
                 };
 
-            let (new_chat_id, chat_id_blocked) = create_or_lookup_group(
+            let (new_chat_id, new_chat_id_blocked) = create_or_lookup_group(
                 context,
                 &mut mime_parser,
                 allow_creation,
@@ -422,10 +417,12 @@ fn add_parts(
                 *from_id,
                 to_ids,
             )?;
-            if chat_id_blocked != Blocked::Not && create_blocked == Blocked::Not {
-                chat::unblock(context, new_chat_id);
-            }
             *chat_id = new_chat_id;
+            chat_id_blocked = new_chat_id_blocked;
+            if *chat_id != 0 && chat_id_blocked != Blocked::Not && create_blocked == Blocked::Not {
+                chat::unblock(context, new_chat_id);
+                chat_id_blocked = Blocked::Not;
+            }
         }
 
         if *chat_id == 0 {
@@ -505,7 +502,7 @@ fn add_parts(
         if !to_ids.is_empty() {
             *to_id = to_ids[0];
             if *chat_id == 0 {
-                let (new_chat_id, chat_id_blocked) = create_or_lookup_group(
+                let (new_chat_id, new_chat_id_blocked) = create_or_lookup_group(
                     context,
                     &mut mime_parser,
                     allow_creation,
@@ -513,11 +510,13 @@ fn add_parts(
                     *from_id,
                     to_ids,
                 )?;
-                // automatically unblock chat when the user sends a message
-                if chat_id_blocked != Blocked::Not {
-                    chat::unblock(context, new_chat_id);
-                }
                 *chat_id = new_chat_id;
+                chat_id_blocked = new_chat_id_blocked;
+                // automatically unblock chat when the user sends a message
+                if *chat_id != 0 && chat_id_blocked != Blocked::Not {
+                    chat::unblock(context, new_chat_id);
+                    chat_id_blocked = Blocked::Not;
+                }
             }
             if *chat_id == 0 && 0 != allow_creation {
                 let create_blocked = if 0 != msgrmsg && !Contact::is_blocked_load(context, *to_id) {
@@ -536,6 +535,7 @@ fn add_parts(
                     && Blocked::Not == create_blocked
                 {
                     chat::unblock(context, *chat_id);
+                    chat_id_blocked = Blocked::Not;
                 }
             }
         }
@@ -793,7 +793,7 @@ fn create_or_lookup_group(
     allow_creation: i32,
     create_blocked: Blocked,
     from_id: u32,
-    to_ids: &Vec<u32>,
+    to_ids: &[u32],
 ) -> Result<(u32, Blocked)> {
     let mut chat_id_blocked = Blocked::Not;
     let mut grpid = "".to_string();
@@ -959,10 +959,8 @@ fn create_or_lookup_group(
             && (!group_explicitly_left
                 || X_MrAddToGrp.is_some() && addr_cmp(&self_addr, X_MrAddToGrp.as_ref().unwrap()))
     {
-        let mut create_verified = VerifiedStatus::Unverified;
-        if mime_parser.lookup_field("Chat-Verified").is_some() {
-            create_verified = VerifiedStatus::Verified;
-
+        // group does not exist but should be created
+        let create_verified = if mime_parser.lookup_field("Chat-Verified").is_some() {
             if let Err(err) =
                 check_verified_properties(context, mime_parser, from_id as u32, to_ids)
             {
@@ -970,8 +968,16 @@ fn create_or_lookup_group(
                 let s = format!("{}. See 'Info' for more details", err);
                 mime_parser.repl_msg_by_error(&s);
             }
+            VerifiedStatus::Verified
+        } else {
+            VerifiedStatus::Unverified
+        };
+
+        if allow_creation == 0 {
+            info!(context, "creating group forbidden by caller");
+            return Ok((0, Blocked::Not));
         }
-        ensure!(allow_creation != 0, "creating group forbidden by caller");
+
         chat_id = create_group_record(
             context,
             &grpid,
@@ -1107,25 +1113,26 @@ fn create_or_lookup_group(
     // check the number of receivers -
     // the only critical situation is if the user hits "Reply" instead
     // of "Reply all" in a non-messenger-client */
-    if to_ids_cnt == 1 && !mime_parser.is_send_by_messenger {
-        if chat::get_chat_contact_cnt(context, chat_id) > 3 {
-            // to_ids_cnt==1 may be "From: A, To: B, SELF" as SELF is not counted in to_ids_cnt.
-            // So everything up to 3 is no error.
-            create_or_lookup_adhoc_group(
-                context,
-                mime_parser,
-                allow_creation,
-                create_blocked,
-                from_id,
-                to_ids,
-            )
-            .map_err(|err| {
-                warn!(context, "could not create ad-hoc group: {:?}", err);
-                err
-            })?;
-        }
+    if to_ids_cnt == 1
+        && !mime_parser.is_send_by_messenger
+        && chat::get_chat_contact_cnt(context, chat_id) > 3
+    {
+        // to_ids_cnt==1 may be "From: A, To: B, SELF" as SELF is not counted in to_ids_cnt.
+        // So everything up to 3 is no error.
+        create_or_lookup_adhoc_group(
+            context,
+            mime_parser,
+            allow_creation,
+            create_blocked,
+            from_id,
+            to_ids,
+        )
+        .map_err(|err| {
+            warn!(context, "could not create ad-hoc group: {:?}", err);
+            err
+        })?;
     }
-    return Ok((chat_id, chat_id_blocked));
+    Ok((chat_id, chat_id_blocked))
 }
 
 /// Handle groups for received messages, return chat_id/Blocked status on success
@@ -1135,16 +1142,23 @@ fn create_or_lookup_adhoc_group(
     allow_creation: i32,
     create_blocked: Blocked,
     from_id: u32,
-    to_ids: &Vec<u32>,
+    to_ids: &[u32],
 ) -> Result<(u32, Blocked)> {
-    // if we're here, no grpid was found, check there if is an existing ad-hoc
-    // group matching the to-list or if we should and can create one
+    // if we're here, no grpid was found, check if there is an existing
+    // ad-hoc group matching the to-list or if we should and can create one
+    // (we do not want to heuristically look at the likely mangled Subject)
 
-    if to_ids.is_empty() || mime_parser.is_mailinglist_message() {
+    if mime_parser.is_mailinglist_message() {
+        // XXX we could parse List-* headers and actually create and
+        // manage a mailing list group, eventually
+        info!(
+            context,
+            "not creating ad-hoc group for mailing list message"
+        );
         return Ok((0, Blocked::Not));
     }
 
-    let mut member_ids = to_ids.clone();
+    let mut member_ids = to_ids.to_vec();
     if !member_ids.contains(&from_id) {
         member_ids.push(from_id);
     }
@@ -1153,6 +1167,7 @@ fn create_or_lookup_adhoc_group(
     }
 
     if member_ids.len() < 3 {
+        info!(context, "not creating ad-hoc group: too few contacts");
         return Ok((0, Blocked::Not));
     }
 
@@ -1188,8 +1203,13 @@ fn create_or_lookup_adhoc_group(
     // create a new ad-hoc group
     // - there is no need to check if this group exists; otherwise we would have caught it above
     let grpid = create_adhoc_grp_id(context, &member_ids);
-    ensure!(!grpid.is_empty(), "failed to create ad-hoc grpid");
-
+    if grpid.is_empty() {
+        warn!(
+            context,
+            "failed to create ad-hoc grpid for {:?}", member_ids
+        );
+        return Ok((0, Blocked::Not));
+    }
     // use subject as initial chat name
     let grpname = if let Some(subject) = mime_parser.subject.as_ref().filter(|s| !s.is_empty()) {
         subject.to_string()
@@ -1198,7 +1218,7 @@ fn create_or_lookup_adhoc_group(
     };
 
     // create group record
-    let chat_id = create_group_record(
+    let new_chat_id = create_group_record(
         context,
         &grpid,
         grpname,
@@ -1206,12 +1226,12 @@ fn create_or_lookup_adhoc_group(
         VerifiedStatus::Unverified,
     );
     for &member_id in &member_ids {
-        chat::add_to_chat_contacts_table(context, chat_id, member_id);
+        chat::add_to_chat_contacts_table(context, new_chat_id, member_id);
     }
 
-    context.call_cb(Event::ChatModified(chat_id));
+    context.call_cb(Event::ChatModified(new_chat_id));
 
-    Ok((chat_id, create_blocked))
+    Ok((new_chat_id, create_blocked))
 }
 
 fn create_group_record(

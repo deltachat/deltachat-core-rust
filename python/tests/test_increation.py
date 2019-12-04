@@ -57,13 +57,13 @@ class TestOnlineInCreation:
 
         lp.sec("wait1 for original or forwarded messages to arrive")
         ev1 = ac2._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
-        assert ev1[1] >= const.DC_CHAT_ID_LAST_SPECIAL
+        assert ev1[1] > const.DC_CHAT_ID_LAST_SPECIAL
         received_original = ac2.get_message_by_id(ev1[2])
         assert cmp(received_original.filename, path, False)
 
         lp.sec("wait2 for original or forwarded messages to arrive")
         ev2 = ac2._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
-        assert ev2[1] >= const.DC_CHAT_ID_LAST_SPECIAL
+        assert ev2[1] > const.DC_CHAT_ID_LAST_SPECIAL
         assert ev2[1] != ev1[1]
         received_copy = ac2.get_message_by_id(ev2[2])
         assert cmp(received_copy.filename, path, False)
