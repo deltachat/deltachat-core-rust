@@ -422,8 +422,7 @@ fn add_parts(
                 *from_id,
                 to_ids,
             )?;
-            if new_chat_id != 0 && chat_id_blocked != Blocked::Not && create_blocked == Blocked::Not
-            {
+            if chat_id_blocked != Blocked::Not && create_blocked == Blocked::Not {
                 chat::unblock(context, new_chat_id);
             }
             *chat_id = new_chat_id;
@@ -514,8 +513,9 @@ fn add_parts(
                     *from_id,
                     to_ids,
                 )?;
-                if new_chat_id != 0 && chat_id_blocked != Blocked::Not {
-                    chat::unblock(context, *chat_id);
+                // automatically unblock chat when the user sends a message
+                if chat_id_blocked != Blocked::Not {
+                    chat::unblock(context, new_chat_id);
                 }
                 *chat_id = new_chat_id;
             }
@@ -785,7 +785,7 @@ fn calc_timestamps(
 /// - is there a group with the same recipients? if so, use this (if there are multiple, use the most recent one)
 /// - create an ad-hoc group based on the recipient list
 ///
-/// So when the function returns, the caller has the group id matching the current state of the group.
+/// on success the function returns the found/created (chat_id, chat_blocked) tuple .
 #[allow(non_snake_case)]
 fn create_or_lookup_group(
     context: &Context,
@@ -793,9 +793,8 @@ fn create_or_lookup_group(
     allow_creation: i32,
     create_blocked: Blocked,
     from_id: u32,
-    to_ids: &mut Vec<u32>,
+    to_ids: &Vec<u32>,
 ) -> Result<(u32, Blocked)> {
-    let group_explicitly_left: bool;
     let mut chat_id_blocked = Blocked::Not;
     let mut grpid = "".to_string();
     let mut grpname = None;
@@ -807,17 +806,6 @@ fn create_or_lookup_group(
     let mut X_MrGrpNameChanged = 0;
     let mut X_MrGrpImageChanged = "".to_string();
     let mut better_msg: String = From::from("");
-
-    let cleanup = |chat_id: u32, chat_id_blocked: Blocked| {
-        Ok((
-            chat_id,
-            if 0 != chat_id {
-                chat_id_blocked
-            } else {
-                Blocked::Not
-            },
-        ))
-    };
 
     if mime_parser.is_system_message == SystemMessage::LocationStreamingEnabled {
         better_msg =
@@ -847,15 +835,18 @@ fn create_or_lookup_group(
                 }
 
                 if grpid.is_empty() {
-                    let (new_chat_id, new_chat_id_blocked) = create_or_lookup_adhoc_group(
+                    return create_or_lookup_adhoc_group(
                         context,
                         mime_parser,
                         allow_creation,
                         create_blocked,
                         from_id,
                         to_ids,
-                    )?;
-                    return cleanup(new_chat_id, new_chat_id_blocked);
+                    )
+                    .map_err(|err| {
+                        info!(context, "could not create adhoc-group: {:?}", err);
+                        err
+                    });
                 }
             }
         }
@@ -935,26 +926,29 @@ fn create_or_lookup_group(
 
     // check, if we have a chat with this group ID
     let (mut chat_id, chat_id_verified, _blocked) = chat::get_chat_id_by_grpid(context, &grpid);
-    if chat_id != 0 && chat_id_verified {
-        if let Err(err) = check_verified_properties(context, mime_parser, from_id as u32, to_ids) {
-            warn!(context, "verification problem: {}", err);
-            let s = format!("{}. See 'Info' for more details", err);
-            mime_parser.repl_msg_by_error(s);
+    if chat_id != 0 {
+        if chat_id_verified {
+            if let Err(err) =
+                check_verified_properties(context, mime_parser, from_id as u32, to_ids)
+            {
+                warn!(context, "verification problem: {}", err);
+                let s = format!("{}. See 'Info' for more details", err);
+                mime_parser.repl_msg_by_error(s);
+            }
+        }
+        // check if the sender is a member of the existing group -
+        // if not, we'll recreate the group list
+        if !chat::is_contact_in_chat(context, chat_id, from_id as u32) {
+            recreate_member_list = 1;
         }
     }
 
-    // check if the sender is a member of the existing group -
-    // if not, we'll recreate the group list
-    if chat_id != 0 && !chat::is_contact_in_chat(context, chat_id, from_id as u32) {
-        recreate_member_list = 1;
-    }
-
     // check if the group does not exist but should be created
-    group_explicitly_left = chat::is_group_explicitly_left(context, &grpid).unwrap_or_default();
-
+    let group_explicitly_left = chat::is_group_explicitly_left(context, &grpid).unwrap_or_default();
     let self_addr = context
         .get_config(Config::ConfiguredAddr)
         .unwrap_or_default();
+
     if chat_id == 0
             && !mime_parser.is_mailinglist_message()
             && !grpid.is_empty()
@@ -977,9 +971,7 @@ fn create_or_lookup_group(
                 mime_parser.repl_msg_by_error(&s);
             }
         }
-        if 0 == allow_creation {
-            return cleanup(chat_id, chat_id_blocked);
-        }
+        ensure!(allow_creation != 0, "creating group forbidden by caller");
         chat_id = create_group_record(
             context,
             &grpid,
@@ -993,21 +985,22 @@ fn create_or_lookup_group(
 
     // again, check chat_id
     if chat_id <= DC_CHAT_ID_LAST_SPECIAL {
-        if group_explicitly_left {
-            chat_id = DC_CHAT_ID_TRASH;
+        return if group_explicitly_left {
+            Ok((DC_CHAT_ID_TRASH, chat_id_blocked))
         } else {
-            let (new_chat_id, new_chat_id_blocked) = create_or_lookup_adhoc_group(
+            create_or_lookup_adhoc_group(
                 context,
                 mime_parser,
                 allow_creation,
                 create_blocked,
                 from_id,
                 to_ids,
-            )?;
-            chat_id = new_chat_id;
-            chat_id_blocked = new_chat_id_blocked;
-        }
-        return cleanup(chat_id, chat_id_blocked);
+            )
+            .map_err(|err| {
+                warn!(context, "failed to create ad-hoc group: {:?}", err);
+                err
+            })
+        };
     }
 
     // execute group commands
@@ -1112,13 +1105,12 @@ fn create_or_lookup_group(
     }
 
     // check the number of receivers -
-    // the only critical situation is if the user hits "Reply" instead of "Reply all" in a non-messenger-client */
+    // the only critical situation is if the user hits "Reply" instead
+    // of "Reply all" in a non-messenger-client */
     if to_ids_cnt == 1 && !mime_parser.is_send_by_messenger {
-        let is_contact_cnt = chat::get_chat_contact_cnt(context, chat_id);
-        if is_contact_cnt > 3 {
+        if chat::get_chat_contact_cnt(context, chat_id) > 3 {
             // to_ids_cnt==1 may be "From: A, To: B, SELF" as SELF is not counted in to_ids_cnt.
             // So everything up to 3 is no error.
-            chat_id = 0;
             create_or_lookup_adhoc_group(
                 context,
                 mime_parser,
@@ -1126,30 +1118,31 @@ fn create_or_lookup_group(
                 create_blocked,
                 from_id,
                 to_ids,
-            )?;
+            )
+            .map_err(|err| {
+                warn!(context, "could not create ad-hoc group: {:?}", err);
+                err
+            })?;
         }
     }
-
-    return cleanup(chat_id, chat_id_blocked);
+    return Ok((chat_id, chat_id_blocked));
 }
 
-/// Handle groups for received messages
+/// Handle groups for received messages, return chat_id/Blocked status on success
 fn create_or_lookup_adhoc_group(
     context: &Context,
     mime_parser: &MimeParser,
     allow_creation: i32,
     create_blocked: Blocked,
     from_id: u32,
-    to_ids: &mut Vec<u32>,
+    to_ids: &Vec<u32>,
 ) -> Result<(u32, Blocked)> {
-    // if we're here, no grpid was found, check there is an existing ad-hoc
-    // group matching the to-list or if we can create one
+    // if we're here, no grpid was found, check there if is an existing ad-hoc
+    // group matching the to-list or if we should and can create one
 
-    ensure!(!to_ids.is_empty(), "empty To-list");
-    ensure!(
-        !mime_parser.is_mailinglist_message(),
-        "mailing-list message"
-    );
+    if to_ids.is_empty() || mime_parser.is_mailinglist_message() {
+        return Ok((0, Blocked::Not));
+    }
 
     let mut member_ids = to_ids.clone();
     if !member_ids.contains(&from_id) {
@@ -1158,11 +1151,10 @@ fn create_or_lookup_adhoc_group(
     if !member_ids.contains(&DC_CONTACT_ID_SELF) {
         member_ids.push(DC_CONTACT_ID_SELF);
     }
-    ensure!(
-        member_ids.len() >= 3,
-        "Num-contacts={} too low",
-        member_ids.len()
-    );
+
+    if member_ids.len() < 3 {
+        return Ok((0, Blocked::Not));
+    }
 
     let chat_ids = search_chat_ids_by_contact_ids(context, &member_ids)?;
     if !chat_ids.is_empty() {
@@ -1185,10 +1177,10 @@ fn create_or_lookup_adhoc_group(
         }
     }
 
-    ensure!(
-        allow_creation != 0,
-        "creating ad-hoc group prevented from caller"
-    );
+    if allow_creation == 0 {
+        info!(context, "creating ad-hoc group prevented from caller");
+        return Ok((0, Blocked::Not));
+    }
 
     // we do not check if the message is a reply to another group, this may result in
     // chats with unclear member list. instead we create a new group in the following lines ...

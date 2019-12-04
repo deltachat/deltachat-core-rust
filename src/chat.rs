@@ -579,6 +579,10 @@ pub fn unblock(context: &Context, chat_id: u32) {
 }
 
 pub fn set_blocking(context: &Context, chat_id: u32, new_blocking: Blocked) -> bool {
+    if chat_id == 0 {
+        warn!(context, "ignoring setting of Block-status for chat_id=0");
+        return false;
+    }
     sql::execute(
         context,
         &context.sql,

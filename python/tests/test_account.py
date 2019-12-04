@@ -475,27 +475,32 @@ class TestOnlineAccount:
         ac1._evlogger.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
         ac1._evlogger.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
 
-    def test_forward_messages(self, acfactory):
+    def test_forward_messages(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
         chat = self.get_chat(ac1, ac2)
 
+        lp.sec("ac1: send message to ac2")
         msg_out = chat.send_text("message2")
 
-        # wait for other account to receive
+        lp.sec("ac2: wait for receive")
         ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
         assert ev[2] == msg_out.id
         msg_in = ac2.get_message_by_id(msg_out.id)
         assert msg_in.text == "message2"
 
-        # check the message arrived in contact-requests/deaddrop
+        lp.sec("ac2: check that the message arrive in deaddrop")
         chat2 = msg_in.chat
         assert msg_in in chat2.get_messages()
         assert not msg_in.is_forwarded()
         assert chat2.is_deaddrop()
         assert chat2 == ac2.get_deaddrop_chat()
+
+        lp.sec("ac2: create new chat and forward message to it")
         chat3 = ac2.create_group_chat("newgroup")
         assert not chat3.is_promoted()
         ac2.forward_messages([msg_in], chat3)
+
+        lp.sec("ac2: check new chat has a forwarded message")
         assert chat3.is_promoted()
         messages = chat3.get_messages()
         msg = messages[-1]
