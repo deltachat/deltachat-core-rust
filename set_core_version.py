@@ -33,6 +33,8 @@ def replace_toml_version(relpath, newversion):
 if __name__ == "__main__":
 
     if len(sys.argv) < 2:
+        for x in ("Cargo.toml", "deltachat-ffi/Cargo.toml"):
+            print("{}: {}".format(x, read_toml_version(x)))
         raise SystemExit("need argument: new version, example 1.0.0-beta.27")
     newversion = sys.argv[1]
     if newversion.count(".") < 2:
