@@ -547,7 +547,6 @@ fn open(
 
         let mut dbversion = dbversion_before_update;
         let mut recalc_fingerprints = 0;
-        let mut update_file_paths = 0;
         let mut update_icons = false;
 
         if dbversion < 1 {
@@ -712,19 +711,6 @@ fn open(
                 "CREATE INDEX acpeerstates_index5 ON acpeerstates (verified_key_fingerprint);",
                 params![],
             )?;
-            if dbversion_before_update == 34 {
-                // migrate database from the use of verified-flags to verified_key,
-                // _only_ version 34 (0.17.0) has the fields public_key_verified and gossip_key_verified
-                // this block can be deleted in half a year or so (created 5/2018)
-                sql.execute(
-                    "UPDATE acpeerstates SET verified_key=gossip_key, verified_key_fingerprint=gossip_key_fingerprint WHERE gossip_key_verified=2;",
-                    params![]
-                )?;
-                sql.execute(
-                    "UPDATE acpeerstates SET verified_key=public_key, verified_key_fingerprint=public_key_fingerprint WHERE public_key_verified=2;",
-                    params![]
-                )?;
-            }
             dbversion = 39;
             sql.set_raw_config_int(context, "dbversion", 39)?;
         }
@@ -736,20 +722,6 @@ fn open(
             )?;
             dbversion = 40;
             sql.set_raw_config_int(context, "dbversion", 40)?;
-        }
-        if dbversion < 41 {
-            info!(context, "[migration] v41");
-            update_file_paths = 1;
-            dbversion = 41;
-            sql.set_raw_config_int(context, "dbversion", 41)?;
-        }
-        if dbversion < 42 {
-            info!(context, "[migration] v42");
-            // older versions set the txt-field to the filenames, for debugging and fulltext search.
-            // to allow text+attachment compound messages, we need to reset these fields.
-            sql.execute("UPDATE msgs SET txt='' WHERE type!=10", params![])?;
-            dbversion = 42;
-            sql.set_raw_config_int(context, "dbversion", 42)?;
         }
         if dbversion < 44 {
             info!(context, "[migration] v44");
@@ -911,34 +883,6 @@ fn open(
                     Ok(())
                 },
             )?;
-        }
-        if 0 != update_file_paths {
-            // versions before 2018-08 save the absolute paths in the database files at "param.f=";
-            // for newer versions, we copy files always to the blob directory and store relative paths.
-            // this snippet converts older databases and can be removed after some time.
-            info!(context, "[migration] update file paths");
-            let repl_from = sql
-                .get_raw_config(context, "backup_for")
-                .unwrap_or_else(|| context.get_blobdir().to_string_lossy().into());
-
-            let repl_from = dc_ensure_no_slash_safe(&repl_from);
-            sql.execute(
-                &format!(
-                    "UPDATE msgs SET param=replace(param, 'f={}/', 'f=$BLOBDIR/')",
-                    repl_from
-                ),
-                NO_PARAMS,
-            )?;
-
-            sql.execute(
-                &format!(
-                    "UPDATE chats SET param=replace(param, 'i={}/', 'i=$BLOBDIR/');",
-                    repl_from
-                ),
-                NO_PARAMS,
-            )?;
-
-            sql.set_raw_config(context, "backup_for", None)?;
         }
         if update_icons {
             update_saved_messages_icon(context)?;
