@@ -98,7 +98,6 @@ impl EncryptHelper {
             .iter()
             .filter_map(|(state, addr)| state.as_ref().map(|s| (s, addr)))
         {
-            info!(context, "adding for {}: {:?}", addr, peerstate);
             let key = peerstate.peek_key(min_verified).ok_or_else(|| {
                 format_err!("proper enc-key for {} missing, cannot encrypt", addr)
             })?;
@@ -122,8 +121,6 @@ pub fn try_decrypt(
     mail: &mailparse::ParsedMail<'_>,
     message_time: i64,
 ) -> Result<(Option<Vec<u8>>, HashSet<String>)> {
-    info!(context, "trying to decrypt");
-
     let from = mail
         .headers
         .get_first_value("From")?
@@ -252,7 +249,7 @@ fn decrypt_if_autocrypt_message<'a>(
     let encrypted_data_part = match wrapmime::get_autocrypt_mime(mail) {
         Err(err) => {
             // not a proper autocrypt message, abort and ignore
-            warn!(context, "Invalid autocrypt message: {:?}", err);
+            info!(context, "Not an autocrypt message: {:?}", err);
             return Ok(None);
         }
         Ok(res) => res,
@@ -269,13 +266,12 @@ fn decrypt_if_autocrypt_message<'a>(
 
 /// Returns Ok(None) if nothing encrypted was found.
 fn decrypt_part(
-    context: &Context,
+    _context: &Context,
     mail: &mailparse::ParsedMail<'_>,
     private_keyring: &Keyring,
     public_keyring_for_validate: &Keyring,
     ret_valid_signatures: &mut HashSet<String>,
 ) -> Result<Option<Vec<u8>>> {
-    info!(context, "decrypting part");
     let data = mail.get_body_raw()?;
 
     if has_decrypted_pgp_armor(&data) {
