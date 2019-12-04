@@ -235,13 +235,6 @@ pub(crate) fn dc_extract_grpid_from_rfc724_mid(mid: &str) -> Option<&str> {
     None
 }
 
-pub(crate) fn dc_ensure_no_slash_safe(path: &str) -> &str {
-    if path.ends_with('/') || path.ends_with('\\') {
-        return &path[..path.len() - 1];
-    }
-    path
-}
-
 // Function returns a sanitized basename that does not contain
 // win/linux path separators and also not any non-ascii chars
 fn get_safe_basename(filename: &str) -> String {
