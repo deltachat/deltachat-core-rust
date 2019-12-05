@@ -9,6 +9,7 @@ use crate::context::Context;
 use crate::dc_tools::*;
 use crate::job::*;
 use crate::stock::StockMessage;
+use rusqlite::NO_PARAMS;
 
 /// The available configuration keys.
 #[derive(
@@ -129,7 +130,10 @@ impl Context {
         match key {
             Config::Selfavatar if value.is_some() => {
                 let blob = BlobObject::new_from_path(&self, value.unwrap())?;
-                self.sql.set_raw_config(self, key, Some(blob.as_name()))
+                let ret = self.sql.set_raw_config(self, key, Some(blob.as_name()));
+                self.sql
+                    .execute("UPDATE contacts SET selfavatar_sent=0;", NO_PARAMS)?;
+                ret
             }
             Config::InboxWatch => {
                 let ret = self.sql.set_raw_config(self, key, value);
