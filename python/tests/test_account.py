@@ -442,29 +442,31 @@ class TestOnlineAccount:
         assert self_addr not in ev[2]
         ev = ac1._evlogger.get_matching("DC_EVENT_DELETED_BLOB_FILE")
 
-    def test_prepare_file(self, acfactory, lp):
+    def test_prepare_file_with_unicode(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
         chat = self.get_chat(ac1, ac2)
 
         lp.sec("ac1: prepare and send attachment + text to ac2")
         blobdir = ac1.get_blobdir()
-        p = os.path.join(blobdir, "somedata.txt")
+        basename = "somedata.txt"  # XXX try unicode
+        p = os.path.join(blobdir, basename)
         with open(p, "w") as f:
             f.write("some data")
         msg = Message.new_empty(ac1, "file")
-        msg.set_text("hello world")
+        msg.set_text("hello ä world")
         msg.set_file(p)
         message = chat.prepare_message(msg)
         assert message.is_out_preparing()
-        assert message.text == "hello world"
+        assert message.text == "hello ä world"
         chat.send_prepared(message)
 
         lp.sec("ac2: receive message")
         ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
         assert ev[2] > const.DC_CHAT_ID_LAST_SPECIAL
         msg = ac2.get_message_by_id(ev[1])
-        assert msg.text == "hello world"
+        assert msg.text == "hello ä world"
         assert open(msg.filename).read() == "some data"
+        assert msg.filename.endswith(basename)
 
     def test_mvbox_sentbox_threads(self, acfactory, lp):
         lp.sec("ac1: start with mvbox thread")

@@ -1,5 +1,6 @@
 #![deny(clippy::correctness, missing_debug_implementations, clippy::all)]
-#![warn(
+// for now we hide warnings to not clutter/hide errors during "cargo check"
+#![allow(
     clippy::type_complexity,
     clippy::cognitive_complexity,
     clippy::too_many_arguments,
@@ -75,7 +76,6 @@ mod dehtml;
 pub mod dc_array;
 pub mod dc_receive_imf;
 mod dc_simplify;
-mod dc_strencode;
 pub mod dc_tools;
 
 /// if set imap/incoming and smtp/outgoing MIME messages will be printed

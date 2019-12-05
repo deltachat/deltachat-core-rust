@@ -1,12 +1,12 @@
 use chrono::TimeZone;
 use lettre_email::{mime, Address, Header, MimeMultipartType, PartBuilder};
+use rfc2047::rfc2047_encode;
 
 use crate::chat::{self, Chat};
 use crate::config::Config;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::{get_version_str, Context};
-use crate::dc_strencode::*;
 use crate::dc_tools::*;
 use crate::e2ee::*;
 use crate::error::Error;
@@ -383,7 +383,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let mut unprotected_headers: Vec<Header> = Vec::new();
 
         let from = Address::new_mailbox_with_name(
-            dc_encode_header_words(&self.from_displayname),
+            rfc2047_encode(&self.from_displayname).into_owned(),
             self.from_addr.clone(),
         );
 
@@ -395,7 +395,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                 to.push(Address::new_mailbox(addr.clone()));
             } else {
                 to.push(Address::new_mailbox_with_name(
-                    dc_encode_header_words(name),
+                    rfc2047_encode(name).into_owned(),
                     addr.clone(),
                 ));
             }
@@ -451,7 +451,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let e2ee_guranteed = self.is_e2ee_guranteed();
         let mut encrypt_helper = EncryptHelper::new(self.context)?;
 
-        let subject = dc_encode_header_words(subject_str);
+        let subject = rfc2047_encode(&subject_str).into_owned();
 
         let mut message = match self.loaded {
             Loaded::Message => {
@@ -611,7 +611,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
             protected_headers.push(Header::new("Chat-Group-ID".into(), chat.grpid.clone()));
 
-            let encoded = dc_encode_header_words(&chat.name);
+            let encoded = rfc2047_encode(&chat.name).into_owned();
             protected_headers.push(Header::new("Chat-Group-Name".into(), encoded));
 
             match command {
@@ -991,9 +991,10 @@ fn build_body_file(
     let cd_value = if needs_ext {
         format!("attachment; filename=\"{}\"", &filename_to_send)
     } else {
+        // XXX do we need to encode filenames?
         format!(
             "attachment; filename*=\"{}\"",
-            dc_encode_header_words(&filename_to_send)
+            rfc2047_encode(&filename_to_send)
         )
     };
 
@@ -1027,4 +1028,20 @@ fn is_file_size_okay(context: &Context, msg: &Message) -> bool {
         }
         None => false,
     }
+}
+
+/* ******************************************************************************
+ * Encode/decode header words, RFC 2047
+ ******************************************************************************/
+
+pub fn dc_needs_ext_header(to_check: impl AsRef<str>) -> bool {
+    let to_check = to_check.as_ref();
+
+    if to_check.is_empty() {
+        return false;
+    }
+
+    to_check.chars().any(|c| {
+        !c.is_ascii_alphanumeric() && c != '-' && c != '_' && c != '.' && c != '~' && c != '%'
+    })
 }
