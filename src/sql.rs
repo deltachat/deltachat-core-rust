@@ -859,6 +859,14 @@ fn open(
             )?;
             sql.set_raw_config_int(context, "dbversion", 60)?;
         }
+        if dbversion < 61 {
+            info!(context, "[migration] v61");
+            sql.execute(
+                "ALTER TABLE contacts ADD COLUMN selfavatar_sent INTEGER DEFAULT 0;",
+                NO_PARAMS,
+            )?;
+            sql.set_raw_config_int(context, "dbversion", 61)?;
+        }
 
         // (2) updates that require high-level objects
         // (the structure is complete now and all objects are usable)
