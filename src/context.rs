@@ -14,13 +14,11 @@ use crate::contact::*;
 use crate::error::*;
 use crate::events::Event;
 use crate::imap::*;
-use crate::job::*;
 use crate::job_thread::JobThread;
 use crate::key::*;
 use crate::login_param::LoginParam;
 use crate::lot::Lot;
-use crate::message::{self, Message, MsgId};
-use crate::param::Params;
+use crate::message::{self, MsgId};
 use crate::smtp::Smtp;
 use crate::sql::Sql;
 
@@ -434,34 +432,6 @@ impl Context {
             name == folder_name.as_ref()
         } else {
             false
-        }
-    }
-
-    pub fn do_heuristics_moves(&self, folder: &str, msg_id: MsgId) {
-        if !self.get_config_bool(Config::MvboxMove) {
-            return;
-        }
-
-        if self.is_mvbox(folder) {
-            return;
-        }
-        if let Ok(msg) = Message::load_from_db(self, msg_id) {
-            if msg.is_setupmessage() {
-                // do not move setup messages;
-                // there may be a non-delta device that wants to handle it
-                return;
-            }
-
-            // 1 = dc message, 2 = reply to dc message
-            if 0 != msg.is_dc_message {
-                job_add(
-                    self,
-                    Action::MoveMsg,
-                    msg.id.to_u32() as i32,
-                    Params::new(),
-                    0,
-                );
-            }
         }
     }
 }

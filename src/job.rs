@@ -134,7 +134,7 @@ impl Job {
 
     /// Updates the job already stored in the database.
     ///
-    /// To add a new job, use [job_add].
+    /// To add a new job, use [add_job_*].
     fn update(&self, context: &Context) -> bool {
         sql::execute(
             context,
@@ -472,21 +472,10 @@ pub fn perform_sentbox_idle(context: &Context) {
         .idle(context, use_network);
 }
 
-pub fn interrupt_inbox_idle(context: &Context, block: bool) {
-    info!(context, "interrupt_inbox_idle called blocking={}", block);
-    if block {
-        context.inbox_thread.read().unwrap().interrupt_idle(context);
-    } else {
-        match context.inbox_thread.try_read() {
-            Ok(inbox_thread) => {
-                inbox_thread.interrupt_idle(context);
-            }
-            Err(err) => {
-                *context.perform_inbox_jobs_needed.write().unwrap() = true;
-                warn!(context, "could not interrupt idle: {}", err);
-            }
-        }
-    }
+pub fn interrupt_inbox_idle(context: &Context) {
+    info!(context, "interrupt_inbox_idle begin");
+    context.inbox_thread.read().unwrap().interrupt_idle(context);
+    info!(context, "interrupt_inbox_idle finish");
 }
 
 pub fn interrupt_mvbox_idle(context: &Context) {
@@ -596,7 +585,7 @@ pub fn maybe_network(context: &Context) {
     }
 
     interrupt_smtp_idle(context);
-    interrupt_inbox_idle(context, true);
+    interrupt_inbox_idle(context);
     interrupt_mvbox_idle(context);
     interrupt_sentbox_idle(context);
 }
@@ -918,7 +907,7 @@ fn add_smtp_job(
     param.set(Param::File, blob.as_name());
     param.set(Param::Recipients, &recipients);
 
-    job_add(
+    add_job_with_interrupt(
         context,
         action,
         rendered_msg
@@ -934,7 +923,7 @@ fn add_smtp_job(
 
 /// Adds a job to the database, scheduling it `delay_seconds`
 /// after the current time.
-pub fn job_add(
+pub fn add_job_no_interrupt(
     context: &Context,
     action: Action,
     foreign_id: i32,
@@ -942,7 +931,7 @@ pub fn job_add(
     delay_seconds: i64,
 ) {
     if action == Action::Unknown {
-        error!(context, "Invalid action passed to job_add");
+        error!(context, "Invalid action passed to add_job_no_interrupt");
         return;
     }
 
@@ -963,8 +952,23 @@ pub fn job_add(
         ]
     ).ok();
 
+    if thread == Thread::Imap {
+        *context.perform_inbox_jobs_needed.write().unwrap() = true;
+    }
+}
+
+pub fn add_job_with_interrupt(
+    context: &Context,
+    action: Action,
+    foreign_id: i32,
+    param: Params,
+    delay_seconds: i64,
+) {
+    let thread: Thread = action.into();
+    add_job_no_interrupt(context, action, foreign_id, param, delay_seconds);
+
     match thread {
-        Thread::Imap => interrupt_inbox_idle(context, false),
+        Thread::Imap => interrupt_inbox_idle(context),
         Thread::Smtp => interrupt_smtp_idle(context),
         Thread::Unknown => {}
     }

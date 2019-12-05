@@ -226,7 +226,7 @@ pub fn send_locations_to_chat(context: &Context, chat_id: u32, seconds: i64) {
             context.call_cb(Event::ChatModified(chat_id));
             if 0 != seconds {
                 schedule_MAYBE_SEND_LOCATIONS(context, false);
-                job_add(
+                add_job_with_interrupt(
                     context,
                     Action::MaybeSendLocationsEnded,
                     chat_id as i32,
@@ -241,7 +241,8 @@ pub fn send_locations_to_chat(context: &Context, chat_id: u32, seconds: i64) {
 #[allow(non_snake_case)]
 fn schedule_MAYBE_SEND_LOCATIONS(context: &Context, force_schedule: bool) {
     if force_schedule || !job_action_exists(context, Action::MaybeSendLocations) {
-        job_add(context, Action::MaybeSendLocations, 0, Params::new(), 60);
+        // XXX questionable to interrupt but set a +60secs target
+        add_job_with_interrupt(context, Action::MaybeSendLocations, 0, Params::new(), 60);
     };
 }
 

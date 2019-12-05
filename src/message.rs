@@ -875,7 +875,7 @@ pub fn delete_msgs(context: &Context, msg_ids: &[MsgId]) {
             }
         }
         update_msg_chat_id(context, *msg_id, DC_CHAT_ID_TRASH);
-        job_add(
+        add_job_with_interrupt(
             context,
             Action::DeleteMsgOnImap,
             msg_id.to_u32() as i32,
@@ -890,7 +890,7 @@ pub fn delete_msgs(context: &Context, msg_ids: &[MsgId]) {
             msg_id: MsgId::new(0),
         });
         job_kill_action(context, Action::Housekeeping);
-        job_add(context, Action::Housekeeping, 0, Params::new(), 10);
+        add_job_with_interrupt(context, Action::Housekeeping, 0, Params::new(), 10);
     };
 }
 
@@ -961,7 +961,7 @@ pub fn markseen_msgs(context: &Context, msg_ids: &[MsgId]) -> bool {
                 update_msg_state(context, *id, MessageState::InSeen);
                 info!(context, "Seen message {}.", id);
 
-                job_add(
+                add_job_with_interrupt(
                     context,
                     Action::MarkseenMsgOnImap,
                     id.to_u32() as i32,
@@ -1319,7 +1319,7 @@ pub fn update_server_uid(
 #[allow(dead_code)]
 pub fn dc_empty_server(context: &Context, flags: u32) {
     job_kill_action(context, Action::EmptyServer);
-    job_add(context, Action::EmptyServer, flags as i32, Params::new(), 0);
+    add_job_with_interrupt(context, Action::EmptyServer, flags as i32, Params::new(), 0);
 }
 
 #[cfg(test)]

@@ -17,9 +17,9 @@ use crate::context::Context;
 use crate::dc_receive_imf::dc_receive_imf;
 use crate::events::Event;
 use crate::imap_client::*;
-use crate::job::{job_add, Action};
+use crate::job::{add_job_no_interrupt, Action};
 use crate::login_param::{CertificateChecks, LoginParam};
-use crate::message::{self, update_server_uid};
+use crate::message::{self, update_server_uid, Message, MsgId};
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::param::Params;
 use crate::stock::StockMessage;
@@ -1204,8 +1204,8 @@ fn precheck_imf(context: &Context, rfc724_mid: &str, server_folder: &str, server
     {
         if old_server_folder.is_empty() && old_server_uid == 0 {
             info!(context, "[move] detected bbc-self {}", rfc724_mid,);
-            context.do_heuristics_moves(server_folder.as_ref(), msg_id);
-            job_add(
+            do_heuristics_moves(context, server_folder.as_ref(), msg_id);
+            add_job_no_interrupt(
                 context,
                 Action::MarkseenMsgOnImap,
                 msg_id.to_u32() as i32,
@@ -1238,4 +1238,33 @@ fn prefetch_get_message_id(prefetch_msg: &Fetch) -> Result<String> {
     }
 
     wrapmime::parse_message_id(&message_id.unwrap()).map_err(Into::into)
+}
+
+pub fn do_heuristics_moves(context: &Context, folder: &str, msg_id: MsgId) {
+    if !context.get_config_bool(crate::config::Config::MvboxMove) {
+        return;
+    }
+
+    if context.is_mvbox(folder) {
+        return;
+    }
+    if let Ok(msg) = Message::load_from_db(context, msg_id) {
+        if msg.is_setupmessage() {
+            // do not move setup messages;
+            // there may be a non-delta device that wants to handle it
+            return;
+        }
+
+        // 1 = dc message, 2 = reply to dc message
+        if 0 != msg.is_dc_message {
+            // we are called from receive_imf so there is no idle running
+            add_job_no_interrupt(
+                context,
+                Action::MoveMsg,
+                msg.id.to_u32() as i32,
+                Params::new(),
+                0,
+            );
+        }
+    }
 }
