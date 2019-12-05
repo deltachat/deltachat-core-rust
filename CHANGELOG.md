@@ -1,5 +1,16 @@
 # Changelog 
 
+## 1.0.0-beta.10 (pending)
+
+- fix grpid-determination from in-reply-to and references headers. @hpk42
+
+- only send Autocrypt-gossip headers on encrypted messages. @dignifiedquire
+
+- fix reply-to-encrypted message to also be encrypted. @hpk42
+
+- remove last unsafe code from dc_receive_imf :) @hpk42
+
+
 ## 1.0.0-beta.9
 
 - historic: we now use the mailparse crate and lettre-email to generate mime
