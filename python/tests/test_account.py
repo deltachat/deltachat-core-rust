@@ -436,7 +436,7 @@ class TestOnlineAccount:
 
         lp.sec("ac1: prepare and send attachment + text to ac2")
         blobdir = ac1.get_blobdir()
-        basename = "somedata.txt"  # XXX try unicode
+        basename = "somedäüta.txt"
         p = os.path.join(blobdir, basename)
         with open(p, "w") as f:
             f.write("some data")

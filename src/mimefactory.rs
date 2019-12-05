@@ -980,21 +980,18 @@ fn build_body_file(
         }
     };
 
-    let needs_ext = dc_needs_ext_header(&filename_to_send);
-
     // create mime part, for Content-Disposition, see RFC 2183.
     // `Content-Disposition: attachment` seems not to make a difference to `Content-Disposition: inline`
     // at least on tested Thunderbird and Gma'l in 2017.
     // But I've heard about problems with inline and outl'k, so we just use the attachment-type until we
     // run into other problems ...
-    let cd_value = if needs_ext {
-        format!("attachment; filename=\"{}\"", &filename_to_send)
-    } else {
-        // XXX do we need to encode filenames?
+    let cd_value = if needs_encoding(&filename_to_send) {
         format!(
             "attachment; filename*=\"{}\"",
             quoted_printable::encode_to_str(&filename_to_send)
         )
+    } else {
+        format!("attachment; filename=\"{}\"", &filename_to_send)
     };
 
     let body = std::fs::read(blob.to_abs_path())?;
@@ -1033,7 +1030,7 @@ fn is_file_size_okay(context: &Context, msg: &Message) -> bool {
  * Encode/decode header words, RFC 2047
  ******************************************************************************/
 
-pub fn dc_needs_ext_header(to_check: impl AsRef<str>) -> bool {
+pub fn needs_encoding(to_check: impl AsRef<str>) -> bool {
     let to_check = to_check.as_ref();
 
     if to_check.is_empty() {
