@@ -78,5 +78,11 @@ mod dc_simplify;
 mod dc_strencode;
 pub mod dc_tools;
 
+/// if set imap/incoming and smtp/outgoing MIME messages will be printed
+pub const DCC_MIME_DEBUG: &str = "DCC_MIME_DEBUG";
+
+/// if set IMAP protocol commands and responses will be printed
+pub const DCC_IMAP_DEBUG: &str = "DCC_IMAP_DEBUG";
+
 #[cfg(test)]
 mod test_utils;

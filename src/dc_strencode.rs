@@ -23,7 +23,8 @@ pub fn dc_encode_header_words(input: impl AsRef<str>) -> String {
 }
 
 fn must_encode(byte: u8) -> bool {
-    static SPECIALS: &[u8] = b",:!\"#$@[\\]^`{|}~=?_";
+    // XXX do we need to put ":" in here?
+    static SPECIALS: &[u8] = b",!\"#$@[\\]^`{|}~=?_";
 
     SPECIALS.iter().any(|b| *b == byte)
 }

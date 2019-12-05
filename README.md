@@ -87,6 +87,15 @@ $ cargo test --all
 $ cargo build -p deltachat_ffi --release
 ```
 
+## Debugging environment variables 
+
+- `DCC_IMAP_DEBUG`: if set IMAP protocol commands and responses will be
+  printed
+
+- `DCC_MIME_DEBUG`: if set outgoing and incoming message will be printed 
+
+
+
 ### Expensive tests
 
 Some tests are expensive and marked with `#[ignore]`, to run these

@@ -670,6 +670,32 @@ class TestOnlineAccount:
         ev = ac1._evlogger.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
         assert not msg.is_encrypted()
 
+    def test_send_first_message_as_long_unicode_with_cr(self, acfactory, lp):
+        ac1, ac2 = acfactory.get_two_online_accounts()
+        ac2.set_config("save_mime_headers", "1")
+
+        lp.sec("ac1: create chat with ac2")
+        chat = self.get_chat(ac1, ac2, both_created=True)
+
+        lp.sec("sending multi-line non-unicode message from ac1 to ac2")
+        text1 = "hello\nworld"
+        msg_out = chat.send_text(text1)
+        assert not msg_out.is_encrypted()
+
+        lp.sec("sending multi-line unicode text message from ac1 to ac2")
+        text2 = "äalis\nthis is ßßÄ"
+        msg_out = chat.send_text(text2)
+        assert not msg_out.is_encrypted()
+
+        lp.sec("wait for ac2 to receive multi-line non-unicode message")
+        msg_in = ac2.wait_next_incoming_message()
+        assert msg_in.text == text1
+
+        lp.sec("wait for ac2 to receive multi-line unicode message")
+        msg_in = ac2.wait_next_incoming_message()
+        assert msg_in.text == text2
+        assert ac1.get_config("addr") in msg_in.chat.get_name()
+
     def test_reply_encrypted(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
 
