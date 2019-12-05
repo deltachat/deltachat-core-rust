@@ -1,7 +1,6 @@
 """ The Message object. """
 
 import os
-import shutil
 from . import props
 from .cutil import from_dc_charpointer, as_dc_charpointer
 from .capi import lib, ffi
