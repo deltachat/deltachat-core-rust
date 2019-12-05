@@ -1929,7 +1929,7 @@ pub fn get_info_json(context: &Context, chat_id: u32) -> Result<String, Error> {
 
     let draft = match get_draft(context, chat_id) {
         Ok(message) => match message {
-            Some(m) => m.text.unwrap_or("".to_string()),
+            Some(m) => m.text.unwrap_or_else(|| "".to_string()),
             None => "".to_string(),
         },
         Err(_) => "".to_string(),
