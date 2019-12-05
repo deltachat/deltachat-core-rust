@@ -1,5 +1,10 @@
 # Changelog 
 
+## 1.0.0-beta.12
+
+- fix python bindings to use core for copying attachments to blobdir
+  and fix core to actually do it. @hpk42
+
 ## 1.0.0-beta.11
 
 - trigger reconnect more often on imap error states.  Should fix an 
