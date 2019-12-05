@@ -579,14 +579,23 @@ impl<'a> MimeParser<'a> {
                 //    `Content-Disposition: ... filename*=...`
                 // or `Content-Disposition: ... filename*0*=... filename*1*=... filename*2*=...`
                 // or `Content-Disposition: ... filename=...`
+                use quoted_printable::ParseMode::Robust;
 
                 let ct = mail.get_content_disposition()?;
                 let mut desired_filename = ct
                     .params
                     .iter()
                     .filter(|(key, _value)| key.starts_with("filename"))
-                    .fold(String::new(), |mut acc, (_key, value)| {
-                        acc += value;
+                    .fold(String::new(), |mut acc, (key, value)| {
+                        if key.starts_with("filename*") {
+                            quoted_printable::decode(&value, Robust)
+                                .map(|ref res| {
+                                    acc += &String::from_utf8_lossy(res);
+                                })
+                                .ok();
+                        } else {
+                            acc += value;
+                        };
                         acc
                     });
 
