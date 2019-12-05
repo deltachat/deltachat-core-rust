@@ -15,7 +15,7 @@ use crate::dc_tools::*;
 use crate::e2ee;
 use crate::error::Result;
 use crate::headerdef::HeaderDef;
-use crate::job::{job_add, Action};
+use crate::job::{add_job_no_interrupt, Action};
 use crate::location;
 use crate::message;
 use crate::message::MsgId;
@@ -782,7 +782,7 @@ impl<'a> MimeParser<'a> {
                 if self.has_chat_version() && self.context.get_config_bool(Config::MvboxMove) {
                     param.set_int(Param::AlsoMove, 1);
                 }
-                job_add(self.context, Action::MarkseenMdnOnImap, 0, param, 0);
+                add_job_no_interrupt(self.context, Action::MarkseenMdnOnImap, 0, param, 0);
             }
         }
     }

@@ -1352,7 +1352,7 @@ pub fn delete(context: &Context, chat_id: u32) -> Result<(), Error> {
     });
 
     job_kill_action(context, Action::Housekeeping);
-    job_add(context, Action::Housekeeping, 0, Params::new(), 10);
+    add_job_with_interrupt(context, Action::Housekeeping, 0, Params::new(), 10);
 
     Ok(())
 }

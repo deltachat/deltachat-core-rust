@@ -74,7 +74,7 @@ pub fn imex(context: &Context, what: ImexMode, param1: Option<impl AsRef<Path>>)
     }
 
     job_kill_action(context, Action::ImexImap);
-    job_add(context, Action::ImexImap, 0, param, 0);
+    add_job_with_interrupt(context, Action::ImexImap, 0, param, 0);
 }
 
 /// Returns the filename of the backup found (otherwise an error)

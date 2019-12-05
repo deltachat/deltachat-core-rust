@@ -38,7 +38,7 @@ pub fn configure(context: &Context) {
         return;
     }
     job_kill_action(context, Action::ConfigureImap);
-    job_add(context, Action::ConfigureImap, 0, Params::new(), 0);
+    add_job_with_interrupt(context, Action::ConfigureImap, 0, Params::new(), 0);
 }
 
 /// Check if the context is already configured.
