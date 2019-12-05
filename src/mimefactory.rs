@@ -333,13 +333,19 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             Loaded::Message => {
                 match self.chat {
                     Some(ref chat) => {
-                        let raw_subject = message::get_summarytext_by_raw(
+                        let raw = message::get_summarytext_by_raw(
                             self.msg.type_0,
                             self.msg.text.as_ref(),
                             &self.msg.param,
                             32,
                             self.context,
                         );
+                        let mut lines = raw.lines();
+                        let raw_subject = if let Some(line) = lines.next() {
+                            line
+                        } else {
+                            ""
+                        };
 
                         let afwd_email = self.msg.param.exists(Param::Forwarded);
                         let fwd = if afwd_email { "Fwd: " } else { "" };

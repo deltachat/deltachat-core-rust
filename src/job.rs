@@ -192,6 +192,10 @@ impl Job {
                     // was sent we need to mark it in the database ASAP as we
                     // otherwise might send it twice.
                     let mut smtp = context.smtp.lock().unwrap();
+                    if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
+                        info!(context, "smtp-sending out mime message:");
+                        println!("{}", String::from_utf8_lossy(&body));
+                    }
                     match smtp.send(context, recipients_list, body, self.job_id) {
                         Err(crate::smtp::send::Error::SendError(err)) => {
                             // Remote error, retry later.

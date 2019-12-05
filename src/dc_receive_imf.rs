@@ -47,6 +47,11 @@ pub fn dc_receive_imf(
         server_uid,
     );
 
+    if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
+        info!(context, "dc_receive_imf: incoming message mime-body:");
+        println!("{}", String::from_utf8_lossy(imf_raw));
+    }
+
     let mime_parser = MimeParser::from_bytes(context, imf_raw);
     let mut mime_parser = if let Err(err) = mime_parser {
         warn!(context, "dc_receive_imf parse error: {}", err);

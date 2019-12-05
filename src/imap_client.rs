@@ -11,8 +11,6 @@ use async_tls::client::TlsStream;
 
 use crate::login_param::{dc_build_tls_config, CertificateChecks};
 
-const DCC_IMAP_DEBUG: &str = "DCC_IMAP_DEBUG";
-
 #[derive(Debug)]
 pub(crate) enum Client {
     Secure(ImapClient<TlsStream<TcpStream>>),
@@ -42,7 +40,7 @@ impl Client {
         let tls_connector: async_tls::TlsConnector = Arc::new(tls_config).into();
         let tls_stream = tls_connector.connect(domain.as_ref(), stream)?.await?;
         let mut client = ImapClient::new(tls_stream);
-        if std::env::var(DCC_IMAP_DEBUG).is_ok() {
+        if std::env::var(crate::DCC_IMAP_DEBUG).is_ok() {
             client.debug = true;
         }
 
@@ -58,7 +56,7 @@ impl Client {
         let stream = TcpStream::connect(addr).await?;
 
         let mut client = ImapClient::new(stream);
-        if std::env::var(DCC_IMAP_DEBUG).is_ok() {
+        if std::env::var(crate::DCC_IMAP_DEBUG).is_ok() {
             client.debug = true;
         }
         let _greeting = client
