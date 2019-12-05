@@ -1,5 +1,5 @@
 #![deny(clippy::correctness, missing_debug_implementations, clippy::all)]
-// for now we hide warnings to not clutter/hide errors during "cargo check"
+// for now we hide warnings to not clutter/hide errors during "cargo clippy"
 #![allow(
     clippy::type_complexity,
     clippy::cognitive_complexity,
