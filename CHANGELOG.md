@@ -10,6 +10,11 @@
 
 - remove last unsafe code from dc_receive_imf :) @hpk42
 
+- add experimental new dc_chat_get_info_json FFI/API so that desktop devs
+  can play with using it. @jikstra
+
+- fix encoding of subjects and attachment-filenames @hpk42
+  @dignifiedquire . 
 
 ## 1.0.0-beta.9
 
