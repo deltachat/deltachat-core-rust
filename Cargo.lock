@@ -607,7 +607,7 @@ dependencies = [
 
 [[package]]
 name = "deltachat"
-version = "1.0.0-beta.10"
+version = "1.0.0-beta.11"
 dependencies = [
  "async-imap 0.1.1 (git+https://github.com/async-email/async-imap)",
  "async-std 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -683,9 +683,9 @@ dependencies = [
 
 [[package]]
 name = "deltachat_ffi"
-version = "1.0.0-beta.10"
+version = "1.0.0-beta.11"
 dependencies = [
- "deltachat 1.0.0-beta.10",
+ "deltachat 1.0.0-beta.11",
  "deltachat-provider-database 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "human-panic 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -800,7 +800,7 @@ dependencies = [
 [[package]]
 name = "encoded-words"
 version = "0.1.0"
-source = "git+https://github.com/async-email/encoded-words#019e833f0c9ea7d4b0b693aab44e66d78d18f1d0"
+source = "git+https://github.com/async-email/encoded-words#2631c258183620f6d976abffabbfc2dcc697d793"
 dependencies = [
  "base64 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "charset 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",

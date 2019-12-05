@@ -1,6 +1,14 @@
 # Changelog 
 
-## 1.0.0-beta.10 (pending)
+## 1.0.0-beta.11
+
+- trigger reconnect more often on imap error states.  Should fix an 
+  issue observed when trying to empty a folder.  @hpk42
+
+- un-split qr tests: we fixed qr-securejoin protocol flakyness 
+  last weeks. @hpk42
+
+## 1.0.0-beta.10
 
 - fix grpid-determination from in-reply-to and references headers. @hpk42
 
