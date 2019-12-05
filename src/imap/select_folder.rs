@@ -34,6 +34,7 @@ impl Imap {
             let mut cfg = self.config.write().await;
             cfg.selected_folder = None;
             cfg.selected_folder_needs_expunge = false;
+            self.trigger_reconnect();
             return Err(Error::NoSession);
         }
 
@@ -61,6 +62,7 @@ impl Imap {
                             info!(context, "close/expunge succeeded");
                         }
                         Err(err) => {
+                            self.trigger_reconnect();
                             return Err(Error::CloseExpungeFailed(err));
                         }
                     }
