@@ -382,7 +382,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let mut unprotected_headers: Vec<Header> = Vec::new();
 
         let from = Address::new_mailbox_with_name(
-            quoted_printable::encode_to_str(&self.from_displayname),
+            encode_words(&self.from_displayname),
             self.from_addr.clone(),
         );
 
@@ -394,7 +394,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                 to.push(Address::new_mailbox(addr.clone()));
             } else {
                 to.push(Address::new_mailbox_with_name(
-                    quoted_printable::encode_to_str(name),
+                    encode_words(name),
                     addr.clone(),
                 ));
             }
@@ -450,7 +450,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let e2ee_guranteed = self.is_e2ee_guranteed();
         let mut encrypt_helper = EncryptHelper::new(self.context)?;
 
-        let subject = quoted_printable::encode_to_str(&subject_str);
+        let subject = encode_words(&subject_str);
 
         let mut message = match self.loaded {
             Loaded::Message => {
@@ -610,7 +610,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
             protected_headers.push(Header::new("Chat-Group-ID".into(), chat.grpid.clone()));
 
-            let encoded = quoted_printable::encode_to_str(&chat.name);
+            let encoded = encode_words(&chat.name);
             protected_headers.push(Header::new("Chat-Group-Name".into(), encoded));
 
             match command {
@@ -988,7 +988,7 @@ fn build_body_file(
     let cd_value = if needs_encoding(&filename_to_send) {
         format!(
             "attachment; filename*=\"{}\"",
-            quoted_printable::encode_to_str(&filename_to_send)
+            encode_words(&filename_to_send)
         )
     } else {
         format!("attachment; filename=\"{}\"", &filename_to_send)
@@ -1029,6 +1029,10 @@ fn is_file_size_okay(context: &Context, msg: &Message) -> bool {
 /* ******************************************************************************
  * Encode/decode header words, RFC 2047
  ******************************************************************************/
+
+fn encode_words(word: &str) -> String {
+    encoded_words::encode(word, None, encoded_words::EncodingFlag::Shortest, None)
+}
 
 pub fn needs_encoding(to_check: impl AsRef<str>) -> bool {
     let to_check = to_check.as_ref();
