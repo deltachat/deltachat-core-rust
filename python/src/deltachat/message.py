@@ -58,8 +58,6 @@ class Message(object):
 
     def set_text(self, text):
         """set text of this message. """
-        assert self.id > 0, "message not prepared"
-        assert self.is_out_preparing()
         lib.dc_msg_set_text(self._dc_msg, as_dc_charpointer(text))
 
     @props.with_doc
