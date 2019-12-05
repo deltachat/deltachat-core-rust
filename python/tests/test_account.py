@@ -442,31 +442,40 @@ class TestOnlineAccount:
         assert self_addr not in ev[2]
         ev = ac1._evlogger.get_matching("DC_EVENT_DELETED_BLOB_FILE")
 
-    def test_prepare_file_with_unicode(self, acfactory, lp):
+    def test_send_file_twice_unicode_filename_mangling(self, tmpdir, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
         chat = self.get_chat(ac1, ac2)
 
-        lp.sec("ac1: prepare and send attachment + text to ac2")
-        blobdir = ac1.get_blobdir()
-        basename = "somedäüta.txt"
-        p = os.path.join(blobdir, basename)
+        basename = "somedäüta.html.zip"
+        p = os.path.join(tmpdir.strpath, basename)
         with open(p, "w") as f:
             f.write("some data")
-        msg = Message.new_empty(ac1, "file")
-        msg.set_text("hello ä world")
-        msg.set_file(p)
-        message = chat.prepare_message(msg)
-        assert message.is_out_preparing()
-        assert message.text == "hello ä world"
-        chat.send_prepared(message)
 
-        lp.sec("ac2: receive message")
-        ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
-        assert ev[2] > const.DC_CHAT_ID_LAST_SPECIAL
-        msg = ac2.get_message_by_id(ev[1])
-        assert msg.text == "hello ä world"
+        def send_and_receive_message():
+            lp.sec("ac1: prepare and send attachment + text to ac2")
+            msg = Message.new_empty(ac1, "file")
+            msg.set_text("withfile")
+            msg.set_file(p)
+            message = chat.prepare_message(msg)
+            assert message.is_out_preparing()
+            assert message.text == "withfile"
+            chat.send_prepared(message)
+
+            lp.sec("ac2: receive message")
+            ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
+            assert ev[2] > const.DC_CHAT_ID_LAST_SPECIAL
+            return ac2.get_message_by_id(ev[1])
+
+        msg = send_and_receive_message()
+        assert msg.text == "withfile"
         assert open(msg.filename).read() == "some data"
         assert msg.filename.endswith(basename)
+
+        msg2 = send_and_receive_message()
+        assert msg2.text == "withfile"
+        assert open(msg2.filename).read() == "some data"
+        assert msg2.filename.endswith("html.zip")
+        assert msg.filename != msg2.filename
 
     def test_mvbox_sentbox_threads(self, acfactory, lp):
         lp.sec("ac1: start with mvbox thread")
