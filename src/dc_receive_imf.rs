@@ -796,7 +796,6 @@ fn create_or_lookup_group(
     to_ids: &[u32],
 ) -> Result<(u32, Blocked)> {
     let mut chat_id_blocked = Blocked::Not;
-    let mut grpid = "".to_string();
     let mut grpname = None;
     let to_ids_cnt = to_ids.len();
     let mut recreate_member_list = 0;
@@ -813,6 +812,7 @@ fn create_or_lookup_group(
     }
     set_better_msg(mime_parser, &better_msg);
 
+    let mut grpid = "".to_string();
     if let Some(optional_field) = mime_parser.lookup_field("Chat-Group-ID") {
         grpid = optional_field.clone();
     }
@@ -821,33 +821,26 @@ fn create_or_lookup_group(
         if let Some(value) = mime_parser.lookup_field("Message-ID") {
             if let Some(extracted_grpid) = dc_extract_grpid_from_rfc724_mid(&value) {
                 grpid = extracted_grpid.to_string();
-            } else {
-                grpid = "".to_string();
             }
         }
         if grpid.is_empty() {
-            if let Some(value) = mime_parser.lookup_field("In-Reply-To") {
-                grpid = value.clone();
-            }
-            if grpid.is_empty() {
-                if let Some(value) = mime_parser.lookup_field("References") {
-                    grpid = value.clone();
-                }
-
-                if grpid.is_empty() {
-                    return create_or_lookup_adhoc_group(
-                        context,
-                        mime_parser,
-                        allow_creation,
-                        create_blocked,
-                        from_id,
-                        to_ids,
-                    )
-                    .map_err(|err| {
-                        info!(context, "could not create adhoc-group: {:?}", err);
-                        err
-                    });
-                }
+            if let Some(extracted_grpid) = get_grpid_from_list(mime_parser, "In-Reply-To") {
+                grpid = extracted_grpid;
+            } else if let Some(extracted_grpid) = get_grpid_from_list(mime_parser, "References") {
+                grpid = extracted_grpid;
+            } else {
+                return create_or_lookup_adhoc_group(
+                    context,
+                    mime_parser,
+                    allow_creation,
+                    create_blocked,
+                    from_id,
+                    to_ids,
+                )
+                .map_err(|err| {
+                    info!(context, "could not create adhoc-group: {:?}", err);
+                    err
+                });
             }
         }
     }
@@ -1133,6 +1126,20 @@ fn create_or_lookup_group(
         })?;
     }
     Ok((chat_id, chat_id_blocked))
+}
+
+/// try extract a grpid from a message-id list header value
+fn get_grpid_from_list(mime_parser: &MimeParser, header_key: &str) -> Option<String> {
+    if let Some(value) = mime_parser.lookup_field(header_key) {
+        for part in value.split(',').map(str::trim) {
+            if !part.is_empty() {
+                if let Some(extracted_grpid) = dc_extract_grpid_from_rfc724_mid(part) {
+                    return Some(extracted_grpid.to_string());
+                }
+            }
+        }
+    }
+    None
 }
 
 /// Handle groups for received messages, return chat_id/Blocked status on success
@@ -1658,6 +1665,7 @@ fn add_or_lookup_contact_by_addr(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::dummy_context;
 
     #[test]
     fn test_hex_hash() {
@@ -1665,5 +1673,35 @@ mod tests {
 
         let res = hex_hash(data);
         assert_eq!(res, "b94d27b9934d3e08");
+    }
+
+    #[test]
+    fn test_grpid_simple() {
+        let context = dummy_context();
+        let raw = b"From: hello\n\
+                    Subject: outer-subject\n\
+                    In-Reply-To: <lqkjwelq123@123123>\n\
+                    References: <Gr.HcxyMARjyJy.9-uvzWPTLtV@nauta.cu>\n\
+                    \n\
+                    hello\x00";
+        let mimeparser = MimeParser::from_bytes(&context.ctx, &raw[..]).unwrap();
+        assert_eq!(get_grpid_from_list(&mimeparser, "In-Reply-To"), None);
+        let grpid = Some("HcxyMARjyJy".to_string());
+        assert_eq!(get_grpid_from_list(&mimeparser, "References"), grpid);
+    }
+
+    #[test]
+    fn test_grpid_from_multiple() {
+        let context = dummy_context();
+        let raw = b"From: hello\n\
+                    Subject: outer-subject\n\
+                    In-Reply-To: <Gr.HcxyMARjyJy.9-qweqwe@asd.net>\n\
+                    References: <qweqweqwe>, <Gr.HcxyMARjyJy.9-uvzWPTLtV@nau.ca>\n\
+                    \n\
+                    hello\x00";
+        let mimeparser = MimeParser::from_bytes(&context.ctx, &raw[..]).unwrap();
+        let grpid = Some("HcxyMARjyJy".to_string());
+        assert_eq!(get_grpid_from_list(&mimeparser, "In-Reply-To"), grpid);
+        assert_eq!(get_grpid_from_list(&mimeparser, "References"), grpid);
     }
 }

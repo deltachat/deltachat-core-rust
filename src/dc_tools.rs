@@ -217,8 +217,11 @@ pub(crate) fn dc_create_outgoing_rfc724_mid(grpid: Option<&str>, from_addr: &str
 ///
 /// # Arguments
 ///
-/// * `mid` - A string that holds the message id
+/// * `mid` - A string that holds the message id.  Leading/Trailing <>
+/// characters are automatically stripped.
 pub(crate) fn dc_extract_grpid_from_rfc724_mid(mid: &str) -> Option<&str> {
+    let mid = mid.trim_start_matches('<').trim_end_matches('>');
+
     if mid.len() < 9 || !mid.starts_with("Gr.") {
         return None;
     }
@@ -686,6 +689,16 @@ mod tests {
 
         // Should return extracted grpid for grpid with length of 11
         let mid = "Gr.1234567890123456.morerandom@domain.de";
+        let grpid = dc_extract_grpid_from_rfc724_mid(mid);
+        assert_eq!(grpid, Some("1234567890123456"));
+
+        // Should return extracted grpid for grpid with length of 11
+        let mid = "<Gr.12345678901.morerandom@domain.de>";
+        let grpid = dc_extract_grpid_from_rfc724_mid(mid);
+        assert_eq!(grpid, Some("12345678901"));
+
+        // Should return extracted grpid for grpid with length of 11
+        let mid = "<Gr.1234567890123456.morerandom@domain.de>";
         let grpid = dc_extract_grpid_from_rfc724_mid(mid);
         assert_eq!(grpid, Some("1234567890123456"));
     }
