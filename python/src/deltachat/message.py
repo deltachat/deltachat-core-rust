@@ -70,19 +70,6 @@ class Message(object):
         mtype = ffi.NULL if mime_type is None else as_dc_charpointer(mime_type)
         if not os.path.exists(path):
             raise ValueError("path does not exist: {!r}".format(path))
-        blobdir = self.account.get_blobdir()
-        if not path.startswith(blobdir):
-            for i in range(50):
-                ext = "" if i == 0 else "-" + str(i)
-                dest = os.path.join(blobdir, os.path.basename(path) + ext)
-                if os.path.exists(dest):
-                    continue
-                shutil.copyfile(path, dest)
-                break
-            else:
-                raise ValueError("could not create blobdir-path for {}".format(path))
-            path = dest
-        assert path.startswith(blobdir), path
         lib.dc_msg_set_file(self._dc_msg, as_dc_charpointer(path), mtype)
 
     @props.with_doc
