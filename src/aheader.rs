@@ -106,7 +106,7 @@ impl fmt::Display for Aheader {
         let keydata = self.public_key.to_base64().chars().enumerate().fold(
             String::new(),
             |mut res, (i, c)| {
-                if i > 0 && i % 78 == 0 {
+                if i % 78 == 78 - "keydata=".len() {
                     res.push(' ')
                 }
                 res.push(c);
@@ -230,7 +230,30 @@ mod tests {
 
     #[test]
     fn test_good_headers() {
-        let fixed_header = "addr=a@b.example.org; prefer-encrypt=mutual; keydata=xsBNBFzG3j0BCAC6iNhT8zydvCXi8LI/gFnkadMbfmSE/rTJskRRra/utGbLyDta/yTrJgWL7O3y/g 4HdDW/dN2z26Y6W13IMzx9gLInn1KQZChtqWAcr/ReUucXcymwcfg1mdkBGk3TSLeLihN6CJx8Wsv8 ig+kgAzte4f5rqEEAJVQ9WZHuti7UiYs6oRzqTo06CRe9owVXxzdMf0VDQtf7ZFm9dpzKKbhH7Lu88 80iiotQ9/yRCkDGp9fNThsrLdZiK6OIAcIBAqi2rI89aS1dAmnRbktQieCx5izzyYkR1KvVL3gTTll HOzfKVEC2asmtWu2e4se/+O4WMIS1eGrn7GeWVb0Vwc5ABEBAAHNETxhQEBiLmV4YW1wbGUuZGU+ws CJBBABCAAzAhkBBQJcxt5FAhsDBAsJCAcGFQgJCgsCAxYCARYhBI4xxYKBgH3ANh5cufaKrc9mtiML AAoJEPaKrc9mtiML938H/18F+3Wf9/JaAy/8hCO1v4S2PVBhxaKCokaNFtkfaMRne2l087LscCFPiF Nyb4mv6Z3YeK8Xpxlp2sI0ecvdiqLUOGfnxS6tQrj+83EjtIrZ/hXOk1h121QFWH9Zg2VNHtODXjAg dLDC0NWUrclR0ZOqEDQHeo0ibTILdokVfXFN25wakPmGaYJP2y729cb1ve7RzvIvwn+Dddfxo3ao72 rBfLi7l4NQ4S0KsY4cw+/6l5bRCKYCP77wZtvCwUvfVVosLdT43agtSiBI49+ayqvZ8OCvSJa61i+v 81brTiEy9GBod4eAp45Ibsuemkw+gon4ZOvUXHTjwFB+h63MrozOwE0EXMbePQEIAL/vauf1zK8JgC u3V+G+SOX0iWw5xUlCPX+ERpBbWfwu3uAqn4wYXD3JDE/fVAF668xiV4eTPtlSUd5h0mn+G7uXMMOt kb+20SoEt50f8zw8TrL9t+ZsV11GKZWJpCar5AhXWsn6EEi8I2hLL5vn55ZZmHuGgN4jjmkRl3ToKC LhaXwTBjCJem7N5EH7F75wErEITa55v4Lb4Nfca7vnvtYrI1OA446xa8gHra0SINelTD09/JM/Fw4s WVPBaRZmJK/Tnu79N23No9XBUubmFPv1pNexZsQclicnTpt/BEWhiun7d6lfGB63K1aoHRTR1pcrWv BuALuuz0gqar2zlI0AEQEAAcLAdgQYAQgAIAUCXMbeRQIbDBYhBI4xxYKBgH3ANh5cufaKrc9mtiML AAoJEPaKrc9mtiMLKSEIAIyLCRO2OyZ0IYRvRPpMn4p7E+7Pfcz/0mSkOy+1hshgJnqivXurm8zwGr wdMqeV4eslKR9H1RUdWGUQJNbtwmmjrt5DHpIhYHl5t3FpCBaGbV20Omo00Q38lBl9MtrmZkZw+ktE k6X+0xCKssMF+2MADkSOIufbR5HrDVB89VZOHCO9DeXvCUUAw2hyJiL/LHmLzJ40zYoTmb+F//f0k0 j+tRdbkefyRoCmwG7YGiT+2hnCdgcezswnzah5J3ZKlrg7jOGo1LxtbvNUzxNBbC6S/aNgwm6qxo7x egRhmEl5uZ16zwyj4qz+xkjGy25Of5mWfUDoNw7OT7sjUbHOOMc=";
+        let fixed_header = concat!(
+            "addr=a@b.example.org; prefer-encrypt=mutual; ",
+            "keydata=xsBNBFzG3j0BCAC6iNhT8zydvCXi8LI/gFnkadMbfmSE/rTJskRRra/utGbLyDta/yTrJg",
+            " WL7O3y/g4HdDW/dN2z26Y6W13IMzx9gLInn1KQZChtqWAcr/ReUucXcymwcfg1mdkBGk3TSLeLihN6",
+            " CJx8Wsv8ig+kgAzte4f5rqEEAJVQ9WZHuti7UiYs6oRzqTo06CRe9owVXxzdMf0VDQtf7ZFm9dpzKK",
+            " bhH7Lu8880iiotQ9/yRCkDGp9fNThsrLdZiK6OIAcIBAqi2rI89aS1dAmnRbktQieCx5izzyYkR1Kv",
+            " VL3gTTllHOzfKVEC2asmtWu2e4se/+O4WMIS1eGrn7GeWVb0Vwc5ABEBAAHNETxhQEBiLmV4YW1wbG",
+            " UuZGU+wsCJBBABCAAzAhkBBQJcxt5FAhsDBAsJCAcGFQgJCgsCAxYCARYhBI4xxYKBgH3ANh5cufaK",
+            " rc9mtiMLAAoJEPaKrc9mtiML938H/18F+3Wf9/JaAy/8hCO1v4S2PVBhxaKCokaNFtkfaMRne2l087",
+            " LscCFPiFNyb4mv6Z3YeK8Xpxlp2sI0ecvdiqLUOGfnxS6tQrj+83EjtIrZ/hXOk1h121QFWH9Zg2VN",
+            " HtODXjAgdLDC0NWUrclR0ZOqEDQHeo0ibTILdokVfXFN25wakPmGaYJP2y729cb1ve7RzvIvwn+Ddd",
+            " fxo3ao72rBfLi7l4NQ4S0KsY4cw+/6l5bRCKYCP77wZtvCwUvfVVosLdT43agtSiBI49+ayqvZ8OCv",
+            " SJa61i+v81brTiEy9GBod4eAp45Ibsuemkw+gon4ZOvUXHTjwFB+h63MrozOwE0EXMbePQEIAL/vau",
+            " f1zK8JgCu3V+G+SOX0iWw5xUlCPX+ERpBbWfwu3uAqn4wYXD3JDE/fVAF668xiV4eTPtlSUd5h0mn+",
+            " G7uXMMOtkb+20SoEt50f8zw8TrL9t+ZsV11GKZWJpCar5AhXWsn6EEi8I2hLL5vn55ZZmHuGgN4jjm",
+            " kRl3ToKCLhaXwTBjCJem7N5EH7F75wErEITa55v4Lb4Nfca7vnvtYrI1OA446xa8gHra0SINelTD09",
+            " /JM/Fw4sWVPBaRZmJK/Tnu79N23No9XBUubmFPv1pNexZsQclicnTpt/BEWhiun7d6lfGB63K1aoHR",
+            " TR1pcrWvBuALuuz0gqar2zlI0AEQEAAcLAdgQYAQgAIAUCXMbeRQIbDBYhBI4xxYKBgH3ANh5cufaK",
+            " rc9mtiMLAAoJEPaKrc9mtiMLKSEIAIyLCRO2OyZ0IYRvRPpMn4p7E+7Pfcz/0mSkOy+1hshgJnqivX",
+            " urm8zwGrwdMqeV4eslKR9H1RUdWGUQJNbtwmmjrt5DHpIhYHl5t3FpCBaGbV20Omo00Q38lBl9Mtrm",
+            " ZkZw+ktEk6X+0xCKssMF+2MADkSOIufbR5HrDVB89VZOHCO9DeXvCUUAw2hyJiL/LHmLzJ40zYoTmb",
+            " +F//f0k0j+tRdbkefyRoCmwG7YGiT+2hnCdgcezswnzah5J3ZKlrg7jOGo1LxtbvNUzxNBbC6S/aNg",
+            " wm6qxo7xegRhmEl5uZ16zwyj4qz+xkjGy25Of5mWfUDoNw7OT7sjUbHOOMc="
+        );
 
         let ah = Aheader::from_str(fixed_header).expect("failed to parse");
         assert_eq!(ah.addr, "a@b.example.org");
