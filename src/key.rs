@@ -178,20 +178,9 @@ impl Key {
         }
     }
 
-    pub fn to_base64(&self, break_every: usize) -> String {
+    pub fn to_base64(&self) -> String {
         let buf = self.to_bytes();
-
-        let encoded = base64::encode(&buf);
-        encoded
-            .chars()
-            .enumerate()
-            .fold(String::new(), |mut res, (i, c)| {
-                if i > 0 && i % break_every == 0 {
-                    res.push(' ')
-                }
-                res.push(c);
-                res
-            })
+        base64::encode(&buf)
     }
 
     pub fn to_armored_string(
