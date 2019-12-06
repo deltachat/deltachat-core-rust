@@ -100,11 +100,11 @@ impl fmt::Display for Aheader {
         // wrap the lines according to RFC 5322
         // (which may insert a linebreak before every whitespace)
         let keydata = self.public_key.to_base64(78);
-        write!(
-            fmt,
-            "addr={}; prefer-encrypt={}; keydata={}",
-            self.addr, self.prefer_encrypt, keydata
-        )
+        write!(fmt, "addr={};", self.addr)?;
+        if self.prefer_encrypt == EncryptPreference::Mutual {
+            write!(fmt, " prefer-encrypt=mutual;")?;
+        }
+        write!(fmt, " keydata={}", keydata)
     }
 }
 
@@ -229,6 +229,7 @@ mod tests {
         let ah = Aheader::from_str(fixed_header).expect("failed to parse");
         assert_eq!(ah.addr, "a@b.example.org");
         assert_eq!(ah.prefer_encrypt, EncryptPreference::Mutual);
+        assert_eq!(format!("{}", ah), fixed_header);
 
         let rendered = ah.to_string();
         assert_eq!(rendered, fixed_header);
@@ -254,5 +255,31 @@ mod tests {
         assert!(Aheader::from_str("\n\n\n").is_err());
         assert!(Aheader::from_str(" ;;").is_err());
         assert!(Aheader::from_str("addr=a@t.de; unknwon=1; keydata=jau").is_err());
+    }
+
+    #[test]
+    fn test_display_aheader() {
+        assert!(format!(
+            "{}",
+            Aheader::new(
+                "test@example.com".to_string(),
+                Key::from_base64(RAWKEY, KeyType::Public).unwrap(),
+                EncryptPreference::Mutual
+            )
+        )
+        .contains("prefer-encrypt=mutual;"));
+
+        // According to Autocrypt Level 1 specification,
+        // only "prefer-encrypt=mutual;" can be used.
+        // If the setting is nopreference, the whole attribute is omitted.
+        assert!(!format!(
+            "{}",
+            Aheader::new(
+                "test@example.com".to_string(),
+                Key::from_base64(RAWKEY, KeyType::Public).unwrap(),
+                EncryptPreference::NoPreference
+            )
+        )
+        .contains("prefer-encrypt"));
     }
 }
