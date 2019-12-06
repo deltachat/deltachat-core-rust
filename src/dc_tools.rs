@@ -278,11 +278,9 @@ pub fn dc_derive_safe_stem_ext(filename: &str) -> (String, String) {
 // the returned suffix is lower-case
 #[allow(non_snake_case)]
 pub fn dc_get_filesuffix_lc(path_filename: impl AsRef<str>) -> Option<String> {
-    if let Some(p) = Path::new(path_filename.as_ref()).extension() {
-        Some(p.to_string_lossy().to_lowercase())
-    } else {
-        None
-    }
+    Path::new(path_filename.as_ref())
+        .extension()
+        .map(|p| p.to_string_lossy().to_lowercase())
 }
 
 /// Returns the `(width, height)` of the given image buffer.
