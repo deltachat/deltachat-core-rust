@@ -4,7 +4,7 @@ use crate::context::Context;
 use crate::error::{Error, Result};
 use crate::imap::Imap;
 use crate::job::{get_next_wakeup_time, Thread};
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 #[derive(Debug)]
 pub struct JobThread {
@@ -136,13 +136,12 @@ impl JobThread {
     pub fn idle(&self, context: &Context, use_network: bool) {
         // standard idle wait timeout
         let mut timeout = Duration::from_secs(23 * 60);
-
         {
             let &(ref lock, ref cvar) = &*self.state.clone();
             let mut state = lock.lock().unwrap();
 
-            // if we are in the inbox (job) thread
-            // we check if a job is due.
+            // if we are in the inbox (job) thread we only want to wait
+            // until the next job is due.
             if self.folder_config_name == "configured_inbox_folder" {
                 timeout = get_next_wakeup_time(context, Thread::Imap);
                 if timeout <= Duration::from_millis(20) {
@@ -175,6 +174,8 @@ impl JobThread {
             }
         }
 
+        let until = SystemTime::now() + timeout;
+
         let prefix = format!("{}-IDLE", self.name);
         let do_fake_idle = match self.imap.connect_configured(context) {
             Ok(()) => {
@@ -183,7 +184,7 @@ impl JobThread {
                 } else {
                     let watch_folder = self.get_watch_folder(context);
                     info!(context, "{} started...", prefix);
-                    let res = self.imap.idle(context, watch_folder, timeout);
+                    let res = self.imap.idle(context, watch_folder, until);
                     info!(context, "{} ended...", prefix);
                     if let Err(err) = res {
                         warn!(context, "{} failed: {} -> reconnecting", prefix, err);
@@ -203,7 +204,7 @@ impl JobThread {
         };
         if do_fake_idle {
             let watch_folder = self.get_watch_folder(context);
-            self.imap.fake_idle(context, watch_folder, timeout);
+            self.imap.fake_idle(context, watch_folder, until);
         }
 
         self.state.0.lock().unwrap().using_handle = false;
