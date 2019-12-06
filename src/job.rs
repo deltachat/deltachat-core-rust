@@ -466,9 +466,7 @@ pub fn perform_sentbox_idle(context: &Context) {
 }
 
 pub fn interrupt_inbox_idle(context: &Context) {
-    info!(context, "interrupt_inbox_idle begin");
     context.inbox_thread.read().unwrap().interrupt_idle(context);
-    info!(context, "interrupt_inbox_idle finish");
 }
 
 pub fn interrupt_mvbox_idle(context: &Context) {
@@ -555,17 +553,16 @@ pub(crate) fn get_next_wakeup_time(context: &Context, thread: Thread) -> Duratio
         )
         .unwrap_or_default();
 
-    let mut wakeup_time = Duration::new(10 * 60, 0);
-    let now = time();
     if t > 0 {
+        let now = time();
         if t > now {
-            wakeup_time = Duration::new((t - now) as u64, 0);
+            Duration::new((t - now) as u64, 0)
         } else {
-            wakeup_time = Duration::new(0, 0);
+            Duration::new(0, 0)
         }
+    } else {
+        Duration::new(30 * 60, 0)
     }
-
-    wakeup_time
 }
 
 pub fn maybe_network(context: &Context) {

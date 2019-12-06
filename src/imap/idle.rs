@@ -50,7 +50,7 @@ impl Imap {
         &self,
         context: &Context,
         watch_folder: Option<String>,
-        timeout: Duration,
+        until: SystemTime,
     ) -> Result<()> {
         task::block_on(async move {
             if !self.can_idle() {
@@ -63,8 +63,18 @@ impl Imap {
 
             self.select_folder(context, watch_folder.clone()).await?;
 
+            let timeout = match until.duration_since(SystemTime::now()) {
+                Ok(timeout) => timeout,
+                Err(_) => {
+                    info!(context, "idle called with negative timeout");
+                    return Ok(());
+                }
+            };
+            let timeout = min(timeout, Duration::from_secs(23 * 60));
+            info!(context, "idle-timeout is {:?}", timeout);
+
             let session = self.session.lock().await.take();
-            let max_duration = Duration::from_secs(23 * 60);
+
             if let Some(session) = session {
                 match session.idle() {
                     // BEWARE: If you change the Secure branch you
@@ -73,8 +83,7 @@ impl Imap {
                         if let Err(err) = handle.init().await {
                             return Err(Error::IdleProtocolFailed(err));
                         }
-                        let real_timeout = min(timeout, max_duration);
-                        let (idle_wait, interrupt) = handle.wait_with_timeout(real_timeout);
+                        let (idle_wait, interrupt) = handle.wait_with_timeout(timeout);
                         *self.interrupt.lock().await = Some(interrupt);
 
                         if self.skip_next_idle_wait.load(Ordering::SeqCst) {
@@ -188,7 +197,7 @@ impl Imap {
         &self,
         context: &Context,
         watch_folder: Option<String>,
-        timeout: Duration,
+        until: SystemTime,
     ) {
         // Idle using polling. This is also needed if we're not yet configured -
         // in this case, we're waiting for a configure job (and an interrupt).
@@ -225,11 +234,7 @@ impl Imap {
                     }
                     info!(context, "fake_idle is connected");
 
-                    if SystemTime::now()
-                        .duration_since(fake_idle_start_time)
-                        .unwrap_or_default()
-                        > timeout
-                    {
+                    if SystemTime::now() > until {
                         info!(context, "fake_idle stopping as jobs need running");
                         break;
                     }
