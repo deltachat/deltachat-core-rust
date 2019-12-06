@@ -7,42 +7,42 @@
    xmlns="http://www.w3.org/2000/svg"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   inkscape:version="0.92.4 5da689c313, 2019-01-14"
-   sodipodi:docname="icon-device.svg"
-   id="svg4344"
-   preserveAspectRatio="xMidYMid meet"
-   viewBox="0 0 45 45"
-   height="60"
-   width="60"
-   version="1.0"
-   inkscape:export-filename="/home/kerle/Workspace/deltachat-core-rust/assets/icon-device.png"
+   inkscape:export-ydpi="409.60001"
    inkscape:export-xdpi="409.60001"
-   inkscape:export-ydpi="409.60001">
+   inkscape:export-filename="/Users/bpetersen/projects/deltachat-core-rust/assets/icon-device.png"
+   version="1.0"
+   width="60"
+   height="60"
+   viewBox="0 0 45 45"
+   preserveAspectRatio="xMidYMid meet"
+   id="svg4344"
+   sodipodi:docname="icon-device.svg"
+   inkscape:version="1.0beta1 (32d4812, 2019-09-19)">
   <defs
      id="defs4348" />
   <sodipodi:namedview
-     inkscape:current-layer="svg4344"
-     inkscape:window-maximized="0"
-     inkscape:window-y="0"
-     inkscape:window-x="0"
-     inkscape:cy="28.471578"
-     inkscape:cx="28.03926"
-     inkscape:zoom="5.6"
-     units="px"
-     showgrid="false"
-     id="namedview4346"
-     inkscape:window-height="1019"
-     inkscape:window-width="1248"
-     inkscape:pageshadow="2"
-     inkscape:pageopacity="0"
-     guidetolerance="10"
-     gridtolerance="10"
-     objecttolerance="10"
-     borderopacity="1"
-     inkscape:document-rotation="0"
-     bordercolor="#666666"
+     inkscape:snap-global="false"
      pagecolor="#ffffff"
-     inkscape:snap-global="false" />
+     bordercolor="#666666"
+     inkscape:document-rotation="0"
+     borderopacity="1"
+     objecttolerance="10"
+     gridtolerance="10"
+     guidetolerance="10"
+     inkscape:pageopacity="0"
+     inkscape:pageshadow="2"
+     inkscape:window-width="1600"
+     inkscape:window-height="1035"
+     id="namedview4346"
+     showgrid="false"
+     units="px"
+     inkscape:zoom="3.959798"
+     inkscape:cx="28.322498"
+     inkscape:cy="24.898474"
+     inkscape:window-x="45"
+     inkscape:window-y="23"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="svg4344" />
   <metadata
      id="metadata4336">
 Created by potrace 1.15, written by Peter Selinger 2001-2017
@@ -56,35 +56,28 @@ Created by potrace 1.15, written by Peter Selinger 2001-2017
   </cc:Work>
 </rdf:RDF>
 </metadata>
-  <circle
-     style="opacity:1;fill:#ffffff;fill-opacity:1;stroke-width:0.731071"
-     id="path859"
-     cx="22.5"
-     cy="22.5"
-     r="22.5" />
-  <circle
-     r="22.5"
-     cy="22.5"
-     cx="22.5"
-     id="path4917"
-     style="fill:#364e54;fill-opacity:0.67681497;stroke-width:0.58855402"
-     inkscape:export-xdpi="409"
-     inkscape:export-ydpi="409" />
+  <rect
+     y="-4.4408921e-16"
+     x="0"
+     height="45"
+     width="45"
+     id="rect860"
+     style="opacity:1;fill:#76868b;fill-opacity:1;stroke-width:0.819271" />
   <g
-     id="g4342"
-     transform="matrix(0.00255113,0,0,-0.00255113,5.586152,38.200477)"
-     style="fill:#ffffff;fill-opacity:1"
+     fill="#000000"
      stroke="none"
-     fill="#000000">
+     style="fill:#ffffff;fill-opacity:1"
+     transform="matrix(0.00255113,0,0,-0.00255113,5.586152,38.200477)"
+     id="g4342">
     <path
-       inkscape:connector-curvature="0"
-       id="path4338"
+       style="fill:#ffffff;fill-opacity:1"
        d="m 8175,12765 c -703,-114 -1248,-608 -1387,-1258 -17,-82 -21,-136 -22,-277 0,-202 15,-307 70,-470 149,-446 499,-733 1009,-828 142,-26 465,-23 619,6 691,131 1201,609 1328,1244 31,158 31,417 0,565 -114,533 -482,889 -1038,1004 -133,27 -448,35 -579,14 z"
-       style="fill:#ffffff;fill-opacity:1" />
+       id="path4338"
+       inkscape:connector-curvature="0" />
     <path
-       inkscape:connector-curvature="0"
-       id="path4340"
+       style="fill:#ffffff;fill-opacity:1"
        d="m 7070,9203 c -212,-20 -275,-27 -397,-48 -691,-117 -1400,-444 -2038,-940 -182,-142 -328,-270 -585,-517 -595,-571 -911,-974 -927,-1181 -6,-76 11,-120 69,-184 75,-80 159,-108 245,-79 109,37 263,181 632,595 539,606 774,826 1035,969 135,75 231,105 341,106 82,1 94,-2 138,-27 116,-68 161,-209 122,-376 -9,-36 -349,-868 -757,-1850 -407,-982 -785,-1892 -838,-2021 -287,-694 -513,-1389 -615,-1889 -70,-342 -90,-683 -52,-874 88,-440 381,-703 882,-792 124,-23 401,-30 562,-16 783,69 1674,461 2561,1125 796,596 1492,1354 1607,1751 43,146 -33,308 -168,360 -61,23 -100,15 -173,-36 -105,-74 -202,-170 -539,-529 -515,-551 -762,-783 -982,-927 -251,-164 -437,-186 -543,-65 -56,64 -74,131 -67,247 13,179 91,434 249,815 135,324 1588,4102 1646,4280 106,325 151,561 159,826 9,281 -22,463 -112,652 -58,122 -114,199 -211,292 -245,233 -582,343 -1044,338 -91,-1 -181,-3 -200,-5 z"
-       style="fill:#ffffff;fill-opacity:1" />
+       id="path4340"
+       inkscape:connector-curvature="0" />
   </g>
 </svg>
