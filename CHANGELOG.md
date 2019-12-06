@@ -1,5 +1,9 @@
 # Changelog 
 
+## next (pending)
+
+- restructured (but not change) imap idle handling into own file. cc @link2xt
+
 ## 1.0.0-beta.12
 
 - fix python bindings to use core for copying attachments to blobdir
