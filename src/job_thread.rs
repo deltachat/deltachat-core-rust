@@ -170,20 +170,19 @@ impl JobThread {
         let prefix = format!("{}-IDLE", self.name);
         let do_fake_idle = match self.imap.connect_configured(context) {
             Ok(()) => {
-                info!(context, "{} started...", prefix);
-                let watch_folder = self.get_watch_folder(context);
-                let res = self.imap.idle(context, watch_folder);
-                info!(context, "{} ended...", prefix);
-                match res {
-                    Ok(()) => false,
-                    Err(crate::imap::Error::IdleAbilityMissing) => true, // we have to do fake_idle
-                    Err(err) => {
+                if !self.imap.can_idle() {
+                    true // we have to do fake_idle
+                } else {
+                    let watch_folder = self.get_watch_folder(context);
+                    info!(context, "{} started...", prefix);
+                    let res = self.imap.idle(context, watch_folder);
+                    info!(context, "{} ended...", prefix);
+                    if let Err(err) = res {
                         warn!(context, "{} failed: {} -> reconnecting", prefix, err);
                         // something is borked, let's start afresh on the next occassion
                         self.imap.disconnect(context);
-
-                        false
                     }
+                    false
                 }
             }
             Err(err) => {
