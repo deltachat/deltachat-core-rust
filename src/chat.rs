@@ -593,12 +593,6 @@ pub fn set_blocking(context: &Context, chat_id: u32, new_blocking: Blocked) -> b
     .is_ok()
 }
 
-fn copy_device_icon_to_blobs(context: &Context) -> Result<String, Error> {
-    let icon = include_bytes!("../assets/icon-device.png");
-    let blob = BlobObject::create(context, "icon-device.png".to_string(), icon)?;
-    Ok(blob.as_name().to_string())
-}
-
 pub fn update_saved_messages_icon(context: &Context) -> Result<(), Error> {
     // if there is no saved-messages chat, there is nothing to update. this is no error.
     if let Ok((chat_id, _)) = lookup_by_contact_id(context, DC_CONTACT_ID_SELF) {
@@ -609,6 +603,24 @@ pub fn update_saved_messages_icon(context: &Context) -> Result<(), Error> {
         let mut chat = Chat::load_from_db(context, chat_id)?;
         chat.param.set(Param::ProfileImage, icon);
         chat.update_param(context)?;
+    }
+    Ok(())
+}
+
+pub fn update_device_icon(context: &Context) -> Result<(), Error> {
+    // if there is no device-chat, there is nothing to update. this is no error.
+    if let Ok((chat_id, _)) = lookup_by_contact_id(context, DC_CONTACT_ID_DEVICE) {
+        let icon = include_bytes!("../assets/icon-device.png");
+        let blob = BlobObject::create(context, "icon-device.png".to_string(), icon)?;
+        let icon = blob.as_name().to_string();
+
+        let mut chat = Chat::load_from_db(context, chat_id)?;
+        chat.param.set(Param::ProfileImage, &icon);
+        chat.update_param(context)?;
+
+        let mut contact = Contact::load_from_db(context, DC_CONTACT_ID_DEVICE)?;
+        contact.param.set(Param::ProfileImage, icon);
+        contact.update_param(context)?;
     }
     Ok(())
 }
@@ -638,10 +650,7 @@ pub fn create_or_lookup_by_contact_id(
             chat_name,
             match contact_id {
                 DC_CONTACT_ID_SELF => "K=1".to_string(), // K = Param::Selftalk
-                DC_CONTACT_ID_DEVICE => {
-                    let icon = copy_device_icon_to_blobs(context)?;
-                    format!("D=1\ni={}", icon) // D = Param::Devicetalk, i = Param::ProfileImage
-                },
+                DC_CONTACT_ID_DEVICE => "D=1".to_string(), // D = Param::Devicetalk
                 _ => "".to_string()
             },
             create_blocked as u8,
@@ -665,6 +674,8 @@ pub fn create_or_lookup_by_contact_id(
 
     if contact_id == DC_CONTACT_ID_SELF {
         update_saved_messages_icon(context)?;
+    } else if contact_id == DC_CONTACT_ID_DEVICE {
+        update_device_icon(context)?;
     }
 
     Ok((chat_id, create_blocked))

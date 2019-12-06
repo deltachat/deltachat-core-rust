@@ -7,7 +7,7 @@ use std::time::Duration;
 use rusqlite::{Connection, OpenFlags, Statement, NO_PARAMS};
 use thread_local_object::ThreadLocal;
 
-use crate::chat::update_saved_messages_icon;
+use crate::chat::{update_device_icon, update_saved_messages_icon};
 use crate::constants::ShowEmails;
 use crate::context::Context;
 use crate::dc_tools::*;
@@ -848,7 +848,6 @@ fn open(
             if exists_before_update && sql.get_raw_config_int(context, "bcc_self").is_none() {
                 sql.set_raw_config_int(context, "bcc_self", 1)?;
             }
-            update_icons = true;
             sql.set_raw_config_int(context, "dbversion", 59)?;
         }
         if dbversion < 60 {
@@ -865,6 +864,7 @@ fn open(
                 "ALTER TABLE contacts ADD COLUMN selfavatar_sent INTEGER DEFAULT 0;",
                 NO_PARAMS,
             )?;
+            update_icons = true;
             sql.set_raw_config_int(context, "dbversion", 61)?;
         }
 
@@ -892,6 +892,7 @@ fn open(
         }
         if update_icons {
             update_saved_messages_icon(context)?;
+            update_device_icon(context)?;
         }
     }
 
