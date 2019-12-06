@@ -176,15 +176,13 @@ impl str::FromStr for Aheader {
 mod tests {
     use super::*;
 
-    fn rawkey() -> String {
-        "xsBNBFzG3j0BCAC6iNhT8zydvCXi8LI/gFnkadMbfmSE/rTJskRRra/utGbLyDta/yTrJgWL7O3y/g4HdDW/dN2z26Y6W13IMzx9gLInn1KQZChtqWAcr/ReUucXcymwcfg1mdkBGk3TSLeLihN6CJx8Wsv8ig+kgAzte4f5rqEEAJVQ9WZHuti7UiYs6oRzqTo06CRe9owVXxzdMf0VDQtf7ZFm9dpzKKbhH7Lu8880iiotQ9/yRCkDGp9fNThsrLdZiK6OIAcIBAqi2rI89aS1dAmnRbktQieCx5izzyYkR1KvVL3gTTllHOzfKVEC2asmtWu2e4se/+O4WMIS1eGrn7GeWVb0Vwc5ABEBAAHNETxhQEBiLmV4YW1wbGUuZGU+wsCJBBABCAAzAhkBBQJcxt5FAhsDBAsJCAcGFQgJCgsCAxYCARYhBI4xxYKBgH3ANh5cufaKrc9mtiMLAAoJEPaKrc9mtiML938H/18F+3Wf9/JaAy/8hCO1v4S2PVBhxaKCokaNFtkfaMRne2l087LscCFPiFNyb4mv6Z3YeK8Xpxlp2sI0ecvdiqLUOGfnxS6tQrj+83EjtIrZ/hXOk1h121QFWH9Zg2VNHtODXjAgdLDC0NWUrclR0ZOqEDQHeo0ibTILdokVfXFN25wakPmGaYJP2y729cb1ve7RzvIvwn+Dddfxo3ao72rBfLi7l4NQ4S0KsY4cw+/6l5bRCKYCP77wZtvCwUvfVVosLdT43agtSiBI49+ayqvZ8OCvSJa61i+v81brTiEy9GBod4eAp45Ibsuemkw+gon4ZOvUXHTjwFB+h63MrozOwE0EXMbePQEIAL/vauf1zK8JgCu3V+G+SOX0iWw5xUlCPX+ERpBbWfwu3uAqn4wYXD3JDE/fVAF668xiV4eTPtlSUd5h0mn+G7uXMMOtkb+20SoEt50f8zw8TrL9t+ZsV11GKZWJpCar5AhXWsn6EEi8I2hLL5vn55ZZmHuGgN4jjmkRl3ToKCLhaXwTBjCJem7N5EH7F75wErEITa55v4Lb4Nfca7vnvtYrI1OA446xa8gHra0SINelTD09/JM/Fw4sWVPBaRZmJK/Tnu79N23No9XBUubmFPv1pNexZsQclicnTpt/BEWhiun7d6lfGB63K1aoHRTR1pcrWvBuALuuz0gqar2zlI0AEQEAAcLAdgQYAQgAIAUCXMbeRQIbDBYhBI4xxYKBgH3ANh5cufaKrc9mtiMLAAoJEPaKrc9mtiMLKSEIAIyLCRO2OyZ0IYRvRPpMn4p7E+7Pfcz/0mSkOy+1hshgJnqivXurm8zwGrwdMqeV4eslKR9H1RUdWGUQJNbtwmmjrt5DHpIhYHl5t3FpCBaGbV20Omo00Q38lBl9MtrmZkZw+ktEk6X+0xCKssMF+2MADkSOIufbR5HrDVB89VZOHCO9DeXvCUUAw2hyJiL/LHmLzJ40zYoTmb+F//f0k0j+tRdbkefyRoCmwG7YGiT+2hnCdgcezswnzah5J3ZKlrg7jOGo1LxtbvNUzxNBbC6S/aNgwm6qxo7xegRhmEl5uZ16zwyj4qz+xkjGy25Of5mWfUDoNw7OT7sjUbHOOMc=".into()
-    }
+    const RAWKEY: &str = "xsBNBFzG3j0BCAC6iNhT8zydvCXi8LI/gFnkadMbfmSE/rTJskRRra/utGbLyDta/yTrJgWL7O3y/g4HdDW/dN2z26Y6W13IMzx9gLInn1KQZChtqWAcr/ReUucXcymwcfg1mdkBGk3TSLeLihN6CJx8Wsv8ig+kgAzte4f5rqEEAJVQ9WZHuti7UiYs6oRzqTo06CRe9owVXxzdMf0VDQtf7ZFm9dpzKKbhH7Lu8880iiotQ9/yRCkDGp9fNThsrLdZiK6OIAcIBAqi2rI89aS1dAmnRbktQieCx5izzyYkR1KvVL3gTTllHOzfKVEC2asmtWu2e4se/+O4WMIS1eGrn7GeWVb0Vwc5ABEBAAHNETxhQEBiLmV4YW1wbGUuZGU+wsCJBBABCAAzAhkBBQJcxt5FAhsDBAsJCAcGFQgJCgsCAxYCARYhBI4xxYKBgH3ANh5cufaKrc9mtiMLAAoJEPaKrc9mtiML938H/18F+3Wf9/JaAy/8hCO1v4S2PVBhxaKCokaNFtkfaMRne2l087LscCFPiFNyb4mv6Z3YeK8Xpxlp2sI0ecvdiqLUOGfnxS6tQrj+83EjtIrZ/hXOk1h121QFWH9Zg2VNHtODXjAgdLDC0NWUrclR0ZOqEDQHeo0ibTILdokVfXFN25wakPmGaYJP2y729cb1ve7RzvIvwn+Dddfxo3ao72rBfLi7l4NQ4S0KsY4cw+/6l5bRCKYCP77wZtvCwUvfVVosLdT43agtSiBI49+ayqvZ8OCvSJa61i+v81brTiEy9GBod4eAp45Ibsuemkw+gon4ZOvUXHTjwFB+h63MrozOwE0EXMbePQEIAL/vauf1zK8JgCu3V+G+SOX0iWw5xUlCPX+ERpBbWfwu3uAqn4wYXD3JDE/fVAF668xiV4eTPtlSUd5h0mn+G7uXMMOtkb+20SoEt50f8zw8TrL9t+ZsV11GKZWJpCar5AhXWsn6EEi8I2hLL5vn55ZZmHuGgN4jjmkRl3ToKCLhaXwTBjCJem7N5EH7F75wErEITa55v4Lb4Nfca7vnvtYrI1OA446xa8gHra0SINelTD09/JM/Fw4sWVPBaRZmJK/Tnu79N23No9XBUubmFPv1pNexZsQclicnTpt/BEWhiun7d6lfGB63K1aoHRTR1pcrWvBuALuuz0gqar2zlI0AEQEAAcLAdgQYAQgAIAUCXMbeRQIbDBYhBI4xxYKBgH3ANh5cufaKrc9mtiMLAAoJEPaKrc9mtiMLKSEIAIyLCRO2OyZ0IYRvRPpMn4p7E+7Pfcz/0mSkOy+1hshgJnqivXurm8zwGrwdMqeV4eslKR9H1RUdWGUQJNbtwmmjrt5DHpIhYHl5t3FpCBaGbV20Omo00Q38lBl9MtrmZkZw+ktEk6X+0xCKssMF+2MADkSOIufbR5HrDVB89VZOHCO9DeXvCUUAw2hyJiL/LHmLzJ40zYoTmb+F//f0k0j+tRdbkefyRoCmwG7YGiT+2hnCdgcezswnzah5J3ZKlrg7jOGo1LxtbvNUzxNBbC6S/aNgwm6qxo7xegRhmEl5uZ16zwyj4qz+xkjGy25Of5mWfUDoNw7OT7sjUbHOOMc=";
 
     #[test]
     fn test_from_str() {
         let h: Aheader = format!(
             "addr=me@mail.com; prefer-encrypt=mutual; keydata={}",
-            rawkey()
+            RAWKEY
         )
         .parse()
         .expect("failed to parse");
@@ -195,7 +193,7 @@ mod tests {
 
     #[test]
     fn test_from_str_non_critical() {
-        let raw = format!("addr=me@mail.com; _foo=one; _bar=two; keydata={}", rawkey());
+        let raw = format!("addr=me@mail.com; _foo=one; _bar=two; keydata={}", RAWKEY);
         let h: Aheader = raw.parse().expect("failed to parse");
 
         assert_eq!(h.addr, "me@mail.com");
@@ -206,7 +204,7 @@ mod tests {
     fn test_from_str_superflous_critical() {
         let raw = format!(
             "addr=me@mail.com; _foo=one; _bar=two; other=me; keydata={}",
-            rawkey()
+            RAWKEY
         );
         assert!(raw.parse::<Aheader>().is_err());
     }
@@ -222,17 +220,17 @@ mod tests {
         let rendered = ah.to_string();
         assert_eq!(rendered, fixed_header);
 
-        let ah = Aheader::from_str(&format!(" _foo; __FOO=BAR ;;; addr = a@b.example.org ;\r\n   prefer-encrypt = mutual ; keydata = {}", rawkey())).expect("failed to parse");
+        let ah = Aheader::from_str(&format!(" _foo; __FOO=BAR ;;; addr = a@b.example.org ;\r\n   prefer-encrypt = mutual ; keydata = {}", RAWKEY)).expect("failed to parse");
         assert_eq!(ah.addr, "a@b.example.org");
         assert_eq!(ah.prefer_encrypt, EncryptPreference::Mutual);
 
         Aheader::from_str(&format!(
             "addr=a@b.example.org; prefer-encrypt=ignoreUnknownValues; keydata={}",
-            rawkey()
+            RAWKEY
         ))
         .expect("failed to parse");
 
-        Aheader::from_str(&format!("addr=a@b.example.org; keydata={}", rawkey()))
+        Aheader::from_str(&format!("addr=a@b.example.org; keydata={}", RAWKEY))
             .expect("failed to parse");
     }
 
