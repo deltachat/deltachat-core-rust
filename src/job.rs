@@ -35,7 +35,7 @@ const JOB_RETRIES: u32 = 17;
 /// Thread IDs
 #[derive(Debug, Display, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql)]
 #[repr(i32)]
-enum Thread {
+pub enum Thread {
     Unknown = 0,
     Imap = 100,
     Smtp = 5000,
@@ -436,13 +436,6 @@ pub fn perform_sentbox_fetch(context: &Context) {
 }
 
 pub fn perform_inbox_idle(context: &Context) {
-    if *context.perform_inbox_jobs_needed.clone().read().unwrap() {
-        info!(
-            context,
-            "INBOX-IDLE will not be started because of waiting jobs."
-        );
-        return;
-    }
     let use_network = context.get_config_bool(Config::InboxWatch);
 
     context
@@ -552,7 +545,7 @@ pub fn perform_smtp_idle(context: &Context) {
     info!(context, "SMTP-idle ended.",);
 }
 
-fn get_next_wakeup_time(context: &Context, thread: Thread) -> Duration {
+pub(crate) fn get_next_wakeup_time(context: &Context, thread: Thread) -> Duration {
     let t: i64 = context
         .sql
         .query_get_value(
@@ -704,7 +697,6 @@ pub fn perform_inbox_jobs(context: &Context) {
 
     let probe_imap_network = *context.probe_imap_network.clone().read().unwrap();
     *context.probe_imap_network.write().unwrap() = false;
-    *context.perform_inbox_jobs_needed.write().unwrap() = false;
 
     job_perform(context, Thread::Imap, probe_imap_network);
     info!(context, "dc_perform_inbox_jobs ended.",);
@@ -951,10 +943,6 @@ pub fn add_job_no_interrupt(
             (timestamp + delay_seconds as i64)
         ]
     ).ok();
-
-    if thread == Thread::Imap {
-        *context.perform_inbox_jobs_needed.write().unwrap() = true;
-    }
 }
 
 pub fn add_job_with_interrupt(
