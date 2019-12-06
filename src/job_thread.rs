@@ -73,7 +73,7 @@ impl JobThread {
         info!(context, "Interrupting {}-IDLE... finished", self.name);
     }
 
-    pub fn fetch(&mut self, context: &Context, use_network: bool) {
+    pub async fn fetch(&mut self, context: &Context, use_network: bool) {
         {
             let &(ref lock, _) = &*self.state.clone();
             let mut state = lock.lock().unwrap();
@@ -86,10 +86,10 @@ impl JobThread {
         }
 
         if use_network {
-            if let Err(err) = self.connect_and_fetch(context) {
+            if let Err(err) = self.connect_and_fetch(context).await {
                 warn!(context, "connect+fetch failed: {}, reconnect & retry", err);
                 self.imap.trigger_reconnect();
-                if let Err(err) = self.connect_and_fetch(context) {
+                if let Err(err) = self.connect_and_fetch(context).await {
                     warn!(context, "connect+fetch failed: {}", err);
                 }
             }
@@ -97,14 +97,18 @@ impl JobThread {
         self.state.0.lock().unwrap().using_handle = false;
     }
 
-    fn connect_and_fetch(&mut self, context: &Context) -> Result<()> {
+    async fn connect_and_fetch(&mut self, context: &Context) -> Result<()> {
         let prefix = format!("{}-fetch", self.name);
         match self.imap.connect_configured(context) {
             Ok(()) => {
                 if let Some(watch_folder) = self.get_watch_folder(context) {
                     let start = std::time::Instant::now();
                     info!(context, "{} started...", prefix);
-                    let res = self.imap.fetch(context, &watch_folder).map_err(Into::into);
+                    let res = self
+                        .imap
+                        .fetch(context, &watch_folder)
+                        .await
+                        .map_err(Into::into);
                     let elapsed = start.elapsed().as_millis();
                     info!(context, "{} done in {:.3} ms.", prefix, elapsed);
 

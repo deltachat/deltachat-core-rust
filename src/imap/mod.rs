@@ -430,8 +430,7 @@ impl Imap {
         });
     }
 
-    pub fn fetch(&self, context: &Context, watch_folder: &str) -> Result<()> {
-        task::block_on(async move {
+    pub async fn fetch(&self, context: &Context, watch_folder: &str) -> Result<()> {
             if !context.sql.is_open() {
                 // probably shutdown
                 return Err(Error::InTeardown);
@@ -442,7 +441,6 @@ impl Imap {
                 // We fetch until no more new messages are there.
             }
             Ok(())
-        })
     }
 
     fn get_config_last_seen_uid<S: AsRef<str>>(&self, context: &Context, folder: S) -> (u32, u32) {

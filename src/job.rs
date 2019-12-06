@@ -8,6 +8,8 @@ use std::time::Duration;
 use deltachat_derive::{FromSql, ToSql};
 use rand::{thread_rng, Rng};
 
+use async_std::task;
+
 use crate::blob::BlobObject;
 use crate::chat;
 use crate::config::Config;
@@ -398,31 +400,37 @@ pub fn job_kill_action(context: &Context, action: Action) -> bool {
 pub fn perform_inbox_fetch(context: &Context) {
     let use_network = context.get_config_bool(Config::InboxWatch);
 
+    task::block_on(
     context
         .inbox_thread
         .write()
         .unwrap()
-        .fetch(context, use_network);
+        .fetch(context, use_network),
+    );
 }
 
 pub fn perform_mvbox_fetch(context: &Context) {
     let use_network = context.get_config_bool(Config::MvboxWatch);
 
+    task::block_on(
     context
         .mvbox_thread
         .write()
         .unwrap()
-        .fetch(context, use_network);
+        .fetch(context, use_network),
+    );
 }
 
 pub fn perform_sentbox_fetch(context: &Context) {
     let use_network = context.get_config_bool(Config::SentboxWatch);
 
+    task::block_on(
     context
         .sentbox_thread
         .write()
         .unwrap()
-        .fetch(context, use_network);
+        .fetch(context, use_network),
+    );
 }
 
 pub fn perform_inbox_idle(context: &Context) {
