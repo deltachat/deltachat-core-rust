@@ -7,42 +7,42 @@
    xmlns="http://www.w3.org/2000/svg"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   inkscape:version="0.92.4 5da689c313, 2019-01-14"
-   sodipodi:docname="icon-saved-messages.svg"
-   id="svg4344"
-   preserveAspectRatio="xMidYMid meet"
-   viewBox="0 0 45 45"
-   height="60"
-   width="60"
-   version="1.0"
-   inkscape:export-filename="/home/kerle/test-icon.png"
+   inkscape:export-ydpi="409.60001"
    inkscape:export-xdpi="409.60001"
-   inkscape:export-ydpi="409.60001">
+   inkscape:export-filename="/home/kerle/test-icon.png"
+   version="1.0"
+   width="60"
+   height="60"
+   viewBox="0 0 45 45"
+   preserveAspectRatio="xMidYMid meet"
+   id="svg4344"
+   sodipodi:docname="icon-saved-messages.svg"
+   inkscape:version="1.0beta1 (32d4812, 2019-09-19)">
   <defs
      id="defs4348" />
   <sodipodi:namedview
-     inkscape:lockguides="false"
-     inkscape:current-layer="svg4344"
-     inkscape:window-maximized="0"
-     inkscape:window-y="130"
-     inkscape:window-x="89"
-     inkscape:cy="43.28624"
-     inkscape:cx="-21.066324"
-     inkscape:zoom="4"
-     units="px"
-     showgrid="false"
-     id="namedview4346"
-     inkscape:window-height="855"
-     inkscape:window-width="1395"
-     inkscape:pageshadow="2"
-     inkscape:pageopacity="0"
-     guidetolerance="10"
-     gridtolerance="10"
-     objecttolerance="10"
-     borderopacity="1"
-     inkscape:document-rotation="0"
+     pagecolor="#ffffff"
      bordercolor="#666666"
-     pagecolor="#ffffff" />
+     inkscape:document-rotation="0"
+     borderopacity="1"
+     objecttolerance="10"
+     gridtolerance="10"
+     guidetolerance="10"
+     inkscape:pageopacity="0"
+     inkscape:pageshadow="2"
+     inkscape:window-width="1395"
+     inkscape:window-height="855"
+     id="namedview4346"
+     showgrid="false"
+     units="px"
+     inkscape:zoom="4"
+     inkscape:cx="29.308676"
+     inkscape:cy="49.03624"
+     inkscape:window-x="89"
+     inkscape:window-y="108"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="svg4344"
+     inkscape:lockguides="false" />
   <metadata
      id="metadata4336">
 Created by potrace 1.15, written by Peter Selinger 2001-2017
@@ -56,21 +56,16 @@ Created by potrace 1.15, written by Peter Selinger 2001-2017
   </cc:Work>
 </rdf:RDF>
 </metadata>
-  <circle
-     style="opacity:1;fill:#ffffff;fill-opacity:1;stroke-width:0.731071"
-     id="path859"
-     cx="22.5"
-     cy="22.5"
-     r="22.5" />
-  <circle
-     r="22.5"
-     cy="22.50293"
-     cx="22.5"
-     id="path4917"
-     style="fill:#87aade;fill-opacity:1;stroke-width:0.58855402" />
+  <rect
+     y="0"
+     x="0"
+     height="45"
+     width="45"
+     id="rect1420"
+     style="fill:#87aade;fill-opacity:1;stroke:none;stroke-width:0.968078" />
   <path
-     inkscape:connector-curvature="0"
-     d="M 13.5,7.5 V 39 h 0.08654 L 22.533801,29.370239 31.482419,39 h 0.01758 V 7.5 Z m 9.004056,4.108698 1.879508,4.876388 5.039514,0.359779 -3.879358,3.363728 1.227764,5.095749 -4.276893,-2.796643 -4.280949,2.788618 1.237229,-5.093073 -3.873949,-3.371754 5.040866,-0.350417 z"
+     id="rect846"
      style="fill:#ffffff;stroke-width:0.58409804"
-     id="rect846" />
+     d="M 13.5,7.5 V 39 h 0.08654 L 22.533801,29.370239 31.482419,39 h 0.01758 V 7.5 Z m 9.004056,4.108698 1.879508,4.876388 5.039514,0.359779 -3.879358,3.363728 1.227764,5.095749 -4.276893,-2.796643 -4.280949,2.788618 1.237229,-5.093073 -3.873949,-3.371754 5.040866,-0.350417 z"
+     inkscape:connector-curvature="0" />
 </svg>
