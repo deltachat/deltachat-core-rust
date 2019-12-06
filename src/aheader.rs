@@ -150,13 +150,10 @@ impl str::FromStr for Aheader {
             }
         };
 
-        let prefer_encrypt = match attributes
+        let prefer_encrypt = attributes
             .remove("prefer-encrypt")
             .and_then(|raw| raw.parse().ok())
-        {
-            Some(pref) => pref,
-            None => EncryptPreference::NoPreference,
-        };
+            .unwrap_or_default();
 
         // Autocrypt-Level0: unknown attributes starting with an underscore can be safely ignored
         // Autocrypt-Level0: unknown attribute, treat the header as invalid
