@@ -3,6 +3,8 @@ use std::sync::{Arc, Condvar, Mutex};
 use crate::context::Context;
 use crate::error::{Error, Result};
 use crate::imap::Imap;
+use crate::job::{get_next_wakeup_time, Thread};
+use std::time::Duration;
 
 #[derive(Debug)]
 pub struct JobThread {
@@ -57,10 +59,6 @@ impl JobThread {
     }
 
     pub fn interrupt_idle(&self, context: &Context) {
-        {
-            self.state.0.lock().unwrap().jobs_needed = true;
-        }
-
         info!(context, "Interrupting {}-IDLE...", self.name);
 
         self.imap.interrupt_idle(context);
@@ -140,14 +138,15 @@ impl JobThread {
             let &(ref lock, ref cvar) = &*self.state.clone();
             let mut state = lock.lock().unwrap();
 
-            if state.jobs_needed {
-                info!(
-                    context,
-                    "{}-IDLE will not be started as it was interrupted while not ideling.",
-                    self.name,
-                );
-                state.jobs_needed = false;
-                return;
+            if self.folder_config_name == "INBOX" {
+                let duration = get_next_wakeup_time(context, Thread::Imap);
+                if duration <= Duration::from_millis(1) {
+                    info!(
+                        context,
+                        "INBOX-IDLE will not be started because of waiting jobs."
+                    );
+                    return;
+                }
             }
 
             if state.suspended {

@@ -44,7 +44,6 @@ pub struct Context {
     /// Blob directory path
     blobdir: PathBuf,
     pub sql: Sql,
-    pub perform_inbox_jobs_needed: Arc<RwLock<bool>>,
     pub probe_imap_network: Arc<RwLock<bool>>,
     pub inbox_thread: Arc<RwLock<JobThread>>,
     pub sentbox_thread: Arc<RwLock<JobThread>>,
@@ -147,7 +146,6 @@ impl Context {
                 Imap::new(),
             ))),
             probe_imap_network: Arc::new(RwLock::new(false)),
-            perform_inbox_jobs_needed: Arc::new(RwLock::new(false)),
             generating_key_mutex: Mutex::new(()),
             translated_stockstrings: RwLock::new(HashMap::new()),
         };
