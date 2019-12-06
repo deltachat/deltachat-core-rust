@@ -95,15 +95,24 @@ impl Aheader {
 
 impl fmt::Display for Aheader {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        // TODO replace 78 with enum /rtn
-        // adds a whitespace every 78 characters, this allows libEtPan to
-        // wrap the lines according to RFC 5322
-        // (which may insert a linebreak before every whitespace)
-        let keydata = self.public_key.to_base64(78);
         write!(fmt, "addr={};", self.addr)?;
         if self.prefer_encrypt == EncryptPreference::Mutual {
             write!(fmt, " prefer-encrypt=mutual;")?;
         }
+
+        // adds a whitespace every 78 characters, this allows libEtPan to
+        // wrap the lines according to RFC 5322
+        // (which may insert a linebreak before every whitespace)
+        let keydata = self.public_key.to_base64().chars().enumerate().fold(
+            String::new(),
+            |mut res, (i, c)| {
+                if i > 0 && i % 78 == 0 {
+                    res.push(' ')
+                }
+                res.push(c);
+                res
+            },
+        );
         write!(fmt, " keydata={}", keydata)
     }
 }
