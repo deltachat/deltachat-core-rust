@@ -431,16 +431,16 @@ impl Imap {
     }
 
     pub async fn fetch(&self, context: &Context, watch_folder: &str) -> Result<()> {
-            if !context.sql.is_open() {
-                // probably shutdown
-                return Err(Error::InTeardown);
-            }
-            self.setup_handle_if_needed(context).await?;
+        if !context.sql.is_open() {
+            // probably shutdown
+            return Err(Error::InTeardown);
+        }
+        self.setup_handle_if_needed(context).await?;
 
-            while self.fetch_new_messages(context, &watch_folder).await? {
-                // We fetch until no more new messages are there.
-            }
-            Ok(())
+        while self.fetch_new_messages(context, &watch_folder).await? {
+            // We fetch until no more new messages are there.
+        }
+        Ok(())
     }
 
     fn get_config_last_seen_uid<S: AsRef<str>>(&self, context: &Context, folder: S) -> (u32, u32) {

@@ -401,11 +401,11 @@ pub fn perform_inbox_fetch(context: &Context) {
     let use_network = context.get_config_bool(Config::InboxWatch);
 
     task::block_on(
-    context
-        .inbox_thread
-        .write()
-        .unwrap()
-        .fetch(context, use_network),
+        context
+            .inbox_thread
+            .write()
+            .unwrap()
+            .fetch(context, use_network),
     );
 }
 
@@ -413,11 +413,11 @@ pub fn perform_mvbox_fetch(context: &Context) {
     let use_network = context.get_config_bool(Config::MvboxWatch);
 
     task::block_on(
-    context
-        .mvbox_thread
-        .write()
-        .unwrap()
-        .fetch(context, use_network),
+        context
+            .mvbox_thread
+            .write()
+            .unwrap()
+            .fetch(context, use_network),
     );
 }
 
@@ -425,11 +425,11 @@ pub fn perform_sentbox_fetch(context: &Context) {
     let use_network = context.get_config_bool(Config::SentboxWatch);
 
     task::block_on(
-    context
-        .sentbox_thread
-        .write()
-        .unwrap()
-        .fetch(context, use_network),
+        context
+            .sentbox_thread
+            .write()
+            .unwrap()
+            .fetch(context, use_network),
     );
 }
 
