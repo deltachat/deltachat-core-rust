@@ -994,11 +994,20 @@ uint32_t        dc_get_chat_id_by_contact_id (dc_context_t* context, uint32_t co
  *
  * Example:
  * ~~~
+ * char* blobdir = dc_get_blobdir(context);
+ * char* file_to_send = mprintf("%s/%s", blobdir, "send.mp4")
+ *
  * dc_msg_t* msg = dc_msg_new(context, DC_MSG_VIDEO);
- * dc_msg_set_file(msg, "/file/to/send.mp4", NULL);
+ * dc_msg_set_file(msg, file_to_send, NULL);
  * dc_prepare_msg(context, chat_id, msg);
- * // ... after /file/to/send.mp4 is ready:
+ *
+ * // ... create the file ...
+ *
  * dc_send_msg(context, chat_id, msg);
+ *
+ * dc_msg_unref(msg);
+ * free(file_to_send);
+ * dc_str_unref(file_to_send);
  * ~~~
  *
  * @memberof dc_context_t
@@ -1024,8 +1033,11 @@ uint32_t        dc_prepare_msg               (dc_context_t* context, uint32_t ch
  * Example:
  * ~~~
  * dc_msg_t* msg = dc_msg_new(context, DC_MSG_IMAGE);
+ *
  * dc_msg_set_file(msg, "/file/to/send.jpg", NULL);
  * dc_send_msg(context, chat_id, msg);
+ *
+ * dc_msg_unref(msg);
  * ~~~
  *
  * @memberof dc_context_t
@@ -1134,6 +1146,9 @@ void            dc_set_draft                 (dc_context_t* context, uint32_t ch
  *     // add a changelog
  *     dc_add_device_msg(context, "update-123", changelog_msg);
  * }
+ *
+ * dc_msg_unref(changelog_msg);
+ * dc_msg_unref(welome_msg);
  * ~~~
  */
 uint32_t        dc_add_device_msg            (dc_context_t* context, const char* label, dc_msg_t* msg);
@@ -1947,7 +1962,7 @@ void            dc_imex                      (dc_context_t* context, int what, c
  *         }
  *         while (!configure_succeeded())
  *     }
- *     free(file);
+ *     dc_str_unref(file);
  * }
  * ~~~
  *
