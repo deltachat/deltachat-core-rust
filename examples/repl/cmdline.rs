@@ -938,7 +938,14 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
             let contact = Contact::get_by_id(context, contact_id)?;
             let name_n_addr = contact.get_name_n_addr();
 
-            let mut res = format!("Contact info for: {}:\n\n", name_n_addr);
+            let mut res = format!(
+                "Contact info for: {}:\nIcon: {}\n",
+                name_n_addr,
+                match contact.get_profile_image(context) {
+                    Some(image) => image.to_str().unwrap().to_string(),
+                    None => "NoIcon".to_string(),
+                }
+            );
 
             res += &Contact::get_encrinfo(context, contact_id)?;
 
