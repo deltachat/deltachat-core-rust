@@ -104,7 +104,7 @@ fn main() {
     println!("stopping threads");
 
     *running.write().unwrap() = false;
-    deltachat::job::interrupt_inbox_idle(&ctx, true);
+    deltachat::job::interrupt_inbox_idle(&ctx);
     deltachat::job::interrupt_smtp_idle(&ctx);
 
     println!("joining");

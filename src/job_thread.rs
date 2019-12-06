@@ -134,13 +134,18 @@ impl JobThread {
     }
 
     pub fn idle(&self, context: &Context, use_network: bool) {
+        // standard idle wait timeout
+        let mut timeout = Duration::from_secs(23 * 60);
+
         {
             let &(ref lock, ref cvar) = &*self.state.clone();
             let mut state = lock.lock().unwrap();
 
-            if self.folder_config_name == "INBOX" {
-                let duration = get_next_wakeup_time(context, Thread::Imap);
-                if duration <= Duration::from_millis(1) {
+            // if we are in the inbox (job) thread
+            // we check if a job is due.
+            if self.folder_config_name == "configured_inbox_folder" {
+                timeout = get_next_wakeup_time(context, Thread::Imap);
+                if timeout <= Duration::from_millis(20) {
                     info!(
                         context,
                         "INBOX-IDLE will not be started because of waiting jobs."
@@ -178,7 +183,7 @@ impl JobThread {
                 } else {
                     let watch_folder = self.get_watch_folder(context);
                     info!(context, "{} started...", prefix);
-                    let res = self.imap.idle(context, watch_folder);
+                    let res = self.imap.idle(context, watch_folder, timeout);
                     info!(context, "{} ended...", prefix);
                     if let Err(err) = res {
                         warn!(context, "{} failed: {} -> reconnecting", prefix, err);
@@ -198,7 +203,7 @@ impl JobThread {
         };
         if do_fake_idle {
             let watch_folder = self.get_watch_folder(context);
-            self.imap.fake_idle(context, watch_folder);
+            self.imap.fake_idle(context, watch_folder, timeout);
         }
 
         self.state.0.lock().unwrap().using_handle = false;

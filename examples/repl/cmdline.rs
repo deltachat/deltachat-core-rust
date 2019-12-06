@@ -491,7 +491,7 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
             println!("{:#?}", context.get_info());
         }
         "interrupt" => {
-            interrupt_inbox_idle(context, true);
+            interrupt_inbox_idle(context);
         }
         "maybenetwork" => {
             maybe_network(context);
