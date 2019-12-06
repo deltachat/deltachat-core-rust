@@ -191,6 +191,19 @@ mod tests {
         assert_eq!(h.prefer_encrypt, EncryptPreference::Mutual);
     }
 
+    // EncryptPreference::Reset is an internal value, parser should never return it
+    #[test]
+    fn test_from_str_reset() {
+        let raw = format!(
+            "addr=reset@example.com; prefer-encrypt=reset; keydata={}",
+            RAWKEY
+        );
+        let h: Aheader = raw.parse().expect("failed to parse");
+
+        assert_eq!(h.addr, "reset@example.com");
+        assert_eq!(h.prefer_encrypt, EncryptPreference::NoPreference);
+    }
+
     #[test]
     fn test_from_str_non_critical() {
         let raw = format!("addr=me@mail.com; _foo=one; _bar=two; keydata={}", RAWKEY);
