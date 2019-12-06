@@ -3,6 +3,7 @@ use super::Imap;
 use async_imap::extensions::idle::IdleResponse;
 use async_std::prelude::*;
 use async_std::task;
+use core::cmp::min;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, SystemTime};
 
@@ -45,7 +46,12 @@ impl Imap {
         task::block_on(async move { self.config.read().await.can_idle })
     }
 
-    pub fn idle(&self, context: &Context, watch_folder: Option<String>) -> Result<()> {
+    pub fn idle(
+        &self,
+        context: &Context,
+        watch_folder: Option<String>,
+        timeout: Duration,
+    ) -> Result<()> {
         task::block_on(async move {
             if !self.can_idle() {
                 return Err(Error::IdleAbilityMissing);
@@ -58,7 +64,7 @@ impl Imap {
             self.select_folder(context, watch_folder.clone()).await?;
 
             let session = self.session.lock().await.take();
-            let timeout = Duration::from_secs(23 * 60);
+            let max_duration = Duration::from_secs(23 * 60);
             if let Some(session) = session {
                 match session.idle() {
                     // BEWARE: If you change the Secure branch you
@@ -67,8 +73,8 @@ impl Imap {
                         if let Err(err) = handle.init().await {
                             return Err(Error::IdleProtocolFailed(err));
                         }
-
-                        let (idle_wait, interrupt) = handle.wait_with_timeout(timeout);
+                        let real_timeout = min(timeout, max_duration);
+                        let (idle_wait, interrupt) = handle.wait_with_timeout(real_timeout);
                         *self.interrupt.lock().await = Some(interrupt);
 
                         if self.skip_next_idle_wait.load(Ordering::SeqCst) {
@@ -178,7 +184,12 @@ impl Imap {
         })
     }
 
-    pub(crate) fn fake_idle(&self, context: &Context, watch_folder: Option<String>) {
+    pub(crate) fn fake_idle(
+        &self,
+        context: &Context,
+        watch_folder: Option<String>,
+        timeout: Duration,
+    ) {
         // Idle using polling. This is also needed if we're not yet configured -
         // in this case, we're waiting for a configure job (and an interrupt).
         task::block_on(async move {
@@ -213,6 +224,15 @@ impl Imap {
                         break;
                     }
                     info!(context, "fake_idle is connected");
+
+                    if SystemTime::now()
+                        .duration_since(fake_idle_start_time)
+                        .unwrap_or_default()
+                        > timeout
+                    {
+                        info!(context, "fake_idle stopping as jobs need running");
+                        break;
+                    }
                     // we are connected, let's see if fetching messages results
                     // in anything.  If so, we behave as if IDLE had data but
                     // will have already fetched the messages so perform_*_fetch
