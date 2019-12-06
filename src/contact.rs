@@ -15,6 +15,7 @@ use crate::events::Event;
 use crate::key::*;
 use crate::login_param::LoginParam;
 use crate::message::{MessageState, MsgId};
+use crate::param::*;
 use crate::peerstate::*;
 use crate::sql;
 use crate::stock::StockMessage;
@@ -58,6 +59,8 @@ pub struct Contact {
     blocked: bool,
     /// The origin/source of the contact.
     pub origin: Origin,
+    /// Parameters as Param::ProfileImage
+    pub param: Params,
 }
 
 /// Possible origins of a contact.
@@ -139,32 +142,10 @@ pub enum VerifiedStatus {
 
 impl Contact {
     pub fn load_from_db(context: &Context, contact_id: u32) -> crate::sql::Result<Self> {
-        if contact_id == DC_CONTACT_ID_SELF {
-            let contact = Contact {
-                id: contact_id,
-                name: context.stock_str(StockMessage::SelfMsg).into(),
-                authname: "".into(),
-                addr: context
-                    .get_config(Config::ConfiguredAddr)
-                    .unwrap_or_default(),
-                blocked: false,
-                origin: Origin::Unknown,
-            };
-            return Ok(contact);
-        } else if contact_id == DC_CONTACT_ID_DEVICE {
-            let contact = Contact {
-                id: contact_id,
-                name: context.stock_str(StockMessage::DeviceMessages).into(),
-                authname: "".into(),
-                addr: "device@localhost".into(),
-                blocked: false,
-                origin: Origin::Unknown,
-            };
-            return Ok(contact);
-        }
-
-        context.sql.query_row(
-            "SELECT c.name, c.addr, c.origin, c.blocked, c.authname  FROM contacts c  WHERE c.id=?;",
+        let mut res = context.sql.query_row(
+            "SELECT c.name, c.addr, c.origin, c.blocked, c.authname, c.param
+               FROM contacts c
+              WHERE c.id=?;",
             params![contact_id as i32],
             |row| {
                 let contact = Self {
@@ -174,10 +155,21 @@ impl Contact {
                     addr: row.get::<_, String>(1)?,
                     blocked: row.get::<_, Option<i32>>(3)?.unwrap_or_default() != 0,
                     origin: row.get(2)?,
+                    param: row.get::<_, String>(5)?.parse().unwrap_or_default(),
                 };
                 Ok(contact)
-            }
-        )
+            },
+        )?;
+        if contact_id == DC_CONTACT_ID_SELF {
+            res.name = context.stock_str(StockMessage::SelfMsg).to_string();
+            res.addr = context
+                .get_config(Config::ConfiguredAddr)
+                .unwrap_or_default();
+        } else if contact_id == DC_CONTACT_ID_DEVICE {
+            res.name = context.stock_str(StockMessage::DeviceMessages).to_string();
+            res.addr = "device@localhost".to_string();
+        }
+        Ok(res)
     }
 
     /// Returns `true` if this contact is blocked.
@@ -709,6 +701,16 @@ impl Contact {
         Ok(Contact::load_from_db(context, contact_id)?)
     }
 
+    pub fn update_param(&mut self, context: &Context) -> Result<()> {
+        sql::execute(
+            context,
+            &context.sql,
+            "UPDATE contacts SET param=? WHERE id=?",
+            params![self.param.to_string(), self.id as i32],
+        )?;
+        Ok(())
+    }
+
     /// Get the ID of the contact.
     pub fn get_id(&self) -> u32 {
         self.id
@@ -777,8 +779,11 @@ impl Contact {
             if let Some(p) = context.get_config(Config::Selfavatar) {
                 return Some(PathBuf::from(p));
             }
+        } else if let Some(image_rel) = self.param.get(Param::ProfileImage) {
+            if !image_rel.is_empty() {
+                return Some(dc_get_abs_path(context, image_rel));
+            }
         }
-        // TODO: else get image_abs from contact param
         None
     }
 
