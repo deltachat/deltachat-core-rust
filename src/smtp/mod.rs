@@ -5,8 +5,6 @@ pub mod send;
 use lettre::smtp::client::net::*;
 use lettre::*;
 
-use failure::Fail;
-
 use crate::constants::*;
 use crate::context::Context;
 use crate::events::Event;
