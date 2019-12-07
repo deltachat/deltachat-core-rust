@@ -422,7 +422,7 @@ pub(crate) fn handle_securejoin_handshake(
                 could_not_establish_secure_connection(
                     context,
                     contact_chat_id,
-                    if mimeparser.encrypted {
+                    if mimeparser.was_encrypted() {
                         "No valid signature."
                     } else {
                         "Not encrypted."
@@ -717,7 +717,7 @@ fn mark_peer_as_verified(context: &Context, fingerprint: impl AsRef<str>) -> Res
  ******************************************************************************/
 
 fn encrypted_and_signed(mimeparser: &MimeParser, expected_fingerprint: impl AsRef<str>) -> bool {
-    if !mimeparser.encrypted {
+    if !mimeparser.was_encrypted() {
         warn!(mimeparser.context, "Message not encrypted.",);
         false
     } else if mimeparser.signatures.is_empty() {

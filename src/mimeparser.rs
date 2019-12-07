@@ -30,7 +30,6 @@ pub struct MimeParser<'a> {
     pub parts: Vec<Part>,
     pub header: HashMap<String, String>,
     pub decrypting_failed: bool,
-    pub encrypted: bool,
     pub signatures: HashSet<String>,
     pub gossipped_addr: HashSet<String>,
     pub is_forwarded: bool,
@@ -73,7 +72,8 @@ impl<'a> MimeParser<'a> {
             parts: Vec::new(),
             header: Default::default(),
             decrypting_failed: false,
-            encrypted: false,
+
+            // only non-empty if it was a valid autocrypt message
             signatures: Default::default(),
             gossipped_addr: Default::default(),
             is_forwarded: false,
@@ -100,7 +100,6 @@ impl<'a> MimeParser<'a> {
         let mail = match e2ee::try_decrypt(parser.context, &mail, message_time) {
             Ok((raw, signatures)) => {
                 // Valid autocrypt message, encrypted
-                parser.encrypted = raw.is_some();
                 parser.signatures = signatures;
 
                 if let Some(raw) = raw {
@@ -330,6 +329,10 @@ impl<'a> MimeParser<'a> {
         self.parts.iter_mut().rev().find(|part| !part.is_meta)
     }
 
+    pub fn was_encrypted(&self) -> bool {
+        !self.signatures.is_empty()
+    }
+
     pub(crate) fn has_chat_version(&self) -> bool {
         self.header.contains_key("chat-version")
     }
@@ -450,6 +453,9 @@ impl<'a> MimeParser<'a> {
                 }
             }
             (mime::MULTIPART, "encrypted") => {
+                // we currently do not try to decrypt non-autocrypt messages
+                // at all. If we see an encrypted part, we set
+                // decrypting_failed.
                 let msg_body = self.context.stock_str(StockMessage::CantDecryptMsgBody);
                 let txt = format!("[{}]", msg_body);
 
@@ -636,15 +642,8 @@ impl<'a> MimeParser<'a> {
     }
 
     fn do_add_single_part(&mut self, mut part: Part) {
-        if self.encrypted {
-            if !self.signatures.is_empty() {
-                part.param.set_int(Param::GuaranteeE2ee, 1);
-            } else {
-                // XXX if the message was encrypted but not signed
-                // it's not neccessarily an error we need to signal.
-                // we could just treat it as if it was not encrypted.
-                part.param.set_int(Param::ErroneousE2ee, 0x2);
-            }
+        if self.was_encrypted() {
+            part.param.set_int(Param::GuaranteeE2ee, 1);
         }
         self.parts.push(part);
     }

@@ -1389,7 +1389,7 @@ fn check_verified_properties(
 ) -> Result<()> {
     let contact = Contact::load_from_db(context, from_id)?;
 
-    ensure!(mimeparser.encrypted, "This message is not encrypted.");
+    ensure!(mimeparser.was_encrypted(), "This message is not encrypted.");
 
     // ensure, the contact is verified
     // and the message is signed with a verified key of the sender.
