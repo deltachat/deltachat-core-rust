@@ -477,6 +477,30 @@ class TestOnlineAccount:
         assert msg2.filename.endswith("html.zip")
         assert msg.filename != msg2.filename
 
+    def test_send_file_html_attachment(self, tmpdir, acfactory, lp):
+        ac1, ac2 = acfactory.get_two_online_accounts()
+        chat = self.get_chat(ac1, ac2)
+
+        basename = "test.html"
+        content = "<html><body>text</body>data"
+
+        p = os.path.join(tmpdir.strpath, basename)
+        with open(p, "w") as f:
+            # write wrong html to see if core tries to parse it
+            # (it shouldn't as it's a file attachment)
+            f.write(content)
+
+        lp.sec("ac1: prepare and send attachment + text to ac2")
+        chat.send_file(p, mime_type="text/html")
+
+        lp.sec("ac2: receive message")
+        ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
+        assert ev[2] > const.DC_CHAT_ID_LAST_SPECIAL
+        msg = ac2.get_message_by_id(ev[2])
+
+        assert open(msg.filename).read() == content
+        assert msg.filename.endswith(basename)
+
     def test_mvbox_sentbox_threads(self, acfactory, lp):
         lp.sec("ac1: start with mvbox thread")
         ac1 = acfactory.get_online_configuring_account(mvbox=True, sentbox=True)

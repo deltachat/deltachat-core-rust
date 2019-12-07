@@ -509,11 +509,22 @@ impl<'a> MimeParser<'a> {
         let (mime_type, msg_type) = get_mime_type(mail)?;
         let raw_mime = mail.ctype.mimetype.to_lowercase();
 
+        info!(
+            self.context,
+            "add_single_part_if_known {:?} {:?}", mime_type, msg_type
+        );
+
         let old_part_count = self.parts.len();
+
+        let is_attachment = mail
+            .get_content_disposition()?
+            .params
+            .iter()
+            .any(|(key, _value)| key.starts_with("filename"));
 
         // regard `Content-Transfer-Encoding:`
         match mime_type.type_() {
-            mime::TEXT | mime::HTML => {
+            mime::TEXT | mime::HTML if !is_attachment => {
                 let decoded_data = match mail.get_body() {
                     Ok(decoded_data) => decoded_data,
                     Err(err) => {
@@ -547,7 +558,12 @@ impl<'a> MimeParser<'a> {
                     self.is_forwarded = true;
                 }
             }
-            mime::IMAGE | mime::AUDIO | mime::VIDEO | mime::APPLICATION => {
+            mime::TEXT
+            | mime::HTML
+            | mime::IMAGE
+            | mime::AUDIO
+            | mime::VIDEO
+            | mime::APPLICATION => {
                 // try to get file name from
                 //    `Content-Disposition: ... filename*=...`
                 // or `Content-Disposition: ... filename*0*=... filename*1*=... filename*2*=...`
