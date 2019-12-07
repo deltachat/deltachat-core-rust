@@ -29,7 +29,6 @@ pub struct MimeParser<'a> {
     pub context: &'a Context,
     pub parts: Vec<Part>,
     pub header: HashMap<String, String>,
-    pub subject: Option<String>,
     pub decrypting_failed: bool,
     pub encrypted: bool,
     pub signatures: HashSet<String>,
@@ -73,7 +72,6 @@ impl<'a> MimeParser<'a> {
         let mut parser = MimeParser {
             parts: Vec::new(),
             header: Default::default(),
-            subject: None,
             decrypting_failed: false,
             encrypted: false,
             signatures: Default::default(),
@@ -147,10 +145,6 @@ impl<'a> MimeParser<'a> {
     }
 
     fn parse_headers(&mut self) -> Result<()> {
-        if let Some(field) = self.lookup_field("Subject") {
-            self.subject = Some(field.clone());
-        }
-
         if self.lookup_field("Autocrypt-Setup-Message").is_some() {
             let has_setup_file = self.parts.iter().any(|p| {
                 p.mimetype.is_some() && p.mimetype.as_ref().unwrap().as_ref() == MIME_AC_SETUP_FILE
@@ -225,7 +219,7 @@ impl<'a> MimeParser<'a> {
                 std::mem::replace(&mut self.parts[0], filepart);
             }
         }
-        if let Some(ref subject) = self.subject {
+        if let Some(ref subject) = self.get_subject() {
             let mut prepend_subject = 1i32;
             if !self.decrypting_failed {
                 let colon = subject.find(':');
@@ -316,7 +310,7 @@ impl<'a> MimeParser<'a> {
             let mut part = Part::default();
             part.typ = Viewtype::Text;
 
-            if let Some(ref subject) = self.subject {
+            if let Some(ref subject) = self.get_subject() {
                 if !self.has_chat_version() {
                     part.msg = subject.to_string();
                 }
@@ -338,6 +332,17 @@ impl<'a> MimeParser<'a> {
 
     pub(crate) fn has_chat_version(&self) -> bool {
         self.header.contains_key("chat-version")
+    }
+
+    pub(crate) fn get_subject(&self) -> Option<String> {
+        if let Some(s) = self.header.get("subject") {
+            if s.is_empty() {
+                return None;
+            }
+            Some(s.to_string())
+        } else {
+            None
+        }
     }
 
     pub fn lookup_field(&self, field_name: &str) -> Option<&String> {
@@ -1016,7 +1021,7 @@ mod tests {
         let raw = include_bytes!("../test-data/message/issue_523.txt");
         let mimeparser = MimeParser::from_bytes(&context.ctx, &raw[..]).unwrap();
 
-        assert_eq!(mimeparser.subject, None);
+        assert_eq!(mimeparser.get_subject(), None);
         assert_eq!(mimeparser.parts.len(), 1);
     }
 
@@ -1121,7 +1126,7 @@ mod tests {
                     \x00";
         let mimeparser = MimeParser::from_bytes(&context.ctx, &raw[..]).unwrap();
 
-        assert_eq!(mimeparser.subject, Some("inner-subject".into()));
+        assert_eq!(mimeparser.get_subject(), Some("inner-subject".into()));
 
         let of = mimeparser.lookup_field("X-Special-A").unwrap();
         assert_eq!(of, "special-a");

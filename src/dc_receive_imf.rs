@@ -604,8 +604,9 @@ fn add_parts(
          bytes, hidden, mime_headers,  mime_in_reply_to, mime_references) \
          VALUES (?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?);",
         |mut stmt, conn| {
-            for i in 0..icnt {
-                let part = &mut mime_parser.parts[i];
+            let subject = mime_parser.get_subject().unwrap_or_default();
+
+            for part in mime_parser.parts.iter_mut() {
                 if part.is_meta {
                     continue;
                 }
@@ -622,11 +623,6 @@ fn add_parts(
 
                 if part.typ == Viewtype::Text {
                     let msg_raw = part.msg_raw.as_ref().cloned().unwrap_or_default();
-                    let subject = mime_parser
-                        .subject
-                        .as_ref()
-                        .map(|s| s.to_string())
-                        .unwrap_or_else(|| "".into());
                     txt_raw = Some(format!("{}\n\n{}", subject, msg_raw));
                 }
                 if mime_parser.is_system_message != SystemMessage::Unknown {
@@ -1223,11 +1219,9 @@ fn create_or_lookup_adhoc_group(
         return Ok((0, Blocked::Not));
     }
     // use subject as initial chat name
-    let grpname = if let Some(subject) = mime_parser.subject.as_ref().filter(|s| !s.is_empty()) {
-        subject.to_string()
-    } else {
+    let grpname = mime_parser.get_subject().unwrap_or_else(|| {
         context.stock_string_repl_int(StockMessage::Member, member_ids.len() as i32)
-    };
+    });
 
     // create group record
     let new_chat_id = create_group_record(
