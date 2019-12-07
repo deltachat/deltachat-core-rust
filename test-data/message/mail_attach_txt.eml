@@ -1,0 +1,40 @@
+From holger@merlinux.eu Sat Dec  7 11:53:58 2019
+Return-Path: <holger@merlinux.eu>
+X-Original-To: holger+test@merlinux.eu
+Delivered-To: holger+test@merlinux.eu
+Received: from [127.0.0.1] (localhost [127.0.0.1])
+	(using TLSv1.2 with cipher AECDH-AES256-SHA (256/256 bits))
+	(No client certificate requested)
+	by mail.merlinux.eu (Postfix) with ESMTPSA id 61825100531;
+	Sat,  7 Dec 2019 10:53:58 +0000 (UTC)
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=merlinux.eu;
+	s=default; t=1575716038;
+	bh=xhaPssQzVOHRafcciTQqDnZ1Zi4GMwsmg9pHLH3i8P8=;
+	h=Date:From:To:Subject;
+	b=U4HxGDZ8RwLwRPFtIvRsb+x5BiyICnbbY2ZOGlZdLt12MuDTfiYi/phHiQUC402EY
+	 GXb8dYgYr5+0PDiPBa7dyt2VQLC/h9QRfOA82tb1vpJYC+KksSAH0nYQqJvs7XrqCN
+	 i95/jwZnsWrV7w72+xsrO5qPujIE68TmM5I9Cyec=
+Received: by beto.merlinux.eu (Postfix, from userid 1000)
+	id 229D3820070; Sat,  7 Dec 2019 11:53:58 +0100 (CET)
+Date: Sat, 7 Dec 2019 11:53:57 +0100
+From: holger krekel <holger@merlinux.eu>
+To: holger+test@merlinux.eu
+Subject: hello
+Message-ID: <20191207105357.GA6266@beto>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="YiEDa0DAkWCtVeE4"
+Content-Disposition: inline
+
+--YiEDa0DAkWCtVeE4
+Content-Type: text/plain; charset=us-ascii
+Content-Disposition: inline
+
+siehe anhang
+
+--YiEDa0DAkWCtVeE4
+Content-Type: text/plain; charset=us-ascii
+Content-Disposition: attachment; filename="x.txt"
+
+hello
+
+--YiEDa0DAkWCtVeE4--

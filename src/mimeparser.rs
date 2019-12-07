@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use deltachat_derive::{FromSql, ToSql};
 use lettre_email::mime::{self, Mime};
-use mailparse::MailHeaderMap;
+use mailparse::{DispositionType, MailHeaderMap};
 
 use crate::aheader::Aheader;
 use crate::blob::BlobObject;
@@ -22,6 +22,7 @@ use crate::param::*;
 use crate::peerstate::Peerstate;
 use crate::securejoin::handle_degrade_event;
 use crate::stock::StockMessage;
+use crate::{bail, ensure};
 
 #[derive(Debug)]
 pub struct MimeParser<'a> {
@@ -110,7 +111,7 @@ impl<'a> MimeParser<'a> {
                     mail_raw = raw;
                     let decrypted_mail = mailparse::parse_mail(&mail_raw)?;
                     if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
-                        info!(context, "dc_receive_imf: incoming message mime-body:");
+                        info!(context, "decrypted message mime-body:");
                         println!("{}", String::from_utf8_lossy(&mail_raw));
                     }
 
@@ -509,100 +510,63 @@ impl<'a> MimeParser<'a> {
         let (mime_type, msg_type) = get_mime_type(mail)?;
         let raw_mime = mail.ctype.mimetype.to_lowercase();
 
+        let filename = get_attachment_filename(mail);
         info!(
             self.context,
-            "add_single_part_if_known {:?} {:?}", mime_type, msg_type
+            "add_single_part_if_known {:?} {:?} {:?}", mime_type, msg_type, filename
         );
 
         let old_part_count = self.parts.len();
 
-        let is_attachment = mail
-            .get_content_disposition()?
-            .params
-            .iter()
-            .any(|(key, _value)| key.starts_with("filename"));
-
-        // regard `Content-Transfer-Encoding:`
-        match mime_type.type_() {
-            mime::TEXT | mime::HTML if !is_attachment => {
-                let decoded_data = match mail.get_body() {
-                    Ok(decoded_data) => decoded_data,
-                    Err(err) => {
-                        warn!(self.context, "Invalid body parsed {:?}", err);
-                        // Note that it's not always an error - might be no data
-                        return Ok(false);
-                    }
-                };
-
-                // check header directly as is_send_by_messenger is not yet set up
-                let is_msgrmsg = self.lookup_field("Chat-Version").is_some();
-
-                let mut simplifier = Simplify::new();
-                let simplified_txt = if decoded_data.is_empty() {
-                    "".into()
-                } else {
-                    let is_html = mime_type == mime::TEXT_HTML;
-                    simplifier.simplify(&decoded_data, is_html, is_msgrmsg)
-                };
-
-                if !simplified_txt.is_empty() {
-                    let mut part = Part::default();
-                    part.typ = Viewtype::Text;
-                    part.mimetype = Some(mime_type);
-                    part.msg = simplified_txt;
-                    part.msg_raw = Some(decoded_data);
-                    self.do_add_single_part(part);
+        if let Ok(filename) = filename {
+            self.do_add_single_file_part(
+                msg_type,
+                mime_type,
+                &raw_mime,
+                &mail.get_body_raw()?,
+                &filename,
+            );
+        } else {
+            match mime_type.type_() {
+                mime::IMAGE | mime::AUDIO | mime::VIDEO | mime::APPLICATION => {
+                    bail!("missing attachment");
                 }
+                mime::TEXT | mime::HTML => {
+                    let decoded_data = match mail.get_body() {
+                        Ok(decoded_data) => decoded_data,
+                        Err(err) => {
+                            warn!(self.context, "Invalid body parsed {:?}", err);
+                            // Note that it's not always an error - might be no data
+                            return Ok(false);
+                        }
+                    };
 
-                if simplifier.is_forwarded {
-                    self.is_forwarded = true;
-                }
-            }
-            mime::TEXT
-            | mime::HTML
-            | mime::IMAGE
-            | mime::AUDIO
-            | mime::VIDEO
-            | mime::APPLICATION => {
-                // try to get file name from
-                //    `Content-Disposition: ... filename*=...`
-                // or `Content-Disposition: ... filename*0*=... filename*1*=... filename*2*=...`
-                // or `Content-Disposition: ... filename=...`
+                    // check header directly as is_send_by_messenger is not yet set up
+                    let is_msgrmsg = self.lookup_field("Chat-Version").is_some();
 
-                let ct = mail.get_content_disposition()?;
-                let mut desired_filename = ct
-                    .params
-                    .iter()
-                    .filter(|(key, _value)| key.starts_with("filename"))
-                    .fold(String::new(), |mut acc, (_key, value)| {
-                        acc += value;
-                        acc
-                    });
-
-                if desired_filename.is_empty() {
-                    if let Some(param) = ct.params.get("name") {
-                        // might be a wrongly encoded filename
-                        desired_filename = param.to_string();
-                    }
-                }
-
-                // if there is still no filename, guess one
-                if desired_filename.is_empty() {
-                    if let Some(subtype) = mail.ctype.mimetype.split('/').nth(1) {
-                        desired_filename = format!("file.{}", subtype,);
+                    let mut simplifier = Simplify::new();
+                    let simplified_txt = if decoded_data.is_empty() {
+                        "".into()
                     } else {
-                        return Ok(false);
+                        let is_html = mime_type == mime::TEXT_HTML;
+                        simplifier.simplify(&decoded_data, is_html, is_msgrmsg)
+                    };
+
+                    if !simplified_txt.is_empty() {
+                        let mut part = Part::default();
+                        part.typ = Viewtype::Text;
+                        part.mimetype = Some(mime_type);
+                        part.msg = simplified_txt;
+                        part.msg_raw = Some(decoded_data);
+                        self.do_add_single_part(part);
+                    }
+
+                    if simplifier.is_forwarded {
+                        self.is_forwarded = true;
                     }
                 }
-                self.do_add_single_file_part(
-                    msg_type,
-                    mime_type,
-                    &raw_mime,
-                    &mail.get_body_raw()?,
-                    &desired_filename,
-                );
+                _ => {}
             }
-            _ => {}
         }
 
         // add object? (we do not add all objects, eg. signatures etc. are ignored)
@@ -651,6 +615,7 @@ impl<'a> MimeParser<'a> {
                 return;
             }
         };
+        info!(self.context, "added blobfile: {:?}", blob.as_name());
 
         /* create and register Mime part referencing the new Blob object */
         let mut part = Part::default();
@@ -902,12 +867,13 @@ pub struct Part {
     pub param: Params,
 }
 
+/// return mimetype and viewtype for a parsed mail
 fn get_mime_type(mail: &mailparse::ParsedMail<'_>) -> Result<(Mime, Viewtype)> {
     let mimetype = mail.ctype.mimetype.parse::<Mime>()?;
 
     let viewtype = match mimetype.type_() {
         mime::TEXT => {
-            if !mailmime_is_attachment_disposition(mail) {
+            if !is_attachment_disposition(mail) {
                 match mimetype.subtype() {
                     mime::PLAIN | mime::HTML => Viewtype::Text,
                     _ => Viewtype::File,
@@ -941,12 +907,60 @@ fn get_mime_type(mail: &mailparse::ParsedMail<'_>) -> Result<(Mime, Viewtype)> {
     Ok((mimetype, viewtype))
 }
 
-fn mailmime_is_attachment_disposition(mail: &mailparse::ParsedMail<'_>) -> bool {
-    if let Some(ct) = mail.ctype.params.get("Content-Disposition") {
-        return ct.to_lowercase().starts_with("attachment");
+fn is_attachment_disposition(mail: &mailparse::ParsedMail<'_>) -> bool {
+    if let Ok(ct) = mail.get_content_disposition() {
+        return ct.disposition == DispositionType::Attachment
+            && ct
+                .params
+                .iter()
+                .any(|(key, _value)| key.starts_with("filename"));
     }
 
     false
+}
+
+fn get_attachment_filename(mail: &mailparse::ParsedMail) -> Result<String> {
+    // try to get file name from
+    //    `Content-Disposition: ... filename*=...`
+    // or `Content-Disposition: ... filename*0*=... filename*1*=... filename*2*=...`
+    // or `Content-Disposition: ... filename=...`
+
+    let ct = mail.get_content_disposition()?;
+    ensure!(
+        ct.disposition == DispositionType::Attachment,
+        "disposition not an attachment: {:?}",
+        ct.disposition
+    );
+
+    let mut desired_filename = ct
+        .params
+        .iter()
+        .filter(|(key, _value)| key.starts_with("filename"))
+        .fold(String::new(), |mut acc, (_key, value)| {
+            acc += value;
+            acc
+        });
+    println!("get_attachment_filename1: {:?}", desired_filename);
+
+    if desired_filename.is_empty() {
+        if let Some(param) = ct.params.get("name") {
+            // might be a wrongly encoded filename
+            desired_filename = param.to_string();
+        }
+    }
+    println!("get_attachment_filename2: {:?}", desired_filename);
+
+    // if there is still no filename, guess one
+    if desired_filename.is_empty() {
+        if let Some(subtype) = mail.ctype.mimetype.split('/').nth(1) {
+            desired_filename = format!("file.{}", subtype,);
+        } else {
+            bail!("could not determine filename: {:?}", ct.disposition);
+        }
+    }
+    println!("get_attachment_filename3: {:?}", desired_filename);
+
+    Ok(desired_filename)
 }
 
 // returned addresses are normalized.
@@ -1051,6 +1065,29 @@ mod tests {
         assert!(recipients.contains("abc@bcd.com"));
         assert!(recipients.contains("def@def.de"));
         assert_eq!(recipients.len(), 2);
+    }
+
+    #[test]
+    fn test_is_attachment() {
+        let raw = include_bytes!("../test-data/message/mail_with_cc.txt");
+        let mail = mailparse::parse_mail(raw).unwrap();
+        assert!(!is_attachment_disposition(&mail));
+
+        let raw = include_bytes!("../test-data/message/mail_attach_txt.eml");
+        let mail = mailparse::parse_mail(raw).unwrap();
+        assert!(!is_attachment_disposition(&mail));
+        assert!(!is_attachment_disposition(&mail.subparts[0]));
+        assert!(is_attachment_disposition(&mail.subparts[1]));
+    }
+
+    #[test]
+    fn test_get_attachment_filename() {
+        let raw = include_bytes!("../test-data/message/html_attach.eml");
+        let mail = mailparse::parse_mail(raw).unwrap();
+        assert!(get_attachment_filename(&mail).is_err());
+        assert!(get_attachment_filename(&mail.subparts[0]).is_err());
+        let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
+        assert_eq!(filename, "test.html")
     }
 
     #[test]
