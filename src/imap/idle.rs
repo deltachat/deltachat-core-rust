@@ -96,9 +96,8 @@ impl Imap {
                         }
                         // if we can't properly terminate the idle
                         // protocol let's break the connection.
-                        let res = async_std::future::timeout(Duration::from_secs(15), async {
-                            handle.done().await
-                        });
+                        let res =
+                            async_std::future::timeout(Duration::from_secs(15), handle.done());
                         match res.await {
                             Ok(Ok(session)) => {
                                 *self.session.lock().await = Some(Session::Secure(session));
@@ -149,9 +148,8 @@ impl Imap {
                         }
                         // if we can't properly terminate the idle
                         // protocol let's break the connection.
-                        let res = async_std::future::timeout(Duration::from_secs(15), async {
-                            handle.done().await
-                        });
+                        let res =
+                            async_std::future::timeout(Duration::from_secs(15), handle.done());
                         match res.await {
                             Ok(Ok(session)) => {
                                 *self.session.lock().await = Some(Session::Insecure(session));
