@@ -485,8 +485,12 @@ fn try_imap_connection(
 
 fn try_imap_one_param(context: &Context, param: &LoginParam) -> Option<bool> {
     let inf = format!(
-        "imap: {}@{}:{} flags=0x{:x}",
-        param.mail_user, param.mail_server, param.mail_port, param.server_flags
+        "imap: {}@{}:{} flags=0x{:x} certificate_checks={}",
+        param.mail_user,
+        param.mail_server,
+        param.mail_port,
+        param.server_flags,
+        param.imap_certificate_checks
     );
     info!(context, "Trying: {}", inf);
     if context
