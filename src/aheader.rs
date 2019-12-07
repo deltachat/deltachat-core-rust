@@ -100,8 +100,8 @@ impl fmt::Display for Aheader {
             write!(fmt, " prefer-encrypt=mutual;")?;
         }
 
-        // adds a whitespace every 78 characters, this allows libEtPan to
-        // wrap the lines according to RFC 5322
+        // adds a whitespace every 78 characters, this allows
+        // email crate to wrap the lines according to RFC 5322
         // (which may insert a linebreak before every whitespace)
         let keydata = self.public_key.to_base64().chars().enumerate().fold(
             String::new(),
