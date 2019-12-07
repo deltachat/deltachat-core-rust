@@ -247,13 +247,13 @@ fn decrypt_if_autocrypt_message<'a>(
     // Errors are returned for failures related to decryption of AC-messages.
 
     let encrypted_data_part = match wrapmime::get_autocrypt_mime(mail) {
-        Err(err) => {
-            // not a proper autocrypt message, abort and ignore
-            info!(context, "Not an autocrypt message: {:?}", err);
+        Err(_) => {
+            // not an autocrypt mime message, abort and ignore
             return Ok(None);
         }
         Ok(res) => res,
     };
+    info!(context, "Detected Autocrypt-mime message");
 
     decrypt_part(
         context,

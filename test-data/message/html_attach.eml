@@ -1,0 +1,25 @@
+Chat-Disposition-Notification-To: tmp_6272287793210918@testrun.org
+Subject: =?utf-8?q?Chat=3A_File_=E2=80=93_test=2Ehtml?=
+Message-ID: Mr.XA6y3og8-az.WGbH9_dNcQx@testrun.org
+Date: Sat, 07 Dec 2019 19:00:27 +0000
+X-Mailer: Delta Chat Core 1.0.0-beta.12/DcFFI
+Chat-Version: 1.0
+To: <tmp_5890965001269692@testrun.org>
+From: "=?utf-8?q??=" <tmp_6272287793210918@testrun.org>
+Content-Type: multipart/mixed; boundary="mwkNRwaJw1M5n2xcr2ODfAqvTjcj9Z"
+
+
+--mwkNRwaJw1M5n2xcr2ODfAqvTjcj9Z
+Content-Type: text/plain; charset=utf-8
+
+-- 
+Sent with my Delta Chat Messenger: https://delta.chat
+
+--mwkNRwaJw1M5n2xcr2ODfAqvTjcj9Z
+Content-Type: text/html
+Content-Disposition: attachment; filename="test.html"
+Content-Transfer-Encoding: base64
+
+PGh0bWw+PGJvZHk+dGV4dDwvYm9keT5kYXRh
+
+--mwkNRwaJw1M5n2xcr2ODfAqvTjcj9Z--
