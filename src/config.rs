@@ -1,5 +1,6 @@
 //! # Key-value configuration management
 
+use derive_deref::{Deref, DerefMut};
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
 
@@ -8,6 +9,7 @@ use crate::constants::DC_VERSION_STR;
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::job::*;
+use crate::sql;
 use crate::stock::StockMessage;
 
 /// The available configuration keys.
@@ -86,6 +88,164 @@ pub enum Config {
 
     #[strum(serialize = "sys.config_keys")]
     SysConfigKeys,
+}
+
+/// A trait defining a [Context]-wide configuration item.
+///
+/// Configuration items are stored in database of a [Context].  Most
+/// configuration items are newtypes which implement [std::ops::Deref]
+/// and [std::ops::DerefMut] though this is not required.  However
+/// what **is required** for the struct to implement
+/// [rusqlite::ToSql] and [rusqlite::types::FromSql].
+pub trait ConfigItem {
+    /// Returns the name of the key used in the SQLite database.
+    fn keyname() -> &'static str;
+
+    /// Loads the configuration item from the [Context]'s database.
+    ///
+    /// If the configuration item is not available in the database,
+    /// `None` will be returned.
+    fn load(context: &Context) -> Result<Option<Self>, sql::Error>
+    where
+        Self: std::marker::Sized + rusqlite::types::FromSql,
+    {
+        context
+            .sql
+            .query_row(
+                "SELECT value FROM config WHERE keyname=?;",
+                params!(Self::keyname()),
+                |row| row.get(0),
+            )
+            .or_else(|err| match err {
+                sql::Error::Sql(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                e => Err(e),
+            })
+    }
+
+    /// Stores the configuration item in the [Context]'s database.
+    fn store(&self, context: &Context) -> Result<(), sql::Error>
+    where
+        Self: rusqlite::ToSql,
+    {
+        if context.sql.exists(
+            "select value FROM config WHERE keyname=?;",
+            params!(Self::keyname()),
+        )? {
+            context.sql.execute(
+                "UPDATE config SET value=? WHERE keyname=?",
+                params![&self, Self::keyname()],
+            )?;
+        } else {
+            context.sql.execute(
+                "INSERT INTO config (keyname, value) VALUES (?, ?)",
+                params![Self::keyname(), &self],
+            )?;
+        }
+        Ok(())
+    }
+
+    /// Removes the configuration item from the [Context]'s database.
+    fn delete(context: &Context) -> Result<(), sql::Error> {
+        context
+            .sql
+            .execute(
+                "DELETE FROM config WHERE keyname=?",
+                params![Self::keyname()],
+            )
+            .and(Ok(()))
+    }
+}
+
+/// Configuration item: display address for this account.
+#[derive(Debug, Clone, PartialEq, Eq, Deref, DerefMut)]
+pub struct Addr(pub String);
+
+impl rusqlite::ToSql for Addr {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
+        self.0.to_sql()
+    }
+}
+
+impl rusqlite::types::FromSql for Addr {
+    fn column_result(value: rusqlite::types::ValueRef) -> rusqlite::types::FromSqlResult<Self> {
+        value.as_str().map(|v| Addr(v.to_string()))
+    }
+}
+
+impl ConfigItem for Addr {
+    fn keyname() -> &'static str {
+        "addr"
+    }
+}
+
+/// Configuration item:
+#[derive(Debug, Clone, PartialEq, Eq, Deref, DerefMut)]
+pub struct MailServer(pub String);
+
+impl rusqlite::ToSql for MailServer {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
+        self.0.to_sql()
+    }
+}
+
+impl rusqlite::types::FromSql for MailServer {
+    fn column_result(value: rusqlite::types::ValueRef) -> rusqlite::types::FromSqlResult<Self> {
+        value.as_str().map(|v| MailServer(v.to_string()))
+    }
+}
+
+impl ConfigItem for MailServer {
+    fn keyname() -> &'static str {
+        "mail_server"
+    }
+}
+
+/// Configuration item:
+#[derive(Debug, Clone, PartialEq, Eq, Deref, DerefMut)]
+pub struct MailUser(pub String);
+// XXX TODO
+
+/// Configuration item: whether to watch the INBOX folder for changes.
+#[derive(Debug, Clone, PartialEq, Eq, Deref, DerefMut)]
+pub struct InboxWatch(pub bool);
+
+impl Default for InboxWatch {
+    fn default() -> Self {
+        InboxWatch(true)
+    }
+}
+
+impl rusqlite::ToSql for InboxWatch {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
+        // Column affinity is "text" so gets stored as string by SQLite.
+        let obj = rusqlite::types::Value::Integer(self.0 as i64);
+        Ok(rusqlite::types::ToSqlOutput::Owned(obj))
+    }
+}
+
+impl rusqlite::types::FromSql for InboxWatch {
+    fn column_result(value: rusqlite::types::ValueRef) -> rusqlite::types::FromSqlResult<Self> {
+        let str_to_int = |s: &str| {
+            s.parse::<i64>()
+                .map_err(|e| rusqlite::types::FromSqlError::Other(Box::new(e)))
+        };
+        let int_to_bool = |i| match i {
+            0 => Ok(false),
+            1 => Ok(true),
+            v => Err(rusqlite::types::FromSqlError::OutOfRange(v)),
+        };
+        value
+            .as_str()
+            .and_then(str_to_int)
+            .and_then(int_to_bool)
+            .map(InboxWatch)
+    }
+}
+
+impl ConfigItem for InboxWatch {
+    fn keyname() -> &'static str {
+        "inbox_watch"
+    }
 }
 
 impl Context {
@@ -175,11 +335,16 @@ fn get_config_keys_string() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::*;
 
     use std::str::FromStr;
     use std::string::ToString;
 
-    use crate::test_utils::*;
+    use lazy_static::lazy_static;
+
+    lazy_static! {
+        static ref TC: TestContext = dummy_context();
+    }
 
     #[test]
     fn test_to_string() {
@@ -224,5 +389,81 @@ mod tests {
         let avatar_cfg = t.ctx.get_config(Config::Selfavatar);
         assert_eq!(avatar_cfg, avatar_src.to_str().map(|s| s.to_string()));
         Ok(())
+    }
+
+    #[test]
+    fn test_inbox_watch() {
+        // Loading from context when it is not in the DB.
+        let val = InboxWatch::load(&TC.ctx).unwrap();
+        assert_eq!(val, None);
+
+        // Create in-memory from default.
+        let mut val = InboxWatch::default();
+        assert_eq!(*val, true);
+
+        // Assign using deref.
+        *val = false;
+        assert_eq!(*val, false);
+
+        // Construct newtype directly.
+        let val = InboxWatch(false);
+        assert_eq!(*val, false);
+
+        // Helper to query raw DB value.
+        let query_db_raw = || {
+            TC.ctx
+                .sql
+                .query_row(
+                    "SELECT value FROM config WHERE KEYNAME=?",
+                    params![InboxWatch::keyname()],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap()
+        };
+
+        // Save (non-default) value to the DB.
+        InboxWatch(false).store(&TC.ctx).unwrap();
+        assert_eq!(query_db_raw(), "0");
+        let val = InboxWatch::load(&TC.ctx).unwrap().unwrap();
+        assert_eq!(val, InboxWatch(false));
+
+        // Save true (aka default) value to the DB.
+        InboxWatch(true).store(&TC.ctx).unwrap();
+        assert_eq!(query_db_raw(), "1");
+        let val = InboxWatch::load(&TC.ctx).unwrap().unwrap();
+        assert_eq!(val, InboxWatch(true));
+
+        // Delete the value from the DB.
+        InboxWatch::delete(&TC.ctx).unwrap();
+        assert!(!TC
+            .ctx
+            .sql
+            .exists(
+                "SELECT value FROM config WHERE KEYNAME=?",
+                params![InboxWatch::keyname()],
+            )
+            .unwrap());
+        let val = InboxWatch::load(&TC.ctx).unwrap();
+        assert_eq!(val, None);
+    }
+
+    #[test]
+    fn test_addr() {
+        // In-memory creation
+        let val = Addr("me@example.com".into());
+        assert_eq!(*val, "me@example.com");
+
+        // Load when DB is empty.
+        let val = Addr::load(&TC.ctx).unwrap();
+        assert_eq!(val, None);
+
+        // Store and load.
+        Addr("me@example.com".into()).store(&TC.ctx).unwrap();
+        let val = Addr::load(&TC.ctx).unwrap();
+        assert_eq!(val, Some(Addr("me@example.com".into())));
+
+        // Delete
+        Addr::delete(&TC.ctx).unwrap();
+        assert_eq!(Addr::load(&TC.ctx).unwrap(), None);
     }
 }
