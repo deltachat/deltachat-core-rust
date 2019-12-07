@@ -30,7 +30,6 @@ pub struct MimeParser<'a> {
     pub parts: Vec<Part>,
     pub header: HashMap<String, String>,
     pub subject: Option<String>,
-    pub is_send_by_messenger: bool,
     pub decrypting_failed: bool,
     pub encrypted: bool,
     pub signatures: HashSet<String>,
@@ -75,7 +74,6 @@ impl<'a> MimeParser<'a> {
             parts: Vec::new(),
             header: Default::default(),
             subject: None,
-            is_send_by_messenger: false,
             decrypting_failed: false,
             encrypted: false,
             signatures: Default::default(),
@@ -153,10 +151,6 @@ impl<'a> MimeParser<'a> {
             self.subject = Some(field.clone());
         }
 
-        if self.lookup_field("Chat-Version").is_some() {
-            self.is_send_by_messenger = true
-        }
-
         if self.lookup_field("Autocrypt-Setup-Message").is_some() {
             let has_setup_file = self.parts.iter().any(|p| {
                 p.mimetype.is_some() && p.mimetype.as_ref().unwrap().as_ref() == MIME_AC_SETUP_FILE
@@ -203,7 +197,7 @@ impl<'a> MimeParser<'a> {
             }
         }
 
-        if self.is_send_by_messenger && self.parts.len() == 2 {
+        if self.has_chat_version() && self.parts.len() == 2 {
             let need_drop = {
                 let textpart = &self.parts[0];
                 let filepart = &self.parts[1];
@@ -237,7 +231,7 @@ impl<'a> MimeParser<'a> {
                 let colon = subject.find(':');
                 if colon == Some(2)
                     || colon == Some(3)
-                    || self.is_send_by_messenger
+                    || self.has_chat_version()
                     || subject.contains("Chat:")
                 {
                     prepend_subject = 0i32
@@ -323,7 +317,7 @@ impl<'a> MimeParser<'a> {
             part.typ = Viewtype::Text;
 
             if let Some(ref subject) = self.subject {
-                if !self.is_send_by_messenger {
+                if !self.has_chat_version() {
                     part.msg = subject.to_string();
                 }
             }
@@ -340,6 +334,10 @@ impl<'a> MimeParser<'a> {
 
     pub fn get_last_nonmeta_mut(&mut self) -> Option<&mut Part> {
         self.parts.iter_mut().rev().find(|part| !part.is_meta)
+    }
+
+    pub(crate) fn has_chat_version(&self) -> bool {
+        self.header.contains_key("chat-version")
     }
 
     pub fn lookup_field(&self, field_name: &str) -> Option<&String> {
@@ -541,15 +539,12 @@ impl<'a> MimeParser<'a> {
                         }
                     };
 
-                    // check header directly as is_send_by_messenger is not yet set up
-                    let is_msgrmsg = self.lookup_field("Chat-Version").is_some();
-
                     let mut simplifier = Simplify::new();
                     let simplified_txt = if decoded_data.is_empty() {
                         "".into()
                     } else {
                         let is_html = mime_type == mime::TEXT_HTML;
-                        simplifier.simplify(&decoded_data, is_html, is_msgrmsg)
+                        simplifier.simplify(&decoded_data, is_html, self.has_chat_version())
                     };
 
                     if !simplified_txt.is_empty() {
@@ -766,11 +761,11 @@ impl<'a> MimeParser<'a> {
                 mdn_consumed = true;
             }
 
-            if self.is_send_by_messenger || mdn_consumed {
+            if self.has_chat_version() || mdn_consumed {
                 let mut param = Params::new();
                 param.set(Param::ServerFolder, server_folder.as_ref());
                 param.set_int(Param::ServerUid, server_uid as i32);
-                if self.is_send_by_messenger && self.context.get_config_bool(Config::MvboxMove) {
+                if self.has_chat_version() && self.context.get_config_bool(Config::MvboxMove) {
                     param.set_int(Param::AlsoMove, 1);
                 }
                 job_add(self.context, Action::MarkseenMdnOnImap, 0, param, 0);
