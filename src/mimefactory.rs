@@ -525,6 +525,12 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                 outer_message = outer_message.header(header);
             }
 
+            if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
+                info!(self.context, "mimefactory: outgoing message mime:");
+                let raw_message = message.clone().build().as_string();
+                println!("{}", raw_message);
+            }
+
             let encrypted =
                 encrypt_helper.encrypt(self.context, min_verified, message, &peerstates)?;
 

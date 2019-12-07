@@ -109,6 +109,10 @@ impl<'a> MimeParser<'a> {
                 if let Some(raw) = raw {
                     mail_raw = raw;
                     let decrypted_mail = mailparse::parse_mail(&mail_raw)?;
+                    if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
+                        info!(context, "dc_receive_imf: incoming message mime-body:");
+                        println!("{}", String::from_utf8_lossy(&mail_raw));
+                    }
 
                     // Handle any gossip headers if the mail was encrypted.  See section
                     // "3.6 Key Gossip" of https://autocrypt.org/autocrypt-spec-1.1.0.pdf
@@ -487,41 +491,10 @@ impl<'a> MimeParser<'a> {
                 }
             }
             _ => {
-                // Add all parts (in fact,
-                // AddSinglePartIfKnown() later check if the parts are really supported)
-                // HACK: the following lines are a hack for clients who use
-                // multipart/mixed instead of multipart/alternative for
-                // combined text/html messages (eg. Stock Android "Mail" does so).
-                // So, if we detect such a message below, we skip the Html
-                // part.  However, not sure, if there are useful situations to use
-                // plain+html in multipart/mixed - if so, we should disable the hack.
-                let mut skip_part = -1;
-                let mut html_part = -1;
-                let mut plain_cnt = 0;
-                let mut html_cnt = 0;
-
-                for (i, cur_data) in mail.subparts.iter().enumerate() {
-                    match get_mime_type(cur_data)?.0.type_() {
-                        mime::TEXT => {
-                            plain_cnt += 1;
-                        }
-                        mime::HTML => {
-                            html_part = i as isize;
-                            html_cnt += 1;
-                        }
-                        _ => {}
-                    }
-                }
-                if plain_cnt == 1 && html_cnt == 1 {
-                    warn!(
-                        self.context,
-                        "HACK: multipart/mixed message found with Plain and HTML, we\'ll skip the HTML part as this seems to be unwanted."
-                    );
-                    skip_part = html_part;
-                }
-
-                for (i, cur_data) in mail.subparts.iter().enumerate() {
-                    if i as isize != skip_part && self.parse_mime_recursive(cur_data)? {
+                // Add all parts (in fact, AddSinglePartIfKnown() later check if
+                // the parts are really supported)
+                for cur_data in mail.subparts.iter() {
+                    if self.parse_mime_recursive(cur_data)? {
                         any_part_added = true;
                     }
                 }
