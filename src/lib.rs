@@ -73,7 +73,6 @@ mod token;
 mod wrapmime;
 mod dehtml;
 
-pub mod dc_array;
 pub mod dc_receive_imf;
 mod dc_simplify;
 pub mod dc_tools;

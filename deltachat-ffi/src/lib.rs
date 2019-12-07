@@ -29,6 +29,8 @@ use deltachat::message::MsgId;
 use deltachat::stock::StockMessage;
 use deltachat::*;
 
+mod dc_array;
+
 mod string;
 use self::string::*;
 
