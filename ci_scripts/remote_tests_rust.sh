@@ -2,7 +2,7 @@
 
 export BRANCH=${CIRCLE_BRANCH:?branch to build}
 export REPONAME=${CIRCLE_PROJECT_REPONAME:?repository name}
-export SSHTARGET=ci@b1.delta.chat
+export SSHTARGET=${SSHTARGET-ci@b1.delta.chat}
 
 # we construct the BUILDDIR such that we can easily share the
 # CARGO_TARGET_DIR between runs ("..")
