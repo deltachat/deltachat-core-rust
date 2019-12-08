@@ -4051,11 +4051,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
 #define DC_CERTCK_STRICT 1
 
 /**
- * Accept invalid hostnames, but not invalid certificates.
- */
-#define DC_CERTCK_ACCEPT_INVALID_HOSTNAMES 2
-
-/**
  * Accept invalid certificates, including self-signed ones
  * or having incorrect hostname.
  */
