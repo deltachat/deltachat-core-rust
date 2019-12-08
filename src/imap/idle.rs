@@ -19,7 +19,7 @@ pub enum Error {
     IdleProtocolFailed(#[cause] async_imap::error::Error),
 
     #[fail(display = "IMAP IDLE protocol timed out")]
-    IdleTimeout(String),
+    IdleTimeout(#[cause] async_std::future::TimeoutError),
 
     #[fail(display = "IMAP server does not have IDLE capability")]
     IdleAbilityMissing,
@@ -97,21 +97,23 @@ impl Imap {
                         // if we can't properly terminate the idle
                         // protocol let's break the connection.
                         let res =
-                            async_std::future::timeout(Duration::from_secs(15), handle.done());
-                        match res.await {
-                            Ok(Ok(session)) => {
+                            async_std::future::timeout(Duration::from_secs(15), handle.done())
+                                .await
+                                .map_err(|err| {
+                                    self.trigger_reconnect();
+                                    Error::IdleTimeout(err)
+                                })?;
+
+                        match res {
+                            Ok(session) => {
                                 *self.session.lock().await = Some(Session::Secure(session));
                             }
-                            Ok(Err(err)) => {
+                            Err(err) => {
                                 // if we cannot terminate IDLE it probably
                                 // means that we waited long (with idle_wait)
                                 // but the network went away/changed
                                 self.trigger_reconnect();
                                 return Err(Error::IdleProtocolFailed(err));
-                            }
-                            Err(err) => {
-                                self.trigger_reconnect();
-                                return Err(Error::IdleTimeout(err.to_string()));
                             }
                         }
                     }
@@ -149,21 +151,23 @@ impl Imap {
                         // if we can't properly terminate the idle
                         // protocol let's break the connection.
                         let res =
-                            async_std::future::timeout(Duration::from_secs(15), handle.done());
-                        match res.await {
-                            Ok(Ok(session)) => {
+                            async_std::future::timeout(Duration::from_secs(15), handle.done())
+                                .await
+                                .map_err(|err| {
+                                    self.trigger_reconnect();
+                                    Error::IdleTimeout(err)
+                                })?;
+
+                        match res {
+                            Ok(session) => {
                                 *self.session.lock().await = Some(Session::Insecure(session));
                             }
-                            Ok(Err(err)) => {
+                            Err(err) => {
                                 // if we cannot terminate IDLE it probably
                                 // means that we waited long (with idle_wait)
                                 // but the network went away/changed
                                 self.trigger_reconnect();
                                 return Err(Error::IdleProtocolFailed(err));
-                            }
-                            Err(err) => {
-                                self.trigger_reconnect();
-                                return Err(Error::IdleTimeout(err.to_string()));
                             }
                         }
                     }
