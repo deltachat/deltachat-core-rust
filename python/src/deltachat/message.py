@@ -174,7 +174,7 @@ class Message(object):
     @property
     def _msgstate(self):
         if self.id == 0:
-            dc_msg = self.message._dc_msg
+            dc_msg = self._dc_msg
         else:
             # load message from db to get a fresh/current state
             dc_msg = ffi.gc(

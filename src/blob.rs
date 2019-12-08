@@ -159,7 +159,7 @@ impl<'a> BlobObject<'a> {
     /// This merely delegates to the [BlobObject::create_and_copy] and
     /// the [BlobObject::from_path] methods.  See those for possible
     /// errors.
-    pub fn create_from_path(
+    pub fn new_from_path(
         context: &Context,
         src: impl AsRef<Path>,
     ) -> std::result::Result<BlobObject, BlobError> {
@@ -559,14 +559,14 @@ mod tests {
 
         let src_ext = t.dir.path().join("external");
         fs::write(&src_ext, b"boo").unwrap();
-        let blob = BlobObject::create_from_path(&t.ctx, &src_ext).unwrap();
+        let blob = BlobObject::new_from_path(&t.ctx, &src_ext).unwrap();
         assert_eq!(blob.as_name(), "$BLOBDIR/external");
         let data = fs::read(blob.to_abs_path()).unwrap();
         assert_eq!(data, b"boo");
 
         let src_int = t.ctx.get_blobdir().join("internal");
         fs::write(&src_int, b"boo").unwrap();
-        let blob = BlobObject::create_from_path(&t.ctx, &src_int).unwrap();
+        let blob = BlobObject::new_from_path(&t.ctx, &src_int).unwrap();
         assert_eq!(blob.as_name(), "$BLOBDIR/internal");
         let data = fs::read(blob.to_abs_path()).unwrap();
         assert_eq!(data, b"boo");
@@ -576,7 +576,7 @@ mod tests {
         let t = dummy_context();
         let src_ext = t.dir.path().join("autocrypt-setup-message-4137848473.html");
         fs::write(&src_ext, b"boo").unwrap();
-        let blob = BlobObject::create_from_path(&t.ctx, &src_ext).unwrap();
+        let blob = BlobObject::new_from_path(&t.ctx, &src_ext).unwrap();
         assert_eq!(
             blob.as_name(),
             "$BLOBDIR/autocrypt-setup-message-4137848473.html"

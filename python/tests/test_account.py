@@ -456,10 +456,7 @@ class TestOnlineAccount:
             msg1 = Message.new_empty(ac1, "file")
             msg1.set_text("withfile")
             msg1.set_file(p)
-            message = chat.prepare_message(msg1)
-            assert message.is_out_preparing()
-            assert message.text == "withfile"
-            chat.send_prepared(message)
+            chat.send_msg(msg1)
 
             lp.sec("ac2: receive message")
             ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")

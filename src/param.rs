@@ -250,7 +250,7 @@ impl Params {
         let file = ParamsFile::from_param(context, val)?;
         let blob = match file {
             ParamsFile::FsPath(path) => match create {
-                true => BlobObject::create_from_path(context, path)?,
+                true => BlobObject::new_from_path(context, path)?,
                 false => BlobObject::from_path(context, path)?,
             },
             ParamsFile::Blob(blob) => blob,
