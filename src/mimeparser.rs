@@ -350,7 +350,7 @@ impl<'a> MimeParser<'a> {
     }
 
     pub fn get(&self, headerdef: HeaderDef) -> Option<&String> {
-        self.header.get(headerdef.get_headername())
+        self.header.get(&headerdef.get_headername())
     }
 
     fn parse_mime_recursive(&mut self, mail: &mailparse::ParsedMail<'_>) -> Result<bool> {
@@ -729,9 +729,9 @@ impl<'a> MimeParser<'a> {
 
         // must be present
         let disp = HeaderDef::Disposition.get_headername();
-        if let Some(_disposition) = report_fields.get_first_value(disp).ok().flatten() {
+        if let Some(_disposition) = report_fields.get_first_value(&disp).ok().flatten() {
             if let Some(original_message_id) = report_fields
-                .get_first_value(HeaderDef::OriginalMessageId.get_headername())
+                .get_first_value(&HeaderDef::OriginalMessageId.get_headername())
                 .ok()
                 .flatten()
                 .and_then(|v| parse_message_id(&v))
@@ -1126,9 +1126,9 @@ mod tests {
                     \n\
                     \x00";
         let mimeparser = MimeParser::from_bytes(&context.ctx, &raw[..]).unwrap();
-        
+
         // test that we treat Subject as a protected header that can
-        // bubble upwards 
+        // bubble upwards
         assert_eq!(mimeparser.get_subject(), Some("inner-subject".into()));
 
         let of = mimeparser.get(HeaderDef::SecureJoinGroup).unwrap();
