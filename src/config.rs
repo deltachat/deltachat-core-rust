@@ -128,12 +128,18 @@ impl Context {
     /// If `None` is passed as a value the value is cleared and set to the default if there is one.
     pub fn set_config(&self, key: Config, value: Option<&str>) -> crate::sql::Result<()> {
         match key {
-            Config::Selfavatar if value.is_some() => {
-                let blob = BlobObject::new_from_path(&self, value.unwrap())?;
-                let ret = self.sql.set_raw_config(self, key, Some(blob.as_name()));
+            Config::Selfavatar => {
                 self.sql
                     .execute("UPDATE contacts SET selfavatar_sent=0;", NO_PARAMS)?;
-                ret
+                self.sql
+                    .set_raw_config_bool(self, "attach_selfavatar", true)?;
+                match value {
+                    Some(value) => {
+                        let blob = BlobObject::new_from_path(&self, value)?;
+                        self.sql.set_raw_config(self, key, Some(blob.as_name()))
+                    }
+                    None => self.sql.set_raw_config(self, key, None),
+                }
             }
             Config::InboxWatch => {
                 let ret = self.sql.set_raw_config(self, key, value);

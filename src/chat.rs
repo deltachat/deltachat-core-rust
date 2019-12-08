@@ -1598,6 +1598,16 @@ pub fn set_gossiped_timestamp(context: &Context, chat_id: u32, timestamp: i64) {
 }
 
 pub fn shall_attach_selfavatar(context: &Context, chat_id: u32) -> Result<bool, Error> {
+    // versions before 12/2019 already allowed to set selfavatar, however, it was never sent to others.
+    // to avoid sending out previously set selfavatars unexpectedly we added this additional check.
+    // it can be removed after some time.
+    if !context
+        .sql
+        .get_raw_config_bool(context, "attach_selfavatar")
+    {
+        return Ok(false);
+    }
+
     let resend_every_days = 14;
     let timestamp_some_days_ago = time() - resend_every_days * 24 * 60 * 60;
     let needs_attach = context.sql.query_map(
@@ -2485,6 +2495,8 @@ mod tests {
         let (contact_id, _) =
             Contact::add_or_lookup(&t.ctx, "", "foo@bar.org", Origin::IncomingUnknownTo).unwrap();
         add_contact_to_chat(&t.ctx, chat_id, contact_id);
+        assert!(!shall_attach_selfavatar(&t.ctx, chat_id).unwrap());
+        t.ctx.set_config(Config::Selfavatar, None).unwrap(); // setting to None also forces re-sending
         assert!(shall_attach_selfavatar(&t.ctx, chat_id).unwrap());
 
         assert!(set_selfavatar_timestamp(&t.ctx, chat_id, time()).is_ok());
