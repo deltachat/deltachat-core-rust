@@ -12,6 +12,7 @@ use crate::context::Context;
 use crate::dc_tools::*;
 use crate::error::Result;
 use crate::events::Event;
+use crate::headerdef::HeaderDef;
 use crate::job::*;
 use crate::location;
 use crate::message::{self, MessageState, MsgId};
@@ -60,9 +61,9 @@ pub fn dc_receive_imf(
         mime_parser.unwrap()
     };
 
-    if mime_parser.header.is_empty() {
-        // Error - even adding an empty record won't help as we do not know the message ID
-        warn!(context, "No header.");
+    if mime_parser.get(HeaderDef::From_).is_none() {
+        // Error - even adding an empty record won't help as we do not know the sender
+        warn!(context, "No From header.");
         return;
     }
 
@@ -114,7 +115,7 @@ pub fn dc_receive_imf(
         }
     };
 
-    if let Some(value) = mime_parser.lookup_field("Date") {
+    if let Some(value) = mime_parser.get(HeaderDef::Date) {
         // is not yet checked against bad times! we do this later if we have the database information.
         sent_timestamp = mailparse::dateparse(value).unwrap_or_default();
     }
@@ -122,7 +123,7 @@ pub fn dc_receive_imf(
     // get From: and check if it is known (for known From:'s we add the other To:/Cc: in the 3rd pass)
     // or if From: is equal to SELF (in this case, it is any outgoing messages,
     // we do not check Return-Path any more as this is unreliable, see issue #150
-    if let Some(field_from) = mime_parser.lookup_field("From") {
+    if let Some(field_from) = mime_parser.get(HeaderDef::From_) {
         let mut check_self = false;
         let mut from_list = Vec::with_capacity(16);
         dc_add_or_lookup_contacts_by_address_list(
@@ -147,7 +148,7 @@ pub fn dc_receive_imf(
     }
 
     // Make sure, to_ids starts with the first To:-address (Cc: is added in the loop below pass)
-    if let Some(field) = mime_parser.lookup_field("To") {
+    if let Some(field) = mime_parser.get(HeaderDef::To) {
         dc_add_or_lookup_contacts_by_address_list(
             context,
             &field,
@@ -307,7 +308,7 @@ fn add_parts(
     // collect the rest information, CC: is added to the to-list, BCC: is ignored
     // (we should not add BCC to groups as this would split groups. We could add them as "known contacts",
     // however, the benefit is very small and this may leak data that is expected to be hidden)
-    if let Some(fld_cc) = mime_parser.lookup_field("Cc") {
+    if let Some(fld_cc) = mime_parser.get(HeaderDef::Cc) {
         dc_add_or_lookup_contacts_by_address_list(
             context,
             fld_cc,
@@ -372,7 +373,7 @@ fn add_parts(
 
         // handshake messages must be processed _before_ chats are created
         // (eg. contacs may be marked as verified)
-        if mime_parser.lookup_field("Secure-Join").is_some() {
+        if mime_parser.get(HeaderDef::SecureJoin).is_some() {
             // avoid discarding by show_emails setting
             msgrmsg = 1;
             *chat_id = 0;
@@ -581,11 +582,11 @@ fn add_parts(
     // if the mime-headers should be saved, find out its size
     // (the mime-header ends with an empty line)
     let save_mime_headers = context.get_config_bool(Config::SaveMimeHeaders);
-    if let Some(raw) = mime_parser.lookup_field("In-Reply-To") {
+    if let Some(raw) = mime_parser.get(HeaderDef::InReplyTo) {
         mime_in_reply_to = raw.clone();
     }
 
-    if let Some(raw) = mime_parser.lookup_field("References") {
+    if let Some(raw) = mime_parser.get(HeaderDef::References) {
         mime_references = raw.clone();
     }
 
@@ -797,7 +798,6 @@ fn create_or_lookup_group(
     to_ids: &[u32],
 ) -> Result<(u32, Blocked)> {
     let mut chat_id_blocked = Blocked::Not;
-    let mut grpname = None;
     let to_ids_cnt = to_ids.len();
     let mut recreate_member_list = false;
     let mut send_EVENT_CHAT_MODIFIED = false;
@@ -814,20 +814,21 @@ fn create_or_lookup_group(
     set_better_msg(mime_parser, &better_msg);
 
     let mut grpid = "".to_string();
-    if let Some(optional_field) = mime_parser.lookup_field("Chat-Group-ID") {
+    if let Some(optional_field) = mime_parser.get(HeaderDef::ChatGroupId) {
         grpid = optional_field.clone();
     }
 
     if grpid.is_empty() {
-        if let Some(value) = mime_parser.lookup_field("Message-ID") {
+        if let Some(value) = mime_parser.get(HeaderDef::MessageId) {
             if let Some(extracted_grpid) = dc_extract_grpid_from_rfc724_mid(&value) {
                 grpid = extracted_grpid.to_string();
             }
         }
         if grpid.is_empty() {
-            if let Some(extracted_grpid) = get_grpid_from_list(mime_parser, "In-Reply-To") {
+            if let Some(extracted_grpid) = extract_grpid(mime_parser, HeaderDef::InReplyTo) {
                 grpid = extracted_grpid;
-            } else if let Some(extracted_grpid) = get_grpid_from_list(mime_parser, "References") {
+            } else if let Some(extracted_grpid) = extract_grpid(mime_parser, HeaderDef::References)
+            {
                 grpid = extracted_grpid;
             } else {
                 return create_or_lookup_adhoc_group(
@@ -846,13 +847,9 @@ fn create_or_lookup_group(
         }
     }
 
-    if let Some(optional_field) = mime_parser.lookup_field("Chat-Group-Name").cloned() {
-        grpname = Some(optional_field);
-    }
-    let field = mime_parser
-        .lookup_field("Chat-Group-Member-Removed")
-        .cloned();
-    if let Some(optional_field) = field {
+    let grpname = mime_parser.get(HeaderDef::ChatGroupName).cloned();
+
+    if let Some(optional_field) = mime_parser.get(HeaderDef::ChatGroupMemberRemoved).cloned() {
         X_MrRemoveFromGrp = Some(optional_field);
         mime_parser.is_system_message = SystemMessage::MemberRemovedFromGroup;
         let left_group = Contact::lookup_id_by_addr(context, X_MrRemoveFromGrp.as_ref().unwrap())
@@ -868,11 +865,11 @@ fn create_or_lookup_group(
             from_id as u32,
         )
     } else {
-        let field = mime_parser.lookup_field("Chat-Group-Member-Added").cloned();
+        let field = mime_parser.get(HeaderDef::ChatGroupMemberAdded).cloned();
         if let Some(optional_field) = field {
             X_MrAddToGrp = Some(optional_field);
             mime_parser.is_system_message = SystemMessage::MemberAddedToGroup;
-            if let Some(optional_field) = mime_parser.lookup_field("Chat-Group-Image").cloned() {
+            if let Some(optional_field) = mime_parser.get(HeaderDef::ChatGroupImage).cloned() {
                 X_MrGrpImageChanged = optional_field;
             }
             better_msg = context.stock_system_msg(
@@ -882,7 +879,7 @@ fn create_or_lookup_group(
                 from_id as u32,
             )
         } else {
-            let field = mime_parser.lookup_field("Chat-Group-Name-Changed");
+            let field = mime_parser.get(HeaderDef::ChatGroupNameChanged);
             if let Some(field) = field {
                 X_MrGrpNameChanged = true;
                 better_msg = context.stock_system_msg(
@@ -897,8 +894,7 @@ fn create_or_lookup_group(
                 );
 
                 mime_parser.is_system_message = SystemMessage::GroupNameChanged;
-            } else if let Some(optional_field) =
-                mime_parser.lookup_field("Chat-Group-Image").cloned()
+            } else if let Some(optional_field) = mime_parser.get(HeaderDef::ChatGroupImage).cloned()
             {
                 // fld_value is a pointer somewhere into mime_parser, must not be freed
                 X_MrGrpImageChanged = optional_field;
@@ -954,7 +950,7 @@ fn create_or_lookup_group(
                 || X_MrAddToGrp.is_some() && addr_cmp(&self_addr, X_MrAddToGrp.as_ref().unwrap()))
     {
         // group does not exist but should be created
-        let create_verified = if mime_parser.lookup_field("Chat-Verified").is_some() {
+        let create_verified = if mime_parser.get(HeaderDef::ChatVerified).is_some() {
             if let Err(err) =
                 check_verified_properties(context, mime_parser, from_id as u32, to_ids)
             {
@@ -1130,8 +1126,8 @@ fn create_or_lookup_group(
 }
 
 /// try extract a grpid from a message-id list header value
-fn get_grpid_from_list(mime_parser: &MimeParser, header_key: &str) -> Option<String> {
-    if let Some(value) = mime_parser.lookup_field(header_key) {
+fn extract_grpid(mime_parser: &MimeParser, headerdef: HeaderDef) -> Option<String> {
+    if let Some(value) = mime_parser.get(headerdef) {
         for part in value.split(',').map(str::trim) {
             if !part.is_empty() {
                 if let Some(extracted_grpid) = dc_extract_grpid_from_rfc724_mid(part) {
@@ -1486,13 +1482,13 @@ fn is_reply_to_known_message(context: &Context, mime_parser: &MimeParser) -> boo
     /* check if the message is a reply to a known message; the replies are identified by the Message-ID from
     `In-Reply-To`/`References:` (to support non-Delta-Clients) */
 
-    if let Some(field) = mime_parser.lookup_field("In-Reply-To") {
+    if let Some(field) = mime_parser.get(HeaderDef::InReplyTo) {
         if is_known_rfc724_mid_in_list(context, &field) {
             return true;
         }
     }
 
-    if let Some(field) = mime_parser.lookup_field("References") {
+    if let Some(field) = mime_parser.get(HeaderDef::References) {
         if is_known_rfc724_mid_in_list(context, &field) {
             return true;
         }
@@ -1537,14 +1533,14 @@ fn is_known_rfc724_mid(context: &Context, rfc724_mid: &mailparse::MailAddr) -> b
 /// - checks also if any of the referenced IDs are send by a messenger
 /// - it is okay, if the referenced messages are moved to trash here
 /// - no check for the Chat-* headers (function is only called if it is no messenger message itself)
-fn is_reply_to_messenger_message(context: &Context, mime_parser: &MimeParser) -> bool {
-    if let Some(value) = mime_parser.lookup_field("In-Reply-To") {
+fn dc_is_reply_to_messenger_message(context: &Context, mime_parser: &MimeParser) -> bool {
+    if let Some(value) = mime_parser.get(HeaderDef::InReplyTo) {
         if is_msgrmsg_rfc724_mid_in_list(context, &value) {
             return true;
         }
     }
 
-    if let Some(value) = mime_parser.lookup_field("References") {
+    if let Some(value) = mime_parser.get(HeaderDef::References) {
         if is_msgrmsg_rfc724_mid_in_list(context, &value) {
             return true;
         }
@@ -1683,9 +1679,9 @@ mod tests {
                     \n\
                     hello\x00";
         let mimeparser = MimeParser::from_bytes(&context.ctx, &raw[..]).unwrap();
-        assert_eq!(get_grpid_from_list(&mimeparser, "In-Reply-To"), None);
+        assert_eq!(extract_grpid(&mimeparser, HeaderDef::InReplyTo), None);
         let grpid = Some("HcxyMARjyJy".to_string());
-        assert_eq!(get_grpid_from_list(&mimeparser, "References"), grpid);
+        assert_eq!(extract_grpid(&mimeparser, HeaderDef::References), grpid);
     }
 
     #[test]
@@ -1699,7 +1695,7 @@ mod tests {
                     hello\x00";
         let mimeparser = MimeParser::from_bytes(&context.ctx, &raw[..]).unwrap();
         let grpid = Some("HcxyMARjyJy".to_string());
-        assert_eq!(get_grpid_from_list(&mimeparser, "In-Reply-To"), grpid);
-        assert_eq!(get_grpid_from_list(&mimeparser, "References"), grpid);
+        assert_eq!(extract_grpid(&mimeparser, HeaderDef::InReplyTo), grpid);
+        assert_eq!(extract_grpid(&mimeparser, HeaderDef::References), grpid);
     }
 }

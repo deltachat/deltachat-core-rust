@@ -14,6 +14,7 @@ use crate::dc_simplify::*;
 use crate::dc_tools::*;
 use crate::e2ee;
 use crate::error::Result;
+use crate::headerdef::HeaderDef;
 use crate::job::{job_add, Action};
 use crate::location;
 use crate::message;
@@ -28,7 +29,7 @@ use crate::{bail, ensure};
 pub struct MimeParser<'a> {
     pub context: &'a Context,
     pub parts: Vec<Part>,
-    pub header: HashMap<String, String>,
+    header: HashMap<String, String>,
     pub decrypting_failed: bool,
     pub signatures: HashSet<String>,
     pub gossipped_addr: HashSet<String>,
@@ -144,7 +145,7 @@ impl<'a> MimeParser<'a> {
     }
 
     fn parse_headers(&mut self) -> Result<()> {
-        if self.lookup_field("Autocrypt-Setup-Message").is_some() {
+        if self.get(HeaderDef::AutocryptSetupMessage).is_some() {
             let has_setup_file = self.parts.iter().any(|p| {
                 p.mimetype.is_some() && p.mimetype.as_ref().unwrap().as_ref() == MIME_AC_SETUP_FILE
             });
@@ -175,12 +176,12 @@ impl<'a> MimeParser<'a> {
                     }
                 }
             }
-        } else if let Some(value) = self.lookup_field("Chat-Content") {
+        } else if let Some(value) = self.get(HeaderDef::ChatContent) {
             if value == "location-streaming-enabled" {
                 self.is_system_message = SystemMessage::LocationStreamingEnabled;
             }
         }
-        if self.lookup_field("Chat-Group-Image").is_some() && !self.parts.is_empty() {
+        if self.get(HeaderDef::ChatGroupImage).is_some() && !self.parts.is_empty() {
             let textpart = &self.parts[0];
             if textpart.typ == Viewtype::Text && self.parts.len() >= 2 {
                 let imgpart = &mut self.parts[1];
@@ -255,13 +256,13 @@ impl<'a> MimeParser<'a> {
         }
         if self.parts.len() == 1 {
             if self.parts[0].typ == Viewtype::Audio
-                && self.lookup_field("Chat-Voice-Message").is_some()
+                && self.get(HeaderDef::ChatVoiceMessage).is_some()
             {
                 let part_mut = &mut self.parts[0];
                 part_mut.typ = Viewtype::Voice;
             }
             if self.parts[0].typ == Viewtype::Image {
-                if let Some(value) = self.lookup_field("Chat-Content") {
+                if let Some(value) = self.get(HeaderDef::ChatContent) {
                     if value == "sticker" {
                         let part_mut = &mut self.parts[0];
                         part_mut.typ = Viewtype::Sticker;
@@ -273,7 +274,7 @@ impl<'a> MimeParser<'a> {
                 || part.typ == Viewtype::Voice
                 || part.typ == Viewtype::Video
             {
-                if let Some(field_0) = self.lookup_field("Chat-Duration") {
+                if let Some(field_0) = self.get(HeaderDef::ChatDuration) {
                     let duration_ms = field_0.parse().unwrap_or_default();
                     if duration_ms > 0 && duration_ms < 24 * 60 * 60 * 1000 {
                         let part_mut = &mut self.parts[0];
@@ -283,12 +284,12 @@ impl<'a> MimeParser<'a> {
             }
         }
         if !self.decrypting_failed {
-            if let Some(dn_field) = self.lookup_field("Chat-Disposition-Notification-To") {
+            if let Some(dn_field) = self.get(HeaderDef::ChatDispositionNotificationTo) {
                 if self.get_last_nonmeta().is_some() {
                     let addrs = mailparse::addrparse(&dn_field).unwrap();
 
                     if let Some(dn_to_addr) = addrs.first() {
-                        if let Some(from_field) = self.lookup_field("From") {
+                        if let Some(from_field) = self.get(HeaderDef::From_) {
                             let from_addrs = mailparse::addrparse(&from_field).unwrap();
 
                             if let Some(from_addr) = from_addrs.first() {
@@ -338,7 +339,7 @@ impl<'a> MimeParser<'a> {
     }
 
     pub(crate) fn get_subject(&self) -> Option<String> {
-        if let Some(s) = self.header.get("subject") {
+        if let Some(s) = self.get(HeaderDef::Subject) {
             if s.is_empty() {
                 return None;
             }
@@ -348,8 +349,8 @@ impl<'a> MimeParser<'a> {
         }
     }
 
-    pub fn lookup_field(&self, field_name: &str) -> Option<&String> {
-        self.header.get(&field_name.to_lowercase())
+    pub fn get(&self, headerdef: HeaderDef) -> Option<&String> {
+        self.header.get(headerdef.get_headername())
     }
 
     fn parse_mime_recursive(&mut self, mail: &mailparse::ParsedMail<'_>) -> Result<bool> {
@@ -649,11 +650,11 @@ impl<'a> MimeParser<'a> {
     }
 
     pub fn is_mailinglist_message(&self) -> bool {
-        if self.lookup_field("List-Id").is_some() {
+        if self.get(HeaderDef::ListId).is_some() {
             return true;
         }
 
-        if let Some(precedence) = self.lookup_field("Precedence") {
+        if let Some(precedence) = self.get(HeaderDef::Precedence) {
             precedence == "list" || precedence == "bulk"
         } else {
             false
@@ -662,7 +663,7 @@ impl<'a> MimeParser<'a> {
 
     pub fn sender_equals_recipient(&self) -> bool {
         /* get From: and check there is exactly one sender */
-        if let Some(field) = self.lookup_field("From") {
+        if let Some(field) = self.get(HeaderDef::From_) {
             if let Ok(addrs) = mailparse::addrparse(field) {
                 if addrs.len() != 1 {
                     return false;
@@ -693,11 +694,11 @@ impl<'a> MimeParser<'a> {
     }
 
     pub fn get_rfc724_mid(&self) -> Option<String> {
-        // get Message-ID from header
-        if let Some(field) = self.lookup_field("Message-ID") {
-            return parse_message_id(field);
+        if let Some(msgid) = self.get(HeaderDef::MessageId) {
+            parse_message_id(msgid)
+        } else {
+            None
         }
-        None
     }
 
     fn hash_header(&mut self, fields: &[mailparse::MailHeader<'_>]) {
@@ -727,9 +728,10 @@ impl<'a> MimeParser<'a> {
         let (report_fields, _) = mailparse::parse_headers(&report_body)?;
 
         // must be present
-        if let Some(_disposition) = report_fields.get_first_value("Disposition").ok().flatten() {
+        let disp = HeaderDef::Disposition.get_headername();
+        if let Some(_disposition) = report_fields.get_first_value(disp).ok().flatten() {
             if let Some(original_message_id) = report_fields
-                .get_first_value("Original-Message-ID")
+                .get_first_value(HeaderDef::OriginalMessageId.get_headername())
                 .ok()
                 .flatten()
                 .and_then(|v| parse_message_id(&v))
@@ -1108,14 +1110,14 @@ mod tests {
         let raw = b"From: hello\n\
                     Content-Type: multipart/mixed; boundary=\"==break==\";\n\
                     Subject: outer-subject\n\
-                    X-Special-A: special-a\n\
-                    Foo: Bar\nChat-Version: 0.0\n\
+                    Secure-Join-Group: no\n\
+                    Test-Header: Bar\nChat-Version: 0.0\n\
                     \n\
                     --==break==\n\
                     Content-Type: text/plain; protected-headers=\"v1\";\n\
                     Subject: inner-subject\n\
-                    X-Special-B: special-b\n\
-                    Foo: Xy\n\
+                    SecureBar-Join-Group: yes\n\
+                    Test-Header: Xy\n\
                     Chat-Version: 1.0\n\
                     \n\
                     test1\n\
@@ -1124,16 +1126,19 @@ mod tests {
                     \n\
                     \x00";
         let mimeparser = MimeParser::from_bytes(&context.ctx, &raw[..]).unwrap();
-
+        
+        // test that we treat Subject as a protected header that can
+        // bubble upwards 
         assert_eq!(mimeparser.get_subject(), Some("inner-subject".into()));
 
-        let of = mimeparser.lookup_field("X-Special-A").unwrap();
-        assert_eq!(of, "special-a");
+        let of = mimeparser.get(HeaderDef::SecureJoinGroup).unwrap();
+        assert_eq!(of, "no");
 
-        let of = mimeparser.lookup_field("Foo").unwrap();
+        // unprotected headers do not bubble upwards
+        let of = mimeparser.get(HeaderDef::_TestHeader).unwrap();
         assert_eq!(of, "Bar");
 
-        let of = mimeparser.lookup_field("Chat-Version").unwrap();
+        let of = mimeparser.get(HeaderDef::ChatVersion).unwrap();
         assert_eq!(of, "1.0");
         assert_eq!(mimeparser.parts.len(), 1);
     }
