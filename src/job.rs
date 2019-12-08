@@ -203,8 +203,8 @@ impl Job {
                     match task::block_on(smtp.send(context, recipients_list, body, self.job_id)) {
                         Err(crate::smtp::send::Error::SendError(err)) => {
                             // Remote error, retry later.
-                            smtp.disconnect();
                             info!(context, "SMTP failed to send: {}", err);
+                            smtp.disconnect();
                             self.try_again_later(TryAgain::AtOnce, Some(err.to_string()));
                         }
                         Err(crate::smtp::send::Error::EnvelopeError(err)) => {
