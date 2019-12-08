@@ -3,8 +3,6 @@
 use super::Smtp;
 use async_smtp::*;
 
-use async_std::task;
-
 use crate::context::Context;
 use crate::events::Event;
 
@@ -23,7 +21,7 @@ pub enum Error {
 impl Smtp {
     /// Send a prepared mail to recipients.
     /// On successful send out Ok() is returned.
-    pub fn send(
+    pub async fn send(
         &mut self,
         context: &Context,
         recipients: Vec<EmailAddress>,
@@ -47,7 +45,7 @@ impl Smtp {
                 message,
             );
 
-            task::block_on(transport.send(mail)).map_err(Error::SendError)?;
+            transport.send(mail).await.map_err(Error::SendError)?;
 
             context.call_cb(Event::SmtpMessageSent(format!(
                 "Message len={} was smtp-sent to {}",

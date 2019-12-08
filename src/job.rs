@@ -200,7 +200,7 @@ impl Job {
                         info!(context, "smtp-sending out mime message:");
                         println!("{}", String::from_utf8_lossy(&body));
                     }
-                    match smtp.send(context, recipients_list, body, self.job_id) {
+                    match task::block_on(smtp.send(context, recipients_list, body, self.job_id)) {
                         Err(crate::smtp::send::Error::SendError(err)) => {
                             // Remote error, retry later.
                             smtp.disconnect();
