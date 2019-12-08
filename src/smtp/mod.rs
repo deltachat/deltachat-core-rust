@@ -37,7 +37,6 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub struct Smtp {
     #[debug_stub(some = "SmtpTransport")]
     transport: Option<async_smtp::smtp::SmtpTransport>,
-    transport_connected: bool,
     /// Email address we are sending from.
     from: Option<EmailAddress>,
 }
@@ -50,16 +49,12 @@ impl Smtp {
 
     /// Disconnect the SMTP transport and drop it entirely.
     pub fn disconnect(&mut self) {
-        if self.transport.is_none() || !self.transport_connected {
-            return;
+        if let Some(ref mut transport) = self.transport.take() {
+            transport.close();
         }
-
-        let mut transport = self.transport.take().unwrap();
-        transport.close();
-        self.transport_connected = false;
     }
 
-    /// Check if a connection already exists.
+    /// check whether we are connected
     pub fn is_connected(&self) -> bool {
         self.transport.is_some()
     }
@@ -143,7 +138,6 @@ impl Smtp {
         task::block_on(trans.connect()).map_err(Error::ConnectionFailure)?;
 
         self.transport = Some(trans);
-        self.transport_connected = true;
         context.call_cb(Event::SmtpConnected(format!(
             "SMTP-LOGIN as {} ok",
             lp.send_user,

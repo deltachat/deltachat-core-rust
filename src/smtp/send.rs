@@ -36,22 +36,21 @@ impl Smtp {
             .collect::<Vec<String>>()
             .join(",");
 
+        let envelope =
+            Envelope::new(self.from.clone(), recipients).map_err(Error::EnvelopeError)?;
+        let mail = SendableEmail::new(
+            envelope,
+            format!("{}", job_id), // only used for internal logging
+            message,
+        );
         if let Some(ref mut transport) = self.transport {
-            let envelope =
-                Envelope::new(self.from.clone(), recipients).map_err(Error::EnvelopeError)?;
-            let mail = SendableEmail::new(
-                envelope,
-                format!("{}", job_id), // only used for internal logging
-                message,
-            );
-
             transport.send(mail).await.map_err(Error::SendError)?;
 
             context.call_cb(Event::SmtpMessageSent(format!(
                 "Message len={} was smtp-sent to {}",
                 message_len, recipients_display
             )));
-            self.transport_connected = true;
+
             Ok(())
         } else {
             warn!(
