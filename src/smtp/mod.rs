@@ -2,8 +2,10 @@
 
 pub mod send;
 
-use lettre::smtp::client::net::*;
-use lettre::*;
+use async_smtp::smtp::client::net::*;
+use async_smtp::*;
+
+use async_std::task;
 
 use crate::constants::*;
 use crate::context::Context;
@@ -19,12 +21,12 @@ pub enum Error {
     InvalidLoginAddress {
         address: String,
         #[cause]
-        error: lettre::error::Error,
+        error: async_smtp::error::Error,
     },
     #[fail(display = "SMTP failed to connect: {:?}", _0)]
-    ConnectionFailure(#[cause] lettre::smtp::error::Error),
+    ConnectionFailure(#[cause] async_smtp::smtp::error::Error),
     #[fail(display = "SMTP: failed to setup connection {:?}", _0)]
-    ConnectionSetupFailure(#[cause] lettre::smtp::error::Error),
+    ConnectionSetupFailure(#[cause] async_smtp::smtp::error::Error),
     #[fail(display = "SMTP: oauth2 error {:?}", _0)]
     Oauth2Error { address: String },
 }
@@ -34,7 +36,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Default, DebugStub)]
 pub struct Smtp {
     #[debug_stub(some = "SmtpTransport")]
-    transport: Option<lettre::smtp::SmtpTransport>,
+    transport: Option<async_smtp::smtp::SmtpTransport>,
     transport_connected: bool,
     /// Email address we are sending from.
     from: Option<EmailAddress>,
@@ -99,21 +101,21 @@ impl Smtp {
             }
             let user = &lp.send_user;
             (
-                lettre::smtp::authentication::Credentials::new(
+                async_smtp::smtp::authentication::Credentials::new(
                     user.to_string(),
                     access_token.unwrap_or_default(),
                 ),
-                vec![lettre::smtp::authentication::Mechanism::Xoauth2],
+                vec![async_smtp::smtp::authentication::Mechanism::Xoauth2],
             )
         } else {
             // plain
             let user = lp.send_user.clone();
             let pw = lp.send_pw.clone();
             (
-                lettre::smtp::authentication::Credentials::new(user, pw),
+                async_smtp::smtp::authentication::Credentials::new(user, pw),
                 vec![
-                    lettre::smtp::authentication::Mechanism::Plain,
-                    lettre::smtp::authentication::Mechanism::Login,
+                    async_smtp::smtp::authentication::Mechanism::Plain,
+                    async_smtp::smtp::authentication::Mechanism::Login,
                 ],
             )
         };
@@ -121,21 +123,24 @@ impl Smtp {
         let security = if 0
             != lp.server_flags & (DC_LP_SMTP_SOCKET_STARTTLS | DC_LP_SMTP_SOCKET_PLAIN) as i32
         {
-            lettre::smtp::ClientSecurity::Opportunistic(tls_parameters)
+            async_smtp::smtp::ClientSecurity::Opportunistic(tls_parameters)
         } else {
-            lettre::smtp::ClientSecurity::Wrapper(tls_parameters)
+            async_smtp::smtp::ClientSecurity::Wrapper(tls_parameters)
         };
 
-        let client = lettre::smtp::SmtpClient::new((domain.as_str(), port), security)
-            .map_err(Error::ConnectionSetupFailure)?;
+        let client = task::block_on(async_smtp::smtp::SmtpClient::with_security(
+            (domain.as_str(), port),
+            security,
+        ))
+        .map_err(Error::ConnectionSetupFailure)?;
 
         let client = client
             .smtp_utf8(true)
             .credentials(creds)
             .authentication_mechanism(mechanism)
-            .connection_reuse(lettre::smtp::ConnectionReuseParameters::ReuseUnlimited);
-        let mut trans = client.transport();
-        trans.connect().map_err(Error::ConnectionFailure)?;
+            .connection_reuse(async_smtp::smtp::ConnectionReuseParameters::ReuseUnlimited);
+        let mut trans = client.into_transport();
+        task::block_on(trans.connect()).map_err(Error::ConnectionFailure)?;
 
         self.transport = Some(trans);
         self.transport_connected = true;

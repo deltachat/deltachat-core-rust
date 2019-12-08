@@ -167,13 +167,15 @@ impl Job {
                 if let Some(recipients) = self.param.get(Param::Recipients) {
                     let recipients_list = recipients
                         .split('\x1e')
-                        .filter_map(|addr| match lettre::EmailAddress::new(addr.to_string()) {
-                            Ok(addr) => Some(addr),
-                            Err(err) => {
-                                warn!(context, "invalid recipient: {} {:?}", addr, err);
-                                None
-                            }
-                        })
+                        .filter_map(
+                            |addr| match async_smtp::EmailAddress::new(addr.to_string()) {
+                                Ok(addr) => Some(addr),
+                                Err(err) => {
+                                    warn!(context, "invalid recipient: {} {:?}", addr, err);
+                                    None
+                                }
+                            },
+                        )
                         .collect::<Vec<_>>();
 
                     /* if there is a msg-id and it does not exist in the db, cancel sending.

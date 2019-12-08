@@ -1,7 +1,9 @@
 //! # SMTP message sending
 
 use super::Smtp;
-use lettre::*;
+use async_smtp::*;
+
+use async_std::task;
 
 use crate::context::Context;
 use crate::events::Event;
@@ -11,9 +13,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, Fail)]
 pub enum Error {
     #[fail(display = "Envelope error: {}", _0)]
-    EnvelopeError(#[cause] lettre::error::Error),
+    EnvelopeError(#[cause] async_smtp::error::Error),
     #[fail(display = "Send error: {}", _0)]
-    SendError(#[cause] lettre::smtp::error::Error),
+    SendError(#[cause] async_smtp::smtp::error::Error),
     #[fail(display = "SMTP has no transport")]
     NoTransport,
 }
@@ -45,7 +47,7 @@ impl Smtp {
                 message,
             );
 
-            transport.send(mail).map_err(Error::SendError)?;
+            task::block_on(transport.send(mail)).map_err(Error::SendError)?;
 
             context.call_cb(Event::SmtpMessageSent(format!(
                 "Message len={} was smtp-sent to {}",
