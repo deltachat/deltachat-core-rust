@@ -1533,7 +1533,7 @@ fn is_known_rfc724_mid(context: &Context, rfc724_mid: &mailparse::MailAddr) -> b
 /// - checks also if any of the referenced IDs are send by a messenger
 /// - it is okay, if the referenced messages are moved to trash here
 /// - no check for the Chat-* headers (function is only called if it is no messenger message itself)
-fn dc_is_reply_to_messenger_message(context: &Context, mime_parser: &MimeParser) -> bool {
+fn is_reply_to_messenger_message(context: &Context, mime_parser: &MimeParser) -> bool {
     if let Some(value) = mime_parser.get(HeaderDef::InReplyTo) {
         if is_msgrmsg_rfc724_mid_in_list(context, &value) {
             return true;
