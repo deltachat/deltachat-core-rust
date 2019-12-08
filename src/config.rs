@@ -128,7 +128,7 @@ impl Context {
     pub fn set_config(&self, key: Config, value: Option<&str>) -> crate::sql::Result<()> {
         match key {
             Config::Selfavatar if value.is_some() => {
-                let blob = BlobObject::create_from_path(&self, value.unwrap())?;
+                let blob = BlobObject::new_from_path(&self, value.unwrap())?;
                 self.sql.set_raw_config(self, key, Some(blob.as_name()))
             }
             Config::InboxWatch => {

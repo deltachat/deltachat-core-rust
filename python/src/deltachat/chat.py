@@ -109,6 +109,30 @@ class Chat(object):
 
     # ------  chat messaging API ------------------------------
 
+    def send_msg(self, msg):
+        """send a message by using a ready Message object.
+
+        :param msg: a :class:`deltachat.message.Message` instance
+           previously returned by
+           e.g. :meth:`deltachat.message.Message.new_empty` or
+           :meth:`prepare_file`.
+        :raises ValueError: if message can not be sent.
+
+        :returns: a :class:`deltachat.message.Message` instance as
+           sent out.  This is the same object as was passed in, which
+           has been modified with the new state of the core.
+        """
+        if msg.is_out_preparing():
+            assert msg.id != 0
+            # get a fresh copy of dc_msg, the core needs it
+            msg = Message.from_db(self.account, msg.id)
+        sent_id = lib.dc_send_msg(self._dc_context, self.id, msg._dc_msg)
+        if sent_id == 0:
+            raise ValueError("message could not be sent")
+        # modify message in place to avoid bad state for the caller
+        msg._dc_msg = Message.from_db(self.account, sent_id)._dc_msg
+        return msg
+
     def send_text(self, text):
         """ send a text message and return the resulting Message instance.
 
@@ -130,9 +154,12 @@ class Chat(object):
         :raises ValueError: if message can not be send/chat does not exist.
         :returns: the resulting :class:`deltachat.message.Message` instance
         """
-        msg = self.prepare_message_file(path=path, mime_type=mime_type)
-        self.send_prepared(msg)
-        return msg
+        msg = Message.new_empty(self.account, view_type="file")
+        msg.set_file(path, mime_type)
+        sent_id = lib.dc_send_msg(self._dc_context, self.id, msg._dc_msg)
+        if sent_id == 0:
+            raise ValueError("message could not be sent")
+        return Message.from_db(self.account, sent_id)
 
     def send_image(self, path):
         """ send an image message and return the resulting Message instance.
@@ -142,9 +169,12 @@ class Chat(object):
         :returns: the resulting :class:`deltachat.message.Message` instance
         """
         mime_type = mimetypes.guess_type(path)[0]
-        msg = self.prepare_message_file(path=path, mime_type=mime_type, view_type="image")
-        self.send_prepared(msg)
-        return msg
+        msg = Message.new_empty(self.account, view_type="image")
+        msg.set_file(path, mime_type)
+        sent_id = lib.dc_send_msg(self._dc_context, self.id, msg._dc_msg)
+        if sent_id == 0:
+            raise ValueError("message could not be sent")
+        return Message.from_db(self.account, sent_id)
 
     def prepare_message(self, msg):
         """ create a new prepared message.

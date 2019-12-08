@@ -725,20 +725,11 @@ fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<(), Error> {
     if msg.type_0 == Viewtype::Text {
         // the caller should check if the message text is empty
     } else if msgtype_has_file(msg.type_0) {
-        let blob = if let Some(f) = msg.param.get_file(Param::File, context)? {
-            match f {
-                ParamsFile::Blob(blob) => blob,
-                ParamsFile::FsPath(path) => {
-                    // path is outside the blobdir, let's copy
-                    let blob = BlobObject::create_and_copy(context, path)?;
-                    msg.param.set(Param::File, blob.as_name());
-
-                    blob
-                }
-            }
-        } else {
-            bail!("Attachment missing for message of type #{}", msg.type_0);
-        };
+        let blob = msg
+            .param
+            .get_blob(Param::File, context, !msg.is_increation())?
+            .ok_or_else(|| format_err!("Attachment missing for message of type #{}", msg.type_0))?;
+        msg.param.set(Param::File, blob.as_name());
 
         if msg.type_0 == Viewtype::File || msg.type_0 == Viewtype::Image {
             // Correct the type, take care not to correct already very special
