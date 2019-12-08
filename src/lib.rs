@@ -33,6 +33,8 @@ mod log;
 #[macro_use]
 pub mod error;
 
+pub mod headerdef;
+
 pub(crate) mod events;
 pub use events::*;
 

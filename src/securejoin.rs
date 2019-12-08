@@ -11,6 +11,7 @@ use crate::context::Context;
 use crate::e2ee::*;
 use crate::error::Error;
 use crate::events::Event;
+use crate::headerdef::HeaderDef;
 use crate::key::*;
 use crate::lot::LotState;
 use crate::message::Message;
@@ -350,7 +351,7 @@ pub(crate) fn handle_securejoin_handshake(
         "handle_securejoin_handshake(): called with special contact id"
     );
     let step = mimeparser
-        .lookup_field("Secure-Join")
+        .get(HeaderDef::SecureJoin)
         .ok_or_else(|| format_err!("This message is not a Secure-Join message"))?;
 
     info!(
@@ -378,7 +379,7 @@ pub(crate) fn handle_securejoin_handshake(
             // it just ensures, we have Bobs key now. If we do _not_ have the key because eg. MitM has removed it,
             // send_message() will fail with the error "End-to-end-encryption unavailable unexpectedly.", so, there is no additional check needed here.
             // verify that the `Secure-Join-Invitenumber:`-header matches invitenumber written to the QR code
-            let invitenumber = match mimeparser.lookup_field("Secure-Join-Invitenumber") {
+            let invitenumber = match mimeparser.get(HeaderDef::SecureJoinInvitenumber) {
                 Some(n) => n,
                 None => {
                     warn!(context, "Secure-join denied (invitenumber missing).",);
@@ -467,7 +468,7 @@ pub(crate) fn handle_securejoin_handshake(
             ====  Step 6 in "Out-of-band verified groups" protocol  ====
             ============================================================ */
             // verify that Secure-Join-Fingerprint:-header matches the fingerprint of Bob
-            let fingerprint = match mimeparser.lookup_field("Secure-Join-Fingerprint") {
+            let fingerprint = match mimeparser.get(HeaderDef::SecureJoinFingerprint) {
                 Some(fp) => fp,
                 None => {
                     could_not_establish_secure_connection(
@@ -496,7 +497,7 @@ pub(crate) fn handle_securejoin_handshake(
             }
             info!(context, "Fingerprint verified.",);
             // verify that the `Secure-Join-Auth:`-header matches the secret written to the QR code
-            let auth_0 = match mimeparser.lookup_field("Secure-Join-Auth") {
+            let auth_0 = match mimeparser.get(HeaderDef::SecureJoinAuth) {
                 Some(auth) => auth,
                 None => {
                     could_not_establish_secure_connection(
@@ -526,7 +527,7 @@ pub(crate) fn handle_securejoin_handshake(
             inviter_progress!(context, contact_id, 600);
             if join_vg {
                 let field_grpid = mimeparser
-                    .lookup_field("Secure-Join-Group")
+                    .get(HeaderDef::SecureJoinGroup)
                     .map(|s| s.as_str())
                     .unwrap_or_else(|| "");
                 let (group_chat_id, _, _) = chat::get_chat_id_by_grpid(context, field_grpid);
@@ -600,7 +601,7 @@ pub(crate) fn handle_securejoin_handshake(
             Contact::scaleup_origin_by_id(context, contact_id, Origin::SecurejoinJoined);
             emit_event!(context, Event::ContactsChanged(None));
             let cg_member_added = mimeparser
-                .lookup_field("Chat-Group-Member-Added")
+                .get(HeaderDef::ChatGroupMemberAdded)
                 .map(|s| s.as_str())
                 .unwrap_or_else(|| "");
             if join_vg && !addr_equals_self(context, cg_member_added) {
@@ -635,7 +636,7 @@ pub(crate) fn handle_securejoin_handshake(
                 inviter_progress!(context, contact_id, 800);
                 inviter_progress!(context, contact_id, 1000);
                 let field_grpid = mimeparser
-                    .lookup_field("Secure-Join-Group")
+                    .get(HeaderDef::SecureJoinGroup)
                     .map(|s| s.as_str())
                     .unwrap_or_else(|| "");
                 let (group_chat_id, _, _) = chat::get_chat_id_by_grpid(context, &field_grpid);
