@@ -633,7 +633,15 @@ pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<(), Error> {
     /* create message */
     let needs_encryption = msg.param.get_int(Param::GuaranteeE2ee).unwrap_or_default();
 
-    let mimefactory = MimeFactory::from_msg(context, &msg)?;
+    let attach_selfavatar = match chat::shall_attach_selfavatar(context, msg.chat_id) {
+        Ok(attach_selfavatar) => attach_selfavatar,
+        Err(err) => {
+            warn!(context, "job: cannot get selfavatar-state: {}", err);
+            false
+        }
+    };
+
+    let mimefactory = MimeFactory::from_msg(context, &msg, attach_selfavatar)?;
     let mut rendered_msg = mimefactory.render().map_err(|err| {
         message::set_msg_failed(context, msg_id, Some(err.to_string()));
         err
@@ -672,6 +680,7 @@ pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<(), Error> {
     if rendered_msg.is_gossiped {
         chat::set_gossiped_timestamp(context, msg.chat_id, time());
     }
+
     if 0 != rendered_msg.last_added_location_id {
         if let Err(err) = location::set_kml_sent_timestamp(context, msg.chat_id, time()) {
             error!(context, "Failed to set kml sent_timestamp: {:?}", err);
@@ -684,6 +693,13 @@ pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<(), Error> {
             }
         }
     }
+
+    if attach_selfavatar {
+        if let Err(err) = chat::set_selfavatar_timestamp(context, msg.chat_id, time()) {
+            error!(context, "Failed to set selfavatar timestamp: {:?}", err);
+        }
+    }
+
     if rendered_msg.is_encrypted && needs_encryption == 0 {
         msg.param.set_int(Param::GuaranteeE2ee, 1);
         msg.save_param_to_disk(context);

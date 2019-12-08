@@ -1,6 +1,7 @@
 use chrono::TimeZone;
 use lettre_email::{mime, Address, Header, MimeMultipartType, PartBuilder};
 
+use crate::blob::BlobObject;
 use crate::chat::{self, Chat};
 use crate::config::Config;
 use crate::constants::*;
@@ -41,6 +42,7 @@ pub struct MimeFactory<'a, 'b> {
     pub req_mdn: bool,
     pub context: &'a Context,
     last_added_location_id: u32,
+    attach_selfavatar: bool,
 }
 
 /// Result of rendering a message, ready to be submitted to a send job.
@@ -62,7 +64,11 @@ pub struct RenderedEmail {
 }
 
 impl<'a, 'b> MimeFactory<'a, 'b> {
-    pub fn from_msg(context: &'a Context, msg: &'b Message) -> Result<MimeFactory<'a, 'b>, Error> {
+    pub fn from_msg(
+        context: &'a Context,
+        msg: &'b Message,
+        add_selfavatar: bool,
+    ) -> Result<MimeFactory<'a, 'b>, Error> {
         let chat = Chat::load_from_db(context, msg.chat_id)?;
 
         let mut factory = MimeFactory {
@@ -84,6 +90,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             references: String::default(),
             req_mdn: false,
             last_added_location_id: 0,
+            attach_selfavatar: add_selfavatar,
             context,
         };
 
@@ -210,6 +217,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             references: String::default(),
             req_mdn: false,
             last_added_location_id: 0,
+            attach_selfavatar: false,
         })
     }
 
@@ -873,6 +881,21 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             }
         }
 
+        if self.attach_selfavatar {
+            match context.get_config(Config::Selfavatar) {
+                Some(path) => match build_selfavatar_file(context, path) {
+                    Ok((part, filename)) => {
+                        parts.push(part);
+                        protected_headers.push(Header::new("Chat-Profile-Image".into(), filename))
+                    }
+                    Err(err) => warn!(context, "mimefactory: cannot attach selfavatar: {}", err),
+                },
+                None => {
+                    protected_headers.push(Header::new("Chat-Profile-Image".into(), "0".into()))
+                }
+            }
+        }
+
         // Single part, render as regular message.
         if parts.len() == 1 {
             return Ok(parts.pop().unwrap());
@@ -1022,6 +1045,31 @@ fn build_body_file(
         .body(encoded_body);
 
     Ok((mail, filename_to_send))
+}
+
+fn build_selfavatar_file(context: &Context, path: String) -> Result<(PartBuilder, String), Error> {
+    let blob = BlobObject::from_path(context, path)?;
+    let filename_to_send = match blob.suffix() {
+        Some(suffix) => format!("avatar.{}", suffix),
+        None => "avatar".to_string(),
+    };
+    let mimetype = match message::guess_msgtype_from_suffix(blob.as_rel_path()) {
+        Some(res) => res.1.parse()?,
+        None => mime::APPLICATION_OCTET_STREAM,
+    };
+    let body = std::fs::read(blob.to_abs_path())?;
+    let encoded_body = base64::encode(&body);
+
+    let part = PartBuilder::new()
+        .content_type(&mimetype)
+        .header((
+            "Content-Disposition",
+            format!("attachment; filename=\"{}\"", &filename_to_send),
+        ))
+        .header(("Content-Transfer-Encoding", "base64"))
+        .body(encoded_body);
+
+    Ok((part, filename_to_send))
 }
 
 pub(crate) fn vec_contains_lowercase(vec: &[String], part: &str) -> bool {
