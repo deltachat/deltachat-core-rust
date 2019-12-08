@@ -16,7 +16,11 @@ use webpki_roots;
 pub enum CertificateChecks {
     Automatic = 0,
     Strict = 1,
-    AcceptInvalidHostnames = 2,
+
+    /// Same as AcceptInvalidCertificates
+    /// Previously known as AcceptInvalidHostnames, now deprecated.
+    AcceptInvalidCertificates2 = 2,
+
     AcceptInvalidCertificates = 3,
 }
 
@@ -288,14 +292,8 @@ pub fn dc_build_tls_config(certificate_checks: CertificateChecks) -> rustls::Cli
                 .dangerous()
                 .set_certificate_verifier(Arc::new(NoCertificateVerification {}));
         }
-        CertificateChecks::AcceptInvalidCertificates => {
-            // TODO: only accept invalid certs
-            config
-                .dangerous()
-                .set_certificate_verifier(Arc::new(NoCertificateVerification {}));
-        }
-        CertificateChecks::AcceptInvalidHostnames => {
-            // TODO: only accept invalid hostnames
+        CertificateChecks::AcceptInvalidCertificates
+        | CertificateChecks::AcceptInvalidCertificates2 => {
             config
                 .dangerous()
                 .set_certificate_verifier(Arc::new(NoCertificateVerification {}));
@@ -313,8 +311,8 @@ mod tests {
         use std::string::ToString;
 
         assert_eq!(
-            "accept_invalid_hostnames".to_string(),
-            CertificateChecks::AcceptInvalidHostnames.to_string()
+            "accept_invalid_certificates".to_string(),
+            CertificateChecks::AcceptInvalidCertificates.to_string()
         );
     }
 }
