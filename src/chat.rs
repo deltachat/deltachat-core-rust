@@ -1597,6 +1597,46 @@ pub fn set_gossiped_timestamp(context: &Context, chat_id: u32, timestamp: i64) {
     }
 }
 
+pub fn shall_attach_selfavatar(context: &Context, chat_id: u32) -> Result<bool, Error> {
+    let resend_every_days = 14;
+    let timestamp_some_days_ago = time() - resend_every_days * 24 * 60 * 60;
+    let needs_attach = context.sql.query_map(
+        "SELECT c.selfavatar_sent
+           FROM chats_contacts cc
+           LEFT JOIN contacts c ON c.id=cc.contact_id
+          WHERE cc.chat_id=? AND cc.contact_id!=?;",
+        params![chat_id, DC_CONTACT_ID_SELF],
+        |row| Ok(row.get::<_, i64>(0)),
+        |rows| {
+            let mut needs_attach = false;
+            for row in rows {
+                if let Ok(selfavatar_sent) = row {
+                    let selfavatar_sent = selfavatar_sent?;
+                    if selfavatar_sent < timestamp_some_days_ago {
+                        needs_attach = true;
+                    }
+                }
+            }
+            Ok(needs_attach)
+        },
+    )?;
+    Ok(needs_attach)
+}
+
+pub fn set_selfavatar_timestamp(
+    context: &Context,
+    chat_id: u32,
+    timestamp: i64,
+) -> Result<(), Error> {
+    context.sql.execute(
+        "UPDATE contacts
+            SET selfavatar_sent=?
+          WHERE id IN(SELECT contact_id FROM chats_contacts WHERE chat_id=?);",
+        params![timestamp, chat_id],
+    )?;
+    Ok(())
+}
+
 pub fn remove_contact_from_chat(
     context: &Context,
     chat_id: u32,
@@ -2434,5 +2474,20 @@ mod tests {
         let chat2 = Chat::load_from_db(&context.ctx, chat2_id).unwrap();
 
         assert_eq!(chat2.name, chat.name);
+    }
+
+    #[test]
+    fn test_shall_attach_selfavatar() {
+        let t = dummy_context();
+        let chat_id = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo").unwrap();
+        assert!(!shall_attach_selfavatar(&t.ctx, chat_id).unwrap());
+
+        let (contact_id, _) =
+            Contact::add_or_lookup(&t.ctx, "", "foo@bar.org", Origin::IncomingUnknownTo).unwrap();
+        add_contact_to_chat(&t.ctx, chat_id, contact_id);
+        assert!(shall_attach_selfavatar(&t.ctx, chat_id).unwrap());
+
+        assert!(set_selfavatar_timestamp(&t.ctx, chat_id, time()).is_ok());
+        assert!(!shall_attach_selfavatar(&t.ctx, chat_id).unwrap());
     }
 }
