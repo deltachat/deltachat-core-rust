@@ -1,0 +1,28 @@
+Chat-Profile-Image: avatar.png
+Subject: =?utf-8?q?Chat=3A_this_is_a_message_with_a_=2E=2E=2E?=
+Message-ID: Mr.wOBwZNbBTVt.NZpmQDwWoNk@example.org
+In-Reply-To: Mr.ETXqza5-WpB.zDEYOLECxAw@example.org
+Date: Sun, 08 Dec 2019 23:12:55 +0000
+X-Mailer: Delta Chat Core 1.0.0-beta.12/CLI
+Chat-Version: 1.0
+To: <tunis3@example.org>
+From: "=?utf-8?q??=" <tunis4@example.org>
+Content-Type: multipart/mixed; boundary="luTiGu6GBoVLCvTkzVtmZmwsmhkNMw"
+
+
+--luTiGu6GBoVLCvTkzVtmZmwsmhkNMw
+Content-Type: text/plain; charset=utf-8
+
+this is a message with a profile-image attached
+
+-- 
+Sent with my Delta Chat Messenger: https://delta.chat
+
+--luTiGu6GBoVLCvTkzVtmZmwsmhkNMw
+Content-Type: image/png
+Content-Disposition: attachment; filename="avatar.png"
+Content-Transfer-Encoding: base64
+
+iVBORw0KGgoAAAANSUhEUgAAABAAAAAQAQMAAAAlPW0iAAABhGlDQ1BJQ0MgcHJvZmlsZQAAKJF9kT1Iw0AcxV9TpUUqIhYRcchQnSyIFXHUKhShQqgVWnUwufQLmjQkKS6OgmvBwY/FqoOLs64OroIg+AHi4uqk6CIl/q8ptIjx4Lgf7+497t4BQr3MNKtrAtB020wl4mImuyoGXhFCEIOIoV9mljEnSUl4jq97+Ph6F+VZ3uf+HL1qzmKATySeZYZpE28QT2/aBud94jAryirxOfG4SRckfuS64vIb50KTBZ4ZNtOpeeIwsVjoYKWDWdHUiKeII6qmU76QcVnlvMVZK1dZ6578haGcvrLMdZojSGARS5AgQkEVJZRhI0qrToqFFO3HPfzDTb9ELoVcJTByLKACDXLTD/4Hv7u18rFJNykUB7pfHOdjFAjsAo2a43wfO07jBPA/A1d621+pAzOfpNfaWuQI6NsGLq7bmrIHXO4AQ0+GbMpNyU9TyOeB9zP6piwwcAv0rLm9tfZx+gCkqavkDXBwCIwVKHvd493Bzt7+PdPq7wd6nHKqMKZUTAAAAANQTFRF/sYAhYATyAAAAAlwSFlzAAAuIwAALiMBeKU/dgAAAAd0SU1FB+MMCBY0D29+N8YAAAAZdEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIEdJTVBXgQ4XAAAADElEQVQI12NgIA0AAAAwAAHHqoWOAAAAAElFTkSuQmCC
+
+--luTiGu6GBoVLCvTkzVtmZmwsmhkNMw--

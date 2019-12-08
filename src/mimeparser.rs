@@ -37,6 +37,7 @@ pub struct MimeParser<'a> {
     pub is_system_message: SystemMessage,
     pub location_kml: Option<location::Kml>,
     pub message_kml: Option<location::Kml>,
+    pub profile_image: Option<Option<String>>,
     reports: Vec<Report>,
     mdns_enabled: bool,
     parsed_protected_headers: bool,
@@ -83,6 +84,7 @@ impl<'a> MimeParser<'a> {
             is_system_message: SystemMessage::Unknown,
             location_kml: None,
             message_kml: None,
+            profile_image: None,
             mdns_enabled,
             parsed_protected_headers: false,
         };
@@ -187,6 +189,27 @@ impl<'a> MimeParser<'a> {
                 let imgpart = &mut self.parts[1];
                 if imgpart.typ == Viewtype::Image {
                     imgpart.is_meta = true;
+                }
+            }
+        }
+
+        if let Some(header_value) = self.lookup_field("Chat-Profile-Image") {
+            if header_value == "0" {
+                self.profile_image = Some(None);
+            } else {
+                let mut i = 0;
+                while i != self.parts.len() {
+                    let part = &self.parts[i];
+                    if let Some(part_filename) = &part.org_filename {
+                        if part_filename == header_value {
+                            if let Some(blob) = part.param.get(Param::File) {
+                                self.profile_image = Some(Some(blob.to_string()));
+                                self.parts.remove(i);
+                            }
+                            break;
+                        }
+                    }
+                    i += 1;
                 }
             }
         }
@@ -638,6 +661,7 @@ impl<'a> MimeParser<'a> {
         }
 
         part.typ = msg_type;
+        part.org_filename = Some(filename.to_string());
         part.mimetype = Some(mime_type);
         part.bytes = decoded_data.len();
         part.param.set(Param::File, blob.as_name());
@@ -851,6 +875,7 @@ pub struct Part {
     pub msg_raw: Option<String>,
     pub bytes: usize,
     pub param: Params,
+    org_filename: Option<String>,
 }
 
 /// return mimetype and viewtype for a parsed mail
@@ -1126,5 +1151,22 @@ mod tests {
         let of = mimeparser.get(HeaderDef::ChatVersion).unwrap();
         assert_eq!(of, "1.0");
         assert_eq!(mimeparser.parts.len(), 1);
+    }
+
+    #[test]
+    fn test_mimeparser_with_profile_image() {
+        let t = dummy_context();
+
+        let raw = include_bytes!("../test-data/message/mail_with_profile_image.eml");
+        let mimeparser = MimeParser::from_bytes(&t.ctx, &raw[..]).unwrap();
+        assert_eq!(mimeparser.parts.len(), 1);
+        assert!(mimeparser.profile_image.is_some());
+        assert!(mimeparser.profile_image.unwrap().is_some());
+
+        let raw = include_bytes!("../test-data/message/mail_with_profile_image_deleted.eml");
+        let mimeparser = MimeParser::from_bytes(&t.ctx, &raw[..]).unwrap();
+        assert_eq!(mimeparser.parts.len(), 1);
+        assert!(mimeparser.profile_image.is_some());
+        assert!(mimeparser.profile_image.unwrap().is_none());
     }
 }
