@@ -85,16 +85,21 @@ class SessionLiveConfigFromFile:
 class SessionLiveConfigFromURL:
     def __init__(self, url, create_token):
         self.configlist = []
-        for i in range(2):
-            res = requests.post(url, json={"token_create_user": int(create_token)})
+        self.url = url
+        self.create_token = create_token
+
+    def get(self, index):
+        try:
+            return self.configlist[index]
+        except IndexError:
+            assert index == len(self.configlist), index
+            res = requests.post(self.url, json={"token_create_user": int(self.create_token)})
             if res.status_code != 200:
                 pytest.skip("creating newtmpuser failed {!r}".format(res))
             d = res.json()
             config = dict(addr=d["email"], mail_pw=d["password"])
             self.configlist.append(config)
-
-    def get(self, index):
-        return self.configlist[index]
+            return config
 
     def exists(self):
         return bool(self.configlist)
