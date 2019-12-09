@@ -18,6 +18,7 @@ reqwest = { version = "0.9.15", default-features = false, features = ["rustls-tl
 num-derive = "0.2.5"
 num-traits = "0.2.6"
 async-smtp = { git = "https://github.com/async-email/async-smtp" }
+email = { git = "https://github.com/deltachat/rust-email" }
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "feat/mail" }
 async-imap = { git = "https://github.com/async-email/async-imap", branch="master" }
 async-tls = "0.6"

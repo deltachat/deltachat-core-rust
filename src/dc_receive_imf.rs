@@ -1583,6 +1583,10 @@ fn dc_add_or_lookup_contacts_by_address_list(
     origin: Origin,
     to_ids: &mut ContactIds,
 ) -> Result<()> {
+    // XXX we use manual decoding
+    // https://github.com/staktrace/mailparse/issues/50
+    use email::rfc2047::decode_rfc2047;
+
     let addrs = match mailparse::addrparse(addr_list_raw) {
         Ok(addrs) => addrs,
         Err(err) => {
@@ -1597,18 +1601,22 @@ fn dc_add_or_lookup_contacts_by_address_list(
     for addr in addrs.iter() {
         match addr {
             mailparse::MailAddr::Single(info) => {
+                // mailparse does not give us decoded vals
+                let display_name = decode_rfc2047(&info.display_name.clone().unwrap_or_default());
                 to_ids.insert(add_or_lookup_contact_by_addr(
                     context,
-                    &info.display_name,
+                    &display_name,
                     &info.addr,
                     origin,
                 )?);
             }
             mailparse::MailAddr::Group(infos) => {
                 for info in &infos.addrs {
+                    let display_name =
+                        decode_rfc2047(&info.display_name.clone().unwrap_or_default());
                     to_ids.insert(add_or_lookup_contact_by_addr(
                         context,
-                        &info.display_name,
+                        &display_name,
                         &info.addr,
                         origin,
                     )?);
