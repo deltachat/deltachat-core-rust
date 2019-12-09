@@ -238,8 +238,8 @@ pub fn dc_receive_imf(
         );
     }
 
-    if let Some(profile_image) = mime_parser.profile_image {
-        match contact::set_profile_image(&context, from_id, profile_image) {
+    if mime_parser.profile_image != ImageAction::None {
+        match contact::set_profile_image(&context, from_id, mime_parser.profile_image) {
             Ok(()) => {
                 context.call_cb(Event::ChatModified(chat_id));
                 true

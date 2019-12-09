@@ -37,10 +37,17 @@ pub struct MimeParser<'a> {
     pub is_system_message: SystemMessage,
     pub location_kml: Option<location::Kml>,
     pub message_kml: Option<location::Kml>,
-    pub profile_image: Option<Option<String>>,
+    pub profile_image: ImageAction,
     reports: Vec<Report>,
     mdns_enabled: bool,
     parsed_protected_headers: bool,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum ImageAction {
+    None,
+    Delete,
+    Change(String),
 }
 
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql)]
@@ -84,7 +91,7 @@ impl<'a> MimeParser<'a> {
             is_system_message: SystemMessage::Unknown,
             location_kml: None,
             message_kml: None,
-            profile_image: None,
+            profile_image: ImageAction::None,
             mdns_enabled,
             parsed_protected_headers: false,
         };
@@ -195,7 +202,7 @@ impl<'a> MimeParser<'a> {
 
         if let Some(header_value) = self.get(HeaderDef::ChatProfileImage) {
             if header_value == "0" {
-                self.profile_image = Some(None);
+                self.profile_image = ImageAction::Delete;
             } else {
                 let mut i = 0;
                 while i != self.parts.len() {
@@ -203,7 +210,7 @@ impl<'a> MimeParser<'a> {
                     if let Some(part_filename) = &part.org_filename {
                         if part_filename == header_value {
                             if let Some(blob) = part.param.get(Param::File) {
-                                self.profile_image = Some(Some(blob.to_string()));
+                                self.profile_image = ImageAction::Change(blob.to_string());
                                 self.parts.remove(i);
                             }
                             break;
@@ -1157,16 +1164,19 @@ mod tests {
     fn test_mimeparser_with_profile_image() {
         let t = dummy_context();
 
+        let raw = include_bytes!("../test-data/message/mail_attach_txt.eml");
+        let mimeparser = MimeParser::from_bytes(&t.ctx, &raw[..]).unwrap();
+        assert_eq!(mimeparser.profile_image, ImageAction::None);
+
         let raw = include_bytes!("../test-data/message/mail_with_profile_image.eml");
         let mimeparser = MimeParser::from_bytes(&t.ctx, &raw[..]).unwrap();
         assert_eq!(mimeparser.parts.len(), 1);
-        assert!(mimeparser.profile_image.is_some());
-        assert!(mimeparser.profile_image.unwrap().is_some());
+        assert_ne!(mimeparser.profile_image, ImageAction::None);
+        assert_ne!(mimeparser.profile_image, ImageAction::Delete);
 
         let raw = include_bytes!("../test-data/message/mail_with_profile_image_deleted.eml");
         let mimeparser = MimeParser::from_bytes(&t.ctx, &raw[..]).unwrap();
         assert_eq!(mimeparser.parts.len(), 1);
-        assert!(mimeparser.profile_image.is_some());
-        assert!(mimeparser.profile_image.unwrap().is_none());
+        assert_eq!(mimeparser.profile_image, ImageAction::Delete);
     }
 }
