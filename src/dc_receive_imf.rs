@@ -338,7 +338,7 @@ fn add_parts(
 
     // 1 or 0 for yes/no
     msgrmsg = mime_parser.has_chat_version() as _;
-    if msgrmsg == 0 && 0 != dc_is_reply_to_messenger_message(context, mime_parser) {
+    if msgrmsg == 0 && is_reply_to_messenger_message(context, mime_parser) {
         // 2=no, but is reply to messenger message
         msgrmsg = 2;
     }
@@ -460,7 +460,7 @@ fn add_parts(
                 if Blocked::Not == create_blocked {
                     chat::unblock(context, *chat_id);
                     chat_id_blocked = Blocked::Not;
-                } else if 0 != dc_is_reply_to_known_message(context, mime_parser) {
+                } else if is_reply_to_known_message(context, mime_parser) {
                     //  we do not want any chat to be created implicitly.  Because of the origin-scale-up,
                     // the contact requests will pop up and this should be just fine.
                     Contact::scaleup_origin_by_id(context, *from_id, Origin::IncomingReplyTo);
@@ -1482,23 +1482,23 @@ fn set_better_msg(mime_parser: &mut MimeParser, better_msg: impl AsRef<str>) {
     }
 }
 
-fn dc_is_reply_to_known_message(context: &Context, mime_parser: &MimeParser) -> i32 {
+fn is_reply_to_known_message(context: &Context, mime_parser: &MimeParser) -> bool {
     /* check if the message is a reply to a known message; the replies are identified by the Message-ID from
     `In-Reply-To`/`References:` (to support non-Delta-Clients) */
 
     if let Some(field) = mime_parser.lookup_field("In-Reply-To") {
         if is_known_rfc724_mid_in_list(context, &field) {
-            return 1;
+            return true;
         }
     }
 
     if let Some(field) = mime_parser.lookup_field("References") {
         if is_known_rfc724_mid_in_list(context, &field) {
-            return 1;
+            return true;
         }
     }
 
-    0
+    false
 }
 
 fn is_known_rfc724_mid_in_list(context: &Context, mid_list: &str) -> bool {
@@ -1532,26 +1532,25 @@ fn is_known_rfc724_mid(context: &Context, rfc724_mid: &mailparse::MailAddr) -> b
         .unwrap_or_default()
 }
 
-fn dc_is_reply_to_messenger_message(context: &Context, mime_parser: &MimeParser) -> i32 {
-    /* function checks, if the message defined by mime_parser references a message send by us from Delta Chat.
-    This is similar to is_reply_to_known_message() but
-    - checks also if any of the referenced IDs are send by a messenger
-    - it is okay, if the referenced messages are moved to trash here
-    - no check for the Chat-* headers (function is only called if it is no messenger message itself) */
-
+/// Checks if the message defined by mime_parser references a message send by us from Delta Chat.
+/// This is similar to is_reply_to_known_message() but
+/// - checks also if any of the referenced IDs are send by a messenger
+/// - it is okay, if the referenced messages are moved to trash here
+/// - no check for the Chat-* headers (function is only called if it is no messenger message itself)
+fn is_reply_to_messenger_message(context: &Context, mime_parser: &MimeParser) -> bool {
     if let Some(value) = mime_parser.lookup_field("In-Reply-To") {
         if is_msgrmsg_rfc724_mid_in_list(context, &value) {
-            return 1;
+            return true;
         }
     }
 
     if let Some(value) = mime_parser.lookup_field("References") {
         if is_msgrmsg_rfc724_mid_in_list(context, &value) {
-            return 1;
+            return true;
         }
     }
 
-    0
+    false
 }
 
 fn is_msgrmsg_rfc724_mid_in_list(context: &Context, mid_list: &str) -> bool {
