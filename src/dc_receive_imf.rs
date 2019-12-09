@@ -569,7 +569,7 @@ fn add_parts(
         *chat_id,
         *from_id,
         *sent_timestamp,
-        if 0 != flags & DC_IMAP_SEEN { 0 } else { 1 },
+        0 == flags & DC_IMAP_SEEN,
         &mut sort_timestamp,
         sent_timestamp,
         &mut rcvd_timestamp,
@@ -748,7 +748,7 @@ fn calc_timestamps(
     chat_id: u32,
     from_id: u32,
     message_timestamp: i64,
-    is_fresh_msg: i32,
+    is_fresh_msg: bool,
     sort_timestamp: &mut i64,
     sent_timestamp: &mut i64,
     rcvd_timestamp: &mut i64,
@@ -759,7 +759,7 @@ fn calc_timestamps(
         *sent_timestamp = *rcvd_timestamp
     }
     *sort_timestamp = message_timestamp;
-    if 0 != is_fresh_msg {
+    if is_fresh_msg {
         let last_msg_time: Option<i64> = context.sql.query_get_value(
             context,
             "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? and from_id!=? AND timestamp>=?",
@@ -799,11 +799,11 @@ fn create_or_lookup_group(
     let mut chat_id_blocked = Blocked::Not;
     let mut grpname = None;
     let to_ids_cnt = to_ids.len();
-    let mut recreate_member_list = 0;
-    let mut send_EVENT_CHAT_MODIFIED = 0;
+    let mut recreate_member_list = false;
+    let mut send_EVENT_CHAT_MODIFIED = false;
     let mut X_MrRemoveFromGrp = None;
     let mut X_MrAddToGrp = None;
-    let mut X_MrGrpNameChanged = 0;
+    let mut X_MrGrpNameChanged = false;
     let mut X_MrGrpImageChanged = "".to_string();
     let mut better_msg: String = From::from("");
 
@@ -855,10 +855,10 @@ fn create_or_lookup_group(
     if let Some(optional_field) = field {
         X_MrRemoveFromGrp = Some(optional_field);
         mime_parser.is_system_message = SystemMessage::MemberRemovedFromGroup;
-        let left_group = (Contact::lookup_id_by_addr(context, X_MrRemoveFromGrp.as_ref().unwrap())
-            == from_id as u32) as i32;
+        let left_group = Contact::lookup_id_by_addr(context, X_MrRemoveFromGrp.as_ref().unwrap())
+            == from_id as u32;
         better_msg = context.stock_system_msg(
-            if 0 != left_group {
+            if left_group {
                 StockMessage::MsgGroupLeft
             } else {
                 StockMessage::MsgDelMember
@@ -884,7 +884,7 @@ fn create_or_lookup_group(
         } else {
             let field = mime_parser.lookup_field("Chat-Group-Name-Changed");
             if let Some(field) = field {
-                X_MrGrpNameChanged = 1;
+                X_MrGrpNameChanged = true;
                 better_msg = context.stock_system_msg(
                     StockMessage::MsgGrpName,
                     field,
@@ -933,7 +933,7 @@ fn create_or_lookup_group(
         // check if the sender is a member of the existing group -
         // if not, we'll recreate the group list
         if !chat::is_contact_in_chat(context, chat_id, from_id as u32) {
-            recreate_member_list = 1;
+            recreate_member_list = true;
         }
     }
 
@@ -980,7 +980,7 @@ fn create_or_lookup_group(
             create_verified,
         );
         chat_id_blocked = create_blocked;
-        recreate_member_list = 1;
+        recreate_member_list = true;
     }
 
     // again, check chat_id
@@ -1005,8 +1005,8 @@ fn create_or_lookup_group(
 
     // execute group commands
     if X_MrAddToGrp.is_some() || X_MrRemoveFromGrp.is_some() {
-        recreate_member_list = 1;
-    } else if 0 != X_MrGrpNameChanged {
+        recreate_member_list = true;
+    } else if X_MrGrpNameChanged {
         if let Some(ref grpname) = grpname {
             if grpname.len() < 200 {
                 info!(context, "updating grpname for chat {}", chat_id);
@@ -1059,14 +1059,14 @@ fn create_or_lookup_group(
                     None => chat.param.remove(Param::ProfileImage),
                 };
                 chat.update_param(context)?;
-                send_EVENT_CHAT_MODIFIED = 1;
+                send_EVENT_CHAT_MODIFIED = true;
             }
         }
     }
 
     // add members to group/check members
     // for recreation: we should add a timestamp
-    if 0 != recreate_member_list {
+    if recreate_member_list {
         // TODO: the member list should only be recreated if the corresponding message is newer
         // than the one that is responsible for the current member list, see
         // https://github.com/deltachat/deltachat-core/issues/127
@@ -1096,11 +1096,11 @@ fn create_or_lookup_group(
                 chat::add_to_chat_contacts_table(context, chat_id, to_id);
             }
         }
-        send_EVENT_CHAT_MODIFIED = 1;
+        send_EVENT_CHAT_MODIFIED = true;
         chat::reset_gossiped_timestamp(context, chat_id);
     }
 
-    if 0 != send_EVENT_CHAT_MODIFIED {
+    if send_EVENT_CHAT_MODIFIED {
         context.call_cb(Event::ChatModified(chat_id));
     }
 
