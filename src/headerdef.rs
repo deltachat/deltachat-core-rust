@@ -41,3 +41,16 @@ impl HeaderDef {
         self.to_string()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    /// Test that kebab_case serialization works as expected
+    fn kebab_test() {
+        assert_eq!(HeaderDef::From_.to_string(), "from");
+
+        assert_eq!(HeaderDef::_TestHeader.to_string(), "test-header");
+    }
+}
