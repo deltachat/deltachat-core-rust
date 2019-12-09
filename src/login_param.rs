@@ -4,7 +4,6 @@ use std::borrow::Cow;
 use std::fmt;
 
 use crate::context::Context;
-use crate::error::Error;
 use async_std::sync::Arc;
 use rustls;
 use webpki;
@@ -134,7 +133,7 @@ impl LoginParam {
         &self,
         context: &Context,
         prefix: impl AsRef<str>,
-    ) -> Result<(), Error> {
+    ) -> crate::sql::Result<()> {
         let prefix = prefix.as_ref();
         let sql = &context.sql;
 
