@@ -344,16 +344,16 @@ fn add_parts(
     }
     // incoming non-chat messages may be discarded;
     // maybe this can be optimized later, by checking the state before the message body is downloaded
-    let mut allow_creation = 1;
+    let mut allow_creation = true;
     let show_emails =
         ShowEmails::from_i32(context.get_config_int(Config::ShowEmails)).unwrap_or_default();
     if mime_parser.is_system_message != SystemMessage::AutocryptSetupMessage && msgrmsg == 0 {
         // this message is a classic email not a chat-message nor a reply to one
         if show_emails == ShowEmails::Off {
             *chat_id = DC_CHAT_ID_TRASH;
-            allow_creation = 0
+            allow_creation = false
         } else if show_emails == ShowEmails::AcceptedContacts {
-            allow_creation = 0
+            allow_creation = false
         }
     }
 
@@ -376,7 +376,7 @@ fn add_parts(
             // avoid discarding by show_emails setting
             msgrmsg = 1;
             *chat_id = 0;
-            allow_creation = 1;
+            allow_creation = true;
             match handle_securejoin_handshake(context, mime_parser, *from_id) {
                 Ok(ret) => {
                     if ret.hide_this_msg {
@@ -449,7 +449,7 @@ fn add_parts(
             if 0 != test_normal_chat_id {
                 *chat_id = test_normal_chat_id;
                 chat_id_blocked = test_normal_chat_id_blocked;
-            } else if 0 != allow_creation {
+            } else if allow_creation {
                 let (id, bl) =
                     chat::create_or_lookup_by_contact_id(context, *from_id, create_blocked)
                         .unwrap_or_default();
@@ -523,7 +523,7 @@ fn add_parts(
                     chat_id_blocked = Blocked::Not;
                 }
             }
-            if *chat_id == 0 && 0 != allow_creation {
+            if *chat_id == 0 && allow_creation {
                 let create_blocked = if 0 != msgrmsg && !Contact::is_blocked_load(context, *to_id) {
                     Blocked::Not
                 } else {
@@ -791,7 +791,7 @@ fn calc_timestamps(
 fn create_or_lookup_group(
     context: &Context,
     mime_parser: &mut MimeParser,
-    allow_creation: i32,
+    allow_creation: bool,
     create_blocked: Blocked,
     from_id: u32,
     to_ids: &[u32],
@@ -967,7 +967,7 @@ fn create_or_lookup_group(
             VerifiedStatus::Unverified
         };
 
-        if allow_creation == 0 {
+        if !allow_creation {
             info!(context, "creating group forbidden by caller");
             return Ok((0, Blocked::Not));
         }
@@ -1147,7 +1147,7 @@ fn get_grpid_from_list(mime_parser: &MimeParser, header_key: &str) -> Option<Str
 fn create_or_lookup_adhoc_group(
     context: &Context,
     mime_parser: &MimeParser,
-    allow_creation: i32,
+    allow_creation: bool,
     create_blocked: Blocked,
     from_id: u32,
     to_ids: &[u32],
@@ -1200,7 +1200,7 @@ fn create_or_lookup_adhoc_group(
         }
     }
 
-    if allow_creation == 0 {
+    if !allow_creation {
         info!(context, "creating ad-hoc group prevented from caller");
         return Ok((0, Blocked::Not));
     }
