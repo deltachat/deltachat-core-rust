@@ -127,7 +127,7 @@ pub fn dc_receive_imf(
         )?;
     }
 
-    // get From: (it can be an address list!) and check if it is known (for known From:'s we add 
+    // get From: (it can be an address list!) and check if it is known (for known From:'s we add
     // the other To:/Cc: in the 3rd pass)
     // or if From: is equal to SELF (in this case, it is any outgoing messages,
     // we do not check Return-Path any more as this is unreliable, see issue #150)
@@ -143,7 +143,10 @@ pub fn dc_receive_imf(
             &mut from_ids,
         )?;
         if from_ids.len() > 1 {
-            warn!(context, "mail has more than one address in From: {:?}", field_from);
+            warn!(
+                context,
+                "mail has more than one address in From: {:?}", field_from
+            );
         }
         if from_ids.contains(&DC_CONTACT_ID_SELF) {
             incoming = false;
@@ -160,7 +163,6 @@ pub fn dc_receive_imf(
             // "deaddrop" chat) to avoid a re-download from the server. See also [**]
         }
     }
-
 
     // Add parts
 
@@ -450,7 +452,7 @@ fn add_parts(
                     chat::unblock(context, *chat_id);
                     chat_id_blocked = Blocked::Not;
                 } else if is_reply_to_known_message(context, mime_parser) {
-                    //  we do not want any chat to be created implicitly.  Because of the origin-scale-up,
+                    // we do not want any chat to be created implicitly.  Because of the origin-scale-up,
                     // the contact requests will pop up and this should be just fine.
                     Contact::scaleup_origin_by_id(context, *from_id, Origin::IncomingReplyTo);
                     info!(
@@ -533,9 +535,9 @@ fn add_parts(
                 }
             }
         }
-        let self_sent = *from_id == DC_CONTACT_ID_SELF 
-                        && to_ids.len() == 1 
-                        && to_ids.contains(&DC_CONTACT_ID_SELF);
+        let self_sent = *from_id == DC_CONTACT_ID_SELF
+            && to_ids.len() == 1
+            && to_ids.contains(&DC_CONTACT_ID_SELF);
 
         if *chat_id == 0 && self_sent {
             // from_id==to_id==DC_CONTACT_ID_SELF - this is a self-sent messages,
@@ -1405,13 +1407,20 @@ fn check_verified_properties(
         }
     }
 
+    // we do not need to check if we are verified with ourself
+    let mut to_ids = to_ids.clone();
+    to_ids.remove(&DC_CONTACT_ID_SELF);
+
+    if to_ids.is_empty() {
+        return Ok(());
+    }
     let to_ids_str = join(to_ids.iter().map(|x| x.to_string()), ",");
 
     let rows = context.sql.query_map(
         format!(
             "SELECT c.addr, LENGTH(ps.verified_key_fingerprint)  FROM contacts c  \
              LEFT JOIN acpeerstates ps ON c.addr=ps.addr  WHERE c.id IN({}) ",
-            to_ids_str,
+            to_ids_str
         ),
         params![],
         |row| Ok((row.get::<_, String>(0)?, row.get::<_, i32>(1).unwrap_or(0))),
@@ -1422,6 +1431,12 @@ fn check_verified_properties(
     )?;
 
     for (to_addr, _is_verified) in rows.into_iter() {
+        info!(
+            context,
+            "check_verified_properties: {:?} self={:?}",
+            to_addr,
+            context.is_self_addr(&to_addr)
+        );
         let mut is_verified = _is_verified != 0;
         let mut peerstate = Peerstate::from_addr(context, &context.sql, &to_addr);
 
@@ -1592,20 +1607,21 @@ fn dc_add_or_lookup_contacts_by_address_list(
     for addr in addrs.iter() {
         match addr {
             mailparse::MailAddr::Single(info) => {
-                to_ids.insert(
-                    add_or_lookup_contact_by_addr(context, &info.display_name, &info.addr, origin)?
-                );
+                to_ids.insert(add_or_lookup_contact_by_addr(
+                    context,
+                    &info.display_name,
+                    &info.addr,
+                    origin,
+                )?);
             }
             mailparse::MailAddr::Group(infos) => {
                 for info in &infos.addrs {
-                    to_ids.insert(
-                        add_or_lookup_contact_by_addr(
-                            context,
-                            &info.display_name,
-                            &info.addr,
-                            origin,
-                        )?
-                    );
+                    to_ids.insert(add_or_lookup_contact_by_addr(
+                        context,
+                        &info.display_name,
+                        &info.addr,
+                        origin,
+                    )?);
                 }
             }
         }
@@ -1624,14 +1640,11 @@ fn add_or_lookup_contact_by_addr(
     if context.is_self_addr(addr)? {
         return Ok(DC_CONTACT_ID_SELF);
     }
-
-    // add addr_spec if missing, update otherwise
     let display_name_normalized = display_name
         .as_ref()
         .map(normalize_name)
         .unwrap_or_default();
 
-    // can be NULL
     info!(
         context,
         "looking up addr={:?} display_name={:?}", addr, display_name_normalized
