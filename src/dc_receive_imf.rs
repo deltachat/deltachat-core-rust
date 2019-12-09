@@ -67,7 +67,7 @@ pub fn dc_receive_imf(
     }
 
     // the function returns the number of created messages in the database
-    let mut incoming = 1;
+    let mut incoming = true;
     let mut incoming_origin = Origin::Unknown;
     let mut to_self = false;
     let mut from_id = 0u32;
@@ -133,7 +133,7 @@ pub fn dc_receive_imf(
             &mut check_self,
         );
         if check_self {
-            incoming = 0;
+            incoming = false;
             if mime_parser.sender_equals_recipient() {
                 from_id = DC_CONTACT_ID_SELF;
             }
@@ -151,7 +151,7 @@ pub fn dc_receive_imf(
         dc_add_or_lookup_contacts_by_address_list(
             context,
             &field,
-            if 0 == incoming {
+            if !incoming {
                 Origin::OutgoingTo
             } else if incoming_origin.is_verified() {
                 Origin::IncomingTo
@@ -277,7 +277,7 @@ fn add_parts(
     context: &Context,
     mut mime_parser: &mut MimeParser,
     imf_raw: &[u8],
-    incoming: i32,
+    incoming: bool,
     incoming_origin: &mut Origin,
     server_folder: impl AsRef<str>,
     server_uid: u32,
@@ -311,7 +311,7 @@ fn add_parts(
         dc_add_or_lookup_contacts_by_address_list(
             context,
             fld_cc,
-            if 0 == incoming {
+            if !incoming {
                 Origin::OutgoingCc
             } else if incoming_origin.is_verified() {
                 Origin::IncomingCc
@@ -361,7 +361,7 @@ fn add_parts(
     // - outgoing messages introduce a chat with the first to: address if they are sent by a messenger
     // - incoming messages introduce a chat only for known contacts if they are sent by a messenger
     // (of course, the user can add other chats manually later)
-    if 0 != incoming {
+    if incoming {
         state = if 0 != flags & DC_IMAP_SEEN {
             MessageState::InSeen
         } else {
@@ -676,7 +676,7 @@ fn add_parts(
     // check event to send
     if *chat_id == DC_CHAT_ID_TRASH {
         *create_event_to_send = None;
-    } else if 0 != incoming && state == MessageState::InFresh {
+    } else if incoming && state == MessageState::InFresh {
         if 0 != from_id_blocked {
             *create_event_to_send = None;
         } else if Blocked::Not != chat_id_blocked {
