@@ -71,7 +71,7 @@ pub fn dc_receive_imf(
     let mut incoming_origin = Origin::Unknown;
     let mut to_self = false;
     let mut from_id = 0u32;
-    let mut from_id_blocked = 0;
+    let mut from_id_blocked = false;
     let mut to_id = 0u32;
     let mut chat_id = 0;
     let mut hidden = false;
@@ -285,7 +285,7 @@ fn add_parts(
     rfc724_mid: &str,
     sent_timestamp: &mut i64,
     from_id: &mut u32,
-    from_id_blocked: i32,
+    from_id_blocked: bool,
     hidden: &mut bool,
     chat_id: &mut u32,
     to_id: &mut u32,
@@ -677,7 +677,7 @@ fn add_parts(
     if *chat_id == DC_CHAT_ID_TRASH {
         *create_event_to_send = None;
     } else if incoming && state == MessageState::InFresh {
-        if 0 != from_id_blocked {
+        if from_id_blocked {
             *create_event_to_send = None;
         } else if Blocked::Not != chat_id_blocked {
             *create_event_to_send = Some(CreateEvent::MsgsChanged);
