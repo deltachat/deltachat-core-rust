@@ -527,7 +527,7 @@ impl<'a> MimeParser<'a> {
         let filename = get_attachment_filename(mail);
         info!(
             self.context,
-            "add_single_part_if_known {:?} {:?} {:?}", mime_type, msg_type, filename
+            "add_single_part_if_known {:?} {:?}", mime_type, msg_type
         );
 
         let old_part_count = self.parts.len();
@@ -663,25 +663,6 @@ impl<'a> MimeParser<'a> {
         } else {
             false
         }
-    }
-
-    pub fn sender_equals_recipient(&self) -> bool {
-        /* get From: and check there is exactly one sender */
-        if let Some(field) = self.get(HeaderDef::From_) {
-            if let Ok(addrs) = mailparse::addrparse(field) {
-                if addrs.len() != 1 {
-                    return false;
-                }
-                if let mailparse::MailAddr::Single(ref info) = addrs[0] {
-                    let from_addr_norm = addr_normalize(&info.addr);
-                    let recipients = get_recipients(self.header.iter());
-                    if recipients.len() == 1 && recipients.contains(from_addr_norm) {
-                        return true;
-                    }
-                }
-            }
-        }
-        false
     }
 
     pub fn repl_msg_by_error(&mut self, error_msg: impl AsRef<str>) {

@@ -64,9 +64,6 @@ pub fn dc_receive_imf(
     // the function returns the number of created messages in the database
     let mut incoming = true;
     let mut incoming_origin = Origin::Unknown;
-    let mut to_self = false;
-    let mut from_id = 0u32;
-    let mut from_id_blocked = false;
     let mut to_id = 0u32;
     let mut chat_id = 0;
     let mut hidden = false;
@@ -114,34 +111,6 @@ pub fn dc_receive_imf(
         sent_timestamp = mailparse::dateparse(value).unwrap_or_default();
     }
 
-    // get From: and check if it is known (for known From:'s we add the other To:/Cc: in the 3rd pass)
-    // or if From: is equal to SELF (in this case, it is any outgoing messages,
-    // we do not check Return-Path any more as this is unreliable, see issue #150
-    if let Some(field_from) = mime_parser.get(HeaderDef::From_) {
-        let mut check_self = false;
-        let mut from_contact_ids = ContactIds::new();
-        dc_add_or_lookup_contacts_by_address_list(
-            context,
-            &field_from,
-            Origin::IncomingUnknownFrom,
-            &mut from_contact_ids,
-            &mut check_self,
-        )?;
-        if check_self {
-            incoming = false;
-            if mime_parser.sender_equals_recipient() {
-                from_id = DC_CONTACT_ID_SELF;
-            }
-        } else if !from_contact_ids.is_empty() {
-            from_id = from_contact_ids.get_index(0).cloned().unwrap_or_default();
-            incoming_origin = Contact::get_origin_by_id(context, from_id, &mut from_id_blocked)
-        } else {
-            // if there is no from given, from_id stays 0 which is just fine. These messages
-            // are very rare, however, we have to add them to the database (they go to the
-            // "deaddrop" chat) to avoid a re-download from the server. See also [**]
-        }
-    }
-
     // Make sure, to_ids starts with the first To:-address (Cc: is added in the loop below pass)
     if let Some(field) = mime_parser.get(HeaderDef::To) {
         dc_add_or_lookup_contacts_by_address_list(
@@ -155,9 +124,43 @@ pub fn dc_receive_imf(
                 Origin::IncomingUnknownTo
             },
             &mut to_ids,
-            &mut to_self,
         )?;
     }
+
+    // get From: (it can be an address list!) and check if it is known (for known From:'s we add 
+    // the other To:/Cc: in the 3rd pass)
+    // or if From: is equal to SELF (in this case, it is any outgoing messages,
+    // we do not check Return-Path any more as this is unreliable, see issue #150)
+    let mut from_id = 0;
+    let mut from_id_blocked = false;
+
+    if let Some(field_from) = mime_parser.get(HeaderDef::From_) {
+        let mut from_ids = ContactIds::new();
+        dc_add_or_lookup_contacts_by_address_list(
+            context,
+            &field_from,
+            Origin::IncomingUnknownFrom,
+            &mut from_ids,
+        )?;
+        if from_ids.len() > 1 {
+            warn!(context, "mail has more than one address in From: {:?}", field_from);
+        }
+        if from_ids.contains(&DC_CONTACT_ID_SELF) {
+            incoming = false;
+            if to_ids.len() == 1 && to_ids.contains(&DC_CONTACT_ID_SELF) {
+                from_id = DC_CONTACT_ID_SELF;
+            }
+        } else if !from_ids.is_empty() {
+            from_id = from_ids.get_index(0).cloned().unwrap_or_default();
+            incoming_origin = Contact::get_origin_by_id(context, from_id, &mut from_id_blocked)
+        } else {
+            warn!(context, "mail has an empty From header: {:?}", field_from);
+            // if there is no from given, from_id stays 0 which is just fine. These messages
+            // are very rare, however, we have to add them to the database (they go to the
+            // "deaddrop" chat) to avoid a re-download from the server. See also [**]
+        }
+    }
+
 
     // Add parts
 
@@ -170,13 +173,7 @@ pub fn dc_receive_imf(
             match dc_create_incoming_rfc724_mid(sent_timestamp, from_id, &to_ids) {
                 Some(x) => x,
                 None => {
-                    cleanup(
-                        context,
-                        &create_event_to_send,
-                        &created_db_entries,
-                        &rr_event_to_send,
-                    );
-                    bail!("could not create incoming rfc724_mid");
+                    bail!("No Message-Id found and could not create incoming rfc724_mid");
                 }
             }
         }
@@ -200,7 +197,6 @@ pub fn dc_receive_imf(
             &mut to_id,
             flags,
             &mut needs_delete_job,
-            to_self,
             &mut insert_msg_id,
             &mut created_db_entries,
             &mut create_event_to_send,
@@ -286,7 +282,6 @@ fn add_parts(
     to_id: &mut u32,
     flags: u32,
     needs_delete_job: &mut bool,
-    to_self: bool,
     insert_msg_id: &mut MsgId,
     created_db_entries: &mut Vec<(usize, MsgId)>,
     create_event_to_send: &mut Option<CreateEvent>,
@@ -314,7 +309,6 @@ fn add_parts(
                 Origin::IncomingUnknownCc
             },
             to_ids,
-            &mut false,
         )?;
     }
 
@@ -539,7 +533,11 @@ fn add_parts(
                 }
             }
         }
-        if *chat_id == 0 && to_ids.is_empty() && to_self {
+        let self_sent = *from_id == DC_CONTACT_ID_SELF 
+                        && to_ids.len() == 1 
+                        && to_ids.contains(&DC_CONTACT_ID_SELF);
+
+        if *chat_id == 0 && self_sent {
             // from_id==to_id==DC_CONTACT_ID_SELF - this is a self-sent messages,
             // maybe an Autocrypt Setup Messag
             let (id, bl) =
@@ -1579,7 +1577,6 @@ fn dc_add_or_lookup_contacts_by_address_list(
     addr_list_raw: &str,
     origin: Origin,
     to_ids: &mut ContactIds,
-    check_self: &mut bool,
 ) -> Result<()> {
     let addrs = match mailparse::addrparse(addr_list_raw) {
         Ok(addrs) => addrs,
@@ -1595,25 +1592,20 @@ fn dc_add_or_lookup_contacts_by_address_list(
     for addr in addrs.iter() {
         match addr {
             mailparse::MailAddr::Single(info) => {
-                let contact_id =
-                    add_or_lookup_contact_by_addr(context, &info.display_name, &info.addr, origin)?;
-                to_ids.insert(contact_id);
-                if contact_id == DC_CONTACT_ID_SELF {
-                    *check_self = true;
-                }
+                to_ids.insert(
+                    add_or_lookup_contact_by_addr(context, &info.display_name, &info.addr, origin)?
+                );
             }
             mailparse::MailAddr::Group(infos) => {
                 for info in &infos.addrs {
-                    let contact_id = add_or_lookup_contact_by_addr(
-                        context,
-                        &info.display_name,
-                        &info.addr,
-                        origin,
-                    )?;
-                    to_ids.insert(contact_id);
-                    if contact_id == DC_CONTACT_ID_SELF {
-                        *check_self = true;
-                    }
+                    to_ids.insert(
+                        add_or_lookup_contact_by_addr(
+                            context,
+                            &info.display_name,
+                            &info.addr,
+                            origin,
+                        )?
+                    );
                 }
             }
         }
