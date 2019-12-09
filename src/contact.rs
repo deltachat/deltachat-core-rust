@@ -861,14 +861,14 @@ impl Contact {
             .unwrap_or_default() as usize
     }
 
-    pub fn get_origin_by_id(context: &Context, contact_id: u32, ret_blocked: &mut i32) -> Origin {
+    pub fn get_origin_by_id(context: &Context, contact_id: u32, ret_blocked: &mut bool) -> Origin {
         let mut ret = Origin::Unknown;
-        *ret_blocked = 0;
+        *ret_blocked = false;
 
         if let Ok(contact) = Contact::load_from_db(context, contact_id) {
             /* we could optimize this by loading only the needed fields */
             if contact.blocked {
-                *ret_blocked = 1;
+                *ret_blocked = true;
             } else {
                 ret = contact.origin;
             }
