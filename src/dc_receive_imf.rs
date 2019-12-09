@@ -792,7 +792,6 @@ fn create_or_lookup_group(
     to_ids: &ContactIds,
 ) -> Result<(u32, Blocked)> {
     let mut chat_id_blocked = Blocked::Not;
-    let to_ids_cnt = to_ids.len();
     let mut recreate_member_list = false;
     let mut send_EVENT_CHAT_MODIFIED = false;
     let mut X_MrRemoveFromGrp = None;
@@ -803,9 +802,9 @@ fn create_or_lookup_group(
 
     if mime_parser.is_system_message == SystemMessage::LocationStreamingEnabled {
         better_msg =
-            context.stock_system_msg(StockMessage::MsgLocationEnabled, "", "", from_id as u32)
+            context.stock_system_msg(StockMessage::MsgLocationEnabled, "", "", from_id as u32);
+        set_better_msg(mime_parser, &better_msg);
     }
-    set_better_msg(mime_parser, &better_msg);
 
     let mut grpid = "".to_string();
     if let Some(optional_field) = mime_parser.get(HeaderDef::ChatGroupId) {
@@ -840,6 +839,8 @@ fn create_or_lookup_group(
             }
         }
     }
+    // now we have a grpid that is non-empty
+    // but we might not know about this group
 
     let grpname = mime_parser.get(HeaderDef::ChatGroupName).cloned();
 
@@ -993,6 +994,18 @@ fn create_or_lookup_group(
         };
     }
 
+    // We have a valid chat_id > DC_CHAT_ID_LAST_SPECIAL.
+    //
+    // However, it's possible that we got a non-DC message
+    // and the user hit "reply" instead of "reply-all".
+    // We heuristically detect this case and show
+    // a placeholder-system-message to warn about this
+    // and refer to "message-info" to see the message.
+    // This is similar to how we show messages arriving
+    // in verified chat using an un-verified key or cleartext.
+
+    // XXX insert code in a different PR :)
+
     // execute group commands
     if X_MrAddToGrp.is_some() || X_MrRemoveFromGrp.is_some() {
         recreate_member_list = true;
@@ -1093,29 +1106,6 @@ fn create_or_lookup_group(
 
     if send_EVENT_CHAT_MODIFIED {
         context.call_cb(Event::ChatModified(chat_id));
-    }
-
-    // check the number of receivers -
-    // the only critical situation is if the user hits "Reply" instead
-    // of "Reply all" in a non-messenger-client */
-    if to_ids_cnt == 1
-        && !mime_parser.has_chat_version()
-        && chat::get_chat_contact_cnt(context, chat_id) > 3
-    {
-        // to_ids_cnt==1 may be "From: A, To: B, SELF" as SELF is not counted in to_ids_cnt.
-        // So everything up to 3 is no error.
-        create_or_lookup_adhoc_group(
-            context,
-            mime_parser,
-            allow_creation,
-            create_blocked,
-            from_id,
-            to_ids,
-        )
-        .map_err(|err| {
-            warn!(context, "could not create ad-hoc group: {:?}", err);
-            err
-        })?;
     }
     Ok((chat_id, chat_id_blocked))
 }
