@@ -190,6 +190,7 @@ impl<'a> MimeParser<'a> {
                 self.is_system_message = SystemMessage::LocationStreamingEnabled;
             }
         }
+
         if self.get(HeaderDef::ChatGroupImage).is_some() && !self.parts.is_empty() {
             let textpart = &self.parts[0];
             if textpart.typ == Viewtype::Text && self.parts.len() >= 2 {
@@ -200,25 +201,8 @@ impl<'a> MimeParser<'a> {
             }
         }
 
-        if let Some(header_value) = self.get(HeaderDef::ChatProfileImage) {
-            if header_value == "0" {
-                self.profile_image = ImageAction::Delete;
-            } else {
-                let mut i = 0;
-                while i != self.parts.len() {
-                    let part = &self.parts[i];
-                    if let Some(part_filename) = &part.org_filename {
-                        if part_filename == header_value {
-                            if let Some(blob) = part.param.get(Param::File) {
-                                self.profile_image = ImageAction::Change(blob.to_string());
-                                self.parts.remove(i);
-                            }
-                            break;
-                        }
-                    }
-                    i += 1;
-                }
-            }
+        if let Some(header_value) = self.get(HeaderDef::ChatProfileImage).cloned() {
+            self.profile_image = self.image_action_from_header(header_value);
         }
 
         if self.has_chat_version() && self.parts.len() == 2 {
@@ -350,6 +334,29 @@ impl<'a> MimeParser<'a> {
         }
 
         Ok(())
+    }
+
+    fn image_action_from_header(&mut self, header_value: String) -> ImageAction {
+        if header_value == "0" {
+            return ImageAction::Delete;
+        } else {
+            let mut i = 0;
+            while i != self.parts.len() {
+                let part = &mut self.parts[i];
+                if let Some(part_filename) = &part.org_filename {
+                    if part_filename == &header_value {
+                        if let Some(blob) = part.param.get(Param::File) {
+                            let res = ImageAction::Change(blob.to_string());
+                            self.parts.remove(i);
+                            return res;
+                        }
+                        break;
+                    }
+                }
+                i += 1;
+            }
+        }
+        ImageAction::None
     }
 
     pub fn get_last_nonmeta(&self) -> Option<&Part> {
