@@ -14,7 +14,6 @@ use crate::error::Result;
 use crate::events::Event;
 use crate::headerdef::HeaderDef;
 use crate::job::*;
-use crate::location;
 use crate::message::{self, MessageState, MsgId};
 use crate::mimeparser::*;
 use crate::param::*;
@@ -22,6 +21,7 @@ use crate::peerstate::*;
 use crate::securejoin::handle_securejoin_handshake;
 use crate::sql;
 use crate::stock::StockMessage;
+use crate::{contact, location};
 
 // IndexSet is like HashSet but maintains order of insertion
 type ContactIds = indexmap::IndexSet<u32>;
@@ -236,6 +236,19 @@ pub fn dc_receive_imf(
             insert_msg_id,
             hidden,
         );
+    }
+
+    if let Some(profile_image) = mime_parser.profile_image {
+        match contact::set_profile_image(&context, from_id, profile_image) {
+            Ok(()) => {
+                context.call_cb(Event::ChatModified(chat_id));
+                true
+            }
+            Err(err) => {
+                warn!(context, "reveive_imf cannot update profile image: {}", err);
+                false
+            }
+        };
     }
 
     // if we delete we don't need to try moving messages
