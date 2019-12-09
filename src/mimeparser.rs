@@ -193,7 +193,7 @@ impl<'a> MimeParser<'a> {
             }
         }
 
-        if let Some(header_value) = self.lookup_field("Chat-Profile-Image") {
+        if let Some(header_value) = self.get(HeaderDef::ChatProfileImage) {
             if header_value == "0" {
                 self.profile_image = Some(None);
             } else {
