@@ -962,6 +962,23 @@ fn set_block_contact(context: &Context, contact_id: u32, new_blocking: bool) {
     }
 }
 
+pub fn set_profile_image(
+    context: &Context,
+    contact_id: u32,
+    profile_image: Option<String>,
+) -> Result<()> {
+    // the given profile image is expected to be already in the blob directory
+    // as profile images can be set only by receiving messages, this should be always the case, however.
+    let mut contact = Contact::load_from_db(context, contact_id)?;
+    match profile_image {
+        Some(profile_image) => contact.param.set(Param::ProfileImage, profile_image),
+        None => contact.param.remove(Param::ProfileImage),
+    };
+    contact.update_param(context)?;
+    context.call_cb(Event::ContactsChanged(Some(contact_id)));
+    Ok(())
+}
+
 /// Normalize a name.
 ///
 /// - Remove quotes (come from some bad MUA implementations)
