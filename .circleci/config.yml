@@ -49,7 +49,6 @@ jobs:
       - run: rustup default $(cat rust-toolchain)
       - run: rustup component add --toolchain $(cat rust-toolchain) rustfmt
       - run: rustup component add --toolchain $(cat rust-toolchain) clippy-preview
-      - run: cargo update
       - run: cargo fetch
       - run: rustc +stable --version
       - run: rustc +$(cat rust-toolchain) --version
@@ -91,7 +90,6 @@ jobs:
             curl https://sh.rustup.rs -sSf | sh -s -- -y
       - run: rustup install $(cat rust-toolchain)
       - run: rustup default $(cat rust-toolchain)
-      - run: cargo update
       - run: cargo fetch
       - run:
           name: Test
