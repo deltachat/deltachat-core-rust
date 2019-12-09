@@ -74,7 +74,7 @@ pub fn dc_receive_imf(
     let mut from_id_blocked = 0;
     let mut to_id = 0u32;
     let mut chat_id = 0;
-    let mut hidden = 0;
+    let mut hidden = false;
 
     let mut needs_delete_job = false;
     let mut insert_msg_id = MsgId::new_unset();
@@ -286,7 +286,7 @@ fn add_parts(
     sent_timestamp: &mut i64,
     from_id: &mut u32,
     from_id_blocked: i32,
-    hidden: &mut i32,
+    hidden: &mut bool,
     chat_id: &mut u32,
     to_id: &mut u32,
     flags: u32,
@@ -380,7 +380,7 @@ fn add_parts(
             match handle_securejoin_handshake(context, mime_parser, *from_id) {
                 Ok(ret) => {
                     if ret.hide_this_msg {
-                        *hidden = 1;
+                        *hidden = true;
                         *needs_delete_job = ret.delete_this_msg;
                         state = MessageState::InSeen;
                     }
@@ -615,7 +615,7 @@ fn add_parts(
                     && icnt == 1
                     && (part.msg == "-location-" || part.msg.is_empty())
                 {
-                    *hidden = 1;
+                    *hidden = true;
                     if state == MessageState::InFresh {
                         state = MessageState::InNoticed;
                     }
@@ -695,7 +695,7 @@ fn save_locations(
     chat_id: u32,
     from_id: u32,
     insert_msg_id: MsgId,
-    hidden: i32,
+    hidden: bool,
 ) {
     if chat_id <= DC_CHAT_ID_LAST_SPECIAL {
         return;
@@ -708,7 +708,7 @@ fn save_locations(
         let newest_location_id =
             location::save(context, chat_id, from_id, locations, true).unwrap_or_default();
         if 0 != newest_location_id
-            && 0 == hidden
+            && !hidden
             && location::set_msg_location_id(context, insert_msg_id, newest_location_id).is_ok()
         {
             location_id_written = true;
@@ -724,7 +724,7 @@ fn save_locations(
                     let newest_location_id =
                         location::save(context, chat_id, from_id, locations, false)
                             .unwrap_or_default();
-                    if newest_location_id != 0 && hidden == 0 && !location_id_written {
+                    if newest_location_id != 0 && !hidden && !location_id_written {
                         if let Err(err) = location::set_msg_location_id(
                             context,
                             insert_msg_id,
