@@ -632,6 +632,9 @@ class TestOnlineAccount:
     def test_send_and_receive_message_markseen(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
 
+        # make DC's life harder wrt to encodings
+        ac1.set_config("displayname", "ä name")
+
         lp.sec("ac1: create chat with ac2")
         chat = self.get_chat(ac1, ac2)
 
