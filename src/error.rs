@@ -28,12 +28,14 @@ pub enum Error {
     InvalidMsgId,
     #[fail(display = "Watch folder not found {:?}", _0)]
     WatchFolderNotFound(String),
-    #[fail(display = "Inalid Email: {:?}", _0)]
+    #[fail(display = "Invalid Email: {:?}", _0)]
     MailParseError(#[cause] mailparse::MailParseError),
     #[fail(display = "Building invalid Email: {:?}", _0)]
     LettreError(#[cause] lettre_email::error::Error),
     #[fail(display = "FromStr error: {:?}", _0)]
     FromStr(#[cause] mime::FromStrError),
+    #[fail(display = "Not Configured")]
+    NotConfigured,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

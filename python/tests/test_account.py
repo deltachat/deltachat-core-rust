@@ -399,6 +399,7 @@ class TestOfflineChat:
         chat.remove_contact(contacts[3])
         assert len(chat.get_contacts()) == 9
 
+
 class TestOnlineAccount:
     def get_chat(self, ac1, ac2, both_created=False):
         c2 = ac1.create_contact(email=ac2.get_config("addr"))
@@ -1111,8 +1112,12 @@ class TestGroupStressTests:
         assert len(msg.chat.get_contacts()) == 4
 
         lp.sec("ac1: removing one contacts and checking things are right")
-        msg.chat.remove_contact(msg.chat.get_contacts()[-1])
-        assert 0
+        to_remove = msg.chat.get_contacts()[-1]
+        msg.chat.remove_contact(to_remove)
+
+        sysmsg = ac1.wait_next_incoming_message()
+        assert to_remove.addr in sysmsg.text
+        assert len(sysmsg.chat.get_contacts()) == 3
 
 
 class TestOnlineConfigureFails:

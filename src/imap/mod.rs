@@ -713,7 +713,17 @@ impl Imap {
 
             if !is_deleted && msg.body().is_some() {
                 let body = msg.body().unwrap_or_default();
-                dc_receive_imf(context, &body, folder.as_ref(), server_uid, flags as u32);
+                if let Err(err) =
+                    dc_receive_imf(context, &body, folder.as_ref(), server_uid, flags as u32)
+                {
+                    warn!(
+                        context,
+                        "dc_receive_imf failed for imap-message {}/{}: {:?}",
+                        folder.as_ref(),
+                        server_uid,
+                        err
+                    );
+                }
             }
         }
 

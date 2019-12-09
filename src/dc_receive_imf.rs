@@ -23,6 +23,9 @@ use crate::securejoin::handle_securejoin_handshake;
 use crate::sql;
 use crate::stock::StockMessage;
 
+// IndexSet is like HashSet but maintains order of insertion
+type ContactIds = indexmap::IndexSet<u32>;
+
 #[derive(Debug, PartialEq, Eq)]
 enum CreateEvent {
     MsgsChanged,
@@ -36,7 +39,7 @@ pub fn dc_receive_imf(
     server_folder: impl AsRef<str>,
     server_uid: u32,
     flags: u32,
-) {
+) -> Result<()> {
     info!(
         context,
         "Receiving message {}/{}...",
@@ -53,19 +56,10 @@ pub fn dc_receive_imf(
         println!("{}", String::from_utf8_lossy(imf_raw));
     }
 
-    let mime_parser = MimeParser::from_bytes(context, imf_raw);
-    let mut mime_parser = if let Err(err) = mime_parser {
-        warn!(context, "dc_receive_imf parse error: {}", err);
-        return;
-    } else {
-        mime_parser.unwrap()
-    };
+    let mut mime_parser = MimeParser::from_bytes(context, imf_raw)?;
 
-    if mime_parser.get(HeaderDef::From_).is_none() {
-        // Error - even adding an empty record won't help as we do not know the sender
-        warn!(context, "No From header.");
-        return;
-    }
+    // we can not add even an empty record if we have no info whatsoever
+    ensure!(mime_parser.has_headers(), "No Headers Found");
 
     // the function returns the number of created messages in the database
     let mut incoming = true;
@@ -85,7 +79,7 @@ pub fn dc_receive_imf(
     let mut create_event_to_send = Some(CreateEvent::MsgsChanged);
     let mut rr_event_to_send = Vec::new();
 
-    let mut to_ids = Vec::with_capacity(16);
+    let mut to_ids = ContactIds::new();
 
     // helper method to handle early exit and memory cleanup
     let cleanup = |context: &Context,
@@ -125,25 +119,26 @@ pub fn dc_receive_imf(
     // we do not check Return-Path any more as this is unreliable, see issue #150
     if let Some(field_from) = mime_parser.get(HeaderDef::From_) {
         let mut check_self = false;
-        let mut from_list = Vec::with_capacity(16);
+        let mut from_contact_ids = ContactIds::new();
         dc_add_or_lookup_contacts_by_address_list(
             context,
             &field_from,
             Origin::IncomingUnknownFrom,
-            &mut from_list,
+            &mut from_contact_ids,
             &mut check_self,
-        );
+        )?;
         if check_self {
             incoming = false;
             if mime_parser.sender_equals_recipient() {
                 from_id = DC_CONTACT_ID_SELF;
             }
-        } else if !from_list.is_empty() {
+        } else if !from_contact_ids.is_empty() {
+            from_id = from_contact_ids.get_index(0).cloned().unwrap_or_default();
+            incoming_origin = Contact::get_origin_by_id(context, from_id, &mut from_id_blocked)
+        } else {
             // if there is no from given, from_id stays 0 which is just fine. These messages
             // are very rare, however, we have to add them to the database (they go to the
             // "deaddrop" chat) to avoid a re-download from the server. See also [**]
-            from_id = from_list[0];
-            incoming_origin = Contact::get_origin_by_id(context, from_id, &mut from_id_blocked)
         }
     }
 
@@ -161,7 +156,7 @@ pub fn dc_receive_imf(
             },
             &mut to_ids,
             &mut to_self,
-        );
+        )?;
     }
 
     // Add parts
@@ -175,14 +170,13 @@ pub fn dc_receive_imf(
             match dc_create_incoming_rfc724_mid(sent_timestamp, from_id, &to_ids) {
                 Some(x) => x,
                 None => {
-                    error!(context, "can not create incoming rfc724_mid");
                     cleanup(
                         context,
                         &create_event_to_send,
                         &created_db_entries,
                         &rr_event_to_send,
                     );
-                    return;
+                    bail!("could not create incoming rfc724_mid");
                 }
             }
         }
@@ -211,15 +205,13 @@ pub fn dc_receive_imf(
             &mut created_db_entries,
             &mut create_event_to_send,
         ) {
-            warn!(context, "add_parts error: {:?}", err);
-
             cleanup(
                 context,
                 &create_event_to_send,
                 &created_db_entries,
                 &rr_event_to_send,
             );
-            return;
+            bail!("add_parts error: {:?}", err);
         }
     } else {
         // there are no non-meta data in message, do some basic calculations so that the varaiables
@@ -272,6 +264,8 @@ pub fn dc_receive_imf(
         &created_db_entries,
         &rr_event_to_send,
     );
+
+    Ok(())
 }
 
 fn add_parts(
@@ -282,7 +276,7 @@ fn add_parts(
     incoming_origin: &mut Origin,
     server_folder: impl AsRef<str>,
     server_uid: u32,
-    to_ids: &mut Vec<u32>,
+    to_ids: &mut ContactIds,
     rfc724_mid: &str,
     sent_timestamp: &mut i64,
     from_id: &mut u32,
@@ -321,7 +315,7 @@ fn add_parts(
             },
             to_ids,
             &mut false,
-        );
+        )?;
     }
 
     // check, if the mail is already in our database - if so, just update the folder/uid
@@ -506,7 +500,7 @@ fn add_parts(
         state = MessageState::OutDelivered;
         *from_id = DC_CONTACT_ID_SELF;
         if !to_ids.is_empty() {
-            *to_id = to_ids[0];
+            *to_id = to_ids.get_index(0).cloned().unwrap_or_default();
             if *chat_id == 0 {
                 let (new_chat_id, new_chat_id_blocked) = create_or_lookup_group(
                     context,
@@ -795,7 +789,7 @@ fn create_or_lookup_group(
     allow_creation: bool,
     create_blocked: Blocked,
     from_id: u32,
-    to_ids: &[u32],
+    to_ids: &ContactIds,
 ) -> Result<(u32, Blocked)> {
     let mut chat_id_blocked = Blocked::Not;
     let to_ids_cnt = to_ids.len();
@@ -1147,7 +1141,7 @@ fn create_or_lookup_adhoc_group(
     allow_creation: bool,
     create_blocked: Blocked,
     from_id: u32,
-    to_ids: &[u32],
+    to_ids: &ContactIds,
 ) -> Result<(u32, Blocked)> {
     // if we're here, no grpid was found, check if there is an existing
     // ad-hoc group matching the to-list or if we should and can create one
@@ -1163,7 +1157,7 @@ fn create_or_lookup_adhoc_group(
         return Ok((0, Blocked::Not));
     }
 
-    let mut member_ids = to_ids.to_vec();
+    let mut member_ids: Vec<u32> = to_ids.iter().copied().collect();
     if !member_ids.contains(&from_id) {
         member_ids.push(from_id);
     }
@@ -1382,7 +1376,7 @@ fn check_verified_properties(
     context: &Context,
     mimeparser: &MimeParser,
     from_id: u32,
-    to_ids: &[u32],
+    to_ids: &ContactIds,
 ) -> Result<()> {
     let contact = Contact::load_from_db(context, from_id)?;
 
@@ -1584,41 +1578,48 @@ fn dc_add_or_lookup_contacts_by_address_list(
     context: &Context,
     addr_list_raw: &str,
     origin: Origin,
-    ids: &mut Vec<u32>,
+    to_ids: &mut ContactIds,
     check_self: &mut bool,
-) {
-    let addrs = mailparse::addrparse(addr_list_raw);
-    if addrs.is_err() {
-        return;
-    }
-    info!(context, "dc_add_or_lookup_contacts_by_address-list={:?}", addr_list_raw);
-    info!(context, "addrs={:?}", addrs);
-    for addr in addrs.unwrap().iter() {
+) -> Result<()> {
+    let addrs = match mailparse::addrparse(addr_list_raw) {
+        Ok(addrs) => addrs,
+        Err(err) => {
+            bail!("could not parse {:?}: {:?}", addr_list_raw, err);
+        }
+    };
+
+    info!(
+        context,
+        "dc_add_or_lookup_contacts_by_address raw={:?} addrs={:?}", addr_list_raw, addrs
+    );
+    for addr in addrs.iter() {
         match addr {
             mailparse::MailAddr::Single(info) => {
-                add_or_lookup_contact_by_addr(
-                    context,
-                    &info.display_name,
-                    &info.addr,
-                    origin,
-                    ids,
-                    check_self,
-                );
+                let contact_id =
+                    add_or_lookup_contact_by_addr(context, &info.display_name, &info.addr, origin)?;
+                to_ids.insert(contact_id);
+                if contact_id == DC_CONTACT_ID_SELF {
+                    *check_self = true;
+                }
             }
             mailparse::MailAddr::Group(infos) => {
                 for info in &infos.addrs {
-                    add_or_lookup_contact_by_addr(
+                    let contact_id = add_or_lookup_contact_by_addr(
                         context,
                         &info.display_name,
                         &info.addr,
                         origin,
-                        ids,
-                        check_self,
-                    );
+                    )?;
+                    to_ids.insert(contact_id);
+                    if contact_id == DC_CONTACT_ID_SELF {
+                        *check_self = true;
+                    }
                 }
             }
         }
     }
+
+    Ok(())
 }
 
 /// Add contacts to database on receiving messages.
@@ -1627,23 +1628,10 @@ fn add_or_lookup_contact_by_addr(
     display_name: &Option<String>,
     addr: &str,
     origin: Origin,
-    ids: &mut Vec<u32>,
-    check_self: &mut bool,
-) {
-    // is addr_spec equal to SELF?
-    let self_addr = context
-        .get_config(Config::ConfiguredAddr)
-        .unwrap_or_default();
-
-    if addr_cmp(self_addr, addr) {
-        *check_self = true;
+) -> Result<u32> {
+    if context.is_self_addr(addr)? {
+        return Ok(DC_CONTACT_ID_SELF);
     }
-
-    /*
-    if *check_self {
-        return;
-    }
-    */
 
     // add addr_spec if missing, update otherwise
     let display_name_normalized = display_name
@@ -1652,14 +1640,31 @@ fn add_or_lookup_contact_by_addr(
         .unwrap_or_default();
 
     // can be NULL
-    info!(context, "looking up addr={:?} display_name={:?}", addr, display_name_normalized);
-    let row_id = Contact::add_or_lookup(context, display_name_normalized, addr, origin)
-        .map(|(id, _)| id)
-        .unwrap_or_default();
+    info!(
+        context,
+        "looking up addr={:?} display_name={:?}", addr, display_name_normalized
+    );
+    let (row_id, _modified) =
+        Contact::add_or_lookup(context, display_name_normalized, addr, origin)?;
+    ensure!(row_id > 0, "could not add contact: {:?}", addr);
 
-    if 0 != row_id && !ids.contains(&row_id) {
-        ids.push(row_id);
-    };
+    Ok(row_id)
+}
+
+fn dc_create_incoming_rfc724_mid(
+    message_timestamp: i64,
+    contact_id_from: u32,
+    contact_ids_to: &ContactIds,
+) -> Option<String> {
+    /* create a deterministic rfc724_mid from input such that
+    repeatedly calling it with the same input results in the same Message-id */
+
+    let largest_id_to = contact_ids_to.iter().max().copied().unwrap_or_default();
+    let result = format!(
+        "{}-{}-{}@stub",
+        message_timestamp, contact_id_from, largest_id_to
+    );
+    Some(result)
 }
 
 #[cfg(test)]
@@ -1703,5 +1708,25 @@ mod tests {
         let grpid = Some("HcxyMARjyJy".to_string());
         assert_eq!(extract_grpid(&mimeparser, HeaderDef::InReplyTo), grpid);
         assert_eq!(extract_grpid(&mimeparser, HeaderDef::References), grpid);
+    }
+
+    #[test]
+    fn test_dc_create_incoming_rfc724_mid() {
+        let mut members = ContactIds::new();
+        assert_eq!(
+            dc_create_incoming_rfc724_mid(123, 45, &members),
+            Some("123-45-0@stub".into())
+        );
+        members.insert(7);
+        members.insert(3);
+        assert_eq!(
+            dc_create_incoming_rfc724_mid(123, 45, &members),
+            Some("123-45-7@stub".into())
+        );
+        members.insert(9);
+        assert_eq!(
+            dc_create_incoming_rfc724_mid(123, 45, &members),
+            Some("123-45-9@stub".into())
+        );
     }
 }

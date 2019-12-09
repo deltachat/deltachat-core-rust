@@ -394,7 +394,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                 to.push(Address::new_mailbox(addr.clone()));
             } else {
                 to.push(Address::new_mailbox_with_name(
-                    name.to_string(), 
+                    name.to_string(),
                     addr.clone(),
                 ));
             }

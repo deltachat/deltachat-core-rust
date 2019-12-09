@@ -338,6 +338,10 @@ impl<'a> MimeParser<'a> {
         self.header.contains_key("chat-version")
     }
 
+    pub(crate) fn has_headers(&self) -> bool {
+        !self.header.is_empty()
+    }
+
     pub(crate) fn get_subject(&self) -> Option<String> {
         if let Some(s) = self.get(HeaderDef::Subject) {
             if s.is_empty() {
