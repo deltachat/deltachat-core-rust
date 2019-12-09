@@ -382,7 +382,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let mut unprotected_headers: Vec<Header> = Vec::new();
 
         let from = Address::new_mailbox_with_name(
-            encode_words(&self.from_displayname),
+            self.from_displayname.to_string(),
             self.from_addr.clone(),
         );
 
@@ -394,7 +394,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                 to.push(Address::new_mailbox(addr.clone()));
             } else {
                 to.push(Address::new_mailbox_with_name(
-                    encode_words(name),
+                    name.to_string(), 
                     addr.clone(),
                 ));
             }

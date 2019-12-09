@@ -1086,6 +1086,7 @@ fn create_or_lookup_group(
             chat::add_to_chat_contacts_table(context, chat_id, from_id as u32);
         }
         for &to_id in to_ids.iter() {
+            info!(context, "adding to={:?} to chat id={}", to_id, chat_id);
             if !Contact::addr_equals_contact(context, &self_addr, to_id)
                 && (skip.is_none() || !Contact::addr_equals_contact(context, skip.unwrap(), to_id))
             {
@@ -1590,6 +1591,8 @@ fn dc_add_or_lookup_contacts_by_address_list(
     if addrs.is_err() {
         return;
     }
+    info!(context, "dc_add_or_lookup_contacts_by_address-list={:?}", addr_list_raw);
+    info!(context, "addrs={:?}", addrs);
     for addr in addrs.unwrap().iter() {
         match addr {
             mailparse::MailAddr::Single(info) => {
@@ -1636,9 +1639,11 @@ fn add_or_lookup_contact_by_addr(
         *check_self = true;
     }
 
+    /*
     if *check_self {
         return;
     }
+    */
 
     // add addr_spec if missing, update otherwise
     let display_name_normalized = display_name
@@ -1647,6 +1652,7 @@ fn add_or_lookup_contact_by_addr(
         .unwrap_or_default();
 
     // can be NULL
+    info!(context, "looking up addr={:?} display_name={:?}", addr, display_name_normalized);
     let row_id = Contact::add_or_lookup(context, display_name_normalized, addr, origin)
         .map(|(id, _)| id)
         .unwrap_or_default();
