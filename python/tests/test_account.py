@@ -382,6 +382,23 @@ class TestOfflineChat:
         assert not res.is_ask_verifygroup()
         assert res.contact_id == 10
 
+    def test_group_chat_many_members_add_remove(self, ac1, lp):
+        lp.sec("ac1: creating group chat with 10 other members")
+        chat = ac1.create_group_chat(name="title1")
+        contacts = []
+        for i in range(10):
+            contact = ac1.create_contact("some{}@example.org".format(i))
+            contacts.append(contact)
+            chat.add_contact(contact)
+
+        num_contacts = len(chat.get_contacts())
+        assert num_contacts == 11
+
+        lp.sec("ac1: removing two contacts and checking things are right")
+        chat.remove_contact(contacts[9])
+        chat.remove_contact(contacts[3])
+        assert len(chat.get_contacts()) == 9
+
 
 class TestOnlineAccount:
     def get_chat(self, ac1, ac2, both_created=False):
@@ -615,6 +632,9 @@ class TestOnlineAccount:
     def test_send_and_receive_message_markseen(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
 
+        # make DC's life harder wrt to encodings
+        ac1.set_config("displayname", "ä name")
+
         lp.sec("ac1: create chat with ac2")
         chat = self.get_chat(ac1, ac2)
 
@@ -632,6 +652,7 @@ class TestOnlineAccount:
         msg_in = ac2.get_message_by_id(msg_out.id)
         assert msg_in.text == "message1"
         assert not msg_in.is_forwarded()
+        assert msg_in.get_sender_contact().display_name == ac1.get_config("displayname")
 
         lp.sec("check the message arrived in contact-requets/deaddrop")
         chat2 = msg_in.chat
@@ -1055,6 +1076,52 @@ class TestOnlineAccount:
         contact = ac2.create_contact("nonexisting@example.org")
         locations3 = chat2.get_locations(contact=contact)
         assert not locations3
+
+
+class TestGroupStressTests:
+    def test_group_many_members_add_leave_remove(self, acfactory, lp):
+        lp.sec("creating and configuring five accounts")
+        ac1 = acfactory.get_online_configuring_account()
+        accounts = [acfactory.get_online_configuring_account() for i in range(3)]
+        wait_configuration_progress(ac1, 1000)
+        for acc in accounts:
+            wait_configuration_progress(acc, 1000)
+
+        lp.sec("ac1: creating group chat with 3 other members")
+        chat = ac1.create_group_chat("title1")
+        contacts = []
+        chars = list("äöüsr")
+        for acc in accounts:
+            contact = ac1.create_contact(acc.get_config("addr"), name=chars.pop())
+            contacts.append(contact)
+            chat.add_contact(contact)
+            # make sure the other side accepts our messages
+            c1 = acc.create_contact(ac1.get_config("addr"), "ä member")
+            acc.create_chat_by_contact(c1)
+
+        assert not chat.is_promoted()
+
+        lp.sec("ac1: send mesage to new group chat")
+        chat.send_text("hello")
+        assert chat.is_promoted()
+
+        num_contacts = len(chat.get_contacts())
+        assert num_contacts == 3 + 1
+
+        lp.sec("ac2: checking that the chat arrived correctly")
+        ac2 = accounts[0]
+        msg = ac2.wait_next_incoming_message()
+        assert msg.text == "hello"
+        print("chat is", msg.chat)
+        assert len(msg.chat.get_contacts()) == 4
+
+        lp.sec("ac1: removing one contacts and checking things are right")
+        to_remove = msg.chat.get_contacts()[-1]
+        msg.chat.remove_contact(to_remove)
+
+        sysmsg = ac1.wait_next_incoming_message()
+        assert to_remove.addr in sysmsg.text
+        assert len(sysmsg.chat.get_contacts()) == 3
 
 
 class TestOnlineConfigureFails:

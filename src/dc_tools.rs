@@ -182,22 +182,6 @@ fn encode_66bits_as_base64(v1: u32, v2: u32, fill: u32) -> String {
     String::from_utf8(wrapped_writer).unwrap()
 }
 
-pub(crate) fn dc_create_incoming_rfc724_mid(
-    message_timestamp: i64,
-    contact_id_from: u32,
-    contact_ids_to: &[u32],
-) -> Option<String> {
-    /* create a deterministic rfc724_mid from input such that
-    repeatedly calling it with the same input results in the same Message-id */
-
-    let largest_id_to = contact_ids_to.iter().max().copied().unwrap_or_default();
-    let result = format!(
-        "{}-{}-{}@stub",
-        message_timestamp, contact_id_from, largest_id_to
-    );
-    Some(result)
-}
-
 /// Function generates a Message-ID that can be used for a new outgoing message.
 /// - this function is called for all outgoing messages.
 /// - the message ID should be globally unique
@@ -778,14 +762,6 @@ mod tests {
                 }
             }
         }
-    }
-
-    #[test]
-    fn test_dc_create_incoming_rfc724_mid() {
-        let res = dc_create_incoming_rfc724_mid(123, 45, &[6, 7]);
-        assert_eq!(res, Some("123-45-7@stub".into()));
-        let res = dc_create_incoming_rfc724_mid(123, 45, &[]);
-        assert_eq!(res, Some("123-45-0@stub".into()));
     }
 
     #[test]

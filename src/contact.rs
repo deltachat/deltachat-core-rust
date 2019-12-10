@@ -10,7 +10,7 @@ use crate::constants::*;
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::e2ee;
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::events::Event;
 use crate::key::*;
 use crate::login_param::LoginParam;
@@ -1021,20 +1021,23 @@ fn cat_fingerprint(
     }
 }
 
+impl Context {
+    /// determine whether the specified addr maps to the/a self addr
+    pub fn is_self_addr(&self, addr: &str) -> Result<bool> {
+        let self_addr = match self.get_config(Config::ConfiguredAddr) {
+            Some(s) => s,
+            None => return Err(Error::NotConfigured),
+        };
+
+        Ok(addr_cmp(self_addr, addr))
+    }
+}
+
 pub fn addr_cmp(addr1: impl AsRef<str>, addr2: impl AsRef<str>) -> bool {
     let norm1 = addr_normalize(addr1.as_ref()).to_lowercase();
     let norm2 = addr_normalize(addr2.as_ref()).to_lowercase();
 
     norm1 == norm2
-}
-
-pub fn addr_equals_self(context: &Context, addr: impl AsRef<str>) -> bool {
-    if !addr.as_ref().is_empty() {
-        if let Some(self_addr) = context.get_config(Config::ConfiguredAddr) {
-            return addr_cmp(addr, self_addr);
-        }
-    }
-    false
 }
 
 fn split_address_book(book: &str) -> Vec<(&str, &str)> {
@@ -1118,6 +1121,18 @@ mod tests {
 
         let contacts = Contact::get_all(&context.ctx, 0, Some("alice")).unwrap();
         assert_eq!(contacts.len(), 0);
+    }
+
+    #[test]
+    fn test_is_self_addr() -> Result<()> {
+        let t = test_context(None);
+        assert!(t.ctx.is_self_addr("me@me.org").is_err());
+
+        let addr = configure_alice_keypair(&t.ctx);
+        assert_eq!(t.ctx.is_self_addr("me@me.org")?, false);
+        assert_eq!(t.ctx.is_self_addr(&addr)?, true);
+
+        Ok(())
     }
 
     #[test]

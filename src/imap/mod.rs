@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use async_imap::{
     error::Result as ImapResult,
-    types::{Fetch, Flag, Mailbox, Name, NameAttribute},
+    types::{Capability, Fetch, Flag, Mailbox, Name, NameAttribute},
 };
 use async_std::sync::{Mutex, RwLock};
 use async_std::task;
@@ -389,9 +389,14 @@ impl Imap {
                         } else {
                             let can_idle = caps.has_str("IDLE");
                             let has_xlist = caps.has_str("XLIST");
-                            let caps_list = caps
-                                .iter()
-                                .fold(String::new(), |s, c| s + &format!(" {:?}", c));
+                            let caps_list = caps.iter().fold(String::new(), |s, c| {
+                                if let Capability::Atom(x) = c {
+                                    s + &format!(" {}", x)
+                                } else {
+                                    s + &format!(" {:?}", c)
+                                }
+                            });
+
                             self.config.write().await.can_idle = can_idle;
                             self.config.write().await.has_xlist = has_xlist;
                             *self.connected.lock().await = true;
@@ -713,7 +718,17 @@ impl Imap {
 
             if !is_deleted && msg.body().is_some() {
                 let body = msg.body().unwrap_or_default();
-                dc_receive_imf(context, &body, folder.as_ref(), server_uid, flags as u32);
+                if let Err(err) =
+                    dc_receive_imf(context, &body, folder.as_ref(), server_uid, flags as u32)
+                {
+                    warn!(
+                        context,
+                        "dc_receive_imf failed for imap-message {}/{}: {:?}",
+                        folder.as_ref(),
+                        server_uid,
+                        err
+                    );
+                }
             }
         }
 

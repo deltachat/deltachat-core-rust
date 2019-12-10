@@ -382,7 +382,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let mut unprotected_headers: Vec<Header> = Vec::new();
 
         let from = Address::new_mailbox_with_name(
-            encode_words(&self.from_displayname),
+            self.from_displayname.to_string(),
             self.from_addr.clone(),
         );
 
@@ -394,7 +394,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                 to.push(Address::new_mailbox(addr.clone()));
             } else {
                 to.push(Address::new_mailbox_with_name(
-                    encode_words(name),
+                    name.to_string(),
                     addr.clone(),
                 ));
             }
@@ -1050,4 +1050,26 @@ pub fn needs_encoding(to_check: impl AsRef<str>) -> bool {
     to_check.chars().any(|c| {
         !c.is_ascii_alphanumeric() && c != '-' && c != '_' && c != '.' && c != '~' && c != '%'
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_render_email_address() {
+        let display_name = "ä space";
+        let addr = "x@y.org";
+
+        assert!(!display_name.is_ascii());
+
+        let s = format!(
+            "{}",
+            Address::new_mailbox_with_name(display_name.to_string(), addr.to_string())
+        );
+
+        println!("{}", s);
+
+        assert_eq!(s, "=?utf-8?q?=C3=A4_space?= <x@y.org>");
+    }
 }

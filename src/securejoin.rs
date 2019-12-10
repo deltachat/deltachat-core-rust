@@ -604,7 +604,7 @@ pub(crate) fn handle_securejoin_handshake(
                 .get(HeaderDef::ChatGroupMemberAdded)
                 .map(|s| s.as_str())
                 .unwrap_or_else(|| "");
-            if join_vg && !addr_equals_self(context, cg_member_added) {
+            if join_vg && !context.is_self_addr(cg_member_added)? {
                 info!(context, "Message belongs to a different handshake (scaled up contact anyway to allow creation of group).");
                 return Ok(ret);
             }
