@@ -288,7 +288,7 @@ to add a `Chat-Group-Image` only on image changes.
 
 # Set profile image
 
-A user MAY have a profile-image that MAY be spread to his contacts.
+A user MAY have a profile-image that MAY be spread to their contacts.
 To change or set the profile-image,
 the messenger MUST attach an image file to a message
 and MUST add the header `Chat-Profile-Image`
