@@ -2403,4 +2403,25 @@ mod tests {
             "bar"
         );
     }
+
+    #[test]
+    fn test_create_same_chat_twice() {
+        let context = dummy_context();
+        let contact1 = Contact::create(&context.ctx, "bob", "bob@mail.de").unwrap();
+        assert_ne!(contact1, 0);
+
+        let chat_id = create_by_contact_id(&context.ctx, contact1).unwrap();
+        assert!(
+            chat_id > DC_CHAT_ID_LAST_SPECIAL,
+            "chat_id too small {}",
+            chat_id
+        );
+        let chat = Chat::load_from_db(&context.ctx, chat_id).unwrap();
+
+        let chat2_id = create_by_contact_id(&context.ctx, contact1).unwrap();
+        assert_eq!(chat2_id, chat_id);
+        let chat2 = Chat::load_from_db(&context.ctx, chat2_id).unwrap();
+
+        assert_eq!(chat2.name, chat.name);
+    }
 }
