@@ -477,7 +477,16 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             Loaded::MDN => dc_create_outgoing_rfc724_mid(None, &self.from_addr),
         };
 
-        protected_headers.push(Header::new("Message-ID".into(), rfc724_mid.clone()));
+        // we could also store the message-id in the protected headers
+        // which would probably help to survive providers like
+        // Outlook.com or hotmail which mangle the Message-ID.
+        // but they also strip the Autocrypt header so we probably
+        // never get a chance to tunnel our protected headers in a
+        // cryptographic payload.
+        unprotected_headers.push(Header::new(
+            "Message-ID".into(),
+            render_rfc724_mid(&rfc724_mid),
+        ));
 
         unprotected_headers.push(Header::new_with_value("To".into(), to).unwrap());
         unprotected_headers.push(Header::new_with_value("From".into(), vec![from]).unwrap());
@@ -1032,6 +1041,16 @@ fn is_file_size_okay(context: &Context, msg: &Message) -> bool {
     }
 }
 
+fn render_rfc724_mid(rfc724_mid: &str) -> String {
+    let rfc724_mid = rfc724_mid.trim().to_string();
+
+    if rfc724_mid.chars().nth(0).unwrap_or_default() == '<' {
+        rfc724_mid.to_string()
+    } else {
+        format!("<{}>", rfc724_mid).to_string()
+    }
+}
+
 /* ******************************************************************************
  * Encode/decode header words, RFC 2047
  ******************************************************************************/
@@ -1071,5 +1090,21 @@ mod tests {
         println!("{}", s);
 
         assert_eq!(s, "=?utf-8?q?=C3=A4_space?= <x@y.org>");
+    }
+
+    #[test]
+    fn test_render_rfc724_mid() {
+        assert_eq!(
+            render_rfc724_mid("kqjwle123@qlwe"),
+            "<kqjwle123@qlwe>".to_string()
+        );
+        assert_eq!(
+            render_rfc724_mid("  kqjwle123@qlwe "),
+            "<kqjwle123@qlwe>".to_string()
+        );
+        assert_eq!(
+            render_rfc724_mid("<kqjwle123@qlwe>"),
+            "<kqjwle123@qlwe>".to_string()
+        );
     }
 }
