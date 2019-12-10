@@ -310,9 +310,8 @@ impl Chat {
                         self.id
                     );
                 }
-            } else if self.typ == Chattype::Group
-                || self.typ == Chattype::VerifiedGroup
-                    && self.param.get_int(Param::Unpromoted).unwrap_or_default() == 1
+            } else if (self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup)
+                && self.param.get_int(Param::Unpromoted).unwrap_or_default() == 1
             {
                 msg.param.set_int(Param::AttachGroupImage, 1);
                 self.param.remove(Param::Unpromoted);
