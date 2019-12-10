@@ -1,8 +1,32 @@
 # Changelog 
 
-## next (pending)
+## 1.0.0-beta.13
 
-- restructured (but not change) imap idle handling into own file. cc @link2xt
+- fix #976 -- unicode-issues in display-name of email addresses. @hpk42
+
+- fix #985 group add/remove member bugs resulting in broken groups.  @hpk42
+
+- fix hanging IMAP connections -- we now detect with a 15second timeout
+  if we cannot terminate the IDLE IMAP protocol. @hpk42 @link2xt
+
+- fix incoming multipart/mixed containing html, to show up as
+  attachments again.  Fixes usage for simplebot which sends html
+  files for users to interact with the bot. @adbenitez @hpk42 
+
+- refinements to internal autocrypt-handling code, do not send
+  prefer-encrypt=nopreference as it is the default if no attribute
+  is present.  @linkxt 
+
+- simplify, modularize and rustify several parts 
+  of dc-core (general WIP). @link2xt @flub @hpk42 @r10s
+
+- use async-email/async-smtp to handle SMTP connections, might
+  fix connection/reconnection issues. @link2xt 
+
+- more tests and refinements for dealing with blobstorage @flub @hpk42 
+
+- use a dedicated build-server for CI testing of core PRs
+
 
 ## 1.0.0-beta.12
 
