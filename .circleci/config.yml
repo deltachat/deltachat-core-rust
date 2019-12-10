@@ -187,7 +187,7 @@ workflows:
 
   test:
     jobs:
-      - cargo_fetch
+      # - cargo_fetch
 
       - remote_tests_rust
 
@@ -197,12 +197,12 @@ workflows:
       #     requires:
       #       - build_test_docs_wheel
       #       - build_doxygen
-      - rustfmt:
-          requires:
-            - cargo_fetch
-      - clippy:
-          requires:
-           - cargo_fetch
+      # - rustfmt:
+      #     requires:
+      #       - cargo_fetch
+      # - clippy:
+      #     requires:
+      #      - cargo_fetch
 
       - build_doxygen
 
