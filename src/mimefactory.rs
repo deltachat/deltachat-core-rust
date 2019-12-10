@@ -1055,8 +1055,6 @@ pub fn needs_encoding(to_check: impl AsRef<str>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use email::rfc2047::decode_rfc2047;
-    use mailparse::{addrparse, MailAddr};
 
     #[test]
     fn test_render_email_address() {
@@ -1071,20 +1069,7 @@ mod tests {
         );
 
         println!("{}", s);
-        assert!(s.is_ascii());
 
         assert_eq!(s, "=?utf-8?q?=C3=A4_space?= <x@y.org>");
-
-        match &addrparse(&s).unwrap()[0] {
-            MailAddr::Single(info) => {
-                // XXX addrparse should not return rfc2047 encoding
-                // but the decoded string, see
-                // https://github.com/staktrace/mailparse/issues/50
-                let s = decode_rfc2047(&info.display_name.clone().unwrap());
-                assert_eq!(s, Some(display_name.to_string()));
-                assert_eq!(info.addr, addr.to_string());
-            }
-            _ => panic!(),
-        }
     }
 }

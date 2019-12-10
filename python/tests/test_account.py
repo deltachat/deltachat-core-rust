@@ -652,6 +652,7 @@ class TestOnlineAccount:
         msg_in = ac2.get_message_by_id(msg_out.id)
         assert msg_in.text == "message1"
         assert not msg_in.is_forwarded()
+        assert msg_in.get_sender_contact().display_name == ac1.get_config("displayname")
 
         lp.sec("check the message arrived in contact-requets/deaddrop")
         chat2 = msg_in.chat

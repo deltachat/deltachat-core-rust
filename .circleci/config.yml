@@ -185,7 +185,7 @@ jobs:
       - *restore-cache
       - run:
           name: Run cargo clippy
-          command: cargo clippy --all
+          command: cargo clippy 
 
 
 workflows:
