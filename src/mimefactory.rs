@@ -332,6 +332,15 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                     _ => {}
                 }
 
+                if self
+                    .msg
+                    .param
+                    .get_bool(Param::AttachGroupImage)
+                    .unwrap_or_default()
+                {
+                    return chat.param.get(Param::ProfileImage).map(Into::into);
+                }
+
                 None
             }
             Loaded::MDN => None,

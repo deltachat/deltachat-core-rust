@@ -314,6 +314,7 @@ impl Chat {
                 || self.typ == Chattype::VerifiedGroup
                     && self.param.get_int(Param::Unpromoted).unwrap_or_default() == 1
             {
+                msg.param.set_int(Param::AttachGroupImage, 1);
                 self.param.remove(Param::Unpromoted);
                 self.update_param(context)?;
             }
