@@ -48,6 +48,10 @@ pub enum Param {
     Arg4 = b'H',
     /// For Messages
     Error = b'L',
+
+    /// For Messages
+    AttachGroupImage = b'A',
+
     /// For Messages: space-separated list of messaged IDs of forwarded copies.
     ///
     /// This is used when a [crate::message::Message] is in the
@@ -190,6 +194,11 @@ impl Params {
     /// Get the given parameter and parse as `i32`.
     pub fn get_int(&self, key: Param) -> Option<i32> {
         self.get(key).and_then(|s| s.parse().ok())
+    }
+
+    /// Get the given parameter and parse as `bool`.
+    pub fn get_bool(&self, key: Param) -> Option<bool> {
+        self.get_int(key).map(|v| v != 0)
     }
 
     /// Get the parameter behind `Param::Cmd` interpreted as `SystemMessage`.
