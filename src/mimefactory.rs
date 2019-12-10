@@ -152,7 +152,10 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                 let in_reply_to: String = row.get(0)?;
                 let references: String = row.get(1)?;
 
-                Ok((in_reply_to, references))
+                Ok((
+                    render_rfc724_mid_list(&in_reply_to),
+                    render_rfc724_mid_list(&references),
+                ))
             },
         );
 
@@ -1045,10 +1048,19 @@ fn render_rfc724_mid(rfc724_mid: &str) -> String {
     let rfc724_mid = rfc724_mid.trim().to_string();
 
     if rfc724_mid.chars().nth(0).unwrap_or_default() == '<' {
-        rfc724_mid.to_string()
+        rfc724_mid
     } else {
-        format!("<{}>", rfc724_mid).to_string()
+        format!("<{}>", rfc724_mid)
     }
+}
+
+fn render_rfc724_mid_list(mid_list: &str) -> String {
+    mid_list
+        .trim()
+        .split_ascii_whitespace()
+        .map(render_rfc724_mid)
+        .collect::<Vec<String>>()
+        .join(" ")
 }
 
 /* ******************************************************************************
@@ -1105,6 +1117,16 @@ mod tests {
         assert_eq!(
             render_rfc724_mid("<kqjwle123@qlwe>"),
             "<kqjwle123@qlwe>".to_string()
+        );
+    }
+
+    #[test]
+    fn test_render_rc724_mid_list() {
+        assert_eq!(render_rfc724_mid_list("123@q "), "<123@q>".to_string());
+        assert_eq!(render_rfc724_mid_list(" 123@q "), "<123@q>".to_string());
+        assert_eq!(
+            render_rfc724_mid_list("123@q 456@d "),
+            "<123@q> <456@d>".to_string()
         );
     }
 }
