@@ -642,7 +642,7 @@ dependencies = [
 
 [[package]]
 name = "deltachat"
-version = "1.0.0-beta.12"
+version = "1.0.0-beta.13"
 dependencies = [
  "async-imap 0.1.1 (git+https://github.com/async-email/async-imap)",
  "async-smtp 0.1.0 (git+https://github.com/async-email/async-smtp)",
@@ -656,7 +656,7 @@ dependencies = [
  "chrono 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "debug_stub_derive 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "deltachat_derive 0.1.0",
- "email 0.0.21 (git+https://github.com/deltachat/rust-email)",
+ "email 0.0.21 (git+https://github.com/deltachat/rust-email?branch=rfc2047)",
  "encoded-words 0.1.0 (git+https://github.com/async-email/encoded-words)",
  "escaper 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -720,9 +720,9 @@ dependencies = [
 
 [[package]]
 name = "deltachat_ffi"
-version = "1.0.0-beta.12"
+version = "1.0.0-beta.13"
 dependencies = [
- "deltachat 1.0.0-beta.12",
+ "deltachat 1.0.0-beta.13",
  "deltachat-provider-database 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "human-panic 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -828,7 +828,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "email"
 version = "0.0.21"
-source = "git+https://github.com/deltachat/rust-email#b71c13d7d9a599ebc811a8e2ca350e2793fe58d3"
+source = "git+https://github.com/deltachat/rust-email#265a54a8c31355c506610c032c81112dc0953afb"
+dependencies = [
+ "base64 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "chrono 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
+ "encoding 0.2.33 (registry+https://github.com/rust-lang/crates.io-index)",
+ "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "time 0.1.42 (registry+https://github.com/rust-lang/crates.io-index)",
+ "version_check 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "email"
+version = "0.0.21"
+source = "git+https://github.com/deltachat/rust-email?branch=rfc2047#6f6c5a70d3c8c540604e0d5aa27508f993375b93"
 dependencies = [
  "base64 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3518,6 +3532,7 @@ dependencies = [
 "checksum ed25519-dalek 1.0.0-pre.2 (registry+https://github.com/rust-lang/crates.io-index)" = "845aaacc16f01178f33349e7c992ecd0cee095aa5e577f0f4dee35971bd36455"
 "checksum either 1.5.3 (registry+https://github.com/rust-lang/crates.io-index)" = "bb1f6b1ce1c140482ea30ddd3335fc0024ac7ee112895426e0a629a6c20adfe3"
 "checksum email 0.0.21 (git+https://github.com/deltachat/rust-email)" = "<none>"
+"checksum email 0.0.21 (git+https://github.com/deltachat/rust-email?branch=rfc2047)" = "<none>"
 "checksum encoded-words 0.1.0 (git+https://github.com/async-email/encoded-words)" = "<none>"
 "checksum encoding 0.2.33 (registry+https://github.com/rust-lang/crates.io-index)" = "6b0d943856b990d12d3b55b359144ff341533e516d94098b1d3fc1ac666d36ec"
 "checksum encoding-index-japanese 1.20141219.5 (registry+https://github.com/rust-lang/crates.io-index)" = "04e8b2ff42e9a05335dbf8b5c6f7567e5591d0d916ccef4e0b1710d32a0d0c91"
