@@ -1,5 +1,10 @@
 # Changelog 
 
+## 1.0.0-beta.15
+
+- fix #994 attachment appeared doubled in chats (and where actually
+  downloaded after smtp-send). @hpk42
+
 ## 1.0.0-beta.14
 
 - fix packaging issue with our rust-email fork, now we are tracking
