@@ -511,6 +511,8 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         unprotected_headers.push(Header::new_with_value("To".into(), to).unwrap());
         unprotected_headers.push(Header::new_with_value("From".into(), vec![from]).unwrap());
 
+        let mut is_gossiped = false;
+
         let outer_message = if is_encrypted {
             // Add gossip headers
             if do_gossip {
@@ -519,6 +521,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                         if let Some(header) = peerstate.render_gossip_header(min_verified) {
                             message =
                                 message.header(Header::new("Autocrypt-Gossip".into(), header));
+                            is_gossiped = true;
                         }
                     }
                 }
@@ -598,8 +601,6 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             }
             message
         };
-
-        let is_gossiped = is_encrypted && do_gossip && !peerstates.is_empty();
 
         let MimeFactory {
             recipients_addr,
