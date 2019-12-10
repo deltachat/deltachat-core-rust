@@ -55,7 +55,7 @@ if __name__ == "__main__":
     replace_toml_version("Cargo.toml", newversion)
     replace_toml_version("deltachat-ffi/Cargo.toml", newversion)
 
-    subprocess.call(["cargo", "update", "-p", "deltachat"])
+    # subprocess.call(["cargo", "update", "-p", "deltachat"])
 
     print("after commit make sure to: ")
     print("")
