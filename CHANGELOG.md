@@ -1,5 +1,10 @@
 # Changelog 
 
+## 1.0.0-beta.14
+
+- fix packaging issue with our rust-email fork, now we are tracking
+  master again there. hpk42
+
 ## 1.0.0-beta.13
 
 - fix #976 -- unicode-issues in display-name of email addresses. @hpk42
