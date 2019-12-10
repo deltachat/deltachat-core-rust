@@ -463,7 +463,6 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         }
 
         let min_verified = self.min_verified();
-        let do_gossip = self.should_do_gossip();
         let grpimage = self.grpimage();
         let force_plaintext = self.should_force_plaintext();
         let subject_str = self.subject_str();
@@ -514,8 +513,8 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let mut is_gossiped = false;
 
         let outer_message = if is_encrypted {
-            // Add gossip headers
-            if do_gossip {
+            // Add gossip headers in chats with multiple recipients
+            if peerstates.len() > 1 && self.should_do_gossip() {
                 for peerstate in peerstates.iter().filter_map(|(state, _)| state.as_ref()) {
                     if peerstate.peek_key(min_verified).is_some() {
                         if let Some(header) = peerstate.render_gossip_header(min_verified) {
