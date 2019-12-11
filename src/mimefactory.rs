@@ -687,10 +687,10 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                     ));
                 }
                 SystemMessage::GroupImageChanged => {
-                    if grpimage.is_none() {
-                        protected_headers
-                            .push(Header::new("Chat-Group-Image".to_string(), "0".to_string()));
-                    }
+                    protected_headers.push(Header::new(
+                        "Chat-Content".to_string(),
+                        "group-avatar-changed".to_string(),
+                    ));
                 }
                 _ => {}
             }
@@ -758,7 +758,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
 
             let (mail, filename_as_sent) = build_body_file(context, &meta, "group-image")?;
             meta_part = Some(mail);
-            protected_headers.push(Header::new("Chat-Group-Image".into(), filename_as_sent));
+            protected_headers.push(Header::new("Chat-Group-Avatar".into(), filename_as_sent));
         }
 
         if self.msg.type_0 == Viewtype::Sticker {
