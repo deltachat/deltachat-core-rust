@@ -1465,7 +1465,7 @@ pub(crate) fn add_contact_to_chat_ex(
     let contact = Contact::get_by_id(context, contact_id)?;
     let mut msg = Message::default();
 
-    reset_gossiped_timestamp(context, chat_id);
+    reset_gossiped_timestamp(context, chat_id)?;
 
     /*this also makes sure, not contacts are added to special or normal chats*/
     let mut chat = Chat::load_from_db(context, chat_id)?;
@@ -1563,12 +1563,15 @@ fn real_group_exists(context: &Context, chat_id: u32) -> bool {
         .unwrap_or_default()
 }
 
-pub fn reset_gossiped_timestamp(context: &Context, chat_id: u32) {
-    set_gossiped_timestamp(context, chat_id, 0);
+pub fn reset_gossiped_timestamp(context: &Context, chat_id: u32) -> crate::sql::Result<()> {
+    set_gossiped_timestamp(context, chat_id, 0)
 }
 
-// Should return Result
-pub fn set_gossiped_timestamp(context: &Context, chat_id: u32, timestamp: i64) {
+pub fn set_gossiped_timestamp(
+    context: &Context,
+    chat_id: u32,
+    timestamp: i64,
+) -> crate::sql::Result<()> {
     if 0 != chat_id {
         info!(
             context,
@@ -1581,7 +1584,6 @@ pub fn set_gossiped_timestamp(context: &Context, chat_id: u32, timestamp: i64) {
             "UPDATE chats SET gossiped_timestamp=? WHERE id=?;",
             params![timestamp, chat_id as i32],
         )
-        .ok();
     } else {
         info!(
             context,
@@ -1593,7 +1595,6 @@ pub fn set_gossiped_timestamp(context: &Context, chat_id: u32, timestamp: i64) {
             "UPDATE chats SET gossiped_timestamp=?;",
             params![timestamp],
         )
-        .ok();
     }
 }
 
