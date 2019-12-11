@@ -47,3 +47,13 @@ class Contact(object):
     def is_verified(self):
         """ Return True if the contact is verified. """
         return lib.dc_contact_is_verified(self._dc_contact)
+
+    def get_profile_image(self):
+        """Get contact profile image.
+
+        :returns: path to profile image, None if no profile image exists.
+        """
+        dc_res = lib.dc_contact_get_profile_image(self._dc_contact)
+        if dc_res == ffi.NULL:
+            return None
+        return from_dc_charpointer(dc_res)
