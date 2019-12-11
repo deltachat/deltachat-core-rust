@@ -693,6 +693,12 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                         "Chat-Content".to_string(),
                         "group-avatar-changed".to_string(),
                     ));
+                    if grpimage.is_none() {
+                        protected_headers.push(Header::new(
+                            "Chat-Group-Avatar".to_string(),
+                            "0".to_string(),
+                        ));
+                    }
                     add_compatibility_header = true;
                 }
                 _ => {}
