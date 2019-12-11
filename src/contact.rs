@@ -168,7 +168,7 @@ impl Contact {
                 .unwrap_or_default();
         } else if contact_id == DC_CONTACT_ID_DEVICE {
             res.name = context.stock_str(StockMessage::DeviceMessages).to_string();
-            res.addr = "device@localhost".to_string();
+            res.addr = DC_CONTACT_ID_DEVICE_ADDR.to_string();
         }
         Ok(res)
     }

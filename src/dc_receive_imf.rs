@@ -897,7 +897,7 @@ fn create_or_lookup_group(
                 );
 
                 mime_parser.is_system_message = SystemMessage::GroupNameChanged;
-            } else if let Some(value) = mime_parser.get(HeaderDef::ChatContent).cloned() {
+            } else if let Some(value) = mime_parser.get(HeaderDef::ChatContent) {
                 if value == "group-avatar-changed" && mime_parser.group_avatar != AvatarAction::None
                 {
                     // this is just an explicit message containing the group-avatar,
