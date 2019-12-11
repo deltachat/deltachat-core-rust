@@ -58,6 +58,9 @@ pub const DC_GCM_ADDDAYMARKER: u32 = 0x01;
 pub const DC_GCL_VERIFIED_ONLY: usize = 0x01;
 pub const DC_GCL_ADD_SELF: usize = 0x02;
 
+// unchanged user avatars are resent to the recipients every some days
+pub const DC_RESEND_USER_AVATAR_DAYS: i64 = 14;
+
 // values for DC_PARAM_FORCE_PLAINTEXT
 pub(crate) const DC_FP_NO_AUTOCRYPT_HEADER: i32 = 2;
 pub(crate) const DC_FP_ADD_AUTOCRYPT_HEADER: i32 = 1;
@@ -118,6 +121,10 @@ pub const DC_CONTACT_ID_SELF: u32 = 1;
 pub const DC_CONTACT_ID_INFO: u32 = 2;
 pub const DC_CONTACT_ID_DEVICE: u32 = 5;
 pub const DC_CONTACT_ID_LAST_SPECIAL: u32 = 9;
+
+// decorative address that is used for DC_CONTACT_ID_DEVICE
+// when an api that returns an email is called.
+pub const DC_CONTACT_ID_DEVICE_ADDR: &str = "device@localhost";
 
 // Flags for empty server job
 

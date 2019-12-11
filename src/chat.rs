@@ -1608,8 +1608,7 @@ pub fn shall_attach_selfavatar(context: &Context, chat_id: u32) -> Result<bool, 
         return Ok(false);
     }
 
-    let resend_every_days = 14;
-    let timestamp_some_days_ago = time() - resend_every_days * 24 * 60 * 60;
+    let timestamp_some_days_ago = time() - DC_RESEND_USER_AVATAR_DAYS * 24 * 60 * 60;
     let needs_attach = context.sql.query_map(
         "SELECT c.selfavatar_sent
            FROM chats_contacts cc
