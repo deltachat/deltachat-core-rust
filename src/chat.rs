@@ -1567,6 +1567,19 @@ pub fn reset_gossiped_timestamp(context: &Context, chat_id: u32) -> crate::sql::
     set_gossiped_timestamp(context, chat_id, 0)
 }
 
+/// Get timestamp of the last gossip sent in the chat.
+/// Zero return value means that gossip was never sent.
+pub fn get_gossiped_timestamp(context: &Context, chat_id: u32) -> i64 {
+    context
+        .sql
+        .query_get_value::<_, i64>(
+            context,
+            "SELECT gossiped_timestamp FROM chats WHERE chat_id=?;",
+            params![chat_id as i32],
+        )
+        .unwrap_or_default()
+}
+
 pub fn set_gossiped_timestamp(
     context: &Context,
     chat_id: u32,
