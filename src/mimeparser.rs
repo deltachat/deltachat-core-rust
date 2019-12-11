@@ -195,6 +195,10 @@ impl<'a> MimeParser<'a> {
 
         if let Some(header_value) = self.get(HeaderDef::ChatGroupAvatar).cloned() {
             self.group_avatar = self.avatar_action_from_header(header_value);
+        } else if let Some(header_value) = self.get(HeaderDef::ChatGroupImage).cloned() {
+            // parse the old group-image headers for versions <=0.973 resp. <=beta.15 (december 2019)
+            // grep for #DeprecatedAvatar to get the place where a compatibility header is generated.
+            self.group_avatar = self.avatar_action_from_header(header_value);
         }
 
         if let Some(header_value) = self.get(HeaderDef::ChatUserAvatar).cloned() {
