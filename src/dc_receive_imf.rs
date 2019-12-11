@@ -3,7 +3,6 @@ use sha2::{Digest, Sha256};
 
 use num_traits::FromPrimitive;
 
-use crate::blob::BlobObject;
 use crate::chat::{self, Chat};
 use crate::config::Config;
 use crate::constants::*;
@@ -810,7 +809,6 @@ fn create_or_lookup_group(
     let mut X_MrRemoveFromGrp = None;
     let mut X_MrAddToGrp = None;
     let mut X_MrGrpNameChanged = false;
-    let mut X_MrGrpImageChanged = "".to_string();
     let mut better_msg: String = From::from("");
 
     if mime_parser.is_system_message == SystemMessage::LocationStreamingEnabled {
@@ -877,9 +875,6 @@ fn create_or_lookup_group(
         if let Some(optional_field) = field {
             X_MrAddToGrp = Some(optional_field);
             mime_parser.is_system_message = SystemMessage::MemberAddedToGroup;
-            if let Some(optional_field) = mime_parser.get(HeaderDef::ChatGroupImage).cloned() {
-                X_MrGrpImageChanged = optional_field;
-            }
             better_msg = context.stock_system_msg(
                 StockMessage::MsgAddMember,
                 X_MrAddToGrp.as_ref().unwrap(),
@@ -902,21 +897,23 @@ fn create_or_lookup_group(
                 );
 
                 mime_parser.is_system_message = SystemMessage::GroupNameChanged;
-            } else if let Some(optional_field) = mime_parser.get(HeaderDef::ChatGroupImage).cloned()
-            {
-                // fld_value is a pointer somewhere into mime_parser, must not be freed
-                X_MrGrpImageChanged = optional_field;
-                mime_parser.is_system_message = SystemMessage::GroupImageChanged;
-                better_msg = context.stock_system_msg(
-                    if X_MrGrpImageChanged == "0" {
-                        StockMessage::MsgGrpImgDeleted
-                    } else {
-                        StockMessage::MsgGrpImgChanged
-                    },
-                    "",
-                    "",
-                    from_id as u32,
-                )
+            } else if let Some(value) = mime_parser.get(HeaderDef::ChatContent).cloned() {
+                if value == "group-avatar-changed" && mime_parser.group_avatar != ImageAction::None
+                {
+                    // this is just an explicit message containing the group-avatar,
+                    // apart from that, the group-avatar is send along with various other messages
+                    mime_parser.is_system_message = SystemMessage::GroupImageChanged;
+                    better_msg = context.stock_system_msg(
+                        if mime_parser.group_avatar == ImageAction::Delete {
+                            StockMessage::MsgGrpImgDeleted
+                        } else {
+                            StockMessage::MsgGrpImgChanged
+                        },
+                        "",
+                        "",
+                        from_id as u32,
+                    )
+                }
             }
         }
     }
@@ -1039,44 +1036,22 @@ fn create_or_lookup_group(
             }
         }
     }
-    if !X_MrGrpImageChanged.is_empty() {
-        info!(
-            context,
-            "grp-image-change {} chat {}", X_MrGrpImageChanged, chat_id
-        );
-        let mut changed = false;
-        let mut grpimage: Option<BlobObject> = None;
-        if X_MrGrpImageChanged == "0" {
-            changed = true;
-        } else {
-            for part in &mut mime_parser.parts {
-                if part.typ == Viewtype::Image {
-                    grpimage = part
-                        .param
-                        .get_blob(Param::File, context, true)
-                        .unwrap_or(None);
-                    info!(context, "found image {:?}", grpimage);
-                    changed = true;
+    if mime_parser.group_avatar != ImageAction::None {
+        info!(context, "group-avatar change for {}", chat_id);
+        if let Ok(mut chat) = Chat::load_from_db(context, chat_id) {
+            match &mime_parser.group_avatar {
+                ImageAction::Change(profile_image) => {
+                    chat.param.set(Param::ProfileImage, profile_image);
+                    true
                 }
-            }
-        }
-        if changed {
-            info!(
-                context,
-                "New group image set to '{}'.",
-                grpimage
-                    .as_ref()
-                    .map(|blob| blob.as_name().to_string())
-                    .unwrap_or_default()
-            );
-            if let Ok(mut chat) = Chat::load_from_db(context, chat_id) {
-                match grpimage {
-                    Some(blob) => chat.param.set(Param::ProfileImage, blob.as_name()),
-                    None => chat.param.remove(Param::ProfileImage),
-                };
-                chat.update_param(context)?;
-                send_EVENT_CHAT_MODIFIED = true;
-            }
+                ImageAction::Delete => {
+                    chat.param.remove(Param::ProfileImage);
+                    true
+                }
+                ImageAction::None => false,
+            };
+            chat.update_param(context)?;
+            send_EVENT_CHAT_MODIFIED = true;
         }
     }
 

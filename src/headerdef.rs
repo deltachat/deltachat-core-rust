@@ -19,7 +19,7 @@ pub enum HeaderDef {
     ChatGroupName,
     ChatGroupNameChanged,
     ChatVerified,
-    ChatGroupImage,
+    ChatGroupAvatar,
     ChatProfileImage,
     ChatVoiceMessage,
     ChatGroupMemberRemoved,
