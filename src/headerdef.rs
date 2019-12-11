@@ -19,6 +19,7 @@ pub enum HeaderDef {
     ChatGroupName,
     ChatGroupNameChanged,
     ChatVerified,
+    ChatGroupImage, // deprecated
     ChatGroupAvatar,
     ChatUserAvatar,
     ChatVoiceMessage,
