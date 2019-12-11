@@ -3,6 +3,7 @@
 from __future__ import print_function
 import atexit
 import threading
+import os
 import re
 import time
 from array import array
@@ -131,6 +132,18 @@ class Account(object):
         :returns: True if account is configured.
         """
         return lib.dc_is_configured(self._dc_context)
+
+    def set_avatar(self, img_path):
+        """Set self avatar.
+
+        :raises ValueError: if profile image could not be set
+        :returns: None
+        """
+        if img_path is None:
+            self.set_config("selfavatar", "")
+        else:
+            assert os.path.exists(img_path), img_path
+            self.set_config("selfavatar", img_path)
 
     def check_is_configured(self):
         """ Raise ValueError if this account is not configured. """

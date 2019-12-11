@@ -976,7 +976,54 @@ class TestOnlineAccount:
         assert msg.text == "world"
         assert msg.is_encrypted()
 
-    def test_set_get_profile_image(self, acfactory, data, lp):
+    def test_set_get_contact_avatar(self, acfactory, data, lp):
+        lp.sec("configuring ac1 and ac2")
+        ac1, ac2 = acfactory.get_two_online_accounts()
+
+        lp.sec("ac1: set own profile image")
+        p = data.get_path("d.png")
+        ac1.set_avatar(p)
+
+        lp.sec("ac1: create 1:1 chat with ac2")
+        chat = self.get_chat(ac1, ac2, both_created=True)
+
+        msg = chat.send_text("hi -- do you see my brand new avatar?")
+        assert not msg.is_encrypted()
+
+        lp.sec("ac2: wait for receiving message and avatar from ac1")
+        msg1 = ac2.wait_next_incoming_message()
+        assert not msg1.chat.is_deaddrop()
+        received_path = msg1.get_sender_contact().get_profile_image()
+        assert open(received_path, "rb").read() == open(p, "rb").read()
+
+        lp.sec("ac2: set own profile image")
+        p = data.get_path("d.png")
+        ac2.set_avatar(p)
+
+        lp.sec("ac2: send back message")
+        m = msg1.chat.send_text("yes, i received your avatar -- how do you like mine?")
+        assert m.is_encrypted()
+
+        lp.sec("ac1: wait for receiving message and avatar from ac2")
+        msg2 = ac1.wait_next_incoming_message()
+        received_path = msg2.get_sender_contact().get_profile_image()
+        assert received_path is not None, "did not get avatar through encrypted message"
+        assert open(received_path, "rb").read() == open(p, "rb").read()
+
+        ac2._evlogger.consume_events()
+        ac1._evlogger.consume_events()
+
+        # XXX not sure if the following is correct / possible. you may remove it
+        lp.sec("ac1: delete profile image from chat, and send message to ac2")
+        ac1.set_avatar(None)
+        m = msg2.chat.send_text("i don't like my avatar anymore and removed it")
+        assert m.is_encrypted()
+
+        lp.sec("ac2: wait for message along with avatar deletion of ac1")
+        msg3 = ac2.wait_next_incoming_message()
+        assert msg3.get_sender_contact().get_profile_image() is None
+
+    def test_set_get_group_image(self, acfactory, data, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
 
         lp.sec("create unpromoted group chat")
