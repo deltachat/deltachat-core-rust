@@ -12,7 +12,7 @@ use crate::context::Context;
 use crate::dc_tools::*;
 use crate::e2ee;
 use crate::job::*;
-use crate::login_param::LoginParam;
+use crate::login_param::{CertificateChecks, LoginParam};
 use crate::oauth2::*;
 use crate::param::Params;
 
@@ -145,7 +145,32 @@ pub fn JobConfigureImap(context: &Context) {
             // Step 2: Autoconfig
             4 => {
                 progress!(context, 200);
-                if param.mail_server.is_empty()
+
+                // special case nauta.cu (this should eventually come
+                // from our provider-db): enforce non-tls cleartext
+                // settings and and skip all autoconfig which this
+                // provider does not offer anyway.
+                if param.addr.ends_with("@nauta.cu") {
+                    let mut p = LoginParam::new();
+
+                    p.addr = param.addr.clone();
+                    p.mail_user = param.addr.clone();
+                    p.mail_pw = param.mail_pw.clone();
+                    p.mail_port = 143;
+                    p.imap_certificate_checks = CertificateChecks::AcceptInvalidCertificates;
+
+                    p.send_user = param.addr.clone();
+                    p.send_pw = param.mail_pw.clone();
+                    p.send_port = 465;
+                    p.smtp_certificate_checks = CertificateChecks::AcceptInvalidCertificates;
+                    p.server_flags = DC_LP_AUTH_NORMAL as i32
+                        | DC_LP_IMAP_SOCKET_PLAIN as i32
+                        | DC_LP_SMTP_SOCKET_PLAIN as i32;
+
+                    // pretend we did autoconfig, to prevent further tries
+                    param_autoconfig = Some(p);
+                    step_counter = STEP_3_INDEX - 1;
+                } else if param.mail_server.is_empty()
                             && param.mail_port == 0
                             /*&&param.mail_user.is_empty() -- the user can enter a loginname which is used by autoconfig then */
                             && param.send_server.is_empty()
@@ -256,8 +281,8 @@ pub fn JobConfigureImap(context: &Context) {
                     param.send_port = cfg.send_port;
                     param.send_user = cfg.send_user.clone();
                     param.server_flags = cfg.server_flags;
-                    /* although param_autoconfig's data are no longer needed from, it is important to keep the object as
-                    we may enter "deep guessing" if we could not read a configuration */
+                    /* although param_autoconfig's data are no longer needed from,
+                    it is used to later to prevent trying variations of port/server/logins */
                 }
                 param.server_flags |= keep_flags;
                 true
