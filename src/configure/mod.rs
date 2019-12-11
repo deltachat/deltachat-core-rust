@@ -12,7 +12,7 @@ use crate::context::Context;
 use crate::dc_tools::*;
 use crate::e2ee;
 use crate::job::*;
-use crate::login_param::LoginParam;
+use crate::login_param::{CertificateChecks, LoginParam};
 use crate::oauth2::*;
 use crate::param::Params;
 
@@ -92,9 +92,10 @@ pub fn JobConfigureImap(context: &Context) {
     let mut param_domain = "undefined.undefined".to_owned();
     let mut param_addr_urlencoded: String =
         "Internal Error: this value should never be used".to_owned();
-    let mut keep_flags = std::i32::MAX;
+    let mut keep_flags = 0;
 
-    const STEP_3_INDEX: u8 = 13;
+    const STEP_AFTER_AUTOCONFIG: u8 = 12;
+
     let mut step_counter: u8 = 0;
     while !context.shall_stop_ongoing() {
         step_counter += 1;
@@ -110,7 +111,7 @@ pub fn JobConfigureImap(context: &Context) {
             }
             // Step 1: Load the parameters and check email-address and password
             2 => {
-                if 0 != param.server_flags & 0x2 {
+                if 0 != param.server_flags & DC_LP_AUTH_OAUTH2 {
                     // the used oauth2 addr may differ, check this.
                     // if dc_get_oauth2_addr() is not available in the oauth2 implementation,
                     // just use the given one.
@@ -145,19 +146,24 @@ pub fn JobConfigureImap(context: &Context) {
             // Step 2: Autoconfig
             4 => {
                 progress!(context, 200);
-                if param.mail_server.is_empty()
+
+                if let Some(new_param) = get_offline_autoconfig(context, &param) {
+                    keep_flags = new_param.server_flags & DC_LP_AUTH_OAUTH2;
+                    param_autoconfig = Some(new_param);
+                    step_counter = STEP_AFTER_AUTOCONFIG;
+                } else if param.mail_server.is_empty()
                             && param.mail_port == 0
                             /*&&param.mail_user.is_empty() -- the user can enter a loginname which is used by autoconfig then */
                             && param.send_server.is_empty()
                             && param.send_port == 0
                             && param.send_user.is_empty()
                             /*&&param.send_pw.is_empty() -- the password cannot be auto-configured and is no criterion for autoconfig or not */
-                            && param.server_flags & !0x2 == 0
+                            && (param.server_flags & !DC_LP_AUTH_OAUTH2) == 0
                 {
-                    keep_flags = param.server_flags & 0x2;
+                    keep_flags = param.server_flags & DC_LP_AUTH_OAUTH2;
                 } else {
                     // Autoconfig is not needed so skip it.
-                    step_counter = STEP_3_INDEX - 1;
+                    step_counter = STEP_AFTER_AUTOCONFIG;
                 }
                 true
             }
@@ -242,7 +248,9 @@ pub fn JobConfigureImap(context: &Context) {
                 }
                 true
             }
-            /* C.  Do we have any result? */
+            /* C.  Do we have any autoconfig result?
+               If you change the match-number here, also update STEP_AFTER_AUTOCONFIG above
+            */
             12 => {
                 progress!(context, 500);
                 if let Some(ref cfg) = param_autoconfig {
@@ -256,8 +264,8 @@ pub fn JobConfigureImap(context: &Context) {
                     param.send_port = cfg.send_port;
                     param.send_user = cfg.send_user.clone();
                     param.server_flags = cfg.server_flags;
-                    /* although param_autoconfig's data are no longer needed from, it is important to keep the object as
-                    we may enter "deep guessing" if we could not read a configuration */
+                    /* although param_autoconfig's data are no longer needed from,
+                    it is used to later to prevent trying variations of port/server/logins */
                 }
                 param.server_flags |= keep_flags;
                 true
@@ -430,6 +438,42 @@ pub fn JobConfigureImap(context: &Context) {
     progress!(context, if success { 1000 } else { 0 });
 }
 
+fn get_offline_autoconfig(context: &Context, param: &LoginParam) -> Option<LoginParam> {
+    // XXX we don't have https://github.com/deltachat/provider-db  APIs
+    // integrated yet but we'll already add nauta as a first use case, also
+    // showing what we need from provider-db in the future.
+    info!(
+        context,
+        "checking internal provider-info for offline autoconfig"
+    );
+
+    if param.addr.ends_with("@nauta.cu") {
+        let mut p = LoginParam::new();
+
+        p.addr = param.addr.clone();
+        p.mail_server = "imap.nauta.cu".to_string();
+        p.mail_user = param.addr.clone();
+        p.mail_pw = param.mail_pw.clone();
+        p.mail_port = 143;
+        p.imap_certificate_checks = CertificateChecks::AcceptInvalidCertificates;
+
+        p.send_server = "smtp.nauta.cu".to_string();
+        p.send_user = param.addr.clone();
+        p.send_pw = param.mail_pw.clone();
+        p.send_port = 25;
+        p.smtp_certificate_checks = CertificateChecks::AcceptInvalidCertificates;
+        p.server_flags = DC_LP_AUTH_NORMAL as i32
+            | DC_LP_IMAP_SOCKET_STARTTLS as i32
+            | DC_LP_SMTP_SOCKET_STARTTLS as i32;
+
+        info!(context, "found offline autoconfig: {}", p);
+        Some(p)
+    } else {
+        info!(context, "no offline autoconfig found");
+        None
+    }
+}
+
 fn try_imap_connections(
     context: &Context,
     mut param: &mut LoginParam,
@@ -571,6 +615,7 @@ fn try_smtp_one_param(context: &Context, param: &LoginParam) -> Option<bool> {
 #[cfg(test)]
 mod tests {
 
+    use super::*;
     use crate::config::*;
     use crate::configure::JobConfigureImap;
     use crate::test_utils::*;
@@ -583,5 +628,20 @@ mod tests {
             .unwrap();
         t.ctx.set_config(Config::MailPw, Some("123456")).unwrap();
         JobConfigureImap(&t.ctx);
+    }
+
+    #[test]
+    fn test_get_offline_autoconfig() {
+        let context = dummy_context().ctx;
+
+        let mut params = LoginParam::new();
+        params.addr = "someone123@example.org".to_string();
+        assert!(get_offline_autoconfig(&context, &params).is_none());
+
+        let mut params = LoginParam::new();
+        params.addr = "someone123@nauta.cu".to_string();
+        let found_params = get_offline_autoconfig(&context, &params).unwrap();
+        assert_eq!(found_params.mail_server, "imap.nauta.cu".to_string());
+        assert_eq!(found_params.send_server, "smtp.nauta.cu".to_string());
     }
 }
