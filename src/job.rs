@@ -678,7 +678,7 @@ pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<(), Error> {
     }
 
     if rendered_msg.is_gossiped {
-        chat::set_gossiped_timestamp(context, msg.chat_id, time());
+        chat::set_gossiped_timestamp(context, msg.chat_id, time())?;
     }
 
     if 0 != rendered_msg.last_added_location_id {

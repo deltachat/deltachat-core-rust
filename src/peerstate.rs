@@ -417,7 +417,7 @@ impl<'a> Peerstate<'a> {
                     &self.addr,
                 ],
             )?;
-            reset_gossiped_timestamp(self.context, 0);
+            reset_gossiped_timestamp(self.context, 0)?;
         } else if self.to_save == Some(ToSave::Timestamps) {
             sql::execute(
                 self.context,
