@@ -1,6 +1,6 @@
 # Chat-over-Email specification
 
-Version 0.19.0
+Version 0.20.0
 
 This document describes how emails can be used
 to implement typical messenger functions
@@ -248,11 +248,11 @@ and the message SHOULD appear as a message or action from the sender.
 A group MAY have a group-image.
 To change or set the group-image,
 the messenger MUST attach an image file to a message
-and MUST add the header `Chat-Group-Image`
+and MUST add the header `Chat-Group-Avatar`
 with the value set to the image name.
 
 To remove the group-image,
-the messenger MUST add the header `Chat-Group-Image: 0`.
+the messenger MUST add the header `Chat-Group-Avatar: 0`.
 
 The messenger SHOULD send an explicit mail for each group image change.
 The body of the message SHOULD contain
@@ -265,7 +265,7 @@ and the message SHOULD appear as a message or action from the sender.
     Chat-Version: 1.0
     Chat-Group-ID: 12345uvwxyZ
     Chat-Group-Name: Our Group
-    Chat-Group-Image: image.jpg
+    Chat-Group-Avatar: image.jpg
     Message-ID: Gr.12345uvwxyZ.0005@domain
     Subject: Chat: Our Group: Hello, ...
     Content-Type: multipart/mixed; boundary="==break=="
@@ -283,7 +283,7 @@ and the message SHOULD appear as a message or action from the sender.
 
 The image format SHOULD be image/jpeg or image/png.
 To save data, it is RECOMMENDED
-to add a `Chat-Group-Image` only on image changes.
+to add a `Chat-Group-Avatar` only on image changes.
 
 
 # Set profile image
@@ -291,17 +291,17 @@ to add a `Chat-Group-Image` only on image changes.
 A user MAY have a profile-image that MAY be spread to their contacts.
 To change or set the profile-image,
 the messenger MUST attach an image file to a message
-and MUST add the header `Chat-Profile-Image`
+and MUST add the header `Chat-User-Avatar`
 with the value set to the image name.
 
 To remove the profile-image,
-the messenger MUST add the header `Chat-Profile-Image: 0`.
+the messenger MUST add the header `Chat-User-Avatar: 0`.
 
 To spread the image,
 the messenger MAY send the profile image
 together with the next mail to a given contact
 (to do this only once,
-the messenger has to keep a `profile_image_update_state` somewhere).
+the messenger has to keep a `user_avatar_update_state` somewhere).
 Alternatively, the messenger MAY send an explicit mail
 for each profile-image change to all contacts using a compatible messenger.
 The messenger SHOULD NOT send an explicit mail to normal MUAs.
@@ -309,7 +309,7 @@ The messenger SHOULD NOT send an explicit mail to normal MUAs.
     From: sender@domain
     To: rcpt@domain
     Chat-Version: 1.0
-    Chat-Profile-Image: photo.jpg
+    Chat-User-Avatar: photo.jpg
     Subject: Chat: Hello, ...
     Content-Type: multipart/mixed; boundary="==break=="
 
@@ -325,10 +325,10 @@ The messenger SHOULD NOT send an explicit mail to normal MUAs.
     --==break==--
 
 The image format SHOULD be image/jpeg or image/png.
-Note that `Chat-Profile-Image` may appear together with all other headers,
-eg. there may be a `Chat-Profile-Image` and a `Chat-Group-Image` header
+Note that `Chat-User-Avatar` may appear together with all other headers,
+eg. there may be a `Chat-User-Avatar` and a `Chat-Group-Avatar` header
 in the same message.
-To save data, it is RECOMMENDED to add a `Chat-Profile-Image` header
+To save data, it is RECOMMENDED to add a `Chat-User-Avatar` header
 only on image changes.
 
 

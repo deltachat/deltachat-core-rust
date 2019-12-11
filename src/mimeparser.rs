@@ -37,15 +37,15 @@ pub struct MimeParser<'a> {
     pub is_system_message: SystemMessage,
     pub location_kml: Option<location::Kml>,
     pub message_kml: Option<location::Kml>,
-    pub profile_image: ImageAction,
-    pub group_avatar: ImageAction,
+    pub user_avatar: AvatarAction,
+    pub group_avatar: AvatarAction,
     reports: Vec<Report>,
     mdns_enabled: bool,
     parsed_protected_headers: bool,
 }
 
 #[derive(Debug, PartialEq)]
-pub enum ImageAction {
+pub enum AvatarAction {
     None,
     Delete,
     Change(String),
@@ -92,8 +92,8 @@ impl<'a> MimeParser<'a> {
             is_system_message: SystemMessage::Unknown,
             location_kml: None,
             message_kml: None,
-            profile_image: ImageAction::None,
-            group_avatar: ImageAction::None,
+            user_avatar: AvatarAction::None,
+            group_avatar: AvatarAction::None,
             mdns_enabled,
             parsed_protected_headers: false,
         };
@@ -194,11 +194,11 @@ impl<'a> MimeParser<'a> {
         }
 
         if let Some(header_value) = self.get(HeaderDef::ChatGroupAvatar).cloned() {
-            self.group_avatar = self.image_action_from_header(header_value);
+            self.group_avatar = self.avatar_action_from_header(header_value);
         }
 
-        if let Some(header_value) = self.get(HeaderDef::ChatProfileImage).cloned() {
-            self.profile_image = self.image_action_from_header(header_value);
+        if let Some(header_value) = self.get(HeaderDef::ChatUserAvatar).cloned() {
+            self.user_avatar = self.avatar_action_from_header(header_value);
         }
 
         if self.has_chat_version() && self.parts.len() == 2 {
@@ -332,9 +332,9 @@ impl<'a> MimeParser<'a> {
         Ok(())
     }
 
-    fn image_action_from_header(&mut self, header_value: String) -> ImageAction {
+    fn avatar_action_from_header(&mut self, header_value: String) -> AvatarAction {
         if header_value == "0" {
-            return ImageAction::Delete;
+            return AvatarAction::Delete;
         } else {
             let mut i = 0;
             while i != self.parts.len() {
@@ -342,7 +342,7 @@ impl<'a> MimeParser<'a> {
                 if let Some(part_filename) = &part.org_filename {
                     if part_filename == &header_value {
                         if let Some(blob) = part.param.get(Param::File) {
-                            let res = ImageAction::Change(blob.to_string());
+                            let res = AvatarAction::Change(blob.to_string());
                             self.parts.remove(i);
                             return res;
                         }
@@ -352,7 +352,7 @@ impl<'a> MimeParser<'a> {
                 i += 1;
             }
         }
-        ImageAction::None
+        AvatarAction::None
     }
 
     pub fn get_last_nonmeta(&self) -> Option<&Part> {
@@ -1164,25 +1164,25 @@ mod tests {
     }
 
     #[test]
-    fn test_mimeparser_with_profile_image() {
+    fn test_mimeparser_with_user_avatar() {
         let t = dummy_context();
 
         let raw = include_bytes!("../test-data/message/mail_attach_txt.eml");
         let mimeparser = MimeParser::from_bytes(&t.ctx, &raw[..]).unwrap();
-        assert_eq!(mimeparser.profile_image, ImageAction::None);
-        assert_eq!(mimeparser.group_avatar, ImageAction::None);
+        assert_eq!(mimeparser.user_avatar, AvatarAction::None);
+        assert_eq!(mimeparser.group_avatar, AvatarAction::None);
 
-        let raw = include_bytes!("../test-data/message/mail_with_profile_image.eml");
+        let raw = include_bytes!("../test-data/message/mail_with_user_avatar.eml");
         let mimeparser = MimeParser::from_bytes(&t.ctx, &raw[..]).unwrap();
         assert_eq!(mimeparser.parts.len(), 1);
-        assert_ne!(mimeparser.profile_image, ImageAction::None);
-        assert_ne!(mimeparser.profile_image, ImageAction::Delete);
-        assert_eq!(mimeparser.group_avatar, ImageAction::None);
+        assert_ne!(mimeparser.user_avatar, AvatarAction::None);
+        assert_ne!(mimeparser.user_avatar, AvatarAction::Delete);
+        assert_eq!(mimeparser.group_avatar, AvatarAction::None);
 
-        let raw = include_bytes!("../test-data/message/mail_with_profile_image_deleted.eml");
+        let raw = include_bytes!("../test-data/message/mail_with_user_avatar_deleted.eml");
         let mimeparser = MimeParser::from_bytes(&t.ctx, &raw[..]).unwrap();
         assert_eq!(mimeparser.parts.len(), 1);
-        assert_eq!(mimeparser.profile_image, ImageAction::Delete);
-        assert_eq!(mimeparser.group_avatar, ImageAction::None);
+        assert_eq!(mimeparser.user_avatar, AvatarAction::Delete);
+        assert_eq!(mimeparser.group_avatar, AvatarAction::None);
     }
 }

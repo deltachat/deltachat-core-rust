@@ -895,13 +895,11 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                 Some(path) => match build_selfavatar_file(context, path) {
                     Ok((part, filename)) => {
                         parts.push(part);
-                        protected_headers.push(Header::new("Chat-Profile-Image".into(), filename))
+                        protected_headers.push(Header::new("Chat-User-Avatar".into(), filename))
                     }
                     Err(err) => warn!(context, "mimefactory: cannot attach selfavatar: {}", err),
                 },
-                None => {
-                    protected_headers.push(Header::new("Chat-Profile-Image".into(), "0".into()))
-                }
+                None => protected_headers.push(Header::new("Chat-User-Avatar".into(), "0".into())),
             }
         }
 

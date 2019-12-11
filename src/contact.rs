@@ -15,7 +15,7 @@ use crate::events::Event;
 use crate::key::*;
 use crate::login_param::LoginParam;
 use crate::message::{MessageState, MsgId};
-use crate::mimeparser::ImageAction;
+use crate::mimeparser::AvatarAction;
 use crate::param::*;
 use crate::peerstate::*;
 use crate::sql;
@@ -966,21 +966,21 @@ fn set_block_contact(context: &Context, contact_id: u32, new_blocking: bool) {
 pub fn set_profile_image(
     context: &Context,
     contact_id: u32,
-    profile_image: ImageAction,
+    profile_image: AvatarAction,
 ) -> Result<()> {
     // the given profile image is expected to be already in the blob directory
     // as profile images can be set only by receiving messages, this should be always the case, however.
     let mut contact = Contact::load_from_db(context, contact_id)?;
     let changed = match profile_image {
-        ImageAction::Change(profile_image) => {
+        AvatarAction::Change(profile_image) => {
             contact.param.set(Param::ProfileImage, profile_image);
             true
         }
-        ImageAction::Delete => {
+        AvatarAction::Delete => {
             contact.param.remove(Param::ProfileImage);
             true
         }
-        ImageAction::None => false,
+        AvatarAction::None => false,
     };
     if changed {
         contact.update_param(context)?;
