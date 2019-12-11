@@ -3645,11 +3645,15 @@ int             dc_contact_is_blocked        (const dc_contact_t* contact);
 
 
 /**
- * Same as dc_contact_is_verified() but allows speeding up things
- * by adding the peerstate belonging to the contact.
- * If you do not have the peerstate available, it is loaded automatically.
+ * Check if a contact was verified. E.g. by a secure-join QR code scan
+ * and if the key has not changed since this verification.
  *
- * @private @memberof dc_context_t
+ * The UI may draw a checkbox or something like that beside verified contacts.
+ *
+ * @memberof dc_contact_t
+ * @param contact The contact object.
+ * @return 0: contact is not verified.
+ *    2: SELF and contact have verified their fingerprints in both directions; in the UI typically checkmarks are shown.
  */
 int             dc_contact_is_verified       (dc_contact_t* contact);
 
