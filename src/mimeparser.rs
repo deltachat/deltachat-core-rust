@@ -104,7 +104,8 @@ impl<'a> MimeParser<'a> {
             .and_then(|v| mailparse::dateparse(&v).ok())
             .unwrap_or_default();
 
-        parser.hash_header(&mail.headers);
+        // init known headers with what mailparse provided us 
+        parser.merge_headers(&mail.headers);
 
         // Memory location for a possible decrypted message.
         let mail_raw;
@@ -129,6 +130,10 @@ impl<'a> MimeParser<'a> {
                     parser.gossipped_addr =
                         update_gossip_peerstates(context, message_time, &mail, gossip_headers)?;
 
+                    // let known protected headers from the decrypted
+                    // part override the unencrypted top-level
+                    parser.merge_headers(&decrypted_mail.headers);
+
                     decrypted_mail
                 } else {
                     // Message was not encrypted
@@ -148,6 +153,7 @@ impl<'a> MimeParser<'a> {
             }
         };
 
+
         parser.parse_mime_recursive(&mail)?;
 
         parser.parse_headers()?;
@@ -156,6 +162,7 @@ impl<'a> MimeParser<'a> {
     }
 
     fn parse_headers(&mut self) -> Result<()> {
+        info!(self.context, "parse_headers: headers = {:?}", self.header);
         if self.get(HeaderDef::AutocryptSetupMessage).is_some() {
             let has_setup_file = self.parts.iter().any(|p| {
                 p.mimetype.is_some() && p.mimetype.as_ref().unwrap().as_ref() == MIME_AC_SETUP_FILE
@@ -341,15 +348,19 @@ impl<'a> MimeParser<'a> {
             return AvatarAction::Delete;
         } else {
             let mut i = 0;
+            info!(self.context, "trying to match avatar fo header value: {:?}", header_value);
             while i != self.parts.len() {
                 let part = &mut self.parts[i];
+                info!(self.context, "part.org_filename {:?}", part.org_filename);
                 if let Some(part_filename) = &part.org_filename {
                     if part_filename == &header_value {
                         if let Some(blob) = part.param.get(Param::File) {
+                            info!(self.context, "Avatar-action Change determined");
                             let res = AvatarAction::Change(blob.to_string());
                             self.parts.remove(i);
                             return res;
                         }
+                        info!(self.context, "Avatar-action Change: no blob determined");
                         break;
                     }
                 }
@@ -404,12 +415,7 @@ impl<'a> MimeParser<'a> {
                 return Ok(false);
             }
 
-            if self.parsed_protected_headers {
-                warn!(self.context, "Ignoring nested protected headers");
-            } else {
-                self.hash_header(&mail.headers);
-                self.parsed_protected_headers = true;
-            }
+            warn!(self.context, "Ignoring nested protected headers");
         }
 
         enum MimeS {
@@ -562,6 +568,7 @@ impl<'a> MimeParser<'a> {
         let raw_mime = mail.ctype.mimetype.to_lowercase();
 
         let filename = get_attachment_filename(mail);
+
         info!(
             self.context,
             "add_single_part_if_known {:?} {:?}", mime_type, msg_type
@@ -570,6 +577,14 @@ impl<'a> MimeParser<'a> {
         let old_part_count = self.parts.len();
 
         if let Ok(filename) = filename {
+            info!(
+                self.context,
+                "add_single_part_if_known filename: {:?}", filename
+            );
+            info!(
+                self.context,
+                "add_single_part_if_known headers: : {:?}", mail.headers
+            );
             self.do_add_single_file_part(
                 msg_type,
                 mime_type,
@@ -578,6 +593,10 @@ impl<'a> MimeParser<'a> {
                 &filename,
             );
         } else {
+            info!(
+                self.context,
+                "add_single_part_if_known NO filename"
+            );
             match mime_type.type_() {
                 mime::IMAGE | mime::AUDIO | mime::VIDEO | mime::APPLICATION => {
                     bail!("missing attachment");
@@ -724,7 +743,7 @@ impl<'a> MimeParser<'a> {
         }
     }
 
-    fn hash_header(&mut self, fields: &[mailparse::MailHeader<'_>]) {
+    fn merge_headers(&mut self, fields: &[mailparse::MailHeader<'_>]) {
         for field in fields {
             if let Ok(key) = field.get_key() {
                 // lowercasing all headers is technically not correct, but makes things work better
@@ -965,7 +984,6 @@ fn get_attachment_filename(mail: &mailparse::ParsedMail) -> Result<String> {
             acc += value;
             acc
         });
-    println!("get_attachment_filename1: {:?}", desired_filename);
 
     if desired_filename.is_empty() {
         if let Some(param) = ct.params.get("name") {
@@ -973,7 +991,6 @@ fn get_attachment_filename(mail: &mailparse::ParsedMail) -> Result<String> {
             desired_filename = param.to_string();
         }
     }
-    println!("get_attachment_filename2: {:?}", desired_filename);
 
     // if there is still no filename, guess one
     if desired_filename.is_empty() {
@@ -983,7 +1000,6 @@ fn get_attachment_filename(mail: &mailparse::ParsedMail) -> Result<String> {
             bail!("could not determine filename: {:?}", ct.disposition);
         }
     }
-    println!("get_attachment_filename3: {:?}", desired_filename);
 
     Ok(desired_filename)
 }
