@@ -161,7 +161,7 @@ pub fn JobConfigureImap(context: &Context) {
 
                     p.send_user = param.addr.clone();
                     p.send_pw = param.mail_pw.clone();
-                    p.send_port = 465;
+                    p.send_port = 25;
                     p.smtp_certificate_checks = CertificateChecks::AcceptInvalidCertificates;
                     p.server_flags = DC_LP_AUTH_NORMAL as i32
                         | DC_LP_IMAP_SOCKET_PLAIN as i32
@@ -169,7 +169,7 @@ pub fn JobConfigureImap(context: &Context) {
 
                     // pretend we did autoconfig, to prevent further tries
                     param_autoconfig = Some(p);
-                    step_counter = STEP_3_INDEX - 1;
+                    step_counter = 12 - 1;
                 } else if param.mail_server.is_empty()
                             && param.mail_port == 0
                             /*&&param.mail_user.is_empty() -- the user can enter a loginname which is used by autoconfig then */

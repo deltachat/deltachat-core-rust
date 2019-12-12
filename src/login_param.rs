@@ -112,11 +112,11 @@ impl LoginParam {
         // Rust-TLS does not support nauta.cu's RSA1024 TLS cert.
         // see https://github.com/deltachat/deltachat-core-rust/issues/1007
         if mail_server.ends_with(".nauta.cu") {
-            server_flags |= !0x300; // clear out IMAP_SSL/STARTTLS
+            server_flags &= !0x300; // clear out IMAP_SSL/STARTTLS
             server_flags |= 0x400; // set IMAP_PLAIN
         }
         if send_server.ends_with(".nauta.cu") {
-            server_flags |= !0x30000; // clear out SMTP_SSL/STARTTLS
+            server_flags &= !0x30000; // clear out SMTP_SSL/STARTTLS
             server_flags |= 0x40000; // set SMTP_PLAIN
         }
 
