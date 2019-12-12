@@ -10,7 +10,7 @@ use async_std::task;
 use crate::constants::*;
 use crate::context::Context;
 use crate::events::Event;
-use crate::login_param::{dc_build_tls_config, LoginParam};
+use crate::login_param::{dc_build_tls, LoginParam};
 use crate::oauth2::*;
 
 #[derive(Debug, Fail)]
@@ -29,6 +29,14 @@ pub enum Error {
     ConnectionSetupFailure(#[cause] async_smtp::smtp::error::Error),
     #[fail(display = "SMTP: oauth2 error {:?}", _0)]
     Oauth2Error { address: String },
+    #[fail(display = "TLS error")]
+    Tls(#[cause] native_tls::Error),
+}
+
+impl From<native_tls::Error> for Error {
+    fn from(err: native_tls::Error) -> Error {
+        Error::Tls(err)
+    }
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -81,7 +89,7 @@ impl Smtp {
         let domain = &lp.send_server;
         let port = lp.send_port as u16;
 
-        let tls_config = dc_build_tls_config(lp.smtp_certificate_checks);
+        let tls_config = dc_build_tls(lp.smtp_certificate_checks)?.into();
         let tls_parameters = ClientTlsParameters::new(domain.to_string(), tls_config);
 
         let (creds, mechanism) = if 0 != lp.server_flags & (DC_LP_AUTH_OAUTH2 as i32) {

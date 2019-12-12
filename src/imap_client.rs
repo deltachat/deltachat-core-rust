@@ -4,12 +4,11 @@ use async_imap::{
     types::{Capabilities, Fetch, Mailbox, Name},
     Client as ImapClient, Session as ImapSession,
 };
+use async_native_tls::TlsStream;
 use async_std::net::{self, TcpStream};
 use async_std::prelude::*;
-use async_std::sync::Arc;
-use async_tls::client::TlsStream;
 
-use crate::login_param::{dc_build_tls_config, CertificateChecks};
+use crate::login_param::{dc_build_tls, CertificateChecks};
 
 #[derive(Debug)]
 pub(crate) enum Client {
@@ -36,9 +35,9 @@ impl Client {
         certificate_checks: CertificateChecks,
     ) -> ImapResult<Self> {
         let stream = TcpStream::connect(addr).await?;
-        let tls_config = dc_build_tls_config(certificate_checks);
-        let tls_connector: async_tls::TlsConnector = Arc::new(tls_config).into();
-        let tls_stream = tls_connector.connect(domain.as_ref(), stream)?.await?;
+        let tls = dc_build_tls(certificate_checks)?;
+        let tls_connector: async_native_tls::TlsConnector = tls.into();
+        let tls_stream = tls_connector.connect(domain.as_ref(), stream).await?;
         let mut client = ImapClient::new(tls_stream);
         if std::env::var(crate::DCC_IMAP_DEBUG).is_ok() {
             client.debug = true;
@@ -74,10 +73,10 @@ impl Client {
     ) -> ImapResult<Client> {
         match self {
             Client::Insecure(client) => {
-                let tls_config = dc_build_tls_config(certificate_checks);
-                let tls: async_tls::TlsConnector = Arc::new(tls_config).into();
+                let tls = dc_build_tls(certificate_checks)?;
+                let tls_stream = tls.into();
 
-                let client_sec = client.secure(domain, &tls).await?;
+                let client_sec = client.secure(domain, &tls_stream).await?;
 
                 Ok(Client::Secure(client_sec))
             }

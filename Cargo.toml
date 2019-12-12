@@ -14,14 +14,14 @@ hex = "0.4.0"
 sha2 = "0.8.0"
 rand = "0.7.0"
 smallvec = "1.0.0"
-reqwest = { version = "0.9.15", default-features = false, features = ["rustls-tls"] }
+reqwest = { version = "0.9.15" }
 num-derive = "0.3.0"
 num-traits = "0.2.6"
-async-smtp = { git = "https://github.com/async-email/async-smtp" }
+async-smtp = { git = "https://github.com/link2xt/async-smtp", branch = "native_tls" }
 email = { git = "https://github.com/deltachat/rust-email", branch = "master" }
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "feat/mail" }
-async-imap = { git = "https://github.com/async-email/async-imap", branch="master" }
-async-tls = "0.6"
+async-imap = { git = "https://github.com/async-email/async-imap", branch="native_tls", default-features = false, features = ["tls_native"] }
+async-native-tls = "0.1.1"
 async-std = { version = "1.0", features = ["unstable"] }
 base64 = "0.11"
 charset = "0.1"
@@ -52,11 +52,9 @@ bitflags = "1.1.0"
 debug_stub_derive = "0.3.0"
 sanitize-filename = "0.2.1"
 stop-token = { version = "0.1.1", features = ["unstable"] }
-rustls = "0.16.0"
-webpki-roots = "0.18.0"
-webpki = "0.21.0"
 mailparse = "0.10.1"
 encoded-words = { git = "https://github.com/async-email/encoded-words", branch="master" }
+native-tls = "0.2.3"
 
 [dev-dependencies]
 tempfile = "3.0"
@@ -81,6 +79,6 @@ path = "examples/repl/main.rs"
 
 [features]
 default = ["nightly", "ringbuf"]
-vendored = []
+vendored = ["native-tls/vendored", "reqwest/default-tls-vendored"]
 nightly = ["pgp/nightly"]
 ringbuf = ["pgp/ringbuf"]
