@@ -715,6 +715,12 @@ class TestOnlineAccount:
         assert msg_back.text == "message-back"
         assert msg_back.is_encrypted()
 
+        # Test that we do not gossip peer keys in 1-to-1 chat,
+        # as it makes no sense to gossip to peers their own keys.
+        # Gossip is only sent in encrypted messages,
+        # and we sent encrypted msg_back right above.
+        assert chat2b.get_summary()["gossiped_timestamp"] == 0
+
         lp.sec("create group chat with two members, one of which has no encrypt state")
         chat = ac1.create_group_chat("encryption test")
         chat.add_contact(ac1.create_contact(ac2.get_config("addr")))
