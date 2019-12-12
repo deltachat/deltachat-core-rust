@@ -241,11 +241,9 @@ pub fn dc_receive_imf(
         match contact::set_profile_image(&context, from_id, mime_parser.user_avatar) {
             Ok(()) => {
                 context.call_cb(Event::ChatModified(chat_id));
-                true
             }
             Err(err) => {
                 warn!(context, "reveive_imf cannot update profile image: {}", err);
-                false
             }
         };
     }
