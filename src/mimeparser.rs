@@ -104,7 +104,7 @@ impl<'a> MimeParser<'a> {
             .and_then(|v| mailparse::dateparse(&v).ok())
             .unwrap_or_default();
 
-        // init known headers with what mailparse provided us 
+        // init known headers with what mailparse provided us
         parser.merge_headers(&mail.headers);
 
         // Memory location for a possible decrypted message.
@@ -153,7 +153,6 @@ impl<'a> MimeParser<'a> {
             }
         };
 
-
         parser.parse_mime_recursive(&mail)?;
 
         parser.parse_headers()?;
@@ -162,37 +161,15 @@ impl<'a> MimeParser<'a> {
     }
 
     fn parse_headers(&mut self) -> Result<()> {
-        info!(self.context, "parse_headers: headers = {:?}", self.header);
         if self.get(HeaderDef::AutocryptSetupMessage).is_some() {
-            let has_setup_file = self.parts.iter().any(|p| {
-                p.mimetype.is_some() && p.mimetype.as_ref().unwrap().as_ref() == MIME_AC_SETUP_FILE
+            self.parts.drain_filter(|part| {
+                part.mimetype.is_some()
+                    && part.mimetype.as_ref().unwrap().as_ref() != MIME_AC_SETUP_FILE
             });
-
-            if has_setup_file {
+            if self.parts.len() == 1 {
                 self.is_system_message = SystemMessage::AutocryptSetupMessage;
-
-                // TODO: replace the following code with this
-                // once drain_filter stabilizes.
-                //
-                // See https://doc.rust-lang.org/std/vec/struct.Vec.html#method.drain_filter
-                // and https://github.com/rust-lang/rust/issues/43244
-                //
-                // mimeparser
-                //    .parts
-                //    .drain_filter(|part| part.int_mimetype != 111)
-                //    .for_each(|part| dc_mimepart_unref(part));
-
-                let mut i = 0;
-                while i != self.parts.len() {
-                    let mimetype = &self.parts[i].mimetype;
-                    if mimetype.is_none()
-                        || mimetype.as_ref().unwrap().as_ref() != MIME_AC_SETUP_FILE
-                    {
-                        self.parts.remove(i);
-                    } else {
-                        i += 1;
-                    }
-                }
+            } else {
+                warn!(self.context, "could not determine ASM mime-part");
             }
         } else if let Some(value) = self.get(HeaderDef::ChatContent) {
             if value == "location-streaming-enabled" {
@@ -348,19 +325,15 @@ impl<'a> MimeParser<'a> {
             return AvatarAction::Delete;
         } else {
             let mut i = 0;
-            info!(self.context, "trying to match avatar fo header value: {:?}", header_value);
             while i != self.parts.len() {
                 let part = &mut self.parts[i];
-                info!(self.context, "part.org_filename {:?}", part.org_filename);
                 if let Some(part_filename) = &part.org_filename {
                     if part_filename == &header_value {
                         if let Some(blob) = part.param.get(Param::File) {
-                            info!(self.context, "Avatar-action Change determined");
                             let res = AvatarAction::Change(blob.to_string());
                             self.parts.remove(i);
                             return res;
                         }
-                        info!(self.context, "Avatar-action Change: no blob determined");
                         break;
                     }
                 }
@@ -569,22 +542,9 @@ impl<'a> MimeParser<'a> {
 
         let filename = get_attachment_filename(mail);
 
-        info!(
-            self.context,
-            "add_single_part_if_known {:?} {:?}", mime_type, msg_type
-        );
-
         let old_part_count = self.parts.len();
 
         if let Ok(filename) = filename {
-            info!(
-                self.context,
-                "add_single_part_if_known filename: {:?}", filename
-            );
-            info!(
-                self.context,
-                "add_single_part_if_known headers: : {:?}", mail.headers
-            );
             self.do_add_single_file_part(
                 msg_type,
                 mime_type,
@@ -593,10 +553,6 @@ impl<'a> MimeParser<'a> {
                 &filename,
             );
         } else {
-            info!(
-                self.context,
-                "add_single_part_if_known NO filename"
-            );
             match mime_type.type_() {
                 mime::IMAGE | mime::AUDIO | mime::VIDEO | mime::APPLICATION => {
                     bail!("missing attachment");
