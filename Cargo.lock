@@ -90,11 +90,11 @@ dependencies = [
 [[package]]
 name = "async-imap"
 version = "0.1.1"
-source = "git+https://github.com/async-email/async-imap#377d40837028b454c6365ff13e3f35cc341a908e"
+source = "git+https://github.com/async-email/async-imap?branch=try_1024#2f70af396ac08f66a8d9c97139ce6f5c6595ebe9"
 dependencies = [
  "async-attributes 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "async-std 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "async-tls 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "async-tls 0.6.0 (git+https://github.com/deltachat/async-tls)",
  "base64 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -119,10 +119,10 @@ dependencies = [
 [[package]]
 name = "async-smtp"
 version = "0.1.0"
-source = "git+https://github.com/async-email/async-smtp#b2c9e8a1a817575d3911152103692ec3d033fd96"
+source = "git+https://github.com/async-email/async-smtp?branch=try_1024#192b14d67eb1a7bddbf99f7faa258a15338edb19"
 dependencies = [
  "async-std 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "async-tls 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "async-tls 0.6.0 (git+https://github.com/deltachat/async-tls)",
  "async-trait 0.1.21 (registry+https://github.com/rust-lang/crates.io-index)",
  "base64 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "bufstream 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -132,13 +132,13 @@ dependencies = [
  "nom 5.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "pin-project 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "pin-utils 0.1.0-alpha.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustls 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustls-connector 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustls 0.16.0 (git+https://github.com/deltachat/rustls)",
+ "rustls-connector 0.8.1 (git+https://github.com/deltachat/rustls-connector)",
  "serde 1.0.103 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.103 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.44 (registry+https://github.com/rust-lang/crates.io-index)",
  "snafu 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "webpki-roots 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "webpki-roots 0.18.0 (git+https://github.com/deltachat/webpki-roots)",
 ]
 
 [[package]]
@@ -178,12 +178,12 @@ dependencies = [
 [[package]]
 name = "async-tls"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+source = "git+https://github.com/deltachat/async-tls#c6e7d68b2e00e560ba39c7b65fe4e796e339f861"
 dependencies = [
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustls 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "webpki 0.21.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "webpki-roots 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustls 0.16.0 (git+https://github.com/deltachat/rustls)",
+ "webpki 0.21.0 (git+https://github.com/deltachat/webpki)",
+ "webpki-roots 0.18.0 (git+https://github.com/deltachat/webpki-roots)",
 ]
 
 [[package]]
@@ -644,10 +644,10 @@ dependencies = [
 name = "deltachat"
 version = "1.0.0-beta.15"
 dependencies = [
- "async-imap 0.1.1 (git+https://github.com/async-email/async-imap)",
- "async-smtp 0.1.0 (git+https://github.com/async-email/async-smtp)",
+ "async-imap 0.1.1 (git+https://github.com/async-email/async-imap?branch=try_1024)",
+ "async-smtp 0.1.0 (git+https://github.com/async-email/async-smtp?branch=try_1024)",
  "async-std 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "async-tls 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "async-tls 0.6.0 (git+https://github.com/deltachat/async-tls)",
  "backtrace 0.3.40 (registry+https://github.com/rust-lang/crates.io-index)",
  "base64 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "bitflags 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -683,7 +683,7 @@ dependencies = [
  "regex 1.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "reqwest 0.9.22 (registry+https://github.com/rust-lang/crates.io-index)",
  "rusqlite 0.20.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustls 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustls 0.16.0 (git+https://github.com/deltachat/rustls)",
  "rustyline 4.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sanitize-filename 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.103 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -695,8 +695,8 @@ dependencies = [
  "strum_macros 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tempfile 3.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "thread-local-object 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "webpki 0.21.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "webpki-roots 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "webpki 0.21.0 (git+https://github.com/deltachat/webpki)",
+ "webpki-roots 0.18.0 (git+https://github.com/deltachat/webpki-roots)",
 ]
 
 [[package]]
@@ -2322,6 +2322,20 @@ dependencies = [
 [[package]]
 name = "ring"
 version = "0.16.9"
+source = "git+https://github.com/deltachat/ring#cf6b0f4037a216566f6970d4db3cd39f01c2a50d"
+dependencies = [
+ "cc 1.0.48 (registry+https://github.com/rust-lang/crates.io-index)",
+ "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.66 (registry+https://github.com/rust-lang/crates.io-index)",
+ "spin 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "untrusted 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "web-sys 0.3.32 (registry+https://github.com/rust-lang/crates.io-index)",
+ "winapi 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "ring"
+version = "0.16.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "cc 1.0.48 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2400,6 +2414,18 @@ dependencies = [
 [[package]]
 name = "rustls"
 version = "0.16.0"
+source = "git+https://github.com/deltachat/rustls#84b72dc5f12d70ebf31bebf1b2f9049deb2bfa4b"
+dependencies = [
+ "base64 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ring 0.16.9 (git+https://github.com/deltachat/ring)",
+ "sct 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "webpki 0.21.0 (git+https://github.com/deltachat/webpki)",
+]
+
+[[package]]
+name = "rustls"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "base64 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2407,6 +2433,16 @@ dependencies = [
  "ring 0.16.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "sct 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "webpki 0.21.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "rustls-connector"
+version = "0.8.1"
+source = "git+https://github.com/deltachat/rustls-connector#c37cc357415ce17047c7ed42260f0fdbf8fa0325"
+dependencies = [
+ "rustls 0.16.0 (git+https://github.com/deltachat/rustls)",
+ "webpki 0.21.0 (git+https://github.com/deltachat/webpki)",
+ "webpki-roots 0.18.0 (git+https://github.com/deltachat/webpki-roots)",
 ]
 
 [[package]]
@@ -3259,6 +3295,15 @@ dependencies = [
 [[package]]
 name = "webpki"
 version = "0.21.0"
+source = "git+https://github.com/deltachat/webpki#dc60b60049ba21512d717262270cc6cbeae1fc99"
+dependencies = [
+ "ring 0.16.9 (git+https://github.com/deltachat/ring)",
+ "untrusted 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "webpki"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "ring 0.16.9 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3271,6 +3316,14 @@ version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "webpki 0.21.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "webpki-roots"
+version = "0.18.0"
+source = "git+https://github.com/deltachat/webpki-roots#6fd4f7db2a178e459b2b1617992fdc3acf9d3875"
+dependencies = [
+ "webpki 0.21.0 (git+https://github.com/deltachat/webpki)",
 ]
 
 [[package]]
@@ -3418,12 +3471,12 @@ dependencies = [
 "checksum arrayvec 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "cff77d8686867eceff3105329d4698d96c2391c176d5d03adc90c7389162b5b8"
 "checksum ascii_utils 0.9.3 (registry+https://github.com/rust-lang/crates.io-index)" = "71938f30533e4d95a6d17aa530939da3842c2ab6f4f84b9dae68447e4129f74a"
 "checksum async-attributes 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "efd3d156917d94862e779f356c5acae312b08fd3121e792c857d7928c8088423"
-"checksum async-imap 0.1.1 (git+https://github.com/async-email/async-imap)" = "<none>"
+"checksum async-imap 0.1.1 (git+https://github.com/async-email/async-imap?branch=try_1024)" = "<none>"
 "checksum async-macros 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "644a5a8de80f2085a1e7e57cd1544a2a7438f6e003c0790999bd43b92a77cdb2"
-"checksum async-smtp 0.1.0 (git+https://github.com/async-email/async-smtp)" = "<none>"
+"checksum async-smtp 0.1.0 (git+https://github.com/async-email/async-smtp?branch=try_1024)" = "<none>"
 "checksum async-std 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "513ee3c49800679a319912340f5601afda9e72848d7dea3a48bab489e8c1a46f"
 "checksum async-task 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "de6bd58f7b9cc49032559422595c81cbfcf04db2f2133592f70af19e258a1ced"
-"checksum async-tls 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)" = "6ce6977f57fa68da77ffe5542950d47e9c23d65f5bc7cb0a9f8700996913eec7"
+"checksum async-tls 0.6.0 (git+https://github.com/deltachat/async-tls)" = "<none>"
 "checksum async-trait 0.1.21 (registry+https://github.com/rust-lang/crates.io-index)" = "8b6dd385bb33043b833ba049048d57bdbb4d654a121ed68c71871ca51ff67070"
 "checksum atty 0.2.13 (registry+https://github.com/rust-lang/crates.io-index)" = "1803c647a3ec87095e7ae7acfca019e98de5ec9a7d01343f611cf3152ed71a90"
 "checksum autocfg 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)" = "1d49d90015b3c36167a20fe2810c5cd875ad504b39cff3d4eae7977e6b7c1cb2"
@@ -3654,6 +3707,7 @@ dependencies = [
 "checksum rental 0.5.5 (registry+https://github.com/rust-lang/crates.io-index)" = "8545debe98b2b139fb04cad8618b530e9b07c152d99a5de83c860b877d67847f"
 "checksum rental-impl 0.5.5 (registry+https://github.com/rust-lang/crates.io-index)" = "475e68978dc5b743f2f40d8e0a8fdc83f1c5e78cbf4b8fa5e74e73beebc340de"
 "checksum reqwest 0.9.22 (registry+https://github.com/rust-lang/crates.io-index)" = "2c2064233e442ce85c77231ebd67d9eca395207dec2127fe0bbedde4bd29a650"
+"checksum ring 0.16.9 (git+https://github.com/deltachat/ring)" = "<none>"
 "checksum ring 0.16.9 (registry+https://github.com/rust-lang/crates.io-index)" = "6747f8da1f2b1fabbee1aaa4eb8a11abf9adef0bf58a41cee45db5d59cecdfac"
 "checksum ripemd160 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)" = "ad5112e0dbbb87577bfbc56c42450235e3012ce336e29c5befd7807bd626da4a"
 "checksum rsa 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "6ed8692d8e0ea3baae03f0f32ecfc13a6c6f1f85fcd6d9fdefcdf364e70f4df9"
@@ -3661,7 +3715,9 @@ dependencies = [
 "checksum rust-argon2 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "4ca4eaef519b494d1f2848fc602d18816fed808a981aedf4f1f00ceb7c9d32cf"
 "checksum rustc-demangle 0.1.16 (registry+https://github.com/rust-lang/crates.io-index)" = "4c691c0e608126e00913e33f0ccf3727d5fc84573623b8d65b2df340b5201783"
 "checksum rustc_version 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)" = "138e3e0acb6c9fb258b19b67cb8abd63c00679d2851805ea151465464fe9030a"
+"checksum rustls 0.16.0 (git+https://github.com/deltachat/rustls)" = "<none>"
 "checksum rustls 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b25a18b1bf7387f0145e7f8324e700805aade3842dd3db2e74e4cdeb4677c09e"
+"checksum rustls-connector 0.8.1 (git+https://github.com/deltachat/rustls-connector)" = "<none>"
 "checksum rustls-connector 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)" = "58255a0cb2043d0cc58b2a4208412b8168fc78451c9427816bb094fcf996fac1"
 "checksum rusty-fork 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "3dd93264e10c577503e926bd1430193eeb5d21b059148910082245309b424fae"
 "checksum rustyline 4.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "0f47ea1ceb347d2deae482d655dc8eef4bd82363d3329baffa3818bd76fea48b"
@@ -3760,8 +3816,10 @@ dependencies = [
 "checksum wasm-bindgen-shared 0.2.55 (registry+https://github.com/rust-lang/crates.io-index)" = "ca0b78d6d3be8589b95d1d49cdc0794728ca734adf36d7c9f07e6459508bb53d"
 "checksum wasm-bindgen-webidl 0.2.55 (registry+https://github.com/rust-lang/crates.io-index)" = "3126356474ceb717c8fb5549ae387c9fbf4872818454f4d87708bee997214bb5"
 "checksum web-sys 0.3.32 (registry+https://github.com/rust-lang/crates.io-index)" = "98405c0a2e722ed3db341b4c5b70eb9fe0021621f7350bab76df93b09b649bbf"
+"checksum webpki 0.21.0 (git+https://github.com/deltachat/webpki)" = "<none>"
 "checksum webpki 0.21.0 (registry+https://github.com/rust-lang/crates.io-index)" = "d7e664e770ac0110e2384769bcc59ed19e329d81f555916a6e072714957b81b4"
 "checksum webpki-roots 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)" = "a262ae37dd9d60f60dd473d1158f9fbebf110ba7b6a5051c8160460f6043718b"
+"checksum webpki-roots 0.18.0 (git+https://github.com/deltachat/webpki-roots)" = "<none>"
 "checksum webpki-roots 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)" = "91cd5736df7f12a964a5067a12c62fa38e1bd8080aff1f80bc29be7c80d19ab4"
 "checksum weedle 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)" = "3bb43f70885151e629e2a19ce9e50bd730fd436cfd4b666894c9ce4de9141164"
 "checksum winapi 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)" = "167dc9d6949a9b857f3451275e911c3f44255842c1f7a76f33c55103a909087a"

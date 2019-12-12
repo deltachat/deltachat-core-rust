@@ -38,7 +38,7 @@ impl Client {
         let stream = TcpStream::connect(addr).await?;
         let tls_config = dc_build_tls_config(certificate_checks);
         let tls_connector: async_tls::TlsConnector = Arc::new(tls_config).into();
-        let tls_stream = tls_connector.connect(domain.as_ref(), stream)?.await?;
+        let tls_stream = tls_connector.connect(domain.as_ref(), stream).await?;
         let mut client = ImapClient::new(tls_stream);
         if std::env::var(crate::DCC_IMAP_DEBUG).is_ok() {
             client.debug = true;
