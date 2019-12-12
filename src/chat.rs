@@ -35,7 +35,6 @@ pub struct Chat {
     pub grpid: String,
     blocked: Blocked,
     pub param: Params,
-    pub gossiped_timestamp: i64,
     is_sending_locations: bool,
 }
 
@@ -44,7 +43,7 @@ impl Chat {
     pub fn load_from_db(context: &Context, chat_id: u32) -> Result<Self, Error> {
         let res = context.sql.query_row(
             "SELECT c.id,c.type,c.name, c.grpid,c.param,c.archived, \
-             c.blocked, c.gossiped_timestamp, c.locations_send_until  \
+             c.blocked, c.locations_send_until  \
              FROM chats c WHERE c.id=?;",
             params![chat_id as i32],
             |row| {
@@ -56,8 +55,7 @@ impl Chat {
                     param: row.get::<_, String>(4)?.parse().unwrap_or_default(),
                     archived: row.get(5)?,
                     blocked: row.get::<_, Option<_>>(6)?.unwrap_or_default(),
-                    gossiped_timestamp: row.get(7)?,
-                    is_sending_locations: row.get(8)?,
+                    is_sending_locations: row.get(7)?,
                 };
 
                 Ok(c)
@@ -214,6 +212,10 @@ impl Chat {
         }
 
         None
+    }
+
+    pub fn get_gossiped_timestamp(&self, context: &Context) -> i64 {
+        get_gossiped_timestamp(context, self.id)
     }
 
     pub fn get_color(&self, context: &Context) -> u32 {
@@ -1574,7 +1576,7 @@ pub fn get_gossiped_timestamp(context: &Context, chat_id: u32) -> i64 {
         .sql
         .query_get_value::<_, i64>(
             context,
-            "SELECT gossiped_timestamp FROM chats WHERE chat_id=?;",
+            "SELECT gossiped_timestamp FROM chats WHERE id=?;",
             params![chat_id as i32],
         )
         .unwrap_or_default()
@@ -2016,7 +2018,7 @@ pub fn get_info_json(context: &Context, chat_id: u32) -> Result<String, Error> {
          "name": chat.name,
          "archived": chat.archived,
          "param": chat.param.to_string(),
-         "gossiped_timestamp": chat.gossiped_timestamp,
+         "gossiped_timestamp": chat.get_gossiped_timestamp(context),
          "is_sending_locations": chat.is_sending_locations,
          "color": chat.get_color(context),
          "profile_image": profile_image,
