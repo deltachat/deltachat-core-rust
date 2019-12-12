@@ -298,6 +298,11 @@ impl Context {
         res.insert("database_version", dbversion.to_string());
         res.insert("blobdir", self.get_blobdir().display().to_string());
         res.insert("display_name", displayname.unwrap_or_else(|| unset.into()));
+        res.insert(
+            "selfavatar",
+            self.get_config(Config::Selfavatar)
+                .unwrap_or_else(|| "<unset>".to_string()),
+        );
         res.insert("is_configured", is_configured.to_string());
         res.insert("entered_account_settings", l.to_string());
         res.insert("used_account_settings", l2.to_string());
