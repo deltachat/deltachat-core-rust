@@ -4,10 +4,6 @@ use std::borrow::Cow;
 use std::fmt;
 
 use crate::context::Context;
-use async_std::sync::Arc;
-use rustls;
-use webpki;
-use webpki_roots;
 
 #[derive(Copy, Clone, Debug, Display, FromPrimitive)]
 #[repr(i32)]
@@ -262,43 +258,25 @@ fn get_readable_flags(flags: i32) -> String {
     res
 }
 
-pub struct NoCertificateVerification {}
-
-impl rustls::ServerCertVerifier for NoCertificateVerification {
-    fn verify_server_cert(
-        &self,
-        _roots: &rustls::RootCertStore,
-        _presented_certs: &[rustls::Certificate],
-        _dns_name: webpki::DNSNameRef<'_>,
-        _ocsp: &[u8],
-    ) -> Result<rustls::ServerCertVerified, rustls::TLSError> {
-        Ok(rustls::ServerCertVerified::assertion())
-    }
-}
-
-pub fn dc_build_tls_config(certificate_checks: CertificateChecks) -> rustls::ClientConfig {
-    let mut config = rustls::ClientConfig::new();
-    config
-        .root_store
-        .add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
-
+pub fn dc_build_tls(
+    certificate_checks: CertificateChecks,
+) -> Result<native_tls::TlsConnector, native_tls::Error> {
+    let mut tls_builder = native_tls::TlsConnector::builder();
     match certificate_checks {
-        CertificateChecks::Strict => {}
         CertificateChecks::Automatic => {
             // Same as AcceptInvalidCertificates for now.
             // TODO: use provider database when it becomes available
-            config
-                .dangerous()
-                .set_certificate_verifier(Arc::new(NoCertificateVerification {}));
+            tls_builder
+                .danger_accept_invalid_hostnames(true)
+                .danger_accept_invalid_certs(true)
         }
+        CertificateChecks::Strict => &mut tls_builder,
         CertificateChecks::AcceptInvalidCertificates
-        | CertificateChecks::AcceptInvalidCertificates2 => {
-            config
-                .dangerous()
-                .set_certificate_verifier(Arc::new(NoCertificateVerification {}));
-        }
+        | CertificateChecks::AcceptInvalidCertificates2 => tls_builder
+            .danger_accept_invalid_hostnames(true)
+            .danger_accept_invalid_certs(true),
     }
-    config
+    .build()
 }
 
 #[cfg(test)]
