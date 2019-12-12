@@ -95,9 +95,12 @@ class Account(object):
         """
         self._check_config_key(name)
         name = name.encode("utf8")
-        value = value.encode("utf8")
         if name == b"addr" and self.is_configured():
             raise ValueError("can not change 'addr' after account is configured.")
+        if value is not None:
+            value = value.encode("utf8")
+        else:
+            value = ffi.NULL
         lib.dc_set_config(self._dc_context, name, value)
 
     def get_config(self, name):
@@ -140,7 +143,7 @@ class Account(object):
         :returns: None
         """
         if img_path is None:
-            self.set_config("selfavatar", "")
+            self.set_config("selfavatar", None)
         else:
             assert os.path.exists(img_path), img_path
             self.set_config("selfavatar", img_path)
