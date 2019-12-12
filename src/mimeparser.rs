@@ -1121,21 +1121,24 @@ mod tests {
                     --==break==--\n\
                     \n\
                     \x00";
+
         let mimeparser = MimeParser::from_bytes(&context.ctx, &raw[..]).unwrap();
 
-        // test that we treat Subject as a protected header that can
-        // bubble upwards
-        assert_eq!(mimeparser.get_subject(), Some("inner-subject".into()));
-
+        // non-overwritten headers do not bubble up
         let of = mimeparser.get(HeaderDef::SecureJoinGroup).unwrap();
         assert_eq!(of, "no");
 
-        // unprotected headers do not bubble upwards
+        // unknown headers do not bubble upwards
         let of = mimeparser.get(HeaderDef::_TestHeader).unwrap();
         assert_eq!(of, "Bar");
 
+        // the following fields would bubble up
+        // if the test would really use encryption for the protected part
+        // however, as this is not the case, the outer things stay valid
+        assert_eq!(mimeparser.get_subject(), Some("outer-subject".into()));
+
         let of = mimeparser.get(HeaderDef::ChatVersion).unwrap();
-        assert_eq!(of, "1.0");
+        assert_eq!(of, "0.0");
         assert_eq!(mimeparser.parts.len(), 1);
     }
 
