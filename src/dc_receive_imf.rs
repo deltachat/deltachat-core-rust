@@ -1040,13 +1040,11 @@ fn create_or_lookup_group(
             match &mime_parser.group_avatar {
                 AvatarAction::Change(profile_image) => {
                     chat.param.set(Param::ProfileImage, profile_image);
-                    true
                 }
                 AvatarAction::Delete => {
                     chat.param.remove(Param::ProfileImage);
-                    true
                 }
-                AvatarAction::None => false,
+                AvatarAction::None => {}
             };
             chat.update_param(context)?;
             send_EVENT_CHAT_MODIFIED = true;
