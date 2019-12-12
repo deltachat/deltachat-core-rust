@@ -51,6 +51,16 @@ pub enum AvatarAction {
     Change(String),
 }
 
+impl AvatarAction {
+    pub fn is_change(&self) -> bool {
+        match self {
+            AvatarAction::None => false,
+            AvatarAction::Delete => false,
+            AvatarAction::Change(_) => true,
+        }
+    }
+}
+
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql)]
 #[repr(i32)]
 pub enum SystemMessage {
@@ -1143,7 +1153,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mimeparser_with_user_avatar() {
+    fn test_mimeparser_with_avatars() {
         let t = dummy_context();
 
         let raw = include_bytes!("../test-data/message/mail_attach_txt.eml");
@@ -1154,14 +1164,32 @@ mod tests {
         let raw = include_bytes!("../test-data/message/mail_with_user_avatar.eml");
         let mimeparser = MimeParser::from_bytes(&t.ctx, &raw[..]).unwrap();
         assert_eq!(mimeparser.parts.len(), 1);
-        assert_ne!(mimeparser.user_avatar, AvatarAction::None);
-        assert_ne!(mimeparser.user_avatar, AvatarAction::Delete);
+        assert_eq!(mimeparser.parts[0].typ, Viewtype::Text);
+        assert!(mimeparser.user_avatar.is_change());
         assert_eq!(mimeparser.group_avatar, AvatarAction::None);
 
         let raw = include_bytes!("../test-data/message/mail_with_user_avatar_deleted.eml");
         let mimeparser = MimeParser::from_bytes(&t.ctx, &raw[..]).unwrap();
         assert_eq!(mimeparser.parts.len(), 1);
+        assert_eq!(mimeparser.parts[0].typ, Viewtype::Text);
         assert_eq!(mimeparser.user_avatar, AvatarAction::Delete);
         assert_eq!(mimeparser.group_avatar, AvatarAction::None);
+
+        let raw = include_bytes!("../test-data/message/mail_with_user_and_group_avatars.eml");
+        let mimeparser = MimeParser::from_bytes(&t.ctx, &raw[..]).unwrap();
+        assert_eq!(mimeparser.parts.len(), 1);
+        assert_eq!(mimeparser.parts[0].typ, Viewtype::Text);
+        assert!(mimeparser.user_avatar.is_change());
+        assert!(mimeparser.group_avatar.is_change());
+
+        // if the Chat-User-Avatar header is missing, the avatar become a normal attachment
+        let raw = include_bytes!("../test-data/message/mail_with_user_and_group_avatars.eml");
+        let raw = String::from_utf8_lossy(raw).to_string();
+        let raw = raw.replace("Chat-User-Avatar:", "Xhat-Xser-Xvatar:");
+        let mimeparser = MimeParser::from_bytes(&t.ctx, raw.as_bytes()).unwrap();
+        assert_eq!(mimeparser.parts.len(), 1);
+        assert_eq!(mimeparser.parts[0].typ, Viewtype::Image);
+        assert_eq!(mimeparser.user_avatar, AvatarAction::None);
+        assert!(mimeparser.group_avatar.is_change());
     }
 }
