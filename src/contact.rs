@@ -742,6 +742,9 @@ impl Contact {
     /// This name is typically used in lists.
     /// To get the name editable in a formular, use `Contact::get_name`.
     pub fn get_display_name(&self) -> &str {
+        if !self.authname.is_empty() {
+            return &self.authname;
+        }
         if !self.name.is_empty() {
             return &self.name;
         }
