@@ -5,11 +5,7 @@
     clippy::cognitive_complexity,
     clippy::too_many_arguments
 )]
-#![allow(
-    clippy::unreadable_literal,
-    clippy::needless_range_loop,
-    clippy::match_bool
-)]
+#![allow(clippy::unreadable_literal, clippy::match_bool)]
 #![feature(ptr_wrapping_offset_from)]
 #![feature(drain_filter)]
 
