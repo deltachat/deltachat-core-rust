@@ -94,7 +94,8 @@ pub fn JobConfigureImap(context: &Context) {
         "Internal Error: this value should never be used".to_owned();
     let mut keep_flags = 0;
 
-    const STEP_AFTER_AUTOCONFIG: u8 = 12;
+    const STEP_12_USE_AUTOCONFIG: u8 = 12;
+    const STEP_13_AFTER_AUTOCONFIG: u8 = 13;
 
     let mut step_counter: u8 = 0;
     while !context.shall_stop_ongoing() {
@@ -161,11 +162,11 @@ pub fn JobConfigureImap(context: &Context) {
                     if let Some(new_param) = get_offline_autoconfig(context, &param) {
                         // got parameters from our provider-database, skip Autoconfig, preserve the OAuth2 setting
                         param_autoconfig = Some(new_param);
-                        step_counter = STEP_AFTER_AUTOCONFIG;
+                        step_counter = STEP_12_USE_AUTOCONFIG - 1; // minus one as step_counter is increased on next loop
                     }
                 } else {
                     // advanced parameters entered by the user: skip Autoconfig
-                    step_counter = STEP_AFTER_AUTOCONFIG;
+                    step_counter = STEP_13_AFTER_AUTOCONFIG - 1; // minus one as step_counter is increased on next loop
                 }
                 true
             }
@@ -251,9 +252,9 @@ pub fn JobConfigureImap(context: &Context) {
                 true
             }
             /* C.  Do we have any autoconfig result?
-               If you change the match-number here, also update STEP_AFTER_AUTOCONFIG above
+               If you change the match-number here, also update STEP_12_COPY_AUTOCONFIG above
             */
-            12 => {
+            STEP_12_USE_AUTOCONFIG => {
                 progress!(context, 500);
                 if let Some(ref cfg) = param_autoconfig {
                     info!(context, "Got autoconfig: {}", &cfg);
@@ -273,7 +274,8 @@ pub fn JobConfigureImap(context: &Context) {
                 true
             }
             // Step 3: Fill missing fields with defaults
-            13 => {
+            // If you change the match-number here, also update STEP_13_AFTER_AUTOCONFIG above
+            STEP_13_AFTER_AUTOCONFIG => {
                 if param.mail_server.is_empty() {
                     param.mail_server = format!("imap.{}", param_domain,)
                 }
