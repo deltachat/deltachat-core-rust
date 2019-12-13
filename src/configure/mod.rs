@@ -147,11 +147,7 @@ pub fn JobConfigureImap(context: &Context) {
             4 => {
                 progress!(context, 200);
 
-                if let Some(new_param) = get_offline_autoconfig(context, &param) {
-                    keep_flags = new_param.server_flags & DC_LP_AUTH_OAUTH2;
-                    param_autoconfig = Some(new_param);
-                    step_counter = STEP_AFTER_AUTOCONFIG;
-                } else if param.mail_server.is_empty()
+                if param.mail_server.is_empty()
                             && param.mail_port == 0
                             /*&&param.mail_user.is_empty() -- the user can enter a loginname which is used by autoconfig then */
                             && param.send_server.is_empty()
@@ -160,9 +156,15 @@ pub fn JobConfigureImap(context: &Context) {
                             /*&&param.send_pw.is_empty() -- the password cannot be auto-configured and is no criterion for autoconfig or not */
                             && (param.server_flags & !DC_LP_AUTH_OAUTH2) == 0
                 {
+                    // no advanced parameters entered by the user: query provider-database or do Autoconfig
                     keep_flags = param.server_flags & DC_LP_AUTH_OAUTH2;
+                    if let Some(new_param) = get_offline_autoconfig(context, &param) {
+                        // got parameters from our provider-database, skip Autoconfig, preserve the OAuth2 setting
+                        param_autoconfig = Some(new_param);
+                        step_counter = STEP_AFTER_AUTOCONFIG;
+                    }
                 } else {
-                    // Autoconfig is not needed so skip it.
+                    // advanced parameters entered by the user: skip Autoconfig
                     step_counter = STEP_AFTER_AUTOCONFIG;
                 }
                 true
@@ -272,7 +274,6 @@ pub fn JobConfigureImap(context: &Context) {
             }
             // Step 3: Fill missing fields with defaults
             13 => {
-                // if you move this, don't forget to update STEP_3_INDEX, too
                 if param.mail_server.is_empty() {
                     param.mail_server = format!("imap.{}", param_domain,)
                 }
