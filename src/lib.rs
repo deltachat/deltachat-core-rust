@@ -4,7 +4,6 @@
     clippy::type_complexity,
     clippy::cognitive_complexity,
     clippy::too_many_arguments,
-    clippy::block_in_if_condition_stmt,
     clippy::large_enum_variant
 )]
 #![allow(
