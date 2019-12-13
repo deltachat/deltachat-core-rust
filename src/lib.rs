@@ -3,8 +3,7 @@
 #![allow(
     clippy::type_complexity,
     clippy::cognitive_complexity,
-    clippy::too_many_arguments,
-    clippy::large_enum_variant
+    clippy::too_many_arguments
 )]
 #![allow(
     clippy::unreadable_literal,
