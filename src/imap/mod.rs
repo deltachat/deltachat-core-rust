@@ -329,9 +329,7 @@ impl Imap {
 
     /// Connects to imap account using already-configured parameters.
     pub fn connect_configured(&self, context: &Context) -> Result<()> {
-        if async_std::task::block_on(async move {
-            self.is_connected().await && !self.should_reconnect()
-        }) {
+        if async_std::task::block_on(self.is_connected()) && !self.should_reconnect() {
             return Ok(());
         }
         if !context.sql.get_raw_config_bool(context, "configured") {
