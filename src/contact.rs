@@ -745,6 +745,9 @@ impl Contact {
         if !self.name.is_empty() {
             return &self.name;
         }
+        if !self.authname.is_empty() {
+            return &self.authname;
+        }
         &self.addr
     }
 
