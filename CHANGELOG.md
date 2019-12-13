@@ -1,5 +1,34 @@
 # Changelog 
 
+## 1.0.0-beta.16
+
+- alleviate login problems with providers which only
+  support RSA1024 keys by switching back from Rustls 
+  to native-tls, by using the new async-email/async-native-tls 
+  crate from @dignifiedquire. thanks @link2xt. 
+
+- introduce per-contact profile images to send out 
+  own profile image heuristically, and fix sending
+  out of profile images in "in-prepare" groups. 
+  this also extends the Chat-spec that is maintained
+  in core to specify Chat-Group-Image and Chat-Group-Avatar
+  headers. thanks @r10s and @hpk42.
+
+- fix merging of protected headers from the encrypted
+  to the unencrypted parts, now not happening recursively
+  anymore.  thanks @hpk and @r10s
+
+- fix/optimize autocrypt gossip headers to only get 
+  sent when there are more than 2 people in a chat. 
+  thanks @link2xt
+
+- fix displayname to use the authenticated name 
+  when available (displayname as coming from contacts 
+  themselves). thanks @simon-laux
+
+- introduce preliminary support for offline autoconfig 
+  for nauta provider. thanks @hpk42 @r10s
+
 ## 1.0.0-beta.15
 
 - fix #994 attachment appeared doubled in chats (and where actually
