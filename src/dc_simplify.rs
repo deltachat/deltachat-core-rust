@@ -213,50 +213,50 @@ mod tests {
         #[test]
         // proptest does not support [[:graphical:][:space:]] regex.
         fn test_simplify_plain_text_fuzzy(input in "[!-~\t \n]+") {
-            let output = Simplify::new().simplify_plain_text(&input, true);
+            let (output, _) = simplify_plain_text(&split_lines(&input), true);
             assert!(output.split('\n').all(|s| s != "-- "));
         }
     }
 
     #[test]
     fn test_simplify_trim() {
-        let mut simplify = Simplify::new();
         let html = "\r\r\nline1<br>\r\n\r\n\r\rline2\n\r";
-        let plain = simplify.simplify(html, true, false);
+        let (plain, is_forwarded) = simplify(html, true, false);
 
         assert_eq!(plain, "line1\nline2");
+        assert!(!is_forwarded);
     }
 
     #[test]
     fn test_simplify_parse_href() {
-        let mut simplify = Simplify::new();
         let html = "<a href=url>text</a";
-        let plain = simplify.simplify(html, true, false);
+        let (plain, is_forwarded) = simplify(html, true, false);
 
         assert_eq!(plain, "[text](url)");
+        assert!(!is_forwarded);
     }
 
     #[test]
     fn test_simplify_bold_text() {
-        let mut simplify = Simplify::new();
         let html = "<!DOCTYPE name [<!DOCTYPE ...>]><!-- comment -->text <b><?php echo ... ?>bold</b><![CDATA[<>]]>";
-        let plain = simplify.simplify(html, true, false);
+        let (plain, is_forwarded) = simplify(html, true, false);
 
         assert_eq!(plain, "text *bold*<>");
+        assert!(!is_forwarded);
     }
 
     #[test]
     fn test_simplify_html_encoded() {
-        let mut simplify = Simplify::new();
         let html =
                 "&lt;&gt;&quot;&apos;&amp; &auml;&Auml;&ouml;&Ouml;&uuml;&Uuml;&szlig; foo&AElig;&ccedil;&Ccedil; &diams;&lrm;&rlm;&zwnj;&noent;&zwj;";
 
-        let plain = simplify.simplify(html, true, false);
+        let (plain, is_forwarded) = simplify(html, true, false);
 
         assert_eq!(
             plain,
             "<>\"\'& äÄöÖüÜß fooÆçÇ \u{2666}\u{200e}\u{200f}\u{200c}&noent;\u{200d}"
         );
+        assert!(!is_forwarded);
     }
 
     #[test]
