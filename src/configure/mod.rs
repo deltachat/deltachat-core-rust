@@ -542,13 +542,14 @@ fn try_imap_one_param(context: &Context, param: &LoginParam) -> Option<bool> {
         param.imap_certificate_checks
     );
     info!(context, "Trying: {}", inf);
-    if task::block_on(context
-        .inbox_thread
-        .read()
-        .unwrap()
-        .imap
-        .connect(context, &param))
-    {
+    if task::block_on(
+        context
+            .inbox_thread
+            .read()
+            .unwrap()
+            .imap
+            .connect(context, &param),
+    ) {
         info!(context, "success: {}", inf);
         return Some(true);
     }

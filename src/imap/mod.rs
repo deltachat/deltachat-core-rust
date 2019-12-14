@@ -349,79 +349,79 @@ impl Imap {
     /// tries connecting to imap account using the specific login
     /// parameters
     pub async fn connect(&self, context: &Context, lp: &LoginParam) -> bool {
-            if lp.mail_server.is_empty() || lp.mail_user.is_empty() || lp.mail_pw.is_empty() {
-                return false;
-            }
+        if lp.mail_server.is_empty() || lp.mail_user.is_empty() || lp.mail_pw.is_empty() {
+            return false;
+        }
 
-            {
-                let addr = &lp.addr;
-                let imap_server = &lp.mail_server;
-                let imap_port = lp.mail_port as u16;
-                let imap_user = &lp.mail_user;
-                let imap_pw = &lp.mail_pw;
-                let server_flags = lp.server_flags as usize;
+        {
+            let addr = &lp.addr;
+            let imap_server = &lp.mail_server;
+            let imap_port = lp.mail_port as u16;
+            let imap_user = &lp.mail_user;
+            let imap_pw = &lp.mail_pw;
+            let server_flags = lp.server_flags as usize;
 
-                let mut config = self.config.write().await;
-                config.addr = addr.to_string();
-                config.imap_server = imap_server.to_string();
-                config.imap_port = imap_port;
-                config.imap_user = imap_user.to_string();
-                config.imap_pw = imap_pw.to_string();
-                config.certificate_checks = lp.imap_certificate_checks;
-                config.server_flags = server_flags;
-            }
+            let mut config = self.config.write().await;
+            config.addr = addr.to_string();
+            config.imap_server = imap_server.to_string();
+            config.imap_port = imap_port;
+            config.imap_user = imap_user.to_string();
+            config.imap_pw = imap_pw.to_string();
+            config.certificate_checks = lp.imap_certificate_checks;
+            config.server_flags = server_flags;
+        }
 
-            if let Err(err) = self.setup_handle_if_needed(context).await {
-                warn!(context, "failed to setup imap handle: {}", err);
-                self.free_connect_params().await;
-                return false;
-            }
+        if let Err(err) = self.setup_handle_if_needed(context).await {
+            warn!(context, "failed to setup imap handle: {}", err);
+            self.free_connect_params().await;
+            return false;
+        }
 
-            let teardown = match &mut *self.session.lock().await {
-                Some(ref mut session) => match session.capabilities().await {
-                    Ok(caps) => {
-                        if !context.sql.is_open() {
-                            warn!(context, "IMAP-LOGIN as {} ok but ABORTING", lp.mail_user,);
-                            true
-                        } else {
-                            let can_idle = caps.has_str("IDLE");
-                            let has_xlist = caps.has_str("XLIST");
-                            let caps_list = caps.iter().fold(String::new(), |s, c| {
-                                if let Capability::Atom(x) = c {
-                                    s + &format!(" {}", x)
-                                } else {
-                                    s + &format!(" {:?}", c)
-                                }
-                            });
-
-                            self.config.write().await.can_idle = can_idle;
-                            self.config.write().await.has_xlist = has_xlist;
-                            *self.connected.lock().await = true;
-                            emit_event!(
-                                context,
-                                Event::ImapConnected(format!(
-                                    "IMAP-LOGIN as {}, capabilities: {}",
-                                    lp.mail_user, caps_list,
-                                ))
-                            );
-                            false
-                        }
-                    }
-                    Err(err) => {
-                        info!(context, "CAPABILITY command error: {}", err);
+        let teardown = match &mut *self.session.lock().await {
+            Some(ref mut session) => match session.capabilities().await {
+                Ok(caps) => {
+                    if !context.sql.is_open() {
+                        warn!(context, "IMAP-LOGIN as {} ok but ABORTING", lp.mail_user,);
                         true
+                    } else {
+                        let can_idle = caps.has_str("IDLE");
+                        let has_xlist = caps.has_str("XLIST");
+                        let caps_list = caps.iter().fold(String::new(), |s, c| {
+                            if let Capability::Atom(x) = c {
+                                s + &format!(" {}", x)
+                            } else {
+                                s + &format!(" {:?}", c)
+                            }
+                        });
+
+                        self.config.write().await.can_idle = can_idle;
+                        self.config.write().await.has_xlist = has_xlist;
+                        *self.connected.lock().await = true;
+                        emit_event!(
+                            context,
+                            Event::ImapConnected(format!(
+                                "IMAP-LOGIN as {}, capabilities: {}",
+                                lp.mail_user, caps_list,
+                            ))
+                        );
+                        false
                     }
-                },
-                None => true,
-            };
+                }
+                Err(err) => {
+                    info!(context, "CAPABILITY command error: {}", err);
+                    true
+                }
+            },
+            None => true,
+        };
 
-            if teardown {
-                self.disconnect(context);
+        if teardown {
+            self.disconnect(context);
 
-                false
-            } else {
-                true
-            }
+            false
+        } else {
+            true
+        }
     }
 
     pub fn disconnect(&self, context: &Context) {
