@@ -1148,12 +1148,9 @@ fn create_or_lookup_adhoc_group(
     if !chat_ids.is_empty() {
         let chat_ids_str = join(chat_ids.iter().map(|x| x.to_string()), ",");
         let res = context.sql.query_row(
-            format!(
-                "SELECT c.id, c.blocked  FROM chats c  \
-                 LEFT JOIN msgs m ON m.chat_id=c.id  WHERE c.id IN({})  ORDER BY m.timestamp DESC, m.id DESC  LIMIT 1;",
-                chat_ids_str
-            ),
-            params![],
+            "SELECT c.id, c.blocked  FROM chats c  \
+             LEFT JOIN msgs m ON m.chat_id=c.id  WHERE c.id IN({})  ORDER BY m.timestamp DESC, m.id DESC  LIMIT 1;",
+            params!(chat_ids_str),
             |row| {
                 Ok((row.get::<_, i32>(0)?, row.get::<_, Option<Blocked>>(1)?.unwrap_or_default()))
             }
@@ -1252,11 +1249,8 @@ fn create_adhoc_grp_id(context: &Context, member_ids: &[u32]) -> String {
     let members = context
         .sql
         .query_map(
-            format!(
-                "SELECT addr FROM contacts WHERE id IN({}) AND id!=1", // 1=DC_CONTACT_ID_SELF
-                member_ids_str
-            ),
-            params![],
+            "SELECT addr FROM contacts WHERE id IN({}) AND id!=1", // 1=DC_CONTACT_ID_SELF
+            params![member_ids_str],
             |row| row.get::<_, String>(0),
             |rows| {
                 let mut addrs = rows.collect::<std::result::Result<Vec<_>, _>>()?;
@@ -1300,17 +1294,14 @@ fn search_chat_ids_by_contact_ids(
             contact_ids.sort();
             let contact_ids_str = join(contact_ids.iter().map(|x| x.to_string()), ",");
             context.sql.query_map(
-                format!(
-                    "SELECT DISTINCT cc.chat_id, cc.contact_id \
-                       FROM chats_contacts cc \
-                       LEFT JOIN chats c ON c.id=cc.chat_id \
-                       WHERE cc.chat_id IN(SELECT chat_id FROM chats_contacts WHERE contact_id IN({})) \
-                         AND c.type=120 \
-                         AND cc.contact_id!=1 \
-                       ORDER BY cc.chat_id, cc.contact_id;", // 1=DC_CONTACT_ID_SELF
-                    contact_ids_str
-                ),
-                params![],
+                "SELECT DISTINCT cc.chat_id, cc.contact_id \
+                 FROM chats_contacts cc \
+                 LEFT JOIN chats c ON c.id=cc.chat_id \
+                 WHERE cc.chat_id IN(SELECT chat_id FROM chats_contacts WHERE contact_id IN({})) \
+                 AND c.type=120 \
+                 AND cc.contact_id!=1 \
+                 ORDER BY cc.chat_id, cc.contact_id;", // 1=DC_CONTACT_ID_SELF
+                params![contact_ids_str],
                 |row| Ok((row.get::<_, u32>(0)?, row.get::<_, u32>(1)?)),
                 |rows| {
                     let mut last_chat_id = 0;
@@ -1337,8 +1328,8 @@ fn search_chat_ids_by_contact_ids(
                     if matches == contact_ids.len() && mismatches == 0 {
                         chat_ids.push(last_chat_id);
                     }
-                Ok(())
-                }
+                    Ok(())
+                },
             )?;
         }
     }
@@ -1391,12 +1382,9 @@ fn check_verified_properties(
     let to_ids_str = join(to_ids.iter().map(|x| x.to_string()), ",");
 
     let rows = context.sql.query_map(
-        format!(
-            "SELECT c.addr, LENGTH(ps.verified_key_fingerprint)  FROM contacts c  \
-             LEFT JOIN acpeerstates ps ON c.addr=ps.addr  WHERE c.id IN({}) ",
-            to_ids_str
-        ),
-        params![],
+        "SELECT c.addr, LENGTH(ps.verified_key_fingerprint)  FROM contacts c  \
+         LEFT JOIN acpeerstates ps ON c.addr=ps.addr  WHERE c.id IN({}) ",
+        params![to_ids_str],
         |row| Ok((row.get::<_, String>(0)?, row.get::<_, i32>(1).unwrap_or(0))),
         |rows| {
             rows.collect::<std::result::Result<Vec<_>, _>>()

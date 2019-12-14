@@ -1915,11 +1915,8 @@ pub fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: u32) -> Resul
         ensure!(chat.can_send(), "cannot send to chat #{}", chat_id);
         curr_timestamp = dc_create_smeared_timestamps(context, msg_ids.len());
         let ids = context.sql.query_map(
-            format!(
-                "SELECT id FROM msgs WHERE id IN({}) ORDER BY timestamp,id",
-                msg_ids.iter().map(|_| "?").join(",")
-            ),
-            msg_ids,
+            "SELECT id FROM msgs WHERE id IN({}) ORDER BY timestamp,id",
+            params![msg_ids.iter().map(|_| "?").join(",")],
             |row| row.get::<_, MsgId>(0),
             |ids| ids.collect::<Result<Vec<_>, _>>().map_err(Into::into),
         )?;
