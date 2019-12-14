@@ -646,8 +646,8 @@ pub fn create_or_lookup_by_contact_id(
     sql::execute(
         context,
         &context.sql,
-        format!(
-            "INSERT INTO chats (type, name, param, blocked, grpid, created_timestamp) VALUES({}, '{}', '{}', {}, '{}', {})",
+        "INSERT INTO chats (type, name, param, blocked, grpid, created_timestamp) VALUES(?, ?, ?, ?, ?, ?)",
+        params![
             100,
             chat_name,
             match contact_id {
@@ -658,8 +658,7 @@ pub fn create_or_lookup_by_contact_id(
             create_blocked as u8,
             contact.get_addr(),
             time(),
-        ),
-        params![],
+        ]
     )?;
 
     let chat_id = sql::get_rowid(context, &context.sql, "chats", "grpid", contact.get_addr());
@@ -667,11 +666,8 @@ pub fn create_or_lookup_by_contact_id(
     sql::execute(
         context,
         &context.sql,
-        format!(
-            "INSERT INTO chats_contacts (chat_id, contact_id) VALUES({}, {})",
-            chat_id, contact_id
-        ),
-        params![],
+        "INSERT INTO chats_contacts (chat_id, contact_id) VALUES(?, ?)",
+        params![chat_id, contact_id],
     )?;
 
     if contact_id == DC_CONTACT_ID_SELF {
