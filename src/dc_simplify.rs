@@ -17,6 +17,10 @@ fn find_message_footer(lines: &[&str]) -> (usize, bool) {
     (lines.len(), false)
 }
 
+fn split_lines(buf: &str) -> Vec<&str> {
+    buf.split('\n').collect()
+}
+
 /// Simplify and normalise text: Remove quotes, signatures, unnecessary
 /// lineends etc.
 /// The data returned from simplify() must be free()'d when no longer used.
@@ -28,7 +32,8 @@ pub fn simplify(input: &str, is_html: bool, is_msgrmsg: bool) -> (String, bool) 
     };
 
     out.retain(|c| c != '\r');
-    let (mut out, is_forwarded) = simplify_plain_text(&out, is_msgrmsg);
+    let lines = split_lines(&out);
+    let (mut out, is_forwarded) = simplify_plain_text(&lines, is_msgrmsg);
     out.retain(|c| c != '\r');
 
     (out, is_forwarded)
@@ -38,14 +43,13 @@ pub fn simplify(input: &str, is_html: bool, is_msgrmsg: bool) -> (String, bool) 
  * Simplify Plain Text
  */
 #[allow(non_snake_case, clippy::mut_range_bound, clippy::needless_range_loop)]
-fn simplify_plain_text(buf_terminated: &str, is_msgrmsg: bool) -> (String, bool) {
+fn simplify_plain_text(lines: &[&str], is_msgrmsg: bool) -> (String, bool) {
     /* This function ...
     ... removes all text after the line `-- ` (footer mark)
     ... removes full quotes at the beginning and at the end of the text -
         these are all lines starting with the character `>`
     ... remove a non-empty line before the removed quote (contains sth. like "On 2.9.2016, Bjoern wrote:" in different formats and lanugages) */
     /* split the given buffer into lines */
-    let lines: Vec<_> = buf_terminated.split('\n').collect();
     let mut l_first: usize = 0;
     let (mut l_last, mut is_cut_at_end) = find_message_footer(&lines);
     let mut is_forwarded = false;
