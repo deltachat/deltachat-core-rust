@@ -339,7 +339,7 @@ impl Imap {
         let param = LoginParam::from_database(context, "configured_");
         // the trailing underscore is correct
 
-        if self.connect(context, &param) {
+        if task::block_on(self.connect(context, &param)) {
             self.ensure_configured_folders(context, true)
         } else {
             Err(Error::ConnectionFailed(format!("{}", param)))
@@ -348,8 +348,7 @@ impl Imap {
 
     /// tries connecting to imap account using the specific login
     /// parameters
-    pub fn connect(&self, context: &Context, lp: &LoginParam) -> bool {
-        task::block_on(async move {
+    pub async fn connect(&self, context: &Context, lp: &LoginParam) -> bool {
             if lp.mail_server.is_empty() || lp.mail_user.is_empty() || lp.mail_pw.is_empty() {
                 return false;
             }
@@ -423,7 +422,6 @@ impl Imap {
             } else {
                 true
             }
-        })
     }
 
     pub fn disconnect(&self, context: &Context) {

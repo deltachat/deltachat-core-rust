@@ -6,6 +6,8 @@ mod read_url;
 
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
+use async_std::task;
+
 use crate::config::Config;
 use crate::constants::*;
 use crate::context::Context;
@@ -540,12 +542,12 @@ fn try_imap_one_param(context: &Context, param: &LoginParam) -> Option<bool> {
         param.imap_certificate_checks
     );
     info!(context, "Trying: {}", inf);
-    if context
+    if task::block_on(context
         .inbox_thread
         .read()
         .unwrap()
         .imap
-        .connect(context, &param)
+        .connect(context, &param))
     {
         info!(context, "success: {}", inf);
         return Some(true);
