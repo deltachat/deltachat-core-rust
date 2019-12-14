@@ -577,12 +577,11 @@ impl<'a> MimeParser<'a> {
                         }
                     };
 
-                    let mut simplifier = Simplify::new();
-                    let simplified_txt = if decoded_data.is_empty() {
-                        "".into()
+                    let (simplified_txt, is_forwarded) = if decoded_data.is_empty() {
+                        ("".into(), false)
                     } else {
                         let is_html = mime_type == mime::TEXT_HTML;
-                        simplifier.simplify(&decoded_data, is_html, self.has_chat_version())
+                        simplify(&decoded_data, is_html, self.has_chat_version())
                     };
 
                     if !simplified_txt.is_empty() {
@@ -594,7 +593,7 @@ impl<'a> MimeParser<'a> {
                         self.do_add_single_part(part);
                     }
 
-                    if simplifier.is_forwarded {
+                    if is_forwarded {
                         self.is_forwarded = true;
                     }
                 }

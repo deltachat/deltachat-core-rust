@@ -1,10 +1,5 @@
 use crate::dehtml::*;
 
-#[derive(Copy, Clone)]
-pub struct Simplify {
-    pub is_forwarded: bool,
-}
-
 /// Return index of footer line in vector of message lines, or vector length if
 /// no footer is found.
 ///
@@ -22,17 +17,10 @@ fn find_message_footer(lines: &[&str]) -> (usize, bool) {
     (lines.len(), false)
 }
 
-impl Simplify {
-    pub fn new() -> Self {
-        Simplify {
-            is_forwarded: false,
-        }
-    }
-
     /// Simplify and normalise text: Remove quotes, signatures, unnecessary
     /// lineends etc.
     /// The data returned from simplify() must be free()'d when no longer used.
-    pub fn simplify(&mut self, input: &str, is_html: bool, is_msgrmsg: bool) -> String {
+    pub fn simplify(input: &str, is_html: bool, is_msgrmsg: bool) -> (String, bool) {
         let mut out = if is_html {
             dehtml(input)
         } else {
@@ -40,17 +28,17 @@ impl Simplify {
         };
 
         out.retain(|c| c != '\r');
-        out = self.simplify_plain_text(&out, is_msgrmsg);
+        let (mut out, is_forwarded) = simplify_plain_text(&out, is_msgrmsg);
         out.retain(|c| c != '\r');
 
-        out
+        (out, is_forwarded)
     }
 
     /**
      * Simplify Plain Text
      */
     #[allow(non_snake_case, clippy::mut_range_bound, clippy::needless_range_loop)]
-    fn simplify_plain_text(&mut self, buf_terminated: &str, is_msgrmsg: bool) -> String {
+    fn simplify_plain_text(buf_terminated: &str, is_msgrmsg: bool) -> (String, bool) {
         /* This function ...
         ... removes all text after the line `-- ` (footer mark)
         ... removes full quotes at the beginning and at the end of the text -
@@ -59,8 +47,8 @@ impl Simplify {
         /* split the given buffer into lines */
         let lines: Vec<_> = buf_terminated.split('\n').collect();
         let mut l_first: usize = 0;
-        let mut is_cut_at_begin = false;
         let (mut l_last, mut is_cut_at_end) = find_message_footer(&lines);
+        let mut is_forwarded = false;
 
         if l_last > l_first + 2 {
             let line0 = lines[l_first];
@@ -70,7 +58,7 @@ impl Simplify {
                 && line1.starts_with("From: ")
                 && line2.is_empty()
             {
-                self.is_forwarded = true;
+                is_forwarded = true;
                 l_first += 3
             }
         }
@@ -112,6 +100,8 @@ impl Simplify {
                 }
             }
         }
+
+        let mut is_cut_at_begin = false;
         if !is_msgrmsg {
             let mut l_lastQuotedLine_0 = None;
             let mut hasQuotedHeadline = 0;
@@ -168,9 +158,8 @@ impl Simplify {
             ret += " [...]";
         }
 
-        ret
+        (ret, is_forwarded)
     }
-}
 
 /**
  * Tools
