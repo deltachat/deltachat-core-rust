@@ -115,17 +115,14 @@ fn simplify_plain_text(lines: &[&str], is_msgrmsg: bool) -> (String, bool) {
     let mut is_cut_at_begin = false;
     if !is_msgrmsg {
         let mut l_lastQuotedLine_0 = None;
-        let mut hasQuotedHeadline = 0;
+        let mut hasQuotedHeadline = false;
         for l in l_first..l_last {
             let line = lines[l];
             if is_plain_quote(line) {
                 l_lastQuotedLine_0 = Some(l)
             } else if !is_empty_line(line) {
-                if is_quoted_headline(line)
-                    && 0 == hasQuotedHeadline
-                    && l_lastQuotedLine_0.is_none()
-                {
-                    hasQuotedHeadline = 1i32
+                if is_quoted_headline(line) && !hasQuotedHeadline && l_lastQuotedLine_0.is_none() {
+                    hasQuotedHeadline = true
                 } else {
                     /* non-quoting line found */
                     break;
