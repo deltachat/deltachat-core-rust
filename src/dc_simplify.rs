@@ -148,8 +148,8 @@ fn simplify_plain_text(lines: &[&str], is_msgrmsg: bool) -> (String, bool) {
             pending_linebreaks += 1
         } else {
             if 0 != content_lines_added {
-                if pending_linebreaks > 2i32 {
-                    pending_linebreaks = 2i32
+                if pending_linebreaks > 2 {
+                    pending_linebreaks = 2
                 }
                 while 0 != pending_linebreaks {
                     ret += "\n";
@@ -159,7 +159,7 @@ fn simplify_plain_text(lines: &[&str], is_msgrmsg: bool) -> (String, bool) {
             // the incoming message might contain invalid UTF8
             ret += line;
             content_lines_added += 1;
-            pending_linebreaks = 1i32
+            pending_linebreaks = 1
         }
     }
     if is_cut_at_end && (!is_cut_at_begin || 0 != content_lines_added) {
