@@ -33,10 +33,7 @@ pub fn simplify(input: &str, is_html: bool, is_msgrmsg: bool) -> (String, bool) 
 
     out.retain(|c| c != '\r');
     let lines = split_lines(&out);
-    let (mut out, is_forwarded) = simplify_plain_text(&lines, is_msgrmsg);
-    out.retain(|c| c != '\r');
-
-    (out, is_forwarded)
+    simplify_plain_text(&lines, is_msgrmsg)
 }
 
 /// Skips "forwarded message" header.
