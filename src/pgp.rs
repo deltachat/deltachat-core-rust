@@ -16,7 +16,7 @@ use pgp::types::{
 };
 use rand::{thread_rng, CryptoRng, Rng};
 
-use crate::error::Error;
+use crate::error::Result;
 use crate::key::*;
 use crate::keyring::*;
 
@@ -88,9 +88,7 @@ impl<'a> PublicKeyTrait for SignedPublicKeyOrSubkey<'a> {
 /// Split data from PGP Armored Data as defined in https://tools.ietf.org/html/rfc4880#section-6.2.
 ///
 /// Returns (type, headers, base64 encoded body).
-pub fn split_armored_data(
-    buf: &[u8],
-) -> Result<(BlockType, BTreeMap<String, String>, Vec<u8>), Error> {
+pub fn split_armored_data(buf: &[u8]) -> Result<(BlockType, BTreeMap<String, String>, Vec<u8>)> {
     use std::io::Read;
 
     let cursor = Cursor::new(buf);
@@ -194,7 +192,7 @@ pub fn pk_encrypt(
     plain: &[u8],
     public_keys_for_encryption: &Keyring,
     private_key_for_signing: Option<&Key>,
-) -> Result<String, Error> {
+) -> Result<String> {
     let lit_msg = Message::new_literal_bytes("", plain);
     let pkeys: Vec<SignedPublicKeyOrSubkey> = public_keys_for_encryption
         .keys()
@@ -236,7 +234,7 @@ pub fn pk_decrypt(
     private_keys_for_decryption: &Keyring,
     public_keys_for_validation: &Keyring,
     ret_signature_fingerprints: Option<&mut HashSet<String>>,
-) -> Result<Vec<u8>, Error> {
+) -> Result<Vec<u8>> {
     let (msg, _) = Message::from_armor_single(Cursor::new(ctext))?;
     let skeys: Vec<&SignedSecretKey> = private_keys_for_decryption
         .keys()
@@ -248,7 +246,7 @@ pub fn pk_decrypt(
         .collect();
 
     let (decryptor, _) = msg.decrypt(|| "".into(), || "".into(), &skeys[..])?;
-    let msgs = decryptor.collect::<Result<Vec<_>, _>>()?;
+    let msgs = decryptor.collect::<pgp::errors::Result<Vec<_>>>()?;
     ensure!(!msgs.is_empty(), "No valid messages found");
 
     let dec_msg = &msgs[0];
@@ -280,7 +278,7 @@ pub fn pk_decrypt(
 }
 
 /// Symmetric encryption.
-pub fn symm_encrypt(passphrase: &str, plain: &[u8]) -> Result<String, Error> {
+pub fn symm_encrypt(passphrase: &str, plain: &[u8]) -> Result<String> {
     let mut rng = thread_rng();
     let lit_msg = Message::new_literal_bytes("", plain);
 
@@ -297,11 +295,11 @@ pub fn symm_encrypt(passphrase: &str, plain: &[u8]) -> Result<String, Error> {
 pub fn symm_decrypt<T: std::io::Read + std::io::Seek>(
     passphrase: &str,
     ctext: T,
-) -> Result<Vec<u8>, Error> {
+) -> Result<Vec<u8>> {
     let (enc_msg, _) = Message::from_armor_single(ctext)?;
     let decryptor = enc_msg.decrypt_with_password(|| passphrase.into())?;
 
-    let msgs = decryptor.collect::<Result<Vec<_>, _>>()?;
+    let msgs = decryptor.collect::<pgp::errors::Result<Vec<_>>>()?;
     ensure!(!msgs.is_empty(), "No valid messages found");
 
     match msgs[0].get_content()? {
