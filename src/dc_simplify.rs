@@ -17,149 +17,149 @@ fn find_message_footer(lines: &[&str]) -> (usize, bool) {
     (lines.len(), false)
 }
 
-    /// Simplify and normalise text: Remove quotes, signatures, unnecessary
-    /// lineends etc.
-    /// The data returned from simplify() must be free()'d when no longer used.
-    pub fn simplify(input: &str, is_html: bool, is_msgrmsg: bool) -> (String, bool) {
-        let mut out = if is_html {
-            dehtml(input)
-        } else {
-            input.to_string()
-        };
+/// Simplify and normalise text: Remove quotes, signatures, unnecessary
+/// lineends etc.
+/// The data returned from simplify() must be free()'d when no longer used.
+pub fn simplify(input: &str, is_html: bool, is_msgrmsg: bool) -> (String, bool) {
+    let mut out = if is_html {
+        dehtml(input)
+    } else {
+        input.to_string()
+    };
 
-        out.retain(|c| c != '\r');
-        let (mut out, is_forwarded) = simplify_plain_text(&out, is_msgrmsg);
-        out.retain(|c| c != '\r');
+    out.retain(|c| c != '\r');
+    let (mut out, is_forwarded) = simplify_plain_text(&out, is_msgrmsg);
+    out.retain(|c| c != '\r');
 
-        (out, is_forwarded)
-    }
+    (out, is_forwarded)
+}
 
-    /**
-     * Simplify Plain Text
-     */
-    #[allow(non_snake_case, clippy::mut_range_bound, clippy::needless_range_loop)]
-    fn simplify_plain_text(buf_terminated: &str, is_msgrmsg: bool) -> (String, bool) {
-        /* This function ...
-        ... removes all text after the line `-- ` (footer mark)
-        ... removes full quotes at the beginning and at the end of the text -
-            these are all lines starting with the character `>`
-        ... remove a non-empty line before the removed quote (contains sth. like "On 2.9.2016, Bjoern wrote:" in different formats and lanugages) */
-        /* split the given buffer into lines */
-        let lines: Vec<_> = buf_terminated.split('\n').collect();
-        let mut l_first: usize = 0;
-        let (mut l_last, mut is_cut_at_end) = find_message_footer(&lines);
-        let mut is_forwarded = false;
+/**
+ * Simplify Plain Text
+ */
+#[allow(non_snake_case, clippy::mut_range_bound, clippy::needless_range_loop)]
+fn simplify_plain_text(buf_terminated: &str, is_msgrmsg: bool) -> (String, bool) {
+    /* This function ...
+    ... removes all text after the line `-- ` (footer mark)
+    ... removes full quotes at the beginning and at the end of the text -
+        these are all lines starting with the character `>`
+    ... remove a non-empty line before the removed quote (contains sth. like "On 2.9.2016, Bjoern wrote:" in different formats and lanugages) */
+    /* split the given buffer into lines */
+    let lines: Vec<_> = buf_terminated.split('\n').collect();
+    let mut l_first: usize = 0;
+    let (mut l_last, mut is_cut_at_end) = find_message_footer(&lines);
+    let mut is_forwarded = false;
 
-        if l_last > l_first + 2 {
-            let line0 = lines[l_first];
-            let line1 = lines[l_first + 1];
-            let line2 = lines[l_first + 2];
-            if line0 == "---------- Forwarded message ----------"
-                && line1.starts_with("From: ")
-                && line2.is_empty()
-            {
-                is_forwarded = true;
-                l_first += 3
-            }
+    if l_last > l_first + 2 {
+        let line0 = lines[l_first];
+        let line1 = lines[l_first + 1];
+        let line2 = lines[l_first + 2];
+        if line0 == "---------- Forwarded message ----------"
+            && line1.starts_with("From: ")
+            && line2.is_empty()
+        {
+            is_forwarded = true;
+            l_first += 3
         }
-        for l in l_first..l_last {
+    }
+    for l in l_first..l_last {
+        let line = lines[l];
+        if line == "-----"
+            || line == "_____"
+            || line == "====="
+            || line == "*****"
+            || line == "~~~~~"
+        {
+            l_last = l;
+            is_cut_at_end = true;
+            /* done */
+            break;
+        }
+    }
+    if !is_msgrmsg {
+        let mut l_lastQuotedLine = None;
+        for l in (l_first..l_last).rev() {
             let line = lines[l];
-            if line == "-----"
-                || line == "_____"
-                || line == "====="
-                || line == "*****"
-                || line == "~~~~~"
-            {
-                l_last = l;
-                is_cut_at_end = true;
-                /* done */
+            if is_plain_quote(line) {
+                l_lastQuotedLine = Some(l)
+            } else if !is_empty_line(line) {
                 break;
             }
         }
-        if !is_msgrmsg {
-            let mut l_lastQuotedLine = None;
-            for l in (l_first..l_last).rev() {
-                let line = lines[l];
-                if is_plain_quote(line) {
-                    l_lastQuotedLine = Some(l)
-                } else if !is_empty_line(line) {
+        if let Some(last_quoted_line) = l_lastQuotedLine {
+            l_last = last_quoted_line;
+            is_cut_at_end = true;
+            if l_last > 1 && is_empty_line(lines[l_last - 1]) {
+                l_last -= 1
+            }
+            if l_last > 1 {
+                let line = lines[l_last - 1];
+                if is_quoted_headline(line) {
+                    l_last -= 1
+                }
+            }
+        }
+    }
+
+    let mut is_cut_at_begin = false;
+    if !is_msgrmsg {
+        let mut l_lastQuotedLine_0 = None;
+        let mut hasQuotedHeadline = 0;
+        for l in l_first..l_last {
+            let line = lines[l];
+            if is_plain_quote(line) {
+                l_lastQuotedLine_0 = Some(l)
+            } else if !is_empty_line(line) {
+                if is_quoted_headline(line)
+                    && 0 == hasQuotedHeadline
+                    && l_lastQuotedLine_0.is_none()
+                {
+                    hasQuotedHeadline = 1i32
+                } else {
+                    /* non-quoting line found */
                     break;
                 }
             }
-            if let Some(last_quoted_line) = l_lastQuotedLine {
-                l_last = last_quoted_line;
-                is_cut_at_end = true;
-                if l_last > 1 && is_empty_line(lines[l_last - 1]) {
-                    l_last -= 1
-                }
-                if l_last > 1 {
-                    let line = lines[l_last - 1];
-                    if is_quoted_headline(line) {
-                        l_last -= 1
-                    }
-                }
-            }
         }
-
-        let mut is_cut_at_begin = false;
-        if !is_msgrmsg {
-            let mut l_lastQuotedLine_0 = None;
-            let mut hasQuotedHeadline = 0;
-            for l in l_first..l_last {
-                let line = lines[l];
-                if is_plain_quote(line) {
-                    l_lastQuotedLine_0 = Some(l)
-                } else if !is_empty_line(line) {
-                    if is_quoted_headline(line)
-                        && 0 == hasQuotedHeadline
-                        && l_lastQuotedLine_0.is_none()
-                    {
-                        hasQuotedHeadline = 1i32
-                    } else {
-                        /* non-quoting line found */
-                        break;
-                    }
-                }
-            }
-            if let Some(last_quoted_line) = l_lastQuotedLine_0 {
-                l_first = last_quoted_line + 1;
-                is_cut_at_begin = true
-            }
+        if let Some(last_quoted_line) = l_lastQuotedLine_0 {
+            l_first = last_quoted_line + 1;
+            is_cut_at_begin = true
         }
-        /* re-create buffer from the remaining lines */
-        let mut ret = String::new();
-        if is_cut_at_begin {
-            ret += "[...]";
-        }
-        /* we write empty lines only in case and non-empty line follows */
-        let mut pending_linebreaks = 0;
-        let mut content_lines_added = 0;
-        for l in l_first..l_last {
-            let line = lines[l];
-            if is_empty_line(line) {
-                pending_linebreaks += 1
-            } else {
-                if 0 != content_lines_added {
-                    if pending_linebreaks > 2i32 {
-                        pending_linebreaks = 2i32
-                    }
-                    while 0 != pending_linebreaks {
-                        ret += "\n";
-                        pending_linebreaks -= 1
-                    }
-                }
-                // the incoming message might contain invalid UTF8
-                ret += line;
-                content_lines_added += 1;
-                pending_linebreaks = 1i32
-            }
-        }
-        if is_cut_at_end && (!is_cut_at_begin || 0 != content_lines_added) {
-            ret += " [...]";
-        }
-
-        (ret, is_forwarded)
     }
+    /* re-create buffer from the remaining lines */
+    let mut ret = String::new();
+    if is_cut_at_begin {
+        ret += "[...]";
+    }
+    /* we write empty lines only in case and non-empty line follows */
+    let mut pending_linebreaks = 0;
+    let mut content_lines_added = 0;
+    for l in l_first..l_last {
+        let line = lines[l];
+        if is_empty_line(line) {
+            pending_linebreaks += 1
+        } else {
+            if 0 != content_lines_added {
+                if pending_linebreaks > 2i32 {
+                    pending_linebreaks = 2i32
+                }
+                while 0 != pending_linebreaks {
+                    ret += "\n";
+                    pending_linebreaks -= 1
+                }
+            }
+            // the incoming message might contain invalid UTF8
+            ret += line;
+            content_lines_added += 1;
+            pending_linebreaks = 1i32
+        }
+    }
+    if is_cut_at_end && (!is_cut_at_begin || 0 != content_lines_added) {
+        ret += " [...]";
+    }
+
+    (ret, is_forwarded)
+}
 
 /**
  * Tools
