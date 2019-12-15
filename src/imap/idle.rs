@@ -18,10 +18,10 @@ pub enum Error {
     #[fail(display = "IMAP IDLE protocol failed to init/complete")]
     IdleProtocolFailed(#[cause] async_imap::error::Error),
 
-    #[fail(display = "IMAP IDLE protocol timed out")]
+    #[fail(display = "IMAP IDLE protocol timeout during Termination")]
     IdleTimeout(#[cause] async_std::future::TimeoutError),
 
-    #[fail(display = "IMAP IDLE protocol timed out")]
+    #[fail(display = "IMAP Error during Idle Wait")]
     IdleError(#[cause] async_imap::error::Error),
 
     #[fail(display = "IMAP server does not have IDLE capability")]
