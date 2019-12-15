@@ -37,19 +37,20 @@ pub fn simplify(input: &str, is_html: bool, is_msgrmsg: bool) -> (String, bool) 
 }
 
 /// Skips "forwarded message" header.
-/// Returns `None` if message is not a forwarded message,
-/// otherwise returns lines of the forwarded message without the header.
-fn skip_forward_header<'a>(lines: &'a [&str]) -> Option<&'a [&'a str]> {
+/// Returns message body lines and a boolean indicating whether
+/// a message is forwarded or not.
+fn skip_forward_header<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
     if lines.len() >= 3
         && lines[0] == "---------- Forwarded message ----------"
         && lines[1].starts_with("From: ")
         && lines[2].is_empty()
     {
-        Some(&lines[3..])
+        (&lines[3..], true)
     } else {
-        None
+        (lines, false)
     }
 }
+
 /**
  * Simplify Plain Text
  */
@@ -61,11 +62,7 @@ fn simplify_plain_text(lines: &[&str], is_msgrmsg: bool) -> (String, bool) {
         these are all lines starting with the character `>`
     ... remove a non-empty line before the removed quote (contains sth. like "On 2.9.2016, Bjoern wrote:" in different formats and lanugages) */
     /* split the given buffer into lines */
-    let (lines, is_forwarded) = if let Some(lines) = skip_forward_header(lines) {
-        (lines, true)
-    } else {
-        (lines, false)
-    };
+    let (lines, is_forwarded) = skip_forward_header(lines);
 
     let mut l_first: usize = 0;
     let (mut l_last, mut is_cut_at_end) = find_message_footer(&lines);
