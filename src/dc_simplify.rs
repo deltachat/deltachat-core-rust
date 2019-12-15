@@ -47,7 +47,8 @@ pub fn simplify(input: &str, is_html: bool, is_chat_message: bool) -> (String, b
 
     out.retain(|c| c != '\r');
     let lines = split_lines(&out);
-    simplify_plain_text(&lines, is_chat_message)
+    let (lines, is_forwarded) = skip_forward_header(&lines);
+    (simplify_plain_text(lines, is_chat_message), is_forwarded)
 }
 
 /// Skips "forwarded message" header.
@@ -116,14 +117,13 @@ fn remove_top_quote<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
  * Simplify Plain Text
  */
 #[allow(non_snake_case, clippy::mut_range_bound, clippy::needless_range_loop)]
-fn simplify_plain_text(lines: &[&str], is_chat_message: bool) -> (String, bool) {
+fn simplify_plain_text(lines: &[&str], is_chat_message: bool) -> String {
     /* This function ...
     ... removes all text after the line `-- ` (footer mark)
     ... removes full quotes at the beginning and at the end of the text -
         these are all lines starting with the character `>`
     ... remove a non-empty line before the removed quote (contains sth. like "On 2.9.2016, Bjoern wrote:" in different formats and lanugages) */
     /* split the given buffer into lines */
-    let (lines, is_forwarded) = skip_forward_header(lines);
     let lines = remove_message_footer(lines);
     let (lines, has_nonstandard_footer) = remove_nonstandard_footer(lines);
     let (lines, has_bottom_quote) = if !is_chat_message {
@@ -172,7 +172,7 @@ fn simplify_plain_text(lines: &[&str], is_chat_message: bool) -> (String, bool) 
         ret += " [...]";
     }
 
-    (ret, is_forwarded)
+    ret
 }
 
 /**
@@ -216,7 +216,7 @@ mod tests {
         #[test]
         // proptest does not support [[:graphical:][:space:]] regex.
         fn test_simplify_plain_text_fuzzy(input in "[!-~\t \n]+") {
-            let (output, _) = simplify_plain_text(&split_lines(&input), true);
+            let output = simplify_plain_text(&split_lines(&input), true);
             assert!(output.split('\n').all(|s| s != "-- "));
         }
     }
