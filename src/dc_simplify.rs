@@ -264,4 +264,19 @@ mod tests {
         assert!(!is_plain_quote("Life is pain"));
         assert!(!is_plain_quote(""));
     }
+
+    #[test]
+    fn test_remove_top_quote() {
+        let (lines, has_top_quote) = remove_top_quote(&["> first", "> second"]);
+        assert!(lines.is_empty());
+        assert!(has_top_quote);
+
+        let (lines, has_top_quote) = remove_top_quote(&["> first", "> second", "not a quote"]);
+        assert_eq!(lines, &["not a quote"]);
+        assert!(has_top_quote);
+
+        let (lines, has_top_quote) = remove_top_quote(&["not a quote", "> first", "> second"]);
+        assert_eq!(lines, &["not a quote", "> first", "> second"]);
+        assert!(!has_top_quote);
+    }
 }
