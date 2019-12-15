@@ -1,5 +1,23 @@
 # Changelog 
 
+## 1.0.0-beta.17
+
+- #1044 implement avatar recoding to 192x192 in core to keep file sizes small. 
+
+- #1024 fix #1021 SQL/injection malformed Chat-Group-Name breakage
+
+- #1036 fix smtp crash by pulling in a fixed async-smtp 
+
+- #1039 fix read-receipts appearing as normal messages when you change
+  MDN settings 
+
+- #1040 do not panic on SystemTimeDifference
+
+- #1043 avoid potential crashes in malformed From/Chat-Disposition... headers  
+
+- #1045 #1041 #1038 #1035 #1034 #1029 #1025 various cleanups and doc
+  improvments 
+
 ## 1.0.0-beta.16
 
 - alleviate login problems with providers which only
