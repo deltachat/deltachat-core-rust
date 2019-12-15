@@ -1,17 +1,32 @@
 use crate::dehtml::*;
 
-/// Return index of footer line in vector of message lines, or vector length if
-/// no footer is found.
-///
-/// Also return whether not-standard (rfc3676, §4.3) footer is found.
-fn find_message_footer<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
+/// Remove standard (RFC 3676, §4.3) footer if it is found.
+fn remove_message_footer<'a>(lines: &'a [&str]) -> &'a [&'a str] {
     for (ix, &line) in lines.iter().enumerate() {
         // quoted-printable may encode `-- ` to `-- =20` which is converted
         // back to `--  `
         match line {
-            "-- " | "--  " => return (&lines[..ix], false),
-            "--" | "---" | "----" => return (&lines[..ix], true),
+            "-- " | "--  " => return &lines[..ix],
             _ => (),
+        }
+    }
+    lines
+}
+
+/// Remove nonstandard footer and a boolean indicating whether such
+/// footer was removed.
+fn remove_nonstandard_footer<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
+    for (ix, &line) in lines.iter().enumerate() {
+        if line == "--"
+            || line == "---"
+            || line == "----"
+            || line == "-----"
+            || line == "_____"
+            || line == "====="
+            || line == "*****"
+            || line == "~~~~~"
+        {
+            return (&lines[..ix], true);
         }
     }
     (lines, false)
@@ -63,25 +78,12 @@ fn simplify_plain_text(lines: &[&str], is_msgrmsg: bool) -> (String, bool) {
     ... remove a non-empty line before the removed quote (contains sth. like "On 2.9.2016, Bjoern wrote:" in different formats and lanugages) */
     /* split the given buffer into lines */
     let (lines, is_forwarded) = skip_forward_header(lines);
-    let (lines, mut is_cut_at_end) = find_message_footer(lines);
+    let lines = remove_message_footer(lines);
+    let (lines, mut is_cut_at_end) = remove_nonstandard_footer(lines);
 
     let mut l_first: usize = 0;
     let mut l_last = lines.len();
 
-    for l in l_first..l_last {
-        let line = lines[l];
-        if line == "-----"
-            || line == "_____"
-            || line == "====="
-            || line == "*****"
-            || line == "~~~~~"
-        {
-            l_last = l;
-            is_cut_at_end = true;
-            /* done */
-            break;
-        }
-    }
     if !is_msgrmsg {
         let mut l_lastQuotedLine = None;
         for l in (l_first..l_last).rev() {
