@@ -171,7 +171,7 @@ pub fn dc_receive_imf(
             }
         }
     };
-    if mime_parser.get_last_nonmeta().is_some() {
+    if mime_parser.parts.last().is_some() {
         if let Err(err) = add_parts(
             context,
             &mut mime_parser,
@@ -198,7 +198,7 @@ pub fn dc_receive_imf(
             bail!("add_parts error: {:?}", err);
         }
     } else {
-        // there are no non-meta data in message, do some basic calculations so that the varaiables
+        // there are parts in this message, do some basic calculations so that the variables
         // are correct in the further processing
         if sent_timestamp > time() {
             sent_timestamp = time()
@@ -588,10 +588,6 @@ fn add_parts(
             let subject = mime_parser.get_subject().unwrap_or_default();
 
             for part in mime_parser.parts.iter_mut() {
-                if part.is_meta {
-                    continue;
-                }
-
                 if mime_parser.location_kml.is_some()
                     && icnt == 1
                     && (part.msg == "-location-" || part.msg.is_empty())
