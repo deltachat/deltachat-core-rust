@@ -20,7 +20,7 @@ extern crate strum_macros;
 extern crate debug_stub_derive;
 
 #[macro_use]
-mod log;
+pub mod log;
 #[macro_use]
 pub mod error;
 

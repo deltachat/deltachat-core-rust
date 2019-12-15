@@ -7,7 +7,8 @@ macro_rules! info {
     };
     ($ctx:expr, $msg:expr, $($args:expr),* $(,)?) => {{
         let formatted = format!($msg, $($args),*);
-        emit_event!($ctx, $crate::Event::Info(formatted));
+        let full = format!("{}:{}: {}", file!(), line!(), &formatted);
+        emit_event!($ctx, $crate::Event::Info(full));
     }};
 }
 
@@ -18,7 +19,8 @@ macro_rules! warn {
     };
     ($ctx:expr, $msg:expr, $($args:expr),* $(,)?) => {{
         let formatted = format!($msg, $($args),*);
-        emit_event!($ctx, $crate::Event::Warning(formatted));
+        let full = format!("{}:{}: {}", file!(), line!(), &formatted);
+        emit_event!($ctx, $crate::Event::Warning(full));
     }};
 }
 
@@ -29,7 +31,8 @@ macro_rules! error {
     };
     ($ctx:expr, $msg:expr, $($args:expr),* $(,)?) => {{
         let formatted = format!($msg, $($args),*);
-        emit_event!($ctx, $crate::Event::Error(formatted));
+        let full = format!("{}:{}: {}", file!(), line!(), &formatted);
+        emit_event!($ctx, $crate::Event::Error(full));
     }};
 }
 
