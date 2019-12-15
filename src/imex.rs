@@ -380,7 +380,7 @@ pub fn JobImexImap(context: &Context, job: &Job) -> Result<()> {
             context.free_ongoing();
             bail!("Cannot create private key or private key not available.");
         } else {
-            dc_create_folder(context, &param);
+            dc_create_folder(context, &param)?;
         }
     }
     let path = Path::new(param);
