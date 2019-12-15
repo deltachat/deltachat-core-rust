@@ -21,6 +21,9 @@ pub enum Error {
     #[fail(display = "IMAP IDLE protocol timed out")]
     IdleTimeout(#[cause] async_std::future::TimeoutError),
 
+    #[fail(display = "IMAP IDLE protocol timed out")]
+    IdleError(#[cause] async_imap::error::Error),
+
     #[fail(display = "IMAP server does not have IDLE capability")]
     IdleAbilityMissing,
 
@@ -80,17 +83,21 @@ impl Imap {
                         } else {
                             info!(context, "Idle entering wait-on-remote state");
                             match idle_wait.await {
-                                IdleResponse::NewData(_) => {
+                                Ok(IdleResponse::NewData(_)) => {
                                     info!(context, "Idle has NewData");
                                 }
                                 // TODO: idle_wait does not distinguish manual interrupts
                                 // from Timeouts if we would know it's a Timeout we could bail
                                 // directly and reconnect .
-                                IdleResponse::Timeout => {
+                                Ok(IdleResponse::Timeout) => {
                                     info!(context, "Idle-wait timeout or interruption");
                                 }
-                                IdleResponse::ManualInterrupt => {
+                                Ok(IdleResponse::ManualInterrupt) => {
                                     info!(context, "Idle wait was interrupted");
+                                }
+                                Err(err) => {
+                                    self.trigger_reconnect();
+                                    return Err(Error::IdleError(err));
                                 }
                             }
                         }
@@ -134,17 +141,21 @@ impl Imap {
                         } else {
                             info!(context, "Idle entering wait-on-remote state");
                             match idle_wait.await {
-                                IdleResponse::NewData(_) => {
+                                Ok(IdleResponse::NewData(_)) => {
                                     info!(context, "Idle has NewData");
                                 }
                                 // TODO: idle_wait does not distinguish manual interrupts
                                 // from Timeouts if we would know it's a Timeout we could bail
                                 // directly and reconnect .
-                                IdleResponse::Timeout => {
+                                Ok(IdleResponse::Timeout) => {
                                     info!(context, "Idle-wait timeout or interruption");
                                 }
-                                IdleResponse::ManualInterrupt => {
+                                Ok(IdleResponse::ManualInterrupt) => {
                                     info!(context, "Idle wait was interrupted");
+                                }
+                                Err(err) => {
+                                    self.trigger_reconnect();
+                                    return Err(Error::IdleError(err));
                                 }
                             }
                         }
