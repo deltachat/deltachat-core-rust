@@ -228,7 +228,7 @@ impl<'a> MimeParser<'a> {
             }
         }
         if let Some(ref subject) = self.get_subject() {
-            let mut prepend_subject = 1i32;
+            let mut prepend_subject = true;
             if !self.decrypting_failed {
                 let colon = subject.find(':');
                 if colon == Some(2)
@@ -236,10 +236,10 @@ impl<'a> MimeParser<'a> {
                     || self.has_chat_version()
                     || subject.contains("Chat:")
                 {
-                    prepend_subject = 0i32
+                    prepend_subject = false
                 }
             }
-            if 0 != prepend_subject {
+            if prepend_subject {
                 let subj = if let Some(n) = subject.find('[') {
                     &subject[0..n]
                 } else {
