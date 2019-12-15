@@ -85,7 +85,7 @@ dependencies = [
 [[package]]
 name = "async-imap"
 version = "0.1.1"
-source = "git+https://github.com/async-email/async-imap#d7836416766b55d8d03587ea5326eecf501c2030"
+source = "git+https://github.com/async-email/async-imap?rev=d7836416766b55d8d03587ea5326eecf501c2030#d7836416766b55d8d03587ea5326eecf501c2030"
 dependencies = [
  "async-attributes 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "async-native-tls 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -637,7 +637,7 @@ dependencies = [
 name = "deltachat"
 version = "1.0.0-beta.16"
 dependencies = [
- "async-imap 0.1.1 (git+https://github.com/async-email/async-imap)",
+ "async-imap 0.1.1 (git+https://github.com/async-email/async-imap?rev=d7836416766b55d8d03587ea5326eecf501c2030)",
  "async-native-tls 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "async-smtp 0.1.0 (git+https://github.com/async-email/async-smtp)",
  "async-std 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3320,7 +3320,7 @@ dependencies = [
 "checksum arrayvec 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "cff77d8686867eceff3105329d4698d96c2391c176d5d03adc90c7389162b5b8"
 "checksum ascii_utils 0.9.3 (registry+https://github.com/rust-lang/crates.io-index)" = "71938f30533e4d95a6d17aa530939da3842c2ab6f4f84b9dae68447e4129f74a"
 "checksum async-attributes 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "efd3d156917d94862e779f356c5acae312b08fd3121e792c857d7928c8088423"
-"checksum async-imap 0.1.1 (git+https://github.com/async-email/async-imap)" = "<none>"
+"checksum async-imap 0.1.1 (git+https://github.com/async-email/async-imap?rev=d7836416766b55d8d03587ea5326eecf501c2030)" = "<none>"
 "checksum async-macros 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "644a5a8de80f2085a1e7e57cd1544a2a7438f6e003c0790999bd43b92a77cdb2"
 "checksum async-native-tls 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "a29e9e4ed87f4070dd6099d0bd5edfc7692c94442c80d656b50a802c6fde23b7"
 "checksum async-smtp 0.1.0 (git+https://github.com/async-email/async-smtp)" = "<none>"
