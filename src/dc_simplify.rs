@@ -36,8 +36,8 @@ fn split_lines(buf: &str) -> Vec<&str> {
     buf.split('\n').collect()
 }
 
-/// Simplify and normalise text: Remove quotes, signatures, unnecessary
-/// lineends etc.
+/// Simplify message text for chat display.
+/// Remove quotes, signatures, trailing empty lines etc.
 pub fn simplify(input: &str, is_html: bool, is_chat_message: bool) -> (String, bool) {
     let mut out = if is_html {
         dehtml(input)
@@ -48,7 +48,27 @@ pub fn simplify(input: &str, is_html: bool, is_chat_message: bool) -> (String, b
     out.retain(|c| c != '\r');
     let lines = split_lines(&out);
     let (lines, is_forwarded) = skip_forward_header(&lines);
-    (simplify_plain_text(lines, is_chat_message), is_forwarded)
+
+    let lines = remove_message_footer(lines);
+    let (lines, has_nonstandard_footer) = remove_nonstandard_footer(lines);
+    let (lines, has_bottom_quote) = if !is_chat_message {
+        remove_bottom_quote(lines)
+    } else {
+        (lines, false)
+    };
+    let (lines, has_top_quote) = if !is_chat_message {
+        remove_top_quote(lines)
+    } else {
+        (lines, false)
+    };
+
+    // re-create buffer from the remaining lines
+    let text = render_message(
+        lines,
+        has_top_quote,
+        has_nonstandard_footer || has_bottom_quote,
+    );
+    (text, is_forwarded)
 }
 
 /// Skips "forwarded message" header.
@@ -147,37 +167,6 @@ fn render_message(lines: &[&str], is_cut_at_begin: bool, is_cut_at_end: bool) ->
 }
 
 /**
- * Simplify Plain Text
- */
-fn simplify_plain_text(lines: &[&str], is_chat_message: bool) -> String {
-    /* This function ...
-    ... removes all text after the line `-- ` (footer mark)
-    ... removes full quotes at the beginning and at the end of the text -
-        these are all lines starting with the character `>`
-    ... remove a non-empty line before the removed quote (contains sth. like "On 2.9.2016, Bjoern wrote:" in different formats and lanugages) */
-    /* split the given buffer into lines */
-    let lines = remove_message_footer(lines);
-    let (lines, has_nonstandard_footer) = remove_nonstandard_footer(lines);
-    let (lines, has_bottom_quote) = if !is_chat_message {
-        remove_bottom_quote(lines)
-    } else {
-        (lines, false)
-    };
-    let (lines, has_top_quote) = if !is_chat_message {
-        remove_top_quote(lines)
-    } else {
-        (lines, false)
-    };
-
-    // re-create buffer from the remaining lines
-    render_message(
-        lines,
-        has_top_quote,
-        has_nonstandard_footer || has_bottom_quote,
-    )
-}
-
-/**
  * Tools
  */
 fn is_empty_line(buf: &str) -> bool {
@@ -218,7 +207,7 @@ mod tests {
         #[test]
         // proptest does not support [[:graphical:][:space:]] regex.
         fn test_simplify_plain_text_fuzzy(input in "[!-~\t \n]+") {
-            let output = simplify_plain_text(&split_lines(&input), true);
+            let (output, _is_forwarded) = simplify(&input, false, true);
             assert!(output.split('\n').all(|s| s != "-- "));
         }
     }
