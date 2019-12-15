@@ -544,7 +544,7 @@ fn open(
         // --------------------------------------------------------------------
 
         let mut dbversion = dbversion_before_update;
-        let mut recalc_fingerprints = 0;
+        let mut recalc_fingerprints = false;
         let mut update_icons = false;
 
         if dbversion < 1 {
@@ -687,7 +687,7 @@ fn open(
                 "CREATE INDEX acpeerstates_index4 ON acpeerstates (gossip_key_fingerprint);",
                 params![],
             )?;
-            recalc_fingerprints = 1;
+            recalc_fingerprints = true;
             dbversion = 34;
             sql.set_raw_config_int(context, "dbversion", 34)?;
         }
@@ -872,7 +872,7 @@ fn open(
         // (the structure is complete now and all objects are usable)
         // --------------------------------------------------------------------
 
-        if 0 != recalc_fingerprints {
+        if recalc_fingerprints {
             info!(context, "[migration] recalc fingerprints");
             sql.query_map(
                 "SELECT addr FROM acpeerstates;",
