@@ -38,7 +38,6 @@ fn split_lines(buf: &str) -> Vec<&str> {
 
 /// Simplify and normalise text: Remove quotes, signatures, unnecessary
 /// lineends etc.
-/// The data returned from simplify() must be free()'d when no longer used.
 pub fn simplify(input: &str, is_html: bool, is_msgrmsg: bool) -> (String, bool) {
     let mut out = if is_html {
         dehtml(input)
