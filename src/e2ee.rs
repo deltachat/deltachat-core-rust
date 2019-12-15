@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use mailparse::MailHeaderMap;
+use mailparse::{MailHeaderMap, ParsedMail};
 use num_traits::FromPrimitive;
 
 use crate::aheader::*;
@@ -14,7 +14,6 @@ use crate::keyring::*;
 use crate::peerstate::*;
 use crate::pgp;
 use crate::securejoin::handle_degrade_event;
-use crate::wrapmime;
 
 #[derive(Debug)]
 pub struct EncryptHelper {
@@ -118,7 +117,7 @@ impl EncryptHelper {
 
 pub fn try_decrypt(
     context: &Context,
-    mail: &mailparse::ParsedMail<'_>,
+    mail: &ParsedMail<'_>,
     message_time: i64,
 ) -> Result<(Option<Vec<u8>>, HashSet<String>)> {
     let from = mail
@@ -232,9 +231,36 @@ fn load_or_generate_self_public_key(context: &Context, self_addr: impl AsRef<str
     }
 }
 
+/// Returns a reference to the encrypted payload and validates the autocrypt structure.
+fn get_autocrypt_mime<'a, 'b>(mail: &'a ParsedMail<'b>) -> Result<&'a ParsedMail<'b>> {
+    ensure!(
+        mail.ctype.mimetype == "multipart/encrypted",
+        "Not a multipart/encrypted message: {}",
+        mail.ctype.mimetype
+    );
+    ensure!(
+        mail.subparts.len() == 2,
+        "Invalid Autocrypt Level 1 Mime Parts"
+    );
+
+    ensure!(
+        mail.subparts[0].ctype.mimetype == "application/pgp-encrypted",
+        "Invalid Autocrypt Level 1 version part: {:?}",
+        mail.subparts[0].ctype,
+    );
+
+    ensure!(
+        mail.subparts[1].ctype.mimetype == "application/octet-stream",
+        "Invalid Autocrypt Level 1 encrypted part: {:?}",
+        mail.subparts[1].ctype
+    );
+
+    Ok(&mail.subparts[1])
+}
+
 fn decrypt_if_autocrypt_message<'a>(
     context: &Context,
-    mail: &mailparse::ParsedMail<'a>,
+    mail: &ParsedMail<'a>,
     private_keyring: &Keyring,
     public_keyring_for_validate: &Keyring,
     ret_valid_signatures: &mut HashSet<String>,
@@ -246,7 +272,7 @@ fn decrypt_if_autocrypt_message<'a>(
     //
     // Errors are returned for failures related to decryption of AC-messages.
 
-    let encrypted_data_part = match wrapmime::get_autocrypt_mime(mail) {
+    let encrypted_data_part = match get_autocrypt_mime(mail) {
         Err(_) => {
             // not an autocrypt mime message, abort and ignore
             return Ok(None);
@@ -267,7 +293,7 @@ fn decrypt_if_autocrypt_message<'a>(
 /// Returns Ok(None) if nothing encrypted was found.
 fn decrypt_part(
     _context: &Context,
-    mail: &mailparse::ParsedMail<'_>,
+    mail: &ParsedMail<'_>,
     private_keyring: &Keyring,
     public_keyring_for_validate: &Keyring,
     ret_valid_signatures: &mut HashSet<String>,
@@ -313,7 +339,7 @@ fn has_decrypted_pgp_armor(input: &[u8]) -> bool {
 /// However, Delta Chat itself has no problem with encrypted multipart/report
 /// parts and MUAs should be encouraged to encrpyt multipart/reports as well so
 /// that we could use the normal Autocrypt processing.
-fn contains_report(mail: &mailparse::ParsedMail<'_>) -> bool {
+fn contains_report(mail: &ParsedMail<'_>) -> bool {
     mail.ctype.mimetype == "multipart/report"
 }
 
