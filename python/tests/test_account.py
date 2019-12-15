@@ -16,6 +16,14 @@ class TestOfflineAccountBasic:
         with pytest.raises(ValueError):
             Account(p.strpath)
 
+    def test_os_name(self, tmpdir):
+        p = tmpdir.join("hello.db")
+        # we can't easily test if os_name is used in X-Mailer
+        # outgoing messages without a full Online test
+        # but we at least check Account accepts the arg
+        ac1 = Account(p.strpath, os_name="solarpunk")
+        ac1.get_info()
+
     def test_getinfo(self, acfactory):
         ac1 = acfactory.get_unconfigured_account()
         d = ac1.get_info()
