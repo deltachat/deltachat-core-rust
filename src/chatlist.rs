@@ -314,7 +314,7 @@ impl Chatlist {
     }
 }
 
-/// Get the number of archived chats
+/// Returns the number of archived chats
 pub fn dc_get_archived_cnt(context: &Context) -> u32 {
     context
         .sql
