@@ -26,7 +26,7 @@ class Account(object):
     by the underlying deltachat core library.  All public Account methods are
     meant to be memory-safe and return memory-safe objects.
     """
-    def __init__(self, db_path, logid=None, eventlogging=True, debug=True):
+    def __init__(self, db_path, logid=None, eventlogging=True, os_name=None, debug=True):
         """ initialize account object.
 
         :param db_path: a path to the account database. The database
@@ -34,10 +34,11 @@ class Account(object):
         :param logid: an optional logging prefix that should be used with
                       the default internal logging.
         :param eventlogging: if False no eventlogging and no context callback will be configured
+        :param os_name: this will be put to the X-Mailer header in outgoing messages
         :param debug: turn on debug logging for events.
         """
         self._dc_context = ffi.gc(
-            lib.dc_context_new(lib.py_dc_callback, ffi.NULL, ffi.NULL),
+            lib.dc_context_new(lib.py_dc_callback, ffi.NULL, as_dc_charpointer(os_name)),
             _destroy_dc_context,
         )
         if eventlogging:
