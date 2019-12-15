@@ -631,7 +631,7 @@ pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<(), Error> {
     msg.try_calc_and_set_dimensions(context).ok();
 
     /* create message */
-    let needs_encryption = msg.param.get_int(Param::GuaranteeE2ee).unwrap_or_default();
+    let needs_encryption = msg.param.get_bool(Param::GuaranteeE2ee).unwrap_or_default();
 
     let attach_selfavatar = match chat::shall_attach_selfavatar(context, msg.chat_id) {
         Ok(attach_selfavatar) => attach_selfavatar,
@@ -647,7 +647,7 @@ pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<(), Error> {
         err
     })?;
 
-    if 0 != needs_encryption && !rendered_msg.is_encrypted {
+    if needs_encryption && !rendered_msg.is_encrypted {
         /* unrecoverable */
         message::set_msg_failed(
             context,
@@ -700,7 +700,7 @@ pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<(), Error> {
         }
     }
 
-    if rendered_msg.is_encrypted && needs_encryption == 0 {
+    if rendered_msg.is_encrypted && !needs_encryption {
         msg.param.set_int(Param::GuaranteeE2ee, 1);
         msg.save_param_to_disk(context);
     }
