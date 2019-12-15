@@ -726,11 +726,6 @@ impl<'a> MimeParser<'a> {
     }
 
     fn process_report(&self, report: &mailparse::ParsedMail<'_>) -> Result<Option<Report>> {
-        // to get a clear functionality, do not show incoming MDNs if the options is disabled
-        if !self.mdns_enabled {
-            return Ok(None);
-        }
-
         // parse as mailheaders
         let report_body = report.subparts[1].get_body_raw()?;
         let (report_fields, _) = mailparse::parse_headers(&report_body)?;
