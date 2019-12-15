@@ -63,7 +63,6 @@ pub mod sql;
 pub mod stock;
 mod token;
 #[macro_use]
-mod wrapmime;
 mod dehtml;
 
 pub mod dc_receive_imf;
