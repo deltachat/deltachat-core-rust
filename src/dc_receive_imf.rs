@@ -73,15 +73,13 @@ pub fn dc_receive_imf(
     let mut sent_timestamp = 0;
     let mut created_db_entries = Vec::new();
     let mut create_event_to_send = Some(CreateEvent::MsgsChanged);
-    let mut rr_event_to_send = Vec::new();
 
     let mut to_ids = ContactIds::new();
 
     // helper method to handle early exit and memory cleanup
     let cleanup = |context: &Context,
                    create_event_to_send: &Option<CreateEvent>,
-                   created_db_entries: &Vec<(usize, MsgId)>,
-                   rr_event_to_send: &Vec<(u32, MsgId)>| {
+                   created_db_entries: &Vec<(usize, MsgId)>| {
         if let Some(create_event_to_send) = create_event_to_send {
             for (chat_id, msg_id) in created_db_entries {
                 let event = match create_event_to_send {
@@ -96,12 +94,6 @@ pub fn dc_receive_imf(
                 };
                 context.call_cb(event);
             }
-        }
-        for (chat_id, msg_id) in rr_event_to_send {
-            context.call_cb(Event::MsgRead {
-                chat_id: *chat_id,
-                msg_id: *msg_id,
-            });
         }
     };
 
@@ -202,12 +194,7 @@ pub fn dc_receive_imf(
             &mut created_db_entries,
             &mut create_event_to_send,
         ) {
-            cleanup(
-                context,
-                &create_event_to_send,
-                &created_db_entries,
-                &rr_event_to_send,
-            );
+            cleanup(context, &create_event_to_send, &created_db_entries);
             bail!("add_parts error: {:?}", err);
         }
     } else {
@@ -217,14 +204,6 @@ pub fn dc_receive_imf(
             sent_timestamp = time()
         }
     }
-
-    mime_parser.handle_reports(
-        from_id,
-        sent_timestamp,
-        &mut rr_event_to_send,
-        &server_folder,
-        server_uid,
-    );
 
     if mime_parser.location_kml.is_some() || mime_parser.message_kml.is_some() {
         save_locations(
@@ -238,7 +217,7 @@ pub fn dc_receive_imf(
     }
 
     if mime_parser.user_avatar != AvatarAction::None {
-        match contact::set_profile_image(&context, from_id, mime_parser.user_avatar) {
+        match contact::set_profile_image(&context, from_id, &mime_parser.user_avatar) {
             Ok(()) => {
                 context.call_cb(Event::ChatModified(chat_id));
             }
@@ -266,12 +245,9 @@ pub fn dc_receive_imf(
         "received message {} has Message-Id: {}", server_uid, rfc724_mid
     );
 
-    cleanup(
-        context,
-        &create_event_to_send,
-        &created_db_entries,
-        &rr_event_to_send,
-    );
+    cleanup(context, &create_event_to_send, &created_db_entries);
+
+    mime_parser.handle_reports(from_id, sent_timestamp, &server_folder, server_uid);
 
     Ok(())
 }

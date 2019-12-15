@@ -971,7 +971,7 @@ fn set_block_contact(context: &Context, contact_id: u32, new_blocking: bool) {
 pub fn set_profile_image(
     context: &Context,
     contact_id: u32,
-    profile_image: AvatarAction,
+    profile_image: &AvatarAction,
 ) -> Result<()> {
     // the given profile image is expected to be already in the blob directory
     // as profile images can be set only by receiving messages, this should be always the case, however.

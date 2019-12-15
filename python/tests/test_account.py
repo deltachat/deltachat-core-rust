@@ -687,6 +687,39 @@ class TestOnlineAccount:
         except queue.Empty:
             pass  # mark_seen_messages() has generated events before it returns
 
+    def test_mdn_asymetric(self, acfactory, lp):
+        ac1, ac2 = acfactory.get_two_online_accounts()
+
+        lp.sec("ac1: create chat with ac2")
+        chat = self.get_chat(ac1, ac2, both_created=True)
+
+        # make sure mdns are enabled (usually enabled by default already)
+        ac1.set_config("mdns_enabled", "1")
+        ac2.set_config("mdns_enabled", "1")
+
+        lp.sec("sending text message from ac1 to ac2")
+        msg_out = chat.send_text("message1")
+
+        assert len(chat.get_messages()) == 1
+
+        lp.sec("disable ac1 MDNs")
+        ac1.set_config("mdns_enabled", "0")
+
+        lp.sec("wait for ac2 to receive message")
+        msg = ac2.wait_next_incoming_message()
+
+        assert len(msg.chat.get_messages()) == 1
+
+        lp.sec("ac2: mark incoming message as seen")
+        ac2.mark_seen_messages([msg])
+
+        lp.sec("ac1: waiting for incoming activity")
+        # wait for MOVED event because even ignored read-receipts should be moved
+        ac1._evlogger.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
+
+        assert len(chat.get_messages()) == 1
+        assert not msg_out.is_out_mdn_received()
+
     def test_send_and_receive_will_encrypt_decrypt(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
 
