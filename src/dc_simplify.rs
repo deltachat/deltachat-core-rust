@@ -38,7 +38,7 @@ fn split_lines(buf: &str) -> Vec<&str> {
 
 /// Simplify and normalise text: Remove quotes, signatures, unnecessary
 /// lineends etc.
-pub fn simplify(input: &str, is_html: bool, is_msgrmsg: bool) -> (String, bool) {
+pub fn simplify(input: &str, is_html: bool, is_chat_message: bool) -> (String, bool) {
     let mut out = if is_html {
         dehtml(input)
     } else {
@@ -47,7 +47,7 @@ pub fn simplify(input: &str, is_html: bool, is_msgrmsg: bool) -> (String, bool) 
 
     out.retain(|c| c != '\r');
     let lines = split_lines(&out);
-    simplify_plain_text(&lines, is_msgrmsg)
+    simplify_plain_text(&lines, is_chat_message)
 }
 
 /// Skips "forwarded message" header.
@@ -69,7 +69,7 @@ fn skip_forward_header<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
  * Simplify Plain Text
  */
 #[allow(non_snake_case, clippy::mut_range_bound, clippy::needless_range_loop)]
-fn simplify_plain_text(lines: &[&str], is_msgrmsg: bool) -> (String, bool) {
+fn simplify_plain_text(lines: &[&str], is_chat_message: bool) -> (String, bool) {
     /* This function ...
     ... removes all text after the line `-- ` (footer mark)
     ... removes full quotes at the beginning and at the end of the text -
@@ -83,7 +83,7 @@ fn simplify_plain_text(lines: &[&str], is_msgrmsg: bool) -> (String, bool) {
     let mut l_first: usize = 0;
     let mut l_last = lines.len();
 
-    if !is_msgrmsg {
+    if !is_chat_message {
         let mut l_lastQuotedLine = None;
         for l in (l_first..l_last).rev() {
             let line = lines[l];
@@ -109,7 +109,7 @@ fn simplify_plain_text(lines: &[&str], is_msgrmsg: bool) -> (String, bool) {
     }
 
     let mut is_cut_at_begin = false;
-    if !is_msgrmsg {
+    if !is_chat_message {
         let mut l_lastQuotedLine_0 = None;
         let mut hasQuotedHeadline = false;
         for l in l_first..l_last {
