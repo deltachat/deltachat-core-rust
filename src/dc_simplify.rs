@@ -65,6 +65,53 @@ fn skip_forward_header<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
     }
 }
 
+fn remove_bottom_quote<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
+    let mut last_quoted_line = None;
+    for (l, line) in lines.iter().enumerate().rev() {
+        if is_plain_quote(line) {
+            last_quoted_line = Some(l)
+        } else if !is_empty_line(line) {
+            break;
+        }
+    }
+    if let Some(mut l_last) = last_quoted_line {
+        if l_last > 1 && is_empty_line(lines[l_last - 1]) {
+            l_last -= 1
+        }
+        if l_last > 1 {
+            let line = lines[l_last - 1];
+            if is_quoted_headline(line) {
+                l_last -= 1
+            }
+        }
+        (&lines[..l_last], true)
+    } else {
+        (lines, false)
+    }
+}
+
+fn remove_top_quote<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
+    let mut last_quoted_line = None;
+    let mut has_quoted_headline = false;
+    for (l, line) in lines.iter().enumerate() {
+        if is_plain_quote(line) {
+            last_quoted_line = Some(l)
+        } else if !is_empty_line(line) {
+            if is_quoted_headline(line) && !has_quoted_headline && last_quoted_line.is_none() {
+                has_quoted_headline = true
+            } else {
+                /* non-quoting line found */
+                break;
+            }
+        }
+    }
+    if let Some(last_quoted_line) = last_quoted_line {
+        (&lines[last_quoted_line + 1..], true)
+    } else {
+        (lines, false)
+    }
+}
+
 /**
  * Simplify Plain Text
  */
@@ -78,58 +125,21 @@ fn simplify_plain_text(lines: &[&str], is_chat_message: bool) -> (String, bool) 
     /* split the given buffer into lines */
     let (lines, is_forwarded) = skip_forward_header(lines);
     let lines = remove_message_footer(lines);
-    let (lines, mut is_cut_at_end) = remove_nonstandard_footer(lines);
+    let (lines, has_nonstandard_footer) = remove_nonstandard_footer(lines);
+    let (lines, has_bottom_quote) = if !is_chat_message {
+        remove_bottom_quote(lines)
+    } else {
+        (lines, false)
+    };
+    let (lines, has_top_quote) = if !is_chat_message {
+        remove_top_quote(lines)
+    } else {
+        (lines, false)
+    };
 
-    let mut l_first: usize = 0;
-    let mut l_last = lines.len();
+    let is_cut_at_end = has_nonstandard_footer || has_bottom_quote;
+    let is_cut_at_begin = has_top_quote;
 
-    if !is_chat_message {
-        let mut l_lastQuotedLine = None;
-        for l in (l_first..l_last).rev() {
-            let line = lines[l];
-            if is_plain_quote(line) {
-                l_lastQuotedLine = Some(l)
-            } else if !is_empty_line(line) {
-                break;
-            }
-        }
-        if let Some(last_quoted_line) = l_lastQuotedLine {
-            l_last = last_quoted_line;
-            is_cut_at_end = true;
-            if l_last > 1 && is_empty_line(lines[l_last - 1]) {
-                l_last -= 1
-            }
-            if l_last > 1 {
-                let line = lines[l_last - 1];
-                if is_quoted_headline(line) {
-                    l_last -= 1
-                }
-            }
-        }
-    }
-
-    let mut is_cut_at_begin = false;
-    if !is_chat_message {
-        let mut l_lastQuotedLine_0 = None;
-        let mut hasQuotedHeadline = false;
-        for l in l_first..l_last {
-            let line = lines[l];
-            if is_plain_quote(line) {
-                l_lastQuotedLine_0 = Some(l)
-            } else if !is_empty_line(line) {
-                if is_quoted_headline(line) && !hasQuotedHeadline && l_lastQuotedLine_0.is_none() {
-                    hasQuotedHeadline = true
-                } else {
-                    /* non-quoting line found */
-                    break;
-                }
-            }
-        }
-        if let Some(last_quoted_line) = l_lastQuotedLine_0 {
-            l_first = last_quoted_line + 1;
-            is_cut_at_begin = true
-        }
-    }
     /* re-create buffer from the remaining lines */
     let mut ret = String::new();
     if is_cut_at_begin {
@@ -138,7 +148,7 @@ fn simplify_plain_text(lines: &[&str], is_chat_message: bool) -> (String, bool) 
     /* we write empty lines only in case and non-empty line follows */
     let mut pending_linebreaks = 0;
     let mut content_lines_added = 0;
-    for l in l_first..l_last {
+    for l in 0..lines.len() {
         let line = lines[l];
         if is_empty_line(line) {
             pending_linebreaks += 1
