@@ -147,13 +147,13 @@ fn simplify_plain_text(lines: &[&str], is_chat_message: bool) -> String {
     }
     /* we write empty lines only in case and non-empty line follows */
     let mut pending_linebreaks = 0;
-    let mut content_lines_added = 0;
+    let mut empty_body = true;
     for l in 0..lines.len() {
         let line = lines[l];
         if is_empty_line(line) {
             pending_linebreaks += 1
         } else {
-            if 0 != content_lines_added {
+            if !empty_body {
                 if pending_linebreaks > 2 {
                     pending_linebreaks = 2
                 }
@@ -164,11 +164,11 @@ fn simplify_plain_text(lines: &[&str], is_chat_message: bool) -> String {
             }
             // the incoming message might contain invalid UTF8
             ret += line;
-            content_lines_added += 1;
+            empty_body = false;
             pending_linebreaks = 1
         }
     }
-    if is_cut_at_end && (!is_cut_at_begin || 0 != content_lines_added) {
+    if is_cut_at_end && (!is_cut_at_begin || !empty_body) {
         ret += " [...]";
     }
 
