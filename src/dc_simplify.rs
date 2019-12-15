@@ -20,11 +20,11 @@ fn remove_nonstandard_footer<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
         if line == "--"
             || line == "---"
             || line == "----"
-            || line == "-----"
-            || line == "_____"
-            || line == "====="
-            || line == "*****"
-            || line == "~~~~~"
+            || line.starts_with("-----")
+            || line.starts_with("_____")
+            || line.starts_with("=====")
+            || line.starts_with("*****")
+            || line.starts_with("~~~~~")
         {
             return (&lines[..ix], true);
         }
