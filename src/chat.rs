@@ -1883,6 +1883,7 @@ pub fn set_chat_profile_image(
                 _ => Err(err),
             },
         )?;
+        image_blob.recode_to_avatar_size(context)?;
         chat.param.set(Param::ProfileImage, image_blob.as_name());
         msg.param.set(Param::Arg, image_blob.as_name());
         msg.text = Some(context.stock_system_msg(

@@ -6,8 +6,12 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+use self::image::GenericImageView;
+use crate::constants::AVATAR_SIZE;
 use crate::context::Context;
 use crate::events::Event;
+
+extern crate image;
 
 /// Represents a file in the blob directory.
 ///
@@ -349,6 +353,31 @@ impl<'a> BlobObject<'a> {
         }
         true
     }
+
+    pub fn recode_to_avatar_size(&self, context: &Context) -> Result<(), BlobError> {
+        let blob_abs = self.to_abs_path();
+        let img = image::open(&blob_abs).map_err(|err| BlobError::RecodeFailure {
+            blobdir: context.get_blobdir().to_path_buf(),
+            blobname: blob_abs.to_str().unwrap_or_default().to_string(),
+            cause: err,
+            backtrace: failure::Backtrace::new(),
+        })?;
+
+        if img.width() <= AVATAR_SIZE && img.height() <= AVATAR_SIZE {
+            return Ok(());
+        }
+
+        let img = img.thumbnail(AVATAR_SIZE, AVATAR_SIZE);
+
+        img.save(&blob_abs).map_err(|err| BlobError::WriteFailure {
+            blobdir: context.get_blobdir().to_path_buf(),
+            blobname: blob_abs.to_str().unwrap_or_default().to_string(),
+            cause: err,
+            backtrace: failure::Backtrace::new(),
+        })?;
+
+        Ok(())
+    }
 }
 
 impl<'a> fmt::Display for BlobObject<'a> {
@@ -380,6 +409,13 @@ pub enum BlobError {
         src: PathBuf,
         #[cause]
         cause: std::io::Error,
+        backtrace: failure::Backtrace,
+    },
+    RecodeFailure {
+        blobdir: PathBuf,
+        blobname: String,
+        #[cause]
+        cause: image::ImageError,
         backtrace: failure::Backtrace,
     },
     WrongBlobdir {
@@ -429,6 +465,9 @@ impl fmt::Display for BlobError {
                 blobname,
                 blobdir.display(),
             ),
+            BlobError::RecodeFailure {
+                blobdir, blobname, ..
+            } => write!(f, "Failed to recode {} in {}", blobname, blobdir.display(),),
             BlobError::WrongBlobdir { blobdir, src, .. } => write!(
                 f,
                 "File path {} is not in blobdir {}",

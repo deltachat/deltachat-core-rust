@@ -136,6 +136,7 @@ impl Context {
                 match value {
                     Some(value) => {
                         let blob = BlobObject::new_from_path(&self, value)?;
+                        blob.recode_to_avatar_size(self)?;
                         self.sql.set_raw_config(self, key, Some(blob.as_name()))
                     }
                     None => self.sql.set_raw_config(self, key, None),
