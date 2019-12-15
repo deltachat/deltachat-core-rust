@@ -113,34 +113,7 @@ fn remove_top_quote<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
     }
 }
 
-/**
- * Simplify Plain Text
- */
-#[allow(non_snake_case, clippy::mut_range_bound, clippy::needless_range_loop)]
-fn simplify_plain_text(lines: &[&str], is_chat_message: bool) -> String {
-    /* This function ...
-    ... removes all text after the line `-- ` (footer mark)
-    ... removes full quotes at the beginning and at the end of the text -
-        these are all lines starting with the character `>`
-    ... remove a non-empty line before the removed quote (contains sth. like "On 2.9.2016, Bjoern wrote:" in different formats and lanugages) */
-    /* split the given buffer into lines */
-    let lines = remove_message_footer(lines);
-    let (lines, has_nonstandard_footer) = remove_nonstandard_footer(lines);
-    let (lines, has_bottom_quote) = if !is_chat_message {
-        remove_bottom_quote(lines)
-    } else {
-        (lines, false)
-    };
-    let (lines, has_top_quote) = if !is_chat_message {
-        remove_top_quote(lines)
-    } else {
-        (lines, false)
-    };
-
-    let is_cut_at_end = has_nonstandard_footer || has_bottom_quote;
-    let is_cut_at_begin = has_top_quote;
-
-    /* re-create buffer from the remaining lines */
+fn render_message(lines: &[&str], is_cut_at_begin: bool, is_cut_at_end: bool) -> String {
     let mut ret = String::new();
     if is_cut_at_begin {
         ret += "[...]";
@@ -148,8 +121,7 @@ fn simplify_plain_text(lines: &[&str], is_chat_message: bool) -> String {
     /* we write empty lines only in case and non-empty line follows */
     let mut pending_linebreaks = 0;
     let mut empty_body = true;
-    for l in 0..lines.len() {
-        let line = lines[l];
+    for line in lines {
         if is_empty_line(line) {
             pending_linebreaks += 1
         } else {
@@ -171,8 +143,38 @@ fn simplify_plain_text(lines: &[&str], is_chat_message: bool) -> String {
     if is_cut_at_end && (!is_cut_at_begin || !empty_body) {
         ret += " [...]";
     }
-
     ret
+}
+
+/**
+ * Simplify Plain Text
+ */
+fn simplify_plain_text(lines: &[&str], is_chat_message: bool) -> String {
+    /* This function ...
+    ... removes all text after the line `-- ` (footer mark)
+    ... removes full quotes at the beginning and at the end of the text -
+        these are all lines starting with the character `>`
+    ... remove a non-empty line before the removed quote (contains sth. like "On 2.9.2016, Bjoern wrote:" in different formats and lanugages) */
+    /* split the given buffer into lines */
+    let lines = remove_message_footer(lines);
+    let (lines, has_nonstandard_footer) = remove_nonstandard_footer(lines);
+    let (lines, has_bottom_quote) = if !is_chat_message {
+        remove_bottom_quote(lines)
+    } else {
+        (lines, false)
+    };
+    let (lines, has_top_quote) = if !is_chat_message {
+        remove_top_quote(lines)
+    } else {
+        (lines, false)
+    };
+
+    // re-create buffer from the remaining lines
+    render_message(
+        lines,
+        has_top_quote,
+        has_nonstandard_footer || has_bottom_quote,
+    )
 }
 
 /**
