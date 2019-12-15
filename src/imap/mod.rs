@@ -23,7 +23,6 @@ use crate::message::{self, update_server_uid};
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::param::Params;
 use crate::stock::StockMessage;
-use crate::wrapmime;
 
 mod idle;
 pub mod select_folder;
@@ -1223,6 +1222,18 @@ fn precheck_imf(context: &Context, rfc724_mid: &str, server_folder: &str, server
     }
 }
 
+fn parse_message_id(message_id: &[u8]) -> crate::error::Result<String> {
+    let value = std::str::from_utf8(message_id)?;
+    let addrs = mailparse::addrparse(value)
+        .map_err(|err| format_err!("failed to parse message id {:?}", err))?;
+
+    if let Some(info) = addrs.extract_single_info() {
+        return Ok(info.addr);
+    }
+
+    bail!("could not parse message_id: {}", value);
+}
+
 fn prefetch_get_message_id(prefetch_msg: &Fetch) -> Result<String> {
     if prefetch_msg.envelope().is_none() {
         return Err(Error::Other(
@@ -1235,5 +1246,22 @@ fn prefetch_get_message_id(prefetch_msg: &Fetch) -> Result<String> {
         return Err(Error::Other("prefetch: No message ID found".to_string()));
     }
 
-    wrapmime::parse_message_id(&message_id.unwrap()).map_err(Into::into)
+    parse_message_id(&message_id.unwrap()).map_err(Into::into)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_message_id() {
+        assert_eq!(
+            parse_message_id(b"Mr.PRUe8HJBoaO.3whNvLCMFU0@testrun.org").unwrap(),
+            "Mr.PRUe8HJBoaO.3whNvLCMFU0@testrun.org"
+        );
+        assert_eq!(
+            parse_message_id(b"<Mr.PRUe8HJBoaO.3whNvLCMFU0@testrun.org>").unwrap(),
+            "Mr.PRUe8HJBoaO.3whNvLCMFU0@testrun.org"
+        );
+    }
 }
