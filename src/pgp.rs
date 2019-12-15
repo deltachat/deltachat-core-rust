@@ -228,12 +228,11 @@ pub fn pk_encrypt(
     Ok(encoded_msg)
 }
 
-#[allow(clippy::implicit_hasher)]
-pub fn pk_decrypt(
+pub fn pk_decrypt<S: std::hash::BuildHasher>(
     ctext: &[u8],
     private_keys_for_decryption: &Keyring,
     public_keys_for_validation: &Keyring,
-    ret_signature_fingerprints: Option<&mut HashSet<String>>,
+    ret_signature_fingerprints: Option<&mut HashSet<String, S>>,
 ) -> Result<Vec<u8>> {
     let (msg, _) = Message::from_armor_single(Cursor::new(ctext))?;
     let skeys: Vec<&SignedSecretKey> = private_keys_for_decryption
