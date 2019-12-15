@@ -172,7 +172,7 @@ impl Chat {
         }
 
         if self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup {
-            if self.id == 1 {
+            if self.id == DC_CHAT_ID_DEADDROP {
                 return context.stock_str(StockMessage::DeadDrop).into();
             }
             let cnt = get_chat_contact_cnt(context, self.id);
@@ -255,7 +255,7 @@ impl Chat {
 
     /// Returns true if chat is a verified group chat.
     pub fn is_verified(&self) -> bool {
-        (self.typ == Chattype::VerifiedGroup)
+        self.typ == Chattype::VerifiedGroup
     }
 
     /// Returns true if location streaming is enabled in the chat.
