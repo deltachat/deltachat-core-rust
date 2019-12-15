@@ -4,17 +4,17 @@ use crate::dehtml::*;
 /// no footer is found.
 ///
 /// Also return whether not-standard (rfc3676, §4.3) footer is found.
-fn find_message_footer(lines: &[&str]) -> (usize, bool) {
+fn find_message_footer<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
     for (ix, &line) in lines.iter().enumerate() {
         // quoted-printable may encode `-- ` to `-- =20` which is converted
         // back to `--  `
         match line {
-            "-- " | "--  " => return (ix, false),
-            "--" | "---" | "----" => return (ix, true),
+            "-- " | "--  " => return (&lines[..ix], false),
+            "--" | "---" | "----" => return (&lines[..ix], true),
             _ => (),
         }
     }
-    (lines.len(), false)
+    (lines, false)
 }
 
 fn split_lines(buf: &str) -> Vec<&str> {
@@ -63,9 +63,10 @@ fn simplify_plain_text(lines: &[&str], is_msgrmsg: bool) -> (String, bool) {
     ... remove a non-empty line before the removed quote (contains sth. like "On 2.9.2016, Bjoern wrote:" in different formats and lanugages) */
     /* split the given buffer into lines */
     let (lines, is_forwarded) = skip_forward_header(lines);
+    let (lines, mut is_cut_at_end) = find_message_footer(lines);
 
     let mut l_first: usize = 0;
-    let (mut l_last, mut is_cut_at_end) = find_message_footer(&lines);
+    let mut l_last = lines.len();
 
     for l in l_first..l_last {
         let line = lines[l];
