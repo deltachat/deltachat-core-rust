@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use deltachat_derive::{FromSql, ToSql};
 use lettre_email::mime::{self, Mime};
-use mailparse::{DispositionType, MailHeaderMap};
+use mailparse::{DispositionType, MailAddr, MailHeaderMap};
 
 use crate::aheader::Aheader;
 use crate::blob::BlobObject;
@@ -208,7 +208,6 @@ impl<'a> MimeParser<'a> {
                         || filepart.typ == Viewtype::Voice
                         || filepart.typ == Viewtype::Video
                         || filepart.typ == Viewtype::File)
-                    && !filepart.is_meta
             };
 
             if need_drop {
@@ -288,22 +287,16 @@ impl<'a> MimeParser<'a> {
                 }
             }
         }
-        if !self.decrypting_failed {
-            if let Some(dn_field) = self.get(HeaderDef::ChatDispositionNotificationTo) {
-                if self.get_last_nonmeta().is_some() {
-                    let addrs = mailparse::addrparse(&dn_field).unwrap();
 
-                    if let Some(dn_to_addr) = addrs.first() {
-                        if let Some(from_field) = self.get(HeaderDef::From_) {
-                            let from_addrs = mailparse::addrparse(&from_field).unwrap();
-
-                            if let Some(from_addr) = from_addrs.first() {
-                                if compare_addrs(from_addr, dn_to_addr) {
-                                    if let Some(part_4) = self.get_last_nonmeta_mut() {
-                                        part_4.param.set_int(Param::WantsMdn, 1);
-                                    }
-                                }
-                            }
+        // See if an MDN is requested from the other side
+        if !self.decrypting_failed && !self.parts.is_empty() {
+            if let Some(ref dn_to_addr) =
+                self.parse_first_addr(HeaderDef::ChatDispositionNotificationTo)
+            {
+                if let Some(ref from_addr) = self.parse_first_addr(HeaderDef::From_) {
+                    if compare_addrs(from_addr, dn_to_addr) {
+                        if let Some(part) = self.parts.last_mut() {
+                            part.param.set_int(Param::WantsMdn, 1);
                         }
                     }
                 }
@@ -314,7 +307,7 @@ impl<'a> MimeParser<'a> {
         // just have send a message in the subject with an empty body.
         // Besides, we want to show something in case our incoming-processing
         // failed to properly handle an incoming message.
-        if self.get_last_nonmeta().is_none() && self.reports.is_empty() {
+        if self.parts.is_empty() && self.reports.is_empty() {
             let mut part = Part::default();
             part.typ = Viewtype::Text;
 
@@ -353,14 +346,6 @@ impl<'a> MimeParser<'a> {
         AvatarAction::None
     }
 
-    pub fn get_last_nonmeta(&self) -> Option<&Part> {
-        self.parts.iter().rev().find(|part| !part.is_meta)
-    }
-
-    pub fn get_last_nonmeta_mut(&mut self) -> Option<&mut Part> {
-        self.parts.iter_mut().rev().find(|part| !part.is_meta)
-    }
-
     pub fn was_encrypted(&self) -> bool {
         !self.signatures.is_empty()
     }
@@ -386,6 +371,20 @@ impl<'a> MimeParser<'a> {
 
     pub fn get(&self, headerdef: HeaderDef) -> Option<&String> {
         self.header.get(&headerdef.get_headername())
+    }
+
+    fn parse_first_addr(&self, headerdef: HeaderDef) -> Option<MailAddr> {
+        if let Some(value) = self.get(headerdef.clone()) {
+            match mailparse::addrparse(&value) {
+                Ok(ref addrs) => {
+                    return addrs.first().cloned();
+                }
+                Err(err) => {
+                    warn!(self.context, "header {} parse error: {:?}", headerdef, err);
+                }
+            }
+        }
+        None
     }
 
     fn parse_mime_recursive(&mut self, mail: &mailparse::ParsedMail<'_>) -> Result<bool> {
@@ -876,7 +875,6 @@ fn is_known(key: &str) -> bool {
 #[derive(Debug, Default, Clone)]
 pub struct Part {
     pub typ: Viewtype,
-    pub is_meta: bool,
     pub mimetype: Option<Mime>,
     pub msg: String,
     pub msg_raw: Option<String>,
@@ -1116,6 +1114,26 @@ mod tests {
             ctype.params.get("protected-headers"),
             Some(&"v1".to_string())
         );
+    }
+
+    #[test]
+    fn test_parse_first_addr() {
+        let context = dummy_context();
+        let raw = b"From: hello@one.org, world@two.org\n\
+                    Chat-Disposition-Notification-To: wrong
+                    Content-Type: text/plain;
+                    Chat-Version: 1.0\n\
+                    \n\
+                    test1\n\
+                    \x00";
+
+        let mimeparser = MimeParser::from_bytes(&context.ctx, &raw[..]).unwrap();
+
+        let of = mimeparser.parse_first_addr(HeaderDef::From_).unwrap();
+        assert_eq!(of, mailparse::addrparse("hello@one.org").unwrap()[0]);
+
+        let of = mimeparser.parse_first_addr(HeaderDef::ChatDispositionNotificationTo);
+        assert!(of.is_none());
     }
 
     #[test]
