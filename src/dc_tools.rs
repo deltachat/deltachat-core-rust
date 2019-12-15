@@ -381,11 +381,14 @@ pub(crate) fn dc_copy_file(
     }
 }
 
-pub(crate) fn dc_create_folder(context: &Context, path: impl AsRef<std::path::Path>) -> bool {
+pub(crate) fn dc_create_folder(
+    context: &Context,
+    path: impl AsRef<std::path::Path>,
+) -> Result<(), std::io::Error> {
     let path_abs = dc_get_abs_path(context, &path);
     if !path_abs.exists() {
         match fs::create_dir_all(path_abs) {
-            Ok(_) => true,
+            Ok(_) => Ok(()),
             Err(err) => {
                 warn!(
                     context,
@@ -393,11 +396,11 @@ pub(crate) fn dc_create_folder(context: &Context, path: impl AsRef<std::path::Pa
                     path.as_ref().display(),
                     err
                 );
-                false
+                Err(err)
             }
         }
     } else {
-        true
+        Ok(())
     }
 }
 
@@ -825,7 +828,7 @@ mod tests {
 
         assert!(dc_delete_file(context, "$BLOBDIR/foobar"));
         assert!(dc_delete_file(context, "$BLOBDIR/dada"));
-        assert!(dc_create_folder(context, "$BLOBDIR/foobar-folder"));
+        assert!(dc_create_folder(context, "$BLOBDIR/foobar-folder").is_ok());
         assert!(dc_file_exist(context, "$BLOBDIR/foobar-folder",));
         assert!(!dc_delete_file(context, "$BLOBDIR/foobar-folder"));
 
