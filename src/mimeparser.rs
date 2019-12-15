@@ -14,11 +14,11 @@ use crate::dc_simplify::*;
 use crate::dc_tools::*;
 use crate::e2ee;
 use crate::error::Result;
+use crate::events::Event;
 use crate::headerdef::HeaderDef;
 use crate::job::{job_add, Action};
 use crate::location;
 use crate::message;
-use crate::message::MsgId;
 use crate::param::*;
 use crate::peerstate::Peerstate;
 use crate::securejoin::handle_degrade_event;
@@ -40,7 +40,6 @@ pub struct MimeParser<'a> {
     pub user_avatar: AvatarAction,
     pub group_avatar: AvatarAction,
     reports: Vec<Report>,
-    mdns_enabled: bool,
     parsed_protected_headers: bool,
 }
 
@@ -86,7 +85,6 @@ const MIME_AC_SETUP_FILE: &str = "application/autocrypt-setup";
 impl<'a> MimeParser<'a> {
     pub fn from_bytes(context: &'a Context, body: &[u8]) -> Result<Self> {
         let mail = mailparse::parse_mail(body)?;
-        let mdns_enabled = context.get_config_bool(Config::MdnsEnabled);
 
         let mut parser = MimeParser {
             parts: Vec::new(),
@@ -104,7 +102,6 @@ impl<'a> MimeParser<'a> {
             message_kml: None,
             user_avatar: AvatarAction::None,
             group_avatar: AvatarAction::None,
-            mdns_enabled,
             parsed_protected_headers: false,
         };
 
@@ -313,7 +310,10 @@ impl<'a> MimeParser<'a> {
             }
         }
 
-        // Cleanup - and try to create at least an empty part if there are no parts yet
+        // If there were no parts, especially a non-DC mail user may
+        // just have send a message in the subject with an empty body.
+        // Besides, we want to show something in case our incoming-processing
+        // failed to properly handle an incoming message.
         if self.get_last_nonmeta().is_none() && self.reports.is_empty() {
             let mut part = Part::default();
             part.typ = Viewtype::Text;
@@ -726,11 +726,6 @@ impl<'a> MimeParser<'a> {
     }
 
     fn process_report(&self, report: &mailparse::ParsedMail<'_>) -> Result<Option<Report>> {
-        // to get a clear functionality, do not show incoming MDNs if the options is disabled
-        if !self.mdns_enabled {
-            return Ok(None);
-        }
-
         // parse as mailheaders
         let report_body = report.subparts[1].get_body_raw()?;
         let (report_fields, _) = mailparse::parse_headers(&report_body)?;
@@ -749,33 +744,46 @@ impl<'a> MimeParser<'a> {
                 }));
             }
         }
+        warn!(
+            self.context,
+            "ignoring unknown disposition-notification, Message-Id: {:?}",
+            report_fields.get_first_value("Message-ID").ok()
+        );
 
         Ok(None)
     }
 
-    // Handle reports (mainly MDNs)
+    // Handle reports (only MDNs for now)
     pub fn handle_reports(
         &self,
         from_id: u32,
         sent_timestamp: i64,
-        rr_event_to_send: &mut Vec<(u32, MsgId)>,
         server_folder: impl AsRef<str>,
         server_uid: u32,
     ) {
-        for report in &self.reports {
-            let mut mdn_consumed = false;
+        if self.reports.is_empty() {
+            return;
+        }
+        // If a user disabled MDNs we do not show pending incoming ones anymore
+        // but we do want them to potentially get moved from the INBOX still.
+        let mdns_enabled = self.context.get_config_bool(Config::MdnsEnabled);
 
-            if let Some((chat_id, msg_id)) = message::mdn_from_ext(
-                self.context,
-                from_id,
-                &report.original_message_id,
-                sent_timestamp,
-            ) {
-                rr_event_to_send.push((chat_id, msg_id));
-                mdn_consumed = true;
+        for report in &self.reports {
+            let mut mdn_recognized = false;
+
+            if mdns_enabled {
+                if let Some((chat_id, msg_id)) = message::mdn_from_ext(
+                    self.context,
+                    from_id,
+                    &report.original_message_id,
+                    sent_timestamp,
+                ) {
+                    self.context.call_cb(Event::MsgRead { chat_id, msg_id });
+                    mdn_recognized = true;
+                }
             }
 
-            if self.has_chat_version() || mdn_consumed {
+            if self.has_chat_version() || mdn_recognized || !mdns_enabled {
                 let mut param = Params::new();
                 param.set(Param::ServerFolder, server_folder.as_ref());
                 param.set_int(Param::ServerUid, server_uid as i32);
