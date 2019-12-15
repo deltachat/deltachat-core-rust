@@ -241,7 +241,7 @@ impl Imap {
                 "IMAP-fake-IDLE done after {:.4}s",
                 SystemTime::now()
                     .duration_since(fake_idle_start_time)
-                    .unwrap()
+                    .unwrap_or_default()
                     .as_millis() as f64
                     / 1000.,
             );
