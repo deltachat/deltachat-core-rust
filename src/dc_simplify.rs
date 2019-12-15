@@ -240,6 +240,15 @@ mod tests {
     }
 
     #[test]
+    fn test_simplify_forwarded_message() {
+        let text = "---------- Forwarded message ----------\r\nFrom: test@example.com\r\n\r\nForwarded message\r\n-- \r\nSignature goes here";
+        let (plain, is_forwarded) = simplify(text, false, false);
+
+        assert_eq!(plain, "Forwarded message");
+        assert!(is_forwarded);
+    }
+
+    #[test]
     fn test_simplify_html_encoded() {
         let html =
                 "&lt;&gt;&quot;&apos;&amp; &auml;&Auml;&ouml;&Ouml;&uuml;&Uuml;&szlig; foo&AElig;&ccedil;&Ccedil; &diams;&lrm;&rlm;&zwnj;&noent;&zwj;";
