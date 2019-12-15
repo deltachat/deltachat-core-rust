@@ -1,4 +1,4 @@
-//! Contacts module
+//! Context module
 
 use std::collections::HashMap;
 use std::ffi::OsString;

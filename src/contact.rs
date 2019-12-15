@@ -1,3 +1,5 @@
+//! Contacts module
+
 use std::path::PathBuf;
 
 use deltachat_derive::*;

@@ -116,10 +116,12 @@ impl Chat {
         self.param.exists(Param::Selftalk)
     }
 
+    /// Returns true if chat is a device chat.
     pub fn is_device_talk(&self) -> bool {
         self.param.exists(Param::Devicetalk)
     }
 
+    /// Returns true if user can send messages to this chat.
     pub fn can_send(&self) -> bool {
         self.id > DC_CHAT_ID_LAST_SPECIAL && !self.is_device_talk()
     }
@@ -134,14 +136,17 @@ impl Chat {
         Ok(())
     }
 
+    /// Returns chat ID.
     pub fn get_id(&self) -> u32 {
         self.id
     }
 
+    /// Returns chat type.
     pub fn get_type(&self) -> Chattype {
         self.typ
     }
 
+    /// Returns chat name.
     pub fn get_name(&self) -> &str {
         &self.name
     }
@@ -248,10 +253,12 @@ impl Chat {
         !self.is_unpromoted()
     }
 
+    /// Returns true if chat is a verified group chat.
     pub fn is_verified(&self) -> bool {
         (self.typ == Chattype::VerifiedGroup)
     }
 
+    /// Returns true if location streaming is enabled in the chat.
     pub fn is_sending_locations(&self) -> bool {
         self.is_sending_locations
     }
@@ -814,6 +821,7 @@ fn last_msg_in_chat_encrypted(context: &Context, sql: &Sql, chat_id: u32) -> boo
     }
 }
 
+/// Returns whether a contact is in a chat or not.
 pub fn is_contact_in_chat(context: &Context, chat_id: u32, contact_id: u32) -> bool {
     /* this function works for group and for normal chats, however, it is more useful for group chats.
     DC_CONTACT_ID_SELF may be used to check, if the user itself is in a group chat (DC_CONTACT_ID_SELF is not added to normal chats) */
@@ -1104,6 +1112,7 @@ pub fn get_chat_msgs(
     }
 }
 
+/// Returns number of messages in a chat.
 pub fn get_msg_cnt(context: &Context, chat_id: u32) -> usize {
     context
         .sql
@@ -1274,6 +1283,7 @@ pub fn get_next_media(
     ret
 }
 
+/// Archives or unarchives a chat.
 pub fn archive(context: &Context, chat_id: u32, archive: bool) -> Result<(), Error> {
     ensure!(
         chat_id > DC_CHAT_ID_LAST_SPECIAL,
@@ -1309,6 +1319,7 @@ pub fn archive(context: &Context, chat_id: u32, archive: bool) -> Result<(), Err
     Ok(())
 }
 
+/// Deletes a chat.
 pub fn delete(context: &Context, chat_id: u32) -> Result<(), Error> {
     ensure!(
         chat_id > DC_CHAT_ID_LAST_SPECIAL,
@@ -1439,6 +1450,7 @@ pub fn add_to_chat_contacts_table(context: &Context, chat_id: u32, contact_id: u
     .is_ok()
 }
 
+/// Adds a contact to the chat.
 pub fn add_contact_to_chat(context: &Context, chat_id: u32, contact_id: u32) -> bool {
     match add_contact_to_chat_ex(context, chat_id, contact_id, false) {
         Ok(res) => res,
@@ -2069,6 +2081,9 @@ pub fn get_chat_id_by_grpid(context: &Context, grpid: impl AsRef<str>) -> (u32, 
         .unwrap_or((0, false, Blocked::Not))
 }
 
+/// Adds a message to device chat.
+///
+/// Optional `label` can be provided to ensure that message is added only once.
 pub fn add_device_msg(
     context: &Context,
     label: Option<&str>,
@@ -2143,6 +2158,9 @@ pub fn was_device_msg_ever_added(context: &Context, label: &str) -> Result<bool,
     Ok(false)
 }
 
+/// Adds an informational message to chat.
+///
+/// For example, it can be a message showing that a member was added to a group.
 pub fn add_info_msg(context: &Context, chat_id: u32, text: impl AsRef<str>) {
     let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
 
