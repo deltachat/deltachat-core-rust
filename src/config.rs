@@ -191,6 +191,8 @@ mod tests {
     use std::string::ToString;
 
     use crate::test_utils::*;
+    use std::fs::File;
+    use std::io::Write;
 
     #[test]
     fn test_to_string() {
@@ -210,16 +212,17 @@ mod tests {
     }
 
     #[test]
-    fn test_selfavatar() -> failure::Fallible<()> {
+    fn test_selfavatar_outside_blobdir() -> failure::Fallible<()> {
         let t = dummy_context();
         let avatar_src = t.dir.path().join("avatar.jpg");
-        std::fs::write(&avatar_src, b"avatar")?;
+        let avatar_bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
+        File::create(&avatar_src)?.write_all(avatar_bytes)?;
         let avatar_blob = t.ctx.get_blobdir().join("avatar.jpg");
         assert!(!avatar_blob.exists());
         t.ctx
             .set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))?;
         assert!(avatar_blob.exists());
-        assert_eq!(std::fs::read(&avatar_blob)?, b"avatar");
+        assert!(std::fs::metadata(&avatar_blob).unwrap().len() < avatar_bytes.len() as u64);
         let avatar_cfg = t.ctx.get_config(Config::Selfavatar);
         assert_eq!(avatar_cfg, avatar_blob.to_str().map(|s| s.to_string()));
         Ok(())
@@ -229,7 +232,8 @@ mod tests {
     fn test_selfavatar_in_blobdir() -> failure::Fallible<()> {
         let t = dummy_context();
         let avatar_src = t.ctx.get_blobdir().join("avatar.jpg");
-        std::fs::write(&avatar_src, b"avatar")?;
+        let avatar_bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
+        File::create(&avatar_src)?.write_all(avatar_bytes)?;
         t.ctx
             .set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))?;
         let avatar_cfg = t.ctx.get_config(Config::Selfavatar);
