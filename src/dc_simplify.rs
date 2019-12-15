@@ -1,175 +1,169 @@
 use crate::dehtml::*;
 
-#[derive(Copy, Clone)]
-pub struct Simplify {
-    pub is_forwarded: bool,
-}
-
-/// Return index of footer line in vector of message lines, or vector length if
-/// no footer is found.
-///
-/// Also return whether not-standard (rfc3676, §4.3) footer is found.
-fn find_message_footer(lines: &[&str]) -> (usize, bool) {
+/// Remove standard (RFC 3676, §4.3) footer if it is found.
+fn remove_message_footer<'a>(lines: &'a [&str]) -> &'a [&'a str] {
     for (ix, &line) in lines.iter().enumerate() {
         // quoted-printable may encode `-- ` to `-- =20` which is converted
         // back to `--  `
         match line {
-            "-- " | "--  " => return (ix, false),
-            "--" | "---" | "----" => return (ix, true),
+            "-- " | "--  " => return &lines[..ix],
             _ => (),
         }
     }
-    (lines.len(), false)
+    lines
 }
 
-impl Simplify {
-    pub fn new() -> Self {
-        Simplify {
-            is_forwarded: false,
+/// Remove nonstandard footer and a boolean indicating whether such
+/// footer was removed.
+fn remove_nonstandard_footer<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
+    for (ix, &line) in lines.iter().enumerate() {
+        if line == "--"
+            || line == "---"
+            || line == "----"
+            || line.starts_with("-----")
+            || line.starts_with("_____")
+            || line.starts_with("=====")
+            || line.starts_with("*****")
+            || line.starts_with("~~~~~")
+        {
+            return (&lines[..ix], true);
         }
     }
+    (lines, false)
+}
 
-    /// Simplify and normalise text: Remove quotes, signatures, unnecessary
-    /// lineends etc.
-    /// The data returned from simplify() must be free()'d when no longer used.
-    pub fn simplify(&mut self, input: &str, is_html: bool, is_msgrmsg: bool) -> String {
-        let mut out = if is_html {
-            dehtml(input)
-        } else {
-            input.to_string()
-        };
+fn split_lines(buf: &str) -> Vec<&str> {
+    buf.split('\n').collect()
+}
 
-        out.retain(|c| c != '\r');
-        out = self.simplify_plain_text(&out, is_msgrmsg);
-        out.retain(|c| c != '\r');
+/// Simplify message text for chat display.
+/// Remove quotes, signatures, trailing empty lines etc.
+pub fn simplify(input: &str, is_html: bool, is_chat_message: bool) -> (String, bool) {
+    let mut out = if is_html {
+        dehtml(input)
+    } else {
+        input.to_string()
+    };
 
-        out
+    out.retain(|c| c != '\r');
+    let lines = split_lines(&out);
+    let (lines, is_forwarded) = skip_forward_header(&lines);
+
+    let lines = remove_message_footer(lines);
+    let (lines, has_nonstandard_footer) = remove_nonstandard_footer(lines);
+    let (lines, has_bottom_quote) = if !is_chat_message {
+        remove_bottom_quote(lines)
+    } else {
+        (lines, false)
+    };
+    let (lines, has_top_quote) = if !is_chat_message {
+        remove_top_quote(lines)
+    } else {
+        (lines, false)
+    };
+
+    // re-create buffer from the remaining lines
+    let text = render_message(
+        lines,
+        has_top_quote,
+        has_nonstandard_footer || has_bottom_quote,
+    );
+    (text, is_forwarded)
+}
+
+/// Skips "forwarded message" header.
+/// Returns message body lines and a boolean indicating whether
+/// a message is forwarded or not.
+fn skip_forward_header<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
+    if lines.len() >= 3
+        && lines[0] == "---------- Forwarded message ----------"
+        && lines[1].starts_with("From: ")
+        && lines[2].is_empty()
+    {
+        (&lines[3..], true)
+    } else {
+        (lines, false)
     }
+}
 
-    /**
-     * Simplify Plain Text
-     */
-    #[allow(non_snake_case, clippy::mut_range_bound, clippy::needless_range_loop)]
-    fn simplify_plain_text(&mut self, buf_terminated: &str, is_msgrmsg: bool) -> String {
-        /* This function ...
-        ... removes all text after the line `-- ` (footer mark)
-        ... removes full quotes at the beginning and at the end of the text -
-            these are all lines starting with the character `>`
-        ... remove a non-empty line before the removed quote (contains sth. like "On 2.9.2016, Bjoern wrote:" in different formats and lanugages) */
-        /* split the given buffer into lines */
-        let lines: Vec<_> = buf_terminated.split('\n').collect();
-        let mut l_first: usize = 0;
-        let mut is_cut_at_begin = false;
-        let (mut l_last, mut is_cut_at_end) = find_message_footer(&lines);
-
-        if l_last > l_first + 2 {
-            let line0 = lines[l_first];
-            let line1 = lines[l_first + 1];
-            let line2 = lines[l_first + 2];
-            if line0 == "---------- Forwarded message ----------"
-                && line1.starts_with("From: ")
-                && line2.is_empty()
-            {
-                self.is_forwarded = true;
-                l_first += 3
+fn remove_bottom_quote<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
+    let mut last_quoted_line = None;
+    for (l, line) in lines.iter().enumerate().rev() {
+        if is_plain_quote(line) {
+            last_quoted_line = Some(l)
+        } else if !is_empty_line(line) {
+            break;
+        }
+    }
+    if let Some(mut l_last) = last_quoted_line {
+        if l_last > 1 && is_empty_line(lines[l_last - 1]) {
+            l_last -= 1
+        }
+        if l_last > 1 {
+            let line = lines[l_last - 1];
+            if is_quoted_headline(line) {
+                l_last -= 1
             }
         }
-        for l in l_first..l_last {
-            let line = lines[l];
-            if line == "-----"
-                || line == "_____"
-                || line == "====="
-                || line == "*****"
-                || line == "~~~~~"
-            {
-                l_last = l;
-                is_cut_at_end = true;
-                /* done */
+        (&lines[..l_last], true)
+    } else {
+        (lines, false)
+    }
+}
+
+fn remove_top_quote<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
+    let mut last_quoted_line = None;
+    let mut has_quoted_headline = false;
+    for (l, line) in lines.iter().enumerate() {
+        if is_plain_quote(line) {
+            last_quoted_line = Some(l)
+        } else if !is_empty_line(line) {
+            if is_quoted_headline(line) && !has_quoted_headline && last_quoted_line.is_none() {
+                has_quoted_headline = true
+            } else {
+                /* non-quoting line found */
                 break;
             }
         }
-        if !is_msgrmsg {
-            let mut l_lastQuotedLine = None;
-            for l in (l_first..l_last).rev() {
-                let line = lines[l];
-                if is_plain_quote(line) {
-                    l_lastQuotedLine = Some(l)
-                } else if !is_empty_line(line) {
-                    break;
-                }
-            }
-            if let Some(last_quoted_line) = l_lastQuotedLine {
-                l_last = last_quoted_line;
-                is_cut_at_end = true;
-                if l_last > 1 && is_empty_line(lines[l_last - 1]) {
-                    l_last -= 1
-                }
-                if l_last > 1 {
-                    let line = lines[l_last - 1];
-                    if is_quoted_headline(line) {
-                        l_last -= 1
-                    }
-                }
-            }
-        }
-        if !is_msgrmsg {
-            let mut l_lastQuotedLine_0 = None;
-            let mut hasQuotedHeadline = 0;
-            for l in l_first..l_last {
-                let line = lines[l];
-                if is_plain_quote(line) {
-                    l_lastQuotedLine_0 = Some(l)
-                } else if !is_empty_line(line) {
-                    if is_quoted_headline(line)
-                        && 0 == hasQuotedHeadline
-                        && l_lastQuotedLine_0.is_none()
-                    {
-                        hasQuotedHeadline = 1i32
-                    } else {
-                        /* non-quoting line found */
-                        break;
-                    }
-                }
-            }
-            if let Some(last_quoted_line) = l_lastQuotedLine_0 {
-                l_first = last_quoted_line + 1;
-                is_cut_at_begin = true
-            }
-        }
-        /* re-create buffer from the remaining lines */
-        let mut ret = String::new();
-        if is_cut_at_begin {
-            ret += "[...]";
-        }
-        /* we write empty lines only in case and non-empty line follows */
-        let mut pending_linebreaks = 0;
-        let mut content_lines_added = 0;
-        for l in l_first..l_last {
-            let line = lines[l];
-            if is_empty_line(line) {
-                pending_linebreaks += 1
-            } else {
-                if 0 != content_lines_added {
-                    if pending_linebreaks > 2i32 {
-                        pending_linebreaks = 2i32
-                    }
-                    while 0 != pending_linebreaks {
-                        ret += "\n";
-                        pending_linebreaks -= 1
-                    }
-                }
-                // the incoming message might contain invalid UTF8
-                ret += line;
-                content_lines_added += 1;
-                pending_linebreaks = 1i32
-            }
-        }
-        if is_cut_at_end && (!is_cut_at_begin || 0 != content_lines_added) {
-            ret += " [...]";
-        }
-
-        ret
     }
+    if let Some(last_quoted_line) = last_quoted_line {
+        (&lines[last_quoted_line + 1..], true)
+    } else {
+        (lines, false)
+    }
+}
+
+fn render_message(lines: &[&str], is_cut_at_begin: bool, is_cut_at_end: bool) -> String {
+    let mut ret = String::new();
+    if is_cut_at_begin {
+        ret += "[...]";
+    }
+    /* we write empty lines only in case and non-empty line follows */
+    let mut pending_linebreaks = 0;
+    let mut empty_body = true;
+    for line in lines {
+        if is_empty_line(line) {
+            pending_linebreaks += 1
+        } else {
+            if !empty_body {
+                if pending_linebreaks > 2 {
+                    pending_linebreaks = 2
+                }
+                while 0 != pending_linebreaks {
+                    ret += "\n";
+                    pending_linebreaks -= 1
+                }
+            }
+            // the incoming message might contain invalid UTF8
+            ret += line;
+            empty_body = false;
+            pending_linebreaks = 1
+        }
+    }
+    if is_cut_at_end && (!is_cut_at_begin || !empty_body) {
+        ret += " [...]";
+    }
+    ret
 }
 
 /**
@@ -213,50 +207,59 @@ mod tests {
         #[test]
         // proptest does not support [[:graphical:][:space:]] regex.
         fn test_simplify_plain_text_fuzzy(input in "[!-~\t \n]+") {
-            let output = Simplify::new().simplify_plain_text(&input, true);
+            let (output, _is_forwarded) = simplify(&input, false, true);
             assert!(output.split('\n').all(|s| s != "-- "));
         }
     }
 
     #[test]
     fn test_simplify_trim() {
-        let mut simplify = Simplify::new();
         let html = "\r\r\nline1<br>\r\n\r\n\r\rline2\n\r";
-        let plain = simplify.simplify(html, true, false);
+        let (plain, is_forwarded) = simplify(html, true, false);
 
         assert_eq!(plain, "line1\nline2");
+        assert!(!is_forwarded);
     }
 
     #[test]
     fn test_simplify_parse_href() {
-        let mut simplify = Simplify::new();
         let html = "<a href=url>text</a";
-        let plain = simplify.simplify(html, true, false);
+        let (plain, is_forwarded) = simplify(html, true, false);
 
         assert_eq!(plain, "[text](url)");
+        assert!(!is_forwarded);
     }
 
     #[test]
     fn test_simplify_bold_text() {
-        let mut simplify = Simplify::new();
         let html = "<!DOCTYPE name [<!DOCTYPE ...>]><!-- comment -->text <b><?php echo ... ?>bold</b><![CDATA[<>]]>";
-        let plain = simplify.simplify(html, true, false);
+        let (plain, is_forwarded) = simplify(html, true, false);
 
         assert_eq!(plain, "text *bold*<>");
+        assert!(!is_forwarded);
+    }
+
+    #[test]
+    fn test_simplify_forwarded_message() {
+        let text = "---------- Forwarded message ----------\r\nFrom: test@example.com\r\n\r\nForwarded message\r\n-- \r\nSignature goes here";
+        let (plain, is_forwarded) = simplify(text, false, false);
+
+        assert_eq!(plain, "Forwarded message");
+        assert!(is_forwarded);
     }
 
     #[test]
     fn test_simplify_html_encoded() {
-        let mut simplify = Simplify::new();
         let html =
                 "&lt;&gt;&quot;&apos;&amp; &auml;&Auml;&ouml;&Ouml;&uuml;&Uuml;&szlig; foo&AElig;&ccedil;&Ccedil; &diams;&lrm;&rlm;&zwnj;&noent;&zwj;";
 
-        let plain = simplify.simplify(html, true, false);
+        let (plain, is_forwarded) = simplify(html, true, false);
 
         assert_eq!(
             plain,
             "<>\"\'& äÄöÖüÜß fooÆçÇ \u{2666}\u{200e}\u{200f}\u{200c}&noent;\u{200d}"
         );
+        assert!(!is_forwarded);
     }
 
     #[test]
@@ -269,5 +272,20 @@ mod tests {
         assert!(is_plain_quote(">>"));
         assert!(!is_plain_quote("Life is pain"));
         assert!(!is_plain_quote(""));
+    }
+
+    #[test]
+    fn test_remove_top_quote() {
+        let (lines, has_top_quote) = remove_top_quote(&["> first", "> second"]);
+        assert!(lines.is_empty());
+        assert!(has_top_quote);
+
+        let (lines, has_top_quote) = remove_top_quote(&["> first", "> second", "not a quote"]);
+        assert_eq!(lines, &["not a quote"]);
+        assert!(has_top_quote);
+
+        let (lines, has_top_quote) = remove_top_quote(&["not a quote", "> first", "> second"]);
+        assert_eq!(lines, &["not a quote", "> first", "> second"]);
+        assert!(!has_top_quote);
     }
 }
