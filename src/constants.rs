@@ -184,6 +184,9 @@ pub const DC_VC_CONTACT_CONFIRM: i32 = 6;
 pub const DC_BOB_ERROR: i32 = 0;
 pub const DC_BOB_SUCCESS: i32 = 1;
 
+// max. width/height of an avatar
+pub const AVATAR_SIZE: u32 = 192;
+
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql)]
 #[repr(i32)]
 pub enum Viewtype {
