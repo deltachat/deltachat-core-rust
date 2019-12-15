@@ -1,5 +1,3 @@
-use mailparse::ParsedMail;
-
 use crate::error::Error;
 
 pub fn parse_message_id(message_id: &[u8]) -> Result<String, Error> {
@@ -12,33 +10,6 @@ pub fn parse_message_id(message_id: &[u8]) -> Result<String, Error> {
     }
 
     bail!("could not parse message_id: {}", value);
-}
-
-/// Returns a reference to the encrypted payload and validates the autocrypt structure.
-pub fn get_autocrypt_mime<'a, 'b>(mail: &'a ParsedMail<'b>) -> Result<&'a ParsedMail<'b>, Error> {
-    ensure!(
-        mail.ctype.mimetype == "multipart/encrypted",
-        "Not a multipart/encrypted message: {}",
-        mail.ctype.mimetype
-    );
-    ensure!(
-        mail.subparts.len() == 2,
-        "Invalid Autocrypt Level 1 Mime Parts"
-    );
-
-    ensure!(
-        mail.subparts[0].ctype.mimetype == "application/pgp-encrypted",
-        "Invalid Autocrypt Level 1 version part: {:?}",
-        mail.subparts[0].ctype,
-    );
-
-    ensure!(
-        mail.subparts[1].ctype.mimetype == "application/octet-stream",
-        "Invalid Autocrypt Level 1 encrypted part: {:?}",
-        mail.subparts[1].ctype
-    );
-
-    Ok(&mail.subparts[1])
 }
 
 #[cfg(test)]
