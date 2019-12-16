@@ -8,9 +8,8 @@ macro_rules! info {
     ($ctx:expr, $msg:expr, $($args:expr),* $(,)?) => {{
         let formatted = format!($msg, $($args),*);
         let thread = ::std::thread::current();
-        let full = format!("{thid:?}/{thname} {file}:{line}: {msg}",
+        let full = format!("{thid:?} {file}:{line}: {msg}",
                            thid = thread.id(),
-                           thname = thread.name().unwrap_or("unnamed"),
                            file = file!(),
                            line = line!(),
                            msg = &formatted);
@@ -26,9 +25,8 @@ macro_rules! warn {
     ($ctx:expr, $msg:expr, $($args:expr),* $(,)?) => {{
         let formatted = format!($msg, $($args),*);
         let thread = ::std::thread::current();
-        let full = format!("{thid:?}/{thname} {file}:{line}: {msg}",
+        let full = format!("{thid:?} {file}:{line}: {msg}",
                            thid = thread.id(),
-                           thname = thread.name().unwrap_or("unnamed"),
                            file = file!(),
                            line = line!(),
                            msg = &formatted);
