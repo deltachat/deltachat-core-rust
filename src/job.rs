@@ -201,9 +201,17 @@ impl Job {
                         println!("{}", String::from_utf8_lossy(&body));
                     }
                     match task::block_on(smtp.send(context, recipients_list, body, self.job_id)) {
+                        Err(crate::smtp::send::Error::SendTimeout(err)) => {
+                            warn!(context, "SMTP send timed out {:?}", err);
+                            smtp.disconnect();
+                            self.try_again_later(
+                                TryAgain::AtOnce,
+                                Some("send-timeout".to_string()),
+                            );
+                        }
                         Err(crate::smtp::send::Error::SendError(err)) => {
                             // Remote error, retry later.
-                            info!(context, "SMTP failed to send: {}", err);
+                            warn!(context, "SMTP failed to send: {}", err);
                             smtp.disconnect();
                             self.try_again_later(TryAgain::AtOnce, Some(err.to_string()));
                         }

@@ -1,10 +1,15 @@
 //! # SMTP message sending
 
+use std::time::Duration;
+
 use super::Smtp;
 use async_smtp::*;
 
 use crate::context::Context;
 use crate::events::Event;
+
+/// SMTP send times out after 15 minutes
+const SEND_TIMEOUT: u64 = 15 * 60;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -16,6 +21,14 @@ pub enum Error {
     SendError(#[cause] async_smtp::smtp::error::Error),
     #[fail(display = "SMTP has no transport")]
     NoTransport,
+    #[fail(display = "SMTP send timed out")]
+    SendTimeout(#[cause] async_std::future::TimeoutError),
+}
+
+impl From<async_std::future::TimeoutError> for Error {
+    fn from(err: async_std::future::TimeoutError) -> Error {
+        Error::SendTimeout(err)
+    }
 }
 
 impl Smtp {
@@ -44,14 +57,17 @@ impl Smtp {
             message,
         );
         if let Some(ref mut transport) = self.transport {
-            transport.send(mail).await.map_err(Error::SendError)?;
+            let res = async_std::future::timeout(Duration::from_secs(SEND_TIMEOUT), async move {
+                transport.send(mail).await.map_err(Error::SendError)
+            })
+            .await?;
 
-            context.call_cb(Event::SmtpMessageSent(format!(
-                "Message len={} was smtp-sent to {}",
-                message_len, recipients_display
-            )));
-
-            Ok(())
+            res.map(|_response| {
+                context.call_cb(Event::SmtpMessageSent(format!(
+                    "Message len={} was smtp-sent to {}",
+                    message_len, recipients_display
+                )));
+            })
         } else {
             warn!(
                 context,
