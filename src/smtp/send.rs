@@ -1,15 +1,10 @@
 //! # SMTP message sending
 
-use std::time::Duration;
-
 use super::Smtp;
 use async_smtp::*;
 
 use crate::context::Context;
 use crate::events::Event;
-
-/// SMTP send times out after 15 minutes
-const SEND_TIMEOUT: u64 = 15 * 60;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -56,18 +51,15 @@ impl Smtp {
             format!("{}", job_id), // only used for internal logging
             message,
         );
-        if let Some(ref mut transport) = self.transport {
-            let res =
-                async_std::future::timeout(Duration::from_secs(SEND_TIMEOUT), transport.send(mail))
-                    .await?
-                    .map_err(Error::SendError);
 
-            res.map(|_response| {
-                context.call_cb(Event::SmtpMessageSent(format!(
-                    "Message len={} was smtp-sent to {}",
-                    message_len, recipients_display
-                )));
-            })
+        if let Some(ref mut transport) = self.transport {
+            transport.send(mail).await.map_err(Error::SendError)?;
+
+            context.call_cb(Event::SmtpMessageSent(format!(
+                "Message len={} was smtp-sent to {}",
+                message_len, recipients_display
+            )));
+            Ok(())
         } else {
             warn!(
                 context,
