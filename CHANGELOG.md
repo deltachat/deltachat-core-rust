@@ -1,5 +1,11 @@
 # Changelog 
 
+## 1.0.0-beta.19
+
+- #1058 timeout smtp-send if it doesn't complete in 15 minutes 
+
+- #1059 trim down logging
+
 ## 1.0.0-beta.18
 
 - #1056 avoid panicking when we couldn't read imap-server's greeting
