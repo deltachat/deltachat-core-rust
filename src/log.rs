@@ -7,7 +7,13 @@ macro_rules! info {
     };
     ($ctx:expr, $msg:expr, $($args:expr),* $(,)?) => {{
         let formatted = format!($msg, $($args),*);
-        let full = format!("{}:{}: {}", file!(), line!(), &formatted);
+        let thread = ::std::thread::current();
+        let full = format!("{thid:?}/{thname} {file}:{line}: {msg}",
+                           thid = thread.id(),
+                           thname = thread.name().unwrap_or("unnamed"),
+                           file = file!(),
+                           line = line!(),
+                           msg = &formatted);
         emit_event!($ctx, $crate::Event::Info(full));
     }};
 }
@@ -19,7 +25,13 @@ macro_rules! warn {
     };
     ($ctx:expr, $msg:expr, $($args:expr),* $(,)?) => {{
         let formatted = format!($msg, $($args),*);
-        let full = format!("{}:{}: {}", file!(), line!(), &formatted);
+        let thread = ::std::thread::current();
+        let full = format!("{thid:?}/{thname} {file}:{line}: {msg}",
+                           thid = thread.id(),
+                           thname = thread.name().unwrap_or("unnamed"),
+                           file = file!(),
+                           line = line!(),
+                           msg = &formatted);
         emit_event!($ctx, $crate::Event::Warning(full));
     }};
 }
