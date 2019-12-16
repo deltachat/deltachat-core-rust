@@ -1546,10 +1546,6 @@ fn dc_add_or_lookup_contacts_by_address_list(
         }
     };
 
-    info!(
-        context,
-        "dc_add_or_lookup_contacts_by_address raw={:?} addrs={:?}", addr_list_raw, addrs
-    );
     for addr in addrs.iter() {
         match addr {
             mailparse::MailAddr::Single(info) => {
@@ -1591,10 +1587,6 @@ fn add_or_lookup_contact_by_addr(
         .map(normalize_name)
         .unwrap_or_default();
 
-    info!(
-        context,
-        "looking up addr={:?} display_name={:?}", addr, display_name_normalized
-    );
     let (row_id, _modified) =
         Contact::add_or_lookup(context, display_name_normalized, addr, origin)?;
     ensure!(row_id > 0, "could not add contact: {:?}", addr);
