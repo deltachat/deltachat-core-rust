@@ -63,6 +63,9 @@ pub enum Error {
     #[fail(display = "IMAP select folder error")]
     SelectFolderError(#[cause] select_folder::Error),
 
+    #[fail(display = "No mailbox selected, folder: {:?}", _0)]
+    NoMailbox(String),
+
     #[fail(display = "IMAP other error: {:?}", _0)]
     Other(String),
 }
@@ -478,7 +481,10 @@ impl Imap {
             let (uid_validity, last_seen_uid) = self.get_config_last_seen_uid(context, &folder);
 
             let config = self.config.read().await;
-            let mailbox = config.selected_mailbox.as_ref().expect("just selected");
+            let mailbox = config
+                .selected_mailbox
+                .as_ref()
+                .ok_or_else(|| Error::NoMailbox(folder.to_string()))?;
 
             let new_uid_validity = match mailbox.uid_validity {
                 Some(v) => v,
