@@ -57,10 +57,10 @@ impl Smtp {
             message,
         );
         if let Some(ref mut transport) = self.transport {
-            let res = async_std::future::timeout(Duration::from_secs(SEND_TIMEOUT), async move {
-                transport.send(mail).await.map_err(Error::SendError)
-            })
-            .await?;
+            let res =
+                async_std::future::timeout(Duration::from_secs(SEND_TIMEOUT), transport.send(mail))
+                    .await?
+                    .map_err(Error::SendError);
 
             res.map(|_response| {
                 context.call_cb(Event::SmtpMessageSent(format!(
