@@ -46,7 +46,7 @@ impl Client {
         let _greeting = client
             .read_response()
             .await
-            .expect("failed to read greeting");
+            .ok_or_else(|| ImapError::Bad("failed to read greeting".to_string()))?;
 
         Ok(Client::Secure(client))
     }
@@ -61,7 +61,7 @@ impl Client {
         let _greeting = client
             .read_response()
             .await
-            .expect("failed to read greeting");
+            .ok_or_else(|| ImapError::Bad("failed to read greeting".to_string()))?;
 
         Ok(Client::Insecure(client))
     }
