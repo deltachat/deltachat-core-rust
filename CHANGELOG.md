@@ -1,5 +1,18 @@
 # Changelog 
 
+## 1.0.0-beta.18
+
+- #1056 avoid panicking when we couldn't read imap-server's greeting
+  message 
+
+- #1055 avoid panicking when we don't have a selected folder
+
+- #1052 #1049 #1051 improve logging to add thread-id/name and
+  file/lineno to each info/warn message.
+
+- #1050 allow python bindings to initialize Account with "os_name".
+
+
 ## 1.0.0-beta.17
 
 - #1044 implement avatar recoding to 192x192 in core to keep file sizes small. 
