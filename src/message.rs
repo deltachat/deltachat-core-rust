@@ -720,7 +720,7 @@ pub fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
         return ret;
     }
     let rawtxt = rawtxt.unwrap_or_default();
-    let rawtxt = dc_truncate(rawtxt.trim(), 100000, false);
+    let rawtxt = dc_truncate(rawtxt.trim(), 100_000, false);
 
     let fts = dc_timestamp_to_str(msg.get_timestamp());
     ret += &format!("Sent: {}", fts);

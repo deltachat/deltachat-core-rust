@@ -49,8 +49,8 @@ pub(crate) fn dc_truncate(buf: &str, approx_chars: usize, do_unwrap: bool) -> Co
 /// - harmonize together while being different enough
 /// (therefore, we cannot just use random rgb colors :)
 const COLORS: [u32; 16] = [
-    0xe56555, 0xf28c48, 0x8e85ee, 0x76c84d, 0x5bb6cc, 0x549cdd, 0xd25c99, 0xb37800, 0xf23030,
-    0x39b249, 0xbb243b, 0x964078, 0x66874f, 0x308ab9, 0x127ed0, 0xbe450c,
+    0xe5_65_55, 0xf2_8c_48, 0x8e_85_ee, 0x76_c8_4d, 0x5b_b6_cc, 0x54_9c_dd, 0xd2_5c_99, 0xb3_78_00,
+    0xf2_30_30, 0x39_b2_49, 0xbb_24_3b, 0x96_40_78, 0x66_87_4f, 0x30_8a_b9, 0x12_7e_d0, 0xbe_45_0c,
 ];
 
 pub(crate) fn dc_str_to_color(s: impl AsRef<str>) -> u32 {
@@ -59,7 +59,7 @@ pub(crate) fn dc_str_to_color(s: impl AsRef<str>) -> u32 {
     let bytes = str_lower.as_bytes();
     for (i, byte) in bytes.iter().enumerate() {
         checksum += (i + 1) * *byte as usize;
-        checksum %= 0xffffff;
+        checksum %= 0x00ff_ffff;
     }
     let color_index = checksum % COLORS.len();
 

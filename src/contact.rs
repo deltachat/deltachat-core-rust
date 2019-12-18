@@ -100,11 +100,11 @@ pub enum Origin {
     /// address is in our address book
     AdressBook = 0x80000,
     /// set on Alice's side for contacts like Bob that have scanned the QR code offered by her. Only means the contact has once been established using the "securejoin" procedure in the past, getting the current key verification status requires calling dc_contact_is_verified() !
-    SecurejoinInvited = 0x1000000,
+    SecurejoinInvited = 0x0100_0000,
     /// set on Bob's side for contacts scanned and verified from a QR code. Only means the contact has once been established using the "securejoin" procedure in the past, getting the current key verification status requires calling dc_contact_is_verified() !
-    SecurejoinJoined = 0x2000000,
+    SecurejoinJoined = 0x0200_0000,
     /// contact added mannually by dc_create_contact(), this should be the largets origin as otherwise the user cannot modify the names
-    ManuallyCreated = 0x4000000,
+    ManuallyCreated = 0x0400_0000,
 }
 
 impl Default for Origin {
