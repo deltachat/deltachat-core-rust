@@ -139,13 +139,12 @@ fn dehtml_starttag_cb<B: std::io::BufRead>(
             dehtml.add_text = AddText::YesPreserveLineEnds;
         }
         "a" => {
-            if let Some(href) = event.html_attributes().find(|attr| {
-                attr.as_ref()
-                    .map(|a| String::from_utf8_lossy(a.key).trim().to_lowercase() == "href")
-                    .unwrap_or_default()
-            }) {
+            if let Some(href) = event
+                .html_attributes()
+                .filter_map(|attr| attr.ok())
+                .find(|attr| String::from_utf8_lossy(attr.key).trim().to_lowercase() == "href")
+            {
                 let href = href
-                    .unwrap()
                     .unescape_and_decode_value(reader)
                     .unwrap_or_default()
                     .to_lowercase();
