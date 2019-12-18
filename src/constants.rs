@@ -114,7 +114,7 @@ pub const DC_MSG_ID_LAST_SPECIAL: u32 = 9;
 /// approx. max. length returned by dc_msg_get_text()
 const DC_MAX_GET_TEXT_LEN: usize = 30000;
 /// approx. max. length returned by dc_get_msg_info()
-const DC_MAX_GET_INFO_LEN: usize = 100000;
+const DC_MAX_GET_INFO_LEN: usize = 100_000;
 
 pub const DC_CONTACT_ID_UNDEFINED: u32 = 0;
 pub const DC_CONTACT_ID_SELF: u32 = 1;
