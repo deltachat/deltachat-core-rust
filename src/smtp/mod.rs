@@ -13,8 +13,8 @@ use crate::events::Event;
 use crate::login_param::{dc_build_tls, LoginParam};
 use crate::oauth2::*;
 
-/// SMTP write and read times out after 15 minutes.
-const SMTP_TIMEOUT: u64 = 15 * 60;
+/// SMTP write and read timeout in seconds.
+const SMTP_TIMEOUT: u64 = 30;
 
 #[derive(Debug, Fail)]
 pub enum Error {
