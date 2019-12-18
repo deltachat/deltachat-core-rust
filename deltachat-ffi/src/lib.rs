@@ -10,6 +10,7 @@
 #[macro_use]
 extern crate human_panic;
 extern crate num_traits;
+extern crate serde_json;
 
 use std::collections::HashMap;
 use std::convert::TryInto;
@@ -2390,12 +2391,27 @@ pub unsafe extern "C" fn dc_chat_get_info_json(
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| match chat::get_info_json(ctx, chat_id) {
-            Ok(s) => s.strdup(),
-            Err(err) => {
-                error!(ctx, "get_info_json({}) returned: {}", chat_id, err);
-                return "".strdup();
-            }
+        .with_inner(|ctx| {
+            let chat = match chat::Chat::load_from_db(ctx, chat_id) {
+                Ok(chat) => chat,
+                Err(err) => {
+                    error!(ctx, "dc_get_chat_info_json() failed to load chat: {}", err);
+                    return "".strdup();
+                }
+            };
+            let info = match chat.get_info(ctx) {
+                Ok(info) => info,
+                Err(err) => {
+                    error!(
+                        ctx,
+                        "dc_get_chat_info_json() failed to get chat info: {}", err
+                    );
+                    return "".strdup();
+                }
+            };
+            serde_json::to_string(&info)
+                .unwrap_or_log_default(ctx, "dc_get_chat_info_json() failed to serialise to json")
+                .strdup()
         })
         .unwrap_or_else(|_| "".strdup())
 }
