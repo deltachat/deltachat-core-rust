@@ -202,7 +202,7 @@ fn stop_threads(context: &Context) {
         println!("Stopping threads");
         IS_RUNNING.store(false, Ordering::Relaxed);
 
-        interrupt_inbox_idle(context, true);
+        interrupt_inbox_idle(context);
         interrupt_mvbox_idle(context);
         interrupt_sentbox_idle(context);
         interrupt_smtp_idle(context);
