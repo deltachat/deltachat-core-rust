@@ -1002,6 +1002,21 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
     }
 }
 
+/// Returns base64-encoded buffer `buf` split into 78-bytes long
+/// chunks separated by CRLF.
+///
+/// This line length limit is an
+/// [RFC5322 requirement](https://tools.ietf.org/html/rfc5322#section-2.1.1).
+fn wrapped_base64_encode(buf: &[u8]) -> String {
+    let base64 = base64::encode(&buf);
+    let mut chars = base64.chars();
+    (0..)
+        .map(|_| chars.by_ref().take(78).collect::<String>())
+        .take_while(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("\r\n")
+}
+
 fn build_body_file(
     context: &Context,
     msg: &Message,
@@ -1062,7 +1077,7 @@ fn build_body_file(
     };
 
     let body = std::fs::read(blob.to_abs_path())?;
-    let encoded_body = base64::encode(&body);
+    let encoded_body = wrapped_base64_encode(&body);
 
     let mail = PartBuilder::new()
         .content_type(&mimetype)
@@ -1084,7 +1099,7 @@ fn build_selfavatar_file(context: &Context, path: String) -> Result<(PartBuilder
         None => mime::APPLICATION_OCTET_STREAM,
     };
     let body = std::fs::read(blob.to_abs_path())?;
-    let encoded_body = base64::encode(&body);
+    let encoded_body = wrapped_base64_encode(&body);
 
     let part = PartBuilder::new()
         .content_type(&mimetype)
@@ -1202,5 +1217,14 @@ mod tests {
             render_rfc724_mid_list("123@q 456@d "),
             "<123@q> <456@d>".to_string()
         );
+    }
+
+    #[test]
+    fn test_wrapped_base64_encode() {
+        let input = b"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+        let output =
+            "QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQU\r\n\
+             FBQUFBQUFBQQ==";
+        assert_eq!(wrapped_base64_encode(input), output);
     }
 }
