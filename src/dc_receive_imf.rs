@@ -176,7 +176,7 @@ pub fn dc_receive_imf(
             &mut mime_parser,
             imf_raw,
             incoming,
-            &mut incoming_origin,
+            incoming_origin,
             server_folder.as_ref(),
             server_uid,
             &to_ids,
@@ -255,7 +255,7 @@ fn add_parts(
     mut mime_parser: &mut MimeParser,
     imf_raw: &[u8],
     incoming: bool,
-    incoming_origin: &mut Origin,
+    incoming_origin: Origin,
     server_folder: impl AsRef<str>,
     server_uid: u32,
     to_ids: &ContactIds,
@@ -278,6 +278,7 @@ fn add_parts(
     let mut rcvd_timestamp = 0;
     let mut mime_in_reply_to = String::new();
     let mut mime_references = String::new();
+    let mut incoming_origin = incoming_origin;
 
     // XXX check usage of and possibly remove the need for this var
     let to_id = to_ids.get_index(0).cloned().unwrap_or_default();
@@ -427,7 +428,7 @@ fn add_parts(
                         "Message is a reply to a known message, mark sender as known.",
                     );
                     if !incoming_origin.is_verified() {
-                        *incoming_origin = Origin::IncomingReplyTo;
+                        incoming_origin = Origin::IncomingReplyTo;
                     }
                 }
             }
