@@ -137,8 +137,8 @@ pub fn dc_receive_imf(
         }
     }
 
-    for header_def in vec![HeaderDef::To, HeaderDef::Cc] {
-        if let Some(field) = mime_parser.get(header_def) {
+    for header_def in &[HeaderDef::To, HeaderDef::Cc] {
+        if let Some(field) = mime_parser.get(header_def.clone()) {
             dc_add_or_lookup_contacts_by_address_list(
                 context,
                 &field,
