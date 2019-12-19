@@ -85,7 +85,7 @@ dependencies = [
 [[package]]
 name = "async-imap"
 version = "0.1.1"
-source = "git+https://github.com/async-email/async-imap?branch=dcc-stable#4f0852971c3f397c2b8a343ef1378992c02f61de"
+source = "git+https://github.com/async-email/async-imap?branch=dcc-stable#50e843113e3a67e924a8a14c477833da3ebc1b44"
 dependencies = [
  "async-attributes 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "async-native-tls 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -96,6 +96,7 @@ dependencies = [
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures_codec 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "imap-proto 0.9.1 (git+https://github.com/djc/tokio-imap)",
+ "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "native-tls 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "nom 5.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "pin-utils 0.1.0-alpha.4 (registry+https://github.com/rust-lang/crates.io-index)",
