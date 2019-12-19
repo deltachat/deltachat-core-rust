@@ -1209,6 +1209,15 @@ class TestGroupStressTests:
         print("chat is", msg.chat)
         assert len(msg.chat.get_contacts()) == 4
 
+        lp.sec("ac3: checking that 'ac4' is a known contact")
+        ac3 = accounts[1]
+        msg3 = ac3.wait_next_incoming_message()
+        assert msg3.text == "hello"
+        contacts = ac3.get_contacts()
+        assert len(contacts) == 3
+        ac4_contacts = ac3.get_contacts(query=accounts[2].get_config("addr"))
+        assert len(ac4_contacts) == 1
+
         lp.sec("ac1: removing one contacts and checking things are right")
         to_remove = msg.chat.get_contacts()[-1]
         msg.chat.remove_contact(to_remove)

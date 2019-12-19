@@ -61,8 +61,6 @@ pub fn dc_receive_imf(
     ensure!(mime_parser.has_headers(), "No Headers Found");
 
     // the function returns the number of created messages in the database
-    let mut incoming = true;
-    let mut incoming_origin = Origin::Unknown;
     let mut to_id = 0u32;
     let mut chat_id = 0;
     let mut hidden = false;
@@ -102,28 +100,14 @@ pub fn dc_receive_imf(
         sent_timestamp = mailparse::dateparse(value).unwrap_or_default();
     }
 
-    // Make sure, to_ids starts with the first To:-address (Cc: is added in the loop below pass)
-    if let Some(field) = mime_parser.get(HeaderDef::To) {
-        dc_add_or_lookup_contacts_by_address_list(
-            context,
-            &field,
-            if !incoming {
-                Origin::OutgoingTo
-            } else if incoming_origin.is_verified() {
-                Origin::IncomingTo
-            } else {
-                Origin::IncomingUnknownTo
-            },
-            &mut to_ids,
-        )?;
-    }
-
     // get From: (it can be an address list!) and check if it is known (for known From:'s we add
     // the other To:/Cc: in the 3rd pass)
     // or if From: is equal to SELF (in this case, it is any outgoing messages,
     // we do not check Return-Path any more as this is unreliable, see issue #150)
     let mut from_id = 0;
     let mut from_id_blocked = false;
+    let mut incoming = true;
+    let mut incoming_origin = Origin::Unknown;
 
     if let Some(field_from) = mime_parser.get(HeaderDef::From_) {
         let mut from_ids = ContactIds::new();
@@ -153,6 +137,22 @@ pub fn dc_receive_imf(
             // are very rare, however, we have to add them to the database (they go to the
             // "deaddrop" chat) to avoid a re-download from the server. See also [**]
         }
+    }
+
+    // Make sure, to_ids starts with the first To:-address (Cc: is added in the loop below pass)
+    if let Some(field) = mime_parser.get(HeaderDef::To) {
+        dc_add_or_lookup_contacts_by_address_list(
+            context,
+            &field,
+            if !incoming {
+                Origin::OutgoingTo
+            } else if incoming_origin.is_verified() {
+                Origin::IncomingTo
+            } else {
+                Origin::IncomingUnknownTo
+            },
+            &mut to_ids,
+        )?;
     }
 
     // Add parts

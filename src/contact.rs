@@ -401,6 +401,7 @@ impl Contact {
         {
             row_id = sql::get_rowid(context, &context.sql, "contacts", "addr", addr);
             sth_modified = Modifier::Created;
+            info!(context, "added contact id={} addr={}", row_id, addr);
         } else {
             error!(context, "Cannot add contact.");
         }
@@ -486,7 +487,7 @@ impl Contact {
                 params![
                     self_addr,
                     DC_CONTACT_ID_LAST_SPECIAL as i32,
-                    0x100,
+                    Origin::IncomingReplyTo,
                     &s3str_like_cmd,
                     &s3str_like_cmd,
                     if flag_verified_only { 0 } else { 1 },
