@@ -115,14 +115,10 @@ impl Default for Origin {
 
 impl Origin {
     /// Contacts that are known, i. e. they came in via accepted contacts or
-    /// themselves an accepted contact.
+    /// themselves an accepted contact. Known contacts are shown in the
+    /// contact list when one creates a chat and wants to add members etc.
     pub fn is_known(self) -> bool {
         self >= Origin::IncomingReplyTo
-    }
-
-    /// Contacts that are shown in the contact list.
-    pub fn include_in_contactlist(self) -> bool {
-        self as i32 >= DC_ORIGIN_MIN_CONTACT_LIST
     }
 }
 
