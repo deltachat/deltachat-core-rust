@@ -120,14 +120,13 @@ pub fn dc_receive_imf(
         if from_ids.len() > 1 {
             warn!(
                 context,
-                "mail has more than one address in From: {:?}", field_from
+                "mail has more than one From address, only using first: {:?}", field_from
             );
         }
         if from_ids.contains(&DC_CONTACT_ID_SELF) {
             incoming = false;
-            if to_ids.len() == 1 && to_ids.contains(&DC_CONTACT_ID_SELF) {
-                from_id = DC_CONTACT_ID_SELF;
-            }
+            from_id = DC_CONTACT_ID_SELF;
+            incoming_origin = Origin::OutgoingBcc;
         } else if !from_ids.is_empty() {
             from_id = from_ids.get_index(0).cloned().unwrap_or_default();
             incoming_origin = Contact::get_origin_by_id(context, from_id, &mut from_id_blocked)
@@ -139,20 +138,21 @@ pub fn dc_receive_imf(
         }
     }
 
-    // Make sure, to_ids starts with the first To:-address (Cc: is added in the loop below pass)
-    if let Some(field) = mime_parser.get(HeaderDef::To) {
-        dc_add_or_lookup_contacts_by_address_list(
-            context,
-            &field,
-            if !incoming {
-                Origin::OutgoingTo
-            } else if incoming_origin.is_verified() {
-                Origin::IncomingTo
-            } else {
-                Origin::IncomingUnknownTo
-            },
-            &mut to_ids,
-        )?;
+    for header_def in vec![HeaderDef::To, HeaderDef::Cc] {
+        if let Some(field) = mime_parser.get(header_def) {
+            dc_add_or_lookup_contacts_by_address_list(
+                context,
+                &field,
+                if !incoming {
+                    Origin::OutgoingTo
+                } else if incoming_origin.is_verified() {
+                    Origin::IncomingTo
+                } else {
+                    Origin::IncomingUnknownTo
+                },
+                &mut to_ids,
+            )?;
+        }
     }
 
     // Add parts
@@ -180,10 +180,10 @@ pub fn dc_receive_imf(
             &mut incoming_origin,
             server_folder.as_ref(),
             server_uid,
-            &mut to_ids,
+            &to_ids,
             &rfc724_mid,
             &mut sent_timestamp,
-            &mut from_id,
+            from_id,
             from_id_blocked,
             &mut hidden,
             &mut chat_id,
@@ -260,10 +260,10 @@ fn add_parts(
     incoming_origin: &mut Origin,
     server_folder: impl AsRef<str>,
     server_uid: u32,
-    to_ids: &mut ContactIds,
+    to_ids: &ContactIds,
     rfc724_mid: &str,
     sent_timestamp: &mut i64,
-    from_id: &mut u32,
+    from_id: u32,
     from_id_blocked: bool,
     hidden: &mut bool,
     chat_id: &mut u32,
@@ -281,24 +281,6 @@ fn add_parts(
     let mut rcvd_timestamp = 0;
     let mut mime_in_reply_to = String::new();
     let mut mime_references = String::new();
-
-    // collect the rest information, CC: is added to the to-list, BCC: is ignored
-    // (we should not add BCC to groups as this would split groups. We could add them as "known contacts",
-    // however, the benefit is very small and this may leak data that is expected to be hidden)
-    if let Some(fld_cc) = mime_parser.get(HeaderDef::Cc) {
-        dc_add_or_lookup_contacts_by_address_list(
-            context,
-            fld_cc,
-            if !incoming {
-                Origin::OutgoingCc
-            } else if incoming_origin.is_verified() {
-                Origin::IncomingCc
-            } else {
-                Origin::IncomingUnknownCc
-            },
-            to_ids,
-        )?;
-    }
 
     // check, if the mail is already in our database - if so, just update the folder/uid
     // (if the mail was moved around) and finish. (we may get a mail twice eg. if it is
@@ -354,7 +336,7 @@ fn add_parts(
             msgrmsg = 1;
             *chat_id = 0;
             allow_creation = true;
-            match handle_securejoin_handshake(context, mime_parser, *from_id) {
+            match handle_securejoin_handshake(context, mime_parser, from_id) {
                 Ok(ret) => {
                     if ret.hide_this_msg {
                         *hidden = true;
@@ -376,7 +358,7 @@ fn add_parts(
         }
 
         let (test_normal_chat_id, test_normal_chat_id_blocked) =
-            chat::lookup_by_contact_id(context, *from_id).unwrap_or_default();
+            chat::lookup_by_contact_id(context, from_id).unwrap_or_default();
 
         // get the chat_id - a chat_id here is no indicator that the chat is displayed in the normal list,
         // it might also be blocked and displayed in the deaddrop as a result
@@ -396,7 +378,7 @@ fn add_parts(
                 &mut mime_parser,
                 allow_creation,
                 create_blocked,
-                *from_id,
+                from_id,
                 to_ids,
             )?;
             *chat_id = new_chat_id;
@@ -417,7 +399,7 @@ fn add_parts(
 
         if *chat_id == 0 {
             // try to create a normal chat
-            let create_blocked = if *from_id == *to_id {
+            let create_blocked = if from_id == *to_id {
                 Blocked::Not
             } else {
                 Blocked::Deaddrop
@@ -428,7 +410,7 @@ fn add_parts(
                 chat_id_blocked = test_normal_chat_id_blocked;
             } else if allow_creation {
                 let (id, bl) =
-                    chat::create_or_lookup_by_contact_id(context, *from_id, create_blocked)
+                    chat::create_or_lookup_by_contact_id(context, from_id, create_blocked)
                         .unwrap_or_default();
                 *chat_id = id;
                 chat_id_blocked = bl;
@@ -440,7 +422,7 @@ fn add_parts(
                 } else if is_reply_to_known_message(context, mime_parser) {
                     // we do not want any chat to be created implicitly.  Because of the origin-scale-up,
                     // the contact requests will pop up and this should be just fine.
-                    Contact::scaleup_origin_by_id(context, *from_id, Origin::IncomingReplyTo);
+                    Contact::scaleup_origin_by_id(context, from_id, Origin::IncomingReplyTo);
                     info!(
                         context,
                         "Message is a reply to a known message, mark sender as known.",
@@ -480,7 +462,6 @@ fn add_parts(
         // the mail is on the IMAP server, probably it is also delivered.
         // We cannot recreate other states (read, error).
         state = MessageState::OutDelivered;
-        *from_id = DC_CONTACT_ID_SELF;
         if !to_ids.is_empty() {
             *to_id = to_ids.get_index(0).cloned().unwrap_or_default();
             if *chat_id == 0 {
@@ -489,7 +470,7 @@ fn add_parts(
                     &mut mime_parser,
                     allow_creation,
                     Blocked::Not,
-                    *from_id,
+                    from_id,
                     to_ids,
                 )?;
                 *chat_id = new_chat_id;
@@ -521,7 +502,7 @@ fn add_parts(
                 }
             }
         }
-        let self_sent = *from_id == DC_CONTACT_ID_SELF
+        let self_sent = from_id == DC_CONTACT_ID_SELF
             && to_ids.len() == 1
             && to_ids.contains(&DC_CONTACT_ID_SELF);
 
@@ -548,7 +529,7 @@ fn add_parts(
     calc_timestamps(
         context,
         *chat_id,
-        *from_id,
+        from_id,
         *sent_timestamp,
         0 == flags & DC_IMAP_SEEN,
         &mut sort_timestamp,
@@ -612,7 +593,7 @@ fn add_parts(
                     server_folder.as_ref(),
                     server_uid as i32,
                     *chat_id as i32,
-                    *from_id as i32,
+                    from_id as i32,
                     *to_id as i32,
                     sort_timestamp,
                     *sent_timestamp,
