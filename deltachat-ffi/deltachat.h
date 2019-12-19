@@ -18,7 +18,6 @@ typedef struct _dc_chat     dc_chat_t;
 typedef struct _dc_msg      dc_msg_t;
 typedef struct _dc_contact  dc_contact_t;
 typedef struct _dc_lot      dc_lot_t;
-typedef struct _dc_provider dc_provider_t;
 
 
 /**
@@ -3660,106 +3659,28 @@ int             dc_contact_is_verified       (dc_contact_t* contact);
 
 /**
  * @class dc_provider_t
- *
- * Opaque object containing information about one single email provider.
  */
 
-
 /**
- * Create a provider struct for the given domain.
+ * Get the provider json object for the given domain.
  *
  * @memberof dc_provider_t
  * @param domain The domain to get provider info for.
- * @return a dc_provider_t struct which can be used with the dc_provider_get_*
- *     accessor functions.  If no provider info is found, NULL will be
- *     returned.
+ * @return a provider json object as string.  If no provider info is found, an empty string will be returned.
  */
-dc_provider_t*  dc_provider_new_from_domain           (const char* domain);
+char*            dc_provider_json_from_domain           (const char* domain);
 
 
 /**
- * Create a provider struct for the given email address.
+ * Get the provider json object for the given email address.
  *
  * The provider is extracted from the email address and it's information is returned.
  *
  * @memberof dc_provider_t
  * @param email The user's email address to extract the provider info form.
- * @return a dc_provider_t struct which can be used with the dc_provider_get_*
- *     accessor functions.  If no provider info is found, NULL will be
- *     returned.
+ * @return a provider json object as string.  If no provider info is found, an empty string will be returned.
  */
-dc_provider_t*  dc_provider_new_from_email            (const char* email);
-
-
-/**
- * URL of the overview page.
- *
- * This URL allows linking to the providers page on providers.delta.chat.
- *
- * @memberof dc_provider_t
- * @param provider The dc_provider_t struct.
- * @return A string which must be released using dc_str_unref().
- */
-char*           dc_provider_get_overview_page         (const dc_provider_t* provider);
-
-
-/**
- * The provider's name.
- *
- * The name of the provider, e.g. "POSTEO".
- *
- * @memberof dc_provider_t
- * @param provider The dc_provider_t struct.
- * @return A string which must be released using dc_str_unref().
- */
-char*           dc_provider_get_name                  (const dc_provider_t* provider);
-
-
-/**
- * The markdown content of the providers page.
- *
- * This contains the preparation steps or additional information if the status
- * is @ref DC_PROVIDER_STATUS_BROKEN.
- *
- * @memberof dc_provider_t
- * @param provider The dc_provider_t struct.
- * @return A string which must be released using dc_str_unref().
- */
-char*           dc_provider_get_markdown              (const dc_provider_t* provider);
-
-
-/**
- * Date of when the state was last checked/updated.
- *
- * This is returned as a string.
- *
- * @memberof dc_provider_t
- * @param provider The dc_provider_t struct.
- * @return A string which must be released using dc_str_unref().
- */
-char*           dc_provider_get_status_date           (const dc_provider_t* provider);
-
-
-/**
- * Whether DC works with this provider.
- *
- * Can be one of @ref DC_PROVIDER_STATUS_OK, @ref
- * DC_PROVIDER_STATUS_PREPARATION and @ref DC_PROVIDER_STATUS_BROKEN.
- *
- * @memberof dc_provider_t
- * @param provider The dc_provider_t struct.
- * @return The status as a constant number.
- */
-int             dc_provider_get_status                (const dc_provider_t* provider);
-
-
-/**
- * Free the provider info struct.
- *
- * @memberof dc_provider_t
- * @param provider The dc_provider_t struct.
- */
-void            dc_provider_unref                     (const dc_provider_t* provider);
+char*            dc_provider_json_from_email           (const char* email);
 
 
 /**
@@ -4473,41 +4394,6 @@ void            dc_array_add_id              (dc_array_t*, uint32_t); // depreca
 #define DC_SHOW_EMAILS_OFF               0
 #define DC_SHOW_EMAILS_ACCEPTED_CONTACTS 1
 #define DC_SHOW_EMAILS_ALL               2
-
-
-/**
- * @defgroup DC_PROVIDER_STATUS DC_PROVIDER_STATUS
- *
- * These constants are used as return values for dc_provider_get_status().
- *
- * @addtogroup DC_PROVIDER_STATUS
- * @{
- */
-
-/**
- * Provider status returned by dc_provider_get_status().
- *
- * Works right out of the box without any preperation steps needed
- */
-#define         DC_PROVIDER_STATUS_OK           1
-
-/**
- * Provider status returned by dc_provider_get_status().
- *
- * Works, but preparation steps are needed
- */
-#define         DC_PROVIDER_STATUS_PREPARATION  2
-
-/**
- * Provider status returned by dc_provider_get_status().
- *
- * Doesn't work (too unstable to use falls also in this category)
- */
-#define         DC_PROVIDER_STATUS_BROKEN       3
-
-/**
- * @}
- */
 
 
 /*

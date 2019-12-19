@@ -3,6 +3,7 @@ from deltachat import capi, cutil, const, set_context_callback, clear_context_ca
 from deltachat.capi import ffi
 from deltachat.capi import lib
 from deltachat.account import EventLogger
+import json
 
 
 def test_empty_context():
@@ -103,19 +104,23 @@ def test_get_special_message_id_returns_empty_message(acfactory):
 
 
 def test_provider_info():
-    provider = lib.dc_provider_new_from_email(cutil.as_dc_charpointer("ex@example.com"))
-    assert cutil.from_dc_charpointer(
-        lib.dc_provider_get_overview_page(provider)
-    ) == "https://providers.delta.chat/example.com"
-    assert cutil.from_dc_charpointer(lib.dc_provider_get_name(provider)) == "Example"
-    assert cutil.from_dc_charpointer(lib.dc_provider_get_markdown(provider)) == "\n..."
-    assert cutil.from_dc_charpointer(lib.dc_provider_get_status_date(provider)) == "2018-09"
-    assert lib.dc_provider_get_status(provider) == const.DC_PROVIDER_STATUS_PREPARATION
+    provider_json = cutil.from_dc_charpointer(
+        lib.dc_provider_json_from_email(cutil.as_dc_charpointer("ex@example.com"))
+    )
+    provider = json.loads(provider_json)
+
+    assert provider['overview_page'] == "example.com"
+    assert provider['name'] == "Example"
+    assert provider['markdown'] == "\n..."
+    assert provider['status']['date'] == "2018-09"
+    assert provider['status']['state'] == "PREPARATION"
 
 
 def test_provider_info_none():
-    assert lib.dc_provider_new_from_email(cutil.as_dc_charpointer("email@unexistent.no")) == ffi.NULL
-
+    provider_json = cutil.from_dc_charpointer(
+        lib.dc_provider_json_from_email(cutil.as_dc_charpointer("email@unexistent.no"))
+    )
+    assert provider_json == ""
 
 def test_get_info_closed():
     ctx = ffi.gc(

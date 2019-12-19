@@ -16,11 +16,12 @@ crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 deltachat = { path = "../", default-features = false }
-deltachat-provider-database = "0.2.1"
+deltachat-provider-database = "0.3.0"
 libc = "0.2"
 human-panic = "1.0.1"
 num-traits = "0.2.6"
 failure = "0.1.6"
+serde_json = "1.0"
 
 [features]
 default = ["vendored", "nightly", "ringbuf"]

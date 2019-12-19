@@ -2,7 +2,7 @@
 
 from .capi import ffi, lib
 from .cutil import as_dc_charpointer, from_dc_charpointer
-
+import json
 
 class ProviderNotFoundError(Exception):
     """The provider information was not found."""
@@ -16,13 +16,12 @@ class Provider(object):
     """
 
     def __init__(self, domain):
-        provider = ffi.gc(
-            lib.dc_provider_new_from_domain(as_dc_charpointer(domain)),
-            lib.dc_provider_unref,
+        provider = from_dc_charpointer(
+            lib.dc_provider_json_from_domain(as_dc_charpointer(domain))
         )
-        if provider == ffi.NULL:
+        if provider == "":
             raise ProviderNotFoundError("Provider not found")
-        self._provider = provider
+        self._provider = json.loads(provider)
 
     @classmethod
     def from_email(cls, email):
@@ -35,33 +34,30 @@ class Provider(object):
     @property
     def overview_page(self):
         """URL to the overview page of the provider on providers.delta.chat."""
-        return from_dc_charpointer(
-            lib.dc_provider_get_overview_page(self._provider))
+        return "https://providers.delta.chat/" + self._provider['overview_page']
 
     @property
     def name(self):
         """The name of the provider."""
-        return from_dc_charpointer(lib.dc_provider_get_name(self._provider))
+        return self._provider['name']
 
     @property
     def markdown(self):
         """Content of the information page, formatted as markdown."""
-        return from_dc_charpointer(
-            lib.dc_provider_get_markdown(self._provider))
+        return self._provider['markdown']
 
     @property
     def status_date(self):
         """The date the provider info was last updated, as a string."""
-        return from_dc_charpointer(
-            lib.dc_provider_get_status_date(self._provider))
+        return self._provider['status']['date']
 
     @property
     def status(self):
         """The status of the provider information.
 
-        This is one of the
-        :attr:`deltachat.const.DC_PROVIDER_STATUS_OK`,
-        :attr:`deltachat.const.DC_PROVIDER_STATUS_PREPARATION` or
-        :attr:`deltachat.const.DC_PROVIDER_STATUS_BROKEN` constants.
+        This is 
+        :attr:`"OK"`,
+        :attr:`"PREPARATION"` or
+        :attr:`"BROKEN"`.
         """
-        return lib.dc_provider_get_status(self._provider)
+        return self._provider['status']['state']

@@ -10,7 +10,7 @@ def test_provider_info_from_email():
     assert example.name == "Example"
     assert example.markdown == "\n..."
     assert example.status_date == "2018-09"
-    assert example.status == const.DC_PROVIDER_STATUS_PREPARATION
+    assert example.status == "PREPARATION"
 
 
 def test_provider_info_from_domain():
@@ -19,7 +19,7 @@ def test_provider_info_from_domain():
     assert example.name == "Example"
     assert example.markdown == "\n..."
     assert example.status_date == "2018-09"
-    assert example.status == const.DC_PROVIDER_STATUS_PREPARATION
+    assert example.status == "PREPARATION"
 
 
 def test_provider_info_none():
