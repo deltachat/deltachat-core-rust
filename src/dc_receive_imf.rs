@@ -61,7 +61,6 @@ pub fn dc_receive_imf(
     ensure!(mime_parser.has_headers(), "No Headers Found");
 
     // the function returns the number of created messages in the database
-    let mut to_id = 0u32;
     let mut chat_id = 0;
     let mut hidden = false;
 
@@ -187,7 +186,6 @@ pub fn dc_receive_imf(
             from_id_blocked,
             &mut hidden,
             &mut chat_id,
-            &mut to_id,
             flags,
             &mut needs_delete_job,
             &mut insert_msg_id,
@@ -267,7 +265,6 @@ fn add_parts(
     from_id_blocked: bool,
     hidden: &mut bool,
     chat_id: &mut u32,
-    to_id: &mut u32,
     flags: u32,
     needs_delete_job: &mut bool,
     insert_msg_id: &mut MsgId,
@@ -281,6 +278,9 @@ fn add_parts(
     let mut rcvd_timestamp = 0;
     let mut mime_in_reply_to = String::new();
     let mut mime_references = String::new();
+
+    // XXX check usage of and possibly remove the need for this var
+    let to_id = to_ids.get_index(0).cloned().unwrap_or_default();
 
     // check, if the mail is already in our database - if so, just update the folder/uid
     // (if the mail was moved around) and finish. (we may get a mail twice eg. if it is
@@ -326,7 +326,6 @@ fn add_parts(
         } else {
             MessageState::InFresh
         };
-        *to_id = DC_CONTACT_ID_SELF;
         let mut needs_stop_ongoing_process = false;
 
         // handshake messages must be processed _before_ chats are created
@@ -399,7 +398,7 @@ fn add_parts(
 
         if *chat_id == 0 {
             // try to create a normal chat
-            let create_blocked = if from_id == *to_id {
+            let create_blocked = if from_id == to_id {
                 Blocked::Not
             } else {
                 Blocked::Deaddrop
@@ -463,7 +462,6 @@ fn add_parts(
         // We cannot recreate other states (read, error).
         state = MessageState::OutDelivered;
         if !to_ids.is_empty() {
-            *to_id = to_ids.get_index(0).cloned().unwrap_or_default();
             if *chat_id == 0 {
                 let (new_chat_id, new_chat_id_blocked) = create_or_lookup_group(
                     context,
@@ -482,14 +480,13 @@ fn add_parts(
                 }
             }
             if *chat_id == 0 && allow_creation {
-                let create_blocked = if 0 != msgrmsg && !Contact::is_blocked_load(context, *to_id) {
+                let create_blocked = if 0 != msgrmsg && !Contact::is_blocked_load(context, to_id) {
                     Blocked::Not
                 } else {
                     Blocked::Deaddrop
                 };
-                let (id, bl) =
-                    chat::create_or_lookup_by_contact_id(context, *to_id, create_blocked)
-                        .unwrap_or_default();
+                let (id, bl) = chat::create_or_lookup_by_contact_id(context, to_id, create_blocked)
+                    .unwrap_or_default();
                 *chat_id = id;
                 chat_id_blocked = bl;
 
@@ -594,7 +591,7 @@ fn add_parts(
                     server_uid as i32,
                     *chat_id as i32,
                     from_id as i32,
-                    *to_id as i32,
+                    to_id as i32,
                     sort_timestamp,
                     *sent_timestamp,
                     rcvd_timestamp,
