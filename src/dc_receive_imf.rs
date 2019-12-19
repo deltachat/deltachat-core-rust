@@ -71,8 +71,6 @@ pub fn dc_receive_imf(
     let mut created_db_entries = Vec::new();
     let mut create_event_to_send = Some(CreateEvent::MsgsChanged);
 
-    let mut to_ids = ContactIds::new();
-
     // helper method to handle early exit and memory cleanup
     let cleanup = |context: &Context,
                    create_event_to_send: &Option<CreateEvent>,
@@ -109,12 +107,10 @@ pub fn dc_receive_imf(
     let mut incoming_origin = Origin::Unknown;
 
     if let Some(field_from) = mime_parser.get(HeaderDef::From_) {
-        let mut from_ids = ContactIds::new();
-        dc_add_or_lookup_contacts_by_address_list(
+        let from_ids = dc_add_or_lookup_contacts_by_address_list(
             context,
             &field_from,
             Origin::IncomingUnknownFrom,
-            &mut from_ids,
         )?;
         if from_ids.len() > 1 {
             warn!(
@@ -137,9 +133,10 @@ pub fn dc_receive_imf(
         }
     }
 
+    let mut to_ids = ContactIds::new();
     for header_def in &[HeaderDef::To, HeaderDef::Cc] {
         if let Some(field) = mime_parser.get(header_def.clone()) {
-            dc_add_or_lookup_contacts_by_address_list(
+            to_ids.extend(&dc_add_or_lookup_contacts_by_address_list(
                 context,
                 &field,
                 if !incoming {
@@ -149,8 +146,7 @@ pub fn dc_receive_imf(
                 } else {
                     Origin::IncomingUnknownTo
                 },
-                &mut to_ids,
-            )?;
+            )?);
         }
     }
 
@@ -1516,8 +1512,7 @@ fn dc_add_or_lookup_contacts_by_address_list(
     context: &Context,
     addr_list_raw: &str,
     origin: Origin,
-    to_ids: &mut ContactIds,
-) -> Result<()> {
+) -> Result<ContactIds> {
     let addrs = match mailparse::addrparse(addr_list_raw) {
         Ok(addrs) => addrs,
         Err(err) => {
@@ -1525,10 +1520,11 @@ fn dc_add_or_lookup_contacts_by_address_list(
         }
     };
 
+    let mut contact_ids = ContactIds::new();
     for addr in addrs.iter() {
         match addr {
             mailparse::MailAddr::Single(info) => {
-                to_ids.insert(add_or_lookup_contact_by_addr(
+                contact_ids.insert(add_or_lookup_contact_by_addr(
                     context,
                     &info.display_name,
                     &info.addr,
@@ -1537,7 +1533,7 @@ fn dc_add_or_lookup_contacts_by_address_list(
             }
             mailparse::MailAddr::Group(infos) => {
                 for info in &infos.addrs {
-                    to_ids.insert(add_or_lookup_contact_by_addr(
+                    contact_ids.insert(add_or_lookup_contact_by_addr(
                         context,
                         &info.display_name,
                         &info.addr,
@@ -1548,7 +1544,7 @@ fn dc_add_or_lookup_contacts_by_address_list(
         }
     }
 
-    Ok(())
+    Ok(contact_ids)
 }
 
 /// Add contacts to database on receiving messages.
