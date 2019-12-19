@@ -480,19 +480,19 @@ pub fn perform_sentbox_idle(context: &Context) {
         .idle(context, use_network);
 }
 
-pub fn interrupt_inbox_idle(context: &Context, block: bool) {
-    info!(context, "interrupt_inbox_idle called blocking={}", block);
-    if block {
-        context.inbox_thread.read().unwrap().interrupt_idle(context);
-    } else {
-        match context.inbox_thread.try_read() {
-            Ok(inbox_thread) => {
-                inbox_thread.interrupt_idle(context);
-            }
-            Err(err) => {
-                *context.perform_inbox_jobs_needed.write().unwrap() = true;
-                warn!(context, "could not interrupt idle: {}", err);
-            }
+pub fn interrupt_inbox_idle(context: &Context) {
+    info!(context, "interrupt_inbox_idle called");
+    // we do not block on trying to obtain the thread lock
+    // because we don't know in which state the thread is.
+    // If it's currently fetching then we can not get the lock
+    // but we flag it for checking jobs so that idle will be skipped.
+    match context.inbox_thread.try_read() {
+        Ok(inbox_thread) => {
+            inbox_thread.interrupt_idle(context);
+        }
+        Err(err) => {
+            *context.perform_inbox_jobs_needed.write().unwrap() = true;
+            warn!(context, "could not interrupt idle: {}", err);
         }
     }
 }
@@ -604,7 +604,7 @@ pub fn maybe_network(context: &Context) {
     }
 
     interrupt_smtp_idle(context);
-    interrupt_inbox_idle(context, true);
+    interrupt_inbox_idle(context);
     interrupt_mvbox_idle(context);
     interrupt_sentbox_idle(context);
 }
@@ -972,7 +972,7 @@ pub fn job_add(
     ).ok();
 
     match thread {
-        Thread::Imap => interrupt_inbox_idle(context, false),
+        Thread::Imap => interrupt_inbox_idle(context),
         Thread::Smtp => interrupt_smtp_idle(context),
         Thread::Unknown => {}
     }
