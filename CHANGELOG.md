@@ -1,5 +1,13 @@
 # Changelog 
 
+## 1.0.0-beta.20
+
+- #1074 fix OAUTH2/gmail
+- #1072 fix group members not appearing in contact list
+- #1071 never block interrupt_idle (thus hopefully also not on maybe_network())
+- #1069 reduce smtp-timeout to 30 seconds
+- #1066 #1065 avoid unwrap in dehtml, make literals more readable
+
 ## 1.0.0-beta.19
 
 - #1058 timeout smtp-send if it doesn't complete in 15 minutes 
