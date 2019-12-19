@@ -114,9 +114,10 @@ impl Default for Origin {
 }
 
 impl Origin {
-    /// Contacts that are verified and known not to be spam.
-    pub fn is_verified(self) -> bool {
-        self as i32 >= 0x100
+    /// Contacts that are known, i. e. they came in via accepted contacts or
+    /// themselves an accepted contact.
+    pub fn is_known(self) -> bool {
+        self >= Origin::IncomingReplyTo
     }
 
     /// Contacts that are shown in the contact list.

@@ -144,7 +144,7 @@ pub fn dc_receive_imf(
                 &field,
                 if !incoming {
                     Origin::OutgoingTo
-                } else if incoming_origin.is_verified() {
+                } else if incoming_origin.is_known() {
                     Origin::IncomingTo
                 } else {
                     Origin::IncomingUnknownTo
@@ -427,7 +427,7 @@ fn add_parts(
                         context,
                         "Message is a reply to a known message, mark sender as known.",
                     );
-                    if !incoming_origin.is_verified() {
+                    if !incoming_origin.is_known() {
                         incoming_origin = Origin::IncomingReplyTo;
                     }
                 }
@@ -443,7 +443,7 @@ fn add_parts(
         // to not result in a chatlist-contact-request (this would require the state FRESH)
         if Blocked::Not != chat_id_blocked
             && state == MessageState::InFresh
-            && !incoming_origin.is_verified()
+            && !incoming_origin.is_known()
             && msgrmsg == 0
             && show_emails != ShowEmails::All
         {
