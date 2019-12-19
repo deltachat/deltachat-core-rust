@@ -16,36 +16,51 @@ use crate::mimeparser::SystemMessage;
 pub enum Param {
     /// For messages and jobs
     File = b'f',
+
     /// For Messages
     Width = b'w',
+
     /// For Messages
     Height = b'h',
+
     /// For Messages
     Duration = b'd',
+
     /// For Messages
     MimeType = b'm',
-    /// For Messages: message is encryoted, outgoing: guarantee E2EE or the message is not send
+
+    /// For Messages: message is encrypted, outgoing: guarantee E2EE or the message is not send
     GuaranteeE2ee = b'c',
+
     /// For Messages: decrypted with validation errors or without mutual set, if neither
     /// 'c' nor 'e' are preset, the messages is only transport encrypted.
     ErroneousE2ee = b'e',
+
     /// For Messages: force unencrypted message, either `ForcePlaintext::AddAutocryptHeader` (1),
     /// `ForcePlaintext::NoAutocryptHeader` (2) or 0.
     ForcePlaintext = b'u',
+
     /// For Messages
     WantsMdn = b'r',
+
     /// For Messages
     Forwarded = b'a',
+
     /// For Messages
     Cmd = b'S',
+
     /// For Messages
     Arg = b'E',
+
     /// For Messages
     Arg2 = b'F',
+
     /// For Messages
     Arg3 = b'G',
+
     /// For Messages
     Arg4 = b'H',
+
     /// For Messages
     Error = b'L',
 
@@ -62,30 +77,43 @@ pub enum Param {
     /// When the original message is then finally sent this parameter
     /// is used to also send all the forwarded messages.
     PrepForwards = b'P',
+
     /// For Jobs
     SetLatitude = b'l',
+
     /// For Jobs
     SetLongitude = b'n',
+
     /// For Jobs
     ServerFolder = b'Z',
+
     /// For Jobs
     ServerUid = b'z',
+
     /// For Jobs
     AlsoMove = b'M',
+
     /// For Jobs: space-separated list of message recipients
     Recipients = b'R',
+
     // For Groups
     Unpromoted = b'U',
+
     // For Groups and Contacts
     ProfileImage = b'i',
+
     // For Chats
     Selftalk = b'K',
+
     // For Chats
     Devicetalk = b'D',
+
     // For QR
     Auth = b's',
+
     // For QR
     GroupId = b'x',
+
     // For QR
     GroupName = b'g',
 }

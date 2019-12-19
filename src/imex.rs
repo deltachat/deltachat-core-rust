@@ -33,16 +33,19 @@ pub enum ImexMode {
     /// and `private-key-default.asc`, if there are more keys, they are written to files as
     /// `public-key-<id>.asc` and `private-key-<id>.asc`
     ExportSelfKeys = 1,
+
     /// Import private keys found in the directory given as `param1`.
     /// The last imported key is made the default keys unless its name contains the string `legacy`.
     /// Public keys are not imported.
     ImportSelfKeys = 2,
+
     /// Export a backup to the directory given as `param1`.
     /// The backup contains all contacts, chats, images and other data and device independent settings.
     /// The backup does not contain device dependent settings as ringtones or LED notification settings.
     /// The name of the backup is typically `delta-chat.<day>.bak`, if more than one backup is create on a day,
     /// the format is `delta-chat.<day>-<number>.bak`
     ExportBackup = 11,
+
     /// `param1` is the file (not: directory) to import. The file is normally
     /// created by DC_IMEX_EXPORT_BACKUP and detected by dc_imex_has_backup(). Importing a backup
     /// is only possible as long as the context is not configured or used in another way.

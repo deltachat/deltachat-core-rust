@@ -12,10 +12,13 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     #[fail(display = "Envelope error: {}", _0)]
     EnvelopeError(#[cause] async_smtp::error::Error),
+
     #[fail(display = "Send error: {}", _0)]
     SendError(#[cause] async_smtp::smtp::error::Error),
+
     #[fail(display = "SMTP has no transport")]
     NoTransport,
+
     #[fail(display = "SMTP send timed out")]
     SendTimeout(#[cause] async_std::future::TimeoutError),
 }

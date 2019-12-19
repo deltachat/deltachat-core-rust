@@ -20,18 +20,23 @@ const SMTP_TIMEOUT: u64 = 30;
 pub enum Error {
     #[fail(display = "Bad parameters")]
     BadParameters,
+
     #[fail(display = "Invalid login address {}: {}", address, error)]
     InvalidLoginAddress {
         address: String,
         #[cause]
         error: error::Error,
     },
+
     #[fail(display = "SMTP failed to connect: {:?}", _0)]
     ConnectionFailure(#[cause] smtp::error::Error),
+
     #[fail(display = "SMTP: failed to setup connection {:?}", _0)]
     ConnectionSetupFailure(#[cause] smtp::error::Error),
+
     #[fail(display = "SMTP: oauth2 error {:?}", _0)]
     Oauth2Error { address: String },
+
     #[fail(display = "TLS error")]
     Tls(#[cause] native_tls::Error),
 }
