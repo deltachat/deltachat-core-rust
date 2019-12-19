@@ -6,34 +6,49 @@ use lettre_email::mime;
 pub enum Error {
     #[fail(display = "{:?}", _0)]
     Failure(failure::Error),
+
     #[fail(display = "SQL error: {:?}", _0)]
     SqlError(#[cause] crate::sql::Error),
+
     #[fail(display = "{:?}", _0)]
     Io(std::io::Error),
+
     #[fail(display = "{:?}", _0)]
     Message(String),
+
     #[fail(display = "{:?}", _0)]
     Image(image_meta::ImageError),
+
     #[fail(display = "{:?}", _0)]
     Utf8(std::str::Utf8Error),
+
     #[fail(display = "PGP: {:?}", _0)]
     Pgp(pgp::errors::Error),
+
     #[fail(display = "Base64Decode: {:?}", _0)]
     Base64Decode(base64::DecodeError),
+
     #[fail(display = "{:?}", _0)]
     FromUtf8(std::string::FromUtf8Error),
+
     #[fail(display = "{}", _0)]
     BlobError(#[cause] crate::blob::BlobError),
+
     #[fail(display = "Invalid Message ID.")]
     InvalidMsgId,
+
     #[fail(display = "Watch folder not found {:?}", _0)]
     WatchFolderNotFound(String),
+
     #[fail(display = "Invalid Email: {:?}", _0)]
     MailParseError(#[cause] mailparse::MailParseError),
+
     #[fail(display = "Building invalid Email: {:?}", _0)]
     LettreError(#[cause] lettre_email::error::Error),
+
     #[fail(display = "FromStr error: {:?}", _0)]
     FromStr(#[cause] mime::FromStrError),
+
     #[fail(display = "Not Configured")]
     NotConfigured,
 }

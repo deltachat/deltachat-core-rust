@@ -95,6 +95,7 @@ pub enum ToSave {
 pub enum DegradeEvent {
     /// Recoverable by an incoming encrypted mail.
     EncryptionPaused = 0x01,
+
     /// Recoverable by a new verify.
     FingerprintChanged = 0x02,
 }

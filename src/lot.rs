@@ -73,20 +73,28 @@ pub enum LotState {
     // Qr States
     /// id=contact
     QrAskVerifyContact = 200,
+
     /// text1=groupname
     QrAskVerifyGroup = 202,
+
     /// id=contact
     QrFprOk = 210,
+
     /// id=contact
     QrFprMissmatch = 220,
+
     /// test1=formatted fingerprint
     QrFprWithoutAddr = 230,
+
     /// id=contact
     QrAddr = 320,
+
     /// text1=text
     QrText = 330,
+
     /// text1=URL
     QrUrl = 332,
+
     /// text1=error string
     QrError = 400,
 

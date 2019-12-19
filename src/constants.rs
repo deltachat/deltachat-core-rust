@@ -191,6 +191,7 @@ pub const AVATAR_SIZE: u32 = 192;
 #[repr(i32)]
 pub enum Viewtype {
     Unknown = 0,
+
     /// Text message.
     /// The text of the message is set using dc_msg_set_text()
     /// and retrieved with dc_msg_get_text().

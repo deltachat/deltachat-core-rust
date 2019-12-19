@@ -48,20 +48,26 @@ pub struct Contact {
     ///
     /// Normal contact IDs are larger than these special ones (larger than DC_CONTACT_ID_LAST_SPECIAL).
     pub id: u32,
+
     /// Contact name. It is recommended to use `Contact::get_name`,
     /// `Contact::get_display_name` or `Contact::get_name_n_addr` to access this field.
     /// May be empty, initially set to `authname`.
     name: String,
+
     /// Name authorized by the contact himself. Only this name may be spread to others,
     /// e.g. in To:-lists. May be empty. It is recommended to use `Contact::get_authname`,
     /// to access this field.
     authname: String,
+
     /// E-Mail-Address of the contact. It is recommended to use `Contact::get_addr`` to access this field.
     addr: String,
+
     /// Blocked state. Use dc_contact_is_blocked to access this field.
     blocked: bool,
+
     /// The origin/source of the contact.
     pub origin: Origin,
+
     /// Parameters as Param::ProfileImage
     pub param: Params,
 }
@@ -73,36 +79,52 @@ pub struct Contact {
 #[repr(i32)]
 pub enum Origin {
     Unknown = 0,
+
     /// From: of incoming messages of unknown sender
     IncomingUnknownFrom = 0x10,
+
     /// Cc: of incoming messages of unknown sender
     IncomingUnknownCc = 0x20,
+
     /// To: of incoming messages of unknown sender
     IncomingUnknownTo = 0x40,
+
     /// address scanned but not verified
     UnhandledQrScan = 0x80,
+
     /// Reply-To: of incoming message of known sender
     IncomingReplyTo = 0x100,
+
     /// Cc: of incoming message of known sender
     IncomingCc = 0x200,
+
     /// additional To:'s of incoming message of known sender
     IncomingTo = 0x400,
+
     /// a chat was manually created for this user, but no message yet sent
     CreateChat = 0x800,
+
     /// message sent by us
     OutgoingBcc = 0x1000,
+
     /// message sent by us
     OutgoingCc = 0x2000,
+
     /// message sent by us
     OutgoingTo = 0x4000,
+
     /// internal use
     Internal = 0x40000,
+
     /// address is in our address book
     AdressBook = 0x80000,
+
     /// set on Alice's side for contacts like Bob that have scanned the QR code offered by her. Only means the contact has once been established using the "securejoin" procedure in the past, getting the current key verification status requires calling dc_contact_is_verified() !
     SecurejoinInvited = 0x0100_0000,
+
     /// set on Bob's side for contacts scanned and verified from a QR code. Only means the contact has once been established using the "securejoin" procedure in the past, getting the current key verification status requires calling dc_contact_is_verified() !
     SecurejoinJoined = 0x0200_0000,
+
     /// contact added mannually by dc_create_contact(), this should be the largets origin as otherwise the user cannot modify the names
     ManuallyCreated = 0x0400_0000,
 }
