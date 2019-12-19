@@ -509,7 +509,7 @@ pub unsafe extern "C" fn dc_interrupt_imap_idle(context: *mut dc_context_t) {
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| job::interrupt_inbox_idle(ctx, true))
+        .with_inner(|ctx| job::interrupt_inbox_idle(ctx))
         .unwrap_or(())
 }
 
