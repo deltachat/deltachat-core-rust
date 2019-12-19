@@ -276,9 +276,6 @@ fn add_parts(
     let mut mime_references = String::new();
     let mut incoming_origin = incoming_origin;
 
-    // XXX check usage of and possibly remove the need for this var
-    let to_id = to_ids.get_index(0).cloned().unwrap_or_default();
-
     // check, if the mail is already in our database - if so, just update the folder/uid
     // (if the mail was moved around) and finish. (we may get a mail twice eg. if it is
     // moved between folders. make sure, this check is done eg. before securejoin-processing) */
@@ -317,12 +314,15 @@ fn add_parts(
     // - outgoing messages introduce a chat with the first to: address if they are sent by a messenger
     // - incoming messages introduce a chat only for known contacts if they are sent by a messenger
     // (of course, the user can add other chats manually later)
+    let to_id: u32;
+
     if incoming {
         state = if 0 != flags & DC_IMAP_SEEN {
             MessageState::InSeen
         } else {
             MessageState::InFresh
         };
+        to_id = to_ids.get_index(0).cloned().unwrap_or_default();
         let mut needs_stop_ongoing_process = false;
 
         // handshake messages must be processed _before_ chats are created
@@ -458,6 +458,7 @@ fn add_parts(
         // the mail is on the IMAP server, probably it is also delivered.
         // We cannot recreate other states (read, error).
         state = MessageState::OutDelivered;
+        to_id = DC_CONTACT_ID_SELF;
         if !to_ids.is_empty() {
             if *chat_id == 0 {
                 let (new_chat_id, new_chat_id_blocked) = create_or_lookup_group(
