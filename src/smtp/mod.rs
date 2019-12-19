@@ -38,11 +38,11 @@ pub enum Error {
     Oauth2Error { address: String },
 
     #[fail(display = "TLS error")]
-    Tls(#[cause] native_tls::Error),
+    Tls(#[cause] async_native_tls::Error),
 }
 
-impl From<native_tls::Error> for Error {
-    fn from(err: native_tls::Error) -> Error {
+impl From<async_native_tls::Error> for Error {
+    fn from(err: async_native_tls::Error) -> Error {
         Error::Tls(err)
     }
 }
@@ -104,7 +104,7 @@ impl Smtp {
         let domain = &lp.send_server;
         let port = lp.send_port as u16;
 
-        let tls_config = dc_build_tls(lp.smtp_certificate_checks)?.into();
+        let tls_config = dc_build_tls(lp.smtp_certificate_checks);
         let tls_parameters = ClientTlsParameters::new(domain.to_string(), tls_config);
 
         let (creds, mechanism) = if 0 != lp.server_flags & (DC_LP_AUTH_OAUTH2 as i32) {

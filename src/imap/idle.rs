@@ -80,17 +80,20 @@ impl Imap {
                         } else {
                             info!(context, "Idle entering wait-on-remote state");
                             match idle_wait.await {
-                                IdleResponse::NewData(_) => {
+                                Ok(IdleResponse::NewData(_)) => {
                                     info!(context, "Idle has NewData");
                                 }
                                 // TODO: idle_wait does not distinguish manual interrupts
                                 // from Timeouts if we would know it's a Timeout we could bail
                                 // directly and reconnect .
-                                IdleResponse::Timeout => {
+                                Ok(IdleResponse::Timeout) => {
                                     info!(context, "Idle-wait timeout or interruption");
                                 }
-                                IdleResponse::ManualInterrupt => {
+                                Ok(IdleResponse::ManualInterrupt) => {
                                     info!(context, "Idle wait was interrupted");
+                                }
+                                Err(err) => {
+                                    warn!(context, "Idle wait errored: {:?}", err);
                                 }
                             }
                         }
@@ -134,17 +137,20 @@ impl Imap {
                         } else {
                             info!(context, "Idle entering wait-on-remote state");
                             match idle_wait.await {
-                                IdleResponse::NewData(_) => {
+                                Ok(IdleResponse::NewData(_)) => {
                                     info!(context, "Idle has NewData");
                                 }
                                 // TODO: idle_wait does not distinguish manual interrupts
                                 // from Timeouts if we would know it's a Timeout we could bail
                                 // directly and reconnect .
-                                IdleResponse::Timeout => {
+                                Ok(IdleResponse::Timeout) => {
                                     info!(context, "Idle-wait timeout or interruption");
                                 }
-                                IdleResponse::ManualInterrupt => {
+                                Ok(IdleResponse::ManualInterrupt) => {
                                     info!(context, "Idle wait was interrupted");
+                                }
+                                Err(err) => {
+                                    warn!(context, "Idle wait errored: {:?}", err);
                                 }
                             }
                         }

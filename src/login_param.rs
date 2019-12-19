@@ -258,10 +258,8 @@ fn get_readable_flags(flags: i32) -> String {
     res
 }
 
-pub fn dc_build_tls(
-    certificate_checks: CertificateChecks,
-) -> Result<native_tls::TlsConnector, native_tls::Error> {
-    let mut tls_builder = native_tls::TlsConnector::builder();
+pub fn dc_build_tls(certificate_checks: CertificateChecks) -> async_native_tls::TlsConnector {
+    let tls_builder = async_native_tls::TlsConnector::new();
     match certificate_checks {
         CertificateChecks::Automatic => {
             // Same as AcceptInvalidCertificates for now.
@@ -270,13 +268,12 @@ pub fn dc_build_tls(
                 .danger_accept_invalid_hostnames(true)
                 .danger_accept_invalid_certs(true)
         }
-        CertificateChecks::Strict => &mut tls_builder,
+        CertificateChecks::Strict => tls_builder,
         CertificateChecks::AcceptInvalidCertificates
         | CertificateChecks::AcceptInvalidCertificates2 => tls_builder
             .danger_accept_invalid_hostnames(true)
             .danger_accept_invalid_certs(true),
     }
-    .build()
 }
 
 #[cfg(test)]
