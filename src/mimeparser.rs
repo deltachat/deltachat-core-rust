@@ -12,6 +12,7 @@ use crate::contact::*;
 use crate::context::Context;
 use crate::dc_simplify::*;
 use crate::dc_tools::*;
+use crate::dehtml::dehtml;
 use crate::e2ee;
 use crate::error::Result;
 use crate::events::Event;
@@ -580,7 +581,12 @@ impl<'a> MimeParser<'a> {
                         ("".into(), false)
                     } else {
                         let is_html = mime_type == mime::TEXT_HTML;
-                        simplify(&decoded_data, is_html, self.has_chat_version())
+                        let out = if is_html {
+                            dehtml(&decoded_data)
+                        } else {
+                            decoded_data.clone()
+                        };
+                        simplify(out, self.has_chat_version())
                     };
 
                     if !simplified_txt.is_empty() {

@@ -188,4 +188,41 @@ mod tests {
             assert_eq!(dehtml(input), output);
         }
     }
+
+    #[test]
+    fn test_dehtml_parse_br() {
+        let html = "\r\r\nline1<br>\r\n\r\n\r\rline2\n\r";
+        let plain = dehtml(html);
+
+        assert_eq!(plain, "line1\n\r\r\rline2");
+    }
+
+    #[test]
+    fn test_dehtml_parse_href() {
+        let html = "<a href=url>text</a";
+        let plain = dehtml(html);
+
+        assert_eq!(plain, "[text](url)");
+    }
+
+    #[test]
+    fn test_dehtml_bold_text() {
+        let html = "<!DOCTYPE name [<!DOCTYPE ...>]><!-- comment -->text <b><?php echo ... ?>bold</b><![CDATA[<>]]>";
+        let plain = dehtml(html);
+
+        assert_eq!(plain, "text *bold*<>");
+    }
+
+    #[test]
+    fn test_dehtml_html_encoded() {
+        let html =
+                "&lt;&gt;&quot;&apos;&amp; &auml;&Auml;&ouml;&Ouml;&uuml;&Uuml;&szlig; foo&AElig;&ccedil;&Ccedil; &diams;&lrm;&rlm;&zwnj;&noent;&zwj;";
+
+        let plain = dehtml(html);
+
+        assert_eq!(
+            plain,
+            "<>\"\'& äÄöÖüÜß fooÆçÇ \u{2666}\u{200e}\u{200f}\u{200c}&noent;\u{200d}"
+        );
+    }
 }

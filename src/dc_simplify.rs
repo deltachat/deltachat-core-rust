@@ -1,5 +1,3 @@
-use crate::dehtml::*;
-
 /// Remove standard (RFC 3676, §4.3) footer if it is found.
 fn remove_message_footer<'a>(lines: &'a [&str]) -> &'a [&'a str] {
     for (ix, &line) in lines.iter().enumerate() {
@@ -38,15 +36,9 @@ fn split_lines(buf: &str) -> Vec<&str> {
 
 /// Simplify message text for chat display.
 /// Remove quotes, signatures, trailing empty lines etc.
-pub fn simplify(input: &str, is_html: bool, is_chat_message: bool) -> (String, bool) {
-    let mut out = if is_html {
-        dehtml(input)
-    } else {
-        input.to_string()
-    };
-
-    out.retain(|c| c != '\r');
-    let lines = split_lines(&out);
+pub fn simplify(mut input: String, is_chat_message: bool) -> (String, bool) {
+    input.retain(|c| c != '\r');
+    let lines = split_lines(&input);
     let (lines, is_forwarded) = skip_forward_header(&lines);
 
     let lines = remove_message_footer(lines);
@@ -207,59 +199,27 @@ mod tests {
         #[test]
         // proptest does not support [[:graphical:][:space:]] regex.
         fn test_simplify_plain_text_fuzzy(input in "[!-~\t \n]+") {
-            let (output, _is_forwarded) = simplify(&input, false, true);
+            let (output, _is_forwarded) = simplify(input, true);
             assert!(output.split('\n').all(|s| s != "-- "));
         }
     }
 
     #[test]
     fn test_simplify_trim() {
-        let html = "\r\r\nline1<br>\r\n\r\n\r\rline2\n\r";
-        let (plain, is_forwarded) = simplify(html, true, false);
+        let input = "line1\n\r\r\rline2".to_string();
+        let (plain, is_forwarded) = simplify(input, false);
 
         assert_eq!(plain, "line1\nline2");
         assert!(!is_forwarded);
     }
 
     #[test]
-    fn test_simplify_parse_href() {
-        let html = "<a href=url>text</a";
-        let (plain, is_forwarded) = simplify(html, true, false);
-
-        assert_eq!(plain, "[text](url)");
-        assert!(!is_forwarded);
-    }
-
-    #[test]
-    fn test_simplify_bold_text() {
-        let html = "<!DOCTYPE name [<!DOCTYPE ...>]><!-- comment -->text <b><?php echo ... ?>bold</b><![CDATA[<>]]>";
-        let (plain, is_forwarded) = simplify(html, true, false);
-
-        assert_eq!(plain, "text *bold*<>");
-        assert!(!is_forwarded);
-    }
-
-    #[test]
     fn test_simplify_forwarded_message() {
-        let text = "---------- Forwarded message ----------\r\nFrom: test@example.com\r\n\r\nForwarded message\r\n-- \r\nSignature goes here";
-        let (plain, is_forwarded) = simplify(text, false, false);
+        let input = "---------- Forwarded message ----------\r\nFrom: test@example.com\r\n\r\nForwarded message\r\n-- \r\nSignature goes here".to_string();
+        let (plain, is_forwarded) = simplify(input, false);
 
         assert_eq!(plain, "Forwarded message");
         assert!(is_forwarded);
-    }
-
-    #[test]
-    fn test_simplify_html_encoded() {
-        let html =
-                "&lt;&gt;&quot;&apos;&amp; &auml;&Auml;&ouml;&Ouml;&uuml;&Uuml;&szlig; foo&AElig;&ccedil;&Ccedil; &diams;&lrm;&rlm;&zwnj;&noent;&zwj;";
-
-        let (plain, is_forwarded) = simplify(html, true, false);
-
-        assert_eq!(
-            plain,
-            "<>\"\'& äÄöÖüÜß fooÆçÇ \u{2666}\u{200e}\u{200f}\u{200c}&noent;\u{200d}"
-        );
-        assert!(!is_forwarded);
     }
 
     #[test]
