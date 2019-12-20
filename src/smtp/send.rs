@@ -18,15 +18,6 @@ pub enum Error {
 
     #[fail(display = "SMTP has no transport")]
     NoTransport,
-
-    #[fail(display = "SMTP send timed out")]
-    SendTimeout(#[cause] async_std::future::TimeoutError),
-}
-
-impl From<async_std::future::TimeoutError> for Error {
-    fn from(err: async_std::future::TimeoutError) -> Error {
-        Error::SendTimeout(err)
-    }
 }
 
 impl Smtp {
