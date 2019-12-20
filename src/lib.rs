@@ -58,6 +58,7 @@ pub mod peerstate;
 pub mod pgp;
 pub mod qr;
 pub mod securejoin;
+mod simplify;
 mod smtp;
 pub mod sql;
 pub mod stock;
@@ -66,7 +67,6 @@ mod token;
 mod dehtml;
 
 pub mod dc_receive_imf;
-mod dc_simplify;
 pub mod dc_tools;
 
 /// if set imap/incoming and smtp/outgoing MIME messages will be printed
