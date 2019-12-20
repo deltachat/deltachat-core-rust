@@ -658,7 +658,7 @@ dependencies = [
 
 [[package]]
 name = "deltachat"
-version = "1.0.0-beta.20"
+version = "1.0.0-beta.21"
 dependencies = [
  "async-imap 0.1.1 (git+https://github.com/async-email/async-imap?branch=dcc-stable)",
  "async-native-tls 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -735,9 +735,9 @@ dependencies = [
 
 [[package]]
 name = "deltachat_ffi"
-version = "1.0.0-beta.20"
+version = "1.0.0-beta.21"
 dependencies = [
- "deltachat 1.0.0-beta.20",
+ "deltachat 1.0.0-beta.21",
  "deltachat-provider-database 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "human-panic 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1418,7 +1418,7 @@ dependencies = [
 [[package]]
 name = "imap-proto"
 version = "0.9.1"
-source = "git+https://github.com/djc/tokio-imap#2b8701b83c50085b7ffcdf26a95146b91f93a6d5"
+source = "git+https://github.com/djc/tokio-imap#de420791b4e240242592616938407b742454c46c"
 dependencies = [
  "nom 5.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
