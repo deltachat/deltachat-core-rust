@@ -11,7 +11,9 @@ pub unsafe extern "C" fn dc_provider_json_from_domain(
 ) -> *mut libc::c_char {
     let domain = to_string_lossy(domain);
     match deltachat_provider_database::get_provider_info(&domain) {
-        Some(provider) => serde_json::to_string(provider).unwrap_or("".to_owned()).strdup(),
+        Some(provider) => serde_json::to_string(provider)
+            .unwrap_or("".to_owned())
+            .strdup(),
         None => "".strdup(),
     }
 }
@@ -23,7 +25,9 @@ pub unsafe extern "C" fn dc_provider_json_from_email(
     let email = to_string_lossy(email);
     let domain = deltachat_provider_database::get_domain_from_email(&email);
     match deltachat_provider_database::get_provider_info(domain) {
-        Some(provider) => serde_json::to_string(provider).unwrap_or("".to_owned()).strdup(),
+        Some(provider) => serde_json::to_string(provider)
+            .unwrap_or("".to_owned())
+            .strdup(),
         None => "".strdup(),
     }
 }
