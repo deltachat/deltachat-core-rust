@@ -1010,8 +1010,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
 fn wrapped_base64_encode(buf: &[u8]) -> String {
     let base64 = base64::encode(&buf);
     let mut chars = base64.chars();
-    (0..)
-        .map(|_| chars.by_ref().take(78).collect::<String>())
+    std::iter::repeat_with(|| chars.by_ref().take(78).collect::<String>())
         .take_while(|s| !s.is_empty())
         .collect::<Vec<_>>()
         .join("\r\n")
