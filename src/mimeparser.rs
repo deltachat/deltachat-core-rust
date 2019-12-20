@@ -516,18 +516,8 @@ impl<'a> MimeParser<'a> {
             (mime::MULTIPART, "report") => {
                 /* RFC 6522: the first part is for humans, the second for machines */
                 if mail.subparts.len() >= 2 {
-                    if let Some(report_type) = mail.ctype.params.get("report-type") {
-                        if report_type == "disposition-notification" {
-                            if let Some(report) = self.process_report(mail)? {
-                                self.reports.push(report);
-                            }
-                        } else {
-                            /* eg. `report-type=delivery-status`;
-                            maybe we should show them as a little error icon */
-                            if let Some(first) = mail.subparts.iter().next() {
-                                any_part_added = self.parse_mime_recursive(first)?;
-                            }
-                        }
+                    if let Some(report) = self.process_report(mail)? {
+                        self.reports.push(report)
                     }
                 }
             }
@@ -729,35 +719,72 @@ impl<'a> MimeParser<'a> {
         }
     }
 
-    fn process_report(&self, report: &mailparse::ParsedMail<'_>) -> Result<Option<Report>> {
-        // parse as mailheaders
-        let report_body = report.subparts[1].get_body_raw()?;
+    fn process_report(&self, mail: &mailparse::ParsedMail<'_>) -> Result<Option<Report>> {
+        /* RFC 6522: the first part is for humans, the second for machines */
+        if mail.subparts.len() < 2 {
+            warn!(self.context, "not enough parts in report, ignoring it");
+            return Ok(None);
+        }
+        // parse machine-readable part as mailheaders
+        let report_body = mail.subparts[1].get_body_raw()?;
         let (report_fields, _) = mailparse::parse_headers(&report_body)?;
 
-        // must be present
-        let disp = HeaderDef::Disposition.get_headername();
-        if let Some(_disposition) = report_fields.get_first_value(&disp).ok().flatten() {
-            if let Some(original_message_id) = report_fields
-                .get_first_value(&HeaderDef::OriginalMessageId.get_headername())
-                .ok()
-                .flatten()
-                .and_then(|v| parse_message_id(&v))
-            {
-                return Ok(Some(Report {
-                    original_message_id,
-                }));
+        let report_type = mail.ctype.params.get("report-type");
+        if report_type.is_none() {
+            warn!(self.context, "report type not found, ignoring report");
+            return Ok(None);
+        }
+        match report_type.unwrap().to_lowercase().as_ref() {
+            "disposition-notification" => {
+                let disp = HeaderDef::Disposition.get_headername();
+                if let Some(_disposition) = report_fields.get_first_value(&disp).ok().flatten() {
+                    if let Some(original_message_id) = report_fields
+                        .get_first_value(&HeaderDef::OriginalMessageId.get_headername())
+                        .ok()
+                        .flatten()
+                        .and_then(|v| parse_message_id(&v))
+                    {
+                        return Ok(Some(Report::Mdn(original_message_id)));
+                    }
+                }
+                warn!(
+                    self.context,
+                    "ignoring unknown disposition-notification, Message-Id: {:?}",
+                    report_fields.get_first_value("Message-ID").ok()
+                );
+            }
+            "delivery-status" => {
+                let mid_header = HeaderDef::MessageId.get_headername();
+                let m = report_fields.get_first_value(&mid_header).ok().flatten();
+                if let Some(raw_message_id) = m {
+                    if let Some(original_message_id) = parse_message_id(&raw_message_id) {
+                        if let Ok(_) =
+                            message::rfc724_mid_exists(self.context, &original_message_id)
+                        {
+                            let human_report = mail.subparts[0].get_body_raw()?;
+                            return Ok(Some(Report::DeliveryStatus(
+                                original_message_id,
+                                String::from_utf8_lossy(&human_report).into_owned(),
+                            )));
+                        }
+                    }
+                }
+            }
+            unknown => {
+                warn!(
+                    self.context,
+                    "unknown report type {:?}, adding human-readable part", unknown
+                );
+                // if let Some(first) = mail.subparts.iter().next() {
+                //    any_part_added = self.parse_mime_recursive(first)?;
+                // }
             }
         }
-        warn!(
-            self.context,
-            "ignoring unknown disposition-notification, Message-Id: {:?}",
-            report_fields.get_first_value("Message-ID").ok()
-        );
 
         Ok(None)
     }
 
-    // Handle reports (only MDNs for now)
+    // Handle reports (only MDNs and Delivery-Status for now)
     pub fn handle_reports(
         &self,
         from_id: u32,
@@ -773,21 +800,32 @@ impl<'a> MimeParser<'a> {
         let mdns_enabled = self.context.get_config_bool(Config::MdnsEnabled);
 
         for report in &self.reports {
-            let mut mdn_recognized = false;
-
-            if mdns_enabled {
-                if let Some((chat_id, msg_id)) = message::mdn_from_ext(
-                    self.context,
-                    from_id,
-                    &report.original_message_id,
-                    sent_timestamp,
-                ) {
-                    self.context.call_cb(Event::MsgRead { chat_id, msg_id });
-                    mdn_recognized = true;
+            let mut processed = false;
+            match report {
+                Report::Mdn(original_message_id) => {
+                    if mdns_enabled {
+                        if let Some((chat_id, msg_id)) = message::mdn_from_ext(
+                            self.context,
+                            from_id,
+                            &original_message_id,
+                            sent_timestamp,
+                        ) {
+                            self.context.call_cb(Event::MsgRead { chat_id, msg_id });
+                            processed = true;
+                        }
+                    } else {
+                        processed = true;
+                    }
+                }
+                Report::DeliveryStatus(original_message_id, status) => {
+                    // XXX where to show this delivery status?
+                    // it probably should go to Message-Info and flag
+                    // the according message?
+                    processed = true;
                 }
             }
 
-            if self.has_chat_version() || mdn_recognized || !mdns_enabled {
+            if self.has_chat_version() || processed {
                 let mut param = Params::new();
                 param.set(Param::ServerFolder, server_folder.as_ref());
                 param.set_int(Param::ServerUid, server_uid as i32);
@@ -854,12 +892,14 @@ fn update_gossip_peerstates(
     Ok(gossipped_addr)
 }
 
-#[derive(Debug)]
-struct Report {
-    original_message_id: String,
+#[derive(Debug, Display, Clone, PartialEq, Eq)]
+enum Report {
+    Mdn(String),
+    DeliveryStatus(String, String),
 }
 
 fn parse_message_id(field: &str) -> Option<String> {
+    // XXX is it correct to use addrparse here?
     if let Ok(addrs) = mailparse::addrparse(field) {
         // Assume the message id is a single id in the form of <id>
         if let mailparse::MailAddr::Single(mailparse::SingleInfo { ref addr, .. }) = addrs[0] {
