@@ -1,5 +1,17 @@
 # Changelog 
 
+## 1.0.0-beta.21
+
+- #1078 #1082 ensure RFC compliance by producing 78 column lines for
+  encoded attachments. 
+
+- #1080 don't recreate and thus break group membership if an unknown 
+  sender (or mailer-daemon) sends a message referencing the group chat 
+
+- #1081 #1079 some internal cleanups 
+
+- update imap-proto dependency, to fix yandex/oauth 
+
 ## 1.0.0-beta.20
 
 - #1074 fix OAUTH2/gmail
