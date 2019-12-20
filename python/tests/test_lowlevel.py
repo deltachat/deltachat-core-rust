@@ -122,6 +122,7 @@ def test_provider_info_none():
     )
     assert provider_json == ""
 
+
 def test_get_info_closed():
     ctx = ffi.gc(
         lib.dc_context_new(lib.py_dc_callback, ffi.NULL, ffi.NULL),

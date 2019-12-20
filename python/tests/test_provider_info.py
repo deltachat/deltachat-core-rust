@@ -1,6 +1,5 @@
 import pytest
 
-from deltachat import const
 from deltachat import provider
 
 
