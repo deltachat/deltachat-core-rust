@@ -10,7 +10,6 @@ use crate::config::Config;
 use crate::constants::Viewtype;
 use crate::contact::*;
 use crate::context::Context;
-use crate::dc_simplify::*;
 use crate::dc_tools::*;
 use crate::dehtml::dehtml;
 use crate::e2ee;
@@ -23,6 +22,7 @@ use crate::message;
 use crate::param::*;
 use crate::peerstate::Peerstate;
 use crate::securejoin::handle_degrade_event;
+use crate::simplify::*;
 use crate::stock::StockMessage;
 use crate::{bail, ensure};
 
