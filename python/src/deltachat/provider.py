@@ -1,8 +1,9 @@
 """Provider info class."""
 
-from .capi import ffi, lib
+from .capi import lib
 from .cutil import as_dc_charpointer, from_dc_charpointer
 import json
+
 
 class ProviderNotFoundError(Exception):
     """The provider information was not found."""
@@ -55,7 +56,7 @@ class Provider(object):
     def status(self):
         """The status of the provider information.
 
-        This is 
+        This is
         :attr:`"OK"`,
         :attr:`"PREPARATION"` or
         :attr:`"BROKEN"`.

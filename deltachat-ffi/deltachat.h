@@ -3663,22 +3663,24 @@ int             dc_contact_is_verified       (dc_contact_t* contact);
 
 /**
  * Get the provider json object for the given domain.
+ * For more documentation see https://docs.rs/deltachat-provider-database/
  *
  * @memberof dc_provider_t
  * @param domain The domain to get provider info for.
- * @return a provider json object as string.  If no provider info is found, an empty string will be returned.
+ * @return a provider json object as string. If no provider info is found, an empty string will be returned.
  */
 char*            dc_provider_json_from_domain           (const char* domain);
 
 
 /**
  * Get the provider json object for the given email address.
+ * For more documentation see https://docs.rs/deltachat-provider-database/
  *
  * The provider is extracted from the email address and it's information is returned.
  *
  * @memberof dc_provider_t
  * @param email The user's email address to extract the provider info form.
- * @return a provider json object as string.  If no provider info is found, an empty string will be returned.
+ * @return a provider json object as string. If no provider info is found, an empty string will be returned.
  */
 char*            dc_provider_json_from_email           (const char* email);
 
