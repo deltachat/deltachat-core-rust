@@ -6,9 +6,7 @@ edition = "2018"
 license = "MPL"
 
 [profile.release]
-opt-level = 'z'  # Optimize for size.
 lto = true
-codegen-units = 1
 
 [dependencies]
 deltachat_derive = { path = "./deltachat_derive" }
