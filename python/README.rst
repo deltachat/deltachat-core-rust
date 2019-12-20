@@ -7,54 +7,55 @@ which provides imap/smtp/crypto handling as well as chat/group/messages
 handling to Android, Desktop and IO user interfaces.
 
 
-Installing bindings from source   (Updated: 21-Dec-2019)
-===============================
+Installing bindings from source (Updated: 21-Dec-2019)
+=========================================================
 
-To compile and use the Python Bindings from source::
+Install Rust and Cargo first.  Deltachat needs a specific nightly
+version, the easiest is probably to first install Rust stable from
+rustup and then use this to install the correct nightly version.
 
-Lets do a quick package update (using Ubuntu 18.04 with python3.6), make sure you have proper python and pip installed too (I am using python3 and pip3)::
+Install rustup using::
 
+   curl https://sh.rustup.rs -sSf | sh
 
-   apt update
-   apt install python3-pip
-   pip3 install pytest pytest-timeout pytest-rerunfailures requests
-
-
-
-Install Rust and Cargo first, we are doing a NIGHTLY Rust install otherwise one of the dependency (Subtle v2.2.2) will fail, it only works with Nightly versions::
-
-   cd 
-   curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain nightly
-   
-GIT clone the repo and run the Python Binding installation script::
+GIT clone the repo and use rustup to check the correct nightly version
+is available, if you do not have the right nightly version rustup will
+download and install it::
 
    git clone https://github.com/deltachat/deltachat-core-rust
    cd deltachat-core-rust
+   rustup show
+
+To install the python bindings make sure you have python installed, a
+recent 3.x version will also come with the required venv module.
+E.g. on Debian-based systems `apt install python3 python3-pip
+python3-venv` should give you a usable python installation.  If you
+prefer you can also
+`Install virtualenv <https://virtualenv.pypa.io/en/stable/installation/>`_
+as an alternative to `venv`.
+
+Ensure you are in the deltachat-core-rust/python directory, create the
+vivrtual environment and activate it in your shell::
+
    cd python
-   python3 install_python_bindings.py
+   python3 -m venv venv  # or: virtualenv venv
+   source venv/bin/activate
 
-If you still get a error saying compiling failed or !feature not supported in this release/stable, use the following command below and re-run the above command to recompile::
+You should now be able to build the python bindings using the supplied
+script::
 
-   rustup install nightly
-   ## OR ##
-   /root/.cargo/bin/rustup install nightly
+   ./install_python_bindings.py
 
-
-The installation takes 20-60 minutes (depending on your machine). 
+The installation might take a while, depending on your machine.
 The bindings will be installed in release mode but with debug symbols.
 The release mode is necessary because some tests generate RSA keys
 which is prohibitively slow in debug mode.
 
-After successful binding installation you can finally run the tests::
+After successful binding installation you can install a few more
+python packages before finally running the tests::
 
+    python -m pip install pytest pytest-timeout pytest-rerunfailures
     pytest -v tests
-
-.. note::
-
-    Some tests are sometimes failing/hanging because of
-    https://github.com/deltachat/deltachat-core-rust/issues/331
-    and
-    https://github.com/deltachat/deltachat-core-rust/issues/326
 
 
 running "live" tests (experimental)
@@ -79,7 +80,7 @@ e-mail accounts and run through all functional "liveconfig" tests.
 ============================================================================================================================
 
 Installing pre-built packages (linux-only)  (OUTDATED)
-==========================================
+========================================================
 
 If you have a linux system you may install the ``deltachat`` binary "wheel" package
 without any "build-from-source" steps.
@@ -104,7 +105,7 @@ without any "build-from-source" steps.
 
 
 Installing a wheel from a PR/branch    (OUTDATED)
----------------------------------------
+-------------------------------------------------
 
 For Linux, we automatically build wheels for all github PR branches
 and push them to a python package index. To install the latest github ``master`` branch::
