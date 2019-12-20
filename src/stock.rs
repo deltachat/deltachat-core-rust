@@ -185,6 +185,9 @@ pub enum StockMessage {
                     Recipients don't need to install Delta Chat, visit websites or sign up anywhere - \
                     however, of course, if they like, you may point them to 👉 https://get.delta.chat"))]
     WelcomeMessage = 71,
+
+    #[strum(props(fallback = "Unknown Sender for this chat. See 'info' for more details."))]
+    UnknownSenderForChat = 72,
 }
 
 /*

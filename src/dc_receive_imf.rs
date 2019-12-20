@@ -877,10 +877,15 @@ fn create_or_lookup_group(
                 mime_parser.repl_msg_by_error(s);
             }
         }
-        // check if the sender is a member of the existing group -
-        // if not, we'll recreate the group list
         if !chat::is_contact_in_chat(context, chat_id, from_id as u32) {
-            recreate_member_list = true;
+            // The From-address is not part of this group.
+            // It could be a new user or a DSN from a mailer-daemon.
+            // in any case we do not want to recreate the member list
+            // but still show the message as part of the chat.
+            // After all, the sender has a reference/in-reply-to that
+            // points to this chat.
+            let s = context.stock_str(StockMessage::UnknownSenderForChat);
+            mime_parser.repl_msg_by_error(s.to_string());
         }
     }
 
