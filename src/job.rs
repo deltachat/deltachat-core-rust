@@ -762,7 +762,12 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
             suspend_smtp_thread(context, true);
         }
 
-        for _tries in 0..2 {
+        for tries in 0..2 {
+            info!(
+                context,
+                "{} performs immediate try {} of job {}", thread, tries, job
+            );
+
             // this can be modified by a job using dc_job_try_again_later()
             job.try_again = TryAgain::Dont;
 
@@ -792,6 +797,11 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                 Action::SendMdnOld => {}
                 Action::SendMsgToSmtpOld => {}
             }
+
+            info!(
+                context,
+                "{} finished immediate try {} of job {}", thread, tries, job
+            );
             if job.try_again != TryAgain::AtOnce {
                 break;
             }
@@ -813,7 +823,12 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
             break;
         } else if job.try_again == TryAgain::AtOnce || job.try_again == TryAgain::StandardDelay {
             let tries = job.tries + 1;
+
             if tries < JOB_RETRIES {
+                info!(
+                    context,
+                    "{} thread increases job {} tries to {}", thread, job, tries
+                );
                 job.tries = tries;
                 let time_offset = get_backoff_time_offset(tries);
                 job.desired_timestamp = time() + time_offset;
@@ -836,6 +851,10 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                         .perform_jobs_needed = PerformJobsNeeded::AvoidDos;
                 }
             } else {
+                info!(
+                    context,
+                    "{} thread removes job {} as it exhausted {} retries", thread, job, JOB_RETRIES
+                );
                 if job.action == Action::SendMsgToSmtp {
                     message::set_msg_failed(
                         context,
@@ -854,6 +873,10 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
             // to give other jobs a chance being tried at least once.
             break;
         } else {
+            info!(
+                context,
+                "{} removes job {} as it cannot be retried", thread, job
+            );
             job.delete(context);
         }
     }
