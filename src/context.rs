@@ -5,8 +5,6 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 
-use libc::uintptr_t;
-
 use crate::chat::*;
 use crate::config::Config;
 use crate::constants::*;
@@ -32,12 +30,7 @@ use crate::sql::Sql;
 /// * `event` - One of the [Event] items.
 /// * `data1` - Depends on the event parameter, see [Event].
 /// * `data2` - Depends on the event parameter, see [Event].
-///
-/// # Returns
-///
-/// This callback must return 0 unless stated otherwise in the event
-/// description at [Event].
-pub type ContextCallback = dyn Fn(&Context, Event) -> uintptr_t + Send + Sync;
+pub type ContextCallback = dyn Fn(&Context, Event) -> () + Send + Sync;
 
 #[derive(DebugStub)]
 pub struct Context {
@@ -172,8 +165,8 @@ impl Context {
         self.blobdir.as_path()
     }
 
-    pub fn call_cb(&self, event: Event) -> uintptr_t {
-        (*self.cb)(self, event)
+    pub fn call_cb(&self, event: Event) {
+        (*self.cb)(self, event);
     }
 
     /*******************************************************************************
@@ -533,7 +526,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         std::fs::write(&dbfile, b"123").unwrap();
-        let res = Context::new(Box::new(|_, _| 0), "FakeOs".into(), dbfile);
+        let res = Context::new(Box::new(|_, _| ()), "FakeOs".into(), dbfile);
         assert!(res.is_err());
     }
 
@@ -548,7 +541,7 @@ mod tests {
     fn test_blobdir_exists() {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
-        Context::new(Box::new(|_, _| 0), "FakeOS".into(), dbfile).unwrap();
+        Context::new(Box::new(|_, _| ()), "FakeOS".into(), dbfile).unwrap();
         let blobdir = tmp.path().join("db.sqlite-blobs");
         assert!(blobdir.is_dir());
     }
@@ -559,7 +552,7 @@ mod tests {
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = tmp.path().join("db.sqlite-blobs");
         std::fs::write(&blobdir, b"123").unwrap();
-        let res = Context::new(Box::new(|_, _| 0), "FakeOS".into(), dbfile);
+        let res = Context::new(Box::new(|_, _| ()), "FakeOS".into(), dbfile);
         assert!(res.is_err());
     }
 
@@ -569,7 +562,7 @@ mod tests {
         let subdir = tmp.path().join("subdir");
         let dbfile = subdir.join("db.sqlite");
         let dbfile2 = dbfile.clone();
-        Context::new(Box::new(|_, _| 0), "FakeOS".into(), dbfile).unwrap();
+        Context::new(Box::new(|_, _| ()), "FakeOS".into(), dbfile).unwrap();
         assert!(subdir.is_dir());
         assert!(dbfile2.is_file());
     }
@@ -579,7 +572,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = PathBuf::new();
-        let res = Context::with_blobdir(Box::new(|_, _| 0), "FakeOS".into(), dbfile, blobdir);
+        let res = Context::with_blobdir(Box::new(|_, _| ()), "FakeOS".into(), dbfile, blobdir);
         assert!(res.is_err());
     }
 
@@ -588,7 +581,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = tmp.path().join("blobs");
-        let res = Context::with_blobdir(Box::new(|_, _| 0), "FakeOS".into(), dbfile, blobdir);
+        let res = Context::with_blobdir(Box::new(|_, _| ()), "FakeOS".into(), dbfile, blobdir);
         assert!(res.is_err());
     }
 

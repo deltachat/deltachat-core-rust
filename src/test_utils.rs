@@ -2,7 +2,6 @@
 //!
 //! This module is only compiled for test runs.
 
-use libc::uintptr_t;
 use tempfile::{tempdir, TempDir};
 
 use crate::config::Config;
@@ -31,7 +30,7 @@ pub fn test_context(callback: Option<Box<ContextCallback>>) -> TestContext {
     let dbfile = dir.path().join("db.sqlite");
     let cb: Box<ContextCallback> = match callback {
         Some(cb) => cb,
-        None => Box::new(|_, _| 0),
+        None => Box::new(|_, _| ()),
     };
     let ctx = Context::new(cb, "FakeOs".into(), dbfile).unwrap();
     TestContext { ctx, dir }
@@ -46,14 +45,13 @@ pub fn dummy_context() -> TestContext {
     test_context(None)
 }
 
-pub fn logging_cb(_ctx: &Context, evt: Event) -> uintptr_t {
+pub fn logging_cb(_ctx: &Context, evt: Event) {
     match evt {
         Event::Info(msg) => println!("I: {}", msg),
         Event::Warning(msg) => println!("W: {}", msg),
         Event::Error(msg) => println!("E: {}", msg),
         _ => (),
     }
-    0
 }
 
 /// Creates Alice with a pre-generated keypair.
