@@ -736,11 +736,7 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
         info!(
             context,
             "{}-job #{}, action {} started...",
-            if thread == Thread::Imap {
-                "INBOX"
-            } else {
-                "SMTP"
-            },
+            thread,
             job.job_id,
             job.action,
         );
@@ -825,11 +821,7 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                 info!(
                     context,
                     "{}-job #{} not succeeded on try #{}, retry in {} seconds.",
-                    if thread == Thread::Imap {
-                        "INBOX"
-                    } else {
-                        "SMTP"
-                    },
+                    thread,
                     job.job_id as u32,
                     tries,
                     time_offset
