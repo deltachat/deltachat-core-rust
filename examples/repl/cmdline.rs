@@ -20,14 +20,14 @@ use deltachat::qr::*;
 use deltachat::sql;
 use deltachat::Event;
 
-/// Reset database tables. This function is called from Core cmdline.
+/// Reset database tables.
 /// Argument is a bitmask, executing single or multiple actions in one call.
 /// e.g. bitmask 7 triggers actions definded with bits 1, 2 and 4.
-pub fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
-    info!(context, "Resetting tables ({})...", bits);
+fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
+    println!("Resetting tables ({})...", bits);
     if 0 != bits & 1 {
         sql::execute(context, &context.sql, "DELETE FROM jobs;", params![]).unwrap();
-        info!(context, "(1) Jobs reset.");
+        println!("(1) Jobs reset.");
     }
     if 0 != bits & 2 {
         sql::execute(
@@ -37,11 +37,11 @@ pub fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
             params![],
         )
         .unwrap();
-        info!(context, "(2) Peerstates reset.");
+        println!("(2) Peerstates reset.");
     }
     if 0 != bits & 4 {
         sql::execute(context, &context.sql, "DELETE FROM keypairs;", params![]).unwrap();
-        info!(context, "(4) Private keypairs reset.");
+        println!("(4) Private keypairs reset.");
     }
     if 0 != bits & 8 {
         sql::execute(
@@ -80,7 +80,7 @@ pub fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
         )
         .unwrap();
         sql::execute(context, &context.sql, "DELETE FROM leftgrps;", params![]).unwrap();
-        info!(context, "(8) Rest but server config reset.");
+        println!("(8) Rest but server config reset.");
     }
 
     context.call_cb(Event::MsgsChanged {
@@ -155,7 +155,7 @@ fn poke_spec(context: &Context, spec: Option<&str>) -> libc::c_int {
                 let name = name_f.to_string_lossy();
                 if name.ends_with(".eml") {
                     let path_plus_name = format!("{}/{}", &real_spec, name);
-                    info!(context, "Import: {}", path_plus_name);
+                    println!("Import: {}", path_plus_name);
                     if dc_poke_eml_file(context, path_plus_name).is_ok() {
                         read_cnt += 1
                     }
@@ -163,10 +163,7 @@ fn poke_spec(context: &Context, spec: Option<&str>) -> libc::c_int {
             }
         }
     }
-    info!(
-        context,
-        "Import: {} items read from \"{}\".", read_cnt, &real_spec
-    );
+    println!("Import: {} items read from \"{}\".", read_cnt, &real_spec);
     if read_cnt > 0 {
         context.call_cb(Event::MsgsChanged {
             chat_id: 0,
@@ -190,8 +187,7 @@ fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
     };
     let temp2 = dc_timestamp_to_str(msg.get_timestamp());
     let msgtext = msg.get_text();
-    info!(
-        context,
+    println!(
         "{}{}{}{}: {} (Contact#{}): {} {}{}{}{}{} [{}]",
         prefix.as_ref(),
         msg.get_id(),
@@ -225,16 +221,14 @@ fn log_msglist(context: &Context, msglist: &Vec<MsgId>) -> Result<(), Error> {
     let mut lines_out = 0;
     for &msg_id in msglist {
         if msg_id.is_daymarker() {
-            info!(
-                context,
+            println!(
                 "--------------------------------------------------------------------------------"
             );
 
             lines_out += 1
         } else if !msg_id.is_special() {
             if lines_out == 0 {
-                info!(
-                    context,
+                println!(
                     "--------------------------------------------------------------------------------",
                 );
                 lines_out += 1
@@ -244,8 +238,7 @@ fn log_msglist(context: &Context, msglist: &Vec<MsgId>) -> Result<(), Error> {
         }
     }
     if lines_out > 0 {
-        info!(
-            context,
+        println!(
             "--------------------------------------------------------------------------------"
         );
     }
@@ -295,7 +288,7 @@ fn log_contactlist(context: &Context, contacts: &Vec<u32>) {
                 );
             }
 
-            info!(context, "Contact#{}: {}{}", contact_id, line, line2);
+            println!("Contact#{}: {}{}", contact_id, line, line2);
         }
     }
 }
@@ -510,15 +503,13 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
 
             let cnt = chatlist.len();
             if cnt > 0 {
-                info!(
-                    context,
+                println!(
                     "================================================================================"
                 );
 
                 for i in (0..cnt).rev() {
                     let chat = Chat::load_from_db(context, chatlist.get_chat_id(i))?;
-                    info!(
-                        context,
+                    println!(
                         "{}#{}: {} [{} fresh]",
                         chat_prefix(&chat),
                         chat.get_id(),
@@ -540,8 +531,7 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
                     let timestr = dc_timestamp_to_str(lot.get_timestamp());
                     let text1 = lot.get_text1();
                     let text2 = lot.get_text2();
-                    info!(
-                        context,
+                    println!(
                         "{}{}{}{} [{}]{}",
                         text1.unwrap_or(""),
                         if text1.is_some() { ": " } else { "" },
@@ -554,14 +544,13 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
                             ""
                         },
                     );
-                    info!(
-                        context,
+                    println!(
                         "================================================================================"
                     );
                 }
             }
             if location::is_sending_locations_to_chat(context, 0) {
-                info!(context, "Location streaming enabled.");
+                println!("Location streaming enabled.");
             }
             println!("{} chats", cnt);
         }
@@ -589,8 +578,7 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
             } else {
                 format!("{} member(s)", members.len())
             };
-            info!(
-                context,
+            println!(
                 "{}#{}: {} [{}]{}{}",
                 chat_prefix(sel_chat),
                 sel_chat.get_id(),
@@ -693,7 +681,7 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
             ensure!(sel_chat.is_some(), "No chat selected.");
 
             let contacts = chat::get_chat_contacts(context, sel_chat.as_ref().unwrap().get_id());
-            info!(context, "Memberlist:");
+            println!("Memberlist:");
 
             log_contactlist(context, &contacts);
             println!(
@@ -719,8 +707,7 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
             let default_marker = "-".to_string();
             for location in &locations {
                 let marker = location.marker.as_ref().unwrap_or(&default_marker);
-                info!(
-                    context,
+                println!(
                     "Loc#{}: {}: lat={} lng={} acc={} Chat#{} Contact#{} {} {}",
                     location.location_id,
                     dc_timestamp_to_str(location.timestamp),
@@ -734,7 +721,7 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
                 );
             }
             if locations.is_empty() {
-                info!(context, "No locations.");
+                println!("No locations.");
             }
         }
         "sendlocations" => {
