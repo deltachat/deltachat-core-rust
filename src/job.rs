@@ -3,8 +3,7 @@
 //! This module implements a job queue maintained in the SQLite database
 //! and job types.
 
-use std::time::Duration;
-use std::*;
+use std::{fmt, time};
 
 use deltachat_derive::{FromSql, ToSql};
 use rand::{thread_rng, Rng};
@@ -570,7 +569,7 @@ pub fn perform_smtp_idle(context: &Context) {
     info!(context, "SMTP-idle ended.",);
 }
 
-fn get_next_wakeup_time(context: &Context, thread: Thread) -> Duration {
+fn get_next_wakeup_time(context: &Context, thread: Thread) -> time::Duration {
     let t: i64 = context
         .sql
         .query_get_value(
@@ -580,13 +579,13 @@ fn get_next_wakeup_time(context: &Context, thread: Thread) -> Duration {
         )
         .unwrap_or_default();
 
-    let mut wakeup_time = Duration::new(10 * 60, 0);
+    let mut wakeup_time = time::Duration::new(10 * 60, 0);
     let now = time();
     if t > 0 {
         if t > now {
-            wakeup_time = Duration::new((t - now) as u64, 0);
+            wakeup_time = time::Duration::new((t - now) as u64, 0);
         } else {
-            wakeup_time = Duration::new(0, 0);
+            wakeup_time = time::Duration::new(0, 0);
         }
     }
 
@@ -878,7 +877,7 @@ fn suspend_smtp_thread(context: &Context, suspend: bool) {
             if !context.smtp_state.0.lock().unwrap().doing_jobs {
                 return;
             }
-            std::thread::sleep(std::time::Duration::from_micros(300 * 1000));
+            std::thread::sleep(time::Duration::from_micros(300 * 1000));
         }
     }
 }
