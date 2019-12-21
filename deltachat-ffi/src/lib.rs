@@ -122,74 +122,79 @@ impl ContextWrapper {
     }
 
     /// Translates the callback from the rust style to the C-style version.
-    unsafe fn translate_cb(&self, event: Event) -> uintptr_t {
-        match self.cb {
-            Some(ffi_cb) => {
-                let event_id = event.as_id();
-                match event {
-                    Event::Info(msg)
-                    | Event::SmtpConnected(msg)
-                    | Event::ImapConnected(msg)
-                    | Event::SmtpMessageSent(msg)
-                    | Event::ImapMessageDeleted(msg)
-                    | Event::ImapMessageMoved(msg)
-                    | Event::ImapFolderEmptied(msg)
-                    | Event::NewBlobFile(msg)
-                    | Event::DeletedBlobFile(msg)
-                    | Event::Warning(msg)
-                    | Event::Error(msg)
-                    | Event::ErrorNetwork(msg)
-                    | Event::ErrorSelfNotInGroup(msg) => {
-                        let data2 = CString::new(msg).unwrap_or_default();
-                        ffi_cb(self, event_id, 0, data2.as_ptr() as uintptr_t)
-                    }
-                    Event::MsgsChanged { chat_id, msg_id }
-                    | Event::IncomingMsg { chat_id, msg_id }
-                    | Event::MsgDelivered { chat_id, msg_id }
-                    | Event::MsgFailed { chat_id, msg_id }
-                    | Event::MsgRead { chat_id, msg_id } => ffi_cb(
+    unsafe fn translate_cb(&self, event: Event) {
+        if let Some(ffi_cb) = self.cb {
+            let event_id = event.as_id();
+            match event {
+                Event::Info(msg)
+                | Event::SmtpConnected(msg)
+                | Event::ImapConnected(msg)
+                | Event::SmtpMessageSent(msg)
+                | Event::ImapMessageDeleted(msg)
+                | Event::ImapMessageMoved(msg)
+                | Event::ImapFolderEmptied(msg)
+                | Event::NewBlobFile(msg)
+                | Event::DeletedBlobFile(msg)
+                | Event::Warning(msg)
+                | Event::Error(msg)
+                | Event::ErrorNetwork(msg)
+                | Event::ErrorSelfNotInGroup(msg) => {
+                    let data2 = CString::new(msg).unwrap_or_default();
+                    ffi_cb(self, event_id, 0, data2.as_ptr() as uintptr_t);
+                }
+                Event::MsgsChanged { chat_id, msg_id }
+                | Event::IncomingMsg { chat_id, msg_id }
+                | Event::MsgDelivered { chat_id, msg_id }
+                | Event::MsgFailed { chat_id, msg_id }
+                | Event::MsgRead { chat_id, msg_id } => {
+                    ffi_cb(
                         self,
                         event_id,
                         chat_id as uintptr_t,
                         msg_id.to_u32() as uintptr_t,
-                    ),
-                    Event::ChatModified(chat_id) => ffi_cb(self, event_id, chat_id as uintptr_t, 0),
-                    Event::ContactsChanged(id) | Event::LocationChanged(id) => {
-                        let id = id.unwrap_or_default();
-                        ffi_cb(self, event_id, id as uintptr_t, 0)
-                    }
-                    Event::ConfigureProgress(progress) | Event::ImexProgress(progress) => {
-                        ffi_cb(self, event_id, progress as uintptr_t, 0)
-                    }
-                    Event::ImexFileWritten(file) => {
-                        let data1 = file.to_c_string().unwrap_or_default();
-                        ffi_cb(self, event_id, data1.as_ptr() as uintptr_t, 0)
-                    }
-                    Event::SecurejoinInviterProgress {
-                        contact_id,
-                        progress,
-                    }
-                    | Event::SecurejoinJoinerProgress {
-                        contact_id,
-                        progress,
-                    } => ffi_cb(
+                    );
+                }
+                Event::ChatModified(chat_id) => {
+                    ffi_cb(self, event_id, chat_id as uintptr_t, 0);
+                }
+                Event::ContactsChanged(id) | Event::LocationChanged(id) => {
+                    let id = id.unwrap_or_default();
+                    ffi_cb(self, event_id, id as uintptr_t, 0);
+                }
+                Event::ConfigureProgress(progress) | Event::ImexProgress(progress) => {
+                    ffi_cb(self, event_id, progress as uintptr_t, 0);
+                }
+                Event::ImexFileWritten(file) => {
+                    let data1 = file.to_c_string().unwrap_or_default();
+                    ffi_cb(self, event_id, data1.as_ptr() as uintptr_t, 0);
+                }
+                Event::SecurejoinInviterProgress {
+                    contact_id,
+                    progress,
+                }
+                | Event::SecurejoinJoinerProgress {
+                    contact_id,
+                    progress,
+                } => {
+                    ffi_cb(
                         self,
                         event_id,
                         contact_id as uintptr_t,
                         progress as uintptr_t,
-                    ),
-                    Event::SecurejoinMemberAdded {
-                        chat_id,
-                        contact_id,
-                    } => ffi_cb(
+                    );
+                }
+                Event::SecurejoinMemberAdded {
+                    chat_id,
+                    contact_id,
+                } => {
+                    ffi_cb(
                         self,
                         event_id,
                         chat_id as uintptr_t,
                         contact_id as uintptr_t,
-                    ),
+                    );
                 }
             }
-            None => 0,
         }
     }
 }

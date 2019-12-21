@@ -41,7 +41,7 @@ use self::cmdline::*;
 
 // Event Handler
 
-fn receive_event(_context: &Context, event: Event) -> libc::uintptr_t {
+fn receive_event(_context: &Context, event: Event) {
     match event {
         Event::Info(msg) => {
             /* do not show the event as this would fill the screen */
@@ -111,8 +111,6 @@ fn receive_event(_context: &Context, event: Event) -> libc::uintptr_t {
             print!("\x1b[33m{{Received {:?}}}\n\x1b[0m", event);
         }
     }
-
-    0
 }
 
 // Threads for waiting for messages and for jobs

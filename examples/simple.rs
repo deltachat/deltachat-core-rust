@@ -16,21 +16,18 @@ use deltachat::job::{
 };
 use deltachat::Event;
 
-fn cb(_ctx: &Context, event: Event) -> usize {
+fn cb(_ctx: &Context, event: Event) {
     print!("[{:?}]", event);
 
     match event {
         Event::ConfigureProgress(progress) => {
             print!("  progress: {}\n", progress);
-            0
         }
         Event::Info(msg) | Event::Warning(msg) | Event::Error(msg) | Event::ErrorNetwork(msg) => {
             print!("  {}\n", msg);
-            0
         }
         _ => {
             print!("\n");
-            0
         }
     }
 }

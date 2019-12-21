@@ -203,9 +203,7 @@ fn test_encryption_decryption() {
     assert_eq!(plain, original_text);
 }
 
-fn cb(_context: &Context, _event: Event) -> libc::uintptr_t {
-    0
-}
+fn cb(_context: &Context, _event: Event) {}
 
 #[allow(dead_code)]
 struct TestContext {
