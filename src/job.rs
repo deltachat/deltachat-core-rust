@@ -4,6 +4,7 @@
 //! and job types.
 
 use std::time::Duration;
+use std::*;
 
 use deltachat_derive::{FromSql, ToSql};
 use rand::{thread_rng, Rng};
@@ -121,6 +122,12 @@ pub struct Job {
     pub param: Params,
     try_again: TryAgain,
     pub pending_error: Option<String>,
+}
+
+impl fmt::Display for Job {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "#{}, action {}", self.job_id, self.action)
+    }
 }
 
 impl Job {
@@ -733,13 +740,7 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
     let jobs: Vec<Job> = load_jobs(context, thread, probe_network);
 
     for mut job in jobs {
-        info!(
-            context,
-            "{}-job #{}, action {} started...",
-            thread,
-            job.job_id,
-            job.action,
-        );
+        info!(context, "{}-job {} started...", thread, job);
 
         // some configuration jobs are "exclusive":
         // - they are always executed in the imap-thread and the smtp-thread is suspended during execution
