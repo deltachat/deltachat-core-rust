@@ -486,7 +486,7 @@ pub(crate) fn dc_get_next_backup_path(
 pub(crate) fn time() -> i64 {
     SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap()
+        .unwrap_or_default()
         .as_secs() as i64
 }
 
