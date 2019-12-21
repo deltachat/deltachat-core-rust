@@ -10,11 +10,6 @@ license = "MIT OR Apache-2.0"
 keywords = ["deltachat", "chat", "openpgp", "email", "encryption"]
 categories = ["cryptography", "std", "email"]
 
-#[profile.release]
-#opt-level = 'z'  # Optimize for size.
-#lto = true
-#codegen-units = 1
-
 [lib]
 name = "deltachat"
 crate-type = ["cdylib", "staticlib"]
