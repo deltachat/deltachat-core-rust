@@ -1,6 +1,6 @@
 environment:
   matrix:
-    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
 
 install:
   - appveyor DownloadFile https://win.rustup.rs/ -FileName rustup-init.exe
