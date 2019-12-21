@@ -79,12 +79,7 @@ pub fn get_info() -> HashMap<&'static str, String> {
         "sqlite_thread_safe",
         unsafe { rusqlite::ffi::sqlite3_threadsafe() }.to_string(),
     );
-    res.insert(
-        "arch",
-        (std::mem::size_of::<*mut libc::c_void>())
-            .wrapping_mul(8)
-            .to_string(),
-    );
+    res.insert("arch", (std::mem::size_of::<usize>() * 8).to_string());
     res.insert("level", "awesome".into());
     res
 }
