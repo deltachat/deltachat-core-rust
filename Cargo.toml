@@ -5,6 +5,9 @@ authors = ["Delta Chat Developers (ML) <delta@codespeak.net>"]
 edition = "2018"
 license = "MPL"
 
+[profile.release]
+lto = true
+
 [dependencies]
 deltachat_derive = { path = "./deltachat_derive" }
 
