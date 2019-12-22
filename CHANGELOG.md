@@ -1,5 +1,15 @@
 # Changelog 
 
+## 1.0.0-beta.22
+
+- #1095 normalize email lineends to CRLF
+
+- #1095 enable link-time-optimization, saves eg. on android 11 mb
+
+- #1092 improve logging
+
+- #1096 #1097 #1094 #1090 #1091 internal cleanups
+
 ## 1.0.0-beta.21
 
 - #1078 #1082 ensure RFC compliance by producing 78 column lines for
