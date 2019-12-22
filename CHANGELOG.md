@@ -6,6 +6,8 @@
 
 - #1095 enable link-time-optimization, saves eg. on android 11 mb
 
+- #1099 fix import regarding devicechats
+
 - #1092 improve logging
 
 - #1096 #1097 #1094 #1090 #1091 internal cleanups
