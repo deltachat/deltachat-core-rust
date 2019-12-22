@@ -2197,6 +2197,22 @@ pub fn was_device_msg_ever_added(context: &Context, label: &str) -> Result<bool,
     Ok(false)
 }
 
+// needed on device-switches during export/import;
+// - deletion in `msgs` with `DC_CONTACT_ID_DEVICE` makes sure,
+//   no wrong information are shown in the device chat
+// - deletion in `devmsglabels` makes sure,
+//   deleted messages are resetted and useful messages can be added again
+pub fn delete_and_reset_all_device_msgs(context: &Context) -> Result<(), Error> {
+    context.sql.execute(
+        "DELETE FROM msgs WHERE from_id=?;",
+        params![DC_CONTACT_ID_DEVICE],
+    )?;
+    context
+        .sql
+        .execute("DELETE FROM devmsglabels;", params![])?;
+    Ok(())
+}
+
 /// Adds an informational message to chat.
 ///
 /// For example, it can be a message showing that a member was added to a group.
