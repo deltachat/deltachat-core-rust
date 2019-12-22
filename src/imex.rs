@@ -8,6 +8,7 @@ use rand::{thread_rng, Rng};
 
 use crate::blob::BlobObject;
 use crate::chat;
+use crate::chat::delete_and_reset_all_device_msgs;
 use crate::config::Config;
 use crate::configure::*;
 use crate::constants::*;
@@ -440,6 +441,8 @@ fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) -> Resul
         context.sql.open(&context, &context.get_dbfile(), false),
         "could not re-open db"
     );
+
+    delete_and_reset_all_device_msgs(&context)?;
 
     let total_files_cnt = context
         .sql
