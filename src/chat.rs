@@ -2510,6 +2510,25 @@ mod tests {
         assert!(forward_msgs(&t.ctx, &[msg_id], device_chat_id).is_err());
     }
 
+    #[test]
+    fn test_delete_and_reset_all_device_msgs() {
+        let t = test_context(Some(Box::new(logging_cb)));
+        let mut msg = Message::new(Viewtype::Text);
+        msg.text = Some("message text".to_string());
+        let msg_id1 = add_device_msg(&t.ctx, Some("some-label"), Some(&mut msg)).unwrap();
+
+        // adding a device message with the same label won't be executed again ...
+        assert!(was_device_msg_ever_added(&t.ctx, "some-label").unwrap());
+        let msg_id2 = add_device_msg(&t.ctx, Some("some-label"), Some(&mut msg)).unwrap();
+        assert!(msg_id2.is_unset());
+
+        // ... unless everything is deleted and resetted - as needed eg. on device switch
+        delete_and_reset_all_device_msgs(&t.ctx).unwrap();
+        assert!(!was_device_msg_ever_added(&t.ctx, "some-label").unwrap());
+        let msg_id3 = add_device_msg(&t.ctx, Some("some-label"), Some(&mut msg)).unwrap();
+        assert_ne!(msg_id1, msg_id3);
+    }
+
     fn chatlist_len(ctx: &Context, listflags: usize) -> usize {
         Chatlist::try_load(ctx, listflags, None, None)
             .unwrap()
