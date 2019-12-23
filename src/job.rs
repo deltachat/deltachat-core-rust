@@ -17,7 +17,7 @@ use crate::configure::*;
 use crate::constants::*;
 use crate::context::{Context, PerformJobsNeeded};
 use crate::dc_tools::*;
-use crate::error::Error;
+use crate::error::{Error, Result};
 use crate::events::Event;
 use crate::imap::*;
 use crate::imex::*;
@@ -41,11 +41,34 @@ enum Thread {
     Smtp = 5000,
 }
 
-#[derive(Debug, Display, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive)]
-enum TryAgain {
-    Dont,
-    AtOnce,
-    StandardDelay,
+/// Job try result.
+#[derive(Debug, Display)]
+pub enum Try {
+    Finished(std::result::Result<(), Error>),
+    RetryNow,
+    RetryLater,
+}
+
+impl std::ops::Try for Try {
+    type Ok = Try;
+    type Error = Error;
+
+    fn into_result(self) -> std::result::Result<Self::Ok, Self::Error> {
+        match self {
+            Self::Finished(Ok(())) => Ok(Self::Finished(Ok(()))),
+            Self::Finished(Err(err)) => Err(err),
+            Self::RetryNow => Ok(Self::RetryNow),
+            Self::RetryLater => Ok(Self::RetryLater),
+        }
+    }
+
+    fn from_error(e: Self::Error) -> Self {
+        Self::Finished(Err(e))
+    }
+
+    fn from_ok(_: Self::Ok) -> Self {
+        Self::Finished(Ok(()))
+    }
 }
 
 impl Default for Thread {
@@ -119,7 +142,6 @@ pub struct Job {
     pub added_timestamp: i64,
     pub tries: u32,
     pub param: Params,
-    try_again: TryAgain,
     pub pending_error: Option<String>,
 }
 
@@ -157,167 +179,162 @@ impl Job {
     }
 
     #[allow(non_snake_case)]
-    fn SendMsgToSmtp(&mut self, context: &Context) {
+    fn SendMsgToSmtp(&mut self, context: &Context) -> Try {
         /* connect to SMTP server, if not yet done */
         if !context.smtp.lock().unwrap().is_connected() {
             let loginparam = LoginParam::from_database(context, "configured_");
             if let Err(err) = context.smtp.lock().unwrap().connect(context, &loginparam) {
                 warn!(context, "SMTP connection failure: {:?}", err);
-                self.try_again_later(TryAgain::StandardDelay, None);
-                return;
+                return Try::RetryLater;
             }
         }
 
-        if let Some(filename) = self.param.get_path(Param::File, context).unwrap_or(None) {
-            if let Ok(body) = dc_read_file(context, &filename) {
-                if let Some(recipients) = self.param.get(Param::Recipients) {
-                    let recipients_list = recipients
-                        .split('\x1e')
-                        .filter_map(
-                            |addr| match async_smtp::EmailAddress::new(addr.to_string()) {
-                                Ok(addr) => Some(addr),
-                                Err(err) => {
-                                    warn!(context, "invalid recipient: {} {:?}", addr, err);
-                                    None
-                                }
-                            },
-                        )
-                        .collect::<Vec<_>>();
+        let filename = self
+            .param
+            .get_path(Param::File, context)
+            .map_err(|_| format_err!("Can't get filename"))?
+            .ok_or_else(|| format_err!("Can't get filename"))?;
+        let body = dc_read_file(context, &filename)?;
+        let recipients = self.param.get(Param::Recipients).ok_or_else(|| {
+            warn!(context, "Missing recipients for job {}", self.job_id);
+            format_err!("Missing recipients")
+        })?;
 
-                    /* if there is a msg-id and it does not exist in the db, cancel sending.
-                    this happends if dc_delete_msgs() was called
-                    before the generated mime was sent out */
-                    if 0 != self.foreign_id
-                        && !message::exists(context, MsgId::new(self.foreign_id))
-                    {
-                        warn!(
-                            context,
-                            "Not sending Message {} as it was deleted", self.foreign_id
-                        );
-                        return;
-                    };
+        let recipients_list = recipients
+            .split('\x1e')
+            .filter_map(
+                |addr| match async_smtp::EmailAddress::new(addr.to_string()) {
+                    Ok(addr) => Some(addr),
+                    Err(err) => {
+                        warn!(context, "invalid recipient: {} {:?}", addr, err);
+                        None
+                    }
+                },
+            )
+            .collect::<Vec<_>>();
 
-                    // hold the smtp lock during sending of a job and
-                    // its ok/error response processing. Note that if a message
-                    // was sent we need to mark it in the database ASAP as we
-                    // otherwise might send it twice.
-                    let mut smtp = context.smtp.lock().unwrap();
-                    if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
-                        info!(context, "smtp-sending out mime message:");
-                        println!("{}", String::from_utf8_lossy(&body));
-                    }
-                    match task::block_on(smtp.send(context, recipients_list, body, self.job_id)) {
-                        Err(crate::smtp::send::Error::SendError(err)) => {
-                            // Remote error, retry later.
-                            warn!(context, "SMTP failed to send: {}", err);
-                            smtp.disconnect();
-                            self.try_again_later(TryAgain::AtOnce, Some(err.to_string()));
-                        }
-                        Err(crate::smtp::send::Error::EnvelopeError(err)) => {
-                            // Local error, job is invalid, do not retry.
-                            smtp.disconnect();
-                            warn!(context, "SMTP job is invalid: {}", err);
-                        }
-                        Err(crate::smtp::send::Error::NoTransport) => {
-                            // Should never happen.
-                            // It does not even make sense to disconnect here.
-                            error!(context, "SMTP job failed because SMTP has no transport");
-                        }
-                        Ok(()) => {
-                            // smtp success, update db ASAP, then delete smtp file
-                            if 0 != self.foreign_id {
-                                set_delivered(context, MsgId::new(self.foreign_id));
-                            }
-                            // now also delete the generated file
-                            dc_delete_file(context, filename);
-                        }
-                    }
-                } else {
-                    warn!(context, "Missing recipients for job {}", self.job_id,);
+        /* if there is a msg-id and it does not exist in the db, cancel sending.
+        this happends if dc_delete_msgs() was called
+        before the generated mime was sent out */
+        if 0 != self.foreign_id && !message::exists(context, MsgId::new(self.foreign_id)) {
+            return Try::Finished(Err(format_err!(
+                "Not sending Message {} as it was deleted",
+                self.foreign_id
+            )));
+        };
+
+        // hold the smtp lock during sending of a job and
+        // its ok/error response processing. Note that if a message
+        // was sent we need to mark it in the database ASAP as we
+        // otherwise might send it twice.
+        let mut smtp = context.smtp.lock().unwrap();
+        if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
+            info!(context, "smtp-sending out mime message:");
+            println!("{}", String::from_utf8_lossy(&body));
+        }
+        match task::block_on(smtp.send(context, recipients_list, body, self.job_id)) {
+            Err(crate::smtp::send::Error::SendError(err)) => {
+                // Remote error, retry later.
+                warn!(context, "SMTP failed to send: {}", err);
+                smtp.disconnect();
+                self.pending_error = Some(err.to_string());
+                Try::RetryLater
+            }
+            Err(crate::smtp::send::Error::EnvelopeError(err)) => {
+                // Local error, job is invalid, do not retry.
+                smtp.disconnect();
+                warn!(context, "SMTP job is invalid: {}", err);
+                Try::Finished(Err(Error::SmtpError(err)))
+            }
+            Err(crate::smtp::send::Error::NoTransport) => {
+                // Should never happen.
+                // It does not even make sense to disconnect here.
+                error!(context, "SMTP job failed because SMTP has no transport");
+                Try::Finished(Err(format_err!("SMTP has not transport")))
+            }
+            Ok(()) => {
+                // smtp success, update db ASAP, then delete smtp file
+                if 0 != self.foreign_id {
+                    set_delivered(context, MsgId::new(self.foreign_id));
                 }
+                // now also delete the generated file
+                dc_delete_file(context, filename);
+                Try::Finished(Ok(()))
             }
         }
-    }
-
-    // this value does not increase the number of tries
-    fn try_again_later(&mut self, try_again: TryAgain, pending_error: Option<String>) {
-        self.try_again = try_again;
-        self.pending_error = pending_error;
     }
 
     #[allow(non_snake_case)]
-    fn MoveMsg(&mut self, context: &Context) {
+    fn MoveMsg(&mut self, context: &Context) -> Try {
         let imap_inbox = &context.inbox_thread.read().unwrap().imap;
 
-        if let Ok(msg) = Message::load_from_db(context, MsgId::new(self.foreign_id)) {
-            if let Err(err) = imap_inbox.ensure_configured_folders(context, true) {
-                self.try_again_later(TryAgain::StandardDelay, None);
-                warn!(context, "could not configure folders: {:?}", err);
-                return;
+        let msg = Message::load_from_db(context, MsgId::new(self.foreign_id))?;
+
+        if let Err(err) = imap_inbox.ensure_configured_folders(context, true) {
+            warn!(context, "could not configure folders: {:?}", err);
+            return Try::RetryLater;
+        }
+        let dest_folder = context
+            .sql
+            .get_raw_config(context, "configured_mvbox_folder");
+
+        if let Some(dest_folder) = dest_folder {
+            let server_folder = msg.server_folder.as_ref().unwrap();
+            let mut dest_uid = 0;
+
+            match imap_inbox.mv(
+                context,
+                server_folder,
+                msg.server_uid,
+                &dest_folder,
+                &mut dest_uid,
+            ) {
+                ImapActionResult::RetryLater => Try::RetryLater,
+                ImapActionResult::Success => {
+                    message::update_server_uid(context, &msg.rfc724_mid, &dest_folder, dest_uid);
+                    Try::Finished(Ok(()))
+                }
+                ImapActionResult::Failed => Try::Finished(Err(format_err!("IMAP action failed"))),
+                ImapActionResult::AlreadyDone => Try::Finished(Ok(())),
             }
-            let dest_folder = context
-                .sql
-                .get_raw_config(context, "configured_mvbox_folder");
+        } else {
+            Try::Finished(Err(format_err!("No mvbox folder configured")))
+        }
+    }
 
-            if let Some(dest_folder) = dest_folder {
-                let server_folder = msg.server_folder.as_ref().unwrap();
-                let mut dest_uid = 0;
+    #[allow(non_snake_case)]
+    fn DeleteMsgOnImap(&mut self, context: &Context) -> Try {
+        let imap_inbox = &context.inbox_thread.read().unwrap().imap;
 
-                match imap_inbox.mv(
+        let mut msg = Message::load_from_db(context, MsgId::new(self.foreign_id))?;
+
+        if !msg.rfc724_mid.is_empty() {
+            if message::rfc724_mid_cnt(context, &msg.rfc724_mid) > 1 {
+                info!(
                     context,
-                    server_folder,
-                    msg.server_uid,
-                    &dest_folder,
-                    &mut dest_uid,
-                ) {
-                    ImapActionResult::RetryLater => {
-                        self.try_again_later(TryAgain::StandardDelay, None);
-                    }
-                    ImapActionResult::Success => {
-                        message::update_server_uid(
-                            context,
-                            &msg.rfc724_mid,
-                            &dest_folder,
-                            dest_uid,
-                        );
-                    }
-                    ImapActionResult::Failed | ImapActionResult::AlreadyDone => {}
+                    "The message is deleted from the server when all parts are deleted.",
+                );
+            } else {
+                /* if this is the last existing part of the message,
+                we delete the message from the server */
+                let mid = msg.rfc724_mid;
+                let server_folder = msg.server_folder.as_ref().unwrap();
+                let res = imap_inbox.delete_msg(context, &mid, server_folder, &mut msg.server_uid);
+                if res == ImapActionResult::RetryLater {
+                    // XXX RetryLater is converted to RetryNow here
+                    return Try::RetryNow;
                 }
             }
+            Message::delete_from_db(context, msg.id);
+            Try::Finished(Ok(()))
+        } else {
+            /* eg. device messages have no Message-ID */
+            Try::Finished(Ok(()))
         }
     }
 
     #[allow(non_snake_case)]
-    fn DeleteMsgOnImap(&mut self, context: &Context) {
-        let imap_inbox = &context.inbox_thread.read().unwrap().imap;
-
-        if let Ok(mut msg) = Message::load_from_db(context, MsgId::new(self.foreign_id)) {
-            if !msg.rfc724_mid.is_empty() {
-                /* eg. device messages have no Message-ID */
-                if message::rfc724_mid_cnt(context, &msg.rfc724_mid) > 1 {
-                    info!(
-                        context,
-                        "The message is deleted from the server when all parts are deleted.",
-                    );
-                } else {
-                    /* if this is the last existing part of the message,
-                    we delete the message from the server */
-                    let mid = msg.rfc724_mid;
-                    let server_folder = msg.server_folder.as_ref().unwrap();
-                    let res =
-                        imap_inbox.delete_msg(context, &mid, server_folder, &mut msg.server_uid);
-                    if res == ImapActionResult::RetryLater {
-                        self.try_again_later(TryAgain::AtOnce, None);
-                        return;
-                    }
-                }
-                Message::delete_from_db(context, msg.id);
-            }
-        }
-    }
-
-    #[allow(non_snake_case)]
-    fn EmptyServer(&mut self, context: &Context) {
+    fn EmptyServer(&mut self, context: &Context) -> Try {
         let imap_inbox = &context.inbox_thread.read().unwrap().imap;
         if self.foreign_id & DC_EMPTY_MVBOX > 0 {
             if let Some(mvbox_folder) = context
@@ -330,38 +347,39 @@ impl Job {
         if self.foreign_id & DC_EMPTY_INBOX > 0 {
             imap_inbox.empty_folder(context, "INBOX");
         }
+        Try::Finished(Ok(()))
     }
 
     #[allow(non_snake_case)]
-    fn MarkseenMsgOnImap(&mut self, context: &Context) {
+    fn MarkseenMsgOnImap(&mut self, context: &Context) -> Try {
         let imap_inbox = &context.inbox_thread.read().unwrap().imap;
 
-        if let Ok(msg) = Message::load_from_db(context, MsgId::new(self.foreign_id)) {
-            let folder = msg.server_folder.as_ref().unwrap();
-            match imap_inbox.set_seen(context, folder, msg.server_uid) {
-                ImapActionResult::RetryLater => {
-                    self.try_again_later(TryAgain::StandardDelay, None);
-                }
-                ImapActionResult::AlreadyDone => {}
-                ImapActionResult::Success | ImapActionResult::Failed => {
-                    // XXX the message might just have been moved
-                    // we want to send out an MDN anyway
-                    // The job will not be retried so locally
-                    // there is no risk of double-sending MDNs.
-                    if 0 != msg.param.get_int(Param::WantsMdn).unwrap_or_default()
-                        && context.get_config_bool(Config::MdnsEnabled)
-                    {
-                        if let Err(err) = send_mdn(context, msg.id) {
-                            warn!(context, "could not send out mdn for {}: {}", msg.id, err);
-                        }
+        let msg = Message::load_from_db(context, MsgId::new(self.foreign_id))?;
+
+        let folder = msg.server_folder.as_ref().unwrap();
+        match imap_inbox.set_seen(context, folder, msg.server_uid) {
+            ImapActionResult::RetryLater => Try::RetryLater,
+            ImapActionResult::AlreadyDone => Try::Finished(Ok(())),
+            ImapActionResult::Success | ImapActionResult::Failed => {
+                // XXX the message might just have been moved
+                // we want to send out an MDN anyway
+                // The job will not be retried so locally
+                // there is no risk of double-sending MDNs.
+                if msg.param.get_bool(Param::WantsMdn).unwrap_or_default()
+                    && context.get_config_bool(Config::MdnsEnabled)
+                {
+                    if let Err(err) = send_mdn(context, msg.id) {
+                        warn!(context, "could not send out mdn for {}: {}", msg.id, err);
+                        return Try::Finished(Err(err));
                     }
                 }
+                Try::Finished(Ok(()))
             }
         }
     }
 
     #[allow(non_snake_case)]
-    fn MarkseenMdnOnImap(&mut self, context: &Context) {
+    fn MarkseenMdnOnImap(&mut self, context: &Context) -> Try {
         let folder = self
             .param
             .get(Param::ServerFolder)
@@ -370,14 +388,12 @@ impl Job {
         let uid = self.param.get_int(Param::ServerUid).unwrap_or_default() as u32;
         let imap_inbox = &context.inbox_thread.read().unwrap().imap;
         if imap_inbox.set_seen(context, &folder, uid) == ImapActionResult::RetryLater {
-            self.try_again_later(TryAgain::StandardDelay, None);
-            return;
+            return Try::RetryLater;
         }
-        if 0 != self.param.get_int(Param::AlsoMove).unwrap_or_default() {
+        if self.param.get_bool(Param::AlsoMove).unwrap_or_default() {
             if let Err(err) = imap_inbox.ensure_configured_folders(context, true) {
-                self.try_again_later(TryAgain::StandardDelay, None);
                 warn!(context, "configuring folders failed: {:?}", err);
-                return;
+                return Try::RetryLater;
             }
             let dest_folder = context
                 .sql
@@ -387,9 +403,15 @@ impl Job {
                 if ImapActionResult::RetryLater
                     == imap_inbox.mv(context, &folder, uid, &dest_folder, &mut dest_uid)
                 {
-                    self.try_again_later(TryAgain::StandardDelay, None);
+                    Try::RetryLater
+                } else {
+                    Try::Finished(Ok(()))
                 }
+            } else {
+                Try::Finished(Err(format_err!("MVBOX is not configured")))
             }
+        } else {
+            Try::Finished(Ok(()))
         }
     }
 }
@@ -631,7 +653,7 @@ fn set_delivered(context: &Context, msg_id: MsgId) {
 }
 
 /* special case for DC_JOB_SEND_MSG_TO_SMTP */
-pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<(), Error> {
+pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<()> {
     let mut msg = Message::load_from_db(context, msg_id)?;
     msg.try_calc_and_set_dimensions(context).ok();
 
@@ -761,50 +783,55 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
             suspend_smtp_thread(context, true);
         }
 
-        for tries in 0..2 {
-            info!(
-                context,
-                "{} performs immediate try {} of job {}", thread, tries, job
-            );
+        let try_res = (0..2)
+            .map(|tries| {
+                info!(
+                    context,
+                    "{} performs immediate try {} of job {}", thread, tries, job
+                );
 
-            // this can be modified by a job using dc_job_try_again_later()
-            job.try_again = TryAgain::Dont;
-
-            match job.action {
-                Action::Unknown => {
-                    info!(context, "Unknown job id found");
-                }
-                Action::SendMsgToSmtp => job.SendMsgToSmtp(context),
-                Action::EmptyServer => job.EmptyServer(context),
-                Action::DeleteMsgOnImap => job.DeleteMsgOnImap(context),
-                Action::MarkseenMsgOnImap => job.MarkseenMsgOnImap(context),
-                Action::MarkseenMdnOnImap => job.MarkseenMdnOnImap(context),
-                Action::MoveMsg => job.MoveMsg(context),
-                Action::SendMdn => job.SendMsgToSmtp(context),
-                Action::ConfigureImap => JobConfigureImap(context),
-                Action::ImexImap => match JobImexImap(context, &job) {
-                    Ok(()) => {}
-                    Err(err) => {
-                        error!(context, "{}", err);
+                let try_res = match job.action {
+                    Action::Unknown => Try::Finished(Err(format_err!("Unknown job id found"))),
+                    Action::SendMsgToSmtp => job.SendMsgToSmtp(context),
+                    Action::EmptyServer => job.EmptyServer(context),
+                    Action::DeleteMsgOnImap => job.DeleteMsgOnImap(context),
+                    Action::MarkseenMsgOnImap => job.MarkseenMsgOnImap(context),
+                    Action::MarkseenMdnOnImap => job.MarkseenMdnOnImap(context),
+                    Action::MoveMsg => job.MoveMsg(context),
+                    Action::SendMdn => job.SendMsgToSmtp(context),
+                    Action::ConfigureImap => JobConfigureImap(context),
+                    Action::ImexImap => match JobImexImap(context, &job) {
+                        Ok(()) => Try::Finished(Ok(())),
+                        Err(err) => {
+                            error!(context, "{}", err);
+                            Try::Finished(Err(err))
+                        }
+                    },
+                    Action::MaybeSendLocations => location::JobMaybeSendLocations(context, &job),
+                    Action::MaybeSendLocationsEnded => {
+                        location::JobMaybeSendLocationsEnded(context, &mut job)
                     }
-                },
-                Action::MaybeSendLocations => location::JobMaybeSendLocations(context, &job),
-                Action::MaybeSendLocationsEnded => {
-                    location::JobMaybeSendLocationsEnded(context, &mut job)
-                }
-                Action::Housekeeping => sql::housekeeping(context),
-                Action::SendMdnOld => {}
-                Action::SendMsgToSmtpOld => {}
-            }
+                    Action::Housekeeping => {
+                        sql::housekeeping(context);
+                        Try::Finished(Ok(()))
+                    }
+                    Action::SendMdnOld => Try::Finished(Ok(())),
+                    Action::SendMsgToSmtpOld => Try::Finished(Ok(())),
+                };
 
-            info!(
-                context,
-                "{} finished immediate try {} of job {}", thread, tries, job
-            );
-            if job.try_again != TryAgain::AtOnce {
-                break;
-            }
-        }
+                info!(
+                    context,
+                    "{} finished immediate try {} of job {}", thread, tries, job
+                );
+
+                try_res
+            })
+            .find(|try_res| match try_res {
+                Try::RetryNow => false,
+                _ => true,
+            })
+            .unwrap_or(Try::RetryNow);
+
         if Action::ConfigureImap == job.action || Action::ImexImap == job.action {
             context
                 .sentbox_thread
@@ -820,61 +847,79 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                 .unsuspend(context);
             suspend_smtp_thread(context, false);
             break;
-        } else if job.try_again == TryAgain::AtOnce || job.try_again == TryAgain::StandardDelay {
-            let tries = job.tries + 1;
+        }
 
-            if tries < JOB_RETRIES {
-                info!(
-                    context,
-                    "{} thread increases job {} tries to {}", thread, job, tries
-                );
-                job.tries = tries;
-                let time_offset = get_backoff_time_offset(tries);
-                job.desired_timestamp = time() + time_offset;
-                job.update(context);
-                info!(
-                    context,
-                    "{}-job #{} not succeeded on try #{}, retry in {} seconds.",
-                    thread,
-                    job.job_id as u32,
-                    tries,
-                    time_offset
-                );
-                if thread == Thread::Smtp && tries < JOB_RETRIES - 1 {
-                    context
-                        .smtp_state
-                        .clone()
-                        .0
-                        .lock()
-                        .unwrap()
-                        .perform_jobs_needed = PerformJobsNeeded::AvoidDos;
-                }
-            } else {
-                info!(
-                    context,
-                    "{} thread removes job {} as it exhausted {} retries", thread, job, JOB_RETRIES
-                );
-                if job.action == Action::SendMsgToSmtp {
-                    message::set_msg_failed(
+        match try_res {
+            Try::RetryNow | Try::RetryLater => {
+                let tries = job.tries + 1;
+
+                if tries < JOB_RETRIES {
+                    info!(
                         context,
-                        MsgId::new(job.foreign_id),
-                        job.pending_error.as_ref(),
+                        "{} thread increases job {} tries to {}", thread, job, tries
+                    );
+                    job.tries = tries;
+                    let time_offset = get_backoff_time_offset(tries);
+                    job.desired_timestamp = time() + time_offset;
+                    job.update(context);
+                    info!(
+                        context,
+                        "{}-job #{} not succeeded on try #{}, retry in {} seconds.",
+                        thread,
+                        job.job_id as u32,
+                        tries,
+                        time_offset
+                    );
+                    if thread == Thread::Smtp && tries < JOB_RETRIES - 1 {
+                        context
+                            .smtp_state
+                            .clone()
+                            .0
+                            .lock()
+                            .unwrap()
+                            .perform_jobs_needed = PerformJobsNeeded::AvoidDos;
+                    }
+                } else {
+                    info!(
+                        context,
+                        "{} thread removes job {} as it exhausted {} retries",
+                        thread,
+                        job,
+                        JOB_RETRIES
+                    );
+                    if job.action == Action::SendMsgToSmtp {
+                        message::set_msg_failed(
+                            context,
+                            MsgId::new(job.foreign_id),
+                            job.pending_error.as_ref(),
+                        );
+                    }
+                    job.delete(context);
+                }
+                if !probe_network {
+                    continue;
+                }
+                // on dc_maybe_network() we stop trying here;
+                // these jobs are already tried once.
+                // otherwise, we just continue with the next job
+                // to give other jobs a chance being tried at least once.
+                break;
+            }
+            Try::Finished(res) => {
+                if let Err(err) = res {
+                    warn!(
+                        context,
+                        "{} removes job {} as it failed with error {:?}", thread, job, err
+                    );
+                } else {
+                    info!(
+                        context,
+                        "{} removes job {} as it cannot be retried", thread, job
                     );
                 }
+
                 job.delete(context);
             }
-            if !probe_network {
-                continue;
-            }
-            // on dc_maybe_network() we stop trying here;
-            // these jobs are already tried once.
-            // otherwise, we just continue with the next job
-            // to give other jobs a chance being tried at least once.
-            break;
-        } else {
-            // Job finished successfully or cannot be retried.
-            info!(context, "{} removes job {}", thread, job);
-            job.delete(context);
         }
     }
 }
@@ -902,7 +947,7 @@ fn suspend_smtp_thread(context: &Context, suspend: bool) {
     }
 }
 
-fn send_mdn(context: &Context, msg_id: MsgId) -> Result<(), Error> {
+fn send_mdn(context: &Context, msg_id: MsgId) -> Result<()> {
     let msg = Message::load_from_db(context, msg_id)?;
     let mimefactory = MimeFactory::from_mdn(context, &msg)?;
     let rendered_msg = mimefactory.render()?;
@@ -912,11 +957,7 @@ fn send_mdn(context: &Context, msg_id: MsgId) -> Result<(), Error> {
     Ok(())
 }
 
-fn add_smtp_job(
-    context: &Context,
-    action: Action,
-    rendered_msg: &RenderedEmail,
-) -> Result<(), Error> {
+fn add_smtp_job(context: &Context, action: Action, rendered_msg: &RenderedEmail) -> Result<()> {
     ensure!(
         !rendered_msg.recipients.is_empty(),
         "no recipients for smtp job set"
@@ -1035,7 +1076,6 @@ fn load_jobs(context: &Context, thread: Thread, probe_network: bool) -> Vec<Job>
                     added_timestamp: row.get(4)?,
                     tries: row.get(6)?,
                     param: row.get::<_, String>(3)?.parse().unwrap_or_default(),
-                    try_again: TryAgain::Dont,
                     pending_error: None,
                 };
 
