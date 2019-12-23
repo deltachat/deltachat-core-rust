@@ -873,10 +873,8 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
             // to give other jobs a chance being tried at least once.
             break;
         } else {
-            info!(
-                context,
-                "{} removes job {} as it cannot be retried", thread, job
-            );
+            // Job finished successfully or cannot be retried.
+            info!(context, "{} removes job {}", thread, job);
             job.delete(context);
         }
     }
