@@ -46,6 +46,9 @@ pub enum Error {
     #[fail(display = "Building invalid Email: {:?}", _0)]
     LettreError(#[cause] lettre_email::error::Error),
 
+    #[fail(display = "SMTP error: {:?}", _0)]
+    SmtpError(#[cause] async_smtp::error::Error),
+
     #[fail(display = "FromStr error: {:?}", _0)]
     FromStr(#[cause] mime::FromStrError),
 

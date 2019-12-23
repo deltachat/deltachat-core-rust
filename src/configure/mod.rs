@@ -50,15 +50,15 @@ pub fn dc_is_configured(context: &Context) -> bool {
  * Configure JOB
  ******************************************************************************/
 #[allow(non_snake_case, unused_must_use)]
-pub fn JobConfigureImap(context: &Context) {
+pub fn JobConfigureImap(context: &Context) -> Try {
     if !context.sql.is_open() {
         error!(context, "Cannot configure, database not opened.",);
         progress!(context, 0);
-        return;
+        return Try::Finished(Err(format_err!("Database not opened")));
     }
     if !context.alloc_ongoing() {
         progress!(context, 0);
-        return;
+        return Try::Finished(Err(format_err!("Cannot allocated ongoing process")));
     }
     let mut success = false;
     let mut imap_connected_here = false;
@@ -441,6 +441,7 @@ pub fn JobConfigureImap(context: &Context) {
 
     context.free_ongoing();
     progress!(context, if success { 1000 } else { 0 });
+    Try::Finished(Ok(()))
 }
 
 fn get_offline_autoconfig(context: &Context, param: &LoginParam) -> Option<LoginParam> {
