@@ -161,8 +161,8 @@ impl Job {
         /* connect to SMTP server, if not yet done */
         if !context.smtp.lock().unwrap().is_connected() {
             let loginparam = LoginParam::from_database(context, "configured_");
-            let connected = context.smtp.lock().unwrap().connect(context, &loginparam);
-            if connected.is_err() {
+            if let Err(err) = context.smtp.lock().unwrap().connect(context, &loginparam) {
+                warn!(context, "SMTP connection failure: {:?}", err);
                 self.try_again_later(TryAgain::StandardDelay, None);
                 return;
             }
