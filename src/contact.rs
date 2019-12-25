@@ -125,7 +125,7 @@ pub enum Origin {
     /// set on Bob's side for contacts scanned and verified from a QR code. Only means the contact has once been established using the "securejoin" procedure in the past, getting the current key verification status requires calling dc_contact_is_verified() !
     SecurejoinJoined = 0x0200_0000,
 
-    /// contact added mannually by dc_create_contact(), this should be the largets origin as otherwise the user cannot modify the names
+    /// contact added mannually by dc_create_contact(), this should be the largest origin as otherwise the user cannot modify the names
     ManuallyCreated = 0x0400_0000,
 }
 
@@ -410,19 +410,30 @@ impl Contact {
                 }
                 sth_modified = Modifier::Modified;
             }
-        } else if sql::execute(
-            context,
-            &context.sql,
-            "INSERT INTO contacts (name, addr, origin) VALUES(?, ?, ?);",
-            params![name.as_ref(), addr, origin,],
-        )
-        .is_ok()
-        {
-            row_id = sql::get_rowid(context, &context.sql, "contacts", "addr", addr);
-            sth_modified = Modifier::Created;
-            info!(context, "added contact id={} addr={}", row_id, addr);
         } else {
-            error!(context, "Cannot add contact.");
+            if origin == Origin::IncomingUnknownFrom {
+                update_authname = true;
+            }
+
+            if sql::execute(
+                context,
+                &context.sql,
+                "INSERT INTO contacts (name, addr, origin, authname) VALUES(?, ?, ?, ?);",
+                params![
+                    name.as_ref(),
+                    addr,
+                    origin,
+                    if update_authname { name.as_ref() } else { "" }
+                ],
+            )
+            .is_ok()
+            {
+                row_id = sql::get_rowid(context, &context.sql, "contacts", "addr", addr);
+                sth_modified = Modifier::Created;
+                info!(context, "added contact id={} addr={}", row_id, addr);
+            } else {
+                error!(context, "Cannot add contact.");
+            }
         }
 
         Ok((row_id, sth_modified))
@@ -768,6 +779,9 @@ impl Contact {
             return &self.name;
         }
         if !self.authname.is_empty() {
+            // normally, name is initialized by authname and this condition would not be needed.
+            // however, for some resilience against some maybe corrupted dev-versions,
+            // we do this extra-check for now.
             return &self.authname;
         }
         &self.addr
