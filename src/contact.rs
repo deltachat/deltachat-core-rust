@@ -1282,6 +1282,63 @@ mod tests {
     }
 
     #[test]
+    fn test_remote_authnames() {
+        let t = dummy_context();
+
+        let (contact_id, sth_modified) = Contact::add_or_lookup(
+            &t.ctx,
+            "bob1",
+            "bob@example.org",
+            Origin::IncomingUnknownFrom,
+        )
+        .unwrap();
+        assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
+        assert_eq!(sth_modified, Modifier::Created);
+        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        assert_eq!(contact.get_authname(), "bob1");
+        assert_eq!(contact.get_name(), "bob1");
+        assert_eq!(contact.get_display_name(), "bob1");
+
+        let (contact_id, sth_modified) = Contact::add_or_lookup(
+            &t.ctx,
+            "bob2",
+            "bob@example.org",
+            Origin::IncomingUnknownFrom,
+        )
+        .unwrap();
+        assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
+        assert_eq!(sth_modified, Modifier::Modified);
+        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        assert_eq!(contact.get_authname(), "bob2");
+        assert_eq!(contact.get_name(), "bob2");
+        assert_eq!(contact.get_display_name(), "bob2");
+
+        let (contact_id, sth_modified) =
+            Contact::add_or_lookup(&t.ctx, "bob3", "bob@example.org", Origin::ManuallyCreated)
+                .unwrap();
+        assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
+        assert_eq!(sth_modified, Modifier::Modified);
+        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        assert_eq!(contact.get_authname(), "bob2");
+        assert_eq!(contact.get_name(), "bob3");
+        assert_eq!(contact.get_display_name(), "bob3");
+
+        let (contact_id, sth_modified) = Contact::add_or_lookup(
+            &t.ctx,
+            "bob4",
+            "bob@example.org",
+            Origin::IncomingUnknownFrom,
+        )
+        .unwrap();
+        assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
+        assert_eq!(sth_modified, Modifier::Modified);
+        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        assert_eq!(contact.get_authname(), "bob4");
+        assert_eq!(contact.get_name(), "bob3");
+        assert_eq!(contact.get_display_name(), "bob3");
+    }
+
+    #[test]
     fn test_addr_cmp() {
         assert!(addr_cmp("AA@AA.ORG", "aa@aa.ORG"));
         assert!(addr_cmp(" aa@aa.ORG ", "AA@AA.ORG"));
