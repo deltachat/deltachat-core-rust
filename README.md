@@ -115,7 +115,7 @@ $ cargo test -- --ignored
 [appveyor-shield]: https://ci.appveyor.com/api/projects/status/lqpegel3ld4ipxj8/branch/master?style=flat-square
 [appveyor]: https://ci.appveyor.com/project/dignifiedquire/deltachat-core-rust/branch/master
 
-## Language bindings
+## Language bindings and frontend projects
 
 Language bindings are available for:
 
@@ -124,3 +124,12 @@ Language bindings are available for:
 - [Python](https://py.delta.chat)
 - [Go](https://github.com/hugot/go-deltachat/)
 - **Java** and **Swift** (contained in the Android/iOS repos)
+
+The following "frontend" projects make use of the Rust-library
+or its language bindings:
+
+- [Android](https://github.com/deltachat/deltachat-android)
+- [iOS](https://github.com/deltachat/deltachat-ios)
+- [Desktop](https://github.com/deltachat/deltachat-desktop)
+- [Pidgin](https://code.ur.gs/lupine/purple-plugin-delta/)
+- several **Bots**
