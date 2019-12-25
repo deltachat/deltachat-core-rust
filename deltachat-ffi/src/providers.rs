@@ -86,8 +86,6 @@ pub unsafe extern "C" fn dc_provider_get_status(provider: *const dc_provider_t) 
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_provider_unref(_provider: *const dc_provider_t) {
-    ()
-}
+pub unsafe extern "C" fn dc_provider_unref(_provider: *const dc_provider_t) {}
 
 // TODO expose general provider overview url?

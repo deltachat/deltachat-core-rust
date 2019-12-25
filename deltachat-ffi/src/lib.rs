@@ -3,7 +3,9 @@
     non_snake_case,
     non_upper_case_globals,
     non_upper_case_globals,
-    non_camel_case_types
+    non_camel_case_types,
+    clippy::missing_safety_doc,
+    clippy::expect_fun_call
 )]
 
 #[macro_use]
@@ -413,7 +415,7 @@ fn render_info(
 ) -> std::result::Result<String, std::fmt::Error> {
     let mut res = String::new();
     for (key, value) in &info {
-        write!(&mut res, "{}={}\n", key, value)?;
+        writeln!(&mut res, "{}={}", key, value)?;
     }
 
     Ok(res)
@@ -1344,7 +1346,7 @@ pub unsafe extern "C" fn dc_get_mime_headers(
         .with_inner(|ctx| {
             message::get_mime_headers(ctx, MsgId::new(msg_id))
                 .map(|s| s.strdup())
-                .unwrap_or_else(|| ptr::null_mut())
+                .unwrap_or_else(ptr::null_mut)
         })
         .unwrap_or_else(|_| ptr::null_mut())
 }
@@ -1811,7 +1813,7 @@ pub unsafe extern "C" fn dc_get_securejoin_qr(
     ffi_context
         .with_inner(|ctx| {
             securejoin::dc_get_securejoin_qr(ctx, chat_id)
-                .unwrap_or("".to_string())
+                .unwrap_or_else(|| "".to_string())
                 .strdup()
         })
         .unwrap_or_else(|_| "".strdup())
@@ -2599,7 +2601,7 @@ pub unsafe extern "C" fn dc_msg_get_filemime(msg: *mut dc_msg_t) -> *mut libc::c
     if let Some(x) = ffi_msg.message.get_filemime() {
         x.strdup()
     } else {
-        return dc_strdup(ptr::null());
+        dc_strdup(ptr::null())
     }
 }
 
@@ -2991,7 +2993,7 @@ pub unsafe extern "C" fn dc_contact_get_profile_image(
                 .contact
                 .get_profile_image(ctx)
                 .map(|p| p.to_string_lossy().strdup())
-                .unwrap_or_else(|| std::ptr::null_mut())
+                .unwrap_or_else(std::ptr::null_mut)
         })
         .unwrap_or_else(|_| ptr::null_mut())
 }
