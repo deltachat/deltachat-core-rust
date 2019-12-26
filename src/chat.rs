@@ -720,6 +720,28 @@ pub fn update_device_icon(context: &Context) -> Result<(), Error> {
     Ok(())
 }
 
+fn update_special_chat_name(
+    context: &Context,
+    contact_id: u32,
+    stock_id: StockMessage,
+) -> Result<(), Error> {
+    if let Ok((chat_id, _)) = lookup_by_contact_id(context, contact_id) {
+        let name: String = context.stock_str(stock_id).into();
+        // the `!= name` condition avoids unneeded writes
+        context.sql.execute(
+            "UPDATE chats SET name=? WHERE id=? AND name!=?;",
+            params![name, chat_id, name],
+        )?;
+    }
+    Ok(())
+}
+
+pub fn update_special_chat_names(context: &Context) -> Result<(), Error> {
+    update_special_chat_name(context, DC_CONTACT_ID_DEVICE, StockMessage::DeviceMessages)?;
+    update_special_chat_name(context, DC_CONTACT_ID_SELF, StockMessage::SavedMessages)?;
+    Ok(())
+}
+
 pub fn create_or_lookup_by_contact_id(
     context: &Context,
     contact_id: u32,

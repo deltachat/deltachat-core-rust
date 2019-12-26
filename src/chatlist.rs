@@ -162,6 +162,10 @@ impl Chatlist {
             let query = query.trim().to_string();
             ensure!(!query.is_empty(), "missing query");
 
+            // allow searching over special names that may change at any time
+            // when the ui calls set_stock_translation()
+            update_special_chat_names(context)?;
+
             let str_like_cmd = format!("%{}%", query);
             context.sql.query_map(
                 "SELECT c.id, m.id
