@@ -523,6 +523,7 @@ impl Chat {
 
 /// The current state of a chat.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct ChatInfo {
     /// The chat ID.
     pub id: u32,
