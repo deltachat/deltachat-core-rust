@@ -384,4 +384,27 @@ mod tests {
         let chats = Chatlist::try_load(&t.ctx, DC_GCL_ARCHIVED_ONLY, None, None).unwrap();
         assert_eq!(chats.len(), 1);
     }
+
+    #[test]
+    fn test_search_special_chat_names() {
+        let t = dummy_context();
+        t.ctx.update_device_chats().unwrap();
+
+        let chats = Chatlist::try_load(&t.ctx, 0, Some("t-1234-s"), None).unwrap();
+        assert_eq!(chats.len(), 0);
+        let chats = Chatlist::try_load(&t.ctx, 0, Some("t-5678-b"), None).unwrap();
+        assert_eq!(chats.len(), 0);
+
+        t.ctx
+            .set_stock_translation(StockMessage::SavedMessages, "test-1234-save".to_string())
+            .unwrap();
+        let chats = Chatlist::try_load(&t.ctx, 0, Some("t-1234-s"), None).unwrap();
+        assert_eq!(chats.len(), 1);
+
+        t.ctx
+            .set_stock_translation(StockMessage::DeviceMessages, "test-5678-babbel".to_string())
+            .unwrap();
+        let chats = Chatlist::try_load(&t.ctx, 0, Some("t-5678-b"), None).unwrap();
+        assert_eq!(chats.len(), 1);
+    }
 }
