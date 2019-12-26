@@ -271,7 +271,8 @@ impl Oauth2 {
         {
             match domain {
                 "gmail.com" | "googlemail.com" => Some(OAUTH2_GMAIL),
-                "yandex.com" | "yandex.ru" | "yandex.ua" => Some(OAUTH2_YANDEX),
+                "yandex.com" | "yandex.by" | "yandex.kz" | "yandex.ru" | "yandex.ua" | "ya.ru"
+                | "narod.ru" => Some(OAUTH2_YANDEX),
                 _ => None,
             }
         } else {
