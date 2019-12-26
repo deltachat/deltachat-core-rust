@@ -260,7 +260,6 @@ pub fn dc_derive_safe_stem_ext(filename: &str) -> (String, String) {
 }
 
 // the returned suffix is lower-case
-#[allow(non_snake_case)]
 pub fn dc_get_filesuffix_lc(path_filename: impl AsRef<str>) -> Option<String> {
     Path::new(path_filename.as_ref())
         .extension()

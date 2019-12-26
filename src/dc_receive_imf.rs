@@ -1233,7 +1233,6 @@ fn hex_hash(s: impl AsRef<str>) -> String {
     hex::encode(&result[..8])
 }
 
-#[allow(non_snake_case)]
 fn search_chat_ids_by_contact_ids(
     context: &Context,
     unsorted_contact_ids: &[u32],

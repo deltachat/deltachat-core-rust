@@ -2,7 +2,6 @@ use crate::location::Location;
 
 /* * the structure behind dc_array_t */
 #[derive(Debug, Clone)]
-#[allow(non_camel_case_types)]
 pub enum dc_array_t {
     Locations(Vec<Location>),
     Uint(Vec<u32>),

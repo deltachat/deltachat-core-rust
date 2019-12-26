@@ -631,7 +631,6 @@ fn set_delivered(context: &Context, msg_id: MsgId) {
 }
 
 /* special case for DC_JOB_SEND_MSG_TO_SMTP */
-#[allow(non_snake_case)]
 pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<(), Error> {
     let mut msg = Message::load_from_db(context, msg_id)?;
     msg.try_calc_and_set_dimensions(context).ok();
@@ -913,7 +912,6 @@ fn send_mdn(context: &Context, msg_id: MsgId) -> Result<(), Error> {
     Ok(())
 }
 
-#[allow(non_snake_case)]
 fn add_smtp_job(
     context: &Context,
     action: Action,
