@@ -1,5 +1,5 @@
 //! # Constants
-#![allow(non_camel_case_types, dead_code)]
+#![allow(dead_code)]
 
 use deltachat_derive::*;
 use lazy_static::lazy_static;

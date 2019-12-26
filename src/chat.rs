@@ -1547,7 +1547,6 @@ pub fn add_contact_to_chat(context: &Context, chat_id: u32, contact_id: u32) -> 
     }
 }
 
-#[allow(non_snake_case)]
 pub(crate) fn add_contact_to_chat_ex(
     context: &Context,
     chat_id: u32,
@@ -1928,7 +1927,6 @@ pub fn set_chat_name(
 /// The profile image can only be set when you are a member of the
 /// chat.  To remove the profile image pass an empty string for the
 /// `new_image` parameter.
-#[allow(non_snake_case)]
 pub fn set_chat_profile_image(
     context: &Context,
     chat_id: u32,
