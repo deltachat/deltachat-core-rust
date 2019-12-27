@@ -4,7 +4,6 @@
 #![allow(clippy::match_bool)]
 #![feature(ptr_wrapping_offset_from)]
 #![feature(drain_filter)]
-#![feature(try_trait)]
 
 #[macro_use]
 extern crate failure_derive;
@@ -43,6 +42,7 @@ mod e2ee;
 mod imap;
 mod imap_client;
 pub mod imex;
+#[macro_use]
 pub mod job;
 mod job_thread;
 pub mod key;

@@ -49,26 +49,19 @@ pub enum Try {
     RetryLater,
 }
 
-impl std::ops::Try for Try {
-    type Ok = Try;
-    type Error = Error;
-
-    fn into_result(self) -> std::result::Result<Self::Ok, Self::Error> {
-        match self {
-            Self::Finished(Ok(())) => Ok(Self::Finished(Ok(()))),
-            Self::Finished(Err(err)) => Err(err),
-            Self::RetryNow => Ok(Self::RetryNow),
-            Self::RetryLater => Ok(Self::RetryLater),
+#[macro_export]
+macro_rules! job_try {
+    ($expr:expr) => {
+        match $expr {
+            ::std::result::Result::Ok(val) => val,
+            ::std::result::Result::Err(err) => {
+                return $crate::job::Try::Finished(Err(err.into()));
+            }
         }
-    }
-
-    fn from_error(e: Self::Error) -> Self {
-        Self::Finished(Err(e))
-    }
-
-    fn from_ok(_: Self::Ok) -> Self {
-        Self::Finished(Ok(()))
-    }
+    };
+    ($expr:expr,) => {
+        $crate::job_try!($expr)
+    };
 }
 
 impl Default for Thread {
@@ -189,16 +182,16 @@ impl Job {
             }
         }
 
-        let filename = self
+        let filename = job_try!(job_try!(self
             .param
             .get_path(Param::File, context)
-            .map_err(|_| format_err!("Can't get filename"))?
-            .ok_or_else(|| format_err!("Can't get filename"))?;
-        let body = dc_read_file(context, &filename)?;
-        let recipients = self.param.get(Param::Recipients).ok_or_else(|| {
+            .map_err(|_| format_err!("Can't get filename")))
+        .ok_or_else(|| format_err!("Can't get filename")));
+        let body = job_try!(dc_read_file(context, &filename));
+        let recipients = job_try!(self.param.get(Param::Recipients).ok_or_else(|| {
             warn!(context, "Missing recipients for job {}", self.job_id);
             format_err!("Missing recipients")
-        })?;
+        }));
 
         let recipients_list = recipients
             .split('\x1e')
@@ -268,7 +261,7 @@ impl Job {
     fn MoveMsg(&mut self, context: &Context) -> Try {
         let imap_inbox = &context.inbox_thread.read().unwrap().imap;
 
-        let msg = Message::load_from_db(context, MsgId::new(self.foreign_id))?;
+        let msg = job_try!(Message::load_from_db(context, MsgId::new(self.foreign_id)));
 
         if let Err(err) = imap_inbox.ensure_configured_folders(context, true) {
             warn!(context, "could not configure folders: {:?}", err);
@@ -306,7 +299,7 @@ impl Job {
     fn DeleteMsgOnImap(&mut self, context: &Context) -> Try {
         let imap_inbox = &context.inbox_thread.read().unwrap().imap;
 
-        let mut msg = Message::load_from_db(context, MsgId::new(self.foreign_id))?;
+        let mut msg = job_try!(Message::load_from_db(context, MsgId::new(self.foreign_id)));
 
         if !msg.rfc724_mid.is_empty() {
             if message::rfc724_mid_cnt(context, &msg.rfc724_mid) > 1 {
@@ -354,7 +347,7 @@ impl Job {
     fn MarkseenMsgOnImap(&mut self, context: &Context) -> Try {
         let imap_inbox = &context.inbox_thread.read().unwrap().imap;
 
-        let msg = Message::load_from_db(context, MsgId::new(self.foreign_id))?;
+        let msg = job_try!(Message::load_from_db(context, MsgId::new(self.foreign_id)));
 
         let folder = msg.server_folder.as_ref().unwrap();
         match imap_inbox.set_seen(context, folder, msg.server_uid) {
