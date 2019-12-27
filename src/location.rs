@@ -640,11 +640,11 @@ pub fn JobMaybeSendLocationsEnded(context: &Context, job: &mut Job) -> Try {
 
     let chat_id = job.foreign_id;
 
-    let (send_begin, send_until) = context.sql.query_row(
+    let (send_begin, send_until) = job_try!(context.sql.query_row(
         "SELECT locations_send_begin, locations_send_until  FROM chats  WHERE id=?",
         params![chat_id as i32],
         |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
-    )?;
+    ));
 
     if !(send_begin != 0 && time() <= send_until) {
         // still streaming -
@@ -652,10 +652,10 @@ pub fn JobMaybeSendLocationsEnded(context: &Context, job: &mut Job) -> Try {
         // do not un-schedule pending DC_MAYBE_SEND_LOC_ENDED jobs
         if !(send_begin == 0 && send_until == 0) {
             // not streaming, device-message already sent
-            context.sql.execute(
+            job_try!(context.sql.execute(
                 "UPDATE chats    SET locations_send_begin=0, locations_send_until=0  WHERE id=?",
                 params![chat_id as i32],
-            )?;
+            ));
 
             let stock_str = context.stock_system_msg(StockMessage::MsgLocationDisabled, "", "", 0);
             chat::add_info_msg(context, chat_id, stock_str);
