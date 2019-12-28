@@ -124,7 +124,10 @@ pub fn dc_receive_imf(
             incoming_origin = Origin::OutgoingBcc;
         } else if !from_ids.is_empty() {
             from_id = from_ids.get_index(0).cloned().unwrap_or_default();
-            incoming_origin = Contact::get_origin_by_id(context, from_id, &mut from_id_blocked)
+            if let Ok(contact) = Contact::load_from_db(context, from_id) {
+                incoming_origin = contact.origin;
+                from_id_blocked = contact.blocked;
+            }
         } else {
             warn!(context, "mail has an empty From header: {:?}", field_from);
             // if there is no from given, from_id stays 0 which is just fine. These messages
