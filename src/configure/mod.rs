@@ -13,7 +13,7 @@ use crate::constants::*;
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::e2ee;
-use crate::job::*;
+use crate::job::{self, job_add, job_kill_action};
 use crate::login_param::{CertificateChecks, LoginParam};
 use crate::oauth2::*;
 use crate::param::Params;
@@ -37,8 +37,8 @@ pub fn configure(context: &Context) {
         warn!(context, "There is already another ongoing process running.",);
         return;
     }
-    job_kill_action(context, Action::ConfigureImap);
-    job_add(context, Action::ConfigureImap, 0, Params::new(), 0);
+    job_kill_action(context, job::Action::ConfigureImap);
+    job_add(context, job::Action::ConfigureImap, 0, Params::new(), 0);
 }
 
 /// Check if the context is already configured.
@@ -50,15 +50,15 @@ pub fn dc_is_configured(context: &Context) -> bool {
  * Configure JOB
  ******************************************************************************/
 #[allow(non_snake_case, unused_must_use)]
-pub fn JobConfigureImap(context: &Context) -> Try {
+pub fn JobConfigureImap(context: &Context) -> job::Status {
     if !context.sql.is_open() {
         error!(context, "Cannot configure, database not opened.",);
         progress!(context, 0);
-        return Try::Finished(Err(format_err!("Database not opened")));
+        return job::Status::Finished(Err(format_err!("Database not opened")));
     }
     if !context.alloc_ongoing() {
         progress!(context, 0);
-        return Try::Finished(Err(format_err!("Cannot allocated ongoing process")));
+        return job::Status::Finished(Err(format_err!("Cannot allocated ongoing process")));
     }
     let mut success = false;
     let mut imap_connected_here = false;
@@ -441,7 +441,7 @@ pub fn JobConfigureImap(context: &Context) -> Try {
 
     context.free_ongoing();
     progress!(context, if success { 1000 } else { 0 });
-    Try::Finished(Ok(()))
+    job::Status::Finished(Ok(()))
 }
 
 fn get_offline_autoconfig(context: &Context, param: &LoginParam) -> Option<LoginParam> {
