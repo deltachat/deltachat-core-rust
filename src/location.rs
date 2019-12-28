@@ -11,7 +11,7 @@ use crate::context::*;
 use crate::dc_tools::*;
 use crate::error::Error;
 use crate::events::Event;
-use crate::job::*;
+use crate::job::{self, job_action_exists, job_add, Job};
 use crate::message::{Message, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::param::*;
@@ -228,7 +228,7 @@ pub fn send_locations_to_chat(context: &Context, chat_id: u32, seconds: i64) {
                 schedule_MAYBE_SEND_LOCATIONS(context, false);
                 job_add(
                     context,
-                    Action::MaybeSendLocationsEnded,
+                    job::Action::MaybeSendLocationsEnded,
                     chat_id as i32,
                     Params::new(),
                     seconds + 1,
@@ -240,8 +240,14 @@ pub fn send_locations_to_chat(context: &Context, chat_id: u32, seconds: i64) {
 
 #[allow(non_snake_case)]
 fn schedule_MAYBE_SEND_LOCATIONS(context: &Context, force_schedule: bool) {
-    if force_schedule || !job_action_exists(context, Action::MaybeSendLocations) {
-        job_add(context, Action::MaybeSendLocations, 0, Params::new(), 60);
+    if force_schedule || !job_action_exists(context, job::Action::MaybeSendLocations) {
+        job_add(
+            context,
+            job::Action::MaybeSendLocations,
+            0,
+            Params::new(),
+            60,
+        );
     };
 }
 
@@ -542,7 +548,7 @@ pub fn save(
 }
 
 #[allow(non_snake_case)]
-pub fn JobMaybeSendLocations(context: &Context, _job: &Job) -> Try {
+pub fn JobMaybeSendLocations(context: &Context, _job: &Job) -> job::Status {
     let now = time();
     let mut continue_streaming = false;
     info!(
@@ -629,11 +635,11 @@ pub fn JobMaybeSendLocations(context: &Context, _job: &Job) -> Try {
     if continue_streaming {
         schedule_MAYBE_SEND_LOCATIONS(context, true);
     }
-    Try::Finished(Ok(()))
+    job::Status::Finished(Ok(()))
 }
 
 #[allow(non_snake_case)]
-pub fn JobMaybeSendLocationsEnded(context: &Context, job: &mut Job) -> Try {
+pub fn JobMaybeSendLocationsEnded(context: &Context, job: &mut Job) -> job::Status {
     // this function is called when location-streaming _might_ have ended for a chat.
     // the function checks, if location-streaming is really ended;
     // if so, a device-message is added if not yet done.
@@ -662,7 +668,7 @@ pub fn JobMaybeSendLocationsEnded(context: &Context, job: &mut Job) -> Try {
             context.call_cb(Event::ChatModified(chat_id));
         }
     }
-    Try::Finished(Ok(()))
+    job::Status::Finished(Ok(()))
 }
 
 #[cfg(test)]
