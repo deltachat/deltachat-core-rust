@@ -112,17 +112,17 @@ pub fn dc_receive_imf(
             &field_from,
             Origin::IncomingUnknownFrom,
         )?;
-        if from_ids.len() > 1 {
-            warn!(
-                context,
-                "mail has more than one From address, only using first: {:?}", field_from
-            );
-        }
         if from_ids.contains(&DC_CONTACT_ID_SELF) {
             incoming = false;
             from_id = DC_CONTACT_ID_SELF;
             incoming_origin = Origin::OutgoingBcc;
         } else if !from_ids.is_empty() {
+            if from_ids.len() > 1 {
+                warn!(
+                    context,
+                    "mail has more than one From address, only using first: {:?}", field_from
+                );
+            }
             from_id = from_ids.get_index(0).cloned().unwrap_or_default();
             if let Ok(contact) = Contact::load_from_db(context, from_id) {
                 incoming_origin = contact.origin;
