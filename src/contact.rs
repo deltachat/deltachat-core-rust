@@ -779,9 +779,6 @@ impl Contact {
             return &self.name;
         }
         if !self.authname.is_empty() {
-            // normally, name is initialized by authname and this condition would not be needed.
-            // however, for some resilience against some maybe corrupted dev-versions,
-            // we do this extra-check for now.
             return &self.authname;
         }
         &self.addr
