@@ -1130,7 +1130,7 @@ mod tests {
                     Chat-Version: 1.0\n\
                     \n\
                     test1\n\
-                    \x00";
+                    ";
 
         let mimeparser = MimeParser::from_bytes(&context.ctx, &raw[..]).unwrap();
 
@@ -1160,8 +1160,7 @@ mod tests {
                     test1\n\
                     \n\
                     --==break==--\n\
-                    \n\
-                    \x00";
+                    \n";
 
         let mimeparser = MimeParser::from_bytes(&context.ctx, &raw[..]).unwrap();
 
