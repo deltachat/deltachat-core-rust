@@ -894,7 +894,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                             )
                             .header((
                                 "Content-Disposition",
-                                "attachment; filename=\"message.kml\"",
+                                "attachment; filename=\"location.kml\"",
                             ))
                             .body(kml_content),
                     );

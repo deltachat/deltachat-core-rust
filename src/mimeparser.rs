@@ -1130,7 +1130,7 @@ mod tests {
                     Chat-Version: 1.0\n\
                     \n\
                     test1\n\
-                    \x00";
+                    ";
 
         let mimeparser = MimeParser::from_bytes(&context.ctx, &raw[..]).unwrap();
 
@@ -1160,8 +1160,7 @@ mod tests {
                     test1\n\
                     \n\
                     --==break==--\n\
-                    \n\
-                    \x00";
+                    \n";
 
         let mimeparser = MimeParser::from_bytes(&context.ctx, &raw[..]).unwrap();
 
@@ -1222,5 +1221,48 @@ mod tests {
         assert_eq!(mimeparser.parts[0].typ, Viewtype::Image);
         assert_eq!(mimeparser.user_avatar, AvatarAction::None);
         assert!(mimeparser.group_avatar.is_change());
+    }
+
+    #[test]
+    fn test_mimeparser_message_kml() {
+        let context = dummy_context();
+        let raw = b"Chat-Version: 1.0\n\
+From: foo <foo@example.org>\n\
+To: bar <bar@example.org>\n\
+Subject: Location streaming\n\
+Content-Type: multipart/mixed; boundary=\"==break==\"\n\
+\n\
+\n\
+--==break==\n\
+Content-Type: text/plain; charset=utf-8\n\
+\n\
+--\n\
+Sent with my Delta Chat Messenger: https://delta.chat\n\
+\n\
+--==break==\n\
+Content-Type: application/vnd.google-earth.kml+xml\n\
+Content-Disposition: attachment; filename=\"message.kml\"\n\
+\n\
+<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
+<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n\
+<Document addr=\"foo@example.org\">\n\
+<Placemark><Timestamp><when>XXX</when></Timestamp><Point><coordinates accuracy=\"48\">0.0,0.0</coordinates></Point></Placemark>\n\
+</Document>\n\
+</kml>\n\
+\n\
+--==break==--\n\
+;";
+
+        let mimeparser = MimeParser::from_bytes(&context.ctx, &raw[..]).unwrap();
+        assert_eq!(
+            mimeparser.get_subject(),
+            Some("Location streaming".to_string())
+        );
+        assert!(mimeparser.location_kml.is_none());
+        assert!(mimeparser.message_kml.is_some());
+
+        // There is only one part because message.kml attachment is special
+        // and only goes into message_kml.
+        assert_eq!(mimeparser.parts.len(), 1);
     }
 }
