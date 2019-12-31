@@ -61,10 +61,6 @@ pub const DC_GCL_ADD_SELF: usize = 0x02;
 // unchanged user avatars are resent to the recipients every some days
 pub const DC_RESEND_USER_AVATAR_DAYS: i64 = 14;
 
-// values for DC_PARAM_FORCE_PLAINTEXT
-pub(crate) const DC_FP_NO_AUTOCRYPT_HEADER: i32 = 2;
-pub(crate) const DC_FP_ADD_AUTOCRYPT_HEADER: i32 = 1;
-
 /// virtual chat showing all messages belonging to chats flagged with chats.blocked=2
 pub(crate) const DC_CHAT_ID_DEADDROP: u32 = 1;
 /// messages that should be deleted get this chat_id; the messages are deleted from the working thread later then. This is also needed as rfc724_mid should be preset as long as the message is not deleted on the server (otherwise it is downloaded again)
