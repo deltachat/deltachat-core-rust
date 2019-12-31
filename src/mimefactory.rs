@@ -295,7 +295,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                         .unwrap_or_default()
                 }
             }
-            Loaded::MDN => DC_FP_NO_AUTOCRYPT_HEADER,
+            Loaded::MDN => ForcePlaintext::NoAutocryptHeader as i32,
         }
     }
 
@@ -477,7 +477,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             Loaded::MDN => self.render_mdn()?,
         };
 
-        if force_plaintext != DC_FP_NO_AUTOCRYPT_HEADER {
+        if force_plaintext != ForcePlaintext::NoAutocryptHeader as i32 {
             // unless determined otherwise we add the Autocrypt header
             let aheader = encrypt_helper.get_aheader().to_string();
             unprotected_headers.push(Header::new("Autocrypt".into(), aheader));

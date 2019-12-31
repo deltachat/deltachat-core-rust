@@ -143,8 +143,10 @@ fn do_initiate_key_transfer(context: &Context) -> Result<String> {
     msg.param
         .set(Param::MimeType, "application/autocrypt-setup");
     msg.param.set_cmd(SystemMessage::AutocryptSetupMessage);
-    msg.param
-        .set_int(Param::ForcePlaintext, DC_FP_NO_AUTOCRYPT_HEADER);
+    msg.param.set_int(
+        Param::ForcePlaintext,
+        ForcePlaintext::NoAutocryptHeader as i32,
+    );
 
     ensure!(!context.shall_stop_ongoing(), "canceled");
     let msg_id = chat::send_msg(context, chat_id, &mut msg)?;
