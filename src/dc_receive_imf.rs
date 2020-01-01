@@ -348,6 +348,10 @@ fn add_parts(
                     needs_stop_ongoing_process = ret.stop_ongoing_process;
                 }
                 Err(err) => {
+                    // maybe this message belongs to an aborted scan,
+                    // however, by the explicit header check we really know
+                    // that it is a Secure-Join message that should be hidden in the chat view.
+                    *hidden = true;
                     warn!(
                         context,
                         "Unexpected messaged passed to Secure-Join handshake protocol: {}", err
