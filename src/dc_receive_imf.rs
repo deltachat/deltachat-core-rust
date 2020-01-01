@@ -10,6 +10,7 @@ use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
 use crate::dc_tools::*;
+use crate::ephemeral::Timer as EphemeralTimer;
 use crate::error::{bail, ensure, format_err, Result};
 use crate::events::Event;
 use crate::headerdef::HeaderDef;
@@ -619,6 +620,62 @@ async fn add_parts(
             *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
         }
     }
+
+    // Extract ephemeral timer from the message.
+    let timer = if let Some(value) = mime_parser.get(HeaderDef::EphemeralTimer) {
+        match value.parse::<EphemeralTimer>() {
+            Ok(timer) => timer,
+            Err(err) => {
+                warn!(
+                    context,
+                    "can't parse ephemeral timer \"{}\": {}", value, err
+                );
+                EphemeralTimer::Disabled
+            }
+        }
+    } else {
+        EphemeralTimer::Disabled
+    };
+
+    let location_kml_is = mime_parser.location_kml.is_some();
+    let is_mdn = !mime_parser.mdn_reports.is_empty();
+
+    // Apply ephemeral timer changes to the chat.
+    //
+    // Only non-hidden timers are applied now. Timers from hidden
+    // messages such as read receipts can be useful to detect
+    // ephemeral timer support, but timer changes without visible
+    // received messages may be confusing to the user.
+    if !*hidden
+        && !location_kml_is
+        && !is_mdn
+        && (*chat_id).get_ephemeral_timer(context).await? != timer
+    {
+        match (*chat_id).inner_set_ephemeral_timer(context, timer).await {
+            Ok(()) => {
+                let stock_str = context
+                    .stock_system_msg(
+                        StockMessage::MsgEphemeralTimerChanged,
+                        timer.to_string(),
+                        "",
+                        from_id,
+                    )
+                    .await;
+                chat::add_info_msg(context, *chat_id, stock_str).await;
+                context.emit_event(Event::ChatEphemeralTimerModified {
+                    chat_id: *chat_id,
+                    timer: timer.to_u32(),
+                });
+            }
+            Err(err) => {
+                warn!(
+                    context,
+                    "failed to modify timer for chat {}: {}", chat_id, err
+                );
+            }
+        }
+    }
+
     // correct message_timestamp, it should not be used before,
     // however, we cannot do this earlier as we need from_id to be set
     let rcvd_timestamp = time();
@@ -655,7 +712,6 @@ async fn add_parts(
 
     let mut parts = std::mem::replace(&mut mime_parser.parts, Vec::new());
     let server_folder = server_folder.as_ref().to_string();
-    let location_kml_is = mime_parser.location_kml.is_some();
     let is_system_message = mime_parser.is_system_message;
     let mime_headers = if save_mime_headers {
         Some(String::from_utf8_lossy(imf_raw).to_string())
@@ -665,7 +721,6 @@ async fn add_parts(
     let sent_timestamp = *sent_timestamp;
     let is_hidden = *hidden;
     let chat_id = *chat_id;
-    let is_mdn = !mime_parser.mdn_reports.is_empty();
 
     // TODO: can this clone be avoided?
     let rfc724_mid = rfc724_mid.to_string();
@@ -682,8 +737,8 @@ async fn add_parts(
                     "INSERT INTO msgs \
          (rfc724_mid, server_folder, server_uid, chat_id, from_id, to_id, timestamp, \
          timestamp_sent, timestamp_rcvd, type, state, msgrmsg,  txt, txt_raw, param, \
-         bytes, hidden, mime_headers,  mime_in_reply_to, mime_references, error) \
-         VALUES (?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?, ?);",
+         bytes, hidden, mime_headers,  mime_in_reply_to, mime_references, error, ephemeral_timer) \
+         VALUES (?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?, ?,?);",
                 )?;
 
                 let is_location_kml = location_kml_is
@@ -728,6 +783,7 @@ async fn add_parts(
                     mime_in_reply_to,
                     mime_references,
                     part.error,
+                    timer
                 ])?;
 
                 drop(stmt);

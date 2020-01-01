@@ -42,6 +42,7 @@ pub enum HeaderDef {
     SecureJoinFingerprint,
     SecureJoinInvitenumber,
     SecureJoinAuth,
+    EphemeralTimer,
     _TestHeader,
 }
 

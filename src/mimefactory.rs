@@ -9,6 +9,7 @@ use crate::contact::*;
 use crate::context::{get_version_str, Context};
 use crate::dc_tools::*;
 use crate::e2ee::*;
+use crate::ephemeral::Timer as EphemeralTimer;
 use crate::error::{bail, ensure, format_err, Error};
 use crate::location;
 use crate::message::{self, Message};
@@ -526,6 +527,14 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             Loaded::MDN { .. } => dc_create_outgoing_rfc724_mid(None, &self.from_addr),
         };
 
+        let ephemeral_timer = self.msg.chat_id.get_ephemeral_timer(self.context).await?;
+        if let EphemeralTimer::Enabled { duration } = ephemeral_timer {
+            protected_headers.push(Header::new(
+                "Ephemeral-Timer".to_string(),
+                duration.to_string(),
+            ));
+        }
+
         // we could also store the message-id in the protected headers
         // which would probably help to survive providers like
         // Outlook.com or hotmail which mangle the Message-ID.
@@ -774,6 +783,12 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                 protected_headers.push(Header::new(
                     "Chat-Content".into(),
                     "location-streaming-enabled".into(),
+                ));
+            }
+            SystemMessage::EphemeralTimerChanged => {
+                protected_headers.push(Header::new(
+                    "Chat-Content".to_string(),
+                    "ephemeral-timer-changed".to_string(),
                 ));
             }
             SystemMessage::AutocryptSetupMessage => {

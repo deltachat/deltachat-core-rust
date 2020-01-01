@@ -15,6 +15,7 @@ use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
 use crate::dc_tools::*;
+use crate::ephemeral::{delete_expired_messages, schedule_ephemeral_task, Timer as EphemeralTimer};
 use crate::error::{bail, ensure, format_err, Error};
 use crate::events::Event;
 use crate::job::{self, Action};
@@ -726,6 +727,7 @@ impl Chat {
                 .unwrap_or_else(std::path::PathBuf::new),
             draft,
             is_muted: self.is_muted(),
+            ephemeral_timer: self.id.get_ephemeral_timer(context).await?,
         })
     }
 
@@ -954,10 +956,17 @@ impl Chat {
                     .await?;
             }
 
+            // get ephemeral message timer
+            let ephemeral_timer = self.id.get_ephemeral_timer(context).await?;
+            let ephemeral_timestamp = match ephemeral_timer {
+                EphemeralTimer::Disabled => 0,
+                EphemeralTimer::Enabled { duration } => timestamp + i64::from(duration),
+            };
+
             // add message to the database
 
             if context.sql.execute(
-                        "INSERT INTO msgs (rfc724_mid, chat_id, from_id, to_id, timestamp, type, state, txt, param, hidden, mime_in_reply_to, mime_references, location_id) VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?);",
+                        "INSERT INTO msgs (rfc724_mid, chat_id, from_id, to_id, timestamp, type, state, txt, param, hidden, mime_in_reply_to, mime_references, location_id, ephemeral_timer, ephemeral_timestamp) VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?);",
                         paramsv![
                             new_rfc724_mid,
                             self.id,
@@ -972,6 +981,8 @@ impl Chat {
                             new_in_reply_to,
                             new_references,
                             location_id as i32,
+                            ephemeral_timer,
+                            ephemeral_timestamp
                         ]
                     ).await.is_ok() {
                         msg_id = context.sql.get_rowid(
@@ -990,6 +1001,7 @@ impl Chat {
         } else {
             error!(context, "Cannot send message, not configured.",);
         }
+        schedule_ephemeral_task(context).await;
 
         Ok(MsgId::new(msg_id))
     }
@@ -1086,6 +1098,9 @@ pub struct ChatInfo {
     ///
     /// The exact time its muted can be found out via the `chat.mute_duration` property
     pub is_muted: bool,
+
+    /// Ephemeral message timer.
+    pub ephemeral_timer: EphemeralTimer,
     // ToDo:
     // - [ ] deaddrop,
     // - [ ] summary,
@@ -1597,10 +1612,15 @@ pub async fn get_chat_msgs(
     flags: u32,
     marker1before: Option<MsgId>,
 ) -> Vec<ChatItem> {
-    match delete_device_expired_messages(context).await {
+    match delete_expired_messages(context).await {
         Err(err) => warn!(context, "Failed to delete expired messages: {}", err),
         Ok(messages_deleted) => {
             if messages_deleted {
+                // Trigger reload of chatlist.
+                //
+                // On desktop chatlist is always shown on the side,
+                // and it is important to update the last message shown
+                // there.
                 context.emit_event(Event::MsgsChanged {
                     msg_id: MsgId::new(0),
                     chat_id: ChatId::new(0),
@@ -1760,52 +1780,6 @@ pub async fn marknoticed_all_chats(context: &Context) -> Result<(), Error> {
     });
 
     Ok(())
-}
-
-/// Deletes messages which are expired according to "delete_device_after" setting.
-///
-/// Returns true if any message is deleted, so event can be emitted. If nothing
-/// has been deleted, returns false.
-pub async fn delete_device_expired_messages(context: &Context) -> Result<bool, Error> {
-    if let Some(delete_device_after) = context.get_config_delete_device_after().await {
-        let threshold_timestamp = time() - delete_device_after;
-
-        let self_chat_id = lookup_by_contact_id(context, DC_CONTACT_ID_SELF)
-            .await
-            .unwrap_or_default()
-            .0;
-        let device_chat_id = lookup_by_contact_id(context, DC_CONTACT_ID_DEVICE)
-            .await
-            .unwrap_or_default()
-            .0;
-
-        // Delete expired messages
-        //
-        // Only update the rows that have to be updated, to avoid emitting
-        // unnecessary "chat modified" events.
-        let rows_modified = context
-            .sql
-            .execute(
-                "UPDATE msgs \
-             SET txt = 'DELETED', chat_id = ? \
-             WHERE timestamp < ? \
-             AND chat_id > ? \
-             AND chat_id != ? \
-             AND chat_id != ?",
-                paramsv![
-                    DC_CHAT_ID_TRASH,
-                    threshold_timestamp,
-                    DC_CHAT_ID_LAST_SPECIAL,
-                    self_chat_id,
-                    device_chat_id
-                ],
-            )
-            .await?;
-
-        Ok(rows_modified > 0)
-    } else {
-        Ok(false)
-    }
 }
 
 pub async fn get_chat_media(
@@ -2860,7 +2834,8 @@ mod tests {
                 "color": 15895624,
                 "profile_image": "",
                 "draft": "",
-                "is_muted": false
+                "is_muted": false,
+                "ephemeral_timer": "Disabled"
             }
         "#;
 
