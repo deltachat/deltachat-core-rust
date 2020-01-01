@@ -710,6 +710,7 @@ impl Chat {
                 .unwrap_or_else(std::path::PathBuf::new),
             draft,
             is_muted: self.is_muted(),
+            autodelete_timer: get_autodelete_timer(context, self.id).await,
         })
     }
 
@@ -1076,6 +1077,8 @@ pub struct ChatInfo {
     // - [ ] lastUpdated,
     // - [ ] freshMessageCounter,
     // - [ ] email
+    /// Automatic message deletion timer.
+    pub autodelete_timer: u32,
 }
 
 /// Create a chat from a message ID.
@@ -2812,6 +2815,39 @@ pub(crate) async fn add_info_msg(context: &Context, chat_id: ChatId, text: impl 
     });
 }
 
+/// Get autodelete timer value in seconds.
+pub async fn get_autodelete_timer(context: &Context, chat_id: ChatId) -> u32 {
+    context
+        .sql
+        .query_get_value(
+            context,
+            "SELECT autodelete_timer FROM chats WHERE id=?;",
+            paramsv![chat_id],
+        )
+        .await
+        .unwrap_or_default()
+}
+
+/// Set autodelete timer value in seconds.
+///
+/// If timer value is 0, disable autodelete timer.
+pub async fn set_autodelete_timer(
+    context: &Context,
+    chat_id: ChatId,
+    timer: u32,
+) -> Result<(), Error> {
+    context
+        .sql
+        .execute(
+            "UPDATE chats
+         SET autodelete_timer=?
+         WHERE id=?;",
+            paramsv![timer, chat_id],
+        )
+        .await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2844,7 +2880,8 @@ mod tests {
                 "color": 15895624,
                 "profile_image": "",
                 "draft": "",
-                "is_muted": false
+                "is_muted": false,
+                "autodelete_timer": 0
             }
         "#;
 
