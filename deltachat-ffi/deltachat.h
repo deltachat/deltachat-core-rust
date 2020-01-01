@@ -404,14 +404,14 @@ int             dc_set_config                (dc_context_t* context, const char*
 char*           dc_get_config                (dc_context_t* context, const char* key);
 
 /**
- * Set stock string translation. 
+ * Set stock string translation.
  *
- * The function will emit warnings if it returns an error state. 
+ * The function will emit warnings if it returns an error state.
  *
  * @memberof dc_context_t
  * @param context The context object
  * @param stock_id   the integer id of the stock message (DC_STR_*)
- * @param stock_msg  the message to be used 
+ * @param stock_msg  the message to be used
  * @return int (==0 on error, 1 on success)
  */
 int             dc_set_stock_translation(dc_context_t* context, uint32_t stock_id, const char* stock_msg);
@@ -1603,7 +1603,7 @@ char*           dc_get_mime_headers          (dc_context_t* context, uint32_t ms
 void            dc_delete_msgs               (dc_context_t* context, const uint32_t* msg_ids, int msg_cnt);
 
 /**
- * Empty IMAP server folder: delete all messages. 
+ * Empty IMAP server folder: delete all messages.
  *
  * @memberof dc_context_t
  * @param context The context object as created by dc_context_new()
@@ -2618,18 +2618,18 @@ dc_context_t*    dc_chatlist_get_context     (dc_chatlist_t* chatlist);
 
 
 /**
- * Get info summary for a chat, in json format. 
+ * Get info summary for a chat, in json format.
  *
- * The returned json string has the following key/values: 
+ * The returned json string has the following key/values:
  *
- * id: chat id 
- * name: chat/group name 
- * color: color of this chat 
- * last-message-from: who sent the last message 
- * last-message-text: message (truncated) 
+ * id: chat id
+ * name: chat/group name
+ * color: color of this chat
+ * last-message-from: who sent the last message
+ * last-message-text: message (truncated)
  * last-message-state: DC_STATE* constant
- * last-message-date: 
- * avatar-path: path-to-blobfile 
+ * last-message-date:
+ * avatar-path: path-to-blobfile
  * is_verified: yes/no
 
  * @return a utf8-encoded json string containing all requested info. Must be freed using dc_str_unref().  NULL is never returned.
@@ -4167,30 +4167,30 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
 #define DC_EVENT_IMAP_MESSAGE_MOVED   105
 
 /**
- * Emitted when an IMAP folder was emptied. 
+ * Emitted when an IMAP folder was emptied.
  *
  * @param data1 0
- * @param data2 (const char*) folder name. 
+ * @param data2 (const char*) folder name.
  *     Must not be unref'd or modified and is valid only until the callback returns.
  * @return 0
  */
 #define DC_EVENT_IMAP_FOLDER_EMPTIED  106
 
 /**
- * Emitted when a new blob file was successfully written 
+ * Emitted when a new blob file was successfully written
  *
  * @param data1 0
- * @param data2 (const char*) path name 
+ * @param data2 (const char*) path name
  *     Must not be unref'd or modified and is valid only until the callback returns.
  * @return 0
  */
 #define DC_EVENT_NEW_BLOB_FILE 150
 
 /**
- * Emitted when a blob file was successfully deleted 
+ * Emitted when a blob file was successfully deleted
  *
  * @param data1 0
- * @param data2 (const char*) path name 
+ * @param data2 (const char*) path name
  *     Must not be unref'd or modified and is valid only until the callback returns.
  * @return 0
  */
