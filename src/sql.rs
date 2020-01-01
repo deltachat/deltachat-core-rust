@@ -902,6 +902,14 @@ fn open(
             sql.execute("UPDATE chats SET grpid='' WHERE type=100", NO_PARAMS)?;
             sql.set_raw_config_int(context, "dbversion", 63)?;
         }
+        if dbversion < 64 {
+            info!(context, "[migration] v64");
+            sql.execute(
+                "ALTER TABLE chats ADD COLUMN autodelete_timer INTEGER DEFAULT 0;",
+                NO_PARAMS,
+            )?;
+            sql.set_raw_config_int(context, "dbversion", 64)?;
+        }
 
         // (2) updates that require high-level objects
         // (the structure is complete now and all objects are usable)
