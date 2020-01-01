@@ -471,4 +471,24 @@ mod tests {
         assert_eq!(contact.get_addr(), "cli@deltachat.de");
         assert_eq!(contact.get_name(), "Jörn P. P.");
     }
+
+    #[test]
+    fn test_decode_openpgp_without_addr() {
+        let ctx = dummy_context();
+
+        let res = check_qr(
+            &ctx.ctx,
+            "OPENPGP4FPR:1234567890123456789012345678901234567890",
+        );
+        assert_eq!(res.get_state(), LotState::QrFprWithoutAddr);
+        assert_eq!(
+            res.get_text1().unwrap(),
+            "1234 5678 9012 3456 7890\n1234 5678 9012 3456 7890"
+        );
+        assert_eq!(res.get_id(), 0);
+
+        let res = check_qr(&ctx.ctx, "OPENPGP4FPR:12345678901234567890");
+        assert_eq!(res.get_state(), LotState::QrError);
+        assert_eq!(res.get_id(), 0);
+    }
 }
