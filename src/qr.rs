@@ -69,7 +69,7 @@ fn decode_openpgp(context: &Context, qr: &str) -> Lot {
         (fp, &rest[1..])
     }) {
         Some(pair) => pair,
-        None => return format_err!("Invalid OPENPGP4FPR found").into(),
+        None => (payload, ""),
     };
 
     // replace & with \n to match expected param format
@@ -83,11 +83,11 @@ fn decode_openpgp(context: &Context, qr: &str) -> Lot {
 
     let addr = if let Some(addr) = param.get(Param::Forwarded) {
         match normalize_address(addr) {
-            Ok(addr) => addr,
+            Ok(addr) => Some(addr),
             Err(err) => return err.into(),
         }
     } else {
-        return format_err!("Missing address").into();
+        None
     };
 
     // what is up with that param name?
@@ -157,7 +157,7 @@ fn decode_openpgp(context: &Context, qr: &str) -> Lot {
             lot.state = LotState::QrFprWithoutAddr;
             lot.text1 = Some(dc_format_fingerprint(&fingerprint));
         }
-    } else {
+    } else if let Some(addr) = addr {
         if grpid.is_some() && grpname.is_some() {
             lot.state = LotState::QrAskVerifyGroup;
             lot.text1 = grpname;
@@ -172,6 +172,8 @@ fn decode_openpgp(context: &Context, qr: &str) -> Lot {
         lot.fingerprint = Some(fingerprint);
         lot.invitenumber = invitenumber;
         lot.auth = auth;
+    } else {
+        return format_err!("Missing address").into();
     }
 
     lot
