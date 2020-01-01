@@ -21,6 +21,7 @@ use crate::constants::*;
 use crate::contact::Contact;
 use crate::context::Context;
 use crate::dc_tools::*;
+use crate::ephemeral::load_imap_deletion_msgid;
 use crate::error::{bail, ensure, format_err, Error, Result};
 use crate::events::Event;
 use crate::imap::*;
@@ -826,25 +827,6 @@ pub async fn send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<Job
 pub(crate) enum Connection<'a> {
     Inbox(&'a mut Imap),
     Smtp(&'a mut Smtp),
-}
-
-async fn load_imap_deletion_msgid(context: &Context) -> sql::Result<Option<MsgId>> {
-    if let Some(delete_server_after) = context.get_config_delete_server_after().await {
-        let threshold_timestamp = time() - delete_server_after;
-
-        context
-            .sql
-            .query_row_optional(
-                "SELECT id FROM msgs \
-             WHERE timestamp < ? \
-             AND server_uid != 0",
-                paramsv![threshold_timestamp],
-                |row| row.get::<_, MsgId>(0),
-            )
-            .await
-    } else {
-        Ok(None)
-    }
 }
 
 async fn load_imap_deletion_job(context: &Context) -> sql::Result<Option<Job>> {

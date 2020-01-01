@@ -185,6 +185,9 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "Failed to send message to %1$s."))]
     FailedSendingTo = 74,
+
+    #[strum(props(fallback = "Ephemeral message timer changed to %1$s."))]
+    MsgEphemeralTimerChanged = 75,
 }
 
 /*

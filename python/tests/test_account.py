@@ -1542,6 +1542,54 @@ class TestOnlineAccount:
         assert msg.is_encrypted(), "Message is not encrypted"
         assert msg.chat == ac2.create_chat(ac4)
 
+    def test_ephemeral_timer(self, acfactory, lp):
+        ac1, ac2 = acfactory.get_two_online_accounts()
+
+        lp.sec("ac1: create chat with ac2")
+        chat1 = ac1.create_chat(ac2)
+        chat2 = ac2.create_chat(ac1)
+
+        lp.sec("ac1: set ephemeral timer to 60")
+        chat1.set_ephemeral_timer(60)
+
+        lp.sec("ac1: check that ephemeral timer is set for chat")
+        assert chat1.get_ephemeral_timer() == 60
+        chat1_summary = chat1.get_summary()
+        assert chat1_summary["ephemeral_timer"] == 60
+
+        lp.sec("ac2: receive system message about ephemeral timer modification")
+        ac2._evtracker.get_matching("DC_EVENT_CHAT_EPHEMERAL_TIMER_MODIFIED")
+        system_message1 = ac2._evtracker.wait_next_incoming_message()
+        assert chat2.get_ephemeral_timer() == 60
+        assert system_message1.is_system_message()
+        assert "Ephemeral timer: 60\n" in system_message1.get_message_info()
+
+        lp.sec("ac2: send message to ac1")
+        sent_message = chat2.send_text("message")
+        assert "Ephemeral timer: 60\n" in sent_message.get_message_info()
+
+        # Timer is started immediately for sent messages
+        assert "Expires: " in sent_message.get_message_info()
+
+        lp.sec("ac1: waiting for message from ac2")
+        text_message = ac1._evtracker.wait_next_incoming_message()
+        assert text_message.text == "message"
+        assert "Ephemeral timer: 60\n" in text_message.get_message_info()
+
+        # Timer should not start until message is displayed
+        assert "Expires: " not in text_message.get_message_info()
+        text_message.mark_seen()
+        assert "Expires: " in text_message.get_message_info()
+
+        lp.sec("ac2: set ephemeral timer to 0")
+        chat2.set_ephemeral_timer(0)
+
+        lp.sec("ac1: receive system message about ephemeral timer modification")
+        ac1._evtracker.get_matching("DC_EVENT_CHAT_EPHEMERAL_TIMER_MODIFIED")
+        system_message2 = ac1._evtracker.wait_next_incoming_message()
+        assert "Ephemeral timer: " not in system_message2.get_message_info()
+        assert chat1.get_ephemeral_timer() == 0
+
 
 class TestGroupStressTests:
     def test_group_many_members_add_leave_remove(self, acfactory, lp):

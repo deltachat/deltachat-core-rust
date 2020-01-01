@@ -5,6 +5,7 @@ use crate::chat::*;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::*;
+use crate::ephemeral::delete_expired_messages;
 use crate::error::{bail, ensure, Result};
 use crate::lot::Lot;
 use crate::message::{Message, MessageState, MsgId};
@@ -99,7 +100,7 @@ impl Chatlist {
 
         // Note that we do not emit DC_EVENT_MSGS_MODIFIED here even if some
         // messages get deleted to avoid reloading the same chatlist.
-        if let Err(err) = delete_device_expired_messages(context).await {
+        if let Err(err) = delete_expired_messages(context).await {
             warn!(context, "Failed to hide expired messages: {}", err);
         }
 
