@@ -69,7 +69,7 @@ fn decode_openpgp(context: &Context, qr: &str) -> Lot {
         (fp, &rest[1..])
     }) {
         Some(pair) => pair,
-        None => return format_err!("Invalid OPENPGP4FPR found").into(),
+        None => (payload, ""),
     };
 
     // replace & with \n to match expected param format
@@ -83,11 +83,11 @@ fn decode_openpgp(context: &Context, qr: &str) -> Lot {
 
     let addr = if let Some(addr) = param.get(Param::Forwarded) {
         match normalize_address(addr) {
-            Ok(addr) => addr,
+            Ok(addr) => Some(addr),
             Err(err) => return err.into(),
         }
     } else {
-        return format_err!("Missing address").into();
+        None
     };
 
     // what is up with that param name?
@@ -157,7 +157,7 @@ fn decode_openpgp(context: &Context, qr: &str) -> Lot {
             lot.state = LotState::QrFprWithoutAddr;
             lot.text1 = Some(dc_format_fingerprint(&fingerprint));
         }
-    } else {
+    } else if let Some(addr) = addr {
         if grpid.is_some() && grpname.is_some() {
             lot.state = LotState::QrAskVerifyGroup;
             lot.text1 = grpname;
@@ -172,6 +172,8 @@ fn decode_openpgp(context: &Context, qr: &str) -> Lot {
         lot.fingerprint = Some(fingerprint);
         lot.invitenumber = invitenumber;
         lot.auth = auth;
+    } else {
+        return format_err!("Missing address").into();
     }
 
     lot
@@ -470,5 +472,25 @@ mod tests {
         let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).unwrap();
         assert_eq!(contact.get_addr(), "cli@deltachat.de");
         assert_eq!(contact.get_name(), "Jörn P. P.");
+    }
+
+    #[test]
+    fn test_decode_openpgp_without_addr() {
+        let ctx = dummy_context();
+
+        let res = check_qr(
+            &ctx.ctx,
+            "OPENPGP4FPR:1234567890123456789012345678901234567890",
+        );
+        assert_eq!(res.get_state(), LotState::QrFprWithoutAddr);
+        assert_eq!(
+            res.get_text1().unwrap(),
+            "1234 5678 9012 3456 7890\n1234 5678 9012 3456 7890"
+        );
+        assert_eq!(res.get_id(), 0);
+
+        let res = check_qr(&ctx.ctx, "OPENPGP4FPR:12345678901234567890");
+        assert_eq!(res.get_state(), LotState::QrError);
+        assert_eq!(res.get_id(), 0);
     }
 }
