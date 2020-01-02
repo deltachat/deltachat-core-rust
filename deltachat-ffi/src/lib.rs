@@ -1452,6 +1452,41 @@ pub unsafe extern "C" fn dc_set_chat_mute_duration(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_get_chat_autodelete_timer(
+    context: *mut dc_context_t,
+    chat_id: u32,
+) -> u32 {
+    if context.is_null() || chat_id <= constants::DC_CHAT_ID_LAST_SPECIAL as u32 {
+        eprintln!("ignoring careless call to dc_set_chat_autodelete_timer()");
+        return 0;
+    }
+    let ffi_context = &*context;
+    ffi_context
+        .with_inner(|ctx| chat::get_autodelete_timer(ctx, ChatId::new(chat_id)))
+        .unwrap_or_default()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_set_chat_autodelete_timer(
+    context: *mut dc_context_t,
+    chat_id: u32,
+    timer: u32,
+) -> libc::c_int {
+    if context.is_null() || chat_id <= constants::DC_CHAT_ID_LAST_SPECIAL as u32 {
+        eprintln!("ignoring careless call to dc_set_chat_autodelete_timer()");
+        return 0;
+    }
+    let ffi_context = &*context;
+    ffi_context
+        .with_inner(|ctx| {
+            chat::set_autodelete_timer(ctx, ChatId::new(chat_id), timer)
+                .map(|_| 1)
+                .unwrap_or_log_default(ctx, "Failed to set autodelete timer")
+        })
+        .unwrap_or(0)
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_get_msg_info(
     context: *mut dc_context_t,
     msg_id: u32,
