@@ -825,7 +825,11 @@ fn update_gossip_peerstates(
                 })));
             }
 
-            if recipients.as_ref().unwrap().contains(&header.addr) {
+            if recipients
+                .as_ref()
+                .unwrap()
+                .contains(&header.addr.to_lowercase())
+            {
                 let mut peerstate = Peerstate::from_addr(context, &context.sql, &header.addr);
                 if let Some(ref mut peerstate) = peerstate {
                     peerstate.apply_gossip(header, message_time);
@@ -981,7 +985,7 @@ fn get_attachment_filename(mail: &mailparse::ParsedMail) -> Result<String> {
     Ok(desired_filename)
 }
 
-// returned addresses are normalized.
+// returned addresses are normalized and lowercased.
 fn get_recipients<S: AsRef<str>, T: Iterator<Item = (S, S)>>(headers: T) -> HashSet<String> {
     let mut recipients: HashSet<String> = Default::default();
 
@@ -993,11 +997,11 @@ fn get_recipients<S: AsRef<str>, T: Iterator<Item = (S, S)>>(headers: T) -> Hash
                 for addr in addrs.iter() {
                     match addr {
                         mailparse::MailAddr::Single(ref info) => {
-                            recipients.insert(addr_normalize(&info.addr).into());
+                            recipients.insert(addr_normalize(&info.addr).to_lowercase());
                         }
                         mailparse::MailAddr::Group(ref infos) => {
                             for info in &infos.addrs {
-                                recipients.insert(addr_normalize(&info.addr).into());
+                                recipients.insert(addr_normalize(&info.addr).to_lowercase());
                             }
                         }
                     }

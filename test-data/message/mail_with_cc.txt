@@ -9,6 +9,6 @@ message-id: <2dfdbde7@example.org>
 Date: Sat, 14 Sep 2019 19:00:13 +0200
 From: lmn <x@tux.org>
 To: abc <abc@bcd.com>
-CC: def <def@def.de>
+CC: def <Def@def.de>
 
 hi
