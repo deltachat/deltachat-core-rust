@@ -139,6 +139,22 @@ class Chat(object):
         """
         return bool(lib.dc_chat_get_remaining_mute_duration(self.id))
 
+    def get_autodelete_timer(self):
+        """ get autodelete timer.
+
+        :returns: autodelete timer value in seconds
+        """
+        return lib.dc_get_chat_autodelete_timer(self.account._dc_context, self.id)
+
+    def set_autodelete_timer(self, timer):
+        """ set autodelete timer.
+
+        :param: timer value in seconds
+
+        :returns: None
+        """
+        return lib.dc_set_chat_autodelete_timer(self.account._dc_context, self.id, timer)
+
     def get_type(self):
         """ (deprecated) return type of this chat.
 
