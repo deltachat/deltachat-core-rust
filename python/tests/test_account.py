@@ -1539,6 +1539,19 @@ class TestOnlineAccount:
         assert msg.is_encrypted(), "Message is not encrypted"
         assert msg.chat == ac2.create_chat(ac4)
 
+    def test_autodelete_timer(self, acfactory, lp):
+        ac1, ac2 = acfactory.get_two_online_accounts()
+
+        lp.sec("create unpromoted group chat")
+        chat = ac1.create_group_chat("hello")
+
+        chat.set_autodelete_timer(60)
+
+        assert chat.get_autodelete_timer() == 60
+
+        d = chat.get_summary()
+        assert d["autodelete_timer"] == 60
+
 
 class TestGroupStressTests:
     def test_group_many_members_add_leave_remove(self, acfactory, lp):
