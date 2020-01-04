@@ -170,6 +170,14 @@ impl ContextWrapper {
                 Event::ChatModified(chat_id) => {
                     ffi_cb(self, event_id, chat_id.to_u32() as uintptr_t, 0);
                 }
+                Event::ChatAutodeleteTimerModified { chat_id, timer } => {
+                    ffi_cb(
+                        self,
+                        event_id,
+                        chat_id.to_u32() as uintptr_t,
+                        timer as uintptr_t,
+                    );
+                }
                 Event::ContactsChanged(id) | Event::LocationChanged(id) => {
                     let id = id.unwrap_or_default();
                     ffi_cb(self, event_id, id as uintptr_t, 0);
