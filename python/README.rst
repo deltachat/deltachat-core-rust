@@ -54,7 +54,7 @@ which is prohibitively slow in debug mode.
 After successful binding installation you can install a few more
 python packages before finally running the tests::
 
-    python -m pip install pytest pytest-timeout pytest-rerunfailures
+    python -m pip install pytest pytest-timeout pytest-rerunfailures requests
     pytest -v tests
 
 
