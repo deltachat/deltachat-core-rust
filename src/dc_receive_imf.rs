@@ -205,6 +205,31 @@ pub async fn dc_receive_imf(
         };
     }
 
+    if let Some(value) = mime_parser.get(HeaderDef::AutodeleteTimer) {
+        let timer = match value.parse::<u32>() {
+            Ok(timer) => timer,
+            Err(err) => {
+                warn!(
+                    context,
+                    "can't parse autodelete timer \"{}\": {}", value, err
+                );
+                0
+            }
+        };
+
+        match chat::set_autodelete_timer(context, chat_id, timer).await {
+            Ok(()) => {
+                context.emit_event(Event::ChatAutodeleteTimerModified { chat_id, timer });
+            }
+            Err(err) => {
+                warn!(
+                    context,
+                    "failed to modify timer for chat {}: {}", chat_id, err
+                );
+            }
+        }
+    }
+
     // Get user-configured server deletion
     let delete_server_after = context.get_config_delete_server_after().await;
 

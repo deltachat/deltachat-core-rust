@@ -189,8 +189,15 @@ pub enum Event {
     /// Or the verify state of a chat has changed.
     /// See dc_set_chat_name(), dc_set_chat_profile_image(), dc_add_contact_to_chat()
     /// and dc_remove_contact_from_chat().
+    ///
+    /// This event does not include autodelete timer modification, which
+    /// is a separate event.
     #[strum(props(id = "2020"))]
     ChatModified(ChatId),
+
+    /// Chat autodelete timer changed.
+    #[strum(props(id = "2021"))]
+    ChatAutodeleteTimerModified { chat_id: ChatId, timer: u32 },
 
     /// Contact(s) created, renamed, blocked or deleted.
     ///

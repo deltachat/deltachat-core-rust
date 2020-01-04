@@ -349,7 +349,8 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         | Event::MsgDelivered { chat_id, .. }
         | Event::MsgFailed { chat_id, .. }
         | Event::MsgRead { chat_id, .. }
-        | Event::ChatModified(chat_id) => chat_id.to_u32() as libc::c_int,
+        | Event::ChatModified(chat_id)
+        | Event::ChatAutodeleteTimerModified { chat_id, .. } => chat_id.to_u32() as libc::c_int,
         Event::ContactsChanged(id) | Event::LocationChanged(id) => {
             let id = id.unwrap_or_default();
             id as libc::c_int
@@ -399,6 +400,7 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | Event::MsgRead { msg_id, .. } => msg_id.to_u32() as libc::c_int,
         Event::SecurejoinInviterProgress { progress, .. }
         | Event::SecurejoinJoinerProgress { progress, .. } => *progress as libc::c_int,
+        Event::ChatAutodeleteTimerModified { timer, .. } => *timer as libc::c_int,
     }
 }
 
@@ -439,7 +441,8 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         | Event::ConfigureProgress(_)
         | Event::ImexProgress(_)
         | Event::SecurejoinInviterProgress { .. }
-        | Event::SecurejoinJoinerProgress { .. } => ptr::null_mut(),
+        | Event::SecurejoinJoinerProgress { .. }
+        | Event::ChatAutodeleteTimerModified { .. } => ptr::null_mut(),
         Event::ImexFileWritten(file) => {
             let data2 = file.to_c_string().unwrap_or_default();
             data2.into_raw()

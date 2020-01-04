@@ -2,7 +2,7 @@ use chrono::TimeZone;
 use lettre_email::{mime, Address, Header, MimeMultipartType, PartBuilder};
 
 use crate::blob::BlobObject;
-use crate::chat::{self, Chat};
+use crate::chat::{self, get_autodelete_timer, Chat};
 use crate::config::Config;
 use crate::constants::*;
 use crate::contact::*;
@@ -525,6 +525,14 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             Loaded::Message { .. } => self.msg.rfc724_mid.clone(),
             Loaded::MDN { .. } => dc_create_outgoing_rfc724_mid(None, &self.from_addr),
         };
+
+        let autodelete_timer = get_autodelete_timer(self.context, self.msg.chat_id).await;
+        if autodelete_timer > 0 {
+            protected_headers.push(Header::new(
+                "Autodelete-Timer".to_string(),
+                autodelete_timer.to_string(),
+            ));
+        }
 
         // we could also store the message-id in the protected headers
         // which would probably help to survive providers like
