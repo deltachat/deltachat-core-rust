@@ -757,7 +757,7 @@ impl<'a> MimeParser<'a> {
         Ok(None)
     }
 
-    // Handle reports (only MDNs for now)
+    /// Handle reports (only MDNs for now)
     pub fn handle_reports(
         &self,
         from_id: u32,
