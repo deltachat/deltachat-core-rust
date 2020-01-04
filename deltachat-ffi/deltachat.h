@@ -4403,6 +4403,11 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  */
 #define DC_EVENT_CHAT_MODIFIED            2020
 
+/**
+ * Chat autodelete timer changed.
+ */
+#define DC_EVENT_CHAT_AUTODELETE_TIMER_MODIFIED 2021
+
 
 /**
  * Contact(s) created, renamed, verified, blocked or deleted.

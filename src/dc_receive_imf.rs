@@ -192,6 +192,31 @@ pub fn dc_receive_imf(
         };
     }
 
+    if let Some(value) = mime_parser.get(HeaderDef::AutodeleteTimer) {
+        let timer = match value.parse::<u32>() {
+            Ok(timer) => timer,
+            Err(err) => {
+                warn!(
+                    context,
+                    "can't parse autodelete timer \"{}\": {}", value, err
+                );
+                0
+            }
+        };
+
+        match chat::set_autodelete_timer(context, chat_id, timer) {
+            Ok(()) => {
+                context.call_cb(Event::ChatAutodeleteTimerModified { chat_id, timer });
+            }
+            Err(err) => {
+                warn!(
+                    context,
+                    "failed to modify timer for chat {}: {}", chat_id, err
+                );
+            }
+        }
+    }
+
     // Get user-configured server deletion
     let delete_server_after = context.get_config_delete_server_after();
 
@@ -210,6 +235,19 @@ pub fn dc_receive_imf(
             // Move message if we don't delete it immediately.
             context.do_heuristics_moves(server_folder.as_ref(), insert_msg_id);
         }
+    }
+
+    // if we delete we don't need to try moving messages
+    if needs_delete_job && !created_db_entries.is_empty() {
+        job_add(
+            context,
+            Action::DeleteMsgOnImap,
+            created_db_entries[0].1.to_u32() as i32,
+            Params::new(),
+            0,
+        );
+    } else {
+        context.do_heuristics_moves(server_folder.as_ref(), insert_msg_id);
     }
 
     info!(
