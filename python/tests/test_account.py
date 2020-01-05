@@ -1542,15 +1542,19 @@ class TestOnlineAccount:
     def test_autodelete_timer(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
 
-        lp.sec("create unpromoted group chat")
-        chat = ac1.create_group_chat("hello")
+        lp.sec("ac1: create chat with ac2")
+        chat1 = ac1.create_chat(ac2)
+        chat2 = ac2.create_chat(ac1)
 
-        chat.set_autodelete_timer(60)
+        chat1.set_autodelete_timer(60)
+        chat1.send_text("hello")
 
-        assert chat.get_autodelete_timer() == 60
-
-        d = chat.get_summary()
+        assert chat1.get_autodelete_timer() == 60
+        d = chat1.get_summary()
         assert d["autodelete_timer"] == 60
+
+        ac2._evtracker.wait_next_incoming_message()
+        assert chat2.get_autodelete_timer() == 60
 
 
 class TestGroupStressTests:
