@@ -1556,6 +1556,11 @@ class TestOnlineAccount:
         ac2._evtracker.wait_next_incoming_message()
         assert chat2.get_autodelete_timer() == 60
 
+        # Reset the timer back to 0
+        chat2.set_autodelete_timer(0)
+        ac1._evtracker.wait_next_incoming_message()
+        assert chat1.get_autodelete_timer() == 0
+
 
 class TestGroupStressTests:
     def test_group_many_members_add_leave_remove(self, acfactory, lp):

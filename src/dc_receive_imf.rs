@@ -205,8 +205,8 @@ pub async fn dc_receive_imf(
         };
     }
 
-    if let Some(value) = mime_parser.get(HeaderDef::AutodeleteTimer) {
-        let timer = match value.parse::<u32>() {
+    let timer = if let Some(value) = mime_parser.get(HeaderDef::AutodeleteTimer) {
+        match value.parse::<u32>() {
             Ok(timer) => timer,
             Err(err) => {
                 warn!(
@@ -215,8 +215,12 @@ pub async fn dc_receive_imf(
                 );
                 0
             }
-        };
+        }
+    } else {
+        0
+    };
 
+    if chat::get_autodelete_timer(context, chat_id).await != timer {
         match chat::set_autodelete_timer(context, chat_id, timer).await {
             Ok(()) => {
                 context.emit_event(Event::ChatAutodeleteTimerModified { chat_id, timer });
