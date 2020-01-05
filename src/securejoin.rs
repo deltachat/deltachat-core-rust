@@ -341,7 +341,7 @@ impl Default for HandshakeMessageStatus {
 /// Handle incoming secure-join handshake.
 pub(crate) fn handle_securejoin_handshake(
     context: &Context,
-    mimeparser: &MimeParser,
+    mimeparser: &MimeMessage,
     contact_id: u32,
 ) -> Result<HandshakeMessageStatus, Error> {
     let own_fingerprint: String;
@@ -717,7 +717,7 @@ fn mark_peer_as_verified(context: &Context, fingerprint: impl AsRef<str>) -> Res
  * Tools: Misc.
  ******************************************************************************/
 
-fn encrypted_and_signed(mimeparser: &MimeParser, expected_fingerprint: impl AsRef<str>) -> bool {
+fn encrypted_and_signed(mimeparser: &MimeMessage, expected_fingerprint: impl AsRef<str>) -> bool {
     if !mimeparser.was_encrypted() {
         warn!(mimeparser.context, "Message not encrypted.",);
         false

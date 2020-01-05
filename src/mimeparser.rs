@@ -26,8 +26,17 @@ use crate::simplify::*;
 use crate::stock::StockMessage;
 use crate::{bail, ensure};
 
+/// A parsed MIME message.
+///
+/// This represents the relevant information of a parsed MIME message
+/// for deltachat.  The original MIME message might have had more
+/// information but this representation should contain everything
+/// needed for deltachat's purposes.
+///
+/// It is created by parsing the raw data of an actual MIME message
+/// using the [MimeMessage::from_raw] constructor.
 #[derive(Debug)]
-pub struct MimeParser<'a> {
+pub struct MimeMessage<'a> {
     pub context: &'a Context,
     pub parts: Vec<Part>,
     header: HashMap<String, String>,
@@ -82,11 +91,11 @@ impl Default for SystemMessage {
 
 const MIME_AC_SETUP_FILE: &str = "application/autocrypt-setup";
 
-impl<'a> MimeParser<'a> {
+impl<'a> MimeMessage<'a> {
     pub fn from_bytes(context: &'a Context, body: &[u8]) -> Result<Self> {
         let mail = mailparse::parse_mail(body)?;
 
-        let mut parser = MimeParser {
+        let mut parser = MimeMessage {
             parts: Vec::new(),
             header: Default::default(),
             decrypting_failed: false,
@@ -1039,7 +1048,7 @@ mod tests {
     fn test_dc_mimeparser_crash() {
         let context = dummy_context();
         let raw = include_bytes!("../test-data/message/issue_523.txt");
-        let mimeparser = MimeParser::from_bytes(&context.ctx, &raw[..]).unwrap();
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
 
         assert_eq!(mimeparser.get_subject(), None);
         assert_eq!(mimeparser.parts.len(), 1);
@@ -1052,7 +1061,7 @@ mod tests {
             let context = dummy_context();
 
             // just don't crash
-            let _ = MimeParser::from_bytes(&context.ctx, data.as_bytes());
+            let _ = MimeMessage::from_bytes(&context.ctx, data.as_bytes());
         }
     }
 
@@ -1060,7 +1069,7 @@ mod tests {
     fn test_get_rfc724_mid_exists() {
         let context = dummy_context();
         let raw = include_bytes!("../test-data/message/mail_with_message_id.txt");
-        let mimeparser = MimeParser::from_bytes(&context.ctx, &raw[..]).unwrap();
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
 
         assert_eq!(
             mimeparser.get_rfc724_mid(),
@@ -1072,7 +1081,7 @@ mod tests {
     fn test_get_rfc724_mid_not_exists() {
         let context = dummy_context();
         let raw = include_bytes!("../test-data/message/issue_523.txt");
-        let mimeparser = MimeParser::from_bytes(&context.ctx, &raw[..]).unwrap();
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
         assert_eq!(mimeparser.get_rfc724_mid(), None);
     }
 
@@ -1080,7 +1089,7 @@ mod tests {
     fn test_get_recipients() {
         let context = dummy_context();
         let raw = include_bytes!("../test-data/message/mail_with_cc.txt");
-        let mimeparser = MimeParser::from_bytes(&context.ctx, &raw[..]).unwrap();
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
         let recipients = get_recipients(mimeparser.header.iter());
         assert!(recipients.contains("abc@bcd.com"));
         assert!(recipients.contains("def@def.de"));
@@ -1134,7 +1143,7 @@ mod tests {
                     test1\n\
                     ";
 
-        let mimeparser = MimeParser::from_bytes(&context.ctx, &raw[..]).unwrap();
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
 
         let of = mimeparser.parse_first_addr(HeaderDef::From_).unwrap();
         assert_eq!(of, mailparse::addrparse("hello@one.org").unwrap()[0]);
@@ -1164,7 +1173,7 @@ mod tests {
                     --==break==--\n\
                     \n";
 
-        let mimeparser = MimeParser::from_bytes(&context.ctx, &raw[..]).unwrap();
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
 
         // non-overwritten headers do not bubble up
         let of = mimeparser.get(HeaderDef::SecureJoinGroup).unwrap();
@@ -1189,26 +1198,26 @@ mod tests {
         let t = dummy_context();
 
         let raw = include_bytes!("../test-data/message/mail_attach_txt.eml");
-        let mimeparser = MimeParser::from_bytes(&t.ctx, &raw[..]).unwrap();
+        let mimeparser = MimeMessage::from_bytes(&t.ctx, &raw[..]).unwrap();
         assert_eq!(mimeparser.user_avatar, AvatarAction::None);
         assert_eq!(mimeparser.group_avatar, AvatarAction::None);
 
         let raw = include_bytes!("../test-data/message/mail_with_user_avatar.eml");
-        let mimeparser = MimeParser::from_bytes(&t.ctx, &raw[..]).unwrap();
+        let mimeparser = MimeMessage::from_bytes(&t.ctx, &raw[..]).unwrap();
         assert_eq!(mimeparser.parts.len(), 1);
         assert_eq!(mimeparser.parts[0].typ, Viewtype::Text);
         assert!(mimeparser.user_avatar.is_change());
         assert_eq!(mimeparser.group_avatar, AvatarAction::None);
 
         let raw = include_bytes!("../test-data/message/mail_with_user_avatar_deleted.eml");
-        let mimeparser = MimeParser::from_bytes(&t.ctx, &raw[..]).unwrap();
+        let mimeparser = MimeMessage::from_bytes(&t.ctx, &raw[..]).unwrap();
         assert_eq!(mimeparser.parts.len(), 1);
         assert_eq!(mimeparser.parts[0].typ, Viewtype::Text);
         assert_eq!(mimeparser.user_avatar, AvatarAction::Delete);
         assert_eq!(mimeparser.group_avatar, AvatarAction::None);
 
         let raw = include_bytes!("../test-data/message/mail_with_user_and_group_avatars.eml");
-        let mimeparser = MimeParser::from_bytes(&t.ctx, &raw[..]).unwrap();
+        let mimeparser = MimeMessage::from_bytes(&t.ctx, &raw[..]).unwrap();
         assert_eq!(mimeparser.parts.len(), 1);
         assert_eq!(mimeparser.parts[0].typ, Viewtype::Text);
         assert!(mimeparser.user_avatar.is_change());
@@ -1218,7 +1227,7 @@ mod tests {
         let raw = include_bytes!("../test-data/message/mail_with_user_and_group_avatars.eml");
         let raw = String::from_utf8_lossy(raw).to_string();
         let raw = raw.replace("Chat-User-Avatar:", "Xhat-Xser-Xvatar:");
-        let mimeparser = MimeParser::from_bytes(&t.ctx, raw.as_bytes()).unwrap();
+        let mimeparser = MimeMessage::from_bytes(&t.ctx, raw.as_bytes()).unwrap();
         assert_eq!(mimeparser.parts.len(), 1);
         assert_eq!(mimeparser.parts[0].typ, Viewtype::Image);
         assert_eq!(mimeparser.user_avatar, AvatarAction::None);
@@ -1255,7 +1264,7 @@ Content-Disposition: attachment; filename=\"message.kml\"\n\
 --==break==--\n\
 ;";
 
-        let mimeparser = MimeParser::from_bytes(&context.ctx, &raw[..]).unwrap();
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
         assert_eq!(
             mimeparser.get_subject(),
             Some("Location streaming".to_string())
