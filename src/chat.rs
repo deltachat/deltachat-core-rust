@@ -1480,7 +1480,7 @@ pub fn get_chat_contacts(context: &Context, chat_id: u32) -> Vec<u32> {
     /* Normal chats do not include SELF.  Group chats do (as it may happen that one is deleted from a
     groupchat but the chats stays visible, moreover, this makes displaying lists easier) */
 
-    if chat_id == 1 {
+    if chat_id == DC_CHAT_ID_DEADDROP {
         return Vec::new();
     }
 
