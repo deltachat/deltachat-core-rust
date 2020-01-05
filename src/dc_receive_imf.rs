@@ -55,7 +55,7 @@ pub fn dc_receive_imf(
         println!("{}", String::from_utf8_lossy(imf_raw));
     }
 
-    let mut mime_parser = MimeParser::from_bytes(context, imf_raw)?;
+    let mut mime_parser = MimeMessage::from_bytes(context, imf_raw)?;
 
     // we can not add even an empty record if we have no info whatsoever
     ensure!(mime_parser.has_headers(), "No Headers Found");
@@ -251,7 +251,7 @@ pub fn dc_receive_imf(
 
 fn add_parts(
     context: &Context,
-    mut mime_parser: &mut MimeParser,
+    mut mime_parser: &mut MimeMessage,
     imf_raw: &[u8],
     incoming: bool,
     incoming_origin: Origin,
@@ -651,7 +651,7 @@ fn add_parts(
 
 fn save_locations(
     context: &Context,
-    mime_parser: &MimeParser,
+    mime_parser: &MimeMessage,
     chat_id: u32,
     from_id: u32,
     insert_msg_id: MsgId,
@@ -750,7 +750,7 @@ fn calc_timestamps(
 #[allow(non_snake_case)]
 fn create_or_lookup_group(
     context: &Context,
-    mime_parser: &mut MimeParser,
+    mime_parser: &mut MimeMessage,
     allow_creation: bool,
     create_blocked: Blocked,
     from_id: u32,
@@ -1055,7 +1055,7 @@ fn create_or_lookup_group(
 }
 
 /// try extract a grpid from a message-id list header value
-fn extract_grpid(mime_parser: &MimeParser, headerdef: HeaderDef) -> Option<String> {
+fn extract_grpid(mime_parser: &MimeMessage, headerdef: HeaderDef) -> Option<String> {
     if let Some(value) = mime_parser.get(headerdef) {
         for part in value.split(',').map(str::trim) {
             if !part.is_empty() {
@@ -1071,7 +1071,7 @@ fn extract_grpid(mime_parser: &MimeParser, headerdef: HeaderDef) -> Option<Strin
 /// Handle groups for received messages, return chat_id/Blocked status on success
 fn create_or_lookup_adhoc_group(
     context: &Context,
-    mime_parser: &MimeParser,
+    mime_parser: &MimeMessage,
     allow_creation: bool,
     create_blocked: Blocked,
     from_id: u32,
@@ -1307,7 +1307,7 @@ fn search_chat_ids_by_contact_ids(
 
 fn check_verified_properties(
     context: &Context,
-    mimeparser: &MimeParser,
+    mimeparser: &MimeMessage,
     from_id: u32,
     to_ids: &ContactIds,
 ) -> Result<()> {
@@ -1409,7 +1409,7 @@ fn check_verified_properties(
     Ok(())
 }
 
-fn set_better_msg(mime_parser: &mut MimeParser, better_msg: impl AsRef<str>) {
+fn set_better_msg(mime_parser: &mut MimeMessage, better_msg: impl AsRef<str>) {
     let msg = better_msg.as_ref();
     if !msg.is_empty() && !mime_parser.parts.is_empty() {
         let part = &mut mime_parser.parts[0];
@@ -1419,7 +1419,7 @@ fn set_better_msg(mime_parser: &mut MimeParser, better_msg: impl AsRef<str>) {
     }
 }
 
-fn is_reply_to_known_message(context: &Context, mime_parser: &MimeParser) -> bool {
+fn is_reply_to_known_message(context: &Context, mime_parser: &MimeMessage) -> bool {
     /* check if the message is a reply to a known message; the replies are identified by the Message-ID from
     `In-Reply-To`/`References:` (to support non-Delta-Clients) */
 
@@ -1474,7 +1474,7 @@ fn is_known_rfc724_mid(context: &Context, rfc724_mid: &mailparse::MailAddr) -> b
 /// - checks also if any of the referenced IDs are send by a messenger
 /// - it is okay, if the referenced messages are moved to trash here
 /// - no check for the Chat-* headers (function is only called if it is no messenger message itself)
-fn is_reply_to_messenger_message(context: &Context, mime_parser: &MimeParser) -> bool {
+fn is_reply_to_messenger_message(context: &Context, mime_parser: &MimeMessage) -> bool {
     if let Some(value) = mime_parser.get(HeaderDef::InReplyTo) {
         if is_msgrmsg_rfc724_mid_in_list(context, &value) {
             return true;
@@ -1619,7 +1619,7 @@ mod tests {
                     References: <Gr.HcxyMARjyJy.9-uvzWPTLtV@nauta.cu>\n\
                     \n\
                     hello\x00";
-        let mimeparser = MimeParser::from_bytes(&context.ctx, &raw[..]).unwrap();
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
         assert_eq!(extract_grpid(&mimeparser, HeaderDef::InReplyTo), None);
         let grpid = Some("HcxyMARjyJy".to_string());
         assert_eq!(extract_grpid(&mimeparser, HeaderDef::References), grpid);
@@ -1634,7 +1634,7 @@ mod tests {
                     References: <qweqweqwe>, <Gr.HcxyMARjyJy.9-uvzWPTLtV@nau.ca>\n\
                     \n\
                     hello\x00";
-        let mimeparser = MimeParser::from_bytes(&context.ctx, &raw[..]).unwrap();
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
         let grpid = Some("HcxyMARjyJy".to_string());
         assert_eq!(extract_grpid(&mimeparser, HeaderDef::InReplyTo), grpid);
         assert_eq!(extract_grpid(&mimeparser, HeaderDef::References), grpid);
