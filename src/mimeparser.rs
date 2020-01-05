@@ -41,7 +41,6 @@ pub struct MimeParser<'a> {
     pub user_avatar: AvatarAction,
     pub group_avatar: AvatarAction,
     reports: Vec<Report>,
-    parsed_protected_headers: bool,
 }
 
 #[derive(Debug, PartialEq)]
@@ -103,7 +102,6 @@ impl<'a> MimeParser<'a> {
             message_kml: None,
             user_avatar: AvatarAction::None,
             group_avatar: AvatarAction::None,
-            parsed_protected_headers: false,
         };
 
         let message_time = mail
