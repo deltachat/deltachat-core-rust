@@ -1547,7 +1547,6 @@ class TestOnlineAccount:
         chat2 = ac2.create_chat(ac1)
 
         chat1.set_autodelete_timer(60)
-        chat1.send_text("hello")
 
         assert chat1.get_autodelete_timer() == 60
         d = chat1.get_summary()
