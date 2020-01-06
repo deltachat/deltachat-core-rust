@@ -775,14 +775,10 @@ impl<'a> MimeMessage<'a> {
         if self.reports.is_empty() {
             return;
         }
-        // If a user disabled MDNs we do not show pending incoming ones anymore
-        // but we do want them to potentially get moved from the INBOX still.
-        let mdns_enabled = self.context.get_config_bool(Config::MdnsEnabled);
 
         for report in &self.reports {
             let mut mdn_recognized = false;
 
-            if mdns_enabled {
                 if let Some((chat_id, msg_id)) = message::mdn_from_ext(
                     self.context,
                     from_id,
@@ -792,9 +788,8 @@ impl<'a> MimeMessage<'a> {
                     self.context.call_cb(Event::MsgRead { chat_id, msg_id });
                     mdn_recognized = true;
                 }
-            }
 
-            if self.has_chat_version() || mdn_recognized || !mdns_enabled {
+            if self.has_chat_version() || mdn_recognized {
                 let mut param = Params::new();
                 param.set(Param::ServerFolder, server_folder.as_ref());
                 param.set_int(Param::ServerUid, server_uid as i32);
