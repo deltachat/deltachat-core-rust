@@ -20,6 +20,7 @@ use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 
+use deltachat::chat::ChatId;
 use deltachat::config;
 use deltachat::configure::*;
 use deltachat::context::*;
@@ -484,9 +485,10 @@ fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult, failu
         }
         "getqr" | "getbadqr" => {
             start_threads(ctx.clone());
-            if let Some(mut qr) =
-                dc_get_securejoin_qr(&ctx.read().unwrap(), arg1.parse().unwrap_or_default())
-            {
+            if let Some(mut qr) = dc_get_securejoin_qr(
+                &ctx.read().unwrap(),
+                ChatId::new(arg1.parse().unwrap_or_default()),
+            ) {
                 if !qr.is_empty() {
                     if arg0 == "getbadqr" && qr.len() > 40 {
                         qr.replace_range(12..22, "0000000000")

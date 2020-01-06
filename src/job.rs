@@ -12,7 +12,7 @@ use rand::{thread_rng, Rng};
 use async_std::task;
 
 use crate::blob::BlobObject;
-use crate::chat;
+use crate::chat::{self, ChatId};
 use crate::config::Config;
 use crate::configure::*;
 use crate::constants::*;
@@ -764,7 +764,7 @@ pub fn job_action_exists(context: &Context, action: Action) -> bool {
 
 fn set_delivered(context: &Context, msg_id: MsgId) {
     message::update_msg_state(context, msg_id, MessageState::OutDelivered);
-    let chat_id: i32 = context
+    let chat_id: ChatId = context
         .sql
         .query_get_value(
             context,
@@ -772,10 +772,7 @@ fn set_delivered(context: &Context, msg_id: MsgId) {
             params![msg_id],
         )
         .unwrap_or_default();
-    context.call_cb(Event::MsgDelivered {
-        chat_id: chat_id as u32,
-        msg_id,
-    });
+    context.call_cb(Event::MsgDelivered { chat_id, msg_id });
 }
 
 /* special case for DC_JOB_SEND_MSG_TO_SMTP */

@@ -6,6 +6,7 @@
 
 use deltachat_derive::*;
 
+use crate::chat::ChatId;
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::sql;
@@ -27,28 +28,28 @@ impl Default for Namespace {
 
 /// Creates a new token and saves it into the database.
 /// Returns created token.
-pub fn save(context: &Context, namespace: Namespace, foreign_id: u32) -> String {
+pub fn save(context: &Context, namespace: Namespace, foreign_id: ChatId) -> String {
     // foreign_id may be 0
     let token = dc_create_id();
     sql::execute(
         context,
         &context.sql,
         "INSERT INTO tokens (namespc, foreign_id, token, timestamp) VALUES (?, ?, ?, ?);",
-        params![namespace, foreign_id as i32, &token, time()],
+        params![namespace, foreign_id, &token, time()],
     )
     .ok();
     token
 }
 
-pub fn lookup(context: &Context, namespace: Namespace, foreign_id: u32) -> Option<String> {
+pub fn lookup(context: &Context, namespace: Namespace, foreign_id: ChatId) -> Option<String> {
     context.sql.query_get_value::<_, String>(
         context,
         "SELECT token FROM tokens WHERE namespc=? AND foreign_id=?;",
-        params![namespace, foreign_id as i32],
+        params![namespace, foreign_id],
     )
 }
 
-pub fn lookup_or_new(context: &Context, namespace: Namespace, foreign_id: u32) -> String {
+pub fn lookup_or_new(context: &Context, namespace: Namespace, foreign_id: ChatId) -> String {
     lookup(context, namespace, foreign_id).unwrap_or_else(|| save(context, namespace, foreign_id))
 }
 

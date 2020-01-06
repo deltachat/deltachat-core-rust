@@ -24,6 +24,7 @@ use std::sync::RwLock;
 use libc::uintptr_t;
 use num_traits::{FromPrimitive, ToPrimitive};
 
+use deltachat::chat::ChatId;
 use deltachat::constants::DC_MSG_ID_LAST_SPECIAL;
 use deltachat::contact::Contact;
 use deltachat::context::Context;
@@ -151,12 +152,12 @@ impl ContextWrapper {
                     ffi_cb(
                         self,
                         event_id,
-                        chat_id as uintptr_t,
+                        chat_id.to_u32() as uintptr_t,
                         msg_id.to_u32() as uintptr_t,
                     );
                 }
                 Event::ChatModified(chat_id) => {
-                    ffi_cb(self, event_id, chat_id as uintptr_t, 0);
+                    ffi_cb(self, event_id, chat_id.to_u32() as uintptr_t, 0);
                 }
                 Event::ContactsChanged(id) | Event::LocationChanged(id) => {
                     let id = id.unwrap_or_default();
@@ -191,7 +192,7 @@ impl ContextWrapper {
                     ffi_cb(
                         self,
                         event_id,
-                        chat_id as uintptr_t,
+                        chat_id.to_u32() as uintptr_t,
                         contact_id as uintptr_t,
                     );
                 }
@@ -707,7 +708,9 @@ pub unsafe extern "C" fn dc_create_chat_by_msg_id(context: *mut dc_context_t, ms
     ffi_context
         .with_inner(|ctx| {
             chat::create_by_msg_id(ctx, MsgId::new(msg_id))
-                .unwrap_or_log_default(ctx, "Failed to create chat")
+                .log_err(ctx, "Failed to create chat from msg_id")
+                .map(|id| id.to_u32())
+                .unwrap_or(0)
         })
         .unwrap_or(0)
 }
@@ -725,7 +728,9 @@ pub unsafe extern "C" fn dc_create_chat_by_contact_id(
     ffi_context
         .with_inner(|ctx| {
             chat::create_by_contact_id(ctx, contact_id)
-                .unwrap_or_log_default(ctx, "Failed to create chat")
+                .log_err(ctx, "Failed to create chat from contact_id")
+                .map(|id| id.to_u32())
+                .unwrap_or(0)
         })
         .unwrap_or(0)
 }
@@ -741,7 +746,12 @@ pub unsafe extern "C" fn dc_get_chat_id_by_contact_id(
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| chat::get_by_contact_id(ctx, contact_id).unwrap_or(0))
+        .with_inner(|ctx| {
+            chat::get_by_contact_id(ctx, contact_id)
+                .log_err(ctx, "Failed to get chat for contact_id")
+                .map(|id| id.to_u32())
+                .unwrap_or(0)
+        })
         .unwrap_or(0)
 }
 
@@ -759,7 +769,7 @@ pub unsafe extern "C" fn dc_prepare_msg(
     let ffi_msg: &mut MessageWrapper = &mut *msg;
     ffi_context
         .with_inner(|ctx| {
-            chat::prepare_msg(ctx, chat_id, &mut ffi_msg.message)
+            chat::prepare_msg(ctx, ChatId::new(chat_id), &mut ffi_msg.message)
                 .unwrap_or_log_default(ctx, "Failed to prepare message")
         })
         .map(|msg_id| msg_id.to_u32())
@@ -780,7 +790,7 @@ pub unsafe extern "C" fn dc_send_msg(
     let ffi_msg = &mut *msg;
     ffi_context
         .with_inner(|ctx| {
-            chat::send_msg(ctx, chat_id, &mut ffi_msg.message)
+            chat::send_msg(ctx, ChatId::new(chat_id), &mut ffi_msg.message)
                 .unwrap_or_log_default(ctx, "Failed to send message")
         })
         .map(|msg_id| msg_id.to_u32())
@@ -801,7 +811,7 @@ pub unsafe extern "C" fn dc_send_text_msg(
     let text_to_send = to_string_lossy(text_to_send);
     ffi_context
         .with_inner(|ctx| {
-            chat::send_text_msg(ctx, chat_id, text_to_send)
+            chat::send_text_msg(ctx, ChatId::new(chat_id), text_to_send)
                 .map(|msg_id| msg_id.to_u32())
                 .unwrap_or_log_default(ctx, "Failed to send text message")
         })
@@ -826,7 +836,7 @@ pub unsafe extern "C" fn dc_set_draft(
         Some(&mut ffi_msg.message)
     };
     ffi_context
-        .with_inner(|ctx| chat::set_draft(ctx, chat_id, msg))
+        .with_inner(|ctx| chat::set_draft(ctx, ChatId::new(chat_id), msg))
         .unwrap_or(())
 }
 
@@ -901,7 +911,7 @@ pub unsafe extern "C" fn dc_get_draft(context: *mut dc_context_t, chat_id: u32) 
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| match chat::get_draft(ctx, chat_id) {
+        .with_inner(|ctx| match chat::get_draft(ctx, ChatId::new(chat_id)) {
             Ok(Some(draft)) => {
                 let ffi_msg = MessageWrapper {
                     context,
@@ -938,7 +948,7 @@ pub unsafe extern "C" fn dc_get_chat_msgs(
     ffi_context
         .with_inner(|ctx| {
             let arr = dc_array_t::from(
-                chat::get_chat_msgs(ctx, chat_id, flags, marker_flag)
+                chat::get_chat_msgs(ctx, ChatId::new(chat_id), flags, marker_flag)
                     .iter()
                     .map(|msg_id| msg_id.to_u32())
                     .collect::<Vec<u32>>(),
@@ -956,7 +966,7 @@ pub unsafe extern "C" fn dc_get_msg_cnt(context: *mut dc_context_t, chat_id: u32
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| chat::get_msg_cnt(ctx, chat_id) as libc::c_int)
+        .with_inner(|ctx| chat::get_msg_cnt(ctx, ChatId::new(chat_id)) as libc::c_int)
         .unwrap_or(0)
 }
 
@@ -971,7 +981,7 @@ pub unsafe extern "C" fn dc_get_fresh_msg_cnt(
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| chat::get_fresh_msg_cnt(ctx, chat_id) as libc::c_int)
+        .with_inner(|ctx| chat::get_fresh_msg_cnt(ctx, ChatId::new(chat_id)) as libc::c_int)
         .unwrap_or(0)
 }
 
@@ -1006,7 +1016,9 @@ pub unsafe extern "C" fn dc_marknoticed_chat(context: *mut dc_context_t, chat_id
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| {
-            chat::marknoticed_chat(ctx, chat_id).log_err(ctx, "Failed marknoticed chat")
+            chat::marknoticed_chat(ctx, ChatId::new(chat_id))
+                .log_err(ctx, "Failed marknoticed chat")
+                .unwrap_or(())
         })
         .unwrap_or(())
 }
@@ -1020,7 +1032,9 @@ pub unsafe extern "C" fn dc_marknoticed_all_chats(context: *mut dc_context_t) {
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| {
-            chat::marknoticed_all_chats(ctx).log_err(ctx, "Failed marknoticed all chats")
+            chat::marknoticed_all_chats(ctx)
+                .log_err(ctx, "Failed marknoticed all chats")
+                .unwrap_or(())
         })
         .unwrap_or(())
 }
@@ -1054,10 +1068,16 @@ pub unsafe extern "C" fn dc_get_chat_media(
     ffi_context
         .with_inner(|ctx| {
             let arr = dc_array_t::from(
-                chat::get_chat_media(ctx, chat_id, msg_type, or_msg_type2, or_msg_type3)
-                    .iter()
-                    .map(|msg_id| msg_id.to_u32())
-                    .collect::<Vec<u32>>(),
+                chat::get_chat_media(
+                    ctx,
+                    ChatId::new(chat_id),
+                    msg_type,
+                    or_msg_type2,
+                    or_msg_type3,
+                )
+                .iter()
+                .map(|msg_id| msg_id.to_u32())
+                .collect::<Vec<u32>>(),
             );
             Box::into_raw(Box::new(arr))
         })
@@ -1124,7 +1144,11 @@ pub unsafe extern "C" fn dc_archive_chat(
         return;
     };
     ffi_context
-        .with_inner(|ctx| chat::archive(ctx, chat_id, archive).log_err(ctx, "Failed archive chat"))
+        .with_inner(|ctx| {
+            chat::archive(ctx, ChatId::new(chat_id), archive)
+                .log_err(ctx, "Failed archive chat")
+                .unwrap_or(())
+        })
         .unwrap_or(())
 }
 
@@ -1136,7 +1160,11 @@ pub unsafe extern "C" fn dc_delete_chat(context: *mut dc_context_t, chat_id: u32
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| chat::delete(ctx, chat_id).log_err(ctx, "Failed chat delete"))
+        .with_inner(|ctx| {
+            chat::delete(ctx, ChatId::new(chat_id))
+                .log_err(ctx, "Failed chat delete")
+                .unwrap_or(())
+        })
         .unwrap_or(())
 }
 
@@ -1152,7 +1180,7 @@ pub unsafe extern "C" fn dc_get_chat_contacts(
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| {
-            let arr = dc_array_t::from(chat::get_chat_contacts(ctx, chat_id));
+            let arr = dc_array_t::from(chat::get_chat_contacts(ctx, ChatId::new(chat_id)));
             Box::into_raw(Box::new(arr))
         })
         .unwrap_or_else(|_| ptr::null_mut())
@@ -1172,7 +1200,7 @@ pub unsafe extern "C" fn dc_search_msgs(
     ffi_context
         .with_inner(|ctx| {
             let arr = dc_array_t::from(
-                ctx.search_msgs(chat_id, to_string_lossy(query))
+                ctx.search_msgs(ChatId::new(chat_id), to_string_lossy(query))
                     .iter()
                     .map(|msg_id| msg_id.to_u32())
                     .collect::<Vec<u32>>(),
@@ -1190,13 +1218,15 @@ pub unsafe extern "C" fn dc_get_chat(context: *mut dc_context_t, chat_id: u32) -
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| match chat::Chat::load_from_db(ctx, chat_id) {
-            Ok(chat) => {
-                let ffi_chat = ChatWrapper { context, chat };
-                Box::into_raw(Box::new(ffi_chat))
-            }
-            Err(_) => ptr::null_mut(),
-        })
+        .with_inner(
+            |ctx| match chat::Chat::load_from_db(ctx, ChatId::new(chat_id)) {
+                Ok(chat) => {
+                    let ffi_chat = ChatWrapper { context, chat };
+                    Box::into_raw(Box::new(ffi_chat))
+                }
+                Err(_) => ptr::null_mut(),
+            },
+        )
         .unwrap_or_else(|_| ptr::null_mut())
 }
 
@@ -1219,7 +1249,9 @@ pub unsafe extern "C" fn dc_create_group_chat(
     ffi_context
         .with_inner(|ctx| {
             chat::create_group_chat(ctx, verified, to_string_lossy(name))
-                .unwrap_or_log_default(ctx, "Failed to create group chat")
+                .log_err(ctx, "Failed to create group chat")
+                .map(|id| id.to_u32())
+                .unwrap_or(0)
         })
         .unwrap_or(0)
 }
@@ -1236,7 +1268,7 @@ pub unsafe extern "C" fn dc_is_contact_in_chat(
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| chat::is_contact_in_chat(ctx, chat_id, contact_id))
+        .with_inner(|ctx| chat::is_contact_in_chat(ctx, ChatId::new(chat_id), contact_id))
         .unwrap_or_default()
         .into()
 }
@@ -1253,7 +1285,9 @@ pub unsafe extern "C" fn dc_add_contact_to_chat(
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| chat::add_contact_to_chat(ctx, chat_id, contact_id) as libc::c_int)
+        .with_inner(|ctx| {
+            chat::add_contact_to_chat(ctx, ChatId::new(chat_id), contact_id) as libc::c_int
+        })
         .unwrap_or(0)
 }
 
@@ -1270,7 +1304,7 @@ pub unsafe extern "C" fn dc_remove_contact_from_chat(
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| {
-            chat::remove_contact_from_chat(ctx, chat_id, contact_id)
+            chat::remove_contact_from_chat(ctx, ChatId::new(chat_id), contact_id)
                 .map(|_| 1)
                 .unwrap_or_log_default(ctx, "Failed to remove contact")
         })
@@ -1290,7 +1324,7 @@ pub unsafe extern "C" fn dc_set_chat_name(
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| {
-            chat::set_chat_name(ctx, chat_id, to_string_lossy(name))
+            chat::set_chat_name(ctx, ChatId::new(chat_id), to_string_lossy(name))
                 .map(|_| 1)
                 .unwrap_or_log_default(ctx, "Failed to set chat name")
         })
@@ -1310,7 +1344,7 @@ pub unsafe extern "C" fn dc_set_chat_profile_image(
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| {
-            chat::set_chat_profile_image(ctx, chat_id, to_string_lossy(image))
+            chat::set_chat_profile_image(ctx, ChatId::new(chat_id), to_string_lossy(image))
                 .map(|_| 1)
                 .unwrap_or_log_default(ctx, "Failed to set profile image")
         })
@@ -1399,7 +1433,7 @@ pub unsafe extern "C" fn dc_forward_msgs(
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| {
-            chat::forward_msgs(ctx, &msg_ids[..], chat_id)
+            chat::forward_msgs(ctx, &msg_ids[..], ChatId::new(chat_id))
                 .unwrap_or_log_default(ctx, "Failed to forward message")
         })
         .unwrap_or_default()
@@ -1812,7 +1846,7 @@ pub unsafe extern "C" fn dc_get_securejoin_qr(
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| {
-            securejoin::dc_get_securejoin_qr(ctx, chat_id)
+            securejoin::dc_get_securejoin_qr(ctx, ChatId::new(chat_id))
                 .unwrap_or_else(|| "".to_string())
                 .strdup()
         })
@@ -1830,7 +1864,7 @@ pub unsafe extern "C" fn dc_join_securejoin(
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| securejoin::dc_join_securejoin(ctx, &to_string_lossy(qr)))
+        .with_inner(|ctx| securejoin::dc_join_securejoin(ctx, &to_string_lossy(qr)).to_u32())
         .unwrap_or(0)
 }
 
@@ -1846,7 +1880,9 @@ pub unsafe extern "C" fn dc_send_locations_to_chat(
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| location::send_locations_to_chat(ctx, chat_id, seconds as i64))
+        .with_inner(|ctx| {
+            location::send_locations_to_chat(ctx, ChatId::new(chat_id), seconds as i64)
+        })
         .ok();
 }
 
@@ -1861,7 +1897,9 @@ pub unsafe extern "C" fn dc_is_sending_locations_to_chat(
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| location::is_sending_locations_to_chat(ctx, chat_id) as libc::c_int)
+        .with_inner(|ctx| {
+            location::is_sending_locations_to_chat(ctx, ChatId::new(chat_id)) as libc::c_int
+        })
         .unwrap_or(0)
 }
 
@@ -1899,7 +1937,7 @@ pub unsafe extern "C" fn dc_get_locations(
         .with_inner(|ctx| {
             let res = location::get_range(
                 ctx,
-                chat_id,
+                ChatId::new(chat_id),
                 contact_id,
                 timestamp_begin as i64,
                 timestamp_end as i64,
@@ -2021,8 +2059,7 @@ pub unsafe extern "C" fn dc_array_get_chat_id(
         eprintln!("ignoring careless call to dc_array_get_chat_id()");
         return 0;
     }
-
-    (*array).get_location(index).chat_id
+    (*array).get_location(index).chat_id.to_u32()
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_contact_id(
@@ -2159,7 +2196,7 @@ pub unsafe extern "C" fn dc_chatlist_get_chat_id(
         return 0;
     }
     let ffi_list = &*chatlist;
-    ffi_list.list.get_chat_id(index as usize)
+    ffi_list.list.get_chat_id(index as usize).to_u32()
 }
 
 #[no_mangle]
@@ -2251,7 +2288,7 @@ pub unsafe extern "C" fn dc_chat_get_id(chat: *mut dc_chat_t) -> u32 {
         return 0;
     }
     let ffi_chat = &*chat;
-    ffi_chat.chat.get_id()
+    ffi_chat.chat.get_id().to_u32()
 }
 
 #[no_mangle]
@@ -2398,7 +2435,7 @@ pub unsafe extern "C" fn dc_chat_get_info_json(
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| {
-            let chat = match chat::Chat::load_from_db(ctx, chat_id) {
+            let chat = match chat::Chat::load_from_db(ctx, ChatId::new(chat_id)) {
                 Ok(chat) => chat,
                 Err(err) => {
                     error!(ctx, "dc_get_chat_info_json() failed to load chat: {}", err);
@@ -2494,7 +2531,7 @@ pub unsafe extern "C" fn dc_msg_get_chat_id(msg: *mut dc_msg_t) -> u32 {
         return 0;
     }
     let ffi_msg = &*msg;
-    ffi_msg.message.get_chat_id()
+    ffi_msg.message.get_chat_id().to_u32()
 }
 
 #[no_mangle]
@@ -3119,12 +3156,12 @@ pub unsafe extern "C" fn dc_str_unref(s: *mut libc::c_char) {
 
 pub mod providers;
 
-pub trait ResultExt<T> {
+pub trait ResultExt<T, E> {
     fn unwrap_or_log_default(self, context: &context::Context, message: &str) -> T;
-    fn log_err(&self, context: &context::Context, message: &str);
+    fn log_err(self, context: &context::Context, message: &str) -> Result<T, E>;
 }
 
-impl<T: Default, E: std::fmt::Display> ResultExt<T> for Result<T, E> {
+impl<T: Default, E: std::fmt::Display> ResultExt<T, E> for Result<T, E> {
     fn unwrap_or_log_default(self, context: &context::Context, message: &str) -> T {
         match self {
             Ok(t) => t,
@@ -3135,10 +3172,11 @@ impl<T: Default, E: std::fmt::Display> ResultExt<T> for Result<T, E> {
         }
     }
 
-    fn log_err(&self, context: &context::Context, message: &str) {
-        if let Err(err) = self {
-            error!(context, "{}: {}", message, err);
-        }
+    fn log_err(self, context: &context::Context, message: &str) -> Result<T, E> {
+        self.map_err(|err| {
+            warn!(context, "{}: {}", message, err);
+            err
+        })
     }
 }
 

@@ -3,7 +3,7 @@
 use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 
 use crate::aheader::EncryptPreference;
-use crate::chat::{self, Chat};
+use crate::chat::{self, Chat, ChatId};
 use crate::config::*;
 use crate::constants::*;
 use crate::contact::*;
@@ -65,7 +65,7 @@ macro_rules! get_qr_attr {
     };
 }
 
-pub fn dc_get_securejoin_qr(context: &Context, group_chat_id: u32) -> Option<String> {
+pub fn dc_get_securejoin_qr(context: &Context, group_chat_id: ChatId) -> Option<String> {
     /*=======================================================
     ====             Alice - the inviter side            ====
     ====   Step 1 in "Setup verified contact" protocol   ====
@@ -101,7 +101,7 @@ pub fn dc_get_securejoin_qr(context: &Context, group_chat_id: u32) -> Option<Str
     let self_name_urlencoded =
         utf8_percent_encode(&self_name, NON_ALPHANUMERIC_WITHOUT_DOT).to_string();
 
-    let qr = if 0 != group_chat_id {
+    let qr = if !group_chat_id.is_unset() {
         // parameters used: a=g=x=i=s=
         if let Ok(chat) = Chat::load_from_db(context, group_chat_id) {
             let group_name = chat.get_name();
@@ -143,31 +143,31 @@ fn get_self_fingerprint(context: &Context) -> Option<String> {
     None
 }
 
-pub fn dc_join_securejoin(context: &Context, qr: &str) -> u32 {
+pub fn dc_join_securejoin(context: &Context, qr: &str) -> ChatId {
     let cleanup =
-        |context: &Context, contact_chat_id: u32, ongoing_allocated: bool, join_vg: bool| {
+        |context: &Context, contact_chat_id: ChatId, ongoing_allocated: bool, join_vg: bool| {
             let mut bob = context.bob.write().unwrap();
             bob.expects = 0;
-            let ret_chat_id = if bob.status == DC_BOB_SUCCESS {
+            let ret_chat_id: ChatId = if bob.status == DC_BOB_SUCCESS {
                 if join_vg {
                     chat::get_chat_id_by_grpid(
                         context,
                         bob.qr_scan.as_ref().unwrap().text2.as_ref().unwrap(),
                     )
-                    .unwrap_or((0, false, Blocked::Not))
+                    .unwrap_or((ChatId::new(0), false, Blocked::Not))
                     .0
                 } else {
                     contact_chat_id
                 }
             } else {
-                0
+                ChatId::new(0)
             };
             bob.qr_scan = None;
 
             if ongoing_allocated {
                 context.free_ongoing();
             }
-            ret_chat_id as u32
+            ret_chat_id
         };
 
     /*========================================================
@@ -175,7 +175,7 @@ pub fn dc_join_securejoin(context: &Context, qr: &str) -> u32 {
     ====   Step 2 in "Setup verified contact" protocol   =====
     ========================================================*/
 
-    let mut contact_chat_id: u32 = 0;
+    let mut contact_chat_id = ChatId::new(0);
     let mut join_vg: bool = false;
 
     info!(context, "Requesting secure-join ...",);
@@ -189,11 +189,13 @@ pub fn dc_join_securejoin(context: &Context, qr: &str) -> u32 {
         error!(context, "Unknown QR code.",);
         return cleanup(&context, contact_chat_id, true, join_vg);
     }
-    contact_chat_id = chat::create_by_contact_id(context, qr_scan.id).unwrap_or_default();
-    if contact_chat_id == 0 {
-        error!(context, "Unknown contact.",);
-        return cleanup(&context, contact_chat_id, true, join_vg);
-    }
+    contact_chat_id = match chat::create_by_contact_id(context, qr_scan.id) {
+        Ok(chat_id) => chat_id,
+        Err(_) => {
+            error!(context, "Unknown contact.");
+            return cleanup(&context, contact_chat_id, true, join_vg);
+        }
+    };
     if context.shall_stop_ongoing() {
         return cleanup(&context, contact_chat_id, true, join_vg);
     }
@@ -264,7 +266,7 @@ pub fn dc_join_securejoin(context: &Context, qr: &str) -> u32 {
 
 fn send_handshake_msg(
     context: &Context,
-    contact_chat_id: u32,
+    contact_chat_id: ChatId,
     step: &str,
     param2: impl AsRef<str>,
     fingerprint: Option<String>,
@@ -301,7 +303,7 @@ fn send_handshake_msg(
     chat::send_msg(context, contact_chat_id, &mut msg).unwrap_or_default();
 }
 
-fn chat_id_2_contact_id(context: &Context, contact_chat_id: u32) -> u32 {
+fn chat_id_2_contact_id(context: &Context, contact_chat_id: ChatId) -> u32 {
     let contacts = chat::get_chat_contacts(context, contact_chat_id);
     if contacts.len() == 1 {
         contacts[0]
@@ -313,7 +315,7 @@ fn chat_id_2_contact_id(context: &Context, contact_chat_id: u32) -> u32 {
 fn fingerprint_equals_sender(
     context: &Context,
     fingerprint: impl AsRef<str>,
-    contact_chat_id: u32,
+    contact_chat_id: ChatId,
 ) -> bool {
     let contacts = chat::get_chat_contacts(context, contact_chat_id);
 
@@ -648,7 +650,7 @@ pub(crate) fn handle_securejoin_handshake(
                 // only after we have returned.  It does not impact
                 // the security invariants of secure-join however.
                 let (_, is_verified_group, _) = chat::get_chat_id_by_grpid(context, &group_id)
-                    .unwrap_or((0, false, Blocked::Not));
+                    .unwrap_or((ChatId::new(0), false, Blocked::Not));
                 // when joining a non-verified group
                 // the vg-member-added message may be unencrypted
                 // when not all group members have keys or prefer encryption.
@@ -750,7 +752,7 @@ pub(crate) fn handle_securejoin_handshake(
     }
 }
 
-fn secure_connection_established(context: &Context, contact_chat_id: u32) {
+fn secure_connection_established(context: &Context, contact_chat_id: ChatId) {
     let contact_id: u32 = chat_id_2_contact_id(context, contact_chat_id);
     let contact = Contact::get_by_id(context, contact_id);
     let addr = if let Ok(ref contact) = contact {
@@ -763,7 +765,11 @@ fn secure_connection_established(context: &Context, contact_chat_id: u32) {
     emit_event!(context, Event::ChatModified(contact_chat_id));
 }
 
-fn could_not_establish_secure_connection(context: &Context, contact_chat_id: u32, details: &str) {
+fn could_not_establish_secure_connection(
+    context: &Context,
+    contact_chat_id: ChatId,
+    details: &str,
+) {
     let contact_id = chat_id_2_contact_id(context, contact_chat_id);
     let contact = Contact::get_by_id(context, contact_id);
     let msg = context.stock_string_repl_str(

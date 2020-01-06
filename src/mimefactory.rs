@@ -83,7 +83,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                  FROM chats_contacts cc  \
                  LEFT JOIN contacts c ON cc.contact_id=c.id  \
                  WHERE cc.chat_id=? AND cc.contact_id>9;",
-                params![msg.chat_id as i32],
+                params![msg.chat_id],
                 |row| {
                     let authname: String = row.get(0)?;
                     let addr: String = row.get(1)?;
@@ -163,7 +163,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         msg: &'b Message,
         additional_msg_ids: Vec<String>,
     ) -> Result<Self, Error> {
-        ensure!(msg.chat_id > DC_CHAT_ID_LAST_SPECIAL, "Invalid chat id");
+        ensure!(!msg.chat_id.is_special(), "Invalid chat id");
 
         let contact = Contact::load_from_db(context, msg.from_id)?;
 
@@ -613,7 +613,9 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                             email_to_add.into(),
                         ));
                     }
-                    if 0 != self.msg.param.get_int(Param::Arg2).unwrap_or_default() & 0x1 {
+                    if 0 != self.msg.param.get_int(Param::Arg2).unwrap_or_default()
+                        & DC_FROM_HANDSHAKE
+                    {
                         info!(
                             context,
                             "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>",

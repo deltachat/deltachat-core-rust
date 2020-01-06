@@ -4,7 +4,7 @@ use bitflags::bitflags;
 use quick_xml;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
-use crate::chat;
+use crate::chat::{self, ChatId};
 use crate::config::Config;
 use crate::constants::*;
 use crate::context::*;
@@ -28,7 +28,7 @@ pub struct Location {
     pub timestamp: i64,
     pub contact_id: u32,
     pub msg_id: u32,
-    pub chat_id: u32,
+    pub chat_id: ChatId,
     pub marker: Option<String>,
     pub independent: u32,
 }
@@ -193,9 +193,9 @@ impl Kml {
 }
 
 // location streaming
-pub fn send_locations_to_chat(context: &Context, chat_id: u32, seconds: i64) {
+pub fn send_locations_to_chat(context: &Context, chat_id: ChatId, seconds: i64) {
     let now = time();
-    if !(seconds < 0 || chat_id <= DC_CHAT_ID_LAST_SPECIAL) {
+    if !(seconds < 0 || chat_id.is_special()) {
         let is_sending_locations_before = is_sending_locations_to_chat(context, chat_id);
         if sql::execute(
             context,
@@ -207,7 +207,7 @@ pub fn send_locations_to_chat(context: &Context, chat_id: u32, seconds: i64) {
             params![
                 if 0 != seconds { now } else { 0 },
                 if 0 != seconds { now + seconds } else { 0 },
-                chat_id as i32,
+                chat_id,
             ],
         )
         .is_ok()
@@ -229,7 +229,7 @@ pub fn send_locations_to_chat(context: &Context, chat_id: u32, seconds: i64) {
                 job_add(
                     context,
                     job::Action::MaybeSendLocationsEnded,
-                    chat_id as i32,
+                    chat_id.to_u32() as i32,
                     Params::new(),
                     seconds + 1,
                 );
@@ -251,12 +251,12 @@ fn schedule_MAYBE_SEND_LOCATIONS(context: &Context, force_schedule: bool) {
     };
 }
 
-pub fn is_sending_locations_to_chat(context: &Context, chat_id: u32) -> bool {
+pub fn is_sending_locations_to_chat(context: &Context, chat_id: ChatId) -> bool {
     context
         .sql
         .exists(
             "SELECT id  FROM chats  WHERE (? OR id=?)   AND locations_send_until>?;",
-            params![if chat_id == 0 { 1 } else { 0 }, chat_id as i32, time()],
+            params![if chat_id.is_unset() { 1 } else { 0 }, chat_id, time()],
         )
         .unwrap_or_default()
 }
@@ -302,7 +302,7 @@ pub fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64) -> b
 
 pub fn get_range(
     context: &Context,
-    chat_id: u32,
+    chat_id: ChatId,
     contact_id: u32,
     timestamp_from: i64,
     mut timestamp_to: i64,
@@ -320,8 +320,8 @@ pub fn get_range(
              AND (l.independent=1 OR (l.timestamp>=? AND l.timestamp<=?)) \
              ORDER BY l.timestamp DESC, l.id DESC, msg_id DESC;",
             params![
-                if chat_id == 0 { 1 } else { 0 },
-                chat_id as i32,
+                if chat_id.is_unset() { 1 } else { 0 },
+                chat_id,
                 if contact_id == 0 { 1 } else { 0 },
                 contact_id as i32,
                 timestamp_from,
@@ -371,7 +371,7 @@ pub fn delete_all(context: &Context) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn get_kml(context: &Context, chat_id: u32) -> Result<(String, u32), Error> {
+pub fn get_kml(context: &Context, chat_id: ChatId) -> Result<(String, u32), Error> {
     let mut last_added_location_id = 0;
 
     let self_addr = context
@@ -380,7 +380,7 @@ pub fn get_kml(context: &Context, chat_id: u32) -> Result<(String, u32), Error> 
 
     let (locations_send_begin, locations_send_until, locations_last_sent) = context.sql.query_row(
         "SELECT locations_send_begin, locations_send_until, locations_last_sent  FROM chats  WHERE id=?;",
-        params![chat_id as i32], |row| {
+        params![chat_id], |row| {
             let send_begin: i64 = row.get(0)?;
             let send_until: i64 = row.get(1)?;
             let last_sent: i64 = row.get(2)?;
@@ -465,14 +465,14 @@ pub fn get_message_kml(timestamp: i64, latitude: f64, longitude: f64) -> String 
 
 pub fn set_kml_sent_timestamp(
     context: &Context,
-    chat_id: u32,
+    chat_id: ChatId,
     timestamp: i64,
 ) -> Result<(), Error> {
     sql::execute(
         context,
         &context.sql,
         "UPDATE chats SET locations_last_sent=? WHERE id=?;",
-        params![timestamp, chat_id as i32],
+        params![timestamp, chat_id],
     )?;
 
     Ok(())
@@ -495,12 +495,12 @@ pub fn set_msg_location_id(
 
 pub fn save(
     context: &Context,
-    chat_id: u32,
+    chat_id: ChatId,
     contact_id: u32,
     locations: &[Location],
     independent: bool,
 ) -> Result<u32, Error> {
-    ensure!(chat_id > DC_CHAT_ID_LAST_SPECIAL, "Invalid chat id");
+    ensure!(!chat_id.is_special(), "Invalid chat id");
     context
         .sql
         .prepare2(
@@ -520,7 +520,7 @@ pub fn save(
                         stmt_insert.execute(params![
                             location.timestamp,
                             contact_id as i32,
-                            chat_id as i32,
+                            chat_id,
                             location.latitude,
                             location.longitude,
                             location.accuracy,
@@ -562,7 +562,7 @@ pub fn JobMaybeSendLocations(context: &Context, _job: &Job) -> job::Status {
          WHERE locations_send_until>?;",
         params![now],
         |row| {
-            let chat_id: i32 = row.get(0)?;
+            let chat_id: ChatId = row.get(0)?;
             let locations_send_begin: i64 = row.get(1)?;
             let locations_last_sent: i64 = row.get(2)?;
             continue_streaming = true;
@@ -629,7 +629,7 @@ pub fn JobMaybeSendLocations(context: &Context, _job: &Job) -> job::Status {
 
         for (chat_id, mut msg) in msgs.into_iter() {
             // TODO: better error handling
-            chat::send_msg(context, chat_id as u32, &mut msg).unwrap_or_default();
+            chat::send_msg(context, chat_id, &mut msg).unwrap_or_default();
         }
     }
     if continue_streaming {
@@ -644,11 +644,11 @@ pub fn JobMaybeSendLocationsEnded(context: &Context, job: &mut Job) -> job::Stat
     // the function checks, if location-streaming is really ended;
     // if so, a device-message is added if not yet done.
 
-    let chat_id = job.foreign_id;
+    let chat_id = ChatId::new(job.foreign_id);
 
     let (send_begin, send_until) = job_try!(context.sql.query_row(
         "SELECT locations_send_begin, locations_send_until  FROM chats  WHERE id=?",
-        params![chat_id as i32],
+        params![chat_id],
         |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
     ));
 
@@ -660,7 +660,7 @@ pub fn JobMaybeSendLocationsEnded(context: &Context, job: &mut Job) -> job::Stat
             // not streaming, device-message already sent
             job_try!(context.sql.execute(
                 "UPDATE chats    SET locations_send_begin=0, locations_send_until=0  WHERE id=?",
-                params![chat_id as i32],
+                params![chat_id],
             ));
 
             let stock_str = context.stock_system_msg(StockMessage::MsgLocationDisabled, "", "", 0);

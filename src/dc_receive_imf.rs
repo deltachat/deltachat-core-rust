@@ -3,7 +3,7 @@ use sha2::{Digest, Sha256};
 
 use num_traits::FromPrimitive;
 
-use crate::chat::{self, Chat};
+use crate::chat::{self, Chat, ChatId};
 use crate::config::Config;
 use crate::constants::*;
 use crate::contact::*;
@@ -61,7 +61,7 @@ pub fn dc_receive_imf(
     ensure!(mime_parser.has_headers(), "No Headers Found");
 
     // the function returns the number of created messages in the database
-    let mut chat_id = 0;
+    let mut chat_id = ChatId::new(0);
     let mut hidden = false;
 
     let mut needs_delete_job = false;
@@ -74,17 +74,17 @@ pub fn dc_receive_imf(
     // helper method to handle early exit and memory cleanup
     let cleanup = |context: &Context,
                    create_event_to_send: &Option<CreateEvent>,
-                   created_db_entries: &Vec<(usize, MsgId)>| {
+                   created_db_entries: &Vec<(ChatId, MsgId)>| {
         if let Some(create_event_to_send) = create_event_to_send {
             for (chat_id, msg_id) in created_db_entries {
                 let event = match create_event_to_send {
                     CreateEvent::MsgsChanged => Event::MsgsChanged {
                         msg_id: *msg_id,
-                        chat_id: *chat_id as u32,
+                        chat_id: *chat_id,
                     },
                     CreateEvent::IncomingMsg => Event::IncomingMsg {
                         msg_id: *msg_id,
-                        chat_id: *chat_id as u32,
+                        chat_id: *chat_id,
                     },
                 };
                 context.call_cb(event);
@@ -263,11 +263,11 @@ fn add_parts(
     from_id: u32,
     from_id_blocked: bool,
     hidden: &mut bool,
-    chat_id: &mut u32,
+    chat_id: &mut ChatId,
     flags: u32,
     needs_delete_job: &mut bool,
     insert_msg_id: &mut MsgId,
-    created_db_entries: &mut Vec<(usize, MsgId)>,
+    created_db_entries: &mut Vec<(ChatId, MsgId)>,
     create_event_to_send: &mut Option<CreateEvent>,
 ) -> Result<()> {
     let mut state: MessageState;
@@ -308,7 +308,7 @@ fn add_parts(
     {
         // this message is a classic email not a chat-message nor a reply to one
         if show_emails == ShowEmails::Off {
-            *chat_id = DC_CHAT_ID_TRASH;
+            *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
             allow_creation = false
         } else if show_emails == ShowEmails::AcceptedContacts {
             allow_creation = false
@@ -334,7 +334,7 @@ fn add_parts(
         if mime_parser.get(HeaderDef::SecureJoin).is_some() {
             // avoid discarding by show_emails setting
             msgrmsg = MessengerMessage::Yes;
-            *chat_id = 0;
+            *chat_id = ChatId::new(0);
             allow_creation = true;
             match handle_securejoin_handshake(context, mime_parser, from_id) {
                 Ok(securejoin::HandshakeMessage::Done) => {
@@ -364,12 +364,12 @@ fn add_parts(
 
         // get the chat_id - a chat_id here is no indicator that the chat is displayed in the normal list,
         // it might also be blocked and displayed in the deaddrop as a result
-        if *chat_id == 0 {
+        if chat_id.is_unset() {
             // try to create a group
             // (groups appear automatically only if the _sender_ is known, see core issue #54)
 
             let create_blocked =
-                if 0 != test_normal_chat_id && test_normal_chat_id_blocked == Blocked::Not {
+                if !test_normal_chat_id.is_unset() && test_normal_chat_id_blocked == Blocked::Not {
                     Blocked::Not
                 } else {
                     Blocked::Deaddrop
@@ -385,21 +385,24 @@ fn add_parts(
             )?;
             *chat_id = new_chat_id;
             chat_id_blocked = new_chat_id_blocked;
-            if *chat_id != 0 && chat_id_blocked != Blocked::Not && create_blocked == Blocked::Not {
+            if !chat_id.is_unset()
+                && chat_id_blocked != Blocked::Not
+                && create_blocked == Blocked::Not
+            {
                 chat::unblock(context, new_chat_id);
                 chat_id_blocked = Blocked::Not;
             }
         }
 
-        if *chat_id == 0 {
+        if chat_id.is_unset() {
             // check if the message belongs to a mailing list
             if mime_parser.is_mailinglist_message() {
-                *chat_id = DC_CHAT_ID_TRASH;
+                *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
                 info!(context, "Message belongs to a mailing list and is ignored.",);
             }
         }
 
-        if *chat_id == 0 {
+        if chat_id.is_unset() {
             // try to create a normal chat
             let create_blocked = if from_id == to_id {
                 Blocked::Not
@@ -407,7 +410,7 @@ fn add_parts(
                 Blocked::Deaddrop
             };
 
-            if 0 != test_normal_chat_id {
+            if !test_normal_chat_id.is_unset() {
                 *chat_id = test_normal_chat_id;
                 chat_id_blocked = test_normal_chat_id_blocked;
             } else if allow_creation {
@@ -417,7 +420,7 @@ fn add_parts(
                 *chat_id = id;
                 chat_id_blocked = bl;
             }
-            if 0 != *chat_id && Blocked::Not != chat_id_blocked {
+            if !chat_id.is_unset() && Blocked::Not != chat_id_blocked {
                 if Blocked::Not == create_blocked {
                     chat::unblock(context, *chat_id);
                     chat_id_blocked = Blocked::Not;
@@ -435,9 +438,9 @@ fn add_parts(
                 }
             }
         }
-        if *chat_id == 0 {
+        if chat_id.is_unset() {
             // maybe from_id is null or sth. else is suspicious, move message to trash
-            *chat_id = DC_CHAT_ID_TRASH;
+            *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
         }
 
         // if the chat_id is blocked,
@@ -459,7 +462,7 @@ fn add_parts(
         state = MessageState::OutDelivered;
         to_id = to_ids.get_index(0).cloned().unwrap_or_default();
         if !to_ids.is_empty() {
-            if *chat_id == 0 {
+            if chat_id.is_unset() {
                 let (new_chat_id, new_chat_id_blocked) = create_or_lookup_group(
                     context,
                     &mut mime_parser,
@@ -471,12 +474,12 @@ fn add_parts(
                 *chat_id = new_chat_id;
                 chat_id_blocked = new_chat_id_blocked;
                 // automatically unblock chat when the user sends a message
-                if *chat_id != 0 && chat_id_blocked != Blocked::Not {
+                if !chat_id.is_unset() && chat_id_blocked != Blocked::Not {
                     chat::unblock(context, new_chat_id);
                     chat_id_blocked = Blocked::Not;
                 }
             }
-            if *chat_id == 0 && allow_creation {
+            if chat_id.is_unset() && allow_creation {
                 let create_blocked = if MessengerMessage::No != msgrmsg
                     && !Contact::is_blocked_load(context, to_id)
                 {
@@ -489,7 +492,7 @@ fn add_parts(
                 *chat_id = id;
                 chat_id_blocked = bl;
 
-                if 0 != *chat_id
+                if !chat_id.is_unset()
                     && Blocked::Not != chat_id_blocked
                     && Blocked::Not == create_blocked
                 {
@@ -502,7 +505,7 @@ fn add_parts(
             && to_ids.len() == 1
             && to_ids.contains(&DC_CONTACT_ID_SELF);
 
-        if *chat_id == 0 && self_sent {
+        if chat_id.is_unset() && self_sent {
             // from_id==to_id==DC_CONTACT_ID_SELF - this is a self-sent messages,
             // maybe an Autocrypt Setup Messag
             let (id, bl) =
@@ -511,13 +514,13 @@ fn add_parts(
             *chat_id = id;
             chat_id_blocked = bl;
 
-            if 0 != *chat_id && Blocked::Not != chat_id_blocked {
+            if !chat_id.is_unset() && Blocked::Not != chat_id_blocked {
                 chat::unblock(context, *chat_id);
                 chat_id_blocked = Blocked::Not;
             }
         }
-        if *chat_id == 0 {
-            *chat_id = DC_CHAT_ID_TRASH;
+        if chat_id.is_unset() {
+            *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
         }
     }
     // correct message_timestamp, it should not be used before,
@@ -588,7 +591,7 @@ fn add_parts(
                     rfc724_mid,
                     server_folder.as_ref(),
                     server_uid as i32,
-                    *chat_id as i32,
+                    *chat_id,
                     from_id as i32,
                     to_id as i32,
                     sort_timestamp,
@@ -616,7 +619,7 @@ fn add_parts(
                 let row_id =
                     sql::get_rowid_with_conn(context, conn, "msgs", "rfc724_mid", &rfc724_mid);
                 *insert_msg_id = MsgId::new(row_id);
-                created_db_entries.push((*chat_id as usize, *insert_msg_id));
+                created_db_entries.push((*chat_id, *insert_msg_id));
             }
             Ok(())
         },
@@ -628,7 +631,7 @@ fn add_parts(
     );
 
     // check event to send
-    if *chat_id == DC_CHAT_ID_TRASH {
+    if chat_id.is_trash() {
         *create_event_to_send = None;
     } else if incoming && state == MessageState::InFresh {
         if from_id_blocked {
@@ -646,12 +649,12 @@ fn add_parts(
 fn save_locations(
     context: &Context,
     mime_parser: &MimeMessage,
-    chat_id: u32,
+    chat_id: ChatId,
     from_id: u32,
     insert_msg_id: MsgId,
     hidden: bool,
 ) {
-    if chat_id <= DC_CHAT_ID_LAST_SPECIAL {
+    if chat_id.is_special() {
         return;
     }
     let mut location_id_written = false;
@@ -699,7 +702,7 @@ fn save_locations(
 
 fn calc_timestamps(
     context: &Context,
-    chat_id: u32,
+    chat_id: ChatId,
     from_id: u32,
     message_timestamp: i64,
     is_fresh_msg: bool,
@@ -717,7 +720,7 @@ fn calc_timestamps(
         let last_msg_time: Option<i64> = context.sql.query_get_value(
             context,
             "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? and from_id!=? AND timestamp>=?",
-            params![chat_id as i32, from_id as i32, *sort_timestamp],
+            params![chat_id, from_id as i32, *sort_timestamp],
         );
         if let Some(last_msg_time) = last_msg_time {
             if last_msg_time > 0 && *sort_timestamp <= last_msg_time {
@@ -749,7 +752,7 @@ fn create_or_lookup_group(
     create_blocked: Blocked,
     from_id: u32,
     to_ids: &ContactIds,
-) -> Result<(u32, Blocked)> {
+) -> Result<(ChatId, Blocked)> {
     let mut chat_id_blocked = Blocked::Not;
     let mut recreate_member_list = false;
     let mut send_EVENT_CHAT_MODIFIED = false;
@@ -867,9 +870,9 @@ fn create_or_lookup_group(
     set_better_msg(mime_parser, &better_msg);
 
     // check, if we have a chat with this group ID
-    let (mut chat_id, chat_id_verified, _blocked) =
-        chat::get_chat_id_by_grpid(context, &grpid).unwrap_or((0, false, Blocked::Not));
-    if chat_id != 0 {
+    let (mut chat_id, chat_id_verified, _blocked) = chat::get_chat_id_by_grpid(context, &grpid)
+        .unwrap_or((ChatId::new(0), false, Blocked::Not));
+    if !chat_id.is_error() {
         if chat_id_verified {
             if let Err(err) =
                 check_verified_properties(context, mime_parser, from_id as u32, to_ids)
@@ -897,7 +900,7 @@ fn create_or_lookup_group(
         .get_config(Config::ConfiguredAddr)
         .unwrap_or_default();
 
-    if chat_id == 0
+    if chat_id.is_error()
             && !mime_parser.is_mailinglist_message()
             && !grpid.is_empty()
             && grpname.is_some()
@@ -923,7 +926,7 @@ fn create_or_lookup_group(
 
         if !allow_creation {
             info!(context, "creating group forbidden by caller");
-            return Ok((0, Blocked::Not));
+            return Ok((ChatId::new(0), Blocked::Not));
         }
 
         chat_id = create_group_record(
@@ -938,9 +941,9 @@ fn create_or_lookup_group(
     }
 
     // again, check chat_id
-    if chat_id <= DC_CHAT_ID_LAST_SPECIAL {
+    if chat_id.is_special() {
         return if group_explicitly_left {
-            Ok((DC_CHAT_ID_TRASH, chat_id_blocked))
+            Ok((ChatId::new(DC_CHAT_ID_TRASH), chat_id_blocked))
         } else {
             create_or_lookup_adhoc_group(
                 context,
@@ -980,7 +983,7 @@ fn create_or_lookup_group(
                     context,
                     &context.sql,
                     "UPDATE chats SET name=? WHERE id=?;",
-                    params![grpname, chat_id as i32],
+                    params![grpname, chat_id],
                 )
                 .is_ok()
                 {
@@ -1018,7 +1021,7 @@ fn create_or_lookup_group(
             context,
             &context.sql,
             "DELETE FROM chats_contacts WHERE chat_id=?;",
-            params![chat_id as i32],
+            params![chat_id],
         )
         .ok();
         if skip.is_none() || !addr_cmp(&self_addr, skip.unwrap()) {
@@ -1066,7 +1069,7 @@ fn create_or_lookup_adhoc_group(
     create_blocked: Blocked,
     from_id: u32,
     to_ids: &ContactIds,
-) -> Result<(u32, Blocked)> {
+) -> Result<(ChatId, Blocked)> {
     // if we're here, no grpid was found, check if there is an existing
     // ad-hoc group matching the to-list or if we should and can create one
     // (we do not want to heuristically look at the likely mangled Subject)
@@ -1078,7 +1081,7 @@ fn create_or_lookup_adhoc_group(
             context,
             "not creating ad-hoc group for mailing list message"
         );
-        return Ok((0, Blocked::Not));
+        return Ok((ChatId::new(0), Blocked::Not));
     }
 
     let mut member_ids: Vec<u32> = to_ids.iter().copied().collect();
@@ -1091,7 +1094,7 @@ fn create_or_lookup_adhoc_group(
 
     if member_ids.len() < 3 {
         info!(context, "not creating ad-hoc group: too few contacts");
-        return Ok((0, Blocked::Not));
+        return Ok((ChatId::new(0), Blocked::Not));
     }
 
     let chat_ids = search_chat_ids_by_contact_ids(context, &member_ids)?;
@@ -1099,25 +1102,35 @@ fn create_or_lookup_adhoc_group(
         let chat_ids_str = join(chat_ids.iter().map(|x| x.to_string()), ",");
         let res = context.sql.query_row(
             format!(
-                "SELECT c.id, c.blocked  FROM chats c  \
-                 LEFT JOIN msgs m ON m.chat_id=c.id  WHERE c.id IN({})  ORDER BY m.timestamp DESC, m.id DESC  LIMIT 1;",
+                "SELECT c.id,
+                        c.blocked
+                   FROM chats c
+                   LEFT JOIN msgs m
+                          ON m.chat_id=c.id
+                  WHERE c.id IN({})
+                  ORDER BY m.timestamp DESC,
+                           m.id DESC
+                  LIMIT 1;",
                 chat_ids_str
             ),
             params![],
             |row| {
-                Ok((row.get::<_, i32>(0)?, row.get::<_, Option<Blocked>>(1)?.unwrap_or_default()))
-            }
+                Ok((
+                    row.get::<_, ChatId>(0)?,
+                    row.get::<_, Option<Blocked>>(1)?.unwrap_or_default(),
+                ))
+            },
         );
 
         if let Ok((id, id_blocked)) = res {
             /* success, chat found */
-            return Ok((id as u32, id_blocked));
+            return Ok((id, id_blocked));
         }
     }
 
     if !allow_creation {
         info!(context, "creating ad-hoc group prevented from caller");
-        return Ok((0, Blocked::Not));
+        return Ok((ChatId::new(0), Blocked::Not));
     }
 
     // we do not check if the message is a reply to another group, this may result in
@@ -1131,7 +1144,7 @@ fn create_or_lookup_adhoc_group(
             context,
             "failed to create ad-hoc grpid for {:?}", member_ids
         );
-        return Ok((0, Blocked::Not));
+        return Ok((ChatId::new(0), Blocked::Not));
     }
     // use subject as initial chat name
     let grpname = mime_parser.get_subject().unwrap_or_else(|| {
@@ -1139,7 +1152,7 @@ fn create_or_lookup_adhoc_group(
     });
 
     // create group record
-    let new_chat_id = create_group_record(
+    let new_chat_id: ChatId = create_group_record(
         context,
         &grpid,
         grpname,
@@ -1161,7 +1174,7 @@ fn create_group_record(
     grpname: impl AsRef<str>,
     create_blocked: Blocked,
     create_verified: VerifiedStatus,
-) -> u32 {
+) -> ChatId {
     if sql::execute(
         context,
         &context.sql,
@@ -1186,12 +1199,13 @@ fn create_group_record(
             grpname.as_ref(),
             grpid.as_ref()
         );
-        return 0;
+        return ChatId::new(0);
     }
-    let chat_id = sql::get_rowid(context, &context.sql, "chats", "grpid", grpid.as_ref());
+    let row_id = sql::get_rowid(context, &context.sql, "chats", "grpid", grpid.as_ref());
+    let chat_id = ChatId::new(row_id);
     info!(
         context,
-        "Created group '{}' grpid={} as chat #{}",
+        "Created group '{}' grpid={} as {}",
         grpname.as_ref(),
         grpid.as_ref(),
         chat_id
@@ -1246,7 +1260,7 @@ fn hex_hash(s: impl AsRef<str>) -> String {
 fn search_chat_ids_by_contact_ids(
     context: &Context,
     unsorted_contact_ids: &[u32],
-) -> Result<Vec<u32>> {
+) -> Result<Vec<ChatId>> {
     /* searches chat_id's by the given contact IDs, may return zero, one or more chat_id's */
     let mut contact_ids = Vec::with_capacity(23);
     let mut chat_ids = Vec::with_capacity(23);
@@ -1263,19 +1277,19 @@ fn search_chat_ids_by_contact_ids(
             let contact_ids_str = join(contact_ids.iter().map(|x| x.to_string()), ",");
             context.sql.query_map(
                 format!(
-                    "SELECT DISTINCT cc.chat_id, cc.contact_id \
-                       FROM chats_contacts cc \
-                       LEFT JOIN chats c ON c.id=cc.chat_id \
-                       WHERE cc.chat_id IN(SELECT chat_id FROM chats_contacts WHERE contact_id IN({})) \
-                         AND c.type=120 \
-                         AND cc.contact_id!=1 \
-                       ORDER BY cc.chat_id, cc.contact_id;", // 1=DC_CONTACT_ID_SELF
+                    "SELECT DISTINCT cc.chat_id, cc.contact_id
+                       FROM chats_contacts cc
+                       LEFT JOIN chats c ON c.id=cc.chat_id
+                      WHERE cc.chat_id IN(SELECT chat_id FROM chats_contacts WHERE contact_id IN({}))
+                        AND c.type=120
+                        AND cc.contact_id!=1
+                      ORDER BY cc.chat_id, cc.contact_id;", // 1=DC_CONTACT_ID_SELF
                     contact_ids_str
                 ),
                 params![],
-                |row| Ok((row.get::<_, u32>(0)?, row.get::<_, u32>(1)?)),
+                |row| Ok((row.get::<_, ChatId>(0)?, row.get::<_, u32>(1)?)),
                 |rows| {
-                    let mut last_chat_id = 0;
+                    let mut last_chat_id = ChatId::new(0);
                     let mut matches = 0;
                     let mut mismatches = 0;
 
