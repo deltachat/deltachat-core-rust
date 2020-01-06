@@ -776,28 +776,28 @@ impl<'a> MimeMessage<'a> {
             return;
         }
 
-            let mut mdn_recognized = false;
+        let mut mdn_recognized = false;
         for report in &self.reports {
-                if let Some((chat_id, msg_id)) = message::mdn_from_ext(
-                    self.context,
-                    from_id,
-                    &report.original_message_id,
-                    sent_timestamp,
-                ) {
-                    self.context.call_cb(Event::MsgRead { chat_id, msg_id });
-                    mdn_recognized = true;
-                }
+            if let Some((chat_id, msg_id)) = message::mdn_from_ext(
+                self.context,
+                from_id,
+                &report.original_message_id,
+                sent_timestamp,
+            ) {
+                self.context.call_cb(Event::MsgRead { chat_id, msg_id });
+                mdn_recognized = true;
+            }
         }
 
-            if self.has_chat_version() || mdn_recognized {
-                let mut param = Params::new();
-                param.set(Param::ServerFolder, server_folder.as_ref());
-                param.set_int(Param::ServerUid, server_uid as i32);
-                if self.has_chat_version() && self.context.get_config_bool(Config::MvboxMove) {
-                    param.set_int(Param::AlsoMove, 1);
-                }
-                job_add(self.context, Action::MarkseenMdnOnImap, 0, param, 0);
+        if self.has_chat_version() || mdn_recognized {
+            let mut param = Params::new();
+            param.set(Param::ServerFolder, server_folder.as_ref());
+            param.set_int(Param::ServerUid, server_uid as i32);
+            if self.has_chat_version() && self.context.get_config_bool(Config::MvboxMove) {
+                param.set_int(Param::AlsoMove, 1);
             }
+            job_add(self.context, Action::MarkseenMdnOnImap, 0, param, 0);
+        }
     }
 }
 
