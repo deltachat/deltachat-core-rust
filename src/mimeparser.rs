@@ -776,9 +776,8 @@ impl<'a> MimeMessage<'a> {
             return;
         }
 
-        for report in &self.reports {
             let mut mdn_recognized = false;
-
+        for report in &self.reports {
                 if let Some((chat_id, msg_id)) = message::mdn_from_ext(
                     self.context,
                     from_id,
@@ -788,6 +787,7 @@ impl<'a> MimeMessage<'a> {
                     self.context.call_cb(Event::MsgRead { chat_id, msg_id });
                     mdn_recognized = true;
                 }
+        }
 
             if self.has_chat_version() || mdn_recognized {
                 let mut param = Params::new();
@@ -798,7 +798,6 @@ impl<'a> MimeMessage<'a> {
                 }
                 job_add(self.context, Action::MarkseenMdnOnImap, 0, param, 0);
             }
-        }
     }
 }
 
