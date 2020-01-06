@@ -223,6 +223,15 @@ pub async fn dc_receive_imf(
     if chat::get_autodelete_timer(context, chat_id).await != timer {
         match chat::set_autodelete_timer(context, chat_id, timer).await {
             Ok(()) => {
+                let stock_str = context
+                    .stock_system_msg(
+                        StockMessage::MsgAutodeleteTimerChanged,
+                        timer.to_string(),
+                        "",
+                        from_id,
+                    )
+                    .await;
+                chat::add_info_msg(context, chat_id, stock_str).await;
                 context.emit_event(Event::ChatAutodeleteTimerModified { chat_id, timer });
             }
             Err(err) => {

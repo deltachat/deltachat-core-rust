@@ -784,6 +784,12 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                     "location-streaming-enabled".into(),
                 ));
             }
+            SystemMessage::AutodeleteTimerChanged => {
+                protected_headers.push(Header::new(
+                    "Chat-Content".to_string(),
+                    "autodelete-timer-changed".to_string(),
+                ));
+            }
             SystemMessage::AutocryptSetupMessage => {
                 unprotected_headers
                     .push(Header::new("Autocrypt-Setup-Message".into(), "v1".into()));
