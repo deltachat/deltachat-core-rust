@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::str::FromStr;
 
-use deltachat::chat::{self, Chat};
+use deltachat::chat::{self, Chat, ChatId};
 use deltachat::chatlist::*;
 use deltachat::config;
 use deltachat::constants::*;
@@ -84,7 +84,7 @@ fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
     }
 
     context.call_cb(Event::MsgsChanged {
-        chat_id: 0,
+        chat_id: ChatId::new(0),
         msg_id: MsgId::new(0),
     });
 
@@ -166,7 +166,7 @@ fn poke_spec(context: &Context, spec: Option<&str>) -> libc::c_int {
     println!("Import: {} items read from \"{}\".", read_cnt, &real_spec);
     if read_cnt > 0 {
         context.call_cb(Event::MsgsChanged {
-            chat_id: 0,
+            chat_id: ChatId::new(0),
             msg_id: MsgId::new(0),
         });
     }
@@ -299,7 +299,7 @@ fn chat_prefix(chat: &Chat) -> &'static str {
 
 pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
     let chat_id = *context.cmdline_sel_chat_id.read().unwrap();
-    let mut sel_chat = if chat_id > 0 {
+    let mut sel_chat = if !chat_id.is_unset() {
         Chat::load_from_db(context, chat_id).ok()
     } else {
         None
@@ -549,7 +549,7 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
                     );
                 }
             }
-            if location::is_sending_locations_to_chat(context, 0) {
+            if location::is_sending_locations_to_chat(context, ChatId::new(0)) {
                 println!("Location streaming enabled.");
             }
             println!("{} chats", cnt);
@@ -559,8 +559,8 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
                 bail!("Argument [chat-id] is missing.");
             }
             if !arg1.is_empty() {
-                let chat_id = arg1.parse()?;
-                println!("Selecting chat #{}", chat_id);
+                let chat_id = ChatId::new(arg1.parse()?);
+                println!("Selecting chat {}", chat_id);
                 sel_chat = Some(Chat::load_from_db(context, chat_id)?);
                 *context.cmdline_sel_chat_id.write().unwrap() = chat_id;
             }
@@ -787,7 +787,7 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
             let chat = if let Some(ref sel_chat) = sel_chat {
                 sel_chat.get_id()
             } else {
-                0 as libc::c_uint
+                ChatId::new(0)
             };
 
             let msglist = context.search_msgs(chat, arg1);
@@ -846,12 +846,12 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
         }
         "archive" | "unarchive" => {
             ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
-            let chat_id = arg1.parse()?;
+            let chat_id = ChatId::new(arg1.parse()?);
             chat::archive(context, chat_id, arg0 == "archive")?;
         }
         "delchat" => {
             ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
-            let chat_id = arg1.parse()?;
+            let chat_id = ChatId::new(arg1.parse()?);
             chat::delete(context, chat_id)?;
         }
         "msginfo" => {
@@ -873,7 +873,7 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
             );
 
             let mut msg_ids = [MsgId::new(0); 1];
-            let chat_id = arg2.parse()?;
+            let chat_id = ChatId::new(arg2.parse()?);
             msg_ids[0] = MsgId::new(arg1.parse()?);
             chat::forward_msgs(context, &msg_ids, chat_id)?;
         }

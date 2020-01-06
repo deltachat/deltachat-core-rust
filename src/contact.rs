@@ -7,6 +7,7 @@ use itertools::Itertools;
 use rusqlite;
 
 use crate::aheader::EncryptPreference;
+use crate::chat::ChatId;
 use crate::config::Config;
 use crate::constants::*;
 use crate::context::Context;
@@ -262,7 +263,7 @@ impl Contact {
         .is_ok()
         {
             context.call_cb(Event::MsgsChanged {
-                chat_id: 0,
+                chat_id: ChatId::new(0),
                 msg_id: MsgId::new(0),
             });
         }

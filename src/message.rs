@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use deltachat_derive::{FromSql, ToSql};
 use failure::Fail;
 
-use crate::chat::{self, Chat};
+use crate::chat::{self, Chat, ChatId};
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::*;
@@ -176,7 +176,7 @@ pub struct Message {
     pub(crate) id: MsgId,
     pub(crate) from_id: u32,
     pub(crate) to_id: u32,
-    pub(crate) chat_id: u32,
+    pub(crate) chat_id: ChatId,
     pub(crate) viewtype: Viewtype,
     pub(crate) state: MessageState,
     pub(crate) hidden: bool,
@@ -400,9 +400,9 @@ impl Message {
         self.from_id
     }
 
-    pub fn get_chat_id(&self) -> u32 {
+    pub fn get_chat_id(&self) -> ChatId {
         if self.chat_blocked != Blocked::Not {
-            1
+            ChatId::new(DC_CHAT_ID_DEADDROP)
         } else {
             self.chat_id
         }
@@ -737,7 +737,7 @@ impl Lot {
                 self.text1 = None;
                 self.text1_meaning = Meaning::None;
             } else {
-                if chat.id == DC_CHAT_ID_DEADDROP {
+                if chat.id.is_deaddrop() {
                     if let Some(contact) = contact {
                         self.text1 = Some(contact.get_display_name().into());
                     } else {
@@ -929,7 +929,7 @@ pub fn delete_msgs(context: &Context, msg_ids: &[MsgId]) {
                 delete_poi_location(context, msg.location_id);
             }
         }
-        update_msg_chat_id(context, *msg_id, DC_CHAT_ID_TRASH);
+        update_msg_chat_id(context, *msg_id, ChatId::new(DC_CHAT_ID_TRASH));
         job_add(
             context,
             Action::DeleteMsgOnImap,
@@ -941,7 +941,7 @@ pub fn delete_msgs(context: &Context, msg_ids: &[MsgId]) {
 
     if !msg_ids.is_empty() {
         context.call_cb(Event::MsgsChanged {
-            chat_id: 0,
+            chat_id: ChatId::new(0),
             msg_id: MsgId::new(0),
         });
         job_kill_action(context, Action::Housekeeping);
@@ -949,12 +949,12 @@ pub fn delete_msgs(context: &Context, msg_ids: &[MsgId]) {
     };
 }
 
-fn update_msg_chat_id(context: &Context, msg_id: MsgId, chat_id: u32) -> bool {
+fn update_msg_chat_id(context: &Context, msg_id: MsgId, chat_id: ChatId) -> bool {
     sql::execute(
         context,
         &context.sql,
         "UPDATE msgs SET chat_id=? WHERE id=?;",
-        params![chat_id as i32, msg_id],
+        params![chat_id, msg_id],
     )
     .is_ok()
 }
@@ -1033,7 +1033,7 @@ pub fn markseen_msgs(context: &Context, msg_ids: &[MsgId]) -> bool {
 
     if send_event {
         context.call_cb(Event::MsgsChanged {
-            chat_id: 0,
+            chat_id: ChatId::new(0),
             msg_id: MsgId::new(0),
         });
     }
@@ -1144,14 +1144,14 @@ pub fn exists(context: &Context, msg_id: MsgId) -> bool {
         return false;
     }
 
-    let chat_id: Option<u32> = context.sql.query_get_value(
+    let chat_id: Option<ChatId> = context.sql.query_get_value(
         context,
         "SELECT chat_id FROM msgs WHERE id=?;",
         params![msg_id],
     );
 
     if let Some(chat_id) = chat_id {
-        chat_id != DC_CHAT_ID_TRASH
+        !chat_id.is_trash()
     } else {
         false
     }
@@ -1189,7 +1189,7 @@ pub fn mdn_from_ext(
     from_id: u32,
     rfc724_mid: &str,
     timestamp_sent: i64,
-) -> Option<(u32, MsgId)> {
+) -> Option<(ChatId, MsgId)> {
     if from_id <= DC_MSG_ID_LAST_SPECIAL || rfc724_mid.is_empty() {
         return None;
     }
@@ -1209,7 +1209,7 @@ pub fn mdn_from_ext(
         |row| {
             Ok((
                 row.get::<_, MsgId>("msg_id")?,
-                row.get::<_, u32>("chat_id")?,
+                row.get::<_, ChatId>("chat_id")?,
                 row.get::<_, Chattype>("type")?,
                 row.get::<_, MessageState>("state")?,
             ))

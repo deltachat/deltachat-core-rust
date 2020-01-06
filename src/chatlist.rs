@@ -36,7 +36,7 @@ use crate::stock::StockMessage;
 #[derive(Debug)]
 pub struct Chatlist {
     /// Stores pairs of `chat_id, message_id`
-    ids: Vec<(u32, MsgId)>,
+    ids: Vec<(ChatId, MsgId)>,
 }
 
 impl Chatlist {
@@ -91,7 +91,7 @@ impl Chatlist {
         let mut add_archived_link_item = false;
 
         let process_row = |row: &rusqlite::Row| {
-            let chat_id: u32 = row.get(0)?;
+            let chat_id: ChatId = row.get(0)?;
             let msg_id: MsgId = row.get(1).unwrap_or_default();
             Ok((chat_id, msg_id))
         };
@@ -211,7 +211,10 @@ impl Chatlist {
             )?;
             if 0 == listflags & DC_GCL_NO_SPECIALS {
                 if let Some(last_deaddrop_fresh_msg_id) = get_last_deaddrop_fresh_msg(context) {
-                    ids.insert(0, (DC_CHAT_ID_DEADDROP, last_deaddrop_fresh_msg_id));
+                    ids.insert(
+                        0,
+                        (ChatId::new(DC_CHAT_ID_DEADDROP), last_deaddrop_fresh_msg_id),
+                    );
                 }
                 add_archived_link_item = true;
             }
@@ -220,9 +223,9 @@ impl Chatlist {
 
         if add_archived_link_item && dc_get_archived_cnt(context) > 0 {
             if ids.is_empty() && 0 != listflags & DC_GCL_ADD_ALLDONE_HINT {
-                ids.push((DC_CHAT_ID_ALLDONE_HINT, MsgId::new(0)));
+                ids.push((ChatId::new(DC_CHAT_ID_ALLDONE_HINT), MsgId::new(0)));
             }
-            ids.push((DC_CHAT_ID_ARCHIVED_LINK, MsgId::new(0)));
+            ids.push((ChatId::new(DC_CHAT_ID_ARCHIVED_LINK), MsgId::new(0)));
         }
 
         Ok(Chatlist { ids })
@@ -241,9 +244,9 @@ impl Chatlist {
     /// Get a single chat ID of a chatlist.
     ///
     /// To get the message object from the message ID, use dc_get_chat().
-    pub fn get_chat_id(&self, index: usize) -> u32 {
+    pub fn get_chat_id(&self, index: usize) -> ChatId {
         if index >= self.ids.len() {
-            return 0;
+            return ChatId::new(0);
         }
         self.ids[index].0
     }
@@ -307,7 +310,7 @@ impl Chatlist {
             None
         };
 
-        if chat.id == DC_CHAT_ID_ARCHIVED_LINK {
+        if chat.id.is_archived_link() {
             ret.text2 = None;
         } else if lastmsg.is_none() || lastmsg.as_ref().unwrap().from_id == DC_CONTACT_ID_UNDEFINED
         {

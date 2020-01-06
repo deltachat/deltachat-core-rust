@@ -50,7 +50,7 @@ pub struct Context {
     #[debug_stub = "Callback"]
     cb: Box<ContextCallback>,
     pub os_name: Option<String>,
-    pub cmdline_sel_chat_id: Arc<RwLock<u32>>,
+    pub cmdline_sel_chat_id: Arc<RwLock<ChatId>>,
     pub bob: Arc<RwLock<BobStatus>>,
     pub last_smeared_timestamp: RwLock<i64>,
     pub running_state: Arc<RwLock<RunningState>>,
@@ -116,7 +116,7 @@ impl Context {
             oauth2_critical: Arc::new(Mutex::new(())),
             bob: Arc::new(RwLock::new(Default::default())),
             last_smeared_timestamp: RwLock::new(0),
-            cmdline_sel_chat_id: Arc::new(RwLock::new(0)),
+            cmdline_sel_chat_id: Arc::new(RwLock::new(ChatId::new(0))),
             inbox_thread: Arc::new(RwLock::new(JobThread::new(
                 "INBOX",
                 "configured_inbox_folder",
@@ -345,7 +345,7 @@ impl Context {
     }
 
     #[allow(non_snake_case)]
-    pub fn search_msgs(&self, chat_id: u32, query: impl AsRef<str>) -> Vec<MsgId> {
+    pub fn search_msgs(&self, chat_id: ChatId, query: impl AsRef<str>) -> Vec<MsgId> {
         let real_query = query.as_ref().trim();
         if real_query.is_empty() {
             return Vec::new();
@@ -353,7 +353,7 @@ impl Context {
         let strLikeInText = format!("%{}%", real_query);
         let strLikeBeg = format!("{}%", real_query);
 
-        let query = if 0 != chat_id {
+        let query = if !chat_id.is_unset() {
             concat!(
                 "SELECT m.id AS id, m.timestamp AS timestamp",
                 " FROM msgs m",
@@ -385,7 +385,7 @@ impl Context {
         self.sql
             .query_map(
                 query,
-                params![chat_id as i32, &strLikeInText, &strLikeBeg],
+                params![chat_id, &strLikeInText, &strLikeBeg],
                 |row| row.get::<_, MsgId>("id"),
                 |rows| {
                     let mut ret = Vec::new();
