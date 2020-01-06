@@ -208,7 +208,7 @@ pub fn dc_receive_imf(
     };
 
     if chat::get_autodelete_timer(context, chat_id) != timer {
-        match chat::set_autodelete_timer(context, chat_id, timer) {
+        match chat::inner_set_autodelete_timer(context, chat_id, timer) {
             Ok(()) => {
                 let stock_str = context.stock_system_msg(
                     StockMessage::MsgAutodeleteTimerChanged,

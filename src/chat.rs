@@ -2584,16 +2584,46 @@ pub fn get_autodelete_timer(context: &Context, chat_id: ChatId) -> u32 {
         .unwrap_or_default()
 }
 
-/// Set autodelete timer value in seconds.
+/// Set autodelete timer value without sending a message.
 ///
-/// If timer value is 0, disable autodelete timer.
-pub fn set_autodelete_timer(context: &Context, chat_id: ChatId, timer: u32) -> Result<(), Error> {
+/// Used when a message arrives indicating that someone else has
+/// changed the timer value for a chat.
+pub(crate) fn inner_set_autodelete_timer(
+    context: &Context,
+    chat_id: ChatId,
+    timer: u32,
+) -> Result<(), Error> {
     context.sql.execute(
         "UPDATE chats
          SET autodelete_timer=?
          WHERE id=?;",
         params![timer, chat_id],
     )?;
+    Ok(())
+}
+
+/// Set autodelete timer value in seconds.
+///
+/// If timer value is 0, disable autodelete timer.
+pub fn set_autodelete_timer(context: &Context, chat_id: ChatId, timer: u32) -> Result<(), Error> {
+    if timer == get_autodelete_timer(context, chat_id) {
+        return Ok(());
+    }
+    inner_set_autodelete_timer(context, chat_id, timer)?;
+    let mut msg = Message::new(Viewtype::Text);
+    msg.text = Some(context.stock_system_msg(
+        StockMessage::MsgAutodeleteTimerChanged,
+        timer.to_string(),
+        "",
+        0,
+    ));
+    msg.param.set_cmd(SystemMessage::AutodeleteTimerChanged);
+    if let Err(err) = send_msg(context, chat_id, &mut msg) {
+        warn!(
+            context,
+            "Failed to send a message about autodelete timer change: {:?}", err
+        );
+    }
     Ok(())
 }
 
