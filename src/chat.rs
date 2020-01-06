@@ -2828,10 +2828,11 @@ pub async fn get_autodelete_timer(context: &Context, chat_id: ChatId) -> u32 {
         .unwrap_or_default()
 }
 
-/// Set autodelete timer value in seconds.
+/// Set autodelete timer value without sending a message.
 ///
-/// If timer value is 0, disable autodelete timer.
-pub async fn set_autodelete_timer(
+/// Used when a message arrives indicating that someone else has
+/// changed the timer value for a chat.
+pub(crate) async fn inner_set_autodelete_timer(
     context: &Context,
     chat_id: ChatId,
     timer: u32,
@@ -2845,6 +2846,39 @@ pub async fn set_autodelete_timer(
             paramsv![timer, chat_id],
         )
         .await?;
+    Ok(())
+}
+
+/// Set autodelete timer value in seconds.
+///
+/// If timer value is 0, disable autodelete timer.
+pub async fn set_autodelete_timer(
+    context: &Context,
+    chat_id: ChatId,
+    timer: u32,
+) -> Result<(), Error> {
+    if timer == get_autodelete_timer(context, chat_id).await {
+        return Ok(());
+    }
+    inner_set_autodelete_timer(context, chat_id, timer).await?;
+    let mut msg = Message::new(Viewtype::Text);
+    msg.text = Some(
+        context
+            .stock_system_msg(
+                StockMessage::MsgAutodeleteTimerChanged,
+                timer.to_string(),
+                "",
+                0,
+            )
+            .await,
+    );
+    msg.param.set_cmd(SystemMessage::AutodeleteTimerChanged);
+    if let Err(err) = send_msg(context, chat_id, &mut msg).await {
+        warn!(
+            context,
+            "Failed to send a message about autodelete timer change: {:?}", err
+        );
+    }
     Ok(())
 }
 
