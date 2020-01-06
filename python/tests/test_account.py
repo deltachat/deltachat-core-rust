@@ -722,11 +722,13 @@ class TestOnlineAccount:
         ac2.mark_seen_messages([msg])
 
         lp.sec("ac1: waiting for incoming activity")
-        # wait for MOVED event because even ignored read-receipts should be moved
+        # MDN should be moved even though MDNs are already disabled
         ac1._evlogger.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
 
         assert len(chat.get_messages()) == 1
-        assert not msg_out.is_out_mdn_received()
+
+        # MDN is received even though MDNs are already disabled
+        assert msg_out.is_out_mdn_received()
 
     def test_send_and_receive_will_encrypt_decrypt(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
