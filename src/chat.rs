@@ -1926,7 +1926,7 @@ pub enum MuteDuration {
 
 impl MuteDuration {
     // TODO use serde compatible functions?
-    fn serialize(&self) -> i64 {
+    pub fn serialize(&self) -> i64 {
         match &self {
             MuteDuration::NotMuted => 0,
             MuteDuration::Forever => 1,
@@ -1934,7 +1934,7 @@ impl MuteDuration {
         }
     }
 
-    fn deserialize(value: i64) -> MuteDuration {
+    pub fn deserialize(value: i64) -> MuteDuration {
         match value {
             0 => MuteDuration::NotMuted,
             1 => MuteDuration::Forever,
@@ -2451,7 +2451,6 @@ pub fn add_info_msg(context: &Context, chat_id: ChatId, text: impl AsRef<str>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
     use crate::contact::Contact;
     use crate::test_utils::*;

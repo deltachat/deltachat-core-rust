@@ -1577,6 +1577,22 @@ int             dc_set_chat_name             (dc_context_t* context, uint32_t ch
 int             dc_set_chat_profile_image    (dc_context_t* context, uint32_t chat_id, const char* image);
 
 
+
+/**
+ * Set mute duration of a chat.
+ *
+ * This value can be checked by the ui upon recieving a new message to decide whether it should trigger an notification.
+ *
+ * Sends out #DC_EVENT_CHAT_MODIFIED.
+ *
+ * @memberof dc_context_t
+ * @param chat_id The chat ID to set the mute duration.
+ * @param duration The duration (0 for no mute, 1 for forever mute, >1 unix timestamp it until it should be unmuted again)
+ * @param context The context as created by dc_context_new().
+ * @return 1=success, 0=error
+ */
+int             dc_set_chat_muted             (dc_context_t* context, uint32_t chat_id, int64_t duration);
+
 // handle messages
 
 /**
@@ -2917,6 +2933,26 @@ int             dc_chat_is_verified          (const dc_chat_t* chat);
  * @return 1=locations are sent to chat, 0=no locations are sent to chat
  */
 int             dc_chat_is_sending_locations (const dc_chat_t* chat);
+
+
+/**
+ * Check wether the chat is currently muted
+ *
+ * @memberof dc_chat_t
+ * @param chat The chat object.
+ * @return 1=muted, 0=not muted
+ */
+int             dc_chat_is_muted (const dc_chat_t* chat);
+
+
+/**
+ * Get the exact state of the mute of a chat
+ *
+ * @memberof dc_chat_t
+ * @param chat The chat object.
+ * @return 0=not muted, 1=muted, (x>1)=unix timestamp until mute is lifted
+ */
+int64_t          dc_chat_get_mute_duration (const dc_chat_t* chat);
 
 
 /**

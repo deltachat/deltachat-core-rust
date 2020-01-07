@@ -1408,6 +1408,26 @@ pub unsafe extern "C" fn dc_set_chat_profile_image(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_set_chat_muted(
+    context: *mut dc_context_t,
+    chat_id: u32,
+    duration: i64,
+) -> libc::c_int {
+    if context.is_null() || chat_id <= constants::DC_CHAT_ID_LAST_SPECIAL as u32 {
+        eprintln!("ignoring careless call to dc_set_chat_muted()");
+        return 0;
+    }
+    let ffi_context = &*context;
+    ffi_context
+        .with_inner(|ctx| {
+            chat::set_muted(ctx, chat_id, chat::MuteDuration::deserialize(duration))
+                .map(|_| 1)
+                .unwrap_or_log_default(ctx, "Failed to set mute duration")
+        })
+        .unwrap_or(0)
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_get_msg_info(
     context: *mut dc_context_t,
     msg_id: u32,
@@ -2479,6 +2499,26 @@ pub unsafe extern "C" fn dc_chat_is_sending_locations(chat: *mut dc_chat_t) -> l
     }
     let ffi_chat = &*chat;
     ffi_chat.chat.is_sending_locations() as libc::c_int
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_chat_is_muted(chat: *mut dc_chat_t) -> libc::c_int {
+    if chat.is_null() {
+        eprintln!("ignoring careless call to dc_chat_is_muted()");
+        return 0;
+    }
+    let ffi_chat = &*chat;
+    ffi_chat.chat.is_muted() as libc::c_int
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_chat_get_mute_duration(chat: *mut dc_chat_t) -> i64 {
+    if chat.is_null() {
+        eprintln!("ignoring careless call to dc_chat_is_muted()");
+        return 0;
+    }
+    let ffi_chat = &*chat;
+    ffi_chat.chat.mute_duration.serialize() as i64
 }
 
 #[no_mangle]
