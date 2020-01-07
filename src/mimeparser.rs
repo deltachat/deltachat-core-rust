@@ -786,9 +786,15 @@ impl MimeMessage {
                             .collect()
                     });
 
+                let autodelete_timer = report_fields
+                    .get_header_value(HeaderDef::AutodeleteTimer)
+                    .and_then(|v| v.parse::<u32>().ok())
+                    .unwrap_or_default();
+
                 return Ok(Some(Report {
                     original_message_id,
                     additional_message_ids,
+                    autodelete_timer,
                 }));
             }
         }
@@ -880,6 +886,11 @@ pub(crate) struct Report {
     original_message_id: String,
     /// Additional-Message-IDs
     additional_message_ids: Vec<String>,
+
+    /// MDNs should contain the same autodelete timer value as used in
+    /// the message they reference. It is used to determine autodelete
+    /// timer support.
+    autodelete_timer: u32,
 }
 
 pub(crate) fn parse_message_id(value: &str) -> crate::error::Result<String> {
