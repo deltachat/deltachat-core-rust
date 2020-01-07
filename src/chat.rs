@@ -1663,6 +1663,7 @@ pub(crate) fn add_contact_to_chat_ex(
         chat_id,
         msg_id: MsgId::new(0),
     });
+    context.call_cb(Event::ChatModified(chat_id));
     Ok(true)
 }
 
