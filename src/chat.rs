@@ -981,9 +981,9 @@ pub struct ChatInfo {
     pub draft: String,
 
     /// Wether the chat is muted
-    /// 
+    ///
     /// The exact time its muted can be found out via the `chat.mute_duration` property
-    pub is_muted:bool,
+    pub is_muted: bool,
     // ToDo:
     // - [ ] deaddrop,
     // - [ ] summary,
@@ -1926,7 +1926,7 @@ pub enum MuteDuration {
 
 impl MuteDuration {
     // TODO use serde compatible functions?
-    fn serialize (&self) -> i64 {
+    fn serialize(&self) -> i64 {
         match &self {
             MuteDuration::NotMuted => 0,
             MuteDuration::Forever => 1,
@@ -1934,7 +1934,7 @@ impl MuteDuration {
         }
     }
 
-    fn deserialize (value: i64) -> MuteDuration {
+    fn deserialize(value: i64) -> MuteDuration {
         match value {
             0 => MuteDuration::NotMuted,
             1 => MuteDuration::Forever,
@@ -1943,21 +1943,20 @@ impl MuteDuration {
     }
 }
 
-pub fn set_muted (
-    context: &Context,
-    chat_id: ChatId,
-    duration: MuteDuration
-) -> Result<(), Error>{
+pub fn set_muted(context: &Context, chat_id: ChatId, duration: MuteDuration) -> Result<(), Error> {
     let mut success = false;
     ensure!(!chat_id.is_special(), "Invalid chat ID");
-    if real_group_exists(context, chat_id) && sql::execute(
-        context,
-        &context.sql,
-        "UPDATE chats SET muted_until=? WHERE id=?;",
-        params![duration.serialize(), chat_id],
-    ).is_ok() {
+    if real_group_exists(context, chat_id)
+        && sql::execute(
+            context,
+            &context.sql,
+            "UPDATE chats SET muted_until=? WHERE id=?;",
+            params![duration.serialize(), chat_id],
+        )
+        .is_ok()
+    {
         context.call_cb(Event::ChatModified(chat_id));
-        success = true;  
+        success = true;
     }
 
     if !success {
@@ -2868,13 +2867,23 @@ mod tests {
             false
         );
         // Timed in the future
-        set_muted(&t.ctx, chat_id, MuteDuration::MutedUntilTimestamp(time() + 3600)).unwrap();
+        set_muted(
+            &t.ctx,
+            chat_id,
+            MuteDuration::MutedUntilTimestamp(time() + 3600),
+        )
+        .unwrap();
         assert_eq!(
             Chat::load_from_db(&t.ctx, chat_id).unwrap().is_muted(),
             true
         );
         // Time in the past
-        set_muted(&t.ctx, chat_id, MuteDuration::MutedUntilTimestamp(time() - 3600)).unwrap();
+        set_muted(
+            &t.ctx,
+            chat_id,
+            MuteDuration::MutedUntilTimestamp(time() - 3600),
+        )
+        .unwrap();
         assert_eq!(
             Chat::load_from_db(&t.ctx, chat_id).unwrap().is_muted(),
             false
