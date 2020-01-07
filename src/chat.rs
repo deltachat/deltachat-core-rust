@@ -939,10 +939,15 @@ impl Chat {
                     .await?;
             }
 
+            // get autodelete timer
+            let autodelete_timer =
+                Some(get_autodelete_timer(context, self.id).await).filter(|&x| x != 0);
+            let autodelete_timestamp = autodelete_timer.map(|x| timestamp + i64::from(x));
+
             // add message to the database
 
             if context.sql.execute(
-                        "INSERT INTO msgs (rfc724_mid, chat_id, from_id, to_id, timestamp, type, state, txt, param, hidden, mime_in_reply_to, mime_references, location_id) VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?);",
+                        "INSERT INTO msgs (rfc724_mid, chat_id, from_id, to_id, timestamp, type, state, txt, param, hidden, mime_in_reply_to, mime_references, location_id, autodelete_timer, autodelete_timestamp) VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?);",
                         paramsv![
                             new_rfc724_mid,
                             self.id,
@@ -957,6 +962,8 @@ impl Chat {
                             new_in_reply_to,
                             new_references,
                             location_id as i32,
+                            autodelete_timer,
+                            autodelete_timestamp
                         ]
                     ).await.is_ok() {
                         msg_id = context.sql.get_rowid(
