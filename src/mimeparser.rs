@@ -34,7 +34,7 @@ use crate::{bail, ensure};
 /// needed for deltachat's purposes.
 ///
 /// It is created by parsing the raw data of an actual MIME message
-/// using the [MimeMessage::from_raw] constructor.
+/// using the [MimeMessage::from_bytes] constructor.
 #[derive(Debug)]
 pub struct MimeMessage<'a> {
     pub context: &'a Context,
