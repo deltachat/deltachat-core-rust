@@ -2868,15 +2868,13 @@ mod tests {
             false
         );
         // Timed in the future
-        let current_timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap() + Duration::from_secs(3600);
-        set_muted(&t.ctx, chat_id, MuteDuration::MutedUntilTimestamp(current_timestamp.as_secs() as i64)).unwrap();
+        set_muted(&t.ctx, chat_id, MuteDuration::MutedUntilTimestamp(time() + 3600)).unwrap();
         assert_eq!(
             Chat::load_from_db(&t.ctx, chat_id).unwrap().is_muted(),
             true
         );
         // Time in the past
-        let past_timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap() - Duration::from_secs(3600);
-        set_muted(&t.ctx, chat_id, MuteDuration::MutedUntilTimestamp(past_timestamp.as_secs() as i64)).unwrap();
+        set_muted(&t.ctx, chat_id, MuteDuration::MutedUntilTimestamp(time() - 3600)).unwrap();
         assert_eq!(
             Chat::load_from_db(&t.ctx, chat_id).unwrap().is_muted(),
             false
