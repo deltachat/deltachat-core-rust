@@ -1130,8 +1130,8 @@ mod tests {
     fn test_parse_first_addr() {
         let context = dummy_context();
         let raw = b"From: hello@one.org, world@two.org\n\
-                    Chat-Disposition-Notification-To: wrong
-                    Content-Type: text/plain;
+                    Chat-Disposition-Notification-To: wrong\n\
+                    Content-Type: text/plain\n\
                     Chat-Version: 1.0\n\
                     \n\
                     test1\n\
@@ -1142,8 +1142,13 @@ mod tests {
         let of = mimeparser.parse_first_addr(HeaderDef::From_).unwrap();
         assert_eq!(of, mailparse::addrparse("hello@one.org").unwrap()[0]);
 
-        let of = mimeparser.parse_first_addr(HeaderDef::ChatDispositionNotificationTo);
-        assert!(of.is_none());
+        // XXX: the address does not contain "@", so it is wrong
+        // addr-spec according to RFC 2822, but mailparse still parses
+        // is as an address.
+        let of = mimeparser
+            .parse_first_addr(HeaderDef::ChatDispositionNotificationTo)
+            .unwrap();
+        assert_eq!(of, mailparse::addrparse("wrong").unwrap()[0]);
     }
 
     #[test]
