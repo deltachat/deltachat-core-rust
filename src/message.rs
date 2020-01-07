@@ -844,6 +844,7 @@ pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
         "mp3" => (Viewtype::Audio, "audio/mpeg"),
         "aac" => (Viewtype::Audio, "audio/aac"),
         "mp4" => (Viewtype::Video, "video/mp4"),
+        "webm" => (Viewtype::Video, "video/webm"),
         "jpg" => (Viewtype::Image, "image/jpeg"),
         "jpeg" => (Viewtype::Image, "image/jpeg"),
         "jpe" => (Viewtype::Image, "image/jpeg"),
