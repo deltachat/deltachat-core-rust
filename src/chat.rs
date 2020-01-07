@@ -584,51 +584,45 @@ pub struct ChatInfo {
     // - [ ] email
 }
 
-/// Create a normal chat or a group chat by a messages ID that comes typically
-/// from the deaddrop, DC_CHAT_ID_DEADDROP (1).
+/// Create a chat from a message ID.
 ///
-/// If the given message ID already belongs to a normal chat or to a group chat,
-/// the chat ID of this chat is returned and no new chat is created.
-/// If a new chat is created, the given message ID is moved to this chat, however,
-/// there may be more messages moved to the chat from the deaddrop. To get the
-/// chat messages, use dc_get_chat_msgs().
+/// Typically you'd do this for a message ID found in the
+/// [DC_CHAT_ID_DEADDROP] which turns the chat the message belongs to
+/// into a normal chat.  The chat can be a 1:1 chat or a group chat
+/// and all messages belonging to the chat will be moved from the
+/// deaddrop to the normal chat.
 ///
-/// If the user is asked before creation, he should be
-/// asked whether he wants to chat with the *contact* belonging to the message;
-/// the group names may be really weird when taken from the subject of implicit
-/// groups and this may look confusing.
+/// In reality the messages already belong to this chat as receive_imf
+/// always creates chat IDs appropriately, so this function really
+/// only unblocks the chat and "scales up" the origin of the contact
+/// the message is from.
 ///
-/// Moreover, this function also scales up the origin of the contact belonging
-/// to the message and, depending on the contacts origin, messages from the
-/// same group may be shown or not - so, all in all, it is fine to show the
-/// contact name only.
+/// If prompting the user before calling this function, they should be
+/// asked whether they want to chat with the **contact** the message
+/// is from and **not** the group name since this can be really weird
+/// and confusing when taken from subject of implicit groups.
+///
+/// # Returns
+///
+/// The "created" chat ID is returned.
 pub fn create_by_msg_id(context: &Context, msg_id: MsgId) -> Result<u32, Error> {
-    let mut chat_id = 0;
-    let mut send_event = false;
+    let msg = Message::load_from_db(context, msg_id)?;
+    let chat = Chat::load_from_db(context, msg.chat_id)?;
+    ensure!(
+        chat.id > DC_CHAT_ID_LAST_SPECIAL,
+        "Message can not belong to a special chat"
+    );
+    if chat.blocked != Blocked::Not {
+        unblock(context, chat.id);
 
-    if let Ok(msg) = Message::load_from_db(context, msg_id) {
-        if let Ok(chat) = Chat::load_from_db(context, msg.chat_id) {
-            if chat.id > DC_CHAT_ID_LAST_SPECIAL {
-                chat_id = chat.id;
-                if chat.blocked != Blocked::Not {
-                    unblock(context, chat.id);
-                    send_event = true;
-                }
-                Contact::scaleup_origin_by_id(context, msg.from_id, Origin::CreateChat);
-            }
-        }
-    }
-
-    if send_event {
+        // Sending with 0s as data since multiple messages may have changed.
         context.call_cb(Event::MsgsChanged {
             chat_id: 0,
             msg_id: MsgId::new(0),
         });
     }
-
-    ensure!(chat_id > 0, "failed to load create chat");
-
-    Ok(chat_id)
+    Contact::scaleup_origin_by_id(context, msg.from_id, Origin::CreateChat);
+    Ok(chat.id)
 }
 
 /// Create a normal chat with a single user.  To create group chats,
