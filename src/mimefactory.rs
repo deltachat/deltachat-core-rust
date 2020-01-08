@@ -18,9 +18,9 @@ use crate::param::*;
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::stock::StockMessage;
 
-#[derive(Clone, Copy, Eq, PartialEq)]
+#[derive(Clone)]
 pub enum Loaded {
-    Message,
+    Message { chat: Chat },
     MDN,
 }
 
@@ -35,7 +35,6 @@ pub struct MimeFactory<'a, 'b> {
     timestamp: i64,
     loaded: Loaded,
     msg: &'b Message,
-    chat: Option<Chat>,
     increation: bool,
     in_reply_to: String,
     references: String,
@@ -75,7 +74,6 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             .get_config(Config::ConfiguredAddr)
             .unwrap_or_default();
         let from_displayname = context.get_config(Config::Displayname).unwrap_or_default();
-
         let mut recipients_names = Vec::with_capacity(5);
         let mut recipients_addr = Vec::with_capacity(5);
         let mut req_mdn = false;
@@ -156,9 +154,8 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             recipients_names,
             recipients_addr,
             timestamp: msg.timestamp_sort,
-            loaded: Loaded::Message,
+            loaded: Loaded::Message { chat },
             msg,
-            chat: Some(chat),
             increation: msg.is_increation(),
             in_reply_to,
             references,
@@ -167,7 +164,6 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             attach_selfavatar: add_selfavatar,
             context,
         };
-
         Ok(factory)
     }
 
@@ -200,7 +196,6 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             timestamp: dc_create_smeared_timestamp(context),
             loaded: Loaded::MDN,
             msg,
-            chat: None,
             increation: false,
             in_reply_to: String::default(),
             references: String::default(),
@@ -230,9 +225,9 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
     }
 
     fn is_e2ee_guranteed(&self) -> bool {
-        match self.loaded {
-            Loaded::Message => {
-                if self.chat.as_ref().unwrap().typ == Chattype::VerifiedGroup {
+        match &self.loaded {
+            Loaded::Message { chat } => {
+                if chat.typ == Chattype::VerifiedGroup {
                     return true;
                 }
 
@@ -258,9 +253,8 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
     }
 
     fn min_verified(&self) -> PeerstateVerifiedStatus {
-        match self.loaded {
-            Loaded::Message => {
-                let chat = self.chat.as_ref().unwrap();
+        match &self.loaded {
+            Loaded::Message { chat } => {
                 if chat.typ == Chattype::VerifiedGroup {
                     PeerstateVerifiedStatus::BidirectVerified
                 } else {
@@ -272,9 +266,8 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
     }
 
     fn should_force_plaintext(&self) -> i32 {
-        match self.loaded {
-            Loaded::Message => {
-                let chat = self.chat.as_ref().unwrap();
+        match &self.loaded {
+            Loaded::Message { chat } => {
                 if chat.typ == Chattype::VerifiedGroup {
                     0
                 } else {
@@ -289,9 +282,8 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
     }
 
     fn should_do_gossip(&self) -> bool {
-        match self.loaded {
-            Loaded::Message => {
-                let chat = self.chat.as_ref().unwrap();
+        match &self.loaded {
+            Loaded::Message { chat } => {
                 // beside key- and member-changes, force re-gossip every 48 hours
                 let gossiped_timestamp = chat.get_gossiped_timestamp(self.context);
                 if gossiped_timestamp == 0 || (gossiped_timestamp + (2 * 24 * 60 * 60)) > time() {
@@ -305,9 +297,8 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
     }
 
     fn grpimage(&self) -> Option<String> {
-        match self.loaded {
-            Loaded::Message => {
-                let chat = self.chat.as_ref().unwrap();
+        match &self.loaded {
+            Loaded::Message { chat } => {
                 let cmd = self.msg.param.get_cmd();
 
                 match cmd {
@@ -337,39 +328,33 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
 
     fn subject_str(&self) -> String {
         match self.loaded {
-            Loaded::Message => {
-                match self.chat {
-                    Some(ref chat) => {
-                        let raw = message::get_summarytext_by_raw(
-                            self.msg.viewtype,
-                            self.msg.text.as_ref(),
-                            &self.msg.param,
-                            32,
-                            self.context,
-                        );
-                        let mut lines = raw.lines();
-                        let raw_subject = if let Some(line) = lines.next() {
-                            line
-                        } else {
-                            ""
-                        };
+            Loaded::Message { ref chat } => {
+                let raw = message::get_summarytext_by_raw(
+                    self.msg.viewtype,
+                    self.msg.text.as_ref(),
+                    &self.msg.param,
+                    32,
+                    self.context,
+                );
+                let mut lines = raw.lines();
+                let raw_subject = if let Some(line) = lines.next() {
+                    line
+                } else {
+                    ""
+                };
 
-                        let afwd_email = self.msg.param.exists(Param::Forwarded);
-                        let fwd = if afwd_email { "Fwd: " } else { "" };
+                let afwd_email = self.msg.param.exists(Param::Forwarded);
+                let fwd = if afwd_email { "Fwd: " } else { "" };
 
-                        if self.msg.param.get_cmd() == SystemMessage::AutocryptSetupMessage {
-                            // do not add the "Chat:" prefix for setup messages
-                            self.context
-                                .stock_str(StockMessage::AcSetupMsgSubject)
-                                .into_owned()
-                        } else if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup
-                        {
-                            format!("Chat: {}: {}{}", chat.name, fwd, raw_subject)
-                        } else {
-                            format!("Chat: {}{}", fwd, raw_subject)
-                        }
-                    }
-                    None => String::new(),
+                if self.msg.param.get_cmd() == SystemMessage::AutocryptSetupMessage {
+                    // do not add the "Chat:" prefix for setup messages
+                    self.context
+                        .stock_str(StockMessage::AcSetupMsgSubject)
+                        .into_owned()
+                } else if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
+                    format!("Chat: {}: {}{}", chat.name, fwd, raw_subject)
+                } else {
+                    format!("Chat: {}{}", fwd, raw_subject)
                 }
             }
             Loaded::MDN => {
@@ -460,7 +445,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let subject = encode_words(&subject_str);
 
         let mut message = match self.loaded {
-            Loaded::Message => {
+            Loaded::Message { .. } => {
                 self.render_message(&mut protected_headers, &mut unprotected_headers, &grpimage)?
             }
             Loaded::MDN => self.render_mdn()?,
@@ -480,7 +465,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let is_encrypted = should_encrypt && force_plaintext == 0;
 
         let rfc724_mid = match self.loaded {
-            Loaded::Message => self.msg.rfc724_mid.clone(),
+            Loaded::Message { .. } => self.msg.rfc724_mid.clone(),
             Loaded::MDN => dc_create_outgoing_rfc724_mid(None, &self.from_addr),
         };
 
@@ -605,7 +590,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             is_gossiped,
             last_added_location_id,
             foreign_id: match loaded {
-                Loaded::Message => Some(msg.id),
+                Loaded::Message { .. } => Some(msg.id),
                 Loaded::MDN => None,
             },
             recipients: recipients_addr,
@@ -621,7 +606,10 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         grpimage: &Option<String>,
     ) -> Result<PartBuilder, Error> {
         let context = self.context;
-        let chat = self.chat.as_ref().unwrap();
+        let chat = match &self.loaded {
+            Loaded::Message { chat } => chat,
+            Loaded::MDN => bail!("Attempt to render MDN as a message"),
+        };
         let command = self.msg.param.get_cmd();
         let mut placeholdertext = None;
         let mut meta_part = None;
