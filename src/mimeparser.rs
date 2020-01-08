@@ -1142,13 +1142,8 @@ mod tests {
         let of = mimeparser.parse_first_addr(HeaderDef::From_).unwrap();
         assert_eq!(of, mailparse::addrparse("hello@one.org").unwrap()[0]);
 
-        // XXX: the address does not contain "@", so it is wrong
-        // addr-spec according to RFC 2822, but mailparse still parses
-        // is as an address.
-        let of = mimeparser
-            .parse_first_addr(HeaderDef::ChatDispositionNotificationTo)
-            .unwrap();
-        assert_eq!(of, mailparse::addrparse("wrong").unwrap()[0]);
+        let of = mimeparser.parse_first_addr(HeaderDef::ChatDispositionNotificationTo);
+        assert!(of.is_none());
     }
 
     #[test]
