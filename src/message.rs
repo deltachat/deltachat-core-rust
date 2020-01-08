@@ -161,7 +161,7 @@ pub struct Message {
     pub(crate) from_id: u32,
     pub(crate) to_id: u32,
     pub(crate) chat_id: u32,
-    pub(crate) type_0: Viewtype,
+    pub(crate) viewtype: Viewtype,
     pub(crate) state: MessageState,
     pub(crate) hidden: bool,
     pub(crate) timestamp_sort: i64,
@@ -183,7 +183,7 @@ pub struct Message {
 impl Message {
     pub fn new(viewtype: Viewtype) -> Self {
         let mut msg = Message::default();
-        msg.type_0 = viewtype;
+        msg.viewtype = viewtype;
 
         msg
     }
@@ -236,7 +236,7 @@ impl Message {
                     msg.timestamp_sort = row.get("timestamp")?;
                     msg.timestamp_sent = row.get("timestamp_sent")?;
                     msg.timestamp_rcvd = row.get("timestamp_rcvd")?;
-                    msg.type_0 = row.get("type")?;
+                    msg.viewtype = row.get("type")?;
                     msg.state = row.get("state")?;
                     msg.is_dc_message = row.get("msgrmsg")?;
 
@@ -312,10 +312,10 @@ impl Message {
     }
 
     pub fn try_calc_and_set_dimensions(&mut self, context: &Context) -> Result<(), Error> {
-        if chat::msgtype_has_file(self.type_0) {
+        if chat::msgtype_has_file(self.viewtype) {
             let file_param = self.param.get_path(Param::File, context)?;
             if let Some(path_and_filename) = file_param {
-                if (self.type_0 == Viewtype::Image || self.type_0 == Viewtype::Gif)
+                if (self.viewtype == Viewtype::Image || self.viewtype == Viewtype::Gif)
                     && !self.param.exists(Param::Width)
                 {
                     self.param.set_int(Param::Width, 0);
@@ -394,7 +394,7 @@ impl Message {
     }
 
     pub fn get_viewtype(&self) -> Viewtype {
-        self.type_0
+        self.viewtype
     }
 
     pub fn get_state(&self) -> MessageState {
@@ -474,7 +474,7 @@ impl Message {
 
     pub fn get_summarytext(&self, context: &Context, approx_characters: usize) -> String {
         get_summarytext_by_raw(
-            self.type_0,
+            self.viewtype,
             self.text.as_ref(),
             &self.param,
             approx_characters,
@@ -518,11 +518,11 @@ impl Message {
     /// copied to the blobdir.  Thus those attachments need to be
     /// created immediately in the blobdir with a valid filename.
     pub fn is_increation(&self) -> bool {
-        chat::msgtype_has_file(self.type_0) && self.state == MessageState::OutPreparing
+        chat::msgtype_has_file(self.viewtype) && self.state == MessageState::OutPreparing
     }
 
     pub fn is_setupmessage(&self) -> bool {
-        if self.type_0 != Viewtype::File {
+        if self.viewtype != Viewtype::File {
             return false;
         }
 
@@ -687,7 +687,7 @@ impl Lot {
         }
 
         self.text2 = Some(get_summarytext_by_raw(
-            msg.type_0,
+            msg.viewtype,
             msg.text.as_ref(),
             &msg.param,
             SUMMARY_CHARACTERS,
@@ -808,9 +808,9 @@ pub fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
         ret += &format!("\nFile: {}, {}, bytes\n", path.display(), bytes);
     }
 
-    if msg.type_0 != Viewtype::Text {
+    if msg.viewtype != Viewtype::Text {
         ret += "Type: ";
-        ret += &format!("{}", msg.type_0);
+        ret += &format!("{}", msg.viewtype);
         ret += "\n";
         ret += &format!("Mimetype: {}\n", &msg.get_filemime().unwrap_or_default());
     }

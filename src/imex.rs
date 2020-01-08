@@ -137,7 +137,7 @@ fn do_initiate_key_transfer(context: &Context) -> Result<String> {
 
     let chat_id = chat::create_by_contact_id(context, DC_CONTACT_ID_SELF)?;
     msg = Message::default();
-    msg.type_0 = Viewtype::File;
+    msg.viewtype = Viewtype::File;
     msg.param.set(Param::File, setup_file_blob.as_name());
 
     msg.param

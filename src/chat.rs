@@ -489,7 +489,7 @@ impl Chat {
                             DC_CONTACT_ID_SELF,
                             to_id as i32,
                             timestamp,
-                            msg.type_0,
+                            msg.viewtype,
                             msg.state,
                             msg.text.as_ref().map_or("", String::as_str),
                             msg.param.to_string(),
@@ -847,16 +847,18 @@ pub fn msgtype_has_file(msgtype: Viewtype) -> bool {
 }
 
 fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<(), Error> {
-    if msg.type_0 == Viewtype::Text {
+    if msg.viewtype == Viewtype::Text {
         // the caller should check if the message text is empty
-    } else if msgtype_has_file(msg.type_0) {
+    } else if msgtype_has_file(msg.viewtype) {
         let blob = msg
             .param
             .get_blob(Param::File, context, !msg.is_increation())?
-            .ok_or_else(|| format_err!("Attachment missing for message of type #{}", msg.type_0))?;
+            .ok_or_else(|| {
+                format_err!("Attachment missing for message of type #{}", msg.viewtype)
+            })?;
         msg.param.set(Param::File, blob.as_name());
 
-        if msg.type_0 == Viewtype::File || msg.type_0 == Viewtype::Image {
+        if msg.viewtype == Viewtype::File || msg.viewtype == Viewtype::Image {
             // Correct the type, take care not to correct already very special
             // formats as GIF or VOICE.
             //
@@ -866,7 +868,7 @@ fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<(), Error> {
             if let Some((better_type, better_mime)) =
                 message::guess_msgtype_from_suffix(&blob.to_abs_path())
             {
-                msg.type_0 = better_type;
+                msg.viewtype = better_type;
                 msg.param.set(Param::MimeType, better_mime);
             }
         } else if !msg.param.exists(Param::MimeType) {
@@ -878,10 +880,10 @@ fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<(), Error> {
             context,
             "Attaching \"{}\" for message type #{}.",
             blob.to_abs_path().display(),
-            msg.type_0
+            msg.viewtype
         );
     } else {
-        bail!("Cannot send messages of type #{}.", msg.type_0);
+        bail!("Cannot send messages of type #{}.", msg.viewtype);
     }
     Ok(())
 }
@@ -1064,7 +1066,7 @@ fn maybe_delete_draft(context: &Context, chat_id: u32) -> bool {
 ///
 /// Return true on success, false on database error.
 fn do_set_draft(context: &Context, chat_id: u32, msg: &mut Message) -> Result<(), Error> {
-    match msg.type_0 {
+    match msg.viewtype {
         Viewtype::Unknown => bail!("Can not set draft of unknown type."),
         Viewtype::Text => match msg.text.as_ref() {
             Some(text) => {
@@ -1091,7 +1093,7 @@ fn do_set_draft(context: &Context, chat_id: u32, msg: &mut Message) -> Result<()
             chat_id as i32,
             DC_CONTACT_ID_SELF,
             time(),
-            msg.type_0,
+            msg.viewtype,
             MessageState::OutDraft,
             msg.text.as_ref().map(String::as_str).unwrap_or(""),
             msg.param.to_string(),
@@ -1366,7 +1368,7 @@ pub fn get_next_media(
             if msg_type != Viewtype::Unknown {
                 msg_type
             } else {
-                msg.type_0
+                msg.viewtype
             },
             msg_type2,
             msg_type3,
@@ -1643,7 +1645,7 @@ pub(crate) fn add_contact_to_chat_ex(
         }
     }
     if chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
-        msg.type_0 = Viewtype::Text;
+        msg.viewtype = Viewtype::Text;
         msg.text = Some(context.stock_system_msg(
             StockMessage::MsgAddMember,
             contact.get_addr(),
@@ -1812,7 +1814,7 @@ pub fn remove_contact_from_chat(
                 /* we should respect this - whatever we send to the group, it gets discarded anyway! */
                 if let Ok(contact) = Contact::get_by_id(context, contact_id) {
                     if chat.is_promoted() {
-                        msg.type_0 = Viewtype::Text;
+                        msg.viewtype = Viewtype::Text;
                         if contact.id == DC_CONTACT_ID_SELF {
                             set_group_explicitly_left(context, chat.grpid)?;
                             msg.text = Some(context.stock_system_msg(
@@ -1916,7 +1918,7 @@ pub fn set_chat_name(
             .is_ok()
             {
                 if chat.is_promoted() {
-                    msg.type_0 = Viewtype::Text;
+                    msg.viewtype = Viewtype::Text;
                     msg.text = Some(context.stock_system_msg(
                         StockMessage::MsgGrpName,
                         &chat.name,
@@ -2180,7 +2182,7 @@ pub fn add_device_msg(
                 DC_CONTACT_ID_DEVICE,
                 DC_CONTACT_ID_SELF,
                 dc_create_smeared_timestamp(context),
-                msg.type_0,
+                msg.viewtype,
                 MessageState::InFresh,
                 msg.text.as_ref().map_or("", String::as_str),
                 msg.param.to_string(),

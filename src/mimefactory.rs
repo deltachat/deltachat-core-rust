@@ -352,7 +352,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                 match self.chat {
                     Some(ref chat) => {
                         let raw = message::get_summarytext_by_raw(
-                            self.msg.type_0,
+                            self.msg.viewtype,
                             self.msg.text.as_ref(),
                             &self.msg.param,
                             32,
@@ -761,7 +761,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         if let Some(grpimage) = grpimage {
             info!(self.context, "setting group image '{}'", grpimage);
             let mut meta = Message::default();
-            meta.type_0 = Viewtype::Image;
+            meta.viewtype = Viewtype::Image;
             meta.param.set(Param::File, grpimage);
 
             let (mail, filename_as_sent) = build_body_file(context, &meta, "group-image")?;
@@ -780,15 +780,15 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             }
         }
 
-        if self.msg.type_0 == Viewtype::Sticker {
+        if self.msg.viewtype == Viewtype::Sticker {
             protected_headers.push(Header::new("Chat-Content".into(), "sticker".into()));
         }
 
-        if self.msg.type_0 == Viewtype::Voice
-            || self.msg.type_0 == Viewtype::Audio
-            || self.msg.type_0 == Viewtype::Video
+        if self.msg.viewtype == Viewtype::Voice
+            || self.msg.viewtype == Viewtype::Audio
+            || self.msg.viewtype == Viewtype::Video
         {
-            if self.msg.type_0 == Viewtype::Voice {
+            if self.msg.viewtype == Viewtype::Voice {
                 protected_headers.push(Header::new("Chat-Voice-Message".into(), "1".into()));
             }
             let duration_ms = self.msg.param.get_int(Param::Duration).unwrap_or_default();
@@ -844,7 +844,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             .body(message_text)];
 
         // add attachment part
-        if chat::msgtype_has_file(self.msg.type_0) {
+        if chat::msgtype_has_file(self.msg.viewtype) {
             if !is_file_size_okay(context, &self.msg) {
                 bail!(
                     "Message exceeds the recommended {} MB.",
@@ -939,7 +939,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
     /// Render an MDN
     fn render_mdn(&mut self) -> Result<PartBuilder, Error> {
         // RFC 6522, this also requires the `report-type` parameter which is equal
-        // to the MIME subtype of the second body part of the multipart/report */
+        // to the MIME subtype of the second body part of the multipart/report
         //
         // currently, we do not send MDNs encrypted:
         // - in a multi-device-setup that is not set up properly, MDNs would disturb the communication as they
@@ -1031,7 +1031,7 @@ fn build_body_file(
     // not transfer the original filenames eg. for images; these names
     // are normally not needed and contain timestamps, running numbers
     // etc.
-    let filename_to_send: String = match msg.type_0 {
+    let filename_to_send: String = match msg.viewtype {
         Viewtype::Voice => chrono::Utc
             .timestamp(msg.timestamp_sort as i64, 0)
             .format(&format!("voice-message_%Y-%m-%d_%H-%M-%S.{}", &suffix))
