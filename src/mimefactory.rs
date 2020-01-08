@@ -30,8 +30,10 @@ pub struct MimeFactory<'a, 'b> {
     from_addr: String,
     from_displayname: String,
     selfstatus: String,
-    recipients_names: Vec<String>,
-    recipients_addr: Vec<String>,
+
+    /// Vector of pairs of recipient name and address
+    recipients: Vec<(String, String)>,
+
     timestamp: i64,
     loaded: Loaded,
     msg: &'b Message,
@@ -74,13 +76,11 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             .get_config(Config::ConfiguredAddr)
             .unwrap_or_default();
         let from_displayname = context.get_config(Config::Displayname).unwrap_or_default();
-        let mut recipients_names = Vec::with_capacity(5);
-        let mut recipients_addr = Vec::with_capacity(5);
+        let mut recipients = Vec::with_capacity(5);
         let mut req_mdn = false;
 
         if chat.is_self_talk() {
-            recipients_names.push(from_displayname.to_string());
-            recipients_addr.push(from_addr.to_string());
+            recipients.push((from_displayname.to_string(), from_addr.to_string()));
         } else {
             context.sql.query_map(
                 "SELECT c.authname, c.addr  \
@@ -96,9 +96,8 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                 |rows| {
                     for row in rows {
                         let (authname, addr) = row?;
-                        if !vec_contains_lowercase(&recipients_addr, &addr) {
-                            recipients_addr.push(addr);
-                            recipients_names.push(authname);
+                        if !recipients_contain_addr(&recipients, &addr) {
+                            recipients.push((authname, addr));
                         }
                     }
                     Ok(())
@@ -117,10 +116,9 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
 
                 if !email_to_remove.is_empty()
                     && !addr_cmp(email_to_remove, self_addr)
-                    && !vec_contains_lowercase(&recipients_addr, &email_to_remove)
+                    && !recipients_contain_addr(&recipients, &email_to_remove)
                 {
-                    recipients_names.push("".to_string());
-                    recipients_addr.push(email_to_remove.to_string());
+                    recipients.push(("".to_string(), email_to_remove.to_string()));
                 }
             }
             if command != SystemMessage::AutocryptSetupMessage
@@ -150,8 +148,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             selfstatus: context
                 .get_config(Config::Selfstatus)
                 .unwrap_or_else(|| context.stock_str(StockMessage::StatusLine).to_string()),
-            recipients_names,
-            recipients_addr,
+            recipients,
             timestamp: msg.timestamp_sort,
             loaded: Loaded::Message { chat },
             msg,
@@ -190,8 +187,10 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             selfstatus: context
                 .get_config(Config::Selfstatus)
                 .unwrap_or_else(|| context.stock_str(StockMessage::StatusLine).to_string()),
-            recipients_names: vec![contact.get_authname().to_string()],
-            recipients_addr: vec![contact.get_addr().to_string()],
+            recipients: vec![(
+                contact.get_authname().to_string(),
+                contact.get_addr().to_string(),
+            )],
             timestamp: dc_create_smeared_timestamp(context),
             loaded: Loaded::MDN,
             msg,
@@ -211,10 +210,10 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             .ok_or_else(|| format_err!("Not configured"))?;
 
         Ok(self
-            .recipients_addr
+            .recipients
             .iter()
-            .filter(|addr| *addr != &self_addr)
-            .map(|addr| {
+            .filter(|(_, addr)| addr != &self_addr)
+            .map(|(_, addr)| {
                 (
                     Peerstate::from_addr(self.context, &self.context.sql, addr),
                     addr.as_str(),
@@ -378,10 +377,8 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             self.from_addr.clone(),
         );
 
-        let mut to = Vec::with_capacity(self.recipients_names.len());
-        let name_iter = self.recipients_names.iter();
-        let addr_iter = self.recipients_addr.iter();
-        for (name, addr) in name_iter.zip(addr_iter) {
+        let mut to = Vec::with_capacity(self.recipients.len());
+        for (name, addr) in self.recipients.iter() {
             if name.is_empty() {
                 to.push(Address::new_mailbox(addr.clone()));
             } else {
@@ -574,7 +571,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         };
 
         let MimeFactory {
-            recipients_addr,
+            recipients,
             from_addr,
             last_added_location_id,
             msg,
@@ -592,7 +589,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                 Loaded::Message { .. } => Some(msg.id),
                 Loaded::MDN => None,
             },
-            recipients: recipients_addr,
+            recipients: recipients.into_iter().map(|(_, addr)| addr).collect(),
             from: from_addr,
             rfc724_mid,
         })
@@ -1088,14 +1085,11 @@ fn build_selfavatar_file(context: &Context, path: String) -> Result<(PartBuilder
     Ok((part, filename_to_send))
 }
 
-pub(crate) fn vec_contains_lowercase(vec: &[String], part: &str) -> bool {
-    let partlc = part.to_lowercase();
-    for cur in vec.iter() {
-        if cur.to_lowercase() == partlc {
-            return true;
-        }
-    }
-    false
+fn recipients_contain_addr(recipients: &[(String, String)], addr: &str) -> bool {
+    let addr_lc = addr.to_lowercase();
+    recipients
+        .iter()
+        .any(|(_, cur)| cur.to_lowercase() == addr_lc)
 }
 
 fn is_file_size_okay(context: &Context, msg: &Message) -> bool {
