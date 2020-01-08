@@ -980,7 +980,7 @@ pub struct ChatInfo {
     ///       simple `has_draft` bool instead.
     pub draft: String,
 
-    /// Wether the chat is muted
+    /// Whether the chat is muted
     ///
     /// The exact time its muted can be found out via the `chat.mute_duration` property
     pub is_muted: bool,
@@ -1929,7 +1929,7 @@ impl MuteDuration {
     pub fn serialize(&self) -> i64 {
         match &self {
             MuteDuration::NotMuted => 0,
-            MuteDuration::Forever => 1,
+            MuteDuration::Forever => -1,
             MuteDuration::MutedUntilTimestamp(timestamp) => *timestamp as i64, // TODO make this pretier?
         }
     }
@@ -1937,7 +1937,7 @@ impl MuteDuration {
     pub fn deserialize(value: i64) -> MuteDuration {
         match value {
             0 => MuteDuration::NotMuted,
-            1 => MuteDuration::Forever,
+            -1 => MuteDuration::Forever,
             _ => MuteDuration::MutedUntilTimestamp(value),
         }
     }
