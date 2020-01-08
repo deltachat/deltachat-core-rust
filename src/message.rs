@@ -148,6 +148,22 @@ impl rusqlite::types::FromSql for MsgId {
 #[fail(display = "Invalid Message ID.")]
 pub struct InvalidMsgId;
 
+#[derive(Debug, Copy, Clone, PartialEq, FromPrimitive, ToPrimitive, FromSql, ToSql)]
+#[repr(u8)]
+pub enum MessengerMessage {
+    No = 0,
+    Yes = 1,
+
+    /// No, but reply to messenger message.
+    Reply = 2,
+}
+
+impl Default for MessengerMessage {
+    fn default() -> Self {
+        Self::No
+    }
+}
+
 /// An object representing a single message in memory.
 /// The message object is not updated.
 /// If you want an update, you have to recreate the object.
@@ -172,8 +188,7 @@ pub struct Message {
     pub(crate) in_reply_to: Option<String>,
     pub(crate) server_folder: Option<String>,
     pub(crate) server_uid: u32,
-    // TODO: enum
-    pub(crate) is_dc_message: u32,
+    pub(crate) is_dc_message: MessengerMessage,
     pub(crate) starred: bool,
     pub(crate) chat_blocked: Blocked,
     pub(crate) location_id: u32,

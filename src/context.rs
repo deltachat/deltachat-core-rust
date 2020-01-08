@@ -17,7 +17,7 @@ use crate::job_thread::JobThread;
 use crate::key::*;
 use crate::login_param::LoginParam;
 use crate::lot::Lot;
-use crate::message::{self, Message, MsgId};
+use crate::message::{self, Message, MessengerMessage, MsgId};
 use crate::param::Params;
 use crate::smtp::Smtp;
 use crate::sql::Sql;
@@ -440,15 +440,17 @@ impl Context {
                 return;
             }
 
-            // 1 = dc message, 2 = reply to dc message
-            if 0 != msg.is_dc_message {
-                job_add(
-                    self,
-                    Action::MoveMsg,
-                    msg.id.to_u32() as i32,
-                    Params::new(),
-                    0,
-                );
+            match msg.is_dc_message {
+                MessengerMessage::No => {}
+                MessengerMessage::Yes | MessengerMessage::Reply => {
+                    job_add(
+                        self,
+                        Action::MoveMsg,
+                        msg.id.to_u32() as i32,
+                        Params::new(),
+                        0,
+                    );
+                }
             }
         }
     }

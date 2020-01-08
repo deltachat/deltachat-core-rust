@@ -13,7 +13,7 @@ use crate::error::Result;
 use crate::events::Event;
 use crate::headerdef::HeaderDef;
 use crate::job::*;
-use crate::message::{self, MessageState, MsgId};
+use crate::message::{self, MessageState, MessengerMessage, MsgId};
 use crate::mimeparser::*;
 use crate::param::*;
 use crate::peerstate::*;
@@ -271,7 +271,6 @@ fn add_parts(
     create_event_to_send: &mut Option<CreateEvent>,
 ) -> Result<()> {
     let mut state: MessageState;
-    let mut msgrmsg: i32;
     let mut chat_id_blocked = Blocked::Not;
     let mut sort_timestamp = 0;
     let mut rcvd_timestamp = 0;
@@ -292,18 +291,21 @@ fn add_parts(
         bail!("Message already in DB");
     }
 
-    // 1 or 0 for yes/no
-    msgrmsg = mime_parser.has_chat_version() as _;
-    if msgrmsg == 0 && is_reply_to_messenger_message(context, mime_parser) {
-        // 2=no, but is reply to messenger message
-        msgrmsg = 2;
-    }
+    let mut msgrmsg = if mime_parser.has_chat_version() {
+        MessengerMessage::Yes
+    } else if is_reply_to_messenger_message(context, mime_parser) {
+        MessengerMessage::Reply
+    } else {
+        MessengerMessage::No
+    };
     // incoming non-chat messages may be discarded;
     // maybe this can be optimized later, by checking the state before the message body is downloaded
     let mut allow_creation = true;
     let show_emails =
         ShowEmails::from_i32(context.get_config_int(Config::ShowEmails)).unwrap_or_default();
-    if mime_parser.is_system_message != SystemMessage::AutocryptSetupMessage && msgrmsg == 0 {
+    if mime_parser.is_system_message != SystemMessage::AutocryptSetupMessage
+        && msgrmsg == MessengerMessage::No
+    {
         // this message is a classic email not a chat-message nor a reply to one
         if show_emails == ShowEmails::Off {
             *chat_id = DC_CHAT_ID_TRASH;
@@ -332,7 +334,7 @@ fn add_parts(
         // (eg. contacs may be marked as verified)
         if mime_parser.get(HeaderDef::SecureJoin).is_some() {
             // avoid discarding by show_emails setting
-            msgrmsg = 1;
+            msgrmsg = MessengerMessage::Yes;
             *chat_id = 0;
             allow_creation = true;
             match handle_securejoin_handshake(context, mime_parser, from_id) {
@@ -447,7 +449,7 @@ fn add_parts(
         if Blocked::Not != chat_id_blocked
             && state == MessageState::InFresh
             && !incoming_origin.is_known()
-            && msgrmsg == 0
+            && msgrmsg == MessengerMessage::No
             && show_emails != ShowEmails::All
         {
             state = MessageState::InNoticed;
@@ -485,7 +487,9 @@ fn add_parts(
                 }
             }
             if *chat_id == 0 && allow_creation {
-                let create_blocked = if 0 != msgrmsg && !Contact::is_blocked_load(context, to_id) {
+                let create_blocked = if MessengerMessage::No != msgrmsg
+                    && !Contact::is_blocked_load(context, to_id)
+                {
                     Blocked::Not
                 } else {
                     Blocked::Deaddrop
