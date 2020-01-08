@@ -71,44 +71,25 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
     ) -> Result<MimeFactory<'a, 'b>, Error> {
         let chat = Chat::load_from_db(context, msg.chat_id)?;
 
-        let mut factory = MimeFactory {
-            from_addr: context
-                .get_config(Config::ConfiguredAddr)
-                .unwrap_or_default(),
-            from_displayname: context.get_config(Config::Displayname).unwrap_or_default(),
-            selfstatus: context
-                .get_config(Config::Selfstatus)
-                .unwrap_or_else(|| context.stock_str(StockMessage::StatusLine).to_string()),
-            recipients_names: Vec::with_capacity(5),
-            recipients_addr: Vec::with_capacity(5),
-            timestamp: msg.timestamp_sort,
-            loaded: Loaded::Message,
-            msg,
-            chat: Some(chat),
-            increation: msg.is_increation(),
-            in_reply_to: String::default(),
-            references: String::default(),
-            req_mdn: false,
-            last_added_location_id: 0,
-            attach_selfavatar: add_selfavatar,
-            context,
-        };
+        let from_addr = context
+            .get_config(Config::ConfiguredAddr)
+            .unwrap_or_default();
+        let from_displayname = context.get_config(Config::Displayname).unwrap_or_default();
 
-        // just set the chat above
-        let chat = factory.chat.as_ref().unwrap();
+        let mut recipients_names = Vec::with_capacity(5);
+        let mut recipients_addr = Vec::with_capacity(5);
+        let mut req_mdn = false;
 
         if chat.is_self_talk() {
-            factory
-                .recipients_names
-                .push(factory.from_displayname.to_string());
-            factory.recipients_addr.push(factory.from_addr.to_string());
+            recipients_names.push(from_displayname.to_string());
+            recipients_addr.push(from_addr.to_string());
         } else {
             context.sql.query_map(
                 "SELECT c.authname, c.addr  \
                  FROM chats_contacts cc  \
                  LEFT JOIN contacts c ON cc.contact_id=c.id  \
                  WHERE cc.chat_id=? AND cc.contact_id>9;",
-                params![factory.msg.chat_id as i32],
+                params![msg.chat_id as i32],
                 |row| {
                     let authname: String = row.get(0)?;
                     let addr: String = row.get(1)?;
@@ -117,17 +98,16 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                 |rows| {
                     for row in rows {
                         let (authname, addr) = row?;
-                        if !vec_contains_lowercase(&factory.recipients_addr, &addr) {
-                            factory.recipients_addr.push(addr);
-                            factory.recipients_names.push(authname);
+                        if !vec_contains_lowercase(&recipients_addr, &addr) {
+                            recipients_addr.push(addr);
+                            recipients_names.push(authname);
                         }
                     }
                     Ok(())
                 },
             )?;
 
-            let command = factory.msg.param.get_cmd();
-            let msg = &factory.msg;
+            let command = msg.param.get_cmd();
 
             /* for added members, the list is just fine */
             if command == SystemMessage::MemberRemovedFromGroup {
@@ -139,17 +119,17 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
 
                 if !email_to_remove.is_empty()
                     && !addr_cmp(email_to_remove, self_addr)
-                    && !vec_contains_lowercase(&factory.recipients_addr, &email_to_remove)
+                    && !vec_contains_lowercase(&recipients_addr, &email_to_remove)
                 {
-                    factory.recipients_names.push("".to_string());
-                    factory.recipients_addr.push(email_to_remove.to_string());
+                    recipients_names.push("".to_string());
+                    recipients_addr.push(email_to_remove.to_string());
                 }
             }
             if command != SystemMessage::AutocryptSetupMessage
                 && command != SystemMessage::SecurejoinMessage
                 && context.get_config_bool(Config::MdnsEnabled)
             {
-                factory.req_mdn = true;
+                req_mdn = true;
             }
         }
         let row = context.sql.query_row(
@@ -166,8 +146,27 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             },
         );
         let (in_reply_to, references) = row?;
-        factory.in_reply_to = in_reply_to;
-        factory.references = references;
+
+        let factory = MimeFactory {
+            from_addr,
+            from_displayname,
+            selfstatus: context
+                .get_config(Config::Selfstatus)
+                .unwrap_or_else(|| context.stock_str(StockMessage::StatusLine).to_string()),
+            recipients_names,
+            recipients_addr,
+            timestamp: msg.timestamp_sort,
+            loaded: Loaded::Message,
+            msg,
+            chat: Some(chat),
+            increation: msg.is_increation(),
+            in_reply_to,
+            references,
+            req_mdn,
+            last_added_location_id: 0,
+            attach_selfavatar: add_selfavatar,
+            context,
+        };
 
         Ok(factory)
     }
