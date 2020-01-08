@@ -58,7 +58,7 @@ bitflags = "1.1.0"
 debug_stub_derive = "0.3.0"
 sanitize-filename = "0.2.1"
 stop-token = { version = "0.1.1", features = ["unstable"] }
-mailparse = "0.10.1"
+mailparse = "0.10.2"
 encoded-words = { git = "https://github.com/async-email/encoded-words", branch="master" }
 native-tls = "0.2.3"
 image = "0.22.3"
