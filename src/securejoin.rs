@@ -258,7 +258,7 @@ fn send_handshake_msg(
     grpid: impl AsRef<str>,
 ) {
     let mut msg = Message::default();
-    msg.type_0 = Viewtype::Text;
+    msg.viewtype = Viewtype::Text;
     msg.text = Some(format!("Secure-Join: {}", step));
     msg.hidden = true;
     msg.param.set_cmd(SystemMessage::SecurejoinMessage);
