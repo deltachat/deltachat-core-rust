@@ -25,7 +25,7 @@ use crate::location;
 use crate::login_param::LoginParam;
 use crate::message::MsgId;
 use crate::message::{self, Message, MessageState};
-use crate::mimefactory::{vec_contains_lowercase, MimeFactory, RenderedEmail};
+use crate::mimefactory::{MimeFactory, RenderedEmail};
 use crate::param::*;
 use crate::sql;
 
@@ -683,8 +683,12 @@ pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<()> {
         );
     }
 
+    let lowercase_from = rendered_msg.from.to_lowercase();
     if context.get_config_bool(Config::BccSelf)
-        && !vec_contains_lowercase(&rendered_msg.recipients, &rendered_msg.from)
+        && !rendered_msg
+            .recipients
+            .iter()
+            .any(|x| x.to_lowercase() == lowercase_from)
     {
         rendered_msg.recipients.push(rendered_msg.from.clone());
     }
