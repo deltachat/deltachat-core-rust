@@ -130,7 +130,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                 req_mdn = true;
             }
         }
-        let row = context.sql.query_row(
+        let (in_reply_to, references) = context.sql.query_row(
             "SELECT mime_in_reply_to, mime_references FROM msgs WHERE id=?",
             params![msg.id],
             |row| {
@@ -142,8 +142,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                     render_rfc724_mid_list(&references),
                 ))
             },
-        );
-        let (in_reply_to, references) = row?;
+        )?;
 
         let factory = MimeFactory {
             from_addr,
