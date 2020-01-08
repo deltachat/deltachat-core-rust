@@ -165,19 +165,9 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                 ))
             },
         );
-
-        match row {
-            Ok((in_reply_to, references)) => {
-                factory.in_reply_to = in_reply_to;
-                factory.references = references;
-            }
-            Err(err) => {
-                error!(
-                    context,
-                    "mimefactory: failed to load mime_in_reply_to: {:?}", err
-                );
-            }
-        }
+        let (in_reply_to, references) = row?;
+        factory.in_reply_to = in_reply_to;
+        factory.references = references;
 
         Ok(factory)
     }
