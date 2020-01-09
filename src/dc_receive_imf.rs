@@ -1049,7 +1049,6 @@ fn create_or_lookup_group(
             }
         }
         send_EVENT_CHAT_MODIFIED = true;
-        chat::reset_gossiped_timestamp(context, chat_id)?;
     }
 
     if send_EVENT_CHAT_MODIFIED {
