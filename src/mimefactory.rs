@@ -284,7 +284,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             Loaded::Message { chat } => {
                 // beside key- and member-changes, force re-gossip every 48 hours
                 let gossiped_timestamp = chat.get_gossiped_timestamp(self.context);
-                if gossiped_timestamp == 0 || (gossiped_timestamp + (2 * 24 * 60 * 60)) > time() {
+                if time() > gossiped_timestamp + (2 * 24 * 60 * 60) {
                     return true;
                 }
 
