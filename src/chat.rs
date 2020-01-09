@@ -548,7 +548,7 @@ pub struct ChatInfo {
     /// This is the string-serialised version of [Params] currently.
     pub param: String,
 
-    /// Something to do with gossiping and timestamps?
+    /// Last time this client sent autocrypt gossip headers to this chat.
     pub gossiped_timestamp: i64,
 
     /// Whether this chat is currently sending location-stream messages.
