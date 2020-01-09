@@ -11,10 +11,10 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub fn read_url(context: &Context, url: &str) -> Result<String> {
     info!(context, "Requesting URL {}", url);
 
-    match reqwest::Client::new()
+    match reqwest::blocking::Client::new()
         .get(url)
         .send()
-        .and_then(|mut res| res.text())
+        .and_then(|res| res.text())
     {
         Ok(res) => Ok(res),
         Err(err) => {

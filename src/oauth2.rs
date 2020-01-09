@@ -154,7 +154,7 @@ pub fn dc_get_oauth2_access_token(
         }
 
         // ... and POST
-        let response = reqwest::Client::new()
+        let response = reqwest::blocking::Client::new()
             .post(post_url)
             .form(&post_param)
             .send();
@@ -165,7 +165,7 @@ pub fn dc_get_oauth2_access_token(
             );
             return None;
         }
-        let mut response = response.unwrap();
+        let response = response.unwrap();
         if !response.status().is_success() {
             warn!(
                 context,
@@ -291,12 +291,12 @@ impl Oauth2 {
         //   "verified_email": true,
         //   "picture": "https://lh4.googleusercontent.com/-Gj5jh_9R0BY/AAAAAAAAAAI/AAAAAAAAAAA/IAjtjfjtjNA/photo.jpg"
         // }
-        let response = reqwest::Client::new().get(&userinfo_url).send();
+        let response = reqwest::blocking::Client::new().get(&userinfo_url).send();
         if response.is_err() {
             warn!(context, "Error getting userinfo: {:?}", response);
             return None;
         }
-        let mut response = response.unwrap();
+        let response = response.unwrap();
         if !response.status().is_success() {
             warn!(context, "Error getting userinfo: {:?}", response.status());
             return None;
