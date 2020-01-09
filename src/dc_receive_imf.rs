@@ -979,9 +979,14 @@ fn create_or_lookup_group(
     // XXX insert code in a different PR :)
 
     // execute group commands
-    if X_MrAddToGrp.is_some() || X_MrRemoveFromGrp.is_some() {
+    if X_MrAddToGrp.is_some() {
+        chat::reset_gossiped_timestamp(context, chat_id)?;
         recreate_member_list = true;
-    } else if X_MrGrpNameChanged {
+    }
+    if X_MrRemoveFromGrp.is_some() {
+        recreate_member_list = true;
+    }
+    if X_MrGrpNameChanged {
         if let Some(ref grpname) = grpname {
             if grpname.len() < 200 {
                 info!(context, "updating grpname for chat {}", chat_id);
@@ -1049,7 +1054,6 @@ fn create_or_lookup_group(
             }
         }
         send_EVENT_CHAT_MODIFIED = true;
-        chat::reset_gossiped_timestamp(context, chat_id)?;
     }
 
     if send_EVENT_CHAT_MODIFIED {
