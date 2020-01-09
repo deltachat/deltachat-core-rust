@@ -1177,29 +1177,46 @@ class TestOnlineAccount:
 class TestGroupStressTests:
     def test_group_many_members_add_leave_remove(self, acfactory, lp):
         lp.sec("creating and configuring five accounts")
-        ac1 = acfactory.get_online_configuring_account()
-        accounts = [acfactory.get_online_configuring_account() for i in range(3)]
-        wait_configuration_progress(ac1, 1000)
+        accounts = [acfactory.get_online_configuring_account() for i in range(5)]
         for acc in accounts:
             wait_configuration_progress(acc, 1000)
+        ac1 = accounts.pop()
+
+        lp.sec("ac1: setting up contacts with 4 other members")
+        contacts = []
+        for acc, name in zip(accounts, list("äöüsr")):
+            contact = ac1.create_contact(acc.get_config("addr"), name=name)
+            contacts.append(contact)
+
+            # make sure we accept the "hi" message
+            ac1.create_chat_by_contact(contact)
+
+            # make sure the other side accepts our messages
+            c1 = acc.create_contact(ac1.get_config("addr"), "ä member")
+            chat1 = acc.create_chat_by_contact(c1)
+
+            # send a message to get the contact key via autocrypt header
+            chat1.send_text("hi")
+            msg = ac1.wait_next_incoming_message()
+            assert msg.text == "hi"
+
+        # Save fifth account for later
+        ac5 = accounts.pop()
+        contact5 = contacts.pop()
 
         lp.sec("ac1: creating group chat with 3 other members")
         chat = ac1.create_group_chat("title1")
-        contacts = []
-        chars = list("äöüsr")
-        for acc in accounts:
-            contact = ac1.create_contact(acc.get_config("addr"), name=chars.pop())
-            contacts.append(contact)
+        for contact in contacts:
             chat.add_contact(contact)
-            # make sure the other side accepts our messages
-            c1 = acc.create_contact(ac1.get_config("addr"), "ä member")
-            acc.create_chat_by_contact(c1)
-
         assert not chat.is_promoted()
 
         lp.sec("ac1: send mesage to new group chat")
-        chat.send_text("hello")
+        msg = chat.send_text("hello")
         assert chat.is_promoted()
+        assert msg.is_encrypted()
+
+        gossiped_timestamp = chat.get_summary()["gossiped_timestamp"]
+        assert gossiped_timestamp > 0
 
         num_contacts = len(chat.get_contacts())
         assert num_contacts == 3 + 1
@@ -1215,18 +1232,44 @@ class TestGroupStressTests:
         ac3 = accounts[1]
         msg3 = ac3.wait_next_incoming_message()
         assert msg3.text == "hello"
-        contacts = ac3.get_contacts()
-        assert len(contacts) == 3
+        ac3_contacts = ac3.get_contacts()
+        assert len(ac3_contacts) == 3
         ac4_contacts = ac3.get_contacts(query=accounts[2].get_config("addr"))
         assert len(ac4_contacts) == 1
 
-        lp.sec("ac1: removing one contacts and checking things are right")
-        to_remove = msg.chat.get_contacts()[-1]
+        lp.sec("ac2: removing one contact")
+        to_remove = contacts[-1]
         msg.chat.remove_contact(to_remove)
 
+        lp.sec("ac1: receiving system message about contact removal")
         sysmsg = ac1.wait_next_incoming_message()
         assert to_remove.addr in sysmsg.text
         assert len(sysmsg.chat.get_contacts()) == 3
+
+        # Receiving message about removed contact does not reset gossip
+        assert chat.get_summary()["gossiped_timestamp"] == gossiped_timestamp
+
+        lp.sec("ac1: sending another message to the chat")
+        chat.send_text("hello2")
+        msg = ac2.wait_next_incoming_message()
+        assert msg.text == "hello2"
+        assert chat.get_summary()["gossiped_timestamp"] == gossiped_timestamp
+
+        lp.sec("ac1: adding fifth member to the chat")
+        chat.add_contact(contact5)
+        # Additng contact to chat resets gossiped_timestamp
+        assert chat.get_summary()["gossiped_timestamp"] >= gossiped_timestamp
+
+        lp.sec("ac2: receiving system message about contact addition")
+        sysmsg = ac2.wait_next_incoming_message()
+        assert contact5.addr in sysmsg.text
+        assert len(sysmsg.chat.get_contacts()) == 4
+
+        lp.sec("ac5: waiting for message about addition to the chat")
+        sysmsg = ac5.wait_next_incoming_message()
+        msg = sysmsg.chat.send_text("hello!")
+        # Message should be encrypted because keys of other members are gossiped
+        assert msg.is_encrypted()
 
 
 class TestOnlineConfigureFails:
