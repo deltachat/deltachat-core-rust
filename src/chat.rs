@@ -1678,7 +1678,7 @@ fn real_group_exists(context: &Context, chat_id: u32) -> bool {
         .unwrap_or_default()
 }
 
-pub fn reset_gossiped_timestamp(context: &Context, chat_id: u32) -> crate::sql::Result<()> {
+pub fn reset_gossiped_timestamp(context: &Context, chat_id: u32) -> Result<(), Error> {
     set_gossiped_timestamp(context, chat_id, 0)
 }
 
@@ -1699,31 +1699,23 @@ pub fn set_gossiped_timestamp(
     context: &Context,
     chat_id: u32,
     timestamp: i64,
-) -> crate::sql::Result<()> {
-    if 0 != chat_id {
-        info!(
-            context,
-            "set gossiped_timestamp for chat #{} to {}.", chat_id, timestamp,
-        );
+) -> Result<(), Error> {
+    ensure!(
+        chat_id > DC_CHAT_ID_LAST_SPECIAL,
+        "can not add member to special chats"
+    );
+    info!(
+        context,
+        "set gossiped_timestamp for chat #{} to {}.", chat_id, timestamp,
+    );
 
-        sql::execute(
-            context,
-            &context.sql,
-            "UPDATE chats SET gossiped_timestamp=? WHERE id=?;",
-            params![timestamp, chat_id as i32],
-        )
-    } else {
-        info!(
-            context,
-            "set gossiped_timestamp for all chats to {}.", timestamp,
-        );
-        sql::execute(
-            context,
-            &context.sql,
-            "UPDATE chats SET gossiped_timestamp=?;",
-            params![timestamp],
-        )
-    }
+    sql::execute(
+        context,
+        &context.sql,
+        "UPDATE chats SET gossiped_timestamp=? WHERE id=?;",
+        params![timestamp, chat_id as i32],
+    )?;
+    Ok(())
 }
 
 pub fn shall_attach_selfavatar(context: &Context, chat_id: u32) -> Result<bool, Error> {
