@@ -18,14 +18,14 @@ use crate::param::*;
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::stock::StockMessage;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum Loaded {
     Message { chat: Chat },
     MDN,
 }
 
 /// Helper to construct mime messages.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct MimeFactory<'a, 'b> {
     from_addr: String,
     from_displayname: String,
