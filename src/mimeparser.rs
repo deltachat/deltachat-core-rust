@@ -178,10 +178,16 @@ impl<'a> MimeMessage<'a> {
     #[allow(clippy::cognitive_complexity)]
     fn parse_headers(&mut self) -> Result<()> {
         if self.get(HeaderDef::AutocryptSetupMessage).is_some() {
-            self.parts.drain_filter(|part| {
-                part.mimetype.is_some()
-                    && part.mimetype.as_ref().unwrap().as_ref() != MIME_AC_SETUP_FILE
-            });
+            self.parts = self
+                .parts
+                .iter()
+                .filter(|part| {
+                    part.mimetype.is_none()
+                        || part.mimetype.as_ref().unwrap().as_ref() == MIME_AC_SETUP_FILE
+                })
+                .cloned()
+                .collect();
+
             if self.parts.len() == 1 {
                 self.is_system_message = SystemMessage::AutocryptSetupMessage;
             } else {
