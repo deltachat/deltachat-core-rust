@@ -5,7 +5,6 @@ use std::fmt;
 use num_traits::FromPrimitive;
 
 use crate::aheader::*;
-use crate::chat::*;
 use crate::constants::*;
 use crate::context::Context;
 use crate::key::*;
@@ -418,7 +417,6 @@ impl<'a> Peerstate<'a> {
                     &self.addr,
                 ],
             )?;
-            reset_gossiped_timestamp(self.context, 0)?;
         } else if self.to_save == Some(ToSave::Timestamps) {
             sql::execute(
                 self.context,
