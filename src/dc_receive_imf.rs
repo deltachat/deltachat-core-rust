@@ -155,20 +155,12 @@ pub fn dc_receive_imf(
 
     // Add parts
 
-    let rfc724_mid = match mime_parser.get_rfc724_mid() {
-        Some(x) => x,
-        None => {
-            // missing Message-IDs may come if the mail was set from this account with another
-            // client that relies in the SMTP server to generate one.
-            // true eg. for the Webmailer used in all-inkl-KAS
-            match dc_create_incoming_rfc724_mid(sent_timestamp, from_id, &to_ids) {
-                Some(x) => x,
-                None => {
-                    bail!("No Message-Id found and could not create incoming rfc724_mid");
-                }
-            }
-        }
-    };
+    let rfc724_mid = mime_parser.get_rfc724_mid().unwrap_or_else(|| {
+        // missing Message-IDs may come if the mail was set from this account with another
+        // client that relies on the SMTP server to generate one.
+        // true eg. for the Webmailer used in all-inkl-KAS
+        create_incoming_rfc724_mid(sent_timestamp, from_id, &to_ids)
+    });
     if mime_parser.parts.last().is_some() {
         if let Err(err) = add_parts(
             context,
@@ -1584,20 +1576,19 @@ fn add_or_lookup_contact_by_addr(
     Ok(row_id)
 }
 
-fn dc_create_incoming_rfc724_mid(
+fn create_incoming_rfc724_mid(
     message_timestamp: i64,
     contact_id_from: u32,
     contact_ids_to: &ContactIds,
-) -> Option<String> {
+) -> String {
     /* create a deterministic rfc724_mid from input such that
     repeatedly calling it with the same input results in the same Message-id */
 
     let largest_id_to = contact_ids_to.iter().max().copied().unwrap_or_default();
-    let result = format!(
+    format!(
         "{}-{}-{}@stub",
         message_timestamp, contact_id_from, largest_id_to
-    );
-    Some(result)
+    )
 }
 
 #[cfg(test)]
@@ -1644,22 +1635,22 @@ mod tests {
     }
 
     #[test]
-    fn test_dc_create_incoming_rfc724_mid() {
+    fn test_create_incoming_rfc724_mid() {
         let mut members = ContactIds::new();
         assert_eq!(
-            dc_create_incoming_rfc724_mid(123, 45, &members),
-            Some("123-45-0@stub".into())
+            create_incoming_rfc724_mid(123, 45, &members),
+            "123-45-0@stub".to_string()
         );
         members.insert(7);
         members.insert(3);
         assert_eq!(
-            dc_create_incoming_rfc724_mid(123, 45, &members),
-            Some("123-45-7@stub".into())
+            create_incoming_rfc724_mid(123, 45, &members),
+            "123-45-7@stub".to_string()
         );
         members.insert(9);
         assert_eq!(
-            dc_create_incoming_rfc724_mid(123, 45, &members),
-            Some("123-45-9@stub".into())
+            create_incoming_rfc724_mid(123, 45, &members),
+            "123-45-9@stub".to_string()
         );
     }
 }
