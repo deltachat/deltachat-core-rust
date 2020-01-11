@@ -222,7 +222,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             .collect())
     }
 
-    fn is_e2ee_guranteed(&self) -> bool {
+    fn is_e2ee_guaranteed(&self) -> bool {
         match &self.loaded {
             Loaded::Message { chat } => {
                 if chat.typ == Chattype::VerifiedGroup {
@@ -435,7 +435,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let grpimage = self.grpimage();
         let force_plaintext = self.should_force_plaintext();
         let subject_str = self.subject_str();
-        let e2ee_guranteed = self.is_e2ee_guranteed();
+        let e2ee_guaranteed = self.is_e2ee_guaranteed();
         let mut encrypt_helper = EncryptHelper::new(self.context)?;
 
         let subject = encode_words(&subject_str);
@@ -457,7 +457,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
 
         let peerstates = self.peerstates_for_recipients()?;
         let should_encrypt =
-            encrypt_helper.should_encrypt(self.context, e2ee_guranteed, &peerstates)?;
+            encrypt_helper.should_encrypt(self.context, e2ee_guaranteed, &peerstates)?;
         let is_encrypted = should_encrypt && force_plaintext == 0;
 
         let rfc724_mid = match self.loaded {
