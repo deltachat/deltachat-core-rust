@@ -96,25 +96,25 @@ pub enum Param {
     /// For Jobs: space-separated list of message recipients
     Recipients = b'R',
 
-    // For Groups
+    /// For Groups
     Unpromoted = b'U',
 
-    // For Groups and Contacts
+    /// For Groups and Contacts
     ProfileImage = b'i',
 
-    // For Chats
+    /// For Chats
     Selftalk = b'K',
 
-    // For Chats
+    /// For Chats
     Devicetalk = b'D',
 
-    // For QR
+    /// For QR
     Auth = b's',
 
-    // For QR
+    /// For QR
     GroupId = b'x',
 
-    // For QR
+    /// For QR
     GroupName = b'g',
 }
 
