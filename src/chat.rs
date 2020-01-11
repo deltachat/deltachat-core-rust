@@ -19,7 +19,7 @@ use crate::job::*;
 use crate::message::{self, InvalidMsgId, Message, MessageState, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::param::*;
-use crate::sql::{self, Sql};
+use crate::sql;
 use crate::stock::StockMessage;
 
 /// An object representing a single chat in memory.
@@ -202,7 +202,8 @@ impl Chat {
             .ok()
     }
 
-    fn parent_is_encrypted(&self, context: &Context, sql: &Sql) -> bool {
+    fn parent_is_encrypted(&self, context: &Context) -> bool {
+        let sql = &context.sql;
         let packed: Option<String> = sql.query_get_value(
             context,
             "SELECT param  \
@@ -425,7 +426,7 @@ impl Chat {
                     }
                 }
 
-                if can_encrypt && (all_mutual || self.parent_is_encrypted(context, &context.sql)) {
+                if can_encrypt && (all_mutual || self.parent_is_encrypted(context)) {
                     msg.param.set_int(Param::GuaranteeE2ee, 1);
                 }
             }
