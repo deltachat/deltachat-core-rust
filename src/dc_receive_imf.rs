@@ -1374,31 +1374,31 @@ fn check_verified_properties(
             context.is_self_addr(&to_addr)
         );
         let mut is_verified = _is_verified != 0;
-        let mut peerstate = Peerstate::from_addr(context, &context.sql, &to_addr);
+        let peerstate = Peerstate::from_addr(context, &context.sql, &to_addr);
 
         // mark gossiped keys (if any) as verified
-        if mimeparser.gossipped_addr.contains(&to_addr) && peerstate.is_some() {
-            let peerstate = peerstate.as_mut().unwrap();
-
-            // if we're here, we know the gossip key is verified:
-            // - use the gossip-key as verified-key if there is no verified-key
-            // - OR if the verified-key does not match public-key or gossip-key
-            //   (otherwise a verified key can _only_ be updated through QR scan which might be annoying,
-            //   see https://github.com/nextleap-project/countermitm/issues/46 for a discussion about this point)
-            if !is_verified
-                || peerstate.verified_key_fingerprint != peerstate.public_key_fingerprint
-                    && peerstate.verified_key_fingerprint != peerstate.gossip_key_fingerprint
-            {
-                info!(context, "{} has verified {}.", contact.get_addr(), to_addr,);
-                let fp = peerstate.gossip_key_fingerprint.clone();
-                if let Some(fp) = fp {
-                    peerstate.set_verified(
-                        PeerstateKeyType::GossipKey,
-                        &fp,
-                        PeerstateVerifiedStatus::BidirectVerified,
-                    );
-                    peerstate.save_to_db(&context.sql, false)?;
-                    is_verified = true;
+        if mimeparser.gossipped_addr.contains(&to_addr) {
+            if let Some(mut peerstate) = peerstate {
+                // if we're here, we know the gossip key is verified:
+                // - use the gossip-key as verified-key if there is no verified-key
+                // - OR if the verified-key does not match public-key or gossip-key
+                //   (otherwise a verified key can _only_ be updated through QR scan which might be annoying,
+                //   see https://github.com/nextleap-project/countermitm/issues/46 for a discussion about this point)
+                if !is_verified
+                    || peerstate.verified_key_fingerprint != peerstate.public_key_fingerprint
+                        && peerstate.verified_key_fingerprint != peerstate.gossip_key_fingerprint
+                {
+                    info!(context, "{} has verified {}.", contact.get_addr(), to_addr,);
+                    let fp = peerstate.gossip_key_fingerprint.clone();
+                    if let Some(fp) = fp {
+                        peerstate.set_verified(
+                            PeerstateKeyType::GossipKey,
+                            &fp,
+                            PeerstateVerifiedStatus::BidirectVerified,
+                        );
+                        peerstate.save_to_db(&context.sql, false)?;
+                        is_verified = true;
+                    }
                 }
             }
         }
