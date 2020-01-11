@@ -202,6 +202,28 @@ impl Chat {
             .ok()
     }
 
+    fn last_msg_in_chat_encrypted(&self, context: &Context, sql: &Sql) -> bool {
+        let packed: Option<String> = sql.query_get_value(
+            context,
+            "SELECT param  \
+             FROM msgs  WHERE timestamp=(SELECT MAX(timestamp) FROM msgs WHERE chat_id=?)  \
+             ORDER BY id DESC;",
+            params![self.id as i32],
+        );
+
+        if let Some(ref packed) = packed {
+            match packed.parse::<Params>() {
+                Ok(param) => param.exists(Param::GuaranteeE2ee),
+                Err(err) => {
+                    error!(context, "invalid params stored: '{}', {:?}", packed, err);
+                    false
+                }
+            }
+        } else {
+            false
+        }
+    }
+
     pub fn get_profile_image(&self, context: &Context) -> Option<PathBuf> {
         if let Some(image_rel) = self.param.get(Param::ProfileImage) {
             if !image_rel.is_empty() {
@@ -404,7 +426,7 @@ impl Chat {
                 }
 
                 if can_encrypt
-                    && (all_mutual || last_msg_in_chat_encrypted(context, &context.sql, self.id))
+                    && (all_mutual || self.last_msg_in_chat_encrypted(context, &context.sql))
                 {
                     msg.param.set_int(Param::GuaranteeE2ee, 1);
                 }
@@ -902,28 +924,6 @@ fn prepare_msg_common(context: &Context, chat_id: u32, msg: &mut Message) -> Res
     msg.chat_id = chat_id;
 
     Ok(msg.id)
-}
-
-fn last_msg_in_chat_encrypted(context: &Context, sql: &Sql, chat_id: u32) -> bool {
-    let packed: Option<String> = sql.query_get_value(
-        context,
-        "SELECT param  \
-         FROM msgs  WHERE timestamp=(SELECT MAX(timestamp) FROM msgs WHERE chat_id=?)  \
-         ORDER BY id DESC;",
-        params![chat_id as i32],
-    );
-
-    if let Some(ref packed) = packed {
-        match packed.parse::<Params>() {
-            Ok(param) => param.exists(Param::GuaranteeE2ee),
-            Err(err) => {
-                error!(context, "invalid params stored: '{}', {:?}", packed, err);
-                false
-            }
-        }
-    } else {
-        false
-    }
 }
 
 /// Returns whether a contact is in a chat or not.
