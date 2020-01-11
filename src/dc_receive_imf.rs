@@ -787,10 +787,10 @@ fn create_or_lookup_group(
         }
         if grpid.is_empty() {
             if let Some(extracted_grpid) = extract_grpid(mime_parser, HeaderDef::InReplyTo) {
-                grpid = extracted_grpid;
+                grpid = extracted_grpid.to_string();
             } else if let Some(extracted_grpid) = extract_grpid(mime_parser, HeaderDef::References)
             {
-                grpid = extracted_grpid;
+                grpid = extracted_grpid.to_string();
             } else {
                 return create_or_lookup_adhoc_group(
                     context,
@@ -1058,17 +1058,13 @@ fn create_or_lookup_group(
 }
 
 /// try extract a grpid from a message-id list header value
-fn extract_grpid(mime_parser: &MimeMessage, headerdef: HeaderDef) -> Option<String> {
-    if let Some(value) = mime_parser.get(headerdef) {
-        for part in value.split(',').map(str::trim) {
-            if !part.is_empty() {
-                if let Some(extracted_grpid) = dc_extract_grpid_from_rfc724_mid(part) {
-                    return Some(extracted_grpid.to_string());
-                }
-            }
-        }
-    }
-    None
+fn extract_grpid<'a>(mime_parser: &'a MimeMessage, headerdef: HeaderDef) -> Option<&'a str> {
+    let header = mime_parser.get(headerdef)?;
+    let parts = header
+        .split(',')
+        .map(str::trim)
+        .filter(|part| !part.is_empty());
+    parts.filter_map(dc_extract_grpid_from_rfc724_mid).next()
 }
 
 /// Handle groups for received messages, return chat_id/Blocked status on success
@@ -1624,7 +1620,7 @@ mod tests {
                     hello\x00";
         let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
         assert_eq!(extract_grpid(&mimeparser, HeaderDef::InReplyTo), None);
-        let grpid = Some("HcxyMARjyJy".to_string());
+        let grpid = Some("HcxyMARjyJy");
         assert_eq!(extract_grpid(&mimeparser, HeaderDef::References), grpid);
     }
 
@@ -1638,7 +1634,7 @@ mod tests {
                     \n\
                     hello\x00";
         let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
-        let grpid = Some("HcxyMARjyJy".to_string());
+        let grpid = Some("HcxyMARjyJy");
         assert_eq!(extract_grpid(&mimeparser, HeaderDef::InReplyTo), grpid);
         assert_eq!(extract_grpid(&mimeparser, HeaderDef::References), grpid);
     }
