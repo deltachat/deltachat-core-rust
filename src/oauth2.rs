@@ -312,13 +312,12 @@ impl Oauth2 {
         }
         if let Ok(response) = parsed {
             // serde_json::Value.as_str() removes the quotes of json-strings
-            let addr = response.get("email");
-            if addr.is_none() {
+            if let Some(addr) = response.get("email") {
+                Some(addr.to_string())
+            } else {
                 warn!(context, "E-mail missing in userinfo.");
-                return None;
+                None
             }
-            let addr = addr.unwrap().as_str();
-            addr.map(|addr| addr.to_string())
         } else {
             warn!(context, "Failed to parse userinfo.");
             None
