@@ -194,7 +194,7 @@ impl Chat {
         )
     }
 
-    pub fn get_parent_mime_headers(&self, context: &Context) -> Option<(String, String, String)> {
+    fn get_parent_mime_headers(&self, context: &Context) -> Option<(String, String, String)> {
         let collect = |row: &rusqlite::Row| Ok((row.get(0)?, row.get(1)?, row.get(2)?));
         let params = params![self.id as i32];
         let sql = &context.sql;
