@@ -830,14 +830,14 @@ fn create_or_lookup_group(
     } else {
         let field = mime_parser.get(HeaderDef::ChatGroupMemberAdded).cloned();
         if let Some(optional_field) = field {
-            X_MrAddToGrp = Some(optional_field);
             mime_parser.is_system_message = SystemMessage::MemberAddedToGroup;
             better_msg = context.stock_system_msg(
                 StockMessage::MsgAddMember,
-                X_MrAddToGrp.as_ref().unwrap(),
+                &optional_field,
                 "",
                 from_id as u32,
-            )
+            );
+            X_MrAddToGrp = Some(optional_field);
         } else {
             let field = mime_parser.get(HeaderDef::ChatGroupNameChanged);
             if let Some(field) = field {
