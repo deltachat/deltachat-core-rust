@@ -91,8 +91,8 @@ impl Chat {
                             let contacts = get_chat_contacts(context, chat.id);
                             let mut chat_name = "Err [Name not found]".to_owned();
 
-                            if !(*contacts).is_empty() {
-                                if let Ok(contact) = Contact::get_by_id(context, contacts[0]) {
+                            if let Some(contact_id) = contacts.first() {
+                                if let Ok(contact) = Contact::get_by_id(context, *contact_id) {
                                     chat_name = contact.get_display_name().to_owned();
                                 }
                             }
@@ -209,8 +209,8 @@ impl Chat {
             }
         } else if self.typ == Chattype::Single {
             let contacts = get_chat_contacts(context, self.id);
-            if !contacts.is_empty() {
-                if let Ok(contact) = Contact::get_by_id(context, contacts[0]) {
+            if let Some(contact_id) = contacts.first() {
+                if let Ok(contact) = Contact::get_by_id(context, *contact_id) {
                     return contact.get_profile_image(context);
                 }
             }
@@ -228,8 +228,8 @@ impl Chat {
 
         if self.typ == Chattype::Single {
             let contacts = get_chat_contacts(context, self.id);
-            if !contacts.is_empty() {
-                if let Ok(contact) = Contact::get_by_id(context, contacts[0]) {
+            if let Some(contact_id) = contacts.first() {
+                if let Ok(contact) = Contact::get_by_id(context, *contact_id) {
                     color = contact.get_color();
                 }
             }
