@@ -367,14 +367,9 @@ impl<'a> MimeMessage<'a> {
     }
 
     pub(crate) fn get_subject(&self) -> Option<String> {
-        if let Some(s) = self.get(HeaderDef::Subject) {
-            if s.is_empty() {
-                return None;
-            }
-            Some(s.to_string())
-        } else {
-            None
-        }
+        self.get(HeaderDef::Subject)
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
     }
 
     pub fn get(&self, headerdef: HeaderDef) -> Option<&String> {
@@ -713,11 +708,8 @@ impl<'a> MimeMessage<'a> {
     }
 
     pub fn get_rfc724_mid(&self) -> Option<String> {
-        if let Some(msgid) = self.get(HeaderDef::MessageId) {
-            parse_message_id(msgid)
-        } else {
-            None
-        }
+        self.get(HeaderDef::MessageId)
+            .and_then(|msgid| parse_message_id(msgid))
     }
 
     fn merge_headers(&mut self, fields: &[mailparse::MailHeader<'_>]) {
