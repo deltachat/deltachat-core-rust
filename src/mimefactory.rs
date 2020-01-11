@@ -1130,14 +1130,8 @@ fn encode_words(word: &str) -> String {
 }
 
 pub fn needs_encoding(to_check: impl AsRef<str>) -> bool {
-    let to_check = to_check.as_ref();
-
-    if to_check.is_empty() {
-        return false;
-    }
-
-    to_check.chars().any(|c| {
-        !c.is_ascii_alphanumeric() && c != '-' && c != '_' && c != '.' && c != '~' && c != '%'
+    !to_check.as_ref().chars().all(|c| {
+        c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' || c == '~' || c == '%'
     })
 }
 
@@ -1195,5 +1189,13 @@ mod tests {
             "QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQU\r\n\
              FBQUFBQUFBQQ==";
         assert_eq!(wrapped_base64_encode(input), output);
+    }
+
+    #[test]
+    fn test_needs_encoding() {
+        assert!(!needs_encoding(""));
+        assert!(!needs_encoding("foobar"));
+        assert!(needs_encoding(" "));
+        assert!(needs_encoding("foo bar"));
     }
 }
