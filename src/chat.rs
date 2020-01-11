@@ -182,35 +182,34 @@ impl Chat {
         "Err".to_string()
     }
 
+    fn parent_query(fields: &str) -> String {
+        // Check for server_uid guarantees that we don't
+        // select a draft or undelivered message.
+        format!(
+            "SELECT {} \
+             FROM msgs WHERE chat_id=?1 AND server_uid!=0 \
+             ORDER BY timestamp DESC, id DESC \
+             LIMIT 1;",
+            fields
+        )
+    }
+
     pub fn get_parent_mime_headers(&self, context: &Context) -> Option<(String, String, String)> {
         let collect = |row: &rusqlite::Row| Ok((row.get(0)?, row.get(1)?, row.get(2)?));
-        let params = params![self.id as i32, DC_CONTACT_ID_SELF as i32];
+        let params = params![self.id as i32];
         let sql = &context.sql;
 
-        // use the last messsage of another user in the group as the parent
-        let main_query = "SELECT rfc724_mid, mime_in_reply_to, mime_references \
-                          FROM msgs WHERE chat_id=?1 AND timestamp=(SELECT max(timestamp) \
-                          FROM msgs WHERE chat_id=?1 AND from_id!=?2);";
+        let query = Self::parent_query("rfc724_mid, mime_in_reply_to, mime_references");
 
-        // there are no messages of other users - use the first message if SELF as parent
-        let fallback_query = "SELECT rfc724_mid, mime_in_reply_to, mime_references \
-                              FROM msgs WHERE chat_id=?1 AND timestamp=(SELECT min(timestamp) \
-                              FROM msgs WHERE chat_id=?1 AND from_id==?2);";
-
-        sql.query_row(main_query, params, collect)
-            .or_else(|_| sql.query_row(fallback_query, params, collect))
-            .ok()
+        sql.query_row(&query, params, collect).ok()
     }
 
     fn parent_is_encrypted(&self, context: &Context) -> bool {
         let sql = &context.sql;
-        let packed: Option<String> = sql.query_get_value(
-            context,
-            "SELECT param  \
-             FROM msgs  WHERE timestamp=(SELECT MAX(timestamp) FROM msgs WHERE chat_id=?)  \
-             ORDER BY id DESC;",
-            params![self.id as i32],
-        );
+        let params = params![self.id as i32];
+        let query = Self::parent_query("param");
+
+        let packed: Option<String> = sql.query_get_value(context, &query, params);
 
         if let Some(ref packed) = packed {
             match packed.parse::<Params>() {
