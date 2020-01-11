@@ -17,6 +17,13 @@ use crate::param::*;
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::stock::StockMessage;
 
+// attachments of 25 mb brutto should work on the majority of providers
+// (brutto examples: web.de=50, 1&1=40, t-online.de=32, gmail=25, posteo=50, yahoo=25, all-inkl=100).
+// as an upper limit, we double the size; the core won't send messages larger than this
+// to get the netto sizes, we subtract 1 mb header-overhead and the base64-overhead.
+const RECOMMENDED_FILE_SIZE: u64 = 24 * 1024 * 1024 / 4 * 3;
+const UPPER_LIMIT_FILE_SIZE: u64 = 49 * 1024 * 1024 / 4 * 3;
+
 #[derive(Debug, Clone)]
 pub enum Loaded {
     Message { chat: Chat },
@@ -846,7 +853,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             if !is_file_size_okay(context, &self.msg) {
                 bail!(
                     "Message exceeds the recommended {} MB.",
-                    24 * 1024 * 1024 / 4 * 3 / 1000 / 1000,
+                    RECOMMENDED_FILE_SIZE / 1_000_000,
                 );
             } else {
                 let (file_part, _) = build_body_file(context, &self.msg, "")?;
@@ -1104,7 +1111,7 @@ fn is_file_size_okay(context: &Context, msg: &Message) -> bool {
     match msg.param.get_path(Param::File, context).unwrap_or(None) {
         Some(path) => {
             let bytes = dc_get_filebytes(context, &path);
-            bytes <= (49 * 1024 * 1024 / 4 * 3)
+            bytes <= UPPER_LIMIT_FILE_SIZE
         }
         None => false,
     }
