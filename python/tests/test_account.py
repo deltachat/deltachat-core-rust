@@ -829,7 +829,21 @@ class TestOnlineAccount:
         print("ac1: e2ee_enabled={}".format(ac1.get_config("e2ee_enabled")))
         print("ac2: e2ee_enabled={}".format(ac2.get_config("e2ee_enabled")))
         ac1.set_config("e2ee_enabled", "0")
-        chat.send_text("message2 -- should be encrypted")
+
+        # Set unprepared and unencrypted draft to test that it is not
+        # taken into account when determining whether last message is
+        # encrypted.
+        msg_draft = Message.new_empty(ac1, "text")
+        msg_draft.set_text("message2 -- should be encrypted")
+        chat.set_draft(msg_draft)
+
+        # Get the draft, prepare and send it.
+        msg_draft = chat.get_draft()
+        msg_out = chat.prepare_message(msg_draft)
+        chat.send_prepared(msg_out)
+
+        chat.set_draft(None)
+        assert chat.get_draft() is None
 
         lp.sec("wait for ac2 to receive message")
         ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG")
