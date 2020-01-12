@@ -5,7 +5,7 @@ description = "Deltachat FFI"
 authors = ["Delta Chat Developers (ML) <delta@codespeak.net>"]
 edition = "2018"
 readme = "README.md"
-license = "MIT OR Apache-2.0"
+license = "MPL-2.0"
 
 keywords = ["deltachat", "chat", "openpgp", "email", "encryption"]
 categories = ["cryptography", "std", "email"]
