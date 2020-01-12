@@ -17,7 +17,7 @@ use crate::message::{self, MessageState, MessengerMessage, MsgId};
 use crate::mimeparser::*;
 use crate::param::*;
 use crate::peerstate::*;
-use crate::securejoin::handle_securejoin_handshake;
+use crate::securejoin::{self, handle_securejoin_handshake};
 use crate::sql;
 use crate::stock::StockMessage;
 use crate::{contact, location};
@@ -328,7 +328,6 @@ fn add_parts(
             MessageState::InFresh
         };
         to_id = DC_CONTACT_ID_SELF;
-        let mut needs_stop_ongoing_process = false;
 
         // handshake messages must be processed _before_ chats are created
         // (eg. contacs may be marked as verified)
@@ -338,26 +337,24 @@ fn add_parts(
             *chat_id = 0;
             allow_creation = true;
             match handle_securejoin_handshake(context, mime_parser, from_id) {
-                Ok(ret) => {
-                    if ret.hide_this_msg {
-                        *hidden = true;
-                        *needs_delete_job = ret.delete_this_msg;
-                        state = MessageState::InSeen;
-                    }
-                    if let Some(status) = ret.bob_securejoin_success {
-                        context.bob.write().unwrap().status = status as i32;
-                    }
-                    needs_stop_ongoing_process = ret.stop_ongoing_process;
+                Ok(securejoin::HandshakeMessage::Done) => {
+                    *hidden = true;
+                    *needs_delete_job = true;
+                    state = MessageState::InSeen;
+                }
+                Ok(securejoin::HandshakeMessage::Ignore) => {
+                    *hidden = true;
+                    state = MessageState::InSeen;
+                }
+                Ok(securejoin::HandshakeMessage::Propagate) => {
+                    // Message will still be processed as "member
+                    // added" or similar system message.
                 }
                 Err(err) => {
-                    // maybe this message belongs to an aborted scan,
-                    // however, by the explicit header check we really know
-                    // that it is a Secure-Join message that should be hidden in the chat view.
                     *hidden = true;
-                    warn!(
-                        context,
-                        "Unexpected messaged passed to Secure-Join handshake protocol: {}", err
-                    );
+                    context.bob.write().unwrap().status = 0; // secure-join failed
+                    context.stop_ongoing();
+                    error!(context, "Error in Secure-Join message handling: {}", err);
                 }
             }
         }
@@ -453,13 +450,6 @@ fn add_parts(
             && show_emails != ShowEmails::All
         {
             state = MessageState::InNoticed;
-        }
-
-        if needs_stop_ongoing_process {
-            // The Secure-Join protocol finished and the group
-            // creation handling is done.  Stopping the ongoing
-            // process will let dc_join_securejoin() return.
-            context.stop_ongoing();
         }
     } else {
         // Outgoing
