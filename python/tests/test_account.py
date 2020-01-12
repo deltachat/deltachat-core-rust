@@ -653,6 +653,7 @@ class TestOnlineAccount:
         assert data1 == chat.id
         assert data2 == msg_out.id
         assert msg_out.is_out_delivered()
+        assert not msg_out.is_encrypted()
 
         lp.sec("wait for ac2 to receive message")
         ev = ac2._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
@@ -694,6 +695,17 @@ class TestOnlineAccount:
             ac2._evlogger.get_matching("DC_EVENT_MSG_READ", timeout=0.01)
         except queue.Empty:
             pass  # mark_seen_messages() has generated events before it returns
+
+        # Test that a second message is encrypted, because we received
+        # Autocrypt header in MDN.
+        lp.sec("sending second text message from ac1 to ac2")
+        msg_out = chat.send_text("message2")
+        ev = ac1._evlogger.get_matching("DC_EVENT_MSG_DELIVERED")
+        evt_name, data1, data2 = ev
+        assert data1 == chat.id
+        assert data2 == msg_out.id
+        assert msg_out.is_out_delivered()
+        assert msg_out.is_encrypted(), "second message should be encrypted"
 
     def test_mdn_asymetric(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
