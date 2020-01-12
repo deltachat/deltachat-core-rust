@@ -319,55 +319,83 @@ fn fingerprint_equals_sender(
     }
     false
 }
-
-pub(crate) struct HandshakeMessageStatus {
-    pub(crate) hide_this_msg: bool,
-    pub(crate) delete_this_msg: bool,
-    pub(crate) stop_ongoing_process: bool,
-    pub(crate) bob_securejoin_success: Option<bool>,
+#[derive(Fail, Debug)]
+pub(crate) enum HandshakeError {
+    #[fail(display = "Can not be called with special contact ID")]
+    SpecialContactId,
+    #[fail(display = "Not a Secure-Join message")]
+    NotSecureJoinMsg,
+    #[fail(
+        display = "Failed to look up or create chat for contact #{}",
+        contact_id
+    )]
+    NoChat {
+        contact_id: u32,
+        #[cause]
+        cause: Error,
+    },
+    #[fail(display = "Chat for group {} not found", group)]
+    ChatNotFound { group: String },
+    #[fail(display = "No configured self address found")]
+    NoSelfAddr,
 }
 
-impl Default for HandshakeMessageStatus {
-    fn default() -> Self {
-        Self {
-            hide_this_msg: true,
-            delete_this_msg: false,
-            stop_ongoing_process: false,
-            bob_securejoin_success: None,
-        }
-    }
+/// What to do with a Secure-Join handshake message after it was handled.
+pub(crate) enum HandshakeMessage {
+    /// The message has been fully handled and should be removed/delete.
+    Done,
+    /// The message should be ignored/hidden, but not removed/deleted.
+    Ignore,
+    /// The message should be further processed by incoming message handling.
+    Propagate,
 }
 
 /// Handle incoming secure-join handshake.
+///
+/// This function will update the securejoin state in [Context::bob]
+/// and also terminate the ongoing process using
+/// [Context::stop_ongoing] as required by the protocol.
+///
+/// A message which results in [Err] will be hidden from the user but
+/// not deleted, it may be a valid message for something else we are
+/// not aware off.  E.g. it could be part of a handshake performed by
+/// another DC app on the same account.
 pub(crate) fn handle_securejoin_handshake(
     context: &Context,
-    mimeparser: &MimeMessage,
+    mime_message: &MimeMessage,
     contact_id: u32,
-) -> Result<HandshakeMessageStatus, Error> {
+) -> Result<HandshakeMessage, HandshakeError> {
     let own_fingerprint: String;
 
-    ensure!(
-        contact_id > DC_CONTACT_ID_LAST_SPECIAL,
-        "handle_securejoin_handshake(): called with special contact id"
-    );
-    let step = mimeparser
+    if contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
+        return Err(HandshakeError::SpecialContactId);
+    }
+    let step = mime_message
         .get(HeaderDef::SecureJoin)
-        .ok_or_else(|| format_err!("This message is not a Secure-Join message"))?;
+        .ok_or(HandshakeError::NotSecureJoinMsg)?;
 
     info!(
         context,
         ">>>>>>>>>>>>>>>>>>>>>>>>> secure-join message \'{}\' received", step,
     );
 
-    let (contact_chat_id, contact_chat_id_blocked) =
-        chat::create_or_lookup_by_contact_id(context, contact_id, Blocked::Not).unwrap_or_default();
-
-    if contact_chat_id_blocked != Blocked::Not {
-        chat::unblock(context, contact_chat_id);
-    }
+    let contact_chat_id =
+        match chat::create_or_lookup_by_contact_id(context, contact_id, Blocked::Not) {
+            Ok((chat_id, blocked)) => {
+                if blocked != Blocked::Not {
+                    chat::unblock(context, chat_id);
+                }
+                chat_id
+            }
+            Err(err) => {
+                return Err(HandshakeError::NoChat {
+                    contact_id,
+                    cause: err,
+                });
+            }
+        };
 
     let join_vg = step.starts_with("vg-");
-    let mut ret = HandshakeMessageStatus::default();
 
     match step.as_str() {
         "vg-request" | "vc-request" => {
@@ -379,16 +407,16 @@ pub(crate) fn handle_securejoin_handshake(
             // it just ensures, we have Bobs key now. If we do _not_ have the key because eg. MitM has removed it,
             // send_message() will fail with the error "End-to-end-encryption unavailable unexpectedly.", so, there is no additional check needed here.
             // verify that the `Secure-Join-Invitenumber:`-header matches invitenumber written to the QR code
-            let invitenumber = match mimeparser.get(HeaderDef::SecureJoinInvitenumber) {
+            let invitenumber = match mime_message.get(HeaderDef::SecureJoinInvitenumber) {
                 Some(n) => n,
                 None => {
-                    warn!(context, "Secure-join denied (invitenumber missing).",);
-                    return Ok(ret);
+                    warn!(context, "Secure-join denied (invitenumber missing)");
+                    return Ok(HandshakeMessage::Ignore);
                 }
             };
             if !token::exists(context, token::Namespace::InviteNumber, &invitenumber) {
-                warn!(context, "Secure-join denied (bad invitenumber).",);
-                return Ok(ret);
+                warn!(context, "Secure-join denied (bad invitenumber).");
+                return Ok(HandshakeMessage::Ignore);
             }
             info!(context, "Secure-join requested.",);
 
@@ -401,6 +429,7 @@ pub(crate) fn handle_securejoin_handshake(
                 None,
                 "",
             );
+            Ok(HandshakeMessage::Done)
         }
         "vg-auth-required" | "vc-auth-required" => {
             let cond = {
@@ -412,26 +441,26 @@ pub(crate) fn handle_securejoin_handshake(
             };
 
             if cond {
-                warn!(context, "auth-required message out of sync.",);
+                warn!(context, "auth-required message out of sync.");
                 // no error, just aborted somehow or a mail from another handshake
-                return Ok(ret);
+                return Ok(HandshakeMessage::Ignore);
             }
             let scanned_fingerprint_of_alice = get_qr_attr!(context, fingerprint).to_string();
             let auth = get_qr_attr!(context, auth).to_string();
 
-            if !encrypted_and_signed(mimeparser, &scanned_fingerprint_of_alice) {
+            if !encrypted_and_signed(mime_message, &scanned_fingerprint_of_alice) {
                 could_not_establish_secure_connection(
                     context,
                     contact_chat_id,
-                    if mimeparser.was_encrypted() {
+                    if mime_message.was_encrypted() {
                         "No valid signature."
                     } else {
                         "Not encrypted."
                     },
                 );
-                ret.stop_ongoing_process = true;
-                ret.bob_securejoin_success = Some(false);
-                return Ok(ret);
+                context.bob.write().unwrap().status = 0; // secure-join failed
+                context.stop_ongoing();
+                return Ok(HandshakeMessage::Ignore);
             }
             if !fingerprint_equals_sender(context, &scanned_fingerprint_of_alice, contact_chat_id) {
                 could_not_establish_secure_connection(
@@ -439,9 +468,9 @@ pub(crate) fn handle_securejoin_handshake(
                     contact_chat_id,
                     "Fingerprint mismatch on joiner-side.",
                 );
-                ret.stop_ongoing_process = true;
-                ret.bob_securejoin_success = Some(false);
-                return Ok(ret);
+                context.bob.write().unwrap().status = 0; // secure-join failed
+                context.stop_ongoing();
+                return Ok(HandshakeMessage::Ignore);
             }
             info!(context, "Fingerprint verified.",);
             own_fingerprint = get_self_fingerprint(context).unwrap();
@@ -460,6 +489,7 @@ pub(crate) fn handle_securejoin_handshake(
                     "".to_string()
                 },
             );
+            Ok(HandshakeMessage::Done)
         }
         "vg-request-with-auth" | "vc-request-with-auth" => {
             /* ============================================================
@@ -468,7 +498,7 @@ pub(crate) fn handle_securejoin_handshake(
             ====  Step 6 in "Out-of-band verified groups" protocol  ====
             ============================================================ */
             // verify that Secure-Join-Fingerprint:-header matches the fingerprint of Bob
-            let fingerprint = match mimeparser.get(HeaderDef::SecureJoinFingerprint) {
+            let fingerprint = match mime_message.get(HeaderDef::SecureJoinFingerprint) {
                 Some(fp) => fp,
                 None => {
                     could_not_establish_secure_connection(
@@ -476,16 +506,16 @@ pub(crate) fn handle_securejoin_handshake(
                         contact_chat_id,
                         "Fingerprint not provided.",
                     );
-                    return Ok(ret);
+                    return Ok(HandshakeMessage::Ignore);
                 }
             };
-            if !encrypted_and_signed(mimeparser, &fingerprint) {
+            if !encrypted_and_signed(mime_message, &fingerprint) {
                 could_not_establish_secure_connection(
                     context,
                     contact_chat_id,
                     "Auth not encrypted.",
                 );
-                return Ok(ret);
+                return Ok(HandshakeMessage::Ignore);
             }
             if !fingerprint_equals_sender(context, &fingerprint, contact_chat_id) {
                 could_not_establish_secure_connection(
@@ -493,11 +523,11 @@ pub(crate) fn handle_securejoin_handshake(
                     contact_chat_id,
                     "Fingerprint mismatch on inviter-side.",
                 );
-                return Ok(ret);
+                return Ok(HandshakeMessage::Ignore);
             }
             info!(context, "Fingerprint verified.",);
             // verify that the `Secure-Join-Auth:`-header matches the secret written to the QR code
-            let auth_0 = match mimeparser.get(HeaderDef::SecureJoinAuth) {
+            let auth_0 = match mime_message.get(HeaderDef::SecureJoinAuth) {
                 Some(auth) => auth,
                 None => {
                     could_not_establish_secure_connection(
@@ -505,12 +535,12 @@ pub(crate) fn handle_securejoin_handshake(
                         contact_chat_id,
                         "Auth not provided.",
                     );
-                    return Ok(ret);
+                    return Ok(HandshakeMessage::Ignore);
                 }
             };
             if !token::exists(context, token::Namespace::Auth, &auth_0) {
                 could_not_establish_secure_connection(context, contact_chat_id, "Auth invalid.");
-                return Ok(ret);
+                return Ok(HandshakeMessage::Ignore);
             }
             if mark_peer_as_verified(context, fingerprint).is_err() {
                 could_not_establish_secure_connection(
@@ -518,7 +548,7 @@ pub(crate) fn handle_securejoin_handshake(
                     contact_chat_id,
                     "Fingerprint mismatch on inviter-side.",
                 );
-                return Ok(ret);
+                return Ok(HandshakeMessage::Ignore);
             }
             Contact::scaleup_origin_by_id(context, contact_id, Origin::SecurejoinInvited);
             info!(context, "Auth verified.",);
@@ -526,14 +556,19 @@ pub(crate) fn handle_securejoin_handshake(
             emit_event!(context, Event::ContactsChanged(Some(contact_id)));
             inviter_progress!(context, contact_id, 600);
             if join_vg {
-                let field_grpid = mimeparser
-                    .get(HeaderDef::SecureJoinGroup)
-                    .map(|s| s.as_str())
-                    .unwrap_or_else(|| "");
+                let field_grpid = match mime_message.get(HeaderDef::SecureJoinGroup) {
+                    Some(s) => s.as_str(),
+                    None => {
+                        warn!(context, "Missing Secure-Join-Group header");
+                        return Ok(HandshakeMessage::Ignore);
+                    }
+                };
                 let (group_chat_id, _, _) = chat::get_chat_id_by_grpid(context, field_grpid);
                 if group_chat_id == 0 {
                     error!(context, "Chat {} not found.", &field_grpid);
-                    return Ok(ret);
+                    return Err(HandshakeError::ChatNotFound {
+                        group: field_grpid.to_string(),
+                    });
                 } else if let Err(err) =
                     chat::add_contact_to_chat_ex(context, group_chat_id, contact_id, true)
                 {
@@ -543,14 +578,12 @@ pub(crate) fn handle_securejoin_handshake(
                 send_handshake_msg(context, contact_chat_id, "vc-contact-confirm", "", None, "");
                 inviter_progress!(context, contact_id, 1000);
             }
+            Ok(HandshakeMessage::Done)
         }
         "vg-member-added" | "vc-contact-confirm" => {
-            if join_vg {
-                ret.hide_this_msg = false;
-            }
             if context.bob.read().unwrap().expects != DC_VC_CONTACT_CONFIRM {
                 info!(context, "Message belongs to a different handshake.",);
-                return Ok(ret);
+                return Ok(HandshakeMessage::Propagate);
             }
             let cond = {
                 let bob = context.bob.read().unwrap();
@@ -562,7 +595,7 @@ pub(crate) fn handle_securejoin_handshake(
                     context,
                     "Message out of sync or belongs to a different handshake.",
                 );
-                return Ok(ret);
+                return Ok(HandshakeMessage::Propagate);
             }
             let scanned_fingerprint_of_alice = get_qr_attr!(context, fingerprint).to_string();
 
@@ -579,15 +612,15 @@ pub(crate) fn handle_securejoin_handshake(
                 true
             };
             if vg_expect_encrypted
-                && !encrypted_and_signed(mimeparser, &scanned_fingerprint_of_alice)
+                && !encrypted_and_signed(mime_message, &scanned_fingerprint_of_alice)
             {
                 could_not_establish_secure_connection(
                     context,
                     contact_chat_id,
                     "Contact confirm message not encrypted.",
                 );
-                ret.bob_securejoin_success = Some(false);
-                return Ok(ret);
+                context.bob.write().unwrap().status = 0;
+                return Ok(HandshakeMessage::Propagate);
             }
 
             if mark_peer_as_verified(context, &scanned_fingerprint_of_alice).is_err() {
@@ -596,17 +629,21 @@ pub(crate) fn handle_securejoin_handshake(
                     contact_chat_id,
                     "Fingerprint mismatch on joiner-side.",
                 );
-                return Ok(ret);
+                return Ok(HandshakeMessage::Propagate);
             }
             Contact::scaleup_origin_by_id(context, contact_id, Origin::SecurejoinJoined);
             emit_event!(context, Event::ContactsChanged(None));
-            let cg_member_added = mimeparser
+            let cg_member_added = mime_message
                 .get(HeaderDef::ChatGroupMemberAdded)
                 .map(|s| s.as_str())
                 .unwrap_or_else(|| "");
-            if join_vg && !context.is_self_addr(cg_member_added)? {
+            if join_vg
+                && !context
+                    .is_self_addr(cg_member_added)
+                    .map_err(|_| HandshakeError::NoSelfAddr)?
+            {
                 info!(context, "Message belongs to a different handshake (scaled up contact anyway to allow creation of group).");
-                return Ok(ret);
+                return Ok(HandshakeMessage::Propagate);
             }
             secure_connection_established(context, contact_chat_id);
             context.bob.write().unwrap().expects = 0;
@@ -620,8 +657,9 @@ pub(crate) fn handle_securejoin_handshake(
                     "",
                 );
             }
-            ret.stop_ongoing_process = true;
-            ret.bob_securejoin_success = Some(true);
+            context.bob.write().unwrap().status = 1;
+            context.stop_ongoing();
+            Ok(HandshakeMessage::Propagate)
         }
         "vg-member-added-received" => {
             /* ============================================================
@@ -631,11 +669,11 @@ pub(crate) fn handle_securejoin_handshake(
             if let Ok(contact) = Contact::get_by_id(context, contact_id) {
                 if contact.is_verified(context) == VerifiedStatus::Unverified {
                     warn!(context, "vg-member-added-received invalid.",);
-                    return Ok(ret);
+                    return Ok(HandshakeMessage::Ignore);
                 }
                 inviter_progress!(context, contact_id, 800);
                 inviter_progress!(context, contact_id, 1000);
-                let field_grpid = mimeparser
+                let field_grpid = mime_message
                     .get(HeaderDef::SecureJoinGroup)
                     .map(|s| s.as_str())
                     .unwrap_or_else(|| "");
@@ -644,21 +682,17 @@ pub(crate) fn handle_securejoin_handshake(
                     chat_id: group_chat_id,
                     contact_id,
                 });
+                Ok(HandshakeMessage::Done)
             } else {
                 warn!(context, "vg-member-added-received invalid.",);
-                return Ok(ret);
+                Ok(HandshakeMessage::Ignore)
             }
         }
         _ => {
             warn!(context, "invalid step: {}", step);
+            Ok(HandshakeMessage::Ignore)
         }
     }
-
-    if ret.hide_this_msg {
-        ret.delete_this_msg = true;
-    }
-
-    Ok(ret)
 }
 
 fn secure_connection_established(context: &Context, contact_chat_id: u32) {
