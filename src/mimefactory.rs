@@ -327,38 +327,35 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
     fn subject_str(&self) -> String {
         match self.loaded {
             Loaded::Message { ref chat } => {
-                let raw = message::get_summarytext_by_raw(
-                    self.msg.viewtype,
-                    self.msg.text.as_ref(),
-                    &self.msg.param,
-                    32,
-                    self.context,
-                );
-                let mut lines = raw.lines();
-                let raw_subject = if let Some(line) = lines.next() {
-                    line
-                } else {
-                    ""
-                };
-
-                let afwd_email = self.msg.param.exists(Param::Forwarded);
-                let fwd = if afwd_email { "Fwd: " } else { "" };
-
                 if self.msg.param.get_cmd() == SystemMessage::AutocryptSetupMessage {
-                    // do not add the "Chat:" prefix for setup messages
                     self.context
                         .stock_str(StockMessage::AcSetupMsgSubject)
                         .into_owned()
                 } else if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
-                    format!("Chat: {}: {}{}", chat.name, fwd, raw_subject)
+                    let re = if self.in_reply_to.is_empty() {
+                        ""
+                    } else {
+                        "Re: "
+                    };
+                    format!("{}{}", re, chat.name)
                 } else {
-                    format!("Chat: {}{}", fwd, raw_subject)
+                    let raw = message::get_summarytext_by_raw(
+                        self.msg.viewtype,
+                        self.msg.text.as_ref(),
+                        &self.msg.param,
+                        32,
+                        self.context,
+                    );
+                    let mut lines = raw.lines();
+                    let raw_subject = if let Some(line) = lines.next() {
+                        line
+                    } else {
+                        ""
+                    };
+                    format!("Chat: {}", raw_subject)
                 }
             }
-            Loaded::MDN => {
-                let e = self.context.stock_str(StockMessage::ReadRcpt);
-                format!("Chat: {}", e)
-            }
+            Loaded::MDN => self.context.stock_str(StockMessage::ReadRcpt).into_owned(),
         }
     }
 
