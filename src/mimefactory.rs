@@ -275,7 +275,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                         .unwrap_or_default()
                 }
             }
-            Loaded::MDN => ForcePlaintext::NoAutocryptHeader as i32,
+            Loaded::MDN => ForcePlaintext::AddAutocryptHeader as i32,
         }
     }
 
