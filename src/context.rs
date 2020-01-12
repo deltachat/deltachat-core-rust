@@ -75,10 +75,6 @@ pub fn get_info() -> HashMap<&'static str, String> {
     let mut res = HashMap::new();
     res.insert("deltachat_core_version", format!("v{}", &*DC_VERSION_STR));
     res.insert("sqlite_version", rusqlite::version().to_string());
-    res.insert(
-        "sqlite_thread_safe",
-        unsafe { rusqlite::ffi::sqlite3_threadsafe() }.to_string(),
-    );
     res.insert("arch", (std::mem::size_of::<usize>() * 8).to_string());
     res.insert("level", "awesome".into());
     res
