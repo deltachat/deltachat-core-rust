@@ -347,7 +347,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                         self.context,
                     );
                     let mut lines = raw.lines();
-                    let raw_subject = if let Some(line) = lines.next() {
+                    let raw_subject = raw.lines().next().unwrap_or_default();
                         line
                     } else {
                         ""
