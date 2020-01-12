@@ -316,6 +316,25 @@ impl<'a> Peerstate<'a> {
                 self.recalc_fingerprint();
                 self.to_save = Some(ToSave::All)
             }
+
+            // This is non-standard.
+            //
+            // According to Autocrypt 1.1.0 gossip headers SHOULD NOT
+            // contain encryption preference, but we include it into
+            // Autocrypt-Gossip and apply it one way (from
+            // "nopreference" to "mutual").
+            //
+            // This is compatible to standard clients, because they
+            // can't distinguish it from the case where we have
+            // contacted the client in the past and received this
+            // preference via Autocrypt header.
+            if self.last_seen_autocrypt == 0
+                && self.prefer_encrypt == EncryptPreference::NoPreference
+                && gossip_header.prefer_encrypt == EncryptPreference::Mutual
+            {
+                self.prefer_encrypt = EncryptPreference::Mutual;
+                self.to_save = Some(ToSave::All);
+            }
         };
     }
 
@@ -326,7 +345,15 @@ impl<'a> Peerstate<'a> {
             let header = Aheader::new(
                 self.addr.clone(),
                 public_key,
-                EncryptPreference::NoPreference,
+                // Autocrypt 1.1.0 specification says that
+                // `prefer-encrypt` attribute SHOULD NOT be included,
+                // but we include it anyway to propagate encryption
+                // preference to new members in group chats.
+                if self.last_seen_autocrypt > 0 {
+                    self.prefer_encrypt
+                } else {
+                    EncryptPreference::NoPreference
+                },
             );
             Some(header.to_string())
         } else {
