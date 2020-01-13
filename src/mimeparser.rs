@@ -49,7 +49,7 @@ pub struct MimeMessage<'a> {
     pub message_kml: Option<location::Kml>,
     pub user_avatar: AvatarAction,
     pub group_avatar: AvatarAction,
-    reports: Vec<Report>,
+    pub(crate) reports: Vec<Report>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -852,7 +852,7 @@ fn update_gossip_peerstates(
 }
 
 #[derive(Debug)]
-struct Report {
+pub(crate) struct Report {
     original_message_id: String,
 }
 
@@ -1261,5 +1261,127 @@ Content-Disposition: attachment; filename=\"message.kml\"\n\
         // There is only one part because message.kml attachment is special
         // and only goes into message_kml.
         assert_eq!(mimeparser.parts.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_mdn() {
+        let context = dummy_context();
+        let raw = b"Subject: =?utf-8?q?Chat=3A_Message_opened?=\n\
+Date: Mon, 10 Jan 2020 00:00:00 +0000\n\
+Chat-Version: 1.0\n\
+Message-ID: <bar@example.org>\n\
+To: Alice <alice@example.org>\n\
+From: Bob <bob@example.org>\n\
+Content-Type: multipart/report; report-type=disposition-notification;\n\t\
+boundary=\"kJBbU58X1xeWNHgBtTbMk80M5qnV4N\"\n\
+\n\
+\n\
+--kJBbU58X1xeWNHgBtTbMk80M5qnV4N\n\
+Content-Type: text/plain; charset=utf-8\n\
+\n\
+The \"Encrypted message\" message you sent was displayed on the screen of the recipient.\n\
+\n\
+This is no guarantee the content was read.\n\
+\n\
+\n\
+--kJBbU58X1xeWNHgBtTbMk80M5qnV4N\n\
+Content-Type: message/disposition-notification\n\
+\n\
+Reporting-UA: Delta Chat 1.0.0-beta.22\n\
+Original-Recipient: rfc822;bob@example.org\n\
+Final-Recipient: rfc822;bob@example.org\n\
+Original-Message-ID: <foo@example.org>\n\
+Disposition: manual-action/MDN-sent-automatically; displayed\n\
+\n\
+\n\
+--kJBbU58X1xeWNHgBtTbMk80M5qnV4N--\n\
+";
+
+        let message = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
+        assert_eq!(
+            message.get_subject(),
+            Some("Chat: Message opened".to_string())
+        );
+
+        assert_eq!(message.parts.len(), 0);
+        assert_eq!(message.reports.len(), 1);
+    }
+
+    /// Test parsing multiple MDNs combined in a single message.
+    ///
+    /// RFC 6522 specifically allows MDNs to be nested inside
+    /// multipart MIME messages.
+    #[test]
+    fn test_parse_multiple_mdns() {
+        let context = dummy_context();
+        let raw = b"Subject: =?utf-8?q?Chat=3A_Message_opened?=\n\
+Date: Mon, 10 Jan 2020 00:00:00 +0000\n\
+Chat-Version: 1.0\n\
+Message-ID: <foo@example.org>\n\
+To: Alice <alice@example.org>\n\
+From: Bob <bob@example.org>\n\
+Content-Type: multipart/parallel; boundary=outer\n\
+\n\
+This is a multipart MDN.\n\
+\n\
+--outer\n\
+Content-Type: multipart/report; report-type=disposition-notification;\n\t\
+boundary=kJBbU58X1xeWNHgBtTbMk80M5qnV4N\n\
+\n\
+\n\
+--kJBbU58X1xeWNHgBtTbMk80M5qnV4N\n\
+Content-Type: text/plain; charset=utf-8\n\
+\n\
+The \"Encrypted message\" message you sent was displayed on the screen of the recipient.\n\
+\n\
+This is no guarantee the content was read.\n\
+\n\
+\n\
+--kJBbU58X1xeWNHgBtTbMk80M5qnV4N\n\
+Content-Type: message/disposition-notification\n\
+\n\
+Reporting-UA: Delta Chat 1.0.0-beta.22\n\
+Original-Recipient: rfc822;bob@example.org\n\
+Final-Recipient: rfc822;bob@example.org\n\
+Original-Message-ID: <bar@example.org>\n\
+Disposition: manual-action/MDN-sent-automatically; displayed\n\
+\n\
+\n\
+--kJBbU58X1xeWNHgBtTbMk80M5qnV4N--\n\
+--outer\n\
+Content-Type: multipart/report; report-type=disposition-notification;\n\t\
+boundary=zuOJlsTfZAukyawEPVdIgqWjaM9w2W\n\
+\n\
+\n\
+--zuOJlsTfZAukyawEPVdIgqWjaM9w2W\n\
+Content-Type: text/plain; charset=utf-8\n\
+\n\
+The \"Encrypted message\" message you sent was displayed on the screen of the recipient.\n\
+\n\
+This is no guarantee the content was read.\n\
+\n\
+\n\
+--zuOJlsTfZAukyawEPVdIgqWjaM9w2W\n\
+Content-Type: message/disposition-notification\n\
+\n\
+Reporting-UA: Delta Chat 1.0.0-beta.22\n\
+Original-Recipient: rfc822;bob@example.org\n\
+Final-Recipient: rfc822;bob@example.org\n\
+Original-Message-ID: <baz@example.org>\n\
+Disposition: manual-action/MDN-sent-automatically; displayed\n\
+\n\
+\n\
+--zuOJlsTfZAukyawEPVdIgqWjaM9w2W--\n\
+--outer--\n\
+";
+
+        let message = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
+        assert_eq!(
+            message.get_subject(),
+            Some("Chat: Message opened".to_string())
+        );
+
+        assert_eq!(message.parts.len(), 0);
+        assert_eq!(message.reports.len(), 2);
     }
 }
