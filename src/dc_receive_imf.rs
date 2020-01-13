@@ -867,7 +867,8 @@ fn create_or_lookup_group(
     set_better_msg(mime_parser, &better_msg);
 
     // check, if we have a chat with this group ID
-    let (mut chat_id, chat_id_verified, _blocked) = chat::get_chat_id_by_grpid(context, &grpid);
+    let (mut chat_id, chat_id_verified, _blocked) =
+        chat::get_chat_id_by_grpid(context, &grpid).unwrap_or((0, false, Blocked::Not));
     if chat_id != 0 {
         if chat_id_verified {
             if let Err(err) =
@@ -1179,10 +1180,23 @@ fn create_group_record(
     )
     .is_err()
     {
+        warn!(
+            context,
+            "Failed to create group '{}' for grpid={}",
+            grpname.as_ref(),
+            grpid.as_ref()
+        );
         return 0;
     }
-
-    sql::get_rowid(context, &context.sql, "chats", "grpid", grpid.as_ref())
+    let chat_id = sql::get_rowid(context, &context.sql, "chats", "grpid", grpid.as_ref());
+    info!(
+        context,
+        "Created group '{}' grpid={} as chat #{}",
+        grpname.as_ref(),
+        grpid.as_ref(),
+        chat_id
+    );
+    chat_id
 }
 
 fn create_adhoc_grp_id(context: &Context, member_ids: &[u32]) -> String {

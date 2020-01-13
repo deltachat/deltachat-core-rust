@@ -654,7 +654,6 @@ mod tests {
     }
 
     #[test]
-    #[test]
     fn test_dc_extract_grpid_from_rfc724_mid() {
         // Should return None if we pass invalid mid
         let mid = "foobar";

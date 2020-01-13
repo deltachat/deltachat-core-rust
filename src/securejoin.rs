@@ -154,6 +154,7 @@ pub fn dc_join_securejoin(context: &Context, qr: &str) -> u32 {
                         context,
                         bob.qr_scan.as_ref().unwrap().text2.as_ref().unwrap(),
                     )
+                    .unwrap_or((0, false, Blocked::Not))
                     .0
                 } else {
                     contact_chat_id
@@ -593,17 +594,20 @@ pub(crate) fn handle_securejoin_handshake(
                         return Ok(HandshakeMessage::Ignore);
                     }
                 };
-                let (group_chat_id, _, _) = chat::get_chat_id_by_grpid(context, field_grpid);
-                if group_chat_id == 0 {
-                    error!(context, "Chat {} not found.", &field_grpid);
-                    return Err(HandshakeError::ChatNotFound {
-                        group: field_grpid.to_string(),
-                    });
-                } else if let Err(err) =
-                    // Alice -> Bob and all members
-                    chat::add_contact_to_chat_ex(context, group_chat_id, contact_id, true)
-                {
-                    error!(context, "failed to add contact: {}", err);
+                match chat::get_chat_id_by_grpid(context, field_grpid) {
+                    Ok((group_chat_id, _, _)) => {
+                        if let Err(err) =
+                            chat::add_contact_to_chat_ex(context, group_chat_id, contact_id, true)
+                        {
+                            error!(context, "failed to add contact: {}", err);
+                        }
+                    }
+                    Err(err) => {
+                        error!(context, "Chat {} not found: {}", &field_grpid, err);
+                        return Err(HandshakeError::ChatNotFound {
+                            group: field_grpid.to_string(),
+                        });
+                    }
                 }
             } else {
                 // Alice -> Bob
@@ -638,7 +642,13 @@ pub(crate) fn handle_securejoin_handshake(
 
             let vg_expect_encrypted = if join_vg {
                 let group_id = get_qr_attr!(context, text2).to_string();
-                let (_, is_verified_group, _) = chat::get_chat_id_by_grpid(context, group_id);
+                // This is buggy, is_verified_group will always be
+                // false since the group is created by receive_imf by
+                // the very handshake message we're handling now.  But
+                // only after we have returned.  It does not impact
+                // the security invariants of secure-join however.
+                let (_, is_verified_group, _) = chat::get_chat_id_by_grpid(context, &group_id)
+                    .unwrap_or((0, false, Blocked::Not));
                 // when joining a non-verified group
                 // the vg-member-added message may be unencrypted
                 // when not all group members have keys or prefer encryption.
@@ -716,7 +726,13 @@ pub(crate) fn handle_securejoin_handshake(
                     .get(HeaderDef::SecureJoinGroup)
                     .map(|s| s.as_str())
                     .unwrap_or_else(|| "");
-                let (group_chat_id, _, _) = chat::get_chat_id_by_grpid(context, &field_grpid);
+                let (group_chat_id, _, _) = chat::get_chat_id_by_grpid(context, &field_grpid)
+                    .map_err(|err| {
+                        warn!(context, "Failed to lookup chat_id from grpid: {}", err);
+                        HandshakeError::ChatNotFound {
+                            group: field_grpid.to_string(),
+                        }
+                    })?;
                 context.call_cb(Event::SecurejoinMemberAdded {
                     chat_id: group_chat_id,
                     contact_id,

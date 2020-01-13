@@ -2111,21 +2111,21 @@ pub fn get_chat_cnt(context: &Context) -> usize {
     }
 }
 
-pub fn get_chat_id_by_grpid(context: &Context, grpid: impl AsRef<str>) -> (u32, bool, Blocked) {
-    context
-        .sql
-        .query_row(
-            "SELECT id, blocked, type FROM chats WHERE grpid=?;",
-            params![grpid.as_ref()],
-            |row| {
-                let chat_id = row.get(0)?;
+pub(crate) fn get_chat_id_by_grpid(
+    context: &Context,
+    grpid: impl AsRef<str>,
+) -> Result<(u32, bool, Blocked), sql::Error> {
+    context.sql.query_row(
+        "SELECT id, blocked, type FROM chats WHERE grpid=?;",
+        params![grpid.as_ref()],
+        |row| {
+            let chat_id = row.get(0)?;
 
-                let b = row.get::<_, Option<Blocked>>(1)?.unwrap_or_default();
-                let v = row.get::<_, Option<Chattype>>(2)?.unwrap_or_default();
-                Ok((chat_id, v == Chattype::VerifiedGroup, b))
-            },
-        )
-        .unwrap_or((0, false, Blocked::Not))
+            let b = row.get::<_, Option<Blocked>>(1)?.unwrap_or_default();
+            let v = row.get::<_, Option<Chattype>>(2)?.unwrap_or_default();
+            Ok((chat_id, v == Chattype::VerifiedGroup, b))
+        },
+    )
 }
 
 /// Adds a message to device chat.
