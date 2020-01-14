@@ -5,7 +5,7 @@ use crate::constants::*;
 use crate::contact::*;
 use crate::context::*;
 use crate::error::Result;
-use crate::lot::Lot;
+use crate::lot::{Lot, Meaning};
 use crate::message::{Message, MessageState, MsgId, MessageSummary};
 use crate::stock::StockMessage;
 use serde::{Deserialize, Serialize};
@@ -53,7 +53,7 @@ pub struct Chatlist {
 #[derive(Debug, Default)]
 pub struct ChatlistSummary {
     username: Option<String>,
-    chat_type: u32, 
+    chat_type: Meaning, 
     message_excerpt: Option<String>,
     timestamp: i64,
     message_state: MessageState
@@ -305,7 +305,6 @@ impl Chatlist {
 
         if index >= self.ids.len() {
             return Lot { text2: Some("ErrBadChatlistIndex".to_string()), ..Default::default() };
-                
         }
 
         let chat_loaded: Chat;
@@ -319,14 +318,23 @@ impl Chatlist {
         };
 
         let lastmsg_id = self.ids[index].1;
-        self._get_summary(context, chat, lastmsg_id)
+        self._get_summary(context, chat, lastmsg_id).into_lot()
     }
 
-    pub fn get_summary_json(&self, context: &Context, chat_id: u32) -> ChatlistSummary {
-        ChatlistSummary { ..Default::default() } 
+    pub fn get_summary_json(&self, context: &Context, chat_id: u32) -> String {
+
+        if let Ok(chat) = Chat::load_from_db(context, chat_id) {
+            if let Some(lastmsg_id) = chat.get_lastmsg_id(context) {
+                self._get_summary(context, &chat, lastmsg_id)
+            } else {
+                MessageSummary::default()
+            }
+        } else {
+            MessageSummary::default()
+        }.to_json()
     }
 
-    pub fn _get_summary(&self, context: &Context, chat: &Chat, lastmsg_id: MsgId) -> Lot {
+    pub fn _get_summary(&self, context: &Context, chat: &Chat, lastmsg_id: MsgId) -> MessageSummary {
         let mut lastcontact = None;
         let lastmsg = if let Ok(lastmsg) = Message::load_from_db(context, lastmsg_id) {
             if lastmsg.from_id != DC_CONTACT_ID_SELF
@@ -341,15 +349,14 @@ impl Chatlist {
         };
 
         if chat.id.is_archived_link() {
-            Lot { text2: None, .. Default::default() }
-        } else if lastmsg.is_none() || lastmsg.as_ref().unwrap().from_id == DC_CONTACT_ID_UNDEFINED
-        {
-            Lot {
-                text2: Some(context.stock_str(StockMessage::NoMessages).to_string()),
+            MessageSummary { summarytext: None, .. Default::default() }
+        } else if lastmsg.is_none() || lastmsg.as_ref().unwrap().from_id == DC_CONTACT_ID_UNDEFINED {
+            MessageSummary {
+                summarytext: Some(context.stock_str(StockMessage::NoMessages).to_string()),
                 .. Default::default()
             }
         } else {
-            MessageSummary::new(&mut lastmsg.unwrap(), chat, lastcontact.as_ref(), context).into_lot()
+            MessageSummary::new(&mut lastmsg.unwrap(), chat, lastcontact.as_ref(), context)
         }
     }
 }

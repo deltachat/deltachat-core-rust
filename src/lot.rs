@@ -1,4 +1,5 @@
 use deltachat_derive::{FromSql, ToSql};
+use serde::{Deserialize, Serialize};
 
 /// An object containing a set of values.
 /// The meaning of the values is defined by the function returning the object.
@@ -20,7 +21,7 @@ pub struct Lot {
 }
 
 #[repr(u8)]
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql, Serialize, Deserialize)]
 pub enum Meaning {
     None = 0,
     Text1Draft = 1,

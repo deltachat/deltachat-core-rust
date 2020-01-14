@@ -607,7 +607,7 @@ impl Message {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql, Serialize, Deserialize)]
 #[repr(i32)]
 pub enum MessageState {
     Undefined = 0,
@@ -708,7 +708,7 @@ impl MessageState {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct MessageSummary {
     pub text1: Option<String>,
     pub text1_meaning: Meaning,
@@ -782,6 +782,10 @@ impl MessageSummary {
             state: self.state.into(),
             .. Default::default()
         }
+    }
+
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(&self).unwrap_or_else(|_| "".to_string())
     }
 }
 
