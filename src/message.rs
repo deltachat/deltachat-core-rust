@@ -714,11 +714,11 @@ impl MessageState {
 
 #[derive(Debug, Default)]
 pub struct MessageSummary {
-    text1: Option<String>,
-    text1_meaning: Meaning,
-    text2: Option<String>,
-    timestamp: i64,
-    state: MessageState
+    pub text1: Option<String>,
+    pub text1_meaning: Meaning,
+    pub summarytext: Option<String>,
+    pub timestamp: i64,
+    pub state: MessageState
 }
 
 impl MessageSummary {
@@ -763,7 +763,7 @@ impl MessageSummary {
             }
         }
 
-        message_summary.text2 = Some(get_summarytext_by_raw(
+        message_summary.summarytext = Some(get_summarytext_by_raw(
             msg.viewtype,
             msg.text.as_ref(),
             &msg.param,
@@ -791,7 +791,7 @@ impl Lot {
         let message_summary = MessageSummary::new(msg, chat, contact, context);
         self.text1 = message_summary.text1;
         self.text1_meaning = message_summary.text1_meaning;
-        self.text2 = message_summary.text2;
+        self.text2 = message_summary.summarytext;
         self.timestamp = message_summary.timestamp;
         self.state = message_summary.state.into();
     }

@@ -6,7 +6,7 @@ use crate::contact::*;
 use crate::context::*;
 use crate::error::Result;
 use crate::lot::Lot;
-use crate::message::{Message, MessageState, MsgId};
+use crate::message::{Message, MessageState, MsgId, MessageSummary};
 use crate::stock::StockMessage;
 use serde::{Deserialize, Serialize};
 
@@ -323,6 +323,8 @@ impl Chatlist {
         self._get_summary(context, ret, chat, lastmsg_id)
     }
 
+    pub fn get_summary_from_chat_id_json(&self, context: &Context, chat_id: u32) -> 
+
     pub fn _get_summary(&self, context: &Context, mut ret: Lot, chat: &Chat, lastmsg_id: MsgId) -> Lot {
         let mut lastcontact = None;
 
@@ -344,7 +346,12 @@ impl Chatlist {
         {
             ret.text2 = Some(context.stock_str(StockMessage::NoMessages).to_string());
         } else {
-            ret.fill(&mut lastmsg.unwrap(), chat, lastcontact.as_ref(), context);
+            let message_summary = MessageSummary::new(&mut lastmsg.unwrap(), chat, lastcontact.as_ref(), context);
+            ret.text1 = message_summary.text1;
+            ret.text1_meaning = message_summary.text1_meaning;
+            ret.text2 = message_summary.summarytext;
+            ret.timestamp = message_summary.timestamp;
+            ret.state = message_summary.state.into();
         }
 
         ret
