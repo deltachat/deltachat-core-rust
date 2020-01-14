@@ -463,8 +463,6 @@ impl Message {
     }
 
     pub fn get_summary(&mut self, context: &Context, chat: Option<&Chat>) -> Lot {
-        let mut ret = Lot::new();
-
         let chat_loaded: Chat;
         let chat = if let Some(chat) = chat {
             chat
@@ -472,7 +470,7 @@ impl Message {
             chat_loaded = chat;
             &chat_loaded
         } else {
-            return ret;
+            return Lot::default();
         };
 
         let contact = if self.from_id != DC_CONTACT_ID_SELF as u32
@@ -482,10 +480,8 @@ impl Message {
         } else {
             None
         };
-
-        ret.fill(self, chat, contact.as_ref(), context);
-
-        ret
+        
+        MessageSummary::new(self, chat, contact.as_ref(), context).into_lot()
     }
 
     pub fn get_summarytext(&self, context: &Context, approx_characters: usize) -> String {
@@ -776,24 +772,16 @@ impl MessageSummary {
 
         message_summary
     }
-}
 
-impl Lot {
-    /* library-internal */
-    /* in practice, the user additionally cuts the string himself pixel-accurate */
-    pub fn fill(
-        &mut self,
-        msg: &mut Message,
-        chat: &Chat,
-        contact: Option<&Contact>,
-        context: &Context,
-    ) {
-        let message_summary = MessageSummary::new(msg, chat, contact, context);
-        self.text1 = message_summary.text1;
-        self.text1_meaning = message_summary.text1_meaning;
-        self.text2 = message_summary.summarytext;
-        self.timestamp = message_summary.timestamp;
-        self.state = message_summary.state.into();
+    pub fn into_lot(&mut self) -> Lot {
+        Lot {
+            text1: self.text1.clone(),
+            text1_meaning: self.text1_meaning,
+            text2: self.summarytext.clone(),
+            timestamp: self.timestamp,
+            state: self.state.into(),
+            .. Default::default()
+        }
     }
 }
 

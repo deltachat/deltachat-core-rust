@@ -50,7 +50,7 @@ pub struct Chatlist {
     /// - dc_lot_t::timestamp: the timestamp of the message.  0 if not applicable.
     /// - dc_lot_t::state: The state of the message as one of the DC_STATE_* constants (see #dc_msg_get_state()).
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ChatlistSummary {
     username: Option<String>,
     chat_type: u32, 
@@ -303,10 +303,9 @@ impl Chatlist {
         // "is typing".
         // Also, sth. as "No messages" would not work if the summary comes from a message.
 
-        let mut ret = Lot::new();
         if index >= self.ids.len() {
-            ret.text2 = Some("ErrBadChatlistIndex".to_string());
-            return ret;
+            return Lot { text2: Some("ErrBadChatlistIndex".to_string()), ..Default::default() };
+                
         }
 
         let chat_loaded: Chat;
@@ -316,18 +315,19 @@ impl Chatlist {
             chat_loaded = chat;
             &chat_loaded
         } else {
-            return ret;
+            return Lot::default();
         };
 
         let lastmsg_id = self.ids[index].1;
-        self._get_summary(context, ret, chat, lastmsg_id)
+        self._get_summary(context, chat, lastmsg_id)
     }
 
-    pub fn get_summary_from_chat_id_json(&self, context: &Context, chat_id: u32) -> 
+    pub fn get_summary_json(&self, context: &Context, chat_id: u32) -> ChatlistSummary {
+        ChatlistSummary { ..Default::default() } 
+    }
 
-    pub fn _get_summary(&self, context: &Context, mut ret: Lot, chat: &Chat, lastmsg_id: MsgId) -> Lot {
+    pub fn _get_summary(&self, context: &Context, chat: &Chat, lastmsg_id: MsgId) -> Lot {
         let mut lastcontact = None;
-
         let lastmsg = if let Ok(lastmsg) = Message::load_from_db(context, lastmsg_id) {
             if lastmsg.from_id != DC_CONTACT_ID_SELF
                 && (chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup)
@@ -341,20 +341,16 @@ impl Chatlist {
         };
 
         if chat.id.is_archived_link() {
-            ret.text2 = None;
+            Lot { text2: None, .. Default::default() }
         } else if lastmsg.is_none() || lastmsg.as_ref().unwrap().from_id == DC_CONTACT_ID_UNDEFINED
         {
-            ret.text2 = Some(context.stock_str(StockMessage::NoMessages).to_string());
+            Lot {
+                text2: Some(context.stock_str(StockMessage::NoMessages).to_string()),
+                .. Default::default()
+            }
         } else {
-            let message_summary = MessageSummary::new(&mut lastmsg.unwrap(), chat, lastcontact.as_ref(), context);
-            ret.text1 = message_summary.text1;
-            ret.text1_meaning = message_summary.text1_meaning;
-            ret.text2 = message_summary.summarytext;
-            ret.timestamp = message_summary.timestamp;
-            ret.state = message_summary.state.into();
+            MessageSummary::new(&mut lastmsg.unwrap(), chat, lastcontact.as_ref(), context).into_lot()
         }
-
-        ret
     }
 }
 
