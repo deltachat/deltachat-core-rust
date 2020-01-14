@@ -699,6 +699,40 @@ pub unsafe extern "C" fn dc_get_chatlist(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_get_chatlist_json(
+    context: *mut dc_context_t,
+    flags: libc::c_int,
+    query_str: *const libc::c_char,
+    query_id: u32,
+) -> *mut libc::c_char {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_get_chatlist()");
+        return ptr::null_mut();
+    }
+    let ffi_context = &*context;
+    let qs = to_opt_string_lossy(query_str);
+
+    let qi = if query_id == 0 { None } else { Some(query_id) };
+    ffi_context
+        .with_inner(|ctx| {
+            match chatlist::Chatlist::try_load(
+                ctx,
+                flags as usize,
+                qs.as_ref().map(|x| x.as_str()),
+                qi,
+            ) {
+                Ok(list) => {
+                    list.to_json()
+                }
+                Err(_) => ptr::null_mut(),
+            }
+        })
+        .unwrap_or_else(|_| ptr::null_mut())
+}
+
+
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_create_chat_by_msg_id(context: *mut dc_context_t, msg_id: u32) -> u32 {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_create_chat_by_msg_id()");
