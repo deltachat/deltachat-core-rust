@@ -712,6 +712,72 @@ impl MessageState {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct MessageSummary {
+    text1: Option<String>,
+    text1_meaning: Meaning,
+    text2: Option<String>,
+    timestamp: i64,
+    state: MessageState
+}
+
+impl MessageSummary {
+    /* library-internal */
+    /* in practice, the user additionally cuts the string himself pixel-accurate */
+    pub fn new(
+        msg: &mut Message,
+        chat: &Chat,
+        contact: Option<&Contact>,
+        context: &Context,
+    ) -> Self {
+        let mut message_summary = MessageSummary::default();
+
+        if msg.state == MessageState::OutDraft {
+            message_summary.text1 = Some(context.stock_str(StockMessage::Draft).to_owned().into());
+            message_summary.text1_meaning = Meaning::Text1Draft;
+        } else if msg.from_id == DC_CONTACT_ID_SELF {
+            if msg.is_info() || chat.is_self_talk() {
+                message_summary.text1 = None;
+                message_summary.text1_meaning = Meaning::None;
+            } else {
+                message_summary.text1 = Some(context.stock_str(StockMessage::SelfMsg).to_owned().into());
+                message_summary.text1_meaning = Meaning::Text1Self;
+            }
+        } else if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
+            if msg.is_info() || contact.is_none() {
+                message_summary.text1 = None;
+                message_summary.text1_meaning = Meaning::None;
+            } else {
+                if chat.id.is_deaddrop() {
+                    if let Some(contact) = contact {
+                        message_summary.text1 = Some(contact.get_display_name().into());
+                    } else {
+                        message_summary.text1 = None;
+                    }
+                } else if let Some(contact) = contact {
+                    message_summary.text1 = Some(contact.get_first_name().into());
+                } else {
+                    message_summary.text1 = None;
+                }
+                message_summary.text1_meaning = Meaning::Text1Username;
+            }
+        }
+
+        message_summary.text2 = Some(get_summarytext_by_raw(
+            msg.viewtype,
+            msg.text.as_ref(),
+            &msg.param,
+            SUMMARY_CHARACTERS,
+            context,
+        ));
+
+        message_summary.timestamp = msg.get_timestamp();
+        message_summary.state = msg.state;
+
+        message_summary
+    }
+}
+
 impl Lot {
     /* library-internal */
     /* in practice, the user additionally cuts the string himself pixel-accurate */
@@ -722,47 +788,12 @@ impl Lot {
         contact: Option<&Contact>,
         context: &Context,
     ) {
-        if msg.state == MessageState::OutDraft {
-            self.text1 = Some(context.stock_str(StockMessage::Draft).to_owned().into());
-            self.text1_meaning = Meaning::Text1Draft;
-        } else if msg.from_id == DC_CONTACT_ID_SELF {
-            if msg.is_info() || chat.is_self_talk() {
-                self.text1 = None;
-                self.text1_meaning = Meaning::None;
-            } else {
-                self.text1 = Some(context.stock_str(StockMessage::SelfMsg).to_owned().into());
-                self.text1_meaning = Meaning::Text1Self;
-            }
-        } else if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
-            if msg.is_info() || contact.is_none() {
-                self.text1 = None;
-                self.text1_meaning = Meaning::None;
-            } else {
-                if chat.id.is_deaddrop() {
-                    if let Some(contact) = contact {
-                        self.text1 = Some(contact.get_display_name().into());
-                    } else {
-                        self.text1 = None;
-                    }
-                } else if let Some(contact) = contact {
-                    self.text1 = Some(contact.get_first_name().into());
-                } else {
-                    self.text1 = None;
-                }
-                self.text1_meaning = Meaning::Text1Username;
-            }
-        }
-
-        self.text2 = Some(get_summarytext_by_raw(
-            msg.viewtype,
-            msg.text.as_ref(),
-            &msg.param,
-            SUMMARY_CHARACTERS,
-            context,
-        ));
-
-        self.timestamp = msg.get_timestamp();
-        self.state = msg.state.into();
+        let message_summary = MessageSummary::new(msg, chat, contact, context);
+        self.text1 = message_summary.text1;
+        self.text1_meaning = message_summary.text1_meaning;
+        self.text2 = message_summary.text2;
+        self.timestamp = message_summary.timestamp;
+        self.state = message_summary.state.into();
     }
 }
 
