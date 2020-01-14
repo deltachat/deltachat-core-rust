@@ -415,6 +415,24 @@ impl Chat {
         })
     }
 
+    pub fn get_lastmsg_id(&self, context: &Context) -> Option<MsgId> {
+        context.sql.query_row(
+            "SELECT m.id
+             FROM chats c
+             LEFT JOIN msgs m
+                    ON c.id=m.chat_id
+                   AND m.timestamp=(
+                           SELECT MAX(timestamp)
+                             FROM msgs
+                            WHERE chat_id=c.id
+                              AND (hidden=0 OR state=?))
+             WHERE c.id=?
+             ",
+            params![self.id],
+            |row: &rusqlite::Row| Ok(row.get(0)?)
+        ).unwrap()
+    }
+
     /// Returns true if the chat is archived.
     pub fn is_archived(&self) -> bool {
         self.archived

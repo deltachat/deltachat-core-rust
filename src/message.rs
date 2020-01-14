@@ -19,6 +19,7 @@ use crate::param::*;
 use crate::pgp::*;
 use crate::sql;
 use crate::stock::StockMessage;
+use serde::{Deserialize, Serialize};
 
 // In practice, the user additionally cuts the string themselves
 // pixel-accurate.
@@ -29,7 +30,7 @@ const SUMMARY_CHARACTERS: usize = 160;
 /// Some message IDs are reserved to identify special message types.
 /// This type can represent both the special as well as normal
 /// messages.
-#[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MsgId(u32);
 
 impl MsgId {

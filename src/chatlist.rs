@@ -8,6 +8,7 @@ use crate::error::Result;
 use crate::lot::Lot;
 use crate::message::{Message, MessageState, MsgId};
 use crate::stock::StockMessage;
+use serde::{Deserialize, Serialize};
 
 /// An object representing a single chatlist in memory.
 ///
@@ -33,7 +34,7 @@ use crate::stock::StockMessage;
 /// first entry and only present on new messages, there is the rough idea that it can be optionally always
 /// present and sorted into the list by date. Rendering the deaddrop in the described way
 /// would not add extra work in the UI then.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Chatlist {
     /// Stores pairs of `chat_id, message_id`
     ids: Vec<(ChatId, MsgId)>,
@@ -231,6 +232,10 @@ impl Chatlist {
         Ok(Chatlist { ids })
     }
 
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(&self.ids).unwrap_or_else(|_| "".to_string())
+    }
+
     /// Find out the number of chats.
     pub fn len(&self) -> usize {
         self.ids.len()
@@ -375,6 +380,11 @@ mod tests {
         assert_eq!(chats.get_chat_id(1), chat_id2);
         assert_eq!(chats.get_chat_id(2), chat_id1);
 
+        assert_eq!(chats.to_json(), format!("[[{},{}],[{},{}],[{},{}]]",
+            chats.get_chat_id(0), chats.get_msg_id(0).map(|msg_id| msg_id.to_u32()).unwrap_or(0),
+            chats.get_chat_id(1), chats.get_msg_id(1).map(|msg_id| msg_id.to_u32()).unwrap_or(0),
+            chats.get_chat_id(2), chats.get_msg_id(2).map(|msg_id| msg_id.to_u32()).unwrap_or(0))); 
+
         // drafts are sorted to the top
         let mut msg = Message::new(Viewtype::Text);
         msg.set_text(Some("hello".to_string()));
@@ -382,16 +392,30 @@ mod tests {
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
         assert_eq!(chats.get_chat_id(0), chat_id2);
 
+        assert_eq!(chats.to_json(), format!("[[{},{}],[{},{}],[{},{}]]",
+            chats.get_chat_id(0), chats.get_msg_id(0).map(|msg_id| msg_id.to_u32()).unwrap_or(0),
+            chats.get_chat_id(1), chats.get_msg_id(1).map(|msg_id| msg_id.to_u32()).unwrap_or(0),
+            chats.get_chat_id(2), chats.get_msg_id(2).map(|msg_id| msg_id.to_u32()).unwrap_or(0))); 
+
         // check chatlist query and archive functionality
         let chats = Chatlist::try_load(&t.ctx, 0, Some("b"), None).unwrap();
         assert_eq!(chats.len(), 1);
 
+        assert_eq!(chats.to_json(), format!("[[{},{}]]",
+            chats.get_chat_id(0), chats.get_msg_id(0).map(|msg_id| msg_id.to_u32()).unwrap_or(0))); 
+
         let chats = Chatlist::try_load(&t.ctx, DC_GCL_ARCHIVED_ONLY, None, None).unwrap();
         assert_eq!(chats.len(), 0);
+
+        assert_eq!(chats.to_json(), "[]".to_string()); 
 
         chat::archive(&t.ctx, chat_id1, true).ok();
         let chats = Chatlist::try_load(&t.ctx, DC_GCL_ARCHIVED_ONLY, None, None).unwrap();
         assert_eq!(chats.len(), 1);
+
+        assert_eq!(chats.to_json(), format!("[[{},{}]]",
+            chats.get_chat_id(0), chats.get_msg_id(0).map(|msg_id| msg_id.to_u32()).unwrap_or(0))); 
+
     }
 
     #[test]
