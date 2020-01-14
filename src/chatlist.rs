@@ -39,6 +39,25 @@ pub struct Chatlist {
     /// Stores pairs of `chat_id, message_id`
     ids: Vec<(ChatId, MsgId)>,
 }
+///
+    /// - dc_lot_t::text1: contains the username or the strings "Me", "Draft" and so on.
+    ///   The string may be colored by having a look at text1_meaning.
+    ///   If there is no such name or it should not be displayed, the element is NULL.
+    /// - dc_lot_t::text1_meaning: one of DC_TEXT1_USERNAME, DC_TEXT1_SELF or DC_TEXT1_DRAFT.
+    ///   Typically used to show dc_lot_t::text1 with different colors. 0 if not applicable.
+    /// - dc_lot_t::text2: contains an excerpt of the message text or strings as
+    ///   "No messages".  May be NULL of there is no such text (eg. for the archive link)
+    /// - dc_lot_t::timestamp: the timestamp of the message.  0 if not applicable.
+    /// - dc_lot_t::state: The state of the message as one of the DC_STATE_* constants (see #dc_msg_get_state()).
+
+#[derive(Debug)]
+pub struct ChatlistSummary {
+    username: Option<String>,
+    chat_type: u32, 
+    message_excerpt: Option<String>,
+    timestamp: i64,
+    message_state: MessageState
+}
 
 impl Chatlist {
     /// Get a list of chats.
@@ -301,6 +320,10 @@ impl Chatlist {
         };
 
         let lastmsg_id = self.ids[index].1;
+        self._get_summary(context, ret, chat, lastmsg_id)
+    }
+
+    pub fn _get_summary(&self, context: &Context, mut ret: Lot, chat: &Chat, lastmsg_id: MsgId) -> Lot {
         let mut lastcontact = None;
 
         let lastmsg = if let Ok(lastmsg) = Message::load_from_db(context, lastmsg_id) {

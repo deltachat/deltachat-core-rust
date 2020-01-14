@@ -395,12 +395,12 @@ impl Chat {
     ///
     /// This is somewhat experimental, even more so than the rest of
     /// deltachat, and the data returned is still subject to change.
-    pub fn get_info(&self, context: &Context) -> Result<ChatInfo, Error> {
+    pub fn to_chatlist_item_json(&self, context: &Context) -> Result<ChatlistItem, Error> {
         let draft = match get_draft(context, self.id)? {
             Some(message) => message.text.unwrap_or_else(String::new),
             _ => String::new(),
         };
-        Ok(ChatInfo {
+        Ok(ChatlistItem {
             id: self.id,
             type_: self.typ as u32,
             name: self.name.clone(),
@@ -411,6 +411,7 @@ impl Chat {
             color: self.get_color(context),
             profile_image: self.get_profile_image(context).unwrap_or_else(PathBuf::new),
             subtitle: self.get_subtitle(context),
+            lastmsg_id: self.get_lastmsg_id(context).unwrap_or_else(|| MsgId::new_unset()).to_u32(),
             draft,
         })
     }
@@ -425,7 +426,7 @@ impl Chat {
                            SELECT MAX(timestamp)
                              FROM msgs
                             WHERE chat_id=c.id
-                              AND (hidden=0 OR state=?))
+                              AND (hidden=0))
              WHERE c.id=?
              ",
             params![self.id],
@@ -688,7 +689,7 @@ impl Chat {
 /// The current state of a chat.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
-pub struct ChatInfo {
+pub struct ChatlistItem {
     /// The chat ID.
     pub id: ChatId,
 
@@ -740,6 +741,7 @@ pub struct ChatInfo {
     ///       which contain non-text parts.  Perhaps it should be a
     ///       simple `has_draft` bool instead.
     pub draft: String,
+    pub lastmsg_id: u32
     // ToDo:
     // - [ ] deaddrop,
     // - [ ] summary,
@@ -2415,12 +2417,12 @@ mod tests {
     use crate::test_utils::*;
 
     #[test]
-    fn test_chat_info() {
+    fn test_get_chatlist_item_json() {
         let t = dummy_context();
         let bob = Contact::create(&t.ctx, "bob", "bob@example.com").unwrap();
         let chat_id = create_by_contact_id(&t.ctx, bob).unwrap();
         let chat = Chat::load_from_db(&t.ctx, chat_id).unwrap();
-        let info = chat.get_info(&t.ctx).unwrap();
+        let info = chat.to_chatlist_item_json(&t.ctx).unwrap();
 
         // Ensure we can serialise this.
         println!("{}", serde_json::to_string_pretty(&info).unwrap());
@@ -2437,12 +2439,13 @@ mod tests {
                 "color": 15895624,
                 "profile_image": "",
                 "subtitle": "bob@example.com",
-                "draft": ""
+                "draft": "",
+                "lastmsg_id": 0
             }
         "#;
 
         // Ensure we can deserialise this.
-        let loaded: ChatInfo = serde_json::from_str(expected).unwrap();
+        let loaded: ChatlistItem = serde_json::from_str(expected).unwrap();
         assert_eq!(info, loaded);
     }
 
