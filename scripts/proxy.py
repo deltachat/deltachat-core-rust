@@ -17,7 +17,7 @@ import socket
 import socketserver
 
 
-class Proxy(socketserver.TCPServer):
+class Proxy(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
 
     def __init__(self, proxy_host, proxy_port, real_host, real_port, use_ssl):
