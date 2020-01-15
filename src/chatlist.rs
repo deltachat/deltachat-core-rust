@@ -4,11 +4,12 @@ use crate::chat::*;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::*;
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::lot::{Lot, Meaning};
 use crate::message::{Message, MessageState, MsgId, MessageSummary};
 use crate::stock::StockMessage;
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 /// An object representing a single chatlist in memory.
 ///
@@ -38,25 +39,6 @@ use serde::{Deserialize, Serialize};
 pub struct Chatlist {
     /// Stores pairs of `chat_id, message_id`
     ids: Vec<(ChatId, MsgId)>,
-}
-///
-    /// - dc_lot_t::text1: contains the username or the strings "Me", "Draft" and so on.
-    ///   The string may be colored by having a look at text1_meaning.
-    ///   If there is no such name or it should not be displayed, the element is NULL.
-    /// - dc_lot_t::text1_meaning: one of DC_TEXT1_USERNAME, DC_TEXT1_SELF or DC_TEXT1_DRAFT.
-    ///   Typically used to show dc_lot_t::text1 with different colors. 0 if not applicable.
-    /// - dc_lot_t::text2: contains an excerpt of the message text or strings as
-    ///   "No messages".  May be NULL of there is no such text (eg. for the archive link)
-    /// - dc_lot_t::timestamp: the timestamp of the message.  0 if not applicable.
-    /// - dc_lot_t::state: The state of the message as one of the DC_STATE_* constants (see #dc_msg_get_state()).
-
-#[derive(Debug, Default)]
-pub struct ChatlistSummary {
-    username: Option<String>,
-    chat_type: Meaning, 
-    message_excerpt: Option<String>,
-    timestamp: i64,
-    message_state: MessageState
 }
 
 impl Chatlist {
@@ -318,34 +300,30 @@ impl Chatlist {
         };
 
         let lastmsg_id = self.ids[index].1;
-        self._get_summary(context, chat, lastmsg_id).into_lot()
+        Chatlist::_get_summary(context, chat, lastmsg_id).into_lot()
     }
 
-    pub fn get_summary_json(&self, context: &Context, chat_id: u32) -> String {
-
-        if let Ok(chat) = Chat::load_from_db(context, chat_id) {
-            if let Some(lastmsg_id) = chat.get_lastmsg_id(context) {
-                self._get_summary(context, &chat, lastmsg_id)
-            } else {
-                MessageSummary::default()
-            }
+    pub fn get_summary_by_chat(context: &Context, chat: &Chat) -> MessageSummary {
+        if let Some(lastmsg_id) = chat.get_lastmsg_id(context) {
+            Chatlist::_get_summary(context, &chat, lastmsg_id)
         } else {
             MessageSummary::default()
-        }.to_json()
+        }
     }
 
-    pub fn _get_summary(&self, context: &Context, chat: &Chat, lastmsg_id: MsgId) -> MessageSummary {
-        let mut lastcontact = None;
-        let lastmsg = if let Ok(lastmsg) = Message::load_from_db(context, lastmsg_id) {
-            if lastmsg.from_id != DC_CONTACT_ID_SELF
-                && (chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup)
-            {
-                lastcontact = Contact::load_from_db(context, lastmsg.from_id).ok();
-            }
+    pub fn _get_summary(context: &Context, chat: &Chat, lastmsg_id: MsgId) -> MessageSummary {
+        let (lastmsg, lastcontact) = if let Ok(lastmsg) = Message::load_from_db(context, lastmsg_id) {
+            let should_load_last_contact = lastmsg.from_id != DC_CONTACT_ID_SELF &&
+                (chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup);
 
-            Some(lastmsg)
+            if should_load_last_contact {
+                let lastcontact = Contact::load_from_db(context, lastmsg.from_id).ok();
+                (Some(lastmsg), lastcontact)
+            } else {
+                (Some(lastmsg), None)
+            }
         } else {
-            None
+            (None, None)
         };
 
         if chat.id.is_archived_link() {
@@ -390,6 +368,107 @@ fn get_last_deaddrop_fresh_msg(context: &Context) -> Option<MsgId> {
         ),
         params![],
     )
+}
+///
+/// The current state of a chat.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub struct ChatlistItem {
+    /// The chat ID.
+    pub id: u32,
+
+    /// The type of chat as a `u32` representation of [Chattype].
+    ///
+    /// On the C API this number is one of the
+    /// `DC_CHAT_TYPE_UNDEFINED`, `DC_CHAT_TYPE_SINGLE`,
+    /// `DC_CHAT_TYPE_GROUP` or `DC_CHAT_TYPE_VERIFIED_GROUP`
+    /// constants.
+    #[serde(rename = "type")]
+    pub type_: u32,
+
+    /// The name of the chat.
+    pub name: String,
+
+    /// Whether the chat is archived.
+    pub archived: bool,
+
+    /// The "params" of the chat.
+    ///
+    /// This is the string-serialised version of [Params] currently.
+    pub param: String,
+
+    /// Last time this client sent autocrypt gossip headers to this chat.
+    pub gossiped_timestamp: i64,
+
+    /// Whether this chat is currently sending location-stream messages.
+    pub is_sending_locations: bool,
+
+    /// Colour this chat should be represented in by the UI.
+    ///
+    /// Yes, spelling colour is hard.
+    pub color: u32,
+
+    /// The path to the profile image.
+    ///
+    /// If there is no profile image set this will be an empty string
+    /// currently.
+    pub profile_image: PathBuf,
+
+    /// Subtitle for the chat.
+    pub subtitle: String,
+
+    /// The draft message text.
+    ///
+    /// If the chat has not draft this is an empty string.
+    ///
+    /// TODO: This doesn't seem rich enough, it can not handle drafts
+    ///       which contain non-text parts.  Perhaps it should be a
+    ///       simple `has_draft` bool instead.
+    pub draft: String,
+    pub lastmsg_id: u32,
+    pub lastmsg_summary: MessageSummary
+    // ToDo:
+    // - [ ] deaddrop,
+    // - [ ] lastUpdated,
+    // - [ ] freshMessageCounter,
+    // - [ ] email
+}
+impl ChatlistItem {
+    /// Returns a struct describing the current state of the chat.
+    ///
+    /// This is somewhat experimental, even more so than the rest of
+    /// deltachat, and the data returned is still subject to change.
+    pub fn load_from_db(context: &Context, chat_id: u32) -> Result<ChatlistItem> {
+        let chat = Chat::load_from_db(context, chat_id).unwrap();
+
+        let draft = match get_draft(context, chat_id)? {
+            Some(message) => message.text.unwrap_or_else(String::new),
+            _ => String::new(),
+        };
+
+        let (lastmsg_id, lastmsg_summary) = if let Some(lastmsg_id) = chat.get_lastmsg_id(context) {
+            (lastmsg_id, Chatlist::_get_summary(context, &chat, lastmsg_id))
+        } else {
+            (MsgId::new_unset(), MessageSummary::default())
+        };
+
+        //let message_summary = MessageSummary::new( 
+        Ok(ChatlistItem {
+            id: chat.id,
+            type_: chat.typ as u32,
+            name: chat.name.clone(),
+            archived: chat.archived,
+            param: chat.param.to_string(),
+            gossiped_timestamp: chat.get_gossiped_timestamp(context),
+            is_sending_locations: chat.is_sending_locations(),
+            color: chat.get_color(context),
+            profile_image: chat.get_profile_image(context).unwrap_or_else(PathBuf::new),
+            subtitle: chat.get_subtitle(context),
+            lastmsg_id: lastmsg_id.to_u32(),
+            lastmsg_summary,
+            draft,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -472,5 +551,44 @@ mod tests {
             .unwrap();
         let chats = Chatlist::try_load(&t.ctx, 0, Some("t-5678-b"), None).unwrap();
         assert_eq!(chats.len(), 1);
+    }
+
+    #[test]
+    fn test_get_chatlist_item_json() {
+        let t = dummy_context();
+        let bob = Contact::create(&t.ctx, "bob", "bob@example.com").unwrap();
+        let chat_id = create_by_contact_id(&t.ctx, bob).unwrap();
+        let chatlist_item = ChatlistItem::load_from_db(&t.ctx, chat_id).unwrap();
+
+        // Ensure we can serialise this.
+        println!("{}", serde_json::to_string_pretty(&chatlist_item).unwrap());
+
+        let expected = r#"
+            {
+                "id": 10,
+                "type": 100,
+                "name": "bob",
+                "archived": false,
+                "param": "",
+                "gossiped_timestamp": 0,
+                "is_sending_locations": false,
+                "color": 15895624,
+                "profile_image": "",
+                "subtitle": "bob@example.com",
+                "draft": "",
+                "lastmsg_id": 0,
+                "lastmsg_summary": {
+                  "text1": null,
+                  "text1_meaning": "None",
+                  "summarytext": null,
+                  "timestamp": 0,
+                  "state": "Undefined"
+                }
+            }
+        "#;
+
+        // Ensure we can deserialise this.
+        let loaded: ChatlistItem = serde_json::from_str(expected).unwrap();
+        assert_eq!(chatlist_item, loaded);
     }
 }

@@ -167,7 +167,7 @@ pub struct Chat {
     pub id: ChatId,
     pub typ: Chattype,
     pub name: String,
-    archived: bool,
+    pub archived: bool,
     pub grpid: String,
     blocked: Blocked,
     pub param: Params,
@@ -391,30 +391,6 @@ impl Chat {
         color
     }
 
-    /// Returns a struct describing the current state of the chat.
-    ///
-    /// This is somewhat experimental, even more so than the rest of
-    /// deltachat, and the data returned is still subject to change.
-    pub fn to_chatlist_item_json(&self, context: &Context) -> Result<ChatlistItem, Error> {
-        let draft = match get_draft(context, self.id)? {
-            Some(message) => message.text.unwrap_or_else(String::new),
-            _ => String::new(),
-        };
-        Ok(ChatlistItem {
-            id: self.id,
-            type_: self.typ as u32,
-            name: self.name.clone(),
-            archived: self.archived,
-            param: self.param.to_string(),
-            gossiped_timestamp: self.get_gossiped_timestamp(context),
-            is_sending_locations: self.is_sending_locations,
-            color: self.get_color(context),
-            profile_image: self.get_profile_image(context).unwrap_or_else(PathBuf::new),
-            subtitle: self.get_subtitle(context),
-            lastmsg_id: self.get_lastmsg_id(context).unwrap_or_else(|| MsgId::new_unset()).to_u32(),
-            draft,
-        })
-    }
 
     pub fn get_lastmsg_id(&self, context: &Context) -> Option<MsgId> {
         context.sql.query_row(
@@ -684,70 +660,6 @@ impl Chat {
 
         Ok(MsgId::new(msg_id))
     }
-}
-
-/// The current state of a chat.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[non_exhaustive]
-pub struct ChatlistItem {
-    /// The chat ID.
-    pub id: ChatId,
-
-    /// The type of chat as a `u32` representation of [Chattype].
-    ///
-    /// On the C API this number is one of the
-    /// `DC_CHAT_TYPE_UNDEFINED`, `DC_CHAT_TYPE_SINGLE`,
-    /// `DC_CHAT_TYPE_GROUP` or `DC_CHAT_TYPE_VERIFIED_GROUP`
-    /// constants.
-    #[serde(rename = "type")]
-    pub type_: u32,
-
-    /// The name of the chat.
-    pub name: String,
-
-    /// Whether the chat is archived.
-    pub archived: bool,
-
-    /// The "params" of the chat.
-    ///
-    /// This is the string-serialised version of [Params] currently.
-    pub param: String,
-
-    /// Last time this client sent autocrypt gossip headers to this chat.
-    pub gossiped_timestamp: i64,
-
-    /// Whether this chat is currently sending location-stream messages.
-    pub is_sending_locations: bool,
-
-    /// Colour this chat should be represented in by the UI.
-    ///
-    /// Yes, spelling colour is hard.
-    pub color: u32,
-
-    /// The path to the profile image.
-    ///
-    /// If there is no profile image set this will be an empty string
-    /// currently.
-    pub profile_image: PathBuf,
-
-    /// Subtitle for the chat.
-    pub subtitle: String,
-
-    /// The draft message text.
-    ///
-    /// If the chat has not draft this is an empty string.
-    ///
-    /// TODO: This doesn't seem rich enough, it can not handle drafts
-    ///       which contain non-text parts.  Perhaps it should be a
-    ///       simple `has_draft` bool instead.
-    pub draft: String,
-    pub lastmsg_id: u32
-    // ToDo:
-    // - [ ] deaddrop,
-    // - [ ] summary,
-    // - [ ] lastUpdated,
-    // - [ ] freshMessageCounter,
-    // - [ ] email
 }
 
 /// Create a chat from a message ID.
@@ -2416,38 +2328,6 @@ mod tests {
     use crate::contact::Contact;
     use crate::test_utils::*;
 
-    #[test]
-    fn test_get_chatlist_item_json() {
-        let t = dummy_context();
-        let bob = Contact::create(&t.ctx, "bob", "bob@example.com").unwrap();
-        let chat_id = create_by_contact_id(&t.ctx, bob).unwrap();
-        let chat = Chat::load_from_db(&t.ctx, chat_id).unwrap();
-        let info = chat.to_chatlist_item_json(&t.ctx).unwrap();
-
-        // Ensure we can serialise this.
-        println!("{}", serde_json::to_string_pretty(&info).unwrap());
-
-        let expected = r#"
-            {
-                "id": 10,
-                "type": 100,
-                "name": "bob",
-                "archived": false,
-                "param": "",
-                "gossiped_timestamp": 0,
-                "is_sending_locations": false,
-                "color": 15895624,
-                "profile_image": "",
-                "subtitle": "bob@example.com",
-                "draft": "",
-                "lastmsg_id": 0
-            }
-        "#;
-
-        // Ensure we can deserialise this.
-        let loaded: ChatlistItem = serde_json::from_str(expected).unwrap();
-        assert_eq!(info, loaded);
-    }
 
     #[test]
     fn test_get_draft_no_draft() {

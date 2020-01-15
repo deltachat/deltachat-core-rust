@@ -708,7 +708,7 @@ impl MessageState {
     }
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct MessageSummary {
     pub text1: Option<String>,
     pub text1_meaning: Meaning,
