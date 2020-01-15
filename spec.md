@@ -153,8 +153,8 @@ The message-id MUST have the format `Gr.<group-id>.<unique data>`.
     Hello group - this group contains three members
 
 Messengers adding the member list in the form `Name <email-address>`
-MUST take care only to spread the names authorized by the contacts themselves.
-Otherwise, names as _Daddy_ or _Honey_ may be spread
+MUST take care only to distribute the names authorized by the contacts themselves.
+Otherwise, names as _Daddy_ or _Honey_ may be distributed
 (this issue is also true for normal MUAs, however,
 for more contact- and chat-centralized apps
 such situations happen more frequently).
@@ -288,7 +288,7 @@ to add a `Chat-Group-Avatar` only on image changes.
 
 # Set profile image
 
-A user MAY have a profile-image that MAY be spread to their contacts.
+A user MAY have a profile-image that MAY be distributed to their contacts.
 To change or set the profile-image,
 the messenger MUST attach an image file to a message
 and MUST add the header `Chat-User-Avatar`
@@ -297,7 +297,7 @@ with the value set to the image name.
 To remove the profile-image,
 the messenger MUST add the header `Chat-User-Avatar: 0`.
 
-To spread the image,
+To distribute the image,
 the messenger MAY send the profile image
 together with the next mail to a given contact
 (to do this only once,
