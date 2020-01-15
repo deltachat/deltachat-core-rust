@@ -610,7 +610,7 @@ impl Message {
     }
 }
 
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql)]
 #[repr(i32)]
 pub enum MessageState {
     Undefined = 0,
@@ -658,6 +658,27 @@ pub enum MessageState {
 impl Default for MessageState {
     fn default() -> Self {
         MessageState::Undefined
+    }
+}
+
+impl std::fmt::Display for MessageState {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Undefined => "Undefined",
+                Self::InFresh => "Fresh",
+                Self::InNoticed => "Noticed",
+                Self::InSeen => "Seen",
+                Self::OutPreparing => "Preparing",
+                Self::OutDraft => "Draft",
+                Self::OutPending => "Pending",
+                Self::OutFailed => "Failed",
+                Self::OutDelivered => "Delivered",
+                Self::OutMdnRcvd => "Read",
+            }
+        )
     }
 }
 
@@ -815,19 +836,7 @@ pub fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
         }
     }
 
-    ret += "State: ";
-    use MessageState::*;
-    match msg.state {
-        InFresh => ret += "Fresh",
-        InNoticed => ret += "Noticed",
-        InSeen => ret += "Seen",
-        OutDelivered => ret += "Delivered",
-        OutFailed => ret += "Failed",
-        OutMdnRcvd => ret += "Read",
-        OutPending => ret += "Pending",
-        OutPreparing => ret += "Preparing",
-        _ => ret += &format!("{}", msg.state),
-    }
+    ret += &format!("State: {}", msg.state);
 
     if msg.has_location() {
         ret += ", Location sent";
