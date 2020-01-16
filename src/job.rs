@@ -255,9 +255,14 @@ impl Job {
 
     #[allow(non_snake_case)]
     fn SendMdn(&mut self, context: &Context) -> Status {
+        if !context.get_config_bool(Config::MdnsEnabled) {
+            // User has disabled MDNs after job scheduling but before
+            // execution.
+            return Status::Finished(Err(format_err!("MDNs are disabled")));
+        }
+
         let msg_id = MsgId::new(self.foreign_id);
         let msg = job_try!(Message::load_from_db(context, msg_id));
-
         let mimefactory = job_try!(MimeFactory::from_mdn(context, &msg));
         let rendered_msg = job_try!(mimefactory.render());
         let body = rendered_msg.message;
