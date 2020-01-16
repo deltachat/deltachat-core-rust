@@ -401,6 +401,13 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         ));
         unprotected_headers.push(Header::new("Chat-Version".to_string(), "1.0".to_string()));
 
+        if let Loaded::MDN = self.loaded {
+            unprotected_headers.push(Header::new(
+                "Auto-Submitted".to_string(),
+                "auto-replied".to_string(),
+            ));
+        }
+
         if self.req_mdn {
             // we use "Chat-Disposition-Notification-To"
             // because replies to "Disposition-Notification-To" are weird in many cases
