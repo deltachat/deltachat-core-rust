@@ -88,7 +88,7 @@ pub enum Action {
     // Jobs in the SMTP-thread, range from DC_SMTP_THREAD..DC_SMTP_THREAD+999
     MaybeSendLocations = 5005, // low priority ...
     MaybeSendLocationsEnded = 5007,
-    SendMdn = 5011,
+    SendMdn = 5010,
     SendMsgToSmtp = 5901, // ... high priority
 }
 
@@ -250,6 +250,64 @@ impl Job {
                 dc_delete_file(context, filename);
                 Status::Finished(Ok(()))
             }
+        }
+    }
+
+    #[allow(non_snake_case)]
+    fn SendMdn(&mut self, context: &Context) -> Status {
+        let msg_id = MsgId::new(self.foreign_id);
+        let msg = job_try!(Message::load_from_db(context, msg_id));
+
+        let mimefactory = job_try!(MimeFactory::from_mdn(context, &msg));
+        let rendered_msg = job_try!(mimefactory.render());
+        let body = rendered_msg.message;
+
+        // XXX: there is probably only one recipient as this is an MDN.
+        let recipients = rendered_msg
+            .recipients
+            .iter()
+            .filter_map(
+                |addr| match async_smtp::EmailAddress::new(addr.to_string()) {
+                    Ok(addr) => Some(addr),
+                    Err(err) => {
+                        warn!(context, "invalid recipient: {} {:?}", addr, err);
+                        None
+                    }
+                },
+            )
+            .collect::<Vec<_>>();
+
+        /* connect to SMTP server, if not yet done */
+        if !context.smtp.lock().unwrap().is_connected() {
+            let loginparam = LoginParam::from_database(context, "configured_");
+            if let Err(err) = context.smtp.lock().unwrap().connect(context, &loginparam) {
+                warn!(context, "SMTP connection failure: {:?}", err);
+                return Status::RetryLater;
+            }
+        }
+
+        let mut smtp = context.smtp.lock().unwrap();
+        match task::block_on(smtp.send(context, recipients, body, self.job_id)) {
+            Err(crate::smtp::send::Error::SendError(err)) => {
+                // Remote error, retry later.
+                warn!(context, "SMTP failed to send: {}", err);
+                smtp.disconnect();
+                self.pending_error = Some(err.to_string());
+                Status::RetryLater
+            }
+            Err(crate::smtp::send::Error::EnvelopeError(err)) => {
+                // Local error, job is invalid, do not retry.
+                smtp.disconnect();
+                warn!(context, "SMTP job is invalid: {}", err);
+                Status::Finished(Err(Error::SmtpError(err)))
+            }
+            Err(crate::smtp::send::Error::NoTransport) => {
+                // Should never happen.
+                // It does not even make sense to disconnect here.
+                error!(context, "SMTP job failed because SMTP has no transport");
+                Status::Finished(Err(format_err!("SMTP has not transport")))
+            }
+            Ok(()) => Status::Finished(Ok(())),
         }
     }
 
@@ -793,7 +851,7 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                     Action::MarkseenMsgOnImap => job.MarkseenMsgOnImap(context),
                     Action::MarkseenMdnOnImap => job.MarkseenMdnOnImap(context),
                     Action::MoveMsg => job.MoveMsg(context),
-                    Action::SendMdn => job.SendMsgToSmtp(context),
+                    Action::SendMdn => job.SendMdn(context),
                     Action::ConfigureImap => JobConfigureImap(context),
                     Action::ImexImap => match JobImexImap(context, &job) {
                         Ok(()) => Status::Finished(Ok(())),
@@ -941,11 +999,13 @@ fn suspend_smtp_thread(context: &Context, suspend: bool) {
 }
 
 fn send_mdn(context: &Context, msg_id: MsgId) -> Result<()> {
-    let msg = Message::load_from_db(context, msg_id)?;
-    let mimefactory = MimeFactory::from_mdn(context, &msg)?;
-    let rendered_msg = mimefactory.render()?;
-
-    add_smtp_job(context, Action::SendMdn, &rendered_msg)?;
+    job_add(
+        context,
+        Action::SendMdn,
+        msg_id.to_u32() as i32,
+        Params::new(),
+        0,
+    );
 
     Ok(())
 }
