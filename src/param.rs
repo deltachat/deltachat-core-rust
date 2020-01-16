@@ -8,6 +8,7 @@ use num_traits::FromPrimitive;
 use crate::blob::{BlobError, BlobObject};
 use crate::context::Context;
 use crate::error;
+use crate::message::MsgId;
 use crate::mimeparser::SystemMessage;
 
 /// Available param keys.
@@ -116,6 +117,9 @@ pub enum Param {
 
     /// For QR
     GroupName = b'g',
+
+    /// For MDN-sending job
+    MessageId = b'I',
 }
 
 /// Possible values for `Param::ForcePlaintext`.
@@ -310,6 +314,12 @@ impl Params {
             ParamsFile::Blob(blob) => blob.to_abs_path(),
         };
         Ok(Some(path))
+    }
+
+    pub fn get_msg_id(&self) -> Option<MsgId> {
+        self.get(Param::MessageId)
+            .and_then(|x| x.parse::<u32>().ok())
+            .map(MsgId::new)
     }
 
     /// Set the given paramter to the passed in `i32`.

@@ -261,7 +261,15 @@ impl Job {
             return Status::Finished(Err(format_err!("MDNs are disabled")));
         }
 
-        let msg_id = MsgId::new(self.foreign_id);
+        let msg_id = if let Some(msg_id) = self.param.get_msg_id() {
+            msg_id
+        } else {
+            return Status::Finished(Err(format_err!(
+                "SendMdn job has invalid parameters: {}",
+                self.param
+            )));
+        };
+
         let msg = job_try!(Message::load_from_db(context, msg_id));
         let mimefactory = job_try!(MimeFactory::from_mdn(context, &msg));
         let rendered_msg = job_try!(mimefactory.render());
@@ -422,7 +430,7 @@ impl Job {
                 if msg.param.get_bool(Param::WantsMdn).unwrap_or_default()
                     && context.get_config_bool(Config::MdnsEnabled)
                 {
-                    if let Err(err) = send_mdn(context, msg.id) {
+                    if let Err(err) = send_mdn(context, &msg) {
                         warn!(context, "could not send out mdn for {}: {}", msg.id, err);
                         return Status::Finished(Err(err));
                     }
@@ -1003,14 +1011,11 @@ fn suspend_smtp_thread(context: &Context, suspend: bool) {
     }
 }
 
-fn send_mdn(context: &Context, msg_id: MsgId) -> Result<()> {
-    job_add(
-        context,
-        Action::SendMdn,
-        msg_id.to_u32() as i32,
-        Params::new(),
-        0,
-    );
+fn send_mdn(context: &Context, msg: &Message) -> Result<()> {
+    let mut param = Params::new();
+    param.set(Param::MessageId, msg.id.to_u32().to_string());
+
+    job_add(context, Action::SendMdn, msg.from_id as i32, param, 0);
 
     Ok(())
 }
