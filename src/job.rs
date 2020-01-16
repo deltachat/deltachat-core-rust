@@ -88,9 +88,7 @@ pub enum Action {
     // Jobs in the SMTP-thread, range from DC_SMTP_THREAD..DC_SMTP_THREAD+999
     MaybeSendLocations = 5005, // low priority ...
     MaybeSendLocationsEnded = 5007,
-    SendMdnOld = 5010,
     SendMdn = 5011,
-    SendMsgToSmtpOld = 5900,
     SendMsgToSmtp = 5901, // ... high priority
 }
 
@@ -118,9 +116,7 @@ impl From<Action> for Thread {
 
             MaybeSendLocations => Thread::Smtp,
             MaybeSendLocationsEnded => Thread::Smtp,
-            SendMdnOld => Thread::Smtp,
             SendMdn => Thread::Smtp,
-            SendMsgToSmtpOld => Thread::Smtp,
             SendMsgToSmtp => Thread::Smtp,
         }
     }
@@ -814,8 +810,6 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                         sql::housekeeping(context);
                         Status::Finished(Ok(()))
                     }
-                    Action::SendMdnOld => Status::Finished(Ok(())),
-                    Action::SendMsgToSmtpOld => Status::Finished(Ok(())),
                 };
 
                 info!(
