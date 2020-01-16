@@ -785,7 +785,7 @@ pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<()> {
         msg.save_param_to_disk(context);
     }
 
-    add_smtp_job(context, Action::SendMsgToSmtp, &rendered_msg)?;
+    add_smtp_job(context, Action::SendMsgToSmtp, msg.id, &rendered_msg)?;
 
     Ok(())
 }
@@ -1010,7 +1010,12 @@ fn send_mdn(context: &Context, msg_id: MsgId) -> Result<()> {
     Ok(())
 }
 
-fn add_smtp_job(context: &Context, action: Action, rendered_msg: &RenderedEmail) -> Result<()> {
+fn add_smtp_job(
+    context: &Context,
+    action: Action,
+    msg_id: MsgId,
+    rendered_msg: &RenderedEmail,
+) -> Result<()> {
     ensure!(
         !rendered_msg.recipients.is_empty(),
         "no recipients for smtp job set"
@@ -1023,16 +1028,7 @@ fn add_smtp_job(context: &Context, action: Action, rendered_msg: &RenderedEmail)
     param.set(Param::File, blob.as_name());
     param.set(Param::Recipients, &recipients);
 
-    job_add(
-        context,
-        action,
-        rendered_msg
-            .foreign_id
-            .map(|v| v.to_u32() as i32)
-            .unwrap_or_default(),
-        param,
-        0,
-    );
+    job_add(context, action, msg_id.to_u32() as i32, param, 0);
 
     Ok(())
 }

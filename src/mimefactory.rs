@@ -11,7 +11,6 @@ use crate::dc_tools::*;
 use crate::e2ee::*;
 use crate::error::Error;
 use crate::location;
-use crate::message::MsgId;
 use crate::message::{self, Message};
 use crate::mimeparser::SystemMessage;
 use crate::param::*;
@@ -53,8 +52,6 @@ pub struct RenderedEmail {
     pub is_encrypted: bool,
     pub is_gossiped: bool,
     pub last_added_location_id: u32,
-    /// None for MDN, the message id otherwise
-    pub foreign_id: Option<MsgId>,
 
     pub from: String,
     pub recipients: Vec<String>,
@@ -563,8 +560,6 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             recipients,
             from_addr,
             last_added_location_id,
-            msg,
-            loaded,
             ..
         } = self;
 
@@ -574,10 +569,6 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             is_encrypted,
             is_gossiped,
             last_added_location_id,
-            foreign_id: match loaded {
-                Loaded::Message { .. } => Some(msg.id),
-                Loaded::MDN => None,
-            },
             recipients: recipients.into_iter().map(|(_, addr)| addr).collect(),
             from: from_addr,
             rfc724_mid,
