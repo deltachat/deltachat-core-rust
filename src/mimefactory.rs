@@ -159,13 +159,6 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
     }
 
     pub fn from_mdn(context: &'a Context, msg: &'b Message) -> Result<Self, Error> {
-        // MDNs not enabled - check this is late, in the job. the
-        // user may have changed its choice while offline ...
-        ensure!(
-            context.get_config_bool(Config::MdnsEnabled),
-            "MDNs meanwhile disabled"
-        );
-
         let contact = Contact::load_from_db(context, msg.from_id)?;
 
         // Do not send MDNs trash etc.; chats.blocked is already checked by the caller
