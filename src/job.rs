@@ -15,6 +15,7 @@ use crate::chat;
 use crate::config::Config;
 use crate::configure::*;
 use crate::constants::*;
+use crate::contact::Contact;
 use crate::context::{Context, PerformJobsNeeded};
 use crate::dc_tools::*;
 use crate::error::{Error, Result};
@@ -259,6 +260,12 @@ impl Job {
             // User has disabled MDNs after job scheduling but before
             // execution.
             return Status::Finished(Err(format_err!("MDNs are disabled")));
+        }
+
+        let contact_id = self.foreign_id;
+        let contact = job_try!(Contact::load_from_db(context, contact_id));
+        if contact.is_blocked() {
+            return Status::Finished(Err(format_err!("Contact is blocked")));
         }
 
         let msg_id = if let Some(msg_id) = self.param.get_msg_id() {
