@@ -282,20 +282,10 @@ impl Job {
         let rendered_msg = job_try!(mimefactory.render());
         let body = rendered_msg.message;
 
-        // XXX: there is probably only one recipient as this is an MDN.
-        let recipients = rendered_msg
-            .recipients
-            .iter()
-            .filter_map(
-                |addr| match async_smtp::EmailAddress::new(addr.to_string()) {
-                    Ok(addr) => Some(addr),
-                    Err(err) => {
-                        warn!(context, "invalid recipient: {} {:?}", addr, err);
-                        None
-                    }
-                },
-            )
-            .collect::<Vec<_>>();
+        let addr = contact.get_addr();
+        let recipient = job_try!(async_smtp::EmailAddress::new(addr.to_string())
+            .map_err(|err| format_err!("invalid recipient: {} {:?}", addr, err)));
+        let recipients = vec![recipient];
 
         /* connect to SMTP server, if not yet done */
         if !context.smtp.lock().unwrap().is_connected() {
