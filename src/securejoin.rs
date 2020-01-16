@@ -66,14 +66,17 @@ macro_rules! get_qr_attr {
 }
 
 pub fn dc_get_securejoin_qr(context: &Context, group_chat_id: u32) -> Option<String> {
-    /* =========================================================
+    /*=======================================================
     ====             Alice - the inviter side            ====
     ====   Step 1 in "Setup verified contact" protocol   ====
-    ========================================================= */
+    =======================================================*/
 
     let fingerprint: String;
 
     ensure_secret_key_exists(context).ok();
+
+    // invitenumber will be used to allow starting the handshake,
+    // auth will be used to verify the fingerprint
     let invitenumber = token::lookup_or_new(context, token::Namespace::InviteNumber, group_chat_id);
     let auth = token::lookup_or_new(context, token::Namespace::Auth, group_chat_id);
     let self_addr = match context.get_config(Config::ConfiguredAddr) {
@@ -99,6 +102,7 @@ pub fn dc_get_securejoin_qr(context: &Context, group_chat_id: u32) -> Option<Str
         utf8_percent_encode(&self_name, NON_ALPHANUMERIC_WITHOUT_DOT).to_string();
 
     let qr = if 0 != group_chat_id {
+        // parameters used: a=g=x=i=s=
         if let Ok(chat) = Chat::load_from_db(context, group_chat_id) {
             let group_name = chat.get_name();
             let group_name_urlencoded =
@@ -118,6 +122,7 @@ pub fn dc_get_securejoin_qr(context: &Context, group_chat_id: u32) -> Option<Str
             return None;
         }
     } else {
+        // parameters used: a=n=i=s=
         Some(format!(
             "OPENPGP4FPR:{}#a={}&n={}&i={}&s={}",
             fingerprint, self_addr_urlencoded, self_name_urlencoded, &invitenumber, &auth,
@@ -163,10 +168,12 @@ pub fn dc_join_securejoin(context: &Context, qr: &str) -> u32 {
             }
             ret_chat_id as u32
         };
-    /* ==========================================================
+
+    /*========================================================
     ====             Bob - the joiner's side             =====
     ====   Step 2 in "Setup verified contact" protocol   =====
-    ========================================================== */
+    ========================================================*/
+
     let mut contact_chat_id: u32 = 0;
     let mut join_vg: bool = false;
 
@@ -209,10 +216,14 @@ pub fn dc_join_securejoin(context: &Context, qr: &str) -> u32 {
             .unwrap(),
         contact_chat_id,
     ) {
+        // the scanned fingerprint matches Alice's key,
+        // we can proceed to step 4b) directly and save two mails
         info!(context, "Taking protocol shortcut.");
         context.bob.write().unwrap().expects = DC_VC_CONTACT_CONFIRM;
         joiner_progress!(context, chat_id_2_contact_id(context, contact_chat_id), 400);
         let own_fingerprint = get_self_fingerprint(context).unwrap_or_default();
+
+        // Bob -> Alice
         send_handshake_msg(
             context,
             contact_chat_id,
@@ -231,6 +242,8 @@ pub fn dc_join_securejoin(context: &Context, qr: &str) -> u32 {
         );
     } else {
         context.bob.write().unwrap().expects = DC_VC_AUTH_REQUIRED;
+
+        // Bob -> Alice
         send_handshake_msg(
             context,
             contact_chat_id,
@@ -241,7 +254,6 @@ pub fn dc_join_securejoin(context: &Context, qr: &str) -> u32 {
         );
     }
 
-    // Bob -> Alice
     while !context.shall_stop_ongoing() {
         // Don't sleep too long, the user is waiting.
         std::thread::sleep(std::time::Duration::from_millis(200));
@@ -360,6 +372,10 @@ pub(crate) enum HandshakeMessage {
 /// not deleted, it may be a valid message for something else we are
 /// not aware off.  E.g. it could be part of a handshake performed by
 /// another DC app on the same account.
+///
+/// When handle_securejoin_handshake() is called,
+/// the message is not yet filed in the database;
+/// this is done by receive_imf() later on as needed.
 pub(crate) fn handle_securejoin_handshake(
     context: &Context,
     mime_message: &MimeMessage,
@@ -399,11 +415,12 @@ pub(crate) fn handle_securejoin_handshake(
 
     match step.as_str() {
         "vg-request" | "vc-request" => {
-            /* =========================================================
+            /*=======================================================
             ====             Alice - the inviter side            ====
             ====   Step 3 in "Setup verified contact" protocol   ====
-            ========================================================= */
-            // this message may be unencrypted (Bob, the joinder and the sender, might not have Alice's key yet)
+            =======================================================*/
+
+            // this message may be unencrypted (Bob, the joiner and the sender, might not have Alice's key yet)
             // it just ensures, we have Bobs key now. If we do _not_ have the key because eg. MitM has removed it,
             // send_message() will fail with the error "End-to-end-encryption unavailable unexpectedly.", so, there is no additional check needed here.
             // verify that the `Secure-Join-Invitenumber:`-header matches invitenumber written to the QR code
@@ -421,6 +438,8 @@ pub(crate) fn handle_securejoin_handshake(
             info!(context, "Secure-join requested.",);
 
             inviter_progress!(context, contact_id, 300);
+
+            // Alice -> Bob
             send_handshake_msg(
                 context,
                 contact_chat_id,
@@ -432,6 +451,12 @@ pub(crate) fn handle_securejoin_handshake(
             Ok(HandshakeMessage::Done)
         }
         "vg-auth-required" | "vc-auth-required" => {
+            /*========================================================
+            ====             Bob - the joiner's side             =====
+            ====   Step 4 in "Setup verified contact" protocol   =====
+            ========================================================*/
+
+            // verify that Alice's Autocrypt key and fingerprint matches the QR-code
             let cond = {
                 let bob = context.bob.read().unwrap();
                 let scan = bob.qr_scan.as_ref();
@@ -477,6 +502,7 @@ pub(crate) fn handle_securejoin_handshake(
             joiner_progress!(context, contact_id, 400);
             context.bob.write().unwrap().expects = DC_VC_CONTACT_CONFIRM;
 
+            // Bob -> Alice
             send_handshake_msg(
                 context,
                 contact_chat_id,
@@ -492,11 +518,12 @@ pub(crate) fn handle_securejoin_handshake(
             Ok(HandshakeMessage::Done)
         }
         "vg-request-with-auth" | "vc-request-with-auth" => {
-            /* ============================================================
+            /*==========================================================
             ====              Alice - the inviter side              ====
             ====   Steps 5+6 in "Setup verified contact" protocol   ====
             ====  Step 6 in "Out-of-band verified groups" protocol  ====
-            ============================================================ */
+            ==========================================================*/
+
             // verify that Secure-Join-Fingerprint:-header matches the fingerprint of Bob
             let fingerprint = match mime_message.get(HeaderDef::SecureJoinFingerprint) {
                 Some(fp) => fp,
@@ -556,6 +583,9 @@ pub(crate) fn handle_securejoin_handshake(
             emit_event!(context, Event::ContactsChanged(Some(contact_id)));
             inviter_progress!(context, contact_id, 600);
             if join_vg {
+                // the vg-member-added message is special:
+                // this is a normal Chat-Group-Member-Added message
+                // with an additional Secure-Join header
                 let field_grpid = match mime_message.get(HeaderDef::SecureJoinGroup) {
                     Some(s) => s.as_str(),
                     None => {
@@ -570,17 +600,24 @@ pub(crate) fn handle_securejoin_handshake(
                         group: field_grpid.to_string(),
                     });
                 } else if let Err(err) =
+                    // Alice -> Bob and all members
                     chat::add_contact_to_chat_ex(context, group_chat_id, contact_id, true)
                 {
                     error!(context, "failed to add contact: {}", err);
                 }
             } else {
+                // Alice -> Bob
                 send_handshake_msg(context, contact_chat_id, "vc-contact-confirm", "", None, "");
                 inviter_progress!(context, contact_id, 1000);
             }
             Ok(HandshakeMessage::Done)
         }
         "vg-member-added" | "vc-contact-confirm" => {
+            /*=======================================================
+            ====             Bob - the joiner's side             ====
+            ====   Step 7 in "Setup verified contact" protocol   ====
+            =======================================================*/
+
             if context.bob.read().unwrap().expects != DC_VC_CONTACT_CONFIRM {
                 info!(context, "Message belongs to a different handshake.",);
                 return Ok(HandshakeMessage::Propagate);
@@ -648,6 +685,7 @@ pub(crate) fn handle_securejoin_handshake(
             secure_connection_established(context, contact_chat_id);
             context.bob.write().unwrap().expects = 0;
             if join_vg {
+                // Bob -> Alice
                 send_handshake_msg(
                     context,
                     contact_chat_id,
@@ -662,10 +700,11 @@ pub(crate) fn handle_securejoin_handshake(
             Ok(HandshakeMessage::Propagate)
         }
         "vg-member-added-received" => {
-            /* ============================================================
+            /*==========================================================
             ====              Alice - the inviter side              ====
             ====  Step 8 in "Out-of-band verified groups" protocol  ====
-            ============================================================ */
+            ==========================================================*/
+
             if let Ok(contact) = Contact::get_by_id(context, contact_id) {
                 if contact.is_verified(context) == VerifiedStatus::Unverified {
                     warn!(context, "vg-member-added-received invalid.",);
