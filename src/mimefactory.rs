@@ -159,12 +159,9 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
     }
 
     pub fn from_mdn(context: &'a Context, msg: &'b Message) -> Result<Self, Error> {
-        let contact = Contact::load_from_db(context, msg.from_id)?;
-
-        // Do not send MDNs trash etc.; chats.blocked is already checked by the caller
-        // in dc_markseen_msgs()
-        ensure!(!contact.is_blocked(), "Contact blocked");
         ensure!(msg.chat_id > DC_CHAT_ID_LAST_SPECIAL, "Invalid chat id");
+
+        let contact = Contact::load_from_db(context, msg.from_id)?;
 
         Ok(MimeFactory {
             context,
