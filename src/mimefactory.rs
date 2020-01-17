@@ -20,7 +20,7 @@ use crate::stock::StockMessage;
 #[derive(Debug, Clone)]
 pub enum Loaded {
     Message { chat: Chat },
-    MDN,
+    MDN { additional_msg_ids: Vec<String> },
 }
 
 /// Helper to construct mime messages.
@@ -158,7 +158,11 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         Ok(factory)
     }
 
-    pub fn from_mdn(context: &'a Context, msg: &'b Message) -> Result<Self, Error> {
+    pub fn from_mdn(
+        context: &'a Context,
+        msg: &'b Message,
+        additional_msg_ids: Vec<String>,
+    ) -> Result<Self, Error> {
         ensure!(msg.chat_id > DC_CHAT_ID_LAST_SPECIAL, "Invalid chat id");
 
         let contact = Contact::load_from_db(context, msg.from_id)?;
@@ -177,7 +181,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                 contact.get_addr().to_string(),
             )],
             timestamp: dc_create_smeared_timestamp(context),
-            loaded: Loaded::MDN,
+            loaded: Loaded::MDN { additional_msg_ids },
             msg,
             in_reply_to: String::default(),
             references: String::default(),
@@ -230,7 +234,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
 
                 false
             }
-            Loaded::MDN => false,
+            Loaded::MDN { .. } => false,
         }
     }
 
@@ -243,7 +247,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                     PeerstateVerifiedStatus::Unverified
                 }
             }
-            Loaded::MDN => PeerstateVerifiedStatus::Unverified,
+            Loaded::MDN { .. } => PeerstateVerifiedStatus::Unverified,
         }
     }
 
@@ -259,7 +263,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                         .unwrap_or_default()
                 }
             }
-            Loaded::MDN => ForcePlaintext::NoAutocryptHeader as i32,
+            Loaded::MDN { .. } => ForcePlaintext::NoAutocryptHeader as i32,
         }
     }
 
@@ -274,7 +278,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
 
                 self.msg.param.get_cmd() == SystemMessage::MemberAddedToGroup
             }
-            Loaded::MDN => false,
+            Loaded::MDN { .. } => false,
         }
     }
 
@@ -304,7 +308,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
 
                 None
             }
-            Loaded::MDN => None,
+            Loaded::MDN { .. } => None,
         }
     }
 
@@ -334,7 +338,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                     format!("Chat: {}", raw_subject)
                 }
             }
-            Loaded::MDN => self.context.stock_str(StockMessage::ReadRcpt).into_owned(),
+            Loaded::MDN { .. } => self.context.stock_str(StockMessage::ReadRcpt).into_owned(),
         }
     }
 
@@ -420,7 +424,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             Loaded::Message { .. } => {
                 self.render_message(&mut protected_headers, &mut unprotected_headers, &grpimage)?
             }
-            Loaded::MDN => self.render_mdn()?,
+            Loaded::MDN { .. } => self.render_mdn()?,
         };
 
         if force_plaintext != ForcePlaintext::NoAutocryptHeader as i32 {
@@ -438,7 +442,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
 
         let rfc724_mid = match self.loaded {
             Loaded::Message { .. } => self.msg.rfc724_mid.clone(),
-            Loaded::MDN => dc_create_outgoing_rfc724_mid(None, &self.from_addr),
+            Loaded::MDN { .. } => dc_create_outgoing_rfc724_mid(None, &self.from_addr),
         };
 
         // we could also store the message-id in the protected headers
@@ -574,7 +578,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let context = self.context;
         let chat = match &self.loaded {
             Loaded::Message { chat } => chat,
-            Loaded::MDN => bail!("Attempt to render MDN as a message"),
+            Loaded::MDN { .. } => bail!("Attempt to render MDN as a message"),
         };
         let command = self.msg.param.get_cmd();
         let mut placeholdertext = None;
@@ -893,6 +897,13 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         //   are forwarded for any reasons (eg. gmail always forwards to IMAP), we have no chance to decrypt them;
         //   this issue is fixed with 0.9.4
 
+        let additional_msg_ids = match &self.loaded {
+            Loaded::Message { .. } => bail!("Attempt to render a message as MDN"),
+            Loaded::MDN {
+                additional_msg_ids, ..
+            } => additional_msg_ids,
+        };
+
         let mut message = PartBuilder::new().header((
             "Content-Type".to_string(),
             "multipart/report; report-type=disposition-notification".to_string(),
@@ -934,10 +945,22 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             version, self.from_addr, self.from_addr, self.msg.rfc724_mid
         );
 
+        let extension_fields = if additional_msg_ids.is_empty() {
+            "".to_string()
+        } else {
+            "X-Additional-Message-IDs: ".to_string()
+                + &additional_msg_ids
+                    .iter()
+                    .map(|mid| render_rfc724_mid(&mid))
+                    .collect::<Vec<String>>()
+                    .join(" ")
+                + "\r\n"
+        };
+
         message = message.child(
             PartBuilder::new()
                 .content_type(&"message/disposition-notification".parse().unwrap())
-                .body(message_text2)
+                .body(message_text2 + &extension_fields)
                 .build(),
         );
 
