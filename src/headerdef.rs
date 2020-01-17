@@ -10,6 +10,10 @@ pub enum HeaderDef {
     Cc,
     Disposition,
     OriginalMessageId,
+
+    /// Delta Chat extension for message IDs in combined MDNs
+    XAdditionalMessageIds,
+
     ListId,
     References,
     InReplyTo,
