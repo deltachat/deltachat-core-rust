@@ -190,7 +190,9 @@ mod tests {
     use std::str::FromStr;
     use std::string::ToString;
 
+    use crate::constants::AVATAR_SIZE;
     use crate::test_utils::*;
+    use image::GenericImageView;
     use std::fs::File;
     use std::io::Write;
 
@@ -229,21 +231,38 @@ mod tests {
         assert!(std::fs::metadata(&avatar_blob).unwrap().len() < avatar_bytes.len() as u64);
         let avatar_cfg = t.ctx.get_config(Config::Selfavatar);
         assert_eq!(avatar_cfg, avatar_blob.to_str().map(|s| s.to_string()));
+
+        let img = image::open(avatar_src).unwrap();
+        assert_eq!(img.width(), 1000);
+        assert_eq!(img.height(), 1000);
+
+        let img = image::open(avatar_blob).unwrap();
+        assert_eq!(img.width(), AVATAR_SIZE);
+        assert_eq!(img.height(), AVATAR_SIZE);
     }
 
     #[test]
     fn test_selfavatar_in_blobdir() {
         let t = dummy_context();
-        let avatar_src = t.ctx.get_blobdir().join("avatar.jpg");
-        let avatar_bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
+        let avatar_src = t.ctx.get_blobdir().join("avatar.png");
+        let avatar_bytes = include_bytes!("../test-data/image/avatar900x900.png");
         File::create(&avatar_src)
             .unwrap()
             .write_all(avatar_bytes)
             .unwrap();
+
+        let img = image::open(&avatar_src).unwrap();
+        assert_eq!(img.width(), 900);
+        assert_eq!(img.height(), 900);
+
         t.ctx
             .set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))
             .unwrap();
         let avatar_cfg = t.ctx.get_config(Config::Selfavatar);
         assert_eq!(avatar_cfg, avatar_src.to_str().map(|s| s.to_string()));
+
+        let img = image::open(avatar_src).unwrap();
+        assert_eq!(img.width(), AVATAR_SIZE);
+        assert_eq!(img.height(), AVATAR_SIZE);
     }
 }
