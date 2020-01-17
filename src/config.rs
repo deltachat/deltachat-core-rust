@@ -212,32 +212,38 @@ mod tests {
     }
 
     #[test]
-    fn test_selfavatar_outside_blobdir() -> failure::Fallible<()> {
+    fn test_selfavatar_outside_blobdir() {
         let t = dummy_context();
         let avatar_src = t.dir.path().join("avatar.jpg");
         let avatar_bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
-        File::create(&avatar_src)?.write_all(avatar_bytes)?;
+        File::create(&avatar_src)
+            .unwrap()
+            .write_all(avatar_bytes)
+            .unwrap();
         let avatar_blob = t.ctx.get_blobdir().join("avatar.jpg");
         assert!(!avatar_blob.exists());
         t.ctx
-            .set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))?;
+            .set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))
+            .unwrap();
         assert!(avatar_blob.exists());
         assert!(std::fs::metadata(&avatar_blob).unwrap().len() < avatar_bytes.len() as u64);
         let avatar_cfg = t.ctx.get_config(Config::Selfavatar);
         assert_eq!(avatar_cfg, avatar_blob.to_str().map(|s| s.to_string()));
-        Ok(())
     }
 
     #[test]
-    fn test_selfavatar_in_blobdir() -> failure::Fallible<()> {
+    fn test_selfavatar_in_blobdir() {
         let t = dummy_context();
         let avatar_src = t.ctx.get_blobdir().join("avatar.jpg");
         let avatar_bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
-        File::create(&avatar_src)?.write_all(avatar_bytes)?;
+        File::create(&avatar_src)
+            .unwrap()
+            .write_all(avatar_bytes)
+            .unwrap();
         t.ctx
-            .set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))?;
+            .set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))
+            .unwrap();
         let avatar_cfg = t.ctx.get_config(Config::Selfavatar);
         assert_eq!(avatar_cfg, avatar_src.to_str().map(|s| s.to_string()));
-        Ok(())
     }
 }
