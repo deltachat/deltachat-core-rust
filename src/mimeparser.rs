@@ -742,8 +742,17 @@ impl<'a> MimeMessage<'a> {
                 .flatten()
                 .and_then(|v| parse_message_id(&v))
             {
+                let additional_message_ids = report_fields
+                    .get_first_value(&HeaderDef::XAdditionalMessageIds.get_headername())
+                    .ok()
+                    .flatten()
+                    .map_or_else(Vec::new, |v| {
+                        v.split(' ').filter_map(parse_message_id).collect()
+                    });
+
                 return Ok(Some(Report {
                     original_message_id,
+                    additional_message_ids,
                 }));
             }
         }
@@ -770,14 +779,18 @@ impl<'a> MimeMessage<'a> {
 
         let mut mdn_recognized = false;
         for report in &self.reports {
-            if let Some((chat_id, msg_id)) = message::mdn_from_ext(
-                self.context,
-                from_id,
-                &report.original_message_id,
-                sent_timestamp,
-            ) {
-                self.context.call_cb(Event::MsgRead { chat_id, msg_id });
-                mdn_recognized = true;
+            for original_message_id in
+                std::iter::once(&report.original_message_id).chain(&report.additional_message_ids)
+            {
+                if let Some((chat_id, msg_id)) = message::mdn_from_ext(
+                    self.context,
+                    from_id,
+                    original_message_id,
+                    sent_timestamp,
+                ) {
+                    self.context.call_cb(Event::MsgRead { chat_id, msg_id });
+                    mdn_recognized = true;
+                }
             }
         }
 
@@ -853,7 +866,10 @@ fn update_gossip_peerstates(
 
 #[derive(Debug)]
 pub(crate) struct Report {
+    /// Original-Message-ID header
     original_message_id: String,
+    /// X-Additional-Message-IDs
+    additional_message_ids: Vec<String>,
 }
 
 fn parse_message_id(field: &str) -> Option<String> {
@@ -1383,5 +1399,55 @@ Disposition: manual-action/MDN-sent-automatically; displayed\n\
 
         assert_eq!(message.parts.len(), 0);
         assert_eq!(message.reports.len(), 2);
+    }
+
+    #[test]
+    fn test_parse_mdn_with_additional_message_ids() {
+        let context = dummy_context();
+        let raw = b"Subject: =?utf-8?q?Chat=3A_Message_opened?=\n\
+Date: Mon, 10 Jan 2020 00:00:00 +0000\n\
+Chat-Version: 1.0\n\
+Message-ID: <bar@example.org>\n\
+To: Alice <alice@example.org>\n\
+From: Bob <bob@example.org>\n\
+Content-Type: multipart/report; report-type=disposition-notification;\n\t\
+boundary=\"kJBbU58X1xeWNHgBtTbMk80M5qnV4N\"\n\
+\n\
+\n\
+--kJBbU58X1xeWNHgBtTbMk80M5qnV4N\n\
+Content-Type: text/plain; charset=utf-8\n\
+\n\
+The \"Encrypted message\" message you sent was displayed on the screen of the recipient.\n\
+\n\
+This is no guarantee the content was read.\n\
+\n\
+\n\
+--kJBbU58X1xeWNHgBtTbMk80M5qnV4N\n\
+Content-Type: message/disposition-notification\n\
+\n\
+Reporting-UA: Delta Chat 1.0.0-beta.22\n\
+Original-Recipient: rfc822;bob@example.org\n\
+Final-Recipient: rfc822;bob@example.org\n\
+Original-Message-ID: <foo@example.org>\n\
+Disposition: manual-action/MDN-sent-automatically; displayed\n\
+X-Additional-Message-IDs: <foo@example.com> <foo@example.net>\n\
+\n\
+\n\
+--kJBbU58X1xeWNHgBtTbMk80M5qnV4N--\n\
+";
+
+        let message = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
+        assert_eq!(
+            message.get_subject(),
+            Some("Chat: Message opened".to_string())
+        );
+
+        assert_eq!(message.parts.len(), 0);
+        assert_eq!(message.reports.len(), 1);
+        assert_eq!(message.reports[0].original_message_id, "foo@example.org");
+        assert_eq!(
+            &message.reports[0].additional_message_ids,
+            &["foo@example.com", "foo@example.net"]
+        );
     }
 }
