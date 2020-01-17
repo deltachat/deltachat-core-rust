@@ -278,7 +278,7 @@ impl Job {
         };
 
         let msg = job_try!(Message::load_from_db(context, msg_id));
-        let mimefactory = job_try!(MimeFactory::from_mdn(context, &msg));
+        let mimefactory = job_try!(MimeFactory::from_mdn(context, &msg, Vec::new()));
         let rendered_msg = job_try!(mimefactory.render());
         let body = rendered_msg.message;
 
