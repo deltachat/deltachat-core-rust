@@ -323,6 +323,14 @@ impl Job {
             .get_additional_mdn_jobs(context, contact_id)
             .unwrap_or_default();
 
+        if !additional_rfc724_mids.is_empty() {
+            info!(
+                context,
+                "SendMdn job: aggregating {} additional MDNs",
+                additional_rfc724_mids.len()
+            )
+        }
+
         let msg = job_try!(Message::load_from_db(context, msg_id));
         let mimefactory = job_try!(MimeFactory::from_mdn(context, &msg, additional_rfc724_mids));
         let rendered_msg = job_try!(mimefactory.render());
