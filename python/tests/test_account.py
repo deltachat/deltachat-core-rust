@@ -678,14 +678,26 @@ class TestOnlineAccount:
         chat2b.mark_noticed()
         assert chat2b.count_fresh_messages() == 0
 
-        lp.sec("mark message as seen on ac2, wait for changes on ac1")
-        ac2.mark_seen_messages([msg_in])
+        ac2._evlogger.consume_events()
+
+        lp.sec("sending a second message from ac1 to ac2")
+        msg_out2 = chat.send_text("message2")
+
+        lp.sec("wait for ac2 to receive second message")
+        ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG")
+        assert ev[2] == msg_out2.id
+        msg_in2 = ac2.get_message_by_id(msg_out2.id)
+
+        lp.sec("mark messages as seen on ac2, wait for changes on ac1")
+        ac2.mark_seen_messages([msg_in, msg_in2])
         lp.step("1")
-        ev = ac1._evlogger.get_matching("DC_EVENT_MSG_READ")
-        assert ev[1] > const.DC_CHAT_ID_LAST_SPECIAL
-        assert ev[2] > const.DC_MSG_ID_LAST_SPECIAL
+        for i in range(2):
+            ev = ac1._evlogger.get_matching("DC_EVENT_MSG_READ")
+            assert ev[1] > const.DC_CHAT_ID_LAST_SPECIAL
+            assert ev[2] > const.DC_MSG_ID_LAST_SPECIAL
         lp.step("2")
         assert msg_out.is_out_mdn_received()
+        assert msg_out2.is_out_mdn_received()
 
         lp.sec("check that a second call to mark_seen does not create change or smtp job")
         ac2._evlogger.consume_events()
