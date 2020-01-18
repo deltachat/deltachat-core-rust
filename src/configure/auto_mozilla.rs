@@ -38,10 +38,7 @@ impl From<super::read_url::Error> for Error {
 }
 
 #[derive(Debug)]
-struct MozAutoconfigure<'a> {
-    pub in_emailaddr: &'a str,
-    pub in_emaildomain: &'a str,
-    pub in_emaillocalpart: &'a str,
+struct MozAutoconfigure {
     pub out: LoginParam,
     pub out_imap_set: bool,
     pub out_smtp_set: bool,
@@ -65,21 +62,11 @@ enum MozConfigTag {
     Username,
 }
 
-fn parse_xml(in_emailaddr: &str, xml_raw: &str) -> Result<LoginParam> {
+fn parse_xml(xml_raw: &str) -> Result<LoginParam> {
     let mut reader = quick_xml::Reader::from_str(xml_raw);
     reader.trim_text(true);
 
-    // Split address into local part and domain part.
-    let p = in_emailaddr
-        .find('@')
-        .ok_or_else(|| Error::InvalidEmailAddress(in_emailaddr.to_string()))?;
-    let (in_emaillocalpart, in_emaildomain) = in_emailaddr.split_at(p);
-    let in_emaildomain = &in_emaildomain[1..];
-
     let mut moz_ac = MozAutoconfigure {
-        in_emailaddr,
-        in_emaildomain,
-        in_emaillocalpart,
         out: LoginParam::new(),
         out_imap_set: false,
         out_smtp_set: false,
@@ -121,6 +108,61 @@ fn parse_xml(in_emailaddr: &str, xml_raw: &str) -> Result<LoginParam> {
     }
 }
 
+macro_rules! fillPlaceholders {
+    ($val: expr, $addr: expr, $localpart: expr, $domain: expr) => {
+        $val = $val
+            .replace("%EMAILADDRESS%", $addr)
+            .replace("%EMAILLOCALPART%", $localpart)
+            .replace("%EMAILDOMAIN%", $domain);
+    };
+}
+
+fn parse_xml_with_address(in_emailaddr: &str, xml_raw: &str) -> Result<LoginParam> {
+    // Split address into local part and domain part.
+    let p = in_emailaddr
+        .find('@')
+        .ok_or_else(|| Error::InvalidEmailAddress(in_emailaddr.to_string()))?;
+    let (in_emaillocalpart, in_emaildomain) = in_emailaddr.split_at(p);
+    let in_emaildomain = &in_emaildomain[1..];
+
+    let mut login_param = parse_xml(xml_raw)?;
+
+    fillPlaceholders!(
+        login_param.send_server,
+        in_emailaddr,
+        in_emaillocalpart,
+        in_emaildomain
+    );
+    fillPlaceholders!(
+        login_param.send_user,
+        in_emailaddr,
+        in_emaillocalpart,
+        in_emaildomain
+    );
+    fillPlaceholders!(
+        login_param.mail_server,
+        in_emailaddr,
+        in_emaillocalpart,
+        in_emaildomain
+    );
+    fillPlaceholders!(
+        login_param.mail_user,
+        in_emailaddr,
+        in_emaillocalpart,
+        in_emaildomain
+    );
+
+    if login_param.mail_server.is_empty()
+        || login_param.mail_port == 0
+        || login_param.send_server.is_empty()
+        || login_param.send_port == 0
+    {
+        Err(Error::IncompleteAutoconfig(login_param))
+    } else {
+        Ok(login_param)
+    }
+}
+
 pub fn moz_autoconfigure(
     context: &Context,
     url: &str,
@@ -128,7 +170,7 @@ pub fn moz_autoconfigure(
 ) -> Result<LoginParam> {
     let xml_raw = read_url(context, url)?;
 
-    let res = parse_xml(&param_in.addr, &xml_raw);
+    let res = parse_xml_with_address(&param_in.addr, &xml_raw);
     if let Err(err) = &res {
         warn!(
             context,
@@ -143,17 +185,11 @@ fn moz_autoconfigure_text_cb<B: std::io::BufRead>(
     moz_ac: &mut MozAutoconfigure,
     reader: &quick_xml::Reader<B>,
 ) {
-    let val = event.unescape_and_decode(reader).unwrap_or_default();
-
-    let addr = moz_ac.in_emailaddr;
-    let email_local = moz_ac.in_emaillocalpart;
-    let email_domain = moz_ac.in_emaildomain;
-
-    let val = val
+    let val = event
+        .unescape_and_decode(reader)
+        .unwrap_or_default()
         .trim()
-        .replace("%EMAILADDRESS%", addr)
-        .replace("%EMAILLOCALPART%", email_local)
-        .replace("%EMAILDOMAIN%", email_domain);
+        .to_owned();
 
     match moz_ac.tag_server {
         MozServer::Imap => match moz_ac.tag_config {
@@ -340,7 +376,8 @@ mod tests {
     </loginPageInfo>
   </webMail>
 </clientConfig>";
-        let res = parse_xml("example@outlook.com", xml_raw).expect("XML parsing failed");
+        let res =
+            parse_xml_with_address("example@outlook.com", xml_raw).expect("XML parsing failed");
         assert_eq!(res.mail_server, "outlook.office365.com");
         assert_eq!(res.mail_port, 993);
         assert_eq!(res.send_server, "smtp.office365.com");
