@@ -12,7 +12,7 @@ pub enum HeaderDef {
     OriginalMessageId,
 
     /// Delta Chat extension for message IDs in combined MDNs
-    XAdditionalMessageIds,
+    AdditionalMessageIds,
 
     ListId,
     References,

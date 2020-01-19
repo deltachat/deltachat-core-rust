@@ -948,7 +948,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let extension_fields = if additional_msg_ids.is_empty() {
             "".to_string()
         } else {
-            "X-Additional-Message-IDs: ".to_string()
+            "Additional-Message-IDs: ".to_string()
                 + &additional_msg_ids
                     .iter()
                     .map(|mid| render_rfc724_mid(&mid))
