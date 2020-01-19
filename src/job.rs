@@ -169,6 +169,53 @@ impl Job {
         .is_ok()
     }
 
+    fn smtp_send<F>(
+        &mut self,
+        context: &Context,
+        recipients: Vec<async_smtp::EmailAddress>,
+        message: Vec<u8>,
+        job_id: u32,
+        success_cb: F,
+    ) -> Status
+    where
+        F: FnOnce() -> Result<()>,
+    {
+        // hold the smtp lock during sending of a job and
+        // its ok/error response processing. Note that if a message
+        // was sent we need to mark it in the database ASAP as we
+        // otherwise might send it twice.
+        let mut smtp = context.smtp.lock().unwrap();
+        if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
+            info!(context, "smtp-sending out mime message:");
+            println!("{}", String::from_utf8_lossy(&message));
+        }
+        match task::block_on(smtp.send(context, recipients, message, job_id)) {
+            Err(crate::smtp::send::Error::SendError(err)) => {
+                // Remote error, retry later.
+                warn!(context, "SMTP failed to send: {}", err);
+                smtp.disconnect();
+                self.pending_error = Some(err.to_string());
+                Status::RetryLater
+            }
+            Err(crate::smtp::send::Error::EnvelopeError(err)) => {
+                // Local error, job is invalid, do not retry.
+                smtp.disconnect();
+                warn!(context, "SMTP job is invalid: {}", err);
+                Status::Finished(Err(Error::SmtpError(err)))
+            }
+            Err(crate::smtp::send::Error::NoTransport) => {
+                // Should never happen.
+                // It does not even make sense to disconnect here.
+                error!(context, "SMTP job failed because SMTP has no transport");
+                Status::Finished(Err(format_err!("SMTP has not transport")))
+            }
+            Ok(()) => {
+                job_try!(success_cb());
+                Status::Finished(Ok(()))
+            }
+        }
+    }
+
     #[allow(non_snake_case)]
     fn SendMsgToSmtp(&mut self, context: &Context) -> Status {
         /* connect to SMTP server, if not yet done */
@@ -214,45 +261,16 @@ impl Job {
             )));
         };
 
-        // hold the smtp lock during sending of a job and
-        // its ok/error response processing. Note that if a message
-        // was sent we need to mark it in the database ASAP as we
-        // otherwise might send it twice.
-        let mut smtp = context.smtp.lock().unwrap();
-        if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
-            info!(context, "smtp-sending out mime message:");
-            println!("{}", String::from_utf8_lossy(&body));
-        }
-        match task::block_on(smtp.send(context, recipients_list, body, self.job_id)) {
-            Err(crate::smtp::send::Error::SendError(err)) => {
-                // Remote error, retry later.
-                warn!(context, "SMTP failed to send: {}", err);
-                smtp.disconnect();
-                self.pending_error = Some(err.to_string());
-                Status::RetryLater
+        let foreign_id = self.foreign_id;
+        self.smtp_send(context, recipients_list, body, self.job_id, || {
+            // smtp success, update db ASAP, then delete smtp file
+            if 0 != foreign_id {
+                set_delivered(context, MsgId::new(foreign_id));
             }
-            Err(crate::smtp::send::Error::EnvelopeError(err)) => {
-                // Local error, job is invalid, do not retry.
-                smtp.disconnect();
-                warn!(context, "SMTP job is invalid: {}", err);
-                Status::Finished(Err(Error::SmtpError(err)))
-            }
-            Err(crate::smtp::send::Error::NoTransport) => {
-                // Should never happen.
-                // It does not even make sense to disconnect here.
-                error!(context, "SMTP job failed because SMTP has no transport");
-                Status::Finished(Err(format_err!("SMTP has not transport")))
-            }
-            Ok(()) => {
-                // smtp success, update db ASAP, then delete smtp file
-                if 0 != self.foreign_id {
-                    set_delivered(context, MsgId::new(self.foreign_id));
-                }
-                // now also delete the generated file
-                dc_delete_file(context, filename);
-                Status::Finished(Ok(()))
-            }
-        }
+            // now also delete the generated file
+            dc_delete_file(context, filename);
+            Ok(())
+        })
     }
 
     /// Get `SendMdn` jobs with foreign_id equal to `contact_id` excluding the `job_id` job.
@@ -350,33 +368,11 @@ impl Job {
             }
         }
 
-        let mut smtp = context.smtp.lock().unwrap();
-        match task::block_on(smtp.send(context, recipients, body, self.job_id)) {
-            Err(crate::smtp::send::Error::SendError(err)) => {
-                // Remote error, retry later.
-                warn!(context, "SMTP failed to send: {}", err);
-                smtp.disconnect();
-                self.pending_error = Some(err.to_string());
-                Status::RetryLater
-            }
-            Err(crate::smtp::send::Error::EnvelopeError(err)) => {
-                // Local error, job is invalid, do not retry.
-                smtp.disconnect();
-                warn!(context, "SMTP job is invalid: {}", err);
-                Status::Finished(Err(Error::SmtpError(err)))
-            }
-            Err(crate::smtp::send::Error::NoTransport) => {
-                // Should never happen.
-                // It does not even make sense to disconnect here.
-                error!(context, "SMTP job failed because SMTP has no transport");
-                Status::Finished(Err(format_err!("SMTP has not transport")))
-            }
-            Ok(()) => {
-                // Remove additional SendMdn jobs we have aggretated into this one.
-                job_try!(job_kill_ids(context, &additional_job_ids));
-                Status::Finished(Ok(()))
-            }
-        }
+        self.smtp_send(context, recipients, body, self.job_id, || {
+            // Remove additional SendMdn jobs we have aggretated into this one.
+            job_kill_ids(context, &additional_job_ids)?;
+            Ok(())
+        })
     }
 
     #[allow(non_snake_case)]
