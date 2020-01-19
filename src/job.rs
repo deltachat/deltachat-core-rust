@@ -1035,10 +1035,7 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                         "{} removes job {} as it failed with error {:?}", thread, job, err
                     );
                 } else {
-                    info!(
-                        context,
-                        "{} removes job {} as it cannot be retried", thread, job
-                    );
+                    info!(context, "{} removes job {} as it succeeded", thread, job);
                 }
 
                 job.delete(context);
