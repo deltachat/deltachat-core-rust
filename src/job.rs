@@ -1079,7 +1079,7 @@ fn suspend_smtp_thread(context: &Context, suspend: bool) {
 
 fn send_mdn(context: &Context, msg: &Message) -> Result<()> {
     let mut param = Params::new();
-    param.set(Param::MessageId, msg.id.to_u32().to_string());
+    param.set(Param::MsgId, msg.id.to_u32().to_string());
 
     job_add(context, Action::SendMdn, msg.from_id as i32, param, 0);
 

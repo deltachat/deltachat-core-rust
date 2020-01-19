@@ -119,7 +119,7 @@ pub enum Param {
     GroupName = b'g',
 
     /// For MDN-sending job
-    MessageId = b'I',
+    MsgId = b'I',
 }
 
 /// Possible values for `Param::ForcePlaintext`.
@@ -317,7 +317,7 @@ impl Params {
     }
 
     pub fn get_msg_id(&self) -> Option<MsgId> {
-        self.get(Param::MessageId)
+        self.get(Param::MsgId)
             .and_then(|x| x.parse::<u32>().ok())
             .map(MsgId::new)
     }
