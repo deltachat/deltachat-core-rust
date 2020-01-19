@@ -743,7 +743,7 @@ impl<'a> MimeMessage<'a> {
                 .and_then(|v| parse_message_id(&v))
             {
                 let additional_message_ids = report_fields
-                    .get_first_value(&HeaderDef::XAdditionalMessageIds.get_headername())
+                    .get_first_value(&HeaderDef::AdditionalMessageIds.get_headername())
                     .ok()
                     .flatten()
                     .map_or_else(Vec::new, |v| {
@@ -868,7 +868,7 @@ fn update_gossip_peerstates(
 pub(crate) struct Report {
     /// Original-Message-ID header
     original_message_id: String,
-    /// X-Additional-Message-IDs
+    /// Additional-Message-IDs
     additional_message_ids: Vec<String>,
 }
 
@@ -1430,7 +1430,7 @@ Original-Recipient: rfc822;bob@example.org\n\
 Final-Recipient: rfc822;bob@example.org\n\
 Original-Message-ID: <foo@example.org>\n\
 Disposition: manual-action/MDN-sent-automatically; displayed\n\
-X-Additional-Message-IDs: <foo@example.com> <foo@example.net>\n\
+Additional-Message-IDs: <foo@example.com> <foo@example.net>\n\
 \n\
 \n\
 --kJBbU58X1xeWNHgBtTbMk80M5qnV4N--\n\
