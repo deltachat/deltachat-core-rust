@@ -4,8 +4,8 @@ use crate::chat::*;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::*;
-use crate::error::{Error, Result};
-use crate::lot::{Lot, Meaning};
+use crate::error::{Result};
+use crate::lot::{Lot};
 use crate::message::{Message, MessageState, MsgId, MessageSummary};
 use crate::stock::StockMessage;
 use serde::{Deserialize, Serialize};
@@ -300,7 +300,7 @@ impl Chatlist {
         };
 
         let lastmsg_id = self.ids[index].1;
-        Chatlist::_get_summary(context, chat, lastmsg_id).into_lot()
+        Chatlist::_get_summary(context, chat, lastmsg_id).to_lot()
     }
 
     pub fn get_summary_by_chat(context: &Context, chat: &Chat) -> MessageSummary {

@@ -721,16 +721,13 @@ pub unsafe extern "C" fn dc_get_chatlist_json(
                 qs.as_ref().map(|x| x.as_str()),
                 qi,
             ) {
-                Ok(list) => {
-                    list.to_json()
-                }
-                Err(_) => ptr::null_mut(),
+                Ok(list) => list.to_json(),
+                Err(_) => "".to_string(),
             }
         })
-        .unwrap_or_else(|_| ptr::null_mut())
+        .unwrap_or_else(|_| "".to_string())
+        .strdup()
 }
-
-
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_create_chat_by_msg_id(context: *mut dc_context_t, msg_id: u32) -> u32 {
@@ -2458,7 +2455,7 @@ pub unsafe extern "C" fn dc_chat_is_sending_locations(chat: *mut dc_chat_t) -> l
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_chat_get_info_json(
+pub unsafe extern "C" fn dc_chatlist_get_item_json(
     context: *mut dc_context_t,
     chat_id: u32,
 ) -> *mut libc::c_char {
@@ -2469,24 +2466,18 @@ pub unsafe extern "C" fn dc_chat_get_info_json(
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| {
-            let chat = match chat::Chat::load_from_db(ctx, ChatId::new(chat_id)) {
-                Ok(chat) => chat,
-                Err(err) => {
-                    error!(ctx, "dc_get_chat_info_json() failed to load chat: {}", err);
-                    return "".strdup();
-                }
-            };
-            let info = match chat.get_info(ctx) {
-                Ok(info) => info,
-                Err(err) => {
-                    error!(
-                        ctx,
-                        "dc_get_chat_info_json() failed to get chat info: {}", err
-                    );
-                    return "".strdup();
-                }
-            };
-            serde_json::to_string(&info)
+            let chatlist_item =
+                match chatlist::ChatlistItem::load_from_db(ctx, ChatId::new(chat_id)) {
+                    Ok(chatlist_item) => chatlist_item,
+                    Err(err) => {
+                        error!(
+                            ctx,
+                            "dc_get_chat_info_json() failed to load chatlist_item: {}", err
+                        );
+                        return "".strdup();
+                    }
+                };
+            serde_json::to_string(&chatlist_item)
                 .unwrap_or_log_default(ctx, "dc_get_chat_info_json() failed to serialise to json")
                 .strdup()
         })

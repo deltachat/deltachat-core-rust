@@ -481,7 +481,7 @@ impl Message {
             None
         };
         
-        MessageSummary::new(self, chat, contact.as_ref(), context).into_lot()
+        MessageSummary::new(self, chat, contact.as_ref(), context).to_lot()
     }
 
     pub fn get_summarytext(&self, context: &Context, approx_characters: usize) -> String {
@@ -773,7 +773,7 @@ impl MessageSummary {
         message_summary
     }
 
-    pub fn into_lot(&mut self) -> Lot {
+    pub fn to_lot(&self) -> Lot {
         Lot {
             text1: self.text1.clone(),
             text1_meaning: self.text1_meaning,
