@@ -815,9 +815,10 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         );
 
         // Message is sent as text/plain, with charset = utf-8
-        let mut parts = vec![PartBuilder::new()
+        let main_part = PartBuilder::new()
             .content_type(&mime::TEXT_PLAIN_UTF_8)
-            .body(message_text)];
+            .body(message_text);
+        let mut parts = Vec::new();
 
         // add attachment part
         if chat::msgtype_has_file(self.msg.viewtype) {
@@ -880,18 +881,18 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             }
         }
 
-        // Single part, render as regular message.
-        if parts.len() == 1 {
-            return Ok(parts.pop().unwrap());
+        if parts.is_empty() {
+            // Single part, render as regular message.
+            Ok(main_part)
+        } else {
+            // Multiple parts, render as multipart.
+            let mut message = PartBuilder::new().message_type(MimeMultipartType::Mixed);
+            message = message.child(main_part.build());
+            for part in parts.into_iter() {
+                message = message.child(part.build());
+            }
+            Ok(message)
         }
-
-        // Multiple parts, render as multipart.
-        let mut message = PartBuilder::new().message_type(MimeMultipartType::Mixed);
-        for part in parts.into_iter() {
-            message = message.child(part.build());
-        }
-
-        Ok(message)
     }
 
     /// Render an MDN
