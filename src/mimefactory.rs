@@ -576,6 +576,25 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         })
     }
 
+    fn get_message_kml_part(&self) -> Option<PartBuilder> {
+        let latitude = self.msg.param.get_float(Param::SetLatitude)?;
+        let longitude = self.msg.param.get_float(Param::SetLongitude)?;
+
+        let kml_file = location::get_message_kml(self.msg.timestamp_sort, latitude, longitude);
+        let part = PartBuilder::new()
+            .content_type(
+                &"application/vnd.google-earth.kml+xml"
+                    .parse::<mime::Mime>()
+                    .unwrap(),
+            )
+            .header((
+                "Content-Disposition",
+                "attachment; filename=\"message.kml\"",
+            ))
+            .body(kml_file);
+        Some(part)
+    }
+
     #[allow(clippy::cognitive_complexity)]
     fn render_message(
         &mut self,
@@ -817,26 +836,8 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             parts.push(meta_part);
         }
 
-        if self.msg.param.exists(Param::SetLatitude) {
-            let param = &self.msg.param;
-            let kml_file = location::get_message_kml(
-                self.msg.timestamp_sort,
-                param.get_float(Param::SetLatitude).unwrap_or_default(),
-                param.get_float(Param::SetLongitude).unwrap_or_default(),
-            );
-            parts.push(
-                PartBuilder::new()
-                    .content_type(
-                        &"application/vnd.google-earth.kml+xml"
-                            .parse::<mime::Mime>()
-                            .unwrap(),
-                    )
-                    .header((
-                        "Content-Disposition",
-                        "attachment; filename=\"message.kml\"",
-                    ))
-                    .body(kml_file),
-            );
+        if let Some(msg_kml_part) = self.get_message_kml_part() {
+            parts.push(msg_kml_part);
         }
 
         if location::is_sending_locations_to_chat(context, self.msg.chat_id) {
