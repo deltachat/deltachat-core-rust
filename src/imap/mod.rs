@@ -957,8 +957,8 @@ impl Imap {
                                 remote_message_id,
                                 message_id,
                             );
+                            *uid = 0;
                         }
-                        *uid = 0;
                     }
                     Err(err) => {
                         warn!(
