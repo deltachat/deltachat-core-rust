@@ -569,6 +569,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         })
     }
 
+    #[allow(clippy::cognitive_complexity)]
     fn render_message(
         &mut self,
         protected_headers: &mut Vec<Header>,
