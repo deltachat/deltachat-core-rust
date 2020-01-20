@@ -607,7 +607,7 @@ impl Message {
     }
 }
 
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql, Serialize, Deserialize)]
 #[repr(i32)]
 pub enum MessageState {
     Undefined = 0,

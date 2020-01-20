@@ -438,7 +438,7 @@ impl ChatlistItem {
     ///
     /// This is somewhat experimental, even more so than the rest of
     /// deltachat, and the data returned is still subject to change.
-    pub fn load_from_db(context: &Context, chat_id: u32) -> Result<ChatlistItem> {
+    pub fn load_from_db(context: &Context, chat_id: ChatId) -> Result<ChatlistItem> {
         let chat = Chat::load_from_db(context, chat_id).unwrap();
 
         let draft = match get_draft(context, chat_id)? {
@@ -454,7 +454,7 @@ impl ChatlistItem {
 
         //let message_summary = MessageSummary::new( 
         Ok(ChatlistItem {
-            id: chat.id,
+            id: chat.id.to_u32(),
             type_: chat.typ as u32,
             name: chat.name.clone(),
             archived: chat.archived,
@@ -493,9 +493,9 @@ mod tests {
         assert_eq!(chats.get_chat_id(2), chat_id1);
 
         assert_eq!(chats.to_json(), format!("[[{},{}],[{},{}],[{},{}]]",
-            chats.get_chat_id(0), chats.get_msg_id(0).map(|msg_id| msg_id.to_u32()).unwrap_or(0),
-            chats.get_chat_id(1), chats.get_msg_id(1).map(|msg_id| msg_id.to_u32()).unwrap_or(0),
-            chats.get_chat_id(2), chats.get_msg_id(2).map(|msg_id| msg_id.to_u32()).unwrap_or(0))); 
+            chats.get_chat_id(0).to_u32(), chats.get_msg_id(0).map(|msg_id| msg_id.to_u32()).unwrap_or(0),
+            chats.get_chat_id(1).to_u32(), chats.get_msg_id(1).map(|msg_id| msg_id.to_u32()).unwrap_or(0),
+            chats.get_chat_id(2).to_u32(), chats.get_msg_id(2).map(|msg_id| msg_id.to_u32()).unwrap_or(0))); 
 
         // drafts are sorted to the top
         let mut msg = Message::new(Viewtype::Text);
@@ -505,16 +505,16 @@ mod tests {
         assert_eq!(chats.get_chat_id(0), chat_id2);
 
         assert_eq!(chats.to_json(), format!("[[{},{}],[{},{}],[{},{}]]",
-            chats.get_chat_id(0), chats.get_msg_id(0).map(|msg_id| msg_id.to_u32()).unwrap_or(0),
-            chats.get_chat_id(1), chats.get_msg_id(1).map(|msg_id| msg_id.to_u32()).unwrap_or(0),
-            chats.get_chat_id(2), chats.get_msg_id(2).map(|msg_id| msg_id.to_u32()).unwrap_or(0))); 
+            chats.get_chat_id(0).to_u32(), chats.get_msg_id(0).map(|msg_id| msg_id.to_u32()).unwrap_or(0),
+            chats.get_chat_id(1).to_u32(), chats.get_msg_id(1).map(|msg_id| msg_id.to_u32()).unwrap_or(0),
+            chats.get_chat_id(2).to_u32(), chats.get_msg_id(2).map(|msg_id| msg_id.to_u32()).unwrap_or(0))); 
 
         // check chatlist query and archive functionality
         let chats = Chatlist::try_load(&t.ctx, 0, Some("b"), None).unwrap();
         assert_eq!(chats.len(), 1);
 
         assert_eq!(chats.to_json(), format!("[[{},{}]]",
-            chats.get_chat_id(0), chats.get_msg_id(0).map(|msg_id| msg_id.to_u32()).unwrap_or(0))); 
+            chats.get_chat_id(0).to_u32(), chats.get_msg_id(0).map(|msg_id| msg_id.to_u32()).unwrap_or(0))); 
 
         let chats = Chatlist::try_load(&t.ctx, DC_GCL_ARCHIVED_ONLY, None, None).unwrap();
         assert_eq!(chats.len(), 0);
@@ -526,7 +526,7 @@ mod tests {
         assert_eq!(chats.len(), 1);
 
         assert_eq!(chats.to_json(), format!("[[{},{}]]",
-            chats.get_chat_id(0), chats.get_msg_id(0).map(|msg_id| msg_id.to_u32()).unwrap_or(0))); 
+            chats.get_chat_id(0).to_u32(), chats.get_msg_id(0).map(|msg_id| msg_id.to_u32()).unwrap_or(0))); 
 
     }
 
