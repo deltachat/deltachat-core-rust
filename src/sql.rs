@@ -365,6 +365,7 @@ fn table_exists(conn: &Connection, name: impl AsRef<str>) -> Result<bool> {
     Ok(exists)
 }
 
+#[allow(clippy::cognitive_complexity)]
 fn open(
     context: &Context,
     sql: &Sql,

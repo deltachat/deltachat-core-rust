@@ -249,6 +249,7 @@ pub fn dc_receive_imf(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments, clippy::cognitive_complexity)]
 fn add_parts(
     context: &Context,
     mut mime_parser: &mut MimeMessage,
@@ -700,6 +701,7 @@ fn save_locations(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn calc_timestamps(
     context: &Context,
     chat_id: ChatId,
@@ -744,7 +746,7 @@ fn calc_timestamps(
 /// - create an ad-hoc group based on the recipient list
 ///
 /// on success the function returns the found/created (chat_id, chat_blocked) tuple .
-#[allow(non_snake_case)]
+#[allow(non_snake_case, clippy::cognitive_complexity)]
 fn create_or_lookup_group(
     context: &Context,
     mime_parser: &mut MimeMessage,

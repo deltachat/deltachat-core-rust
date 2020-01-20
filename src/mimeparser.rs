@@ -175,6 +175,7 @@ impl<'a> MimeMessage<'a> {
         Ok(parser)
     }
 
+    #[allow(clippy::cognitive_complexity)]
     fn parse_headers(&mut self) -> Result<()> {
         if self.get(HeaderDef::AutocryptSetupMessage).is_some() {
             self.parts.drain_filter(|part| {
