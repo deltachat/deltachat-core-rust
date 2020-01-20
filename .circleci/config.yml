@@ -120,32 +120,19 @@ jobs:
           paths:
             - c-docs
 
-  # build_test_docs_wheel:
-  #   docker:
-  #     - image: deltachat/coredeps
-  #       environment:
-  #           TESTS: 1
-  #           DOCS: 1
-  #   working_directory: /mnt/crate
-  #   steps:
-  #     - *restore-workspace
-  #     - *restore-cache
-  #     - run:
-  #         name: build docs, run tests and build wheels
-  #         command: ci_scripts/run-python.sh
-  #     - run:
-  #          name: copying docs and wheels to workspace
-  #          command: |
-  #            mkdir -p workspace/python
-  #            # cp -av docs workspace/c-docs
-  #            cp -av python/.docker-tox/wheelhouse workspace/
-  #            cp -av python/doc/_build/ workspace/py-docs
-  #     - persist_to_workspace:
-  #         root: workspace
-  #         paths:
-  #           # - c-docs
-  #           - py-docs
-  #           - wheelhouse
+  remote_python_packaging:
+    machine: true
+    steps:
+      - checkout
+      # the following commands on success produces
+      # workspace/{wheelhouse,py-docs} as artefact directories
+      - run: bash ci_scripts/remote_python_packaging.sh 
+      - persist_to_workspace:
+          root: workspace
+          paths:
+            # - c-docs
+            - py-docs
+            - wheelhouse
 
   remote_tests_rust:
     machine: true
@@ -157,10 +144,7 @@ jobs:
     machine: true
     steps:
       - checkout
-      #- attach_workspace:
-      #    at: workspace
       - run: ci_scripts/remote_tests_python.sh
-    # workspace/py-docs workspace/wheelhouse workspace/c-docs
 
   upload_docs_wheels:
     machine: true
@@ -168,6 +152,7 @@ jobs:
       - checkout
       - attach_workspace:
           at: workspace
+      - run: pyenv versions
       - run: pyenv global 3.5.2
       - run: ls -laR workspace
       - run: ci_scripts/ci_upload.sh workspace/py-docs workspace/wheelhouse workspace/c-docs
@@ -193,10 +178,15 @@ workflows:
 
       - remote_tests_python
 
-      # - upload_docs_wheels:
-      #     requires:
-      #       - build_test_docs_wheel
-      #       - build_doxygen
+      - remote_python_packaging:
+          requires: 
+             - remote_tests_python
+             - remote_tests_rust 
+
+      - upload_docs_wheels:
+          requires:
+             - remote_python_packaging
+             - build_doxygen
       # - rustfmt:
       #     requires:
       #       - cargo_fetch

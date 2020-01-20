@@ -75,52 +75,37 @@ With ``DCC_PY_LIVECONFIG`` set pytest invocations will use real
 e-mail accounts and run through all functional "liveconfig" tests.
 
 
-============================================================================================================================
-(21-Dec-2019) THE BELOW WHEELS ARE CURRENTLY NOT WORKING/BROKEN, COMPILE FROM SOURCE USING ABOVE INSTRUCTIONS INSTEAD 
-============================================================================================================================
-
-Installing pre-built packages (linux-only)  (OUTDATED)
+Installing pre-built packages (Linux-only)
 ========================================================
 
-If you have a linux system you may install the ``deltachat`` binary "wheel" package
+If you have a Linux system you may try to install the ``deltachat`` binary "wheel" packages
 without any "build-from-source" steps.
 
-1. `Install virtualenv <https://virtualenv.pypa.io/en/stable/installation/>`_,
+First of all we suggest to `Install virtualenv <https://virtualenv.pypa.io/en/stable/installation/>`_,
    then create a fresh python environment and activate it in your shell::
 
         virtualenv venv  # or: python -m venv
         source venv/bin/activate
 
-   Afterwards, invoking ``python`` or ``pip install`` will only
-   modify files in your ``venv`` directory and leave your system installation
-   alone.
-
-2. Install the wheel for linux::
-
-        pip install deltachat
-
-    Verify it worked by typing::
-
-        python -c "import deltachat"
-
-
-Installing a wheel from a PR/branch    (OUTDATED)
--------------------------------------------------
+Afterwards, invoking ``python`` or ``pip install`` will only
+modify files in your ``venv`` directory and leave your system installation
+alone.
 
 For Linux, we automatically build wheels for all github PR branches
-and push them to a python package index. To install the latest github ``master`` branch::
+and push them to a python package index. To install the latest
+github ``master`` branch::
 
-    pip install -i https://m.devpi.net/dc/master deltachat
+    pip install --pre -i https://m.devpi.net/dc/master deltachat
+
+To verify it worked::
+
+    python -c "import deltachat"
 
 .. note::
 
     If you can help to automate the building of wheels for Mac or Windows,
     that'd be much appreciated! please then get
     `in contact with us <https://delta.chat/en/contribute>`_.
-
-
-
-
 
 
 Code examples
@@ -133,15 +118,11 @@ You may look at `examples <https://py.delta.chat/examples.html>`_.
 .. _`deltachat-core`: https://github.com/deltachat/deltachat-core-rust
 
 
-Building manylinux1 wheels
-==========================
-
-.. note::
-
-   This section may not fully work.
+Building manylinux1 based wheels
+================================
 
 Building portable manylinux1 wheels which come with libdeltachat.so
-and all it's dependencies is easy using the provided docker tooling.
+can be done with docker-tooling.
 
 using docker pull / premade images
 ------------------------------------
@@ -154,9 +135,9 @@ organization::
 
 This docker image can be used to run tests and build Python wheels for all interpreters::
 
-    $ bash ci_scripts/ci_run.sh
-
-This command runs tests and build-wheel scripts in a docker container.
+    $ docker run -e DCC_PY_LIVECONFIG \
+       --rm -it -v \$(pwd):/mnt -w /mnt \
+       deltachat/coredeps ci_scripts/run_all.sh
 
 
 Optionally build your own docker image
