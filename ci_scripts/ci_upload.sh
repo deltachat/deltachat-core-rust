@@ -28,10 +28,6 @@ rsync -avz \
   "$DOXYDOCDIR/html/" \
   delta@c.delta.chat:build-c/${BRANCH}
 
-exit 0
-
-# OUTDATED -- for re-use from python release-scripts 
-
 echo -----------------------
 echo upload wheels 
 echo -----------------------
@@ -39,6 +35,7 @@ echo -----------------------
 # Bundle external shared libraries into the wheels
 pushd $WHEELHOUSEDIR
 
+pip3 install -U pip
 pip3 install devpi-client
 devpi use https://m.devpi.net
 devpi login dc --password $DEVPI_LOGIN
@@ -50,6 +47,9 @@ devpi use dc/$N_BRANCH || {
     devpi use dc/$N_BRANCH
 }
 devpi index $N_BRANCH bases=/root/pypi
-devpi upload deltachat*.whl
+devpi upload deltachat*
 
 popd
+
+# remove devpi non-master dc indices if thy are too old
+python ci_scripts/cleanup_devpi_indices.py
