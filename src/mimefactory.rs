@@ -638,7 +638,6 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let command = self.msg.param.get_cmd();
         let mut placeholdertext = None;
         let mut meta_part = None;
-        let mut add_compatibility_header = false;
 
         if chat.typ == Chattype::VerifiedGroup {
             protected_headers.push(Header::new("Chat-Verified".to_string(), "1".to_string()));
@@ -681,7 +680,6 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                             "vg-member-added".to_string(),
                         ));
                     }
-                    add_compatibility_header = true;
                 }
                 SystemMessage::GroupNameChanged => {
                     let value_to_add = self.msg.param.get(Param::Arg).unwrap_or_default();
@@ -702,7 +700,6 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                             "0".to_string(),
                         ));
                     }
-                    add_compatibility_header = true;
                 }
                 _ => {}
             }
@@ -770,18 +767,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
 
             let (mail, filename_as_sent) = build_body_file(context, &meta, "group-image")?;
             meta_part = Some(mail);
-            protected_headers.push(Header::new(
-                "Chat-Group-Avatar".into(),
-                filename_as_sent.clone(),
-            ));
-
-            // add the old group-image headers for versions <=0.973 resp. <=beta.15 (december 2019)
-            // image deletion is not supported in the compatibility layer.
-            // this can be removed some time after releasing 1.0,
-            // grep for #DeprecatedAvatar to get the place where compatibility parsing takes place.
-            if add_compatibility_header {
-                protected_headers.push(Header::new("Chat-Group-Image".into(), filename_as_sent));
-            }
+            protected_headers.push(Header::new("Chat-Group-Avatar".into(), filename_as_sent));
         }
 
         if self.msg.viewtype == Viewtype::Sticker {
