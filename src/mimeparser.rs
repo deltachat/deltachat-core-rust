@@ -1057,17 +1057,6 @@ mod tests {
         assert_eq!(mimeparser.parts.len(), 1);
     }
 
-    proptest! {
-        #[ignore]
-        #[test]
-        fn test_dc_mailmime_parse_crash_fuzzy(data in "[!-~\t ]{2000,}") {
-            let context = dummy_context();
-
-            // just don't crash
-            let _ = MimeMessage::from_bytes(&context.ctx, data.as_bytes());
-        }
-    }
-
     #[test]
     fn test_get_rfc724_mid_exists() {
         let context = dummy_context();
