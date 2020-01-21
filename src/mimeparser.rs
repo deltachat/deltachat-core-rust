@@ -1045,7 +1045,6 @@ fn compare_addrs(a: &mailparse::MailAddr, b: &mailparse::MailAddr) -> bool {
 mod tests {
     use super::*;
     use crate::test_utils::*;
-    use proptest::prelude::*;
 
     #[test]
     fn test_dc_mimeparser_crash() {
