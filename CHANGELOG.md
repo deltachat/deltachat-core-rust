@@ -1,5 +1,27 @@
 # Changelog 
 
+## 1.0.0-beta.23
+
+- #1197 fix imap-deletion of messages 
+
+- #1171 Combine multiple MDNs into a single mail, reducing traffic 
+
+- #1155 fix to not send out gossip always, reducing traffic
+
+- #1160 fix reply-to-encrypted determination 
+
+- #1182 Add "Auto-Submitted: auto-replied" header to MDNs
+
+- #1194 produce python wheels again, fix c/py.delta.chat
+  master-deployment 
+
+- rust-level housekeeping and improvements #1161 #1186 #1185 #1190 #1194 #1199 #1191 #1190 #1184 and more
+
+- #1063 clarify licensing 
+
+- #1147 use mailparse 0.10.2 
+
+
 ## 1.0.0-beta.22
 
 - #1095 normalize email lineends to CRLF
