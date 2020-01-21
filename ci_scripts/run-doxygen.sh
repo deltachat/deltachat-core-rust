@@ -3,5 +3,4 @@
 set -ex
 
 cd deltachat-ffi 
-doxygen 
-
+PROJECT_NUMBER=$(git log -1 --format "%h (%cd)") doxygen 
