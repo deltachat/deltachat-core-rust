@@ -16,7 +16,6 @@ crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 deltachat = { path = "../", default-features = false }
-deltachat-provider-database = "0.2.1"
 libc = "0.2"
 human-panic = "1.0.1"
 num-traits = "0.2.6"
