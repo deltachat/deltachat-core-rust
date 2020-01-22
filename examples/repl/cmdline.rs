@@ -3,7 +3,6 @@ use std::str::FromStr;
 
 use deltachat::chat::{self, Chat, ChatId};
 use deltachat::chatlist::*;
-use deltachat::config;
 use deltachat::constants::*;
 use deltachat::contact::*;
 use deltachat::context::*;
@@ -19,6 +18,7 @@ use deltachat::peerstate::*;
 use deltachat::qr::*;
 use deltachat::sql;
 use deltachat::Event;
+use deltachat::{config, provider};
 
 /// Reset database tables.
 /// Argument is a bitmask, executing single or multiple actions in one call.
@@ -392,6 +392,7 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
                  getqr [<chat-id>]\n\
                  getbadqr\n\
                  checkqr <qr-content>\n\
+                 providerinfo <addr>\n\
                  event <event-id to test>\n\
                  fileinfo <file>\n\
                  emptyserver <flags> (1=MVBOX 2=INBOX)\n\
@@ -965,6 +966,19 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
                 res.get_text1(),
                 res.get_text2()
             );
+        }
+        "providerinfo" => {
+            ensure!(!arg1.is_empty(), "Argument <addr> missing.");
+            match provider::get_provider_info(arg1) {
+                Some(info) => {
+                    println!("Information for provider belonging to {}:", arg1);
+                    println!("status: {}", info.status as u32);
+                    println!("before_login_hint: {}", info.before_login_hint);
+                }
+                None => {
+                    println!("No information for provider belonging to {} found.", arg1);
+                }
+            }
         }
         // TODO: implement this again, unclear how to match this through though, without writing a parser.
         // "event" => {

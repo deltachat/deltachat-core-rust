@@ -3692,12 +3692,13 @@ int             dc_contact_is_verified       (dc_contact_t* contact);
  * The provider is extracted from the email address and it's information is returned.
  *
  * @memberof dc_provider_t
+ * @param context The context object as created by dc_context_new().
  * @param email The user's email address to extract the provider info form.
  * @return a dc_provider_t struct which can be used with the dc_provider_get_*
  *     accessor functions.  If no provider info is found, NULL will be
  *     returned.
  */
-dc_provider_t*  dc_provider_new_from_email            (const char* email);
+dc_provider_t*  dc_provider_new_from_email            (const dc_context_t*, const char* email);
 
 
 /**
@@ -3724,7 +3725,7 @@ char*           dc_provider_get_overview_page         (const dc_provider_t* prov
  * @param provider The dc_provider_t struct.
  * @return A string which must be released using dc_str_unref().
  */
-char*           dc_provider_get_before_login_hints    (const dc_provider_t* provider);
+char*           dc_provider_get_before_login_hint     (const dc_provider_t* provider);
 
 
 /**
@@ -3746,7 +3747,7 @@ int             dc_provider_get_status                (const dc_provider_t* prov
  * @memberof dc_provider_t
  * @param provider The dc_provider_t struct.
  */
-void            dc_provider_unref                     (const dc_provider_t* provider);
+void            dc_provider_unref                     (dc_provider_t* provider);
 
 
 /**
