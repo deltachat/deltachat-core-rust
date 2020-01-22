@@ -1,5 +1,9 @@
-0.600.1
+0.700.0
 ---------
+
+- lots of new Python APIs
+
+- use rust core-beta23 
 
 - introduce automatic versioning via setuptools_scm, 
   based on py-X.Y.Z tags 
