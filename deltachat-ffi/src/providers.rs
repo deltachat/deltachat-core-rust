@@ -9,16 +9,6 @@ use deltachat_provider_database::StatusState;
 pub type dc_provider_t = deltachat_provider_database::Provider;
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_provider_new_from_domain(
-    domain: *const libc::c_char,
-) -> *const dc_provider_t {
-    match deltachat_provider_database::get_provider_info(&to_string_lossy(domain)) {
-        Some(provider) => provider,
-        None => ptr::null(),
-    }
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn dc_provider_new_from_email(
     email: *const libc::c_char,
 ) -> *const dc_provider_t {
@@ -52,25 +42,11 @@ pub unsafe extern "C" fn dc_provider_get_overview_page(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_provider_get_name(provider: *const dc_provider_t) -> *mut libc::c_char {
-    null_guard!(provider);
-    (*provider).name.strdup()
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_provider_get_markdown(
+pub unsafe extern "C" fn dc_provider_get_before_login_hints(
     provider: *const dc_provider_t,
 ) -> *mut libc::c_char {
     null_guard!(provider);
     (*provider).markdown.strdup()
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_provider_get_status_date(
-    provider: *const dc_provider_t,
-) -> *mut libc::c_char {
-    null_guard!(provider);
-    (*provider).status.date.strdup()
 }
 
 #[no_mangle]
