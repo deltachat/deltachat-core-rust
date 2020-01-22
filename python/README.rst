@@ -3,56 +3,50 @@ deltachat python bindings
 =========================
 
 This package provides bindings to the deltachat-core_ Rust -library
-which provides imap/smtp/crypto handling as well as chat/group/messages
-handling to Android, Desktop and IO user interfaces.
+which implements IMAP/SMTP/MIME/PGP e-mail standards and offers
+a low-level Chat/Contact/Message API to user interfaces and bots.
 
 
-Installing bindings from source (Updated: 21-Dec-2019)
+Installing bindings from source (Updated: 20-Jan-2020)
 =========================================================
 
 Install Rust and Cargo first.  Deltachat needs a specific nightly
 version, the easiest is probably to first install Rust stable from
 rustup and then use this to install the correct nightly version.
 
-Install rustup using::
+Bootstrap Rust and Cargo by using rustup::
 
    curl https://sh.rustup.rs -sSf | sh
 
-GIT clone the repo and use rustup to check the correct nightly version
-is available, if you do not have the right nightly version rustup will
-download and install it::
+Then GIT clone the deltachat-core-rust repo and get the actual
+rust- and cargo-toolchain needed by deltachat::
 
    git clone https://github.com/deltachat/deltachat-core-rust
    cd deltachat-core-rust
    rustup show
 
-To install the python bindings make sure you have python installed, a
-recent 3.x version will also come with the required venv module.
+To install the Delta Chat Python bindings make sure you have Python3 installed.
 E.g. on Debian-based systems `apt install python3 python3-pip
-python3-venv` should give you a usable python installation.  If you
-prefer you can also
-`Install virtualenv <https://virtualenv.pypa.io/en/stable/installation/>`_
-as an alternative to `venv`.
+python3-venv` should give you a usable python installation.
 
 Ensure you are in the deltachat-core-rust/python directory, create the
-vivrtual environment and activate it in your shell::
+virtual environment and activate it in your shell::
 
    cd python
    python3 -m venv venv  # or: virtualenv venv
    source venv/bin/activate
 
-You should now be able to build the python bindings using the supplied
-script::
+You should now be able to build the python bindings using the supplied script::
 
    ./install_python_bindings.py
 
 The installation might take a while, depending on your machine.
 The bindings will be installed in release mode but with debug symbols.
-The release mode is necessary because some tests generate RSA keys
-which is prohibitively slow in debug mode.
+The release mode is currently necessary because some tests generate RSA keys
+which is prohibitively slow in non-release mode.
 
 After successful binding installation you can install a few more
-python packages before finally running the tests::
+Python packages before running the tests::
 
     python -m pip install pytest pytest-timeout pytest-rerunfailures requests
     pytest -v tests
@@ -81,15 +75,15 @@ Installing pre-built packages (Linux-only)
 If you have a Linux system you may try to install the ``deltachat`` binary "wheel" packages
 without any "build-from-source" steps.
 
-First of all we suggest to `Install virtualenv <https://virtualenv.pypa.io/en/stable/installation/>`_,
-   then create a fresh python environment and activate it in your shell::
+We suggest to `Install virtualenv <https://virtualenv.pypa.io/en/stable/installation/>`_,
+then create a fresh Python virtual environment and activate it in your shell::
 
         virtualenv venv  # or: python -m venv
         source venv/bin/activate
 
-Afterwards, invoking ``python`` or ``pip install`` will only
-modify files in your ``venv`` directory and leave your system installation
-alone.
+Afterwards, invoking ``python`` or ``pip install`` only
+modifies files in your ``venv`` directory and leaves
+your system installation alone.
 
 For Linux, we automatically build wheels for all github PR branches
 and push them to a python package index. To install the latest
