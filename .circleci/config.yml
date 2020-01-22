@@ -174,12 +174,12 @@ workflows:
     jobs:
       # - cargo_fetch
 
-      - remote_tests_rust
+      - remote_tests_rust:
           filters:
             tags:
               only: /.*/
 
-      - remote_tests_python
+      - remote_tests_python:
           filters:
             tags:
               only: /.*/
@@ -206,7 +206,7 @@ workflows:
       #     requires:
       #      - cargo_fetch
 
-      - build_doxygen
+      - build_doxygen:
           filters:
             tags:
               only: /.*/
