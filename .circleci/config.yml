@@ -175,18 +175,30 @@ workflows:
       # - cargo_fetch
 
       - remote_tests_rust
+          filters:
+            tags:
+              only: /.*/
 
       - remote_tests_python
+          filters:
+            tags:
+              only: /.*/
 
       - remote_python_packaging:
           requires: 
              - remote_tests_python
              - remote_tests_rust 
+          filters:
+            tags:
+              only: /.*/
 
       - upload_docs_wheels:
           requires:
              - remote_python_packaging
              - build_doxygen
+          filters:
+            tags:
+              only: /.*/
       # - rustfmt:
       #     requires:
       #       - cargo_fetch
@@ -195,6 +207,9 @@ workflows:
       #      - cargo_fetch
 
       - build_doxygen
+          filters:
+            tags:
+              only: /.*/
 
       # Linux Desktop 64bit
       # - test_x86_64-unknown-linux-gnu:
