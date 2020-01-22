@@ -13,6 +13,7 @@ def main():
             "root": "..",
             "relative_to": __file__,
             'tag_regex': r'^(?P<prefix>py-)?(?P<version>[^\+]+)(?P<suffix>.*)?$',
+            'git_describe_command': "git describe --dirty --tags --long --match py-*.*",
         },
         description='Python bindings for the Delta Chat Core library using CFFI against the Rust-implemented libdeltachat',
         long_description=long_description,
