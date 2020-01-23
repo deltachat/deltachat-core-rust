@@ -852,6 +852,27 @@ void            dc_interrupt_smtp_idle       (dc_context_t* context);
 void            dc_maybe_network             (dc_context_t* context);
 
 
+/**
+ * Save a keypair as the default keys for the user.
+ *
+ * This API is only for testing purposes and should not be used as part of a
+ * normal application, use the import-export APIs instead.
+ *
+ * This saves a public/private keypair as the default keypair in the context.
+ * It allows avoiding having to generate a secret key for unittests which need
+ * one.
+ *
+ * @memberof dc_context_t
+ * @param context The context as created by dc_context_new().
+ * @param addr The email address of the user.  This must match the
+ *    configured_addr setting of the context as well as the UID of the key.
+ * @param public_data The public key as base64.
+ * @param secret_data The secret key as base64.
+ * @return 1 on success, 0 on failure.
+ */
+int             _dc_save_self_keypair        (dc_context_t* context, const char *addr, const char *public_data, const char *secret_data);
+
+
 // handle chatlists
 
 #define         DC_GCL_ARCHIVED_ONLY         0x01

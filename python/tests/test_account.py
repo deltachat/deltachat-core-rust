@@ -1,4 +1,5 @@
 from __future__ import print_function
+import py
 import pytest
 import os
 import queue
@@ -7,6 +8,17 @@ from deltachat import const, Account
 from deltachat.message import Message
 from datetime import datetime, timedelta
 from conftest import wait_configuration_progress, wait_successful_IMAP_SMTP_connection, wait_securejoin_inviter_progress
+
+
+@pytest.fixture
+def datadir():
+    """The py.path.local object of the test-data/ directory."""
+    for path in reversed(py.path.local(__file__).parts()):
+        datadir = path.join('test-data')
+        if datadir.isdir():
+            return datadir
+    else:
+        pytest.skip('test-data directory not found')
 
 
 class TestOfflineAccountBasic:
@@ -23,6 +35,12 @@ class TestOfflineAccountBasic:
         # but we at least check Account accepts the arg
         ac1 = Account(p.strpath, os_name="solarpunk")
         ac1.get_info()
+
+    def test_save_self_keypair(self, acfactory, datadir):
+        ac = acfactory.get_unconfigured_account()
+        ac._save_self_keypair("alice@example.com",
+                              datadir.join('key/alice-public.asc').read(),
+                              datadir.join('key/alice-secret.asc').read())
 
     def test_getinfo(self, acfactory):
         ac1 = acfactory.get_unconfigured_account()

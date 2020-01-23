@@ -9,7 +9,7 @@ use crate::contact::*;
 use crate::context::Context;
 use crate::error::Error;
 use crate::key::dc_format_fingerprint;
-use crate::key::*;
+use crate::key::dc_normalize_fingerprint;
 use crate::lot::{Lot, LotState};
 use crate::param::*;
 use crate::peerstate::*;

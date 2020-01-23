@@ -28,6 +28,7 @@ use deltachat::chat::ChatId;
 use deltachat::constants::DC_MSG_ID_LAST_SPECIAL;
 use deltachat::contact::Contact;
 use deltachat::context::Context;
+use deltachat::key::DcKey;
 use deltachat::message::MsgId;
 use deltachat::stock::StockMessage;
 use deltachat::*;
@@ -94,6 +95,14 @@ impl ContextWrapper {
         self.translate_cb(Event::Error(msg.to_string()));
     }
 
+    /// Log a warning on the FFI context.
+    ///
+    /// Like [error] but logs as a warning which only goes to the
+    /// logfile rather than being shown directly to the user.
+    unsafe fn warning(&self, msg: &str) {
+        self.translate_cb(Event::Warning(msg.to_string()));
+    }
+
     /// Unlock the context and execute a closure with it.
     ///
     /// This unlocks the context and gets a read lock.  The Rust
@@ -120,6 +129,23 @@ impl ContextWrapper {
                 unsafe { self.error("context not open") };
                 Err(())
             }
+        }
+    }
+
+    /// Unlock the context and execute a closure with it.
+    ///
+    /// This is like [ContextWrapper::with_inner] but uses
+    /// [failure::Error] as error type.  This allows you to write a
+    /// closure which could produce many errors, use the `?` operator
+    /// to return them and handle them all as the return of this call.
+    fn try_inner<T, F>(&self, ctxfn: F) -> Result<T, failure::Error>
+    where
+        F: FnOnce(&Context) -> Result<T, failure::Error>,
+    {
+        let guard = self.inner.read().unwrap();
+        match guard.as_ref() {
+            Some(ref ctx) => ctxfn(ctx),
+            None => Err(failure::err_msg("context not open")),
         }
     }
 
@@ -663,6 +689,35 @@ pub unsafe extern "C" fn dc_maybe_network(context: *mut dc_context_t) {
     ffi_context
         .with_inner(|ctx| job::maybe_network(ctx))
         .unwrap_or(())
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn _dc_save_self_keypair(
+    context: *mut dc_context_t,
+    addr: *const libc::c_char,
+    public_data: *const libc::c_char,
+    secret_data: *const libc::c_char,
+) -> i32 {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_save_keypair()");
+        return 0;
+    }
+    let ffi_context = &*context;
+    ffi_context
+        .try_inner(|ctx| {
+            let addr = dc_tools::EmailAddress::new(&to_string_lossy(addr))?;
+            let public = key::SignedPublicKey::from_base64(&to_string_lossy(public_data))?;
+            let secret = key::SignedSecretKey::from_base64(&to_string_lossy(secret_data))?;
+            let keypair = key::KeyPair {
+                addr,
+                public,
+                secret,
+            };
+            key::save_self_keypair(ctx, &keypair, key::KeyPairUse::Default)?;
+            Ok(1)
+        })
+        .log_warn(ffi_context, "Failed to save keypair")
+        .unwrap_or(0)
 }
 
 #[no_mangle]
@@ -3161,6 +3216,18 @@ pub unsafe extern "C" fn dc_str_unref(s: *mut libc::c_char) {
 pub trait ResultExt<T, E> {
     fn unwrap_or_log_default(self, context: &context::Context, message: &str) -> T;
     fn log_err(self, context: &context::Context, message: &str) -> Result<T, E>;
+
+    /// Log a warning to a [ContextWrapper] for an [Err] result.
+    ///
+    /// Does nothing for an [Ok].  This is usually preferable over
+    /// [ResultExt::log_err] because warnings go to the logfile and
+    /// errors are displayed directly to the user.  Usually problems
+    /// on the FFI layer are coding errors and not errors which need
+    /// to be displayed to the user.
+    ///
+    /// You can do this as soon as the wrapper exists, it does not
+    /// have to be open (which is required for teh `warn!()` macro).
+    fn log_warn(self, wrapper: &ContextWrapper, message: &str) -> Result<T, E>;
 }
 
 impl<T: Default, E: std::fmt::Display> ResultExt<T, E> for Result<T, E> {
@@ -3177,6 +3244,15 @@ impl<T: Default, E: std::fmt::Display> ResultExt<T, E> for Result<T, E> {
     fn log_err(self, context: &context::Context, message: &str) -> Result<T, E> {
         self.map_err(|err| {
             warn!(context, "{}: {}", message, err);
+            err
+        })
+    }
+
+    fn log_warn(self, wrapper: &ContextWrapper, message: &str) -> Result<T, E> {
+        self.map_err(|err| {
+            unsafe {
+                wrapper.warning(&format!("{}: {}", message, err));
+            }
             err
         })
     }
