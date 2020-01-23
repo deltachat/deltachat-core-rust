@@ -24,11 +24,8 @@ pub enum ServerSocket {
 
 #[derive(Debug)]
 pub struct Server {
-    pub stype: ServerType,
-    pub socket: ServerSocket,
-    pub port: u16,
-    pub server: &'static str,
-    pub username: &'static str,
+    pub stype: u16,
+    // more fields are needed, just to keep the example short
 }
 
 #[derive(Debug, PartialEq)]
@@ -37,28 +34,39 @@ pub struct Provider {
     pub status: Status,
     pub before_login_hint: &'static str,
     pub overview_page: &'static str,
+    pub server: [Server], // this seems to be okay
 }
 
 // TODO: the database will be auto-generated from the provider-db
-const DATABASE: [Provider; 3] = [
+const DATABASE: [Provider; 1] = [
     Provider {
         domains: "nauta.cu",
         status: Status::OK,
         before_login_hint: "",
         overview_page: "",
+        server: [Server; 2] = [Server { stype: 123 }, Server { stype: 456 }],
     },
+    /*
     Provider {
-        domains: "outlook.com live.com",
+        domains: "outlook.com hotmail.com live.com",
         status: Status::BROKEN,
-        before_login_hint: "this provider is broken, sorry :(",
+        before_login_hint: "Outlook-e-mail-addresses will not work as expected \
+                            as these servers remove some important transport information.\n\n\
+                            Hopefully sooner or later there will be a fix; \
+                            for now, we suggest to use another e-mail-address \
+                            or try Delta Chat again when the issue is fixed.",
         overview_page: "https://provider.delta.chat/outlook.com",
     },
     Provider {
-        domains: "gmail.com",
+        domains: "gmail.com googlemail.com",
         status: Status::PREPARATION,
-        before_login_hint: "please enable less-secure-apps",
+        before_login_hint: "For Gmail Accounts, you need to create an App-Password \
+                            if you have \"2-Step Verification\" enabled. \
+                            If this setting is not available, \
+                            you need to enable \"Less secure apps\".",
         overview_page: "https://provider.delta.chat/gmail.com",
     },
+    */
 ];
 
 pub fn get_provider_info(addr: &str) -> Option<&Provider> {
