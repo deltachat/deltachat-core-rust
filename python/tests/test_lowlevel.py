@@ -103,7 +103,11 @@ def test_get_special_message_id_returns_empty_message(acfactory):
 
 
 def test_provider_info_none():
-    assert lib.dc_provider_new_from_email(cutil.as_dc_charpointer("email@unexistent.no")) == ffi.NULL
+    ctx = ffi.gc(
+        lib.dc_context_new(lib.py_dc_callback, ffi.NULL, ffi.NULL),
+        lib.dc_context_unref,
+    )
+    assert lib.dc_provider_new_from_email(ctx, cutil.as_dc_charpointer("email@unexistent.no")) == ffi.NULL
 
 
 def test_get_info_closed():
