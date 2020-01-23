@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 
-use crate::constants::*;
+use crate::constants::KeyType;
 use crate::context::Context;
-use crate::key::*;
+use crate::key::Key;
 use crate::sql::Sql;
 
 #[derive(Default, Clone, Debug)]

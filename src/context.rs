@@ -14,7 +14,7 @@ use crate::events::Event;
 use crate::imap::*;
 use crate::job::*;
 use crate::job_thread::JobThread;
-use crate::key::*;
+use crate::key::Key;
 use crate::login_param::LoginParam;
 use crate::lot::Lot;
 use crate::message::{self, Message, MessengerMessage, MsgId};

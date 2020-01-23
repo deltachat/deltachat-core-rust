@@ -45,7 +45,7 @@ impl ChatId {
 
     /// An unset ChatId
     ///
-    /// Like [is_error], from which it is indistinguishable, this is
+    /// Like [ChatId::is_error], from which it is indistinguishable, this is
     /// transitional and should not be used in new code.
     pub fn is_unset(self) -> bool {
         self.0 == 0

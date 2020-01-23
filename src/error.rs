@@ -17,6 +17,9 @@ pub enum Error {
     Message(String),
 
     #[fail(display = "{:?}", _0)]
+    MessageChain(String, #[cause] failure::Error, failure::Backtrace),
+
+    #[fail(display = "{:?}", _0)]
     Image(image_meta::ImageError),
 
     #[fail(display = "{:?}", _0)]
@@ -115,6 +118,18 @@ impl From<crate::blob::BlobError> for Error {
 impl From<crate::message::InvalidMsgId> for Error {
     fn from(_err: crate::message::InvalidMsgId) -> Error {
         Error::InvalidMsgId
+    }
+}
+
+impl From<crate::key::SaveKeyError> for Error {
+    fn from(err: crate::key::SaveKeyError) -> Error {
+        Error::MessageChain(format!("{}", err), err.into(), failure::Backtrace::new())
+    }
+}
+
+impl From<crate::pgp::PgpKeygenError> for Error {
+    fn from(err: crate::pgp::PgpKeygenError) -> Error {
+        Error::MessageChain(format!("{}", err), err.into(), failure::Backtrace::new())
     }
 }
 

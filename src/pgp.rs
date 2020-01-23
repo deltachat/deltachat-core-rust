@@ -16,6 +16,7 @@ use pgp::types::{
 };
 use rand::{thread_rng, CryptoRng, Rng};
 
+use crate::dc_tools::EmailAddress;
 use crate::error::Result;
 use crate::key::*;
 use crate::keyring::*;
@@ -111,10 +112,43 @@ pub fn split_armored_data(buf: &[u8]) -> Result<(BlockType, BTreeMap<String, Str
     Ok((typ, headers, bytes))
 }
 
-/// Create a new key pair.
-pub fn create_keypair(addr: impl AsRef<str>) -> Option<(Key, Key)> {
-    let user_id = format!("<{}>", addr.as_ref());
+/// Error with generating a PGP keypair.
+///
+/// Most of these are likely coding errors rather than user errors
+/// since all variability is hardcoded.
+#[derive(Fail, Debug)]
+#[fail(display = "PgpKeygenError: {}", message)]
+pub(crate) struct PgpKeygenError {
+    message: String,
+    #[cause]
+    cause: failure::Error,
+    backtrace: failure::Backtrace,
+}
 
+impl PgpKeygenError {
+    fn new(message: impl Into<String>, cause: impl Into<failure::Error>) -> Self {
+        Self {
+            message: message.into(),
+            cause: cause.into(),
+            backtrace: failure::Backtrace::new(),
+        }
+    }
+}
+
+/// A PGP keypair.
+///
+/// This has it's own struct to be able to keep the public and secret
+/// keys together as they are one unit.
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct KeyPair {
+    pub addr: EmailAddress,
+    pub public: SignedPublicKey,
+    pub secret: SignedSecretKey,
+}
+
+/// Create a new key pair.
+pub(crate) fn create_keypair(addr: EmailAddress) -> std::result::Result<KeyPair, PgpKeygenError> {
+    let user_id = format!("<{}>", addr);
     let key_params = SecretKeyParamsBuilder::default()
         .key_type(PgpKeyType::Rsa(2048))
         .can_create_certificates(true)
@@ -146,20 +180,29 @@ pub fn create_keypair(addr: impl AsRef<str>) -> Option<(Key, Key)> {
                 .unwrap(),
         )
         .build()
-        .expect("invalid key params");
-
-    let key = key_params.generate().expect("invalid params");
+        .map_err(|err| PgpKeygenError::new("invalid key params", failure::err_msg(err)))?;
+    let key = key_params
+        .generate()
+        .map_err(|err| PgpKeygenError::new("invalid params", err))?;
     let private_key = key.sign(|| "".into()).expect("failed to sign secret key");
 
     let public_key = private_key.public_key();
     let public_key = public_key
         .sign(&private_key, || "".into())
-        .expect("failed to sign public key");
+        .map_err(|err| PgpKeygenError::new("failed to sign public key", err))?;
 
-    private_key.verify().expect("invalid private key generated");
-    public_key.verify().expect("invalid public key generated");
+    private_key
+        .verify()
+        .map_err(|err| PgpKeygenError::new("invalid private key generated", err))?;
+    public_key
+        .verify()
+        .map_err(|err| PgpKeygenError::new("invalid public key generated", err))?;
 
-    Some((Key::Public(public_key), Key::Secret(private_key)))
+    Ok(KeyPair {
+        addr,
+        public: public_key,
+        secret: private_key,
+    })
 }
 
 /// Select public key or subkey to use for encryption.
@@ -311,6 +354,8 @@ pub fn symm_decrypt<T: std::io::Read + std::io::Seek>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::*;
+    use lazy_static::lazy_static;
 
     #[test]
     fn test_split_armored_data_1() {
@@ -337,5 +382,178 @@ mod tests {
         assert_eq!(typ, BlockType::PrivateKey);
         assert!(!base64.is_empty());
         assert_eq!(headers.get(HEADER_AUTOCRYPT), Some(&"mutual".to_string()));
+    }
+
+    #[test]
+    #[ignore] // is too expensive
+    fn test_create_keypair() {
+        let keypair0 = create_keypair(EmailAddress::new("foo@bar.de").unwrap()).unwrap();
+        let keypair1 = create_keypair(EmailAddress::new("two@zwo.de").unwrap()).unwrap();
+        assert_ne!(keypair0.public, keypair1.public);
+    }
+
+    /// [Key] objects to use in tests.
+    struct TestKeys {
+        alice_secret: Key,
+        alice_public: Key,
+        bob_secret: Key,
+        bob_public: Key,
+    }
+
+    impl TestKeys {
+        fn new() -> TestKeys {
+            let alice = alice_keypair();
+            let bob = bob_keypair();
+            TestKeys {
+                alice_secret: Key::from(alice.secret.clone()),
+                alice_public: Key::from(alice.public.clone()),
+                bob_secret: Key::from(bob.secret.clone()),
+                bob_public: Key::from(bob.public.clone()),
+            }
+        }
+    }
+
+    /// The original text of [CTEXT_SIGNED]
+    static CLEARTEXT: &[u8] = b"This is a test";
+
+    lazy_static! {
+        /// Initialised [TestKeys] for tests.
+        static ref KEYS: TestKeys = TestKeys::new();
+
+        /// A cyphertext encrypted to Alice & Bob, signed by Alice.
+        static ref CTEXT_SIGNED: String = {
+            let mut keyring = Keyring::default();
+            keyring.add_owned(KEYS.alice_public.clone());
+            keyring.add_ref(&KEYS.bob_public);
+            pk_encrypt(CLEARTEXT, &keyring, Some(&KEYS.alice_secret)).unwrap()
+        };
+
+        /// A cyphertext encrypted to Alice & Bob, not signed.
+        static ref CTEXT_UNSIGNED: String = {
+            let mut keyring = Keyring::default();
+            keyring.add_owned(KEYS.alice_public.clone());
+            keyring.add_ref(&KEYS.bob_public);
+            pk_encrypt(CLEARTEXT, &keyring, None).unwrap()
+        };
+    }
+
+    #[test]
+    fn test_encrypt_signed() {
+        assert!(!CTEXT_SIGNED.is_empty());
+        assert!(CTEXT_SIGNED.starts_with("-----BEGIN PGP MESSAGE-----"));
+    }
+
+    #[test]
+    fn test_encrypt_unsigned() {
+        assert!(!CTEXT_UNSIGNED.is_empty());
+        assert!(CTEXT_UNSIGNED.starts_with("-----BEGIN PGP MESSAGE-----"));
+    }
+
+    #[test]
+    fn test_decrypt_singed() {
+        // Check decrypting as Alice
+        let mut decrypt_keyring = Keyring::default();
+        decrypt_keyring.add_ref(&KEYS.alice_secret);
+        let mut sig_check_keyring = Keyring::default();
+        sig_check_keyring.add_ref(&KEYS.alice_public);
+        let mut valid_signatures: HashSet<String> = Default::default();
+        let plain = pk_decrypt(
+            CTEXT_SIGNED.as_bytes(),
+            &decrypt_keyring,
+            &sig_check_keyring,
+            Some(&mut valid_signatures),
+        )
+        .map_err(|err| println!("{:?}", err))
+        .unwrap();
+        assert_eq!(plain, CLEARTEXT);
+        assert_eq!(valid_signatures.len(), 1);
+
+        // Check decrypting as Bob
+        let mut decrypt_keyring = Keyring::default();
+        decrypt_keyring.add_ref(&KEYS.bob_secret);
+        let mut sig_check_keyring = Keyring::default();
+        sig_check_keyring.add_ref(&KEYS.alice_public);
+        let mut valid_signatures: HashSet<String> = Default::default();
+        let plain = pk_decrypt(
+            CTEXT_SIGNED.as_bytes(),
+            &decrypt_keyring,
+            &sig_check_keyring,
+            Some(&mut valid_signatures),
+        )
+        .map_err(|err| println!("{:?}", err))
+        .unwrap();
+        assert_eq!(plain, CLEARTEXT);
+        assert_eq!(valid_signatures.len(), 1);
+    }
+
+    #[test]
+    fn test_decrypt_no_sig_check() {
+        let mut keyring = Keyring::default();
+        keyring.add_ref(&KEYS.alice_secret);
+        let empty_keyring = Keyring::default();
+        let mut valid_signatures: HashSet<String> = Default::default();
+        let plain = pk_decrypt(
+            CTEXT_SIGNED.as_bytes(),
+            &keyring,
+            &empty_keyring,
+            Some(&mut valid_signatures),
+        )
+        .unwrap();
+        assert_eq!(plain, CLEARTEXT);
+        assert_eq!(valid_signatures.len(), 0);
+    }
+
+    #[test]
+    fn test_decrypt_signed_no_key() {
+        // The validation does not have the public key of the signer.
+        let mut decrypt_keyring = Keyring::default();
+        decrypt_keyring.add_ref(&KEYS.bob_secret);
+        let mut sig_check_keyring = Keyring::default();
+        sig_check_keyring.add_ref(&KEYS.bob_public);
+        let mut valid_signatures: HashSet<String> = Default::default();
+        let plain = pk_decrypt(
+            CTEXT_SIGNED.as_bytes(),
+            &decrypt_keyring,
+            &sig_check_keyring,
+            Some(&mut valid_signatures),
+        )
+        .unwrap();
+        assert_eq!(plain, CLEARTEXT);
+        assert_eq!(valid_signatures.len(), 0);
+    }
+
+    #[test]
+    fn test_decrypt_unsigned() {
+        let mut decrypt_keyring = Keyring::default();
+        decrypt_keyring.add_ref(&KEYS.bob_secret);
+        let sig_check_keyring = Keyring::default();
+        decrypt_keyring.add_ref(&KEYS.alice_public);
+        let mut valid_signatures: HashSet<String> = Default::default();
+        let plain = pk_decrypt(
+            CTEXT_UNSIGNED.as_bytes(),
+            &decrypt_keyring,
+            &sig_check_keyring,
+            Some(&mut valid_signatures),
+        )
+        .unwrap();
+        assert_eq!(plain, CLEARTEXT);
+        assert_eq!(valid_signatures.len(), 0);
+    }
+
+    #[test]
+    fn test_decrypt_signed_no_sigret() {
+        // Check decrypting signed cyphertext without providing the HashSet for signatures.
+        let mut decrypt_keyring = Keyring::default();
+        decrypt_keyring.add_ref(&KEYS.bob_secret);
+        let mut sig_check_keyring = Keyring::default();
+        sig_check_keyring.add_ref(&KEYS.alice_public);
+        let plain = pk_decrypt(
+            CTEXT_SIGNED.as_bytes(),
+            &decrypt_keyring,
+            &sig_check_keyring,
+            None,
+        )
+        .unwrap();
+        assert_eq!(plain, CLEARTEXT);
     }
 }

@@ -6,10 +6,9 @@ use std::collections::BTreeMap;
 use std::str::FromStr;
 use std::{fmt, str};
 
-use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
-use crate::key::*;
+use crate::key::{DcKey, SignedPublicKey};
 
 /// Possible values for encryption preference
 #[derive(PartialEq, Eq, Debug, Clone, Copy, FromPrimitive, ToPrimitive)]
@@ -52,13 +51,17 @@ impl str::FromStr for EncryptPreference {
 #[derive(Debug)]
 pub struct Aheader {
     pub addr: String,
-    pub public_key: Key,
+    pub public_key: SignedPublicKey,
     pub prefer_encrypt: EncryptPreference,
 }
 
 impl Aheader {
     /// Creates new autocrypt header
-    pub fn new(addr: String, public_key: Key, prefer_encrypt: EncryptPreference) -> Self {
+    pub fn new(
+        addr: String,
+        public_key: SignedPublicKey,
+        prefer_encrypt: EncryptPreference,
+    ) -> Self {
         Aheader {
             addr,
             public_key,
@@ -103,16 +106,19 @@ impl fmt::Display for Aheader {
         // adds a whitespace every 78 characters, this allows
         // email crate to wrap the lines according to RFC 5322
         // (which may insert a linebreak before every whitespace)
-        let keydata = self.public_key.to_base64().chars().enumerate().fold(
-            String::new(),
-            |mut res, (i, c)| {
+        let keydata = self
+            .public_key
+            .to_base64()
+            .unwrap_or_default()
+            .chars()
+            .enumerate()
+            .fold(String::new(), |mut res, (i, c)| {
                 if i % 78 == 78 - "keydata=".len() {
                     res.push(' ')
                 }
                 res.push(c);
                 res
-            },
-        );
+            });
         write!(fmt, " keydata={}", keydata)
     }
 }
@@ -142,22 +148,11 @@ impl str::FromStr for Aheader {
                 return Err(());
             }
         };
-
-        let public_key = match attributes
+        let public_key: SignedPublicKey = attributes
             .remove("keydata")
-            .and_then(|raw| Key::from_base64(&raw, KeyType::Public))
-        {
-            Some(key) => {
-                if key.verify() {
-                    key
-                } else {
-                    return Err(());
-                }
-            }
-            None => {
-                return Err(());
-            }
-        };
+            .ok_or(())
+            .and_then(|raw| SignedPublicKey::from_base64(&raw).or(Err(())))
+            .and_then(|key| key.verify().and(Ok(key)).or(Err(())))?;
 
         let prefer_encrypt = attributes
             .remove("prefer-encrypt")
@@ -292,7 +287,7 @@ mod tests {
             "{}",
             Aheader::new(
                 "test@example.com".to_string(),
-                Key::from_base64(RAWKEY, KeyType::Public).unwrap(),
+                SignedPublicKey::from_base64(RAWKEY).unwrap(),
                 EncryptPreference::Mutual
             )
         )
@@ -305,7 +300,7 @@ mod tests {
             "{}",
             Aheader::new(
                 "test@example.com".to_string(),
-                Key::from_base64(RAWKEY, KeyType::Public).unwrap(),
+                SignedPublicKey::from_base64(RAWKEY).unwrap(),
                 EncryptPreference::NoPreference
             )
         )

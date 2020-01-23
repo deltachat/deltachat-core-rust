@@ -12,7 +12,7 @@ use crate::e2ee::*;
 use crate::error::Error;
 use crate::events::Event;
 use crate::headerdef::HeaderDef;
-use crate::key::*;
+use crate::key::{dc_normalize_fingerprint, Key};
 use crate::lot::LotState;
 use crate::message::Message;
 use crate::mimeparser::*;

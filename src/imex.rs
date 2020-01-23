@@ -18,7 +18,7 @@ use crate::e2ee;
 use crate::error::*;
 use crate::events::Event;
 use crate::job::*;
-use crate::key::*;
+use crate::key::{self, Key};
 use crate::message::{Message, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::param::*;
@@ -289,7 +289,6 @@ fn set_self_key(
         .and_then(|(k, h)| k.split_key().map(|pub_key| (k, pub_key, h)));
 
     ensure!(keys.is_some(), "Not a valid private key");
-
     let (private_key, public_key, header) = keys.unwrap();
     let preferencrypt = header.get("Autocrypt-Prefer-Encrypt");
     match preferencrypt.map(|s| s.as_str()) {
@@ -314,6 +313,7 @@ fn set_self_key(
 
     let self_addr = context.get_config(Config::ConfiguredAddr);
     ensure!(self_addr.is_some(), "Missing self addr");
+    let addr = EmailAddress::new(&self_addr.unwrap_or_default())?;
 
     // XXX maybe better make dc_key_save_self_keypair delete things
     sql::execute(
@@ -322,26 +322,24 @@ fn set_self_key(
         "DELETE FROM keypairs WHERE public_key=? OR private_key=?;",
         params![public_key.to_bytes(), private_key.to_bytes()],
     )?;
-
-    if set_default {
-        sql::execute(
-            context,
-            &context.sql,
-            "UPDATE keypairs SET is_default=0;",
-            params![],
-        )?;
-    }
-
-    if !dc_key_save_self_keypair(
+    let (public, secret) = match (public_key, private_key) {
+        (Key::Public(p), Key::Secret(s)) => (p, s),
+        _ => bail!("wrong keys unpacked"),
+    };
+    let keypair = pgp::KeyPair {
+        addr,
+        public,
+        secret,
+    };
+    key::save_self_keypair(
         context,
-        &public_key,
-        &private_key,
-        self_addr.unwrap_or_default(),
-        set_default,
-        &context.sql,
-    ) {
-        bail!("Cannot save keypair, internal key-state possibly corrupted now!");
-    }
+        &keypair,
+        if set_default {
+            key::KeyPairUse::Default
+        } else {
+            key::KeyPairUse::ReadOnly
+        },
+    )?;
     Ok(())
 }
 
@@ -746,7 +744,6 @@ fn export_key_to_asc_file(
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use crate::pgp::{split_armored_data, HEADER_AUTOCRYPT, HEADER_SETUPCODE};
     use crate::test_utils::*;
     use ::pgp::armor::BlockType;
@@ -801,8 +798,7 @@ mod tests {
     #[test]
     fn test_export_key_to_asc_file() {
         let context = dummy_context();
-        let base64 = include_str!("../test-data/key/public.asc");
-        let key = Key::from_base64(base64, KeyType::Public).unwrap();
+        let key = Key::from(alice_keypair().public);
         let blobdir = "$BLOBDIR";
         assert!(export_key_to_asc_file(&context.ctx, blobdir, None, &key).is_ok());
         let blobdir = context.ctx.get_blobdir().to_str().unwrap();

@@ -1,6 +1,7 @@
 //! End-to-end encryption support.
 
 use std::collections::HashSet;
+use std::convert::TryFrom;
 
 use mailparse::{MailHeaderMap, ParsedMail};
 use num_traits::FromPrimitive;
@@ -8,8 +9,9 @@ use num_traits::FromPrimitive;
 use crate::aheader::*;
 use crate::config::Config;
 use crate::context::Context;
+use crate::dc_tools::EmailAddress;
 use crate::error::*;
-use crate::key::*;
+use crate::key::{self, Key, KeyPairUse, SignedPublicKey};
 use crate::keyring::*;
 use crate::peerstate::*;
 use crate::pgp;
@@ -19,7 +21,7 @@ use crate::securejoin::handle_degrade_event;
 pub struct EncryptHelper {
     pub prefer_encrypt: EncryptPreference,
     pub addr: String,
-    pub public_key: Key,
+    pub public_key: SignedPublicKey,
 }
 
 impl EncryptHelper {
@@ -102,8 +104,8 @@ impl EncryptHelper {
             })?;
             keyring.add_ref(key);
         }
-
-        keyring.add_ref(&self.public_key);
+        let public_key = Key::from(self.public_key.clone());
+        keyring.add_ref(&public_key);
         let sign_key = Key::from_self_private(context, self.addr.clone(), &context.sql)
             .ok_or_else(|| format_err!("missing own private key"))?;
 
@@ -191,15 +193,20 @@ pub fn try_decrypt(
 /// storing a new one when one doesn't exist yet.  Care is taken to
 /// only generate one key per context even when multiple threads call
 /// this function concurrently.
-fn load_or_generate_self_public_key(context: &Context, self_addr: impl AsRef<str>) -> Result<Key> {
+fn load_or_generate_self_public_key(
+    context: &Context,
+    self_addr: impl AsRef<str>,
+) -> Result<SignedPublicKey> {
     if let Some(key) = Key::from_self_public(context, &self_addr, &context.sql) {
-        return Ok(key);
+        return Ok(SignedPublicKey::try_from(key)
+            .map_err(|_| Error::Message("Not a public key".into()))?);
     }
     let _guard = context.generating_key_mutex.lock().unwrap();
 
     // Check again in case the key was generated while we were waiting for the lock.
     if let Some(key) = Key::from_self_public(context, &self_addr, &context.sql) {
-        return Ok(key);
+        return Ok(SignedPublicKey::try_from(key)
+            .map_err(|_| Error::Message("Not a public key".into()))?);
     }
 
     let start = std::time::Instant::now();
@@ -207,28 +214,14 @@ fn load_or_generate_self_public_key(context: &Context, self_addr: impl AsRef<str
         context,
         "Generating keypair with {} bits, e={} ...", 2048, 65537,
     );
-    match pgp::create_keypair(&self_addr) {
-        Some((public_key, private_key)) => {
-            if dc_key_save_self_keypair(
-                context,
-                &public_key,
-                &private_key,
-                &self_addr,
-                true,
-                &context.sql,
-            ) {
-                info!(
-                    context,
-                    "Keypair generated in {:.3}s.",
-                    start.elapsed().as_secs()
-                );
-                Ok(public_key)
-            } else {
-                Err(format_err!("Failed to save keypair"))
-            }
-        }
-        None => Err(format_err!("Failed to generate keypair")),
-    }
+    let keypair = pgp::create_keypair(EmailAddress::new(self_addr.as_ref())?)?;
+    key::save_self_keypair(context, &keypair, KeyPairUse::Default)?;
+    info!(
+        context,
+        "Keypair generated in {:.3}s.",
+        start.elapsed().as_secs()
+    );
+    Ok(keypair.public)
 }
 
 /// Returns a reference to the encrypted payload and validates the autocrypt structure.

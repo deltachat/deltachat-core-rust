@@ -460,7 +460,7 @@ pub(crate) fn time() -> i64 {
 ///
 /// ```
 /// use deltachat::dc_tools::EmailAddress;
-/// let email = match "someone@example.com".parse::<EmailAddress>() {
+/// let email = match EmailAddress::new("someone@example.com") {
 ///     Ok(addr) => addr,
 ///     Err(e) => panic!("Error parsing address, error was {}", e),
 /// };
@@ -468,10 +468,16 @@ pub(crate) fn time() -> i64 {
 /// assert_eq!(&email.domain, "example.com");
 /// assert_eq!(email.to_string(), "someone@example.com");
 /// ```
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct EmailAddress {
     pub local: String,
     pub domain: String,
+}
+
+impl EmailAddress {
+    pub fn new(input: &str) -> Result<Self, Error> {
+        input.parse::<EmailAddress>()
+    }
 }
 
 impl fmt::Display for EmailAddress {

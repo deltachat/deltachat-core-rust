@@ -1,5 +1,6 @@
 //! # [Autocrypt Peer State](https://autocrypt.org/level1.html#peer-state-management) module
 use std::collections::HashSet;
+use std::convert::TryFrom;
 use std::fmt;
 
 use num_traits::FromPrimitive;
@@ -7,7 +8,7 @@ use num_traits::FromPrimitive;
 use crate::aheader::*;
 use crate::constants::*;
 use crate::context::Context;
-use crate::key::*;
+use crate::key::{Key, SignedPublicKey};
 use crate::sql::{self, Sql};
 
 #[derive(Debug)]
@@ -126,7 +127,7 @@ impl<'a> Peerstate<'a> {
         res.last_seen_autocrypt = message_time;
         res.to_save = Some(ToSave::All);
         res.prefer_encrypt = header.prefer_encrypt;
-        res.public_key = Some(header.public_key.clone());
+        res.public_key = Some(Key::from(header.public_key.clone()));
         res.recalc_fingerprint();
 
         res
@@ -137,7 +138,7 @@ impl<'a> Peerstate<'a> {
 
         res.gossip_timestamp = message_time;
         res.to_save = Some(ToSave::All);
-        res.gossip_key = Some(gossip_header.public_key.clone());
+        res.gossip_key = Some(Key::from(gossip_header.public_key.clone()));
         res.recalc_fingerprint();
 
         res
@@ -293,8 +294,8 @@ impl<'a> Peerstate<'a> {
                 self.to_save = Some(ToSave::All)
             }
 
-            if self.public_key.as_ref() != Some(&header.public_key) {
-                self.public_key = Some(header.public_key.clone());
+            if self.public_key.as_ref() != Some(&Key::from(header.public_key.clone())) {
+                self.public_key = Some(Key::from(header.public_key.clone()));
                 self.recalc_fingerprint();
                 self.to_save = Some(ToSave::All);
             }
@@ -309,8 +310,9 @@ impl<'a> Peerstate<'a> {
         if message_time > self.gossip_timestamp {
             self.gossip_timestamp = message_time;
             self.to_save = Some(ToSave::Timestamps);
-            if self.gossip_key.as_ref() != Some(&gossip_header.public_key) {
-                self.gossip_key = Some(gossip_header.public_key.clone());
+            let hdr_key = Key::from(gossip_header.public_key.clone());
+            if self.gossip_key.as_ref() != Some(&hdr_key) {
+                self.gossip_key = Some(hdr_key);
                 self.recalc_fingerprint();
                 self.to_save = Some(ToSave::All)
             }
@@ -320,9 +322,13 @@ impl<'a> Peerstate<'a> {
     pub fn render_gossip_header(&self, min_verified: PeerstateVerifiedStatus) -> Option<String> {
         if let Some(key) = self.peek_key(min_verified) {
             // TODO: avoid cloning
+            let public_key = match SignedPublicKey::try_from(key.clone()) {
+                Ok(key) => key,
+                Err(_) => return None,
+            };
             let header = Aheader::new(
                 self.addr.clone(),
-                key.clone(),
+                public_key,
                 EncryptPreference::NoPreference,
             );
             Some(header.to_string())
@@ -450,8 +456,8 @@ impl<'a> Peerstate<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::*;
     use pretty_assertions::assert_eq;
-
     use tempfile::TempDir;
 
     #[test]
@@ -459,11 +465,7 @@ mod tests {
         let ctx = crate::test_utils::dummy_context();
         let addr = "hello@mail.com";
 
-        let pub_key = crate::key::Key::from_base64(
-            include_str!("../test-data/key/public.asc"),
-            KeyType::Public,
-        )
-        .unwrap();
+        let pub_key = crate::key::Key::from(alice_keypair().public);
 
         let mut peerstate = Peerstate {
             context: &ctx.ctx,
@@ -503,12 +505,7 @@ mod tests {
     fn test_peerstate_double_create() {
         let ctx = crate::test_utils::dummy_context();
         let addr = "hello@mail.com";
-
-        let pub_key = crate::key::Key::from_base64(
-            include_str!("../test-data/key/public.asc"),
-            KeyType::Public,
-        )
-        .unwrap();
+        let pub_key = crate::key::Key::from(alice_keypair().public);
 
         let peerstate = Peerstate {
             context: &ctx.ctx,
@@ -542,11 +539,7 @@ mod tests {
         let ctx = crate::test_utils::dummy_context();
         let addr = "hello@mail.com";
 
-        let pub_key = crate::key::Key::from_base64(
-            include_str!("../test-data/key/public.asc"),
-            KeyType::Public,
-        )
-        .unwrap();
+        let pub_key = crate::key::Key::from(alice_keypair().public);
 
         let mut peerstate = Peerstate {
             context: &ctx.ctx,
