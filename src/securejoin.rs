@@ -623,10 +623,14 @@ pub(crate) fn handle_securejoin_handshake(
             ====             Bob - the joiner's side             ====
             ====   Step 7 in "Setup verified contact" protocol   ====
             =======================================================*/
-
+            let ret = if join_vg {
+                HandshakeMessage::Propagate
+            } else {
+                HandshakeMessage::Done
+            };
             if context.bob.read().unwrap().expects != DC_VC_CONTACT_CONFIRM {
                 info!(context, "Message belongs to a different handshake.",);
-                return Ok(HandshakeMessage::Propagate);
+                return Ok(ret);
             }
             let cond = {
                 let bob = context.bob.read().unwrap();
@@ -638,7 +642,7 @@ pub(crate) fn handle_securejoin_handshake(
                     context,
                     "Message out of sync or belongs to a different handshake.",
                 );
-                return Ok(HandshakeMessage::Propagate);
+                return Ok(ret);
             }
             let scanned_fingerprint_of_alice = get_qr_attr!(context, fingerprint).to_string();
 
@@ -669,7 +673,7 @@ pub(crate) fn handle_securejoin_handshake(
                     "Contact confirm message not encrypted.",
                 );
                 context.bob.write().unwrap().status = 0;
-                return Ok(HandshakeMessage::Propagate);
+                return Ok(ret);
             }
 
             if mark_peer_as_verified(context, &scanned_fingerprint_of_alice).is_err() {
@@ -678,7 +682,7 @@ pub(crate) fn handle_securejoin_handshake(
                     contact_chat_id,
                     "Fingerprint mismatch on joiner-side.",
                 );
-                return Ok(HandshakeMessage::Propagate);
+                return Ok(ret);
             }
             Contact::scaleup_origin_by_id(context, contact_id, Origin::SecurejoinJoined);
             emit_event!(context, Event::ContactsChanged(None));
@@ -692,7 +696,7 @@ pub(crate) fn handle_securejoin_handshake(
                     .map_err(|_| HandshakeError::NoSelfAddr)?
             {
                 info!(context, "Message belongs to a different handshake (scaled up contact anyway to allow creation of group).");
-                return Ok(HandshakeMessage::Propagate);
+                return Ok(ret);
             }
             secure_connection_established(context, contact_chat_id);
             context.bob.write().unwrap().expects = 0;
@@ -709,7 +713,7 @@ pub(crate) fn handle_securejoin_handshake(
             }
             context.bob.write().unwrap().status = 1;
             context.stop_ongoing();
-            Ok(HandshakeMessage::Propagate)
+            Ok(ret)
         }
         "vg-member-added-received" => {
             /*==========================================================
