@@ -69,7 +69,7 @@ pub fn get_provider_info(addr: &str) -> Option<&Provider> {
     .to_lowercase();
 
     for record in &DATABASE {
-        for record_domain in record.domains.split(" ") {
+        for record_domain in record.domains.split(' ') {
             if record_domain == domain {
                 return Some(record);
             }
