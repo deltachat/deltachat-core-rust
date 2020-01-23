@@ -633,7 +633,7 @@ dependencies = [
  "charset 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "debug_stub_derive 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "deltachat_derive 1.0.0-beta.22",
+ "deltachat_derive 2.0.0",
  "email 0.0.21 (git+https://github.com/deltachat/rust-email)",
  "encoded-words 0.1.0 (git+https://github.com/async-email/encoded-words)",
  "escaper 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -689,7 +689,7 @@ dependencies = [
 
 [[package]]
 name = "deltachat_derive"
-version = "1.0.0-beta.22"
+version = "2.0.0"
 dependencies = [
  "quote 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "syn 1.0.13 (registry+https://github.com/rust-lang/crates.io-index)",
