@@ -22,7 +22,7 @@ pub enum ServerSocket {
     SSL = 2,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Server {
     pub stype: u16,
     // more fields are needed, just to keep the example short
@@ -34,18 +34,19 @@ pub struct Provider {
     pub status: Status,
     pub before_login_hint: &'static str,
     pub overview_page: &'static str,
-    pub server: [Server], // this seems to be okay
+    pub server: Vec<Server>, // this seems to be okay
 }
 
-// TODO: the database will be auto-generated from the provider-db
-const DATABASE: [Provider; 1] = [
-    Provider {
-        domains: "nauta.cu",
-        status: Status::OK,
-        before_login_hint: "",
-        overview_page: "",
-        server: [Server; 2] = [Server { stype: 123 }, Server { stype: 456 }],
-    },
+lazy_static::lazy_static! {
+    // TODO: the database will be auto-generated from the provider-db
+    static ref DATABASE: Vec<Provider> = vec![
+        Provider {
+            domains: "nauta.cu",
+            status: Status::OK,
+            before_login_hint: "",
+            overview_page: "",
+            server: vec![Server { stype: 123 }, Server { stype: 456 }],
+        },
     /*
     Provider {
         domains: "outlook.com hotmail.com live.com",
@@ -68,6 +69,7 @@ const DATABASE: [Provider; 1] = [
     },
     */
 ];
+}
 
 pub fn get_provider_info(addr: &str) -> Option<&Provider> {
     let domain = match EmailAddress::new(addr) {
@@ -76,7 +78,7 @@ pub fn get_provider_info(addr: &str) -> Option<&Provider> {
     }
     .to_lowercase();
 
-    for record in &DATABASE {
+    for record in DATABASE.iter() {
         for record_domain in record.domains.split(' ') {
             if record_domain == domain {
                 return Some(record);
