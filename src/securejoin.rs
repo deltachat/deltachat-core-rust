@@ -626,8 +626,9 @@ pub(crate) fn handle_securejoin_handshake(
             let ret = if join_vg {
                 HandshakeMessage::Propagate
             } else {
-                HandshakeMessage::Done
+                HandshakeMessage::Ignore
             };
+
             if context.bob.read().unwrap().expects != DC_VC_CONTACT_CONFIRM {
                 info!(context, "Message belongs to a different handshake.",);
                 return Ok(ret);
@@ -713,7 +714,11 @@ pub(crate) fn handle_securejoin_handshake(
             }
             context.bob.write().unwrap().status = 1;
             context.stop_ongoing();
-            Ok(ret)
+            Ok(if join_vg {
+                HandshakeMessage::Propagate
+            } else {
+                HandshakeMessage::Done
+            })
         }
         "vg-member-added-received" => {
             /*==========================================================
