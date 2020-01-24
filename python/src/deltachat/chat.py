@@ -5,6 +5,7 @@ import calendar
 import json
 from datetime import datetime
 import os
+import time
 from .cutil import as_dc_charpointer, from_dc_charpointer, iter_array
 from .capi import lib, ffi
 from . import const
@@ -58,6 +59,13 @@ class Chat(object):
         """
         return self.id == const.DC_CHAT_ID_DEADDROP
 
+    def is_muted(self):
+        """ return true if this chat is muted.
+
+        :returns: True if chat is muted, False otherwise.
+        """
+        return lib.dc_chat_is_muted(self._dc_chat)
+
     def is_promoted(self):
         """ return True if this chat is promoted, i.e.
         the member contacts are aware of their membership,
@@ -84,11 +92,38 @@ class Chat(object):
     def set_name(self, name):
         """ set name of this chat.
 
-        :param: name as a unicode string.
+        :param name: as a unicode string.
         :returns: None
         """
         name = as_dc_charpointer(name)
         return lib.dc_set_chat_name(self._dc_context, self.id, name)
+    
+    def mute(self, duration=None):
+        """ mutes the chat
+
+        :param duration: Number of seconds to mute the chat for. None to mute until unmuted again.
+        :returns: 
+        """
+        if duration is None:
+            timestamp = -1
+        else:
+            timestamp = int(time.time()) + duration
+        return bool(lib.dc_set_chat_muted(self._dc_context, self.id, timestamp))
+
+    def unmute(self):
+        """ unmutes the chat
+
+        :returns: 
+        """
+        return bool(lib.dc_set_chat_muted(self._dc_context, self.id, 0))
+
+    def get_mute_duration(self):
+        """ mutes the chat
+
+        :param duration: 
+        :returns: Returns the number of seconds the chat is still muted for. (0 for not muted, -1 forever muted)
+        """
+        return bool(lib.dc_chat_get_mute_duration(self.id))
 
     def get_type(self):
         """ return type of this chat.
