@@ -257,11 +257,18 @@ pub fn dc_join_securejoin(context: &Context, qr: &str) -> ChatId {
         );
     }
 
-    while !context.shall_stop_ongoing() {
-        // Don't sleep too long, the user is waiting.
-        std::thread::sleep(std::time::Duration::from_millis(200));
+    if join_vg {
+        // for a group-join, wait until the secure-join is done and the group is created
+        while !context.shall_stop_ongoing() {
+            std::thread::sleep(std::time::Duration::from_millis(200));
+        }
+        cleanup(&context, contact_chat_id, true, join_vg)
+    } else {
+        // for a one-to-one-chat, the chat is already known, return the chat-id,
+        // the verification runs in background
+        context.free_ongoing();
+        contact_chat_id
     }
-    cleanup(&context, contact_chat_id, true, join_vg)
 }
 
 fn send_handshake_msg(
