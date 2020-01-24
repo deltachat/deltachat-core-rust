@@ -635,7 +635,7 @@ pub(crate) fn handle_securejoin_handshake(
             let cond = {
                 let bob = context.bob.read().unwrap();
                 let scan = bob.qr_scan.as_ref();
-                scan.is_none() || join_vg && scan.unwrap().state != LotState::QrAskVerifyGroup
+                scan.is_none() || (join_vg && scan.unwrap().state != LotState::QrAskVerifyGroup)
             };
             if cond {
                 warn!(
