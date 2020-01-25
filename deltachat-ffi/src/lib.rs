@@ -1146,7 +1146,7 @@ pub unsafe extern "C" fn dc_archive_chat(
     ffi_context
         .with_inner(|ctx| {
             ChatId::new(chat_id)
-                .archive(ctx, archive)
+                .set_archived(ctx, archive)
                 .log_err(ctx, "Failed archive chat")
                 .unwrap_or(())
         })

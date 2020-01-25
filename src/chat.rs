@@ -133,14 +133,14 @@ impl ChatId {
     }
 
     /// Archives or unarchives a chat.
-    pub fn archive(self, context: &Context, archive: bool) -> Result<(), Error> {
+    pub fn set_archived(self, context: &Context, new_archived: bool) -> Result<(), Error> {
         ensure!(
             !self.is_special(),
             "bad chat_id, can not be special chat: {}",
             self
         );
 
-        if archive {
+        if new_archived {
             sql::execute(
                 context,
                 &context.sql,
@@ -153,7 +153,7 @@ impl ChatId {
             context,
             &context.sql,
             "UPDATE chats SET archived=? WHERE id=?;",
-            params![archive, self],
+            params![new_archived, self],
         )?;
 
         context.call_cb(Event::MsgsChanged {
@@ -2703,7 +2703,7 @@ mod tests {
         assert_eq!(DC_GCL_NO_SPECIALS, 0x02);
 
         // archive first chat
-        assert!(chat_id1.archive(&t.ctx, true).is_ok());
+        assert!(chat_id1.set_archived(&t.ctx, true).is_ok());
         assert!(Chat::load_from_db(&t.ctx, chat_id1).unwrap().is_archived());
         assert!(!Chat::load_from_db(&t.ctx, chat_id2).unwrap().is_archived());
         assert_eq!(get_chat_cnt(&t.ctx), 2);
@@ -2712,7 +2712,7 @@ mod tests {
         assert_eq!(chatlist_len(&t.ctx, DC_GCL_ARCHIVED_ONLY), 1);
 
         // archive second chat
-        assert!(chat_id2.archive(&t.ctx, true).is_ok());
+        assert!(chat_id2.set_archived(&t.ctx, true).is_ok());
         assert!(Chat::load_from_db(&t.ctx, chat_id1).unwrap().is_archived());
         assert!(Chat::load_from_db(&t.ctx, chat_id2).unwrap().is_archived());
         assert_eq!(get_chat_cnt(&t.ctx), 2);
@@ -2721,9 +2721,9 @@ mod tests {
         assert_eq!(chatlist_len(&t.ctx, DC_GCL_ARCHIVED_ONLY), 2);
 
         // archive already archived first chat, unarchive second chat two times
-        assert!(chat_id1.archive(&t.ctx, true).is_ok());
-        assert!(chat_id2.archive(&t.ctx, false).is_ok());
-        assert!(chat_id2.archive(&t.ctx, false).is_ok());
+        assert!(chat_id1.set_archived(&t.ctx, true).is_ok());
+        assert!(chat_id2.set_archived(&t.ctx, false).is_ok());
+        assert!(chat_id2.set_archived(&t.ctx, false).is_ok());
         assert!(Chat::load_from_db(&t.ctx, chat_id1).unwrap().is_archived());
         assert!(!Chat::load_from_db(&t.ctx, chat_id2).unwrap().is_archived());
         assert_eq!(get_chat_cnt(&t.ctx), 2);
