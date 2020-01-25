@@ -847,7 +847,7 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
         "archive" | "unarchive" => {
             ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
             let chat_id = ChatId::new(arg1.parse()?);
-            chat_id.archive(context, arg0 == "archive")?;
+            chat_id.set_archived(context, arg0 == "archive")?;
         }
         "delchat" => {
             ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
