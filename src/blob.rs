@@ -631,4 +631,11 @@ mod tests {
         assert!(!BlobObject::is_acceptible_blob_name("foo\\bar"));
         assert!(!BlobObject::is_acceptible_blob_name("foo\x00bar"));
     }
+
+    #[test]
+    fn test_sanitise_name() {
+        let (_, ext) =
+            BlobObject::sanitise_name("Я ЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯ.txt");
+        assert_eq!(ext, ".txt");
+    }
 }
