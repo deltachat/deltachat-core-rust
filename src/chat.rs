@@ -164,8 +164,8 @@ impl ChatId {
         Ok(())
     }
 
-    // note that unarchive() is not the same as archive(false) -
-    // eg. unarchive() does not send events as done for archive(false).
+    // note that unarchive() is not the same as set_archived(false) -
+    // eg. unarchive() does not send events as done for set_archived(false).
     pub fn unarchive(self, context: &Context) -> Result<(), Error> {
         sql::execute(
             context,
