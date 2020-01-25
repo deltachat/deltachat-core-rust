@@ -547,8 +547,8 @@ mod tests {
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
         assert_eq!(chats.len(), 2);
 
-        chat::delete(&t.ctx, chats.get_chat_id(0)).ok();
-        chat::delete(&t.ctx, chats.get_chat_id(1)).ok();
+        chats.get_chat_id(0).delete(&t.ctx).ok();
+        chats.get_chat_id(1).delete(&t.ctx).ok();
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
         assert_eq!(chats.len(), 0);
 

@@ -849,7 +849,7 @@ pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<()> {
     }
 
     if attach_selfavatar {
-        if let Err(err) = chat::set_selfavatar_timestamp(context, msg.chat_id, time()) {
+        if let Err(err) = msg.chat_id.set_selfavatar_timestamp(context, time()) {
             error!(context, "Failed to set selfavatar timestamp: {:?}", err);
         }
     }

@@ -402,7 +402,7 @@ pub(crate) fn handle_securejoin_handshake(
         match chat::create_or_lookup_by_contact_id(context, contact_id, Blocked::Not) {
             Ok((chat_id, blocked)) => {
                 if blocked != Blocked::Not {
-                    chat::unblock(context, chat_id);
+                    chat_id.unblock(context);
                 }
                 chat_id
             }

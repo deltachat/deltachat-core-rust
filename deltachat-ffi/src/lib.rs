@@ -836,7 +836,7 @@ pub unsafe extern "C" fn dc_set_draft(
         Some(&mut ffi_msg.message)
     };
     ffi_context
-        .with_inner(|ctx| chat::set_draft(ctx, ChatId::new(chat_id), msg))
+        .with_inner(|ctx| ChatId::new(chat_id).set_draft(ctx, msg))
         .unwrap_or(())
 }
 
@@ -911,7 +911,7 @@ pub unsafe extern "C" fn dc_get_draft(context: *mut dc_context_t, chat_id: u32) 
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| match chat::get_draft(ctx, ChatId::new(chat_id)) {
+        .with_inner(|ctx| match ChatId::new(chat_id).get_draft(ctx) {
             Ok(Some(draft)) => {
                 let ffi_msg = MessageWrapper {
                     context,
@@ -1145,7 +1145,8 @@ pub unsafe extern "C" fn dc_archive_chat(
     };
     ffi_context
         .with_inner(|ctx| {
-            chat::archive(ctx, ChatId::new(chat_id), archive)
+            ChatId::new(chat_id)
+                .archive(ctx, archive)
                 .log_err(ctx, "Failed archive chat")
                 .unwrap_or(())
         })
@@ -1161,7 +1162,8 @@ pub unsafe extern "C" fn dc_delete_chat(context: *mut dc_context_t, chat_id: u32
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| {
-            chat::delete(ctx, ChatId::new(chat_id))
+            ChatId::new(chat_id)
+                .delete(ctx)
                 .log_err(ctx, "Failed chat delete")
                 .unwrap_or(())
         })
