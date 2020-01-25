@@ -514,7 +514,7 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
                         chat_prefix(&chat),
                         chat.get_id(),
                         chat.get_name(),
-                        chat::get_fresh_msg_cnt(context, chat.get_id()),
+                        chat.get_id().get_fresh_msg_cnt(context),
                     );
                     let lot = chatlist.get_summary(context, i, Some(&chat));
                     let statestr = if chat.is_archived() {
@@ -602,10 +602,7 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
                 log_msg(context, "Draft", &draft);
             }
 
-            println!(
-                "{} messages.",
-                chat::get_msg_cnt(context, sel_chat.get_id())
-            );
+            println!("{} messages.", sel_chat.get_id().get_msg_cnt(context));
             chat::marknoticed_chat(context, sel_chat.get_id())?;
         }
         "createchat" => {

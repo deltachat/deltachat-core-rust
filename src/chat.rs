@@ -327,6 +327,33 @@ impl ChatId {
         Ok(())
     }
 
+    /// Returns number of messages in a chat.
+    pub fn get_msg_cnt(self, context: &Context) -> usize {
+        context
+            .sql
+            .query_get_value::<_, i32>(
+                context,
+                "SELECT COUNT(*) FROM msgs WHERE chat_id=?;",
+                params![self],
+            )
+            .unwrap_or_default() as usize
+    }
+
+    pub fn get_fresh_msg_cnt(self, context: &Context) -> usize {
+        context
+            .sql
+            .query_get_value::<_, i32>(
+                context,
+                "SELECT COUNT(*)
+               FROM msgs
+              WHERE state=10
+                AND hidden=0
+                AND chat_id=?;",
+                params![self],
+            )
+            .unwrap_or_default() as usize
+    }
+
     /// Bad evil escape hatch.
     ///
     /// Avoid using this, eventually types should be cleaned up enough
@@ -1453,33 +1480,6 @@ pub fn get_chat_msgs(
     }
 }
 
-/// Returns number of messages in a chat.
-pub fn get_msg_cnt(context: &Context, chat_id: ChatId) -> usize {
-    context
-        .sql
-        .query_get_value::<_, i32>(
-            context,
-            "SELECT COUNT(*) FROM msgs WHERE chat_id=?;",
-            params![chat_id],
-        )
-        .unwrap_or_default() as usize
-}
-
-pub fn get_fresh_msg_cnt(context: &Context, chat_id: ChatId) -> usize {
-    context
-        .sql
-        .query_get_value::<_, i32>(
-            context,
-            "SELECT COUNT(*)
-               FROM msgs
-              WHERE state=10
-                AND hidden=0
-                AND chat_id=?;",
-            params![chat_id],
-        )
-        .unwrap_or_default() as usize
-}
-
 pub fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<(), Error> {
     if !context.sql.exists(
         "SELECT id FROM msgs  WHERE chat_id=? AND state=?;",
@@ -2535,7 +2535,7 @@ mod tests {
         assert_eq!(msg2.text.as_ref().unwrap(), "second message");
 
         // check device chat
-        assert_eq!(get_msg_cnt(&t.ctx, msg2.chat_id), 2);
+        assert_eq!(msg2.chat_id.get_msg_cnt(&t.ctx), 2);
     }
 
     #[test]
@@ -2568,7 +2568,7 @@ mod tests {
 
         // check device chat
         let chat_id = msg1.chat_id;
-        assert_eq!(get_msg_cnt(&t.ctx, chat_id), 1);
+        assert_eq!(chat_id.get_msg_cnt(&t.ctx), 1);
         assert!(!chat_id.is_special());
         let chat = Chat::load_from_db(&t.ctx, chat_id);
         assert!(chat.is_ok());
