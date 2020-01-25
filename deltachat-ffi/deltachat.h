@@ -1756,7 +1756,7 @@ uint32_t        dc_create_contact            (dc_context_t* context, const char*
  * Trying to add email-addresses that are already in the contact list,
  * results in updating the name unless the name was changed manually by the user.
  * If any email-address or any name is really updated,
- * the event DC_EVENT_CONTACTS_CHANGED is sent.
+ * the event #DC_EVENT_CONTACTS_CHANGED is sent.
  *
  * To add a single contact entered by the user, you should prefer dc_create_contact(),
  * however, for adding a bunch of addresses, this function is _much_ faster.
@@ -2107,20 +2107,22 @@ dc_lot_t*       dc_check_qr                  (dc_context_t* context, const char*
 
 
 /**
- * Get QR code text that will offer an secure-join verification.
+ * Get QR code text that will offer an Setup-Contact or Verified-Group invitation.
  * The QR code is compatible to the OPENPGP4FPR format
  * so that a basic fingerprint comparison also works eg. with OpenKeychain.
  *
  * The scanning device will pass the scanned content to dc_check_qr() then;
- * if this function returns DC_QR_ASK_VERIFYCONTACT or DC_QR_ASK_VERIFYGROUP
+ * if dc_check_qr() returns DC_QR_ASK_VERIFYCONTACT or DC_QR_ASK_VERIFYGROUP
  * an out-of-band-verification can be joined using dc_join_securejoin()
  *
  * @memberof dc_context_t
  * @param context The context object.
  * @param chat_id If set to a group-chat-id,
- *     the group-join-protocol is offered in the QR code;
+ *     the Verified-Group-Invite protocol is offered in the QR code;
  *     works for verified groups as well as for normal groups.
- *     If set to 0, the setup-Verified-contact-protocol is offered in the QR code.
+ *     If set to 0, the Setup-Contact protocol is offered in the QR code.
+ *     See https://countermitm.readthedocs.io/en/latest/new.html
+ *     for details about both protocols.
  * @return Text that should go to the QR code,
  *     On errors, an empty QR code is returned, NULL is never returned.
  *     The returned string must be released using dc_str_unref() after usage.
@@ -2129,13 +2131,29 @@ char*           dc_get_securejoin_qr         (dc_context_t* context, uint32_t ch
 
 
 /**
- * Join an out-of-band-verification initiated on another device with dc_get_securejoin_qr().
+ * Continue a Setup-Contact or Verified-Group-Invite protocol
+ * started on another device with dc_get_securejoin_qr().
  * This function is typically called when dc_check_qr() returns
  * lot.state=DC_QR_ASK_VERIFYCONTACT or lot.state=DC_QR_ASK_VERIFYGROUP.
  *
- * This function takes some time and sends and receives several messages.
- * You should call it in a separate thread; if you want to abort it, you should
- * call dc_stop_ongoing_process().
+ * Depending on the given QR code,
+ * this function may takes some time and sends and receives several messages.
+ * Therefore, you should call it always in a separate thread;
+ * if you want to abort it, you should call dc_stop_ongoing_process().
+ *
+ * - If the given QR code starts the Setup-Contact protocol,
+ *   the function typically returns immediately
+ *   and the handshake runs in background.
+ *   Subsequent calls of dc_join_securejoin() will abort unfinished tasks.
+ *   The returned chat is the one-to-one opportunistic chat.
+ *   When the protocol has finished, an info-message is added to that chat.
+ * - If the given QR code starts the Verified-Group-Invite protocol,
+ *   the function waits until the protocol has finished.
+ *   This is because the verified group is not opportunistic
+ *   and can be created only when the contacts have verified each other.
+ *
+ * See https://countermitm.readthedocs.io/en/latest/new.html
+ * for details about both protocols.
  *
  * @memberof dc_context_t
  * @param context The context object
@@ -2143,6 +2161,9 @@ char*           dc_get_securejoin_qr         (dc_context_t* context, uint32_t ch
  *     to dc_check_qr().
  * @return Chat-id of the joined chat, the UI may redirect to the this chat.
  *     If the out-of-band verification failed or was aborted, 0 is returned.
+ *     A returned chat-id does not guarantee that the chat or the belonging contact is verified.
+ *     If needed, this be checked with dc_chat_is_verified() and dc_contact_is_verified(),
+ *     however, in practise, the UI will just listen to #DC_EVENT_CONTACTS_CHANGED unconditionally.
  */
 uint32_t        dc_join_securejoin           (dc_context_t* context, const char* qr);
 
@@ -4347,7 +4368,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
 
 
 /**
- * Contact(s) created, renamed, blocked or deleted.
+ * Contact(s) created, renamed, verified, blocked or deleted.
  *
  * @param data1 (int) If not 0, this is the contact_id of an added contact that should be selected.
  * @param data2 0
