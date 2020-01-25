@@ -595,6 +595,27 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         Some(part)
     }
 
+    fn get_location_kml_part(&mut self) -> Result<PartBuilder, Error> {
+        let (kml_content, last_added_location_id) =
+            location::get_kml(self.context, self.msg.chat_id)?;
+        let part = PartBuilder::new()
+            .content_type(
+                &"application/vnd.google-earth.kml+xml"
+                    .parse::<mime::Mime>()
+                    .unwrap(),
+            )
+            .header((
+                "Content-Disposition",
+                "attachment; filename=\"location.kml\"",
+            ))
+            .body(kml_content);
+        if !self.msg.param.exists(Param::SetLatitude) {
+            // otherwise, the independent location is already filed
+            self.last_added_location_id = last_added_location_id;
+        }
+        Ok(part)
+    }
+
     #[allow(clippy::cognitive_complexity)]
     fn render_message(
         &mut self,
@@ -842,28 +863,10 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         }
 
         if location::is_sending_locations_to_chat(context, self.msg.chat_id) {
-            match location::get_kml(context, self.msg.chat_id) {
-                Ok((kml_content, last_added_location_id)) => {
-                    parts.push(
-                        PartBuilder::new()
-                            .content_type(
-                                &"application/vnd.google-earth.kml+xml"
-                                    .parse::<mime::Mime>()
-                                    .unwrap(),
-                            )
-                            .header((
-                                "Content-Disposition",
-                                "attachment; filename=\"location.kml\"",
-                            ))
-                            .body(kml_content),
-                    );
-                    if !self.msg.param.exists(Param::SetLatitude) {
-                        // otherwise, the independent location is already filed
-                        self.last_added_location_id = last_added_location_id;
-                    }
-                }
+            match self.get_location_kml_part() {
+                Ok(part) => parts.push(part),
                 Err(err) => {
-                    warn!(context, "mimefactory: could not get location: {}", err);
+                    warn!(context, "mimefactory: could not send location: {}", err);
                 }
             }
         }
