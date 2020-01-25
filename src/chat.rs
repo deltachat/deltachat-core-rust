@@ -114,7 +114,7 @@ impl ChatId {
         Ok(())
     }
 
-    pub fn set_blocking(self, context: &Context, new_blocking: Blocked) -> bool {
+    pub fn set_blocked(self, context: &Context, new_blocked: Blocked) -> bool {
         if self.is_special() {
             warn!(context, "ignoring setting of Block-status for {}", self);
             return false;
@@ -123,13 +123,13 @@ impl ChatId {
             context,
             &context.sql,
             "UPDATE chats SET blocked=? WHERE id=?;",
-            params![new_blocking, self],
+            params![new_blocked, self],
         )
         .is_ok()
     }
 
     pub fn unblock(self, context: &Context) {
-        self.set_blocking(context, Blocked::Not);
+        self.set_blocked(context, Blocked::Not);
     }
 
     /// Archives or unarchives a chat.
