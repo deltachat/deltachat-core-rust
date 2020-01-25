@@ -966,7 +966,7 @@ pub unsafe extern "C" fn dc_get_msg_cnt(context: *mut dc_context_t, chat_id: u32
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| chat::get_msg_cnt(ctx, ChatId::new(chat_id)) as libc::c_int)
+        .with_inner(|ctx| ChatId::new(chat_id).get_msg_cnt(ctx) as libc::c_int)
         .unwrap_or(0)
 }
 
@@ -981,7 +981,7 @@ pub unsafe extern "C" fn dc_get_fresh_msg_cnt(
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| chat::get_fresh_msg_cnt(ctx, ChatId::new(chat_id)) as libc::c_int)
+        .with_inner(|ctx| ChatId::new(chat_id).get_fresh_msg_cnt(ctx) as libc::c_int)
         .unwrap_or(0)
 }
 
