@@ -390,7 +390,7 @@ fn add_parts(
                 && chat_id_blocked != Blocked::Not
                 && create_blocked == Blocked::Not
             {
-                chat::unblock(context, new_chat_id);
+                new_chat_id.unblock(context);
                 chat_id_blocked = Blocked::Not;
             }
         }
@@ -423,7 +423,7 @@ fn add_parts(
             }
             if !chat_id.is_unset() && Blocked::Not != chat_id_blocked {
                 if Blocked::Not == create_blocked {
-                    chat::unblock(context, *chat_id);
+                    chat_id.unblock(context);
                     chat_id_blocked = Blocked::Not;
                 } else if is_reply_to_known_message(context, mime_parser) {
                     // we do not want any chat to be created implicitly.  Because of the origin-scale-up,
@@ -476,7 +476,7 @@ fn add_parts(
                 chat_id_blocked = new_chat_id_blocked;
                 // automatically unblock chat when the user sends a message
                 if !chat_id.is_unset() && chat_id_blocked != Blocked::Not {
-                    chat::unblock(context, new_chat_id);
+                    new_chat_id.unblock(context);
                     chat_id_blocked = Blocked::Not;
                 }
             }
@@ -497,7 +497,7 @@ fn add_parts(
                     && Blocked::Not != chat_id_blocked
                     && Blocked::Not == create_blocked
                 {
-                    chat::unblock(context, *chat_id);
+                    chat_id.unblock(context);
                     chat_id_blocked = Blocked::Not;
                 }
             }
@@ -516,7 +516,7 @@ fn add_parts(
             chat_id_blocked = bl;
 
             if !chat_id.is_unset() && Blocked::Not != chat_id_blocked {
-                chat::unblock(context, *chat_id);
+                chat_id.unblock(context);
                 chat_id_blocked = Blocked::Not;
             }
         }
@@ -538,7 +538,7 @@ fn add_parts(
     );
 
     // unarchive chat
-    chat::unarchive(context, *chat_id)?;
+    chat_id.unarchive(context)?;
 
     // if the mime-headers should be saved, find out its size
     // (the mime-header ends with an empty line)

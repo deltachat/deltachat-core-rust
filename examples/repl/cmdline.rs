@@ -598,7 +598,7 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
                 },
             );
             log_msglist(context, &msglist)?;
-            if let Some(draft) = chat::get_draft(context, sel_chat.get_id())? {
+            if let Some(draft) = sel_chat.get_id().get_draft(context)? {
                 log_msg(context, "Draft", &draft);
             }
 
@@ -801,14 +801,14 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
             if !arg1.is_empty() {
                 let mut draft = Message::new(Viewtype::Text);
                 draft.set_text(Some(arg1.to_string()));
-                chat::set_draft(
-                    context,
-                    sel_chat.as_ref().unwrap().get_id(),
-                    Some(&mut draft),
-                );
+                sel_chat
+                    .as_ref()
+                    .unwrap()
+                    .get_id()
+                    .set_draft(context, Some(&mut draft));
                 println!("Draft saved.");
             } else {
-                chat::set_draft(context, sel_chat.as_ref().unwrap().get_id(), None);
+                sel_chat.as_ref().unwrap().get_id().set_draft(context, None);
                 println!("Draft deleted.");
             }
         }
@@ -847,12 +847,12 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
         "archive" | "unarchive" => {
             ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
             let chat_id = ChatId::new(arg1.parse()?);
-            chat::archive(context, chat_id, arg0 == "archive")?;
+            chat_id.archive(context, arg0 == "archive")?;
         }
         "delchat" => {
             ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
             let chat_id = ChatId::new(arg1.parse()?);
-            chat::delete(context, chat_id)?;
+            chat_id.delete(context)?;
         }
         "msginfo" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");

@@ -104,6 +104,229 @@ impl ChatId {
         self.0 == DC_CHAT_ID_ALLDONE_HINT
     }
 
+    pub fn set_selfavatar_timestamp(self, context: &Context, timestamp: i64) -> Result<(), Error> {
+        context.sql.execute(
+            "UPDATE contacts
+                SET selfavatar_sent=?
+              WHERE id IN(SELECT contact_id FROM chats_contacts WHERE chat_id=?);",
+            params![timestamp, self],
+        )?;
+        Ok(())
+    }
+
+    pub fn set_blocking(self, context: &Context, new_blocking: Blocked) -> bool {
+        if self.is_special() {
+            warn!(context, "ignoring setting of Block-status for {}", self);
+            return false;
+        }
+        sql::execute(
+            context,
+            &context.sql,
+            "UPDATE chats SET blocked=? WHERE id=?;",
+            params![new_blocking, self],
+        )
+        .is_ok()
+    }
+
+    pub fn unblock(self, context: &Context) {
+        self.set_blocking(context, Blocked::Not);
+    }
+
+    /// Archives or unarchives a chat.
+    pub fn archive(self, context: &Context, archive: bool) -> Result<(), Error> {
+        ensure!(
+            !self.is_special(),
+            "bad chat_id, can not be special chat: {}",
+            self
+        );
+
+        if archive {
+            sql::execute(
+                context,
+                &context.sql,
+                "UPDATE msgs SET state=? WHERE chat_id=? AND state=?;",
+                params![MessageState::InNoticed, self, MessageState::InFresh],
+            )?;
+        }
+
+        sql::execute(
+            context,
+            &context.sql,
+            "UPDATE chats SET archived=? WHERE id=?;",
+            params![archive, self],
+        )?;
+
+        context.call_cb(Event::MsgsChanged {
+            msg_id: MsgId::new(0),
+            chat_id: ChatId::new(0),
+        });
+
+        Ok(())
+    }
+
+    // note that unarchive() is not the same as archive(false) -
+    // eg. unarchive() does not send events as done for archive(false).
+    pub fn unarchive(self, context: &Context) -> Result<(), Error> {
+        sql::execute(
+            context,
+            &context.sql,
+            "UPDATE chats SET archived=0 WHERE id=?",
+            params![self],
+        )?;
+        Ok(())
+    }
+
+    /// Deletes a chat.
+    pub fn delete(self, context: &Context) -> Result<(), Error> {
+        ensure!(
+            !self.is_special(),
+            "bad chat_id, can not be a special chat: {}",
+            self
+        );
+        /* Up to 2017-11-02 deleting a group also implied leaving it, see above why we have changed this. */
+
+        let _chat = Chat::load_from_db(context, self)?;
+        sql::execute(
+            context,
+            &context.sql,
+            "DELETE FROM msgs_mdns WHERE msg_id IN (SELECT id FROM msgs WHERE chat_id=?);",
+            params![self],
+        )?;
+
+        sql::execute(
+            context,
+            &context.sql,
+            "DELETE FROM msgs WHERE chat_id=?;",
+            params![self],
+        )?;
+
+        sql::execute(
+            context,
+            &context.sql,
+            "DELETE FROM chats_contacts WHERE chat_id=?;",
+            params![self],
+        )?;
+
+        sql::execute(
+            context,
+            &context.sql,
+            "DELETE FROM chats WHERE id=?;",
+            params![self],
+        )?;
+
+        context.call_cb(Event::MsgsChanged {
+            msg_id: MsgId::new(0),
+            chat_id: ChatId::new(0),
+        });
+
+        job_kill_action(context, Action::Housekeeping);
+        job_add(context, Action::Housekeeping, 0, Params::new(), 10);
+
+        Ok(())
+    }
+
+    /// Sets draft message.
+    ///
+    /// Passing `None` as message just deletes the draft
+    pub fn set_draft(self, context: &Context, msg: Option<&mut Message>) {
+        if self.is_special() {
+            return;
+        }
+
+        let changed = match msg {
+            None => self.maybe_delete_draft(context),
+            Some(msg) => self.set_draft_raw(context, msg),
+        };
+
+        if changed {
+            context.call_cb(Event::MsgsChanged {
+                chat_id: self,
+                msg_id: MsgId::new(0),
+            });
+        }
+    }
+
+    // similar to as dc_set_draft() but does not emit an event
+    fn set_draft_raw(self, context: &Context, msg: &mut Message) -> bool {
+        let deleted = self.maybe_delete_draft(context);
+        let set = self.do_set_draft(context, msg).is_ok();
+
+        // Can't inline. Both functions above must be called, no shortcut!
+        deleted || set
+    }
+
+    fn get_draft_msg_id(self, context: &Context) -> Option<MsgId> {
+        context.sql.query_get_value::<_, MsgId>(
+            context,
+            "SELECT id FROM msgs WHERE chat_id=? AND state=?;",
+            params![self, MessageState::OutDraft],
+        )
+    }
+
+    pub fn get_draft(self, context: &Context) -> Result<Option<Message>, Error> {
+        if self.is_special() {
+            return Ok(None);
+        }
+        match self.get_draft_msg_id(context) {
+            Some(draft_msg_id) => Ok(Some(Message::load_from_db(context, draft_msg_id)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// Delete draft message in specified chat, if there is one.
+    ///
+    /// Returns `true`, if message was deleted, `false` otherwise.
+    fn maybe_delete_draft(self, context: &Context) -> bool {
+        match self.get_draft_msg_id(context) {
+            Some(msg_id) => {
+                Message::delete_from_db(context, msg_id);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Set provided message as draft message for specified chat.
+    ///
+    /// Return true on success, false on database error.
+    fn do_set_draft(self, context: &Context, msg: &mut Message) -> Result<(), Error> {
+        match msg.viewtype {
+            Viewtype::Unknown => bail!("Can not set draft of unknown type."),
+            Viewtype::Text => match msg.text.as_ref() {
+                Some(text) => {
+                    if text.is_empty() {
+                        bail!("No text in draft");
+                    }
+                }
+                None => bail!("No text in draft"),
+            },
+            _ => {
+                let blob = msg
+                    .param
+                    .get_blob(Param::File, context, !msg.is_increation())?
+                    .ok_or_else(|| format_err!("No file stored in params"))?;
+                msg.param.set(Param::File, blob.as_name());
+            }
+        }
+        sql::execute(
+            context,
+            &context.sql,
+            "INSERT INTO msgs (chat_id, from_id, timestamp, type, state, txt, param, hidden)
+         VALUES (?,?,?, ?,?,?,?,?);",
+            params![
+                self,
+                DC_CONTACT_ID_SELF,
+                time(),
+                msg.viewtype,
+                MessageState::OutDraft,
+                msg.text.as_ref().map(String::as_str).unwrap_or(""),
+                msg.param.to_string(),
+                1,
+            ],
+        )?;
+        Ok(())
+    }
+
     /// Bad evil escape hatch.
     ///
     /// Avoid using this, eventually types should be cleaned up enough
@@ -396,7 +619,7 @@ impl Chat {
     /// This is somewhat experimental, even more so than the rest of
     /// deltachat, and the data returned is still subject to change.
     pub fn get_info(&self, context: &Context) -> Result<ChatInfo, Error> {
-        let draft = match get_draft(context, self.id)? {
+        let draft = match self.id.get_draft(context)? {
             Some(message) => message.text.unwrap_or_else(String::new),
             _ => String::new(),
         };
@@ -759,7 +982,7 @@ pub fn create_by_msg_id(context: &Context, msg_id: MsgId) -> Result<ChatId, Erro
         "Message can not belong to a special chat"
     );
     if chat.blocked != Blocked::Not {
-        unblock(context, chat.id);
+        chat.id.unblock(context);
 
         // Sending with 0s as data since multiple messages may have changed.
         context.call_cb(Event::MsgsChanged {
@@ -782,7 +1005,7 @@ pub fn create_by_contact_id(context: &Context, contact_id: u32) -> Result<ChatId
         Ok((chat_id, chat_blocked)) => {
             if chat_blocked != Blocked::Not {
                 // unblock chat (typically move it from the deaddrop to view
-                unblock(context, chat_id);
+                chat_id.unblock(context);
             }
             chat_id
         }
@@ -809,24 +1032,6 @@ pub fn create_by_contact_id(context: &Context, contact_id: u32) -> Result<ChatId
     });
 
     Ok(chat_id)
-}
-
-pub fn unblock(context: &Context, chat_id: ChatId) {
-    set_blocking(context, chat_id, Blocked::Not);
-}
-
-pub fn set_blocking(context: &Context, chat_id: ChatId, new_blocking: Blocked) -> bool {
-    if chat_id.is_special() {
-        warn!(context, "ignoring setting of Block-status for {}", chat_id);
-        return false;
-    }
-    sql::execute(
-        context,
-        &context.sql,
-        "UPDATE chats SET blocked=? WHERE id=?;",
-        params![new_blocking, chat_id],
-    )
-    .is_ok()
 }
 
 pub fn update_saved_messages_icon(context: &Context) -> Result<(), Error> {
@@ -1053,7 +1258,7 @@ fn prepare_msg_common(
 ) -> Result<MsgId, Error> {
     msg.id = MsgId::new_unset();
     prepare_msg_blob(context, msg)?;
-    unarchive(context, chat_id)?;
+    chat_id.unarchive(context)?;
 
     let mut chat = Chat::load_from_db(context, chat_id)?;
     ensure!(chat.can_send(), "cannot send to {}", chat_id);
@@ -1084,18 +1289,6 @@ pub fn is_contact_in_chat(context: &Context, chat_id: ChatId, contact_id: u32) -
             params![chat_id, contact_id as i32],
         )
         .unwrap_or_default()
-}
-
-// note that unarchive() is not the same as archive(false) -
-// eg. unarchive() does not send events as done for archive(false).
-pub fn unarchive(context: &Context, chat_id: ChatId) -> Result<(), Error> {
-    sql::execute(
-        context,
-        &context.sql,
-        "UPDATE chats SET archived=0 WHERE id=?",
-        params![chat_id],
-    )?;
-    Ok(())
 }
 
 /// Send a message defined by a dc_msg_t object to a chat.
@@ -1171,106 +1364,6 @@ pub fn send_text_msg(
     let mut msg = Message::new(Viewtype::Text);
     msg.text = Some(text_to_send);
     send_msg(context, chat_id, &mut msg)
-}
-
-// passing `None` as message jsut deletes the draft
-pub fn set_draft(context: &Context, chat_id: ChatId, msg: Option<&mut Message>) {
-    if chat_id.is_special() {
-        return;
-    }
-
-    let changed = match msg {
-        None => maybe_delete_draft(context, chat_id),
-        Some(msg) => set_draft_raw(context, chat_id, msg),
-    };
-
-    if changed {
-        context.call_cb(Event::MsgsChanged {
-            chat_id,
-            msg_id: MsgId::new(0),
-        });
-    }
-}
-
-/// Delete draft message in specified chat, if there is one.
-///
-/// Return {true}, if message was deleted, {false} otherwise.
-fn maybe_delete_draft(context: &Context, chat_id: ChatId) -> bool {
-    match get_draft_msg_id(context, chat_id) {
-        Some(msg_id) => {
-            Message::delete_from_db(context, msg_id);
-            true
-        }
-        None => false,
-    }
-}
-
-/// Set provided message as draft message for specified chat.
-///
-/// Return true on success, false on database error.
-fn do_set_draft(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result<(), Error> {
-    match msg.viewtype {
-        Viewtype::Unknown => bail!("Can not set draft of unknown type."),
-        Viewtype::Text => match msg.text.as_ref() {
-            Some(text) => {
-                if text.is_empty() {
-                    bail!("No text in draft");
-                }
-            }
-            None => bail!("No text in draft"),
-        },
-        _ => {
-            let blob = msg
-                .param
-                .get_blob(Param::File, context, !msg.is_increation())?
-                .ok_or_else(|| format_err!("No file stored in params"))?;
-            msg.param.set(Param::File, blob.as_name());
-        }
-    }
-    sql::execute(
-        context,
-        &context.sql,
-        "INSERT INTO msgs (chat_id, from_id, timestamp, type, state, txt, param, hidden)
-         VALUES (?,?,?, ?,?,?,?,?);",
-        params![
-            chat_id,
-            DC_CONTACT_ID_SELF,
-            time(),
-            msg.viewtype,
-            MessageState::OutDraft,
-            msg.text.as_ref().map(String::as_str).unwrap_or(""),
-            msg.param.to_string(),
-            1,
-        ],
-    )?;
-    Ok(())
-}
-
-// similar to as dc_set_draft() but does not emit an event
-fn set_draft_raw(context: &Context, chat_id: ChatId, msg: &mut Message) -> bool {
-    let deleted = maybe_delete_draft(context, chat_id);
-    let set = do_set_draft(context, chat_id, msg).is_ok();
-
-    // Can't inline. Both functions above must be called, no shortcut!
-    deleted || set
-}
-
-fn get_draft_msg_id(context: &Context, chat_id: ChatId) -> Option<MsgId> {
-    context.sql.query_get_value::<_, MsgId>(
-        context,
-        "SELECT id FROM msgs WHERE chat_id=? AND state=?;",
-        params![chat_id, MessageState::OutDraft],
-    )
-}
-
-pub fn get_draft(context: &Context, chat_id: ChatId) -> Result<Option<Message>, Error> {
-    if chat_id.is_special() {
-        return Ok(None);
-    }
-    match get_draft_msg_id(context, chat_id) {
-        Some(draft_msg_id) => Ok(Some(Message::load_from_db(context, draft_msg_id)?)),
-        None => Ok(None),
-    }
 }
 
 pub fn get_chat_msgs(
@@ -1535,87 +1628,6 @@ pub fn get_next_media(
     ret
 }
 
-/// Archives or unarchives a chat.
-pub fn archive(context: &Context, chat_id: ChatId, archive: bool) -> Result<(), Error> {
-    ensure!(
-        !chat_id.is_special(),
-        "bad chat_id, can not be special chat: {}",
-        chat_id
-    );
-
-    if archive {
-        sql::execute(
-            context,
-            &context.sql,
-            "UPDATE msgs SET state=? WHERE chat_id=? AND state=?;",
-            params![MessageState::InNoticed, chat_id, MessageState::InFresh],
-        )?;
-    }
-
-    sql::execute(
-        context,
-        &context.sql,
-        "UPDATE chats SET archived=? WHERE id=?;",
-        params![archive, chat_id],
-    )?;
-
-    context.call_cb(Event::MsgsChanged {
-        msg_id: MsgId::new(0),
-        chat_id: ChatId::new(0),
-    });
-
-    Ok(())
-}
-
-/// Deletes a chat.
-pub fn delete(context: &Context, chat_id: ChatId) -> Result<(), Error> {
-    ensure!(
-        !chat_id.is_special(),
-        "bad chat_id, can not be a special chat: {}",
-        chat_id
-    );
-    /* Up to 2017-11-02 deleting a group also implied leaving it, see above why we have changed this. */
-
-    let _chat = Chat::load_from_db(context, chat_id)?;
-    sql::execute(
-        context,
-        &context.sql,
-        "DELETE FROM msgs_mdns WHERE msg_id IN (SELECT id FROM msgs WHERE chat_id=?);",
-        params![chat_id],
-    )?;
-
-    sql::execute(
-        context,
-        &context.sql,
-        "DELETE FROM msgs WHERE chat_id=?;",
-        params![chat_id],
-    )?;
-
-    sql::execute(
-        context,
-        &context.sql,
-        "DELETE FROM chats_contacts WHERE chat_id=?;",
-        params![chat_id],
-    )?;
-
-    sql::execute(
-        context,
-        &context.sql,
-        "DELETE FROM chats WHERE id=?;",
-        params![chat_id],
-    )?;
-
-    context.call_cb(Event::MsgsChanged {
-        msg_id: MsgId::new(0),
-        chat_id: ChatId::new(0),
-    });
-
-    job_kill_action(context, Action::Housekeeping);
-    job_add(context, Action::Housekeeping, 0, Params::new(), 10);
-
-    Ok(())
-}
-
 pub fn get_chat_contacts(context: &Context, chat_id: ChatId) -> Vec<u32> {
     /* Normal chats do not include SELF.  Group chats do (as it may happen that one is deleted from a
     groupchat but the chats stays visible, moreover, this makes displaying lists easier) */
@@ -1675,7 +1687,7 @@ pub fn create_group_chat(
         if add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF) {
             let mut draft_msg = Message::new(Viewtype::Text);
             draft_msg.set_text(Some(draft_txt));
-            set_draft_raw(context, chat_id, &mut draft_msg);
+            chat_id.set_draft_raw(context, &mut draft_msg);
         }
 
         context.call_cb(Event::MsgsChanged {
@@ -1891,20 +1903,6 @@ pub fn shall_attach_selfavatar(context: &Context, chat_id: ChatId) -> Result<boo
         },
     )?;
     Ok(needs_attach)
-}
-
-pub fn set_selfavatar_timestamp(
-    context: &Context,
-    chat_id: ChatId,
-    timestamp: i64,
-) -> Result<(), Error> {
-    context.sql.execute(
-        "UPDATE contacts
-            SET selfavatar_sent=?
-          WHERE id IN(SELECT contact_id FROM chats_contacts WHERE chat_id=?);",
-        params![timestamp, chat_id],
-    )?;
-    Ok(())
 }
 
 pub fn remove_contact_from_chat(
@@ -2152,7 +2150,7 @@ pub fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId) -> Re
     let mut created_msgs: Vec<MsgId> = Vec::new();
     let mut curr_timestamp: i64;
 
-    unarchive(context, chat_id)?;
+    chat_id.unarchive(context)?;
     if let Ok(mut chat) = Chat::load_from_db(context, chat_id) {
         ensure!(chat.can_send(), "cannot send to {}", chat_id);
         curr_timestamp = dc_create_smeared_timestamps(context, msg_ids.len());
@@ -2295,7 +2293,7 @@ pub fn add_device_msg(
         let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
         msg.try_calc_and_set_dimensions(context).ok();
         prepare_msg_blob(context, msg)?;
-        unarchive(context, chat_id)?;
+        chat_id.unarchive(context)?;
 
         context.sql.execute(
             "INSERT INTO msgs (chat_id,from_id,to_id, timestamp,type,state, txt,param,rfc724_mid) \
@@ -2432,14 +2430,16 @@ mod tests {
     fn test_get_draft_no_draft() {
         let t = dummy_context();
         let chat_id = create_by_contact_id(&t.ctx, DC_CONTACT_ID_SELF).unwrap();
-        let draft = get_draft(&t.ctx, chat_id).unwrap();
+        let draft = chat_id.get_draft(&t.ctx).unwrap();
         assert!(draft.is_none());
     }
 
     #[test]
     fn test_get_draft_special_chat_id() {
         let t = dummy_context();
-        let draft = get_draft(&t.ctx, ChatId::new(DC_CHAT_ID_LAST_SPECIAL)).unwrap();
+        let draft = ChatId::new(DC_CHAT_ID_LAST_SPECIAL)
+            .get_draft(&t.ctx)
+            .unwrap();
         assert!(draft.is_none());
     }
 
@@ -2448,7 +2448,7 @@ mod tests {
         // This is a weird case, maybe this should be an error but we
         // do not get this info from the database currently.
         let t = dummy_context();
-        let draft = get_draft(&t.ctx, ChatId::new(42)).unwrap();
+        let draft = ChatId::new(42).get_draft(&t.ctx).unwrap();
         assert!(draft.is_none());
     }
 
@@ -2458,8 +2458,8 @@ mod tests {
         let chat_id = create_by_contact_id(&t.ctx, DC_CONTACT_ID_SELF).unwrap();
         let mut msg = Message::new(Viewtype::Text);
         msg.set_text(Some("hello".to_string()));
-        set_draft(&t.ctx, chat_id, Some(&mut msg));
-        let draft = get_draft(&t.ctx, chat_id).unwrap().unwrap();
+        chat_id.set_draft(&t.ctx, Some(&mut msg));
+        let draft = chat_id.get_draft(&t.ctx).unwrap().unwrap();
         let msg_text = msg.get_text();
         let draft_text = draft.get_text();
         assert_eq!(msg_text, draft_text);
@@ -2636,7 +2636,7 @@ mod tests {
         assert_eq!(chats.len(), 1);
 
         // after the device-chat and all messages are deleted, a re-adding should do nothing
-        delete(&t.ctx, chats.get_chat_id(0)).ok();
+        chats.get_chat_id(0).delete(&t.ctx).ok();
         add_device_msg(&t.ctx, Some("some-label"), Some(&mut msg)).ok();
         assert_eq!(chatlist_len(&t.ctx, 0), 0)
     }
@@ -2703,7 +2703,7 @@ mod tests {
         assert_eq!(DC_GCL_NO_SPECIALS, 0x02);
 
         // archive first chat
-        assert!(archive(&t.ctx, chat_id1, true).is_ok());
+        assert!(chat_id1.archive(&t.ctx, true).is_ok());
         assert!(Chat::load_from_db(&t.ctx, chat_id1).unwrap().is_archived());
         assert!(!Chat::load_from_db(&t.ctx, chat_id2).unwrap().is_archived());
         assert_eq!(get_chat_cnt(&t.ctx), 2);
@@ -2712,7 +2712,7 @@ mod tests {
         assert_eq!(chatlist_len(&t.ctx, DC_GCL_ARCHIVED_ONLY), 1);
 
         // archive second chat
-        assert!(archive(&t.ctx, chat_id2, true).is_ok());
+        assert!(chat_id2.archive(&t.ctx, true).is_ok());
         assert!(Chat::load_from_db(&t.ctx, chat_id1).unwrap().is_archived());
         assert!(Chat::load_from_db(&t.ctx, chat_id2).unwrap().is_archived());
         assert_eq!(get_chat_cnt(&t.ctx), 2);
@@ -2721,9 +2721,9 @@ mod tests {
         assert_eq!(chatlist_len(&t.ctx, DC_GCL_ARCHIVED_ONLY), 2);
 
         // archive already archived first chat, unarchive second chat two times
-        assert!(archive(&t.ctx, chat_id1, true).is_ok());
-        assert!(archive(&t.ctx, chat_id2, false).is_ok());
-        assert!(archive(&t.ctx, chat_id2, false).is_ok());
+        assert!(chat_id1.archive(&t.ctx, true).is_ok());
+        assert!(chat_id2.archive(&t.ctx, false).is_ok());
+        assert!(chat_id2.archive(&t.ctx, false).is_ok());
         assert!(Chat::load_from_db(&t.ctx, chat_id1).unwrap().is_archived());
         assert!(!Chat::load_from_db(&t.ctx, chat_id2).unwrap().is_archived());
         assert_eq!(get_chat_cnt(&t.ctx), 2);
@@ -2778,7 +2778,7 @@ mod tests {
         t.ctx.set_config(Config::Selfavatar, None).unwrap(); // setting to None also forces re-sending
         assert!(shall_attach_selfavatar(&t.ctx, chat_id).unwrap());
 
-        assert!(set_selfavatar_timestamp(&t.ctx, chat_id, time()).is_ok());
+        assert!(chat_id.set_selfavatar_timestamp(&t.ctx, time()).is_ok());
         assert!(!shall_attach_selfavatar(&t.ctx, chat_id).unwrap());
     }
 }

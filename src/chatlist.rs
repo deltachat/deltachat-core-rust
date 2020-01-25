@@ -358,7 +358,6 @@ fn get_last_deaddrop_fresh_msg(context: &Context) -> Option<MsgId> {
 mod tests {
     use super::*;
 
-    use crate::chat;
     use crate::test_utils::*;
 
     #[test]
@@ -378,7 +377,7 @@ mod tests {
         // drafts are sorted to the top
         let mut msg = Message::new(Viewtype::Text);
         msg.set_text(Some("hello".to_string()));
-        set_draft(&t.ctx, chat_id2, Some(&mut msg));
+        chat_id2.set_draft(&t.ctx, Some(&mut msg));
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
         assert_eq!(chats.get_chat_id(0), chat_id2);
 
@@ -389,7 +388,7 @@ mod tests {
         let chats = Chatlist::try_load(&t.ctx, DC_GCL_ARCHIVED_ONLY, None, None).unwrap();
         assert_eq!(chats.len(), 0);
 
-        chat::archive(&t.ctx, chat_id1, true).ok();
+        chat_id1.archive(&t.ctx, true).ok();
         let chats = Chatlist::try_load(&t.ctx, DC_GCL_ARCHIVED_ONLY, None, None).unwrap();
         assert_eq!(chats.len(), 1);
     }
