@@ -322,13 +322,12 @@ impl<'a> BlobObject<'a> {
 
         let clean = sanitize_filename::sanitize_with_options(name, opts);
         let mut iter = clean.splitn(2, '.');
-        let mut stem = iter.next().unwrap_or_default().to_string();
-        let mut ext = iter.next().unwrap_or_default().to_string();
-        stem.truncate(64);
-        ext.truncate(32);
-        match ext.len() {
-            0 => (stem, "".to_string()),
-            _ => (stem, format!(".{}", ext).to_lowercase()),
+        let stem: String = iter.next().unwrap_or_default().chars().take(64).collect();
+        let ext: String = iter.next().unwrap_or_default().chars().take(32).collect();
+        if ext.is_empty() {
+            (stem, "".to_string())
+        } else {
+            (stem, format!(".{}", ext).to_lowercase())
         }
     }
 
