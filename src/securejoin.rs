@@ -143,6 +143,8 @@ fn get_self_fingerprint(context: &Context) -> Option<String> {
     None
 }
 
+/// Take a scanned QR-code and do the setup-contact/join-group handshake.
+/// See the ffi-documentation for more details.
 pub fn dc_join_securejoin(context: &Context, qr: &str) -> ChatId {
     let cleanup =
         |context: &Context, contact_chat_id: ChatId, ongoing_allocated: bool, join_vg: bool| {
