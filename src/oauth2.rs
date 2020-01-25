@@ -311,9 +311,10 @@ impl Oauth2 {
             return None;
         }
         if let Ok(response) = parsed {
-            // serde_json::Value.as_str() removes the quotes of json-strings
+            // CAVE: serde_json::Value.as_str() removes the quotes of json-strings
+            // but serde_json::Value.to_string() does not!
             if let Some(addr) = response.get("email") {
-                Some(addr.to_string())
+                addr.as_str().map(|s| s.to_string())
             } else {
                 warn!(context, "E-mail missing in userinfo.");
                 None
