@@ -222,43 +222,6 @@ pub(crate) fn dc_extract_grpid_from_rfc724_mid(mid: &str) -> Option<&str> {
     None
 }
 
-// Function returns a sanitized basename that does not contain
-// win/linux path separators and also not any non-ascii chars
-fn get_safe_basename(filename: &str) -> String {
-    // return the (potentially mangled) basename of the input filename
-    // this might be a path that comes in from another operating system
-    let mut index: usize = 0;
-
-    if let Some(unix_index) = filename.rfind('/') {
-        index = unix_index + 1;
-    }
-    if let Some(win_index) = filename.rfind('\\') {
-        index = max(index, win_index + 1);
-    }
-    if index >= filename.len() {
-        "nobasename".to_string()
-    } else {
-        // we don't allow any non-ascii to be super-safe
-        filename[index..].replace(|c: char| !c.is_ascii() || c == ':', "-")
-    }
-}
-
-pub fn dc_derive_safe_stem_ext(filename: &str) -> (String, String) {
-    let basename = get_safe_basename(&filename);
-    let (mut stem, mut ext) = if let Some(index) = basename.rfind('.') {
-        (
-            basename[0..index].to_string(),
-            basename[index..].to_string(),
-        )
-    } else {
-        (basename, "".to_string())
-    };
-    // limit length of stem and ext
-    stem.truncate(32);
-    ext.truncate(32);
-    (stem, ext)
-}
-
 // the returned suffix is lower-case
 pub fn dc_get_filesuffix_lc(path_filename: impl AsRef<str>) -> Option<String> {
     Path::new(path_filename.as_ref())
@@ -763,19 +726,6 @@ mod tests {
                 }
             }
         }
-    }
-
-    #[test]
-    fn test_file_get_safe_basename() {
-        assert_eq!(get_safe_basename("12312/hello"), "hello");
-        assert_eq!(get_safe_basename("12312\\hello"), "hello");
-        assert_eq!(get_safe_basename("//12312\\hello"), "hello");
-        assert_eq!(get_safe_basename("//123:12\\hello"), "hello");
-        assert_eq!(get_safe_basename("//123:12/\\\\hello"), "hello");
-        assert_eq!(get_safe_basename("//123:12//hello"), "hello");
-        assert_eq!(get_safe_basename("//123:12//"), "nobasename");
-        assert_eq!(get_safe_basename("//123:12/"), "nobasename");
-        assert!(get_safe_basename("123\x012.hello").ends_with(".hello"));
     }
 
     #[test]
