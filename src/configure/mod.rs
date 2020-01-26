@@ -13,10 +13,9 @@ use crate::constants::*;
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::e2ee;
-use crate::job::{self, job_add, job_kill_action};
+use crate::job;
 use crate::login_param::{CertificateChecks, LoginParam};
 use crate::oauth2::*;
-use crate::param::Params;
 
 use auto_mozilla::moz_autoconfigure;
 use auto_outlook::outlk_autodiscover;
@@ -29,21 +28,6 @@ macro_rules! progress {
         );
         $context.call_cb($crate::events::Event::ConfigureProgress($progress));
     };
-}
-
-// connect
-pub fn configure(context: &Context) {
-    if context.has_ongoing() {
-        warn!(context, "There is already another ongoing process running.",);
-        return;
-    }
-    job_kill_action(context, job::Action::ConfigureImap);
-    job_add(context, job::Action::ConfigureImap, 0, Params::new(), 0);
-}
-
-/// Check if the context is already configured.
-pub fn dc_is_configured(context: &Context) -> bool {
-    context.sql.get_raw_config_bool(context, "configured")
 }
 
 /*******************************************************************************

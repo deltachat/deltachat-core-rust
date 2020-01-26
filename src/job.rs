@@ -553,7 +553,7 @@ pub fn job_kill_ids(context: &Context, job_ids: &[u32]) -> sql::Result<()> {
     )
 }
 
-pub fn perform_inbox_fetch(context: &Context) {
+pub(crate) fn perform_inbox_fetch(context: &Context) {
     let use_network = context.get_config_bool(Config::InboxWatch);
 
     task::block_on(
@@ -565,7 +565,7 @@ pub fn perform_inbox_fetch(context: &Context) {
     );
 }
 
-pub fn perform_mvbox_fetch(context: &Context) {
+pub(crate) fn perform_mvbox_fetch(context: &Context) {
     let use_network = context.get_config_bool(Config::MvboxWatch);
 
     task::block_on(
@@ -577,7 +577,7 @@ pub fn perform_mvbox_fetch(context: &Context) {
     );
 }
 
-pub fn perform_sentbox_fetch(context: &Context) {
+pub(crate) fn perform_sentbox_fetch(context: &Context) {
     let use_network = context.get_config_bool(Config::SentboxWatch);
 
     task::block_on(
@@ -589,7 +589,7 @@ pub fn perform_sentbox_fetch(context: &Context) {
     );
 }
 
-pub fn perform_inbox_idle(context: &Context) {
+pub(crate) fn perform_inbox_idle(context: &Context) {
     if *context.perform_inbox_jobs_needed.clone().read().unwrap() {
         info!(
             context,
@@ -606,7 +606,7 @@ pub fn perform_inbox_idle(context: &Context) {
         .idle(context, use_network);
 }
 
-pub fn perform_mvbox_idle(context: &Context) {
+pub(crate) fn perform_mvbox_idle(context: &Context) {
     let use_network = context.get_config_bool(Config::MvboxWatch);
 
     context
@@ -616,7 +616,7 @@ pub fn perform_mvbox_idle(context: &Context) {
         .idle(context, use_network);
 }
 
-pub fn perform_sentbox_idle(context: &Context) {
+pub(crate) fn perform_sentbox_idle(context: &Context) {
     let use_network = context.get_config_bool(Config::SentboxWatch);
 
     context
@@ -626,7 +626,7 @@ pub fn perform_sentbox_idle(context: &Context) {
         .idle(context, use_network);
 }
 
-pub fn interrupt_inbox_idle(context: &Context) {
+pub(crate) fn interrupt_inbox_idle(context: &Context) {
     info!(context, "interrupt_inbox_idle called");
     // we do not block on trying to obtain the thread lock
     // because we don't know in which state the thread is.
@@ -643,11 +643,11 @@ pub fn interrupt_inbox_idle(context: &Context) {
     }
 }
 
-pub fn interrupt_mvbox_idle(context: &Context) {
+pub(crate) fn interrupt_mvbox_idle(context: &Context) {
     context.mvbox_thread.read().unwrap().interrupt_idle(context);
 }
 
-pub fn interrupt_sentbox_idle(context: &Context) {
+pub(crate) fn interrupt_sentbox_idle(context: &Context) {
     context
         .sentbox_thread
         .read()
@@ -655,7 +655,7 @@ pub fn interrupt_sentbox_idle(context: &Context) {
         .interrupt_idle(context);
 }
 
-pub fn perform_smtp_jobs(context: &Context) {
+pub(crate) fn perform_smtp_jobs(context: &Context) {
     let probe_smtp_network = {
         let &(ref lock, _) = &*context.smtp_state.clone();
         let mut state = lock.lock().unwrap();
@@ -684,7 +684,7 @@ pub fn perform_smtp_jobs(context: &Context) {
     }
 }
 
-pub fn perform_smtp_idle(context: &Context) {
+pub(crate) fn perform_smtp_idle(context: &Context) {
     info!(context, "SMTP-idle started...",);
     {
         let &(ref lock, ref cvar) = &*context.smtp_state.clone();
@@ -864,7 +864,7 @@ pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<()> {
     Ok(())
 }
 
-pub fn perform_inbox_jobs(context: &Context) {
+pub(crate) fn perform_inbox_jobs(context: &Context) {
     info!(context, "dc_perform_inbox_jobs starting.",);
 
     let probe_imap_network = *context.probe_imap_network.clone().read().unwrap();
@@ -873,14 +873,6 @@ pub fn perform_inbox_jobs(context: &Context) {
 
     job_perform(context, Thread::Imap, probe_imap_network);
     info!(context, "dc_perform_inbox_jobs ended.",);
-}
-
-pub fn perform_mvbox_jobs(context: &Context) {
-    info!(context, "dc_perform_mbox_jobs EMPTY (for now).",);
-}
-
-pub fn perform_sentbox_jobs(context: &Context) {
-    info!(context, "dc_perform_sentbox_jobs EMPTY (for now).",);
 }
 
 fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
@@ -1137,7 +1129,7 @@ pub fn job_add(
     }
 }
 
-pub fn interrupt_smtp_idle(context: &Context) {
+pub(crate) fn interrupt_smtp_idle(context: &Context) {
     info!(context, "Interrupting SMTP-idle...",);
 
     let &(ref lock, ref cvar) = &*context.smtp_state.clone();

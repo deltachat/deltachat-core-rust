@@ -9,22 +9,17 @@ extern crate deltachat;
 #[macro_use]
 extern crate failure;
 #[macro_use]
-extern crate lazy_static;
-#[macro_use]
 extern crate rusqlite;
 
 use std::borrow::Cow::{self, Borrowed, Owned};
 use std::io::{self, Write};
 use std::path::Path;
 use std::process::Command;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, RwLock};
 
 use deltachat::chat::ChatId;
 use deltachat::config;
-use deltachat::configure::*;
 use deltachat::context::*;
-use deltachat::job::*;
 use deltachat::oauth2::*;
 use deltachat::securejoin::*;
 use deltachat::Event;
@@ -113,107 +108,6 @@ fn receive_event(_context: &Context, event: Event) {
         }
     }
 }
-
-// Threads for waiting for messages and for jobs
-
-lazy_static! {
-    static ref HANDLE: Arc<Mutex<Option<Handle>>> = Arc::new(Mutex::new(None));
-    static ref IS_RUNNING: AtomicBool = AtomicBool::new(true);
-}
-
-struct Handle {
-    handle_imap: Option<std::thread::JoinHandle<()>>,
-    handle_mvbox: Option<std::thread::JoinHandle<()>>,
-    handle_sentbox: Option<std::thread::JoinHandle<()>>,
-    handle_smtp: Option<std::thread::JoinHandle<()>>,
-}
-
-macro_rules! while_running {
-    ($code:block) => {
-        if IS_RUNNING.load(Ordering::Relaxed) {
-            $code
-        } else {
-            break;
-        }
-    };
-}
-
-fn start_threads(c: Arc<RwLock<Context>>) {
-    if HANDLE.clone().lock().unwrap().is_some() {
-        return;
-    }
-
-    println!("Starting threads");
-    IS_RUNNING.store(true, Ordering::Relaxed);
-
-    let ctx = c.clone();
-    let handle_imap = std::thread::spawn(move || loop {
-        while_running!({
-            perform_inbox_jobs(&ctx.read().unwrap());
-            perform_inbox_fetch(&ctx.read().unwrap());
-            while_running!({
-                let context = ctx.read().unwrap();
-                perform_inbox_idle(&context);
-            });
-        });
-    });
-
-    let ctx = c.clone();
-    let handle_mvbox = std::thread::spawn(move || loop {
-        while_running!({
-            perform_mvbox_fetch(&ctx.read().unwrap());
-            while_running!({
-                perform_mvbox_idle(&ctx.read().unwrap());
-            });
-        });
-    });
-
-    let ctx = c.clone();
-    let handle_sentbox = std::thread::spawn(move || loop {
-        while_running!({
-            perform_sentbox_fetch(&ctx.read().unwrap());
-            while_running!({
-                perform_sentbox_idle(&ctx.read().unwrap());
-            });
-        });
-    });
-
-    let ctx = c;
-    let handle_smtp = std::thread::spawn(move || loop {
-        while_running!({
-            perform_smtp_jobs(&ctx.read().unwrap());
-            while_running!({
-                perform_smtp_idle(&ctx.read().unwrap());
-            });
-        });
-    });
-
-    *HANDLE.clone().lock().unwrap() = Some(Handle {
-        handle_imap: Some(handle_imap),
-        handle_mvbox: Some(handle_mvbox),
-        handle_sentbox: Some(handle_sentbox),
-        handle_smtp: Some(handle_smtp),
-    });
-}
-
-fn stop_threads(context: &Context) {
-    if let Some(ref mut handle) = *HANDLE.clone().lock().unwrap() {
-        println!("Stopping threads");
-        IS_RUNNING.store(false, Ordering::Relaxed);
-
-        interrupt_inbox_idle(context);
-        interrupt_mvbox_idle(context);
-        interrupt_sentbox_idle(context);
-        interrupt_smtp_idle(context);
-
-        handle.handle_imap.take().unwrap().join().unwrap();
-        handle.handle_mvbox.take().unwrap().join().unwrap();
-        handle.handle_sentbox.take().unwrap().join().unwrap();
-        handle.handle_smtp.take().unwrap().join().unwrap();
-    }
-}
-
-// === The main loop
 
 struct DcHelper {
     completer: FilenameCompleter,
@@ -420,9 +314,7 @@ fn main_0(args: Vec<String>) -> Result<(), failure::Error> {
     }
     rl.save_history(".dc-history.txt")?;
     println!("history saved");
-    {
-        stop_threads(&ctx.read().unwrap());
-    }
+    ctx.read().unwrap().shutdown();
 
     Ok(())
 }
@@ -440,28 +332,20 @@ fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult, failu
 
     match arg0 {
         "connect" => {
-            start_threads(ctx);
+            crossbeam::scope(|s| {
+                s.spawn(|_| ctx.read().unwrap().run());
+            })
+            .unwrap();
         }
         "disconnect" => {
-            stop_threads(&ctx.read().unwrap());
-        }
-        "smtp-jobs" => {
-            if HANDLE.clone().lock().unwrap().is_some() {
-                println!("smtp-jobs are already running in a thread.",);
-            } else {
-                perform_smtp_jobs(&ctx.read().unwrap());
-            }
-        }
-        "imap-jobs" => {
-            if HANDLE.clone().lock().unwrap().is_some() {
-                println!("inbox-jobs are already running in a thread.");
-            } else {
-                perform_inbox_jobs(&ctx.read().unwrap());
-            }
+            ctx.read().unwrap().shutdown();
         }
         "configure" => {
-            start_threads(ctx.clone());
-            configure(&ctx.read().unwrap());
+            crossbeam::scope(|s| {
+                s.spawn(|_| ctx.read().unwrap().run());
+            })
+            .unwrap();
+            ctx.read().unwrap().configure();
         }
         "oauth2" => {
             if let Some(addr) = ctx.read().unwrap().get_config(config::Config::Addr) {
@@ -484,7 +368,11 @@ fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult, failu
             print!("\x1b[1;1H\x1b[2J");
         }
         "getqr" | "getbadqr" => {
-            start_threads(ctx.clone());
+            crossbeam::scope(|s| {
+                s.spawn(|_| ctx.read().unwrap().run());
+            })
+            .unwrap();
+
             if let Some(mut qr) = dc_get_securejoin_qr(
                 &ctx.read().unwrap(),
                 ChatId::new(arg1.parse().unwrap_or_default()),
@@ -504,8 +392,12 @@ fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult, failu
             }
         }
         "joinqr" => {
-            start_threads(ctx.clone());
             if !arg0.is_empty() {
+                crossbeam::scope(|s| {
+                    s.spawn(|_| ctx.read().unwrap().run());
+                })
+                .unwrap();
+
                 dc_join_securejoin(&ctx.read().unwrap(), arg1);
             }
         }

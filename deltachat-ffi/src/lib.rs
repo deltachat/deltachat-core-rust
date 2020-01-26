@@ -456,7 +456,7 @@ pub unsafe extern "C" fn dc_configure(context: *mut dc_context_t) {
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| configure::configure(ctx))
+        .with_inner(|ctx| ctx.configure())
         .unwrap_or(())
 }
 
@@ -468,190 +468,34 @@ pub unsafe extern "C" fn dc_is_configured(context: *mut dc_context_t) -> libc::c
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| configure::dc_is_configured(ctx) as libc::c_int)
+        .with_inner(|ctx| ctx.is_configured() as libc::c_int)
         .unwrap_or(0)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_perform_imap_jobs(context: *mut dc_context_t) {
+pub unsafe extern "C" fn dc_run(context: *mut dc_context_t) {
     if context.is_null() {
-        eprintln!("ignoring careless call to dc_perform_imap_jobs()");
+        eprintln!("ignoring careless call to dc_run()");
         return;
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| job::perform_inbox_jobs(ctx))
+        .with_inner(|ctx| ctx.run())
         .unwrap_or(())
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_perform_imap_fetch(context: *mut dc_context_t) {
+pub unsafe extern "C" fn dc_shutdown(context: *mut dc_context_t) {
     if context.is_null() {
-        eprintln!("ignoring careless call to dc_perform_imap_fetch()");
+        eprintln!("ignoring careless call to dc_shutdown()");
         return;
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| job::perform_inbox_fetch(ctx))
+        .with_inner(|ctx| ctx.shutdown())
         .unwrap_or(())
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn dc_perform_imap_idle(context: *mut dc_context_t) {
-    // TODO rename function in co-ordination with UIs
-    if context.is_null() {
-        eprintln!("ignoring careless call to dc_perform_imap_idle()");
-        return;
-    }
-    let ffi_context = &*context;
-    ffi_context
-        .with_inner(|ctx| job::perform_inbox_idle(ctx))
-        .unwrap_or(())
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_interrupt_imap_idle(context: *mut dc_context_t) {
-    if context.is_null() {
-        eprintln!("ignoring careless call to dc_interrupt_imap_idle()");
-        return;
-    }
-    let ffi_context = &*context;
-    ffi_context
-        .with_inner(|ctx| job::interrupt_inbox_idle(ctx))
-        .unwrap_or(())
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_perform_mvbox_fetch(context: *mut dc_context_t) {
-    if context.is_null() {
-        eprintln!("ignoring careless call to dc_perform_mvbox_fetch()");
-        return;
-    }
-    let ffi_context = &*context;
-    ffi_context
-        .with_inner(|ctx| job::perform_mvbox_fetch(ctx))
-        .unwrap_or(())
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_perform_mvbox_jobs(context: *mut dc_context_t) {
-    if context.is_null() {
-        eprintln!("ignoring careless call to dc_perform_mvbox_jobs()");
-        return;
-    }
-    let ffi_context = &*context;
-    ffi_context
-        .with_inner(|ctx| job::perform_mvbox_jobs(ctx))
-        .unwrap_or(())
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_perform_mvbox_idle(context: *mut dc_context_t) {
-    if context.is_null() {
-        eprintln!("ignoring careless call to dc_perform_mvbox_idle()");
-        return;
-    }
-    let ffi_context = &*context;
-    ffi_context
-        .with_inner(|ctx| job::perform_mvbox_idle(ctx))
-        .unwrap_or(())
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_interrupt_mvbox_idle(context: *mut dc_context_t) {
-    if context.is_null() {
-        eprintln!("ignoring careless call to dc_interrupt_mvbox_idle()");
-        return;
-    }
-    let ffi_context = &*context;
-    ffi_context
-        .with_inner(|ctx| job::interrupt_mvbox_idle(ctx))
-        .unwrap_or(())
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_perform_sentbox_fetch(context: *mut dc_context_t) {
-    if context.is_null() {
-        eprintln!("ignoring careless call to dc_perform_sentbox_fetch()");
-        return;
-    }
-    let ffi_context = &*context;
-    ffi_context
-        .with_inner(|ctx| job::perform_sentbox_fetch(ctx))
-        .unwrap_or(())
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_perform_sentbox_jobs(context: *mut dc_context_t) {
-    if context.is_null() {
-        eprintln!("ignoring careless call to dc_perform_sentbox_jobs()");
-        return;
-    }
-    let ffi_context = &*context;
-    ffi_context
-        .with_inner(|ctx| job::perform_sentbox_jobs(ctx))
-        .unwrap_or(())
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_perform_sentbox_idle(context: *mut dc_context_t) {
-    if context.is_null() {
-        eprintln!("ignoring careless call to dc_perform_sentbox_idle()");
-        return;
-    }
-    let ffi_context = &*context;
-    ffi_context
-        .with_inner(|ctx| job::perform_sentbox_idle(ctx))
-        .unwrap_or(())
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_interrupt_sentbox_idle(context: *mut dc_context_t) {
-    if context.is_null() {
-        eprintln!("ignoring careless call to dc_interrupt_sentbox_idle()");
-        return;
-    }
-    let ffi_context = &*context;
-    ffi_context
-        .with_inner(|ctx| job::interrupt_sentbox_idle(ctx))
-        .unwrap_or(())
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_perform_smtp_jobs(context: *mut dc_context_t) {
-    if context.is_null() {
-        eprintln!("ignoring careless call to dc_perform_smtp_jobs()");
-        return;
-    }
-    let ffi_context = &*context;
-    ffi_context
-        .with_inner(|ctx| job::perform_smtp_jobs(ctx))
-        .unwrap_or(())
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_perform_smtp_idle(context: *mut dc_context_t) {
-    if context.is_null() {
-        eprintln!("ignoring careless call to dc_perform_smtp_idle()");
-        return;
-    }
-    let ffi_context = &*context;
-    ffi_context
-        .with_inner(|ctx| job::perform_smtp_idle(ctx))
-        .unwrap_or(())
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_interrupt_smtp_idle(context: *mut dc_context_t) {
-    if context.is_null() {
-        eprintln!("ignoring careless call to dc_interrupt_smtp_idle()");
-        return;
-    }
-    let ffi_context = &*context;
-    ffi_context
-        .with_inner(|ctx| job::interrupt_smtp_idle(ctx))
-        .unwrap_or(())
-}
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_maybe_network(context: *mut dc_context_t) {

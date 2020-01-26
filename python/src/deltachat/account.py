@@ -380,8 +380,6 @@ class Account(object):
     def _export(self, path, imex_cmd):
         self._imex_events_clear()
         lib.dc_imex(self._dc_context, imex_cmd, as_dc_charpointer(path), ffi.NULL)
-        if not self._threads.is_started():
-            lib.dc_perform_imap_jobs(self._dc_context)
         files_written = []
         while True:
             ev = self._imex_events.get()
@@ -410,8 +408,6 @@ class Account(object):
     def _import(self, path, imex_cmd):
         self._imex_events_clear()
         lib.dc_imex(self._dc_context, imex_cmd, as_dc_charpointer(path), ffi.NULL)
-        if not self._threads.is_started():
-            lib.dc_perform_imap_jobs(self._dc_context)
         if not self._imex_events.get():
             raise ValueError("import from path '{}' failed".format(path))
 
@@ -560,16 +556,9 @@ class IOThreads:
     def is_started(self):
         return len(self._name2thread) > 0
 
-    def start(self, imap=True, smtp=True, mvbox=False, sentbox=False):
+    def start(self):
         assert not self.is_started()
-        if imap:
-            self._start_one_thread("inbox", self.imap_thread_run)
-        if mvbox:
-            self._start_one_thread("mvbox", self.mvbox_thread_run)
-        if sentbox:
-            self._start_one_thread("sentbox", self.sentbox_thread_run)
-        if smtp:
-            self._start_one_thread("smtp", self.smtp_thread_run)
+        self._start_one_thread("deltachat", self.dc_thread_run)
 
     def _start_one_thread(self, name, func):
         self._name2thread[name] = t = threading.Thread(target=func, name=name)
@@ -577,58 +566,18 @@ class IOThreads:
         t.start()
 
     def stop(self, wait=False):
-        self._thread_quitflag = True
-
-        # Workaround for a race condition. Make sure that thread is
-        # not in between checking for quitflag and entering idle.
-        time.sleep(0.5)
-
-        lib.dc_interrupt_imap_idle(self._dc_context)
-        lib.dc_interrupt_smtp_idle(self._dc_context)
-        lib.dc_interrupt_mvbox_idle(self._dc_context)
-        lib.dc_interrupt_sentbox_idle(self._dc_context)
+        lib.dc_shutdown(self._dc_context)
+        
         if wait:
             for name, thread in self._name2thread.items():
                 thread.join()
 
-    def imap_thread_run(self):
-        self._log_event("py-bindings-info", 0, "INBOX THREAD START")
-        while not self._thread_quitflag:
-            lib.dc_perform_imap_jobs(self._dc_context)
-            if not self._thread_quitflag:
-                lib.dc_perform_imap_fetch(self._dc_context)
-            if not self._thread_quitflag:
-                lib.dc_perform_imap_idle(self._dc_context)
+    def dc_thread_run(self):
+        self._log_event("py-bindings-info", 0, "DC THREAD START")
+
+        lib.dc_run(self._dc_context)
+
         self._log_event("py-bindings-info", 0, "INBOX THREAD FINISHED")
-
-    def mvbox_thread_run(self):
-        self._log_event("py-bindings-info", 0, "MVBOX THREAD START")
-        while not self._thread_quitflag:
-            lib.dc_perform_mvbox_jobs(self._dc_context)
-            if not self._thread_quitflag:
-                lib.dc_perform_mvbox_fetch(self._dc_context)
-            if not self._thread_quitflag:
-                lib.dc_perform_mvbox_idle(self._dc_context)
-        self._log_event("py-bindings-info", 0, "MVBOX THREAD FINISHED")
-
-    def sentbox_thread_run(self):
-        self._log_event("py-bindings-info", 0, "SENTBOX THREAD START")
-        while not self._thread_quitflag:
-            lib.dc_perform_sentbox_jobs(self._dc_context)
-            if not self._thread_quitflag:
-                lib.dc_perform_sentbox_fetch(self._dc_context)
-            if not self._thread_quitflag:
-                lib.dc_perform_sentbox_idle(self._dc_context)
-        self._log_event("py-bindings-info", 0, "SENTBOX THREAD FINISHED")
-
-    def smtp_thread_run(self):
-        self._log_event("py-bindings-info", 0, "SMTP THREAD START")
-        while not self._thread_quitflag:
-            lib.dc_perform_smtp_jobs(self._dc_context)
-            if not self._thread_quitflag:
-                lib.dc_perform_smtp_idle(self._dc_context)
-        self._log_event("py-bindings-info", 0, "SMTP THREAD FINISHED")
-
 
 class EventLogger:
     _loglock = threading.RLock()

@@ -3,7 +3,10 @@
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Condvar, Mutex, RwLock, atomic::{Ordering, AtomicBool}};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Condvar, Mutex, RwLock,
+};
 
 use crossbeam::channel::{bounded, unbounded, Receiver, Sender};
 
@@ -14,7 +17,7 @@ use crate::contact::*;
 use crate::error::*;
 use crate::events::Event;
 use crate::imap::*;
-use crate::job::*;
+use crate::job;
 use crate::job_thread::JobThread;
 use crate::key::*;
 use crate::login_param::LoginParam;
@@ -194,40 +197,40 @@ impl Context {
     /// Start the run loop.
     pub fn run(&self) {
         use crossbeam::channel::select;
-        
+
         self.is_running.store(true, Ordering::Relaxed);
 
         crossbeam::scope(|s| {
             let imap_handle = s.spawn(|_| loop {
                 while_running!(self, {
-                    perform_inbox_jobs(self);
+                    job::perform_inbox_jobs(self);
                     while_running!(self, {
-                        perform_inbox_fetch(self);
-                        while_running!(self, { perform_inbox_idle(self) });
+                        job::perform_inbox_fetch(self);
+                        while_running!(self, { job::perform_inbox_idle(self) });
                     });
                 });
             });
             let mvbox_handle = s.spawn(|_| loop {
                 while_running!(self, {
-                    perform_mvbox_fetch(self);
+                    job::perform_mvbox_fetch(self);
                     while_running!(self, {
-                        perform_mvbox_idle(self);
+                        job::perform_mvbox_idle(self);
                     });
                 });
             });
             let sentbox_handle = s.spawn(|_| loop {
                 while_running!(self, {
-                    perform_sentbox_fetch(self);
+                    job::perform_sentbox_fetch(self);
                     while_running!(self, {
-                        perform_sentbox_idle(self);
+                        job::perform_sentbox_idle(self);
                     });
                 });
             });
             let smtp_handle = s.spawn(|_| loop {
                 while_running!(self, {
-                    perform_smtp_jobs(self);
+                    job::perform_smtp_jobs(self);
                     while_running!(self, {
-                        perform_smtp_idle(self);
+                        job::perform_smtp_idle(self);
                     });
                 });
             });
@@ -255,6 +258,26 @@ impl Context {
     pub fn shutdown(&self) {
         self.is_running.store(false, Ordering::Relaxed);
         self.shutdown_sender.send(()).unwrap();
+
+        job::interrupt_inbox_idle(self);
+        job::interrupt_mvbox_idle(self);
+        job::interrupt_sentbox_idle(self);
+        job::interrupt_smtp_idle(self);
+    }
+
+    // connect
+    pub fn configure(&self) {
+        if self.has_ongoing() {
+            warn!(self, "There is already another ongoing process running.");
+            return;
+        }
+        job::job_kill_action(self, job::Action::ConfigureImap);
+        job::job_add(self, job::Action::ConfigureImap, 0, Params::new(), 0);
+    }
+
+    /// Check if the context is already configured.
+    pub fn is_configured(&self) -> bool {
+        self.sql.get_raw_config_bool(self, "configured")
     }
 
     /*******************************************************************************
@@ -536,9 +559,9 @@ impl Context {
             match msg.is_dc_message {
                 MessengerMessage::No => {}
                 MessengerMessage::Yes | MessengerMessage::Reply => {
-                    job_add(
+                    job::job_add(
                         self,
-                        Action::MoveMsg,
+                        job::Action::MoveMsg,
                         msg.id.to_u32() as i32,
                         Params::new(),
                         0,
