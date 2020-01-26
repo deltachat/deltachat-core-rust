@@ -1,4 +1,3 @@
-#![forbid(unsafe_code)]
 #![deny(clippy::correctness, missing_debug_implementations, clippy::all)]
 #![allow(clippy::match_bool)]
 

@@ -3,7 +3,9 @@
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Condvar, Mutex, RwLock};
+use std::sync::{Arc, Condvar, Mutex, RwLock, atomic::{Ordering, AtomicBool}};
+
+use crossbeam::channel::{bounded, unbounded, Receiver, Sender};
 
 use crate::chat::*;
 use crate::config::Config;
@@ -47,8 +49,6 @@ pub struct Context {
     pub smtp: Arc<Mutex<Smtp>>,
     pub smtp_state: Arc<(Mutex<SmtpState>, Condvar)>,
     pub oauth2_critical: Arc<Mutex<()>>,
-    #[debug_stub = "Callback"]
-    cb: Box<ContextCallback>,
     pub os_name: Option<String>,
     pub cmdline_sel_chat_id: Arc<RwLock<ChatId>>,
     pub bob: Arc<RwLock<BobStatus>>,
@@ -57,6 +57,16 @@ pub struct Context {
     /// Mutex to avoid generating the key for the user more than once.
     pub generating_key_mutex: Mutex<()>,
     pub translated_stockstrings: RwLock<HashMap<usize, String>>,
+
+    #[debug_stub = "Callback"]
+    cb: Box<ContextCallback>,
+
+    event_sender: Sender<Event>,
+    event_receiver: Receiver<Event>,
+    shutdown_sender: Sender<()>,
+    shutdown_receiver: Receiver<()>,
+
+    is_running: AtomicBool,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -78,6 +88,16 @@ pub fn get_info() -> HashMap<&'static str, String> {
     res.insert("arch", (std::mem::size_of::<usize>() * 8).to_string());
     res.insert("level", "awesome".into());
     res
+}
+
+macro_rules! while_running {
+    ($self:expr, $code:block) => {
+        if $self.is_running.load(Ordering::Relaxed) {
+            $code
+        } else {
+            break;
+        }
+    };
 }
 
 impl Context {
@@ -106,6 +126,10 @@ impl Context {
             "Blobdir does not exist: {}",
             blobdir.display()
         );
+
+        let (event_sender, event_receiver) = unbounded();
+        let (shutdown_sender, shutdown_receiver) = bounded(0);
+
         let ctx = Context {
             blobdir,
             dbfile,
@@ -138,6 +162,11 @@ impl Context {
             perform_inbox_jobs_needed: Arc::new(RwLock::new(false)),
             generating_key_mutex: Mutex::new(()),
             translated_stockstrings: RwLock::new(HashMap::new()),
+            event_sender,
+            event_receiver,
+            shutdown_sender,
+            shutdown_receiver,
+            is_running: Default::default(),
         };
 
         ensure!(
@@ -159,7 +188,73 @@ impl Context {
     }
 
     pub fn call_cb(&self, event: Event) {
-        (*self.cb)(self, event);
+        self.event_sender.send(event).unwrap();
+    }
+
+    /// Start the run loop.
+    pub fn run(&self) {
+        use crossbeam::channel::select;
+        
+        self.is_running.store(true, Ordering::Relaxed);
+
+        crossbeam::scope(|s| {
+            let imap_handle = s.spawn(|_| loop {
+                while_running!(self, {
+                    perform_inbox_jobs(self);
+                    while_running!(self, {
+                        perform_inbox_fetch(self);
+                        while_running!(self, { perform_inbox_idle(self) });
+                    });
+                });
+            });
+            let mvbox_handle = s.spawn(|_| loop {
+                while_running!(self, {
+                    perform_mvbox_fetch(self);
+                    while_running!(self, {
+                        perform_mvbox_idle(self);
+                    });
+                });
+            });
+            let sentbox_handle = s.spawn(|_| loop {
+                while_running!(self, {
+                    perform_sentbox_fetch(self);
+                    while_running!(self, {
+                        perform_sentbox_idle(self);
+                    });
+                });
+            });
+            let smtp_handle = s.spawn(|_| loop {
+                while_running!(self, {
+                    perform_smtp_jobs(self);
+                    while_running!(self, {
+                        perform_smtp_idle(self);
+                    });
+                });
+            });
+
+            loop {
+                select! {
+                    recv(self.event_receiver) -> event => {
+                        // This gurantees that the callback is always called from the thread
+                        // that called `run`.
+                        (*self.cb)(self, event.unwrap())
+                    },
+                    recv(self.shutdown_receiver) -> _ => break,
+                }
+            }
+
+            imap_handle.join().unwrap();
+            mvbox_handle.join().unwrap();
+            sentbox_handle.join().unwrap();
+            smtp_handle.join().unwrap();
+        })
+        .unwrap()
+    }
+
+    /// Stop the run loop. Blocks until all threads have shutdown.
+    pub fn shutdown(&self) {
+        self.is_running.store(false, Ordering::Relaxed);
+        self.shutdown_sender.send(()).unwrap();
     }
 
     /*******************************************************************************
