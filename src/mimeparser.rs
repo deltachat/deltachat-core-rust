@@ -95,42 +95,25 @@ impl<'a> MimeMessage<'a> {
     pub fn from_bytes(context: &'a Context, body: &[u8]) -> Result<Self> {
         let mail = mailparse::parse_mail(body)?;
 
-        let mut parser = MimeMessage {
-            parts: Vec::new(),
-            header: Default::default(),
-            decrypting_failed: false,
-
-            // only non-empty if it was a valid autocrypt message
-            signatures: Default::default(),
-            gossipped_addr: Default::default(),
-            is_forwarded: false,
-            context,
-            reports: Vec::new(),
-            is_system_message: SystemMessage::Unknown,
-            location_kml: None,
-            message_kml: None,
-            user_avatar: AvatarAction::None,
-            group_avatar: AvatarAction::None,
-        };
-
         let message_time = mail
             .headers
             .get_first_value("Date")?
             .and_then(|v| mailparse::dateparse(&v).ok())
             .unwrap_or_default();
 
+        let mut headers = Default::default();
+
         // init known headers with what mailparse provided us
-        parser.merge_headers(&mail.headers);
+        MimeMessage::merge_headers(&mut headers, &mail.headers);
 
         // Memory location for a possible decrypted message.
         let mail_raw;
+        let mut gossipped_addr = Default::default();
 
-        let mail = match e2ee::try_decrypt(parser.context, &mail, message_time) {
+        let (mail, signatures) = match e2ee::try_decrypt(context, &mail, message_time) {
             Ok((raw, signatures)) => {
-                // Valid autocrypt message, encrypted
-                parser.signatures = signatures;
-
                 if let Some(raw) = raw {
+                    // Valid autocrypt message, encrypted
                     mail_raw = raw;
                     let decrypted_mail = mailparse::parse_mail(&mail_raw)?;
                     if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
@@ -142,17 +125,17 @@ impl<'a> MimeMessage<'a> {
                     // "3.6 Key Gossip" of https://autocrypt.org/autocrypt-spec-1.1.0.pdf
                     let gossip_headers =
                         decrypted_mail.headers.get_all_values("Autocrypt-Gossip")?;
-                    parser.gossipped_addr =
+                    gossipped_addr =
                         update_gossip_peerstates(context, message_time, &mail, gossip_headers)?;
 
                     // let known protected headers from the decrypted
                     // part override the unencrypted top-level
-                    parser.merge_headers(&decrypted_mail.headers);
+                    MimeMessage::merge_headers(&mut headers, &decrypted_mail.headers);
 
-                    decrypted_mail
+                    (decrypted_mail, signatures)
                 } else {
                     // Message was not encrypted
-                    mail
+                    (mail, signatures)
                 }
             }
             Err(err) => {
@@ -163,13 +146,29 @@ impl<'a> MimeMessage<'a> {
                 // if we just return here, the header is missing
                 // and the caller cannot display the message
                 // and try to assign the message to a chat
-                warn!(parser.context, "decryption failed: {}", err);
-                mail
+                warn!(context, "decryption failed: {}", err);
+                (mail, Default::default())
             }
         };
 
-        parser.parse_mime_recursive(&mail)?;
+        let mut parser = MimeMessage {
+            parts: Vec::new(),
+            header: headers,
+            decrypting_failed: false,
 
+            // only non-empty if it was a valid autocrypt message
+            signatures,
+            gossipped_addr,
+            is_forwarded: false,
+            context,
+            reports: Vec::new(),
+            is_system_message: SystemMessage::Unknown,
+            location_kml: None,
+            message_kml: None,
+            user_avatar: AvatarAction::None,
+            group_avatar: AvatarAction::None,
+        };
+        parser.parse_mime_recursive(&mail)?;
         parser.parse_headers()?;
 
         Ok(parser)
@@ -744,16 +743,16 @@ impl<'a> MimeMessage<'a> {
             .and_then(|msgid| parse_message_id(msgid))
     }
 
-    fn merge_headers(&mut self, fields: &[mailparse::MailHeader<'_>]) {
+    fn merge_headers(headers: &mut HashMap<String, String>, fields: &[mailparse::MailHeader<'_>]) {
         for field in fields {
             if let Ok(key) = field.get_key() {
                 // lowercasing all headers is technically not correct, but makes things work better
                 let key = key.to_lowercase();
-                if !self.header.contains_key(&key) || // key already exists, only overwrite known types (protected headers)
+                if !headers.contains_key(&key) || // key already exists, only overwrite known types (protected headers)
                     is_known(&key) || key.starts_with("chat-")
                 {
                     if let Ok(value) = field.get_value() {
-                        self.header.insert(key, value);
+                        headers.insert(key, value);
                     }
                 }
             }
