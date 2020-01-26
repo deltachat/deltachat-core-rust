@@ -175,8 +175,8 @@ impl<'a> MimeMessage<'a> {
         Ok(parser)
     }
 
-    #[allow(clippy::cognitive_complexity)]
-    fn parse_headers(&mut self) -> Result<()> {
+    /// Parses system messages.
+    fn parse_system_message_headers(&mut self) -> Result<()> {
         if self.get(HeaderDef::AutocryptSetupMessage).is_some() {
             self.parts = self
                 .parts
@@ -198,7 +198,11 @@ impl<'a> MimeMessage<'a> {
                 self.is_system_message = SystemMessage::LocationStreamingEnabled;
             }
         }
+        Ok(())
+    }
 
+    /// Parses avatar action headers.
+    fn parse_avatar_headers(&mut self) {
         if let Some(header_value) = self.get(HeaderDef::ChatGroupAvatar).cloned() {
             self.group_avatar = self.avatar_action_from_header(header_value);
         } else if let Some(header_value) = self.get(HeaderDef::ChatGroupImage).cloned() {
@@ -210,7 +214,13 @@ impl<'a> MimeMessage<'a> {
         if let Some(header_value) = self.get(HeaderDef::ChatUserAvatar).cloned() {
             self.user_avatar = self.avatar_action_from_header(header_value);
         }
+    }
 
+    /// Squashes mutlipart chat messages with attachment into single-part messages.
+    ///
+    /// Delta Chat sends attachments, such as images, in two-part messages, with the first message
+    /// containing an explanation. If such a message is detected, first part can be safely dropped.
+    fn squash_attachment_parts(&mut self) {
         if self.has_chat_version() && self.parts.len() == 2 {
             let need_drop = {
                 let textpart = &self.parts[0];
@@ -238,6 +248,48 @@ impl<'a> MimeMessage<'a> {
                 std::mem::replace(&mut self.parts[0], filepart);
             }
         }
+    }
+
+    /// Processes chat messages with attachments.
+    fn parse_attachments(&mut self) {
+        // Attachment messages should be squashed into a single part
+        // before calling this function.
+        if self.parts.len() == 1 {
+            if self.parts[0].typ == Viewtype::Audio
+                && self.get(HeaderDef::ChatVoiceMessage).is_some()
+            {
+                let part_mut = &mut self.parts[0];
+                part_mut.typ = Viewtype::Voice;
+            }
+            if self.parts[0].typ == Viewtype::Image {
+                if let Some(value) = self.get(HeaderDef::ChatContent) {
+                    if value == "sticker" {
+                        let part_mut = &mut self.parts[0];
+                        part_mut.typ = Viewtype::Sticker;
+                    }
+                }
+            }
+            let part = &self.parts[0];
+            if part.typ == Viewtype::Audio
+                || part.typ == Viewtype::Voice
+                || part.typ == Viewtype::Video
+            {
+                if let Some(field_0) = self.get(HeaderDef::ChatDuration) {
+                    let duration_ms = field_0.parse().unwrap_or_default();
+                    if duration_ms > 0 && duration_ms < 24 * 60 * 60 * 1000 {
+                        let part_mut = &mut self.parts[0];
+                        part_mut.param.set_int(Param::Duration, duration_ms);
+                    }
+                }
+            }
+        }
+    }
+
+    fn parse_headers(&mut self) -> Result<()> {
+        self.parse_system_message_headers()?;
+        self.parse_avatar_headers();
+        self.squash_attachment_parts();
+
         if let Some(ref subject) = self.get_subject() {
             let mut prepend_subject = true;
             if !self.decrypting_failed {
@@ -273,35 +325,8 @@ impl<'a> MimeMessage<'a> {
                 part.param.set_int(Param::Forwarded, 1);
             }
         }
-        if self.parts.len() == 1 {
-            if self.parts[0].typ == Viewtype::Audio
-                && self.get(HeaderDef::ChatVoiceMessage).is_some()
-            {
-                let part_mut = &mut self.parts[0];
-                part_mut.typ = Viewtype::Voice;
-            }
-            if self.parts[0].typ == Viewtype::Image {
-                if let Some(value) = self.get(HeaderDef::ChatContent) {
-                    if value == "sticker" {
-                        let part_mut = &mut self.parts[0];
-                        part_mut.typ = Viewtype::Sticker;
-                    }
-                }
-            }
-            let part = &self.parts[0];
-            if part.typ == Viewtype::Audio
-                || part.typ == Viewtype::Voice
-                || part.typ == Viewtype::Video
-            {
-                if let Some(field_0) = self.get(HeaderDef::ChatDuration) {
-                    let duration_ms = field_0.parse().unwrap_or_default();
-                    if duration_ms > 0 && duration_ms < 24 * 60 * 60 * 1000 {
-                        let part_mut = &mut self.parts[0];
-                        part_mut.param.set_int(Param::Duration, duration_ms);
-                    }
-                }
-            }
-        }
+
+        self.parse_attachments();
 
         // See if an MDN is requested from the other side
         if !self.decrypting_failed && !self.parts.is_empty() {
