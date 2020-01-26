@@ -200,10 +200,7 @@ pub fn JobConfigureImap(context: &Context) -> job::Status {
             7 => {
                 progress!(context, 310);
                 if param_autoconfig.is_none() {
-                    let url = format!(
-                        "https://{}{}/autodiscover/autodiscover.xml",
-                        "", param_domain
-                    );
+                    let url = format!("https://{}/autodiscover/autodiscover.xml", param_domain);
                     param_autoconfig = outlk_autodiscover(context, &url, &param).ok();
                 }
                 true
