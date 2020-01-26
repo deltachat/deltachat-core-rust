@@ -182,7 +182,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig):
         def get_online_configuring_account(self, mvbox=False, sentbox=False):
             ac, configdict = self.get_online_config()
             ac.configure(**configdict)
-            ac.start_threads(mvbox=mvbox, sentbox=sentbox)
+            ac.start_threads()
             return ac
 
         def get_one_online_account(self):

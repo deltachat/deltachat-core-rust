@@ -12,7 +12,7 @@ categories = ["cryptography", "std", "email"]
 
 [lib]
 name = "deltachat"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 deltachat = { path = "../", default-features = false }

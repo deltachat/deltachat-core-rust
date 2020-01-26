@@ -486,7 +486,7 @@ class Account(object):
         ev = self._evlogger.get_matching("DC_EVENT_INCOMING_MSG")
         return self.get_message_by_id(ev[2])
 
-    def start_threads(self, mvbox=False, sentbox=False):
+    def start_threads(self):
         """ start IMAP/SMTP threads (and configure account if it hasn't happened).
 
         :raises: ValueError if 'addr' or 'mail_pw' are not configured.
@@ -494,7 +494,7 @@ class Account(object):
         """
         if not self.is_configured():
             self.configure()
-        self._threads.start(mvbox=mvbox, sentbox=sentbox)
+        self._threads.start()
 
     def stop_threads(self, wait=True):
         """ stop IMAP/SMTP threads. """
