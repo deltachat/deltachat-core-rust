@@ -47,10 +47,7 @@ impl MsgId {
     ///
     /// This kind of message ID can not be used for real messages.
     pub fn is_special(self) -> bool {
-        match self.0 {
-            0..=DC_MSG_ID_LAST_SPECIAL => true,
-            _ => false,
-        }
+        self.0 <= DC_MSG_ID_LAST_SPECIAL
     }
 
     /// Whether the message ID is unset.
