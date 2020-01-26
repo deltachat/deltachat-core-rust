@@ -1,5 +1,18 @@
 # Changelog 
 
+## 1.0.0-beta.24
+
+- fix oauth2/gmail bug introduced in beta23 (not used in releases) #1219
+
+- fix panic when receiving eg. cyrillic filenames #1216
+
+- delete all consumed secure-join handshake messagess #1209 #1212
+
+- rust-level cleanups #1218 #1217 #1210 #1205
+
+- python-level cleanups #1204 #1202 #1201
+
+
 ## 1.0.0-beta.23
 
 - #1197 fix imap-deletion of messages 
