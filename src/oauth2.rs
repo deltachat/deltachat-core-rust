@@ -314,7 +314,12 @@ impl Oauth2 {
             // CAVE: serde_json::Value.as_str() removes the quotes of json-strings
             // but serde_json::Value.to_string() does not!
             if let Some(addr) = response.get("email") {
-                addr.as_str().map(|s| s.to_string())
+                if let Some(s) = addr.as_str() {
+                    Some(s.to_string())
+                } else {
+                    warn!(context, "E-mail in userinfo is not a string: {}", addr);
+                    None
+                }
             } else {
                 warn!(context, "E-mail missing in userinfo.");
                 None
