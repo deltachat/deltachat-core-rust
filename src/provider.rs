@@ -11,21 +11,21 @@ pub enum Status {
     BROKEN = 3,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 #[repr(u8)]
 pub enum Protocol {
     SMTP = 1,
     IMAP = 2,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 #[repr(u8)]
 pub enum Socket {
     STARTTLS = 1,
     SSL = 2,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 #[repr(u8)]
 pub enum UsernamePattern {
     EMAIL = 1,
@@ -49,6 +49,25 @@ pub struct Provider {
     pub after_login_hint: &'static str,
     pub overview_page: &'static str,
     pub server: Vec<Server>,
+}
+
+impl Provider {
+    pub fn get_server(&self, protocol: Protocol) -> Option<&Server> {
+        for record in self.server.iter() {
+            if record.protocol == protocol {
+                return Some(record);
+            }
+        }
+        None
+    }
+
+    pub fn get_imap_server(&self) -> Option<&Server> {
+        self.get_server(Protocol::IMAP)
+    }
+
+    pub fn get_smtp_server(&self) -> Option<&Server> {
+        self.get_server(Protocol::SMTP)
+    }
 }
 
 lazy_static::lazy_static! {
@@ -124,6 +143,18 @@ mod tests {
 
         let provider = get_provider_info("user@nauta.cu").unwrap();
         assert!(provider.status == Status::OK);
+        let server = provider.get_imap_server().unwrap();
+        assert_eq!(server.protocol, IMAP);
+        assert_eq!(server.socket, STARTTLS);
+        assert_eq!(server.server, "imap.nauta.cu");
+        assert_eq!(server.port, 143);
+        assert_eq!(server.username_pattern, EMAIL);
+        let server = provider.get_smtp_server().unwrap();
+        assert_eq!(server.protocol, SMTP);
+        assert_eq!(server.socket, STARTTLS);
+        assert_eq!(server.server, "smtp.nauta.cu");
+        assert_eq!(server.port, 25);
+        assert_eq!(server.username_pattern, EMAIL);
 
         let provider = get_provider_info("user@gmail.com").unwrap();
         assert!(provider.status == Status::PREPARATION);
