@@ -460,7 +460,7 @@ pub(crate) fn time() -> i64 {
 ///
 /// ```
 /// use deltachat::dc_tools::EmailAddress;
-/// let email = match EmailAddress::new("someone@example.com") {
+/// let email = match "someone@example.com".parse::<EmailAddress>() {
 ///     Ok(addr) => addr,
 ///     Err(e) => panic!("Error parsing address, error was {}", e),
 /// };
@@ -472,12 +472,6 @@ pub(crate) fn time() -> i64 {
 pub struct EmailAddress {
     pub local: String,
     pub domain: String,
-}
-
-impl EmailAddress {
-    pub fn new(input: &str) -> Result<Self, Error> {
-        input.parse::<EmailAddress>()
-    }
 }
 
 impl fmt::Display for EmailAddress {
@@ -670,29 +664,29 @@ mod tests {
 
     #[test]
     fn test_emailaddress_parse() {
-        assert_eq!(EmailAddress::new("").is_ok(), false);
+        assert_eq!("".parse::<EmailAddress>().is_ok(), false);
         assert_eq!(
-            EmailAddress::new("user@domain.tld").unwrap(),
+            "user@domain.tld".parse::<EmailAddress>().unwrap(),
             EmailAddress {
                 local: "user".into(),
                 domain: "domain.tld".into(),
             }
         );
-        assert_eq!(EmailAddress::new("uuu").is_ok(), false);
-        assert_eq!(EmailAddress::new("dd.tt").is_ok(), false);
-        assert_eq!(EmailAddress::new("tt.dd@uu").is_ok(), false);
-        assert_eq!(EmailAddress::new("u@d").is_ok(), false);
-        assert_eq!(EmailAddress::new("u@d.").is_ok(), false);
-        assert_eq!(EmailAddress::new("u@d.t").is_ok(), false);
+        assert_eq!("uuu".parse::<EmailAddress>().is_ok(), false);
+        assert_eq!("dd.tt".parse::<EmailAddress>().is_ok(), false);
+        assert_eq!("tt.dd@uu".parse::<EmailAddress>().is_ok(), false);
+        assert_eq!("u@d".parse::<EmailAddress>().is_ok(), false);
+        assert_eq!("u@d.".parse::<EmailAddress>().is_ok(), false);
+        assert_eq!("u@d.t".parse::<EmailAddress>().is_ok(), false);
         assert_eq!(
-            EmailAddress::new("u@d.tt").unwrap(),
+            "u@d.tt".parse::<EmailAddress>().unwrap(),
             EmailAddress {
                 local: "u".into(),
                 domain: "d.tt".into(),
             }
         );
-        assert_eq!(EmailAddress::new("u@.tt").is_ok(), false);
-        assert_eq!(EmailAddress::new("@d.tt").is_ok(), false);
+        assert_eq!("u@tt".parse::<EmailAddress>().is_ok(), false);
+        assert_eq!("@d.tt".parse::<EmailAddress>().is_ok(), false);
     }
 
     use proptest::prelude::*;
