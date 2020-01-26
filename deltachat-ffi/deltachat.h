@@ -3708,7 +3708,9 @@ dc_provider_t*  dc_provider_new_from_email            (const dc_context_t*, cons
  *
  * @memberof dc_provider_t
  * @param provider The dc_provider_t struct.
- * @return A string which must be released using dc_str_unref().
+ * @return String with a fully-qualified URL,
+ *     if there is no such URL, an empty string is returned, NULL is never returned.
+ *     The returned value must be released using dc_str_unref().
  */
 char*           dc_provider_get_overview_page         (const dc_provider_t* provider);
 
@@ -3723,7 +3725,9 @@ char*           dc_provider_get_overview_page         (const dc_provider_t* prov
  *
  * @memberof dc_provider_t
  * @param provider The dc_provider_t struct.
- * @return A string which must be released using dc_str_unref().
+ * @return A string with the hint to show to the user, may contain multiple lines,
+ *     if there is no such hint, an empty string is returned, NULL is never returned.
+ *     The returned value must be released using dc_str_unref().
  */
 char*           dc_provider_get_before_login_hint     (const dc_provider_t* provider);
 

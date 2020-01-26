@@ -46,17 +46,18 @@ pub struct Provider {
     pub domains: &'static str,
     pub status: Status,
     pub before_login_hint: &'static str,
+    pub after_login_hint: &'static str,
     pub overview_page: &'static str,
-    pub server: Vec<Server>, // this seems to be okay
+    pub server: Vec<Server>,
 }
 
-// TODO: the database will be auto-generated from the provider-db
 lazy_static::lazy_static! {
     static ref DATABASE: Vec<Provider> = vec![
         Provider {
             domains: "nauta.cu",
             status: Status::OK,
             before_login_hint: "",
+            after_login_hint: "",
             overview_page: "",
             server: vec![
                 Server { protocol: IMAP, socket: STARTTLS, server: "imap.nauta.cu", port: 143, username_pattern: EMAIL },
@@ -71,6 +72,7 @@ lazy_static::lazy_static! {
                                 Hopefully sooner or later there will be a fix; \
                                 for now, we suggest to use another e-mail-address \
                                 or try Delta Chat again when the issue is fixed.",
+            after_login_hint: "",
             overview_page: "https://provider.delta.chat/outlook.com",
             server: vec![
             ],
@@ -82,6 +84,7 @@ lazy_static::lazy_static! {
                                 if you have \"2-Step Verification\" enabled. \
                                 If this setting is not available, \
                                 you need to enable \"Less secure apps\".",
+            after_login_hint: "",
             overview_page: "https://provider.delta.chat/gmail.com",
             server: vec![
             ],
@@ -105,4 +108,29 @@ pub fn get_provider_info(addr: &str) -> Option<&Provider> {
     }
 
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_provider_info() {
+        let provider = get_provider_info("user@unexistant.org");
+        assert!(provider.is_none());
+
+        let provider = get_provider_info("nauta.cu"); // this is no email address
+        assert!(provider.is_none());
+
+        let provider = get_provider_info("user@nauta.cu").unwrap();
+        assert!(provider.status == Status::OK);
+
+        let provider = get_provider_info("user@gmail.com").unwrap();
+        assert!(provider.status == Status::PREPARATION);
+        assert!(!provider.before_login_hint.is_empty());
+        assert!(!provider.overview_page.is_empty());
+
+        let provider = get_provider_info("user@googlemail.com").unwrap();
+        assert!(provider.status == Status::PREPARATION);
+    }
 }
