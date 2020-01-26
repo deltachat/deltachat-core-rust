@@ -455,9 +455,7 @@ pub unsafe extern "C" fn dc_configure(context: *mut dc_context_t) {
         return;
     }
     let ffi_context = &*context;
-    ffi_context
-        .with_inner(|ctx| ctx.configure())
-        .unwrap_or(())
+    ffi_context.with_inner(|ctx| ctx.configure()).unwrap_or(())
 }
 
 #[no_mangle]
@@ -479,9 +477,7 @@ pub unsafe extern "C" fn dc_run(context: *mut dc_context_t) {
         return;
     }
     let ffi_context = &*context;
-    ffi_context
-        .with_inner(|ctx| ctx.run())
-        .unwrap_or(())
+    ffi_context.with_inner(|ctx| ctx.run()).unwrap_or(())
 }
 
 #[no_mangle]
@@ -491,11 +487,8 @@ pub unsafe extern "C" fn dc_shutdown(context: *mut dc_context_t) {
         return;
     }
     let ffi_context = &*context;
-    ffi_context
-        .with_inner(|ctx| ctx.shutdown())
-        .unwrap_or(())
+    ffi_context.with_inner(|ctx| ctx.shutdown()).unwrap_or(())
 }
-
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_maybe_network(context: *mut dc_context_t) {
