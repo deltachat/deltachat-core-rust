@@ -1,7 +1,5 @@
 use crate::dc_tools::EmailAddress;
-use crate::provider::Protocol::*;
-use crate::provider::Socket::*;
-use crate::provider::UsernamePattern::*;
+use crate::provider_data::PROVIDER_DATA;
 
 #[derive(Debug, Copy, Clone, PartialEq, ToPrimitive)]
 #[repr(u8)]
@@ -36,7 +34,7 @@ pub enum UsernamePattern {
 pub struct Server {
     pub protocol: Protocol,
     pub socket: Socket,
-    pub server: &'static str,
+    pub hostname: &'static str,
     pub port: u16,
     pub username_pattern: UsernamePattern,
 }
@@ -44,8 +42,8 @@ pub struct Server {
 impl Server {
     pub fn apply_username_pattern(&self, addr: String) -> String {
         match self.username_pattern {
-            EMAIL => addr,
-            EMAILLOCALPART => {
+            UsernamePattern::EMAIL => addr,
+            UsernamePattern::EMAILLOCALPART => {
                 if let Some(at) = addr.find('@') {
                     return addr.split_at(at).0.to_string();
                 }
@@ -84,56 +82,6 @@ impl Provider {
     }
 }
 
-lazy_static::lazy_static! {
-    static ref DATABASE: Vec<Provider> = vec![
-        Provider {
-            domains: "nauta.cu",
-            status: Status::OK,
-            before_login_hint: "",
-            after_login_hint: "",
-            overview_page: "",
-            server: vec![
-                Server { protocol: IMAP, socket: STARTTLS, server: "imap.nauta.cu", port: 143, username_pattern: EMAIL },
-                Server { protocol: SMTP, socket: STARTTLS, server: "smtp.nauta.cu", port: 25, username_pattern: EMAIL },
-            ],
-        },
-        Provider {
-            domains: "outlook.com hotmail.com live.com",
-            status: Status::BROKEN,
-            before_login_hint: "Outlook-e-mail-addresses will not work as expected \
-                                as these servers remove some important transport information.\n\n\
-                                Hopefully sooner or later there will be a fix; \
-                                for now, we suggest to use another e-mail-address \
-                                or try Delta Chat again when the issue is fixed.",
-            after_login_hint: "",
-            overview_page: "https://provider.delta.chat/outlook.com",
-            server: vec![
-            ],
-        },
-        Provider {
-            domains: "testrun.org",
-            status: Status::OK,
-            before_login_hint: "",
-            after_login_hint: "testrun.org is not Delta Chat :)",
-            overview_page: "",
-            server: vec![
-            ],
-        },
-        Provider {
-            domains: "gmail.com googlemail.com",
-            status: Status::PREPARATION,
-            before_login_hint: "For Gmail Accounts, you need to create an App-Password \
-                                if you have \"2-Step Verification\" enabled. \
-                                If this setting is not available, \
-                                you need to enable \"Less secure apps\".",
-            after_login_hint: "",
-            overview_page: "https://provider.delta.chat/gmail.com",
-            server: vec![
-            ],
-        },
-    ];
-}
-
 pub fn get_provider_info(addr: &str) -> Option<&Provider> {
     let domain = match EmailAddress::new(addr) {
         Ok(addr) => addr.domain,
@@ -141,7 +89,7 @@ pub fn get_provider_info(addr: &str) -> Option<&Provider> {
     }
     .to_lowercase();
 
-    for record in DATABASE.iter() {
+    for record in PROVIDER_DATA.iter() {
         for record_domain in record.domains.split(' ') {
             if record_domain == domain {
                 return Some(record);
@@ -167,17 +115,17 @@ mod tests {
         let provider = get_provider_info("user@nauta.cu").unwrap();
         assert!(provider.status == Status::OK);
         let server = provider.get_imap_server().unwrap();
-        assert_eq!(server.protocol, IMAP);
-        assert_eq!(server.socket, STARTTLS);
-        assert_eq!(server.server, "imap.nauta.cu");
+        assert_eq!(server.protocol, Protocol::IMAP);
+        assert_eq!(server.socket, Socket::STARTTLS);
+        assert_eq!(server.hostname, "imap.nauta.cu");
         assert_eq!(server.port, 143);
-        assert_eq!(server.username_pattern, EMAIL);
+        assert_eq!(server.username_pattern, UsernamePattern::EMAIL);
         let server = provider.get_smtp_server().unwrap();
-        assert_eq!(server.protocol, SMTP);
-        assert_eq!(server.socket, STARTTLS);
-        assert_eq!(server.server, "smtp.nauta.cu");
+        assert_eq!(server.protocol,  Protocol::SMTP);
+        assert_eq!(server.socket, Socket::STARTTLS);
+        assert_eq!(server.hostname, "smtp.nauta.cu");
         assert_eq!(server.port, 25);
-        assert_eq!(server.username_pattern, EMAIL);
+        assert_eq!(server.username_pattern, UsernamePattern::EMAIL);
 
         let provider = get_provider_info("user@gmail.com").unwrap();
         assert!(provider.status == Status::PREPARATION);

@@ -470,7 +470,7 @@ fn get_offline_autoconfig(context: &Context, param: &LoginParam) -> Option<Login
                     let mut p = LoginParam::new();
                     p.addr = param.addr.clone();
 
-                    p.mail_server = imap.server.to_string();
+                    p.mail_server = imap.hostname.to_string();
                     p.mail_user = imap.apply_username_pattern(param.addr.clone());
                     p.mail_port = imap.port as i32;
                     p.imap_certificate_checks = CertificateChecks::AcceptInvalidCertificates;
@@ -479,7 +479,7 @@ fn get_offline_autoconfig(context: &Context, param: &LoginParam) -> Option<Login
                         provider::Socket::SSL => DC_LP_IMAP_SOCKET_SSL,
                     };
 
-                    p.send_server = smtp.server.to_string();
+                    p.send_server = smtp.hostname.to_string();
                     p.send_user = smtp.apply_username_pattern(param.addr.clone());
                     p.send_port = smtp.port as i32;
                     p.smtp_certificate_checks = CertificateChecks::AcceptInvalidCertificates;

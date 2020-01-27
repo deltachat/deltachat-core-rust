@@ -977,7 +977,7 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
                     println!("after_login_hint: {}", info.after_login_hint);
                     println!("overview_page: {}", info.overview_page);
                     for server in info.server.iter() {
-                        println!("server: {}:{}", server.server, server.port,);
+                        println!("server: {}:{}", server.hostname, server.port,);
                     }
                 }
                 None => {
