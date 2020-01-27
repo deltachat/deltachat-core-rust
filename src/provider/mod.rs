@@ -1,5 +1,7 @@
+mod data;
+
 use crate::dc_tools::EmailAddress;
-use crate::provider_data::PROVIDER_DATA;
+use crate::provider::data::PROVIDER_DATA;
 
 #[derive(Debug, Copy, Clone, PartialEq, ToPrimitive)]
 #[repr(u8)]

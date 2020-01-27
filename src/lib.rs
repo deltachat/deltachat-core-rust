@@ -55,7 +55,6 @@ mod param;
 pub mod peerstate;
 pub mod pgp;
 pub mod provider;
-pub mod provider_data;
 pub mod qr;
 pub mod securejoin;
 mod simplify;
