@@ -974,6 +974,11 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
                     println!("Information for provider belonging to {}:", arg1);
                     println!("status: {}", info.status as u32);
                     println!("before_login_hint: {}", info.before_login_hint);
+                    println!("after_login_hint: {}", info.after_login_hint);
+                    println!("overview_page: {}", info.overview_page);
+                    for server in info.server.iter() {
+                        println!("server: {}:{}", server.server, server.port,);
+                    }
                 }
                 None => {
                     println!("No information for provider belonging to {} found.", arg1);

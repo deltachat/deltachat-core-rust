@@ -16,8 +16,9 @@ use crate::job::{self, job_add, job_kill_action};
 use crate::login_param::{CertificateChecks, LoginParam};
 use crate::oauth2::*;
 use crate::param::Params;
-use crate::{e2ee, provider};
+use crate::{chat, e2ee, provider};
 
+use crate::message::Message;
 use auto_mozilla::moz_autoconfigure;
 use auto_outlook::outlk_autodiscover;
 
@@ -434,6 +435,16 @@ pub fn JobConfigureImap(context: &Context) -> job::Status {
         LoginParam::from_database(context, "").save_to_database(context, "configured_raw_");
     } else {
         LoginParam::from_database(context, "configured_raw_").save_to_database(context, "");
+    }
+
+    if let Some(provider) = provider::get_provider_info(&param.addr) {
+        if !provider.after_login_hint.is_empty() {
+            let mut msg = Message::new(Viewtype::Text);
+            msg.text = Some(provider.after_login_hint.to_string());
+            if chat::add_device_msg(context, Some("core-provider-info"), Some(&mut msg)).is_err() {
+                warn!(context, "cannot add after_login_hint as core-provider-info");
+            }
+        }
     }
 
     context.free_ongoing();

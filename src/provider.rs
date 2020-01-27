@@ -111,6 +111,15 @@ lazy_static::lazy_static! {
             ],
         },
         Provider {
+            domains: "testrun.org",
+            status: Status::OK,
+            before_login_hint: "",
+            after_login_hint: "testrun.org is not Delta Chat :)",
+            overview_page: "",
+            server: vec![
+            ],
+        },
+        Provider {
             domains: "gmail.com googlemail.com",
             status: Status::PREPARATION,
             before_login_hint: "For Gmail Accounts, you need to create an App-Password \
