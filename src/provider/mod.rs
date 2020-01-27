@@ -107,10 +107,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_get_provider_info() {
+    fn test_get_provider_info_unexistant() {
         let provider = get_provider_info("user@unexistant.org");
         assert!(provider.is_none());
+    }
 
+    #[test]
+    fn test_get_provider_info_mixed_case() {
+        let provider = get_provider_info("uSer@nAUta.Cu").unwrap();
+        assert!(provider.status == Status::OK);
+    }
+
+    #[test]
+    fn test_get_provider_info() {
         let provider = get_provider_info("nauta.cu"); // this is no email address
         assert!(provider.is_none());
 
