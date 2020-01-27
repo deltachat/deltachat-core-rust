@@ -578,6 +578,11 @@ class IOThreads:
 
     def stop(self, wait=False):
         self._thread_quitflag = True
+
+        # Workaround for a race condition. Make sure that thread is
+        # not in between checking for quitflag and entering idle.
+        time.sleep(0.5)
+
         lib.dc_interrupt_imap_idle(self._dc_context)
         lib.dc_interrupt_smtp_idle(self._dc_context)
         lib.dc_interrupt_mvbox_idle(self._dc_context)
