@@ -57,7 +57,6 @@ impl Server {
 
 #[derive(Debug)]
 pub struct Provider {
-    pub domains: &'static str,
     pub status: Status,
     pub before_login_hint: &'static str,
     pub after_login_hint: &'static str,
@@ -91,12 +90,8 @@ pub fn get_provider_info(addr: &str) -> Option<&Provider> {
     }
     .to_lowercase();
 
-    for record in PROVIDER_DATA.iter() {
-        for record_domain in record.domains.split(' ') {
-            if record_domain == domain {
-                return Some(record);
-            }
-        }
+    if let Some(provider) = PROVIDER_DATA.get(domain.as_str()) {
+        return Some(*provider);
     }
 
     None
