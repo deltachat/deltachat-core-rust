@@ -41,6 +41,20 @@ pub struct Server {
     pub username_pattern: UsernamePattern,
 }
 
+impl Server {
+    pub fn apply_username_pattern(&self, addr: String) -> String {
+        match self.username_pattern {
+            EMAIL => addr,
+            EMAILLOCALPART => {
+                if let Some(at) = addr.find('@') {
+                    return addr.split_at(at).0.to_string();
+                }
+                addr
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Provider {
     pub domains: &'static str,
