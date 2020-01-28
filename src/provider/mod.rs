@@ -127,7 +127,7 @@ mod tests {
         assert_eq!(server.port, 143);
         assert_eq!(server.username_pattern, UsernamePattern::EMAIL);
         let server = provider.get_smtp_server().unwrap();
-        assert_eq!(server.protocol,  Protocol::SMTP);
+        assert_eq!(server.protocol, Protocol::SMTP);
         assert_eq!(server.socket, Socket::STARTTLS);
         assert_eq!(server.hostname, "smtp.nauta.cu");
         assert_eq!(server.port, 25);
