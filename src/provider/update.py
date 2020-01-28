@@ -38,6 +38,9 @@ def process_data(data, file):
     if not "domains" in data:
         raise TypeError("no domains found")
     for domain in data["domains"]:
+        domain = cleanstr(domain)
+        if domain == "" or domain.count(".") < 1:
+            raise TypeError("bad domain: " + domain)
         out_domains += "        (\"" + domain + "\", &*P" + str(count) + "),\n"
         comment += domain + ", "
 
