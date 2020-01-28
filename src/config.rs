@@ -8,6 +8,7 @@ use crate::constants::DC_VERSION_STR;
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::job::*;
+use crate::mimefactory::RECOMMENDED_FILE_SIZE;
 use crate::stock::StockMessage;
 use rusqlite::NO_PARAMS;
 
@@ -98,7 +99,7 @@ impl Context {
                 rel_path.map(|p| dc_get_abs_path(self, &p).to_string_lossy().into_owned())
             }
             Config::SysVersion => Some((&*DC_VERSION_STR).clone()),
-            Config::SysMsgsizeMaxRecommended => Some(format!("{}", 24 * 1024 * 1024 / 4 * 3)),
+            Config::SysMsgsizeMaxRecommended => Some(format!("{}", RECOMMENDED_FILE_SIZE)),
             Config::SysConfigKeys => Some(get_config_keys_string()),
             _ => self.sql.get_raw_config(self, key),
         };
