@@ -21,7 +21,7 @@ use crate::stock::StockMessage;
 // (brutto examples: web.de=50, 1&1=40, t-online.de=32, gmail=25, posteo=50, yahoo=25, all-inkl=100).
 // as an upper limit, we double the size; the core won't send messages larger than this
 // to get the netto sizes, we subtract 1 mb header-overhead and the base64-overhead.
-const RECOMMENDED_FILE_SIZE: u64 = 24 * 1024 * 1024 / 4 * 3;
+pub const RECOMMENDED_FILE_SIZE: u64 = 24 * 1024 * 1024 / 4 * 3;
 const UPPER_LIMIT_FILE_SIZE: u64 = 49 * 1024 * 1024 / 4 * 3;
 
 #[derive(Debug, Clone)]
