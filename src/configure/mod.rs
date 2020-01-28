@@ -452,6 +452,7 @@ pub fn JobConfigureImap(context: &Context) -> job::Status {
     job::Status::Finished(Ok(()))
 }
 
+#[allow(clippy::unnecessary_unwrap)]
 fn get_offline_autoconfig(context: &Context, param: &LoginParam) -> Option<LoginParam> {
     info!(
         context,
@@ -463,6 +464,10 @@ fn get_offline_autoconfig(context: &Context, param: &LoginParam) -> Option<Login
             provider::Status::OK | provider::Status::PREPARATION => {
                 let imap = provider.get_imap_server();
                 let smtp = provider.get_smtp_server();
+                // clippy complains about these is_some()/unwrap() settings,
+                // however, rewriting the code to "if let" would make things less obvious,
+                // esp. if we allow more combinations of servers (pop, jmap).
+                // therefore, #[allow(clippy::unnecessary_unwrap)] is added above.
                 if imap.is_some() && smtp.is_some() {
                     let imap = imap.unwrap();
                     let smtp = smtp.unwrap();
