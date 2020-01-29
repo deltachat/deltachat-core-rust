@@ -27,14 +27,14 @@ def test_empty_context():
 
 
 def test_callback_None2int():
-    ctx = capi.lib.dc_context_new(capi.lib.py_dc_callback, ffi.NULL)
+    ctx = capi.lib.dc_context_new(ffi.NULL, ffi.NULL)
     set_context_callback(ctx, lambda *args: None)
     capi.lib.dc_close(ctx)
     clear_context_callback(ctx)
 
 def test_start_stop_event_thread_basic():
     print("1")
-    ctx = capi.lib.dc_context_new(capi.lib.py_dc_callback, ffi.NULL)
+    ctx = capi.lib.dc_context_new(ffi.NULL, ffi.NULL)
     print("2")
     ev_thread = EventThread(ctx)
     print("3 -- starting event thread")
@@ -48,7 +48,7 @@ def test_start_stop_event_thread_basic():
 
 def test_dc_close_events(tmpdir):
     ctx = ffi.gc(
-        capi.lib.dc_context_new(capi.lib.py_dc_callback, ffi.NULL),
+        capi.lib.dc_context_new(ffi.NULL, ffi.NULL),
         lib.dc_context_unref,
     )
     evlog = EventLogger(ctx)
@@ -82,7 +82,7 @@ def test_dc_close_events(tmpdir):
 
 def test_wrong_db(tmpdir):
     dc_context = ffi.gc(
-        lib.dc_context_new(lib.py_dc_callback, ffi.NULL),
+        lib.dc_context_new(ffi.NULL, ffi.NULL),
         lib.dc_context_unref,
     )
     p = tmpdir.join("hello.db")
@@ -94,7 +94,7 @@ def test_wrong_db(tmpdir):
 def test_empty_blobdir(tmpdir):
     # Apparently some client code expects this to be the same as passing NULL.
     ctx = ffi.gc(
-        lib.dc_context_new(lib.py_dc_callback, ffi.NULL),
+        lib.dc_context_new(ffi.NULL, ffi.NULL),
         lib.dc_context_unref,
     )
     db_fname = tmpdir.join("hello.db")
@@ -151,7 +151,7 @@ def test_provider_info_none():
 
 def test_get_info_closed():
     ctx = ffi.gc(
-        lib.dc_context_new(lib.py_dc_callback, ffi.NULL, ffi.NULL),
+        lib.dc_context_new(ffi.NULL, ffi.NULL),
         lib.dc_context_unref,
     )
     info = cutil.from_dc_charpointer(lib.dc_get_info(ctx))
@@ -161,7 +161,7 @@ def test_get_info_closed():
 
 def test_get_info_open(tmpdir):
     ctx = ffi.gc(
-        lib.dc_context_new(lib.py_dc_callback, ffi.NULL, ffi.NULL),
+        lib.dc_context_new(ffi.NULL, ffi.NULL),
         lib.dc_context_unref,
     )
     db_fname = tmpdir.join("test.db")
@@ -173,7 +173,7 @@ def test_get_info_open(tmpdir):
 
 def test_is_open_closed():
     ctx = ffi.gc(
-        lib.dc_context_new(lib.py_dc_callback, ffi.NULL, ffi.NULL),
+        lib.dc_context_new(ffi.NULL, ffi.NULL),
         lib.dc_context_unref,
     )
     assert lib.dc_is_open(ctx) == 0
@@ -181,7 +181,7 @@ def test_is_open_closed():
 
 def test_is_open_actually_open(tmpdir):
     ctx = ffi.gc(
-        lib.dc_context_new(lib.py_dc_callback, ffi.NULL, ffi.NULL),
+        lib.dc_context_new(ffi.NULL, ffi.NULL),
         lib.dc_context_unref,
     )
     db_fname = tmpdir.join("test.db")
