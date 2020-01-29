@@ -38,7 +38,7 @@ class Account(object):
         :param debug: turn on debug logging for events.
         """
         self._dc_context = ffi.gc(
-            lib.dc_context_new(lib.py_dc_callback, ffi.NULL, as_dc_charpointer(os_name)),
+            lib.dc_context_new(ffi.NULL, as_dc_charpointer(os_name)),
             _destroy_dc_context,
         )
         if eventlogging:
@@ -566,7 +566,7 @@ class IOThreads:
         t.start()
 
     def stop(self, wait=False):
-        lib.dc_shutdown(self._dc_context)
+        lib.dc_context_shutdown(self._dc_context)
         
         if wait:
             for name, thread in self._name2thread.items():
@@ -575,7 +575,7 @@ class IOThreads:
     def dc_thread_run(self):
         self._log_event("py-bindings-info", 0, "DC THREAD START")
 
-        lib.dc_run(self._dc_context)
+        lib.dc_context_run(self._dc_context, lib.py_dc_callback)
 
         self._log_event("py-bindings-info", 0, "INBOX THREAD FINISHED")
 

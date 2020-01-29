@@ -57,7 +57,6 @@ use self::string::*;
 /// and protected by an [RwLock].  Other than that it needs to store
 /// the data which is passed into [dc_context_new].
 pub struct ContextWrapper {
-    cb: Option<dc_callback_t>,
     userdata: *mut libc::c_void,
     os_name: String,
     inner: RwLock<Option<context::Context>>,
@@ -91,7 +90,10 @@ impl ContextWrapper {
     ///
     /// This function makes it easy to log an error.
     unsafe fn error(&self, msg: &str) {
-        self.translate_cb(Event::Error(msg.to_string()));
+        self.with_inner(|ctx| {
+            ctx.call_cb(Event::Error(msg.to_string()));
+        })
+        .unwrap();
     }
 
     /// Unlock the context and execute a closure with it.
@@ -122,88 +124,10 @@ impl ContextWrapper {
             }
         }
     }
-
-    /// Translates the callback from the rust style to the C-style version.
-    unsafe fn translate_cb(&self, event: Event) {
-        if let Some(ffi_cb) = self.cb {
-            let event_id = event.as_id();
-            match event {
-                Event::Info(msg)
-                | Event::SmtpConnected(msg)
-                | Event::ImapConnected(msg)
-                | Event::SmtpMessageSent(msg)
-                | Event::ImapMessageDeleted(msg)
-                | Event::ImapMessageMoved(msg)
-                | Event::ImapFolderEmptied(msg)
-                | Event::NewBlobFile(msg)
-                | Event::DeletedBlobFile(msg)
-                | Event::Warning(msg)
-                | Event::Error(msg)
-                | Event::ErrorNetwork(msg)
-                | Event::ErrorSelfNotInGroup(msg) => {
-                    let data2 = CString::new(msg).unwrap_or_default();
-                    ffi_cb(self, event_id, 0, data2.as_ptr() as uintptr_t);
-                }
-                Event::MsgsChanged { chat_id, msg_id }
-                | Event::IncomingMsg { chat_id, msg_id }
-                | Event::MsgDelivered { chat_id, msg_id }
-                | Event::MsgFailed { chat_id, msg_id }
-                | Event::MsgRead { chat_id, msg_id } => {
-                    ffi_cb(
-                        self,
-                        event_id,
-                        chat_id.to_u32() as uintptr_t,
-                        msg_id.to_u32() as uintptr_t,
-                    );
-                }
-                Event::ChatModified(chat_id) => {
-                    ffi_cb(self, event_id, chat_id.to_u32() as uintptr_t, 0);
-                }
-                Event::ContactsChanged(id) | Event::LocationChanged(id) => {
-                    let id = id.unwrap_or_default();
-                    ffi_cb(self, event_id, id as uintptr_t, 0);
-                }
-                Event::ConfigureProgress(progress) | Event::ImexProgress(progress) => {
-                    ffi_cb(self, event_id, progress as uintptr_t, 0);
-                }
-                Event::ImexFileWritten(file) => {
-                    let data1 = file.to_c_string().unwrap_or_default();
-                    ffi_cb(self, event_id, data1.as_ptr() as uintptr_t, 0);
-                }
-                Event::SecurejoinInviterProgress {
-                    contact_id,
-                    progress,
-                }
-                | Event::SecurejoinJoinerProgress {
-                    contact_id,
-                    progress,
-                } => {
-                    ffi_cb(
-                        self,
-                        event_id,
-                        contact_id as uintptr_t,
-                        progress as uintptr_t,
-                    );
-                }
-                Event::SecurejoinMemberAdded {
-                    chat_id,
-                    contact_id,
-                } => {
-                    ffi_cb(
-                        self,
-                        event_id,
-                        chat_id.to_u32() as uintptr_t,
-                        contact_id as uintptr_t,
-                    );
-                }
-            }
-        }
-    }
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_context_new(
-    cb: Option<dc_callback_t>,
     userdata: *mut libc::c_void,
     os_name: *const libc::c_char,
 ) -> *mut dc_context_t {
@@ -215,7 +139,6 @@ pub unsafe extern "C" fn dc_context_new(
         to_string_lossy(os_name)
     };
     let ffi_ctx = ContextWrapper {
-        cb,
         userdata,
         os_name,
         inner: RwLock::new(None),
@@ -257,17 +180,11 @@ pub unsafe extern "C" fn dc_open(
         return 0;
     }
     let ffi_context = &*context;
-    let rust_cb = move |_ctx: &Context, evt: Event| ffi_context.translate_cb(evt);
 
     let ctx = if blobdir.is_null() || *blobdir == 0 {
-        Context::new(
-            Box::new(rust_cb),
-            ffi_context.os_name.clone(),
-            as_path(dbfile).to_path_buf(),
-        )
+        Context::new(ffi_context.os_name.clone(), as_path(dbfile).to_path_buf())
     } else {
         Context::with_blobdir(
-            Box::new(rust_cb),
             ffi_context.os_name.clone(),
             as_path(dbfile).to_path_buf(),
             as_path(blobdir).to_path_buf(),
@@ -471,17 +388,100 @@ pub unsafe extern "C" fn dc_is_configured(context: *mut dc_context_t) -> libc::c
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_run(context: *mut dc_context_t) {
+pub unsafe extern "C" fn dc_context_run(context: *mut dc_context_t, cb: Option<dc_callback_t>) {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_run()");
         return;
     }
     let ffi_context = &*context;
-    ffi_context.with_inner(|ctx| ctx.run()).unwrap_or(())
+    ffi_context
+        .with_inner(|ctx| {
+            ctx.run(|_ctx, event| {
+                translate_cb(ffi_context, cb, event);
+            })
+        })
+        .unwrap_or(())
+}
+
+/// Translates the callback from the rust style to the C-style version.
+unsafe fn translate_cb(ctx: &ContextWrapper, ffi_cb: Option<dc_callback_t>, event: Event) {
+    if let Some(ffi_cb) = ffi_cb {
+        let event_id = event.as_id();
+        match event {
+            Event::Info(msg)
+            | Event::SmtpConnected(msg)
+            | Event::ImapConnected(msg)
+            | Event::SmtpMessageSent(msg)
+            | Event::ImapMessageDeleted(msg)
+            | Event::ImapMessageMoved(msg)
+            | Event::ImapFolderEmptied(msg)
+            | Event::NewBlobFile(msg)
+            | Event::DeletedBlobFile(msg)
+            | Event::Warning(msg)
+            | Event::Error(msg)
+            | Event::ErrorNetwork(msg)
+            | Event::ErrorSelfNotInGroup(msg) => {
+                let data2 = CString::new(msg).unwrap_or_default();
+                ffi_cb(ctx, event_id, 0, data2.as_ptr() as uintptr_t);
+            }
+            Event::MsgsChanged { chat_id, msg_id }
+            | Event::IncomingMsg { chat_id, msg_id }
+            | Event::MsgDelivered { chat_id, msg_id }
+            | Event::MsgFailed { chat_id, msg_id }
+            | Event::MsgRead { chat_id, msg_id } => {
+                ffi_cb(
+                    ctx,
+                    event_id,
+                    chat_id.to_u32() as uintptr_t,
+                    msg_id.to_u32() as uintptr_t,
+                );
+            }
+            Event::ChatModified(chat_id) => {
+                ffi_cb(ctx, event_id, chat_id.to_u32() as uintptr_t, 0);
+            }
+            Event::ContactsChanged(id) | Event::LocationChanged(id) => {
+                let id = id.unwrap_or_default();
+                ffi_cb(ctx, event_id, id as uintptr_t, 0);
+            }
+            Event::ConfigureProgress(progress) | Event::ImexProgress(progress) => {
+                ffi_cb(ctx, event_id, progress as uintptr_t, 0);
+            }
+            Event::ImexFileWritten(file) => {
+                let data1 = file.to_c_string().unwrap_or_default();
+                ffi_cb(ctx, event_id, data1.as_ptr() as uintptr_t, 0);
+            }
+            Event::SecurejoinInviterProgress {
+                contact_id,
+                progress,
+            }
+            | Event::SecurejoinJoinerProgress {
+                contact_id,
+                progress,
+            } => {
+                ffi_cb(
+                    ctx,
+                    event_id,
+                    contact_id as uintptr_t,
+                    progress as uintptr_t,
+                );
+            }
+            Event::SecurejoinMemberAdded {
+                chat_id,
+                contact_id,
+            } => {
+                ffi_cb(
+                    ctx,
+                    event_id,
+                    chat_id.to_u32() as uintptr_t,
+                    contact_id as uintptr_t,
+                );
+            }
+        }
+    }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_shutdown(context: *mut dc_context_t) {
+pub unsafe extern "C" fn dc_context_shutdown(context: *mut dc_context_t) {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_shutdown()");
         return;

@@ -243,7 +243,7 @@ typedef uintptr_t (*dc_callback_t) (dc_context_t* context, int event, uintptr_t 
  *     The object must be passed to the other context functions
  *     and must be freed using dc_context_unref() after usage.
  */
-dc_context_t*   dc_context_new               (dc_callback_t cb, void* userdata, const char* os_name);
+dc_context_t*   dc_context_new               (void* userdata, const char* os_name);
 
 
 /**
@@ -540,12 +540,12 @@ int             dc_is_configured             (const dc_context_t* context);
 /**
  * TODO: Document
  */
-void            dc_run         (dc_context_t* context);
+void            dc_context_run         (dc_context_t* context, dc_callback_t cb);
 
 /**
  * TODO: Document
  */
-void            dc_shutdown         (dc_context_t* context);
+void            dc_context_shutdown         (dc_context_t* context);
 
 /**
  * This function can be called whenever there is a hint

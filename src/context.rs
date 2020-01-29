@@ -8,6 +8,7 @@ use std::sync::{
     Arc, Condvar, Mutex, RwLock,
 };
 
+use crossbeam::channel::select;
 use crossbeam::channel::{bounded, unbounded, Receiver, Sender};
 
 use crate::chat::*;
@@ -188,10 +189,9 @@ impl Context {
     where
         F: Fn(&Context, Event) -> () + Send + Sync,
     {
-        // TODO: ensure this can be only called once.
-
-        use crossbeam::channel::select;
-        self.is_running.store(true, Ordering::Relaxed);
+        if self.is_running.swap(true, Ordering::Relaxed) {
+            panic!("Run can only be called once");
+        }
 
         crossbeam::scope(|s| {
             let imap_handle = s.spawn(|_| loop {
@@ -249,7 +249,10 @@ impl Context {
 
     /// Stop the run loop. Blocks until all threads have shutdown.
     pub fn shutdown(&self) {
-        self.is_running.store(false, Ordering::Relaxed);
+        if !self.is_running.swap(false, Ordering::Relaxed) {
+            // already shutdown
+            return;
+        }
         self.shutdown_sender.send(()).unwrap();
 
         job::interrupt_inbox_idle(self);
@@ -258,7 +261,6 @@ impl Context {
         job::interrupt_smtp_idle(self);
     }
 
-    // connect
     pub fn configure(&self) {
         if self.has_ongoing() {
             warn!(self, "There is already another ongoing process running.");
