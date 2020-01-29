@@ -1,25 +1,54 @@
 from __future__ import print_function
+import threading
 from deltachat import capi, cutil, const, set_context_callback, clear_context_callback
 from deltachat.capi import ffi
 from deltachat.capi import lib
 from deltachat.account import EventLogger
 
+class EventThread:
+    def __init__(self, dc_context):
+        self._dc_context = dc_context
+
+    def start(self):
+        self.thread = threading.Thread(target=self.run)
+        self.thread.setDaemon(1)
+        self.thread.start()
+
+    def stop(self):
+        lib.dc_context_shutdown(self._dc_context)
+
+    def run(self):
+        lib.dc_context_run(self._dc_context, lib.py_dc_callback)
+
 
 def test_empty_context():
-    ctx = capi.lib.dc_context_new(capi.ffi.NULL, capi.ffi.NULL, capi.ffi.NULL)
+    ctx = capi.lib.dc_context_new(capi.ffi.NULL, capi.ffi.NULL)
     capi.lib.dc_close(ctx)
 
 
 def test_callback_None2int():
-    ctx = capi.lib.dc_context_new(capi.lib.py_dc_callback, ffi.NULL, ffi.NULL)
+    ctx = capi.lib.dc_context_new(capi.lib.py_dc_callback, ffi.NULL)
     set_context_callback(ctx, lambda *args: None)
     capi.lib.dc_close(ctx)
     clear_context_callback(ctx)
 
+def test_start_stop_event_thread_basic():
+    print("1")
+    ctx = capi.lib.dc_context_new(capi.lib.py_dc_callback, ffi.NULL)
+    print("2")
+    ev_thread = EventThread(ctx)
+    print("3 -- starting event thread")
+    ev_thread.start()
+    print("4 -- started, closing context")
+    capi.lib.dc_close(ctx)
+    print("4 -- clear context callback")
+    clear_context_callback(ctx)
+    print("4 -- stopping event thread")
+    ev_thread.stop()
 
 def test_dc_close_events(tmpdir):
     ctx = ffi.gc(
-        capi.lib.dc_context_new(capi.lib.py_dc_callback, ffi.NULL, ffi.NULL),
+        capi.lib.dc_context_new(capi.lib.py_dc_callback, ffi.NULL),
         lib.dc_context_unref,
     )
     evlog = EventLogger(ctx)
@@ -28,6 +57,8 @@ def test_dc_close_events(tmpdir):
         ctx,
         lambda ctx, evt_name, data1, data2: evlog(evt_name, data1, data2)
     )
+    thread = EventThread(ctx)
+    thread.start()
     p = tmpdir.join("hello.db")
     lib.dc_open(ctx, p.strpath.encode("ascii"), ffi.NULL)
     capi.lib.dc_close(ctx)
@@ -46,11 +77,12 @@ def test_dc_close_events(tmpdir):
     find("disconnecting mvbox-thread")
     find("disconnecting SMTP")
     find("Database closed")
+    thread.stop()
 
 
 def test_wrong_db(tmpdir):
     dc_context = ffi.gc(
-        lib.dc_context_new(lib.py_dc_callback, ffi.NULL, ffi.NULL),
+        lib.dc_context_new(lib.py_dc_callback, ffi.NULL),
         lib.dc_context_unref,
     )
     p = tmpdir.join("hello.db")
@@ -62,7 +94,7 @@ def test_wrong_db(tmpdir):
 def test_empty_blobdir(tmpdir):
     # Apparently some client code expects this to be the same as passing NULL.
     ctx = ffi.gc(
-        lib.dc_context_new(lib.py_dc_callback, ffi.NULL, ffi.NULL),
+        lib.dc_context_new(lib.py_dc_callback, ffi.NULL),
         lib.dc_context_unref,
     )
     db_fname = tmpdir.join("hello.db")
