@@ -195,6 +195,11 @@ impl Job {
                 warn!(context, "SMTP failed to send: {}", err);
                 smtp.disconnect();
                 self.pending_error = Some(err.to_string());
+                if let Some(secs) = smtp.secs_since_last_success() {
+                    if secs > 60 {
+                        return Status::RetryNow;
+                    }
+                }
                 Status::RetryLater
             }
             Err(crate::smtp::send::Error::EnvelopeError(err)) => {
@@ -919,52 +924,10 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
             suspend_smtp_thread(context, true);
         }
 
-        let try_res = (0..2)
-            .map(|tries| {
-                info!(
-                    context,
-                    "{} performs immediate try {} of job {}", thread, tries, job
-                );
-
-                let try_res = match job.action {
-                    Action::Unknown => Status::Finished(Err(format_err!("Unknown job id found"))),
-                    Action::SendMsgToSmtp => job.SendMsgToSmtp(context),
-                    Action::EmptyServer => job.EmptyServer(context),
-                    Action::DeleteMsgOnImap => job.DeleteMsgOnImap(context),
-                    Action::MarkseenMsgOnImap => job.MarkseenMsgOnImap(context),
-                    Action::MarkseenMdnOnImap => job.MarkseenMdnOnImap(context),
-                    Action::MoveMsg => job.MoveMsg(context),
-                    Action::SendMdn => job.SendMdn(context),
-                    Action::ConfigureImap => JobConfigureImap(context),
-                    Action::ImexImap => match JobImexImap(context, &job) {
-                        Ok(()) => Status::Finished(Ok(())),
-                        Err(err) => {
-                            error!(context, "{}", err);
-                            Status::Finished(Err(err))
-                        }
-                    },
-                    Action::MaybeSendLocations => location::JobMaybeSendLocations(context, &job),
-                    Action::MaybeSendLocationsEnded => {
-                        location::JobMaybeSendLocationsEnded(context, &mut job)
-                    }
-                    Action::Housekeeping => {
-                        sql::housekeeping(context);
-                        Status::Finished(Ok(()))
-                    }
-                };
-
-                info!(
-                    context,
-                    "{} finished immediate try {} of job {}", thread, tries, job
-                );
-
-                try_res
-            })
-            .find(|try_res| match try_res {
-                Status::RetryNow => false,
-                _ => true,
-            })
-            .unwrap_or(Status::RetryNow);
+        let try_res = match perform_job_action(context, &mut job, thread, 0) {
+            Status::RetryNow => perform_job_action(context, &mut job, thread, 1),
+            x => x,
+        };
 
         if Action::ConfigureImap == job.action || Action::ImexImap == job.action {
             context
@@ -1053,6 +1016,45 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
             }
         }
     }
+}
+
+fn perform_job_action(context: &Context, mut job: &mut Job, thread: Thread, tries: u32) -> Status {
+    info!(
+        context,
+        "{} begin immediate try {} of job {}", thread, tries, job
+    );
+
+    let try_res = match job.action {
+        Action::Unknown => Status::Finished(Err(format_err!("Unknown job id found"))),
+        Action::SendMsgToSmtp => job.SendMsgToSmtp(context),
+        Action::EmptyServer => job.EmptyServer(context),
+        Action::DeleteMsgOnImap => job.DeleteMsgOnImap(context),
+        Action::MarkseenMsgOnImap => job.MarkseenMsgOnImap(context),
+        Action::MarkseenMdnOnImap => job.MarkseenMdnOnImap(context),
+        Action::MoveMsg => job.MoveMsg(context),
+        Action::SendMdn => job.SendMdn(context),
+        Action::ConfigureImap => JobConfigureImap(context),
+        Action::ImexImap => match JobImexImap(context, &job) {
+            Ok(()) => Status::Finished(Ok(())),
+            Err(err) => {
+                error!(context, "{}", err);
+                Status::Finished(Err(err))
+            }
+        },
+        Action::MaybeSendLocations => location::JobMaybeSendLocations(context, &job),
+        Action::MaybeSendLocationsEnded => location::JobMaybeSendLocationsEnded(context, &mut job),
+        Action::Housekeeping => {
+            sql::housekeeping(context);
+            Status::Finished(Ok(()))
+        }
+    };
+
+    info!(
+        context,
+        "{} finished immediate try {} of job {}", thread, tries, job
+    );
+
+    try_res
 }
 
 fn get_backoff_time_offset(tries: u32) -> i64 {
