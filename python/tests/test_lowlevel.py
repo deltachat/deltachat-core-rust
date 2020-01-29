@@ -6,15 +6,17 @@ from deltachat.capi import lib
 from deltachat.account import EventLogger
 
 
-def make_event_thread(dc_context, start):
-    def run():
-        lib.dc_context_run(dc_context, lib.py_dc_callback)
+class EventThread(threading.Thread):
+    def __init__(self, dc_context):
+        self.dc_context = dc_context
+        super(EventThread, self).__init__()
+        self.setDaemon(1)
 
-    thread = threading.Thread(target=run)
-    thread.setDaemon(1)
-    if start:
-        thread.start()
-    return thread
+    def run(self):
+        lib.dc_context_run(self.dc_context, lib.py_dc_callback)
+
+    def stop(self):
+        lib.dc_context_shutdown(self.dc_context)
 
 
 def test_empty_context():
@@ -32,14 +34,10 @@ def test_start_stop_event_thread_basic():
     print("1")
     ctx = capi.lib.dc_context_new(ffi.NULL, ffi.NULL)
     print("2")
-    ev_thread = make_event_thread(ctx, start=False)
+    ev_thread = EventThread(ctx)
     print("3 -- starting event thread")
     ev_thread.start()
-    print("4 -- started thread, closing context")
-    capi.lib.dc_close(ctx)
-    print("5 -- clear context callback")
-    clear_context_callback(ctx)
-    print("6 -- stopping event thread")
+    print("4 -- stopping event thread")
     ev_thread.stop()
 
 def test_dc_close_events(tmpdir):
@@ -53,7 +51,8 @@ def test_dc_close_events(tmpdir):
         ctx,
         lambda ctx, evt_name, data1, data2: evlog(evt_name, data1, data2)
     )
-    ev_thread = make_event_thread(ctx, start=True)
+    ev_thread = EventThread(ctx)
+    ev_thread.start()
 
     p = tmpdir.join("hello.db")
     lib.dc_open(ctx, p.strpath.encode("ascii"), ffi.NULL)
