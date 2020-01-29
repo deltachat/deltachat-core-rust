@@ -176,6 +176,7 @@ class TestOfflineChat:
         assert d["draft"] == "" if chat.get_draft() is None else chat.get_draft()
 
     def test_group_chat_creation_with_translation(self, ac1):
+        ac1.start_threads()
         ac1.set_stock_translation(const.DC_STR_NEWGROUPDRAFT, "xyz %1$s")
         ac1._evlogger.consume_events()
         with pytest.raises(ValueError):
@@ -195,6 +196,7 @@ class TestOfflineChat:
         assert not chat.is_promoted()
         msg = chat.get_draft()
         assert msg.text == "xyz title1"
+        ac1.stop_threads()
 
     @pytest.mark.parametrize("verified", [True, False])
     def test_group_chat_qr(self, acfactory, ac1, verified):
