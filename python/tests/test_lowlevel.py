@@ -5,20 +5,16 @@ from deltachat.capi import ffi
 from deltachat.capi import lib
 from deltachat.account import EventLogger
 
-class EventThread:
-    def __init__(self, dc_context):
-        self._dc_context = dc_context
 
-    def start(self):
-        self.thread = threading.Thread(target=self.run)
-        self.thread.setDaemon(1)
-        self.thread.start()
+def make_event_thread(dc_context, start):
+    def run():
+        lib.dc_context_run(dc_context, lib.py_dc_callback)
 
-    def stop(self):
-        lib.dc_context_shutdown(self._dc_context)
-
-    def run(self):
-        lib.dc_context_run(self._dc_context, lib.py_dc_callback)
+    thread = threading.Thread(target=run)
+    thread.setDaemon(1)
+    if start:
+        thread.start()
+    return thread
 
 
 def test_empty_context():
@@ -36,14 +32,14 @@ def test_start_stop_event_thread_basic():
     print("1")
     ctx = capi.lib.dc_context_new(ffi.NULL, ffi.NULL)
     print("2")
-    ev_thread = EventThread(ctx)
+    ev_thread = make_event_thread(ctx, start=False)
     print("3 -- starting event thread")
     ev_thread.start()
-    print("4 -- started, closing context")
+    print("4 -- started thread, closing context")
     capi.lib.dc_close(ctx)
-    print("4 -- clear context callback")
+    print("5 -- clear context callback")
     clear_context_callback(ctx)
-    print("4 -- stopping event thread")
+    print("6 -- stopping event thread")
     ev_thread.stop()
 
 def test_dc_close_events(tmpdir):
@@ -57,8 +53,8 @@ def test_dc_close_events(tmpdir):
         ctx,
         lambda ctx, evt_name, data1, data2: evlog(evt_name, data1, data2)
     )
-    thread = EventThread(ctx)
-    thread.start()
+    ev_thread = make_event_thread(ctx, start=True)
+
     p = tmpdir.join("hello.db")
     lib.dc_open(ctx, p.strpath.encode("ascii"), ffi.NULL)
     capi.lib.dc_close(ctx)
@@ -77,7 +73,7 @@ def test_dc_close_events(tmpdir):
     find("disconnecting mvbox-thread")
     find("disconnecting SMTP")
     find("Database closed")
-    thread.stop()
+    ev_thread.stop()
 
 
 def test_wrong_db(tmpdir):
