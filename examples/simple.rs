@@ -30,15 +30,14 @@ fn main() {
     let dir = tempdir().unwrap();
     let dbfile = dir.path().join("db.sqlite");
     println!("creating database {:?}", dbfile);
-    let ctx =
-        Context::new(Box::new(cb), "FakeOs".into(), dbfile).expect("Failed to create context");
+    let ctx = Context::new("FakeOs".into(), dbfile).expect("Failed to create context");
     let info = ctx.get_info();
     let duration = time::Duration::from_millis(8000);
     println!("info: {:#?}", info);
 
     crossbeam::scope(|s| {
         let t1 = s.spawn(|_| {
-            ctx.run();
+            ctx.run(cb);
         });
 
         println!("configuring");

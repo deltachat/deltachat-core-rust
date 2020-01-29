@@ -1,6 +1,7 @@
 //! Stress some functions for testing; if used as a lib, this file is obsolete.
 
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use deltachat::config;
 use deltachat::context::*;
@@ -207,14 +208,20 @@ fn cb(_context: &Context, _event: Event) {}
 
 #[allow(dead_code)]
 struct TestContext {
-    ctx: Context,
+    ctx: Arc<Context>,
     dir: TempDir,
 }
 
 fn create_test_context() -> TestContext {
     let dir = tempdir().unwrap();
     let dbfile = dir.path().join("db.sqlite");
-    let ctx = Context::new(Box::new(cb), "FakeOs".into(), dbfile).unwrap();
+    let ctx = Arc::new(Context::new("FakeOs".into(), dbfile).unwrap());
+    let ctx_1 = ctx.clone();
+
+    std::thread::spawn(move || {
+        ctx_1.run(cb);
+    });
+
     TestContext { ctx, dir }
 }
 

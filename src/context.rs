@@ -37,7 +37,7 @@ use crate::sql::Sql;
 /// * `data2` - Depends on the event parameter, see [Event].
 pub type ContextCallback = dyn Fn(&Context, Event) -> () + Send + Sync;
 
-#[derive(DebugStub)]
+#[derive(Debug)]
 pub struct Context {
     /// Database file path
     dbfile: PathBuf,
@@ -60,9 +60,6 @@ pub struct Context {
     /// Mutex to avoid generating the key for the user more than once.
     pub generating_key_mutex: Mutex<()>,
     pub translated_stockstrings: RwLock<HashMap<usize, String>>,
-
-    #[debug_stub = "Callback"]
-    cb: Box<ContextCallback>,
 
     event_sender: Sender<Event>,
     event_receiver: Receiver<Event>,
@@ -105,9 +102,7 @@ macro_rules! while_running {
 
 impl Context {
     /// Creates new context.
-    pub fn new(cb: Box<ContextCallback>, os_name: String, dbfile: PathBuf) -> Result<Context> {
-        pretty_env_logger::try_init_timed().ok();
-
+    pub fn new(os_name: String, dbfile: PathBuf) -> Result<Context> {
         let mut blob_fname = OsString::new();
         blob_fname.push(dbfile.file_name().unwrap_or_default());
         blob_fname.push("-blobs");
@@ -115,15 +110,10 @@ impl Context {
         if !blobdir.exists() {
             std::fs::create_dir_all(&blobdir)?;
         }
-        Context::with_blobdir(cb, os_name, dbfile, blobdir)
+        Context::with_blobdir(os_name, dbfile, blobdir)
     }
 
-    pub fn with_blobdir(
-        cb: Box<ContextCallback>,
-        os_name: String,
-        dbfile: PathBuf,
-        blobdir: PathBuf,
-    ) -> Result<Context> {
+    pub fn with_blobdir(os_name: String, dbfile: PathBuf, blobdir: PathBuf) -> Result<Context> {
         ensure!(
             blobdir.is_dir(),
             "Blobdir does not exist: {}",
@@ -136,7 +126,6 @@ impl Context {
         let ctx = Context {
             blobdir,
             dbfile,
-            cb,
             os_name: Some(os_name),
             running_state: Arc::new(RwLock::new(Default::default())),
             sql: Sql::new(),
@@ -195,9 +184,13 @@ impl Context {
     }
 
     /// Start the run loop.
-    pub fn run(&self) {
-        use crossbeam::channel::select;
+    pub fn run<F>(&self, cb: F)
+    where
+        F: Fn(&Context, Event) -> () + Send + Sync,
+    {
+        // TODO: ensure this can be only called once.
 
+        use crossbeam::channel::select;
         self.is_running.store(true, Ordering::Relaxed);
 
         crossbeam::scope(|s| {
@@ -240,7 +233,7 @@ impl Context {
                     recv(self.event_receiver) -> event => {
                         // This gurantees that the callback is always called from the thread
                         // that called `run`.
-                        (*self.cb)(self, event.unwrap())
+                        cb(self, event.unwrap())
                     },
                     recv(self.shutdown_receiver) -> _ => break,
                 }
@@ -639,7 +632,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         std::fs::write(&dbfile, b"123").unwrap();
-        let res = Context::new(Box::new(|_, _| ()), "FakeOs".into(), dbfile);
+        let res = Context::new("FakeOs".into(), dbfile);
         assert!(res.is_err());
     }
 
@@ -654,7 +647,7 @@ mod tests {
     fn test_blobdir_exists() {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
-        Context::new(Box::new(|_, _| ()), "FakeOS".into(), dbfile).unwrap();
+        Context::new("FakeOS".into(), dbfile).unwrap();
         let blobdir = tmp.path().join("db.sqlite-blobs");
         assert!(blobdir.is_dir());
     }
@@ -665,7 +658,7 @@ mod tests {
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = tmp.path().join("db.sqlite-blobs");
         std::fs::write(&blobdir, b"123").unwrap();
-        let res = Context::new(Box::new(|_, _| ()), "FakeOS".into(), dbfile);
+        let res = Context::new("FakeOS".into(), dbfile);
         assert!(res.is_err());
     }
 
@@ -675,7 +668,7 @@ mod tests {
         let subdir = tmp.path().join("subdir");
         let dbfile = subdir.join("db.sqlite");
         let dbfile2 = dbfile.clone();
-        Context::new(Box::new(|_, _| ()), "FakeOS".into(), dbfile).unwrap();
+        Context::new("FakeOS".into(), dbfile).unwrap();
         assert!(subdir.is_dir());
         assert!(dbfile2.is_file());
     }
@@ -685,7 +678,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = PathBuf::new();
-        let res = Context::with_blobdir(Box::new(|_, _| ()), "FakeOS".into(), dbfile, blobdir);
+        let res = Context::with_blobdir("FakeOS".into(), dbfile, blobdir);
         assert!(res.is_err());
     }
 
@@ -694,7 +687,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = tmp.path().join("blobs");
-        let res = Context::with_blobdir(Box::new(|_, _| ()), "FakeOS".into(), dbfile, blobdir);
+        let res = Context::with_blobdir("FakeOS".into(), dbfile, blobdir);
         assert!(res.is_err());
     }
 

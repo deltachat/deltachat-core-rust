@@ -2,6 +2,8 @@
 //!
 //! This module is only compiled for test runs.
 
+use std::sync::Arc;
+
 use tempfile::{tempdir, TempDir};
 
 use crate::config::Config;
@@ -15,7 +17,7 @@ use crate::key;
 /// The temporary directory can be used to store the SQLite database,
 /// see e.g. [test_context] which does this.
 pub struct TestContext {
-    pub ctx: Context,
+    pub ctx: Arc<Context>,
     pub dir: TempDir,
 }
 
@@ -32,7 +34,13 @@ pub fn test_context(callback: Option<Box<ContextCallback>>) -> TestContext {
         Some(cb) => cb,
         None => Box::new(|_, _| ()),
     };
-    let ctx = Context::new(cb, "FakeOs".into(), dbfile).unwrap();
+    let ctx = Arc::new(Context::new("FakeOs".into(), dbfile).unwrap());
+    let ctx_1 = ctx.clone();
+
+    std::thread::spawn(move || {
+        ctx_1.run(|context, event| (*cb)(context, event));
+    });
+
     TestContext { ctx, dir }
 }
 
