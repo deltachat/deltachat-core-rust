@@ -143,6 +143,6 @@ if __name__ == "__main__":
 
     out_all += "    pub static ref PROVIDER_DATA: HashMap<&'static str, &'static Provider> = [\n"
     out_all += out_domains;
-    out_all += "    ].iter().copied().collect();\n}\n"
+    out_all += "    ].iter().copied().collect();\n}"
 
     print(out_all)
