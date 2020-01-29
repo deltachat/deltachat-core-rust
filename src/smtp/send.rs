@@ -53,6 +53,8 @@ impl Smtp {
                 "Message len={} was smtp-sent to {}",
                 message_len, recipients_display
             )));
+            self.last_success = Some(std::time::Instant::now());
+
             Ok(())
         } else {
             warn!(
