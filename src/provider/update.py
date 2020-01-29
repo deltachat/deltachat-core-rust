@@ -7,6 +7,7 @@ import yaml
 
 out_all = ""
 out_domains = ""
+domains_dict = {}
 
 
 def cleanstr(s):
@@ -43,8 +44,15 @@ def process_data(data, file):
         domain = cleanstr(domain)
         if domain == "" or domain.count(".") < 1 or domain.lower() != domain:
             raise TypeError("bad domain: " + domain)
+
+        global domains_dict
+        if domains_dict.get(domain, False):
+            raise TypeError("domain used twice: " + domain)
+        domains_dict[domain] = True
+
         domains += "        (\"" + domain + "\", &*" + file2varname(file) + "),\n"
         comment += domain + ", "
+
 
     server = ""
     has_imap = False
