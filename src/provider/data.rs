@@ -9,7 +9,7 @@ use std::collections::HashMap;
 lazy_static::lazy_static! {
 
     // aktivix.org.md: aktivix.org
-    static ref P1: Provider = Provider {
+    static ref P_AKTIVIX_ORG: Provider = Provider {
         status: Status::OK,
         before_login_hint: "",
         after_login_hint: "",
@@ -20,8 +20,20 @@ lazy_static::lazy_static! {
         ],
     };
 
+    // autistici.org.md: autistici.org
+    static ref P_AUTISTICI_ORG: Provider = Provider {
+        status: Status::OK,
+        before_login_hint: "",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/autistici-org",
+        server: vec![
+            Server { protocol: IMAP, socket: SSL, hostname: "mail.autistici.org", port: 993, username_pattern: EMAIL },
+            Server { protocol: SMTP, socket: SSL, hostname: "smtp.autistici.org", port: 465, username_pattern: EMAIL },
+        ],
+    };
+
     // example.com.md: example.com, example.org
-    static ref P2: Provider = Provider {
+    static ref P_EXAMPLE_COM: Provider = Provider {
         status: Status::BROKEN,
         before_login_hint: "Hush this provider doesn't exist!",
         after_login_hint: "This provider doesn't really exist, so you can't use it :/ If you need an email provider for Delta Chat, take a look at providers.delta.chat!",
@@ -33,7 +45,7 @@ lazy_static::lazy_static! {
     };
 
     // gmail.md: gmail.com, googlemail.com
-    static ref P3: Provider = Provider {
+    static ref P_GMAIL: Provider = Provider {
         status: Status::PREPARATION,
         before_login_hint: "For Gmail accounts, you need to create an app-password if you have \"2-Step Verification\" enabled. If this setting is not available, you need to enable \"less secure apps\".",
         after_login_hint: "",
@@ -45,7 +57,7 @@ lazy_static::lazy_static! {
     };
 
     // gmx.net.md: gmx.net, gmx.de, gmx.at, gmx.ch, gmx.org, gmx.eu, gmx.info, gmx.biz, gmx.com
-    static ref P4: Provider = Provider {
+    static ref P_GMX_NET: Provider = Provider {
         status: Status::PREPARATION,
         before_login_hint: "You must allow IMAP access to your account before you can login.",
         after_login_hint: "",
@@ -57,18 +69,20 @@ lazy_static::lazy_static! {
         ],
     };
 
-    // hotmail.md: hotmail.com, outlook.com, office365.com, outlook.com.tr
-    static ref P5: Provider = Provider {
+    // hotmail.md: hotmail.com, outlook.com, office365.com, outlook.com.tr, live.com
+    static ref P_HOTMAIL: Provider = Provider {
         status: Status::BROKEN,
         before_login_hint: "Outlook email addresses will not work as expected as these servers remove some important transport information. Hopefully sooner or later there will be a fix, for now we suggest to use another email address.",
-        after_login_hint: "",
+        after_login_hint: "Outlook email addresses will not work as expected as these servers remove some important transport information. Unencrypted 1-on-1 chats kind of work, but groups and encryption don't. Hopefully sooner or later there will be a fix, for now we suggest to use another email address.",
         overview_page: "https://providers.delta.chat/hotmail",
         server: vec![
+            Server { protocol: IMAP, socket: SSL, hostname: "imap-mail.outlook.com", port: 993, username_pattern: EMAIL },
+            Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp-mail.outlook.com", port: 587, username_pattern: EMAIL },
         ],
     };
 
     // icloud.md: icloud.com, me.com, mac.com
-    static ref P6: Provider = Provider {
+    static ref P_ICLOUD: Provider = Provider {
         status: Status::PREPARATION,
         before_login_hint: "You must create an app-specific password for Delta Chat before you can login.",
         after_login_hint: "",
@@ -80,10 +94,10 @@ lazy_static::lazy_static! {
     };
 
     // nauta.cu.md: nauta.cu
-    static ref P7: Provider = Provider {
+    static ref P_NAUTA_CU: Provider = Provider {
         status: Status::OK,
         before_login_hint: "",
-        after_login_hint: "",
+        after_login_hint: "Atención - con nauta.cu, puede enviar mensajes sólo a un máximo de 20 personas. En grupos más grandes que eso, no puede dejar o enviar mensajes.",
         overview_page: "https://providers.delta.chat/nauta-cu",
         server: vec![
             Server { protocol: IMAP, socket: STARTTLS, hostname: "imap.nauta.cu", port: 143, username_pattern: EMAIL },
@@ -92,7 +106,7 @@ lazy_static::lazy_static! {
     };
 
     // web.de.md: web.de, email.de, flirt.ms, hallo.ms, kuss.ms, love.ms, magic.ms, singles.ms, cool.ms, kanzler.ms, okay.ms, party.ms, pop.ms, stars.ms, techno.ms, clever.ms, deutschland.ms, genial.ms, ich.ms, online.ms, smart.ms, wichtig.ms, action.ms, fussball.ms, joker.ms, planet.ms, power.ms
-    static ref P8: Provider = Provider {
+    static ref P_WEB_DE: Provider = Provider {
         status: Status::PREPARATION,
         before_login_hint: "You must allow IMAP access to your account before you can login.",
         after_login_hint: "",
@@ -104,10 +118,10 @@ lazy_static::lazy_static! {
         ],
     };
 
-    // yahoo.md: yahoo.com, yahoo.com, yahoo.de, yahoo.it, yahoo.fr, yahoo.es, yahoo.se, yahoo.co.uk, yahoo.co.nz, yahoo.com.au, yahoo.com.ar, yahoo.com.br, yahoo.com.mx, ymail.com, rocketmail.com, yahoodns.net
-    static ref P9: Provider = Provider {
+    // yahoo.md: yahoo.com, yahoo.de, yahoo.it, yahoo.fr, yahoo.es, yahoo.se, yahoo.co.uk, yahoo.co.nz, yahoo.com.au, yahoo.com.ar, yahoo.com.br, yahoo.com.mx, ymail.com, rocketmail.com, yahoodns.net
+    static ref P_YAHOO: Provider = Provider {
         status: Status::PREPARATION,
-        before_login_hint: "",
+        before_login_hint: "To use Delta Chat with your Yahoo email address you have to allow \"less secure apps\" in the Yahoo webinterface.",
         after_login_hint: "",
         overview_page: "https://providers.delta.chat/yahoo",
         server: vec![
@@ -117,70 +131,71 @@ lazy_static::lazy_static! {
     };
 
     pub static ref PROVIDER_DATA: HashMap<&'static str, &'static Provider> = [
-        ("aktivix.org", &*P1),
-        ("example.com", &*P2),
-        ("example.org", &*P2),
-        ("gmail.com", &*P3),
-        ("googlemail.com", &*P3),
-        ("gmx.net", &*P4),
-        ("gmx.de", &*P4),
-        ("gmx.at", &*P4),
-        ("gmx.ch", &*P4),
-        ("gmx.org", &*P4),
-        ("gmx.eu", &*P4),
-        ("gmx.info", &*P4),
-        ("gmx.biz", &*P4),
-        ("gmx.com", &*P4),
-        ("hotmail.com", &*P5),
-        ("outlook.com", &*P5),
-        ("office365.com", &*P5),
-        ("outlook.com.tr", &*P5),
-        ("icloud.com", &*P6),
-        ("me.com", &*P6),
-        ("mac.com", &*P6),
-        ("nauta.cu", &*P7),
-        ("web.de", &*P8),
-        ("email.de", &*P8),
-        ("flirt.ms", &*P8),
-        ("hallo.ms", &*P8),
-        ("kuss.ms", &*P8),
-        ("love.ms", &*P8),
-        ("magic.ms", &*P8),
-        ("singles.ms", &*P8),
-        ("cool.ms", &*P8),
-        ("kanzler.ms", &*P8),
-        ("okay.ms", &*P8),
-        ("party.ms", &*P8),
-        ("pop.ms", &*P8),
-        ("stars.ms", &*P8),
-        ("techno.ms", &*P8),
-        ("clever.ms", &*P8),
-        ("deutschland.ms", &*P8),
-        ("genial.ms", &*P8),
-        ("ich.ms", &*P8),
-        ("online.ms", &*P8),
-        ("smart.ms", &*P8),
-        ("wichtig.ms", &*P8),
-        ("action.ms", &*P8),
-        ("fussball.ms", &*P8),
-        ("joker.ms", &*P8),
-        ("planet.ms", &*P8),
-        ("power.ms", &*P8),
-        ("yahoo.com", &*P9),
-        ("yahoo.com", &*P9),
-        ("yahoo.de", &*P9),
-        ("yahoo.it", &*P9),
-        ("yahoo.fr", &*P9),
-        ("yahoo.es", &*P9),
-        ("yahoo.se", &*P9),
-        ("yahoo.co.uk", &*P9),
-        ("yahoo.co.nz", &*P9),
-        ("yahoo.com.au", &*P9),
-        ("yahoo.com.ar", &*P9),
-        ("yahoo.com.br", &*P9),
-        ("yahoo.com.mx", &*P9),
-        ("ymail.com", &*P9),
-        ("rocketmail.com", &*P9),
-        ("yahoodns.net", &*P9),
+        ("aktivix.org", &*P_AKTIVIX_ORG),
+        ("autistici.org", &*P_AUTISTICI_ORG),
+        ("example.com", &*P_EXAMPLE_COM),
+        ("example.org", &*P_EXAMPLE_COM),
+        ("gmail.com", &*P_GMAIL),
+        ("googlemail.com", &*P_GMAIL),
+        ("gmx.net", &*P_GMX_NET),
+        ("gmx.de", &*P_GMX_NET),
+        ("gmx.at", &*P_GMX_NET),
+        ("gmx.ch", &*P_GMX_NET),
+        ("gmx.org", &*P_GMX_NET),
+        ("gmx.eu", &*P_GMX_NET),
+        ("gmx.info", &*P_GMX_NET),
+        ("gmx.biz", &*P_GMX_NET),
+        ("gmx.com", &*P_GMX_NET),
+        ("hotmail.com", &*P_HOTMAIL),
+        ("outlook.com", &*P_HOTMAIL),
+        ("office365.com", &*P_HOTMAIL),
+        ("outlook.com.tr", &*P_HOTMAIL),
+        ("live.com", &*P_HOTMAIL),
+        ("icloud.com", &*P_ICLOUD),
+        ("me.com", &*P_ICLOUD),
+        ("mac.com", &*P_ICLOUD),
+        ("nauta.cu", &*P_NAUTA_CU),
+        ("web.de", &*P_WEB_DE),
+        ("email.de", &*P_WEB_DE),
+        ("flirt.ms", &*P_WEB_DE),
+        ("hallo.ms", &*P_WEB_DE),
+        ("kuss.ms", &*P_WEB_DE),
+        ("love.ms", &*P_WEB_DE),
+        ("magic.ms", &*P_WEB_DE),
+        ("singles.ms", &*P_WEB_DE),
+        ("cool.ms", &*P_WEB_DE),
+        ("kanzler.ms", &*P_WEB_DE),
+        ("okay.ms", &*P_WEB_DE),
+        ("party.ms", &*P_WEB_DE),
+        ("pop.ms", &*P_WEB_DE),
+        ("stars.ms", &*P_WEB_DE),
+        ("techno.ms", &*P_WEB_DE),
+        ("clever.ms", &*P_WEB_DE),
+        ("deutschland.ms", &*P_WEB_DE),
+        ("genial.ms", &*P_WEB_DE),
+        ("ich.ms", &*P_WEB_DE),
+        ("online.ms", &*P_WEB_DE),
+        ("smart.ms", &*P_WEB_DE),
+        ("wichtig.ms", &*P_WEB_DE),
+        ("action.ms", &*P_WEB_DE),
+        ("fussball.ms", &*P_WEB_DE),
+        ("joker.ms", &*P_WEB_DE),
+        ("planet.ms", &*P_WEB_DE),
+        ("power.ms", &*P_WEB_DE),
+        ("yahoo.com", &*P_YAHOO),
+        ("yahoo.de", &*P_YAHOO),
+        ("yahoo.it", &*P_YAHOO),
+        ("yahoo.fr", &*P_YAHOO),
+        ("yahoo.es", &*P_YAHOO),
+        ("yahoo.se", &*P_YAHOO),
+        ("yahoo.co.uk", &*P_YAHOO),
+        ("yahoo.co.nz", &*P_YAHOO),
+        ("yahoo.com.au", &*P_YAHOO),
+        ("yahoo.com.ar", &*P_YAHOO),
+        ("yahoo.com.br", &*P_YAHOO),
+        ("yahoo.com.mx", &*P_YAHOO),
+        ("ymail.com", &*P_YAHOO),
+        ("rocketmail.com", &*P_YAHOO),
+        ("yahoodns.net", &*P_YAHOO),
     ].iter().copied().collect();
 }
