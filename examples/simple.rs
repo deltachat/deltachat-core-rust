@@ -21,13 +21,13 @@ fn cb(_ctx: &Context, event: Event) {
 
     match event {
         Event::ConfigureProgress(progress) => {
-            print!("  progress: {}\n", progress);
+            println!("  progress: {}", progress);
         }
         Event::Info(msg) | Event::Warning(msg) | Event::Error(msg) | Event::ErrorNetwork(msg) => {
-            print!("  {}\n", msg);
+            println!("  {}", msg);
         }
         _ => {
-            print!("\n");
+            println!();
         }
     }
 }
