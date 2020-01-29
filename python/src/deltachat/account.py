@@ -567,7 +567,6 @@ class IOThreads:
 
     def stop(self, wait=False):
         lib.dc_context_shutdown(self._dc_context)
-        
         if wait:
             for name, thread in self._name2thread.items():
                 thread.join()
@@ -578,6 +577,7 @@ class IOThreads:
         lib.dc_context_run(self._dc_context, lib.py_dc_callback)
 
         self._log_event("py-bindings-info", 0, "INBOX THREAD FINISHED")
+
 
 class EventLogger:
     _loglock = threading.RLock()
