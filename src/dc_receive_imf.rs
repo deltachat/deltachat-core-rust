@@ -244,7 +244,7 @@ pub fn dc_receive_imf(
 
     cleanup(context, &create_event_to_send, &created_db_entries);
 
-    mime_parser.handle_reports(from_id, sent_timestamp, &server_folder, server_uid);
+    mime_parser.handle_reports(context, from_id, sent_timestamp, &server_folder, server_uid);
 
     Ok(())
 }
@@ -1054,7 +1054,7 @@ fn create_or_lookup_group(
 }
 
 /// try extract a grpid from a message-id list header value
-fn extract_grpid<'a>(mime_parser: &'a MimeMessage, headerdef: HeaderDef) -> Option<&'a str> {
+fn extract_grpid(mime_parser: &MimeMessage, headerdef: HeaderDef) -> Option<&str> {
     let header = mime_parser.get(headerdef)?;
     let parts = header
         .split(',')

@@ -36,8 +36,7 @@ use crate::{bail, ensure};
 /// It is created by parsing the raw data of an actual MIME message
 /// using the [MimeMessage::from_bytes] constructor.
 #[derive(Debug)]
-pub struct MimeMessage<'a> {
-    pub context: &'a Context,
+pub struct MimeMessage {
     pub parts: Vec<Part>,
     header: HashMap<String, String>,
     pub decrypting_failed: bool,
@@ -91,8 +90,8 @@ impl Default for SystemMessage {
 
 const MIME_AC_SETUP_FILE: &str = "application/autocrypt-setup";
 
-impl<'a> MimeMessage<'a> {
-    pub fn from_bytes(context: &'a Context, body: &[u8]) -> Result<Self> {
+impl MimeMessage {
+    pub fn from_bytes(context: &Context, body: &[u8]) -> Result<Self> {
         let mail = mailparse::parse_mail(body)?;
 
         let message_time = mail
@@ -160,7 +159,6 @@ impl<'a> MimeMessage<'a> {
             signatures,
             gossipped_addr,
             is_forwarded: false,
-            context,
             reports: Vec::new(),
             is_system_message: SystemMessage::Unknown,
             location_kml: None,
@@ -168,14 +166,14 @@ impl<'a> MimeMessage<'a> {
             user_avatar: AvatarAction::None,
             group_avatar: AvatarAction::None,
         };
-        parser.parse_mime_recursive(&mail)?;
-        parser.parse_headers()?;
+        parser.parse_mime_recursive(context, &mail)?;
+        parser.parse_headers(context)?;
 
         Ok(parser)
     }
 
     /// Parses system messages.
-    fn parse_system_message_headers(&mut self) -> Result<()> {
+    fn parse_system_message_headers(&mut self, context: &Context) -> Result<()> {
         if self.get(HeaderDef::AutocryptSetupMessage).is_some() {
             self.parts = self
                 .parts
@@ -190,7 +188,7 @@ impl<'a> MimeMessage<'a> {
             if self.parts.len() == 1 {
                 self.is_system_message = SystemMessage::AutocryptSetupMessage;
             } else {
-                warn!(self.context, "could not determine ASM mime-part");
+                warn!(context, "could not determine ASM mime-part");
             }
         } else if let Some(value) = self.get(HeaderDef::ChatContent) {
             if value == "location-streaming-enabled" {
@@ -284,8 +282,8 @@ impl<'a> MimeMessage<'a> {
         }
     }
 
-    fn parse_headers(&mut self) -> Result<()> {
-        self.parse_system_message_headers()?;
+    fn parse_headers(&mut self, context: &Context) -> Result<()> {
+        self.parse_system_message_headers(context)?;
         self.parse_avatar_headers();
         self.squash_attachment_parts();
 
@@ -330,9 +328,9 @@ impl<'a> MimeMessage<'a> {
         // See if an MDN is requested from the other side
         if !self.decrypting_failed && !self.parts.is_empty() {
             if let Some(ref dn_to_addr) =
-                self.parse_first_addr(HeaderDef::ChatDispositionNotificationTo)
+                self.parse_first_addr(context, HeaderDef::ChatDispositionNotificationTo)
             {
-                if let Some(ref from_addr) = self.parse_first_addr(HeaderDef::From_) {
+                if let Some(ref from_addr) = self.parse_first_addr(context, HeaderDef::From_) {
                     if compare_addrs(from_addr, dn_to_addr) {
                         if let Some(part) = self.parts.last_mut() {
                             part.param.set_int(Param::WantsMdn, 1);
@@ -407,31 +405,35 @@ impl<'a> MimeMessage<'a> {
         self.header.get(&headerdef.get_headername())
     }
 
-    fn parse_first_addr(&self, headerdef: HeaderDef) -> Option<MailAddr> {
+    fn parse_first_addr(&self, context: &Context, headerdef: HeaderDef) -> Option<MailAddr> {
         if let Some(value) = self.get(headerdef.clone()) {
             match mailparse::addrparse(&value) {
                 Ok(ref addrs) => {
                     return addrs.first().cloned();
                 }
                 Err(err) => {
-                    warn!(self.context, "header {} parse error: {:?}", headerdef, err);
+                    warn!(context, "header {} parse error: {:?}", headerdef, err);
                 }
             }
         }
         None
     }
 
-    fn parse_mime_recursive(&mut self, mail: &mailparse::ParsedMail<'_>) -> Result<bool> {
+    fn parse_mime_recursive(
+        &mut self,
+        context: &Context,
+        mail: &mailparse::ParsedMail<'_>,
+    ) -> Result<bool> {
         if mail.ctype.params.get("protected-headers").is_some() {
             if mail.ctype.mimetype == "text/rfc822-headers" {
                 warn!(
-                    self.context,
+                    context,
                     "Protected headers found in text/rfc822-headers attachment: Will be ignored.",
                 );
                 return Ok(false);
             }
 
-            warn!(self.context, "Ignoring nested protected headers");
+            warn!(context, "Ignoring nested protected headers");
         }
 
         enum MimeS {
@@ -459,7 +461,7 @@ impl<'a> MimeMessage<'a> {
         };
 
         match m {
-            MimeS::Multiple => self.handle_multiple(mail),
+            MimeS::Multiple => self.handle_multiple(context, mail),
             MimeS::Message => {
                 let raw = mail.get_body_raw()?;
                 if raw.is_empty() {
@@ -467,13 +469,17 @@ impl<'a> MimeMessage<'a> {
                 }
                 let mail = mailparse::parse_mail(&raw).unwrap();
 
-                self.parse_mime_recursive(&mail)
+                self.parse_mime_recursive(context, &mail)
             }
-            MimeS::Single => self.add_single_part_if_known(mail),
+            MimeS::Single => self.add_single_part_if_known(context, mail),
         }
     }
 
-    fn handle_multiple(&mut self, mail: &mailparse::ParsedMail<'_>) -> Result<bool> {
+    fn handle_multiple(
+        &mut self,
+        context: &Context,
+        mail: &mailparse::ParsedMail<'_>,
+    ) -> Result<bool> {
         let mut any_part_added = false;
         let mimetype = get_mime_type(mail)?.0;
         match (mimetype.type_(), mimetype.subtype().as_str()) {
@@ -484,7 +490,7 @@ impl<'a> MimeMessage<'a> {
             (mime::MULTIPART, "alternative") => {
                 for cur_data in &mail.subparts {
                     if get_mime_type(cur_data)?.0 == "multipart/mixed" {
-                        any_part_added = self.parse_mime_recursive(cur_data)?;
+                        any_part_added = self.parse_mime_recursive(context, cur_data)?;
                         break;
                     }
                 }
@@ -492,7 +498,7 @@ impl<'a> MimeMessage<'a> {
                     /* search for text/plain and add this */
                     for cur_data in &mail.subparts {
                         if get_mime_type(cur_data)?.0.type_() == mime::TEXT {
-                            any_part_added = self.parse_mime_recursive(cur_data)?;
+                            any_part_added = self.parse_mime_recursive(context, cur_data)?;
                             break;
                         }
                     }
@@ -500,7 +506,7 @@ impl<'a> MimeMessage<'a> {
                 if !any_part_added {
                     /* `text/plain` not found - use the first part */
                     for cur_part in &mail.subparts {
-                        if self.parse_mime_recursive(cur_part)? {
+                        if self.parse_mime_recursive(context, cur_part)? {
                             any_part_added = true;
                             break;
                         }
@@ -513,14 +519,14 @@ impl<'a> MimeMessage<'a> {
                 being the first one, which may not be always true ...
                 however, most times it seems okay. */
                 if let Some(first) = mail.subparts.iter().next() {
-                    any_part_added = self.parse_mime_recursive(first)?;
+                    any_part_added = self.parse_mime_recursive(context, first)?;
                 }
             }
             (mime::MULTIPART, "encrypted") => {
                 // we currently do not try to decrypt non-autocrypt messages
                 // at all. If we see an encrypted part, we set
                 // decrypting_failed.
-                let msg_body = self.context.stock_str(StockMessage::CantDecryptMsgBody);
+                let msg_body = context.stock_str(StockMessage::CantDecryptMsgBody);
                 let txt = format!("[{}]", msg_body);
 
                 let mut part = Part::default();
@@ -543,7 +549,7 @@ impl<'a> MimeMessage<'a> {
                 https://k9mail.github.io/2016/11/24/OpenPGP-Considerations-Part-I.html
                 for background information why we use encrypted+signed) */
                 if let Some(first) = mail.subparts.iter().next() {
-                    any_part_added = self.parse_mime_recursive(first)?;
+                    any_part_added = self.parse_mime_recursive(context, first)?;
                 }
             }
             (mime::MULTIPART, "report") => {
@@ -551,14 +557,14 @@ impl<'a> MimeMessage<'a> {
                 if mail.subparts.len() >= 2 {
                     if let Some(report_type) = mail.ctype.params.get("report-type") {
                         if report_type == "disposition-notification" {
-                            if let Some(report) = self.process_report(mail)? {
+                            if let Some(report) = self.process_report(context, mail)? {
                                 self.reports.push(report);
                             }
                         } else {
                             /* eg. `report-type=delivery-status`;
                             maybe we should show them as a little error icon */
                             if let Some(first) = mail.subparts.iter().next() {
-                                any_part_added = self.parse_mime_recursive(first)?;
+                                any_part_added = self.parse_mime_recursive(context, first)?;
                             }
                         }
                     }
@@ -568,7 +574,7 @@ impl<'a> MimeMessage<'a> {
                 // Add all parts (in fact, AddSinglePartIfKnown() later check if
                 // the parts are really supported)
                 for cur_data in mail.subparts.iter() {
-                    if self.parse_mime_recursive(cur_data)? {
+                    if self.parse_mime_recursive(context, cur_data)? {
                         any_part_added = true;
                     }
                 }
@@ -578,7 +584,11 @@ impl<'a> MimeMessage<'a> {
         Ok(any_part_added)
     }
 
-    fn add_single_part_if_known(&mut self, mail: &mailparse::ParsedMail<'_>) -> Result<bool> {
+    fn add_single_part_if_known(
+        &mut self,
+        context: &Context,
+        mail: &mailparse::ParsedMail<'_>,
+    ) -> Result<bool> {
         // return true if a part was added
         let (mime_type, msg_type) = get_mime_type(mail)?;
         let raw_mime = mail.ctype.mimetype.to_lowercase();
@@ -589,6 +599,7 @@ impl<'a> MimeMessage<'a> {
 
         if let Ok(filename) = filename {
             self.do_add_single_file_part(
+                context,
                 msg_type,
                 mime_type,
                 &raw_mime,
@@ -604,7 +615,7 @@ impl<'a> MimeMessage<'a> {
                     let decoded_data = match mail.get_body() {
                         Ok(decoded_data) => decoded_data,
                         Err(err) => {
-                            warn!(self.context, "Invalid body parsed {:?}", err);
+                            warn!(context, "Invalid body parsed {:?}", err);
                             // Note that it's not always an error - might be no data
                             return Ok(false);
                         }
@@ -645,6 +656,7 @@ impl<'a> MimeMessage<'a> {
 
     fn do_add_single_file_part(
         &mut self,
+        context: &Context,
         msg_type: Viewtype,
         mime_type: Mime,
         raw_mime: &str,
@@ -659,9 +671,9 @@ impl<'a> MimeMessage<'a> {
             // XXX what if somebody sends eg an "location-highlights.kml"
             // attachment unrelated to location streaming?
             if filename.starts_with("location") || filename.starts_with("message") {
-                let parsed = location::Kml::parse(self.context, decoded_data)
+                let parsed = location::Kml::parse(context, decoded_data)
                     .map_err(|err| {
-                        warn!(self.context, "failed to parse kml part: {}", err);
+                        warn!(context, "failed to parse kml part: {}", err);
                     })
                     .ok();
                 if filename.starts_with("location") {
@@ -675,17 +687,17 @@ impl<'a> MimeMessage<'a> {
         /* we have a regular file attachment,
         write decoded data to new blob object */
 
-        let blob = match BlobObject::create(self.context, filename, decoded_data) {
+        let blob = match BlobObject::create(context, filename, decoded_data) {
             Ok(blob) => blob,
             Err(err) => {
                 error!(
-                    self.context,
+                    context,
                     "Could not add blob for mime part {}, error {}", filename, err
                 );
                 return;
             }
         };
-        info!(self.context, "added blobfile: {:?}", blob.as_name());
+        info!(context, "added blobfile: {:?}", blob.as_name());
 
         /* create and register Mime part referencing the new Blob object */
         let mut part = Part::default();
@@ -759,7 +771,11 @@ impl<'a> MimeMessage<'a> {
         }
     }
 
-    fn process_report(&self, report: &mailparse::ParsedMail<'_>) -> Result<Option<Report>> {
+    fn process_report(
+        &self,
+        context: &Context,
+        report: &mailparse::ParsedMail<'_>,
+    ) -> Result<Option<Report>> {
         // parse as mailheaders
         let report_body = report.subparts[1].get_body_raw()?;
         let (report_fields, _) = mailparse::parse_headers(&report_body)?;
@@ -788,7 +804,7 @@ impl<'a> MimeMessage<'a> {
             }
         }
         warn!(
-            self.context,
+            context,
             "ignoring unknown disposition-notification, Message-Id: {:?}",
             report_fields.get_first_value("Message-ID").ok()
         );
@@ -799,6 +815,7 @@ impl<'a> MimeMessage<'a> {
     /// Handle reports (only MDNs for now)
     pub fn handle_reports(
         &self,
+        context: &Context,
         from_id: u32,
         sent_timestamp: i64,
         server_folder: impl AsRef<str>,
@@ -813,13 +830,10 @@ impl<'a> MimeMessage<'a> {
             for original_message_id in
                 std::iter::once(&report.original_message_id).chain(&report.additional_message_ids)
             {
-                if let Some((chat_id, msg_id)) = message::mdn_from_ext(
-                    self.context,
-                    from_id,
-                    original_message_id,
-                    sent_timestamp,
-                ) {
-                    self.context.call_cb(Event::MsgRead { chat_id, msg_id });
+                if let Some((chat_id, msg_id)) =
+                    message::mdn_from_ext(context, from_id, original_message_id, sent_timestamp)
+                {
+                    context.call_cb(Event::MsgRead { chat_id, msg_id });
                     mdn_recognized = true;
                 }
             }
@@ -829,10 +843,10 @@ impl<'a> MimeMessage<'a> {
             let mut param = Params::new();
             param.set(Param::ServerFolder, server_folder.as_ref());
             param.set_int(Param::ServerUid, server_uid as i32);
-            if self.has_chat_version() && self.context.get_config_bool(Config::MvboxMove) {
+            if self.has_chat_version() && context.get_config_bool(Config::MvboxMove) {
                 param.set_int(Param::AlsoMove, 1);
             }
-            job_add(self.context, Action::MarkseenMdnOnImap, 0, param, 0);
+            job_add(context, Action::MarkseenMdnOnImap, 0, param, 0);
         }
     }
 }
@@ -1166,10 +1180,13 @@ mod tests {
 
         let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
 
-        let of = mimeparser.parse_first_addr(HeaderDef::From_).unwrap();
+        let of = mimeparser
+            .parse_first_addr(&context.ctx, HeaderDef::From_)
+            .unwrap();
         assert_eq!(of, mailparse::addrparse("hello@one.org").unwrap()[0]);
 
-        let of = mimeparser.parse_first_addr(HeaderDef::ChatDispositionNotificationTo);
+        let of =
+            mimeparser.parse_first_addr(&context.ctx, HeaderDef::ChatDispositionNotificationTo);
         assert!(of.is_none());
     }
 

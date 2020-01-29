@@ -485,7 +485,7 @@ pub(crate) fn handle_securejoin_handshake(
             let scanned_fingerprint_of_alice = get_qr_attr!(context, fingerprint).to_string();
             let auth = get_qr_attr!(context, auth).to_string();
 
-            if !encrypted_and_signed(mime_message, &scanned_fingerprint_of_alice) {
+            if !encrypted_and_signed(context, mime_message, &scanned_fingerprint_of_alice) {
                 could_not_establish_secure_connection(
                     context,
                     contact_chat_id,
@@ -548,7 +548,7 @@ pub(crate) fn handle_securejoin_handshake(
                     return Ok(HandshakeMessage::Ignore);
                 }
             };
-            if !encrypted_and_signed(mime_message, &fingerprint) {
+            if !encrypted_and_signed(context, mime_message, &fingerprint) {
                 could_not_establish_secure_connection(
                     context,
                     contact_chat_id,
@@ -675,7 +675,7 @@ pub(crate) fn handle_securejoin_handshake(
                 true
             };
             if vg_expect_encrypted
-                && !encrypted_and_signed(mime_message, &scanned_fingerprint_of_alice)
+                && !encrypted_and_signed(context, mime_message, &scanned_fingerprint_of_alice)
             {
                 could_not_establish_secure_connection(
                     context,
@@ -830,22 +830,26 @@ fn mark_peer_as_verified(context: &Context, fingerprint: impl AsRef<str>) -> Res
  * Tools: Misc.
  ******************************************************************************/
 
-fn encrypted_and_signed(mimeparser: &MimeMessage, expected_fingerprint: impl AsRef<str>) -> bool {
+fn encrypted_and_signed(
+    context: &Context,
+    mimeparser: &MimeMessage,
+    expected_fingerprint: impl AsRef<str>,
+) -> bool {
     if !mimeparser.was_encrypted() {
-        warn!(mimeparser.context, "Message not encrypted.",);
+        warn!(context, "Message not encrypted.",);
         false
     } else if mimeparser.signatures.is_empty() {
-        warn!(mimeparser.context, "Message not signed.",);
+        warn!(context, "Message not signed.",);
         false
     } else if expected_fingerprint.as_ref().is_empty() {
-        warn!(mimeparser.context, "Fingerprint for comparison missing.",);
+        warn!(context, "Fingerprint for comparison missing.",);
         false
     } else if !mimeparser
         .signatures
         .contains(expected_fingerprint.as_ref())
     {
         warn!(
-            mimeparser.context,
+            context,
             "Message does not match expected fingerprint {}.",
             expected_fingerprint.as_ref(),
         );
