@@ -84,7 +84,7 @@ impl Provider {
 }
 
 pub fn get_provider_info(addr: &str) -> Option<&Provider> {
-    let domain = match EmailAddress::new(addr) {
+    let domain = match addr.parse::<EmailAddress>() {
         Ok(addr) => addr.domain,
         Err(_err) => return None,
     }
