@@ -32,10 +32,7 @@ def file2url(f):
 
 def process_data(data, file):
     status = data.get("status", "")
-    out_provider = "    static ref " + file2varname(file) + ": Provider = Provider {\n"
-    if status == "OK" or status == "PREPARATION" or status == "BROKEN":
-        out_provider += "        status: Status::" + status + ",\n"
-    else:
+    if status != "OK" and status != "PREPARATION" and status != "BROKEN":
         raise TypeError("bad status")
 
     comment = ""
@@ -49,7 +46,7 @@ def process_data(data, file):
         domains += "        (\"" + domain + "\", &*" + file2varname(file) + "),\n"
         comment += domain + ", "
 
-    out_server = ""
+    server = ""
     has_imap = False
     has_smtp = False
     if "server" in data:
@@ -75,27 +72,34 @@ def process_data(data, file):
             if username_pattern != "EMAIL" and username_pattern != "EMAILLOCALPART":
                 raise TypeError("bad username pattern")
 
-            out_server += ("            Server { protocol: " + protocol + ", socket: " + socket + ", hostname: \""
+            server += ("            Server { protocol: " + protocol + ", socket: " + socket + ", hostname: \""
             + hostname + "\", port: " + str(port) + ", username_pattern: " + username_pattern + " },\n")
 
+    provider = ""
     before_login_hint = cleanstr(data.get("before_login_hint", ""))
     after_login_hint = cleanstr(data.get("after_login_hint", ""))
     if (not has_imap and not has_smtp) or (has_imap and has_smtp):
-        out_provider += "        before_login_hint: \"" + before_login_hint + "\",\n"
-        out_provider += "        after_login_hint: \"" + after_login_hint + "\",\n"
-        out_provider += "        overview_page: \"" + file2url(file) + "\",\n"
-        out_provider += "        server: vec![\n" + out_server + "        ],\n"
-        out_provider += "    };\n\n"
+        provider += "    static ref " + file2varname(file) + ": Provider = Provider {\n"
+        provider += "        status: Status::" + status + ",\n"
+        provider += "        before_login_hint: \"" + before_login_hint + "\",\n"
+        provider += "        after_login_hint: \"" + after_login_hint + "\",\n"
+        provider += "        overview_page: \"" + file2url(file) + "\",\n"
+        provider += "        server: vec![\n" + server + "        ],\n"
+        provider += "    };\n\n"
     else:
         raise TypeError("SMTP and IMAP must be specified together or left out both")
 
     if status != "OK" and before_login_hint == "":
         raise TypeError("status PREPARATION or BROKEN requires before_login_hint: " + file)
 
+    # finally, add the provider
     global out_all, out_domains
     out_all += "    // " + file[file.rindex("/")+1:] + ": " + comment.strip(", ") + "\n"
-    out_all += out_provider
-    out_domains += domains
+    if status == "OK" and before_login_hint == "" and after_login_hint == "" and server == "":
+        out_all += "    // - skipping provider with status OK and no special things to do\n\n"
+    else:
+        out_all += provider
+        out_domains += domains
 
 
 def process_file(file):
