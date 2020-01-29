@@ -119,10 +119,14 @@ impl ContextWrapper {
         match guard.as_ref() {
             Some(ref ctx) => Ok(ctxfn(ctx)),
             None => {
-                unsafe { self.error("context not open") };
+                eprintln!("context not open");
                 Err(())
             }
         }
+    }
+
+    fn is_open(&self) -> bool {
+        self.inner.read().unwrap().is_some()
     }
 }
 
@@ -143,6 +147,7 @@ pub unsafe extern "C" fn dc_context_new(
         os_name,
         inner: RwLock::new(None),
     };
+
     Box::into_raw(Box::new(ffi_ctx))
 }
 
@@ -217,11 +222,7 @@ pub unsafe extern "C" fn dc_is_open(context: *mut dc_context_t) -> libc::c_int {
         return 0;
     }
     let ffi_context = &*context;
-    let inner_guard = ffi_context.inner.read().unwrap();
-    match *inner_guard {
-        Some(_) => 1,
-        None => 0,
-    }
+    ffi_context.is_open() as libc::c_int
 }
 
 #[no_mangle]
@@ -389,6 +390,8 @@ pub unsafe extern "C" fn dc_is_configured(context: *mut dc_context_t) -> libc::c
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_context_run(context: *mut dc_context_t, cb: Option<dc_callback_t>) {
+    eprintln!("dc_context_run");
+
     if context.is_null() {
         eprintln!("ignoring careless call to dc_run()");
         return;
@@ -396,9 +399,11 @@ pub unsafe extern "C" fn dc_context_run(context: *mut dc_context_t, cb: Option<d
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| {
+            eprintln!("RUN");
             ctx.run(|_ctx, event| {
                 translate_cb(ffi_context, cb, event);
-            })
+            });
+            eprintln!("RUN DONE");
         })
         .unwrap_or(())
 }
@@ -487,7 +492,13 @@ pub unsafe extern "C" fn dc_context_shutdown(context: *mut dc_context_t) {
         return;
     }
     let ffi_context = &*context;
-    ffi_context.with_inner(|ctx| ctx.shutdown()).unwrap_or(())
+    ffi_context
+        .with_inner(|ctx| {
+            eprintln!("SHUTDOWN");
+            ctx.shutdown();
+            eprintln!("SHUTDOWN:DONE")
+        })
+        .unwrap_or(())
 }
 
 #[no_mangle]
