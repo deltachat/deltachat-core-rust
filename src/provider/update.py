@@ -7,7 +7,6 @@ import yaml
 
 out_all = ""
 out_domains = ""
-count = 1
 
 
 def cleanstr(s):
@@ -18,17 +17,23 @@ def cleanstr(s):
     return s
 
 
+def file2varname(f):
+    f = f[f.rindex("/")+1:].replace(".md", "")
+    f = f.replace(".", "_")
+    f = f.replace("-", "_")
+    return "P_" + f.upper()
+
+
 def file2url(f):
-    f = f[f.rindex("/")+1:]
-    f = f.replace(".md", "")
+    f = f[f.rindex("/")+1:].replace(".md", "")
     f = f.replace(".", "-")
     return "https://providers.delta.chat/" + f
 
 
 def process_data(data, file):
-    global out_all, out_domains, count
+    global out_all, out_domains
     status = data.get("status", "")
-    out_provider = "    static ref P" + str(count) + ": Provider = Provider {\n"
+    out_provider = "    static ref " + file2varname(file) + ": Provider = Provider {\n"
     if status == "OK" or status == "PREPARATION" or status == "BROKEN":
         out_provider += "        status: Status::" + status + ",\n"
     else:
@@ -39,9 +44,9 @@ def process_data(data, file):
         raise TypeError("no domains found")
     for domain in data["domains"]:
         domain = cleanstr(domain)
-        if domain == "" or domain.count(".") < 1:
+        if domain == "" or domain.count(".") < 1 or domain.lower() != domain:
             raise TypeError("bad domain: " + domain)
-        out_domains += "        (\"" + domain + "\", &*P" + str(count) + "),\n"
+        out_domains += "        (\"" + domain + "\", &*" + file2varname(file) + "),\n"
         comment += domain + ", "
 
     out_server = ""
@@ -86,14 +91,12 @@ def process_data(data, file):
 
 
 def process_file(file):
-    global count
     print("processing file: " + file, file=sys.stderr)
     with open(file) as f:
         # load_all() loads "---"-separated yamls -
         # by coincidence, this is also the frontmatter separator :)
         data = next(yaml.load_all(f, Loader=yaml.SafeLoader))
         process_data(data, file)
-        count += 1
 
 
 def process_dir(dir):
