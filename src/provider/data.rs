@@ -32,6 +32,27 @@ lazy_static::lazy_static! {
         ],
     };
 
+    // bluewin.ch.md: bluewin.ch
+    static ref P_BLUEWIN_CH: Provider = Provider {
+        status: Status::OK,
+        before_login_hint: "",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/bluewin-ch",
+        server: vec![
+            Server { protocol: IMAP, socket: SSL, hostname: "imaps.bluewin.ch", port: 993, username_pattern: EMAIL },
+            Server { protocol: SMTP, socket: SSL, hostname: "smtpauths.bluewin.ch", port: 465, username_pattern: EMAIL },
+        ],
+    };
+
+    // comcast.md: xfinity.com, comcast.net
+    // - skipping provider with status OK and no special things to do
+
+    // dismail.de.md: dismail.de
+    // - skipping provider with status OK and no special things to do
+
+    // disroot.md: disroot.org
+    // - skipping provider with status OK and no special things to do
+
     // example.com.md: example.com, example.org
     static ref P_EXAMPLE_COM: Provider = Provider {
         status: Status::BROKEN,
@@ -41,6 +62,18 @@ lazy_static::lazy_static! {
         server: vec![
             Server { protocol: IMAP, socket: SSL, hostname: "imap.example.com", port: 1337, username_pattern: EMAIL },
             Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp.example.com", port: 1337, username_pattern: EMAIL },
+        ],
+    };
+
+    // freenet.de.md: freenet.de
+    static ref P_FREENET_DE: Provider = Provider {
+        status: Status::OK,
+        before_login_hint: "",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/freenet-de",
+        server: vec![
+            Server { protocol: IMAP, socket: SSL, hostname: "mx.freenet.de", port: 993, username_pattern: EMAIL },
+            Server { protocol: SMTP, socket: STARTTLS, hostname: "mx.freenet.de", port: 587, username_pattern: EMAIL },
         ],
     };
 
@@ -69,17 +102,8 @@ lazy_static::lazy_static! {
         ],
     };
 
-    // hotmail.md: hotmail.com, outlook.com, office365.com, outlook.com.tr, live.com
-    static ref P_HOTMAIL: Provider = Provider {
-        status: Status::BROKEN,
-        before_login_hint: "Outlook email addresses will not work as expected as these servers remove some important transport information. Hopefully sooner or later there will be a fix, for now we suggest to use another email address.",
-        after_login_hint: "Outlook email addresses will not work as expected as these servers remove some important transport information. Unencrypted 1-on-1 chats kind of work, but groups and encryption don't. Hopefully sooner or later there will be a fix, for now we suggest to use another email address.",
-        overview_page: "https://providers.delta.chat/hotmail",
-        server: vec![
-            Server { protocol: IMAP, socket: SSL, hostname: "imap-mail.outlook.com", port: 993, username_pattern: EMAIL },
-            Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp-mail.outlook.com", port: 587, username_pattern: EMAIL },
-        ],
-    };
+    // i.ua.md: i.ua
+    // - skipping provider with status OK and no special things to do
 
     // icloud.md: icloud.com, me.com, mac.com
     static ref P_ICLOUD: Provider = Provider {
@@ -93,11 +117,23 @@ lazy_static::lazy_static! {
         ],
     };
 
+    // kolst.com.md: kolst.com
+    // - skipping provider with status OK and no special things to do
+
+    // kontent.com.md: kontent.com
+    // - skipping provider with status OK and no special things to do
+
+    // mail.ru.md: mail.ru, inbox.ru, bk.ru, list.ru
+    // - skipping provider with status OK and no special things to do
+
+    // mailbox.org.md: mailbox.org, secure.mailbox.org
+    // - skipping provider with status OK and no special things to do
+
     // nauta.cu.md: nauta.cu
     static ref P_NAUTA_CU: Provider = Provider {
         status: Status::OK,
         before_login_hint: "",
-        after_login_hint: "Atención - con nauta.cu, puede enviar mensajes sólo a un máximo de 20 personas. En grupos más grandes que eso, no puede dejar o enviar mensajes.",
+        after_login_hint: "Atención - con nauta.cu, puede enviar mensajes sólo a un máximo de 20 personas a la vez. En grupos más grandes, no puede enviar mensajes o abandonar el grupo.",
         overview_page: "https://providers.delta.chat/nauta-cu",
         server: vec![
             Server { protocol: IMAP, socket: STARTTLS, hostname: "imap.nauta.cu", port: 143, username_pattern: EMAIL },
@@ -105,11 +141,59 @@ lazy_static::lazy_static! {
         ],
     };
 
+    // outlook.com.md: hotmail.com, outlook.com, office365.com, outlook.com.tr, live.com
+    static ref P_OUTLOOK_COM: Provider = Provider {
+        status: Status::BROKEN,
+        before_login_hint: "Outlook.com email addresses will not work as expected as these servers remove some important transport information. Hopefully sooner or later there will be a fix, for now we suggest to use another email address.",
+        after_login_hint: "Outlook.com email addresses will not work as expected as these servers remove some important transport information. Unencrypted 1-on-1 chats kind of work, but groups and encryption don't. Hopefully sooner or later there will be a fix, for now we suggest to use another email address.",
+        overview_page: "https://providers.delta.chat/outlook-com",
+        server: vec![
+            Server { protocol: IMAP, socket: SSL, hostname: "imap-mail.outlook.com", port: 993, username_pattern: EMAIL },
+            Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp-mail.outlook.com", port: 587, username_pattern: EMAIL },
+        ],
+    };
+
+    // posteo.md: posteo.de
+    static ref P_POSTEO: Provider = Provider {
+        status: Status::OK,
+        before_login_hint: "",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/posteo",
+        server: vec![
+            Server { protocol: IMAP, socket: STARTTLS, hostname: "posteo.de", port: 143, username_pattern: EMAIL },
+            Server { protocol: SMTP, socket: STARTTLS, hostname: "posteo.de", port: 587, username_pattern: EMAIL },
+        ],
+    };
+
+    // riseup.net.md: riseup.net
+    // - skipping provider with status OK and no special things to do
+
+    // rogers.com.md: rogers.com
+    // - skipping provider with status OK and no special things to do
+
+    // tiscali.it.md: tiscali.it
+    static ref P_TISCALI_IT: Provider = Provider {
+        status: Status::OK,
+        before_login_hint: "",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/tiscali-it",
+        server: vec![
+            Server { protocol: IMAP, socket: SSL, hostname: "imap.tiscali.it", port: 993, username_pattern: EMAIL },
+            Server { protocol: SMTP, socket: SSL, hostname: "smtp.tiscali.it", port: 465, username_pattern: EMAIL },
+        ],
+    };
+
+    // ukr.net.md: ukr.net
+    // - skipping provider with status OK and no special things to do
+
+    // vfemail.md: vfemail.net
+    // - skipping provider with status OK and no special things to do
+
     // web.de.md: web.de, email.de, flirt.ms, hallo.ms, kuss.ms, love.ms, magic.ms, singles.ms, cool.ms, kanzler.ms, okay.ms, party.ms, pop.ms, stars.ms, techno.ms, clever.ms, deutschland.ms, genial.ms, ich.ms, online.ms, smart.ms, wichtig.ms, action.ms, fussball.ms, joker.ms, planet.ms, power.ms
     static ref P_WEB_DE: Provider = Provider {
         status: Status::PREPARATION,
         before_login_hint: "You must allow IMAP access to your account before you can login.",
-        after_login_hint: "",
+        after_login_hint: "Note: if you have your web.de spam settings too strict, you won't receive contact requests from new people. If you want to receive contact requests, you should disable the \"3-Wege-Spamschutz\" in the web.de settings.  Read how: https://hilfe.web.de/email/spam-und-viren/spamschutz-einstellungen.html",
         overview_page: "https://providers.delta.chat/web-de",
         server: vec![
             Server { protocol: IMAP, socket: SSL, hostname: "imap.web.de", port: 993, username_pattern: EMAILLOCALPART },
@@ -130,11 +214,31 @@ lazy_static::lazy_static! {
         ],
     };
 
+    // yandex.ru.md: yandex.ru, yandex.com
+    // - skipping provider with status OK and no special things to do
+
+    // ziggo.nl.md: ziggo.nl
+    static ref P_ZIGGO_NL: Provider = Provider {
+        status: Status::OK,
+        before_login_hint: "",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/ziggo-nl",
+        server: vec![
+            Server { protocol: IMAP, socket: SSL, hostname: "imap.ziggo.nl", port: 993, username_pattern: EMAIL },
+            Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp.ziggo.nl", port: 587, username_pattern: EMAIL },
+        ],
+    };
+
+    // zoho.com.md: zoho.com
+    // - skipping provider with status OK and no special things to do
+
     pub static ref PROVIDER_DATA: HashMap<&'static str, &'static Provider> = [
         ("aktivix.org", &*P_AKTIVIX_ORG),
         ("autistici.org", &*P_AUTISTICI_ORG),
+        ("bluewin.ch", &*P_BLUEWIN_CH),
         ("example.com", &*P_EXAMPLE_COM),
         ("example.org", &*P_EXAMPLE_COM),
+        ("freenet.de", &*P_FREENET_DE),
         ("gmail.com", &*P_GMAIL),
         ("googlemail.com", &*P_GMAIL),
         ("gmx.net", &*P_GMX_NET),
@@ -146,15 +250,17 @@ lazy_static::lazy_static! {
         ("gmx.info", &*P_GMX_NET),
         ("gmx.biz", &*P_GMX_NET),
         ("gmx.com", &*P_GMX_NET),
-        ("hotmail.com", &*P_HOTMAIL),
-        ("outlook.com", &*P_HOTMAIL),
-        ("office365.com", &*P_HOTMAIL),
-        ("outlook.com.tr", &*P_HOTMAIL),
-        ("live.com", &*P_HOTMAIL),
         ("icloud.com", &*P_ICLOUD),
         ("me.com", &*P_ICLOUD),
         ("mac.com", &*P_ICLOUD),
         ("nauta.cu", &*P_NAUTA_CU),
+        ("hotmail.com", &*P_OUTLOOK_COM),
+        ("outlook.com", &*P_OUTLOOK_COM),
+        ("office365.com", &*P_OUTLOOK_COM),
+        ("outlook.com.tr", &*P_OUTLOOK_COM),
+        ("live.com", &*P_OUTLOOK_COM),
+        ("posteo.de", &*P_POSTEO),
+        ("tiscali.it", &*P_TISCALI_IT),
         ("web.de", &*P_WEB_DE),
         ("email.de", &*P_WEB_DE),
         ("flirt.ms", &*P_WEB_DE),
@@ -197,5 +303,6 @@ lazy_static::lazy_static! {
         ("ymail.com", &*P_YAHOO),
         ("rocketmail.com", &*P_YAHOO),
         ("yahoodns.net", &*P_YAHOO),
+        ("ziggo.nl", &*P_ZIGGO_NL),
     ].iter().copied().collect();
 }
