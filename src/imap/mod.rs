@@ -602,12 +602,13 @@ impl Imap {
 
             if !precheck_imf(context, &message_id, folder.as_ref(), cur_uid) {
                 // check passed, go fetch the rest
-                if self.fetch_single_msg(context, &folder, cur_uid).await == 0 {
+                if let Err(err) = self.fetch_single_msg(context, &folder, cur_uid).await {
                     info!(
                         context,
-                        "Read error for message {} from \"{}\", trying over later.",
+                        "Read error for message {} from \"{}\", trying over later: {}.",
                         message_id,
-                        folder.as_ref()
+                        folder.as_ref(),
+                        err
                     );
                     read_errors += 1;
                 }
@@ -662,17 +663,19 @@ impl Imap {
         context.sql.set_raw_config(context, &key, Some(&val)).ok();
     }
 
+    /// Fetches a single message by server UID.
+    ///
+    /// If it succeeds, the message should be treated as received even
+    /// if no database entries are created. If the function returns an
+    /// error, the caller should try again later.
     async fn fetch_single_msg<S: AsRef<str>>(
         &self,
         context: &Context,
         folder: S,
         server_uid: u32,
-    ) -> usize {
-        // the function returns:
-        // 0  the caller should try over again later
-        // or  1  if the messages should be treated as received, the caller should not try to read the message again (even if no database entries are returned)
+    ) -> Result<()> {
         if !self.is_connected().await {
-            return 0;
+            return Err(Error::Other("Not connected".to_string()));
         }
 
         let set = format!("{}", server_uid);
@@ -691,13 +694,13 @@ impl Imap {
                         folder.as_ref(),
                         err
                     );
-                    return 0;
+                    return Err(Error::FetchFailed(err));
                 }
             }
         } else {
             // we could not get a valid imap session, this should be retried
             self.trigger_reconnect();
-            return 0;
+            return Err(Error::Other("Could not get IMAP session".to_string()));
         };
 
         if msgs.is_empty() {
@@ -738,7 +741,7 @@ impl Imap {
             }
         }
 
-        1
+        Ok(())
     }
 
     pub fn mv(
