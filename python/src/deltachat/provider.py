@@ -11,26 +11,17 @@ class ProviderNotFoundError(Exception):
 class Provider(object):
     """Provider information.
 
-    :param domain: The domain to get the provider info for, this is
-    normally the part following the `@` of the domain.
+    :param domain: The email to get the provider info for.
     """
 
-    def __init__(self, domain):
+    def __init__(self, account, addr):
         provider = ffi.gc(
-            lib.dc_provider_new_from_domain(as_dc_charpointer(domain)),
+            lib.dc_provider_new_from_email(account._dc_context, as_dc_charpointer(addr)),
             lib.dc_provider_unref,
         )
         if provider == ffi.NULL:
             raise ProviderNotFoundError("Provider not found")
         self._provider = provider
-
-    @classmethod
-    def from_email(cls, email):
-        """Create provider info from an email address.
-
-        :param email: Email address to get provider info for.
-        """
-        return cls(email.split('@')[-1])
 
     @property
     def overview_page(self):
@@ -39,21 +30,10 @@ class Provider(object):
             lib.dc_provider_get_overview_page(self._provider))
 
     @property
-    def name(self):
-        """The name of the provider."""
-        return from_dc_charpointer(lib.dc_provider_get_name(self._provider))
-
-    @property
-    def markdown(self):
-        """Content of the information page, formatted as markdown."""
+    def get_before_login_hints(self):
+        """Should be shown to the user on login."""
         return from_dc_charpointer(
-            lib.dc_provider_get_markdown(self._provider))
-
-    @property
-    def status_date(self):
-        """The date the provider info was last updated, as a string."""
-        return from_dc_charpointer(
-            lib.dc_provider_get_status_date(self._provider))
+            lib.dc_provider_get_before_login_hints(self._provider))
 
     @property
     def status(self):

@@ -3687,29 +3687,18 @@ int             dc_contact_is_verified       (dc_contact_t* contact);
 
 
 /**
- * Create a provider struct for the given domain.
- *
- * @memberof dc_provider_t
- * @param domain The domain to get provider info for.
- * @return a dc_provider_t struct which can be used with the dc_provider_get_*
- *     accessor functions.  If no provider info is found, NULL will be
- *     returned.
- */
-dc_provider_t*  dc_provider_new_from_domain           (const char* domain);
-
-
-/**
  * Create a provider struct for the given email address.
  *
  * The provider is extracted from the email address and it's information is returned.
  *
  * @memberof dc_provider_t
+ * @param context The context object as created by dc_context_new().
  * @param email The user's email address to extract the provider info form.
  * @return a dc_provider_t struct which can be used with the dc_provider_get_*
  *     accessor functions.  If no provider info is found, NULL will be
  *     returned.
  */
-dc_provider_t*  dc_provider_new_from_email            (const char* email);
+dc_provider_t*  dc_provider_new_from_email            (const dc_context_t*, const char* email);
 
 
 /**
@@ -3719,53 +3708,35 @@ dc_provider_t*  dc_provider_new_from_email            (const char* email);
  *
  * @memberof dc_provider_t
  * @param provider The dc_provider_t struct.
- * @return A string which must be released using dc_str_unref().
+ * @return String with a fully-qualified URL,
+ *     if there is no such URL, an empty string is returned, NULL is never returned.
+ *     The returned value must be released using dc_str_unref().
  */
 char*           dc_provider_get_overview_page         (const dc_provider_t* provider);
 
 
 /**
- * The provider's name.
+ * Get hints to be shown to the user on the login screen.
+ * Depending on the @ref DC_PROVIDER_STATUS returned by dc_provider_get_status(),
+ * the ui may want to highlight the hint.
  *
- * The name of the provider, e.g. "POSTEO".
- *
- * @memberof dc_provider_t
- * @param provider The dc_provider_t struct.
- * @return A string which must be released using dc_str_unref().
- */
-char*           dc_provider_get_name                  (const dc_provider_t* provider);
-
-
-/**
- * The markdown content of the providers page.
- *
- * This contains the preparation steps or additional information if the status
- * is @ref DC_PROVIDER_STATUS_BROKEN.
+ * Moreover, the ui should display a "More information" link
+ * that forwards to the url returned by dc_provider_get_overview_page().
  *
  * @memberof dc_provider_t
  * @param provider The dc_provider_t struct.
- * @return A string which must be released using dc_str_unref().
+ * @return A string with the hint to show to the user, may contain multiple lines,
+ *     if there is no such hint, an empty string is returned, NULL is never returned.
+ *     The returned value must be released using dc_str_unref().
  */
-char*           dc_provider_get_markdown              (const dc_provider_t* provider);
-
-
-/**
- * Date of when the state was last checked/updated.
- *
- * This is returned as a string.
- *
- * @memberof dc_provider_t
- * @param provider The dc_provider_t struct.
- * @return A string which must be released using dc_str_unref().
- */
-char*           dc_provider_get_status_date           (const dc_provider_t* provider);
+char*           dc_provider_get_before_login_hint     (const dc_provider_t* provider);
 
 
 /**
  * Whether DC works with this provider.
  *
- * Can be one of @ref DC_PROVIDER_STATUS_OK, @ref
- * DC_PROVIDER_STATUS_PREPARATION and @ref DC_PROVIDER_STATUS_BROKEN.
+ * Can be one of #DC_PROVIDER_STATUS_OK,
+ * #DC_PROVIDER_STATUS_PREPARATION or #DC_PROVIDER_STATUS_BROKEN.
  *
  * @memberof dc_provider_t
  * @param provider The dc_provider_t struct.
@@ -3780,7 +3751,7 @@ int             dc_provider_get_status                (const dc_provider_t* prov
  * @memberof dc_provider_t
  * @param provider The dc_provider_t struct.
  */
-void            dc_provider_unref                     (const dc_provider_t* provider);
+void            dc_provider_unref                     (dc_provider_t* provider);
 
 
 /**
@@ -4506,23 +4477,43 @@ void            dc_array_add_id              (dc_array_t*, uint32_t); // depreca
  */
 
 /**
- * Provider status returned by dc_provider_get_status().
+ * Prover works out-of-the-box.
+ * This provider status is returned for provider where the login
+ * works by just entering the name or the email-address.
  *
- * Works right out of the box without any preperation steps needed
+ * - There is no need for the user to do any special things
+ *   (enable IMAP or so) in the provider's webinterface or at other places.
+ * - There is no need for the user to enter advanced settings;
+ *   server, port etc. are known by the core.
+ *
+ * The status is returned by dc_provider_get_status().
  */
 #define         DC_PROVIDER_STATUS_OK           1
 
 /**
- * Provider status returned by dc_provider_get_status().
+ * Provider works, but there are preparations needed.
  *
- * Works, but preparation steps are needed
+ * - The user has to do some special things as "Enable IMAP in the Webinterface",
+ *   what exactly, is described in the string returnd by dc_provider_get_before_login_hints()
+ *   and, typically more detailed, in the page linked by dc_provider_get_overview_page().
+ * - There is no need for the user to enter advanced settings;
+ *   server, port etc. should be known by the core.
+ *
+ * The status is returned by dc_provider_get_status().
  */
 #define         DC_PROVIDER_STATUS_PREPARATION  2
 
 /**
- * Provider status returned by dc_provider_get_status().
+ * Provider is not working.
+ * This provider status is returned for providers
+ * that are known to not work with Delta Chat.
+ * The ui should block logging in with this provider.
  *
- * Doesn't work (too unstable to use falls also in this category)
+ * More information about that is typically provided
+ * in the string returned by dc_provider_get_before_login_hints()
+ * and in the page linked by dc_provider_get_overview_page().
+ *
+ * The status is returned by dc_provider_get_status().
  */
 #define         DC_PROVIDER_STATUS_BROKEN       3
 

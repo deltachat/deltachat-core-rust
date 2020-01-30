@@ -3156,8 +3156,6 @@ pub unsafe extern "C" fn dc_str_unref(s: *mut libc::c_char) {
     libc::free(s as *mut _)
 }
 
-pub mod providers;
-
 pub trait ResultExt<T, E> {
     fn unwrap_or_log_default(self, context: &context::Context, message: &str) -> T;
     fn log_err(self, context: &context::Context, message: &str) -> Result<T, E>;
@@ -3211,4 +3209,69 @@ fn convert_and_prune_message_ids(msg_ids: *const u32, msg_cnt: libc::c_int) -> V
         .collect();
 
     msg_ids
+}
+
+// dc_provider_t
+
+#[no_mangle]
+pub type dc_provider_t = provider::Provider;
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_provider_new_from_email(
+    context: *const dc_context_t,
+    addr: *const libc::c_char,
+) -> *const dc_provider_t {
+    if context.is_null() || addr.is_null() {
+        eprintln!("ignoring careless call to dc_provider_new_from_email()");
+        return ptr::null();
+    }
+    let addr = to_string_lossy(addr);
+    match provider::get_provider_info(addr.as_str()) {
+        Some(provider) => provider,
+        None => ptr::null_mut(),
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_provider_get_overview_page(
+    provider: *const dc_provider_t,
+) -> *mut libc::c_char {
+    if provider.is_null() {
+        eprintln!("ignoring careless call to dc_provider_get_overview_page()");
+        return "".strdup();
+    }
+    let provider = &*provider;
+    provider.overview_page.strdup()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_provider_get_before_login_hint(
+    provider: *const dc_provider_t,
+) -> *mut libc::c_char {
+    if provider.is_null() {
+        eprintln!("ignoring careless call to dc_provider_get_before_login_hint()");
+        return "".strdup();
+    }
+    let provider = &*provider;
+    provider.before_login_hint.strdup()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_provider_get_status(provider: *const dc_provider_t) -> libc::c_int {
+    if provider.is_null() {
+        eprintln!("ignoring careless call to dc_provider_get_status()");
+        return 0;
+    }
+    let provider = &*provider;
+    provider.status as libc::c_int
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_provider_unref(provider: *mut dc_provider_t) {
+    if provider.is_null() {
+        eprintln!("ignoring careless call to dc_provider_unref()");
+        return;
+    }
+    // currently, there is nothing to free, the provider info is a static object.
+    // this may change once we start localizing string.
 }

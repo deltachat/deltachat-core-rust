@@ -54,6 +54,7 @@ pub mod oauth2;
 mod param;
 pub mod peerstate;
 pub mod pgp;
+pub mod provider;
 pub mod qr;
 pub mod securejoin;
 mod simplify;

@@ -12,12 +12,13 @@ use crate::config::Config;
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_tools::*;
-use crate::e2ee;
 use crate::job::{self, job_add, job_kill_action};
 use crate::login_param::{CertificateChecks, LoginParam};
 use crate::oauth2::*;
 use crate::param::Params;
+use crate::{chat, e2ee, provider};
 
+use crate::message::Message;
 use auto_mozilla::moz_autoconfigure;
 use auto_outlook::outlk_autodiscover;
 
@@ -436,45 +437,77 @@ pub fn JobConfigureImap(context: &Context) -> job::Status {
         LoginParam::from_database(context, "configured_raw_").save_to_database(context, "");
     }
 
+    if let Some(provider) = provider::get_provider_info(&param.addr) {
+        if !provider.after_login_hint.is_empty() {
+            let mut msg = Message::new(Viewtype::Text);
+            msg.text = Some(provider.after_login_hint.to_string());
+            if chat::add_device_msg(context, Some("core-provider-info"), Some(&mut msg)).is_err() {
+                warn!(context, "cannot add after_login_hint as core-provider-info");
+            }
+        }
+    }
+
     context.free_ongoing();
     progress!(context, if success { 1000 } else { 0 });
     job::Status::Finished(Ok(()))
 }
 
+#[allow(clippy::unnecessary_unwrap)]
 fn get_offline_autoconfig(context: &Context, param: &LoginParam) -> Option<LoginParam> {
-    // XXX we don't have https://github.com/deltachat/provider-db  APIs
-    // integrated yet but we'll already add nauta as a first use case, also
-    // showing what we need from provider-db in the future.
     info!(
         context,
         "checking internal provider-info for offline autoconfig"
     );
 
-    if param.addr.ends_with("@nauta.cu") {
-        let mut p = LoginParam::new();
+    if let Some(provider) = provider::get_provider_info(&param.addr) {
+        match provider.status {
+            provider::Status::OK | provider::Status::PREPARATION => {
+                let imap = provider.get_imap_server();
+                let smtp = provider.get_smtp_server();
+                // clippy complains about these is_some()/unwrap() settings,
+                // however, rewriting the code to "if let" would make things less obvious,
+                // esp. if we allow more combinations of servers (pop, jmap).
+                // therefore, #[allow(clippy::unnecessary_unwrap)] is added above.
+                if imap.is_some() && smtp.is_some() {
+                    let imap = imap.unwrap();
+                    let smtp = smtp.unwrap();
 
-        p.addr = param.addr.clone();
-        p.mail_server = "imap.nauta.cu".to_string();
-        p.mail_user = param.addr.clone();
-        p.mail_pw = param.mail_pw.clone();
-        p.mail_port = 143;
-        p.imap_certificate_checks = CertificateChecks::AcceptInvalidCertificates;
+                    let mut p = LoginParam::new();
+                    p.addr = param.addr.clone();
 
-        p.send_server = "smtp.nauta.cu".to_string();
-        p.send_user = param.addr.clone();
-        p.send_pw = param.mail_pw.clone();
-        p.send_port = 25;
-        p.smtp_certificate_checks = CertificateChecks::AcceptInvalidCertificates;
-        p.server_flags = DC_LP_AUTH_NORMAL as i32
-            | DC_LP_IMAP_SOCKET_STARTTLS as i32
-            | DC_LP_SMTP_SOCKET_STARTTLS as i32;
+                    p.mail_server = imap.hostname.to_string();
+                    p.mail_user = imap.apply_username_pattern(param.addr.clone());
+                    p.mail_port = imap.port as i32;
+                    p.imap_certificate_checks = CertificateChecks::AcceptInvalidCertificates;
+                    p.server_flags |= match imap.socket {
+                        provider::Socket::STARTTLS => DC_LP_IMAP_SOCKET_STARTTLS,
+                        provider::Socket::SSL => DC_LP_IMAP_SOCKET_SSL,
+                    };
 
-        info!(context, "found offline autoconfig: {}", p);
-        Some(p)
-    } else {
-        info!(context, "no offline autoconfig found");
-        None
+                    p.send_server = smtp.hostname.to_string();
+                    p.send_user = smtp.apply_username_pattern(param.addr.clone());
+                    p.send_port = smtp.port as i32;
+                    p.smtp_certificate_checks = CertificateChecks::AcceptInvalidCertificates;
+                    p.server_flags |= match smtp.socket {
+                        provider::Socket::STARTTLS => DC_LP_SMTP_SOCKET_STARTTLS as i32,
+                        provider::Socket::SSL => DC_LP_SMTP_SOCKET_SSL as i32,
+                    };
+
+                    info!(context, "offline autoconfig found: {}", p);
+                    return Some(p);
+                } else {
+                    info!(context, "offline autoconfig found, but no servers defined");
+                    return None;
+                }
+            }
+            provider::Status::BROKEN => {
+                info!(context, "offline autoconfig found, provider is broken");
+                return None;
+            }
+        }
     }
+    info!(context, "no offline autoconfig found");
+    None
 }
 
 fn try_imap_connections(
