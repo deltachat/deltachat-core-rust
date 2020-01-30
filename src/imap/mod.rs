@@ -583,8 +583,13 @@ impl Imap {
         for msg in &list {
             let cur_uid = msg.uid.unwrap_or_default();
             if cur_uid <= last_seen_uid {
-                // seems that at least dovecot sends the last available UID
-                // even if we asked for higher UID+N:*
+                // If the mailbox is not empty, results always include
+                // at least one UID, even if last_seen_uid+1 is past
+                // the last UID in the mailbox.  It happens because
+                // uid+1:* is interpreted the same way as *:uid+1.
+                // See https://tools.ietf.org/html/rfc3501#page-61 for
+                // standard reference. Therefore, sometimes we receive
+                // already seen messages and have to filter them out.
                 info!(
                     context,
                     "fetch_new_messages: ignoring uid {}, last seen was {}", cur_uid, last_seen_uid
