@@ -1755,7 +1755,9 @@ pub unsafe extern "C" fn dc_imex_has_backup(
         .with_inner(|ctx| match imex::has_backup(ctx, to_string_lossy(dir)) {
             Ok(res) => res.strdup(),
             Err(err) => {
-                error!(ctx, "dc_imex_has_backup: {}", err);
+                // do not bubble up error to the user,
+                // the ui will expect that the file does not exist or cannot be accessed
+                warn!(ctx, "dc_imex_has_backup: {}", err);
                 ptr::null_mut()
             }
         })
