@@ -583,23 +583,19 @@ impl Chat {
         sql.query_row(&query, params, collect).ok()
     }
 
-    fn parent_is_encrypted(&self, context: &Context) -> bool {
+    fn parent_is_encrypted(&self, context: &Context) -> Result<bool, Error> {
         let sql = &context.sql;
         let params = params![self.id];
         let query = Self::parent_query("param");
 
-        let packed: Option<String> = sql.query_get_value(context, &query, params);
+        let packed: Option<String> = sql.query_get_value_result(&query, params)?;
 
         if let Some(ref packed) = packed {
-            match packed.parse::<Params>() {
-                Ok(param) => param.exists(Param::GuaranteeE2ee),
-                Err(err) => {
-                    error!(context, "invalid params stored: '{}', {:?}", packed, err);
-                    false
-                }
-            }
+            let param = packed.parse::<Params>()?;
+            Ok(param.exists(Param::GuaranteeE2ee))
         } else {
-            false
+            // No messages
+            Ok(false)
         }
     }
 
@@ -801,7 +797,7 @@ impl Chat {
                     }
                 }
 
-                if can_encrypt && (all_mutual || self.parent_is_encrypted(context)) {
+                if can_encrypt && (all_mutual || self.parent_is_encrypted(context)?) {
                     msg.param.set_int(Param::GuaranteeE2ee, 1);
                 }
             }
