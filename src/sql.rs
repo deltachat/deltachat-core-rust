@@ -217,20 +217,37 @@ impl Sql {
             .unwrap_or_default()
     }
 
-    pub fn query_get_value<P, T>(&self, context: &Context, query: &str, params: P) -> Option<T>
+    /// Executes a query which is expected to return one row and one
+    /// column. If the query does not return a value or returns SQL
+    /// `NULL`, returns `Ok(None)`.
+    pub fn query_get_value_result<P, T>(&self, query: &str, params: P) -> Result<Option<T>>
     where
         P: IntoIterator,
         P::Item: rusqlite::ToSql,
         T: rusqlite::types::FromSql,
     {
         match self.query_row(query, params, |row| row.get::<_, T>(0)) {
-            Ok(res) => Some(res),
-            Err(Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => None,
+            Ok(res) => Ok(Some(res)),
+            Err(Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => Ok(None),
             Err(Error::Sql(rusqlite::Error::InvalidColumnType(
                 _,
                 _,
                 rusqlite::types::Type::Null,
-            ))) => None,
+            ))) => Ok(None),
+            Err(err) => Err(err),
+        }
+    }
+
+    /// Not resultified version of `query_get_value_result`. Returns
+    /// `None` on error.
+    pub fn query_get_value<P, T>(&self, context: &Context, query: &str, params: P) -> Option<T>
+    where
+        P: IntoIterator,
+        P::Item: rusqlite::ToSql,
+        T: rusqlite::types::FromSql,
+    {
+        match self.query_get_value_result(query, params) {
+            Ok(res) => res,
             Err(err) => {
                 error!(context, "sql: Failed query_row: {}", err);
                 None
