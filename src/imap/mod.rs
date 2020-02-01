@@ -1245,7 +1245,7 @@ fn parse_message_id(message_id: &[u8]) -> crate::error::Result<String> {
 fn prefetch_get_message_id(prefetch_msg: &Fetch) -> Result<String> {
     if prefetch_msg.envelope().is_none() {
         return Err(Error::Other(
-            "prefectch: message has no envelope".to_string(),
+            "prefetch: message has no envelope".to_string(),
         ));
     }
 
