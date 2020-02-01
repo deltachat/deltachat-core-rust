@@ -5,6 +5,8 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use num_traits::FromPrimitive;
+
 use async_imap::{
     error::Result as ImapResult,
     types::{Capability, Fetch, Flag, Mailbox, Name, NameAttribute},
@@ -12,10 +14,14 @@ use async_imap::{
 use async_std::sync::{Mutex, RwLock};
 use async_std::task;
 
+use mailparse::MailHeaderMap;
+
+use crate::config::*;
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_receive_imf::dc_receive_imf;
+use crate::dc_receive_imf::{dc_receive_imf, is_msgrmsg_rfc724_mid_in_list};
 use crate::events::Event;
+use crate::headerdef::HeaderDef;
 use crate::imap_client::*;
 use crate::job::{job_add, Action};
 use crate::login_param::{CertificateChecks, LoginParam};
@@ -63,6 +69,9 @@ pub enum Error {
     #[fail(display = "IMAP select folder error")]
     SelectFolderError(#[cause] select_folder::Error),
 
+    #[fail(display = "Mail parse error")]
+    MailParseError(#[cause] mailparse::MailParseError),
+
     #[fail(display = "No mailbox selected, folder: {:?}", _0)]
     NoMailbox(String),
 
@@ -94,6 +103,12 @@ impl From<select_folder::Error> for Error {
     }
 }
 
+impl From<mailparse::MailParseError> for Error {
+    fn from(err: mailparse::MailParseError) -> Error {
+        Error::MailParseError(err)
+    }
+}
+
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq)]
 pub enum ImapActionResult {
     Failed,
@@ -102,7 +117,18 @@ pub enum ImapActionResult {
     Success,
 }
 
-const PREFETCH_FLAGS: &str = "(UID ENVELOPE)";
+/// Prefetch:
+/// - Envelope to get From and Message-ID
+/// - In-Reply-To and References to check if message is a reply to chat message.
+/// - Chat-Version to check if a message is a chat message
+/// - Autocrypt-Setup-Message to check if a message is an autocrypt setup message,
+///   not necessarily sent by Delta Chat.
+const PREFETCH_FLAGS: &str = "(UID ENVELOPE BODY.PEEK[HEADER.FIELDS (\
+                              IN-REPLY-TO REFERENCES \
+                              CHAT-VERSION \
+                              AUTOCRYPT-SETUP-MESSAGE\
+                              )])";
+const DELETE_CHECK_FLAGS: &str = "(UID ENVELOPE)";
 const JUST_UID: &str = "(UID)";
 const BODY_FLAGS: &str = "(FLAGS BODY.PEEK[])";
 const SELECT_ALL: &str = "1:*";
@@ -550,6 +576,9 @@ impl Imap {
         context: &Context,
         folder: S,
     ) -> Result<bool> {
+        let show_emails =
+            ShowEmails::from_i32(context.get_config_int(Config::ShowEmails)).unwrap_or_default();
+
         let (uid_validity, last_seen_uid) =
             self.select_with_uidvalidity(context, folder.as_ref())?;
 
@@ -575,8 +604,8 @@ impl Imap {
 
         list.sort_unstable_by_key(|msg| msg.uid.unwrap_or_default());
 
-        for msg in &list {
-            let cur_uid = msg.uid.unwrap_or_default();
+        for fetch in &list {
+            let cur_uid = fetch.uid.unwrap_or_default();
             if cur_uid <= last_seen_uid {
                 // If the mailbox is not empty, results always include
                 // at least one UID, even if last_seen_uid+1 is past
@@ -593,9 +622,10 @@ impl Imap {
             }
             read_cnt += 1;
 
-            let message_id = prefetch_get_message_id(msg).unwrap_or_default();
+            let message_id = prefetch_get_message_id(fetch).unwrap_or_default();
+            let show = prefetch_should_download(context, fetch, show_emails).unwrap_or(true);
 
-            if !precheck_imf(context, &message_id, folder.as_ref(), cur_uid) {
+            if show && !precheck_imf(context, &message_id, folder.as_ref(), cur_uid) {
                 // check passed, go fetch the rest
                 if let Err(err) = self.fetch_single_msg(context, &folder, cur_uid).await {
                     info!(
@@ -938,7 +968,7 @@ impl Imap {
             // double-check that we are deleting the correct message-id
             // this comes at the expense of another imap query
             if let Some(ref mut session) = &mut *self.session.lock().await {
-                match session.uid_fetch(set, PREFETCH_FLAGS).await {
+                match session.uid_fetch(set, DELETE_CHECK_FLAGS).await {
                     Ok(msgs) => {
                         if msgs.is_empty() {
                             warn!(
@@ -1254,6 +1284,71 @@ fn prefetch_get_message_id(prefetch_msg: &Fetch) -> Result<String> {
     } else {
         Err(Error::Other("prefetch: No message ID found".to_string()))
     }
+}
+
+fn get_fetch_headers(prefetch_msg: &Fetch) -> Result<Vec<mailparse::MailHeader>> {
+    let header_bytes = match prefetch_msg.header() {
+        Some(header_bytes) => header_bytes,
+        None => return Ok(Vec::new()),
+    };
+    let (headers, _) = mailparse::parse_headers(header_bytes)?;
+    Ok(headers)
+}
+
+/// Checks if fetch result contains a header
+fn prefetch_has_header(headers: &[mailparse::MailHeader], headerdef: HeaderDef) -> Result<bool> {
+    Ok(headers
+        .get_first_value(&headerdef.get_headername())?
+        .is_some())
+}
+
+fn prefetch_is_reply_to_chat_message(
+    context: &Context,
+    headers: &[mailparse::MailHeader],
+) -> Result<bool> {
+    if let Some(value) = headers.get_first_value(&HeaderDef::InReplyTo.get_headername())? {
+        if is_msgrmsg_rfc724_mid_in_list(context, &value) {
+            return Ok(true);
+        }
+    }
+
+    if let Some(value) = headers.get_first_value(&HeaderDef::References.get_headername())? {
+        if is_msgrmsg_rfc724_mid_in_list(context, &value) {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
+}
+
+fn prefetch_should_download(
+    context: &Context,
+    prefetch_msg: &Fetch,
+    show_emails: ShowEmails,
+) -> Result<bool> {
+    let headers = get_fetch_headers(prefetch_msg)?;
+    let is_chat_message = prefetch_has_header(&headers, HeaderDef::ChatVersion)?;
+    let is_reply_to_chat_message = prefetch_is_reply_to_chat_message(context, &headers)?;
+
+    // Autocrypt Setup Message should be shown even if it is from non-chat client.
+    let is_autocrypt_setup_message =
+        prefetch_has_header(&headers, HeaderDef::AutocryptSetupMessage)?;
+
+    // TODO: currently we don't check contacts during prefetch
+    // We assume the best case: contact is accepted and not blocked.
+    let accepted_contact = true;
+    let blocked_contact = false;
+
+    let show = is_autocrypt_setup_message
+        || match show_emails {
+            ShowEmails::Off => is_chat_message || is_reply_to_chat_message,
+            ShowEmails::AcceptedContacts => {
+                is_chat_message || is_reply_to_chat_message || accepted_contact
+            }
+            ShowEmails::All => true,
+        };
+    let show = show && !blocked_contact;
+    Ok(show)
 }
 
 #[cfg(test)]

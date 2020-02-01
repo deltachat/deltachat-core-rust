@@ -309,11 +309,13 @@ fn add_parts(
         && msgrmsg == MessengerMessage::No
     {
         // this message is a classic email not a chat-message nor a reply to one
-        if show_emails == ShowEmails::Off {
-            *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
-            allow_creation = false
-        } else if show_emails == ShowEmails::AcceptedContacts {
-            allow_creation = false
+        match show_emails {
+            ShowEmails::Off => {
+                *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
+                allow_creation = false;
+            }
+            ShowEmails::AcceptedContacts => allow_creation = false,
+            ShowEmails::All => {}
         }
     }
 
@@ -1510,7 +1512,7 @@ fn is_reply_to_messenger_message(context: &Context, mime_parser: &MimeMessage) -
     false
 }
 
-fn is_msgrmsg_rfc724_mid_in_list(context: &Context, mid_list: &str) -> bool {
+pub fn is_msgrmsg_rfc724_mid_in_list(context: &Context, mid_list: &str) -> bool {
     if let Ok(ids) = mailparse::addrparse(mid_list) {
         for id in ids.iter() {
             if is_msgrmsg_rfc724_mid(context, id) {
