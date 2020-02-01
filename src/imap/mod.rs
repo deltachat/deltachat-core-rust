@@ -1252,12 +1252,11 @@ fn prefetch_get_message_id(prefetch_msg: &Fetch) -> Result<String> {
         ));
     }
 
-    let message_id = prefetch_msg.envelope().unwrap().message_id;
-    if message_id.is_none() {
-        return Err(Error::Other("prefetch: No message ID found".to_string()));
+    if let Some(message_id) = prefetch_msg.envelope().unwrap().message_id {
+        parse_message_id(&message_id).map_err(Into::into)
+    } else {
+        Err(Error::Other("prefetch: No message ID found".to_string()))
     }
-
-    parse_message_id(&message_id.unwrap()).map_err(Into::into)
 }
 
 #[cfg(test)]
