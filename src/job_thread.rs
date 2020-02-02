@@ -143,7 +143,7 @@ impl JobThread {
             if state.jobs_needed {
                 info!(
                     context,
-                    "{}-IDLE will not be started as it was interrupted while not ideling.",
+                    "{}-IDLE will not be started as it was interrupted while not idling.",
                     self.name,
                 );
                 state.jobs_needed = false;
