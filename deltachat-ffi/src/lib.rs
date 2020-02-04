@@ -699,7 +699,7 @@ pub unsafe extern "C" fn _dc_save_self_keypair(
     secret_data: *const libc::c_char,
 ) -> i32 {
     if context.is_null() {
-        eprintln!("ignoring careless call to dc_save_keypair()");
+        eprintln!("ignoring careless call to _dc_save_self_keypair()");
         return 0;
     }
     let ffi_context = &*context;
