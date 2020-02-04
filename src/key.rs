@@ -48,12 +48,14 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub trait DcKey: Serialize + Deserializable {
     type KeyType: Serialize + Deserializable;
 
+    /// Create a key from some bytes.
     fn from_slice(bytes: &[u8]) -> Result<Self::KeyType> {
         Ok(<Self::KeyType as Deserializable>::from_bytes(Cursor::new(
             bytes,
         ))?)
     }
 
+    /// Create a key from a base64 string.
     fn from_base64(data: &str) -> Result<Self::KeyType> {
         // strip newlines and other whitespace
         let cleaned: String = data.trim().split_whitespace().collect();
@@ -61,14 +63,16 @@ pub trait DcKey: Serialize + Deserializable {
         Self::from_slice(&bytes)
     }
 
-    fn to_base64(&self) -> Result<String> {
-        let bytes = self.to_bytes()?;
-        Ok(base64::encode(&bytes))
+    /// Serialise the key to a base64 string.
+    fn to_base64(&self) -> String {
+        // Not using Serialize::to_bytes() to make clear *why* it is
+        // safe to ignore this error.
+        // Because we write to a Vec<u8> the io::Write impls never
+        // fail and we can hide this error.
+        let mut buf = Vec::new();
+        self.to_writer(&mut buf).unwrap();
+        base64::encode(&buf)
     }
-
-    // fn verify(&self) -> Result<Self::KeyType> {
-    //     <Self as Self::KeyType>::verify(self)
-    // }
 }
 
 impl DcKey for SignedPublicKey {
