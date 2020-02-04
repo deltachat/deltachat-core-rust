@@ -17,8 +17,7 @@ def datadir():
         datadir = path.join('test-data')
         if datadir.isdir():
             return datadir
-    else:
-        pytest.skip('test-data directory not found')
+    pytest.skip('test-data directory not found')
 
 
 class TestOfflineAccountBasic:
