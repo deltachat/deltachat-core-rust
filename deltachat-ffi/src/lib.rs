@@ -118,18 +118,17 @@ impl ContextWrapper {
     /// the appropriate return value for an error return since this
     /// differs for various functions on the FFI API: sometimes 0,
     /// NULL, an empty string etc.
-    fn with_inner<T, F>(&self, ctxfn: F) -> Result<T, ()>
+    ///
+    /// Prefer to use [ContextWrapper::try_inner], we might want to
+    /// remove this function at some point to reduce the cognitive
+    /// overload of having two functions which are too similar.
+    unsafe fn with_inner<T, F>(&self, ctxfn: F) -> Result<T, ()>
     where
         F: FnOnce(&Context) -> T,
     {
-        let guard = self.inner.read().unwrap();
-        match guard.as_ref() {
-            Some(ref ctx) => Ok(ctxfn(ctx)),
-            None => {
-                unsafe { self.error("context not open") };
-                Err(())
-            }
-        }
+        self.try_inner(|ctx| Ok(ctxfn(ctx))).map_err(|err| {
+            self.warning(&err.to_string());
+        })
     }
 
     /// Unlock the context and execute a closure with it.
