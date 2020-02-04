@@ -106,19 +106,16 @@ impl fmt::Display for Aheader {
         // adds a whitespace every 78 characters, this allows
         // email crate to wrap the lines according to RFC 5322
         // (which may insert a linebreak before every whitespace)
-        let keydata = self
-            .public_key
-            .to_base64()
-            .unwrap_or_default()
-            .chars()
-            .enumerate()
-            .fold(String::new(), |mut res, (i, c)| {
+        let keydata = self.public_key.to_base64().chars().enumerate().fold(
+            String::new(),
+            |mut res, (i, c)| {
                 if i % 78 == 78 - "keydata=".len() {
                     res.push(' ')
                 }
                 res.push(c);
                 res
-            });
+            },
+        );
         write!(fmt, " keydata={}", keydata)
     }
 }
