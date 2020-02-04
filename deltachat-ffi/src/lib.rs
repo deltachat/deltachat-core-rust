@@ -3226,7 +3226,7 @@ pub trait ResultExt<T, E> {
     /// to be displayed to the user.
     ///
     /// You can do this as soon as the wrapper exists, it does not
-    /// have to be open (which is required for teh `warn!()` macro).
+    /// have to be open (which is required for the `warn!()` macro).
     fn log_warn(self, wrapper: &ContextWrapper, message: &str) -> Result<T, E>;
 }
 
