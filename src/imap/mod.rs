@@ -154,7 +154,6 @@ struct ImapConfig {
     pub selected_mailbox: Option<Mailbox>,
     pub selected_folder_needs_expunge: bool,
     pub can_idle: bool,
-    pub has_xlist: bool,
     pub imap_delimiter: char,
 }
 
@@ -172,7 +171,6 @@ impl Default for ImapConfig {
             selected_mailbox: None,
             selected_folder_needs_expunge: false,
             can_idle: false,
-            has_xlist: false,
             imap_delimiter: '.',
         }
     }
@@ -326,7 +324,6 @@ impl Imap {
         cfg.imap_port = 0;
 
         cfg.can_idle = false;
-        cfg.has_xlist = false;
     }
 
     /// Connects to imap account using already-configured parameters.
@@ -387,7 +384,6 @@ impl Imap {
                         true
                     } else {
                         let can_idle = caps.has_str("IDLE");
-                        let has_xlist = caps.has_str("XLIST");
                         let caps_list = caps.iter().fold(String::new(), |s, c| {
                             if let Capability::Atom(x) = c {
                                 s + &format!(" {}", x)
@@ -397,7 +393,6 @@ impl Imap {
                         });
 
                         self.config.write().await.can_idle = can_idle;
-                        self.config.write().await.has_xlist = has_xlist;
                         *self.connected.lock().await = true;
                         emit_event!(
                             context,
@@ -1107,7 +1102,6 @@ impl Imap {
     }
 
     async fn list_folders(&self, session: &mut Session, context: &Context) -> Option<Vec<Name>> {
-        // TODO: use xlist when available
         match session.list(Some(""), Some("*")).await {
             Ok(list) => {
                 if list.is_empty() {
