@@ -315,13 +315,6 @@ fn set_self_key(
     ensure!(self_addr.is_some(), "Missing self addr");
     let addr = EmailAddress::new(&self_addr.unwrap_or_default())?;
 
-    // XXX maybe better make dc_key_save_self_keypair delete things
-    sql::execute(
-        context,
-        &context.sql,
-        "DELETE FROM keypairs WHERE public_key=? OR private_key=?;",
-        params![public_key.to_bytes(), private_key.to_bytes()],
-    )?;
     let (public, secret) = match (public_key, private_key) {
         (Key::Public(p), Key::Secret(s)) => (p, s),
         _ => bail!("wrong keys unpacked"),
