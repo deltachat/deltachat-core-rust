@@ -322,10 +322,7 @@ impl<'a> Peerstate<'a> {
     pub fn render_gossip_header(&self, min_verified: PeerstateVerifiedStatus) -> Option<String> {
         if let Some(key) = self.peek_key(min_verified) {
             // TODO: avoid cloning
-            let public_key = match SignedPublicKey::try_from(key.clone()) {
-                Ok(key) => key,
-                Err(_) => return None,
-            };
+            let public_key = SignedPublicKey::try_from(key.clone()).ok()?;
             let header = Aheader::new(
                 self.addr.clone(),
                 public_key,
