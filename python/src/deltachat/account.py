@@ -118,15 +118,15 @@ class Account(object):
         assert res != ffi.NULL, "config value not found for: {!r}".format(name)
         return from_dc_charpointer(res)
 
-    def _save_self_keypair(self, addr, public, secret):
+    def _preconfigure_keypair(self, addr, public, secret):
         """See _dc_save_self_keypair() in deltachat.h.
 
         In other words, you don't need this.
         """
-        res = lib._dc_save_self_keypair(self._dc_context,
-                                        as_dc_charpointer(addr),
-                                        as_dc_charpointer(public),
-                                        as_dc_charpointer(secret))
+        res = lib.dc_preconfigure_keypair(self._dc_context,
+                                          as_dc_charpointer(addr),
+                                          as_dc_charpointer(public),
+                                          as_dc_charpointer(secret))
         if res == 0:
             raise Exception("Failed to set key")
 

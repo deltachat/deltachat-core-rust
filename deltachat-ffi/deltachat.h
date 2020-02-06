@@ -870,7 +870,7 @@ void            dc_maybe_network             (dc_context_t* context);
  * @param secret_data The secret key as base64.
  * @return 1 on success, 0 on failure.
  */
-int             _dc_save_self_keypair        (dc_context_t* context, const char *addr, const char *public_data, const char *secret_data);
+int             dc_preconfigure_keypair        (dc_context_t* context, const char *addr, const char *public_data, const char *secret_data);
 
 
 // handle chatlists

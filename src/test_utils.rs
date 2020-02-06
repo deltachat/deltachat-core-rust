@@ -85,7 +85,7 @@ pub(crate) fn configure_alice_keypair(ctx: &Context) -> String {
     let keypair = alice_keypair();
     ctx.set_config(Config::ConfiguredAddr, Some(&keypair.addr.to_string()))
         .unwrap();
-    key::save_self_keypair(&ctx, &keypair, key::KeyPairUse::Default)
+    key::store_self_keypair(&ctx, &keypair, key::KeyPairUse::Default)
         .expect("Failed to save Alice's key");
     keypair.addr.to_string()
 }

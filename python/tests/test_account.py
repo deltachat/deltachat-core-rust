@@ -35,11 +35,11 @@ class TestOfflineAccountBasic:
         ac1 = Account(p.strpath, os_name="solarpunk")
         ac1.get_info()
 
-    def test_save_self_keypair(self, acfactory, datadir):
+    def test_preconfigure_keypair(self, acfactory, datadir):
         ac = acfactory.get_unconfigured_account()
-        ac._save_self_keypair("alice@example.com",
-                              datadir.join('key/alice-public.asc').read(),
-                              datadir.join('key/alice-secret.asc').read())
+        ac._preconfigure_keypair("alice@example.com",
+                                 datadir.join('key/alice-public.asc').read(),
+                                 datadir.join('key/alice-secret.asc').read())
 
     def test_getinfo(self, acfactory):
         ac1 = acfactory.get_unconfigured_account()
