@@ -1,5 +1,6 @@
 from __future__ import print_function
 import os
+import py
 import pytest
 import requests
 import time
@@ -116,8 +117,19 @@ def session_liveconfig(request):
             return SessionLiveConfigFromFile(liveconfig_opt)
 
 
+@pytest.fixture(scope='session')
+def datadir():
+    """The py.path.local object of the test-data/ directory."""
+    for path in reversed(py.path.local(__file__).parts()):
+        datadir = path.join('test-data')
+        if datadir.isdir():
+            return datadir
+    else:
+        pytest.skip('test-data directory not found')
+
+
 @pytest.fixture
-def acfactory(pytestconfig, tmpdir, request, session_liveconfig):
+def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
 
     class AccountMaker:
         def __init__(self):
@@ -125,6 +137,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig):
             self.offline_count = 0
             self._finalizers = []
             self.init_time = time.time()
+            self._generated_keys = ["alice", "bob"]
 
         def finalize(self):
             while self._finalizers:
@@ -144,12 +157,23 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig):
             ac._evlogger.set_timeout(2)
             return ac
 
+        def _preconfigure_key(self, account, addr):
+            # Only set a key if we haven't used it yet for another account.
+            if self._generated_keys:
+                keyname = self._generated_keys.pop(0)
+                fname_pub = "key/{name}-public.asc".format(name=keyname)
+                fname_sec = "key/{name}-secret.asc".format(name=keyname)
+                account._preconfigure_keypair(addr,
+                                              datadir.join(fname_pub).read(),
+                                              datadir.join(fname_sec).read())
+
         def get_configured_offline_account(self):
             ac = self.get_unconfigured_account()
 
             # do a pseudo-configured account
             addr = "addr{}@offline.org".format(self.offline_count)
             ac.set_config("addr", addr)
+            self._preconfigure_key(ac, addr)
             lib.dc_set_config(ac._dc_context, b"configured_addr", addr.encode("ascii"))
             ac.set_config("mail_pw", "123")
             lib.dc_set_config(ac._dc_context, b"configured_mail_pw", b"123")
@@ -175,6 +199,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig):
 
             tmpdb = tmpdir.join("livedb%d" % self.live_count)
             ac = self.make_account(tmpdb.strpath, logid="ac{}".format(self.live_count))
+            self._preconfigure_key(ac, configdict['addr'])
             ac._evlogger.init_time = self.init_time
             ac._evlogger.set_timeout(30)
             return ac, dict(configdict)

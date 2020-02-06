@@ -305,7 +305,7 @@ impl Key {
 
 /// Use of a [KeyPair] for encryption or decryption.
 ///
-/// This is used by [save_self_keypair] to know what kind of key is
+/// This is used by [store_self_keypair] to know what kind of key is
 /// being saved.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum KeyPairUse {
