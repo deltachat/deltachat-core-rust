@@ -137,7 +137,8 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
             self.offline_count = 0
             self._finalizers = []
             self.init_time = time.time()
-            self._generated_keys = ["alice", "bob"]
+            self._generated_keys = ["alice", "bob", "charlie",
+                                    "dom", "elena", "fiona"]
 
         def finalize(self):
             while self._finalizers:

@@ -58,11 +58,7 @@ pub(crate) fn logging_cb(_ctx: &Context, evt: Event) {
 ///
 /// This saves CPU cycles by avoiding having to generate a key.
 ///
-/// The keypair was created using (this is purposefully not a doctest, it would be slow):
-///   let keypair = crate::pgp::create_keypair(EmailAddress::new("alice@example.com"))
-///       .unwrap();
-///   println!("{}", keypair.public.to_base64(64));
-///   println!("{}", keypair.secret.to_base64(64));
+/// The keypair was created using the crate::key::tests::gen_key test.
 pub(crate) fn alice_keypair() -> key::KeyPair {
     let addr = EmailAddress::new("alice@example.com").unwrap();
     let public =
