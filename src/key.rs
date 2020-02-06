@@ -335,7 +335,7 @@ impl SaveKeyError {
     }
 }
 
-/// Save the keypair as an owned keypair for addr.
+/// Store the keypair as an owned keypair for addr in the database.
 ///
 /// This will save the keypair as keys for the given address.  The
 /// "self" here refers to the fact that this DC instance owns the
@@ -347,7 +347,7 @@ impl SaveKeyError {
 /// same key again overwrites it.
 ///
 /// [Config::ConfiguredAddr]: crate::config::Config::ConfiguredAddr
-pub fn save_self_keypair(
+pub fn store_self_keypair(
     context: &Context,
     keypair: &KeyPair,
     default: KeyPairUse,
@@ -590,9 +590,9 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
                 .unwrap()
         };
         assert_eq!(nrows(), 0);
-        save_self_keypair(&t.ctx, &KEYPAIR, KeyPairUse::Default).unwrap();
+        store_self_keypair(&t.ctx, &KEYPAIR, KeyPairUse::Default).unwrap();
         assert_eq!(nrows(), 1);
-        save_self_keypair(&t.ctx, &KEYPAIR, KeyPairUse::Default).unwrap();
+        store_self_keypair(&t.ctx, &KEYPAIR, KeyPairUse::Default).unwrap();
         assert_eq!(nrows(), 1);
     }
 }

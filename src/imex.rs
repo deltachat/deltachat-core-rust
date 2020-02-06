@@ -324,7 +324,7 @@ fn set_self_key(
         public,
         secret,
     };
-    key::save_self_keypair(
+    key::store_self_keypair(
         context,
         &keypair,
         if set_default {

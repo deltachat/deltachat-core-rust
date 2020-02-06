@@ -215,7 +215,7 @@ fn load_or_generate_self_public_key(
         "Generating keypair with {} bits, e={} ...", 2048, 65537,
     );
     let keypair = pgp::create_keypair(EmailAddress::new(self_addr.as_ref())?)?;
-    key::save_self_keypair(context, &keypair, KeyPairUse::Default)?;
+    key::store_self_keypair(context, &keypair, KeyPairUse::Default)?;
     info!(
         context,
         "Keypair generated in {:.3}s.",
