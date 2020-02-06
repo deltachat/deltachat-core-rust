@@ -197,15 +197,6 @@ impl Key {
         }
     }
 
-    // pub fn from_base64(encoded_data: &str, key_type: KeyType) -> Option<Self> {
-    //     // strip newlines and other whitespace
-    //     let cleaned: String = encoded_data.trim().split_whitespace().collect();
-    //     let bytes = cleaned.as_bytes();
-    //     base64::decode(bytes)
-    //         .ok()
-    //         .and_then(|decoded| Self::from_slice(&decoded, key_type))
-    // }
-
     pub fn from_self_public(
         context: &Context,
         self_addr: impl AsRef<str>,
