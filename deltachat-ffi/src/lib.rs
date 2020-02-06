@@ -698,7 +698,7 @@ pub unsafe extern "C" fn dc_preconfigure_keypair(
     secret_data: *const libc::c_char,
 ) -> i32 {
     if context.is_null() {
-        eprintln!("ignoring careless call to _dc_save_self_keypair()");
+        eprintln!("ignoring careless call to dc_preconfigure_keypair()");
         return 0;
     }
     let ffi_context = &*context;

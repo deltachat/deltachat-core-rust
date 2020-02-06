@@ -119,7 +119,7 @@ class Account(object):
         return from_dc_charpointer(res)
 
     def _preconfigure_keypair(self, addr, public, secret):
-        """See _dc_save_self_keypair() in deltachat.h.
+        """See dc_preconfigure_keypair() in deltachat.h.
 
         In other words, you don't need this.
         """
