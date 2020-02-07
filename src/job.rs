@@ -369,7 +369,7 @@ impl Job {
         }
 
         self.smtp_send(context, recipients, body, self.job_id, || {
-            // Remove additional SendMdn jobs we have aggretated into this one.
+            // Remove additional SendMdn jobs we have aggregated into this one.
             job_kill_ids(context, &additional_job_ids)?;
             Ok(())
         })
@@ -889,8 +889,8 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
 
         // some configuration jobs are "exclusive":
         // - they are always executed in the imap-thread and the smtp-thread is suspended during execution
-        // - they may change the database handle change the database handle; we do not keep old pointers therefore
-        // - they can be re-executed one time AT_ONCE, but they are not save in the database for later execution
+        // - they may change the database handle; we do not keep old pointers therefore
+        // - they can be re-executed one time AT_ONCE, but they are not saved in the database for later execution
         if Action::ConfigureImap == job.action || Action::ImexImap == job.action {
             job_kill_action(context, job.action);
             context
@@ -1153,7 +1153,7 @@ pub fn interrupt_smtp_idle(context: &Context) {
 ///
 /// Load jobs for this "[Thread]", i.e. either load SMTP jobs or load
 /// IMAP jobs.  The `probe_network` parameter decides how to query
-/// jobs, this is tricky and probably wrong currently.  Look at the
+/// jobs, this is tricky and probably wrong currently. Look at the
 /// SQL queries for details.
 fn load_next_job(context: &Context, thread: Thread, probe_network: bool) -> Option<Job> {
     let query = if !probe_network {
