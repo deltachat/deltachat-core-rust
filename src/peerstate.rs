@@ -335,18 +335,13 @@ impl<'a> Peerstate<'a> {
     }
 
     pub fn peek_key(&self, min_verified: PeerstateVerifiedStatus) -> Option<&Key> {
-        if self.public_key.is_none() && self.gossip_key.is_none() && self.verified_key.is_none() {
-            return None;
+        match min_verified {
+            PeerstateVerifiedStatus::BidirectVerified => self.verified_key.as_ref(),
+            PeerstateVerifiedStatus::Unverified => self
+                .public_key
+                .as_ref()
+                .or_else(|| self.gossip_key.as_ref()),
         }
-
-        if min_verified != PeerstateVerifiedStatus::Unverified {
-            return self.verified_key.as_ref();
-        }
-        if self.public_key.is_some() {
-            return self.public_key.as_ref();
-        }
-
-        self.gossip_key.as_ref()
     }
 
     pub fn set_verified(
