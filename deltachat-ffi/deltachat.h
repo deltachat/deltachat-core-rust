@@ -2952,7 +2952,7 @@ int             dc_chat_is_muted (const dc_chat_t* chat);
  * @param chat The chat object.
  * @return 0=not muted, -1=forever muted, (x>0)=remaining seconds until the mute is lifted
  */
-int64_t          dc_chat_get_mute_duration (const dc_chat_t* chat);
+int64_t          dc_chat_get_remaining_mute_duration (const dc_chat_t* chat);
 
 
 /**
