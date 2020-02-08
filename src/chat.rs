@@ -444,7 +444,7 @@ impl Chat {
                     archived: row.get(4)?,
                     blocked: row.get::<_, Option<_>>(5)?.unwrap_or_default(),
                     is_sending_locations: row.get(6)?,
-                    mute_duration: MuteDuration::deserialize(row.get(7)?),
+                    mute_duration: row.get(7)?,
                 };
                 Ok(c)
             },
@@ -1924,28 +1924,37 @@ pub enum MuteDuration {
     MutedUntilTimestamp(i64),
 }
 
-impl MuteDuration {
-    // TODO use serde compatible functions?
-    pub fn serialize(&self) -> i64 {
-        match &self {
+impl rusqlite::types::ToSql for MuteDuration {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
+        let duration = match &self {
             MuteDuration::NotMuted => 0,
             MuteDuration::Forever => -1,
-            MuteDuration::MutedUntilTimestamp(timestamp) => *timestamp as i64, // TODO make this pretier?
-        }
+            MuteDuration::MutedUntilTimestamp(timestamp) => *timestamp as i64,
+        };
+        let val = rusqlite::types::Value::Integer(duration as i64);
+        let out = rusqlite::types::ToSqlOutput::Owned(val);
+        Ok(out)
     }
+}
 
-    pub fn deserialize(value: i64) -> MuteDuration {
-        match value {
-            0 => MuteDuration::NotMuted,
-            -1 => MuteDuration::Forever,
-            _ => {
-                if value <= time() {
-                    MuteDuration::NotMuted
-                } else {
-                    MuteDuration::MutedUntilTimestamp(value)
+impl rusqlite::types::FromSql for MuteDuration {
+    fn column_result(value: rusqlite::types::ValueRef) -> rusqlite::types::FromSqlResult<Self> {
+        // Would be nice if we could use match here, but alas.
+        i64::column_result(value).and_then(|val| {
+            Ok({
+                match val {
+                    0 => MuteDuration::NotMuted,
+                    -1 => MuteDuration::Forever,
+                    _ => {
+                        if val <= time() {
+                            MuteDuration::NotMuted
+                        } else {
+                            MuteDuration::MutedUntilTimestamp(val)
+                        }
+                    }
                 }
-            }
-        }
+            })
+        })
     }
 }
 
@@ -1956,7 +1965,7 @@ pub fn set_muted(context: &Context, chat_id: ChatId, duration: MuteDuration) -> 
             context,
             &context.sql,
             "UPDATE chats SET muted_until=? WHERE id=?;",
-            params![duration.serialize(), chat_id],
+            params![duration, chat_id],
         )
         .is_ok()
     {
