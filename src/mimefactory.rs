@@ -60,9 +60,6 @@ pub struct RenderedEmail {
     pub is_gossiped: bool,
     pub last_added_location_id: u32,
 
-    pub from: String,
-    pub recipients: Vec<String>,
-
     /// Message ID (Message in the sense of Email)
     pub rfc724_mid: String,
 }
@@ -349,6 +346,13 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         }
     }
 
+    pub fn recipients(&self) -> Vec<String> {
+        self.recipients
+            .iter()
+            .map(|(_, addr)| addr.clone())
+            .collect()
+    }
+
     pub fn render(mut self) -> Result<RenderedEmail, Error> {
         // Headers that are encrypted
         // - Chat-*, except Chat-Version
@@ -565,8 +569,6 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         };
 
         let MimeFactory {
-            recipients,
-            from_addr,
             last_added_location_id,
             ..
         } = self;
@@ -577,8 +579,6 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             is_encrypted,
             is_gossiped,
             last_added_location_id,
-            recipients: recipients.into_iter().map(|(_, addr)| addr).collect(),
-            from: from_addr,
             rfc724_mid,
         })
     }
