@@ -16,14 +16,27 @@ def pytest_addoption(parser):
         help="a file with >=2 lines where each line "
              "contains NAME=VALUE config settings for one account"
     )
+    parser.addoption(
+        "--ignored", action="store_true",
+        help="Also run tests marked with the ignored marker",
+    )
 
 
 def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "ignored: Mark test as bing slow, skipped unless --ignored is used."
+    )
     cfg = config.getoption('--liveconfig')
     if not cfg:
         cfg = os.getenv('DCC_PY_LIVECONFIG')
         if cfg:
             config.option.liveconfig = cfg
+
+
+def pytest_runtest_setup(item):
+    if (list(item.iter_markers(name="ignored"))
+            and not item.config.getoption("ignored")):
+        pytest.skip("Ignored tests not requested, use --ignored")
 
 
 def pytest_report_header(config, startdir):
@@ -186,7 +199,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
                 pytest.skip("specify DCC_PY_LIVECONFIG or --liveconfig")
             return session_liveconfig.get(self.live_count)
 
-        def get_online_config(self):
+        def get_online_config(self, pre_generated_key=True):
             if not session_liveconfig:
                 pytest.skip("specify DCC_PY_LIVECONFIG or --liveconfig")
             configdict = session_liveconfig.get(self.live_count)
@@ -200,19 +213,23 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
 
             tmpdb = tmpdir.join("livedb%d" % self.live_count)
             ac = self.make_account(tmpdb.strpath, logid="ac{}".format(self.live_count))
-            self._preconfigure_key(ac, configdict['addr'])
+            if pre_generated_key:
+                self._preconfigure_key(ac, configdict['addr'])
             ac._evlogger.init_time = self.init_time
             ac._evlogger.set_timeout(30)
             return ac, dict(configdict)
 
-        def get_online_configuring_account(self, mvbox=False, sentbox=False):
-            ac, configdict = self.get_online_config()
+        def get_online_configuring_account(self, mvbox=False, sentbox=False,
+                                           pre_generated_key=True):
+            ac, configdict = self.get_online_config(
+                pre_generated_key=pre_generated_key)
             ac.configure(**configdict)
             ac.start_threads(mvbox=mvbox, sentbox=sentbox)
             return ac
 
-        def get_one_online_account(self):
-            ac1 = self.get_online_configuring_account()
+        def get_one_online_account(self, pre_generated_key=True):
+            ac1 = self.get_online_configuring_account(
+                pre_generated_key=pre_generated_key)
             wait_successful_IMAP_SMTP_connection(ac1)
             wait_configuration_progress(ac1, 1000)
             return ac1
