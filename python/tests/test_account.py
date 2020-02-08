@@ -417,6 +417,12 @@ class TestOfflineChat:
 
 
 class TestOnlineAccount:
+    @pytest.mark.ignored
+    def test_configure_generate_key(self, acfactory):
+        # A slow test which will generate a new key.
+        ac = acfactory.get_one_online_account(pre_generated_key=False)
+        ac.check_is_configured()
+
     def get_chat(self, ac1, ac2, both_created=False):
         c2 = ac1.create_contact(email=ac2.get_config("addr"))
         chat = ac1.create_chat_by_contact(c2)
