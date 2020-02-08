@@ -148,17 +148,17 @@ impl ChatId {
             self
         );
 
-        let mut send_event = false;
-
-        if new_archive_state == ArchiveState::Archived {
+        let send_event = if new_archive_state == ArchiveState::Archived {
             sql::execute(
                 context,
                 &context.sql,
                 "UPDATE msgs SET state=? WHERE chat_id=? AND state=?;",
                 params![MessageState::InNoticed, self, MessageState::InFresh],
             )?;
-            send_event = true;
-        }
+            true
+        } else {
+            false
+        };
 
         sql::execute(
             context,

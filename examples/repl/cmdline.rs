@@ -521,7 +521,7 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
                         match chat.get_id().get_archive_state(context) {
                             ArchiveState::Normal => "",
                             ArchiveState::Archived => "📦",
-                            ArchiveState::Pinned => "📌"
+                            ArchiveState::Pinned => "📌",
                         },
                     );
                     let lot = chatlist.get_summary(context, i, Some(&chat));
@@ -859,9 +859,7 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
                     "archive" => ArchiveState::Archived,
                     "unarchive" | "unpin" => ArchiveState::Normal,
                     "pin" => ArchiveState::Pinned,
-                    _ => {
-                        panic!("Unexpected command (This should never happen)")
-                    }
+                    _ => panic!("Unexpected command (This should never happen)"),
                 },
             )?;
         }

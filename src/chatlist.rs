@@ -202,9 +202,9 @@ impl Chatlist {
                                   AND (hidden=0 OR state=?))
                  WHERE c.id>9
                    AND c.blocked=0
-                   AND c.archived=0
+                   AND NOT c.archived=1
                  GROUP BY c.id
-                 ORDER BY IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
+                 ORDER BY c.archived=2 DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
                 params![MessageState::OutDraft],
                 process_row,
                 process_rows,

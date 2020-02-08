@@ -25,9 +25,7 @@ use std::time::{Duration, SystemTime};
 use libc::uintptr_t;
 use num_traits::{FromPrimitive, ToPrimitive};
 
-use deltachat::chat::ArchiveState;
-use deltachat::chat::ChatId;
-use deltachat::chat::MuteDuration;
+use deltachat::chat::{ArchiveState, ChatId, MuteDuration};
 use deltachat::constants::DC_MSG_ID_LAST_SPECIAL;
 use deltachat::contact::Contact;
 use deltachat::context::Context;
