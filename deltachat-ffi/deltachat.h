@@ -1587,11 +1587,11 @@ int             dc_set_chat_profile_image    (dc_context_t* context, uint32_t ch
  *
  * @memberof dc_context_t
  * @param chat_id The chat ID to set the mute duration.
- * @param duration The duration (0 for no mute, -1 for forever mute, >0 unix timestamp it until it should be unmuted again)
+ * @param duration The duration (0 for no mute, -1 for forever mute, everything else is is the relative mute duration from now in seconds)
  * @param context The context as created by dc_context_new().
  * @return 1=success, 0=error
  */
-int             dc_set_chat_muted             (dc_context_t* context, uint32_t chat_id, int64_t duration);
+int             dc_chat_set_mute_duration             (dc_context_t* context, uint32_t chat_id, int64_t duration);
 
 // handle messages
 
@@ -2950,7 +2950,7 @@ int             dc_chat_is_muted (const dc_chat_t* chat);
  *
  * @memberof dc_chat_t
  * @param chat The chat object.
- * @return 0=not muted, -1=forever muted, (x>0)=unix timestamp until mute is lifted
+ * @return 0=not muted, -1=forever muted, (x>0)=remaining seconds until the mute is lifted
  */
 int64_t          dc_chat_get_mute_duration (const dc_chat_t* chat);
 

@@ -25,6 +25,7 @@ use libc::uintptr_t;
 use num_traits::{FromPrimitive, ToPrimitive};
 
 use deltachat::chat::ChatId;
+use deltachat::chat::MuteDuration;
 use deltachat::constants::DC_MSG_ID_LAST_SPECIAL;
 use deltachat::contact::Contact;
 use deltachat::context::Context;
@@ -32,6 +33,9 @@ use deltachat::key::DcKey;
 use deltachat::message::MsgId;
 use deltachat::stock::StockMessage;
 use deltachat::*;
+
+mod tools;
+use crate::tools::time;
 
 mod dc_array;
 
@@ -1408,19 +1412,26 @@ pub unsafe extern "C" fn dc_set_chat_profile_image(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_set_chat_muted(
+pub unsafe extern "C" fn dc_chat_set_mute_duration(
     context: *mut dc_context_t,
     chat_id: u32,
     duration: i64,
 ) -> libc::c_int {
     if context.is_null() || chat_id <= constants::DC_CHAT_ID_LAST_SPECIAL as u32 {
-        eprintln!("ignoring careless call to dc_set_chat_muted()");
+        eprintln!("ignoring careless call to dc_chat_set_mute_duration()");
         return 0;
     }
+
+    let muteDuration = match duration {
+        0 => MuteDuration::NotMuted,
+        -1 => MuteDuration::Forever,
+        _ => MuteDuration::MutedUntilTimestamp(time() + duration),
+    };
+
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| {
-            chat::set_muted(ctx, chat_id, chat::MuteDuration::deserialize(duration))
+            chat::set_muted(ctx, chat_id, muteDuration)
                 .map(|_| 1)
                 .unwrap_or_log_default(ctx, "Failed to set mute duration")
         })
@@ -2514,11 +2525,18 @@ pub unsafe extern "C" fn dc_chat_is_muted(chat: *mut dc_chat_t) -> libc::c_int {
 #[no_mangle]
 pub unsafe extern "C" fn dc_chat_get_mute_duration(chat: *mut dc_chat_t) -> i64 {
     if chat.is_null() {
-        eprintln!("ignoring careless call to dc_chat_is_muted()");
+        eprintln!("ignoring careless call to dc_chat_get_mute_duration()");
         return 0;
     }
     let ffi_chat = &*chat;
-    ffi_chat.chat.mute_duration.serialize() as i64
+    if !ffi_chat.chat.is_muted() {
+        return 0;
+    }
+    match ffi_chat.chat.mute_duration {
+        MuteDuration::NotMuted => 0,
+        MuteDuration::Forever => -1,
+        MuteDuration::MutedUntilTimestamp(timestamp) => timestamp - time(),
+    }
 }
 
 #[no_mangle]

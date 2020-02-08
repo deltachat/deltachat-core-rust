@@ -1938,7 +1938,13 @@ impl MuteDuration {
         match value {
             0 => MuteDuration::NotMuted,
             -1 => MuteDuration::Forever,
-            _ => MuteDuration::MutedUntilTimestamp(value),
+            _ => {
+                if value <= time() {
+                    MuteDuration::NotMuted
+                } else {
+                    MuteDuration::MutedUntilTimestamp(value)
+                }
+            }
         }
     }
 }

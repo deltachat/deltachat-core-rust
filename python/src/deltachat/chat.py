@@ -105,20 +105,20 @@ class Chat(object):
         :returns: 
         """
         if duration is None:
-            timestamp = -1
+            mute_duration = -1
         else:
-            timestamp = int(time.time()) + duration
-        return bool(lib.dc_set_chat_muted(self._dc_context, self.id, timestamp))
+            mute_duration = duration
+        return bool(lib.dc_chat_set_mute_duration(self._dc_context, self.id, mute_duration))
 
     def unmute(self):
         """ unmutes the chat
 
         :returns: 
         """
-        return bool(lib.dc_set_chat_muted(self._dc_context, self.id, 0))
+        return bool(lib.dc_chat_set_mute_duration(self._dc_context, self.id, 0))
 
     def get_mute_duration(self):
-        """ mutes the chat
+        """ Returns the number of seconds until the mute of this chat is lifted.
 
         :param duration: 
         :returns: Returns the number of seconds the chat is still muted for. (0 for not muted, -1 forever muted)
