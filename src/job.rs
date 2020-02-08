@@ -792,7 +792,32 @@ pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<()> {
     };
 
     let mimefactory = MimeFactory::from_msg(context, &msg, attach_selfavatar)?;
-    let mut rendered_msg = mimefactory.render().map_err(|err| {
+
+    let mut recipients = mimefactory.recipients();
+
+    let from = context
+        .get_config(Config::ConfiguredAddr)
+        .unwrap_or_default();
+    let lowercase_from = from.to_lowercase();
+    if context.get_config_bool(Config::BccSelf)
+        && !recipients
+            .iter()
+            .any(|x| x.to_lowercase() == lowercase_from)
+    {
+        recipients.push(from);
+    }
+
+    if recipients.is_empty() {
+        // may happen eg. for groups with only SELF and bcc_self disabled
+        info!(
+            context,
+            "message {} has no recipient, skipping smtp-send", msg_id
+        );
+        set_delivered(context, msg_id);
+        return Ok(());
+    }
+
+    let rendered_msg = mimefactory.render().map_err(|err| {
         message::set_msg_failed(context, msg_id, Some(err.to_string()));
         err
     })?;
@@ -809,26 +834,6 @@ pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<()> {
             msg_id,
             needs_encryption
         );
-    }
-
-    let lowercase_from = rendered_msg.from.to_lowercase();
-    if context.get_config_bool(Config::BccSelf)
-        && !rendered_msg
-            .recipients
-            .iter()
-            .any(|x| x.to_lowercase() == lowercase_from)
-    {
-        rendered_msg.recipients.push(rendered_msg.from.clone());
-    }
-
-    if rendered_msg.recipients.is_empty() {
-        // may happen eg. for groups with only SELF and bcc_self disabled
-        info!(
-            context,
-            "message {} has no recipient, skipping smtp-send", msg_id
-        );
-        set_delivered(context, msg_id);
-        return Ok(());
     }
 
     if rendered_msg.is_gossiped {
@@ -859,7 +864,13 @@ pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<()> {
         msg.save_param_to_disk(context);
     }
 
-    add_smtp_job(context, Action::SendMsgToSmtp, msg.id, &rendered_msg)?;
+    add_smtp_job(
+        context,
+        Action::SendMsgToSmtp,
+        msg.id,
+        recipients,
+        &rendered_msg,
+    )?;
 
     Ok(())
 }
@@ -1080,17 +1091,15 @@ fn add_smtp_job(
     context: &Context,
     action: Action,
     msg_id: MsgId,
+    recipients: Vec<String>,
     rendered_msg: &RenderedEmail,
 ) -> Result<()> {
-    ensure!(
-        !rendered_msg.recipients.is_empty(),
-        "no recipients for smtp job set"
-    );
+    ensure!(!recipients.is_empty(), "no recipients for smtp job set");
     let mut param = Params::new();
     let bytes = &rendered_msg.message;
     let blob = BlobObject::create(context, &rendered_msg.rfc724_mid, bytes)?;
 
-    let recipients = rendered_msg.recipients.join("\x1e");
+    let recipients = recipients.join("\x1e");
     param.set(Param::File, blob.as_name());
     param.set(Param::Recipients, &recipients);
 
