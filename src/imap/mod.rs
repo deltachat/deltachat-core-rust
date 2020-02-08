@@ -118,17 +118,18 @@ pub enum ImapActionResult {
 }
 
 /// Prefetch:
-/// - Envelope to get From and Message-ID
+/// - Message-ID to check if we already have the message.
 /// - In-Reply-To and References to check if message is a reply to chat message.
 /// - Chat-Version to check if a message is a chat message
 /// - Autocrypt-Setup-Message to check if a message is an autocrypt setup message,
 ///   not necessarily sent by Delta Chat.
-const PREFETCH_FLAGS: &str = "(UID ENVELOPE BODY.PEEK[HEADER.FIELDS (\
+const PREFETCH_FLAGS: &str = "(UID BODY.PEEK[HEADER.FIELDS (\
+                              MESSAGE-ID \
                               IN-REPLY-TO REFERENCES \
                               CHAT-VERSION \
                               AUTOCRYPT-SETUP-MESSAGE\
                               )])";
-const DELETE_CHECK_FLAGS: &str = "(UID ENVELOPE)";
+const DELETE_CHECK_FLAGS: &str = "(UID BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])";
 const JUST_UID: &str = "(UID)";
 const BODY_FLAGS: &str = "(FLAGS BODY.PEEK[])";
 const SELECT_ALL: &str = "1:*";
@@ -622,8 +623,9 @@ impl Imap {
             }
             read_cnt += 1;
 
-            let message_id = prefetch_get_message_id(fetch).unwrap_or_default();
-            let show = prefetch_should_download(context, fetch, show_emails).unwrap_or(true);
+            let headers = get_fetch_headers(fetch)?;
+            let message_id = prefetch_get_message_id(&headers).unwrap_or_default();
+            let show = prefetch_should_download(context, &headers, show_emails).unwrap_or(true);
 
             if show && !precheck_imf(context, &message_id, folder.as_ref(), cur_uid) {
                 // check passed, go fetch the rest
@@ -970,7 +972,9 @@ impl Imap {
             if let Some(ref mut session) = &mut *self.session.lock().await {
                 match session.uid_fetch(set, DELETE_CHECK_FLAGS).await {
                     Ok(msgs) => {
-                        if msgs.is_empty() {
+                        let fetch = if let Some(fetch) = msgs.first() {
+                            fetch
+                        } else {
                             warn!(
                                 context,
                                 "Cannot delete on IMAP, {}: imap entry gone '{}'",
@@ -978,9 +982,11 @@ impl Imap {
                                 message_id,
                             );
                             return ImapActionResult::Failed;
-                        }
-                        let remote_message_id =
-                            prefetch_get_message_id(msgs.first().unwrap()).unwrap_or_default();
+                        };
+
+                        let remote_message_id = get_fetch_headers(fetch)
+                            .and_then(|headers| prefetch_get_message_id(&headers))
+                            .unwrap_or_default();
 
                         if remote_message_id != message_id {
                             warn!(
@@ -1260,8 +1266,7 @@ fn precheck_imf(context: &Context, rfc724_mid: &str, server_folder: &str, server
     }
 }
 
-fn parse_message_id(message_id: &[u8]) -> crate::error::Result<String> {
-    let value = std::str::from_utf8(message_id)?;
+fn parse_message_id(value: &str) -> crate::error::Result<String> {
     let addrs = mailparse::addrparse(value)
         .map_err(|err| format_err!("failed to parse message id {:?}", err))?;
 
@@ -1272,20 +1277,6 @@ fn parse_message_id(message_id: &[u8]) -> crate::error::Result<String> {
     bail!("could not parse message_id: {}", value);
 }
 
-fn prefetch_get_message_id(prefetch_msg: &Fetch) -> Result<String> {
-    if prefetch_msg.envelope().is_none() {
-        return Err(Error::Other(
-            "prefetch: message has no envelope".to_string(),
-        ));
-    }
-
-    if let Some(message_id) = prefetch_msg.envelope().unwrap().message_id {
-        parse_message_id(&message_id).map_err(Into::into)
-    } else {
-        Err(Error::Other("prefetch: No message ID found".to_string()))
-    }
-}
-
 fn get_fetch_headers(prefetch_msg: &Fetch) -> Result<Vec<mailparse::MailHeader>> {
     let header_bytes = match prefetch_msg.header() {
         Some(header_bytes) => header_bytes,
@@ -1293,6 +1284,14 @@ fn get_fetch_headers(prefetch_msg: &Fetch) -> Result<Vec<mailparse::MailHeader>>
     };
     let (headers, _) = mailparse::parse_headers(header_bytes)?;
     Ok(headers)
+}
+
+fn prefetch_get_message_id(headers: &[mailparse::MailHeader]) -> Result<String> {
+    if let Some(message_id) = headers.get_first_value(&HeaderDef::MessageId.get_headername())? {
+        Ok(parse_message_id(&message_id)?)
+    } else {
+        Err(Error::Other("prefetch: No message ID found".to_string()))
+    }
 }
 
 /// Checks if fetch result contains a header
@@ -1323,10 +1322,9 @@ fn prefetch_is_reply_to_chat_message(
 
 fn prefetch_should_download(
     context: &Context,
-    prefetch_msg: &Fetch,
+    headers: &[mailparse::MailHeader],
     show_emails: ShowEmails,
 ) -> Result<bool> {
-    let headers = get_fetch_headers(prefetch_msg)?;
     let is_chat_message = prefetch_has_header(&headers, HeaderDef::ChatVersion)?;
     let is_reply_to_chat_message = prefetch_is_reply_to_chat_message(context, &headers)?;
 
@@ -1358,11 +1356,11 @@ mod tests {
     #[test]
     fn test_parse_message_id() {
         assert_eq!(
-            parse_message_id(b"Mr.PRUe8HJBoaO.3whNvLCMFU0@testrun.org").unwrap(),
+            parse_message_id("Mr.PRUe8HJBoaO.3whNvLCMFU0@testrun.org").unwrap(),
             "Mr.PRUe8HJBoaO.3whNvLCMFU0@testrun.org"
         );
         assert_eq!(
-            parse_message_id(b"<Mr.PRUe8HJBoaO.3whNvLCMFU0@testrun.org>").unwrap(),
+            parse_message_id("<Mr.PRUe8HJBoaO.3whNvLCMFU0@testrun.org>").unwrap(),
             "Mr.PRUe8HJBoaO.3whNvLCMFU0@testrun.org"
         );
     }
