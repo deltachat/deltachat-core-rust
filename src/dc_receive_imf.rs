@@ -3,7 +3,7 @@ use sha2::{Digest, Sha256};
 
 use num_traits::FromPrimitive;
 
-use crate::chat::{self, Chat, ChatId};
+use crate::chat::{self, ArchiveState, Chat, ChatId};
 use crate::config::Config;
 use crate::constants::*;
 use crate::contact::*;
@@ -548,7 +548,9 @@ fn add_parts(
     );
 
     // unarchive chat
-    chat_id.unarchive(context)?;
+    if chat_id.get_archive_state(context) == ArchiveState::Archived {
+        chat_id.set_archive_state(context, ArchiveState::Normal)?;
+    }
 
     // if the mime-headers should be saved, find out its size
     // (the mime-header ends with an empty line)

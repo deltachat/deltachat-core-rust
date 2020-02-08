@@ -392,7 +392,9 @@ mod tests {
         let chats = Chatlist::try_load(&t.ctx, DC_GCL_ARCHIVED_ONLY, None, None).unwrap();
         assert_eq!(chats.len(), 0);
 
-        chat_id1.set_archived(&t.ctx, true).ok();
+        chat_id1
+            .set_archive_state(&t.ctx, ArchiveState::Archived)
+            .ok();
         let chats = Chatlist::try_load(&t.ctx, DC_GCL_ARCHIVED_ONLY, None, None).unwrap();
         assert_eq!(chats.len(), 1);
     }

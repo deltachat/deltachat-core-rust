@@ -25,6 +25,7 @@ use std::time::{Duration, SystemTime};
 use libc::uintptr_t;
 use num_traits::{FromPrimitive, ToPrimitive};
 
+use deltachat::chat::ArchiveState;
 use deltachat::chat::ChatId;
 use deltachat::chat::MuteDuration;
 use deltachat::constants::DC_MSG_ID_LAST_SPECIAL;
@@ -1199,17 +1200,15 @@ pub unsafe extern "C" fn dc_archive_chat(
         return;
     }
     let ffi_context = &*context;
-    let archive = if archive == 0 {
-        false
-    } else if archive == 1 {
-        true
-    } else {
-        return;
+    let archive_state = match archive {
+        2 => ArchiveState::Pinned,
+        1 => ArchiveState::Archived,
+        _ => ArchiveState::Normal,
     };
     ffi_context
         .with_inner(|ctx| {
             ChatId::new(chat_id)
-                .set_archived(ctx, archive)
+                .set_archive_state(ctx, archive_state)
                 .log_err(ffi_context, "Failed archive chat")
                 .unwrap_or(())
         })
@@ -2460,7 +2459,14 @@ pub unsafe extern "C" fn dc_chat_get_archived(chat: *mut dc_chat_t) -> libc::c_i
         return 0;
     }
     let ffi_chat = &*chat;
-    ffi_chat.chat.is_archived() as libc::c_int
+    let ffi_context = &*ffi_chat.context;
+    ffi_context
+        .with_inner(|ctx| match ffi_chat.chat.get_id().get_archive_state(ctx) {
+            ArchiveState::Normal => 0,
+            ArchiveState::Archived => 1,
+            ArchiveState::Pinned => 2,
+        } as libc::c_int)
+        .unwrap_or_else(|_| 0)
 }
 
 #[no_mangle]

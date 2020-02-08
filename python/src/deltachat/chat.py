@@ -423,7 +423,13 @@ class Chat(object):
         """return True if this chat is archived.
         :returns: True if archived.
         """
-        return lib.dc_chat_get_archived(self._dc_chat)
+        return lib.dc_chat_get_archived(self._dc_chat) == 1
+    
+    def is_pinned(self):
+        """return True if this chat is pinned.
+        :returns: True if pinned.
+        """
+        return lib.dc_chat_get_archived(self._dc_chat) == 2
 
     def enable_sending_locations(self, seconds):
         """enable sending locations for this chat.

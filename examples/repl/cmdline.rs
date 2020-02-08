@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::str::FromStr;
 
-use deltachat::chat::{self, Chat, ChatId};
+use deltachat::chat::{self, ArchiveState, Chat, ChatId};
 use deltachat::chatlist::*;
 use deltachat::constants::*;
 use deltachat::contact::*;
@@ -371,6 +371,8 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
                  listmedia\n\
                  archive <chat-id>\n\
                  unarchive <chat-id>\n\
+                 pin <chat-id>\n\
+                 unpin <chat-id>\n\
                  delchat <chat-id>\n\
                  ===========================Message commands==\n\
                  listmsgs <query>\n\
@@ -511,24 +513,30 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
                 for i in (0..cnt).rev() {
                     let chat = Chat::load_from_db(context, chatlist.get_chat_id(i))?;
                     println!(
-                        "{}#{}: {} [{} fresh]",
+                        "{}#{}: {} [{} fresh] {}",
                         chat_prefix(&chat),
                         chat.get_id(),
                         chat.get_name(),
                         chat.get_id().get_fresh_msg_cnt(context),
+                        match chat.get_id().get_archive_state(context) {
+                            ArchiveState::Normal => "",
+                            ArchiveState::Archived => "📦",
+                            ArchiveState::Pinned => "📌"
+                        },
                     );
                     let lot = chatlist.get_summary(context, i, Some(&chat));
-                    let statestr = if chat.is_archived() {
-                        " [Archived]"
-                    } else {
-                        match lot.get_state() {
-                            LotState::MsgOutPending => " o",
-                            LotState::MsgOutDelivered => " √",
-                            LotState::MsgOutMdnRcvd => " √√",
-                            LotState::MsgOutFailed => " !!",
-                            _ => "",
-                        }
-                    };
+                    let statestr =
+                        if chat.get_id().get_archive_state(context) == ArchiveState::Archived {
+                            " [Archived]"
+                        } else {
+                            match lot.get_state() {
+                                LotState::MsgOutPending => " o",
+                                LotState::MsgOutDelivered => " √",
+                                LotState::MsgOutMdnRcvd => " √√",
+                                LotState::MsgOutFailed => " !!",
+                                _ => "",
+                            }
+                        };
                     let timestr = dc_timestamp_to_str(lot.get_timestamp());
                     let text1 = lot.get_text1();
                     let text2 = lot.get_text2();
@@ -842,10 +850,20 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
             }
             print!("\n");
         }
-        "archive" | "unarchive" => {
+        "archive" | "unarchive" | "pin" | "unpin" => {
             ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
             let chat_id = ChatId::new(arg1.parse()?);
-            chat_id.set_archived(context, arg0 == "archive")?;
+            chat_id.set_archive_state(
+                context,
+                match arg0 {
+                    "archive" => ArchiveState::Archived,
+                    "unarchive" | "unpin" => ArchiveState::Normal,
+                    "pin" => ArchiveState::Pinned,
+                    _ => {
+                        panic!("Unexpected command (This should never happen)")
+                    }
+                },
+            )?;
         }
         "delchat" => {
             ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
