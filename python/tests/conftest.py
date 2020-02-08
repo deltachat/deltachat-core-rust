@@ -243,10 +243,12 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
             wait_configuration_progress(ac2, 1000)
             return ac1, ac2
 
-        def clone_online_account(self, account):
+        def clone_online_account(self, account, pre_generated_key=True):
             self.live_count += 1
             tmpdb = tmpdir.join("livedb%d" % self.live_count)
             ac = self.make_account(tmpdb.strpath, logid="ac{}".format(self.live_count))
+            if pre_generated_key:
+                self._preconfigure_key(ac, account.get_config("addr"))
             ac._evlogger.init_time = self.init_time
             ac._evlogger.set_timeout(30)
             ac.configure(addr=account.get_config("addr"), mail_pw=account.get_config("mail_pw"))
