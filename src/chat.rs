@@ -965,7 +965,11 @@ impl rusqlite::types::FromSql for ArchiveState {
                 match val {
                     2 => ArchiveState::Pinned,
                     1 => ArchiveState::Archived,
-                    _ => ArchiveState::Normal,
+                    0 => ArchiveState::Normal,
+                    _ => {
+                        println!("unknown archived state, falling back to normal state (was this db opened with a newer deltachat version?)");
+                        ArchiveState::Normal
+                    },
                 }
             })
         })

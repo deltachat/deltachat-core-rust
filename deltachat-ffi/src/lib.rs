@@ -1199,9 +1199,13 @@ pub unsafe extern "C" fn dc_archive_chat(
     }
     let ffi_context = &*context;
     let archive_state = match archive {
-        2 => ArchiveState::Pinned,
+        0 => ArchiveState::Normal,
         1 => ArchiveState::Archived,
-        _ => ArchiveState::Normal,
+        2 => ArchiveState::Pinned,
+        _ => {
+            eprintln!("ignoring careless call to dc_archive_chat(): unknown archived state");
+            return;
+        }
     };
     ffi_context
         .with_inner(|ctx| {
