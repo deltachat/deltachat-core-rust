@@ -125,6 +125,7 @@ pub enum ImapActionResult {
 ///   not necessarily sent by Delta Chat.
 const PREFETCH_FLAGS: &str = "(UID BODY.PEEK[HEADER.FIELDS (\
                               MESSAGE-ID \
+                              FROM \
                               IN-REPLY-TO REFERENCES \
                               CHAT-VERSION \
                               AUTOCRYPT-SETUP-MESSAGE\
