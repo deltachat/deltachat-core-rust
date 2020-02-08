@@ -6,7 +6,7 @@
 set -e -x
 
 # for core-building and python install step
-export DCC_RS_TARGET=release
+export DCC_RS_TARGET=debug
 export DCC_RS_DEV=`pwd`
 
 cd python
