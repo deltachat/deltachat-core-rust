@@ -102,40 +102,13 @@ pub fn dc_receive_imf(
     // or if From: is equal to SELF (in this case, it is any outgoing messages,
     // we do not check Return-Path any more as this is unreliable, see
     // https://github.com/deltachat/deltachat-core/issues/150)
-    let mut from_id = 0;
-    let mut from_id_blocked = false;
-    let mut incoming = true;
-    let mut incoming_origin = Origin::Unknown;
-
-    if let Some(field_from) = mime_parser.get(HeaderDef::From_) {
-        let from_ids = dc_add_or_lookup_contacts_by_address_list(
-            context,
-            &field_from,
-            Origin::IncomingUnknownFrom,
-        )?;
-        if from_ids.contains(&DC_CONTACT_ID_SELF) {
-            incoming = false;
-            from_id = DC_CONTACT_ID_SELF;
-            incoming_origin = Origin::OutgoingBcc;
-        } else if !from_ids.is_empty() {
-            if from_ids.len() > 1 {
-                warn!(
-                    context,
-                    "mail has more than one From address, only using first: {:?}", field_from
-                );
-            }
-            from_id = from_ids.get_index(0).cloned().unwrap_or_default();
-            if let Ok(contact) = Contact::load_from_db(context, from_id) {
-                incoming_origin = contact.origin;
-                from_id_blocked = contact.blocked;
-            }
+    let (from_id, from_id_blocked, incoming_origin) =
+        if let Some(field_from) = mime_parser.get(HeaderDef::From_) {
+            from_field_to_contact_id(context, field_from)?
         } else {
-            warn!(context, "mail has an empty From header: {:?}", field_from);
-            // if there is no from given, from_id stays 0 which is just fine. These messages
-            // are very rare, however, we have to add them to the database (they go to the
-            // "deaddrop" chat) to avoid a re-download from the server. See also [**]
-        }
-    }
+            (0, false, Origin::Unknown)
+        };
+    let incoming = from_id != DC_CONTACT_ID_SELF;
 
     let mut to_ids = ContactIds::new();
     for header_def in &[HeaderDef::To, HeaderDef::Cc] {
@@ -248,6 +221,47 @@ pub fn dc_receive_imf(
     mime_parser.handle_reports(context, from_id, sent_timestamp, &server_folder, server_uid);
 
     Ok(())
+}
+
+/// Converts "From" field to contact id.
+///
+/// Also returns whether it is blocked or not and its origin.
+pub fn from_field_to_contact_id(
+    context: &Context,
+    field_from: &str,
+) -> Result<(u32, bool, Origin)> {
+    let from_ids = dc_add_or_lookup_contacts_by_address_list(
+        context,
+        &field_from,
+        Origin::IncomingUnknownFrom,
+    )?;
+
+    if from_ids.contains(&DC_CONTACT_ID_SELF) {
+        Ok((DC_CONTACT_ID_SELF, false, Origin::OutgoingBcc))
+    } else if !from_ids.is_empty() {
+        if from_ids.len() > 1 {
+            warn!(
+                context,
+                "mail has more than one From address, only using first: {:?}", field_from
+            );
+        }
+        let from_id = from_ids.get_index(0).cloned().unwrap_or_default();
+
+        let mut from_id_blocked = false;
+        let mut incoming_origin = Origin::Unknown;
+        if let Ok(contact) = Contact::load_from_db(context, from_id) {
+            from_id_blocked = contact.blocked;
+            incoming_origin = contact.origin;
+        }
+        Ok((from_id, from_id_blocked, incoming_origin))
+    } else {
+        warn!(context, "mail has an empty From header: {:?}", field_from);
+        // if there is no from given, from_id stays 0 which is just fine. These messages
+        // are very rare, however, we have to add them to the database (they go to the
+        // "deaddrop" chat) to avoid a re-download from the server. See also [**]
+
+        Ok((0, false, Origin::Unknown))
+    }
 }
 
 #[allow(clippy::too_many_arguments, clippy::cognitive_complexity)]
