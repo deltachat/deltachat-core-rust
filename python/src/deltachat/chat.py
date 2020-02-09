@@ -5,7 +5,6 @@ import calendar
 import json
 from datetime import datetime
 import os
-import time
 from .cutil import as_dc_charpointer, from_dc_charpointer, iter_array
 from .capi import lib, ffi
 from . import const
@@ -97,12 +96,12 @@ class Chat(object):
         """
         name = as_dc_charpointer(name)
         return lib.dc_set_chat_name(self._dc_context, self.id, name)
-    
+
     def mute(self, duration=None):
         """ mutes the chat
 
         :param duration: Number of seconds to mute the chat for. None to mute until unmuted again.
-        :returns: 
+        :returns:
         """
         if duration is None:
             mute_duration = -1
@@ -113,14 +112,14 @@ class Chat(object):
     def unmute(self):
         """ unmutes the chat
 
-        :returns: 
+        :returns:
         """
         return bool(lib.dc_set_chat_mute_duration(self._dc_context, self.id, 0))
 
     def get_mute_duration(self):
         """ Returns the number of seconds until the mute of this chat is lifted.
 
-        :param duration: 
+        :param duration:
         :returns: Returns the number of seconds the chat is still muted for. (0 for not muted, -1 forever muted)
         """
         return bool(lib.dc_chat_get_remaining_mute_duration(self.id))
