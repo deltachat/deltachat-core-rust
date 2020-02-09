@@ -628,21 +628,7 @@ impl Imap {
 
             let headers = get_fetch_headers(fetch)?;
             let message_id = prefetch_get_message_id(&headers).unwrap_or_default();
-            let show = prefetch_should_download(context, &headers, show_emails).unwrap_or(true);
-
-            if show && !precheck_imf(context, &message_id, folder.as_ref(), cur_uid) {
-                // check passed, go fetch the rest
-                if let Err(err) = self.fetch_single_msg(context, &folder, cur_uid).await {
-                    info!(
-                        context,
-                        "Read error for message {} from \"{}\", trying over later: {}.",
-                        message_id,
-                        folder.as_ref(),
-                        err
-                    );
-                    read_errors += 1;
-                }
-            } else {
+            if precheck_imf(context, &message_id, folder.as_ref(), cur_uid) {
                 // we know the message-id already or don't want the message otherwise.
                 info!(
                     context,
@@ -650,6 +636,34 @@ impl Imap {
                     message_id,
                     folder.as_ref(),
                 );
+            } else {
+                let show = prefetch_should_download(context, &headers, show_emails)
+                    .map_err(|err| {
+                        warn!(context, "prefetch_should_download error: {}", err);
+                        err
+                    })
+                    .unwrap_or(true);
+
+                if !show {
+                    info!(
+                        context,
+                        "Ignoring new message {} from \"{}\".",
+                        message_id,
+                        folder.as_ref(),
+                    );
+                } else {
+                    // check passed, go fetch the rest
+                    if let Err(err) = self.fetch_single_msg(context, &folder, cur_uid).await {
+                        info!(
+                            context,
+                            "Read error for message {} from \"{}\", trying over later: {}.",
+                            message_id,
+                            folder.as_ref(),
+                            err
+                        );
+                        read_errors += 1;
+                    }
+                }
             }
             if read_errors == 0 {
                 new_last_seen_uid = cur_uid;
