@@ -402,7 +402,7 @@ impl MimeMessage {
     }
 
     pub fn get(&self, headerdef: HeaderDef) -> Option<&String> {
-        self.header.get(&headerdef.get_headername())
+        self.header.get(headerdef.get_headername())
     }
 
     fn parse_first_addr(&self, context: &Context, headerdef: HeaderDef) -> Option<MailAddr> {
