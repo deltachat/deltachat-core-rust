@@ -19,7 +19,9 @@ use mailparse::MailHeaderMap;
 use crate::config::*;
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_receive_imf::{dc_receive_imf, is_msgrmsg_rfc724_mid_in_list};
+use crate::dc_receive_imf::{
+    dc_receive_imf, from_field_to_contact_id, is_msgrmsg_rfc724_mid_in_list,
+};
 use crate::events::Event;
 use crate::headerdef::HeaderDef;
 use crate::imap_client::*;
@@ -1336,10 +1338,12 @@ fn prefetch_should_download(
     // Autocrypt Setup Message should be shown even if it is from non-chat client.
     let is_reply_to_chat_message = prefetch_is_reply_to_chat_message(context, &headers)?;
 
-    // TODO: currently we don't check contacts during prefetch
-    // We assume the best case: contact is accepted and not blocked.
-    let accepted_contact = true;
-    let blocked_contact = false;
+    let from_field = headers
+        .get_first_value(&HeaderDef::From_.get_headername())?
+        .unwrap_or_default();
+
+    let (_contact_id, blocked_contact, origin) = from_field_to_contact_id(context, &from_field)?;
+    let accepted_contact = origin.is_known();
 
     let show = is_autocrypt_setup_message
         || match show_emails {
