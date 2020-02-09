@@ -1431,7 +1431,7 @@ pub unsafe extern "C" fn dc_chat_set_mute_duration(
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| {
-            chat::set_muted(ctx, chat_id, muteDuration)
+            chat::set_muted(ctx, ChatId::new(chat_id), muteDuration)
                 .map(|_| 1)
                 .unwrap_or_log_default(ctx, "Failed to set mute duration")
         })
