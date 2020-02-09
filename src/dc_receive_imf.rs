@@ -314,8 +314,7 @@ fn add_parts(
     } else {
         MessengerMessage::No
     };
-    // incoming non-chat messages may be discarded;
-    // maybe this can be optimized later, by checking the state before the message body is downloaded
+    // incoming non-chat messages may be discarded
     let mut allow_creation = true;
     let show_emails =
         ShowEmails::from_i32(context.get_config_int(Config::ShowEmails)).unwrap_or_default();
