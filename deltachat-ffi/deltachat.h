@@ -1581,7 +1581,7 @@ int             dc_set_chat_profile_image    (dc_context_t* context, uint32_t ch
 /**
  * Set mute duration of a chat.
  *
- * This value can be checked by the ui upon recieving a new message to decide whether it should trigger an notification.
+ * This value can be checked by the ui upon receiving a new message to decide whether it should trigger an notification.
  *
  * Sends out #DC_EVENT_CHAT_MODIFIED.
  *
@@ -1591,7 +1591,7 @@ int             dc_set_chat_profile_image    (dc_context_t* context, uint32_t ch
  * @param context The context as created by dc_context_new().
  * @return 1=success, 0=error
  */
-int             dc_chat_set_mute_duration             (dc_context_t* context, uint32_t chat_id, int64_t duration);
+int             dc_set_chat_mute_duration             (dc_context_t* context, uint32_t chat_id, int64_t duration);
 
 // handle messages
 

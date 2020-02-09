@@ -1412,13 +1412,13 @@ pub unsafe extern "C" fn dc_set_chat_profile_image(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_chat_set_mute_duration(
+pub unsafe extern "C" fn dc_set_chat_mute_duration(
     context: *mut dc_context_t,
     chat_id: u32,
     duration: i64,
 ) -> libc::c_int {
     if context.is_null() || chat_id <= constants::DC_CHAT_ID_LAST_SPECIAL as u32 {
-        eprintln!("ignoring careless call to dc_chat_set_mute_duration()");
+        eprintln!("ignoring careless call to dc_set_chat_mute_duration()");
         return 0;
     }
 
