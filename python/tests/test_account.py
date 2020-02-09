@@ -7,7 +7,6 @@ from deltachat import const, Account
 from deltachat.message import Message
 from datetime import datetime, timedelta
 from conftest import (wait_configuration_progress,
-                      wait_successful_IMAP_SMTP_connection,
                       wait_securejoin_inviter_progress)
 
 
@@ -448,37 +447,31 @@ class TestOnlineAccount:
         ac1.import_self_keys(dir.strpath)
 
     def test_one_account_send_bcc_setting(self, acfactory, lp):
-        ac1 = acfactory.get_online_configuring_account()
-        ac2_config = acfactory.peek_online_config()
-        c2 = ac1.create_contact(email=ac2_config["addr"])
-        chat = ac1.create_chat_by_contact(c2)
-        assert chat.id > const.DC_CHAT_ID_LAST_SPECIAL
-        wait_successful_IMAP_SMTP_connection(ac1)
-        wait_configuration_progress(ac1, 1000)
+        ac1, ac2 = acfactory.get_two_online_accounts()
+        chat = self.get_chat(ac1, ac2)
 
         lp.sec("ac1: setting bcc_self=1")
         ac1.set_config("bcc_self", "1")
 
+        self_addr = ac1.get_config("addr")
+        other_addr = ac2.get_config("addr")
+
         lp.sec("send out message with bcc to ourselves")
-        msg_out = chat.send_text("message2")
-        ev = ac1._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
-        assert ev[2] == msg_out.id
+        msg_out = chat.send_text("message1")
         # wait for send out (BCC)
         assert ac1.get_config("bcc_self") == "1"
-        self_addr = ac1.get_config("addr")
         ev = ac1._evlogger.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
         assert self_addr in ev[2]
+        assert other_addr in ev[2]
         ev = ac1._evlogger.get_matching("DC_EVENT_DELETED_BLOB_FILE")
 
         ac1._evlogger.consume_events()
         lp.sec("send out message without bcc")
         ac1.set_config("bcc_self", "0")
-        msg_out = chat.send_text("message3")
-        assert not msg_out.is_forwarded()
-        ev = ac1._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
-        assert ev[2] == msg_out.id
+        msg_out = chat.send_text("message2")
         ev = ac1._evlogger.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
         assert self_addr not in ev[2]
+        assert other_addr in ev[2]
         ev = ac1._evlogger.get_matching("DC_EVENT_DELETED_BLOB_FILE")
 
     def test_send_file_twice_unicode_filename_mangling(self, tmpdir, acfactory, lp):
