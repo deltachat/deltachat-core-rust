@@ -100,7 +100,8 @@ pub fn dc_receive_imf(
     // get From: (it can be an address list!) and check if it is known (for known From:'s we add
     // the other To:/Cc: in the 3rd pass)
     // or if From: is equal to SELF (in this case, it is any outgoing messages,
-    // we do not check Return-Path any more as this is unreliable, see issue #150)
+    // we do not check Return-Path any more as this is unreliable, see
+    // https://github.com/deltachat/deltachat-core/issues/150)
     let mut from_id = 0;
     let mut from_id_blocked = false;
     let mut incoming = true;
