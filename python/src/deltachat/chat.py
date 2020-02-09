@@ -114,9 +114,11 @@ class Chat(object):
     def unmute(self):
         """ unmutes the chat
 
-        :returns:
+        :returns: None
         """
-        return bool(lib.dc_set_chat_mute_duration(self._dc_context, self.id, 0))
+        ret = lib.dc_set_chat_mute_duration(self._dc_context, self.id, 0)
+        if not bool(ret):
+            raise ValueError("Failed to unmute chat")
 
     def get_mute_duration(self):
         """ Returns the number of seconds until the mute of this chat is lifted.
