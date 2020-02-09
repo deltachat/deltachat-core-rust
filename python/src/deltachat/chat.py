@@ -101,13 +101,15 @@ class Chat(object):
         """ mutes the chat
 
         :param duration: Number of seconds to mute the chat for. None to mute until unmuted again.
-        :returns:
+        :returns: None
         """
         if duration is None:
             mute_duration = -1
         else:
             mute_duration = duration
-        return bool(lib.dc_set_chat_mute_duration(self._dc_context, self.id, mute_duration))
+        ret = lib.dc_set_chat_mute_duration(self._dc_context, self.id, mute_duration)
+        if not bool(ret):
+            raise ValueError("Call to dc_set_chat_mute_duration failed")
 
     def unmute(self):
         """ unmutes the chat

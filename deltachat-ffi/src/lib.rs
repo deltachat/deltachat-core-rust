@@ -1415,7 +1415,7 @@ pub unsafe extern "C" fn dc_set_chat_mute_duration(
     chat_id: u32,
     duration: i64,
 ) -> libc::c_int {
-    if context.is_null() || chat_id <= constants::DC_CHAT_ID_LAST_SPECIAL as u32 {
+    if context.is_null() {
         eprintln!("ignoring careless call to dc_set_chat_mute_duration()");
         return 0;
     }

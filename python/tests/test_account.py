@@ -229,8 +229,8 @@ class TestOfflineChat:
         assert not chat.is_muted()
         assert chat.mute(50)
         assert chat.is_muted()
-        assert chat.mute(-51)
-        assert not chat.is_muted()
+        with pytest.raises(ValueError):
+            chat.mute(-51)
 
     def test_delete_and_send_fails(self, ac1, chat1):
         chat1.delete()
