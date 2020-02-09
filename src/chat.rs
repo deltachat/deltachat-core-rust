@@ -691,7 +691,7 @@ impl Chat {
         match self.mute_duration {
             MuteDuration::NotMuted => false,
             MuteDuration::Forever => true,
-            MuteDuration::MutedUntilTimestamp(timestamp) => timestamp > time(),
+            MuteDuration::Until(timestamp) => timestamp > time(),
         }
     }
 
@@ -1921,7 +1921,7 @@ pub fn shall_attach_selfavatar(context: &Context, chat_id: ChatId) -> Result<boo
 pub enum MuteDuration {
     NotMuted,
     Forever,
-    MutedUntilTimestamp(i64),
+    Until(i64)
 }
 
 impl rusqlite::types::ToSql for MuteDuration {
@@ -1929,7 +1929,7 @@ impl rusqlite::types::ToSql for MuteDuration {
         let duration = match &self {
             MuteDuration::NotMuted => 0,
             MuteDuration::Forever => -1,
-            MuteDuration::MutedUntilTimestamp(timestamp) => *timestamp as i64,
+            MuteDuration::Until(timestamp) => *timestamp as i64,
         };
         let val = rusqlite::types::Value::Integer(duration as i64);
         let out = rusqlite::types::ToSqlOutput::Owned(val);
@@ -1949,7 +1949,7 @@ impl rusqlite::types::FromSql for MuteDuration {
                         if val <= time() {
                             MuteDuration::NotMuted
                         } else {
-                            MuteDuration::MutedUntilTimestamp(val)
+                            MuteDuration::Until(val)
                         }
                     }
                 }
@@ -2880,7 +2880,7 @@ mod tests {
         set_muted(
             &t.ctx,
             chat_id,
-            MuteDuration::MutedUntilTimestamp(time() + 3600),
+            MuteDuration::Until(time() + 3600),
         )
         .unwrap();
         assert_eq!(
@@ -2891,7 +2891,7 @@ mod tests {
         set_muted(
             &t.ctx,
             chat_id,
-            MuteDuration::MutedUntilTimestamp(time() - 3600),
+            MuteDuration::Until(time() - 3600),
         )
         .unwrap();
         assert_eq!(

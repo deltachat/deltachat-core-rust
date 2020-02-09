@@ -1425,7 +1425,7 @@ pub unsafe extern "C" fn dc_set_chat_mute_duration(
     let muteDuration = match duration {
         0 => MuteDuration::NotMuted,
         -1 => MuteDuration::Forever,
-        _ => MuteDuration::MutedUntilTimestamp(time() + duration),
+        _ => MuteDuration::Until(time() + duration),
     };
 
     let ffi_context = &*context;
@@ -2535,7 +2535,7 @@ pub unsafe extern "C" fn dc_chat_get_remaining_mute_duration(chat: *mut dc_chat_
     match ffi_chat.chat.mute_duration {
         MuteDuration::NotMuted => 0,
         MuteDuration::Forever => -1,
-        MuteDuration::MutedUntilTimestamp(timestamp) => timestamp - time(),
+        MuteDuration::Until(timestamp) => timestamp - time(),
     }
 }
 
