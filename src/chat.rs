@@ -1,6 +1,8 @@
 //! # Chat module
 
+use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime};
 
 use itertools::Itertools;
 use num_traits::FromPrimitive;
@@ -691,7 +693,7 @@ impl Chat {
         match self.mute_duration {
             MuteDuration::NotMuted => false,
             MuteDuration::Forever => true,
-            MuteDuration::Until(timestamp) => timestamp > time(),
+            MuteDuration::Until(when) => when > SystemTime::now(),
         }
     }
 
@@ -1921,17 +1923,23 @@ pub fn shall_attach_selfavatar(context: &Context, chat_id: ChatId) -> Result<boo
 pub enum MuteDuration {
     NotMuted,
     Forever,
-    Until(i64),
+    Until(SystemTime),
 }
 
 impl rusqlite::types::ToSql for MuteDuration {
     fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
-        let duration = match &self {
+        let duration: i64 = match &self {
             MuteDuration::NotMuted => 0,
             MuteDuration::Forever => -1,
-            MuteDuration::Until(timestamp) => *timestamp as i64,
+            MuteDuration::Until(when) => {
+                let duration = when
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .map_err(|err| rusqlite::Error::ToSqlConversionFailure(Box::new(err)))?;
+                i64::try_from(duration.as_secs())
+                    .map_err(|err| rusqlite::Error::ToSqlConversionFailure(Box::new(err)))?
+            }
         };
-        let val = rusqlite::types::Value::Integer(duration as i64);
+        let val = rusqlite::types::Value::Integer(duration);
         let out = rusqlite::types::ToSqlOutput::Owned(val);
         Ok(out)
     }
@@ -1939,22 +1947,17 @@ impl rusqlite::types::ToSql for MuteDuration {
 
 impl rusqlite::types::FromSql for MuteDuration {
     fn column_result(value: rusqlite::types::ValueRef) -> rusqlite::types::FromSqlResult<Self> {
-        // Would be nice if we could use match here, but alas.
-        i64::column_result(value).and_then(|val| {
-            Ok({
-                match val {
-                    0 => MuteDuration::NotMuted,
-                    -1 => MuteDuration::Forever,
-                    _ => {
-                        if val <= time() {
-                            MuteDuration::NotMuted
-                        } else {
-                            MuteDuration::Until(val)
-                        }
-                    }
-                }
-            })
-        })
+        // Negative values other than -1 should not be in the
+        // database.  If found they'll be NotMuted.
+        match i64::column_result(value)? {
+            0 => Ok(MuteDuration::NotMuted),
+            -1 => Ok(MuteDuration::Forever),
+            n if n > 0 => match SystemTime::UNIX_EPOCH.checked_add(Duration::from_secs(n as u64)) {
+                Some(t) => Ok(MuteDuration::Until(t)),
+                None => Err(rusqlite::types::FromSqlError::OutOfRange(n)),
+            },
+            _ => Ok(MuteDuration::NotMuted),
+        }
     }
 }
 
@@ -1973,7 +1976,6 @@ pub fn set_muted(context: &Context, chat_id: ChatId, duration: MuteDuration) -> 
     } else {
         bail!("Failed to set name");
     }
-
     Ok(())
 }
 
@@ -2877,13 +2879,23 @@ mod tests {
             false
         );
         // Timed in the future
-        set_muted(&t.ctx, chat_id, MuteDuration::Until(time() + 3600)).unwrap();
+        set_muted(
+            &t.ctx,
+            chat_id,
+            MuteDuration::Until(SystemTime::now() + Duration::from_secs(3600)),
+        )
+        .unwrap();
         assert_eq!(
             Chat::load_from_db(&t.ctx, chat_id).unwrap().is_muted(),
             true
         );
         // Time in the past
-        set_muted(&t.ctx, chat_id, MuteDuration::Until(time() - 3600)).unwrap();
+        set_muted(
+            &t.ctx,
+            chat_id,
+            MuteDuration::Until(SystemTime::now() - Duration::from_secs(3600)),
+        )
+        .unwrap();
         assert_eq!(
             Chat::load_from_db(&t.ctx, chat_id).unwrap().is_muted(),
             false
