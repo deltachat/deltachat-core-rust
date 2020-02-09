@@ -447,32 +447,54 @@ class TestOnlineAccount:
         ac1.import_self_keys(dir.strpath)
 
     def test_one_account_send_bcc_setting(self, acfactory, lp):
-        ac1, ac2 = acfactory.get_two_online_accounts()
-        chat = self.get_chat(ac1, ac2)
+        ac1 = acfactory.get_online_configuring_account()
+        ac2 = acfactory.get_online_configuring_account()
 
-        lp.sec("ac1: setting bcc_self=1")
-        ac1.set_config("bcc_self", "1")
+        # Clone the first account: we will test if sent messages
+        # are copied to it via BCC.
+        ac1_clone = acfactory.clone_online_account(ac1)
+
+        wait_configuration_progress(ac1, 1000)
+        wait_configuration_progress(ac2, 1000)
+        wait_configuration_progress(ac1_clone, 1000)
+
+        chat = self.get_chat(ac1, ac2)
 
         self_addr = ac1.get_config("addr")
         other_addr = ac2.get_config("addr")
 
-        lp.sec("send out message with bcc to ourselves")
+        lp.sec("send out message without bcc to ourselves")
+        ac1.set_config("bcc_self", "0")
         msg_out = chat.send_text("message1")
-        # wait for send out (BCC)
-        assert ac1.get_config("bcc_self") == "1"
+        assert not msg_out.is_forwarded()
+
+        # wait for send out (no BCC)
         ev = ac1._evlogger.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
+        assert ac1.get_config("bcc_self") == "0"
+
+        # make sure we are not sending message to ourselves
+        assert self_addr not in ev[2]
+        assert other_addr in ev[2]
+        ev = ac1._evlogger.get_matching("DC_EVENT_DELETED_BLOB_FILE")
+
+        lp.sec("ac1: setting bcc_self=1")
+        ac1.set_config("bcc_self", "1")
+
+        lp.sec("send out message with bcc to ourselves")
+        msg_out = chat.send_text("message2")
+
+        # wait for send out (BCC)
+        ev = ac1._evlogger.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
+        assert ac1.get_config("bcc_self") == "1"
+
+        # now make sure we are sending message to ourselves too
         assert self_addr in ev[2]
         assert other_addr in ev[2]
         ev = ac1._evlogger.get_matching("DC_EVENT_DELETED_BLOB_FILE")
 
-        ac1._evlogger.consume_events()
-        lp.sec("send out message without bcc")
-        ac1.set_config("bcc_self", "0")
-        msg_out = chat.send_text("message2")
-        ev = ac1._evlogger.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
-        assert self_addr not in ev[2]
-        assert other_addr in ev[2]
-        ev = ac1._evlogger.get_matching("DC_EVENT_DELETED_BLOB_FILE")
+        # Second client receives only second message, but not the first
+        ev = ac1_clone._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
+        assert ac1_clone.get_message_by_id(ev[2]).text == msg_out.text
 
     def test_send_file_twice_unicode_filename_mangling(self, tmpdir, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
