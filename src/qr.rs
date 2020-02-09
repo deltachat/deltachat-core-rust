@@ -13,8 +13,10 @@ use crate::key::dc_normalize_fingerprint;
 use crate::lot::{Lot, LotState};
 use crate::param::*;
 use crate::peerstate::*;
+use reqwest::Url;
 
 const OPENPGP4FPR_SCHEME: &str = "OPENPGP4FPR:"; // yes: uppercase
+const DCACCOUNT_SCHEME: &str = "DCACCOUNT:";
 const MAILTO_SCHEME: &str = "mailto:";
 const MATMSG_SCHEME: &str = "MATMSG:";
 const VCARD_SCHEME: &str = "BEGIN:VCARD";
@@ -43,6 +45,8 @@ pub fn check_qr(context: &Context, qr: impl AsRef<str>) -> Lot {
 
     if qr.starts_with(OPENPGP4FPR_SCHEME) {
         decode_openpgp(context, qr)
+    } else if qr.starts_with(DCACCOUNT_SCHEME) {
+        decode_account(context, qr)
     } else if qr.starts_with(MAILTO_SCHEME) {
         decode_mailto(context, qr)
     } else if qr.starts_with(SMTP_SCHEME) {
@@ -174,6 +178,28 @@ fn decode_openpgp(context: &Context, qr: &str) -> Lot {
         lot.auth = auth;
     } else {
         return format_err!("Missing address").into();
+    }
+
+    lot
+}
+
+/// scheme: `DCACCOUNT:https://example.org/new_email?t=1w_7wDjgjelxeX884x96v3`
+fn decode_account(_context: &Context, qr: &str) -> Lot {
+    let payload = &qr[DCACCOUNT_SCHEME.len()..];
+
+    let mut lot = Lot::new();
+
+    if let Ok(url) = Url::parse(payload) {
+        if url.scheme() == "https" {
+            lot.state = LotState::QrAccount;
+            lot.text1 = url.host_str().map(|x| x.to_string());
+        } else {
+            lot.state = LotState::QrError;
+            lot.text1 = Some(format!("Bad scheme for account url: {}", payload));
+        }
+    } else {
+        lot.state = LotState::QrError;
+        lot.text1 = Some(format!("Invalid account url: {}", payload));
     }
 
     lot
@@ -492,5 +518,29 @@ mod tests {
         let res = check_qr(&ctx.ctx, "OPENPGP4FPR:12345678901234567890");
         assert_eq!(res.get_state(), LotState::QrError);
         assert_eq!(res.get_id(), 0);
+    }
+
+    #[test]
+    fn test_decode_account() {
+        let ctx = dummy_context();
+
+        let res = check_qr(
+            &ctx.ctx,
+            "DCACCOUNT:https://example.org/new_email?t=1w_7wDjgjelxeX884x96v3",
+        );
+        assert_eq!(res.get_state(), LotState::QrAccount);
+        assert_eq!(res.get_text1().unwrap(), "example.org");
+    }
+
+    #[test]
+    fn test_decode_account_bad_scheme() {
+        let ctx = dummy_context();
+
+        let res = check_qr(
+            &ctx.ctx,
+            "DCACCOUNT:http://example.org/new_email?t=1w_7wDjgjelxeX884x96v3",
+        );
+        assert_eq!(res.get_state(), LotState::QrError);
+        assert!(res.get_text1().is_some());
     }
 }

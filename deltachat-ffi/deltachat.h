@@ -2111,6 +2111,7 @@ void            dc_stop_ongoing_process      (dc_context_t* context);
 #define         DC_QR_FPR_OK                 210 // id=contact
 #define         DC_QR_FPR_MISMATCH           220 // id=contact
 #define         DC_QR_FPR_WITHOUT_ADDR       230 // test1=formatted fingerprint
+#define         DC_QR_ACCOUNT                250 // text1=domain
 #define         DC_QR_ADDR                   320 // id=contact
 #define         DC_QR_TEXT                   330 // text1=text
 #define         DC_QR_URL                    332 // text1=URL
@@ -2128,11 +2129,11 @@ void            dc_stop_ongoing_process      (dc_context_t* context);
  * - DC_QR_FPR_OK with dc_lot_t::id=Contact ID
  * - DC_QR_FPR_MISMATCH with dc_lot_t::id=Contact ID
  * - DC_QR_FPR_WITHOUT_ADDR with dc_lot_t::test1=Formatted fingerprint
+ * - DC_QR_ACCOUNT allows creation of an account, dc_lot_t::text1=domain
  * - DC_QR_ADDR with dc_lot_t::id=Contact ID
  * - DC_QR_TEXT with dc_lot_t::text1=Text
  * - DC_QR_URL with dc_lot_t::text1=URL
  * - DC_QR_ERROR with dc_lot_t::text1=Error string
- *
  *
  * @memberof dc_context_t
  * @param context The context object.
