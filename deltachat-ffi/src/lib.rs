@@ -20,6 +20,7 @@ use std::fmt::Write;
 use std::ptr;
 use std::str::FromStr;
 use std::sync::RwLock;
+use std::time::{Duration, SystemTime};
 
 use libc::uintptr_t;
 use num_traits::{FromPrimitive, ToPrimitive};
@@ -33,9 +34,6 @@ use deltachat::key::DcKey;
 use deltachat::message::MsgId;
 use deltachat::stock::StockMessage;
 use deltachat::*;
-
-mod tools;
-use crate::tools::time;
 
 mod dc_array;
 
@@ -1421,14 +1419,18 @@ pub unsafe extern "C" fn dc_set_chat_mute_duration(
         eprintln!("ignoring careless call to dc_set_chat_mute_duration()");
         return 0;
     }
-
+    let ffi_context = &*context;
     let muteDuration = match duration {
         0 => MuteDuration::NotMuted,
         -1 => MuteDuration::Forever,
-        _ => MuteDuration::Until(time() + duration),
+        n if n > 0 => MuteDuration::Until(SystemTime::now() + Duration::from_secs(duration as u64)),
+        _ => {
+            ffi_context.warning(
+                "dc_chat_set_mute_duration(): Can not use negative duration other than -1",
+            );
+            return 0;
+        }
     };
-
-    let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| {
             chat::set_muted(ctx, ChatId::new(chat_id), muteDuration)
@@ -2532,10 +2534,14 @@ pub unsafe extern "C" fn dc_chat_get_remaining_mute_duration(chat: *mut dc_chat_
     if !ffi_chat.chat.is_muted() {
         return 0;
     }
+    // If the chat was muted to before the epoch, it is not muted.
     match ffi_chat.chat.mute_duration {
         MuteDuration::NotMuted => 0,
         MuteDuration::Forever => -1,
-        MuteDuration::Until(timestamp) => timestamp - time(),
+        MuteDuration::Until(when) => when
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0),
     }
 }
 
