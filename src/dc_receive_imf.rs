@@ -1525,7 +1525,7 @@ fn is_reply_to_messenger_message(context: &Context, mime_parser: &MimeMessage) -
     false
 }
 
-pub fn is_msgrmsg_rfc724_mid_in_list(context: &Context, mid_list: &str) -> bool {
+pub(crate) fn is_msgrmsg_rfc724_mid_in_list(context: &Context, mid_list: &str) -> bool {
     if let Ok(ids) = mailparse::addrparse(mid_list) {
         for id in ids.iter() {
             if is_msgrmsg_rfc724_mid(context, id) {
