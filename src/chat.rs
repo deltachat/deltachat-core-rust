@@ -1921,7 +1921,7 @@ pub fn shall_attach_selfavatar(context: &Context, chat_id: ChatId) -> Result<boo
 pub enum MuteDuration {
     NotMuted,
     Forever,
-    Until(i64)
+    Until(i64),
 }
 
 impl rusqlite::types::ToSql for MuteDuration {
@@ -2877,23 +2877,13 @@ mod tests {
             false
         );
         // Timed in the future
-        set_muted(
-            &t.ctx,
-            chat_id,
-            MuteDuration::Until(time() + 3600),
-        )
-        .unwrap();
+        set_muted(&t.ctx, chat_id, MuteDuration::Until(time() + 3600)).unwrap();
         assert_eq!(
             Chat::load_from_db(&t.ctx, chat_id).unwrap().is_muted(),
             true
         );
         // Time in the past
-        set_muted(
-            &t.ctx,
-            chat_id,
-            MuteDuration::Until(time() - 3600),
-        )
-        .unwrap();
+        set_muted(&t.ctx, chat_id, MuteDuration::Until(time() - 3600)).unwrap();
         assert_eq!(
             Chat::load_from_db(&t.ctx, chat_id).unwrap().is_muted(),
             false
