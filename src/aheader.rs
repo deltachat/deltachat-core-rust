@@ -75,7 +75,7 @@ impl Aheader {
         wanted_from: &str,
         headers: &[mailparse::MailHeader<'_>],
     ) -> Option<Self> {
-        if let Ok(Some(value)) = headers.get_headerdef(HeaderDef::Autocrypt) {
+        if let Ok(Some(value)) = headers.get_header_value(HeaderDef::Autocrypt) {
             match Self::from_str(&value) {
                 Ok(header) => {
                     if addr_cmp(&header.addr, wanted_from) {

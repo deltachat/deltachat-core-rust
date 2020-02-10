@@ -53,11 +53,11 @@ impl HeaderDef {
 }
 
 pub trait HeaderDefMap {
-    fn get_headerdef(&self, headerdef: HeaderDef) -> Result<Option<String>, MailParseError>;
+    fn get_header_value(&self, headerdef: HeaderDef) -> Result<Option<String>, MailParseError>;
 }
 
 impl HeaderDefMap for [MailHeader<'_>] {
-    fn get_headerdef(&self, headerdef: HeaderDef) -> Result<Option<String>, MailParseError> {
+    fn get_header_value(&self, headerdef: HeaderDef) -> Result<Option<String>, MailParseError> {
         self.get_first_value(headerdef.get_headername())
     }
 }
@@ -76,19 +76,22 @@ mod tests {
 
     #[test]
     /// Test that headers are parsed case-insensitively
-    fn headerdef_case() {
+    fn test_get_header_value_case() {
         let (headers, _) =
             mailparse::parse_headers(b"fRoM: Bob\naUtoCryPt-SeTup-MessAge: v99").unwrap();
         assert_eq!(
             headers
-                .get_headerdef(HeaderDef::AutocryptSetupMessage)
+                .get_header_value(HeaderDef::AutocryptSetupMessage)
                 .unwrap(),
             Some("v99".to_string())
         );
         assert_eq!(
-            headers.get_headerdef(HeaderDef::From_).unwrap(),
+            headers.get_header_value(HeaderDef::From_).unwrap(),
             Some("Bob".to_string())
         );
-        assert_eq!(headers.get_headerdef(HeaderDef::Autocrypt).unwrap(), None);
+        assert_eq!(
+            headers.get_header_value(HeaderDef::Autocrypt).unwrap(),
+            None
+        );
     }
 }

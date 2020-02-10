@@ -96,7 +96,7 @@ impl MimeMessage {
 
         let message_time = mail
             .headers
-            .get_headerdef(HeaderDef::Date)?
+            .get_header_value(HeaderDef::Date)?
             .and_then(|v| mailparse::dateparse(&v).ok())
             .unwrap_or_default();
 
@@ -782,18 +782,18 @@ impl MimeMessage {
 
         // must be present
         if let Some(_disposition) = report_fields
-            .get_headerdef(HeaderDef::Disposition)
+            .get_header_value(HeaderDef::Disposition)
             .ok()
             .flatten()
         {
             if let Some(original_message_id) = report_fields
-                .get_headerdef(HeaderDef::OriginalMessageId)
+                .get_header_value(HeaderDef::OriginalMessageId)
                 .ok()
                 .flatten()
                 .and_then(|v| parse_message_id(&v))
             {
                 let additional_message_ids = report_fields
-                    .get_headerdef(HeaderDef::AdditionalMessageIds)
+                    .get_header_value(HeaderDef::AdditionalMessageIds)
                     .ok()
                     .flatten()
                     .map_or_else(Vec::new, |v| {
@@ -809,7 +809,7 @@ impl MimeMessage {
         warn!(
             context,
             "ignoring unknown disposition-notification, Message-Id: {:?}",
-            report_fields.get_headerdef(HeaderDef::MessageId).ok()
+            report_fields.get_header_value(HeaderDef::MessageId).ok()
         );
 
         Ok(None)
