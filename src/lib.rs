@@ -65,7 +65,7 @@ mod token;
 #[macro_use]
 mod dehtml;
 
-mod dc_receive_imf;
+pub mod dc_receive_imf;
 pub mod dc_tools;
 
 /// if set imap/incoming and smtp/outgoing MIME messages will be printed
