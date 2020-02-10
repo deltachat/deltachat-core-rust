@@ -74,18 +74,12 @@ pub fn dc_receive_imf(
     // helper method to handle early exit and memory cleanup
     let cleanup = |context: &Context,
                    create_event_to_send: &Option<CreateEvent>,
-                   created_db_entries: &Vec<(ChatId, MsgId)>| {
+                   created_db_entries: Vec<(ChatId, MsgId)>| {
         if let Some(create_event_to_send) = create_event_to_send {
             for (chat_id, msg_id) in created_db_entries {
                 let event = match create_event_to_send {
-                    CreateEvent::MsgsChanged => Event::MsgsChanged {
-                        msg_id: *msg_id,
-                        chat_id: *chat_id,
-                    },
-                    CreateEvent::IncomingMsg => Event::IncomingMsg {
-                        msg_id: *msg_id,
-                        chat_id: *chat_id,
-                    },
+                    CreateEvent::MsgsChanged => Event::MsgsChanged { msg_id, chat_id },
+                    CreateEvent::IncomingMsg => Event::IncomingMsg { msg_id, chat_id },
                 };
                 context.call_cb(event);
             }
@@ -165,7 +159,7 @@ pub fn dc_receive_imf(
             &mut created_db_entries,
             &mut create_event_to_send,
         ) {
-            cleanup(context, &create_event_to_send, &created_db_entries);
+            cleanup(context, &create_event_to_send, created_db_entries);
             bail!("add_parts error: {:?}", err);
         }
     } else {
@@ -216,7 +210,7 @@ pub fn dc_receive_imf(
         "received message {} has Message-Id: {}", server_uid, rfc724_mid
     );
 
-    cleanup(context, &create_event_to_send, &created_db_entries);
+    cleanup(context, &create_event_to_send, created_db_entries);
 
     mime_parser.handle_reports(context, from_id, sent_timestamp, &server_folder, server_uid);
 
