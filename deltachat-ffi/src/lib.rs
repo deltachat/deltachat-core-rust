@@ -424,6 +424,22 @@ pub unsafe extern "C" fn dc_set_stock_translation(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_set_config_from_qr(
+    context: *mut dc_context_t,
+    qr: *mut libc::c_char,
+) -> libc::c_int {
+    if context.is_null() || qr.is_null() {
+        eprintln!("ignoring careless call to dc_set_config_from_qr");
+        return 0;
+    }
+    let qr = to_string_lossy(qr);
+    let ffi_context = &*context;
+    ffi_context
+        .with_inner(|ctx| qr::set_config_from_qr(ctx, &qr) as libc::c_int)
+        .unwrap_or(0)
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_get_info(context: *mut dc_context_t) -> *mut libc::c_char {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_get_info()");

@@ -403,6 +403,7 @@ int             dc_set_config                (dc_context_t* context, const char*
  */
 char*           dc_get_config                (dc_context_t* context, const char* key);
 
+
 /**
  * Set stock string translation.
  *
@@ -415,6 +416,22 @@ char*           dc_get_config                (dc_context_t* context, const char*
  * @return int (==0 on error, 1 on success)
  */
 int             dc_set_stock_translation(dc_context_t* context, uint32_t stock_id, const char* stock_msg);
+
+
+/**
+ * Set configuration values from a QR code containing an account.
+ * Before this function is called, dc_check_qr() should confirm the type of the
+ * QR code is DC_QR_ACCOUNT.
+ *
+ * Internally, the function will call dc_set_config()
+ * at least with the keys `addr` and `mail_pw`.
+ *
+ * @memberof dc_context_t
+ * @param context The context object
+ * @param qr scanned QR code
+ * @return int (==0 on error, 1 on success)
+ */
+int             dc_set_config_from_qr   (dc_context_t* context, const char* qr);
 
 
 /**
