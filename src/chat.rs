@@ -2871,6 +2871,57 @@ mod tests {
         assert_eq!(chatlist_len(&t.ctx, DC_GCL_ARCHIVED_ONLY), 1);
     }
 
+    fn get_chats_from_chat_list(ctx: &Context, listflags: usize) -> Vec<ChatId> {
+        let chatlist = Chatlist::try_load(ctx, listflags, None, None).unwrap();
+        let mut result = Vec::new();
+        for chatlist_index in 0..chatlist.len() {
+            result.push(chatlist.get_chat_id(chatlist_index))
+        }
+        result
+    }
+
+    #[test]
+    fn test_pinned() {
+        let t = dummy_context();
+        let mut msg = Message::new(Viewtype::Text);
+        msg.text = Some("foo".to_string());
+        let msg_id = add_device_msg(&t.ctx, None, Some(&mut msg)).unwrap();
+        let chat_id1 = message::Message::load_from_db(&t.ctx, msg_id)
+            .unwrap()
+            .chat_id;
+        let chat_id2 = create_by_contact_id(&t.ctx, DC_CONTACT_ID_SELF).unwrap();
+        let chat_id3 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo").unwrap();
+
+        let chatlist = get_chats_from_chat_list(&t.ctx, DC_GCL_NO_SPECIALS);
+        assert_eq!(chatlist, vec![chat_id3, chat_id1, chat_id2]);
+
+        // pin
+        assert!(
+            chat_id1
+                .set_archive_state(&t.ctx, ArchiveState::Pinned)
+                .is_ok()
+                == true
+        );
+        assert_eq!(chat_id1.get_archive_state(&t.ctx), ArchiveState::Pinned);
+
+        // check if chat order changed
+        let chatlist = get_chats_from_chat_list(&t.ctx, DC_GCL_NO_SPECIALS);
+        assert_eq!(chatlist, vec![chat_id1, chat_id3, chat_id2]);
+
+        // unpin
+        assert!(
+            chat_id1
+                .set_archive_state(&t.ctx, ArchiveState::Normal)
+                .is_ok()
+                == true
+        );
+        assert_eq!(chat_id1.get_archive_state(&t.ctx), ArchiveState::Normal);
+
+        // check if chat order changed back
+        let chatlist = get_chats_from_chat_list(&t.ctx, DC_GCL_NO_SPECIALS);
+        assert_eq!(chatlist, vec![chat_id3, chat_id1, chat_id2]);
+    }
+
     #[test]
     fn test_set_chat_name() {
         let t = dummy_context();
