@@ -205,6 +205,14 @@ fn decode_account(_context: &Context, qr: &str) -> Lot {
     lot
 }
 
+pub fn set_config_from_qr(context: &Context, qr: &str) -> bool {
+    error!(
+        context,
+        "Setting config from QR is not yet implemented :/ QR code: {}", qr
+    );
+    false
+}
+
 /// Extract address for the mailto scheme.
 ///
 /// Scheme: `mailto:addr...?subject=...&body=..`
