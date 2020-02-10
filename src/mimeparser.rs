@@ -15,7 +15,7 @@ use crate::dehtml::dehtml;
 use crate::e2ee;
 use crate::error::Result;
 use crate::events::Event;
-use crate::headerdef::HeaderDef;
+use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job::{job_add, Action};
 use crate::location;
 use crate::message;
@@ -96,7 +96,7 @@ impl MimeMessage {
 
         let message_time = mail
             .headers
-            .get_first_value("Date")?
+            .get_headerdef(HeaderDef::Date)?
             .and_then(|v| mailparse::dateparse(&v).ok())
             .unwrap_or_default();
 
@@ -781,16 +781,19 @@ impl MimeMessage {
         let (report_fields, _) = mailparse::parse_headers(&report_body)?;
 
         // must be present
-        let disp = HeaderDef::Disposition.get_headername();
-        if let Some(_disposition) = report_fields.get_first_value(&disp).ok().flatten() {
+        if let Some(_disposition) = report_fields
+            .get_headerdef(HeaderDef::Disposition)
+            .ok()
+            .flatten()
+        {
             if let Some(original_message_id) = report_fields
-                .get_first_value(&HeaderDef::OriginalMessageId.get_headername())
+                .get_headerdef(HeaderDef::OriginalMessageId)
                 .ok()
                 .flatten()
                 .and_then(|v| parse_message_id(&v))
             {
                 let additional_message_ids = report_fields
-                    .get_first_value(&HeaderDef::AdditionalMessageIds.get_headername())
+                    .get_headerdef(HeaderDef::AdditionalMessageIds)
                     .ok()
                     .flatten()
                     .map_or_else(Vec::new, |v| {
@@ -806,7 +809,7 @@ impl MimeMessage {
         warn!(
             context,
             "ignoring unknown disposition-notification, Message-Id: {:?}",
-            report_fields.get_first_value("Message-ID").ok()
+            report_fields.get_headerdef(HeaderDef::MessageId).ok()
         );
 
         Ok(None)

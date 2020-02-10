@@ -1,4 +1,5 @@
 use crate::strum::AsStaticRef;
+use mailparse::{MailHeader, MailHeaderMap, MailParseError};
 
 #[derive(Debug, Display, Clone, PartialEq, Eq, EnumVariantNames, AsStaticStr)]
 #[strum(serialize_all = "kebab_case")]
@@ -34,6 +35,7 @@ pub enum HeaderDef {
     ChatContent,
     ChatDuration,
     ChatDispositionNotificationTo,
+    Autocrypt,
     AutocryptSetupMessage,
     SecureJoin,
     SecureJoinGroup,
@@ -50,6 +52,16 @@ impl HeaderDef {
     }
 }
 
+pub trait HeaderDefMap {
+    fn get_headerdef(&self, headerdef: HeaderDef) -> Result<Option<String>, MailParseError>;
+}
+
+impl HeaderDefMap for [MailHeader<'_>] {
+    fn get_headerdef(&self, headerdef: HeaderDef) -> Result<Option<String>, MailParseError> {
+        self.get_first_value(headerdef.get_headername())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -60,5 +72,23 @@ mod tests {
         assert_eq!(HeaderDef::From_.get_headername(), "from");
 
         assert_eq!(HeaderDef::_TestHeader.get_headername(), "test-header");
+    }
+
+    #[test]
+    /// Test that headers are parsed case-insensitively
+    fn headerdef_case() {
+        let (headers, _) =
+            mailparse::parse_headers(b"fRoM: Bob\naUtoCryPt-SeTup-MessAge: v99").unwrap();
+        assert_eq!(
+            headers
+                .get_headerdef(HeaderDef::AutocryptSetupMessage)
+                .unwrap(),
+            Some("v99".to_string())
+        );
+        assert_eq!(
+            headers.get_headerdef(HeaderDef::From_).unwrap(),
+            Some("Bob".to_string())
+        );
+        assert_eq!(headers.get_headerdef(HeaderDef::Autocrypt).unwrap(), None);
     }
 }

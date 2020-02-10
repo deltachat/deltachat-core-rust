@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 use std::convert::TryFrom;
 
-use mailparse::{MailHeaderMap, ParsedMail};
+use mailparse::ParsedMail;
 use num_traits::FromPrimitive;
 
 use crate::aheader::*;
@@ -11,6 +11,7 @@ use crate::config::Config;
 use crate::context::Context;
 use crate::dc_tools::EmailAddress;
 use crate::error::*;
+use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::key::{self, Key, KeyPairUse, SignedPublicKey};
 use crate::keyring::*;
 use crate::peerstate::*;
@@ -124,7 +125,7 @@ pub fn try_decrypt(
 ) -> Result<(Option<Vec<u8>>, HashSet<String>)> {
     let from = mail
         .headers
-        .get_first_value("From")?
+        .get_headerdef(HeaderDef::From_)?
         .and_then(|from_addr| mailparse::addrparse(&from_addr).ok())
         .and_then(|from| from.extract_single_info())
         .map(|from| from.addr)

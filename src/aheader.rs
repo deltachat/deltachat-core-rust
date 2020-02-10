@@ -8,6 +8,7 @@ use std::{fmt, str};
 
 use crate::contact::*;
 use crate::context::Context;
+use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::key::{DcKey, SignedPublicKey};
 
 /// Possible values for encryption preference
@@ -74,9 +75,7 @@ impl Aheader {
         wanted_from: &str,
         headers: &[mailparse::MailHeader<'_>],
     ) -> Option<Self> {
-        use mailparse::MailHeaderMap;
-
-        if let Ok(Some(value)) = headers.get_first_value("Autocrypt") {
+        if let Ok(Some(value)) = headers.get_headerdef(HeaderDef::Autocrypt) {
             match Self::from_str(&value) {
                 Ok(header) => {
                     if addr_cmp(&header.addr, wanted_from) {
