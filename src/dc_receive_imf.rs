@@ -518,7 +518,7 @@ fn add_parts(
 
         if chat_id.is_unset() && self_sent {
             // from_id==to_id==DC_CONTACT_ID_SELF - this is a self-sent messages,
-            // maybe an Autocrypt Setup Messag
+            // maybe an Autocrypt Setup Message
             let (id, bl) =
                 chat::create_or_lookup_by_contact_id(context, DC_CONTACT_ID_SELF, Blocked::Not)
                     .unwrap_or_default();
