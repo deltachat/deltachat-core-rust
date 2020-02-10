@@ -1,6 +1,8 @@
 //! # Chat module
 
+use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime};
 
 use itertools::Itertools;
 use num_traits::FromPrimitive;
@@ -422,6 +424,7 @@ pub struct Chat {
     blocked: Blocked,
     pub param: Params,
     is_sending_locations: bool,
+    pub mute_duration: MuteDuration,
 }
 
 impl Chat {
@@ -429,7 +432,7 @@ impl Chat {
     pub fn load_from_db(context: &Context, chat_id: ChatId) -> Result<Self, Error> {
         let res = context.sql.query_row(
             "SELECT c.type, c.name, c.grpid, c.param, c.archived,
-                    c.blocked, c.locations_send_until
+                    c.blocked, c.locations_send_until, c.muted_until
              FROM chats c
              WHERE c.id=?;",
             params![chat_id],
@@ -443,6 +446,7 @@ impl Chat {
                     archived: row.get(4)?,
                     blocked: row.get::<_, Option<_>>(5)?.unwrap_or_default(),
                     is_sending_locations: row.get(6)?,
+                    mute_duration: row.get(7)?,
                 };
                 Ok(c)
             },
@@ -658,6 +662,7 @@ impl Chat {
             profile_image: self.get_profile_image(context).unwrap_or_else(PathBuf::new),
             subtitle: self.get_subtitle(context),
             draft,
+            is_muted: self.is_muted(),
         })
     }
 
@@ -682,6 +687,14 @@ impl Chat {
     /// Returns true if location streaming is enabled in the chat.
     pub fn is_sending_locations(&self) -> bool {
         self.is_sending_locations
+    }
+
+    pub fn is_muted(&self) -> bool {
+        match self.mute_duration {
+            MuteDuration::NotMuted => false,
+            MuteDuration::Forever => true,
+            MuteDuration::Until(when) => when > SystemTime::now(),
+        }
     }
 
     fn prepare_msg_raw(
@@ -968,6 +981,11 @@ pub struct ChatInfo {
     ///       which contain non-text parts.  Perhaps it should be a
     ///       simple `has_draft` bool instead.
     pub draft: String,
+
+    /// Whether the chat is muted
+    ///
+    /// The exact time its muted can be found out via the `chat.mute_duration` property
+    pub is_muted: bool,
     // ToDo:
     // - [ ] deaddrop,
     // - [ ] summary,
@@ -1901,6 +1919,66 @@ pub fn shall_attach_selfavatar(context: &Context, chat_id: ChatId) -> Result<boo
     Ok(needs_attach)
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum MuteDuration {
+    NotMuted,
+    Forever,
+    Until(SystemTime),
+}
+
+impl rusqlite::types::ToSql for MuteDuration {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
+        let duration: i64 = match &self {
+            MuteDuration::NotMuted => 0,
+            MuteDuration::Forever => -1,
+            MuteDuration::Until(when) => {
+                let duration = when
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .map_err(|err| rusqlite::Error::ToSqlConversionFailure(Box::new(err)))?;
+                i64::try_from(duration.as_secs())
+                    .map_err(|err| rusqlite::Error::ToSqlConversionFailure(Box::new(err)))?
+            }
+        };
+        let val = rusqlite::types::Value::Integer(duration);
+        let out = rusqlite::types::ToSqlOutput::Owned(val);
+        Ok(out)
+    }
+}
+
+impl rusqlite::types::FromSql for MuteDuration {
+    fn column_result(value: rusqlite::types::ValueRef) -> rusqlite::types::FromSqlResult<Self> {
+        // Negative values other than -1 should not be in the
+        // database.  If found they'll be NotMuted.
+        match i64::column_result(value)? {
+            0 => Ok(MuteDuration::NotMuted),
+            -1 => Ok(MuteDuration::Forever),
+            n if n > 0 => match SystemTime::UNIX_EPOCH.checked_add(Duration::from_secs(n as u64)) {
+                Some(t) => Ok(MuteDuration::Until(t)),
+                None => Err(rusqlite::types::FromSqlError::OutOfRange(n)),
+            },
+            _ => Ok(MuteDuration::NotMuted),
+        }
+    }
+}
+
+pub fn set_muted(context: &Context, chat_id: ChatId, duration: MuteDuration) -> Result<(), Error> {
+    ensure!(!chat_id.is_special(), "Invalid chat ID");
+    if real_group_exists(context, chat_id)
+        && sql::execute(
+            context,
+            &context.sql,
+            "UPDATE chats SET muted_until=? WHERE id=?;",
+            params![duration, chat_id],
+        )
+        .is_ok()
+    {
+        context.call_cb(Event::ChatModified(chat_id));
+    } else {
+        bail!("Failed to set name");
+    }
+    Ok(())
+}
+
 pub fn remove_contact_from_chat(
     context: &Context,
     chat_id: ChatId,
@@ -2398,7 +2476,7 @@ mod tests {
         let chat = Chat::load_from_db(&t.ctx, chat_id).unwrap();
         let info = chat.get_info(&t.ctx).unwrap();
 
-        // Ensure we can serialise this.
+        // Ensure we can serialize this.
         println!("{}", serde_json::to_string_pretty(&info).unwrap());
 
         let expected = r#"
@@ -2413,11 +2491,12 @@ mod tests {
                 "color": 15895624,
                 "profile_image": "",
                 "subtitle": "bob@example.com",
-                "draft": ""
+                "draft": "",
+                "is_muted": false
             }
         "#;
 
-        // Ensure we can deserialise this.
+        // Ensure we can deserialize this.
         let loaded: ChatInfo = serde_json::from_str(expected).unwrap();
         assert_eq!(info, loaded);
     }
@@ -2776,5 +2855,50 @@ mod tests {
 
         assert!(chat_id.set_selfavatar_timestamp(&t.ctx, time()).is_ok());
         assert!(!shall_attach_selfavatar(&t.ctx, chat_id).unwrap());
+    }
+
+    #[test]
+    fn test_set_mute_duration() {
+        let t = dummy_context();
+        let chat_id = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo").unwrap();
+        // Initial
+        assert_eq!(
+            Chat::load_from_db(&t.ctx, chat_id).unwrap().is_muted(),
+            false
+        );
+        // Forever
+        set_muted(&t.ctx, chat_id, MuteDuration::Forever).unwrap();
+        assert_eq!(
+            Chat::load_from_db(&t.ctx, chat_id).unwrap().is_muted(),
+            true
+        );
+        // unMute
+        set_muted(&t.ctx, chat_id, MuteDuration::NotMuted).unwrap();
+        assert_eq!(
+            Chat::load_from_db(&t.ctx, chat_id).unwrap().is_muted(),
+            false
+        );
+        // Timed in the future
+        set_muted(
+            &t.ctx,
+            chat_id,
+            MuteDuration::Until(SystemTime::now() + Duration::from_secs(3600)),
+        )
+        .unwrap();
+        assert_eq!(
+            Chat::load_from_db(&t.ctx, chat_id).unwrap().is_muted(),
+            true
+        );
+        // Time in the past
+        set_muted(
+            &t.ctx,
+            chat_id,
+            MuteDuration::Until(SystemTime::now() - Duration::from_secs(3600)),
+        )
+        .unwrap();
+        assert_eq!(
+            Chat::load_from_db(&t.ctx, chat_id).unwrap().is_muted(),
+            false
+        );
     }
 }

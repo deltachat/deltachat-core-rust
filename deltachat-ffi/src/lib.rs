@@ -20,11 +20,13 @@ use std::fmt::Write;
 use std::ptr;
 use std::str::FromStr;
 use std::sync::RwLock;
+use std::time::{Duration, SystemTime};
 
 use libc::uintptr_t;
 use num_traits::{FromPrimitive, ToPrimitive};
 
 use deltachat::chat::ChatId;
+use deltachat::chat::MuteDuration;
 use deltachat::constants::DC_MSG_ID_LAST_SPECIAL;
 use deltachat::contact::Contact;
 use deltachat::context::Context;
@@ -1408,6 +1410,37 @@ pub unsafe extern "C" fn dc_set_chat_profile_image(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_set_chat_mute_duration(
+    context: *mut dc_context_t,
+    chat_id: u32,
+    duration: i64,
+) -> libc::c_int {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_set_chat_mute_duration()");
+        return 0;
+    }
+    let ffi_context = &*context;
+    let muteDuration = match duration {
+        0 => MuteDuration::NotMuted,
+        -1 => MuteDuration::Forever,
+        n if n > 0 => MuteDuration::Until(SystemTime::now() + Duration::from_secs(duration as u64)),
+        _ => {
+            ffi_context.warning(
+                "dc_chat_set_mute_duration(): Can not use negative duration other than -1",
+            );
+            return 0;
+        }
+    };
+    ffi_context
+        .with_inner(|ctx| {
+            chat::set_muted(ctx, ChatId::new(chat_id), muteDuration)
+                .map(|_| 1)
+                .unwrap_or_log_default(ctx, "Failed to set mute duration")
+        })
+        .unwrap_or(0)
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_get_msg_info(
     context: *mut dc_context_t,
     msg_id: u32,
@@ -2479,6 +2512,37 @@ pub unsafe extern "C" fn dc_chat_is_sending_locations(chat: *mut dc_chat_t) -> l
     }
     let ffi_chat = &*chat;
     ffi_chat.chat.is_sending_locations() as libc::c_int
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_chat_is_muted(chat: *mut dc_chat_t) -> libc::c_int {
+    if chat.is_null() {
+        eprintln!("ignoring careless call to dc_chat_is_muted()");
+        return 0;
+    }
+    let ffi_chat = &*chat;
+    ffi_chat.chat.is_muted() as libc::c_int
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_chat_get_remaining_mute_duration(chat: *mut dc_chat_t) -> i64 {
+    if chat.is_null() {
+        eprintln!("ignoring careless call to dc_chat_get_remaining_mute_duration()");
+        return 0;
+    }
+    let ffi_chat = &*chat;
+    if !ffi_chat.chat.is_muted() {
+        return 0;
+    }
+    // If the chat was muted to before the epoch, it is not muted.
+    match ffi_chat.chat.mute_duration {
+        MuteDuration::NotMuted => 0,
+        MuteDuration::Forever => -1,
+        MuteDuration::Until(when) => when
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0),
+    }
 }
 
 #[no_mangle]

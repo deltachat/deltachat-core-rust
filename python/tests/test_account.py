@@ -219,6 +219,18 @@ class TestOfflineChat:
         chat.remove_profile_image()
         assert chat.get_profile_image() is None
 
+    def test_mute(self, ac1):
+        chat = ac1.create_group_chat(name="title1")
+        assert not chat.is_muted()
+        chat.mute()
+        assert chat.is_muted()
+        chat.unmute()
+        assert not chat.is_muted()
+        chat.mute(50)
+        assert chat.is_muted()
+        with pytest.raises(ValueError):
+            chat.mute(-51)
+
     def test_delete_and_send_fails(self, ac1, chat1):
         chat1.delete()
         ac1._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")

@@ -885,6 +885,14 @@ fn open(
             update_icons = true;
             sql.set_raw_config_int(context, "dbversion", 61)?;
         }
+        if dbversion < 62 {
+            info!(context, "[migration] v62");
+            sql.execute(
+                "ALTER TABLE chats ADD COLUMN muted_until INTEGER DEFAULT 0;",
+                NO_PARAMS,
+            )?;
+            sql.set_raw_config_int(context, "dbversion", 62)?;
+        }
 
         // (2) updates that require high-level objects
         // (the structure is complete now and all objects are usable)
