@@ -703,7 +703,7 @@ class TestOnlineAccount:
         assert not msg_in.is_forwarded()
         assert msg_in.get_sender_contact().display_name == ac1.get_config("displayname")
 
-        lp.sec("check the message arrived in contact-requets/deaddrop")
+        lp.sec("check the message arrived in contact-requests/deaddrop")
         chat2 = msg_in.chat
         assert msg_in in chat2.get_messages()
         assert chat2.is_deaddrop()
