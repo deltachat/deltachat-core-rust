@@ -1921,7 +1921,7 @@ pub fn shall_attach_selfavatar(context: &Context, chat_id: ChatId) -> Result<boo
     Ok(needs_attach)
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MuteDuration {
     NotMuted,
     Forever,
