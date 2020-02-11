@@ -52,20 +52,21 @@ Python packages before running the tests::
     pytest -v tests
 
 
-running "live" tests (experimental)
------------------------------------
+running "live" tests with temporary accounts
+---------------------------------------------
 
 If you want to run "liveconfig" functional tests you can set
-``DCC_PY_LIVECONFIG`` to:
+``DCC_NEW_TMP_EMAIL`` to:
 
 - a particular https-url that you can ask for from the delta
-  chat devs.
+  chat devs. This is implemented on the server side via
+  the [mailadm](https://github.com/deltachat/mailadm) command line tool.
 
 - or the path of a file that contains two lines, each describing
   via "addr=... mail_pw=..." a test account login that will
   be used for the live tests.
 
-With ``DCC_PY_LIVECONFIG`` set pytest invocations will use real
+With ``DCC_NEW_TMP_EMAIL`` set pytest invocations will use real
 e-mail accounts and run through all functional "liveconfig" tests.
 
 
@@ -129,7 +130,7 @@ organization::
 
 This docker image can be used to run tests and build Python wheels for all interpreters::
 
-    $ docker run -e DCC_PY_LIVECONFIG \
+    $ docker run -e DCC_NEW_TMP_EMAIL \
        --rm -it -v \$(pwd):/mnt -w /mnt \
        deltachat/coredeps ci_scripts/run_all.sh
 
