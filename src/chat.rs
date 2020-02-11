@@ -28,7 +28,9 @@ use crate::stock::StockMessage;
 ///
 /// Some chat IDs are reserved to identify special chat types.  This
 /// type can represent both the special as well as normal chats.
-#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Copy, Clone, Default, PartialEq, Eq, Serialize, Deserialize, Hash, PartialOrd, Ord,
+)]
 pub struct ChatId(u32);
 
 impl ChatId {
@@ -414,7 +416,7 @@ impl rusqlite::types::FromSql for ChatId {
 /// Chat objects are created using eg. `Chat::load_from_db`
 /// and are not updated on database changes;
 /// if you want an update, you have to recreate the object.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Chat {
     pub id: ChatId,
     pub typ: Chattype,
