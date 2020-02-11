@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::str;
 
 use num_traits::FromPrimitive;
+use serde::{Deserialize, Serialize};
 
 use crate::blob::{BlobError, BlobObject};
 use crate::context::Context;
@@ -12,7 +13,9 @@ use crate::message::MsgId;
 use crate::mimeparser::SystemMessage;
 
 /// Available param keys.
-#[derive(PartialEq, Eq, Debug, Clone, Copy, Hash, PartialOrd, Ord, FromPrimitive)]
+#[derive(
+    PartialEq, Eq, Debug, Clone, Copy, Hash, PartialOrd, Ord, FromPrimitive, Serialize, Deserialize,
+)]
 #[repr(u8)]
 pub enum Param {
     /// For messages and jobs
@@ -135,7 +138,7 @@ pub enum ForcePlaintext {
 /// The structure is serialized by calling `to_string()` on it.
 ///
 /// Only for library-internal use.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct Params {
     inner: BTreeMap<Param, String>,
 }

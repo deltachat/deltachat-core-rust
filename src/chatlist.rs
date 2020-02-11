@@ -278,8 +278,8 @@ impl Chatlist {
         // This is because we may want to display drafts here or stuff as
         // "is typing".
         // Also, sth. as "No messages" would not work if the summary comes from a message.
-
         let mut ret = Lot::new();
+
         if index >= self.ids.len() {
             ret.text2 = Some("ErrBadChatlistIndex".to_string());
             return ret;
@@ -320,6 +320,10 @@ impl Chatlist {
         }
 
         ret
+    }
+
+    pub fn get_index_for_id(&self, id: ChatId) -> Option<usize> {
+        self.ids.iter().position(|(chat_id, _)| chat_id == &id)
     }
 }
 

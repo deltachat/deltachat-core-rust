@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use deltachat_derive::{FromSql, ToSql};
 use failure::Fail;
+use serde::{Deserialize, Serialize};
 
 use crate::chat::{self, Chat, ChatId};
 use crate::constants::*;
@@ -29,7 +30,9 @@ const SUMMARY_CHARACTERS: usize = 160;
 /// Some message IDs are reserved to identify special message types.
 /// This type can represent both the special as well as normal
 /// messages.
-#[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
+#[derive(
+    Debug, Copy, Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize,
+)]
 pub struct MsgId(u32);
 
 impl MsgId {
@@ -145,7 +148,18 @@ impl rusqlite::types::FromSql for MsgId {
 #[fail(display = "Invalid Message ID.")]
 pub struct InvalidMsgId;
 
-#[derive(Debug, Copy, Clone, PartialEq, FromPrimitive, ToPrimitive, FromSql, ToSql)]
+#[derive(
+    Debug,
+    Copy,
+    Clone,
+    PartialEq,
+    FromPrimitive,
+    ToPrimitive,
+    FromSql,
+    ToSql,
+    Serialize,
+    Deserialize,
+)]
 #[repr(u8)]
 pub enum MessengerMessage {
     No = 0,
@@ -168,7 +182,7 @@ impl Default for MessengerMessage {
 /// to check if a mail was sent, use dc_msg_is_sent()
 /// approx. max. length returned by dc_msg_get_text()
 /// approx. max. length returned by dc_get_msg_info()
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Message {
     pub(crate) id: MsgId,
     pub(crate) from_id: u32,
@@ -607,7 +621,19 @@ impl Message {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    FromPrimitive,
+    ToPrimitive,
+    ToSql,
+    FromSql,
+    Serialize,
+    Deserialize,
+)]
 #[repr(i32)]
 pub enum MessageState {
     Undefined = 0,
