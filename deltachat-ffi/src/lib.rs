@@ -435,7 +435,13 @@ pub unsafe extern "C" fn dc_set_config_from_qr(
     let qr = to_string_lossy(qr);
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| qr::set_config_from_qr(ctx, &qr) as libc::c_int)
+        .with_inner(|ctx| match qr::set_config_from_qr(ctx, &qr) {
+            Ok(()) => 1,
+            Err(err) => {
+                error!(ctx, "Failed to create account from QR code: {}", err);
+                0
+            }
+        })
         .unwrap_or(0)
 }
 
