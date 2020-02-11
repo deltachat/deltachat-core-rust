@@ -961,17 +961,15 @@ impl rusqlite::types::ToSql for ArchiveState {
 impl rusqlite::types::FromSql for ArchiveState {
     fn column_result(value: rusqlite::types::ValueRef) -> rusqlite::types::FromSqlResult<Self> {
         i64::column_result(value).and_then(|val| {
-            Ok({
-                match val {
-                    2 => ArchiveState::Pinned,
-                    1 => ArchiveState::Archived,
-                    0 => ArchiveState::Normal,
-                    _ => {
-                        println!("unknown archived state, falling back to normal state (was this db opened with a newer deltachat version?)");
-                        ArchiveState::Normal
-                    },
+            match val {
+                2 => Ok(ArchiveState::Pinned),
+                1 => Ok(ArchiveState::Archived),
+                0 => Ok(ArchiveState::Normal),
+                n => {
+                    // unknown archived state, falling back to normal state (was this db opened with a newer deltachat version?)
+                    Err(rusqlite::types::FromSqlError::OutOfRange(n))
                 }
-            })
+            }
         })
     }
 }

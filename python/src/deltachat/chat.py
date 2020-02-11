@@ -423,28 +423,28 @@ class Chat(object):
         """return True if this chat is archived.
         :returns: True if archived.
         """
-        return lib.dc_chat_get_archived(self._dc_chat) == 1
+        return lib.dc_chat_get_archived(self._dc_chat) == const.DC_CHAT_ARCHIVE_STATE_ARCHIVED
 
     def is_pinned(self):
         """return True if this chat is pinned.
         :returns: True if pinned.
         """
-        return lib.dc_chat_get_archived(self._dc_chat) == 2
+        return lib.dc_chat_get_archived(self._dc_chat) == const.DC_CHAT_ARCHIVE_STATE_PINNED
 
     def archive(self):
         """archive the chat.
         """
-        lib.dc_archive_chat(self._dc_context, self.id, 1)
+        lib.dc_archive_chat(self._dc_context, self.id, const.DC_CHAT_ARCHIVE_STATE_ARCHIVED)
 
     def unarchive(self):
         """unarchive the chat.
         """
-        lib.dc_archive_chat(self._dc_context, self.id, 0)
+        lib.dc_archive_chat(self._dc_context, self.id, const.DC_CHAT_ARCHIVE_STATE_NORMAL)
 
     def pin(self):
         """pin the chat.
         """
-        lib.dc_archive_chat(self._dc_context, self.id, 2)
+        lib.dc_archive_chat(self._dc_context, self.id, const.DC_CHAT_ARCHIVE_STATE_PINNED)
 
     def unpin(self):
         """unpin the chat. (same as unarchive)

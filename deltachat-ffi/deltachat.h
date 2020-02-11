@@ -2845,6 +2845,10 @@ char*           dc_chat_get_profile_image    (const dc_chat_t* chat);
 uint32_t        dc_chat_get_color            (const dc_chat_t* chat);
 
 
+#define         DC_CHAT_ARCHIVE_STATE_NORMAL      0
+#define         DC_CHAT_ARCHIVE_STATE_ARCHIVED    1
+#define         DC_CHAT_ARCHIVE_STATE_PINNED      2
+
 /**
  * Get archived state.
  *
