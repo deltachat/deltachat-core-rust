@@ -4,6 +4,7 @@ use lazy_static::lazy_static;
 use percent_encoding::percent_decode_str;
 
 use crate::chat;
+use crate::config::*;
 use crate::constants::Blocked;
 use crate::contact::*;
 use crate::context::Context;
@@ -14,6 +15,7 @@ use crate::lot::{Lot, LotState};
 use crate::param::*;
 use crate::peerstate::*;
 use reqwest::Url;
+use serde::Deserialize;
 
 const OPENPGP4FPR_SCHEME: &str = "OPENPGP4FPR:"; // yes: uppercase
 const DCACCOUNT_SCHEME: &str = "DCACCOUNT:";
@@ -205,12 +207,49 @@ fn decode_account(_context: &Context, qr: &str) -> Lot {
     lot
 }
 
-pub fn set_config_from_qr(context: &Context, qr: &str) -> bool {
-    error!(
-        context,
-        "Setting config from QR is not yet implemented :/ QR code: {}", qr
-    );
-    false
+#[derive(Debug, Deserialize)]
+struct CreateAccountResponse {
+    email: String,
+    password: String,
+}
+
+/// take a qr of the type DC_QR_ACCOUNT, parse it's parameters,
+/// download additional information from the contained url and set the parameters.
+/// on success, a configure::configure() should be able to log in to the account
+pub fn set_config_from_qr(context: &Context, qr: &str) -> Result<(), Error> {
+    let url_str = &qr[DCACCOUNT_SCHEME.len()..];
+
+    let response = reqwest::blocking::Client::new().post(url_str).send();
+    if response.is_err() {
+        return Err(format_err!(
+            "Cannot create account, request to {} failed",
+            url_str
+        ));
+    }
+    let response = response.unwrap();
+    if !response.status().is_success() {
+        return Err(format_err!(
+            "Request to {} unsuccessful: {:?}",
+            url_str,
+            response
+        ));
+    }
+
+    let parsed: reqwest::Result<CreateAccountResponse> = response.json();
+    if parsed.is_err() {
+        return Err(format_err!(
+            "Failed to parse JSON response from {}: error: {:?}",
+            url_str,
+            parsed
+        ));
+    }
+    println!("response: {:?}", &parsed);
+    let parsed = parsed.unwrap();
+
+    context.set_config(Config::Addr, Some(&parsed.email))?;
+    context.set_config(Config::MailPw, Some(&parsed.password))?;
+
+    Ok(())
 }
 
 /// Extract address for the mailto scheme.

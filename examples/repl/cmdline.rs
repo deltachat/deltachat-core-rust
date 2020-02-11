@@ -967,6 +967,10 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
                 res.get_text2()
             );
         }
+        "setqr" => {
+            ensure!(!arg1.is_empty(), "Argument <qr-content> missing.");
+            set_config_from_qr(context, arg1);
+        }
         "providerinfo" => {
             ensure!(!arg1.is_empty(), "Argument <addr> missing.");
             match provider::get_provider_info(arg1) {
