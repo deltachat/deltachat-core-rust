@@ -28,7 +28,7 @@ def pytest_configure(config):
     )
     cfg = config.getoption('--liveconfig')
     if not cfg:
-        cfg = os.getenv('DCC_PY_LIVECONFIG')
+        cfg = os.getenv('DCC_NEW_TMP_EMAIL')
         if cfg:
             config.option.liveconfig = cfg
 
@@ -97,17 +97,16 @@ class SessionLiveConfigFromFile:
 
 
 class SessionLiveConfigFromURL:
-    def __init__(self, url, create_token):
+    def __init__(self, url):
         self.configlist = []
         self.url = url
-        self.create_token = create_token
 
     def get(self, index):
         try:
             return self.configlist[index]
         except IndexError:
             assert index == len(self.configlist), index
-            res = requests.post(self.url, json={"token_create_user": int(self.create_token)})
+            res = requests.post(self.url)
             if res.status_code != 200:
                 pytest.skip("creating newtmpuser failed {!r}".format(res))
             d = res.json()
@@ -124,8 +123,7 @@ def session_liveconfig(request):
     liveconfig_opt = request.config.option.liveconfig
     if liveconfig_opt:
         if liveconfig_opt.startswith("http"):
-            url, create_token = liveconfig_opt.split("#", 1)
-            return SessionLiveConfigFromURL(url, create_token)
+            return SessionLiveConfigFromURL(liveconfig_opt)
         else:
             return SessionLiveConfigFromFile(liveconfig_opt)
 
@@ -196,7 +194,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
 
         def get_online_config(self, pre_generated_key=True):
             if not session_liveconfig:
-                pytest.skip("specify DCC_PY_LIVECONFIG or --liveconfig")
+                pytest.skip("specify DCC_NEW_TMP_EMAIL or --liveconfig")
             configdict = session_liveconfig.get(self.live_count)
             self.live_count += 1
             if "e2ee_enabled" not in configdict:
