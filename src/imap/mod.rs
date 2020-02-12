@@ -182,6 +182,10 @@ struct ImapConfig {
     pub selected_mailbox: Option<Mailbox>,
     pub selected_folder_needs_expunge: bool,
     pub can_idle: bool,
+
+    /// True if the server has MOVE capability as defined in
+    /// https://tools.ietf.org/html/rfc6851
+    pub can_move: bool,
     pub imap_delimiter: char,
 }
 
@@ -199,6 +203,7 @@ impl Default for ImapConfig {
             selected_mailbox: None,
             selected_folder_needs_expunge: false,
             can_idle: false,
+            can_move: false,
             imap_delimiter: '.',
         }
     }
@@ -352,6 +357,7 @@ impl Imap {
         cfg.imap_port = 0;
 
         cfg.can_idle = false;
+        cfg.can_move = false;
     }
 
     /// Connects to imap account using already-configured parameters.
@@ -412,6 +418,7 @@ impl Imap {
                         true
                     } else {
                         let can_idle = caps.has_str("IDLE");
+                        let can_move = caps.has_str("MOVE");
                         let caps_list = caps.iter().fold(String::new(), |s, c| {
                             if let Capability::Atom(x) = c {
                                 s + &format!(" {}", x)
@@ -421,6 +428,7 @@ impl Imap {
                         });
 
                         self.config.write().await.can_idle = can_idle;
+                        self.config.write().await.can_move = can_move;
                         *self.connected.lock().await = true;
                         emit_event!(
                             context,
@@ -786,6 +794,10 @@ impl Imap {
         Ok(())
     }
 
+    pub fn can_move(&self) -> bool {
+        task::block_on(async move { self.config.read().await.can_move })
+    }
+
     pub fn mv(
         &self,
         context: &Context,
@@ -815,6 +827,8 @@ impl Imap {
 
             let set = format!("{}", uid);
             let display_folder_id = format!("{}/{}", folder, uid);
+
+            if self.can_move() {
             if let Some(ref mut session) = &mut *self.session.lock().await {
                 match session.uid_mv(&set, &dest_folder).await {
                     Ok(_) => {
@@ -841,6 +855,15 @@ impl Imap {
             } else {
                 unreachable!();
             };
+            } else {
+                info!(
+                    context,
+                    "Server does not support MOVE, fallback to COPY/DELETE {}/{} to {}",
+                    folder,
+                    uid,
+                    dest_folder
+                );
+            }
 
             if let Some(ref mut session) = &mut *self.session.lock().await {
                 match session.uid_copy(&set, &dest_folder).await {
