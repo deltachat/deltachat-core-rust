@@ -829,32 +829,32 @@ impl Imap {
             let display_folder_id = format!("{}/{}", folder, uid);
 
             if self.can_move() {
-            if let Some(ref mut session) = &mut *self.session.lock().await {
-                match session.uid_mv(&set, &dest_folder).await {
-                    Ok(_) => {
-                        emit_event!(
-                            context,
-                            Event::ImapMessageMoved(format!(
-                                "IMAP Message {} moved to {}",
-                                display_folder_id, dest_folder
-                            ))
-                        );
-                        return ImapActionResult::Success;
+                if let Some(ref mut session) = &mut *self.session.lock().await {
+                    match session.uid_mv(&set, &dest_folder).await {
+                        Ok(_) => {
+                            emit_event!(
+                                context,
+                                Event::ImapMessageMoved(format!(
+                                    "IMAP Message {} moved to {}",
+                                    display_folder_id, dest_folder
+                                ))
+                            );
+                            return ImapActionResult::Success;
+                        }
+                        Err(err) => {
+                            warn!(
+                                context,
+                                "Cannot move message, fallback to COPY/DELETE {}/{} to {}: {}",
+                                folder,
+                                uid,
+                                dest_folder,
+                                err
+                            );
+                        }
                     }
-                    Err(err) => {
-                        warn!(
-                            context,
-                            "Cannot move message, fallback to COPY/DELETE {}/{} to {}: {}",
-                            folder,
-                            uid,
-                            dest_folder,
-                            err
-                        );
-                    }
-                }
-            } else {
-                unreachable!();
-            };
+                } else {
+                    unreachable!();
+                };
             } else {
                 info!(
                     context,
