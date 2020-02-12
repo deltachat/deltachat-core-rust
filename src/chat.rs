@@ -668,11 +668,7 @@ impl Chat {
             id: self.id,
             type_: self.typ as u32,
             name: self.name.clone(),
-            archived: match archive_state {
-                ArchiveState::Normal => 0,
-                ArchiveState::Archived => 1,
-                ArchiveState::Pinned => 2,
-            },
+            archived: archive_state,
             param: self.param.to_string(),
             gossiped_timestamp: self.get_gossiped_timestamp(context),
             is_sending_locations: self.is_sending_locations,
@@ -939,7 +935,7 @@ impl Chat {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub enum ArchiveState {
     /// Neither archived or pinned
     Normal = 0,
@@ -997,7 +993,7 @@ pub struct ChatInfo {
     pub name: String,
 
     /// Whether the chat is archived.
-    pub archived: u8,
+    pub archived: ArchiveState,
 
     /// The "params" of the chat.
     ///
