@@ -1,5 +1,13 @@
 # Changelog 
 
+## Unreleased
+
+- pinned chats #1248
+
+#### Api Changes
+
+ - ChatInfo.archived is now a tri-state
+
 ## 1.0.0-beta.24
 
 - fix oauth2/gmail bug introduced in beta23 (not used in releases) #1219

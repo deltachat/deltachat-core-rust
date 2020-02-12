@@ -2700,6 +2700,10 @@ dc_context_t*    dc_chatlist_get_context     (dc_chatlist_t* chatlist);
  *
  * id: chat id
  * name: chat/group name
+ * archived: archived state can be one of:
+ *   DC_CHAT_ARCHIVE_STATE_NORMAL
+ *   DC_CHAT_ARCHIVE_STATE_ARCHIVED
+ *   DC_CHAT_ARCHIVE_STATE_PINNED
  * color: color of this chat
  * last-message-from: who sent the last message
  * last-message-text: message (truncated)

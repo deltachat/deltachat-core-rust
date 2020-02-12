@@ -1203,7 +1203,8 @@ pub unsafe extern "C" fn dc_archive_chat(
         1 => ArchiveState::Archived,
         2 => ArchiveState::Pinned,
         _ => {
-            ffi_context.warning("ignoring careless call to dc_archive_chat(): unknown archived state");
+            ffi_context
+                .warning("ignoring careless call to dc_archive_chat(): unknown archived state");
             return;
         }
     };

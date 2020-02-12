@@ -668,8 +668,11 @@ impl Chat {
             id: self.id,
             type_: self.typ as u32,
             name: self.name.clone(),
-            archived: archive_state == ArchiveState::Archived,
-            pinned: archive_state == ArchiveState::Pinned,
+            archived: match archive_state {
+                ArchiveState::Normal => 0,
+                ArchiveState::Archived => 1,
+                ArchiveState::Pinned => 2,
+            },
             param: self.param.to_string(),
             gossiped_timestamp: self.get_gossiped_timestamp(context),
             is_sending_locations: self.is_sending_locations,
@@ -994,10 +997,7 @@ pub struct ChatInfo {
     pub name: String,
 
     /// Whether the chat is archived.
-    pub archived: bool,
-
-    /// Wether the chat is pinned.
-    pub pinned: bool,
+    pub archived: u8,
 
     /// The "params" of the chat.
     ///
@@ -2535,8 +2535,7 @@ mod tests {
                 "id": 10,
                 "type": 100,
                 "name": "bob",
-                "archived": false,
-                "pinned": false,
+                "archived": 0,
                 "param": "",
                 "gossiped_timestamp": 0,
                 "is_sending_locations": false,
