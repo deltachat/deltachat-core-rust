@@ -534,9 +534,10 @@ impl Imap {
 
             // uid_validity has changed or is being set the first time.
             // find the last seen uid within the new uid_validity scope.
-            let new_last_seen_uid = match mailbox.uid_next {
-                Some(uid_next) => {
-                    uid_next - 1 // XXX could uid_next be 0?
+            let new_last_seen_uid = match mailbox.unseen {
+                Some(unseen) => {
+                    info!(context, "Next unseen is {}", unseen);
+                    unseen
                 }
                 None => {
                     warn!(
