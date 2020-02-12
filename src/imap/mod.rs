@@ -866,37 +866,34 @@ impl Imap {
             }
 
             if let Some(ref mut session) = &mut *self.session.lock().await {
-                match session.uid_copy(&set, &dest_folder).await {
-                    Ok(_) => {
-                        if !self.add_flag_finalized(context, uid, "\\Deleted").await {
-                            warn!(context, "Cannot mark {} as \"Deleted\" after copy.", uid);
-                            emit_event!(
-                                context,
-                                Event::ImapMessageMoved(format!(
-                                    "IMAP Message {} copied to {} (delete FAILED)",
-                                    display_folder_id, dest_folder
-                                ))
-                            );
-                            ImapActionResult::Failed
-                        } else {
-                            self.config.write().await.selected_folder_needs_expunge = true;
-                            emit_event!(
-                                context,
-                                Event::ImapMessageMoved(format!(
-                                    "IMAP Message {} copied to {} (delete successfull)",
-                                    display_folder_id, dest_folder
-                                ))
-                            );
-                            ImapActionResult::Success
-                        }
-                    }
-                    Err(err) => {
-                        warn!(context, "Could not copy message: {}", err);
-                        ImapActionResult::Failed
-                    }
+                if let Err(err) = session.uid_copy(&set, &dest_folder).await {
+                    warn!(context, "Could not copy message: {}", err);
+                    return ImapActionResult::Failed;
                 }
             } else {
                 unreachable!();
+            }
+
+            if !self.add_flag_finalized(context, uid, "\\Deleted").await {
+                warn!(context, "Cannot mark {} as \"Deleted\" after copy.", uid);
+                emit_event!(
+                    context,
+                    Event::ImapMessageMoved(format!(
+                        "IMAP Message {} copied to {} (delete FAILED)",
+                        display_folder_id, dest_folder
+                    ))
+                );
+                ImapActionResult::Failed
+            } else {
+                self.config.write().await.selected_folder_needs_expunge = true;
+                emit_event!(
+                    context,
+                    Event::ImapMessageMoved(format!(
+                        "IMAP Message {} copied to {} (delete successfull)",
+                        display_folder_id, dest_folder
+                    ))
+                );
+                ImapActionResult::Success
             }
         })
     }
