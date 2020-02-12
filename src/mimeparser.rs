@@ -1489,4 +1489,16 @@ Additional-Message-IDs: <foo@example.com> <foo@example.net>\n\
             &["foo@example.com", "foo@example.net"]
         );
     }
+
+    #[test]
+    fn mailparse_test() {
+        let body = b"From: =?UTF-8?B?0JjQvNGPLCDQpNCw0LzQuNC70LjRjw==?= <foobar@example.com>";
+        let mail = mailparse::parse_mail(body).unwrap();
+
+        let from = mail.headers[0].get_value().unwrap();
+        assert_eq!(&from, "Имя, Фамилия <foobar@example.com>");
+
+        let parsed = mailparse::addrparse(&from).unwrap();
+        assert_eq!(parsed.len(), 1);
+    }
 }
