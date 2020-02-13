@@ -148,17 +148,14 @@ impl ChatId {
             self
         );
 
-        let send_event = if visibility == ChatVisibility::Archived {
+        if visibility == ChatVisibility::Archived {
             sql::execute(
                 context,
                 &context.sql,
                 "UPDATE msgs SET state=? WHERE chat_id=? AND state=?;",
                 params![MessageState::InNoticed, self, MessageState::InFresh],
             )?;
-            true
-        } else {
-            false
-        };
+        }
 
         sql::execute(
             context,
@@ -167,12 +164,10 @@ impl ChatId {
             params![visibility, self],
         )?;
 
-        if send_event {
-            context.call_cb(Event::MsgsChanged {
-                msg_id: MsgId::new(0),
-                chat_id: ChatId::new(0),
-            });
-        }
+        context.call_cb(Event::MsgsChanged {
+            msg_id: MsgId::new(0),
+            chat_id: ChatId::new(0),
+        });
 
         Ok(())
     }
