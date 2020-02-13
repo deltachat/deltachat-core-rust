@@ -37,7 +37,7 @@ pub fn dc_receive_imf(
     imf_raw: &[u8],
     server_folder: impl AsRef<str>,
     server_uid: u32,
-    flags: u32,
+    seen: bool,
 ) -> Result<()> {
     info!(
         context,
@@ -153,7 +153,7 @@ pub fn dc_receive_imf(
             from_id_blocked,
             &mut hidden,
             &mut chat_id,
-            flags,
+            seen,
             &mut needs_delete_job,
             &mut insert_msg_id,
             &mut created_db_entries,
@@ -274,7 +274,7 @@ fn add_parts(
     from_id_blocked: bool,
     hidden: &mut bool,
     chat_id: &mut ChatId,
-    flags: u32,
+    seen: bool,
     needs_delete_job: &mut bool,
     insert_msg_id: &mut MsgId,
     created_db_entries: &mut Vec<(ChatId, MsgId)>,
@@ -333,7 +333,7 @@ fn add_parts(
     let to_id: u32;
 
     if incoming {
-        state = if 0 != flags & DC_IMAP_SEEN {
+        state = if seen {
             MessageState::InSeen
         } else {
             MessageState::InFresh
@@ -541,7 +541,7 @@ fn add_parts(
         *chat_id,
         from_id,
         *sent_timestamp,
-        0 == flags & DC_IMAP_SEEN,
+        !seen,
         &mut sort_timestamp,
         sent_timestamp,
         &mut rcvd_timestamp,

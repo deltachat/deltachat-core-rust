@@ -57,8 +57,6 @@ impl Default for ShowEmails {
     }
 }
 
-pub const DC_IMAP_SEEN: u32 = 0x1;
-
 pub const DC_HANDSHAKE_CONTINUE_NORMAL_PROCESSING: i32 = 0x01;
 pub const DC_HANDSHAKE_STOP_NORMAL_PROCESSING: i32 = 0x02;
 pub const DC_HANDSHAKE_ADD_DELETE_JOB: i32 = 0x04;

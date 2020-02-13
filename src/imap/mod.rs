@@ -33,8 +33,6 @@ use crate::stock::StockMessage;
 mod idle;
 pub mod select_folder;
 
-const DC_IMAP_SEEN: usize = 0x0001;
-
 type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Fail)]
@@ -773,12 +771,10 @@ impl Imap {
                 _ => false,
             });
 
-            let flags = if is_seen { DC_IMAP_SEEN } else { 0 };
-
             if !is_deleted && msg.body().is_some() {
                 let body = msg.body().unwrap_or_default();
                 if let Err(err) =
-                    dc_receive_imf(context, &body, folder.as_ref(), server_uid, flags as u32)
+                    dc_receive_imf(context, &body, folder.as_ref(), server_uid, is_seen)
                 {
                     warn!(
                         context,
