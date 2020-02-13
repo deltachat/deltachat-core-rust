@@ -86,17 +86,6 @@ pub type dc_callback_t =
 pub type dc_context_t = ContextWrapper;
 
 impl ContextWrapper {
-    /// Log an error on the FFI context.
-    ///
-    /// As soon as a [ContextWrapper] exist it can be used to log an
-    /// error using the callback, even before [dc_context_open] is
-    /// called and an actual [Context] exists.
-    ///
-    /// This function makes it easy to log an error.
-    unsafe fn error(&self, msg: &str) {
-        self.translate_cb(Event::Error(msg.to_string()));
-    }
-
     /// Log a warning on the FFI context.
     ///
     /// Like [error] but logs as a warning which only goes to the
@@ -367,7 +356,7 @@ pub unsafe extern "C" fn dc_set_config(
             })
             .unwrap_or(0),
         Err(_) => {
-            ffi_context.error("dc_set_config(): invalid key");
+            ffi_context.warning("dc_set_config(): invalid key");
             0
         }
     }
@@ -388,7 +377,7 @@ pub unsafe extern "C" fn dc_get_config(
             .with_inner(|ctx| ctx.get_config(key).unwrap_or_default().strdup())
             .unwrap_or_else(|_| "".strdup()),
         Err(_) => {
-            ffi_context.error("dc_get_config(): invalid key");
+            ffi_context.warning("dc_get_config(): invalid key");
             "".strdup()
         }
     }
