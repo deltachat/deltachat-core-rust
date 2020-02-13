@@ -46,14 +46,13 @@ pub struct MimeMessage {
     pub is_system_message: SystemMessage,
     pub location_kml: Option<location::Kml>,
     pub message_kml: Option<location::Kml>,
-    pub user_avatar: AvatarAction,
-    pub group_avatar: AvatarAction,
+    pub user_avatar: Option<AvatarAction>,
+    pub group_avatar: Option<AvatarAction>,
     pub(crate) reports: Vec<Report>,
 }
 
 #[derive(Debug, PartialEq)]
 pub enum AvatarAction {
-    None,
     Delete,
     Change(String),
 }
@@ -61,7 +60,6 @@ pub enum AvatarAction {
 impl AvatarAction {
     pub fn is_change(&self) -> bool {
         match self {
-            AvatarAction::None => false,
             AvatarAction::Delete => false,
             AvatarAction::Change(_) => true,
         }
@@ -163,8 +161,8 @@ impl MimeMessage {
             is_system_message: SystemMessage::Unknown,
             location_kml: None,
             message_kml: None,
-            user_avatar: AvatarAction::None,
-            group_avatar: AvatarAction::None,
+            user_avatar: None,
+            group_avatar: None,
         };
         parser.parse_mime_recursive(context, &mail)?;
         parser.parse_headers(context)?;
@@ -360,9 +358,9 @@ impl MimeMessage {
         Ok(())
     }
 
-    fn avatar_action_from_header(&mut self, header_value: String) -> AvatarAction {
+    fn avatar_action_from_header(&mut self, header_value: String) -> Option<AvatarAction> {
         if header_value == "0" {
-            return AvatarAction::Delete;
+            Some(AvatarAction::Delete)
         } else {
             let mut i = 0;
             while i != self.parts.len() {
@@ -370,7 +368,7 @@ impl MimeMessage {
                 if let Some(part_filename) = &part.org_filename {
                     if part_filename == &header_value {
                         if let Some(blob) = part.param.get(Param::File) {
-                            let res = AvatarAction::Change(blob.to_string());
+                            let res = Some(AvatarAction::Change(blob.to_string()));
                             self.parts.remove(i);
                             return res;
                         }
@@ -379,8 +377,8 @@ impl MimeMessage {
                 }
                 i += 1;
             }
+            None
         }
-        AvatarAction::None
     }
 
     pub fn was_encrypted(&self) -> bool {
@@ -1249,29 +1247,29 @@ mod tests {
 
         let raw = include_bytes!("../test-data/message/mail_attach_txt.eml");
         let mimeparser = MimeMessage::from_bytes(&t.ctx, &raw[..]).unwrap();
-        assert_eq!(mimeparser.user_avatar, AvatarAction::None);
-        assert_eq!(mimeparser.group_avatar, AvatarAction::None);
+        assert_eq!(mimeparser.user_avatar, None);
+        assert_eq!(mimeparser.group_avatar, None);
 
         let raw = include_bytes!("../test-data/message/mail_with_user_avatar.eml");
         let mimeparser = MimeMessage::from_bytes(&t.ctx, &raw[..]).unwrap();
         assert_eq!(mimeparser.parts.len(), 1);
         assert_eq!(mimeparser.parts[0].typ, Viewtype::Text);
-        assert!(mimeparser.user_avatar.is_change());
-        assert_eq!(mimeparser.group_avatar, AvatarAction::None);
+        assert!(mimeparser.user_avatar.unwrap().is_change());
+        assert_eq!(mimeparser.group_avatar, None);
 
         let raw = include_bytes!("../test-data/message/mail_with_user_avatar_deleted.eml");
         let mimeparser = MimeMessage::from_bytes(&t.ctx, &raw[..]).unwrap();
         assert_eq!(mimeparser.parts.len(), 1);
         assert_eq!(mimeparser.parts[0].typ, Viewtype::Text);
-        assert_eq!(mimeparser.user_avatar, AvatarAction::Delete);
-        assert_eq!(mimeparser.group_avatar, AvatarAction::None);
+        assert_eq!(mimeparser.user_avatar, Some(AvatarAction::Delete));
+        assert_eq!(mimeparser.group_avatar, None);
 
         let raw = include_bytes!("../test-data/message/mail_with_user_and_group_avatars.eml");
         let mimeparser = MimeMessage::from_bytes(&t.ctx, &raw[..]).unwrap();
         assert_eq!(mimeparser.parts.len(), 1);
         assert_eq!(mimeparser.parts[0].typ, Viewtype::Text);
-        assert!(mimeparser.user_avatar.is_change());
-        assert!(mimeparser.group_avatar.is_change());
+        assert!(mimeparser.user_avatar.unwrap().is_change());
+        assert!(mimeparser.group_avatar.unwrap().is_change());
 
         // if the Chat-User-Avatar header is missing, the avatar become a normal attachment
         let raw = include_bytes!("../test-data/message/mail_with_user_and_group_avatars.eml");
@@ -1280,8 +1278,8 @@ mod tests {
         let mimeparser = MimeMessage::from_bytes(&t.ctx, raw.as_bytes()).unwrap();
         assert_eq!(mimeparser.parts.len(), 1);
         assert_eq!(mimeparser.parts[0].typ, Viewtype::Image);
-        assert_eq!(mimeparser.user_avatar, AvatarAction::None);
-        assert!(mimeparser.group_avatar.is_change());
+        assert_eq!(mimeparser.user_avatar, None);
+        assert!(mimeparser.group_avatar.unwrap().is_change());
     }
 
     #[test]
