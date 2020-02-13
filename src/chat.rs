@@ -172,8 +172,8 @@ impl ChatId {
         Ok(())
     }
 
-    // note that unarchive() is not the same as set_archived(false) -
-    // eg. unarchive() does not send events as done for set_archived(false).
+    // note that unarchive() is not the same as set_visibility(Normal) -
+    // eg. unarchive() does not modify pinned chats and does not send events.
     pub fn unarchive(self, context: &Context) -> Result<(), Error> {
         sql::execute(
             context,
@@ -1340,7 +1340,7 @@ fn prepare_msg_common(
 ) -> Result<MsgId, Error> {
     msg.id = MsgId::new_unset();
     prepare_msg_blob(context, msg)?;
-    chat_id.set_visibility(context, ChatVisibility::Normal)?;
+    chat_id.unarchive(context)?;
 
     let mut chat = Chat::load_from_db(context, chat_id)?;
     ensure!(chat.can_send(), "cannot send to {}", chat_id);
@@ -2265,7 +2265,7 @@ pub fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId) -> Re
     let mut created_msgs: Vec<MsgId> = Vec::new();
     let mut curr_timestamp: i64;
 
-    chat_id.set_visibility(context, ChatVisibility::Normal)?;
+    chat_id.unarchive(context)?;
     if let Ok(mut chat) = Chat::load_from_db(context, chat_id) {
         ensure!(chat.can_send(), "cannot send to {}", chat_id);
         curr_timestamp = dc_create_smeared_timestamps(context, msg_ids.len());
@@ -2408,7 +2408,7 @@ pub fn add_device_msg(
         let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
         msg.try_calc_and_set_dimensions(context).ok();
         prepare_msg_blob(context, msg)?;
-        chat_id.set_visibility(context, ChatVisibility::Normal)?;
+        chat_id.unarchive(context)?;
 
         context.sql.execute(
             "INSERT INTO msgs (chat_id,from_id,to_id, timestamp,type,state, txt,param,rfc724_mid) \
