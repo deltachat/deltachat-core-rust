@@ -1,5 +1,6 @@
 use failure::Fail;
 use std::ffi::{CStr, CString};
+use std::ptr;
 
 /// Duplicates a string
 ///
@@ -144,7 +145,7 @@ pub trait CStringExt {
 
 impl CStringExt for CString {}
 
-/// Convenience methods to make transitioning from raw C strings easier.
+/// Convenience methods to turn strings into C strings.
 ///
 /// To interact with (legacy) C APIs we often need to convert from
 /// Rust strings to raw C strings.  This can be clumsy to do correctly
@@ -171,6 +172,35 @@ impl<T: AsRef<str>> StrExt for T {
     unsafe fn strdup(&self) -> *mut libc::c_char {
         let tmp = CString::yolo(self.as_ref());
         dc_strdup(tmp.as_ptr())
+    }
+}
+
+/// Convenience methods to turn optional strings into C strings.
+///
+/// This is the same as the [StrExt] trait but a different trait name
+/// to work around the type system not allowing to implement [StrExt]
+/// for `Option<impl StrExt>` When we already have an [StrExt] impl
+/// for `AsRef<&str>`.
+///
+/// When the [Option] is [Option::Some] this behaves just like
+/// [StrExt::strdup], when it is [Option::None] a null pointer is
+/// returned.
+pub trait OptStrExt {
+    /// Allocate a new raw C `*char` version of this string, or NULL.
+    ///
+    /// See [StrExt::strdup] for details.
+    unsafe fn strdup(&self) -> *mut libc::c_char;
+}
+
+impl<T: AsRef<str>> OptStrExt for Option<T> {
+    unsafe fn strdup(&self) -> *mut libc::c_char {
+        match self {
+            Some(s) => {
+                let tmp = CString::yolo(s.as_ref());
+                dc_strdup(tmp.as_ptr())
+            }
+            None => ptr::null_mut(),
+        }
     }
 }
 
@@ -345,6 +375,21 @@ mod tests {
             let cmp = strcmp(s, b"hello\x00" as *const u8 as *const libc::c_char);
             free(s as *mut libc::c_void);
             assert_eq!(cmp, 0);
+        }
+    }
+
+    #[test]
+    fn test_strdup_opt_string() {
+        unsafe {
+            let s = Some("hello");
+            let c = s.strdup();
+            let cmp = strcmp(c, b"hello\x00" as *const u8 as *const libc::c_char);
+            free(c as *mut libc::c_void);
+            assert_eq!(cmp, 0);
+
+            let s: Option<&str> = None;
+            let c = s.strdup();
+            assert_eq!(c, ptr::null_mut());
         }
     }
 }
