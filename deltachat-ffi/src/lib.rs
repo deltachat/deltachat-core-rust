@@ -3222,7 +3222,7 @@ pub unsafe extern "C" fn dc_lot_get_text1(lot: *mut dc_lot_t) -> *mut libc::c_ch
     }
 
     let lot = &*lot;
-    strdup_opt(lot.get_text1())
+    lot.get_text1().strdup()
 }
 
 #[no_mangle]
@@ -3233,7 +3233,7 @@ pub unsafe extern "C" fn dc_lot_get_text2(lot: *mut dc_lot_t) -> *mut libc::c_ch
     }
 
     let lot = &*lot;
-    strdup_opt(lot.get_text2())
+    lot.get_text2().strdup()
 }
 
 #[no_mangle]
@@ -3315,13 +3315,6 @@ impl<T: Default, E: std::fmt::Display> ResultExt<T, E> for Result<T, E> {
             }
             err
         })
-    }
-}
-
-unsafe fn strdup_opt(s: Option<impl AsRef<str>>) -> *mut libc::c_char {
-    match s {
-        Some(s) => s.as_ref().strdup(),
-        None => ptr::null_mut(),
     }
 }
 
