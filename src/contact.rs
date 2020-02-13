@@ -1001,7 +1001,6 @@ pub fn set_profile_image(
             contact.param.remove(Param::ProfileImage);
             true
         }
-        AvatarAction::None => false,
     };
     if changed {
         contact.update_param(context)?;

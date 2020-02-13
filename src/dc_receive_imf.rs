@@ -181,8 +181,8 @@ pub fn dc_receive_imf(
         );
     }
 
-    if mime_parser.user_avatar != AvatarAction::None {
-        match contact::set_profile_image(&context, from_id, &mime_parser.user_avatar) {
+    if let Some(avatar_action) = &mime_parser.user_avatar {
+        match contact::set_profile_image(&context, from_id, avatar_action) {
             Ok(()) => {
                 context.call_cb(Event::ChatModified(chat_id));
             }
@@ -860,21 +860,21 @@ fn create_or_lookup_group(
 
                 mime_parser.is_system_message = SystemMessage::GroupNameChanged;
             } else if let Some(value) = mime_parser.get(HeaderDef::ChatContent) {
-                if value == "group-avatar-changed" && mime_parser.group_avatar != AvatarAction::None
-                {
-                    // this is just an explicit message containing the group-avatar,
-                    // apart from that, the group-avatar is send along with various other messages
-                    mime_parser.is_system_message = SystemMessage::GroupImageChanged;
-                    better_msg = context.stock_system_msg(
-                        if mime_parser.group_avatar == AvatarAction::Delete {
-                            StockMessage::MsgGrpImgDeleted
-                        } else {
-                            StockMessage::MsgGrpImgChanged
-                        },
-                        "",
-                        "",
-                        from_id as u32,
-                    )
+                if value == "group-avatar-changed" {
+                    if let Some(avatar_action) = &mime_parser.group_avatar {
+                        // this is just an explicit message containing the group-avatar,
+                        // apart from that, the group-avatar is send along with various other messages
+                        mime_parser.is_system_message = SystemMessage::GroupImageChanged;
+                        better_msg = context.stock_system_msg(
+                            match avatar_action {
+                                AvatarAction::Delete => StockMessage::MsgGrpImgDeleted,
+                                AvatarAction::Change(_) => StockMessage::MsgGrpImgChanged,
+                            },
+                            "",
+                            "",
+                            from_id as u32,
+                        )
+                    }
                 }
             }
         }
@@ -1004,17 +1004,16 @@ fn create_or_lookup_group(
             }
         }
     }
-    if mime_parser.group_avatar != AvatarAction::None {
+    if let Some(avatar_action) = &mime_parser.group_avatar {
         info!(context, "group-avatar change for {}", chat_id);
         if let Ok(mut chat) = Chat::load_from_db(context, chat_id) {
-            match &mime_parser.group_avatar {
+            match avatar_action {
                 AvatarAction::Change(profile_image) => {
                     chat.param.set(Param::ProfileImage, profile_image);
                 }
                 AvatarAction::Delete => {
                     chat.param.remove(Param::ProfileImage);
                 }
-                AvatarAction::None => {}
             };
             chat.update_param(context)?;
             send_EVENT_CHAT_MODIFIED = true;
