@@ -548,9 +548,7 @@ fn add_parts(
     );
 
     // unarchive chat
-    if chat_id.get_archive_state(context) == ArchiveState::Archived {
-        chat_id.set_archive_state(context, ArchiveState::Normal)?;
-    }
+    chat_id.unarchive(context)?;
 
     // if the mime-headers should be saved, find out its size
     // (the mime-header ends with an empty line)
