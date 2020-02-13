@@ -933,19 +933,19 @@ impl Chat {
 
 #[derive(Debug, Copy, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub enum ChatVisibility {
-    Normal = 0,
-    Archived = 1,
-    Pinned = 2,
+    Normal,
+    Archived,
+    Pinned,
 }
 
 impl rusqlite::types::ToSql for ChatVisibility {
     fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
-        let duration = match &self {
+        let visibility = match &self {
             ChatVisibility::Normal => 0,
             ChatVisibility::Archived => 1,
             ChatVisibility::Pinned => 2,
         };
-        let val = rusqlite::types::Value::Integer(duration as i64);
+        let val = rusqlite::types::Value::Integer(visibility);
         let out = rusqlite::types::ToSqlOutput::Owned(val);
         Ok(out)
     }
