@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::str::FromStr;
 
-use deltachat::chat::{self, ArchiveState, Chat, ChatId};
+use deltachat::chat::{self, Chat, ChatId, ChatVisibility};
 use deltachat::chatlist::*;
 use deltachat::constants::*;
 use deltachat::contact::*;
@@ -518,15 +518,15 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
                         chat.get_id(),
                         chat.get_name(),
                         chat.get_id().get_fresh_msg_cnt(context),
-                        match chat.get_id().get_archive_state(context) {
-                            ArchiveState::Normal => "",
-                            ArchiveState::Archived => "📦",
-                            ArchiveState::Pinned => "📌",
+                        match chat.visibility {
+                            ChatVisibility::Normal => "",
+                            ChatVisibility::Archived => "📦",
+                            ChatVisibility::Pinned => "📌",
                         },
                     );
                     let lot = chatlist.get_summary(context, i, Some(&chat));
                     let statestr =
-                        if chat.get_id().get_archive_state(context) == ArchiveState::Archived {
+                        if chat.get_id().get_visibility(context) == ChatVisibility::Archived {
                             " [Archived]"
                         } else {
                             match lot.get_state() {
@@ -853,12 +853,12 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
         "archive" | "unarchive" | "pin" | "unpin" => {
             ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
             let chat_id = ChatId::new(arg1.parse()?);
-            chat_id.set_archive_state(
+            chat_id.set_visibility(
                 context,
                 match arg0 {
-                    "archive" => ArchiveState::Archived,
-                    "unarchive" | "unpin" => ArchiveState::Normal,
-                    "pin" => ArchiveState::Pinned,
+                    "archive" => ChatVisibility::Archived,
+                    "unarchive" | "unpin" => ChatVisibility::Normal,
+                    "pin" => ChatVisibility::Pinned,
                     _ => panic!("Unexpected command (This should never happen)"),
                 },
             )?;

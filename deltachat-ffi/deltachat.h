@@ -2693,7 +2693,6 @@ dc_context_t*    dc_chatlist_get_context     (dc_chatlist_t* chatlist);
  *
  * id: chat id
  * name: chat/group name
- * visibility: one of @ref DC_CHAT_VISIBILITY
  * color: color of this chat
  * last-message-from: who sent the last message
  * last-message-text: message (truncated)

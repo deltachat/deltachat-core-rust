@@ -25,7 +25,7 @@ use std::time::{Duration, SystemTime};
 use libc::uintptr_t;
 use num_traits::{FromPrimitive, ToPrimitive};
 
-use deltachat::chat::{ArchiveState, ChatId, MuteDuration};
+use deltachat::chat::{ChatId, ChatVisibility, MuteDuration};
 use deltachat::constants::DC_MSG_ID_LAST_SPECIAL;
 use deltachat::contact::Contact;
 use deltachat::context::Context;
@@ -1198,21 +1198,22 @@ pub unsafe extern "C" fn dc_set_chat_visibility(
         return;
     }
     let ffi_context = &*context;
-    let archive_state = match archive {
-        0 => ArchiveState::Normal,
-        1 => ArchiveState::Archived,
-        2 => ArchiveState::Pinned,
+    let visibility = match archive {
+        0 => ChatVisibility::Normal,
+        1 => ChatVisibility::Archived,
+        2 => ChatVisibility::Pinned,
         _ => {
-            ffi_context
-                .warning("ignoring careless call to dc_set_chat_visibility(): unknown archived state");
+            ffi_context.warning(
+                "ignoring careless call to dc_set_chat_visibility(): unknown archived state",
+            );
             return;
         }
     };
     ffi_context
         .with_inner(|ctx| {
             ChatId::new(chat_id)
-                .set_archive_state(ctx, archive_state)
-                .log_err(ffi_context, "Failed archive chat")
+                .set_visibility(ctx, visibility)
+                .log_err(ffi_context, "Failed setting chat visibility")
                 .unwrap_or(())
         })
         .unwrap_or(())
@@ -2462,14 +2463,11 @@ pub unsafe extern "C" fn dc_chat_get_visibility(chat: *mut dc_chat_t) -> libc::c
         return 0;
     }
     let ffi_chat = &*chat;
-    let ffi_context = &*ffi_chat.context;
-    ffi_context
-        .with_inner(|ctx| match ffi_chat.chat.get_id().get_archive_state(ctx) {
-            ArchiveState::Normal => 0,
-            ArchiveState::Archived => 1,
-            ArchiveState::Pinned => 2,
-        } as libc::c_int)
-        .unwrap_or_else(|_| 0)
+    match ffi_chat.chat.visibility {
+        ChatVisibility::Normal => 0,
+        ChatVisibility::Archived => 1,
+        ChatVisibility::Pinned => 2,
+    }
 }
 
 #[no_mangle]

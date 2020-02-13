@@ -3,7 +3,7 @@ use sha2::{Digest, Sha256};
 
 use num_traits::FromPrimitive;
 
-use crate::chat::{self, ArchiveState, Chat, ChatId};
+use crate::chat::{self, Chat, ChatId};
 use crate::config::Config;
 use crate::constants::*;
 use crate::contact::*;
