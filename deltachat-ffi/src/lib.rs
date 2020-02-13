@@ -728,7 +728,7 @@ pub unsafe extern "C" fn dc_preconfigure_keypair(
             key::store_self_keypair(ctx, &keypair, key::KeyPairUse::Default)?;
             Ok(1)
         })
-        .log_warn(ffi_context, "Failed to save keypair")
+        .log_err(ffi_context, "Failed to save keypair")
         .unwrap_or(0)
 }
 
@@ -775,7 +775,7 @@ pub unsafe extern "C" fn dc_create_chat_by_msg_id(context: *mut dc_context_t, ms
     ffi_context
         .with_inner(|ctx| {
             chat::create_by_msg_id(ctx, MsgId::new(msg_id))
-                .log_err(ctx, "Failed to create chat from msg_id")
+                .log_err(ffi_context, "Failed to create chat from msg_id")
                 .map(|id| id.to_u32())
                 .unwrap_or(0)
         })
@@ -795,7 +795,7 @@ pub unsafe extern "C" fn dc_create_chat_by_contact_id(
     ffi_context
         .with_inner(|ctx| {
             chat::create_by_contact_id(ctx, contact_id)
-                .log_err(ctx, "Failed to create chat from contact_id")
+                .log_err(ffi_context, "Failed to create chat from contact_id")
                 .map(|id| id.to_u32())
                 .unwrap_or(0)
         })
@@ -815,7 +815,7 @@ pub unsafe extern "C" fn dc_get_chat_id_by_contact_id(
     ffi_context
         .with_inner(|ctx| {
             chat::get_by_contact_id(ctx, contact_id)
-                .log_err(ctx, "Failed to get chat for contact_id")
+                .log_err(ffi_context, "Failed to get chat for contact_id")
                 .map(|id| id.to_u32())
                 .unwrap_or(0)
         })
@@ -1084,7 +1084,7 @@ pub unsafe extern "C" fn dc_marknoticed_chat(context: *mut dc_context_t, chat_id
     ffi_context
         .with_inner(|ctx| {
             chat::marknoticed_chat(ctx, ChatId::new(chat_id))
-                .log_err(ctx, "Failed marknoticed chat")
+                .log_err(ffi_context, "Failed marknoticed chat")
                 .unwrap_or(())
         })
         .unwrap_or(())
@@ -1100,7 +1100,7 @@ pub unsafe extern "C" fn dc_marknoticed_all_chats(context: *mut dc_context_t) {
     ffi_context
         .with_inner(|ctx| {
             chat::marknoticed_all_chats(ctx)
-                .log_err(ctx, "Failed marknoticed all chats")
+                .log_err(ffi_context, "Failed marknoticed all chats")
                 .unwrap_or(())
         })
         .unwrap_or(())
@@ -1214,7 +1214,7 @@ pub unsafe extern "C" fn dc_archive_chat(
         .with_inner(|ctx| {
             ChatId::new(chat_id)
                 .set_archived(ctx, archive)
-                .log_err(ctx, "Failed archive chat")
+                .log_err(ffi_context, "Failed archive chat")
                 .unwrap_or(())
         })
         .unwrap_or(())
@@ -1231,7 +1231,7 @@ pub unsafe extern "C" fn dc_delete_chat(context: *mut dc_context_t, chat_id: u32
         .with_inner(|ctx| {
             ChatId::new(chat_id)
                 .delete(ctx)
-                .log_err(ctx, "Failed chat delete")
+                .log_err(ffi_context, "Failed chat delete")
                 .unwrap_or(())
         })
         .unwrap_or(())
@@ -1318,7 +1318,7 @@ pub unsafe extern "C" fn dc_create_group_chat(
     ffi_context
         .with_inner(|ctx| {
             chat::create_group_chat(ctx, verified, to_string_lossy(name))
-                .log_err(ctx, "Failed to create group chat")
+                .log_err(ffi_context, "Failed to create group chat")
                 .map(|id| id.to_u32())
                 .unwrap_or(0)
         })
@@ -2057,7 +2057,9 @@ pub unsafe extern "C" fn dc_delete_all_locations(context: *mut dc_context_t) {
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| location::delete_all(ctx).log_err(ctx, "Failed to delete locations"))
+        .with_inner(|ctx| {
+            location::delete_all(ctx).log_err(ffi_context, "Failed to delete locations")
+        })
         .ok();
 }
 
@@ -3287,21 +3289,16 @@ pub unsafe extern "C" fn dc_str_unref(s: *mut libc::c_char) {
     libc::free(s as *mut _)
 }
 
-pub trait ResultExt<T, E> {
+trait ResultExt<T, E> {
     fn unwrap_or_log_default(self, context: &context::Context, message: &str) -> T;
-    fn log_err(self, context: &context::Context, message: &str) -> Result<T, E>;
 
     /// Log a warning to a [ContextWrapper] for an [Err] result.
     ///
-    /// Does nothing for an [Ok].  This is usually preferable over
-    /// [ResultExt::log_err] because warnings go to the logfile and
-    /// errors are displayed directly to the user.  Usually problems
-    /// on the FFI layer are coding errors and not errors which need
-    /// to be displayed to the user.
+    /// Does nothing for an [Ok].
     ///
     /// You can do this as soon as the wrapper exists, it does not
     /// have to be open (which is required for the `warn!()` macro).
-    fn log_warn(self, wrapper: &ContextWrapper, message: &str) -> Result<T, E>;
+    fn log_err(self, wrapper: &ContextWrapper, message: &str) -> Result<T, E>;
 }
 
 impl<T: Default, E: std::fmt::Display> ResultExt<T, E> for Result<T, E> {
@@ -3315,14 +3312,7 @@ impl<T: Default, E: std::fmt::Display> ResultExt<T, E> for Result<T, E> {
         }
     }
 
-    fn log_err(self, context: &context::Context, message: &str) -> Result<T, E> {
-        self.map_err(|err| {
-            warn!(context, "{}: {}", message, err);
-            err
-        })
-    }
-
-    fn log_warn(self, wrapper: &ContextWrapper, message: &str) -> Result<T, E> {
+    fn log_err(self, wrapper: &ContextWrapper, message: &str) -> Result<T, E> {
         self.map_err(|err| {
             unsafe {
                 wrapper.warning(&format!("{}: {}", message, err));
@@ -3339,7 +3329,7 @@ unsafe fn strdup_opt(s: Option<impl AsRef<str>>) -> *mut libc::c_char {
     }
 }
 
-pub trait ResultNullableExt<T> {
+trait ResultNullableExt<T> {
     fn into_raw(self) -> *mut T;
 }
 
