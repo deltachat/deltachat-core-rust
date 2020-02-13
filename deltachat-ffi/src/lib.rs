@@ -109,10 +109,6 @@ impl ContextWrapper {
     /// the appropriate return value for an error return since this
     /// differs for various functions on the FFI API: sometimes 0,
     /// NULL, an empty string etc.
-    ///
-    /// Prefer to use [ContextWrapper::try_inner], we might want to
-    /// remove this function at some point to reduce the cognitive
-    /// overload of having two functions which are too similar.
     unsafe fn with_inner<T, F>(&self, ctxfn: F) -> Result<T, ()>
     where
         F: FnOnce(&Context) -> T,
