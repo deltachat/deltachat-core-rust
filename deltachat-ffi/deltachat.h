@@ -918,7 +918,7 @@ int             dc_preconfigure_keypair        (dc_context_t* context, const cha
  *   or "Not now".
  *   The UI can also offer a "Close" button that calls dc_marknoticed_contact() then.
  * - DC_CHAT_ID_ARCHIVED_LINK (6) - this special chat is present if the user has
- *   archived _any_ chat using dc_archive_chat(). The UI should show a link as
+ *   archived _any_ chat using dc_set_chat_visibility(). The UI should show a link as
  *   "Show archived chats", if the user clicks this item, the UI should show a
  *   list of all archived chats that can be created by this function hen using
  *   the DC_GCL_ARCHIVED_ONLY flag.
@@ -1372,25 +1372,18 @@ uint32_t        dc_get_next_media            (dc_context_t* context, uint32_t ms
 
 
 /**
- * Archive or unarchive a chat.
+ * Set chat visibility to pinned, archived or normal.
  *
- * Archived chats are not included in the default chatlist returned
- * by dc_get_chatlist().  Instead, if there are _any_ archived chats,
- * the pseudo-chat with the chat_id DC_CHAT_ID_ARCHIVED_LINK will be added the the
- * end of the chatlist.
- *
- * - To get a list of archived chats, use dc_get_chatlist() with the flag DC_GCL_ARCHIVED_ONLY.
- * - To find out the archived state of a given chat, use dc_chat_get_archived()
- * - Messages in archived chats are marked as being noticed, so they do not count as "fresh"
- * - Calling this function usually results in the event #DC_EVENT_MSGS_CHANGED
+ * Calling this function usually results in the event #DC_EVENT_MSGS_CHANGED
+ * See @ref DC_CHAT_VISIBILITY for detailed information about the visibilities.
  *
  * @memberof dc_context_t
  * @param context The context object as returned from dc_context_new().
- * @param chat_id The ID of the chat to archive or unarchive.
- * @param archive 1=archive chat, 0=unarchive chat, all other values are reserved for future use
+ * @param chat_id The ID of the chat to change the visibility for.
+ * @param visibility one of @ref DC_CHAT_VISIBILITY
  * @return None.
  */
-void            dc_archive_chat              (dc_context_t* context, uint32_t chat_id, int archive);
+void            dc_set_chat_visibility       (dc_context_t* context, uint32_t chat_id, int visibility);
 
 
 /**
@@ -2700,10 +2693,7 @@ dc_context_t*    dc_chatlist_get_context     (dc_chatlist_t* chatlist);
  *
  * id: chat id
  * name: chat/group name
- * archived: archived state can be one of:
- *   DC_CHAT_ARCHIVE_STATE_NORMAL
- *   DC_CHAT_ARCHIVE_STATE_ARCHIVED
- *   DC_CHAT_ARCHIVE_STATE_PINNED
+ * visibility: one of @ref DC_CHAT_VISIBILITY
  * color: color of this chat
  * last-message-from: who sent the last message
  * last-message-text: message (truncated)
@@ -2849,26 +2839,15 @@ char*           dc_chat_get_profile_image    (const dc_chat_t* chat);
 uint32_t        dc_chat_get_color            (const dc_chat_t* chat);
 
 
-#define         DC_CHAT_ARCHIVE_STATE_NORMAL      0
-#define         DC_CHAT_ARCHIVE_STATE_ARCHIVED    1
-#define         DC_CHAT_ARCHIVE_STATE_PINNED      2
-
 /**
- * Get archived state.
- *
- * - 0 = normal chat, not archived, not sticky.
- * - 1 = chat archived
- * - 2 = chat sticky (reserved for future use, if you do not support this value, just treat the chat as a normal one)
- *
- * To archive or unarchive chats, use dc_archive_chat().
- * If chats are archived, this should be shown in the UI by a little icon or text,
- * eg. the search will also return archived chats.
+ * Get visibility of chat.
+ * See @ref DC_CHAT_VISIBILITY for detailed information about the visibilities.
  *
  * @memberof dc_chat_t
  * @param chat The chat object.
- * @return Archived state.
+ * @return One of @ref DC_CHAT_VISIBILITY
  */
-int             dc_chat_get_archived         (const dc_chat_t* chat);
+int             dc_chat_get_visibility       (const dc_chat_t* chat);
 
 
 /**
@@ -3781,7 +3760,7 @@ int             dc_contact_is_verified       (dc_contact_t* contact);
  *     accessor functions.  If no provider info is found, NULL will be
  *     returned.
  */
-dc_provider_t*  dc_provider_new_from_email            (const dc_context_t*, const char* email);
+dc_provider_t*  dc_provider_new_from_email            (const dc_context_t* context, const char* email);
 
 
 /**
@@ -4540,6 +4519,8 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
 #define DC_EVENT_RETURNS_STRING(e)   ((e)==DC_EVENT_GET_STRING) // not used anymore
 char*           dc_get_version_str           (void); // deprecated
 void            dc_array_add_id              (dc_array_t*, uint32_t); // deprecated
+#define dc_archive_chat(a,b,c)  dc_set_chat_visibility((a), (b), (c)? 1 : 0) // not used anymore
+#define dc_chat_get_archived(a) (dc_chat_get_visibility((a))==1? 1 : 0)      // not used anymore
 
 
 /*
@@ -4599,6 +4580,48 @@ void            dc_array_add_id              (dc_array_t*, uint32_t); // depreca
  * The status is returned by dc_provider_get_status().
  */
 #define         DC_PROVIDER_STATUS_BROKEN       3
+
+/**
+ * @}
+ */
+
+
+/**
+ * @defgroup DC_CHAT_VISIBILITY DC_CHAT_VISIBILITY
+ *
+ * These constants describe the visibility of a chat.
+ * The chat visibiliry can be get using dc_chat_get_visibility()
+ * and set using dc_set_chat_visibility().
+ *
+ * @addtogroup DC_CHAT_VISIBILITY
+ * @{
+ */
+
+/**
+ * Chats with normal visibility are not archived and are shown below all pinned chats.
+ * Archived chats, that receive new messages automatically become normal chats.
+ */
+#define         DC_CHAT_VISIBILITY_NORMAL      0
+
+/**
+ * Archived chats are not included in the default chatlist returned by dc_get_chatlist().
+ * Instead, if there are _any_ archived chats, the pseudo-chat
+ * with the chat_id DC_CHAT_ID_ARCHIVED_LINK will be added the the end of the chatlist.
+ *
+ * The UI typically shows a little icon or chats beside archived chats in the chatlist,
+ * this is needed as eg. the search will also return archived chats.
+ *
+ * If archived chats receive new messages, they become normal chats again.
+ *
+ * To get a list of archived chats, use dc_get_chatlist() with the flag DC_GCL_ARCHIVED_ONLY.
+ */
+#define         DC_CHAT_VISIBILITY_ARCHIVED    1
+
+/**
+ * Pinned chats are included in the default chatlist. moreover,
+ * they are always the first items, whether they have fresh messages or not.
+ */
+#define         DC_CHAT_VISIBILITY_PINNED      2
 
 /**
  * @}

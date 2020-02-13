@@ -60,7 +60,7 @@ impl Chatlist {
     ///   or "Not now".
     ///   The UI can also offer a "Close" button that calls dc_marknoticed_contact() then.
     /// - DC_CHAT_ID_ARCHIVED_LINK (6) - this special chat is present if the user has
-    ///   archived *any* chat using dc_archive_chat(). The UI should show a link as
+    ///   archived *any* chat using dc_set_chat_visibility(). The UI should show a link as
     ///   "Show archived chats", if the user clicks this item, the UI should show a
     ///   list of all archived chats that can be created by this function hen using
     ///   the DC_GCL_ARCHIVED_ONLY flag.
