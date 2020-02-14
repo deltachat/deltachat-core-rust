@@ -46,3 +46,21 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features
+
+  doc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly-2019-11-06
+          override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          command: doc
+          args: --no-deps -p deltachat
+      - uses: actions-rs/cargo@v1
+        with:
+          command: doc
+          args: --no-deps -p deltachat_ffi
