@@ -2844,6 +2844,8 @@ pub(crate) async fn inner_set_autodelete_timer(
     chat_id: ChatId,
     timer: u32,
 ) -> Result<(), Error> {
+    ensure!(!chat_id.is_special(), "Invalid chat ID");
+
     context
         .sql
         .execute(
