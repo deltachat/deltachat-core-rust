@@ -426,17 +426,6 @@ class TestOfflineChat:
         chat.remove_contact(contacts[3])
         assert len(chat.get_contacts()) == 9
 
-    def test_archive_and_pin_chat(self, ac1):
-        chat = ac1.create_group_chat(name="title1")
-
-        assert not chat.is_archived()
-        chat.archive()
-        assert chat.is_archived()
-        chat.unarchive()
-        assert not chat.is_archived()
-        chat.pin()
-        assert chat.is_pinned()
-
 
 class TestOnlineAccount:
     @pytest.mark.ignored
