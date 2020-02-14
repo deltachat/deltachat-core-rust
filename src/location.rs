@@ -64,11 +64,10 @@ impl Kml {
         Default::default()
     }
 
-    pub fn parse(context: &Context, content: &[u8]) -> Result<Self, Error> {
-        ensure!(content.len() <= 1024 * 1024, "kml-file is too large");
+    pub fn parse(context: &Context, to_parse: &[u8]) -> Result<Self, Error> {
+        ensure!(to_parse.len() <= 1024 * 1024, "kml-file is too large");
 
-        let to_parse = String::from_utf8_lossy(content);
-        let mut reader = quick_xml::Reader::from_str(&to_parse);
+        let mut reader = quick_xml::Reader::from_reader(to_parse);
         reader.trim_text(true);
 
         let mut kml = Kml::new();
