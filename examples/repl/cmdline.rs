@@ -525,18 +525,17 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
                         },
                     );
                     let lot = chatlist.get_summary(context, i, Some(&chat));
-                    let statestr =
-                        if chat.get_id().get_visibility(context) == ChatVisibility::Archived {
-                            " [Archived]"
-                        } else {
-                            match lot.get_state() {
-                                LotState::MsgOutPending => " o",
-                                LotState::MsgOutDelivered => " √",
-                                LotState::MsgOutMdnRcvd => " √√",
-                                LotState::MsgOutFailed => " !!",
-                                _ => "",
-                            }
-                        };
+                    let statestr = if chat.visibility == ChatVisibility::Archived {
+                        " [Archived]"
+                    } else {
+                        match lot.get_state() {
+                            LotState::MsgOutPending => " o",
+                            LotState::MsgOutDelivered => " √",
+                            LotState::MsgOutMdnRcvd => " √√",
+                            LotState::MsgOutFailed => " !!",
+                            _ => "",
+                        }
+                    };
                     let timestr = dc_timestamp_to_str(lot.get_timestamp());
                     let text1 = lot.get_text1();
                     let text2 = lot.get_text2();
@@ -985,7 +984,10 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
         }
         "setqr" => {
             ensure!(!arg1.is_empty(), "Argument <qr-content> missing.");
-            set_config_from_qr(context, arg1);
+            match set_config_from_qr(context, arg1) {
+                Ok(()) => println!("Config set from QR code, you can now call 'configure'"),
+                Err(err) => println!("Cannot set config from QR code: {:?}", err),
+            }
         }
         "providerinfo" => {
             ensure!(!arg1.is_empty(), "Argument <addr> missing.");
