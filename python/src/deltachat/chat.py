@@ -423,7 +423,7 @@ class Chat(object):
         """return True if this chat is archived.
         :returns: True if archived.
         """
-        return lib.dc_chat_get_archived(self._dc_chat)
+        return lib.dc_chat_get_visibility(self._dc_chat) == const.DC_CHAT_VISIBILITY_ARCHIVED
 
     def enable_sending_locations(self, seconds):
         """enable sending locations for this chat.

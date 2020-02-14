@@ -60,7 +60,7 @@ impl Chatlist {
     ///   or "Not now".
     ///   The UI can also offer a "Close" button that calls dc_marknoticed_contact() then.
     /// - DC_CHAT_ID_ARCHIVED_LINK (6) - this special chat is present if the user has
-    ///   archived *any* chat using dc_archive_chat(). The UI should show a link as
+    ///   archived *any* chat using dc_set_chat_visibility(). The UI should show a link as
     ///   "Show archived chats", if the user clicks this item, the UI should show a
     ///   list of all archived chats that can be created by this function hen using
     ///   the DC_GCL_ARCHIVED_ONLY flag.
@@ -199,13 +199,13 @@ impl Chatlist {
                                SELECT MAX(timestamp)
                                  FROM msgs
                                 WHERE chat_id=c.id
-                                  AND (hidden=0 OR state=?))
+                                  AND (hidden=0 OR state=?1))
                  WHERE c.id>9
                    AND c.blocked=0
-                   AND c.archived=0
+                   AND NOT c.archived=?2
                  GROUP BY c.id
-                 ORDER BY IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
-                params![MessageState::OutDraft],
+                 ORDER BY c.archived=?3 DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
+                params![MessageState::OutDraft, ChatVisibility::Archived, ChatVisibility::Pinned],
                 process_row,
                 process_rows,
             )?;
@@ -392,7 +392,9 @@ mod tests {
         let chats = Chatlist::try_load(&t.ctx, DC_GCL_ARCHIVED_ONLY, None, None).unwrap();
         assert_eq!(chats.len(), 0);
 
-        chat_id1.set_archived(&t.ctx, true).ok();
+        chat_id1
+            .set_visibility(&t.ctx, ChatVisibility::Archived)
+            .ok();
         let chats = Chatlist::try_load(&t.ctx, DC_GCL_ARCHIVED_ONLY, None, None).unwrap();
         assert_eq!(chats.len(), 1);
     }

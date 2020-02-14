@@ -25,8 +25,7 @@ use std::time::{Duration, SystemTime};
 use libc::uintptr_t;
 use num_traits::{FromPrimitive, ToPrimitive};
 
-use deltachat::chat::ChatId;
-use deltachat::chat::MuteDuration;
+use deltachat::chat::{ChatId, ChatVisibility, MuteDuration};
 use deltachat::constants::DC_MSG_ID_LAST_SPECIAL;
 use deltachat::contact::Contact;
 use deltachat::context::Context;
@@ -1189,28 +1188,32 @@ pub unsafe extern "C" fn dc_get_next_media(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_archive_chat(
+pub unsafe extern "C" fn dc_set_chat_visibility(
     context: *mut dc_context_t,
     chat_id: u32,
     archive: libc::c_int,
 ) {
     if context.is_null() {
-        eprintln!("ignoring careless call to dc_archive_chat()");
+        eprintln!("ignoring careless call to dc_set_chat_visibility()");
         return;
     }
     let ffi_context = &*context;
-    let archive = if archive == 0 {
-        false
-    } else if archive == 1 {
-        true
-    } else {
-        return;
+    let visibility = match archive {
+        0 => ChatVisibility::Normal,
+        1 => ChatVisibility::Archived,
+        2 => ChatVisibility::Pinned,
+        _ => {
+            ffi_context.warning(
+                "ignoring careless call to dc_set_chat_visibility(): unknown archived state",
+            );
+            return;
+        }
     };
     ffi_context
         .with_inner(|ctx| {
             ChatId::new(chat_id)
-                .set_archived(ctx, archive)
-                .log_err(ffi_context, "Failed archive chat")
+                .set_visibility(ctx, visibility)
+                .log_err(ffi_context, "Failed setting chat visibility")
                 .unwrap_or(())
         })
         .unwrap_or(())
@@ -2454,13 +2457,17 @@ pub unsafe extern "C" fn dc_chat_get_color(chat: *mut dc_chat_t) -> u32 {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_chat_get_archived(chat: *mut dc_chat_t) -> libc::c_int {
+pub unsafe extern "C" fn dc_chat_get_visibility(chat: *mut dc_chat_t) -> libc::c_int {
     if chat.is_null() {
-        eprintln!("ignoring careless call to dc_chat_get_archived()");
+        eprintln!("ignoring careless call to dc_chat_get_visibility()");
         return 0;
     }
     let ffi_chat = &*chat;
-    ffi_chat.chat.is_archived() as libc::c_int
+    match ffi_chat.chat.visibility {
+        ChatVisibility::Normal => 0,
+        ChatVisibility::Archived => 1,
+        ChatVisibility::Pinned => 2,
+    }
 }
 
 #[no_mangle]

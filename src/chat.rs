@@ -137,14 +137,18 @@ impl ChatId {
     }
 
     /// Archives or unarchives a chat.
-    pub fn set_archived(self, context: &Context, new_archived: bool) -> Result<(), Error> {
+    pub fn set_visibility(
+        self,
+        context: &Context,
+        visibility: ChatVisibility,
+    ) -> Result<(), Error> {
         ensure!(
             !self.is_special(),
             "bad chat_id, can not be special chat: {}",
             self
         );
 
-        if new_archived {
+        if visibility == ChatVisibility::Archived {
             sql::execute(
                 context,
                 &context.sql,
@@ -157,7 +161,7 @@ impl ChatId {
             context,
             &context.sql,
             "UPDATE chats SET archived=? WHERE id=?;",
-            params![new_archived, self],
+            params![visibility, self],
         )?;
 
         context.call_cb(Event::MsgsChanged {
@@ -168,13 +172,13 @@ impl ChatId {
         Ok(())
     }
 
-    // note that unarchive() is not the same as set_archived(false) -
-    // eg. unarchive() does not send events as done for set_archived(false).
+    // note that unarchive() is not the same as set_visibility(Normal) -
+    // eg. unarchive() does not modify pinned chats and does not send events.
     pub fn unarchive(self, context: &Context) -> Result<(), Error> {
         sql::execute(
             context,
             &context.sql,
-            "UPDATE chats SET archived=0 WHERE id=?",
+            "UPDATE chats SET archived=0 WHERE id=? and archived=1",
             params![self],
         )?;
         Ok(())
@@ -421,7 +425,7 @@ pub struct Chat {
     pub id: ChatId,
     pub typ: Chattype,
     pub name: String,
-    archived: bool,
+    pub visibility: ChatVisibility,
     pub grpid: String,
     blocked: Blocked,
     pub param: Params,
@@ -445,7 +449,7 @@ impl Chat {
                     name: row.get::<_, String>(1)?,
                     grpid: row.get::<_, String>(2)?,
                     param: row.get::<_, String>(3)?.parse().unwrap_or_default(),
-                    archived: row.get(4)?,
+                    visibility: row.get(4)?,
                     blocked: row.get::<_, Option<_>>(5)?.unwrap_or_default(),
                     is_sending_locations: row.get(6)?,
                     mute_duration: row.get(7)?,
@@ -656,7 +660,7 @@ impl Chat {
             id: self.id,
             type_: self.typ as u32,
             name: self.name.clone(),
-            archived: self.archived,
+            archived: self.visibility == ChatVisibility::Archived,
             param: self.param.to_string(),
             gossiped_timestamp: self.get_gossiped_timestamp(context),
             is_sending_locations: self.is_sending_locations,
@@ -668,9 +672,8 @@ impl Chat {
         })
     }
 
-    /// Returns true if the chat is archived.
-    pub fn is_archived(&self) -> bool {
-        self.archived
+    pub fn get_visibility(&self) -> ChatVisibility {
+        self.visibility
     }
 
     pub fn is_unpromoted(&self) -> bool {
@@ -925,6 +928,40 @@ impl Chat {
         }
 
         Ok(MsgId::new(msg_id))
+    }
+}
+
+#[derive(Debug, Copy, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub enum ChatVisibility {
+    Normal,
+    Archived,
+    Pinned,
+}
+
+impl rusqlite::types::ToSql for ChatVisibility {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
+        let visibility = match &self {
+            ChatVisibility::Normal => 0,
+            ChatVisibility::Archived => 1,
+            ChatVisibility::Pinned => 2,
+        };
+        let val = rusqlite::types::Value::Integer(visibility);
+        let out = rusqlite::types::ToSqlOutput::Owned(val);
+        Ok(out)
+    }
+}
+
+impl rusqlite::types::FromSql for ChatVisibility {
+    fn column_result(value: rusqlite::types::ValueRef) -> rusqlite::types::FromSqlResult<Self> {
+        i64::column_result(value).and_then(|val| {
+            match val {
+                2 => Ok(ChatVisibility::Pinned),
+                1 => Ok(ChatVisibility::Archived),
+                0 => Ok(ChatVisibility::Normal),
+                // fallback to to Normal for unknown values, may happen eg. on imports created by a newer version.
+                _ => Ok(ChatVisibility::Normal),
+            }
+        })
     }
 }
 
@@ -2560,7 +2597,7 @@ mod tests {
         let chat = Chat::load_from_db(&t.ctx, chat_id).unwrap();
         assert_eq!(chat.id, chat_id);
         assert!(chat.is_self_talk());
-        assert!(!chat.archived);
+        assert!(chat.visibility == ChatVisibility::Normal);
         assert!(!chat.is_device_talk());
         assert!(chat.can_send());
         assert_eq!(chat.name, t.ctx.stock_str(StockMessage::SavedMessages));
@@ -2574,7 +2611,7 @@ mod tests {
         assert_eq!(DC_CHAT_ID_DEADDROP, 1);
         assert!(chat.id.is_deaddrop());
         assert!(!chat.is_self_talk());
-        assert!(!chat.archived);
+        assert!(chat.visibility == ChatVisibility::Normal);
         assert!(!chat.is_device_talk());
         assert!(!chat.can_send());
         assert_eq!(chat.name, t.ctx.stock_str(StockMessage::DeadDrop));
@@ -2780,33 +2817,134 @@ mod tests {
         assert_eq!(DC_GCL_NO_SPECIALS, 0x02);
 
         // archive first chat
-        assert!(chat_id1.set_archived(&t.ctx, true).is_ok());
-        assert!(Chat::load_from_db(&t.ctx, chat_id1).unwrap().is_archived());
-        assert!(!Chat::load_from_db(&t.ctx, chat_id2).unwrap().is_archived());
+        assert!(chat_id1
+            .set_visibility(&t.ctx, ChatVisibility::Archived)
+            .is_ok());
+        assert!(
+            Chat::load_from_db(&t.ctx, chat_id1)
+                .unwrap()
+                .get_visibility()
+                == ChatVisibility::Archived
+        );
+        assert!(
+            Chat::load_from_db(&t.ctx, chat_id2)
+                .unwrap()
+                .get_visibility()
+                == ChatVisibility::Normal
+        );
         assert_eq!(get_chat_cnt(&t.ctx), 2);
         assert_eq!(chatlist_len(&t.ctx, 0), 2); // including DC_CHAT_ID_ARCHIVED_LINK now
         assert_eq!(chatlist_len(&t.ctx, DC_GCL_NO_SPECIALS), 1);
         assert_eq!(chatlist_len(&t.ctx, DC_GCL_ARCHIVED_ONLY), 1);
 
         // archive second chat
-        assert!(chat_id2.set_archived(&t.ctx, true).is_ok());
-        assert!(Chat::load_from_db(&t.ctx, chat_id1).unwrap().is_archived());
-        assert!(Chat::load_from_db(&t.ctx, chat_id2).unwrap().is_archived());
+        assert!(chat_id2
+            .set_visibility(&t.ctx, ChatVisibility::Archived)
+            .is_ok());
+        assert!(
+            Chat::load_from_db(&t.ctx, chat_id1)
+                .unwrap()
+                .get_visibility()
+                == ChatVisibility::Archived
+        );
+        assert!(
+            Chat::load_from_db(&t.ctx, chat_id2)
+                .unwrap()
+                .get_visibility()
+                == ChatVisibility::Archived
+        );
         assert_eq!(get_chat_cnt(&t.ctx), 2);
         assert_eq!(chatlist_len(&t.ctx, 0), 1); // only DC_CHAT_ID_ARCHIVED_LINK now
         assert_eq!(chatlist_len(&t.ctx, DC_GCL_NO_SPECIALS), 0);
         assert_eq!(chatlist_len(&t.ctx, DC_GCL_ARCHIVED_ONLY), 2);
 
         // archive already archived first chat, unarchive second chat two times
-        assert!(chat_id1.set_archived(&t.ctx, true).is_ok());
-        assert!(chat_id2.set_archived(&t.ctx, false).is_ok());
-        assert!(chat_id2.set_archived(&t.ctx, false).is_ok());
-        assert!(Chat::load_from_db(&t.ctx, chat_id1).unwrap().is_archived());
-        assert!(!Chat::load_from_db(&t.ctx, chat_id2).unwrap().is_archived());
+        assert!(chat_id1
+            .set_visibility(&t.ctx, ChatVisibility::Archived)
+            .is_ok());
+        assert!(chat_id2
+            .set_visibility(&t.ctx, ChatVisibility::Normal)
+            .is_ok());
+        assert!(chat_id2
+            .set_visibility(&t.ctx, ChatVisibility::Normal)
+            .is_ok());
+        assert!(
+            Chat::load_from_db(&t.ctx, chat_id1)
+                .unwrap()
+                .get_visibility()
+                == ChatVisibility::Archived
+        );
+        assert!(
+            Chat::load_from_db(&t.ctx, chat_id2)
+                .unwrap()
+                .get_visibility()
+                == ChatVisibility::Normal
+        );
         assert_eq!(get_chat_cnt(&t.ctx), 2);
         assert_eq!(chatlist_len(&t.ctx, 0), 2);
         assert_eq!(chatlist_len(&t.ctx, DC_GCL_NO_SPECIALS), 1);
         assert_eq!(chatlist_len(&t.ctx, DC_GCL_ARCHIVED_ONLY), 1);
+    }
+
+    fn get_chats_from_chat_list(ctx: &Context, listflags: usize) -> Vec<ChatId> {
+        let chatlist = Chatlist::try_load(ctx, listflags, None, None).unwrap();
+        let mut result = Vec::new();
+        for chatlist_index in 0..chatlist.len() {
+            result.push(chatlist.get_chat_id(chatlist_index))
+        }
+        result
+    }
+
+    #[test]
+    fn test_pinned() {
+        let t = dummy_context();
+        let mut msg = Message::new(Viewtype::Text);
+        msg.text = Some("foo".to_string());
+        let msg_id = add_device_msg(&t.ctx, None, Some(&mut msg)).unwrap();
+        let chat_id1 = message::Message::load_from_db(&t.ctx, msg_id)
+            .unwrap()
+            .chat_id;
+        let chat_id2 = create_by_contact_id(&t.ctx, DC_CONTACT_ID_SELF).unwrap();
+        let chat_id3 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo").unwrap();
+
+        let chatlist = get_chats_from_chat_list(&t.ctx, DC_GCL_NO_SPECIALS);
+        assert_eq!(chatlist, vec![chat_id3, chat_id1, chat_id2]);
+
+        // pin
+        assert!(
+            chat_id1
+                .set_visibility(&t.ctx, ChatVisibility::Pinned)
+                .is_ok()
+                == true
+        );
+        assert_eq!(
+            Chat::load_from_db(&t.ctx, chat_id1)
+                .unwrap()
+                .get_visibility(),
+            ChatVisibility::Pinned
+        );
+
+        // check if chat order changed
+        let chatlist = get_chats_from_chat_list(&t.ctx, DC_GCL_NO_SPECIALS);
+        assert_eq!(chatlist, vec![chat_id1, chat_id3, chat_id2]);
+
+        // unpin
+        assert!(
+            chat_id1
+                .set_visibility(&t.ctx, ChatVisibility::Normal)
+                .is_ok()
+                == true
+        );
+        assert_eq!(
+            Chat::load_from_db(&t.ctx, chat_id1)
+                .unwrap()
+                .get_visibility(),
+            ChatVisibility::Normal
+        );
+
+        // check if chat order changed back
+        let chatlist = get_chats_from_chat_list(&t.ctx, DC_GCL_NO_SPECIALS);
+        assert_eq!(chatlist, vec![chat_id3, chat_id1, chat_id2]);
     }
 
     #[test]
