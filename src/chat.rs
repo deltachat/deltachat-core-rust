@@ -958,10 +958,8 @@ impl rusqlite::types::FromSql for ChatVisibility {
                 2 => Ok(ChatVisibility::Pinned),
                 1 => Ok(ChatVisibility::Archived),
                 0 => Ok(ChatVisibility::Normal),
-                n => {
-                    // unknown archived state, falling back to normal state (was this db opened with a newer deltachat version?)
-                    Err(rusqlite::types::FromSqlError::OutOfRange(n))
-                }
+                // fallback to to Normal for unknown values, may happen eg. on imports created by a newer version.
+                _ => Ok(ChatVisibility::Normal),
             }
         })
     }

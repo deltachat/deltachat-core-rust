@@ -199,13 +199,13 @@ impl Chatlist {
                                SELECT MAX(timestamp)
                                  FROM msgs
                                 WHERE chat_id=c.id
-                                  AND (hidden=0 OR state=?))
+                                  AND (hidden=0 OR state=?1))
                  WHERE c.id>9
                    AND c.blocked=0
-                   AND NOT c.archived=1
+                   AND NOT c.archived=?2
                  GROUP BY c.id
-                 ORDER BY c.archived=2 DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
-                params![MessageState::OutDraft],
+                 ORDER BY c.archived=?3 DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
+                params![MessageState::OutDraft, ChatVisibility::Archived, ChatVisibility::Pinned],
                 process_row,
                 process_rows,
             )?;
