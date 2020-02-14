@@ -27,9 +27,6 @@ pub enum Error {
     #[fail(display = "IMAP select folder error")]
     SelectFolderError(#[cause] select_folder::Error),
 
-    #[fail(display = "IMAP error")]
-    ImapError(#[cause] async_imap::error::Error),
-
     #[fail(display = "Setup handle error")]
     SetupHandleError(#[cause] super::Error),
 }
