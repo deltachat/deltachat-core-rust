@@ -122,7 +122,7 @@ impl Sql {
                 let conn = pool.get()?;
 
                 // Only one process can make changes to the database at one time.
-                // busy_timeout defines, that if a seconds process wants write access,
+                // busy_timeout defines, that if a second process wants write access,
                 // this second process will wait some milliseconds
                 // and try over until it gets write access or the given timeout is elapsed.
                 // If the second process does not get write access within the given timeout,
