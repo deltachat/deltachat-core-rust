@@ -893,6 +893,11 @@ fn open(
             )?;
             sql.set_raw_config_int(context, "dbversion", 62)?;
         }
+        if dbversion < 63 {
+            info!(context, "[migration] v63");
+            sql.execute("UPDATE chats SET grpid='' WHERE type=100", NO_PARAMS)?;
+            sql.set_raw_config_int(context, "dbversion", 63)?;
+        }
 
         // (2) updates that require high-level objects
         // (the structure is complete now and all objects are usable)
