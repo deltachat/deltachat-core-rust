@@ -127,13 +127,13 @@ impl Chatlist {
                                SELECT MAX(timestamp)
                                  FROM msgs
                                 WHERE chat_id=c.id
-                                  AND (hidden=0 OR state=?))
+                                  AND (hidden=0 OR state=?1))
                  WHERE c.id>9
                    AND c.blocked=0
-                   AND c.id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?)
+                   AND c.id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?2)
                  GROUP BY c.id
-                 ORDER BY IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
-                params![MessageState::OutDraft, query_contact_id as i32],
+                 ORDER BY c.archived=?3 DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
+                params![MessageState::OutDraft, query_contact_id as i32, ChatVisibility::Pinned],
                 process_row,
                 process_rows,
             )?
