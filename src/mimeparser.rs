@@ -598,60 +598,60 @@ impl MimeMessage {
         let old_part_count = self.parts.len();
 
         match filename {
-        Some(filename) => {
-            self.do_add_single_file_part(
-                context,
-                msg_type,
-                mime_type,
-                &raw_mime,
-                &mail.get_body_raw()?,
-                &filename,
-            );
-        }
-        None => {
-            match mime_type.type_() {
-                mime::IMAGE | mime::AUDIO | mime::VIDEO | mime::APPLICATION => {
-                    warn!(context, "Missing attachment");
-                    return Ok(false);
-                }
-                mime::TEXT | mime::HTML => {
-                    let decoded_data = match mail.get_body() {
-                        Ok(decoded_data) => decoded_data,
-                        Err(err) => {
-                            warn!(context, "Invalid body parsed {:?}", err);
-                            // Note that it's not always an error - might be no data
-                            return Ok(false);
-                        }
-                    };
-
-                    let (simplified_txt, is_forwarded) = if decoded_data.is_empty() {
-                        ("".into(), false)
-                    } else {
-                        let is_html = mime_type == mime::TEXT_HTML;
-                        let out = if is_html {
-                            dehtml(&decoded_data)
-                        } else {
-                            decoded_data.clone()
-                        };
-                        simplify(out, self.has_chat_version())
-                    };
-
-                    if !simplified_txt.is_empty() {
-                        let mut part = Part::default();
-                        part.typ = Viewtype::Text;
-                        part.mimetype = Some(mime_type);
-                        part.msg = simplified_txt;
-                        part.msg_raw = Some(decoded_data);
-                        self.do_add_single_part(part);
-                    }
-
-                    if is_forwarded {
-                        self.is_forwarded = true;
-                    }
-                }
-                _ => {}
+            Some(filename) => {
+                self.do_add_single_file_part(
+                    context,
+                    msg_type,
+                    mime_type,
+                    &raw_mime,
+                    &mail.get_body_raw()?,
+                    &filename,
+                );
             }
-        }
+            None => {
+                match mime_type.type_() {
+                    mime::IMAGE | mime::AUDIO | mime::VIDEO | mime::APPLICATION => {
+                        warn!(context, "Missing attachment");
+                        return Ok(false);
+                    }
+                    mime::TEXT | mime::HTML => {
+                        let decoded_data = match mail.get_body() {
+                            Ok(decoded_data) => decoded_data,
+                            Err(err) => {
+                                warn!(context, "Invalid body parsed {:?}", err);
+                                // Note that it's not always an error - might be no data
+                                return Ok(false);
+                            }
+                        };
+
+                        let (simplified_txt, is_forwarded) = if decoded_data.is_empty() {
+                            ("".into(), false)
+                        } else {
+                            let is_html = mime_type == mime::TEXT_HTML;
+                            let out = if is_html {
+                                dehtml(&decoded_data)
+                            } else {
+                                decoded_data.clone()
+                            };
+                            simplify(out, self.has_chat_version())
+                        };
+
+                        if !simplified_txt.is_empty() {
+                            let mut part = Part::default();
+                            part.typ = Viewtype::Text;
+                            part.mimetype = Some(mime_type);
+                            part.msg = simplified_txt;
+                            part.msg_raw = Some(decoded_data);
+                            self.do_add_single_part(part);
+                        }
+
+                        if is_forwarded {
+                            self.is_forwarded = true;
+                        }
+                    }
+                    _ => {}
+                }
+            }
         }
 
         // add object? (we do not add all objects, eg. signatures etc. are ignored)
