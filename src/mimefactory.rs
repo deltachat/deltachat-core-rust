@@ -1,5 +1,9 @@
 use chrono::TimeZone;
 use lettre_email::{mime, Address, Header, MimeMultipartType, PartBuilder};
+use std::collections::HashSet;
+use vcard::properties::Photo;
+use vcard::values::image_value::ImageValue;
+use vcard::{Set, VCard};
 
 use crate::blob::BlobObject;
 use crate::chat::{self, Chat};
@@ -991,13 +995,24 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
 
         if self.attach_selfavatar {
             match context.get_config(Config::Selfavatar).await {
-                Some(path) => match build_selfavatar_file(context, &path) {
-                    Ok((part, filename)) => {
-                        parts.push(part);
-                        protected_headers.push(Header::new("Chat-User-Avatar".into(), filename))
-                    }
-                    Err(err) => warn!(context, "mimefactory: cannot attach selfavatar: {}", err),
-                },
+                Some(path) => {
+                    match build_selfavatar_file(context, &path) {
+                        Ok((part, filename)) => {
+                            parts.push(part);
+                            protected_headers.push(Header::new("Chat-User-Avatar".into(), filename))
+                        }
+                        Err(err) => {
+                            warn!(context, "mimefactory: cannot attach selfavatar: {}", err)
+                        }
+                    };
+
+                    match build_vcard_part(context, &path) {
+                        Ok(part) => {
+                            parts.push(part);
+                        }
+                        Err(err) => warn!(context, "mimefactory: cannot build vCard: {}", err),
+                    };
+                }
                 None => protected_headers.push(Header::new("Chat-User-Avatar".into(), "0".into())),
             }
         }
@@ -1197,6 +1212,36 @@ async fn build_body_file(
         .body(encoded_body);
 
     Ok((mail, filename_to_send))
+}
+
+fn build_vcard_file(context: &Context, avatar_path: &str) -> Result<String, Error> {
+    let avatar_blob = BlobObject::from_path(context, avatar_path)?;
+
+    let mut vcard = VCard::from_formatted_name_str("Display name goes here")?;
+    // TODO: add KIND:individual
+    let mut photos = HashSet::new();
+    if let Ok(image_value) = ImageValue::from_file(avatar_blob.to_abs_path()) {
+        let photo = Photo::from_image_value(image_value);
+        photos.insert(photo);
+    }
+    vcard.photos = Set::from_hash_set(photos).ok();
+    Ok(vcard.to_string())
+}
+
+fn build_vcard_part(context: &Context, avatar_path: &str) -> Result<PartBuilder, Error> {
+    let body = build_vcard_file(context, avatar_path)?;
+    let encoded_body = wrapped_base64_encode(&body.as_bytes());
+
+    let part = PartBuilder::new()
+        .content_type(&mime::TEXT_VCARD)
+        .header((
+            "Content-Disposition",
+            "attachment; filename=\"{avatar.vcf}\"",
+        ))
+        .header(("Content-Transfer-Encoding", "base64"))
+        .body(encoded_body);
+
+    Ok(part)
 }
 
 fn build_selfavatar_file(context: &Context, path: &str) -> Result<(PartBuilder, String), Error> {
