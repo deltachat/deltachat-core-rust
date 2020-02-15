@@ -4,14 +4,16 @@ use std::collections::BTreeMap;
 use std::io::Cursor;
 use std::path::Path;
 
+use num_traits::FromPrimitive;
 use pgp::composed::Deserializable;
 use pgp::ser::Serialize;
 use pgp::types::{KeyTrait, SecretKeyTrait};
 
+use crate::config::Config;
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_tools::*;
-use crate::sql::Sql;
+use crate::dc_tools::{dc_write_file, time, EmailAddress, InvalidEmailError};
+use crate::sql;
 
 // Re-export key types
 pub use crate::pgp::KeyPair;
@@ -19,11 +21,22 @@ pub use pgp::composed::{SignedPublicKey, SignedSecretKey};
 
 /// Error type for deltachat key handling.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum Error {
     #[error("Could not decode base64")]
     Base64Decode(#[from] base64::DecodeError),
-    #[error("rPGP error: {0}")]
-    PgpError(#[from] pgp::errors::Error),
+    #[error("rPGP error: {}", _0)]
+    Pgp(#[from] pgp::errors::Error),
+    #[error("Failed to generate PGP key: {}", _0)]
+    Keygen(#[from] crate::pgp::PgpKeygenError),
+    #[error("Failed to load key: {}", _0)]
+    LoadKey(#[from] sql::Error),
+    #[error("Failed to save generated key: {}", _0)]
+    StoreKey(#[from] SaveKeyError),
+    #[error("No address configured")]
+    NoConfiguredAddr,
+    #[error("Configured address is invalid: {}", _0)]
+    InvalidConfiguredAddr(#[from] InvalidEmailError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -51,6 +64,9 @@ pub trait DcKey: Serialize + Deserializable {
         Self::from_slice(&bytes)
     }
 
+    /// Load the users' default key from the database.
+    fn load_self(context: &Context) -> Result<Self::KeyType>;
+
     /// Serialise the key to a base64 string.
     fn to_base64(&self) -> String {
         // Not using Serialize::to_bytes() to make clear *why* it is
@@ -65,10 +81,91 @@ pub trait DcKey: Serialize + Deserializable {
 
 impl DcKey for SignedPublicKey {
     type KeyType = SignedPublicKey;
+
+    fn load_self(context: &Context) -> Result<Self::KeyType> {
+        match context.sql.query_row(
+            r#"
+            SELECT public_key
+              FROM keypairs
+             WHERE addr=(SELECT value FROM config WHERE keyname="configured_addr")
+               AND is_default=1;
+            "#,
+            params![],
+            |row| row.get::<_, Vec<u8>>(0),
+        ) {
+            Ok(bytes) => Self::from_slice(&bytes),
+            Err(sql::Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => {
+                let keypair = generate_keypair(context)?;
+                Ok(keypair.public)
+            }
+            Err(err) => Err(err.into()),
+        }
+    }
 }
 
 impl DcKey for SignedSecretKey {
     type KeyType = SignedSecretKey;
+
+    fn load_self(context: &Context) -> Result<Self::KeyType> {
+        match context.sql.query_row(
+            r#"
+            SELECT private_key
+              FROM keypairs
+             WHERE addr=(SELECT value FROM config WHERE keyname="configured_addr")
+               AND is_default=1;
+            "#,
+            params![],
+            |row| row.get::<_, Vec<u8>>(0),
+        ) {
+            Ok(bytes) => Self::from_slice(&bytes),
+            Err(sql::Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => {
+                let keypair = generate_keypair(context)?;
+                Ok(keypair.secret)
+            }
+            Err(err) => Err(err.into()),
+        }
+    }
+}
+
+fn generate_keypair(context: &Context) -> Result<KeyPair> {
+    let addr = context
+        .get_config(Config::ConfiguredAddr)
+        .ok_or_else(|| Error::NoConfiguredAddr)?;
+    let addr = EmailAddress::new(&addr)?;
+    let _guard = context.generating_key_mutex.lock().unwrap();
+
+    // Check if the key appeared while we were waiting on the lock.
+    match context.sql.query_row(
+        r#"
+        SELECT public_key, private_key
+          FROM keypairs
+         WHERE addr=?1
+           AND is_default=1;
+        "#,
+        params![addr],
+        |row| Ok((row.get::<_, Vec<u8>>(0)?, row.get::<_, Vec<u8>>(1)?)),
+    ) {
+        Ok((pub_bytes, sec_bytes)) => Ok(KeyPair {
+            addr,
+            public: SignedPublicKey::from_slice(&pub_bytes)?,
+            secret: SignedSecretKey::from_slice(&sec_bytes)?,
+        }),
+        Err(sql::Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => {
+            let start = std::time::Instant::now();
+            let keytype = KeyGenType::from_i32(context.get_config_int(Config::KeyGenType))
+                .unwrap_or_default();
+            info!(context, "Generating keypair with type {}", keytype);
+            let keypair = crate::pgp::create_keypair(addr, keytype)?;
+            store_self_keypair(context, &keypair, KeyPairUse::Default)?;
+            info!(
+                context,
+                "Keypair generated in {:.3}s.",
+                start.elapsed().as_secs()
+            );
+            Ok(keypair)
+        }
+        Err(err) => Err(err.into()),
+    }
 }
 
 /// Cryptographic key
@@ -183,34 +280,6 @@ impl Key {
                 None
             }
         }
-    }
-
-    pub fn from_self_public(
-        context: &Context,
-        self_addr: impl AsRef<str>,
-        sql: &Sql,
-    ) -> Option<Self> {
-        let addr = self_addr.as_ref();
-
-        sql.query_get_value(
-            context,
-            "SELECT public_key FROM keypairs WHERE addr=? AND is_default=1;",
-            &[addr],
-        )
-        .and_then(|blob: Vec<u8>| Self::from_slice(&blob, KeyType::Public))
-    }
-
-    pub fn from_self_private(
-        context: &Context,
-        self_addr: impl AsRef<str>,
-        sql: &Sql,
-    ) -> Option<Self> {
-        sql.query_get_value(
-            context,
-            "SELECT private_key FROM keypairs WHERE addr=? AND is_default=1;",
-            &[self_addr.as_ref()],
-        )
-        .and_then(|blob: Vec<u8>| Self::from_slice(&blob, KeyType::Private))
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -537,6 +606,59 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
             );
             assert!(bad_key.is_none());
         }
+    }
+
+    #[test]
+    fn test_load_self_existing() {
+        let alice = alice_keypair();
+        let t = dummy_context();
+        configure_alice_keypair(&t.ctx);
+        let pubkey = SignedPublicKey::load_self(&t.ctx).unwrap();
+        assert_eq!(alice.public, pubkey);
+        let seckey = SignedSecretKey::load_self(&t.ctx).unwrap();
+        assert_eq!(alice.secret, seckey);
+    }
+
+    #[test]
+    #[ignore] // generating keys is expensive
+    fn test_load_self_generate_public() {
+        let t = dummy_context();
+        t.ctx
+            .set_config(Config::ConfiguredAddr, Some("alice@example.com"))
+            .unwrap();
+        let key = SignedPublicKey::load_self(&t.ctx);
+        assert!(key.is_ok());
+    }
+
+    #[test]
+    #[ignore] // generating keys is expensive
+    fn test_load_self_generate_secret() {
+        let t = dummy_context();
+        t.ctx
+            .set_config(Config::ConfiguredAddr, Some("alice@example.com"))
+            .unwrap();
+        let key = SignedSecretKey::load_self(&t.ctx);
+        assert!(key.is_ok());
+    }
+
+    #[test]
+    #[ignore] // generating keys is expensive
+    fn test_load_self_generate_concurrent() {
+        use std::sync::Arc;
+        use std::thread;
+
+        let t = dummy_context();
+        t.ctx
+            .set_config(Config::ConfiguredAddr, Some("alice@example.com"))
+            .unwrap();
+        let ctx = Arc::new(t.ctx);
+        let ctx0 = Arc::clone(&ctx);
+        let thr0 = thread::spawn(move || SignedPublicKey::load_self(&ctx0));
+        let ctx1 = Arc::clone(&ctx);
+        let thr1 = thread::spawn(move || SignedPublicKey::load_self(&ctx1));
+        let res0 = thr0.join().unwrap();
+        let res1 = thr1.join().unwrap();
+        assert_eq!(res0.unwrap(), res1.unwrap());
     }
 
     #[test]

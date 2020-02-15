@@ -119,7 +119,7 @@ pub fn split_armored_data(buf: &[u8]) -> Result<(BlockType, BTreeMap<String, Str
 /// since all variability is hardcoded.
 #[derive(Debug, thiserror::Error)]
 #[error("PgpKeygenError: {message}")]
-pub(crate) struct PgpKeygenError {
+pub struct PgpKeygenError {
     message: String,
     #[source]
     cause: anyhow::Error,

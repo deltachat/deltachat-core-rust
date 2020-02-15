@@ -12,7 +12,7 @@ use crate::e2ee::*;
 use crate::error::{bail, Error};
 use crate::events::Event;
 use crate::headerdef::HeaderDef;
-use crate::key::{dc_normalize_fingerprint, Key};
+use crate::key::{dc_normalize_fingerprint, DcKey, Key, SignedPublicKey};
 use crate::lot::LotState;
 use crate::message::Message;
 use crate::mimeparser::*;
@@ -135,12 +135,13 @@ pub fn dc_get_securejoin_qr(context: &Context, group_chat_id: ChatId) -> Option<
 }
 
 fn get_self_fingerprint(context: &Context) -> Option<String> {
-    if let Some(self_addr) = context.get_config(Config::ConfiguredAddr) {
-        if let Some(key) = Key::from_self_public(context, self_addr, &context.sql) {
-            return Some(key.fingerprint());
+    match SignedPublicKey::load_self(context) {
+        Ok(key) => Some(Key::from(key).fingerprint()),
+        Err(_) => {
+            warn!(context, "get_self_fingerprint(): failed to load key");
+            None
         }
     }
-    None
 }
 
 /// Take a scanned QR-code and do the setup-contact/join-group handshake.

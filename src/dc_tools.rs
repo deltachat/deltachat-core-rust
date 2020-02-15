@@ -12,7 +12,7 @@ use chrono::{Local, TimeZone};
 use rand::{thread_rng, Rng};
 
 use crate::context::Context;
-use crate::error::{bail, ensure, Error};
+use crate::error::{bail, Error};
 use crate::events::Event;
 
 pub(crate) fn dc_exactly_one_bit_set(v: i32) -> bool {
@@ -452,6 +452,23 @@ pub(crate) fn time() -> i64 {
         .as_secs() as i64
 }
 
+/// An invalid email address was encountered
+#[derive(Debug, thiserror::Error)]
+#[error("Invalid email address: {message} ({addr})")]
+pub struct InvalidEmailError {
+    message: String,
+    addr: String,
+}
+
+impl InvalidEmailError {
+    fn new(msg: impl Into<String>, addr: impl Into<String>) -> InvalidEmailError {
+        InvalidEmailError {
+            message: msg.into(),
+            addr: addr.into(),
+        }
+    }
+}
+
 /// Very simple email address wrapper.
 ///
 /// Represents an email address, right now just the `name@domain` portion.
@@ -475,7 +492,7 @@ pub struct EmailAddress {
 }
 
 impl EmailAddress {
-    pub fn new(input: &str) -> Result<Self, Error> {
+    pub fn new(input: &str) -> Result<Self, InvalidEmailError> {
         input.parse::<EmailAddress>()
     }
 }
@@ -487,32 +504,55 @@ impl fmt::Display for EmailAddress {
 }
 
 impl FromStr for EmailAddress {
-    type Err = Error;
+    type Err = InvalidEmailError;
 
     /// Performs a dead-simple parse of an email address.
-    fn from_str(input: &str) -> Result<EmailAddress, Error> {
-        ensure!(!input.is_empty(), "empty string is not valid");
+    fn from_str(input: &str) -> Result<EmailAddress, InvalidEmailError> {
+        if input.is_empty() {
+            return Err(InvalidEmailError::new("empty string is not valid", input));
+        }
         let parts: Vec<&str> = input.rsplitn(2, '@').collect();
 
+        let err = |msg: &str| {
+            Err(InvalidEmailError {
+                message: msg.to_string(),
+                addr: input.to_string(),
+            })
+        };
         match &parts[..] {
             [domain, local] => {
-                ensure!(
-                    !local.is_empty(),
-                    "empty string is not valid for local part"
-                );
-                ensure!(domain.len() > 3, "domain is too short");
-
+                if local.is_empty() {
+                    return err("empty string is not valid for local part");
+                }
+                if domain.len() <= 3 {
+                    return err("domain is too short");
+                }
                 let dot = domain.find('.');
-                ensure!(dot.is_some(), "invalid domain");
-                ensure!(dot.unwrap() < domain.len() - 2, "invalid domain");
-
+                match dot {
+                    None => {
+                        return err("invalid domain");
+                    }
+                    Some(dot_idx) => {
+                        if dot_idx >= domain.len() - 2 {
+                            return err("invalid domain");
+                        }
+                    }
+                }
                 Ok(EmailAddress {
                     local: (*local).to_string(),
                     domain: (*domain).to_string(),
                 })
             }
-            _ => bail!("missing '@' character"),
+            _ => err("missing '@' character"),
         }
+    }
+}
+
+impl rusqlite::types::ToSql for EmailAddress {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
+        let val = rusqlite::types::Value::Text(self.to_string());
+        let out = rusqlite::types::ToSqlOutput::Owned(val);
+        Ok(out)
     }
 }
 
