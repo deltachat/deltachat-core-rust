@@ -113,7 +113,7 @@ impl Sql {
         self.with_conn(|conn| conn.execute(sql, params).map_err(Into::into))
     }
 
-    fn with_conn<T, G>(&self, g: G) -> Result<T>
+    pub fn with_conn<T, G>(&self, g: G) -> Result<T>
     where
         G: FnOnce(&mut Connection) -> Result<T>,
     {
@@ -360,7 +360,7 @@ impl Sql {
             .and_then(|r| r.parse().ok())
     }
 
-    fn start_stmt(&self, stmt: impl AsRef<str>) {
+    pub fn start_stmt(&self, stmt: impl AsRef<str>) {
         if let Some(query) = self.in_use.get_cloned() {
             let bt = backtrace::Backtrace::new();
             eprintln!("old query: {}", query);
