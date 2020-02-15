@@ -880,7 +880,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
 
         if self.attach_selfavatar {
             match context.get_config(Config::Selfavatar) {
-                Some(path) => match build_selfavatar_file(context, path) {
+                Some(path) => match build_selfavatar_file(context, &path) {
                     Ok((part, filename)) => {
                         parts.push(part);
                         protected_headers.push(Header::new("Chat-User-Avatar".into(), filename))
@@ -1075,7 +1075,7 @@ fn build_body_file(
     Ok((mail, filename_to_send))
 }
 
-fn build_selfavatar_file(context: &Context, path: String) -> Result<(PartBuilder, String), Error> {
+fn build_selfavatar_file(context: &Context, path: &str) -> Result<(PartBuilder, String), Error> {
     let blob = BlobObject::from_path(context, path)?;
     let filename_to_send = match blob.suffix() {
         Some(suffix) => format!("avatar.{}", suffix),
