@@ -1,19 +1,16 @@
 //! End-to-end encryption support.
 
 use std::collections::HashSet;
-use std::convert::TryFrom;
 
 use mailparse::ParsedMail;
 use num_traits::FromPrimitive;
 
 use crate::aheader::*;
 use crate::config::Config;
-use crate::constants::KeyGenType;
 use crate::context::Context;
-use crate::dc_tools::EmailAddress;
 use crate::error::*;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
-use crate::key::{self, Key, KeyPairUse, SignedPublicKey};
+use crate::key::{DcKey, Key, SignedPublicKey, SignedSecretKey};
 use crate::keyring::*;
 use crate::peerstate::*;
 use crate::pgp;
@@ -38,7 +35,7 @@ impl EncryptHelper {
             Some(addr) => addr,
         };
 
-        let public_key = load_or_generate_self_public_key(context, &addr)?;
+        let public_key = SignedPublicKey::load_self(context)?;
 
         Ok(EncryptHelper {
             prefer_encrypt,
@@ -108,8 +105,7 @@ impl EncryptHelper {
         }
         let public_key = Key::from(self.public_key.clone());
         keyring.add_ref(&public_key);
-        let sign_key = Key::from_self_private(context, self.addr.clone(), &context.sql)
-            .ok_or_else(|| format_err!("missing own private key"))?;
+        let sign_key = Key::from(SignedSecretKey::load_self(context)?);
 
         let raw_message = mail_to_encrypt.build().as_string().into_bytes();
 
@@ -187,41 +183,6 @@ pub fn try_decrypt(
         }
     }
     Ok((out_mail, signatures))
-}
-
-/// Load public key from database or generate a new one.
-///
-/// This will load a public key from the database, generating and
-/// storing a new one when one doesn't exist yet.  Care is taken to
-/// only generate one key per context even when multiple threads call
-/// this function concurrently.
-fn load_or_generate_self_public_key(
-    context: &Context,
-    self_addr: impl AsRef<str>,
-) -> Result<SignedPublicKey> {
-    if let Some(key) = Key::from_self_public(context, &self_addr, &context.sql) {
-        return SignedPublicKey::try_from(key).map_err(|_| format_err!("Not a public key"));
-    }
-    let _guard = context.generating_key_mutex.lock().unwrap();
-
-    // Check again in case the key was generated while we were waiting for the lock.
-    if let Some(key) = Key::from_self_public(context, &self_addr, &context.sql) {
-        return SignedPublicKey::try_from(key).map_err(|_| format_err!("Not a public key"));
-    }
-
-    let start = std::time::Instant::now();
-
-    let keygen_type =
-        KeyGenType::from_i32(context.get_config_int(Config::KeyGenType)).unwrap_or_default();
-    info!(context, "Generating keypair with type {}", keygen_type);
-    let keypair = pgp::create_keypair(EmailAddress::new(self_addr.as_ref())?, keygen_type)?;
-    key::store_self_keypair(context, &keypair, KeyPairUse::Default)?;
-    info!(
-        context,
-        "Keypair generated in {:.3}s.",
-        start.elapsed().as_secs()
-    );
-    Ok(keypair.public)
 }
 
 /// Returns a reference to the encrypted payload and validates the autocrypt structure.
@@ -345,6 +306,7 @@ fn contains_report(mail: &ParsedMail<'_>) -> bool {
 ///
 /// If this succeeds you are also guaranteed that the
 /// [Config::ConfiguredAddr] is configured, this address is returned.
+// TODO, remove this once deltachat::key::Key no longer exists.
 pub fn ensure_secret_key_exists(context: &Context) -> Result<String> {
     let self_addr = context.get_config(Config::ConfiguredAddr).ok_or_else(|| {
         format_err!(concat!(
@@ -352,7 +314,7 @@ pub fn ensure_secret_key_exists(context: &Context) -> Result<String> {
             "cannot ensure secret key if not configured."
         ))
     })?;
-    load_or_generate_self_public_key(context, &self_addr)?;
+    SignedPublicKey::load_self(context)?;
     Ok(self_addr)
 }
 
@@ -401,47 +363,6 @@ Sent with my Delta Chat Messenger: https://delta.chat";
             mail.get_body().unwrap().starts_with(
                 "sidenote for all: things are trick atm recommend not to try to run with desktop or ios unless you are ready to hunt bugs")
         );
-    }
-
-    mod load_or_generate_self_public_key {
-        use super::*;
-
-        #[test]
-        fn test_existing() {
-            let t = dummy_context();
-            let addr = configure_alice_keypair(&t.ctx);
-            let key = load_or_generate_self_public_key(&t.ctx, addr);
-            assert!(key.is_ok());
-        }
-
-        #[test]
-        fn test_generate() {
-            let t = dummy_context();
-            let addr = "alice@example.org";
-            let key0 = load_or_generate_self_public_key(&t.ctx, addr);
-            assert!(key0.is_ok());
-            let key1 = load_or_generate_self_public_key(&t.ctx, addr);
-            assert!(key1.is_ok());
-            assert_eq!(key0.unwrap(), key1.unwrap());
-        }
-
-        #[test]
-        fn test_generate_concurrent() {
-            use std::sync::Arc;
-            use std::thread;
-
-            let t = dummy_context();
-            let ctx = Arc::new(t.ctx);
-            let ctx0 = Arc::clone(&ctx);
-            let thr0 =
-                thread::spawn(move || load_or_generate_self_public_key(&ctx0, "alice@example.org"));
-            let ctx1 = Arc::clone(&ctx);
-            let thr1 =
-                thread::spawn(move || load_or_generate_self_public_key(&ctx1, "alice@example.org"));
-            let res0 = thr0.join().unwrap();
-            let res1 = thr1.join().unwrap();
-            assert_eq!(res0.unwrap(), res1.unwrap());
-        }
     }
 
     #[test]

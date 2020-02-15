@@ -14,7 +14,7 @@ use crate::events::Event;
 use crate::imap::*;
 use crate::job::*;
 use crate::job_thread::JobThread;
-use crate::key::Key;
+use crate::key::{DcKey, Key, SignedPublicKey};
 use crate::login_param::LoginParam;
 use crate::lot::Lot;
 use crate::message::{self, Message, MessengerMessage, MsgId};
@@ -251,10 +251,9 @@ impl Context {
             rusqlite::NO_PARAMS,
         );
 
-        let fingerprint_str = if let Some(key) = Key::from_self_public(self, &l2.addr, &self.sql) {
-            key.fingerprint()
-        } else {
-            "<Not yet calculated>".into()
+        let fingerprint_str = match SignedPublicKey::load_self(self) {
+            Ok(key) => Key::from(key).fingerprint(),
+            Err(err) => format!("<key failure: {}>", err),
         };
 
         let inbox_watch = self.get_config_int(Config::InboxWatch);

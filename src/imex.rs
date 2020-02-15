@@ -17,7 +17,7 @@ use crate::e2ee;
 use crate::error::*;
 use crate::events::Event;
 use crate::job::*;
-use crate::key::{self, Key};
+use crate::key::{self, DcKey, Key, SignedSecretKey};
 use crate::message::{Message, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::param::*;
@@ -175,9 +175,7 @@ pub fn render_setup_file(context: &Context, passphrase: &str) -> Result<String> 
         passphrase.len() >= 2,
         "Passphrase must be at least 2 chars long."
     );
-    let self_addr = e2ee::ensure_secret_key_exists(context)?;
-    let private_key = Key::from_self_private(context, self_addr, &context.sql)
-        .ok_or_else(|| format_err!("Failed to get private key."))?;
+    let private_key = Key::from(SignedSecretKey::load_self(context)?);
     let ac_headers = match context.get_config_bool(Config::E2eeEnabled) {
         false => None,
         true => Some(("Autocrypt-Prefer-Encrypt", "mutual")),
