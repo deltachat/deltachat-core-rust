@@ -68,7 +68,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
     pub fn from_msg(
         context: &'a Context,
         msg: &'b Message,
-        add_selfavatar: bool,
+        attach_selfavatar: bool,
     ) -> Result<MimeFactory<'a, 'b>, Error> {
         let chat = Chat::load_from_db(context, msg.chat_id)?;
 
@@ -156,7 +156,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             references,
             req_mdn,
             last_added_location_id: 0,
-            attach_selfavatar: add_selfavatar,
+            attach_selfavatar,
             context,
         };
         Ok(factory)
