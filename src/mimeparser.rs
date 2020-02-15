@@ -5,6 +5,7 @@ use lettre_email::mime::{self, Mime};
 use mailparse::{DispositionType, MailAddr, MailHeaderMap};
 
 use crate::aheader::Aheader;
+use crate::bail;
 use crate::blob::BlobObject;
 use crate::config::Config;
 use crate::constants::Viewtype;
@@ -24,7 +25,6 @@ use crate::peerstate::Peerstate;
 use crate::securejoin::handle_degrade_event;
 use crate::simplify::*;
 use crate::stock::StockMessage;
-use crate::{bail, ensure};
 
 /// A parsed MIME message.
 ///
@@ -593,11 +593,12 @@ impl MimeMessage {
         let (mime_type, msg_type) = get_mime_type(mail)?;
         let raw_mime = mail.ctype.mimetype.to_lowercase();
 
-        let filename = get_attachment_filename(mail);
+        let filename = get_attachment_filename(mail)?;
 
         let old_part_count = self.parts.len();
 
-        if let Ok(filename) = filename {
+        match filename {
+        Some(filename) => {
             self.do_add_single_file_part(
                 context,
                 msg_type,
@@ -606,10 +607,12 @@ impl MimeMessage {
                 &mail.get_body_raw()?,
                 &filename,
             );
-        } else {
+        }
+        None => {
             match mime_type.type_() {
                 mime::IMAGE | mime::AUDIO | mime::VIDEO | mime::APPLICATION => {
-                    bail!("missing attachment");
+                    warn!(context, "Missing attachment");
+                    return Ok(false);
                 }
                 mime::TEXT | mime::HTML => {
                     let decoded_data = match mail.get_body() {
@@ -648,6 +651,7 @@ impl MimeMessage {
                 }
                 _ => {}
             }
+        }
         }
 
         // add object? (we do not add all objects, eg. signatures etc. are ignored)
@@ -1001,45 +1005,48 @@ fn is_attachment_disposition(mail: &mailparse::ParsedMail<'_>) -> bool {
     false
 }
 
-fn get_attachment_filename(mail: &mailparse::ParsedMail) -> Result<String> {
+/// Tries to get attachment filename.
+///
+/// If filename is explitictly specified in Content-Disposition, it is
+/// returned. If Content-Disposition is "attachment" but filename is
+/// not specified, filename is guessed. If Content-Disposition cannot
+/// be parsed, returns an error.
+fn get_attachment_filename(mail: &mailparse::ParsedMail) -> Result<Option<String>> {
     // try to get file name from
     //    `Content-Disposition: ... filename*=...`
     // or `Content-Disposition: ... filename*0*=... filename*1*=... filename*2*=...`
     // or `Content-Disposition: ... filename=...`
 
     let ct = mail.get_content_disposition()?;
-    ensure!(
-        ct.disposition == DispositionType::Attachment,
-        "disposition not an attachment: {:?}",
-        ct.disposition
-    );
 
-    let mut desired_filename = ct
+    let desired_filename: Option<String> = ct
         .params
         .iter()
         .filter(|(key, _value)| key.starts_with("filename"))
-        .fold(String::new(), |mut acc, (_key, value)| {
-            acc += value;
-            acc
+        .fold(None, |acc, (_key, value)| {
+            if let Some(acc) = acc {
+                Some(acc + value)
+            } else {
+                Some(value.to_string())
+            }
         });
 
-    if desired_filename.is_empty() {
-        if let Some(param) = ct.params.get("name") {
-            // might be a wrongly encoded filename
-            desired_filename = param.to_string();
-        }
-    }
+    let desired_filename =
+        desired_filename.or_else(|| ct.params.get("name").map(|s| s.to_string()));
 
-    // if there is still no filename, guess one
-    if desired_filename.is_empty() {
+    // If there is no filename, but part is an attachment, guess filename
+    if ct.disposition == DispositionType::Attachment && desired_filename.is_none() {
         if let Some(subtype) = mail.ctype.mimetype.split('/').nth(1) {
-            desired_filename = format!("file.{}", subtype,);
+            Ok(Some(format!("file.{}", subtype,)))
         } else {
-            bail!("could not determine filename: {:?}", ct.disposition);
+            bail!(
+                "could not determine attachment filename: {:?}",
+                ct.disposition
+            );
         }
+    } else {
+        Ok(desired_filename)
     }
-
-    Ok(desired_filename)
 }
 
 // returned addresses are normalized and lowercased.
@@ -1151,10 +1158,12 @@ mod tests {
     fn test_get_attachment_filename() {
         let raw = include_bytes!("../test-data/message/html_attach.eml");
         let mail = mailparse::parse_mail(raw).unwrap();
-        assert!(get_attachment_filename(&mail).is_err());
-        assert!(get_attachment_filename(&mail.subparts[0]).is_err());
+        assert!(get_attachment_filename(&mail).unwrap().is_none());
+        assert!(get_attachment_filename(&mail.subparts[0])
+            .unwrap()
+            .is_none());
         let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
-        assert_eq!(filename, "test.html")
+        assert_eq!(filename, Some("test.html".to_string()))
     }
 
     #[test]
@@ -1488,5 +1497,41 @@ Additional-Message-IDs: <foo@example.com> <foo@example.net>\n\
             &message.reports[0].additional_message_ids,
             &["foo@example.com", "foo@example.net"]
         );
+    }
+
+    #[test]
+    fn test_parse_inline_attachment() {
+        let context = dummy_context();
+        let raw = br#"Date: Thu, 13 Feb 2020 22:41:20 +0000 (UTC)
+From: sender@example.com
+To: receiver@example.com
+Subject: Mail with inline attachment
+MIME-Version: 1.0
+Content-Type: multipart/mixed;
+	boundary="----=_Part_25_46172632.1581201680436"
+
+------=_Part_25_46172632.1581201680436
+Content-Type: text/plain; charset=utf-8
+
+Hello!
+
+------=_Part_25_46172632.1581201680436
+Content-Type: application/pdf; name="some_pdf.pdf"
+Content-Transfer-Encoding: base64
+Content-Disposition: inline; filename="some_pdf.pdf"
+
+JVBERi0xLjUKJcOkw7zDtsOfCjIgMCBvYmoKPDwvTGVuZ3RoIDMgMCBSL0ZpbHRlci9GbGF0ZURl
+Y29kZT4+CnN0cmVhbQp4nGVOuwoCMRDs8xVbC8aZvC4Hx4Hno7ATAhZi56MTtPH33YtXiLKQ3ZnM
+MDYyMDYxNTE1RTlDOEE4Cj4+CnN0YXJ0eHJlZgo4Mjc4CiUlRU9GCg==
+------=_Part_25_46172632.1581201680436--
+"#;
+
+        let message = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
+        assert_eq!(
+            message.get_subject(),
+            Some("Mail with inline attachment".to_string())
+        );
+
+        assert_eq!(message.parts.len(), 2);
     }
 }
