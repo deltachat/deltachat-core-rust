@@ -1184,33 +1184,31 @@ pub fn create_or_lookup_by_contact_id(
     let contact = Contact::load_from_db(context, contact_id)?;
     let chat_name = contact.get_display_name();
 
-    sql::execute(
-        context,
-        &context.sql,
-        "INSERT INTO chats (type, name, param, blocked, grpid, created_timestamp) VALUES(?, ?, ?, ?, ?, ?)",
+    context
+        .sql
+        .start_stmt("create_or_lookup_by_contact_id transaction");
+    context.sql.with_conn(|conn| {
+        let tx = conn.transaction()?;
+        tx.execute(
+        "INSERT INTO chats (type, name, param, blocked, created_timestamp) VALUES(?, ?, ?, ?, ?)",
         params![
-            100,
+            Chattype::Single,
             chat_name,
             match contact_id {
                 DC_CONTACT_ID_SELF => "K=1".to_string(), // K = Param::Selftalk
                 DC_CONTACT_ID_DEVICE => "D=1".to_string(), // D = Param::Devicetalk
-                _ => "".to_string()
+                _ => "".to_string(),
             },
             create_blocked as u8,
-            contact.get_addr(),
             time(),
         ]
-    )?;
-
-    let row_id = sql::get_rowid(context, &context.sql, "chats", "grpid", contact.get_addr());
-    let chat_id = ChatId::new(row_id);
-
-    sql::execute(
-        context,
-        &context.sql,
-        "INSERT INTO chats_contacts (chat_id, contact_id) VALUES(?, ?)",
-        params![chat_id, contact_id],
-    )?;
+        )?;
+        tx.execute(
+            "INSERT INTO chats_contacts (chat_id, contact_id) VALUES((SELECT last_insert_rowid()), ?)",
+            params![contact_id])?;
+        tx.commit()?;
+        Ok(())
+    })?;
 
     if contact_id == DC_CONTACT_ID_SELF {
         update_saved_messages_icon(context)?;
@@ -1218,7 +1216,7 @@ pub fn create_or_lookup_by_contact_id(
         update_device_icon(context)?;
     }
 
-    Ok((chat_id, create_blocked))
+    lookup_by_contact_id(context, contact_id)
 }
 
 pub fn lookup_by_contact_id(
