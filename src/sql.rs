@@ -115,11 +115,11 @@ impl Sql {
 
     fn with_conn<T, G>(&self, g: G) -> Result<T>
     where
-        G: FnOnce(&Connection) -> Result<T>,
+        G: FnOnce(&mut Connection) -> Result<T>,
     {
         let res = match &*self.pool.read().unwrap() {
             Some(pool) => {
-                let conn = pool.get()?;
+                let mut conn = pool.get()?;
 
                 // Only one process can make changes to the database at one time.
                 // busy_timeout defines, that if a second process wants write access,
@@ -130,7 +130,7 @@ impl Sql {
                 // (without a busy_timeout, sqlite3_step() would return SQLITE_BUSY _at once_)
                 conn.busy_timeout(Duration::from_secs(10))?;
 
-                g(&conn)
+                g(&mut conn)
             }
             None => Err(Error::SqlNoConnection),
         };
