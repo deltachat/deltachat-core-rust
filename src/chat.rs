@@ -2898,25 +2898,26 @@ mod tests {
     #[test]
     fn test_pinned() {
         let t = dummy_context();
+
+        // create 3 chats, wait 1 second in between to get a reliable order (we order by time)
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some("foo".to_string());
         let msg_id = add_device_msg(&t.ctx, None, Some(&mut msg)).unwrap();
         let chat_id1 = message::Message::load_from_db(&t.ctx, msg_id)
             .unwrap()
             .chat_id;
+        std::thread::sleep(std::time::Duration::from_millis(1000));
         let chat_id2 = create_by_contact_id(&t.ctx, DC_CONTACT_ID_SELF).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(1000));
         let chat_id3 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo").unwrap();
 
         let chatlist = get_chats_from_chat_list(&t.ctx, DC_GCL_NO_SPECIALS);
-        assert_eq!(chatlist, vec![chat_id3, chat_id1, chat_id2]);
+        assert_eq!(chatlist, vec![chat_id3, chat_id2, chat_id1]);
 
         // pin
-        assert!(
-            chat_id1
-                .set_visibility(&t.ctx, ChatVisibility::Pinned)
-                .is_ok()
-                == true
-        );
+        assert!(chat_id1
+            .set_visibility(&t.ctx, ChatVisibility::Pinned)
+            .is_ok());
         assert_eq!(
             Chat::load_from_db(&t.ctx, chat_id1)
                 .unwrap()
@@ -2929,12 +2930,9 @@ mod tests {
         assert_eq!(chatlist, vec![chat_id1, chat_id3, chat_id2]);
 
         // unpin
-        assert!(
-            chat_id1
-                .set_visibility(&t.ctx, ChatVisibility::Normal)
-                .is_ok()
-                == true
-        );
+        assert!(chat_id1
+            .set_visibility(&t.ctx, ChatVisibility::Normal)
+            .is_ok());
         assert_eq!(
             Chat::load_from_db(&t.ctx, chat_id1)
                 .unwrap()
@@ -2944,7 +2942,7 @@ mod tests {
 
         // check if chat order changed back
         let chatlist = get_chats_from_chat_list(&t.ctx, DC_GCL_NO_SPECIALS);
-        assert_eq!(chatlist, vec![chat_id3, chat_id1, chat_id2]);
+        assert_eq!(chatlist, vec![chat_id3, chat_id2, chat_id1]);
     }
 
     #[test]
