@@ -32,26 +32,28 @@ macro_rules! progress {
     };
 }
 
-// connect
-pub fn configure(context: &Context) {
-    if context.has_ongoing() {
-        warn!(context, "There is already another ongoing process running.",);
-        return;
+impl Context {
+    /// Starts a configuration job.
+    pub fn configure(&self) {
+        if self.has_ongoing() {
+            warn!(self, "There is already another ongoing process running.",);
+            return;
+        }
+        job_kill_action(self, job::Action::ConfigureImap);
+        job_add(self, job::Action::ConfigureImap, 0, Params::new(), 0);
     }
-    job_kill_action(context, job::Action::ConfigureImap);
-    job_add(context, job::Action::ConfigureImap, 0, Params::new(), 0);
-}
 
-/// Check if the context is already configured.
-pub fn dc_is_configured(context: &Context) -> bool {
-    context.sql.get_raw_config_bool(context, "configured")
+    /// Checks if the context is already configured.
+    pub fn is_configured(&self) -> bool {
+        self.sql.get_raw_config_bool(self, "configured")
+    }
 }
 
 /*******************************************************************************
  * Configure JOB
  ******************************************************************************/
 #[allow(non_snake_case, unused_must_use, clippy::cognitive_complexity)]
-pub fn JobConfigureImap(context: &Context) -> job::Status {
+pub(crate) fn JobConfigureImap(context: &Context) -> job::Status {
     if !context.sql.is_open() {
         error!(context, "Cannot configure, database not opened.",);
         progress!(context, 0);
