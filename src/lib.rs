@@ -37,7 +37,6 @@ pub mod contact;
 pub mod context;
 mod e2ee;
 mod imap;
-mod imap_client;
 pub mod imex;
 #[macro_use]
 pub mod job;

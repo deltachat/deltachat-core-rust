@@ -22,7 +22,6 @@ use crate::dc_receive_imf::{
 };
 use crate::events::Event;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
-use crate::imap_client::*;
 use crate::job::{job_add, Action};
 use crate::login_param::{CertificateChecks, LoginParam};
 use crate::message::{self, update_server_uid};
@@ -30,8 +29,11 @@ use crate::oauth2::dc_get_oauth2_access_token;
 use crate::param::Params;
 use crate::stock::StockMessage;
 
+mod client;
 mod idle;
 pub mod select_folder;
+
+use client::{Client, Session};
 
 type Result<T> = std::result::Result<T, Error>;
 

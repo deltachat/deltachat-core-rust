@@ -7,8 +7,8 @@ use std::sync::atomic::Ordering;
 use std::time::{Duration, SystemTime};
 
 use crate::context::Context;
-use crate::imap_client::*;
 
+use super::client::{IdleHandle, Session};
 use super::select_folder;
 
 type Result<T> = std::result::Result<T, Error>;
