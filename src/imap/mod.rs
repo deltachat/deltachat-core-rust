@@ -995,7 +995,6 @@ impl Imap {
         })
     }
 
-    // only returns 0 on connection problems; we should try later again in this case *
     pub fn delete_msg(
         &self,
         context: &Context,
