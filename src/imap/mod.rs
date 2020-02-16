@@ -757,14 +757,8 @@ impl Imap {
 
         if let Some(msg) = msgs.first() {
             // XXX put flags into a set and pass them to dc_receive_imf
-            let is_deleted = msg.flags().any(|flag| match flag {
-                Flag::Deleted => true,
-                _ => false,
-            });
-            let is_seen = msg.flags().any(|flag| match flag {
-                Flag::Seen => true,
-                _ => false,
-            });
+            let is_deleted = msg.flags().any(|flag| flag == Flag::Deleted);
+            let is_seen = msg.flags().any(|flag| flag == Flag::Seen);
 
             if !is_deleted && msg.body().is_some() {
                 let body = msg.body().unwrap_or_default();
