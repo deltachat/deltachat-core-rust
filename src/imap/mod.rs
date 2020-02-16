@@ -32,8 +32,10 @@ use crate::stock::StockMessage;
 mod client;
 mod idle;
 pub mod select_folder;
+mod session;
 
-use client::{Client, Session};
+use client::Client;
+use session::Session;
 
 type Result<T> = std::result::Result<T, Error>;
 

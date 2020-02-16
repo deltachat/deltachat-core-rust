@@ -8,8 +8,8 @@ use std::time::{Duration, SystemTime};
 
 use crate::context::Context;
 
-use super::client::{IdleHandle, Session};
 use super::select_folder;
+use super::session::{IdleHandle, Session};
 
 type Result<T> = std::result::Result<T, Error>;
 
