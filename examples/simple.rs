@@ -7,7 +7,6 @@ use tempfile::tempdir;
 use deltachat::chat;
 use deltachat::chatlist::*;
 use deltachat::config;
-use deltachat::configure::*;
 use deltachat::contact::*;
 use deltachat::context::*;
 use deltachat::job::{
@@ -77,7 +76,7 @@ fn main() {
     ctx.set_config(config::Config::Addr, Some("d@testrun.org"))
         .unwrap();
     ctx.set_config(config::Config::MailPw, Some(&pw)).unwrap();
-    configure(&ctx);
+    ctx.configure();
 
     thread::sleep(duration);
 

@@ -22,7 +22,6 @@ use std::sync::{Arc, Mutex, RwLock};
 
 use deltachat::chat::ChatId;
 use deltachat::config;
-use deltachat::configure::*;
 use deltachat::context::*;
 use deltachat::job::*;
 use deltachat::oauth2::*;
@@ -463,7 +462,7 @@ fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult, failu
         }
         "configure" => {
             start_threads(ctx.clone());
-            configure(&ctx.read().unwrap());
+            ctx.read().unwrap().configure();
         }
         "oauth2" => {
             if let Some(addr) = ctx.read().unwrap().get_config(config::Config::Addr) {

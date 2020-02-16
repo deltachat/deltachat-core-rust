@@ -10,7 +10,6 @@ use crate::blob::BlobObject;
 use crate::chat;
 use crate::chat::delete_and_reset_all_device_msgs;
 use crate::config::Config;
-use crate::configure::*;
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_tools::*;
@@ -414,7 +413,7 @@ fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) -> Resul
     );
 
     ensure!(
-        !dc_is_configured(context),
+        !context.is_configured(),
         "Cannot import backups to accounts in use."
     );
     context.sql.close(&context);

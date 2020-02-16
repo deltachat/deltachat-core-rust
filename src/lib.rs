@@ -31,7 +31,7 @@ pub mod blob;
 pub mod chat;
 pub mod chatlist;
 pub mod config;
-pub mod configure;
+mod configure;
 pub mod constants;
 pub mod contact;
 pub mod context;

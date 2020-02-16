@@ -488,9 +488,7 @@ pub unsafe extern "C" fn dc_configure(context: *mut dc_context_t) {
         return;
     }
     let ffi_context = &*context;
-    ffi_context
-        .with_inner(|ctx| configure::configure(ctx))
-        .unwrap_or(())
+    ffi_context.with_inner(|ctx| ctx.configure()).unwrap_or(())
 }
 
 #[no_mangle]
@@ -501,7 +499,7 @@ pub unsafe extern "C" fn dc_is_configured(context: *mut dc_context_t) -> libc::c
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| configure::dc_is_configured(ctx) as libc::c_int)
+        .with_inner(|ctx| ctx.is_configured() as libc::c_int)
         .unwrap_or(0)
 }
 
