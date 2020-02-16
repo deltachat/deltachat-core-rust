@@ -755,16 +755,7 @@ impl Imap {
             return Err(Error::Other("Could not get IMAP session".to_string()));
         };
 
-        if msgs.is_empty() {
-            warn!(
-                context,
-                "Message #{} does not exist in folder \"{}\".",
-                server_uid,
-                folder.as_ref()
-            );
-        } else {
-            let msg = &msgs[0];
-
+        if let Some(msg) = msgs.first() {
             // XXX put flags into a set and pass them to dc_receive_imf
             let is_deleted = msg.flags().any(|flag| match flag {
                 Flag::Deleted => true,
@@ -789,6 +780,13 @@ impl Imap {
                     );
                 }
             }
+        } else {
+            warn!(
+                context,
+                "Message #{} does not exist in folder \"{}\".",
+                server_uid,
+                folder.as_ref()
+            );
         }
 
         Ok(())
