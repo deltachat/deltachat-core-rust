@@ -1,6 +1,5 @@
 use async_imap::{
     error::Result as ImapResult,
-    extensions::idle::Handle as ImapIdleHandle,
     types::{Capabilities, Fetch, Mailbox, Name},
     Session as ImapSession,
 };
@@ -12,12 +11,6 @@ use async_std::prelude::*;
 pub(crate) enum Session {
     Secure(ImapSession<TlsStream<TcpStream>>),
     Insecure(ImapSession<TcpStream>),
-}
-
-#[derive(Debug)]
-pub(crate) enum IdleHandle {
-    Secure(ImapIdleHandle<TlsStream<TcpStream>>),
-    Insecure(ImapIdleHandle<TcpStream>),
 }
 
 impl Session {
@@ -128,19 +121,6 @@ impl Session {
         };
 
         Ok(res)
-    }
-
-    pub fn idle(self) -> IdleHandle {
-        match self {
-            Session::Secure(i) => {
-                let h = i.idle();
-                IdleHandle::Secure(h)
-            }
-            Session::Insecure(i) => {
-                let h = i.idle();
-                IdleHandle::Insecure(h)
-            }
-        }
     }
 
     pub async fn uid_store<S1, S2>(&mut self, uid_set: S1, query: S2) -> ImapResult<Vec<Fetch>>

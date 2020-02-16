@@ -1,6 +1,8 @@
 use super::Imap;
 
-use async_imap::extensions::idle::IdleResponse;
+use async_imap::extensions::idle::{Handle as ImapIdleHandle, IdleResponse};
+use async_native_tls::TlsStream;
+use async_std::net::TcpStream;
 use async_std::prelude::*;
 use async_std::task;
 use std::sync::atomic::Ordering;
@@ -9,7 +11,7 @@ use std::time::{Duration, SystemTime};
 use crate::context::Context;
 
 use super::select_folder;
-use super::session::{IdleHandle, Session};
+use super::session::Session;
 
 type Result<T> = std::result::Result<T, Error>;
 
@@ -34,6 +36,27 @@ pub enum Error {
 impl From<select_folder::Error> for Error {
     fn from(err: select_folder::Error) -> Error {
         Error::SelectFolderError(err)
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum IdleHandle {
+    Secure(ImapIdleHandle<TlsStream<TcpStream>>),
+    Insecure(ImapIdleHandle<TcpStream>),
+}
+
+impl Session {
+    pub fn idle(self) -> IdleHandle {
+        match self {
+            Session::Secure(i) => {
+                let h = i.idle();
+                IdleHandle::Secure(h)
+            }
+            Session::Insecure(i) => {
+                let h = i.idle();
+                IdleHandle::Insecure(h)
+            }
+        }
     }
 }
 
