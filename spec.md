@@ -17,6 +17,9 @@ while staying compatible to existing MUAs.
     - [Change group name](#change-group-name)
     - [Set group image](#set-group-image)
 - [Set profile image](#set-profile-image)
+- [Locations](#locations)
+    - [User locations](#user-locations)
+    - [Points of interest](#points-of-interest)
 - [Miscellaneous](#miscellaneous)
 
 
@@ -330,6 +333,64 @@ eg. there may be a `Chat-User-Avatar` and a `Chat-Group-Avatar` header
 in the same message.
 To save data, it is RECOMMENDED to add a `Chat-User-Avatar` header
 only on image changes.
+
+
+# Locations
+
+Locations can be attachted to messages using
+[standard kml-files](https://www.opengeospatial.org/standards/kml/)
+with well-known names.
+
+
+## User locations
+
+To send the location of the sender,
+the app can attach a file with the name `location.kml`.
+The file can contain one or more locations.
+Apps that support location streaming will typically collect some location events
+and send them together in one file.
+As each location has an independent timestamp,
+the apps can show the location as a track.
+
+Note that the `addr` attribute inside the  `location.kml` file
+MUST match the users email-address.
+Otherwise, the file is discarded silently;
+this is to protect against getting wrong locations,
+eg. forwarded from a normal MUA.
+
+    <?xml version="1.0" encoding="UTF-8"?>
+    <kml xmlns="http://www.opengis.net/kml/2.2">
+      <Document addr="ndh@deltachat.de">
+        <Placemark>
+          <Timestamp><when>2020-01-11T20:40:19Z</when></Timestamp>
+          <Point><coordinates accuracy="1.2">1.234,5.678</coordinates></Point>
+        </Placemark>
+        <Placemark>
+          <Timestamp><when>2020-01-11T20:40:25Z</when></Timestamp>
+          <Point><coordinates accuracy="5.4">7.654,3.21</coordinates></Point>
+        </Placemark>
+      </Document>
+    </kml>
+
+
+## Points of interest
+
+To send an "Point of interest", a POI,
+use a normal message and attach a file with the name  `message.kml`.
+In contrast to user locations, this file should contain only one location
+and an address-attribute is not needed -
+as the location belongs to the message content,
+it is fine if the location is detected on forwarding etc.
+
+    <?xml version="1.0" encoding="UTF-8"?>
+    <kml xmlns="http://www.opengis.net/kml/2.2">
+      <Document>
+        <Placemark>
+          <Timestamp><when>2020-01-01T20:40:19Z</when></Timestamp>
+          <Point><coordinates accuracy="1.2">1.234,5.678</coordinates></Point>
+        </Placemark>
+      </Document>
+    </kml>
 
 
 # Miscellaneous
