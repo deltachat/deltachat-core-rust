@@ -150,7 +150,7 @@ pub struct KeyPair {
 pub(crate) fn create_keypair(addr: EmailAddress) -> std::result::Result<KeyPair, PgpKeygenError> {
     let user_id = format!("<{}>", addr);
     let key_params = SecretKeyParamsBuilder::default()
-        .key_type(PgpKeyType::Rsa(2048))
+        .key_type(PgpKeyType::EdDSA)
         .can_create_certificates(true)
         .can_sign(true)
         .primary_user_id(user_id)
@@ -173,7 +173,7 @@ pub(crate) fn create_keypair(addr: EmailAddress) -> std::result::Result<KeyPair,
         ])
         .subkey(
             SubkeyParamsBuilder::default()
-                .key_type(PgpKeyType::Rsa(2048))
+                .key_type(PgpKeyType::ECDH)
                 .can_encrypt(true)
                 .passphrase(None)
                 .build()
