@@ -364,6 +364,12 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    also show all mails of confirmed contacts,
  *                    DC_SHOW_EMAILS_ALL (2)=
  *                    also show mails of unconfirmed contacts in the deaddrop.
+ * - `key_gen_type` = DC_KEY_GEN_DEFAULT (0)=
+ *                    generate recommended key type (default),
+ *                    DC_KEY_GEN_RSA2048 (1)=
+ *                    generate RSA 2048 keypair
+ *                    DC_KEY_GEN_ED25519 (2)=
+ *                    generate Ed25519 keypair
  * - `save_mime_headers` = 1=save mime headers
  *                    and make dc_get_mime_headers() work for subsequent calls,
  *                    0=do not save mime headers (default)
@@ -4528,6 +4534,13 @@ void            dc_array_add_id              (dc_array_t*, uint32_t); // depreca
 #define DC_SHOW_EMAILS_OFF               0
 #define DC_SHOW_EMAILS_ACCEPTED_CONTACTS 1
 #define DC_SHOW_EMAILS_ALL               2
+
+/*
+ * Values for dc_get|set_config("key_gen_type")
+ */
+#define DC_KEY_GEN_DEFAULT 0
+#define DC_KEY_GEN_RSA2048 1
+#define DC_KEY_GEN_ED25519 2
 
 
 /**

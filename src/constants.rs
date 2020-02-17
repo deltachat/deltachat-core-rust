@@ -57,6 +57,20 @@ impl Default for ShowEmails {
     }
 }
 
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql)]
+#[repr(u8)]
+pub enum KeyGenType {
+    Default = 0,
+    Rsa2048 = 1,
+    Ed25519 = 2,
+}
+
+impl Default for KeyGenType {
+    fn default() -> Self {
+        KeyGenType::Default
+    }
+}
+
 pub const DC_HANDSHAKE_CONTINUE_NORMAL_PROCESSING: i32 = 0x01;
 pub const DC_HANDSHAKE_STOP_NORMAL_PROCESSING: i32 = 0x02;
 pub const DC_HANDSHAKE_ADD_DELETE_JOB: i32 = 0x04;
