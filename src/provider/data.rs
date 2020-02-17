@@ -20,6 +20,16 @@ lazy_static::lazy_static! {
         ],
     };
 
+    // aol.md: aol.com
+    static ref P_AOL: Provider = Provider {
+        status: Status::BROKEN,
+        before_login_hint: "You can't use Delta Chat to login to AOL.",
+        after_login_hint: "Seems like you logged in anyway, congratulations! 🎉 Feel free to tell us at https://github.com/deltachat/provider-db/issues that AOL works again.",
+        overview_page: "https://providers.delta.chat/aol",
+        server: vec![
+        ],
+    };
+
     // autistici.org.md: autistici.org
     static ref P_AUTISTICI_ORG: Provider = Provider {
         status: Status::OK,
@@ -62,6 +72,16 @@ lazy_static::lazy_static! {
         server: vec![
             Server { protocol: IMAP, socket: SSL, hostname: "imap.example.com", port: 1337, username_pattern: EMAIL },
             Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp.example.com", port: 1337, username_pattern: EMAIL },
+        ],
+    };
+
+    // fastmail.md: fastmail.com
+    static ref P_FASTMAIL: Provider = Provider {
+        status: Status::PREPARATION,
+        before_login_hint: "You must create an app-specific password for Delta Chat before you can log in.",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/fastmail",
+        server: vec![
         ],
     };
 
@@ -165,11 +185,31 @@ lazy_static::lazy_static! {
         ],
     };
 
+    // protonmail.md: protonmail.com, protonmail.ch
+    static ref P_PROTONMAIL: Provider = Provider {
+        status: Status::BROKEN,
+        before_login_hint: "Protonmail does not offer the standard IMAP e-mail protocol, so you cannot log in with Delta Chat to Protonmail.",
+        after_login_hint: "To use Delta Chat with Protonmail, the IMAP bridge must be running in the background. If you have connectivity issues, double check whether it works as expected.",
+        overview_page: "https://providers.delta.chat/protonmail",
+        server: vec![
+        ],
+    };
+
     // riseup.net.md: riseup.net
     // - skipping provider with status OK and no special things to do
 
     // rogers.com.md: rogers.com
     // - skipping provider with status OK and no special things to do
+
+    // t-online.md: t-online.de, magenta.de
+    static ref P_T_ONLINE: Provider = Provider {
+        status: Status::PREPARATION,
+        before_login_hint: "To use Delta Chat with a T-Online email address, you need to create an app password in the web interface.",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/t-online",
+        server: vec![
+        ],
+    };
 
     // tiscali.it.md: tiscali.it
     static ref P_TISCALI_IT: Provider = Provider {
@@ -229,15 +269,14 @@ lazy_static::lazy_static! {
         ],
     };
 
-    // zoho.com.md: zoho.com
-    // - skipping provider with status OK and no special things to do
-
     pub static ref PROVIDER_DATA: HashMap<&'static str, &'static Provider> = [
         ("aktivix.org", &*P_AKTIVIX_ORG),
+        ("aol.com", &*P_AOL),
         ("autistici.org", &*P_AUTISTICI_ORG),
         ("bluewin.ch", &*P_BLUEWIN_CH),
         ("example.com", &*P_EXAMPLE_COM),
         ("example.org", &*P_EXAMPLE_COM),
+        ("fastmail.com", &*P_FASTMAIL),
         ("freenet.de", &*P_FREENET_DE),
         ("gmail.com", &*P_GMAIL),
         ("googlemail.com", &*P_GMAIL),
@@ -260,6 +299,10 @@ lazy_static::lazy_static! {
         ("outlook.com.tr", &*P_OUTLOOK_COM),
         ("live.com", &*P_OUTLOOK_COM),
         ("posteo.de", &*P_POSTEO),
+        ("protonmail.com", &*P_PROTONMAIL),
+        ("protonmail.ch", &*P_PROTONMAIL),
+        ("t-online.de", &*P_T_ONLINE),
+        ("magenta.de", &*P_T_ONLINE),
         ("tiscali.it", &*P_TISCALI_IT),
         ("web.de", &*P_WEB_DE),
         ("email.de", &*P_WEB_DE),
