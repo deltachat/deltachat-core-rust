@@ -428,12 +428,6 @@ class TestOfflineChat:
 
 
 class TestOnlineAccount:
-    @pytest.mark.ignored
-    def test_configure_generate_key(self, acfactory):
-        # A slow test which will generate a new key.
-        ac = acfactory.get_one_online_account(pre_generated_key=False)
-        ac.check_is_configured()
-
     def get_chat(self, ac1, ac2, both_created=False):
         c2 = ac1.create_contact(email=ac2.get_config("addr"))
         chat = ac1.create_chat_by_contact(c2)
@@ -441,6 +435,45 @@ class TestOnlineAccount:
         if both_created:
             ac2.create_chat_by_contact(ac2.create_contact(email=ac1.get_config("addr")))
         return chat
+
+    @pytest.mark.ignored
+    def test_configure_generate_key(self, acfactory, lp):
+        # A slow test which will generate new keys.
+        ac1 = acfactory.get_online_configuring_account(
+            pre_generated_key=False,
+            config={"key_gen_type": str(const.DC_KEY_GEN_RSA2048)}
+        )
+        ac2 = acfactory.get_online_configuring_account(
+            pre_generated_key=False,
+            config={"key_gen_type": str(const.DC_KEY_GEN_ED25519)}
+        )
+        wait_configuration_progress(ac1, 1000)
+        wait_configuration_progress(ac2, 1000)
+        chat = self.get_chat(ac1, ac2, both_created=True)
+
+        lp.sec("ac1: send unencrypted message to ac2")
+        chat.send_text("message1")
+        lp.sec("ac2: waiting for message from ac1")
+        ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG")
+        msg_in = ac2.get_message_by_id(ev[2])
+        assert msg_in.text == "message1"
+        assert not msg_in.is_encrypted()
+
+        lp.sec("ac2: send encrypted message to ac1")
+        msg_in.chat.send_text("message2")
+        lp.sec("ac1: waiting for message from ac2")
+        ev = ac1._evlogger.get_matching("DC_EVENT_INCOMING_MSG")
+        msg2_in = ac1.get_message_by_id(ev[2])
+        assert msg2_in.text == "message2"
+        assert msg2_in.is_encrypted()
+
+        lp.sec("ac1: send encrypted message to ac2")
+        msg2_in.chat.send_text("message3")
+        lp.sec("ac2: waiting for message from ac1")
+        ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG")
+        msg3_in = ac1.get_message_by_id(ev[2])
+        assert msg3_in.text == "message3"
+        assert msg3_in.is_encrypted()
 
     def test_configure_canceled(self, acfactory):
         ac1 = acfactory.get_online_configuring_account()
