@@ -213,9 +213,10 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
             return ac, dict(configdict)
 
         def get_online_configuring_account(self, mvbox=False, sentbox=False,
-                                           pre_generated_key=True):
+                                           pre_generated_key=True, config={}):
             ac, configdict = self.get_online_config(
                 pre_generated_key=pre_generated_key)
+            configdict.update(config)
             ac.configure(**configdict)
             ac.start_threads(mvbox=mvbox, sentbox=sentbox)
             return ac
