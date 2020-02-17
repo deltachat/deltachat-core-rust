@@ -62,6 +62,9 @@ pub enum Config {
     #[strum(props(default = "0"))] // also change ShowEmails.default() on changes
     ShowEmails,
 
+    #[strum(props(default = "0"))]
+    KeyGenType,
+
     SaveMimeHeaders,
     ConfiguredAddr,
     ConfiguredMailServer,

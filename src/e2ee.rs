@@ -8,6 +8,7 @@ use num_traits::FromPrimitive;
 
 use crate::aheader::*;
 use crate::config::Config;
+use crate::constants::KeyGenType;
 use crate::context::Context;
 use crate::dc_tools::EmailAddress;
 use crate::error::*;
@@ -211,11 +212,11 @@ fn load_or_generate_self_public_key(
     }
 
     let start = std::time::Instant::now();
-    info!(
-        context,
-        "Generating keypair with {} bits, e={} ...", 2048, 65537,
-    );
-    let keypair = pgp::create_keypair(EmailAddress::new(self_addr.as_ref())?)?;
+
+    let keygen_type =
+        KeyGenType::from_i32(context.get_config_int(Config::KeyGenType)).unwrap_or_default();
+    info!(context, "Generating keypair with type {}", keygen_type);
+    let keypair = pgp::create_keypair(EmailAddress::new(self_addr.as_ref())?, keygen_type)?;
     key::store_self_keypair(context, &keypair, KeyPairUse::Default)?;
     info!(
         context,

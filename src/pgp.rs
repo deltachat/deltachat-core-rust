@@ -16,6 +16,7 @@ use pgp::types::{
 };
 use rand::{thread_rng, CryptoRng, Rng};
 
+use crate::constants::KeyGenType;
 use crate::dc_tools::EmailAddress;
 use crate::error::Result;
 use crate::key::*;
@@ -147,10 +148,18 @@ pub struct KeyPair {
 }
 
 /// Create a new key pair.
-pub(crate) fn create_keypair(addr: EmailAddress) -> std::result::Result<KeyPair, PgpKeygenError> {
+pub(crate) fn create_keypair(
+    addr: EmailAddress,
+    keygen_type: KeyGenType,
+) -> std::result::Result<KeyPair, PgpKeygenError> {
+    let (secret_key_type, public_key_type) = match keygen_type {
+        KeyGenType::Rsa2048 => (PgpKeyType::Rsa(2048), PgpKeyType::Rsa(2048)),
+        KeyGenType::Ed25519 | KeyGenType::Default => (PgpKeyType::EdDSA, PgpKeyType::ECDH),
+    };
+
     let user_id = format!("<{}>", addr);
     let key_params = SecretKeyParamsBuilder::default()
-        .key_type(PgpKeyType::EdDSA)
+        .key_type(secret_key_type)
         .can_create_certificates(true)
         .can_sign(true)
         .primary_user_id(user_id)
@@ -173,7 +182,7 @@ pub(crate) fn create_keypair(addr: EmailAddress) -> std::result::Result<KeyPair,
         ])
         .subkey(
             SubkeyParamsBuilder::default()
-                .key_type(PgpKeyType::ECDH)
+                .key_type(public_key_type)
                 .can_encrypt(true)
                 .passphrase(None)
                 .build()
@@ -387,8 +396,16 @@ mod tests {
     #[test]
     #[ignore] // is too expensive
     fn test_create_keypair() {
-        let keypair0 = create_keypair(EmailAddress::new("foo@bar.de").unwrap()).unwrap();
-        let keypair1 = create_keypair(EmailAddress::new("two@zwo.de").unwrap()).unwrap();
+        let keypair0 = create_keypair(
+            EmailAddress::new("foo@bar.de").unwrap(),
+            KeyGenType::Default,
+        )
+        .unwrap();
+        let keypair1 = create_keypair(
+            EmailAddress::new("two@zwo.de").unwrap(),
+            KeyGenType::Default,
+        )
+        .unwrap();
         assert_ne!(keypair0.public, keypair1.public);
     }
 

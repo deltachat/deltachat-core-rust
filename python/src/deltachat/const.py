@@ -103,6 +103,9 @@ DC_EVENT_FILE_COPIED = 2055
 DC_EVENT_IS_OFFLINE = 2081
 DC_EVENT_GET_STRING = 2091
 DC_STR_SELFNOTINGRP = 21
+DC_KEY_GEN_DEFAULT = 0
+DC_KEY_GEN_RSA2048 = 1
+DC_KEY_GEN_ED25519 = 2
 DC_PROVIDER_STATUS_OK = 1
 DC_PROVIDER_STATUS_PREPARATION = 2
 DC_PROVIDER_STATUS_BROKEN = 3
@@ -161,7 +164,7 @@ DC_STR_COUNT = 68
 
 def read_event_defines(f):
     rex = re.compile(r'#define\s+((?:DC_EVENT|DC_QR|DC_MSG|DC_LP|DC_EMPTY|DC_CERTCK|DC_STATE|DC_STR|'
-                     r'DC_CONTACT_ID|DC_GCL|DC_CHAT|DC_PROVIDER)_\S+)\s+([x\d]+).*')
+                     r'DC_CONTACT_ID|DC_GCL|DC_CHAT|DC_PROVIDER|DC_KEY_GEN)_\S+)\s+([x\d]+).*')
     for line in f:
         m = rex.match(line)
         if m:
