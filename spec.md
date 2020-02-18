@@ -1,6 +1,6 @@
 # Chat-over-Email specification
 
-Version 0.20.0
+Version 0.30.0
 
 This document describes how emails can be used
 to implement typical messenger functions
@@ -32,8 +32,7 @@ Messages SHOULD be encrypted by the
 Meta data (at least the subject and all chat-headers) SHOULD be encrypted
 by the [Memoryhole](https://github.com/autocrypt/memoryhole) standard.
 If Memoryhole is not used,
-the subject of encrypted messages SHOULD be replaced by the string
-`Chat: Encrypted message` where the part after the colon MAY be localized.
+the subject of encrypted messages SHOULD be replaced by the string `...`.
 
 
 # Outgoing messages
@@ -116,6 +115,7 @@ but MUAs typically expose the sender in the UI.
 Groups are chats with usually more than one recipient,
 each defined by an email-address.
 The sender plus the recipients are the group members.
+All group members form the member list.
 
 To allow different groups with the same members,
 groups are identified by a group-id.
@@ -138,8 +138,7 @@ The group-name MUST be written to `Chat-Group-Name` header
 to join a group chat on a second device any time).
 
 The `Subject` header of outgoing group messages
-SHOULD start with the characters `Chat:`
-followed by the group-name and a colon followed by an excerpt of the message.
+SHOULD be set to the group-name.
 
 To identify the group-id on replies from normal MUAs,
 the group-id MUST also be added to the message-id of outgoing messages.
@@ -180,12 +179,22 @@ to a normal single-user chat with the email-address given in `From`.
 
 ## Add and remove members
 
-Messenger clients MUST construct the member list
-from the `From`/`To` headers only on the first group message
-or if they see a `Chat-Group-Member-Added`
-or `Chat-Group-Member-Removed` action header.
-Both headers MUST have the email-address
-of the added or removed member as the value.
+Messenger clients MUST init the member list
+from the `From`/`To` headers on the first group message.
+
+When a member is added later,
+a `Chat-Group-Member-Added` action header must be sent
+with the value set to the email-address of the added member.
+When receiving a `Chat-Group-Member-Added` header, however,
+_all missing_ members  the `From`/`To` headers has to be added.
+This is to mitigate problems when receiving messages
+in different orders, esp. on creating new groups.
+
+To remove a member, a `Chat-Group-Member-Removed` header must be sent
+with the value set to the email-address of the member to remove.
+When receiving a `Chat-Group-Member-Removed` header,
+only exaxtly the given member has to be removed from the member list.
+
 Messenger clients MUST NOT construct the member list
 on other group messages
 (this is to avoid accidentally altered To-lists in normal MUAs;
@@ -429,4 +438,4 @@ as the sending time of the message as indicated by its Date header,
 or the time of first receipt if that date is in the future or unavailable.
 
 
-Copyright © 2017-2019 Delta Chat contributors.
+Copyright © 2017-2020 Delta Chat contributors.
