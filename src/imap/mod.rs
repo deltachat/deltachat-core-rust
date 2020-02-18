@@ -598,7 +598,7 @@ impl Imap {
 
         let mut list = if let Some(ref mut session) = &mut *self.session.lock().await {
             // fetch messages with larger UID than the last one seen
-            // (`UID FETCH lastseenuid+1:*)`, see RFC 4549
+            // `(UID FETCH lastseenuid+1:*)`, see RFC 4549
             let set = format!("{}:*", last_seen_uid + 1);
             match session.uid_fetch(set, PREFETCH_FLAGS).await {
                 Ok(list) => list,

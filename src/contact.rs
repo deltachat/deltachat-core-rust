@@ -60,7 +60,7 @@ pub struct Contact {
     /// to access this field.
     authname: String,
 
-    /// E-Mail-Address of the contact. It is recommended to use `Contact::get_addr`` to access this field.
+    /// E-Mail-Address of the contact. It is recommended to use `Contact::get_addr` to access this field.
     addr: String,
 
     /// Blocked state. Use dc_contact_is_blocked to access this field.
