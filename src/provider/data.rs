@@ -211,6 +211,19 @@ lazy_static::lazy_static! {
         ],
     };
 
+    // testrun.md: testrun.org
+    static ref P_TESTRUN: Provider = Provider {
+        status: Status::OK,
+        before_login_hint: "",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/testrun",
+        server: vec![
+            Server { protocol: IMAP, socket: SSL, hostname: "testrun.org", port: 993, username_pattern: EMAIL },
+            Server { protocol: IMAP, socket: STARTTLS, hostname: "testrun.org", port: 143, username_pattern: EMAIL },
+            Server { protocol: SMTP, socket: STARTTLS, hostname: "testrun.org", port: 587, username_pattern: EMAIL },
+        ],
+    };
+
     // tiscali.it.md: tiscali.it
     static ref P_TISCALI_IT: Provider = Provider {
         status: Status::OK,
@@ -303,6 +316,7 @@ lazy_static::lazy_static! {
         ("protonmail.ch", &*P_PROTONMAIL),
         ("t-online.de", &*P_T_ONLINE),
         ("magenta.de", &*P_T_ONLINE),
+        ("testrun.org", &*P_TESTRUN),
         ("tiscali.it", &*P_TISCALI_IT),
         ("web.de", &*P_WEB_DE),
         ("email.de", &*P_WEB_DE),
