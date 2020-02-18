@@ -985,7 +985,7 @@ fn create_or_lookup_group(
     // XXX insert code in a different PR :)
 
     // execute group commands
-    if X_MrAddToGrp.is_some() || X_MrRemoveFromGrp.is_some() {
+    if X_MrAddToGrp.is_some() {
         recreate_member_list = true;
     } else if X_MrGrpNameChanged {
         if let Some(ref grpname) = grpname {
@@ -1021,37 +1021,30 @@ fn create_or_lookup_group(
     }
 
     // add members to group/check members
-    // for recreation: we should add a timestamp
     if recreate_member_list {
-        // TODO: the member list should only be recreated if the corresponding message is newer
-        // than the one that is responsible for the current member list, see
-        // https://github.com/deltachat/deltachat-core/issues/127
-
-        let skip = X_MrRemoveFromGrp.as_ref();
-        sql::execute(
-            context,
-            &context.sql,
-            "DELETE FROM chats_contacts WHERE chat_id=?;",
-            params![chat_id],
-        )
-        .ok();
-        if skip.is_none() || !addr_cmp(&self_addr, skip.unwrap()) {
+        if !chat::is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF) {
             chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF);
         }
         if from_id > DC_CHAT_ID_LAST_SPECIAL
             && !Contact::addr_equals_contact(context, &self_addr, from_id as u32)
-            && (skip.is_none()
-                || !Contact::addr_equals_contact(context, skip.unwrap(), from_id as u32))
+            && !chat::is_contact_in_chat(context, chat_id, from_id)
         {
             chat::add_to_chat_contacts_table(context, chat_id, from_id as u32);
         }
         for &to_id in to_ids.iter() {
             info!(context, "adding to={:?} to chat id={}", to_id, chat_id);
             if !Contact::addr_equals_contact(context, &self_addr, to_id)
-                && (skip.is_none() || !Contact::addr_equals_contact(context, skip.unwrap(), to_id))
+                && !chat::is_contact_in_chat(context, chat_id, to_id)
             {
                 chat::add_to_chat_contacts_table(context, chat_id, to_id);
             }
+        }
+        send_EVENT_CHAT_MODIFIED = true;
+    } else if let Some(removed_addr) = X_MrRemoveFromGrp {
+        let contact_id = Contact::lookup_id_by_addr(context, removed_addr);
+        if contact_id != 0 {
+            info!(context, "remove {:?} from chat id={}", contact_id, chat_id);
+            chat::remove_from_chat_contacts_table(context, chat_id, contact_id);
         }
         send_EVENT_CHAT_MODIFIED = true;
     }
