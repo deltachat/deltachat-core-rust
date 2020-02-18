@@ -1025,7 +1025,7 @@ fn create_or_lookup_group(
         if !chat::is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF) {
             chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF);
         }
-        if from_id > DC_CHAT_ID_LAST_SPECIAL
+        if from_id > DC_CONTACT_ID_LAST_SPECIAL
             && !Contact::addr_equals_contact(context, &self_addr, from_id as u32)
             && !chat::is_contact_in_chat(context, chat_id, from_id)
         {
