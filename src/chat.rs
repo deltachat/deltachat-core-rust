@@ -1750,8 +1750,6 @@ pub fn create_group_chat(
     Ok(chat_id)
 }
 
-/* you MUST NOT modify this or the following strings */
-// Context functions to work with chats
 pub fn add_to_chat_contacts_table(context: &Context, chat_id: ChatId, contact_id: u32) -> bool {
     // add a contact to a chat; the function does not check the type or if any of the record exist or are already
     // added to the chat!
@@ -1759,6 +1757,22 @@ pub fn add_to_chat_contacts_table(context: &Context, chat_id: ChatId, contact_id
         context,
         &context.sql,
         "INSERT INTO chats_contacts (chat_id, contact_id) VALUES(?, ?)",
+        params![chat_id, contact_id as i32],
+    )
+    .is_ok()
+}
+
+pub fn remove_from_chat_contacts_table(
+    context: &Context,
+    chat_id: ChatId,
+    contact_id: u32,
+) -> bool {
+    // remove a contact from the chats_contact table unconditionally
+    // the function does not check the type or if the record exist
+    sql::execute(
+        context,
+        &context.sql,
+        "DELETE FROM chats_contacts WHERE chat_id=? AND contact_id=?",
         params![chat_id, contact_id as i32],
     )
     .is_ok()
@@ -2075,14 +2089,7 @@ pub fn remove_contact_from_chat(
                         });
                     }
                 }
-                if sql::execute(
-                    context,
-                    &context.sql,
-                    "DELETE FROM chats_contacts WHERE chat_id=? AND contact_id=?;",
-                    params![chat_id, contact_id as i32],
-                )
-                .is_ok()
-                {
+                if remove_from_chat_contacts_table(context, chat_id, contact_id) {
                     context.call_cb(Event::ChatModified(chat_id));
                     success = true;
                 }
