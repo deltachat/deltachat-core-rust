@@ -28,9 +28,10 @@ For reference, please see https://github.com/deltachat/deltachat-core-rust/blob/
 
 - If an incoming member-add/member-delete messages has a member list
   which is, apart from the added/removed member, not consistent
-  with our own view, send a "Chat-Group-Member-Correction" message out,
-  attaching the original added/removed mime-message for all mismatching contacts.
-  If we have no relevant add/del information, don't send a correction message out.
+  with our own view, broadcast a "Chat-Group-Member-Correction" message to
+  all members, attaching the original added/removed mime-message for all mismatching
+  contacts.  If we have no relevant add/del information, don't send a
+  correction message out.
 
 - Upong receiving added/removed attachments we don't do the
   check_consistency+correction message dance.
@@ -53,10 +54,33 @@ Notes:
 - somewhat backward compatible: older clients will probably ignore
   messages which are signed by someone who is not the outer From-address.
 
+- the correction-protocol also helps with dropped messages.  If a member
+  did not see a member-added/removed message, the next member add/removed
+  message in the group will likely heal group consistency for this member.
+
 - we can quite easily extend the mechanism to also provide the group-avatar or
   other meta-information.
 
+Discussions of variants
+++++++++++++++++++++++++
 
+- instead of acting on MemberAdded/Removed message we could send
+  corrections for any received message that addresses inconsistent group members but
+  a) this would delay group-membership healing
+  b) could lead to a lot of members sending corrections
+
+- instead of broadcasting correction messages we could only send it to
+  the sender of the inconsistent member-added/removed message.
+  A receiver of such a correction message would then need to forward
+  the message to the members it thinks also have an inconsistent view.
+  This sounds complicated and error-prone.  Concretely, if Alice
+  receives Bob's "Member-added: Doris" message, then Alice
+  broadcasting the correction message with "Member-added: Carol"
+  would reach all four members, healing group consistency in one step.
+  If Bob meanwhile receives Alice's "Member-Added: Carol" message,
+  Bob would broadcast a correction message to all four members as well.
+  (Imagine a situation where Alice/Bob added Carol/Doris
+  while both being in an offline or bad-connection situation).
 
 
 solution2: repeat member-added/removed messages
