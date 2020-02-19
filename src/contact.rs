@@ -356,7 +356,9 @@ impl Contact {
 
                 if !name.as_ref().is_empty() {
                     if !row_name.is_empty() {
-                        if origin >= row_origin && name.as_ref() != row_name {
+                        if (origin >= row_origin || row_name == row_authname)
+                            && name.as_ref() != row_name
+                        {
                             update_name = true;
                         }
                     } else {
@@ -365,6 +367,9 @@ impl Contact {
                     if origin == Origin::IncomingUnknownFrom && name.as_ref() != row_authname {
                         update_authname = true;
                     }
+                } else if origin == Origin::ManuallyCreated && !row_authname.is_empty() {
+                    // no name given on manual edit, this will update the name to the authname
+                    update_name = true;
                 }
 
                 Ok((row_id, row_name, row_addr, row_origin, row_authname))
@@ -375,16 +380,22 @@ impl Contact {
                 update_addr = true;
             }
             if update_name || update_authname || update_addr || origin > row_origin {
+                let new_name = if update_name {
+                    if !name.as_ref().is_empty() {
+                        name.as_ref()
+                    } else {
+                        &row_authname
+                    }
+                } else {
+                    &row_name
+                };
+
                 sql::execute(
                     context,
                     &context.sql,
                     "UPDATE contacts SET name=?, addr=?, origin=?, authname=? WHERE id=?;",
                     params![
-                        if update_name {
-                            name.as_ref()
-                        } else {
-                            &row_name
-                        },
+                        new_name,
                         if update_addr { addr } else { &row_addr },
                         if origin > row_origin {
                             origin
@@ -402,11 +413,13 @@ impl Contact {
                 .ok();
 
                 if update_name {
+                    // Update the contact name also if it is used as a group name.
+                    // This is one of the few duplicated data, however, getting the chat list is easier this way.
                     sql::execute(
                     context,
                     &context.sql,
                     "UPDATE chats SET name=? WHERE type=? AND id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?);",
-                    params![name.as_ref(), Chattype::Single, row_id]
+                    params![new_name, Chattype::Single, row_id]
                 ).ok();
                 }
                 sth_modified = Modifier::Modified;
