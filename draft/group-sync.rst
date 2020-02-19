@@ -16,8 +16,12 @@ the new members will miss each other's additions, example:
 Note that for verified groups any mitigation mechanism likely
 needs to make all clients to know who originally added a member.
 
+
 solution: memorize+attach (possible encrypted) chat-meta mime messages
 ----------------------------------------------------------------------
+
+For reference, please see https://github.com/deltachat/deltachat-core-rust/blob/master/spec.md#add-and-remove-members how MemberAdded/Removed messages are shaped.
+
 
 - All Chat-Group-Member-Added/Removed messages are recorded in their
   full raw (signed and encrypted) mime-format in the DB
@@ -29,8 +33,8 @@ solution: memorize+attach (possible encrypted) chat-meta mime messages
   If we have no relevant add/del information, don't send a correction message out.
 
 - Upong receiving added/removed attachments we don't do the
-  check_consistency+correction message dance.  This avoids recursion problems
-  and hard-to-reason-about chatter.
+  check_consistency+correction message dance.
+  This avoids recursion problems and hard-to-reason-about chatter.
 
 Notes:
 
