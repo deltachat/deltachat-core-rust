@@ -193,14 +193,24 @@ impl Job {
             Err(crate::smtp::send::Error::SendError(err)) => {
                 // Remote error, retry later.
                 warn!(context, "SMTP failed to send: {}", err);
-                smtp.disconnect();
                 self.pending_error = Some(err.to_string());
+
+                // if the connection was successfully used more than 60
+                // seconds ago, try an immediate reconnect.
+                let mut res = Status::RetryLater;
                 if let Some(secs) = smtp.secs_since_last_success() {
                     if secs > 60 {
-                        return Status::RetryNow;
+                        info!(
+                            context,
+                            "SMTP connection was stale, triggering immediate reconnect"
+                        );
+                        res = Status::RetryNow;
                     }
                 }
-                Status::RetryLater
+                // this clears last_success info
+                smtp.disconnect();
+
+                res
             }
             Err(crate::smtp::send::Error::EnvelopeError(err)) => {
                 // Local error, job is invalid, do not retry.
