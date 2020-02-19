@@ -205,17 +205,12 @@ impl Job {
                         Status::RetryLater
                     }
                     _ => {
-                        // if the connection was successfully used more than 60
-                        // seconds ago, try an immediate reconnect.
-                        let mut res2 = Status::RetryLater;
-                        if let Some(secs) = smtp.secs_since_last_success() {
-                            if secs > 60 {
-                                info!(context, "stale connection? triggering reconnect");
-                                res2 = Status::RetryNow;
-                            }
+                        if smtp.has_maybe_stale_connection() {
+                            info!(context, "stale connection? immediately reconnecting");
+                            Status::RetryNow
+                        } else {
+                            Status::RetryLater
                         }
-
-                        res2
                     }
                 };
 
