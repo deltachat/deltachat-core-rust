@@ -57,7 +57,7 @@ pub struct Smtp {
     /// Email address we are sending from.
     from: Option<EmailAddress>,
 
-    /// Timestamp of last successfull send/receive network interaction
+    /// Timestamp of last successful send/receive network interaction
     /// (eg connect or send succeeded). On initialization and disconnect
     /// it is set to None.
     last_success: Option<Instant>,
