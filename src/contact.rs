@@ -1280,6 +1280,7 @@ mod tests {
     fn test_remote_authnames() {
         let t = dummy_context();
 
+        // incoming mail `From: bob1 <bob@example.org>` - this should init authname and name
         let (contact_id, sth_modified) = Contact::add_or_lookup(
             &t.ctx,
             "bob1",
@@ -1294,6 +1295,7 @@ mod tests {
         assert_eq!(contact.get_name(), "bob1");
         assert_eq!(contact.get_display_name(), "bob1");
 
+        // incoming mail `From: bob2 <bob@example.org>` - this should update authname and name
         let (contact_id, sth_modified) = Contact::add_or_lookup(
             &t.ctx,
             "bob2",
@@ -1308,16 +1310,15 @@ mod tests {
         assert_eq!(contact.get_name(), "bob2");
         assert_eq!(contact.get_display_name(), "bob2");
 
-        let (contact_id, sth_modified) =
-            Contact::add_or_lookup(&t.ctx, "bob3", "bob@example.org", Origin::ManuallyCreated)
-                .unwrap();
+        // manually edit name to "bob3" - authname should be still be "bob2" a given in `From:` above
+        let contact_id = Contact::create(&t.ctx, "bob3", "bob@example.org").unwrap();
         assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
-        assert_eq!(sth_modified, Modifier::Modified);
         let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
         assert_eq!(contact.get_authname(), "bob2");
         assert_eq!(contact.get_name(), "bob3");
         assert_eq!(contact.get_display_name(), "bob3");
 
+        // incoming mail `From: bob4 <bob@example.org>` - this should update authname, manually given name is still "bob3"
         let (contact_id, sth_modified) = Contact::add_or_lookup(
             &t.ctx,
             "bob4",
@@ -1331,6 +1332,81 @@ mod tests {
         assert_eq!(contact.get_authname(), "bob4");
         assert_eq!(contact.get_name(), "bob3");
         assert_eq!(contact.get_display_name(), "bob3");
+    }
+
+    #[test]
+    fn test_remote_authnames_create_empty() {
+        let t = dummy_context();
+
+        // manually create "claire@example.org" without a given name
+        let contact_id = Contact::create(&t.ctx, "", "claire@example.org").unwrap();
+        assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
+        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        assert_eq!(contact.get_authname(), "");
+        assert_eq!(contact.get_name(), "");
+        assert_eq!(contact.get_display_name(), "claire@example.org");
+
+        // incoming mail `From: claire1 <claire@example.org>` - this should update authname and name
+        let (contact_id_same, sth_modified) = Contact::add_or_lookup(
+            &t.ctx,
+            "claire1",
+            "claire@example.org",
+            Origin::IncomingUnknownFrom,
+        )
+        .unwrap();
+        assert_eq!(contact_id, contact_id_same);
+        assert_eq!(sth_modified, Modifier::Modified);
+        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        assert_eq!(contact.get_authname(), "claire1");
+        assert_eq!(contact.get_name(), "claire1");
+        assert_eq!(contact.get_display_name(), "claire1");
+
+        // incoming mail `From: claire2 <claire@example.org>` - this should update authname and name
+        let (contact_id_same, sth_modified) = Contact::add_or_lookup(
+            &t.ctx,
+            "claire2",
+            "claire@example.org",
+            Origin::IncomingUnknownFrom,
+        )
+        .unwrap();
+        assert_eq!(contact_id, contact_id_same);
+        assert_eq!(sth_modified, Modifier::Modified);
+        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        assert_eq!(contact.get_authname(), "claire2");
+        assert_eq!(contact.get_name(), "claire2");
+        assert_eq!(contact.get_display_name(), "claire2");
+    }
+
+    #[test]
+    fn test_remote_authnames_edit_empty() {
+        let t = dummy_context();
+
+        // manually create "dave@example.org"
+        let contact_id = Contact::create(&t.ctx, "dave1", "dave@example.org").unwrap();
+        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        assert_eq!(contact.get_authname(), "");
+        assert_eq!(contact.get_name(), "dave1");
+        assert_eq!(contact.get_display_name(), "dave1");
+
+        // incoming mail `From: dave2 <dave@example.org>` - this should update authname
+        Contact::add_or_lookup(
+            &t.ctx,
+            "dave2",
+            "dave@example.org",
+            Origin::IncomingUnknownFrom,
+        )
+        .unwrap();
+        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        assert_eq!(contact.get_authname(), "dave2");
+        assert_eq!(contact.get_name(), "dave1");
+        assert_eq!(contact.get_display_name(), "dave1");
+
+        // manually clear the name
+        Contact::create(&t.ctx, "", "dave@example.org").unwrap();
+        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        assert_eq!(contact.get_authname(), "dave2");
+        assert_eq!(contact.get_name(), "dave2");
+        assert_eq!(contact.get_display_name(), "dave2");
     }
 
     #[test]
