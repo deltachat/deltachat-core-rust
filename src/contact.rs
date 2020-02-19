@@ -300,6 +300,28 @@ impl Contact {
     }
 
     /// Lookup a contact and create it if it does not exist yet.
+    /// The contact is identified by the email-address, a name and an "origin" can be given.
+    ///
+    /// The "origin" is where the address comes from -
+    /// from-header, cc-header, addressbook, qr, manual-edit etc.
+    /// In general, "better" origins overwrite the names of "worse" origins -
+    /// Eg. if we got a name in cc-header and later in from-header, the name will change -
+    /// this does not happen the other way round.
+    ///
+    /// The "best" origin are manually created contacts -
+    /// names given manually can only be overwritten by further manual edits
+    /// (until they are set empty again or reset to the name seen in the From-header).
+    ///
+    /// These manually edited names are _never_ used for sending on the wire -
+    /// this should avoid sending sth. as "Mama" or "Daddy" to some 3rd party.
+    /// Instead, for the wire, we use so called "authnames"
+    /// that can only be set and updated by a From-header.
+    ///
+    /// The different names used in the function are:
+    /// - "name": name passed as funtion argument, belonging to the given origin
+    /// - "row_name": current name used in the database, typically set to "name"
+    /// - "row_authname": name as authorized from a contact, set only through a From-header
+    /// Depending on the origin, both, "row_name" and "row_authname" are updated from "name".
     ///
     /// Returns the contact_id and a `Modifier` value indicating if a modification occured.
     pub fn add_or_lookup(
