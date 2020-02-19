@@ -207,6 +207,20 @@ impl Job {
                         res = Status::RetryNow;
                     }
                 }
+
+                match err {
+                    async_smtp::smtp::error::Error::Permanent(_) => {
+                        res = Status::Finished(Err(format_err!("Permanent SMTP error: {}", err)))
+                    }
+                    async_smtp::smtp::error::Error::Transient(_) => {
+                        // We got a 4xx response from SMTP server.
+                        // Do not retry right now, wait until the error resolves on the server
+                        // side.
+                        res = Status::RetryLater;
+                    }
+                    _ => {}
+                }
+
                 // this clears last_success info
                 smtp.disconnect();
 
