@@ -26,8 +26,9 @@ solution: memorize+attach (possible encrypted) chat-meta mime messages
   which is, apart from the added/removed member, not consistent
   with our own view, send a "Chat-Group-Member-Correction" message out,
   attaching the original added/removed mime-message for all mismatching contacts.
+  If we have no relevant add/del information, don't send a correction message out.
 
-- When receiving added/removed attachments don't do the
+- Upong receiving added/removed attachments we don't do the
   check_consistency+correction message dance.  This avoids recursion problems
   and hard-to-reason-about chatter.
 
@@ -39,9 +40,10 @@ Notes:
   We could extend it to also include the payload and store mime unconditionally
   for member-added/removed messages.
 
-- multiple member-added/removed messages can be attached in a single message
+- multiple member-added/removed messages can be attached in a single
+  correction message
 
-- is minimal on the number of overall messages to reach group consistency
+- it is minimal on the number of overall messages to reach group consistency
   (best-case: no extra messages, the ABCD case above: max two extra messages)
 
 - somewhat backward compatible: older clients will probably ignore
