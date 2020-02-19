@@ -77,13 +77,13 @@ impl Smtp {
         self.last_success = None;
     }
 
-    /// Return number of seconds since last success or None if
-    /// no success-time is recorded in this session.
-    pub fn secs_since_last_success(&self) -> Option<u64> {
+    /// Return true if smtp was connected but is not known to
+    /// have been successfully used the last 60 seconds
+    pub fn has_maybe_stale_connection(&self) -> bool {
         if let Some(last_success) = self.last_success {
-            Some(Instant::now().duration_since(last_success).as_secs())
+            Instant::now().duration_since(last_success).as_secs() > 60
         } else {
-            None
+            false
         }
     }
 
