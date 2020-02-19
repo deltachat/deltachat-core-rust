@@ -195,31 +195,29 @@ impl Job {
                 warn!(context, "SMTP failed to send: {}", err);
                 self.pending_error = Some(err.to_string());
 
-                // if the connection was successfully used more than 60
-                // seconds ago, try an immediate reconnect.
-                let mut res = Status::RetryLater;
-                if let Some(secs) = smtp.secs_since_last_success() {
-                    if secs > 60 {
-                        info!(
-                            context,
-                            "SMTP connection was stale, triggering immediate reconnect"
-                        );
-                        res = Status::RetryNow;
-                    }
-                }
-
-                match err {
+                let res = match err {
                     async_smtp::smtp::error::Error::Permanent(_) => {
-                        res = Status::Finished(Err(format_err!("Permanent SMTP error: {}", err)))
+                        Status::Finished(Err(format_err!("Permanent SMTP error: {}", err)))
                     }
                     async_smtp::smtp::error::Error::Transient(_) => {
-                        // We got a 4xx response from SMTP server.
-                        // Do not retry right now, wait until the error resolves on the server
-                        // side.
-                        res = Status::RetryLater;
+                        // We got a transient 4xx response from SMTP server.
+                        // Give some time until the server-side error maybe goes away.
+                        Status::RetryLater
                     }
-                    _ => {}
-                }
+                    _ => {
+                        // if the connection was successfully used more than 60
+                        // seconds ago, try an immediate reconnect.
+                        let mut res2 = Status::RetryLater;
+                        if let Some(secs) = smtp.secs_since_last_success() {
+                            if secs > 60 {
+                                info!(context, "stale connection? triggering reconnect");
+                                res2 = Status::RetryNow;
+                            }
+                        }
+
+                        res2
+                    }
+                };
 
                 // this clears last_success info
                 smtp.disconnect();
