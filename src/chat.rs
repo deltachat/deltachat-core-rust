@@ -1114,7 +1114,7 @@ pub fn create_by_contact_id(context: &Context, contact_id: u32) -> Result<ChatId
     Ok(chat_id)
 }
 
-pub fn update_saved_messages_icon(context: &Context) -> Result<(), Error> {
+pub(crate) fn update_saved_messages_icon(context: &Context) -> Result<(), Error> {
     // if there is no saved-messages chat, there is nothing to update. this is no error.
     if let Ok((chat_id, _)) = lookup_by_contact_id(context, DC_CONTACT_ID_SELF) {
         let icon = include_bytes!("../assets/icon-saved-messages.png");
@@ -1128,7 +1128,7 @@ pub fn update_saved_messages_icon(context: &Context) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn update_device_icon(context: &Context) -> Result<(), Error> {
+pub(crate) fn update_device_icon(context: &Context) -> Result<(), Error> {
     // if there is no device-chat, there is nothing to update. this is no error.
     if let Ok((chat_id, _)) = lookup_by_contact_id(context, DC_CONTACT_ID_DEVICE) {
         let icon = include_bytes!("../assets/icon-device.png");
@@ -1162,13 +1162,13 @@ fn update_special_chat_name(
     Ok(())
 }
 
-pub fn update_special_chat_names(context: &Context) -> Result<(), Error> {
+pub(crate) fn update_special_chat_names(context: &Context) -> Result<(), Error> {
     update_special_chat_name(context, DC_CONTACT_ID_DEVICE, StockMessage::DeviceMessages)?;
     update_special_chat_name(context, DC_CONTACT_ID_SELF, StockMessage::SavedMessages)?;
     Ok(())
 }
 
-pub fn create_or_lookup_by_contact_id(
+pub(crate) fn create_or_lookup_by_contact_id(
     context: &Context,
     contact_id: u32,
     create_blocked: Blocked,
@@ -1219,7 +1219,7 @@ pub fn create_or_lookup_by_contact_id(
     lookup_by_contact_id(context, contact_id)
 }
 
-pub fn lookup_by_contact_id(
+pub(crate) fn lookup_by_contact_id(
     context: &Context,
     contact_id: u32,
 ) -> Result<(ChatId, Blocked), Error> {
@@ -1273,7 +1273,7 @@ pub fn prepare_msg<'a>(
     Ok(msg_id)
 }
 
-pub fn msgtype_has_file(msgtype: Viewtype) -> bool {
+pub(crate) fn msgtype_has_file(msgtype: Viewtype) -> bool {
     match msgtype {
         Viewtype::Unknown => false,
         Viewtype::Text => false,
@@ -1750,7 +1750,11 @@ pub fn create_group_chat(
     Ok(chat_id)
 }
 
-pub fn add_to_chat_contacts_table(context: &Context, chat_id: ChatId, contact_id: u32) -> bool {
+pub(crate) fn add_to_chat_contacts_table(
+    context: &Context,
+    chat_id: ChatId,
+    contact_id: u32,
+) -> bool {
     // add a contact to a chat; the function does not check the type or if any of the record exist or are already
     // added to the chat!
     sql::execute(
@@ -1762,7 +1766,7 @@ pub fn add_to_chat_contacts_table(context: &Context, chat_id: ChatId, contact_id
     .is_ok()
 }
 
-pub fn remove_from_chat_contacts_table(
+pub(crate) fn remove_from_chat_contacts_table(
     context: &Context,
     chat_id: ChatId,
     contact_id: u32,
@@ -1898,7 +1902,7 @@ fn real_group_exists(context: &Context, chat_id: ChatId) -> bool {
         .unwrap_or_default()
 }
 
-pub fn reset_gossiped_timestamp(context: &Context, chat_id: ChatId) -> Result<(), Error> {
+pub(crate) fn reset_gossiped_timestamp(context: &Context, chat_id: ChatId) -> Result<(), Error> {
     set_gossiped_timestamp(context, chat_id, 0)
 }
 
@@ -1915,7 +1919,7 @@ pub fn get_gossiped_timestamp(context: &Context, chat_id: ChatId) -> i64 {
         .unwrap_or_default()
 }
 
-pub fn set_gossiped_timestamp(
+pub(crate) fn set_gossiped_timestamp(
     context: &Context,
     chat_id: ChatId,
     timestamp: i64,
@@ -1935,7 +1939,7 @@ pub fn set_gossiped_timestamp(
     Ok(())
 }
 
-pub fn shall_attach_selfavatar(context: &Context, chat_id: ChatId) -> Result<bool, Error> {
+pub(crate) fn shall_attach_selfavatar(context: &Context, chat_id: ChatId) -> Result<bool, Error> {
     // versions before 12/2019 already allowed to set selfavatar, however, it was never sent to others.
     // to avoid sending out previously set selfavatars unexpectedly we added this additional check.
     // it can be removed after some time.
@@ -2117,7 +2121,10 @@ fn set_group_explicitly_left(context: &Context, grpid: impl AsRef<str>) -> Resul
     Ok(())
 }
 
-pub fn is_group_explicitly_left(context: &Context, grpid: impl AsRef<str>) -> Result<bool, Error> {
+pub(crate) fn is_group_explicitly_left(
+    context: &Context,
+    grpid: impl AsRef<str>,
+) -> Result<bool, Error> {
     context
         .sql
         .exists(
@@ -2339,7 +2346,7 @@ pub fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId) -> Re
     Ok(())
 }
 
-pub fn get_chat_contact_cnt(context: &Context, chat_id: ChatId) -> usize {
+pub(crate) fn get_chat_contact_cnt(context: &Context, chat_id: ChatId) -> usize {
     context
         .sql
         .query_get_value::<_, isize>(
@@ -2350,7 +2357,7 @@ pub fn get_chat_contact_cnt(context: &Context, chat_id: ChatId) -> usize {
         .unwrap_or_default() as usize
 }
 
-pub fn get_chat_cnt(context: &Context) -> usize {
+pub(crate) fn get_chat_cnt(context: &Context) -> usize {
     if context.sql.is_open() {
         /* no database, no chats - this is no error (needed eg. for information) */
         context
@@ -2465,7 +2472,7 @@ pub fn was_device_msg_ever_added(context: &Context, label: &str) -> Result<bool,
 //   no wrong information are shown in the device chat
 // - deletion in `devmsglabels` makes sure,
 //   deleted messages are resetted and useful messages can be added again
-pub fn delete_and_reset_all_device_msgs(context: &Context) -> Result<(), Error> {
+pub(crate) fn delete_and_reset_all_device_msgs(context: &Context) -> Result<(), Error> {
     context.sql.execute(
         "DELETE FROM msgs WHERE from_id=?;",
         params![DC_CONTACT_ID_DEVICE],
@@ -2479,7 +2486,7 @@ pub fn delete_and_reset_all_device_msgs(context: &Context) -> Result<(), Error> 
 /// Adds an informational message to chat.
 ///
 /// For example, it can be a message showing that a member was added to a group.
-pub fn add_info_msg(context: &Context, chat_id: ChatId, text: impl AsRef<str>) {
+pub(crate) fn add_info_msg(context: &Context, chat_id: ChatId, text: impl AsRef<str>) {
     let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
 
     if context.sql.execute(

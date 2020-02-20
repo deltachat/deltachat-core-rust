@@ -161,7 +161,7 @@ pub struct InvalidMsgId;
     Deserialize,
 )]
 #[repr(u8)]
-pub enum MessengerMessage {
+pub(crate) enum MessengerMessage {
     No = 0,
     Yes = 1,
 

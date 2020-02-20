@@ -27,7 +27,7 @@ pub(crate) mod events;
 pub use events::*;
 
 mod aheader;
-pub mod blob;
+mod blob;
 pub mod chat;
 pub mod chatlist;
 pub mod config;
@@ -42,7 +42,7 @@ pub mod imex;
 pub mod job;
 mod job_thread;
 pub mod key;
-pub mod keyring;
+mod keyring;
 pub mod location;
 mod login_param;
 pub mod lot;

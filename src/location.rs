@@ -364,6 +364,7 @@ fn is_marker(txt: &str) -> bool {
     txt.len() == 1 && !txt.starts_with(' ')
 }
 
+/// Deletes all locations from the database.
 pub fn delete_all(context: &Context) -> Result<(), Error> {
     sql::execute(context, &context.sql, "DELETE FROM locations;", params![])?;
     context.call_cb(Event::LocationChanged(None));
@@ -547,7 +548,7 @@ pub fn save(
 }
 
 #[allow(non_snake_case)]
-pub fn JobMaybeSendLocations(context: &Context, _job: &Job) -> job::Status {
+pub(crate) fn JobMaybeSendLocations(context: &Context, _job: &Job) -> job::Status {
     let now = time();
     let mut continue_streaming = false;
     info!(
@@ -638,7 +639,7 @@ pub fn JobMaybeSendLocations(context: &Context, _job: &Job) -> job::Status {
 }
 
 #[allow(non_snake_case)]
-pub fn JobMaybeSendLocationsEnded(context: &Context, job: &mut Job) -> job::Status {
+pub(crate) fn JobMaybeSendLocationsEnded(context: &Context, job: &mut Job) -> job::Status {
     // this function is called when location-streaming _might_ have ended for a chat.
     // the function checks, if location-streaming is really ended;
     // if so, a device-message is added if not yet done.
