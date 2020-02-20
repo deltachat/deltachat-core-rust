@@ -46,24 +46,15 @@ pub struct MimeMessage {
     pub is_system_message: SystemMessage,
     pub location_kml: Option<location::Kml>,
     pub message_kml: Option<location::Kml>,
-    pub user_avatar: Option<AvatarAction>,
-    pub group_avatar: Option<AvatarAction>,
+    pub(crate) user_avatar: Option<AvatarAction>,
+    pub(crate) group_avatar: Option<AvatarAction>,
     pub(crate) reports: Vec<Report>,
 }
 
 #[derive(Debug, PartialEq)]
-pub enum AvatarAction {
+pub(crate) enum AvatarAction {
     Delete,
     Change(String),
-}
-
-impl AvatarAction {
-    pub fn is_change(&self) -> bool {
-        match self {
-            AvatarAction::Delete => false,
-            AvatarAction::Change(_) => true,
-        }
-    }
 }
 
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql)]
@@ -1093,6 +1084,15 @@ fn compare_addrs(a: &mailparse::MailAddr, b: &mailparse::MailAddr) -> bool {
 mod tests {
     use super::*;
     use crate::test_utils::*;
+
+    impl AvatarAction {
+        pub fn is_change(&self) -> bool {
+            match self {
+                AvatarAction::Delete => false,
+                AvatarAction::Change(_) => true,
+            }
+        }
+    }
 
     #[test]
     fn test_dc_mimeparser_crash() {

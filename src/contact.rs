@@ -146,7 +146,7 @@ impl Origin {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum Modifier {
+pub(crate) enum Modifier {
     None,
     Modified,
     Created,
@@ -324,7 +324,7 @@ impl Contact {
     /// Depending on the origin, both, "row_name" and "row_authname" are updated from "name".
     ///
     /// Returns the contact_id and a `Modifier` value indicating if a modification occured.
-    pub fn add_or_lookup(
+    pub(crate) fn add_or_lookup(
         context: &Context,
         name: impl AsRef<str>,
         addr: impl AsRef<str>,
@@ -1019,7 +1019,7 @@ fn set_block_contact(context: &Context, contact_id: u32, new_blocking: bool) {
     }
 }
 
-pub fn set_profile_image(
+pub(crate) fn set_profile_image(
     context: &Context,
     contact_id: u32,
     profile_image: &AvatarAction,

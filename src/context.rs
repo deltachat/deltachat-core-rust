@@ -51,7 +51,7 @@ pub struct Context {
     cb: Box<ContextCallback>,
     pub os_name: Option<String>,
     pub cmdline_sel_chat_id: Arc<RwLock<ChatId>>,
-    pub bob: Arc<RwLock<BobStatus>>,
+    pub(crate) bob: Arc<RwLock<BobStatus>>,
     pub last_smeared_timestamp: RwLock<i64>,
     pub running_state: Arc<RwLock<RunningState>>,
     /// Mutex to avoid generating the key for the user more than once.
@@ -478,14 +478,14 @@ impl Default for RunningState {
 }
 
 #[derive(Debug, Default)]
-pub struct BobStatus {
+pub(crate) struct BobStatus {
     pub expects: i32,
     pub status: i32,
     pub qr_scan: Option<Lot>,
 }
 
 #[derive(Debug, PartialEq)]
-pub enum PerformJobsNeeded {
+pub(crate) enum PerformJobsNeeded {
     Not,
     AtOnce,
     AvoidDos,
@@ -502,7 +502,7 @@ pub struct SmtpState {
     pub idle: bool,
     pub suspended: bool,
     pub doing_jobs: bool,
-    pub perform_jobs_needed: PerformJobsNeeded,
+    pub(crate) perform_jobs_needed: PerformJobsNeeded,
     pub probe_network: bool,
 }
 

@@ -1,3 +1,5 @@
+//! [Provider database](https://providers.delta.chat/) module
+
 mod data;
 
 use crate::dc_tools::EmailAddress;
