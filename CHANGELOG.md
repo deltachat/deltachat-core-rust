@@ -1,5 +1,52 @@
 # Changelog 
 
+## 1.25.0
+
+- save traffic by downloading only messages that are really displayed #1236
+
+- change generated key type to Ed25519, these keys are much shorter
+  than RSA keys, which results in saving traffic and speed improvements #1287
+
+- improve key handling #1237 #1240 #1242 #1247
+
+- mute handling, apis are dc_set_chat_mute_duration()
+  dc_chat_is_muted() and dc_chat_get_remaining_mute_duration() #1143
+
+- pinning chats, new apis are dc_set_chat_visibility() and
+  dc_chat_get_visibility() #1248
+
+- add dc_provider_new_from_email() api that queries the new, integrated
+  provider-database #1207
+
+- account creation by scanning a qr code
+  in the DCACCOUNT scheme (https://mailadm.readthedocs.io),
+  new api is dc_set_config_from_qr() #1249
+
+- if possible, dc_join_securejoin(), returns the new chat-id immediately
+  and does the handshake in background #1225
+
+- update imap and smtp dependencies #1115
+
+- check for MOVE capability before using MOVE command #1263
+
+- allow inline attachments from RFC 2183 #1280
+
+- fix updating names from incoming mails #1298
+
+- fix error messages shown on import #1234
+
+- directly attempt to re-connect if the smtp connection is maybe stale #1296
+
+- improve adding group members #1291
+
+- improve rust-api #1261
+
+- cleanup #1302 #1283 #1282 #1276 #1270-#1274 #1267 #1258-#1260
+  #1257 #1239 #1231 #1224
+
+- update spec #1286 #1291
+
+
 ## 1.0.0-beta.24
 
 - fix oauth2/gmail bug introduced in beta23 (not used in releases) #1219
