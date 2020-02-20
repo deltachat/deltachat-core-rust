@@ -318,7 +318,7 @@ impl Contact {
     /// that can only be set and updated by a From-header.
     ///
     /// The different names used in the function are:
-    /// - "name": name passed as funtion argument, belonging to the given origin
+    /// - "name": name passed as function argument, belonging to the given origin
     /// - "row_name": current name used in the database, typically set to "name"
     /// - "row_authname": name as authorized from a contact, set only through a From-header
     /// Depending on the origin, both, "row_name" and "row_authname" are updated from "name".
