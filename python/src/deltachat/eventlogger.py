@@ -8,20 +8,21 @@ from .hookspec import hookimpl
 class EventLogger:
     _loglock = threading.RLock()
 
-    def __init__(self, dc_context, logid=None, debug=True):
-        self._dc_context = dc_context
+    def __init__(self, account, logid=None, debug=True):
+        self.account = account
         self._event_queue = Queue()
         self._debug = debug
         if logid is None:
-            logid = str(self._dc_context).strip(">").split()[-1]
+            logid = str(self.account._dc_context).strip(">").split()[-1]
         self.logid = logid
         self._timeout = None
         self.init_time = time.time()
 
     @hookimpl
-    def process_low_level_event(self, event_name, data1, data2):
-        self._log_event(event_name, data1, data2)
-        self._event_queue.put((event_name, data1, data2))
+    def process_low_level_event(self, account, event_name, data1, data2):
+        if self.account == account:
+            self._log_event(event_name, data1, data2)
+            self._event_queue.put((event_name, data1, data2))
 
     def set_timeout(self, timeout):
         self._timeout = timeout
