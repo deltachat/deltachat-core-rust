@@ -15,3 +15,7 @@ div.globaltoc {
 img.logo {
     height: 120px;
 }
+
+div.footer {
+    display: none;
+}
