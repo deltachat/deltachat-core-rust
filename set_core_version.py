@@ -35,7 +35,7 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         for x in ("Cargo.toml", "deltachat-ffi/Cargo.toml"):
             print("{}: {}".format(x, read_toml_version(x)))
-        raise SystemExit("need argument: new version, example 1.0.0-beta.27")
+        raise SystemExit("need argument: new version, example: 1.25.0")
     newversion = sys.argv[1]
     if newversion.count(".") < 2:
         raise SystemExit("need at least two dots in version")
@@ -45,7 +45,7 @@ if __name__ == "__main__":
     assert core_toml == ffi_toml, (core_toml, ffi_toml)
 
     for line in open("CHANGELOG.md"):
-        ## 1.0.0-beta5
+        ## 1.25.0
         if line.startswith("## "):
             if line[2:].strip().startswith(newversion):
                 break
