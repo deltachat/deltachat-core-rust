@@ -2,7 +2,6 @@ from __future__ import print_function
 from deltachat import capi, cutil, const, set_context_callback, clear_context_callback
 from deltachat.capi import ffi
 from deltachat.capi import lib
-from deltachat.account import EventLogger
 
 
 def test_empty_context():
@@ -18,21 +17,13 @@ def test_callback_None2int():
 
 
 def test_dc_close_events(tmpdir):
-    ctx = ffi.gc(
-        capi.lib.dc_context_new(capi.lib.py_dc_callback, ffi.NULL, ffi.NULL),
-        lib.dc_context_unref,
-    )
-    evlog = EventLogger(ctx)
-    evlog.set_timeout(5)
-    set_context_callback(
-        ctx,
-        lambda ctx, evt_name, data1, data2: evlog(evt_name, data1, data2)
-    )
+    from deltachat.account import Account
     p = tmpdir.join("hello.db")
-    lib.dc_open(ctx, p.strpath.encode("ascii"), ffi.NULL)
-    capi.lib.dc_close(ctx)
+    ac1 = Account(p.strpath)
+    ac1.shutdown()
 
     def find(info_string):
+        evlog = ac1._evlogger
         while 1:
             ev = evlog.get_matching("DC_EVENT_INFO", check_error=False)
             data2 = ev[2]
