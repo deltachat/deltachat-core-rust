@@ -1,5 +1,6 @@
 from __future__ import print_function
 import os
+import sys
 import py
 import pytest
 import requests
@@ -7,6 +8,7 @@ import time
 from deltachat import Account
 from deltachat import const
 from deltachat.capi import lib
+from _pytest.monkeypatch import MonkeyPatch
 import tempfile
 
 
@@ -43,11 +45,14 @@ def pytest_report_header(config, startdir):
     summary = []
 
     t = tempfile.mktemp()
+    m = MonkeyPatch()
     try:
-        ac = Account(t, eventlogging=False)
+        m.setattr(sys.stdout, "write", lambda x: len(x))
+        ac = Account(t)
         info = ac.get_info()
         ac.shutdown()
     finally:
+        m.undo()
         os.remove(t)
     summary.extend(['Deltachat core={} sqlite={}'.format(
          info['deltachat_core_version'],
