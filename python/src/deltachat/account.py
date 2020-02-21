@@ -4,7 +4,6 @@ from __future__ import print_function
 import atexit
 import threading
 import os
-import re
 import time
 from array import array
 try:
@@ -19,6 +18,7 @@ from .cutil import as_dc_charpointer, from_dc_charpointer, iter_array, DCLot
 from .chat import Chat
 from .message import Message
 from .contact import Contact
+from .eventlogger import EventLogger
 
 
 class Account(object):
@@ -41,8 +41,8 @@ class Account(object):
             _destroy_dc_context,
         )
         self._evlogger = EventLogger(self._dc_context, logid, debug)
-        deltachat.set_context_callback(self._dc_context, self._process_event)
         self._threads = IOThreads(self._dc_context, self._evlogger._log_event)
+        deltachat.set_context_callback(self._dc_context, self._process_ll_event)
 
         if hasattr(db_path, "encode"):
             db_path = db_path.encode("utf8")
@@ -525,13 +525,12 @@ class Account(object):
             del self._dc_context
             atexit.unregister(self.shutdown)
 
-    def _process_event(self, ctx, evt_name, data1, data2):
+    def _process_ll_event(self, ctx, evt_name, data1, data2):
         assert ctx == self._dc_context
-        if hasattr(self, "_evlogger"):
-            self._evlogger(evt_name, data1, data2)
-            method = getattr(self, "on_" + evt_name.lower(), None)
-            if method is not None:
-                method(data1, data2)
+        self._evlogger(evt_name, data1, data2)
+        method = getattr(self, "on_" + evt_name.lower(), None)
+        if method is not None:
+            method(data1, data2)
         return 0
 
     def on_dc_event_imex_progress(self, data1, data2):
@@ -636,80 +635,6 @@ class IOThreads:
             if not self._thread_quitflag:
                 lib.dc_perform_smtp_idle(self._dc_context)
         self._log_event("py-bindings-info", 0, "SMTP THREAD FINISHED")
-
-
-class EventLogger:
-    _loglock = threading.RLock()
-
-    def __init__(self, dc_context, logid=None, debug=True):
-        self._dc_context = dc_context
-        self._event_queue = Queue()
-        self._debug = debug
-        if logid is None:
-            logid = str(self._dc_context).strip(">").split()[-1]
-        self.logid = logid
-        self._timeout = None
-        self.init_time = time.time()
-
-    def __call__(self, evt_name, data1, data2):
-        self._log_event(evt_name, data1, data2)
-        self._event_queue.put((evt_name, data1, data2))
-
-    def set_timeout(self, timeout):
-        self._timeout = timeout
-
-    def consume_events(self, check_error=True):
-        while not self._event_queue.empty():
-            self.get()
-
-    def get(self, timeout=None, check_error=True):
-        timeout = timeout or self._timeout
-        ev = self._event_queue.get(timeout=timeout)
-        if check_error and ev[0] == "DC_EVENT_ERROR":
-            raise ValueError("{}({!r},{!r})".format(*ev))
-        return ev
-
-    def ensure_event_not_queued(self, event_name_regex):
-        __tracebackhide__ = True
-        rex = re.compile("(?:{}).*".format(event_name_regex))
-        while 1:
-            try:
-                ev = self._event_queue.get(False)
-            except Empty:
-                break
-            else:
-                assert not rex.match(ev[0]), "event found {}".format(ev)
-
-    def get_matching(self, event_name_regex, check_error=True, timeout=None):
-        self._log("-- waiting for event with regex: {} --".format(event_name_regex))
-        rex = re.compile("(?:{}).*".format(event_name_regex))
-        while 1:
-            ev = self.get(timeout=timeout, check_error=check_error)
-            if rex.match(ev[0]):
-                return ev
-
-    def get_info_matching(self, regex):
-        rex = re.compile("(?:{}).*".format(regex))
-        while 1:
-            ev = self.get_matching("DC_EVENT_INFO")
-            if rex.match(ev[2]):
-                return ev
-
-    def _log_event(self, evt_name, data1, data2):
-        # don't show events that are anyway empty impls now
-        if evt_name == "DC_EVENT_GET_STRING":
-            return
-        if self._debug:
-            evpart = "{}({!r},{!r})".format(evt_name, data1, data2)
-            self._log(evpart)
-
-    def _log(self, msg):
-        t = threading.currentThread()
-        tname = getattr(t, "name", t)
-        if tname == "MainThread":
-            tname = "MAIN"
-        with self._loglock:
-            print("{:2.2f} [{}-{}] {}".format(time.time() - self.init_time, tname, self.logid, msg))
 
 
 def _destroy_dc_context(dc_context, dc_context_unref=lib.dc_context_unref):
