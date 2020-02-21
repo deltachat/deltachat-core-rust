@@ -1464,7 +1464,7 @@ fn is_known_rfc724_mid_in_list(context: &Context, mid_list: &str) -> bool {
         return false;
     }
 
-    if let Ok(ids) = mailparse::addrparse(mid_list) {
+    if let Ok(ids) = mailparse::msgidparse(mid_list) {
         for id in ids.iter() {
             if is_known_rfc724_mid(context, id) {
                 return true;
@@ -1476,8 +1476,7 @@ fn is_known_rfc724_mid_in_list(context: &Context, mid_list: &str) -> bool {
 }
 
 /// Check if a message is a reply to a known message (messenger or non-messenger).
-fn is_known_rfc724_mid(context: &Context, rfc724_mid: &mailparse::MailAddr) -> bool {
-    let addr = extract_single_from_addr(rfc724_mid);
+fn is_known_rfc724_mid(context: &Context, rfc724_mid: &str) -> bool {
     context
         .sql
         .exists(
@@ -1485,7 +1484,7 @@ fn is_known_rfc724_mid(context: &Context, rfc724_mid: &mailparse::MailAddr) -> b
              LEFT JOIN chats c ON m.chat_id=c.id  \
              WHERE m.rfc724_mid=?  \
              AND m.chat_id>9 AND c.blocked=0;",
-            params![addr],
+            params![rfc724_mid],
         )
         .unwrap_or_default()
 }
@@ -1512,7 +1511,7 @@ fn is_reply_to_messenger_message(context: &Context, mime_parser: &MimeMessage) -
 }
 
 pub(crate) fn is_msgrmsg_rfc724_mid_in_list(context: &Context, mid_list: &str) -> bool {
-    if let Ok(ids) = mailparse::addrparse(mid_list) {
+    if let Ok(ids) = mailparse::msgidparse(mid_list) {
         for id in ids.iter() {
             if is_msgrmsg_rfc724_mid(context, id) {
                 return true;
@@ -1522,21 +1521,13 @@ pub(crate) fn is_msgrmsg_rfc724_mid_in_list(context: &Context, mid_list: &str) -
     false
 }
 
-fn extract_single_from_addr(addr: &mailparse::MailAddr) -> &String {
-    match addr {
-        mailparse::MailAddr::Group(infos) => &infos.addrs[0].addr,
-        mailparse::MailAddr::Single(info) => &info.addr,
-    }
-}
-
 /// Check if a message is a reply to any messenger message.
-fn is_msgrmsg_rfc724_mid(context: &Context, rfc724_mid: &mailparse::MailAddr) -> bool {
-    let addr = extract_single_from_addr(rfc724_mid);
+fn is_msgrmsg_rfc724_mid(context: &Context, rfc724_mid: &str) -> bool {
     context
         .sql
         .exists(
             "SELECT id FROM msgs  WHERE rfc724_mid=?  AND msgrmsg!=0  AND chat_id>9;",
-            params![addr],
+            params![rfc724_mid],
         )
         .unwrap_or_default()
 }
