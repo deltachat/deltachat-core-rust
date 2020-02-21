@@ -741,7 +741,7 @@ impl MimeMessage {
 
     pub fn get_rfc724_mid(&self) -> Option<String> {
         self.get(HeaderDef::MessageId)
-            .and_then(|msgid| parse_message_id(msgid))
+            .and_then(|msgid| parse_message_id(msgid).ok())
     }
 
     fn merge_headers(headers: &mut HashMap<String, String>, fields: &[mailparse::MailHeader<'_>]) {
@@ -779,14 +779,16 @@ impl MimeMessage {
                 .get_header_value(HeaderDef::OriginalMessageId)
                 .ok()
                 .flatten()
-                .and_then(|v| parse_message_id(&v))
+                .and_then(|v| parse_message_id(&v).ok())
             {
                 let additional_message_ids = report_fields
                     .get_header_value(HeaderDef::AdditionalMessageIds)
                     .ok()
                     .flatten()
                     .map_or_else(Vec::new, |v| {
-                        v.split(' ').filter_map(parse_message_id).collect()
+                        v.split(' ')
+                            .filter_map(|s| parse_message_id(s).ok())
+                            .collect()
                     });
 
                 return Ok(Some(Report {
@@ -909,14 +911,20 @@ pub(crate) struct Report {
     additional_message_ids: Vec<String>,
 }
 
-fn parse_message_id(field: &str) -> Option<String> {
-    if let Ok(addrs) = mailparse::addrparse(field) {
-        // Assume the message id is a single id in the form of <id>
-        if let mailparse::MailAddr::Single(mailparse::SingleInfo { ref addr, .. }) = addrs[0] {
-            return Some(addr.clone());
+pub(crate) fn parse_message_id(value: &str) -> crate::error::Result<String> {
+    let ids = mailparse::msgidparse(value)
+        .map_err(|err| format_err!("failed to parse message id {:?}", err))?;
+
+    if ids.len() == 1 {
+        let id = &ids[0];
+        if id.starts_with('<') && id.ends_with('>') {
+            Ok(id.chars().skip(1).take(id.len() - 2).collect())
+        } else {
+            bail!("message-ID {} is not enclosed in < and >", value);
         }
+    } else {
+        bail!("could not parse message_id: {}", value);
     }
-    None
 }
 
 fn is_known(key: &str) -> bool {
