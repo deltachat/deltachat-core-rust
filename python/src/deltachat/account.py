@@ -38,7 +38,7 @@ class Account(object):
             lib.dc_context_new(lib.py_dc_callback, ffi.NULL, as_dc_charpointer(os_name)),
             _destroy_dc_context,
         )
-        self._evlogger = EventLogger(self._dc_context, logid, debug)
+        self._evlogger = EventLogger(self, logid, debug)
         self._threads = IOThreads(self._dc_context, self._evlogger._log_event)
 
         # register event call back and initialize plugin system
