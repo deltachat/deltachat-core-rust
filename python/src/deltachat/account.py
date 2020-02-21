@@ -173,11 +173,6 @@ class Account(object):
             raise ValueError("no flags set")
         lib.dc_empty_server(self._dc_context, flags)
 
-    def get_infostring(self):
-        """ return info of the configured account. """
-        self.check_is_configured()
-        return from_dc_charpointer(lib.dc_get_info(self._dc_context))
-
     def get_latest_backupfile(self, backupdir):
         """ return the latest backup file in a given directory.
         """
