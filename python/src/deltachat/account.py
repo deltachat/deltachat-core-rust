@@ -6,9 +6,7 @@ import threading
 import os
 import time
 from array import array
-from queue import Queue, Empty
-
-from pluggy import PluginManager
+from queue import Queue
 
 import deltachat
 from . import const
@@ -52,7 +50,6 @@ class Account(object):
 
         self.pluggy = get_plugin_manager()
         self.pluggy.register(self._evlogger)
-        self.pluggy.register(self)
         deltachat.set_context_callback(self._dc_context, _ll_event)
 
         # open database
@@ -61,19 +58,10 @@ class Account(object):
         if not lib.dc_open(self._dc_context, db_path, ffi.NULL):
             raise ValueError("Could not dc_open: {}".format(db_path))
         self._configkeys = self.get_config("sys.config_keys").split()
-        self._imex_events = Queue()
         atexit.register(self.shutdown)
 
     # def __del__(self):
     #    self.shutdown()
-
-    @hookimpl
-    def process_low_level_event(self, account, event_name, data1, data2):
-        # there could be multiple accounts instantiated
-        if account != self:
-            method = getattr(self, "on_" + event_name.lower(), None)
-            if method is not None:
-                method(data1, data2)
 
     def _check_config_key(self, name):
         if name not in self._configkeys:
@@ -393,27 +381,20 @@ class Account(object):
             raise RuntimeError("found more than one new file")
         return export_files[0]
 
-    def _imex_events_clear(self):
-        try:
-            while True:
-                self._imex_events.get_nowait()
-        except Empty:
-            pass
-
     def _export(self, path, imex_cmd):
-        self._imex_events_clear()
-        lib.dc_imex(self._dc_context, imex_cmd, as_dc_charpointer(path), ffi.NULL)
-        if not self._threads.is_started():
-            lib.dc_perform_imap_jobs(self._dc_context)
-        files_written = []
-        while True:
-            ev = self._imex_events.get()
-            if isinstance(ev, str):
-                files_written.append(ev)
-            elif isinstance(ev, bool):
-                if not ev:
-                    raise ValueError("export failed, exp-files: {}".format(files_written))
-                return files_written
+        with ImexTracker(self) as imex_tracker:
+            lib.dc_imex(self._dc_context, imex_cmd, as_dc_charpointer(path), ffi.NULL)
+            if not self._threads.is_started():
+                lib.dc_perform_imap_jobs(self._dc_context)
+            files_written = []
+            while True:
+                ev = imex_tracker.get()
+                if isinstance(ev, str):
+                    files_written.append(ev)
+                elif isinstance(ev, bool):
+                    if not ev:
+                        raise ValueError("export failed, exp-files: {}".format(files_written))
+                    return files_written
 
     def import_self_keys(self, path):
         """ Import private keys found in the `path` directory.
@@ -431,12 +412,12 @@ class Account(object):
         self._import(path, imex_cmd=12)
 
     def _import(self, path, imex_cmd):
-        self._imex_events_clear()
-        lib.dc_imex(self._dc_context, imex_cmd, as_dc_charpointer(path), ffi.NULL)
-        if not self._threads.is_started():
-            lib.dc_perform_imap_jobs(self._dc_context)
-        if not self._imex_events.get():
-            raise ValueError("import from path '{}' failed".format(path))
+        with ImexTracker(self) as imex_tracker:
+            lib.dc_imex(self._dc_context, imex_cmd, as_dc_charpointer(path), ffi.NULL)
+            if not self._threads.is_started():
+                lib.dc_perform_imap_jobs(self._dc_context)
+            if not imex_tracker.get():
+                raise ValueError("import from path '{}' failed".format(path))
 
     def initiate_key_transfer(self):
         """return setup code after a Autocrypt setup message
@@ -539,15 +520,7 @@ class Account(object):
             deltachat.clear_context_callback(self._dc_context)
             del self._dc_context
             atexit.unregister(self.shutdown)
-
-    def on_dc_event_imex_progress(self, data1, data2):
-        if data1 == 1000:
-            self._imex_events.put(True)
-        elif data1 == 0:
-            self._imex_events.put(False)
-
-    def on_dc_event_imex_file_written(self, data1, data2):
-        self._imex_events.put(data1)
+        self.pluggy.unregister(self)
 
     def set_location(self, latitude=0.0, longitude=0.0, accuracy=0.0):
         """set a new location. It effects all chats where we currently
@@ -562,6 +535,41 @@ class Account(object):
         dc_res = lib.dc_set_location(self._dc_context, latitude, longitude, accuracy)
         if dc_res == 0:
             raise ValueError("no chat is streaming locations")
+
+
+class ImexTracker:
+    def __init__(self, account):
+        self._imex_events = Queue()
+        self.account = account
+
+    @hookimpl
+    def process_low_level_event(self, account, event_name, data1, data2):
+        # there could be multiple accounts instantiated
+        if self.account is not account:
+            return
+        method = getattr(self, "on_" + event_name.lower(), None)
+        if method is not None:
+            print("*** on_ -> ", event_name.lower())
+            method(data1, data2)
+
+    def __enter__(self):
+        self.account.pluggy.register(self)
+        return self
+
+    def __exit__(self, *args):
+        self.account.pluggy.unregister(self)
+
+    def get(self, timeout=60):
+        return self._imex_events.get(timeout=timeout)
+
+    def on_dc_event_imex_progress(self, data1, data2):
+        if data1 == 1000:
+            self._imex_events.put(True)
+        elif data1 == 0:
+            self._imex_events.put(False)
+
+    def on_dc_event_imex_file_written(self, data1, data2):
+        self._imex_events.put(data1)
 
 
 class IOThreads:
