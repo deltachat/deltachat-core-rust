@@ -26,14 +26,13 @@ class Account(object):
     by the underlying deltachat core library.  All public Account methods are
     meant to be memory-safe and return memory-safe objects.
     """
-    def __init__(self, db_path, logid=None, eventlogging=True, os_name=None, debug=True):
+    def __init__(self, db_path, logid=None, os_name=None, debug=True):
         """ initialize account object.
 
         :param db_path: a path to the account database. The database
                         will be created if it doesn't exist.
         :param logid: an optional logging prefix that should be used with
                       the default internal logging.
-        :param eventlogging: if False no eventlogging and no context callback will be configured
         :param os_name: this will be put to the X-Mailer header in outgoing messages
         :param debug: turn on debug logging for events.
         """
@@ -41,12 +40,9 @@ class Account(object):
             lib.dc_context_new(lib.py_dc_callback, ffi.NULL, as_dc_charpointer(os_name)),
             _destroy_dc_context,
         )
-        if eventlogging:
-            self._evlogger = EventLogger(self._dc_context, logid, debug)
-            deltachat.set_context_callback(self._dc_context, self._process_event)
-            self._threads = IOThreads(self._dc_context, self._evlogger._log_event)
-        else:
-            self._threads = IOThreads(self._dc_context)
+        self._evlogger = EventLogger(self._dc_context, logid, debug)
+        deltachat.set_context_callback(self._dc_context, self._process_event)
+        self._threads = IOThreads(self._dc_context, self._evlogger._log_event)
 
         if hasattr(db_path, "encode"):
             db_path = db_path.encode("utf8")
