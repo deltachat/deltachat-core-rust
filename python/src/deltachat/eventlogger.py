@@ -29,7 +29,7 @@ class EventLogger:
 
     def consume_events(self, check_error=True):
         while not self._event_queue.empty():
-            self.get()
+            self.get(check_error=check_error)
 
     def get(self, timeout=None, check_error=True):
         timeout = timeout or self._timeout
