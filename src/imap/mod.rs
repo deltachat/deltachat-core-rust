@@ -1307,14 +1307,14 @@ fn precheck_imf(context: &Context, rfc724_mid: &str, server_folder: &str, server
 }
 
 fn parse_message_id(value: &str) -> crate::error::Result<String> {
-    let addrs = mailparse::addrparse(value)
+    let ids = mailparse::msgidparse(value)
         .map_err(|err| format_err!("failed to parse message id {:?}", err))?;
 
-    if let Some(info) = addrs.extract_single_info() {
-        return Ok(info.addr);
+    if ids.len() == 1 {
+        Ok(ids[0].clone())
+    } else {
+        bail!("could not parse message_id: {}", value);
     }
-
-    bail!("could not parse message_id: {}", value);
 }
 
 fn get_fetch_headers(prefetch_msg: &Fetch) -> Result<Vec<mailparse::MailHeader>> {
