@@ -6,10 +6,9 @@ import threading
 import os
 import time
 from array import array
-try:
-    from queue import Queue, Empty
-except ImportError:
-    from Queue import Queue, Empty
+from queue import Queue, Empty
+
+from pluggy import PluginManager
 
 import deltachat
 from . import const
@@ -19,6 +18,7 @@ from .chat import Chat
 from .message import Message
 from .contact import Contact
 from .eventlogger import EventLogger
+from .hookspec import get_plugin_manager, hookimpl
 
 
 class Account(object):
@@ -42,8 +42,20 @@ class Account(object):
         )
         self._evlogger = EventLogger(self._dc_context, logid, debug)
         self._threads = IOThreads(self._dc_context, self._evlogger._log_event)
-        deltachat.set_context_callback(self._dc_context, self._process_ll_event)
 
+        # register event call back and initialize plugin system
+        def _ll_event(ctx, evt_name, data1, data2):
+            assert ctx == self._dc_context
+            self.pluggy.hook.process_low_level_event(
+                account=self, event_name=evt_name, data1=data1, data2=data2
+            )
+
+        self.pluggy = get_plugin_manager()
+        self.pluggy.register(self._evlogger)
+        self.pluggy.register(self)
+        deltachat.set_context_callback(self._dc_context, _ll_event)
+
+        # open database
         if hasattr(db_path, "encode"):
             db_path = db_path.encode("utf8")
         if not lib.dc_open(self._dc_context, db_path, ffi.NULL):
@@ -54,6 +66,14 @@ class Account(object):
 
     # def __del__(self):
     #    self.shutdown()
+
+    @hookimpl
+    def process_low_level_event(self, account, event_name, data1, data2):
+        # there could be multiple accounts instantiated
+        if account != self:
+            method = getattr(self, "on_" + event_name.lower(), None)
+            if method is not None:
+                method(data1, data2)
 
     def _check_config_key(self, name):
         if name not in self._configkeys:
@@ -519,14 +539,6 @@ class Account(object):
             deltachat.clear_context_callback(self._dc_context)
             del self._dc_context
             atexit.unregister(self.shutdown)
-
-    def _process_ll_event(self, ctx, evt_name, data1, data2):
-        assert ctx == self._dc_context
-        self._evlogger(evt_name, data1, data2)
-        method = getattr(self, "on_" + evt_name.lower(), None)
-        if method is not None:
-            method(data1, data2)
-        return 0
 
     def on_dc_event_imex_progress(self, data1, data2):
         if data1 == 1000:
