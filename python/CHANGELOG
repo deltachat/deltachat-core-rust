@@ -1,3 +1,10 @@
+0.800.0
+-------
+
+- use latest core 1.25.0 
+
+- refine tests and some internal changes to core bindings
+
 0.700.0
 ---------
 
