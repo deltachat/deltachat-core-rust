@@ -1306,17 +1306,6 @@ fn precheck_imf(context: &Context, rfc724_mid: &str, server_folder: &str, server
     }
 }
 
-fn parse_message_id(value: &str) -> crate::error::Result<String> {
-    let ids = mailparse::msgidparse(value)
-        .map_err(|err| format_err!("failed to parse message id {:?}", err))?;
-
-    if ids.len() == 1 {
-        Ok(ids[0].clone())
-    } else {
-        bail!("could not parse message_id: {}", value);
-    }
-}
-
 fn get_fetch_headers(prefetch_msg: &Fetch) -> Result<Vec<mailparse::MailHeader>> {
     let header_bytes = match prefetch_msg.header() {
         Some(header_bytes) => header_bytes,
@@ -1328,7 +1317,7 @@ fn get_fetch_headers(prefetch_msg: &Fetch) -> Result<Vec<mailparse::MailHeader>>
 
 fn prefetch_get_message_id(headers: &[mailparse::MailHeader]) -> Result<String> {
     if let Some(message_id) = headers.get_header_value(HeaderDef::MessageId)? {
-        Ok(parse_message_id(&message_id)?)
+        Ok(crate::mimeparser::parse_message_id(&message_id)?)
     } else {
         Err(Error::Other("prefetch: No message ID found".to_string()))
     }
@@ -1383,21 +1372,4 @@ fn prefetch_should_download(
         };
     let show = show && !blocked_contact;
     Ok(show)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parse_message_id() {
-        assert_eq!(
-            parse_message_id("Mr.PRUe8HJBoaO.3whNvLCMFU0@testrun.org").unwrap(),
-            "Mr.PRUe8HJBoaO.3whNvLCMFU0@testrun.org"
-        );
-        assert_eq!(
-            parse_message_id("<Mr.PRUe8HJBoaO.3whNvLCMFU0@testrun.org>").unwrap(),
-            "Mr.PRUe8HJBoaO.3whNvLCMFU0@testrun.org"
-        );
-    }
 }
