@@ -386,15 +386,7 @@ class Account(object):
             lib.dc_imex(self._dc_context, imex_cmd, as_dc_charpointer(path), ffi.NULL)
             if not self._threads.is_started():
                 lib.dc_perform_imap_jobs(self._dc_context)
-            files_written = []
-            while True:
-                ev = imex_tracker.get()
-                if isinstance(ev, str):
-                    files_written.append(ev)
-                elif isinstance(ev, bool):
-                    if not ev:
-                        raise ValueError("export failed, exp-files: {}".format(files_written))
-                    return files_written
+            return imex_tracker.wait_finish()
 
     def import_self_keys(self, path):
         """ Import private keys found in the `path` directory.
@@ -416,8 +408,7 @@ class Account(object):
             lib.dc_imex(self._dc_context, imex_cmd, as_dc_charpointer(path), ffi.NULL)
             if not self._threads.is_started():
                 lib.dc_perform_imap_jobs(self._dc_context)
-            if not imex_tracker.get():
-                raise ValueError("import from path '{}' failed".format(path))
+            imex_tracker.wait_finish()
 
     def initiate_key_transfer(self):
         """return setup code after a Autocrypt setup message
@@ -542,16 +533,6 @@ class ImexTracker:
         self._imex_events = Queue()
         self.account = account
 
-    @hookimpl
-    def process_low_level_event(self, account, event_name, data1, data2):
-        # there could be multiple accounts instantiated
-        if self.account is not account:
-            return
-        method = getattr(self, "on_" + event_name.lower(), None)
-        if method is not None:
-            print("*** on_ -> ", event_name.lower())
-            method(data1, data2)
-
     def __enter__(self):
         self.account.pluggy.register(self)
         return self
@@ -559,17 +540,27 @@ class ImexTracker:
     def __exit__(self, *args):
         self.account.pluggy.unregister(self)
 
-    def get(self, timeout=60):
-        return self._imex_events.get(timeout=timeout)
+    @hookimpl
+    def process_low_level_event(self, account, event_name, data1, data2):
+        # there could be multiple accounts instantiated
+        if self.account is not account:
+            return
+        if event_name == "DC_EVENT_IMEX_PROGRESS":
+            self._imex_events.put(data1)
+        elif event_name == "DC_EVENT_IMEX_FILE_WRITTEN":
+            self._imex_events.put(data1)
 
-    def on_dc_event_imex_progress(self, data1, data2):
-        if data1 == 1000:
-            self._imex_events.put(True)
-        elif data1 == 0:
-            self._imex_events.put(False)
-
-    def on_dc_event_imex_file_written(self, data1, data2):
-        self._imex_events.put(data1)
+    def wait_finish(self, progress_timeout=60):
+        """ Return list of written files, raise ValueError if ExportFailed. """
+        files_written = []
+        while True:
+            ev = self._imex_events.get(timeout=progress_timeout)
+            if isinstance(ev, str):
+                files_written.append(ev)
+            elif ev == 0:
+                raise ValueError("export failed, exp-files: {}".format(files_written))
+            elif ev == 1000:
+                return files_written
 
 
 class IOThreads:
