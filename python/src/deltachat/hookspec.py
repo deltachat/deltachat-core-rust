@@ -32,6 +32,10 @@ class PerAccount:
         """ log a message related to the account. """
 
     @account_hookspec
+    def after_shutdown(self):
+        """ Called when the account has been shutdown. """
+
+    @account_hookspec
     def configure_completed(self, success):
         """ Called when a configure process completed. """
 

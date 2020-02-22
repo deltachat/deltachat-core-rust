@@ -1,5 +1,6 @@
 from __future__ import print_function
 from deltachat import capi, cutil, const, set_context_callback, clear_context_callback
+from deltachat.hookspec import account_hookimpl
 from deltachat.capi import ffi
 from deltachat.capi import lib
 
@@ -18,7 +19,18 @@ def test_callback_None2int():
 
 def test_dc_close_events(tmpdir, acfactory):
     ac1 = acfactory.get_unconfigured_account()
+
+    # register after_shutdown function
+    l = []
+    class ShutdownPlugin:
+        @account_hookimpl
+        def after_shutdown(self):
+            assert not hasattr(ac1, "_dc_context")
+            l.append(1)
+    ac1.add_account_plugin(ShutdownPlugin())
+    assert hasattr(ac1, "_dc_context")
     ac1.shutdown()
+    assert l == [1]
 
     def find(info_string):
         evlog = ac1._evtracker
