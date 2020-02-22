@@ -1,25 +1,25 @@
-""" Hooks for python bindings """
+""" Hooks for Python bindings to Delta Chat Core Rust CFFI"""
 
 import pluggy
 
-name = "deltachat"
+__all__ = ["account_hookspec", "account_hookimpl", "AccountHookSpecs"]
 
-hookspec = pluggy.HookspecMarker(name)
-hookimpl = pluggy.HookimplMarker(name)
-_plugin_manager = None
-
-
-def get_plugin_manager():
-    global _plugin_manager
-    if _plugin_manager is None:
-        _plugin_manager = pluggy.PluginManager(name)
-        _plugin_manager.add_hookspecs(DeltaChatHookSpecs)
-    return _plugin_manager
+_account_name = "deltachat-account"
+account_hookspec = pluggy.HookspecMarker(_account_name)
+account_hookimpl = pluggy.HookimplMarker(_account_name)
 
 
-class DeltaChatHookSpecs:
-    """ Plugin Hook specifications for Python bindings to Delta Chat CFFI. """
+class AccountHookSpecs:
+    """ per-Account-instance hook specifications.
 
-    @hookspec
-    def process_low_level_event(self, account, event_name, data1, data2):
+    Account hook implementations need to be registered with an Account instance.
+    """
+    @classmethod
+    def _make_plugin_manager(cls):
+        pm = pluggy.PluginManager(_account_name)
+        pm.add_hookspecs(cls)
+        return pm
+
+    @account_hookspec
+    def process_low_level_event(self, event_name, data1, data2):
         """ process a CFFI low level events for a given account. """

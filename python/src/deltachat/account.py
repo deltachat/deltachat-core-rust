@@ -3,6 +3,7 @@
 from __future__ import print_function
 import atexit
 import threading
+from contextlib import contextmanager
 import os
 import time
 from array import array
@@ -16,7 +17,7 @@ from .chat import Chat
 from .message import Message
 from .contact import Contact
 from .eventlogger import EventLogger
-from .hookspec import get_plugin_manager, hookimpl
+from .hookspec import AccountHookSpecs, account_hookimpl
 
 
 class Account(object):
@@ -41,15 +42,15 @@ class Account(object):
         self._evlogger = EventLogger(self, logid, debug)
         self._threads = IOThreads(self._dc_context, self._evlogger._log_event)
 
-        # register event call back and initialize plugin system
+        # register event call back and initialize per-account plugin system
         def _ll_event(ctx, evt_name, data1, data2):
             assert ctx == self._dc_context
-            self.pluggy.hook.process_low_level_event(
+            self.plugin_manager.hook.process_low_level_event(
                 account=self, event_name=evt_name, data1=data1, data2=data2
             )
 
-        self.pluggy = get_plugin_manager()
-        self.pluggy.register(self._evlogger)
+        self.plugin_manager = AccountHookSpecs._make_plugin_manager()
+        self.plugin_manager.register(self._evlogger)
         deltachat.set_context_callback(self._dc_context, _ll_event)
 
         # open database
@@ -382,7 +383,7 @@ class Account(object):
         return export_files[0]
 
     def _export(self, path, imex_cmd):
-        with ImexTracker(self) as imex_tracker:
+        with temp_plugin(self.plugin_manager, ImexTracker()) as imex_tracker:
             lib.dc_imex(self._dc_context, imex_cmd, as_dc_charpointer(path), ffi.NULL)
             if not self._threads.is_started():
                 lib.dc_perform_imap_jobs(self._dc_context)
@@ -404,7 +405,7 @@ class Account(object):
         self._import(path, imex_cmd=12)
 
     def _import(self, path, imex_cmd):
-        with ImexTracker(self) as imex_tracker:
+        with temp_plugin(self.plugin_manager, ImexTracker()) as imex_tracker:
             lib.dc_imex(self._dc_context, imex_cmd, as_dc_charpointer(path), ffi.NULL)
             if not self._threads.is_started():
                 lib.dc_perform_imap_jobs(self._dc_context)
@@ -511,7 +512,7 @@ class Account(object):
             deltachat.clear_context_callback(self._dc_context)
             del self._dc_context
             atexit.unregister(self.shutdown)
-        self.pluggy.unregister(self._evlogger)
+        self.plugin_manager.unregister(self._evlogger)
 
     def set_location(self, latitude=0.0, longitude=0.0, accuracy=0.0):
         """set a new location. It effects all chats where we currently
@@ -528,23 +529,19 @@ class Account(object):
             raise ValueError("no chat is streaming locations")
 
 
+@contextmanager
+def temp_plugin(plugin_manager, plugin):
+    plugin_manager.register(plugin)
+    yield plugin
+    plugin_manager.unregister(plugin)
+
+
 class ImexTracker:
-    def __init__(self, account):
+    def __init__(self):
         self._imex_events = Queue()
-        self.account = account
 
-    def __enter__(self):
-        self.account.pluggy.register(self)
-        return self
-
-    def __exit__(self, *args):
-        self.account.pluggy.unregister(self)
-
-    @hookimpl
-    def process_low_level_event(self, account, event_name, data1, data2):
-        # there could be multiple accounts instantiated
-        if self.account is not account:
-            return
+    @account_hookimpl
+    def process_low_level_event(self, event_name, data1, data2):
         if event_name == "DC_EVENT_IMEX_PROGRESS":
             self._imex_events.put(data1)
         elif event_name == "DC_EVENT_IMEX_FILE_WRITTEN":
