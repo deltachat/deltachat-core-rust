@@ -1,17 +1,21 @@
+import threading
 import time
 from .hookspec import account_hookimpl, global_hookimpl
 
 
-@global_hookimpl
-def at_account_init(account, logid):
-    account._evlogger = account.add_account_plugin(EventLogger(account, logid=logid))
+class FFIEventLogger:
+    """ If you register an instance of this logger with an Account
+    you'll get all ffi-events printed.
+    """
+    # to prevent garbled logging
+    _loglock = threading.RLock()
 
-
-class EventLogger:
-    def __init__(self, account, logid=None):
+    def __init__(self, account, logid):
+        """
+        :param logid: an optional logging prefix that should be used with
+                      the default internal logging.
+        """
         self.account = account
-        if logid is None:
-            logid = str(self.account._dc_context).strip(">").split()[-1]
         self.logid = logid
         self.init_time = time.time()
 
@@ -25,3 +29,16 @@ class EventLogger:
             return
         evpart = "{}({!r},{!r})".format(evt_name, data1, data2)
         self.account.log_line(evpart)
+
+    @account_hookimpl
+    def log_line(self, message):
+        t = threading.currentThread()
+        tname = getattr(t, "name", t)
+        if tname == "MainThread":
+            tname = "MAIN"
+        with self._loglock:
+            print("{:2.2f} [{}-{}] {}".format(
+                time.time() - self.init_time,
+                tname,
+                self.logid,
+                message))

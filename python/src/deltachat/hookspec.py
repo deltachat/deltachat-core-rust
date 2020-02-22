@@ -28,6 +28,10 @@ class PerAccount:
         """ process a CFFI low level events for a given account. """
 
     @account_hookspec
+    def log_line(self, message):
+        """ log a message related to the account. """
+
+    @account_hookspec
     def configure_completed(self, success):
         """ Called when a configure process completed. """
 
@@ -47,5 +51,5 @@ class Global:
         return cls._plugin_manager
 
     @global_hookspec
-    def at_account_init(self, account, logid):
+    def at_account_init(self, account):
         """ called when `Account::__init__()` function starts executing. """

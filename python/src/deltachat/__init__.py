@@ -1,4 +1,4 @@
-from . import capi, const
+from . import capi, const, hookspec
 from .capi import ffi
 from .account import Account  # noqa
 
@@ -74,3 +74,8 @@ def get_dc_event_name(integer, _DC_EVENTNAME_MAP={}):
             if name.startswith("DC_EVENT_"):
                 _DC_EVENTNAME_MAP[val] = name
     return _DC_EVENTNAME_MAP[integer]
+
+
+def register_global_plugin(plugin):
+    gm = hookspect.Global._get_plugin_manager()
+    gm.register(plugin)

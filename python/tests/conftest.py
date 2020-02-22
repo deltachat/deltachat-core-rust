@@ -9,6 +9,7 @@ from deltachat import Account
 from deltachat.tracker import ConfigureTracker
 from deltachat import const
 from deltachat.capi import lib
+from deltachat.eventlogger import FFIEventLogger
 from _pytest.monkeypatch import MonkeyPatch
 from ffi_event import FFIEventTracker
 import tempfile
@@ -164,9 +165,10 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
                 fin()
 
         def make_account(self, path, logid):
-            ac = Account(path, logid=logid)
+            ac = Account(path)
             ac._evtracker = ac.add_account_plugin(FFIEventTracker(ac))
             ac._configtracker = ac.add_account_plugin(ConfigureTracker())
+            ac.add_account_plugin(FFIEventLogger(ac, logid=logid))
             self._finalizers.append(ac.shutdown)
             return ac
 
