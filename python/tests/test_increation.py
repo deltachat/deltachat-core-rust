@@ -91,21 +91,21 @@ class TestOnlineInCreation:
         assert fwd_msg.is_out_pending() or fwd_msg.is_out_delivered()
 
         lp.sec("wait for the messages to be delivered to SMTP")
-        ev = ac1._evlogger.get_matching("DC_EVENT_MSG_DELIVERED")
+        ev = ac1._evtracker.get_matching("DC_EVENT_MSG_DELIVERED")
         assert ev[1] == chat.id
         assert ev[2] == prepared_original.id
-        ev = ac1._evlogger.get_matching("DC_EVENT_MSG_DELIVERED")
+        ev = ac1._evtracker.get_matching("DC_EVENT_MSG_DELIVERED")
         assert ev[1] == chat2.id
         assert ev[2] == forwarded_id
 
         lp.sec("wait1 for original or forwarded messages to arrive")
-        ev1 = ac2._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
+        ev1 = ac2._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
         assert ev1[1] > const.DC_CHAT_ID_LAST_SPECIAL
         received_original = ac2.get_message_by_id(ev1[2])
         assert cmp(received_original.filename, orig, shallow=False)
 
         lp.sec("wait2 for original or forwarded messages to arrive")
-        ev2 = ac2._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
+        ev2 = ac2._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
         assert ev2[1] > const.DC_CHAT_ID_LAST_SPECIAL
         assert ev2[1] != ev1[1]
         received_copy = ac2.get_message_by_id(ev2[2])
