@@ -7,8 +7,6 @@ from contextlib import contextmanager
 import os
 import time
 from array import array
-from queue import Queue
-
 import deltachat
 from . import const
 from .capi import ffi, lib
@@ -17,6 +15,7 @@ from .chat import Chat
 from .message import Message
 from .contact import Contact
 from .eventlogger import EventLogger
+from .tracker import ImexTracker
 from .hookspec import AccountHookSpecs, account_hookimpl
 
 
@@ -45,13 +44,14 @@ class Account(object):
         self._threads = IOThreads(self._dc_context, self._evlogger._log_event)
 
         # initialize per-account plugin system
-        self.plugin_manager = AccountHookSpecs._make_plugin_manager()
-        self.plugin_manager.register(self._evlogger)
+        self._pm = AccountHookSpecs._make_plugin_manager()
+        self.add_account_plugin(self)
+        self.add_account_plugin(self._evlogger)
 
         # send all FFI events for this account to a plugin hook
         def _ll_event(ctx, evt_name, data1, data2):
             assert ctx == self._dc_context
-            self.plugin_manager.hook.process_low_level_event(
+            self._pm.hook.process_low_level_event(
                 account=self, event_name=evt_name, data1=data1, data2=data2
             )
         deltachat.set_context_callback(self._dc_context, _ll_event)
@@ -63,6 +63,19 @@ class Account(object):
             raise ValueError("Could not dc_open: {}".format(db_path))
         self._configkeys = self.get_config("sys.config_keys").split()
         atexit.register(self.shutdown)
+
+    @account_hookimpl
+    def process_low_level_event(self, event_name, data1, data2):
+        if event_name == "DC_EVENT_CONFIGURE_PROGRESS":
+            if data1 == 0 or data1 == 1000:
+                success = data1 == 1000
+                self._pm.hook.configure_completed(success=success)
+
+    def add_account_plugin(self, plugin):
+        """ add an account plugin whose hookimpls are called. """
+        self._pm.register(plugin)
+        self._pm.check_pending()
+        return plugin
 
     # def __del__(self):
     #    self.shutdown()
@@ -519,7 +532,7 @@ class Account(object):
             deltachat.clear_context_callback(self._dc_context)
             del self._dc_context
             atexit.unregister(self.shutdown)
-        self.plugin_manager.unregister(self._evlogger)
+            self._pm.unregister(self._evlogger)
 
     def set_location(self, latitude=0.0, longitude=0.0, accuracy=0.0):
         """set a new location. It effects all chats where we currently
@@ -538,33 +551,9 @@ class Account(object):
     @contextmanager
     def temp_plugin(self, plugin):
         """ run a code block with the given plugin temporarily registered. """
-        self.plugin_manager.register(plugin)
+        self._pm.register(plugin)
         yield plugin
-        self.plugin_manager.unregister(plugin)
-
-
-class ImexTracker:
-    def __init__(self):
-        self._imex_events = Queue()
-
-    @account_hookimpl
-    def process_low_level_event(self, event_name, data1, data2):
-        if event_name == "DC_EVENT_IMEX_PROGRESS":
-            self._imex_events.put(data1)
-        elif event_name == "DC_EVENT_IMEX_FILE_WRITTEN":
-            self._imex_events.put(data1)
-
-    def wait_finish(self, progress_timeout=60):
-        """ Return list of written files, raise ValueError if ExportFailed. """
-        files_written = []
-        while True:
-            ev = self._imex_events.get(timeout=progress_timeout)
-            if isinstance(ev, str):
-                files_written.append(ev)
-            elif ev == 0:
-                raise ValueError("export failed, exp-files: {}".format(files_written))
-            elif ev == 1000:
-                return files_written
+        self._pm.unregister(plugin)
 
 
 class IOThreads:

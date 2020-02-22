@@ -6,6 +6,7 @@ import pytest
 import requests
 import time
 from deltachat import Account
+from deltachat.tracker import ConfigureTracker
 from deltachat import const
 from deltachat.capi import lib
 from _pytest.monkeypatch import MonkeyPatch
@@ -164,8 +165,8 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
 
         def make_account(self, path, logid):
             ac = Account(path, logid=logid)
-            ac._evtracker = FFIEventTracker(ac)
-            ac.plugin_manager.register(ac._evtracker)
+            ac._evtracker = ac.add_account_plugin(FFIEventTracker(ac))
+            ac._configtracker = ac.add_account_plugin(ConfigureTracker())
             self._finalizers.append(ac.shutdown)
             return ac
 
@@ -232,17 +233,16 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
         def get_one_online_account(self, pre_generated_key=True):
             ac1 = self.get_online_configuring_account(
                 pre_generated_key=pre_generated_key)
-            wait_successful_IMAP_SMTP_connection(ac1)
-            wait_configuration_progress(ac1, 1000)
+            ac1._configtracker.wait_imap_connected()
+            ac1._configtracker.wait_smtp_connected()
+            ac1._configtracker.wait_finish()
             return ac1
 
         def get_two_online_accounts(self):
             ac1 = self.get_online_configuring_account()
             ac2 = self.get_online_configuring_account()
-            wait_successful_IMAP_SMTP_connection(ac1)
-            wait_configuration_progress(ac1, 1000)
-            wait_successful_IMAP_SMTP_connection(ac2)
-            wait_configuration_progress(ac2, 1000)
+            ac1._configtracker.wait_finish()
+            ac2._configtracker.wait_finish()
             return ac1, ac2
 
         def clone_online_account(self, account, pre_generated_key=True):
