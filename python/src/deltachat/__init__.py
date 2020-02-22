@@ -1,6 +1,6 @@
-from deltachat import capi, const
-from deltachat.capi import ffi
-from deltachat.account import Account  # noqa
+from . import capi, const
+from .capi import ffi
+from .account import Account  # noqa
 
 from pkg_resources import get_distribution, DistributionNotFound
 try:

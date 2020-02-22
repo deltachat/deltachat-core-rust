@@ -2,14 +2,17 @@
 
 import pluggy
 
-__all__ = ["account_hookspec", "account_hookimpl", "AccountHookSpecs"]
 
 _account_name = "deltachat-account"
 account_hookspec = pluggy.HookspecMarker(_account_name)
 account_hookimpl = pluggy.HookimplMarker(_account_name)
 
+_global_name = "deltachat-global"
+global_hookspec = pluggy.HookspecMarker(_global_name)
+global_hookimpl = pluggy.HookimplMarker(_global_name)
 
-class AccountHookSpecs:
+
+class PerAccount:
     """ per-Account-instance hook specifications.
 
     Account hook implementations need to be registered with an Account instance.
@@ -27,3 +30,22 @@ class AccountHookSpecs:
     @account_hookspec
     def configure_completed(self, success):
         """ Called when a configure process completed. """
+
+
+
+class Global:
+    """ global hook specifications using a per-process singleton plugin manager instance.
+
+    """
+    _plugin_manager = None
+
+    @classmethod
+    def _get_plugin_manager(cls):
+        if cls._plugin_manager is None:
+            cls._plugin_manager = pm = pluggy.PluginManager(_global_name)
+            pm.add_hookspecs(cls)
+        return cls._plugin_manager
+
+    @global_hookspec
+    def at_account_init(self, account, logid):
+        """ called when `Account::__init__()` function starts executing. """
