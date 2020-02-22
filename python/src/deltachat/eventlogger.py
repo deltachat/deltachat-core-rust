@@ -2,7 +2,7 @@ import threading
 import re
 import time
 from queue import Queue, Empty
-from .hookspec import hookimpl
+from .hookspec import account_hookimpl
 
 
 class EventLogger:
@@ -18,11 +18,10 @@ class EventLogger:
         self._timeout = None
         self.init_time = time.time()
 
-    @hookimpl
-    def process_low_level_event(self, account, event_name, data1, data2):
-        if self.account == account:
-            self._log_event(event_name, data1, data2)
-            self._event_queue.put((event_name, data1, data2))
+    @account_hookimpl
+    def process_low_level_event(self, event_name, data1, data2):
+        self._log_event(event_name, data1, data2)
+        self._event_queue.put((event_name, data1, data2))
 
     def set_timeout(self, timeout):
         self._timeout = timeout
