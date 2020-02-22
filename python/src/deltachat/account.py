@@ -14,12 +14,8 @@ from .cutil import as_dc_charpointer, from_dc_charpointer, iter_array, DCLot
 from .chat import Chat
 from .message import Message
 from .contact import Contact
-from . import eventlogger
 from .tracker import ImexTracker
 from . import hookspec
-
-
-hookspec.Global._get_plugin_manager().register(eventlogger)
 
 
 class Account(object):
@@ -27,16 +23,11 @@ class Account(object):
     by the underlying deltachat core library.  All public Account methods are
     meant to be memory-safe and return memory-safe objects.
     """
-    # to prevent garbled logging
-    _loglock = threading.RLock()
-
-    def __init__(self, db_path, logid=None, os_name=None):
+    def __init__(self, db_path, os_name=None):
         """ initialize account object.
 
         :param db_path: a path to the account database. The database
                         will be created if it doesn't exist.
-        :param logid: an optional logging prefix that should be used with
-                      the default internal logging.
         :param os_name: this will be put to the X-Mailer header in outgoing messages
         """
         # initialize per-account plugin system
@@ -49,9 +40,9 @@ class Account(object):
         )
 
         hook = hookspec.Global._get_plugin_manager().hook
-        hook.at_account_init(account=self, db_path=db_path, logid=logid)
+        hook.at_account_init(account=self, db_path=db_path)
 
-        self._threads = IOThreads(self._dc_context)
+        self._threads = IOThreads(self)
 
         # send all FFI events for this account to a plugin hook
         def _ll_event(ctx, evt_name, data1, data2):
@@ -86,13 +77,7 @@ class Account(object):
     #    self.shutdown()
 
     def log_line(self, msg):
-        t = threading.currentThread()
-        tname = getattr(t, "name", t)
-        if tname == "MainThread":
-            tname = "MAIN"
-        with self._loglock:
-            print("{:2.2f} [{}-{}] {}".format(time.time() - self._evlogger.init_time,
-                  tname, self._evlogger.logid, msg))
+        self._pm.hook.log_line(message=msg)
 
     def _check_config_key(self, name):
         if name not in self._configkeys:
@@ -537,7 +522,6 @@ class Account(object):
             deltachat.clear_context_callback(self._dc_context)
             del self._dc_context
             atexit.unregister(self.shutdown)
-            self._pm.unregister(self._evlogger)
 
     def set_location(self, latitude=0.0, longitude=0.0, accuracy=0.0):
         """set a new location. It effects all chats where we currently
@@ -562,11 +546,11 @@ class Account(object):
 
 
 class IOThreads:
-    def __init__(self, dc_context, log_event=lambda *args: None):
-        self._dc_context = dc_context
+    def __init__(self, account):
+        self.account = account
+        self._dc_context = account._dc_context
         self._thread_quitflag = False
         self._name2thread = {}
-        self._log_event = log_event
 
     def is_started(self):
         return len(self._name2thread) > 0
@@ -587,6 +571,12 @@ class IOThreads:
         t.setDaemon(1)
         t.start()
 
+    @contextmanager
+    def log_execution(self, message):
+        self.account.log_line(message + " START")
+        yield
+        self.account.log_line(message + " FINISHED")
+
     def stop(self, wait=False):
         self._thread_quitflag = True
 
@@ -603,42 +593,38 @@ class IOThreads:
                 thread.join()
 
     def imap_thread_run(self):
-        self._log_event("py-bindings-info", 0, "INBOX THREAD START")
-        while not self._thread_quitflag:
-            lib.dc_perform_imap_jobs(self._dc_context)
-            if not self._thread_quitflag:
-                lib.dc_perform_imap_fetch(self._dc_context)
-            if not self._thread_quitflag:
-                lib.dc_perform_imap_idle(self._dc_context)
-        self._log_event("py-bindings-info", 0, "INBOX THREAD FINISHED")
+        with self.log_execution("INBOX THREAD START"):
+            while not self._thread_quitflag:
+                lib.dc_perform_imap_jobs(self._dc_context)
+                if not self._thread_quitflag:
+                    lib.dc_perform_imap_fetch(self._dc_context)
+                if not self._thread_quitflag:
+                    lib.dc_perform_imap_idle(self._dc_context)
 
     def mvbox_thread_run(self):
-        self._log_event("py-bindings-info", 0, "MVBOX THREAD START")
-        while not self._thread_quitflag:
-            lib.dc_perform_mvbox_jobs(self._dc_context)
-            if not self._thread_quitflag:
-                lib.dc_perform_mvbox_fetch(self._dc_context)
-            if not self._thread_quitflag:
-                lib.dc_perform_mvbox_idle(self._dc_context)
-        self._log_event("py-bindings-info", 0, "MVBOX THREAD FINISHED")
+        with self.log_execution("MVBOX THREAD"):
+            while not self._thread_quitflag:
+                lib.dc_perform_mvbox_jobs(self._dc_context)
+                if not self._thread_quitflag:
+                    lib.dc_perform_mvbox_fetch(self._dc_context)
+                if not self._thread_quitflag:
+                    lib.dc_perform_mvbox_idle(self._dc_context)
 
     def sentbox_thread_run(self):
-        self._log_event("py-bindings-info", 0, "SENTBOX THREAD START")
-        while not self._thread_quitflag:
-            lib.dc_perform_sentbox_jobs(self._dc_context)
-            if not self._thread_quitflag:
-                lib.dc_perform_sentbox_fetch(self._dc_context)
-            if not self._thread_quitflag:
-                lib.dc_perform_sentbox_idle(self._dc_context)
-        self._log_event("py-bindings-info", 0, "SENTBOX THREAD FINISHED")
+        with self.log_execution("SENTBOX THREAD"):
+            while not self._thread_quitflag:
+                lib.dc_perform_sentbox_jobs(self._dc_context)
+                if not self._thread_quitflag:
+                    lib.dc_perform_sentbox_fetch(self._dc_context)
+                if not self._thread_quitflag:
+                    lib.dc_perform_sentbox_idle(self._dc_context)
 
     def smtp_thread_run(self):
-        self._log_event("py-bindings-info", 0, "SMTP THREAD START")
-        while not self._thread_quitflag:
-            lib.dc_perform_smtp_jobs(self._dc_context)
-            if not self._thread_quitflag:
-                lib.dc_perform_smtp_idle(self._dc_context)
-        self._log_event("py-bindings-info", 0, "SMTP THREAD FINISHED")
+        with self.log_execution("SMTP THREAD"):
+            while not self._thread_quitflag:
+                lib.dc_perform_smtp_jobs(self._dc_context)
+                if not self._thread_quitflag:
+                    lib.dc_perform_smtp_idle(self._dc_context)
 
 
 def _destroy_dc_context(dc_context, dc_context_unref=lib.dc_context_unref):
