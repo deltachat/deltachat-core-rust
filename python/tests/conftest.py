@@ -284,39 +284,23 @@ def lp():
 def wait_configuration_progress(account, min_target, max_target=1001):
     min_target = min(min_target, max_target)
     while 1:
-        evt_name, data1, data2 = \
-            account._evtracker.get_matching("DC_EVENT_CONFIGURE_PROGRESS")
-        if data1 >= min_target and data1 <= max_target:
+        event = account._evtracker.get_matching("DC_EVENT_CONFIGURE_PROGRESS")
+        if event.data1 >= min_target and event.data1 <= max_target:
             print("** CONFIG PROGRESS {}".format(min_target), account)
             break
 
 
 def wait_securejoin_inviter_progress(account, target):
     while 1:
-        evt_name, data1, data2 = \
-            account._evtracker.get_matching("DC_EVENT_SECUREJOIN_INVITER_PROGRESS")
-        if data2 >= target:
+        event = account._evtracker.get_matching("DC_EVENT_SECUREJOIN_INVITER_PROGRESS")
+        if event.data2 >= target:
             print("** SECUREJOINT-INVITER PROGRESS {}".format(target), account)
             break
 
 
-def wait_successful_IMAP_SMTP_connection(account):
-    imap_ok = smtp_ok = False
-    while not imap_ok or not smtp_ok:
-        evt_name, data1, data2 = \
-            account._evtracker.get_matching("DC_EVENT_(IMAP|SMTP)_CONNECTED")
-        if evt_name == "DC_EVENT_IMAP_CONNECTED":
-            imap_ok = True
-            print("** IMAP OK", account)
-        if evt_name == "DC_EVENT_SMTP_CONNECTED":
-            smtp_ok = True
-            print("** SMTP OK", account)
-    print("** IMAP and SMTP logins successful", account)
-
-
 def wait_msgs_changed(account, chat_id, msg_id=None):
     ev = account._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
-    assert ev[1] == chat_id
+    assert ev.data1 == chat_id
     if msg_id is not None:
-        assert ev[2] == msg_id
-    return ev[2]
+        assert ev.data2 == msg_id
+    return ev.data2

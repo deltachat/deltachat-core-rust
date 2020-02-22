@@ -14,11 +14,11 @@ class ImexTracker:
         self._imex_events = Queue()
 
     @account_hookimpl
-    def process_ffi_event(self, event_name, data1, data2):
-        if event_name == "DC_EVENT_IMEX_PROGRESS":
-            self._imex_events.put(data1)
-        elif event_name == "DC_EVENT_IMEX_FILE_WRITTEN":
-            self._imex_events.put(data1)
+    def process_ffi_event(self, ffi_event):
+        if ffi_event.name == "DC_EVENT_IMEX_PROGRESS":
+            self._imex_events.put(ffi_event.data1)
+        elif ffi_event.name == "DC_EVENT_IMEX_FILE_WRITTEN":
+            self._imex_events.put(ffi_event.data1)
 
     def wait_finish(self, progress_timeout=60):
         """ Return list of written files, raise ValueError if ExportFailed. """
@@ -47,11 +47,11 @@ class ConfigureTracker:
         self._ffi_events = []
 
     @account_hookimpl
-    def process_ffi_event(self, event_name, data1, data2):
-        self._ffi_events.append((event_name, data1, data2))
-        if event_name == "DC_EVENT_SMTP_CONNECTED":
+    def process_ffi_event(self, ffi_event):
+        self._ffi_events.append(ffi_event)
+        if ffi_event.name == "DC_EVENT_SMTP_CONNECTED":
             self._smtp_finished.set()
-        elif event_name == "DC_EVENT_IMAP_CONNECTED":
+        elif ffi_event.name == "DC_EVENT_IMAP_CONNECTED":
             self._imap_finished.set()
 
     @account_hookimpl
@@ -72,5 +72,5 @@ class ConfigureTracker:
         Raise Exception if Configure failed
         """
         if not self._configure_events.get():
-            content = "\n".join("{}: {} {}".format(*args) for args in self._ffi_events)
+            content = "\n".join(map(str, self._ffi_events))
             raise ConfigureFailed(content)

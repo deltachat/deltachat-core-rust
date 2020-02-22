@@ -21,26 +21,27 @@ def test_dc_close_events(tmpdir, acfactory):
     ac1 = acfactory.get_unconfigured_account()
 
     # register after_shutdown function
-    l = []
+    shutdowns = []
+
     class ShutdownPlugin:
         @account_hookimpl
         def after_shutdown(self):
             assert not hasattr(ac1, "_dc_context")
-            l.append(1)
+            shutdowns.append(1)
     ac1.add_account_plugin(ShutdownPlugin())
     assert hasattr(ac1, "_dc_context")
     ac1.shutdown()
-    assert l == [1]
+    assert shutdowns == [1]
 
     def find(info_string):
         evlog = ac1._evtracker
         while 1:
             ev = evlog.get_matching("DC_EVENT_INFO", check_error=False)
-            data2 = ev[2]
+            data2 = ev.data2
             if info_string in data2:
                 return
             else:
-                print("skipping event", *ev)
+                print("skipping event", ev)
 
     find("disconnecting inbox-thread")
     find("disconnecting sentbox-thread")
