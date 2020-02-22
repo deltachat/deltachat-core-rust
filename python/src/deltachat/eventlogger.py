@@ -20,7 +20,7 @@ class FFIEventLogger:
         self.init_time = time.time()
 
     @account_hookimpl
-    def process_low_level_event(self, event_name, data1, data2):
+    def process_ffi_event(self, event_name, data1, data2):
         self._log_event(event_name, data1, data2)
 
     def _log_event(self, evt_name, data1, data2):

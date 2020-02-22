@@ -47,7 +47,7 @@ class Account(object):
         # send all FFI events for this account to a plugin hook
         def _ll_event(ctx, evt_name, data1, data2):
             assert ctx == self._dc_context
-            self._pm.hook.process_low_level_event(
+            self._pm.hook.process_ffi_event(
                 account=self, event_name=evt_name, data1=data1, data2=data2
             )
         deltachat.set_context_callback(self._dc_context, _ll_event)
@@ -61,7 +61,7 @@ class Account(object):
         atexit.register(self.shutdown)
 
     @hookspec.account_hookimpl
-    def process_low_level_event(self, event_name, data1, data2):
+    def process_ffi_event(self, event_name, data1, data2):
         if event_name == "DC_EVENT_CONFIGURE_PROGRESS":
             if data1 == 0 or data1 == 1000:
                 success = data1 == 1000

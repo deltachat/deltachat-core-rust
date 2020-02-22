@@ -10,7 +10,7 @@ class FFIEventTracker:
         self._event_queue = Queue()
 
     @account_hookimpl
-    def process_low_level_event(self, event_name, data1, data2):
+    def process_ffi_event(self, event_name, data1, data2):
         self._event_queue.put((event_name, data1, data2))
 
     def set_timeout(self, timeout):
