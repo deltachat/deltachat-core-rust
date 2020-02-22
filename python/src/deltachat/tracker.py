@@ -38,6 +38,8 @@ class ConfigureFailed(RuntimeError):
 
 
 class ConfigureTracker:
+    ConfigureFailed = ConfigureFailed
+
     def __init__(self):
         self._configure_events = Queue()
         self._smtp_finished = Event()
