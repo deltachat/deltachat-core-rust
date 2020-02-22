@@ -1,6 +1,6 @@
 import threading
 import time
-from .hookspec import account_hookimpl, global_hookimpl
+from .hookspec import account_hookimpl
 
 
 class FFIEventLogger:
@@ -20,15 +20,14 @@ class FFIEventLogger:
         self.init_time = time.time()
 
     @account_hookimpl
-    def process_ffi_event(self, event_name, data1, data2):
-        self._log_event(event_name, data1, data2)
+    def process_ffi_event(self, ffi_event):
+        self._log_event(ffi_event)
 
-    def _log_event(self, evt_name, data1, data2):
+    def _log_event(self, ffi_event):
         # don't show events that are anyway empty impls now
-        if evt_name == "DC_EVENT_GET_STRING":
+        if ffi_event.name == "DC_EVENT_GET_STRING":
             return
-        evpart = "{}({!r},{!r})".format(evt_name, data1, data2)
-        self.account.log_line(evpart)
+        self.account.log_line(str(ffi_event))
 
     @account_hookimpl
     def log_line(self, message):
@@ -36,9 +35,10 @@ class FFIEventLogger:
         tname = getattr(t, "name", t)
         if tname == "MainThread":
             tname = "MAIN"
+        elapsed = time.time() - self.init_time
+        locname = tname
+        if self.logid:
+            locname += "-" + self.logid
+        s = "{:2.2f} [{}] {}".format(elapsed, locname, message)
         with self._loglock:
-            print("{:2.2f} [{}-{}] {}".format(
-                time.time() - self.init_time,
-                tname,
-                self.logid,
-                message))
+            print(s)

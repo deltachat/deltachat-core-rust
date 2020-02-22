@@ -77,5 +77,5 @@ def get_dc_event_name(integer, _DC_EVENTNAME_MAP={}):
 
 
 def register_global_plugin(plugin):
-    gm = hookspect.Global._get_plugin_manager()
+    gm = hookspec.Global._get_plugin_manager()
     gm.register(plugin)

@@ -24,21 +24,24 @@ class PerAccount:
         return pm
 
     @account_hookspec
-    def process_ffi_event(self, event_name, data1, data2):
-        """ process a CFFI low level events for a given account. """
+    def process_ffi_event(self, ffi_event):
+        """ process a CFFI low level events for a given account.
+
+        ffi_event has "name", "data1", "data2" attributes according
+        to https://c.delta.chat/group__DC__EVENT.html
+        """
 
     @account_hookspec
     def log_line(self, message):
         """ log a message related to the account. """
 
     @account_hookspec
-    def after_shutdown(self):
-        """ Called when the account has been shutdown. """
-
-    @account_hookspec
     def configure_completed(self, success):
         """ Called when a configure process completed. """
 
+    @account_hookspec
+    def after_shutdown(self):
+        """ Called after the account has been shutdown. """
 
 
 class Global:

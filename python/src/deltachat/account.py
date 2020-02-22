@@ -47,8 +47,9 @@ class Account(object):
         # send all FFI events for this account to a plugin hook
         def _ll_event(ctx, evt_name, data1, data2):
             assert ctx == self._dc_context
+            ffi_event = FFIEvent(name=evt_name, data1=data1, data2=data2)
             self._pm.hook.process_ffi_event(
-                account=self, event_name=evt_name, data1=data1, data2=data2
+                account=self, ffi_event=ffi_event
             )
         deltachat.set_context_callback(self._dc_context, _ll_event)
 
@@ -61,8 +62,9 @@ class Account(object):
         atexit.register(self.shutdown)
 
     @hookspec.account_hookimpl
-    def process_ffi_event(self, event_name, data1, data2):
-        if event_name == "DC_EVENT_CONFIGURE_PROGRESS":
+    def process_ffi_event(self, ffi_event):
+        if ffi_event.name == "DC_EVENT_CONFIGURE_PROGRESS":
+            data1 = ffi_event.data1
             if data1 == 0 or data1 == 1000:
                 success = data1 == 1000
                 self._pm.hook.configure_completed(success=success)
@@ -637,6 +639,16 @@ def _destroy_dc_context(dc_context, dc_context_unref=lib.dc_context_unref):
         # we are deep into Python Interpreter shutdown,
         # so no need to clear the callback context mapping.
         pass
+
+
+class FFIEvent:
+    def __init__(self, name, data1, data2):
+        self.name = name
+        self.data1 = data1
+        self.data2 = data2
+
+    def __str__(self):
+        return "{name} data1={data1} data2={data2}".format(**self.__dict__)
 
 
 class ScannedQRCode:
