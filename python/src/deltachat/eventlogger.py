@@ -1,4 +1,3 @@
-import threading
 import time
 from .hookspec import account_hookimpl
 

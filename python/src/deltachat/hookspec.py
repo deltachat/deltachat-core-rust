@@ -23,3 +23,7 @@ class AccountHookSpecs:
     @account_hookspec
     def process_low_level_event(self, event_name, data1, data2):
         """ process a CFFI low level events for a given account. """
+
+    @account_hookspec
+    def configure_completed(self, success):
+        """ Called when a configure process completed. """
