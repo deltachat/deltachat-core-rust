@@ -9,6 +9,7 @@ from deltachat import Account
 from deltachat import const
 from deltachat.capi import lib
 from _pytest.monkeypatch import MonkeyPatch
+from ffi_event import FFIEventTracker
 import tempfile
 
 
@@ -163,6 +164,8 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
 
         def make_account(self, path, logid):
             ac = Account(path, logid=logid)
+            ac._evtracker = FFIEventTracker(ac)
+            ac.plugin_manager.register(ac._evtracker)
             self._finalizers.append(ac.shutdown)
             return ac
 
@@ -170,8 +173,8 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
             self.offline_count += 1
             tmpdb = tmpdir.join("offlinedb%d" % self.offline_count)
             ac = self.make_account(tmpdb.strpath, logid="ac{}".format(self.offline_count))
-            ac._evlogger.init_time = self.init_time
-            ac._evlogger.set_timeout(2)
+            ac._evtracker.init_time = self.init_time
+            ac._evtracker.set_timeout(2)
             return ac
 
         def _preconfigure_key(self, account, addr):
@@ -213,8 +216,8 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
             ac = self.make_account(tmpdb.strpath, logid="ac{}".format(self.live_count))
             if pre_generated_key:
                 self._preconfigure_key(ac, configdict['addr'])
-            ac._evlogger.init_time = self.init_time
-            ac._evlogger.set_timeout(30)
+            ac._evtracker.init_time = self.init_time
+            ac._evtracker.set_timeout(30)
             return ac, dict(configdict)
 
         def get_online_configuring_account(self, mvbox=False, sentbox=False,
@@ -248,8 +251,8 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
             ac = self.make_account(tmpdb.strpath, logid="ac{}".format(self.live_count))
             if pre_generated_key:
                 self._preconfigure_key(ac, account.get_config("addr"))
-            ac._evlogger.init_time = self.init_time
-            ac._evlogger.set_timeout(30)
+            ac._evtracker.init_time = self.init_time
+            ac._evtracker.set_timeout(30)
             ac.configure(addr=account.get_config("addr"), mail_pw=account.get_config("mail_pw"))
             ac.start_threads()
             return ac
@@ -280,7 +283,7 @@ def wait_configuration_progress(account, min_target, max_target=1001):
     min_target = min(min_target, max_target)
     while 1:
         evt_name, data1, data2 = \
-            account._evlogger.get_matching("DC_EVENT_CONFIGURE_PROGRESS")
+            account._evtracker.get_matching("DC_EVENT_CONFIGURE_PROGRESS")
         if data1 >= min_target and data1 <= max_target:
             print("** CONFIG PROGRESS {}".format(min_target), account)
             break
@@ -289,7 +292,7 @@ def wait_configuration_progress(account, min_target, max_target=1001):
 def wait_securejoin_inviter_progress(account, target):
     while 1:
         evt_name, data1, data2 = \
-            account._evlogger.get_matching("DC_EVENT_SECUREJOIN_INVITER_PROGRESS")
+            account._evtracker.get_matching("DC_EVENT_SECUREJOIN_INVITER_PROGRESS")
         if data2 >= target:
             print("** SECUREJOINT-INVITER PROGRESS {}".format(target), account)
             break
@@ -299,7 +302,7 @@ def wait_successful_IMAP_SMTP_connection(account):
     imap_ok = smtp_ok = False
     while not imap_ok or not smtp_ok:
         evt_name, data1, data2 = \
-            account._evlogger.get_matching("DC_EVENT_(IMAP|SMTP)_CONNECTED")
+            account._evtracker.get_matching("DC_EVENT_(IMAP|SMTP)_CONNECTED")
         if evt_name == "DC_EVENT_IMAP_CONNECTED":
             imap_ok = True
             print("** IMAP OK", account)
@@ -310,7 +313,7 @@ def wait_successful_IMAP_SMTP_connection(account):
 
 
 def wait_msgs_changed(account, chat_id, msg_id=None):
-    ev = account._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
+    ev = account._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
     assert ev[1] == chat_id
     if msg_id is not None:
         assert ev[2] == msg_id

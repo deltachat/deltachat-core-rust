@@ -42,15 +42,16 @@ class Account(object):
         self._evlogger = EventLogger(self, logid, debug)
         self._threads = IOThreads(self._dc_context, self._evlogger._log_event)
 
-        # register event call back and initialize per-account plugin system
+        # initialize per-account plugin system
+        self.plugin_manager = AccountHookSpecs._make_plugin_manager()
+        self.plugin_manager.register(self._evlogger)
+
+        # send all FFI events for this account to a plugin hook
         def _ll_event(ctx, evt_name, data1, data2):
             assert ctx == self._dc_context
             self.plugin_manager.hook.process_low_level_event(
                 account=self, event_name=evt_name, data1=data1, data2=data2
             )
-
-        self.plugin_manager = AccountHookSpecs._make_plugin_manager()
-        self.plugin_manager.register(self._evlogger)
         deltachat.set_context_callback(self._dc_context, _ll_event)
 
         # open database
@@ -480,11 +481,6 @@ class Account(object):
     #
     # meta API for start/stop and event based processing
     #
-
-    def wait_next_incoming_message(self):
-        """ wait for and return next incoming message. """
-        ev = self._evlogger.get_matching("DC_EVENT_INCOMING_MSG")
-        return self.get_message_by_id(ev[2])
 
     def start_threads(self, mvbox=False, sentbox=False):
         """ start IMAP/SMTP threads (and configure account if it hasn't happened).
