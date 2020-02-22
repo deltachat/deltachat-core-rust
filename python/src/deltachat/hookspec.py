@@ -24,7 +24,7 @@ class PerAccount:
         return pm
 
     @account_hookspec
-    def process_low_level_event(self, event_name, data1, data2):
+    def process_ffi_event(self, event_name, data1, data2):
         """ process a CFFI low level events for a given account. """
 
     @account_hookspec
