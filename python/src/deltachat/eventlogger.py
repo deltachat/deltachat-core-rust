@@ -4,11 +4,8 @@ from .hookspec import account_hookimpl
 
 
 class EventLogger:
-    _loglock = threading.RLock()
-
-    def __init__(self, account, logid=None, debug=True):
+    def __init__(self, account, logid=None):
         self.account = account
-        self._debug = debug
         if logid is None:
             logid = str(self.account._dc_context).strip(">").split()[-1]
         self.logid = logid
@@ -22,14 +19,5 @@ class EventLogger:
         # don't show events that are anyway empty impls now
         if evt_name == "DC_EVENT_GET_STRING":
             return
-        if self._debug:
-            evpart = "{}({!r},{!r})".format(evt_name, data1, data2)
-            self._log(evpart)
-
-    def _log(self, msg):
-        t = threading.currentThread()
-        tname = getattr(t, "name", t)
-        if tname == "MainThread":
-            tname = "MAIN"
-        with self._loglock:
-            print("{:2.2f} [{}-{}] {}".format(time.time() - self.init_time, tname, self.logid, msg))
+        evpart = "{}({!r},{!r})".format(evt_name, data1, data2)
+        self.account.log_line(evpart)

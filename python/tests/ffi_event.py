@@ -39,7 +39,7 @@ class FFIEventTracker:
                 assert not rex.match(ev[0]), "event found {}".format(ev)
 
     def get_matching(self, event_name_regex, check_error=True, timeout=None):
-        self.account._evlogger._log("-- waiting for event with regex: {} --".format(event_name_regex))
+        self.account.log_line("-- waiting for event with regex: {} --".format(event_name_regex))
         rex = re.compile("(?:{}).*".format(event_name_regex))
         while 1:
             ev = self.get(timeout=timeout, check_error=check_error)
