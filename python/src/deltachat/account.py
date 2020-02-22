@@ -25,7 +25,10 @@ class Account(object):
     by the underlying deltachat core library.  All public Account methods are
     meant to be memory-safe and return memory-safe objects.
     """
-    def __init__(self, db_path, logid=None, os_name=None, debug=True):
+    # to prevent garbled logging
+    _loglock = threading.RLock()
+
+    def __init__(self, db_path, logid=None, os_name=None):
         """ initialize account object.
 
         :param db_path: a path to the account database. The database
@@ -33,13 +36,12 @@ class Account(object):
         :param logid: an optional logging prefix that should be used with
                       the default internal logging.
         :param os_name: this will be put to the X-Mailer header in outgoing messages
-        :param debug: turn on debug logging for events.
         """
         self._dc_context = ffi.gc(
             lib.dc_context_new(lib.py_dc_callback, ffi.NULL, as_dc_charpointer(os_name)),
             _destroy_dc_context,
         )
-        self._evlogger = EventLogger(self, logid, debug)
+        self._evlogger = EventLogger(self, logid)
         self._threads = IOThreads(self._dc_context, self._evlogger._log_event)
 
         # initialize per-account plugin system
@@ -64,6 +66,15 @@ class Account(object):
 
     # def __del__(self):
     #    self.shutdown()
+
+    def log_line(self, msg):
+        t = threading.currentThread()
+        tname = getattr(t, "name", t)
+        if tname == "MainThread":
+            tname = "MAIN"
+        with self._loglock:
+            print("{:2.2f} [{}-{}] {}".format(time.time() - self._evlogger.init_time,
+                  tname, self._evlogger.logid, msg))
 
     def _check_config_key(self, name):
         if name not in self._configkeys:
