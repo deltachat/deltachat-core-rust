@@ -14,9 +14,12 @@ from .cutil import as_dc_charpointer, from_dc_charpointer, iter_array, DCLot
 from .chat import Chat
 from .message import Message
 from .contact import Contact
-from .eventlogger import EventLogger
+from . import eventlogger
 from .tracker import ImexTracker
-from .hookspec import AccountHookSpecs, account_hookimpl
+from . import hookspec
+
+
+hookspec.Global._get_plugin_manager().register(eventlogger)
 
 
 class Account(object):
@@ -36,17 +39,19 @@ class Account(object):
                       the default internal logging.
         :param os_name: this will be put to the X-Mailer header in outgoing messages
         """
+        # initialize per-account plugin system
+        self._pm = hookspec.PerAccount._make_plugin_manager()
+        self.add_account_plugin(self)
+
         self._dc_context = ffi.gc(
             lib.dc_context_new(lib.py_dc_callback, ffi.NULL, as_dc_charpointer(os_name)),
             _destroy_dc_context,
         )
-        self._evlogger = EventLogger(self, logid)
-        self._threads = IOThreads(self._dc_context, self._evlogger._log_event)
 
-        # initialize per-account plugin system
-        self._pm = AccountHookSpecs._make_plugin_manager()
-        self.add_account_plugin(self)
-        self.add_account_plugin(self._evlogger)
+        hook = hookspec.Global._get_plugin_manager().hook
+        hook.at_account_init(account=self, db_path=db_path, logid=logid)
+
+        self._threads = IOThreads(self._dc_context)
 
         # send all FFI events for this account to a plugin hook
         def _ll_event(ctx, evt_name, data1, data2):
@@ -64,7 +69,7 @@ class Account(object):
         self._configkeys = self.get_config("sys.config_keys").split()
         atexit.register(self.shutdown)
 
-    @account_hookimpl
+    @hookspec.account_hookimpl
     def process_low_level_event(self, event_name, data1, data2):
         if event_name == "DC_EVENT_CONFIGURE_PROGRESS":
             if data1 == 0 or data1 == 1000:

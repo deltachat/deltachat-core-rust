@@ -1,5 +1,10 @@
 import time
-from .hookspec import account_hookimpl
+from .hookspec import account_hookimpl, global_hookimpl
+
+
+@global_hookimpl
+def at_account_init(account, logid):
+    account._evlogger = account.add_account_plugin(EventLogger(account, logid=logid))
 
 
 class EventLogger:
