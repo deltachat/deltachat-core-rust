@@ -383,7 +383,7 @@ class Account(object):
         return export_files[0]
 
     def _export(self, path, imex_cmd):
-        with temp_plugin(self.plugin_manager, ImexTracker()) as imex_tracker:
+        with self.temp_plugin(ImexTracker()) as imex_tracker:
             lib.dc_imex(self._dc_context, imex_cmd, as_dc_charpointer(path), ffi.NULL)
             if not self._threads.is_started():
                 lib.dc_perform_imap_jobs(self._dc_context)
@@ -405,7 +405,7 @@ class Account(object):
         self._import(path, imex_cmd=12)
 
     def _import(self, path, imex_cmd):
-        with temp_plugin(self.plugin_manager, ImexTracker()) as imex_tracker:
+        with self.temp_plugin(ImexTracker()) as imex_tracker:
             lib.dc_imex(self._dc_context, imex_cmd, as_dc_charpointer(path), ffi.NULL)
             if not self._threads.is_started():
                 lib.dc_perform_imap_jobs(self._dc_context)
@@ -528,12 +528,12 @@ class Account(object):
         if dc_res == 0:
             raise ValueError("no chat is streaming locations")
 
-
-@contextmanager
-def temp_plugin(plugin_manager, plugin):
-    plugin_manager.register(plugin)
-    yield plugin
-    plugin_manager.unregister(plugin)
+    @contextmanager
+    def temp_plugin(self, plugin):
+        """ run a code block with the given plugin temporarily registered. """
+        self.plugin_manager.register(plugin)
+        yield plugin
+        self.plugin_manager.unregister(plugin)
 
 
 class ImexTracker:
