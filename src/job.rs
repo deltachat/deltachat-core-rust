@@ -437,6 +437,14 @@ impl Job {
         }
     }
 
+    /// Deletes a message on the server.
+    ///
+    /// foreign_id is a MsgId pointing to a message in the trash chat
+    /// or a hidden message.
+    ///
+    /// This job removes the database record. If there are no more
+    /// records pointing to the same message on the server, the job
+    /// also removes the message on the server.
     #[allow(non_snake_case)]
     fn DeleteMsgOnImap(&mut self, context: &Context) -> Status {
         let imap_inbox = &context.inbox_thread.read().unwrap().imap;
