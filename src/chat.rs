@@ -287,7 +287,7 @@ impl ChatId {
     fn maybe_delete_draft(self, context: &Context) -> bool {
         match self.get_draft_msg_id(context) {
             Some(msg_id) => {
-                Message::delete_from_db(context, msg_id);
+                msg_id.delete_from_db(context);
                 true
             }
             None => false,
