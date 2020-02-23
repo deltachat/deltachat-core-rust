@@ -473,7 +473,7 @@ impl Job {
                     }
                 }
             }
-            Message::delete_from_db(context, msg.id);
+            msg.id.delete_from_db(context);
             Status::Finished(Ok(()))
         } else {
             /* eg. device messages have no Message-ID */
