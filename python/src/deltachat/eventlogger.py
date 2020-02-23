@@ -1,6 +1,34 @@
+import deltachat
 import threading
 import time
-from .hookspec import account_hookimpl
+from .hookspec import account_hookimpl, global_hookimpl
+
+
+@global_hookimpl
+def account_init(account):
+    # send all FFI events for this account to a plugin hook
+    def _ll_event(ctx, evt_name, data1, data2):
+        assert ctx == account._dc_context
+        ffi_event = FFIEvent(name=evt_name, data1=data1, data2=data2)
+        account._pm.hook.process_ffi_event(
+            account=account, ffi_event=ffi_event
+        )
+    deltachat.set_context_callback(account._dc_context, _ll_event)
+
+
+@global_hookimpl
+def account_after_shutdown(dc_context):
+    deltachat.clear_context_callback(dc_context)
+
+
+class FFIEvent:
+    def __init__(self, name, data1, data2):
+        self.name = name
+        self.data1 = data1
+        self.data2 = data2
+
+    def __str__(self):
+        return "{name} data1={data1} data2={data2}".format(**self.__dict__)
 
 
 class FFIEventLogger:

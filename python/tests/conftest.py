@@ -230,8 +230,8 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
             configdict.update(config)
             configdict["mvbox_watch"] = str(int(mvbox))
             configdict["mvbox_move"] = "1"
-            ac.configure(**configdict)
-            ac.start_threads()
+            ac.update_config(configdict)
+            ac.start()
             return ac
 
         def get_one_online_account(self, pre_generated_key=True):
@@ -257,14 +257,14 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
                 self._preconfigure_key(ac, account.get_config("addr"))
             ac._evtracker.init_time = self.init_time
             ac._evtracker.set_timeout(30)
-            ac.configure(
+            ac.update_config(dict(
                 addr=account.get_config("addr"),
                 mail_pw=account.get_config("mail_pw"),
                 mvbox_watch=account.get_config("mvbox_watch"),
                 mvbox_move=account.get_config("mvbox_move"),
                 sentbox_watch=account.get_config("sentbox_watch"),
-            )
-            ac.start_threads()
+            ))
+            ac.start()
             return ac
 
     am = AccountMaker()

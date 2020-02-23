@@ -47,10 +47,6 @@ class PerAccount:
     def process_message_delivered(self, message):
         """ Called when an outgoing message has been delivered to SMTP. """
 
-    @account_hookspec
-    def after_shutdown(self):
-        """ Called after the account has been shutdown. """
-
 
 class Global:
     """ global hook specifications using a per-process singleton plugin manager instance.
@@ -66,5 +62,10 @@ class Global:
         return cls._plugin_manager
 
     @global_hookspec
-    def at_account_init(self, account):
+    def account_init(self, account):
         """ called when `Account::__init__()` function starts executing. """
+
+    @global_hookspec
+    def account_after_shutdown(self, account, dc_context):
+        """ Called after the account has been shutdown. """
+

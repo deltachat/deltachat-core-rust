@@ -45,19 +45,9 @@ class Account(object):
         )
 
         hook = hookspec.Global._get_plugin_manager().hook
-        hook.at_account_init(account=self, db_path=db_path)
+        hook.account_init(account=self, db_path=db_path)
 
-        self._shutdown_event = Event()
         self._threads = iothreads.IOThreads(self)
-
-        # send all FFI events for this account to a plugin hook
-        def _ll_event(ctx, evt_name, data1, data2):
-            assert ctx == self._dc_context
-            ffi_event = FFIEvent(name=evt_name, data1=data1, data2=data2)
-            self._pm.hook.process_ffi_event(
-                account=self, ffi_event=ffi_event
-            )
-        deltachat.set_context_callback(self._dc_context, _ll_event)
 
         # open database
         if hasattr(db_path, "encode"):
@@ -66,6 +56,8 @@ class Account(object):
             raise ValueError("Could not dc_open: {}".format(db_path))
         self._configkeys = self.get_config("sys.config_keys").split()
         atexit.register(self.shutdown)
+        self._shutdown_event = Event()
+
 
     @hookspec.account_hookimpl
     def process_ffi_event(self, ffi_event):
@@ -549,19 +541,18 @@ class Account(object):
         If this account is not configured, an internal configuration
         job will be scheduled if config values are sufficiently specified.
 
+        You may call :method:`wait_shutdown` or `shutdown` after the
+        account is in started mode.
+
         :raises MissingCredentials: if `addr` and `mail_pw` values are not set.
 
         :returns: None
         """
         if not self.is_configured():
-            if not self.get_config("addr") or not self.get_config("mail_pwd"):
+            if not self.get_config("addr") or not self.get_config("mail_pw"):
                 raise MissingCredentials("addr or mail_pwd not set in config")
             lib.dc_configure(self._dc_context)
         self._threads.start()
-
-    @hookspec.account_hookimpl
-    def after_shutdown(self):
-        self._shutdown_event.set()
 
     def wait_shutdown(self):
         """ wait until shutdown of this account has completed. """
@@ -570,16 +561,20 @@ class Account(object):
     def shutdown(self, wait=True):
         """ shutdown account, stop threads and close and remove
         underlying dc_context and callbacks. """
-        if hasattr(self, "_dc_context") and hasattr(self, "_threads"):
-            if self._threads.is_started():
-                self.stop_ongoing()
-                self._threads.stop(wait=False)
-            lib.dc_close(self._dc_context)
-            self._threads.stop(wait=wait)  # to wait for threads
-            deltachat.clear_context_callback(self._dc_context)
-            del self._dc_context
-            atexit.unregister(self.shutdown)
-            self._pm.hook.after_shutdown()
+        dc_context = self._dc_context
+        if dc_context is None:
+            return
+
+        if self._threads.is_started():
+            self.stop_ongoing()
+            self._threads.stop(wait=False)
+        lib.dc_close(dc_context)
+        self._threads.stop(wait=wait)  # to wait for threads
+        self._dc_context = None
+        atexit.unregister(self.shutdown)
+        hook = hookspec.Global._get_plugin_manager().hook
+        hook.account_after_shutdown(account=self, dc_context=dc_context)
+        self._shutdown_event.set()
 
 
 def _destroy_dc_context(dc_context, dc_context_unref=lib.dc_context_unref):
@@ -591,16 +586,6 @@ def _destroy_dc_context(dc_context, dc_context_unref=lib.dc_context_unref):
         # we are deep into Python Interpreter shutdown,
         # so no need to clear the callback context mapping.
         pass
-
-
-class FFIEvent:
-    def __init__(self, name, data1, data2):
-        self.name = name
-        self.data1 = data1
-        self.data2 = data2
-
-    def __str__(self):
-        return "{name} data1={data1} data2={data2}".format(**self.__dict__)
 
 
 class ScannedQRCode:
