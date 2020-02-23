@@ -99,6 +99,24 @@ impl MsgId {
         )
     }
 
+    /// Deletes a message and corresponding MDNs from the database.
+    pub fn delete_from_db(self, context: &Context) {
+        sql::execute(
+            context,
+            &context.sql,
+            "DELETE FROM msgs WHERE id=?;",
+            params![self],
+        )
+        .ok();
+        sql::execute(
+            context,
+            &context.sql,
+            "DELETE FROM msgs_mdns WHERE msg_id=?;",
+            params![self],
+        )
+        .ok();
+    }
+
     /// Bad evil escape hatch.
     ///
     /// Avoid using this, eventually types should be cleaned up enough
@@ -317,25 +335,6 @@ impl Message {
                 },
             )
             .map_err(Into::into)
-    }
-
-    pub fn delete_from_db(context: &Context, msg_id: MsgId) {
-        if let Ok(msg) = Message::load_from_db(context, msg_id) {
-            sql::execute(
-                context,
-                &context.sql,
-                "DELETE FROM msgs WHERE id=?;",
-                params![msg.id],
-            )
-            .ok();
-            sql::execute(
-                context,
-                &context.sql,
-                "DELETE FROM msgs_mdns WHERE msg_id=?;",
-                params![msg.id],
-            )
-            .ok();
-        }
     }
 
     pub fn get_filemime(&self) -> Option<String> {
