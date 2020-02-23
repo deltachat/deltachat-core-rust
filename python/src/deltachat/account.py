@@ -2,10 +2,9 @@
 
 from __future__ import print_function
 import atexit
-import threading
 from contextlib import contextmanager
+from threading import Event
 import os
-import time
 from array import array
 import deltachat
 from . import const
@@ -15,7 +14,7 @@ from .chat import Chat
 from .message import Message
 from .contact import Contact
 from .tracker import ImexTracker
-from . import hookspec
+from . import hookspec, iothreads
 
 
 class MissingCredentials(ValueError):
@@ -48,7 +47,8 @@ class Account(object):
         hook = hookspec.Global._get_plugin_manager().hook
         hook.at_account_init(account=self, db_path=db_path)
 
-        self._threads = IOThreads(self)
+        self._shutdown_event = Event()
+        self._threads = iothreads.IOThreads(self)
 
         # send all FFI events for this account to a plugin hook
         def _ll_event(ctx, evt_name, data1, data2):
@@ -559,6 +559,14 @@ class Account(object):
             lib.dc_configure(self._dc_context)
         self._threads.start()
 
+    @hookspec.account_hookimpl
+    def after_shutdown(self):
+        self._shutdown_event.set()
+
+    def wait_shutdown(self):
+        """ wait until shutdown of this account has completed. """
+        self._shutdown_event.wait()
+
     def shutdown(self, wait=True):
         """ shutdown account, stop threads and close and remove
         underlying dc_context and callbacks. """
@@ -572,89 +580,6 @@ class Account(object):
             del self._dc_context
             atexit.unregister(self.shutdown)
             self._pm.hook.after_shutdown()
-
-
-class IOThreads:
-    def __init__(self, account):
-        self.account = account
-        self._dc_context = account._dc_context
-        self._thread_quitflag = False
-        self._name2thread = {}
-
-    def is_started(self):
-        return len(self._name2thread) > 0
-
-    def start(self):
-        assert not self.is_started()
-        self._start_one_thread("inbox", self.imap_thread_run)
-        self._start_one_thread("smtp", self.smtp_thread_run)
-
-        if int(self.account.get_config("mvbox_watch")):
-            self._start_one_thread("mvbox", self.mvbox_thread_run)
-        if int(self.account.get_config("sentbox_watch")):
-            self._start_one_thread("sentbox", self.sentbox_thread_run)
-
-    def _start_one_thread(self, name, func):
-        self._name2thread[name] = t = threading.Thread(target=func, name=name)
-        t.setDaemon(1)
-        t.start()
-
-    @contextmanager
-    def log_execution(self, message):
-        self.account.log_line(message + " START")
-        yield
-        self.account.log_line(message + " FINISHED")
-
-    def stop(self, wait=False):
-        self._thread_quitflag = True
-
-        # Workaround for a race condition. Make sure that thread is
-        # not in between checking for quitflag and entering idle.
-        time.sleep(0.5)
-
-        lib.dc_interrupt_imap_idle(self._dc_context)
-        lib.dc_interrupt_smtp_idle(self._dc_context)
-        if "mvbox" in self._name2thread:
-            lib.dc_interrupt_mvbox_idle(self._dc_context)
-        if "sentbox" in self._name2thread:
-            lib.dc_interrupt_sentbox_idle(self._dc_context)
-        if wait:
-            for name, thread in self._name2thread.items():
-                thread.join()
-
-    def imap_thread_run(self):
-        with self.log_execution("INBOX THREAD START"):
-            while not self._thread_quitflag:
-                lib.dc_perform_imap_jobs(self._dc_context)
-                if not self._thread_quitflag:
-                    lib.dc_perform_imap_fetch(self._dc_context)
-                if not self._thread_quitflag:
-                    lib.dc_perform_imap_idle(self._dc_context)
-
-    def mvbox_thread_run(self):
-        with self.log_execution("MVBOX THREAD"):
-            while not self._thread_quitflag:
-                lib.dc_perform_mvbox_jobs(self._dc_context)
-                if not self._thread_quitflag:
-                    lib.dc_perform_mvbox_fetch(self._dc_context)
-                if not self._thread_quitflag:
-                    lib.dc_perform_mvbox_idle(self._dc_context)
-
-    def sentbox_thread_run(self):
-        with self.log_execution("SENTBOX THREAD"):
-            while not self._thread_quitflag:
-                lib.dc_perform_sentbox_jobs(self._dc_context)
-                if not self._thread_quitflag:
-                    lib.dc_perform_sentbox_fetch(self._dc_context)
-                if not self._thread_quitflag:
-                    lib.dc_perform_sentbox_idle(self._dc_context)
-
-    def smtp_thread_run(self):
-        with self.log_execution("SMTP THREAD"):
-            while not self._thread_quitflag:
-                lib.dc_perform_smtp_jobs(self._dc_context)
-                if not self._thread_quitflag:
-                    lib.dc_perform_smtp_idle(self._dc_context)
 
 
 def _destroy_dc_context(dc_context, dc_context_unref=lib.dc_context_unref):
