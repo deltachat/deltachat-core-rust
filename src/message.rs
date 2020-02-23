@@ -951,7 +951,7 @@ pub fn get_mime_headers(context: &Context, msg_id: MsgId) -> Option<String> {
 }
 
 pub fn delete_msgs(context: &Context, msg_ids: &[MsgId]) {
-    for msg_id in msg_ids.iter() {
+    for msg_id in msg_ids {
         if let Ok(msg) = Message::load_from_db(context, *msg_id) {
             if msg.location_id > 0 {
                 delete_poi_location(context, msg.location_id);
