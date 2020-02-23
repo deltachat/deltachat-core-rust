@@ -1,6 +1,7 @@
 from . import capi, const, hookspec
 from .capi import ffi
 from .account import Account  # noqa
+from . import eventlogger
 
 from pkg_resources import get_distribution, DistributionNotFound
 try:
@@ -79,3 +80,7 @@ def get_dc_event_name(integer, _DC_EVENTNAME_MAP={}):
 def register_global_plugin(plugin):
     gm = hookspec.Global._get_plugin_manager()
     gm.register(plugin)
+    gm.check_pending()
+
+
+register_global_plugin(eventlogger)
