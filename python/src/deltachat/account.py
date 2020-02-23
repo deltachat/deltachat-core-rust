@@ -509,7 +509,7 @@ class Account(object):
     # meta API for start/stop and event based processing
     #
 
-    def start_threads(self, mvbox=False, sentbox=False):
+    def start_threads(self):
         """ start IMAP/SMTP threads (and configure account if it hasn't happened).
 
         :raises: ValueError if 'addr' or 'mail_pw' are not configured.
@@ -517,7 +517,7 @@ class Account(object):
         """
         if not self.is_configured():
             self.configure()
-        self._threads.start(mvbox=mvbox, sentbox=sentbox)
+        self._threads.start()
 
     def stop_threads(self, wait=True):
         """ stop IMAP/SMTP threads. """
@@ -569,16 +569,15 @@ class IOThreads:
     def is_started(self):
         return len(self._name2thread) > 0
 
-    def start(self, imap=True, smtp=True, mvbox=False, sentbox=False):
+    def start(self):
         assert not self.is_started()
-        if imap:
-            self._start_one_thread("inbox", self.imap_thread_run)
-        if mvbox:
+        self._start_one_thread("inbox", self.imap_thread_run)
+        self._start_one_thread("smtp", self.smtp_thread_run)
+
+        if int(self.account.get_config("mvbox_watch")):
             self._start_one_thread("mvbox", self.mvbox_thread_run)
-        if sentbox:
+        if int(self.account.get_config("sentbox_watch")):
             self._start_one_thread("sentbox", self.sentbox_thread_run)
-        if smtp:
-            self._start_one_thread("smtp", self.smtp_thread_run)
 
     def _start_one_thread(self, name, func):
         self._name2thread[name] = t = threading.Thread(target=func, name=name)
@@ -600,8 +599,10 @@ class IOThreads:
 
         lib.dc_interrupt_imap_idle(self._dc_context)
         lib.dc_interrupt_smtp_idle(self._dc_context)
-        lib.dc_interrupt_mvbox_idle(self._dc_context)
-        lib.dc_interrupt_sentbox_idle(self._dc_context)
+        if "mvbox" in self._name2thread:
+            lib.dc_interrupt_mvbox_idle(self._dc_context)
+        if "sentbox" in self._name2thread:
+            lib.dc_interrupt_sentbox_idle(self._dc_context)
         if wait:
             for name, thread in self._name2thread.items():
                 thread.join()
