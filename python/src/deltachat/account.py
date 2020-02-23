@@ -18,11 +18,17 @@ from .tracker import ImexTracker
 from . import hookspec
 
 
+class MissingCredentials(ValueError):
+    """ Account is missing `addr` and `mail_pw` config values. """
+
+
 class Account(object):
     """ Each account is tied to a sqlite database file which is fully managed
     by the underlying deltachat core library.  All public Account methods are
     meant to be memory-safe and return memory-safe objects.
     """
+    MissingCredentials = MissingCredentials
+
     def __init__(self, db_path, os_name=None):
         """ initialize account object.
 
@@ -79,12 +85,6 @@ class Account(object):
         elif name == "DC_EVENT_MSG_DELIVERED":
             msg = self.get_message_by_id(ffi_event.data2)
             self._pm.hook.process_message_delivered(message=msg)
-
-    def add_account_plugin(self, plugin):
-        """ add an account plugin whose hookimpls are called. """
-        self._pm.register(plugin)
-        self._pm.check_pending()
-        return plugin
 
     # def __del__(self):
     #    self.shutdown()
@@ -163,16 +163,14 @@ class Account(object):
         if res == 0:
             raise Exception("Failed to set key")
 
-    def configure(self, **kwargs):
-        """ set config values and configure this account.
-
+    def update_config(self, kwargs):
+        """ update config values.
         :param kwargs: name=value config settings for this account.
                        values need to be unicode.
         :returns: None
         """
-        for name, value in kwargs.items():
-            self.set_config(name, value)
-        lib.dc_configure(self._dc_context)
+        for key, value in kwargs.items():
+            self.set_config(key, str(value))
 
     def is_configured(self):
         """ determine if the account is configured already; an initial connection
@@ -180,7 +178,7 @@ class Account(object):
 
         :returns: True if account is configured.
         """
-        return lib.dc_is_configured(self._dc_context)
+        return bool(lib.dc_is_configured(self._dc_context))
 
     def set_avatar(self, img_path):
         """Set self avatar.
@@ -397,13 +395,18 @@ class Account(object):
         lib.dc_delete_msgs(self._dc_context, msg_ids, len(msg_ids))
 
     def export_self_keys(self, path):
-        """ export public and private keys to the specified directory. """
+        """ export public and private keys to the specified directory.
+
+        Note that the account does not have to be started.
+        """
         return self._export(path, imex_cmd=1)
 
     def export_all(self, path):
         """return new file containing a backup of all database state
         (chats, contacts, keys, media, ...). The file is created in the
         the `path` directory.
+
+        Note that the account does not have to be started.
         """
         export_files = self._export(path, 11)
         if len(export_files) != 1:
@@ -421,6 +424,8 @@ class Account(object):
         """ Import private keys found in the `path` directory.
         The last imported key is made the default keys unless its name
         contains the string legacy. Public keys are not imported.
+
+        Note that the account does not have to be started.
         """
         self._import(path, imex_cmd=2)
 
@@ -502,41 +507,6 @@ class Account(object):
             raise ValueError("could not join group")
         return Chat(self, chat_id)
 
-    def stop_ongoing(self):
-        lib.dc_stop_ongoing_process(self._dc_context)
-
-    #
-    # meta API for start/stop and event based processing
-    #
-
-    def start_threads(self):
-        """ start IMAP/SMTP threads (and configure account if it hasn't happened).
-
-        :raises: ValueError if 'addr' or 'mail_pw' are not configured.
-        :returns: None
-        """
-        if not self.is_configured():
-            self.configure()
-        self._threads.start()
-
-    def stop_threads(self, wait=True):
-        """ stop IMAP/SMTP threads. """
-        if self._threads.is_started():
-            self.stop_ongoing()
-            self._threads.stop(wait=wait)
-
-    def shutdown(self, wait=True):
-        """ stop threads and close and remove underlying dc_context and callbacks. """
-        if hasattr(self, "_dc_context") and hasattr(self, "_threads"):
-            # print("SHUTDOWN", self)
-            self.stop_threads(wait=False)
-            lib.dc_close(self._dc_context)
-            self.stop_threads(wait=wait)  # to wait for threads
-            deltachat.clear_context_callback(self._dc_context)
-            del self._dc_context
-            atexit.unregister(self.shutdown)
-            self._pm.hook.after_shutdown()
-
     def set_location(self, latitude=0.0, longitude=0.0, accuracy=0.0):
         """set a new location. It effects all chats where we currently
         have enabled location streaming.
@@ -551,12 +521,57 @@ class Account(object):
         if dc_res == 0:
             raise ValueError("no chat is streaming locations")
 
+    #
+    # meta API for start/stop and event based processing
+    #
+
+    def add_account_plugin(self, plugin):
+        """ add an account plugin whose hookimpls are called. """
+        self._pm.register(plugin)
+        self._pm.check_pending()
+        return plugin
+
     @contextmanager
     def temp_plugin(self, plugin):
-        """ run a code block with the given plugin temporarily registered. """
+        """ run a with-block with the given plugin temporarily registered. """
         self._pm.register(plugin)
         yield plugin
         self._pm.unregister(plugin)
+
+    def stop_ongoing(self):
+        """ Stop ongoing securejoin, configuration or other core jobs. """
+        lib.dc_stop_ongoing_process(self._dc_context)
+
+    def start(self):
+        """ start this account (activate imap/smtp threads etc.)
+        and return immediately.
+
+        If this account is not configured, an internal configuration
+        job will be scheduled if config values are sufficiently specified.
+
+        :raises MissingCredentials: if `addr` and `mail_pw` values are not set.
+
+        :returns: None
+        """
+        if not self.is_configured():
+            if not self.get_config("addr") or not self.get_config("mail_pwd"):
+                raise MissingCredentials("addr or mail_pwd not set in config")
+            lib.dc_configure(self._dc_context)
+        self._threads.start()
+
+    def shutdown(self, wait=True):
+        """ shutdown account, stop threads and close and remove
+        underlying dc_context and callbacks. """
+        if hasattr(self, "_dc_context") and hasattr(self, "_threads"):
+            if self._threads.is_started():
+                self.stop_ongoing()
+                self._threads.stop(wait=False)
+            lib.dc_close(self._dc_context)
+            self._threads.stop(wait=wait)  # to wait for threads
+            deltachat.clear_context_callback(self._dc_context)
+            del self._dc_context
+            atexit.unregister(self.shutdown)
+            self._pm.hook.after_shutdown()
 
 
 class IOThreads:
