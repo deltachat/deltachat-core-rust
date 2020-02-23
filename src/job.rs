@@ -449,7 +449,7 @@ impl Job {
     fn DeleteMsgOnImap(&mut self, context: &Context) -> Status {
         let imap_inbox = &context.inbox_thread.read().unwrap().imap;
 
-        let mut msg = job_try!(Message::load_from_db(context, MsgId::new(self.foreign_id)));
+        let msg = job_try!(Message::load_from_db(context, MsgId::new(self.foreign_id)));
 
         if !msg.rfc724_mid.is_empty() {
             if message::rfc724_mid_cnt(context, &msg.rfc724_mid) > 1 {
@@ -462,10 +462,15 @@ impl Job {
                 we delete the message from the server */
                 let mid = msg.rfc724_mid;
                 let server_folder = msg.server_folder.as_ref().unwrap();
-                let res = imap_inbox.delete_msg(context, &mid, server_folder, &mut msg.server_uid);
-                if res == ImapActionResult::RetryLater {
-                    // XXX RetryLater is converted to RetryNow here
-                    return Status::RetryNow;
+                let res = imap_inbox.delete_msg(context, &mid, server_folder, msg.server_uid);
+                match res {
+                    ImapActionResult::RetryLater => {
+                        return Status::RetryLater;
+                    }
+                    ImapActionResult::AlreadyDone | ImapActionResult::Success => {}
+                    ImapActionResult::Failed => {
+                        return Status::Finished(Err(format_err!("Message deletion failed")));
+                    }
                 }
             }
             Message::delete_from_db(context, msg.id);

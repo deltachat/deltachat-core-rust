@@ -994,10 +994,10 @@ impl Imap {
         context: &Context,
         message_id: &str,
         folder: &str,
-        uid: &mut u32,
+        uid: u32,
     ) -> ImapActionResult {
         task::block_on(async move {
-            if let Some(imapresult) = self.prepare_imap_operation_on_msg(context, folder, *uid) {
+            if let Some(imapresult) = self.prepare_imap_operation_on_msg(context, folder, uid) {
                 return imapresult;
             }
             // we are connected, and the folder is selected
@@ -1034,7 +1034,7 @@ impl Imap {
                                 remote_message_id,
                                 message_id,
                             );
-                            *uid = 0;
+                            return ImapActionResult::Failed;
                         }
                     }
                     Err(err) => {
@@ -1042,18 +1042,18 @@ impl Imap {
                             context,
                             "Cannot delete {} on IMAP: {}", display_imap_id, err
                         );
-                        *uid = 0;
+                        return ImapActionResult::RetryLater;
                     }
                 }
             }
 
             // mark the message for deletion
-            if !self.add_flag_finalized(context, *uid, "\\Deleted").await {
+            if !self.add_flag_finalized(context, uid, "\\Deleted").await {
                 warn!(
                     context,
                     "Cannot mark message {} as \"Deleted\".", display_imap_id
                 );
-                ImapActionResult::Failed
+                ImapActionResult::RetryLater
             } else {
                 emit_event!(
                     context,
