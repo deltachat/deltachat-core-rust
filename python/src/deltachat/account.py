@@ -63,11 +63,22 @@ class Account(object):
 
     @hookspec.account_hookimpl
     def process_ffi_event(self, ffi_event):
-        if ffi_event.name == "DC_EVENT_CONFIGURE_PROGRESS":
+        name = ffi_event.name
+        if name == "DC_EVENT_CONFIGURE_PROGRESS":
             data1 = ffi_event.data1
             if data1 == 0 or data1 == 1000:
                 success = data1 == 1000
                 self._pm.hook.configure_completed(success=success)
+        elif name == "DC_EVENT_INCOMING_MSG":
+            msg = self.get_message_by_id(ffi_event.data2)
+            self._pm.hook.process_incoming_message(message=msg)
+        elif name == "DC_EVENT_MSGS_CHANGED":
+            if ffi_event.data2 != 0:
+                msg = self.get_message_by_id(ffi_event.data2)
+                self._pm.hook.process_incoming_message(message=msg)
+        elif name == "DC_EVENT_MSG_DELIVERED":
+            msg = self.get_message_by_id(ffi_event.data2)
+            self._pm.hook.process_message_delivered(message=msg)
 
     def add_account_plugin(self, plugin):
         """ add an account plugin whose hookimpls are called. """
