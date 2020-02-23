@@ -101,17 +101,19 @@ impl MsgId {
 
     /// Deletes a message and corresponding MDNs from the database.
     pub fn delete_from_db(self, context: &Context) {
+        // We don't use transactions yet, so remove MDNs first to make
+        // sure they are not left while the message is deleted.
         sql::execute(
             context,
             &context.sql,
-            "DELETE FROM msgs WHERE id=?;",
+            "DELETE FROM msgs_mdns WHERE msg_id=?;",
             params![self],
         )
         .ok();
         sql::execute(
             context,
             &context.sql,
-            "DELETE FROM msgs_mdns WHERE msg_id=?;",
+            "DELETE FROM msgs WHERE id=?;",
             params![self],
         )
         .ok();
