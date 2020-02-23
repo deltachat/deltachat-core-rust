@@ -85,6 +85,20 @@ impl MsgId {
         self.0 == DC_MSG_ID_DAYMARKER
     }
 
+    /// Put message into trash chat and delete message text.
+    ///
+    /// It means the message is deleted locally, but not on the server
+    /// yet.
+    pub fn trash(self, context: &Context) -> crate::sql::Result<()> {
+        let chat_id = ChatId::new(DC_CHAT_ID_TRASH);
+        sql::execute(
+            context,
+            &context.sql,
+            "UPDATE msgs SET chat_id=?, txt='', txt_raw='' WHERE id=?",
+            params![chat_id, self],
+        )
+    }
+
     /// Bad evil escape hatch.
     ///
     /// Avoid using this, eventually types should be cleaned up enough
@@ -957,7 +971,9 @@ pub fn delete_msgs(context: &Context, msg_ids: &[MsgId]) {
                 delete_poi_location(context, msg.location_id);
             }
         }
-        update_msg_chat_id(context, *msg_id, ChatId::new(DC_CHAT_ID_TRASH));
+        if let Err(err) = msg_id.trash(context) {
+            warn!(context, "Unable to trash message {}: {}", msg_id, err);
+        }
         job_add(
             context,
             Action::DeleteMsgOnImap,
@@ -975,16 +991,6 @@ pub fn delete_msgs(context: &Context, msg_ids: &[MsgId]) {
         job_kill_action(context, Action::Housekeeping);
         job_add(context, Action::Housekeeping, 0, Params::new(), 10);
     };
-}
-
-fn update_msg_chat_id(context: &Context, msg_id: MsgId, chat_id: ChatId) -> bool {
-    sql::execute(
-        context,
-        &context.sql,
-        "UPDATE msgs SET chat_id=? WHERE id=?;",
-        params![chat_id, msg_id],
-    )
-    .is_ok()
 }
 
 fn delete_poi_location(context: &Context, location_id: u32) -> bool {
