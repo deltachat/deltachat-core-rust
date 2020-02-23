@@ -5,6 +5,7 @@ import queue
 import time
 from deltachat import const, Account
 from deltachat.message import Message
+from deltachat.hookspec import account_hookimpl
 from datetime import datetime, timedelta
 from conftest import (wait_configuration_progress,
                       wait_securejoin_inviter_progress)
@@ -968,6 +969,23 @@ class TestOnlineAccount:
         ac1, ac2 = acfactory.get_two_online_accounts()
         chat = self.get_chat(ac1, ac2)
 
+        message_queue = queue.Queue()
+
+        class InPlugin:
+            @account_hookimpl
+            def process_incoming_message(self, message):
+                message_queue.put(message)
+
+        delivered = queue.Queue()
+
+        class OutPlugin:
+            @account_hookimpl
+            def process_message_delivered(self, message):
+                delivered.put(message)
+
+        ac1.add_account_plugin(OutPlugin())
+        ac2.add_account_plugin(InPlugin())
+
         lp.sec("sending image message from ac1 to ac2")
         path = data.get_path("d.png")
         msg_out = chat.send_image(path)
@@ -975,6 +993,8 @@ class TestOnlineAccount:
         assert ev.data1 == chat.id
         assert ev.data2 == msg_out.id
         assert msg_out.is_out_delivered()
+        m = delivered.get()
+        assert m == msg_out
 
         lp.sec("wait for ac2 to receive message")
         ev = ac2._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
@@ -983,6 +1003,8 @@ class TestOnlineAccount:
         assert msg_in.is_image()
         assert os.path.exists(msg_in.filename)
         assert os.stat(msg_in.filename).st_size == os.stat(path).st_size
+        m = message_queue.get()
+        assert m == msg_in
 
     def test_import_export_online_all(self, acfactory, tmpdir, lp):
         ac1 = acfactory.get_online_configuring_account()

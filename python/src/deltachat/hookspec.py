@@ -40,6 +40,14 @@ class PerAccount:
         """ Called when a configure process completed. """
 
     @account_hookspec
+    def process_incoming_message(self, message):
+        """ Called on any incoming message (to deaddrop or chat). """
+
+    @account_hookspec
+    def process_message_delivered(self, message):
+        """ Called when an outgoing message has been delivered to SMTP. """
+
+    @account_hookspec
     def after_shutdown(self):
         """ Called after the account has been shutdown. """
 
