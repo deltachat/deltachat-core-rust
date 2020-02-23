@@ -355,13 +355,11 @@ class TestOfflineChat:
         contact = msg.get_sender_contact()
         assert contact == ac1.get_self_contact()
 
-    def test_basic_configure_ok_addr_setting_forbidden(self, ac1):
+    def test_set_config_after_configure_is_forbidden(self, ac1):
         assert ac1.get_config("mail_pw")
         assert ac1.is_configured()
         with pytest.raises(ValueError):
             ac1.set_config("addr", "123@example.org")
-        with pytest.raises(ValueError):
-            ac1.configure(addr="123@example.org")
 
     def test_import_export_one_contact(self, acfactory, tmpdir):
         backupdir = tmpdir.mkdir("backup")
