@@ -119,6 +119,23 @@ impl MsgId {
         .ok();
     }
 
+    /// Removes Message-ID, IMAP server UID, folder from the database
+    /// record.
+    ///
+    /// It is used to avoid trying to remove the message from the
+    /// server multiple times when there are multiple message records
+    /// pointing to the same server UID.
+    pub(crate) fn unlink(self, context: &Context) -> sql::Result<()> {
+        sql::execute(
+            context,
+            &context.sql,
+            "UPDATE msgs \
+             SET rfc724_mid='', server_folder='', server_uid=0 \
+             WHERE id=?",
+            params![self],
+        )
+    }
+
     /// Bad evil escape hatch.
     ///
     /// Avoid using this, eventually types should be cleaned up enough

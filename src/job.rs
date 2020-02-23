@@ -462,7 +462,12 @@ impl Job {
                 we delete the message from the server */
                 let mid = msg.rfc724_mid;
                 let server_folder = msg.server_folder.as_ref().unwrap();
-                let res = imap_inbox.delete_msg(context, &mid, server_folder, msg.server_uid);
+                let res = if msg.server_uid == 0 {
+                    // Message is already deleted on IMAP server.
+                    ImapActionResult::AlreadyDone
+                } else {
+                    imap_inbox.delete_msg(context, &mid, server_folder, msg.server_uid)
+                };
                 match res {
                     ImapActionResult::RetryLater => {
                         return Status::RetryLater;
@@ -473,7 +478,27 @@ impl Job {
                     }
                 }
             }
-            msg.id.delete_from_db(context);
+            if msg.chat_id.is_trash() || msg.hidden {
+                // Messages are stored in trash chat only to keep
+                // their server UID and Message-ID. Once message is
+                // deleted from the server, database record can be
+                // removed as well.
+                //
+                // Hidden messages are similar to trashed, but are
+                // related to some chat. We also delete their
+                // database records.
+                msg.id.delete_from_db(context);
+            } else {
+                // Remove server UID from the database record.
+                //
+                // We have either just removed the message from the
+                // server, in which case UID is not valid anymore, or
+                // we have more refernces to the same server UID, so
+                // we remove UID to reduce the number of messages
+                // pointing to the corresponding UID. Once the counter
+                // reaches zero, we will remove the message.
+                job_try!(msg.id.unlink(context));
+            }
             Status::Finished(Ok(()))
         } else {
             /* eg. device messages have no Message-ID */
