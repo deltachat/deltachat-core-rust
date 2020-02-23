@@ -1354,6 +1354,8 @@ pub fn get_deaddrop_msg_cnt(context: &Context) -> usize {
     }
 }
 
+/// Counts number of database records pointing to specified
+/// Message-ID.
 pub fn rfc724_mid_cnt(context: &Context, rfc724_mid: &str) -> i32 {
     // check the number of messages with the same rfc724_mid
     match context.sql.query_row(
