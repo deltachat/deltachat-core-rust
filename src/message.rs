@@ -119,8 +119,7 @@ impl MsgId {
         .ok();
     }
 
-    /// Removes Message-ID, IMAP server UID, folder from the database
-    /// record.
+    /// Removes IMAP server UID and folder from the database record.
     ///
     /// It is used to avoid trying to remove the message from the
     /// server multiple times when there are multiple message records
@@ -130,7 +129,7 @@ impl MsgId {
             context,
             &context.sql,
             "UPDATE msgs \
-             SET rfc724_mid='', server_folder='', server_uid=0 \
+             SET unlinked=1, server_folder='', server_uid=0 \
              WHERE id=?",
             params![self],
         )
@@ -1373,10 +1372,12 @@ pub fn get_deaddrop_msg_cnt(context: &Context) -> usize {
 
 /// Counts number of database records pointing to specified
 /// Message-ID.
+///
+/// Unlinked messages are excluded.
 pub fn rfc724_mid_cnt(context: &Context, rfc724_mid: &str) -> i32 {
     // check the number of messages with the same rfc724_mid
     match context.sql.query_row(
-        "SELECT COUNT(*) FROM msgs WHERE rfc724_mid=?;",
+        "SELECT COUNT(*) FROM msgs WHERE rfc724_mid=? AND NOT unlinked",
         &[rfc724_mid],
         |row| row.get(0),
     ) {
@@ -1417,7 +1418,8 @@ pub fn update_server_uid(
     server_uid: u32,
 ) {
     match context.sql.execute(
-        "UPDATE msgs SET server_folder=?, server_uid=? WHERE rfc724_mid=?;",
+        "UPDATE msgs SET server_folder=?, server_uid=? \
+         WHERE rfc724_mid=? AND NOT unlinked",
         params![server_folder.as_ref(), server_uid, rfc724_mid],
     ) {
         Ok(_) => {}
