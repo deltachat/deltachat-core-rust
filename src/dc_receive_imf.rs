@@ -192,7 +192,6 @@ pub fn dc_receive_imf(
         };
     }
 
-    // if we delete we don't need to try moving messages
     if needs_delete_job && !created_db_entries.is_empty() {
         for db_entry in &created_db_entries {
             job_add(
@@ -204,7 +203,29 @@ pub fn dc_receive_imf(
             );
         }
     } else {
-        context.do_heuristics_moves(server_folder.as_ref(), insert_msg_id);
+        // Get user-configured server deletion
+        let delete_server_after = context.get_config_int(Config::DeleteServerAfter);
+
+        if delete_server_after != 0 {
+            // Move message if we don't delete it immediately.
+            context.do_heuristics_moves(server_folder.as_ref(), insert_msg_id);
+        }
+
+        if delete_server_after >= 0 {
+            info!(
+                context,
+                "Scheduling message deletion in {} seconds", delete_server_after
+            );
+            for db_entry in &created_db_entries {
+                job_add(
+                    context,
+                    Action::DeleteMsgOnImap,
+                    db_entry.1.to_u32() as i32,
+                    Params::new(),
+                    delete_server_after as i64,
+                );
+            }
+        }
     }
 
     info!(
