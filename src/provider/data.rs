@@ -22,9 +22,9 @@ lazy_static::lazy_static! {
 
     // aol.md: aol.com
     static ref P_AOL: Provider = Provider {
-        status: Status::BROKEN,
-        before_login_hint: "You can't use Delta Chat to login to AOL.",
-        after_login_hint: "Seems like you logged in anyway, congratulations! 🎉 Feel free to tell us at https://github.com/deltachat/provider-db/issues that AOL works again.",
+        status: Status::PREPARATION,
+        before_login_hint: "To log in to AOL with Delta Chat, you need to set up an app password in the AOL web interface.",
+        after_login_hint: "",
         overview_page: "https://providers.delta.chat/aol",
         server: vec![
         ],
