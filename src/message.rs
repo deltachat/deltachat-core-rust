@@ -1411,6 +1411,28 @@ pub(crate) fn rfc724_mid_exists(
         .map_err(Into::into)
 }
 
+/// Returns all MsgIds corresponding to Message-ID
+pub(crate) fn get_all_by_rfc724_mid(
+    context: &Context,
+    rfc724_mid: &str,
+) -> Result<Vec<MsgId>, Error> {
+    ensure!(!rfc724_mid.is_empty(), "empty rfc724_mid");
+
+    let msg_ids = context.sql.query_map(
+        "SELECT id FROM msgs WHERE rfc724_mid=?",
+        params![rfc724_mid],
+        |row| row.get::<_, MsgId>("id"),
+        |ids| {
+            let mut ret: Vec<MsgId> = Vec::new();
+            for id in ids {
+                ret.push(id?);
+            }
+            Ok(ret)
+        },
+    )?;
+    Ok(msg_ids)
+}
+
 pub fn update_server_uid(
     context: &Context,
     rfc724_mid: &str,
