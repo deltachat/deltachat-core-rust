@@ -194,13 +194,15 @@ pub fn dc_receive_imf(
 
     // if we delete we don't need to try moving messages
     if needs_delete_job && !created_db_entries.is_empty() {
-        job_add(
-            context,
-            Action::DeleteMsgOnImap,
-            created_db_entries[0].1.to_u32() as i32,
-            Params::new(),
-            0,
-        );
+        for db_entry in &created_db_entries {
+            job_add(
+                context,
+                Action::DeleteMsgOnImap,
+                db_entry.1.to_u32() as i32,
+                Params::new(),
+                0,
+            );
+        }
     } else {
         context.do_heuristics_moves(server_folder.as_ref(), insert_msg_id);
     }
