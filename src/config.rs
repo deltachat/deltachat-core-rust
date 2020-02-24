@@ -65,6 +65,14 @@ pub enum Config {
     #[strum(props(default = "0"))]
     KeyGenType,
 
+    /// Timer in seconds after which the message is deleted from the
+    /// server.
+    ///
+    /// Equals to -1 by default, which means the message is never
+    /// deleted.
+    #[strum(props(default = "-1"))]
+    DeleteServerAfter,
+
     SaveMimeHeaders,
     ConfiguredAddr,
     ConfiguredMailServer,
