@@ -100,7 +100,7 @@ impl MsgId {
     }
 
     /// Deletes a message and corresponding MDNs from the database.
-    pub fn delete_from_db(self, context: &Context) {
+    pub fn delete_from_db(self, context: &Context) -> crate::sql::Result<()> {
         // We don't use transactions yet, so remove MDNs first to make
         // sure they are not left while the message is deleted.
         sql::execute(
@@ -108,15 +108,14 @@ impl MsgId {
             &context.sql,
             "DELETE FROM msgs_mdns WHERE msg_id=?;",
             params![self],
-        )
-        .ok();
+        )?;
         sql::execute(
             context,
             &context.sql,
             "DELETE FROM msgs WHERE id=?;",
             params![self],
-        )
-        .ok();
+        )?;
+        Ok(())
     }
 
     /// Removes IMAP server UID and folder from the database record.
