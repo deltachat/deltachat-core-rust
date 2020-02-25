@@ -487,7 +487,7 @@ impl Job {
                 // Hidden messages are similar to trashed, but are
                 // related to some chat. We also delete their
                 // database records.
-                msg.id.delete_from_db(context);
+                job_try!(msg.id.delete_from_db(context))
             } else {
                 // Remove server UID from the database record.
                 //
