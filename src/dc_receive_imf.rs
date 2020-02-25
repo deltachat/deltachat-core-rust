@@ -606,10 +606,13 @@ fn add_parts(
             let subject = mime_parser.get_subject().unwrap_or_default();
 
             for part in mime_parser.parts.iter_mut() {
-                if mime_parser.location_kml.is_some()
+                let is_mdn = !mime_parser.reports.is_empty();
+
+                let is_location_kml = mime_parser.location_kml.is_some()
                     && icnt == 1
-                    && (part.msg == "-location-" || part.msg.is_empty())
-                {
+                    && (part.msg == "-location-" || part.msg.is_empty());
+
+                if is_mdn || is_location_kml {
                     *hidden = true;
                     if state == MessageState::InFresh {
                         state = MessageState::InNoticed;
