@@ -860,6 +860,7 @@ pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<()> {
         .unwrap_or_default();
     let lowercase_from = from.to_lowercase();
     if context.get_config_bool(Config::BccSelf)
+        && context.get_config_int(Config::DeleteServerAfter) != 0
         && !recipients
             .iter()
             .any(|x| x.to_lowercase() == lowercase_from)
