@@ -545,6 +545,16 @@ impl MimeMessage {
                             if let Some(report) = self.process_report(context, mail)? {
                                 self.reports.push(report);
                             }
+
+                            // Add MDN part so we can track it, avoid
+                            // downloading the message again and
+                            // delete if automatic message deletion is
+                            // enabled.
+                            let mut part = Part::default();
+                            part.typ = Viewtype::Unknown;
+                            self.parts.push(part);
+
+                            any_part_added = true;
                         } else {
                             /* eg. `report-type=delivery-status`;
                             maybe we should show them as a little error icon */
@@ -1369,7 +1379,7 @@ Disposition: manual-action/MDN-sent-automatically; displayed\n\
             Some("Chat: Message opened".to_string())
         );
 
-        assert_eq!(message.parts.len(), 0);
+        assert_eq!(message.parts.len(), 1);
         assert_eq!(message.reports.len(), 1);
     }
 
@@ -1447,7 +1457,7 @@ Disposition: manual-action/MDN-sent-automatically; displayed\n\
             Some("Chat: Message opened".to_string())
         );
 
-        assert_eq!(message.parts.len(), 0);
+        assert_eq!(message.parts.len(), 2);
         assert_eq!(message.reports.len(), 2);
     }
 
@@ -1492,7 +1502,7 @@ Additional-Message-IDs: <foo@example.com> <foo@example.net>\n\
             Some("Chat: Message opened".to_string())
         );
 
-        assert_eq!(message.parts.len(), 0);
+        assert_eq!(message.parts.len(), 1);
         assert_eq!(message.reports.len(), 1);
         assert_eq!(message.reports[0].original_message_id, "foo@example.org");
         assert_eq!(
