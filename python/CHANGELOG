@@ -5,6 +5,8 @@
 
 - introduced PerAccount and Global hooks that plugins can implement 
 
+- introduced `member_added()` plugin event. 
+
 
 0.800.0
 -------

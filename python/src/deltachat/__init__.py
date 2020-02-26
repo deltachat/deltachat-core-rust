@@ -86,4 +86,9 @@ def register_global_plugin(plugin):
     gm.check_pending()
 
 
+def unregister_global_plugin(plugin):
+    gm = hookspec.Global._get_plugin_manager()
+    gm.unregister(plugin)
+
+
 register_global_plugin(eventlogger)

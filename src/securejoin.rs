@@ -750,7 +750,7 @@ pub(crate) fn handle_securejoin_handshake(
                             group: field_grpid.to_string(),
                         }
                     })?;
-                context.call_cb(Event::SecurejoinMemberAdded {
+                context.call_cb(Event::MemberAdded {
                     chat_id: group_chat_id,
                     contact_id,
                 });

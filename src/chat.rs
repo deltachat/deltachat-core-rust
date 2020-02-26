@@ -1947,6 +1947,10 @@ pub(crate) fn add_contact_to_chat_ex(
             chat_id,
             msg_id: msg.id,
         });
+        context.call_cb(Event::MemberAdded {
+            chat_id,
+            contact_id: contact.id,
+        });
     }
     context.call_cb(Event::MsgsChanged {
         chat_id,
