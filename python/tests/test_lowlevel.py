@@ -1,7 +1,7 @@
 from __future__ import print_function
 from deltachat import capi, cutil, const, set_context_callback, clear_context_callback
 from deltachat import register_global_plugin
-from deltachat.hookspec import account_hookimpl, global_hookimpl
+from deltachat.hookspec import global_hookimpl
 from deltachat.capi import ffi
 from deltachat.capi import lib
 

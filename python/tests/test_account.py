@@ -497,7 +497,7 @@ class TestOnlineAccount:
         for x in export_files:
             assert x.startswith(dir.strpath)
         ac1._evtracker.consume_events()
-        ac1.import_self_keys(dir.strpath)
+        ac2.import_self_keys(dir.strpath)
 
     def test_one_account_send_bcc_setting(self, acfactory, lp):
         ac1 = acfactory.get_online_configuring_account()
@@ -607,7 +607,7 @@ class TestOnlineAccount:
 
     def test_mvbox_sentbox_threads(self, acfactory, lp):
         lp.sec("ac1: start with mvbox thread")
-        ac1 = acfactory.get_online_configuring_account(mvbox=True, sentbox=True)
+        ac1 = acfactory.get_online_configuring_account(mvbox=True, move=True, sentbox=True)
 
         lp.sec("ac2: start without mvbox/sentbox threads")
         ac2 = acfactory.get_online_configuring_account()
@@ -627,7 +627,7 @@ class TestOnlineAccount:
 
     def test_move_works(self, acfactory):
         ac1 = acfactory.get_online_configuring_account()
-        ac2 = acfactory.get_online_configuring_account(mvbox=True)
+        ac2 = acfactory.get_online_configuring_account(mvbox=True, move=True)
         wait_configuration_progress(ac2, 1000)
         wait_configuration_progress(ac1, 1000)
         chat = self.get_chat(ac1, ac2)
@@ -637,7 +637,7 @@ class TestOnlineAccount:
         ac2._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
 
     def test_move_works_on_self_sent(self, acfactory):
-        ac1 = acfactory.get_online_configuring_account(mvbox=True)
+        ac1 = acfactory.get_online_configuring_account(mvbox=True, move=True)
         ac1.set_config("bcc_self", "1")
         ac2 = acfactory.get_online_configuring_account()
         wait_configuration_progress(ac2, 1000)
@@ -708,16 +708,16 @@ class TestOnlineAccount:
         assert msg_in.is_forwarded()
 
     def test_send_self_message_and_empty_folder(self, acfactory, lp):
-        ac1 = acfactory.get_one_online_account()
+        ac1 = acfactory.get_one_online_account(mvbox=True, move=True)
         lp.sec("ac1: create self chat")
         chat = ac1.create_chat_by_contact(ac1.get_self_contact())
         chat.send_text("hello")
         ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
         ac1.empty_server_folders(inbox=True, mvbox=True)
-        ev = ac1._evtracker.get_matching("DC_EVENT_IMAP_FOLDER_EMPTIED")
-        assert ev.data2 == "DeltaChat"
-        ev = ac1._evtracker.get_matching("DC_EVENT_IMAP_FOLDER_EMPTIED")
-        assert ev.data2 == "INBOX"
+        ev1 = ac1._evtracker.get_matching("DC_EVENT_IMAP_FOLDER_EMPTIED")
+        ev2 = ac1._evtracker.get_matching("DC_EVENT_IMAP_FOLDER_EMPTIED")
+        boxes = sorted([ev1.data2, ev2.data2])
+        assert boxes == ["DeltaChat", "INBOX"]
 
     def test_send_and_receive_message_markseen(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
@@ -789,7 +789,7 @@ class TestOnlineAccount:
             pass  # mark_seen_messages() has generated events before it returns
 
     def test_mdn_asymetric(self, acfactory, lp):
-        ac1, ac2 = acfactory.get_two_online_accounts()
+        ac1, ac2 = acfactory.get_two_online_accounts(move=True)
 
         lp.sec("ac1: create chat with ac2")
         chat = self.get_chat(ac1, ac2, both_created=True)
@@ -1477,8 +1477,8 @@ class TestGroupStressTests:
 class TestOnlineConfigureFails:
     def test_invalid_password(self, acfactory):
         ac1, configdict = acfactory.get_online_config()
-        ac1.configure(addr=configdict["addr"], mail_pw="123")
-        ac1.start_threads()
+        ac1.update_config(dict(addr=configdict["addr"], mail_pw="123"))
+        ac1.start()
         wait_configuration_progress(ac1, 500)
         ev = ac1._evtracker.get_matching("DC_EVENT_ERROR_NETWORK")
         assert "cannot login" in ev.data2.lower()
@@ -1486,8 +1486,8 @@ class TestOnlineConfigureFails:
 
     def test_invalid_user(self, acfactory):
         ac1, configdict = acfactory.get_online_config()
-        ac1.configure(addr="x" + configdict["addr"], mail_pw=configdict["mail_pw"])
-        ac1.start_threads()
+        ac1.update_config(dict(addr="x" + configdict["addr"], mail_pw=configdict["mail_pw"]))
+        ac1.start()
         wait_configuration_progress(ac1, 500)
         ev = ac1._evtracker.get_matching("DC_EVENT_ERROR_NETWORK")
         assert "cannot login" in ev.data2.lower()
@@ -1495,8 +1495,8 @@ class TestOnlineConfigureFails:
 
     def test_invalid_domain(self, acfactory):
         ac1, configdict = acfactory.get_online_config()
-        ac1.configure(addr=configdict["addr"] + "x", mail_pw=configdict["mail_pw"])
-        ac1.start_threads()
+        ac1.update_config((dict(addr=configdict["addr"] + "x", mail_pw=configdict["mail_pw"])))
+        ac1.start()
         wait_configuration_progress(ac1, 500)
         ev = ac1._evtracker.get_matching("DC_EVENT_ERROR_NETWORK")
         assert "could not connect" in ev.data2.lower()
