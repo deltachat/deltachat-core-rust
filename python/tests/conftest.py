@@ -223,27 +223,28 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
             ac._evtracker.set_timeout(30)
             return ac, dict(configdict)
 
-        def get_online_configuring_account(self, mvbox=False, sentbox=False,
+        def get_online_configuring_account(self, mvbox=False, sentbox=False, move=False,
                                            pre_generated_key=True, config={}):
             ac, configdict = self.get_online_config(
                 pre_generated_key=pre_generated_key)
             configdict.update(config)
             configdict["mvbox_watch"] = str(int(mvbox))
-            configdict["mvbox_move"] = "1"
+            configdict["mvbox_move"] = str(int(move))
+            configdict["sentbox_watch"] = str(int(sentbox))
             ac.update_config(configdict)
             ac.start()
             return ac
 
-        def get_one_online_account(self, pre_generated_key=True):
+        def get_one_online_account(self, pre_generated_key=True, mvbox=False, move=False):
             ac1 = self.get_online_configuring_account(
-                pre_generated_key=pre_generated_key)
+                pre_generated_key=pre_generated_key, mvbox=mvbox, move=move)
             ac1._configtracker.wait_imap_connected()
             ac1._configtracker.wait_smtp_connected()
             ac1._configtracker.wait_finish()
             return ac1
 
-        def get_two_online_accounts(self):
-            ac1 = self.get_online_configuring_account()
+        def get_two_online_accounts(self, move=False):
+            ac1 = self.get_online_configuring_account(move=True)
             ac2 = self.get_online_configuring_account()
             ac1._configtracker.wait_finish()
             ac2._configtracker.wait_finish()

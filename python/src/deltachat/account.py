@@ -58,7 +58,6 @@ class Account(object):
         atexit.register(self.shutdown)
         self._shutdown_event = Event()
 
-
     @hookspec.account_hookimpl
     def process_ffi_event(self, ffi_event):
         name = ffi_event.name

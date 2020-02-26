@@ -68,4 +68,3 @@ class Global:
     @global_hookspec
     def account_after_shutdown(self, account, dc_context):
         """ Called after the account has been shutdown. """
-
