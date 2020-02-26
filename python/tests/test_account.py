@@ -167,6 +167,17 @@ class TestOfflineChat:
         else:
             pytest.fail("could not find chat")
 
+    def test_add_member_event(self, ac1):
+        contact1 = ac1.create_contact("some1@hello.com", name="some1")
+        contact2 = ac1.create_contact("some2@hello.com", name="some2")
+        chat = ac1.create_group_chat(name="title1")
+
+        with make_plugin_recorder(ac1) as rec:
+            chat.add_contact(contact2)
+            kwargs = rec.get_first("member_added")
+            assert kwargs["chat"] == chat
+            assert kwargs["member"] == contact2
+
     def test_group_chat_creation(self, ac1):
         contact1 = ac1.create_contact("some1@hello.com", name="some1")
         contact2 = ac1.create_contact("some2@hello.com", name="some2")
