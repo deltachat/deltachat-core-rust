@@ -517,7 +517,9 @@ class Account(object):
     #
 
     def add_account_plugin(self, plugin):
-        """ add an account plugin whose hookimpls are called. """
+        """ add an account plugin which implements one or more of
+        the :class:`deltachat.hookspec.PerAccount` specs.
+        """
         self._pm.register(plugin)
         self._pm.check_pending()
         return plugin

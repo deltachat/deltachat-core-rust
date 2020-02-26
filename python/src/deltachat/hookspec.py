@@ -15,7 +15,7 @@ global_hookimpl = pluggy.HookimplMarker(_global_name)
 class PerAccount:
     """ per-Account-instance hook specifications.
 
-    Account hook implementations need to be registered with an Account instance.
+    If you write a plugin you need to implement one of the following hooks.
     """
     @classmethod
     def _make_plugin_manager(cls):
@@ -27,8 +27,8 @@ class PerAccount:
     def process_ffi_event(self, ffi_event):
         """ process a CFFI low level events for a given account.
 
-        ffi_event has "name", "data1", "data2" attributes according
-        to https://c.delta.chat/group__DC__EVENT.html
+        ffi_event has "name", "data1", "data2" values as specified
+        with `DC_EVENT_* <https://c.delta.chat/group__DC__EVENT.html>`_.
         """
 
     @account_hookspec
@@ -46,6 +46,10 @@ class PerAccount:
     @account_hookspec
     def process_message_delivered(self, message):
         """ Called when an outgoing message has been delivered to SMTP. """
+
+    @account_hookspec
+    def member_added(self, chat, contact):
+        """ Called for each contact added to a chat. """
 
 
 class Global:

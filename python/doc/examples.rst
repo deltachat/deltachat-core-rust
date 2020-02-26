@@ -14,10 +14,11 @@ For example you can type ``python`` and then::
     # instantiate and configure deltachat account
     import deltachat
     ac = deltachat.Account("/tmp/db")
+    ac.set_config("addr", "test2@hq5.merlinux.eu")
+    ac.set_config("mail_pwd", "some password")
 
-    # start configuration activity and smtp/imap threads
-    ac.start_threads()
-    ac.configure(addr="test2@hq5.merlinux.eu", mail_pw="********")
+    # start the IO threads and perform configuration
+    ac.start()
 
     # create a contact and send a message
     contact = ac.create_contact("someother@email.address")

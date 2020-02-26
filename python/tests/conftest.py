@@ -9,6 +9,7 @@ from deltachat import Account
 from deltachat.tracker import ConfigureTracker
 from deltachat import const
 from deltachat.capi import lib
+from deltachat.hookspec import PerAccount
 from deltachat.eventlogger import FFIEventLogger
 from _pytest.monkeypatch import MonkeyPatch
 from ffi_event import FFIEventTracker
@@ -288,6 +289,18 @@ def lp():
         def step(self, msg):
             print("-" * 5, "step " + msg, "-" * 5)
     return Printer()
+
+
+@pytest.fixture
+def make_plugin_recorder():
+    def make_plugin_recorder(account):
+        class HookImpl:
+            def __init__(self):
+                self.calls_member_added = []
+
+            @account_hookimpl
+            def member_added(self, chat, member):
+                self.calls_member_added.append(dict(chat=chat, member=member))
 
 
 def wait_configuration_progress(account, min_target, max_target=1001):
