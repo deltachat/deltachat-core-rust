@@ -76,6 +76,10 @@ class Account(object):
         elif name == "DC_EVENT_MSG_DELIVERED":
             msg = self.get_message_by_id(ffi_event.data2)
             self._pm.hook.process_message_delivered(message=msg)
+        elif name == "DC_EVENT_MEMBER_ADDED":
+            chat = self.get_chat_by_id(ffi_event.data1)
+            contact = self.get_contact_by_id(ffi_event.data2)
+            self._pm.hook.member_added(chat=chat, contact=contact)
 
     # def __del__(self):
     #    self.shutdown()
@@ -341,6 +345,13 @@ class Account(object):
         :returns: :class:`deltachat.message.Message` instance.
         """
         return Message.from_db(self, msg_id)
+
+    def get_contact_by_id(self, contact_id):
+        """ return Contact instance or None.
+        :param contact_id: integer id of this contact.
+        :returns: None or :class:`deltachat.contact.Contact` instance.
+        """
+        return Contact(self._dc_context, contact_id)
 
     def get_chat_by_id(self, chat_id):
         """ return Chat instance.

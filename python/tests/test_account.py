@@ -167,16 +167,17 @@ class TestOfflineChat:
         else:
             pytest.fail("could not find chat")
 
-    def test_add_member_event(self, ac1):
-        contact1 = ac1.create_contact("some1@hello.com", name="some1")
-        contact2 = ac1.create_contact("some2@hello.com", name="some2")
+    def test_add_member_event(self, ac1, make_plugin_recorder):
         chat = ac1.create_group_chat(name="title1")
+        # promote the chat
+        chat.send_text("hello")
+        contact1 = ac1.create_contact("some1@hello.com", name="some1")
 
         with make_plugin_recorder(ac1) as rec:
-            chat.add_contact(contact2)
+            chat.add_contact(contact1)
             kwargs = rec.get_first("member_added")
             assert kwargs["chat"] == chat
-            assert kwargs["member"] == contact2
+            assert kwargs["contact"] == contact1
 
     def test_group_chat_creation(self, ac1):
         contact1 = ac1.create_contact("some1@hello.com", name="some1")
@@ -1129,7 +1130,7 @@ class TestOnlineAccount:
         ac1._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED")
         ac2._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED")
         wait_securejoin_inviter_progress(ac1, 1000)
-        ac1._evtracker.get_matching("DC_EVENT_SECUREJOIN_MEMBER_ADDED")
+        ac1._evtracker.get_matching("DC_EVENT_MEMBER_ADDED")
 
     def test_qr_verified_group_and_chatting(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
@@ -1141,7 +1142,7 @@ class TestOnlineAccount:
         chat2 = ac2.qr_join_chat(qr)
         assert chat2.id >= 10
         wait_securejoin_inviter_progress(ac1, 1000)
-        ac1._evtracker.get_matching("DC_EVENT_SECUREJOIN_MEMBER_ADDED")
+        ac1._evtracker.get_matching("DC_EVENT_MEMBER_ADDED")
 
         lp.sec("ac2: read member added message")
         msg = ac2._evtracker.wait_next_incoming_message()

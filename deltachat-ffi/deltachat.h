@@ -4505,7 +4505,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
 
 
 /**
- * This event is sent out to the inviter when a joiner successfully joined a group.
+ * (DEPRECATED)
  *
  * @param data1 (int) chat_id
  * @param data2 (int) contact_id
@@ -4513,6 +4513,14 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  */
 #define DC_EVENT_SECUREJOIN_MEMBER_ADDED 2062
 
+/**
+ * This event is sent for each member that gets added to a (verified or unverified) chat. 
+ *
+ * @param data1 (int) chat_id
+ * @param data2 (int) contact_id
+ * @return 0
+ */
+#define DC_EVENT_MEMBER_ADDED 2063
 
 /**
  * @}

@@ -7,6 +7,9 @@ for managing global and per-account plugin registration, and performing
 hook calls.
 
 
+Registering a plugin
+--------------------
+
 .. autoclass:: deltachat.register_global_plugin
 
 .. autoclass:: deltachat.account.Account.add_account_plugin

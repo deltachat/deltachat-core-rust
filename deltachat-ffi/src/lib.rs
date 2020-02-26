@@ -199,6 +199,10 @@ impl ContextWrapper {
                 Event::SecurejoinMemberAdded {
                     chat_id,
                     contact_id,
+                }
+                | Event::MemberAdded {
+                    chat_id,
+                    contact_id,
                 } => {
                     ffi_cb(
                         self,

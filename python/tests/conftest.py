@@ -4,12 +4,13 @@ import sys
 import py
 import pytest
 import requests
+from contextlib import contextmanager
 import time
 from deltachat import Account
 from deltachat.tracker import ConfigureTracker
 from deltachat import const
 from deltachat.capi import lib
-from deltachat.hookspec import PerAccount
+from deltachat.hookspec import account_hookimpl
 from deltachat.eventlogger import FFIEventLogger
 from _pytest.monkeypatch import MonkeyPatch
 from ffi_event import FFIEventTracker
@@ -293,14 +294,25 @@ def lp():
 
 @pytest.fixture
 def make_plugin_recorder():
+    @contextmanager
     def make_plugin_recorder(account):
         class HookImpl:
             def __init__(self):
                 self.calls_member_added = []
 
             @account_hookimpl
-            def member_added(self, chat, member):
-                self.calls_member_added.append(dict(chat=chat, member=member))
+            def member_added(self, chat, contact):
+                self.calls_member_added.append(dict(chat=chat, contact=contact))
+
+            def get_first(self, name):
+                val = getattr(self, "calls_" + name, None)
+                if val is not None:
+                    return val.pop(0)
+
+        with account.temp_plugin(HookImpl()) as plugin:
+            yield plugin
+
+    return make_plugin_recorder
 
 
 def wait_configuration_progress(account, min_target, max_target=1001):
