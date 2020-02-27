@@ -17,7 +17,7 @@ use crate::message::{self, MessageState, MessengerMessage, MsgId};
 use crate::mimeparser::*;
 use crate::param::*;
 use crate::peerstate::*;
-use crate::securejoin::{self, handle_securejoin_handshake};
+use crate::securejoin::{self, handle_securejoin_handshake, observe_securejoin_on_other_device};
 use crate::sql;
 use crate::stock::StockMessage;
 use crate::{contact, location};
@@ -340,11 +340,9 @@ fn add_parts(
         };
         to_id = DC_CONTACT_ID_SELF;
 
-        // handshake messages must be processed _before_ chats are created
-        // (eg. contacs may be marked as verified)
+        // handshake may mark contacts as verified and must be processed before chats are created
         if mime_parser.get(HeaderDef::SecureJoin).is_some() {
-            // avoid discarding by show_emails setting
-            msgrmsg = MessengerMessage::Yes;
+            msgrmsg = MessengerMessage::Yes; // avoid discarding by show_emails setting
             *chat_id = ChatId::new(0);
             allow_creation = true;
             match handle_securejoin_handshake(context, mime_parser, from_id) {
@@ -358,8 +356,7 @@ fn add_parts(
                     state = MessageState::InSeen;
                 }
                 Ok(securejoin::HandshakeMessage::Propagate) => {
-                    // Message will still be processed as "member
-                    // added" or similar system message.
+                    // process messages as "member added" normally
                 }
                 Err(err) => {
                     *hidden = true;
@@ -472,6 +469,27 @@ fn add_parts(
         // We cannot recreate other states (read, error).
         state = MessageState::OutDelivered;
         to_id = to_ids.get_index(0).cloned().unwrap_or_default();
+
+        // handshake may mark contacts as verified and must be processed before chats are created
+        if mime_parser.get(HeaderDef::SecureJoin).is_some() {
+            msgrmsg = MessengerMessage::Yes; // avoid discarding by show_emails setting
+            *chat_id = ChatId::new(0);
+            allow_creation = true;
+            match observe_securejoin_on_other_device(context, mime_parser, to_id) {
+                Ok(securejoin::HandshakeMessage::Done)
+                | Ok(securejoin::HandshakeMessage::Ignore) => {
+                    *hidden = true;
+                }
+                Ok(securejoin::HandshakeMessage::Propagate) => {
+                    // process messages as "member added" normally
+                }
+                Err(err) => {
+                    *hidden = true;
+                    error!(context, "Error in Secure-Join watching: {}", err);
+                }
+            }
+        }
+
         if !to_ids.is_empty() {
             if chat_id.is_unset() {
                 let (new_chat_id, new_chat_id_blocked) = create_or_lookup_group(
