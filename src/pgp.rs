@@ -573,4 +573,43 @@ mod tests {
         .unwrap();
         assert_eq!(plain, CLEARTEXT);
     }
+
+    fn test_encrypt_decrypt_fuzz(key_type: KeyGenType) {
+        // sending messages from Alice to Bob
+        let alice = create_keypair(EmailAddress::new("a@e.org").unwrap(), key_type).unwrap();
+        let bob = create_keypair(EmailAddress::new("b@e.org").unwrap(), key_type).unwrap();
+
+        let alice_secret = Key::from(alice.secret.clone());
+        let alice_public = Key::from(alice.public.clone());
+        let bob_secret = Key::from(bob.secret.clone());
+        let bob_public = Key::from(bob.public.clone());
+
+        let plain: &[u8] = b"just a test";
+
+        let mut encr_keyring = Keyring::default();
+        encr_keyring.add_ref(&bob_public);
+
+        let mut decr_keyring = Keyring::default();
+        decr_keyring.add_ref(&bob_secret);
+        let mut validate_keyring = Keyring::default();
+        validate_keyring.add_ref(&alice_public);
+
+        for _ in 0..1000 {
+            let ctext = pk_encrypt(plain.as_ref(), &encr_keyring, Some(&alice_secret)).unwrap();
+            let plain2 =
+                pk_decrypt(ctext.as_ref(), &decr_keyring, &validate_keyring, None).unwrap();
+            assert_eq!(plain2, plain);
+        }
+    }
+
+    #[test]
+    #[ignore]
+    fn test_encrypt_decrypt_fuzz_rsa() {
+        test_encrypt_decrypt_fuzz(KeyGenType::Rsa2048)
+    }
+
+    #[test]
+    fn test_encrypt_decrypt_fuzz_ecc() {
+        test_encrypt_decrypt_fuzz(KeyGenType::Ed25519)
+    }
 }
