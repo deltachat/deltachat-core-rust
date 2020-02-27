@@ -417,7 +417,6 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         }
 
         #[test]
-        #[ignore] // generating keys is expensive
         fn test_generate() {
             let t = dummy_context();
             let addr = "alice@example.org";
@@ -429,7 +428,6 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         }
 
         #[test]
-        #[ignore]
         fn test_generate_concurrent() {
             use std::sync::Arc;
             use std::thread;

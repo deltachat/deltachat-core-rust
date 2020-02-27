@@ -394,7 +394,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // is too expensive
     fn test_create_keypair() {
         let keypair0 = create_keypair(
             EmailAddress::new("foo@bar.de").unwrap(),
