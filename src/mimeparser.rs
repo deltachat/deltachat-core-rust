@@ -92,6 +92,9 @@ impl MimeMessage {
         // init known headers with what mailparse provided us
         MimeMessage::merge_headers(&mut headers, &mail.headers);
 
+        // remove headers that are allowed _only_ in the encrypted part
+        headers.remove("secure-join-fingerprint");
+
         // Memory location for a possible decrypted message.
         let mail_raw;
         let mut gossipped_addr = Default::default();
@@ -1174,14 +1177,16 @@ mod tests {
                     Content-Type: multipart/mixed; boundary=\"==break==\";\n\
                     Subject: outer-subject\n\
                     Secure-Join-Group: no\n\
-                    Test-Header: Bar\nChat-Version: 0.0\n\
+                    Secure-Join-Fingerprint: 123456\n\
+                    Test-Header: Bar\n\
+                    chat-VERSION: 0.0\n\
                     \n\
                     --==break==\n\
                     Content-Type: text/plain; protected-headers=\"v1\";\n\
                     Subject: inner-subject\n\
                     SecureBar-Join-Group: yes\n\
                     Test-Header: Xy\n\
-                    Chat-Version: 1.0\n\
+                    chat-VERSION: 1.0\n\
                     \n\
                     test1\n\
                     \n\
@@ -1200,12 +1205,17 @@ mod tests {
 
         // the following fields would bubble up
         // if the test would really use encryption for the protected part
-        // however, as this is not the case, the outer things stay valid
+        // however, as this is not the case, the outer things stay valid.
+        // for Chat-Version, also the case-insensivity is tested.
         assert_eq!(mimeparser.get_subject(), Some("outer-subject".into()));
 
         let of = mimeparser.get(HeaderDef::ChatVersion).unwrap();
         assert_eq!(of, "0.0");
         assert_eq!(mimeparser.parts.len(), 1);
+
+        // make sure, headers that are only allowed in the encrypted part
+        // cannot be set from the outer part
+        assert!(mimeparser.get(HeaderDef::SecureJoinFingerprint).is_none());
     }
 
     #[test]
