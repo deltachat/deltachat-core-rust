@@ -390,8 +390,6 @@ pub(crate) fn handle_securejoin_handshake(
     mime_message: &MimeMessage,
     contact_id: u32,
 ) -> Result<HandshakeMessage, HandshakeError> {
-    let own_fingerprint: String;
-
     if contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
         return Err(HandshakeError::SpecialContactId);
     }
@@ -507,7 +505,7 @@ pub(crate) fn handle_securejoin_handshake(
                 return Ok(HandshakeMessage::Ignore);
             }
             info!(context, "Fingerprint verified.",);
-            own_fingerprint = get_self_fingerprint(context).unwrap();
+            let own_fingerprint = get_self_fingerprint(context).unwrap();
             joiner_progress!(context, contact_id, 400);
             context.bob.write().unwrap().expects = DC_VC_CONTACT_CONFIRM;
 
@@ -619,7 +617,14 @@ pub(crate) fn handle_securejoin_handshake(
                 }
             } else {
                 // Alice -> Bob
-                send_handshake_msg(context, contact_chat_id, "vc-contact-confirm", "", None, "");
+                send_handshake_msg(
+                    context,
+                    contact_chat_id,
+                    "vc-contact-confirm",
+                    "",
+                    Some(fingerprint.clone()),
+                    "",
+                );
                 inviter_progress!(context, contact_id, 1000);
             }
             Ok(HandshakeMessage::Ignore) // "Done" would delete the message and break multi-device (the key from Autocrypt-header is needed)
@@ -718,7 +723,7 @@ pub(crate) fn handle_securejoin_handshake(
                     "vc-contact-confirm-received" // only for observe_securejoin_on_other_device()
                 },
                 "",
-                None,
+                Some(scanned_fingerprint_of_alice),
                 "",
             );
 
@@ -774,8 +779,6 @@ pub(crate) fn handle_securejoin_handshake(
 }
 
 /// observe_securejoin_on_other_device() must be called when a self-sent securejoin message is seen.
-/// currently, the message is only ignored, in the future,
-/// we may mark peers as verified accross devices:
 ///
 /// in a multi-device-setup, there may be other devices that "see" the handshake messages.
 /// if the seen messages seen are self-sent messages encrypted+signed correctly with our key,
@@ -792,17 +795,79 @@ pub(crate) fn handle_securejoin_handshake(
 ///   the joining device has marked the peer as verified on vg-member-added/vc-contact-confirm
 ///   before sending vg-member-added-received - so, if we observe vg-member-added-received,
 ///   we can mark the peer as verified as well.
-///
-/// to make this work, (a) some messages must not be deleted,
-/// (b) we need a vc-contact-confirm-received message if bcc_self is set,
-/// (c) we should make sure, we do not only rely on the unencrypted To:-header for identifying the peer
-/// (in handle_securejoin_handshake() we have the oob information for that)
 pub(crate) fn observe_securejoin_on_other_device(
-    _context: &Context,
-    _mime_message: &MimeMessage,
-    _contact_id: u32,
+    context: &Context,
+    mime_message: &MimeMessage,
+    contact_id: u32,
 ) -> Result<HandshakeMessage, HandshakeError> {
-    Ok(HandshakeMessage::Ignore)
+    if contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
+        return Err(HandshakeError::SpecialContactId);
+    }
+    let step = mime_message
+        .get(HeaderDef::SecureJoin)
+        .ok_or(HandshakeError::NotSecureJoinMsg)?;
+    info!(context, "observing secure-join message \'{}\'", step);
+
+    let contact_chat_id =
+        match chat::create_or_lookup_by_contact_id(context, contact_id, Blocked::Not) {
+            Ok((chat_id, blocked)) => {
+                if blocked != Blocked::Not {
+                    chat_id.unblock(context);
+                }
+                chat_id
+            }
+            Err(err) => {
+                return Err(HandshakeError::NoChat {
+                    contact_id,
+                    cause: err,
+                });
+            }
+        };
+
+    match step.as_str() {
+        "vg-member-added"
+        | "vc-contact-confirm"
+        | "vg-member-added-received"
+        | "vc-contact-confirm-received" => {
+            if !encrypted_and_signed(
+                context,
+                mime_message,
+                get_self_fingerprint(context).unwrap_or_default(),
+            ) {
+                could_not_establish_secure_connection(
+                    context,
+                    contact_chat_id,
+                    "Message not encrypted correctly.",
+                );
+                return Ok(HandshakeMessage::Ignore);
+            }
+            let fingerprint = match mime_message.get(HeaderDef::SecureJoinFingerprint) {
+                Some(fp) => fp,
+                None => {
+                    could_not_establish_secure_connection(
+                        context,
+                        contact_chat_id,
+                        "Fingerprint not provided, please update Delta Chat on all your devices.",
+                    );
+                    return Ok(HandshakeMessage::Ignore);
+                }
+            };
+            if mark_peer_as_verified(context, fingerprint).is_err() {
+                could_not_establish_secure_connection(
+                    context,
+                    contact_chat_id,
+                    format!("Fingerprint mismatch on observing {}.", step).as_ref(),
+                );
+                return Ok(HandshakeMessage::Ignore);
+            }
+            Ok(if step.as_str() == "vg-member-added" {
+                HandshakeMessage::Propagate
+            } else {
+                HandshakeMessage::Ignore
+            })
+        }
+        _ => Ok(HandshakeMessage::Ignore),
+    }
 }
 
 fn secure_connection_established(context: &Context, contact_chat_id: ChatId) {
