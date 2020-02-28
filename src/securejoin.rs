@@ -707,17 +707,21 @@ pub(crate) fn handle_securejoin_handshake(
             }
             secure_connection_established(context, contact_chat_id);
             context.bob.write().unwrap().expects = 0;
-            if join_vg {
-                // Bob -> Alice
-                send_handshake_msg(
-                    context,
-                    contact_chat_id,
-                    "vg-member-added-received",
-                    "",
-                    None,
-                    "",
-                );
-            }
+
+            // Bob -> Alice
+            send_handshake_msg(
+                context,
+                contact_chat_id,
+                if join_vg {
+                    "vg-member-added-received"
+                } else {
+                    "vc-contact-confirm-received" // only for observe_securejoin_on_other_device()
+                },
+                "",
+                None,
+                "",
+            );
+
             context.bob.write().unwrap().status = 1;
             context.stop_ongoing();
             Ok(if join_vg {
@@ -726,7 +730,7 @@ pub(crate) fn handle_securejoin_handshake(
                 HandshakeMessage::Ignore // "Done" deletes the message and breaks multi-device
             })
         }
-        "vg-member-added-received" => {
+        "vg-member-added-received" | "vc-contact-confirm-received" => {
             /*==========================================================
             ====              Alice - the inviter side              ====
             ====  Step 8 in "Out-of-band verified groups" protocol  ====
@@ -734,29 +738,31 @@ pub(crate) fn handle_securejoin_handshake(
 
             if let Ok(contact) = Contact::get_by_id(context, contact_id) {
                 if contact.is_verified(context) == VerifiedStatus::Unverified {
-                    warn!(context, "vg-member-added-received invalid.",);
+                    warn!(context, "{} invalid.", step);
                     return Ok(HandshakeMessage::Ignore);
                 }
-                inviter_progress!(context, contact_id, 800);
-                inviter_progress!(context, contact_id, 1000);
-                let field_grpid = mime_message
-                    .get(HeaderDef::SecureJoinGroup)
-                    .map(|s| s.as_str())
-                    .unwrap_or_else(|| "");
-                let (group_chat_id, _, _) = chat::get_chat_id_by_grpid(context, &field_grpid)
-                    .map_err(|err| {
+                if join_vg {
+                    inviter_progress!(context, contact_id, 800);
+                    inviter_progress!(context, contact_id, 1000);
+                    let field_grpid = mime_message
+                        .get(HeaderDef::SecureJoinGroup)
+                        .map(|s| s.as_str())
+                        .unwrap_or_else(|| "");
+                    let (group_chat_id, _, _) = chat::get_chat_id_by_grpid(context, &field_grpid)
+                        .map_err(|err| {
                         warn!(context, "Failed to lookup chat_id from grpid: {}", err);
                         HandshakeError::ChatNotFound {
                             group: field_grpid.to_string(),
                         }
                     })?;
-                context.call_cb(Event::MemberAdded {
-                    chat_id: group_chat_id,
-                    contact_id,
-                });
+                    context.call_cb(Event::MemberAdded {
+                        chat_id: group_chat_id,
+                        contact_id,
+                    });
+                }
                 Ok(HandshakeMessage::Ignore) // "Done" deletes the message and breaks multi-device
             } else {
-                warn!(context, "vg-member-added-received invalid.",);
+                warn!(context, "{} invalid.", step);
                 Ok(HandshakeMessage::Ignore)
             }
         }
