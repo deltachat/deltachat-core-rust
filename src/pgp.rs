@@ -612,4 +612,47 @@ mod tests {
     fn test_encrypt_decrypt_fuzz_ecc() {
         test_encrypt_decrypt_fuzz(KeyGenType::Ed25519)
     }
+
+    #[test]
+    fn test_encrypt_decrypt_fuzz_alice() -> Result<()> {
+        let plain: &[u8] = b"just a test";
+        let lit_msg = Message::new_literal_bytes("", plain);
+
+        let mut rng = thread_rng();
+
+        let pkeys: Vec<SignedPublicKeyOrSubkey> = vec![(&KEYS.alice_public)
+            .try_into()
+            .ok()
+            .and_then(select_pk_for_encryption)
+            .unwrap()];
+        let pkeys_refs: Vec<&SignedPublicKeyOrSubkey> = pkeys.iter().collect();
+
+        let skeys: Vec<&SignedSecretKey> = vec![(&KEYS.alice_secret).try_into().unwrap()];
+
+        for _ in 0..1000 {
+            let msg = lit_msg.encrypt_to_keys(
+                &mut rng,
+                pgp::crypto::sym::SymmetricKeyAlgorithm::AES128,
+                &pkeys_refs,
+            )?;
+            let ctext = msg.to_armored_string(None)?;
+
+            println!("{}", ctext);
+
+            let (decryptor, _) = msg.decrypt(|| "".into(), || "".into(), &skeys[..])?;
+            let msgs = decryptor.collect::<pgp::errors::Result<Vec<_>>>()?;
+            ensure!(!msgs.is_empty(), "No valid messages found");
+
+            let dec_msg = &msgs[0];
+
+            let plain2: Vec<u8> = match dec_msg.get_content()? {
+                Some(content) => content,
+                None => bail!("Decrypted message is empty"),
+            };
+
+            assert_eq!(plain2, plain);
+        }
+
+        Ok(())
+    }
 }
