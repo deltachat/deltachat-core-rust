@@ -443,7 +443,7 @@ impl Message {
     pub fn get_text(&self) -> Option<String> {
         self.text
             .as_ref()
-            .map(|text| dc_truncate(text, 30000, false).to_string())
+            .map(|text| dc_truncate(text, 30000).to_string())
     }
 
     pub fn get_filename(&self) -> Option<String> {
@@ -814,7 +814,7 @@ pub fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
         return ret;
     }
     let rawtxt = rawtxt.unwrap_or_default();
-    let rawtxt = dc_truncate(rawtxt.trim(), 100_000, false);
+    let rawtxt = dc_truncate(rawtxt.trim(), 100_000);
 
     let fts = dc_timestamp_to_str(msg.get_timestamp());
     ret += &format!("Sent: {}", fts);
@@ -1150,10 +1150,10 @@ pub fn get_summarytext_by_raw(
         if text.as_ref().is_empty() {
             prefix
         } else if prefix.is_empty() {
-            dc_truncate(text.as_ref(), approx_characters, true).to_string()
+            dc_truncate(text.as_ref(), approx_characters).to_string()
         } else {
             let tmp = format!("{} – {}", prefix, text.as_ref());
-            dc_truncate(&tmp, approx_characters, true).to_string()
+            dc_truncate(&tmp, approx_characters).to_string()
         }
     } else {
         prefix
