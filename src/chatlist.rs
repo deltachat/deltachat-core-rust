@@ -421,4 +421,18 @@ mod tests {
         let chats = Chatlist::try_load(&t.ctx, 0, Some("t-5678-b"), None).unwrap();
         assert_eq!(chats.len(), 1);
     }
+
+    #[test]
+    fn test_get_summary_unwrap() {
+        let t = dummy_context();
+        let chat_id1 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "a chat").unwrap();
+
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text(Some("foo:\nbar \r\n test".to_string()));
+        chat_id1.set_draft(&t.ctx, Some(&mut msg));
+
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        let summary = chats.get_summary(&t.ctx, 0, None);
+        assert_eq!(summary.get_text2().unwrap(), "foo: bar test"); // the linebreak should be removed from summary
+    }
 }
