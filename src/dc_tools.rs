@@ -21,8 +21,8 @@ pub(crate) fn dc_exactly_one_bit_set(v: i32) -> bool {
 
 /// Shortens a string to a specified length and adds "..." or "[...]" to the end of
 /// the shortened string.
-pub(crate) fn dc_truncate(buf: &str, approx_chars: usize, do_unwrap: bool) -> Cow<str> {
-    let ellipse = if do_unwrap { "..." } else { "[...]" };
+pub(crate) fn dc_truncate(buf: &str, approx_chars: usize) -> Cow<str> {
+    let ellipse = "[...]";
 
     let count = buf.chars().count();
     if approx_chars > 0 && count > approx_chars + ellipse.len() {
@@ -538,54 +538,42 @@ mod tests {
     #[test]
     fn test_dc_truncate_1() {
         let s = "this is a little test string";
-        assert_eq!(dc_truncate(s, 16, false), "this is a [...]");
-        assert_eq!(dc_truncate(s, 16, true), "this is a ...");
+        assert_eq!(dc_truncate(s, 16), "this is a [...]");
     }
 
     #[test]
     fn test_dc_truncate_2() {
-        assert_eq!(dc_truncate("1234", 2, false), "1234");
-        assert_eq!(dc_truncate("1234", 2, true), "1234");
+        assert_eq!(dc_truncate("1234", 2), "1234");
     }
 
     #[test]
     fn test_dc_truncate_3() {
-        assert_eq!(dc_truncate("1234567", 1, false), "1[...]");
-        assert_eq!(dc_truncate("1234567", 1, true), "1...");
+        assert_eq!(dc_truncate("1234567", 1), "1[...]");
     }
 
     #[test]
     fn test_dc_truncate_4() {
-        assert_eq!(dc_truncate("123456", 4, false), "123456");
-        assert_eq!(dc_truncate("123456", 4, true), "123456");
+        assert_eq!(dc_truncate("123456", 4), "123456");
     }
 
     #[test]
     fn test_dc_truncate_edge() {
-        assert_eq!(dc_truncate("", 4, false), "");
-        assert_eq!(dc_truncate("", 4, true), "");
+        assert_eq!(dc_truncate("", 4), "");
 
-        assert_eq!(dc_truncate("\n  hello \n world", 4, false), "\n  [...]");
-        assert_eq!(dc_truncate("\n  hello \n world", 4, true), "\n  ...");
+        assert_eq!(dc_truncate("\n  hello \n world", 4), "\n  [...]");
 
+        assert_eq!(dc_truncate("𐠈0Aᝮa𫝀®!ꫛa¡0A𐢧00𐹠®A  丽ⷐએ", 1), "𐠈[...]");
         assert_eq!(
-            dc_truncate("𐠈0Aᝮa𫝀®!ꫛa¡0A𐢧00𐹠®A  丽ⷐએ", 1, false),
-            "𐠈[...]"
-        );
-        assert_eq!(
-            dc_truncate("𐠈0Aᝮa𫝀®!ꫛa¡0A𐢧00𐹠®A  丽ⷐએ", 0, false),
+            dc_truncate("𐠈0Aᝮa𫝀®!ꫛa¡0A𐢧00𐹠®A  丽ⷐએ", 0),
             "𐠈0Aᝮa𫝀®!ꫛa¡0A𐢧00𐹠®A  丽ⷐએ"
         );
 
         // 9 characters, so no truncation
-        assert_eq!(
-            dc_truncate("𑒀ὐ￠🜀\u{1e01b}A a🟠", 6, false),
-            "𑒀ὐ￠🜀\u{1e01b}A a🟠",
-        );
+        assert_eq!(dc_truncate("𑒀ὐ￠🜀\u{1e01b}A a🟠", 6), "𑒀ὐ￠🜀\u{1e01b}A a🟠",);
 
         // 12 characters, truncation
         assert_eq!(
-            dc_truncate("𑒀ὐ￠🜀\u{1e01b}A a🟠bcd", 6, false),
+            dc_truncate("𑒀ὐ￠🜀\u{1e01b}A a🟠bcd", 6),
             "𑒀ὐ￠🜀\u{1e01b}A[...]",
         );
     }
@@ -701,11 +689,10 @@ mod tests {
         #[test]
         fn test_dc_truncate(
             buf: String,
-            approx_chars in 0..10000usize,
-            do_unwrap: bool,
+            approx_chars in 0..10000usize
         ) {
-            let res = dc_truncate(&buf, approx_chars, do_unwrap);
-            let el_len = if do_unwrap { 3 } else { 5 };
+            let res = dc_truncate(&buf, approx_chars);
+            let el_len = 5;
             let l = res.chars().count();
             if approx_chars > 0 {
                 assert!(
@@ -719,11 +706,7 @@ mod tests {
 
             if approx_chars > 0 && buf.chars().count() > approx_chars + el_len {
                 let l = res.len();
-                if do_unwrap {
-                    assert_eq!(&res[l-3..l], "...", "missing ellipsis in {}", &res);
-                } else {
-                    assert_eq!(&res[l-5..l], "[...]", "missing ellipsis in {}", &res);
-                }
+                assert_eq!(&res[l-5..l], "[...]", "missing ellipsis in {}", &res);
             }
         }
     }
