@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use deltachat_derive::{FromSql, ToSql};
 use failure::Fail;
+use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 
 use crate::chat::{self, Chat, ChatId};
@@ -20,6 +21,10 @@ use crate::param::*;
 use crate::pgp::*;
 use crate::sql;
 use crate::stock::StockMessage;
+
+lazy_static! {
+    static ref UNWRAP_RE: regex::Regex = regex::Regex::new(r"\s+").unwrap();
+}
 
 // In practice, the user additionally cuts the string themselves
 // pixel-accurate.
@@ -1141,7 +1146,7 @@ pub fn get_summarytext_by_raw(
         return prefix;
     }
 
-    if let Some(text) = text {
+    let summary = if let Some(text) = text {
         if text.as_ref().is_empty() {
             prefix
         } else if prefix.is_empty() {
@@ -1152,7 +1157,9 @@ pub fn get_summarytext_by_raw(
         }
     } else {
         prefix
-    }
+    };
+
+    UNWRAP_RE.replace_all(&summary, " ").to_string()
 }
 
 // as we do not cut inside words, this results in about 32-42 characters.
