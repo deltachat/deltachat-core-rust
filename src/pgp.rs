@@ -620,12 +620,12 @@ mod tests {
 
         let mut rng = thread_rng();
 
-        let pkeys: Vec<SignedPublicKeyOrSubkey> = vec![(&KEYS.alice_public)
-            .try_into()
-            .ok()
-            .and_then(select_pk_for_encryption)
-            .unwrap()];
-        let pkeys_refs: Vec<&SignedPublicKeyOrSubkey> = pkeys.iter().collect();
+        let enc_key =
+            SignedPublicKey::from_base64(include_str!("../test-data/key/alice-public.asc"))
+                .unwrap();
+        let enc_subkey = &enc_key.public_subkeys[0];
+        assert!(enc_subkey.is_encryption_key());
+        let pkeys: Vec<&SignedPublicSubKey> = vec![&enc_subkey];
 
         let skeys: Vec<&SignedSecretKey> = vec![(&KEYS.alice_secret).try_into().unwrap()];
 
@@ -633,7 +633,7 @@ mod tests {
             let msg = lit_msg.encrypt_to_keys(
                 &mut rng,
                 pgp::crypto::sym::SymmetricKeyAlgorithm::AES128,
-                &pkeys_refs,
+                &pkeys[..],
             )?;
             let ctext = msg.to_armored_string(None)?;
 
