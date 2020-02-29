@@ -627,7 +627,9 @@ mod tests {
         assert!(enc_subkey.is_encryption_key());
         let pkeys: Vec<&SignedPublicSubKey> = vec![&enc_subkey];
 
-        let skeys: Vec<&SignedSecretKey> = vec![(&KEYS.alice_secret).try_into().unwrap()];
+        let skey = SignedSecretKey::from_base64(include_str!("../test-data/key/alice-secret.asc"))
+            .unwrap();
+        let skeys: Vec<&SignedSecretKey> = vec![&skey];
 
         for _ in 0..1000 {
             let msg = lit_msg.encrypt_to_keys(
