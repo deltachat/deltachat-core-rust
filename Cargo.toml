@@ -1,6 +1,6 @@
 [package]
 name = "deltachat"
-version = "1.25.0"
+version = "1.26.0"
 authors = ["Delta Chat Developers (ML) <delta@codespeak.net>"]
 edition = "2018"
 license = "MPL-2.0"
@@ -12,7 +12,7 @@ lto = true
 deltachat_derive = { path = "./deltachat_derive" }
 
 libc = "0.2.51"
-pgp = { version = "0.4.0", default-features = false }
+pgp = { version = "0.4.1", default-features = false }
 hex = "0.4.0"
 sha2 = "0.8.0"
 rand = "0.7.0"

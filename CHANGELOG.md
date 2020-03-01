@@ -1,5 +1,14 @@
 # Changelog 
 
+## 1.26.0
+
+- change generated key type back to RSA as shipped versions
+  have problems to encrypt to Ed25519 keys
+
+- update rPGP to encrypt reliably to Ed25519 keys;
+  one of the next versions can finally use Ed25519 keys then
+
+
 ## 1.25.0
 
 - save traffic by downloading only messages that are really displayed #1236
