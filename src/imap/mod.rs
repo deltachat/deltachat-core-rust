@@ -1298,9 +1298,9 @@ fn precheck_imf(context: &Context, rfc724_mid: &str, server_folder: &str, server
         if old_server_folder.is_empty() && old_server_uid == 0 {
             info!(context, "[move] detected bcc-self {}", rfc724_mid,);
 
-            let delete_server_after = context.get_config_int(Config::DeleteServerAfter);
+            let delete_server_after = context.get_config_delete_server_after();
 
-            if delete_server_after != 0 {
+            if delete_server_after != Some(0) {
                 context.do_heuristics_moves(server_folder.as_ref(), msg_id);
                 job_add(
                     context,
@@ -1311,7 +1311,7 @@ fn precheck_imf(context: &Context, rfc724_mid: &str, server_folder: &str, server
                 );
             }
 
-            if delete_server_after >= 0 {
+            if let Some(delete_server_after) = delete_server_after {
                 info!(
                     context,
                     "Scheduling BCC-self deletion in {} seconds", delete_server_after
