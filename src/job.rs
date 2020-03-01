@@ -859,8 +859,11 @@ pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<()> {
         .get_config(Config::ConfiguredAddr)
         .unwrap_or_default();
     let lowercase_from = from.to_lowercase();
+
+    // Send BCC to self if it is enabled and we are not going to
+    // delete it immediately.
     if context.get_config_bool(Config::BccSelf)
-        && context.get_config_int(Config::DeleteServerAfter) != 0
+        && context.get_config_delete_server_after() != Some(0)
         && !recipients
             .iter()
             .any(|x| x.to_lowercase() == lowercase_from)
