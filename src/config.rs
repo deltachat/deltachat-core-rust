@@ -68,9 +68,12 @@ pub enum Config {
     /// Timer in seconds after which the message is deleted from the
     /// server.
     ///
-    /// Equals to -1 by default, which means the message is never
+    /// Equals to 0 by default, which means the message is never
     /// deleted.
-    #[strum(props(default = "-1"))]
+    ///
+    /// Value 1 is treated as "delete at once": messages are deleted
+    /// immediately, without moving to DeltaChat folder.
+    #[strum(props(default = "0"))]
     DeleteServerAfter,
 
     SaveMimeHeaders,
@@ -134,6 +137,18 @@ impl Context {
 
     pub fn get_config_bool(&self, key: Config) -> bool {
         self.get_config_int(key) != 0
+    }
+
+    /// Gets configured "delete_server_after" value.
+    ///
+    /// `None` means never delete the message, `Some(0)` means delete
+    /// at once, `Some(x)` means delete after `x` seconds.
+    pub fn get_config_delete_server_after(&self) -> Option<i64> {
+        match self.get_config_int(Config::DeleteServerAfter) {
+            0 => None,
+            1 => Some(0),
+            x => Some(x as i64),
+        }
     }
 
     /// Set the given config key.

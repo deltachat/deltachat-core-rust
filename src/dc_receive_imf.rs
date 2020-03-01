@@ -204,14 +204,14 @@ pub fn dc_receive_imf(
         }
     } else {
         // Get user-configured server deletion
-        let delete_server_after = context.get_config_int(Config::DeleteServerAfter);
+        let delete_server_after = context.get_config_delete_server_after();
 
-        if delete_server_after != 0 {
+        if delete_server_after != Some(0) {
             // Move message if we don't delete it immediately.
             context.do_heuristics_moves(server_folder.as_ref(), insert_msg_id);
         }
 
-        if delete_server_after >= 0 {
+        if let Some(delete_server_after) = delete_server_after {
             info!(
                 context,
                 "Scheduling message deletion in {} seconds", delete_server_after
