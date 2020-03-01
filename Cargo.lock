@@ -627,7 +627,7 @@ dependencies = [
 
 [[package]]
 name = "deltachat"
-version = "1.25.0"
+version = "1.26.0"
 dependencies = [
  "async-imap 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "async-native-tls 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -693,9 +693,9 @@ dependencies = [
 
 [[package]]
 name = "deltachat_ffi"
-version = "1.25.0"
+version = "1.26.0"
 dependencies = [
- "deltachat 1.25.0",
+ "deltachat 1.26.0",
  "failure 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "human-panic 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.66 (registry+https://github.com/rust-lang/crates.io-index)",
