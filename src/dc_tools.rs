@@ -19,8 +19,8 @@ pub(crate) fn dc_exactly_one_bit_set(v: i32) -> bool {
     0 != v && 0 == v & (v - 1)
 }
 
-/// Shortens a string to a specified length and adds "..." or "[...]" to the end of
-/// the shortened string.
+/// Shortens a string to a specified length and adds "[...]" to the
+/// end of the shortened string.
 pub(crate) fn dc_truncate(buf: &str, approx_chars: usize) -> Cow<str> {
     let ellipse = "[...]";
 
