@@ -118,7 +118,7 @@ pub enum Origin {
     Internal = 0x40000,
 
     /// address is in our address book
-    AdressBook = 0x80000,
+    AddressBook = 0x80000,
 
     /// set on Alice's side for contacts like Bob that have scanned the QR code offered by her. Only means the contact has once been established using the "securejoin" procedure in the past, getting the current key verification status requires calling dc_contact_is_verified() !
     SecurejoinInvited = 0x0100_0000,
@@ -497,7 +497,7 @@ impl Contact {
 
         for (name, addr) in split_address_book(addr_book.as_ref()).into_iter() {
             let name = normalize_name(name);
-            match Contact::add_or_lookup(context, name, addr, Origin::AdressBook) {
+            match Contact::add_or_lookup(context, name, addr, Origin::AddressBook) {
                 Err(err) => {
                     warn!(
                         context,
