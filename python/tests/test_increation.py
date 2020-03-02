@@ -6,8 +6,16 @@ import shutil
 import pytest
 from filecmp import cmp
 
-from conftest import wait_configuration_progress, wait_msgs_changed
+from conftest import wait_configuration_progress
 from deltachat import const
+
+
+def wait_msgs_changed(account, chat_id, msg_id=None):
+    ev = account._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
+    assert ev.data1 == chat_id
+    if msg_id is not None:
+        assert ev.data2 == msg_id
+    return ev.data2
 
 
 class TestOnlineInCreation:
