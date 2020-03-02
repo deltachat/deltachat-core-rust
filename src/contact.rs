@@ -497,9 +497,18 @@ impl Contact {
 
         for (name, addr) in split_address_book(addr_book.as_ref()).into_iter() {
             let name = normalize_name(name);
-            let (_, modified) = Contact::add_or_lookup(context, name, addr, Origin::AdressBook)?;
-            if modified != Modifier::None {
-                modify_cnt += 1
+            match Contact::add_or_lookup(context, name, addr, Origin::AdressBook) {
+                Err(err) => {
+                    warn!(
+                        context,
+                        "Failed to add address {} from address book: {}", addr, err
+                    );
+                }
+                Ok((_, modified)) => {
+                    if modified != Modifier::None {
+                        modify_cnt += 1
+                    }
+                }
             }
         }
         if modify_cnt > 0 {
@@ -1229,6 +1238,7 @@ mod tests {
         let book = concat!(
             "  Name one  \n one@eins.org \n",
             "Name two\ntwo@deux.net\n",
+            "Invalid\n+1234567890\n", // invalid, should be ignored
             "\nthree@drei.sam\n",
             "Name two\ntwo@deux.net\n" // should not be added again
         );
