@@ -79,7 +79,7 @@ def get_dc_event_name(integer, _DC_EVENTNAME_MAP={}):
 
 def register_global_plugin(plugin):
     """ Register a global plugin which implements one or more
-    of the :class:`deltachat.hookspec.Global` specs.
+    of the :class:`deltachat.hookspec.Global` hooks.
     """
     gm = hookspec.Global._get_plugin_manager()
     gm.register(plugin)
