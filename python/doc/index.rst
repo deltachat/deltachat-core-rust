@@ -29,6 +29,7 @@ getting started
    changelog
    api
    lapi
+   plugins
 
 ..
     Indices and tables

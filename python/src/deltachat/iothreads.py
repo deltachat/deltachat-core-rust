@@ -17,13 +17,17 @@ class IOThreads:
     def is_started(self):
         return len(self._name2thread) > 0
 
-    def start(self):
+    def start(self, callback_thread):
         assert not self.is_started()
         self._start_one_thread("inbox", self.imap_thread_run)
         self._start_one_thread("smtp", self.smtp_thread_run)
 
+        if callback_thread:
+            self._start_one_thread("cb", self.cb_thread_run)
+
         if int(self.account.get_config("mvbox_watch")):
             self._start_one_thread("mvbox", self.mvbox_thread_run)
+
         if int(self.account.get_config("sentbox_watch")):
             self._start_one_thread("sentbox", self.sentbox_thread_run)
 
@@ -53,7 +57,18 @@ class IOThreads:
             lib.dc_interrupt_sentbox_idle(self._dc_context)
         if wait:
             for name, thread in self._name2thread.items():
-                thread.join()
+                if thread != threading.currentThread():
+                    thread.join()
+
+    def cb_thread_run(self):
+        with self.log_execution("CALLBACK THREAD START"):
+            it = self.account.iter_events()
+            while not self._thread_quitflag:
+                try:
+                    ev = next(it)
+                except StopIteration:
+                    break
+                ev.call_hook()
 
     def imap_thread_run(self):
         with self.log_execution("INBOX THREAD START"):

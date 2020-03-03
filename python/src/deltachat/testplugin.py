@@ -3,12 +3,10 @@ import os
 import sys
 import pytest
 import requests
-from contextlib import contextmanager
 import time
 from . import Account, const
 from .tracker import ConfigureTracker
 from .capi import lib
-from .hookspec import account_hookimpl
 from .eventlogger import FFIEventLogger, FFIEventTracker
 from _pytest.monkeypatch import MonkeyPatch
 import tempfile
@@ -63,9 +61,9 @@ def pytest_report_header(config, startdir):
 
     cfg = config.option.liveconfig
     if cfg:
-        if "#" in cfg:
-            url, token = cfg.split("#", 1)
-            summary.append('Liveconfig provider: {}#<token ommitted>'.format(url))
+        if "?" in cfg:
+            url, token = cfg.split("?", 1)
+            summary.append('Liveconfig provider: {}?<token ommitted>'.format(url))
         else:
             summary.append('Liveconfig file: {}'.format(cfg))
     return summary
@@ -263,26 +261,3 @@ def lp():
         def step(self, msg):
             print("-" * 5, "step " + msg, "-" * 5)
     return Printer()
-
-
-@pytest.fixture
-def make_plugin_recorder():
-    @contextmanager
-    def make_plugin_recorder(account):
-        class HookImpl:
-            def __init__(self):
-                self.calls_member_added = []
-
-            @account_hookimpl
-            def member_added(self, chat, contact):
-                self.calls_member_added.append(dict(chat=chat, contact=contact))
-
-            def get_first(self, name):
-                val = getattr(self, "calls_" + name, None)
-                if val is not None:
-                    return val.pop(0)
-
-        with account.temp_plugin(HookImpl()) as plugin:
-            yield plugin
-
-    return make_plugin_recorder
