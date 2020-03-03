@@ -17,8 +17,10 @@ Registering a plugin
 --------------------
 
 .. autofunction:: deltachat.register_global_plugin
+    :noindex:
 
 .. automethod:: deltachat.account.Account.add_account_plugin
+    :noindex:
 
 
 Per-Account Hook specifications

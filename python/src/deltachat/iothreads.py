@@ -68,6 +68,7 @@ class IOThreads:
                     ev = next(it)
                 except StopIteration:
                     break
+                self.account.log_line("calling hook name={} kwargs={}".format(ev.name, ev.kwargs))
                 ev.call_hook()
 
     def imap_thread_run(self):
