@@ -214,7 +214,7 @@ class Account(object):
         :returns: :class:`deltachat.contact.Contact`
         """
         self.check_is_configured()
-        return Contact(self._dc_context, const.DC_CONTACT_ID_SELF)
+        return Contact(self, const.DC_CONTACT_ID_SELF)
 
     def create_contact(self, email, name=None):
         """ create a (new) Contact. If there already is a Contact
@@ -229,7 +229,7 @@ class Account(object):
         email = as_dc_charpointer(email)
         contact_id = lib.dc_create_contact(self._dc_context, name, email)
         assert contact_id > const.DC_CHAT_ID_LAST_SPECIAL
-        return Contact(self._dc_context, contact_id)
+        return Contact(self, contact_id)
 
     def delete_contact(self, contact):
         """ delete a Contact.
@@ -261,7 +261,7 @@ class Account(object):
             lib.dc_get_contacts(self._dc_context, flags, query),
             lib.dc_array_unref
         )
-        return list(iter_array(dc_array, lambda x: Contact(self._dc_context, x)))
+        return list(iter_array(dc_array, lambda x: Contact(self, x)))
 
     def create_chat_by_contact(self, contact):
         """ create or get an existing 1:1 chat object for the specified contact or contact id.
@@ -340,7 +340,7 @@ class Account(object):
         :param contact_id: integer id of this contact.
         :returns: None or :class:`deltachat.contact.Contact` instance.
         """
-        return Contact(self._dc_context, contact_id)
+        return Contact(self, contact_id)
 
     def get_chat_by_id(self, chat_id):
         """ return Chat instance.
@@ -542,7 +542,7 @@ class Account(object):
         If this account is not configured, an internal configuration
         job will be scheduled if config values are sufficiently specified.
 
-        You may call :method:`wait_shutdown` or `shutdown` after the
+        You may call `wait_shutdown` or `shutdown` after the
         account is in started mode.
 
         :raises MissingCredentials: if `addr` and `mail_pw` values are not set.

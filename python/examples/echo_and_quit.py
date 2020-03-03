@@ -13,8 +13,10 @@ class SimpleEchoPlugin:
         if message.text.strip() == "/quit":
             message.account.shutdown()
         else:
-            ch = message.account.create_chat_by_contact(message.get_sender_contact())
-            ch.send_text("echoing from {}:\n{}".format(message.get_sender_contact().addr, message.text))
+            ch = message.get_sender_chat()
+            addr = message.get_sender_contact().addr
+            text = message.text
+            ch.send_text("echoing from {}:\n{}".format(addr, text))
 
     @deltachat.hookspec.account_hookimpl
     def process_message_delivered(self, message):
@@ -23,7 +25,7 @@ class SimpleEchoPlugin:
 
 def main(argv):
     p = optparse.OptionParser("simple-echo")
-    p.add_option("-l", action="store_true", help="show low-level events")
+    p.add_option("-l", action="store_true", help="show ffi")
     p.add_option("--db", type="str", help="database file")
     p.add_option("--email", type="str", help="email address")
     p.add_option("--password", type="str", help="password")
@@ -34,10 +36,13 @@ def main(argv):
     ac = deltachat.Account(opts.db)
 
     if opts.l:
-        ac.add_account_plugin(deltachat.eventlogger.FFIEventLogger(ac, "echo"))
+        log = deltachat.eventlogger.FFIEventLogger(ac, "echo")
+        ac.add_account_plugin(log)
 
     if not ac.is_configured():
-        assert opts.email and opts.password, "you must specify --email and --password"
+        assert opts.email and opts.password, (
+            "you must specify --email and --password"
+        )
         ac.set_config("addr", opts.email)
         ac.set_config("mail_pw", opts.password)
         ac.set_config("mvbox_watch", "0")
@@ -45,10 +50,10 @@ def main(argv):
 
     ac.add_account_plugin(SimpleEchoPlugin())
 
-    # start IO threads and perform configure if neccessary
-    ac.start(callback_thread=True)
+    # start IO threads and configure if neccessary
+    ac.start()
 
-    print("waiting for /quit or message to echo on: {}".format(ac.get_config("addr")))
+    print("{}: waiting for message".format(ac.get_config("addr")))
 
     ac.wait_shutdown()
 

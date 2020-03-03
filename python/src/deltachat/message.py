@@ -159,6 +159,13 @@ class Message(object):
         chat_id = lib.dc_msg_get_chat_id(self._dc_msg)
         return Chat(self.account, chat_id)
 
+    def get_sender_chat(self):
+        """return the 1:1 chat with the sender of this message.
+
+        :returns: :class:`deltachat.chat.Chat` instance
+        """
+        return self.get_sender_contact().get_chat()
+
     def get_sender_contact(self):
         """return the contact of who wrote the message.
 
@@ -166,7 +173,7 @@ class Message(object):
         """
         from .contact import Contact
         contact_id = lib.dc_msg_get_from_id(self._dc_msg)
-        return Contact(self._dc_context, contact_id)
+        return Contact(self.account, contact_id)
 
     #
     # Message State query methods

@@ -363,7 +363,7 @@ class Chat(object):
             lib.dc_array_unref
         )
         return list(iter_array(
-            dc_array, lambda id: Contact(self._dc_context, id))
+            dc_array, lambda id: Contact(self.account, id))
         )
 
     def set_profile_image(self, img_path):

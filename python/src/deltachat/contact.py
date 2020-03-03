@@ -10,8 +10,9 @@ class Contact(object):
 
     You obtain instances of it through :class:`deltachat.account.Account`.
     """
-    def __init__(self, dc_context, id):
-        self._dc_context = dc_context
+    def __init__(self, account, id):
+        self.account = account
+        self._dc_context = account._dc_context
         self.id = id
 
     def __eq__(self, other):
@@ -57,3 +58,7 @@ class Contact(object):
         if dc_res == ffi.NULL:
             return None
         return from_dc_charpointer(dc_res)
+
+    def get_chat(self):
+        """return 1:1 chat for this contact. """
+        return self.account.create_chat_by_contact(self)
