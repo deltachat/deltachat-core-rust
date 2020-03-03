@@ -147,6 +147,9 @@ class TestOfflineChat:
         str(chat1)
         repr(chat1)
 
+    def test_is_group(self, chat1):
+        assert not chat1.is_group()
+
     def test_chat_by_id(self, chat1):
         chat2 = chat1.account.get_chat_by_id(chat1.id)
         assert chat2 == chat1
@@ -169,6 +172,7 @@ class TestOfflineChat:
 
     def test_add_member_event(self, ac1, make_plugin_recorder):
         chat = ac1.create_group_chat(name="title1")
+        assert chat.is_group()
         # promote the chat
         chat.send_text("hello")
         contact1 = ac1.create_contact("some1@hello.com", name="some1")
@@ -229,6 +233,7 @@ class TestOfflineChat:
     def test_group_chat_qr(self, acfactory, ac1, verified):
         ac2 = acfactory.get_configured_offline_account()
         chat = ac1.create_group_chat(name="title1", verified=verified)
+        assert chat.is_group()
         qr = chat.get_join_qr()
         assert ac2.check_qr(qr).is_ask_verifygroup
 

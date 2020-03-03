@@ -51,6 +51,16 @@ class Chat(object):
 
     # ------  chat status/metadata API ------------------------------
 
+    def is_group(self):
+        """ return true if this chat is a group chat.
+
+        :returns: True if chat is a group-chat, false if it's a contact 1:1 chat.
+        """
+        return lib.dc_chat_get_type(self._dc_chat) in (
+            const.DC_CHAT_TYPE_GROUP,
+            const.DC_CHAT_TYPE_VERIFIED_GROUP
+        )
+
     def is_deaddrop(self):
         """ return true if this chat is a deaddrop chat.
 
@@ -129,7 +139,7 @@ class Chat(object):
         return bool(lib.dc_chat_get_remaining_mute_duration(self.id))
 
     def get_type(self):
-        """ return type of this chat.
+        """ (deprecated) return type of this chat.
 
         :returns: one of const.DC_CHAT_TYPE_*
         """
