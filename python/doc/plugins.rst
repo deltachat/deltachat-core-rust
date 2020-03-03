@@ -4,15 +4,21 @@ Implementing Plugin Hooks
 
 The Delta Chat Python bindings use `pluggy <https://pluggy.readthedocs.io>`_
 for managing global and per-account plugin registration, and performing
-hook calls.
+hook calls. There are two kinds of plugins:
+
+- Global plugins that are active for all accounts; they can implement
+  hooks at account-creation and account-shutdown time.
+
+- Account plugins that are only active during the lifetime of a
+  single Account instance.
 
 
 Registering a plugin
 --------------------
 
-.. autoclass:: deltachat.register_global_plugin
+.. autofunction:: deltachat.register_global_plugin
 
-.. autoclass:: deltachat.account.Account.add_account_plugin
+.. automethod:: deltachat.account.Account.add_account_plugin
 
 
 Per-Account Hook specifications

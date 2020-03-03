@@ -160,6 +160,7 @@ class Account(object):
 
     def update_config(self, kwargs):
         """ update config values.
+
         :param kwargs: name=value config settings for this account.
                        values need to be unicode.
         :returns: None
@@ -529,7 +530,7 @@ class Account(object):
 
     def add_account_plugin(self, plugin):
         """ add an account plugin which implements one or more of
-        the :class:`deltachat.hookspec.PerAccount` specs.
+        the :class:`deltachat.hookspec.PerAccount` hooks.
         """
         self._pm.register(plugin)
         self._pm.check_pending()

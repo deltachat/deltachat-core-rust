@@ -53,7 +53,8 @@ class PerAccount:
 
 
 class Global:
-    """ global hook specifications using a per-process singleton plugin manager instance.
+    """ global hook specifications using a per-process singleton
+    plugin manager instance.
 
     """
     _plugin_manager = None
