@@ -15,7 +15,8 @@ global_hookimpl = pluggy.HookimplMarker(_global_name)
 class PerAccount:
     """ per-Account-instance hook specifications.
 
-    If you write a plugin you need to implement one of the following hooks.
+    Except for process_ffi_event all hooks are executed
+    in the thread which calls Account.wait_shutdown().
     """
     @classmethod
     def _make_plugin_manager(cls):
@@ -29,6 +30,10 @@ class PerAccount:
 
         ffi_event has "name", "data1", "data2" values as specified
         with `DC_EVENT_* <https://c.delta.chat/group__DC__EVENT.html>`_.
+
+        DANGER: this hook is executed from the callback invoked by core.
+        Hook implementations need to be short running and can typically
+        not call back into core because this would easily cause recursion issues.
         """
 
     @account_hookspec

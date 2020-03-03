@@ -15,6 +15,7 @@ from .message import Message
 from .contact import Contact
 from .tracker import ImexTracker
 from . import hookspec, iothreads
+from queue import Queue
 
 
 class MissingCredentials(ValueError):
@@ -48,6 +49,9 @@ class Account(object):
         hook.account_init(account=self, db_path=db_path)
 
         self._threads = iothreads.IOThreads(self)
+        self._hook_event_queue = Queue()
+        self._in_use_iter_events = False
+        self._shutdown_event = Event()
 
         # open database
         if hasattr(db_path, "encode"):
@@ -56,30 +60,13 @@ class Account(object):
             raise ValueError("Could not dc_open: {}".format(db_path))
         self._configkeys = self.get_config("sys.config_keys").split()
         atexit.register(self.shutdown)
-        self._shutdown_event = Event()
 
     @hookspec.account_hookimpl
     def process_ffi_event(self, ffi_event):
-        name = ffi_event.name
-        if name == "DC_EVENT_CONFIGURE_PROGRESS":
-            data1 = ffi_event.data1
-            if data1 == 0 or data1 == 1000:
-                success = data1 == 1000
-                self._pm.hook.configure_completed(success=success)
-        elif name == "DC_EVENT_INCOMING_MSG":
-            msg = self.get_message_by_id(ffi_event.data2)
-            self._pm.hook.process_incoming_message(message=msg)
-        elif name == "DC_EVENT_MSGS_CHANGED":
-            if ffi_event.data2 != 0:
-                msg = self.get_message_by_id(ffi_event.data2)
-                self._pm.hook.process_incoming_message(message=msg)
-        elif name == "DC_EVENT_MSG_DELIVERED":
-            msg = self.get_message_by_id(ffi_event.data2)
-            self._pm.hook.process_message_delivered(message=msg)
-        elif name == "DC_EVENT_MEMBER_ADDED":
-            chat = self.get_chat_by_id(ffi_event.data1)
-            contact = self.get_contact_by_id(ffi_event.data2)
-            self._pm.hook.member_added(chat=chat, contact=contact)
+        name, kwargs = self._map_ffi_event(ffi_event)
+        if name is not None:
+            ev = HookEvent(self, name=name, kwargs=kwargs)
+            self._hook_event_queue.put(ev)
 
     # def __del__(self):
     #    self.shutdown()
@@ -547,7 +534,7 @@ class Account(object):
         """ Stop ongoing securejoin, configuration or other core jobs. """
         lib.dc_stop_ongoing_process(self._dc_context)
 
-    def start(self):
+    def start(self, callback_thread=True):
         """ start this account (activate imap/smtp threads etc.)
         and return immediately.
 
@@ -565,7 +552,7 @@ class Account(object):
             if not self.get_config("addr") or not self.get_config("mail_pw"):
                 raise MissingCredentials("addr or mail_pwd not set in config")
             lib.dc_configure(self._dc_context)
-        self._threads.start()
+        self._threads.start(callback_thread=callback_thread)
 
     def wait_shutdown(self):
         """ wait until shutdown of this account has completed. """
@@ -582,12 +569,51 @@ class Account(object):
             self.stop_ongoing()
             self._threads.stop(wait=False)
         lib.dc_close(dc_context)
+        self._hook_event_queue.put(None)
         self._threads.stop(wait=wait)  # to wait for threads
         self._dc_context = None
         atexit.unregister(self.shutdown)
+        self._shutdown_event.set()
         hook = hookspec.Global._get_plugin_manager().hook
         hook.account_after_shutdown(account=self, dc_context=dc_context)
-        self._shutdown_event.set()
+
+    def iter_events(self, timeout=None):
+        """ yield hook events until shutdown.
+
+        It is not allowed to call iter_events() from multiple threads.
+        """
+        if self._in_use_iter_events:
+            raise RuntimeError("can only call iter_events() from one thread")
+        self._in_use_iter_events = True
+        while 1:
+            event = self._hook_event_queue.get(timeout=timeout)
+            if event is None:
+                break
+            yield event
+
+    def _map_ffi_event(self, ffi_event):
+        name = ffi_event.name
+        if name == "DC_EVENT_CONFIGURE_PROGRESS":
+            data1 = ffi_event.data1
+            if data1 == 0 or data1 == 1000:
+                success = data1 == 1000
+                return "configure_completed", dict(success=success)
+        elif name == "DC_EVENT_INCOMING_MSG":
+            msg = self.get_message_by_id(ffi_event.data2)
+            return "process_incoming_message", dict(message=msg)
+        elif name == "DC_EVENT_MSGS_CHANGED":
+            if ffi_event.data2 != 0:
+                msg = self.get_message_by_id(ffi_event.data2)
+                if msg.is_in_fresh():
+                    return "process_incoming_message", dict(message=msg)
+        elif name == "DC_EVENT_MSG_DELIVERED":
+            msg = self.get_message_by_id(ffi_event.data2)
+            return "process_message_delivered", dict(message=msg)
+        elif name == "DC_EVENT_MEMBER_ADDED":
+            chat = self.get_chat_by_id(ffi_event.data1)
+            contact = self.get_contact_by_id(ffi_event.data2)
+            return "member_added", dict(chat=chat, contact=contact)
+        return None, {}
 
 
 def _destroy_dc_context(dc_context, dc_context_unref=lib.dc_context_unref):
@@ -614,3 +640,17 @@ class ScannedQRCode:
     @property
     def contact_id(self):
         return self._dc_lot.id()
+
+
+class HookEvent:
+    def __init__(self, account, name, kwargs):
+        assert hasattr(account._pm.hook, name), name
+        self.account = account
+        self.name = name
+        self.kwargs = kwargs
+
+    def call_hook(self):
+        hook = getattr(self.account._pm.hook, self.name, None)
+        if hook is None:
+            raise ValueError("event_name {} unknown".format(self.name))
+        return hook(**self.kwargs)

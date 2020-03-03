@@ -170,18 +170,19 @@ class TestOfflineChat:
         else:
             pytest.fail("could not find chat")
 
-    def test_add_member_event(self, ac1, make_plugin_recorder):
+    def test_add_member_event(self, ac1):
         chat = ac1.create_group_chat(name="title1")
         assert chat.is_group()
         # promote the chat
         chat.send_text("hello")
         contact1 = ac1.create_contact("some1@hello.com", name="some1")
 
-        with make_plugin_recorder(ac1) as rec:
-            chat.add_contact(contact1)
-            kwargs = rec.get_first("member_added")
-            assert kwargs["chat"] == chat
-            assert kwargs["contact"] == contact1
+        chat.add_contact(contact1)
+        for ev in ac1.iter_events(timeout=1):
+            if ev.name == "member_added":
+                assert ev.kwargs["chat"] == chat
+                assert ev.kwargs["contact"] == contact1
+                break
 
     def test_group_chat_creation(self, ac1):
         contact1 = ac1.create_contact("some1@hello.com", name="some1")
@@ -460,6 +461,11 @@ class TestOnlineAccount:
         if both_created:
             ac2.create_chat_by_contact(ac2.create_contact(email=ac1.get_config("addr")))
         return chat
+
+    def test_double_iter_events(self, acfactory):
+        ac1 = acfactory.get_one_online_account()
+        with pytest.raises(RuntimeError):
+            next(ac1.iter_events())
 
     @pytest.mark.ignored
     def test_configure_generate_key(self, acfactory, lp):
