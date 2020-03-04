@@ -203,6 +203,10 @@ impl ContextWrapper {
                 | Event::MemberAdded {
                     chat_id,
                     contact_id,
+                }
+                | Event::MemberRemoved {
+                    chat_id,
+                    contact_id,
                 } => {
                     ffi_cb(
                         self,

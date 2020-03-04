@@ -213,4 +213,10 @@ pub enum Event {
     /// @param data2 (int) contact_id
     #[strum(props(id = "2063"))]
     MemberAdded { chat_id: ChatId, contact_id: u32 },
+
+    /// This event is sent for each contact removed from a chat.
+    /// @param data1 (int) chat_id
+    /// @param data2 (int) contact_id
+    #[strum(props(id = "2064"))]
+    MemberRemoved { chat_id: ChatId, contact_id: u32 },
 }

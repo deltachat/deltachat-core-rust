@@ -4523,6 +4523,15 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
 #define DC_EVENT_MEMBER_ADDED 2063
 
 /**
+ * This event is sent for each member that gets removed from a (verified or unverified) chat. 
+ *
+ * @param data1 (int) chat_id
+ * @param data2 (int) contact_id
+ * @return 0
+ */
+#define DC_EVENT_MEMBER_REMOVED 2064
+
+/**
  * @}
  */
 
