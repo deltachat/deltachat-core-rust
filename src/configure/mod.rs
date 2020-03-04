@@ -12,7 +12,7 @@ use crate::config::Config;
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_tools::*;
-use crate::job::{self, job_add, job_kill_action};
+use crate::job;
 use crate::login_param::{CertificateChecks, LoginParam};
 use crate::oauth2::*;
 use crate::param::Params;
@@ -34,13 +34,13 @@ macro_rules! progress {
 
 impl Context {
     /// Starts a configuration job.
-    pub fn configure(&self) {
+    pub async fn configure(&self) {
         if self.has_ongoing() {
             warn!(self, "There is already another ongoing process running.",);
             return;
         }
-        job_kill_action(self, job::Action::ConfigureImap);
-        job_add(self, job::Action::ConfigureImap, 0, Params::new(), 0);
+        job::kill_action(self, job::Action::ConfigureImap).await;
+        job::add(self, job::Action::ConfigureImap, 0, Params::new(), 0).await;
     }
 
     /// Checks if the context is already configured.
@@ -52,8 +52,8 @@ impl Context {
 /*******************************************************************************
  * Configure JOB
  ******************************************************************************/
-#[allow(non_snake_case, unused_must_use, clippy::cognitive_complexity)]
-pub(crate) fn JobConfigureImap(context: &Context) -> job::Status {
+#[allow(clippy::cognitive_complexity)]
+pub(crate) async fn job_configure_imap(context: &Context) -> job::Status {
     if !context.sql.is_open() {
         error!(context, "Cannot configure, database not opened.",);
         progress!(context, 0);
@@ -74,19 +74,22 @@ pub(crate) fn JobConfigureImap(context: &Context) -> job::Status {
         .read()
         .unwrap()
         .imap
-        .disconnect(context);
+        .disconnect(context)
+        .await;
     context
         .sentbox_thread
         .read()
         .unwrap()
         .imap
-        .disconnect(context);
+        .disconnect(context)
+        .await;
     context
         .mvbox_thread
         .read()
         .unwrap()
         .imap
-        .disconnect(context);
+        .disconnect(context)
+        .await;
     context.smtp.clone().lock().unwrap().disconnect();
     info!(context, "Configure ...",);
 
@@ -375,7 +378,7 @@ pub(crate) fn JobConfigureImap(context: &Context) -> job::Status {
                     warn!(context, "configuring folders failed: {:?}", err);
                     false
                 } else {
-                    let res = imap.select_with_uidvalidity(context, "INBOX");
+                    let res = imap.select_with_uidvalidity(context, "INBOX").await;
                     if let Err(err) = res {
                         error!(context, "could not read INBOX status: {:?}", err);
                         false
@@ -394,7 +397,10 @@ pub(crate) fn JobConfigureImap(context: &Context) -> job::Status {
                     )
                     .ok();
 
-                context.sql.set_raw_config_bool(context, "configured", true);
+                context
+                    .sql
+                    .set_raw_config_bool(context, "configured", true)
+                    .ok();
                 true
             }
             18 => {
@@ -402,8 +408,7 @@ pub(crate) fn JobConfigureImap(context: &Context) -> job::Status {
                 // we generate the keypair just now - we could also postpone this until the first message is sent, however,
                 // this may result in a unexpected and annoying delay when the user sends his very first message
                 // (~30 seconds on a Moto G4 play) and might looks as if message sending is always that slow.
-                e2ee::ensure_secret_key_exists(context);
-                success = true;
+                success = e2ee::ensure_secret_key_exists(context).is_ok();
                 info!(context, "key generation completed");
                 progress!(context, 940);
                 break; // We are done here
@@ -424,7 +429,8 @@ pub(crate) fn JobConfigureImap(context: &Context) -> job::Status {
             .read()
             .unwrap()
             .imap
-            .disconnect(context);
+            .disconnect(context)
+            .await;
     }
     if smtp_connected_here {
         context.smtp.clone().lock().unwrap().disconnect();
@@ -434,9 +440,13 @@ pub(crate) fn JobConfigureImap(context: &Context) -> job::Status {
     // and restore to last-entered on failure.
     // this way, the parameters visible to the ui are always in-sync with the current configuration.
     if success {
-        LoginParam::from_database(context, "").save_to_database(context, "configured_raw_");
+        LoginParam::from_database(context, "")
+            .save_to_database(context, "configured_raw_")
+            .ok();
     } else {
-        LoginParam::from_database(context, "configured_raw_").save_to_database(context, "");
+        LoginParam::from_database(context, "configured_raw_")
+            .save_to_database(context, "")
+            .ok();
     }
 
     if let Some(provider) = provider::get_provider_info(&param.addr) {
@@ -656,17 +666,20 @@ mod tests {
 
     use super::*;
     use crate::config::*;
-    use crate::configure::JobConfigureImap;
     use crate::test_utils::*;
 
-    #[test]
-    fn test_no_panic_on_bad_credentials() {
+    #[async_std::test]
+    async fn test_no_panic_on_bad_credentials() {
         let t = dummy_context();
         t.ctx
             .set_config(Config::Addr, Some("probably@unexistant.addr"))
+            .await
             .unwrap();
-        t.ctx.set_config(Config::MailPw, Some("123456")).unwrap();
-        JobConfigureImap(&t.ctx);
+        t.ctx
+            .set_config(Config::MailPw, Some("123456"))
+            .await
+            .unwrap();
+        job_configure_imap(&t.ctx).await;
     }
 
     #[test]

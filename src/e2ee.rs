@@ -367,10 +367,10 @@ mod tests {
     mod ensure_secret_key_exists {
         use super::*;
 
-        #[test]
-        fn test_prexisting() {
+        #[async_std::test]
+        async fn test_prexisting() {
             let t = dummy_context();
-            let test_addr = configure_alice_keypair(&t.ctx);
+            let test_addr = configure_alice_keypair(&t.ctx).await;
             assert_eq!(ensure_secret_key_exists(&t.ctx).unwrap(), test_addr);
         }
 
@@ -408,10 +408,10 @@ Sent with my Delta Chat Messenger: https://delta.chat";
     mod load_or_generate_self_public_key {
         use super::*;
 
-        #[test]
-        fn test_existing() {
+        #[async_std::test]
+        async fn test_existing() {
             let t = dummy_context();
-            let addr = configure_alice_keypair(&t.ctx);
+            let addr = configure_alice_keypair(&t.ctx).await;
             let key = load_or_generate_self_public_key(&t.ctx, addr);
             assert!(key.is_ok());
         }

@@ -17,7 +17,7 @@ use crate::e2ee;
 use crate::error::Result;
 use crate::events::Event;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
-use crate::job::{job_add, Action};
+use crate::job::{self, Action};
 use crate::location;
 use crate::message;
 use crate::param::*;
@@ -807,7 +807,7 @@ impl MimeMessage {
     }
 
     /// Handle reports (only MDNs for now)
-    pub fn handle_reports(
+    pub async fn handle_reports(
         &self,
         context: &Context,
         from_id: u32,
@@ -840,7 +840,7 @@ impl MimeMessage {
             if self.has_chat_version() && context.get_config_bool(Config::MvboxMove) {
                 param.set_int(Param::AlsoMove, 1);
             }
-            job_add(context, Action::MarkseenMdnOnImap, 0, param, 0);
+            job::add(context, Action::MarkseenMdnOnImap, 0, param, 0).await;
         }
     }
 }

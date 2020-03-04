@@ -31,7 +31,8 @@ fn cb(_ctx: &Context, event: Event) {
     }
 }
 
-fn main() {
+#[async_std::main]
+async fn main() {
     let dir = tempdir().unwrap();
     let dbfile = dir.path().join("db.sqlite");
     println!("creating database {:?}", dbfile);
@@ -47,12 +48,12 @@ fn main() {
     let r1 = running.clone();
     let t1 = thread::spawn(move || {
         while *r1.read().unwrap() {
-            perform_inbox_jobs(&ctx1);
+            async_std::task::block_on(perform_inbox_jobs(&ctx1));
             if *r1.read().unwrap() {
-                perform_inbox_fetch(&ctx1);
+                async_std::task::block_on(perform_inbox_fetch(&ctx1));
 
                 if *r1.read().unwrap() {
-                    perform_inbox_idle(&ctx1);
+                    async_std::task::block_on(perform_inbox_idle(&ctx1));
                 }
             }
         }
@@ -62,9 +63,9 @@ fn main() {
     let r1 = running.clone();
     let t2 = thread::spawn(move || {
         while *r1.read().unwrap() {
-            perform_smtp_jobs(&ctx1);
+            async_std::task::block_on(perform_smtp_jobs(&ctx1));
             if *r1.read().unwrap() {
-                perform_smtp_idle(&ctx1);
+                async_std::task::block_on(perform_smtp_idle(&ctx1));
             }
         }
     });
@@ -74,16 +75,21 @@ fn main() {
     assert_eq!(args.len(), 2, "missing password");
     let pw = args[1].clone();
     ctx.set_config(config::Config::Addr, Some("d@testrun.org"))
+        .await
         .unwrap();
-    ctx.set_config(config::Config::MailPw, Some(&pw)).unwrap();
-    ctx.configure();
+    ctx.set_config(config::Config::MailPw, Some(&pw))
+        .await
+        .unwrap();
+    ctx.configure().await;
 
     thread::sleep(duration);
 
     println!("sending a message");
     let contact_id = Contact::create(&ctx, "dignifiedquire", "dignifiedquire@gmail.com").unwrap();
     let chat_id = chat::create_by_contact_id(&ctx, contact_id).unwrap();
-    chat::send_text_msg(&ctx, chat_id, "Hi, here is my first message!".into()).unwrap();
+    chat::send_text_msg(&ctx, chat_id, "Hi, here is my first message!".into())
+        .await
+        .unwrap();
 
     println!("fetching chats..");
     let chats = Chatlist::try_load(&ctx, 0, None, None).unwrap();
@@ -100,8 +106,8 @@ fn main() {
     println!("stopping threads");
 
     *running.write().unwrap() = false;
-    deltachat::job::interrupt_inbox_idle(&ctx);
-    deltachat::job::interrupt_smtp_idle(&ctx);
+    deltachat::job::interrupt_inbox_idle(&ctx).await;
+    deltachat::job::interrupt_smtp_idle(&ctx).await;
 
     println!("joining");
     t1.join().unwrap();

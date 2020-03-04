@@ -1,7 +1,6 @@
 use itertools::join;
-use sha2::{Digest, Sha256};
-
 use num_traits::FromPrimitive;
+use sha2::{Digest, Sha256};
 
 use crate::chat::{self, Chat, ChatId};
 use crate::config::Config;
@@ -12,7 +11,7 @@ use crate::dc_tools::*;
 use crate::error::Result;
 use crate::events::Event;
 use crate::headerdef::HeaderDef;
-use crate::job::*;
+use crate::job::{self, Action};
 use crate::message::{self, MessageState, MessengerMessage, MsgId};
 use crate::mimeparser::*;
 use crate::param::*;
@@ -32,7 +31,7 @@ enum CreateEvent {
 }
 
 /// Receive a message and add it to the database.
-pub fn dc_receive_imf(
+pub async fn dc_receive_imf(
     context: &Context,
     imf_raw: &[u8],
     server_folder: impl AsRef<str>,
@@ -158,7 +157,9 @@ pub fn dc_receive_imf(
             &mut insert_msg_id,
             &mut created_db_entries,
             &mut create_event_to_send,
-        ) {
+        )
+        .await
+        {
             cleanup(context, &create_event_to_send, created_db_entries);
             bail!("add_parts error: {:?}", err);
         }
@@ -194,15 +195,18 @@ pub fn dc_receive_imf(
 
     // if we delete we don't need to try moving messages
     if needs_delete_job && !created_db_entries.is_empty() {
-        job_add(
+        job::add(
             context,
             Action::DeleteMsgOnImap,
             created_db_entries[0].1.to_u32() as i32,
             Params::new(),
             0,
-        );
+        )
+        .await;
     } else {
-        context.do_heuristics_moves(server_folder.as_ref(), insert_msg_id);
+        context
+            .do_heuristics_moves(server_folder.as_ref(), insert_msg_id)
+            .await;
     }
 
     info!(
@@ -212,7 +216,9 @@ pub fn dc_receive_imf(
 
     cleanup(context, &create_event_to_send, created_db_entries);
 
-    mime_parser.handle_reports(context, from_id, sent_timestamp, &server_folder, server_uid);
+    mime_parser
+        .handle_reports(context, from_id, sent_timestamp, &server_folder, server_uid)
+        .await;
 
     Ok(())
 }
@@ -259,7 +265,7 @@ pub fn from_field_to_contact_id(
 }
 
 #[allow(clippy::too_many_arguments, clippy::cognitive_complexity)]
-fn add_parts(
+async fn add_parts(
     context: &Context,
     mut mime_parser: &mut MimeMessage,
     imf_raw: &[u8],
@@ -347,7 +353,7 @@ fn add_parts(
             msgrmsg = MessengerMessage::Yes;
             *chat_id = ChatId::new(0);
             allow_creation = true;
-            match handle_securejoin_handshake(context, mime_parser, from_id) {
+            match handle_securejoin_handshake(context, mime_parser, from_id).await {
                 Ok(securejoin::HandshakeMessage::Done) => {
                     *hidden = true;
                     *needs_delete_job = true;

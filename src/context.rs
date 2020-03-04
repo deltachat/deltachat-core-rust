@@ -12,7 +12,7 @@ use crate::contact::*;
 use crate::error::*;
 use crate::events::Event;
 use crate::imap::*;
-use crate::job::*;
+use crate::job::{self, Action};
 use crate::job_thread::JobThread;
 use crate::key::Key;
 use crate::login_param::LoginParam;
@@ -423,7 +423,7 @@ impl Context {
         }
     }
 
-    pub fn do_heuristics_moves(&self, folder: &str, msg_id: MsgId) {
+    pub async fn do_heuristics_moves(&self, folder: &str, msg_id: MsgId) {
         if !self.get_config_bool(Config::MvboxMove) {
             return;
         }
@@ -441,13 +441,14 @@ impl Context {
             match msg.is_dc_message {
                 MessengerMessage::No => {}
                 MessengerMessage::Yes | MessengerMessage::Reply => {
-                    job_add(
+                    job::add(
                         self,
                         Action::MoveMsg,
                         msg.id.to_u32() as i32,
                         Params::new(),
                         0,
-                    );
+                    )
+                    .await;
                 }
             }
         }
@@ -456,15 +457,32 @@ impl Context {
 
 impl Drop for Context {
     fn drop(&mut self) {
-        info!(self, "disconnecting inbox-thread",);
-        self.inbox_thread.read().unwrap().imap.disconnect(self);
-        info!(self, "disconnecting sentbox-thread",);
-        self.sentbox_thread.read().unwrap().imap.disconnect(self);
-        info!(self, "disconnecting mvbox-thread",);
-        self.mvbox_thread.read().unwrap().imap.disconnect(self);
-        info!(self, "disconnecting SMTP");
-        self.smtp.clone().lock().unwrap().disconnect();
-        self.sql.close(self);
+        async_std::task::block_on(async move {
+            info!(self, "disconnecting inbox-thread");
+            self.inbox_thread
+                .read()
+                .unwrap()
+                .imap
+                .disconnect(self)
+                .await;
+            info!(self, "disconnecting sentbox-thread");
+            self.sentbox_thread
+                .read()
+                .unwrap()
+                .imap
+                .disconnect(self)
+                .await;
+            info!(self, "disconnecting mvbox-thread");
+            self.mvbox_thread
+                .read()
+                .unwrap()
+                .imap
+                .disconnect(self)
+                .await;
+            info!(self, "disconnecting SMTP");
+            self.smtp.clone().lock().unwrap().disconnect();
+            self.sql.close(self);
+        });
     }
 }
 

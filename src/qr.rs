@@ -216,7 +216,7 @@ struct CreateAccountResponse {
 /// take a qr of the type DC_QR_ACCOUNT, parse it's parameters,
 /// download additional information from the contained url and set the parameters.
 /// on success, a configure::configure() should be able to log in to the account
-pub fn set_config_from_qr(context: &Context, qr: &str) -> Result<(), Error> {
+pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<(), Error> {
     let url_str = &qr[DCACCOUNT_SCHEME.len()..];
 
     let response = reqwest::blocking::Client::new().post(url_str).send();
@@ -246,8 +246,12 @@ pub fn set_config_from_qr(context: &Context, qr: &str) -> Result<(), Error> {
     println!("response: {:?}", &parsed);
     let parsed = parsed.unwrap();
 
-    context.set_config(Config::Addr, Some(&parsed.email))?;
-    context.set_config(Config::MailPw, Some(&parsed.password))?;
+    context
+        .set_config(Config::Addr, Some(&parsed.email))
+        .await?;
+    context
+        .set_config(Config::MailPw, Some(&parsed.password))
+        .await?;
 
     Ok(())
 }

@@ -14,7 +14,7 @@ use crate::context::*;
 use crate::dc_tools::*;
 use crate::error::Error;
 use crate::events::Event;
-use crate::job::*;
+use crate::job::{self, Action};
 use crate::lot::{Lot, LotState, Meaning};
 use crate::mimeparser::SystemMessage;
 use crate::param::*;
@@ -950,7 +950,7 @@ pub fn get_mime_headers(context: &Context, msg_id: MsgId) -> Option<String> {
     )
 }
 
-pub fn delete_msgs(context: &Context, msg_ids: &[MsgId]) {
+pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) {
     for msg_id in msg_ids.iter() {
         if let Ok(msg) = Message::load_from_db(context, *msg_id) {
             if msg.location_id > 0 {
@@ -958,13 +958,14 @@ pub fn delete_msgs(context: &Context, msg_ids: &[MsgId]) {
             }
         }
         update_msg_chat_id(context, *msg_id, ChatId::new(DC_CHAT_ID_TRASH));
-        job_add(
+        job::add(
             context,
             Action::DeleteMsgOnImap,
             msg_id.to_u32() as i32,
             Params::new(),
             0,
-        );
+        )
+        .await;
     }
 
     if !msg_ids.is_empty() {
@@ -972,9 +973,9 @@ pub fn delete_msgs(context: &Context, msg_ids: &[MsgId]) {
             chat_id: ChatId::new(0),
             msg_id: MsgId::new(0),
         });
-        job_kill_action(context, Action::Housekeeping);
-        job_add(context, Action::Housekeeping, 0, Params::new(), 10);
-    };
+        job::kill_action(context, Action::Housekeeping).await;
+        job::add(context, Action::Housekeeping, 0, Params::new(), 10).await;
+    }
 }
 
 fn update_msg_chat_id(context: &Context, msg_id: MsgId, chat_id: ChatId) -> bool {
@@ -997,7 +998,7 @@ fn delete_poi_location(context: &Context, location_id: u32) -> bool {
     .is_ok()
 }
 
-pub fn markseen_msgs(context: &Context, msg_ids: &[MsgId]) -> bool {
+pub async fn markseen_msgs(context: &Context, msg_ids: &[MsgId]) -> bool {
     if msg_ids.is_empty() {
         return false;
     }
@@ -1044,13 +1045,14 @@ pub fn markseen_msgs(context: &Context, msg_ids: &[MsgId]) -> bool {
                 update_msg_state(context, *id, MessageState::InSeen);
                 info!(context, "Seen message {}.", id);
 
-                job_add(
+                job::add(
                     context,
                     Action::MarkseenMsgOnImap,
                     id.to_u32() as i32,
                     Params::new(),
                     0,
-                );
+                )
+                .await;
                 send_event = true;
             }
         } else if curr_state == MessageState::InFresh {
@@ -1402,9 +1404,9 @@ pub fn update_server_uid(
 }
 
 #[allow(dead_code)]
-pub fn dc_empty_server(context: &Context, flags: u32) {
-    job_kill_action(context, Action::EmptyServer);
-    job_add(context, Action::EmptyServer, flags as i32, Params::new(), 0);
+pub async fn dc_empty_server(context: &Context, flags: u32) {
+    job::kill_action(context, Action::EmptyServer).await;
+    job::add(context, Action::EmptyServer, flags as i32, Params::new(), 0).await;
 }
 
 #[cfg(test)]
@@ -1420,8 +1422,8 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn test_prepare_message_and_send() {
+    #[async_std::test]
+    async fn test_prepare_message_and_send() {
         use crate::config::Config;
 
         let d = test::dummy_context();
@@ -1430,7 +1432,9 @@ mod tests {
         let contact =
             Contact::create(ctx, "", "dest@example.com").expect("failed to create contact");
 
-        let res = ctx.set_config(Config::ConfiguredAddr, Some("self@example.com"));
+        let res = ctx
+            .set_config(Config::ConfiguredAddr, Some("self@example.com"))
+            .await;
         assert!(res.is_ok());
 
         let chat = chat::create_by_contact_id(ctx, contact).unwrap();

@@ -11,7 +11,7 @@ use crate::context::*;
 use crate::dc_tools::*;
 use crate::error::Error;
 use crate::events::Event;
-use crate::job::{self, job_action_exists, job_add, Job};
+use crate::job::{self, Job};
 use crate::message::{Message, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::param::*;
@@ -192,7 +192,7 @@ impl Kml {
 }
 
 // location streaming
-pub fn send_locations_to_chat(context: &Context, chat_id: ChatId, seconds: i64) {
+pub async fn send_locations_to_chat(context: &Context, chat_id: ChatId, seconds: i64) {
     let now = time();
     if !(seconds < 0 || chat_id.is_special()) {
         let is_sending_locations_before = is_sending_locations_to_chat(context, chat_id);
@@ -216,7 +216,9 @@ pub fn send_locations_to_chat(context: &Context, chat_id: ChatId, seconds: i64) 
                 msg.text =
                     Some(context.stock_system_msg(StockMessage::MsgLocationEnabled, "", "", 0));
                 msg.param.set_cmd(SystemMessage::LocationStreamingEnabled);
-                chat::send_msg(context, chat_id, &mut msg).unwrap_or_default();
+                chat::send_msg(context, chat_id, &mut msg)
+                    .await
+                    .unwrap_or_default();
             } else if 0 == seconds && is_sending_locations_before {
                 let stock_str =
                     context.stock_system_msg(StockMessage::MsgLocationDisabled, "", "", 0);
@@ -224,29 +226,30 @@ pub fn send_locations_to_chat(context: &Context, chat_id: ChatId, seconds: i64) 
             }
             context.call_cb(Event::ChatModified(chat_id));
             if 0 != seconds {
-                schedule_MAYBE_SEND_LOCATIONS(context, false);
-                job_add(
+                schedule_maybe_send_locations(context, false).await;
+                job::add(
                     context,
                     job::Action::MaybeSendLocationsEnded,
                     chat_id.to_u32() as i32,
                     Params::new(),
                     seconds + 1,
-                );
+                )
+                .await;
             }
         }
     }
 }
 
-#[allow(non_snake_case)]
-fn schedule_MAYBE_SEND_LOCATIONS(context: &Context, force_schedule: bool) {
-    if force_schedule || !job_action_exists(context, job::Action::MaybeSendLocations) {
-        job_add(
+async fn schedule_maybe_send_locations(context: &Context, force_schedule: bool) {
+    if force_schedule || !job::action_exists(context, job::Action::MaybeSendLocations) {
+        job::add(
             context,
             job::Action::MaybeSendLocations,
             0,
             Params::new(),
             60,
-        );
+        )
+        .await;
     };
 }
 
@@ -260,7 +263,7 @@ pub fn is_sending_locations_to_chat(context: &Context, chat_id: ChatId) -> bool 
         .unwrap_or_default()
 }
 
-pub fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64) -> bool {
+pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64) -> bool {
     if latitude == 0.0 && longitude == 0.0 {
         return true;
     }
@@ -293,7 +296,7 @@ pub fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64) -> b
         if continue_streaming {
             context.call_cb(Event::LocationChanged(Some(DC_CONTACT_ID_SELF)));
         };
-        schedule_MAYBE_SEND_LOCATIONS(context, false);
+        schedule_maybe_send_locations(context, false).await;
     }
 
     continue_streaming
@@ -547,8 +550,7 @@ pub fn save(
         .map_err(Into::into)
 }
 
-#[allow(non_snake_case)]
-pub(crate) fn JobMaybeSendLocations(context: &Context, _job: &Job) -> job::Status {
+pub(crate) async fn job_maybe_send_locations(context: &Context, _job: &Job) -> job::Status {
     let now = time();
     let mut continue_streaming = false;
     info!(
@@ -629,11 +631,13 @@ pub(crate) fn JobMaybeSendLocations(context: &Context, _job: &Job) -> job::Statu
 
         for (chat_id, mut msg) in msgs.into_iter() {
             // TODO: better error handling
-            chat::send_msg(context, chat_id, &mut msg).unwrap_or_default();
+            chat::send_msg(context, chat_id, &mut msg)
+                .await
+                .unwrap_or_default();
         }
     }
     if continue_streaming {
-        schedule_MAYBE_SEND_LOCATIONS(context, true);
+        schedule_maybe_send_locations(context, true).await;
     }
     job::Status::Finished(Ok(()))
 }

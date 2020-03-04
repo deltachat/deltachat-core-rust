@@ -17,7 +17,7 @@ use crate::context::Context;
 use crate::dc_tools::*;
 use crate::error::Error;
 use crate::events::Event;
-use crate::job::*;
+use crate::job::{self, Action};
 use crate::message::{self, InvalidMsgId, Message, MessageState, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::param::*;
@@ -185,7 +185,7 @@ impl ChatId {
     }
 
     /// Deletes a chat.
-    pub fn delete(self, context: &Context) -> Result<(), Error> {
+    pub async fn delete(self, context: &Context) -> Result<(), Error> {
         ensure!(
             !self.is_special(),
             "bad chat_id, can not be a special chat: {}",
@@ -227,8 +227,8 @@ impl ChatId {
             chat_id: ChatId::new(0),
         });
 
-        job_kill_action(context, Action::Housekeeping);
-        job_add(context, Action::Housekeeping, 0, Params::new(), 10);
+        job::kill_action(context, Action::Housekeeping).await;
+        job::add(context, Action::Housekeeping, 0, Params::new(), 10).await;
 
         Ok(())
     }
@@ -1378,7 +1378,39 @@ pub fn is_contact_in_chat(context: &Context, chat_id: ChatId, contact_id: u32) -
 // TODO: Do not allow ChatId to be 0, if prepare_msg had been called
 //   the caller can get it from msg.chat_id.  Forwards would need to
 //   be fixed for this somehow too.
-pub fn send_msg(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result<MsgId, Error> {
+pub async fn send_msg(
+    context: &Context,
+    chat_id: ChatId,
+    msg: &mut Message,
+) -> Result<MsgId, Error> {
+    if chat_id.is_unset() {
+        let forwards = msg.param.get(Param::PrepForwards);
+        if let Some(forwards) = forwards {
+            for forward in forwards.split(' ') {
+                if let Ok(msg_id) = forward
+                    .parse::<u32>()
+                    .map_err(|_| InvalidMsgId)
+                    .map(MsgId::new)
+                {
+                    if let Ok(mut msg) = Message::load_from_db(context, msg_id) {
+                        send_msg_inner(context, chat_id, &mut msg).await?;
+                    };
+                }
+            }
+            msg.param.remove(Param::PrepForwards);
+            msg.save_param_to_disk(context);
+        }
+        return send_msg_inner(context, chat_id, msg).await;
+    }
+
+    send_msg_inner(context, chat_id, msg).await
+}
+
+async fn send_msg_inner(
+    context: &Context,
+    chat_id: ChatId,
+    msg: &mut Message,
+) -> Result<MsgId, Error> {
     // dc_prepare_msg() leaves the message state to OutPreparing, we
     // only have to change the state to OutPending in this case.
     // Otherwise we still have to prepare the message, which will set
@@ -1394,8 +1426,7 @@ pub fn send_msg(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result
         );
         message::update_msg_state(context, msg.id, MessageState::OutPending);
     }
-
-    job_send_msg(context, msg.id)?;
+    job::send_msg(context, msg.id).await?;
 
     context.call_cb(Event::MsgsChanged {
         chat_id: msg.chat_id,
@@ -1406,29 +1437,10 @@ pub fn send_msg(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result
         context.call_cb(Event::LocationChanged(Some(DC_CONTACT_ID_SELF)));
     }
 
-    if chat_id.is_unset() {
-        let forwards = msg.param.get(Param::PrepForwards);
-        if let Some(forwards) = forwards {
-            for forward in forwards.split(' ') {
-                if let Ok(msg_id) = forward
-                    .parse::<u32>()
-                    .map_err(|_| InvalidMsgId)
-                    .map(MsgId::new)
-                {
-                    if let Ok(mut msg) = Message::load_from_db(context, msg_id) {
-                        send_msg(context, chat_id, &mut msg)?;
-                    };
-                }
-            }
-            msg.param.remove(Param::PrepForwards);
-            msg.save_param_to_disk(context);
-        }
-    }
-
     Ok(msg.id)
 }
 
-pub fn send_text_msg(
+pub async fn send_text_msg(
     context: &Context,
     chat_id: ChatId,
     text_to_send: String,
@@ -1441,7 +1453,7 @@ pub fn send_text_msg(
 
     let mut msg = Message::new(Viewtype::Text);
     msg.text = Some(text_to_send);
-    send_msg(context, chat_id, &mut msg)
+    send_msg(context, chat_id, &mut msg).await
 }
 
 pub fn get_chat_msgs(
@@ -1783,8 +1795,8 @@ pub(crate) fn remove_from_chat_contacts_table(
 }
 
 /// Adds a contact to the chat.
-pub fn add_contact_to_chat(context: &Context, chat_id: ChatId, contact_id: u32) -> bool {
-    match add_contact_to_chat_ex(context, chat_id, contact_id, false) {
+pub async fn add_contact_to_chat(context: &Context, chat_id: ChatId, contact_id: u32) -> bool {
+    match add_contact_to_chat_ex(context, chat_id, contact_id, false).await {
         Ok(res) => res,
         Err(err) => {
             error!(context, "failed to add contact: {}", err);
@@ -1793,7 +1805,7 @@ pub fn add_contact_to_chat(context: &Context, chat_id: ChatId, contact_id: u32) 
     }
 }
 
-pub(crate) fn add_contact_to_chat_ex(
+pub(crate) async fn add_contact_to_chat_ex(
     context: &Context,
     chat_id: ChatId,
     contact_id: u32,
@@ -1873,7 +1885,7 @@ pub(crate) fn add_contact_to_chat_ex(
         msg.param.set_cmd(SystemMessage::MemberAddedToGroup);
         msg.param.set(Param::Arg, contact.get_addr());
         msg.param.set_int(Param::Arg2, from_handshake.into());
-        msg.id = send_msg(context, chat_id, &mut msg)?;
+        msg.id = send_msg(context, chat_id, &mut msg).await?;
         context.call_cb(Event::MsgsChanged {
             chat_id,
             msg_id: msg.id,
@@ -2034,7 +2046,7 @@ pub fn set_muted(context: &Context, chat_id: ChatId, duration: MuteDuration) -> 
     Ok(())
 }
 
-pub fn remove_contact_from_chat(
+pub async fn remove_contact_from_chat(
     context: &Context,
     chat_id: ChatId,
     contact_id: u32,
@@ -2086,7 +2098,7 @@ pub fn remove_contact_from_chat(
                         }
                         msg.param.set_cmd(SystemMessage::MemberRemovedFromGroup);
                         msg.param.set(Param::Arg, contact.get_addr());
-                        msg.id = send_msg(context, chat_id, &mut msg)?;
+                        msg.id = send_msg(context, chat_id, &mut msg).await?;
                         context.call_cb(Event::MsgsChanged {
                             chat_id,
                             msg_id: msg.id,
@@ -2134,7 +2146,7 @@ pub(crate) fn is_group_explicitly_left(
         .map_err(Into::into)
 }
 
-pub fn set_chat_name(
+pub async fn set_chat_name(
     context: &Context,
     chat_id: ChatId,
     new_name: impl AsRef<str>,
@@ -2178,7 +2190,7 @@ pub fn set_chat_name(
                     if !chat.name.is_empty() {
                         msg.param.set(Param::Arg, &chat.name);
                     }
-                    msg.id = send_msg(context, chat_id, &mut msg)?;
+                    msg.id = send_msg(context, chat_id, &mut msg).await?;
                     context.call_cb(Event::MsgsChanged {
                         chat_id,
                         msg_id: msg.id,
@@ -2202,7 +2214,7 @@ pub fn set_chat_name(
 /// The profile image can only be set when you are a member of the
 /// chat.  To remove the profile image pass an empty string for the
 /// `new_image` parameter.
-pub fn set_chat_profile_image(
+pub async fn set_chat_profile_image(
     context: &Context,
     chat_id: ChatId,
     new_image: impl AsRef<str>, // XXX use PathBuf
@@ -2254,7 +2266,7 @@ pub fn set_chat_profile_image(
     }
     chat.update_param(context)?;
     if chat.is_promoted() {
-        msg.id = send_msg(context, chat_id, &mut msg)?;
+        msg.id = send_msg(context, chat_id, &mut msg).await?;
         emit_event!(
             context,
             Event::MsgsChanged {
@@ -2267,7 +2279,11 @@ pub fn set_chat_profile_image(
     Ok(())
 }
 
-pub fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId) -> Result<(), Error> {
+pub async fn forward_msgs(
+    context: &Context,
+    msg_ids: &[MsgId],
+    chat_id: ChatId,
+) -> Result<(), Error> {
     ensure!(!msg_ids.is_empty(), "empty msgs_ids: nothing to forward");
     ensure!(!chat_id.is_special(), "can not forward to special chat");
 
@@ -2331,7 +2347,7 @@ pub fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId) -> Re
                 let fresh10 = curr_timestamp;
                 curr_timestamp += 1;
                 new_msg_id = chat.prepare_msg_raw(context, &mut msg, fresh10)?;
-                job_send_msg(context, new_msg_id)?;
+                job::send_msg(context, new_msg_id).await?;
             }
             created_chats.push(chat_id);
             created_msgs.push(new_msg_id);
@@ -2591,12 +2607,14 @@ mod tests {
         assert_eq!(msg_text, draft_text);
     }
 
-    #[test]
-    fn test_add_contact_to_chat_ex_add_self() {
+    #[async_std::test]
+    async fn test_add_contact_to_chat_ex_add_self() {
         // Adding self to a contact should succeed, even though it's pointless.
         let t = test_context(Some(Box::new(logging_cb)));
         let chat_id = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo").unwrap();
-        let added = add_contact_to_chat_ex(&t.ctx, chat_id, DC_CONTACT_ID_SELF, false).unwrap();
+        let added = add_contact_to_chat_ex(&t.ctx, chat_id, DC_CONTACT_ID_SELF, false)
+            .await
+            .unwrap();
         assert_eq!(added, false);
     }
 
@@ -2664,8 +2682,8 @@ mod tests {
         assert_eq!(msg2.chat_id.get_msg_cnt(&t.ctx), 2);
     }
 
-    #[test]
-    fn test_add_device_msg_labelled() {
+    #[async_std::test]
+    async fn test_add_device_msg_labelled() {
         let t = test_context(Some(Box::new(logging_cb)));
 
         // add two device-messages with the same label (second attempt is not added)
@@ -2707,7 +2725,7 @@ mod tests {
         assert!(chat.get_profile_image(&t.ctx).is_some());
 
         // delete device message, make sure it is not added again
-        message::delete_msgs(&t.ctx, &[*msg1_id.as_ref().unwrap()]);
+        message::delete_msgs(&t.ctx, &[*msg1_id.as_ref().unwrap()]).await;
         let msg1 = message::Message::load_from_db(&t.ctx, *msg1_id.as_ref().unwrap());
         assert!(msg1.is_err() || msg1.unwrap().chat_id.is_trash());
         let msg3_id = add_device_msg(&t.ctx, Some("any-label"), Some(&mut msg2));
@@ -2751,8 +2769,8 @@ mod tests {
         assert!(was_device_msg_ever_added(&t.ctx, "").is_err());
     }
 
-    #[test]
-    fn test_delete_device_chat() {
+    #[async_std::test]
+    async fn test_delete_device_chat() {
         let t = test_context(Some(Box::new(logging_cb)));
 
         let mut msg = Message::new(Viewtype::Text);
@@ -2762,13 +2780,13 @@ mod tests {
         assert_eq!(chats.len(), 1);
 
         // after the device-chat and all messages are deleted, a re-adding should do nothing
-        chats.get_chat_id(0).delete(&t.ctx).ok();
+        chats.get_chat_id(0).delete(&t.ctx).await.ok();
         add_device_msg(&t.ctx, Some("some-label"), Some(&mut msg)).ok();
         assert_eq!(chatlist_len(&t.ctx, 0), 0)
     }
 
-    #[test]
-    fn test_device_chat_cannot_sent() {
+    #[async_std::test]
+    async fn test_device_chat_cannot_sent() {
         let t = test_context(Some(Box::new(logging_cb)));
         t.ctx.update_device_chats().unwrap();
         let (device_chat_id, _) =
@@ -2776,11 +2794,13 @@ mod tests {
 
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some("message text".to_string());
-        assert!(send_msg(&t.ctx, device_chat_id, &mut msg).is_err());
+        assert!(send_msg(&t.ctx, device_chat_id, &mut msg).await.is_err());
         assert!(prepare_msg(&t.ctx, device_chat_id, &mut msg).is_err());
 
         let msg_id = add_device_msg(&t.ctx, None, Some(&mut msg)).unwrap();
-        assert!(forward_msgs(&t.ctx, &[msg_id], device_chat_id).is_err());
+        assert!(forward_msgs(&t.ctx, &[msg_id], device_chat_id)
+            .await
+            .is_err());
     }
 
     #[test]
@@ -2957,8 +2977,8 @@ mod tests {
         assert_eq!(chatlist, vec![chat_id3, chat_id2, chat_id1]);
     }
 
-    #[test]
-    fn test_set_chat_name() {
+    #[async_std::test]
+    async fn test_set_chat_name() {
         let t = dummy_context();
         let chat_id = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo").unwrap();
         assert_eq!(
@@ -2966,7 +2986,7 @@ mod tests {
             "foo"
         );
 
-        set_chat_name(&t.ctx, chat_id, "bar").unwrap();
+        set_chat_name(&t.ctx, chat_id, "bar").await.unwrap();
         assert_eq!(
             Chat::load_from_db(&t.ctx, chat_id).unwrap().get_name(),
             "bar"
@@ -2990,17 +3010,17 @@ mod tests {
         assert_eq!(chat2.name, chat.name);
     }
 
-    #[test]
-    fn test_shall_attach_selfavatar() {
+    #[async_std::test]
+    async fn test_shall_attach_selfavatar() {
         let t = dummy_context();
         let chat_id = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo").unwrap();
         assert!(!shall_attach_selfavatar(&t.ctx, chat_id).unwrap());
 
         let (contact_id, _) =
             Contact::add_or_lookup(&t.ctx, "", "foo@bar.org", Origin::IncomingUnknownTo).unwrap();
-        add_contact_to_chat(&t.ctx, chat_id, contact_id);
+        add_contact_to_chat(&t.ctx, chat_id, contact_id).await;
         assert!(!shall_attach_selfavatar(&t.ctx, chat_id).unwrap());
-        t.ctx.set_config(Config::Selfavatar, None).unwrap(); // setting to None also forces re-sending
+        t.ctx.set_config(Config::Selfavatar, None).await.unwrap(); // setting to None also forces re-sending
         assert!(shall_attach_selfavatar(&t.ctx, chat_id).unwrap());
 
         assert!(chat_id.set_selfavatar_timestamp(&t.ctx, time()).is_ok());

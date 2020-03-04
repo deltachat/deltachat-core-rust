@@ -145,7 +145,7 @@ fn get_self_fingerprint(context: &Context) -> Option<String> {
 
 /// Take a scanned QR-code and do the setup-contact/join-group handshake.
 /// See the ffi-documentation for more details.
-pub fn dc_join_securejoin(context: &Context, qr: &str) -> ChatId {
+pub async fn dc_join_securejoin(context: &Context, qr: &str) -> ChatId {
     let cleanup =
         |context: &Context, contact_chat_id: ChatId, ongoing_allocated: bool, join_vg: bool| {
             let mut bob = context.bob.write().unwrap();
@@ -244,7 +244,8 @@ pub fn dc_join_securejoin(context: &Context, qr: &str) -> ChatId {
             } else {
                 "".to_string()
             },
-        );
+        )
+        .await;
     } else {
         context.bob.write().unwrap().expects = DC_VC_AUTH_REQUIRED;
 
@@ -256,7 +257,8 @@ pub fn dc_join_securejoin(context: &Context, qr: &str) -> ChatId {
             get_qr_attr!(context, invitenumber),
             None,
             "",
-        );
+        )
+        .await;
     }
 
     if join_vg {
@@ -273,7 +275,7 @@ pub fn dc_join_securejoin(context: &Context, qr: &str) -> ChatId {
     }
 }
 
-fn send_handshake_msg(
+async fn send_handshake_msg(
     context: &Context,
     contact_chat_id: ChatId,
     step: &str,
@@ -309,7 +311,9 @@ fn send_handshake_msg(
         msg.param.set_int(Param::GuaranteeE2ee, 1);
     }
     // TODO. handle cleanup on error
-    chat::send_msg(context, contact_chat_id, &mut msg).unwrap_or_default();
+    chat::send_msg(context, contact_chat_id, &mut msg)
+        .await
+        .unwrap_or_default();
 }
 
 fn chat_id_2_contact_id(context: &Context, contact_chat_id: ChatId) -> u32 {
@@ -388,7 +392,7 @@ pub(crate) enum HandshakeMessage {
 /// When handle_securejoin_handshake() is called,
 /// the message is not yet filed in the database;
 /// this is done by receive_imf() later on as needed.
-pub(crate) fn handle_securejoin_handshake(
+pub(crate) async fn handle_securejoin_handshake(
     context: &Context,
     mime_message: &MimeMessage,
     contact_id: u32,
@@ -459,7 +463,8 @@ pub(crate) fn handle_securejoin_handshake(
                 "",
                 None,
                 "",
-            );
+            )
+            .await;
             Ok(HandshakeMessage::Done)
         }
         "vg-auth-required" | "vc-auth-required" => {
@@ -526,7 +531,8 @@ pub(crate) fn handle_securejoin_handshake(
                 } else {
                     "".to_string()
                 },
-            );
+            )
+            .await;
             Ok(HandshakeMessage::Done)
         }
         "vg-request-with-auth" | "vc-request-with-auth" => {
@@ -609,6 +615,7 @@ pub(crate) fn handle_securejoin_handshake(
                     Ok((group_chat_id, _, _)) => {
                         if let Err(err) =
                             chat::add_contact_to_chat_ex(context, group_chat_id, contact_id, true)
+                                .await
                         {
                             error!(context, "failed to add contact: {}", err);
                         }
@@ -622,7 +629,8 @@ pub(crate) fn handle_securejoin_handshake(
                 }
             } else {
                 // Alice -> Bob
-                send_handshake_msg(context, contact_chat_id, "vc-contact-confirm", "", None, "");
+                send_handshake_msg(context, contact_chat_id, "vc-contact-confirm", "", None, "")
+                    .await;
                 inviter_progress!(context, contact_id, 1000);
             }
             Ok(HandshakeMessage::Done)
@@ -719,7 +727,8 @@ pub(crate) fn handle_securejoin_handshake(
                     "",
                     None,
                     "",
-                );
+                )
+                .await;
             }
             context.bob.write().unwrap().status = 1;
             context.stop_ongoing();

@@ -1219,12 +1219,12 @@ mod tests {
         assert_eq!(contacts.len(), 0);
     }
 
-    #[test]
-    fn test_is_self_addr() -> Result<()> {
+    #[async_std::test]
+    async fn test_is_self_addr() -> Result<()> {
         let t = test_context(None);
         assert!(t.ctx.is_self_addr("me@me.org").is_err());
 
-        let addr = configure_alice_keypair(&t.ctx);
+        let addr = configure_alice_keypair(&t.ctx).await;
         assert_eq!(t.ctx.is_self_addr("me@me.org")?, false);
         assert_eq!(t.ctx.is_self_addr(&addr)?, true);
 

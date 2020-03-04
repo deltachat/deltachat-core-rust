@@ -16,7 +16,7 @@ use crate::dc_tools::*;
 use crate::e2ee;
 use crate::error::*;
 use crate::events::Event;
-use crate::job::*;
+use crate::job::{self, Action, Job};
 use crate::key::{self, Key};
 use crate::message::{Message, MsgId};
 use crate::mimeparser::SystemMessage;
@@ -69,15 +69,15 @@ pub enum ImexMode {
 ///
 /// Only one import-/export-progress can run at the same time.
 /// To cancel an import-/export-progress, use dc_stop_ongoing_process().
-pub fn imex(context: &Context, what: ImexMode, param1: Option<impl AsRef<Path>>) {
+pub async fn imex(context: &Context, what: ImexMode, param1: Option<impl AsRef<Path>>) {
     let mut param = Params::new();
     param.set_int(Param::Cmd, what as i32);
     if let Some(param1) = param1 {
         param.set(Param::Arg, param1.as_ref().to_string_lossy());
     }
 
-    job_kill_action(context, Action::ImexImap);
-    job_add(context, Action::ImexImap, 0, param, 0);
+    job::kill_action(context, Action::ImexImap).await;
+    job::add(context, Action::ImexImap, 0, param, 0).await;
 }
 
 /// Returns the filename of the backup found (otherwise an error)
@@ -113,14 +113,14 @@ pub fn has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result<Strin
     }
 }
 
-pub fn initiate_key_transfer(context: &Context) -> Result<String> {
+pub async fn initiate_key_transfer(context: &Context) -> Result<String> {
     ensure!(context.alloc_ongoing(), "could not allocate ongoing");
-    let res = do_initiate_key_transfer(context);
+    let res = do_initiate_key_transfer(context).await;
     context.free_ongoing();
     res
 }
 
-fn do_initiate_key_transfer(context: &Context) -> Result<String> {
+async fn do_initiate_key_transfer(context: &Context) -> Result<String> {
     let mut msg: Message;
     let setup_code = create_setup_code(context);
     /* this may require a keypair to be created. this may take a second ... */
@@ -148,7 +148,7 @@ fn do_initiate_key_transfer(context: &Context) -> Result<String> {
     );
 
     ensure!(!context.shall_stop_ongoing(), "canceled");
-    let msg_id = chat::send_msg(context, chat_id, &mut msg)?;
+    let msg_id = chat::send_msg(context, chat_id, &mut msg).await?;
     info!(context, "Wait for setup message being sent ...",);
     while !context.shall_stop_ongoing() {
         std::thread::sleep(std::time::Duration::from_secs(1));
@@ -740,11 +740,11 @@ mod tests {
     use crate::test_utils::*;
     use ::pgp::armor::BlockType;
 
-    #[test]
-    fn test_render_setup_file() {
+    #[async_std::test]
+    async fn test_render_setup_file() {
         let t = test_context(Some(Box::new(logging_cb)));
 
-        configure_alice_keypair(&t.ctx);
+        configure_alice_keypair(&t.ctx).await;
         let msg = render_setup_file(&t.ctx, "hello").unwrap();
         println!("{}", &msg);
         // Check some substrings, indicating things got substituted.
@@ -760,13 +760,13 @@ mod tests {
         assert!(msg.contains("-----END PGP MESSAGE-----\n"));
     }
 
-    #[test]
-    fn test_render_setup_file_newline_replace() {
+    #[async_std::test]
+    async fn test_render_setup_file_newline_replace() {
         let t = dummy_context();
         t.ctx
             .set_stock_translation(StockMessage::AcSetupMsgBody, "hello\r\nthere".to_string())
             .unwrap();
-        configure_alice_keypair(&t.ctx);
+        configure_alice_keypair(&t.ctx).await;
         let msg = render_setup_file(&t.ctx, "pw").unwrap();
         println!("{}", &msg);
         assert!(msg.contains("<p>hello<br>there</p>"));

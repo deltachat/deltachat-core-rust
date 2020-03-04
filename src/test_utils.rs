@@ -77,9 +77,10 @@ pub(crate) fn alice_keypair() -> key::KeyPair {
 /// Creates Alice with a pre-generated keypair.
 ///
 /// Returns the address of the keypair created (alice@example.com).
-pub(crate) fn configure_alice_keypair(ctx: &Context) -> String {
+pub(crate) async fn configure_alice_keypair(ctx: &Context) -> String {
     let keypair = alice_keypair();
     ctx.set_config(Config::ConfiguredAddr, Some(&keypair.addr.to_string()))
+        .await
         .unwrap();
     key::store_self_keypair(&ctx, &keypair, key::KeyPairUse::Default)
         .expect("Failed to save Alice's key");

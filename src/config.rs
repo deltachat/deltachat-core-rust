@@ -130,7 +130,7 @@ impl Context {
 
     /// Set the given config key.
     /// If `None` is passed as a value the value is cleared and set to the default if there is one.
-    pub fn set_config(&self, key: Config, value: Option<&str>) -> crate::sql::Result<()> {
+    pub async fn set_config(&self, key: Config, value: Option<&str>) -> crate::sql::Result<()> {
         match key {
             Config::Selfavatar => {
                 self.sql
@@ -148,17 +148,17 @@ impl Context {
             }
             Config::InboxWatch => {
                 let ret = self.sql.set_raw_config(self, key, value);
-                interrupt_inbox_idle(self);
+                interrupt_inbox_idle(self).await;
                 ret
             }
             Config::SentboxWatch => {
                 let ret = self.sql.set_raw_config(self, key, value);
-                interrupt_sentbox_idle(self);
+                interrupt_sentbox_idle(self).await;
                 ret
             }
             Config::MvboxWatch => {
                 let ret = self.sql.set_raw_config(self, key, value);
-                interrupt_mvbox_idle(self);
+                interrupt_mvbox_idle(self).await;
                 ret
             }
             Config::Selfstatus => {
@@ -217,8 +217,8 @@ mod tests {
         assert_eq!(Config::ImapFolder.get_str("default"), Some("INBOX"));
     }
 
-    #[test]
-    fn test_selfavatar_outside_blobdir() {
+    #[async_std::test]
+    async fn test_selfavatar_outside_blobdir() {
         let t = dummy_context();
         let avatar_src = t.dir.path().join("avatar.jpg");
         let avatar_bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
@@ -230,6 +230,7 @@ mod tests {
         assert!(!avatar_blob.exists());
         t.ctx
             .set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))
+            .await
             .unwrap();
         assert!(avatar_blob.exists());
         assert!(std::fs::metadata(&avatar_blob).unwrap().len() < avatar_bytes.len() as u64);
@@ -245,8 +246,8 @@ mod tests {
         assert_eq!(img.height(), AVATAR_SIZE);
     }
 
-    #[test]
-    fn test_selfavatar_in_blobdir() {
+    #[async_std::test]
+    async fn test_selfavatar_in_blobdir() {
         let t = dummy_context();
         let avatar_src = t.ctx.get_blobdir().join("avatar.png");
         let avatar_bytes = include_bytes!("../test-data/image/avatar900x900.png");
@@ -261,6 +262,7 @@ mod tests {
 
         t.ctx
             .set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))
+            .await
             .unwrap();
         let avatar_cfg = t.ctx.get_config(Config::Selfavatar);
         assert_eq!(avatar_cfg, avatar_src.to_str().map(|s| s.to_string()));

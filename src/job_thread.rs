@@ -30,12 +30,12 @@ impl JobThread {
         }
     }
 
-    pub fn suspend(&self, context: &Context) {
+    pub async fn suspend(&self, context: &Context) {
         info!(context, "Suspending {}-thread.", self.name,);
         {
             self.state.0.lock().unwrap().suspended = true;
         }
-        self.interrupt_idle(context);
+        self.interrupt_idle(context).await;
         loop {
             let using_handle = self.state.0.lock().unwrap().using_handle;
             if !using_handle {
@@ -56,14 +56,14 @@ impl JobThread {
         cvar.notify_one();
     }
 
-    pub fn interrupt_idle(&self, context: &Context) {
+    pub async fn interrupt_idle(&self, context: &Context) {
         {
             self.state.0.lock().unwrap().jobs_needed = true;
         }
 
         info!(context, "Interrupting {}-IDLE...", self.name);
 
-        self.imap.interrupt_idle(context);
+        self.imap.interrupt_idle(context).await;
 
         let &(ref lock, ref cvar) = &*self.state.clone();
         let mut state = lock.lock().unwrap();
@@ -99,7 +99,7 @@ impl JobThread {
 
     async fn connect_and_fetch(&mut self, context: &Context) -> Result<()> {
         let prefix = format!("{}-fetch", self.name);
-        match self.imap.connect_configured(context) {
+        match self.imap.connect_configured(context).await {
             Ok(()) => {
                 if let Some(watch_folder) = self.get_watch_folder(context) {
                     let start = std::time::Instant::now();
@@ -135,7 +135,7 @@ impl JobThread {
         }
     }
 
-    pub fn idle(&self, context: &Context, use_network: bool) {
+    pub async fn idle(&self, context: &Context, use_network: bool) {
         {
             let &(ref lock, ref cvar) = &*self.state.clone();
             let mut state = lock.lock().unwrap();
@@ -172,19 +172,19 @@ impl JobThread {
         }
 
         let prefix = format!("{}-IDLE", self.name);
-        let do_fake_idle = match self.imap.connect_configured(context) {
+        let do_fake_idle = match self.imap.connect_configured(context).await {
             Ok(()) => {
                 if !self.imap.can_idle() {
                     true // we have to do fake_idle
                 } else {
                     let watch_folder = self.get_watch_folder(context);
                     info!(context, "{} started...", prefix);
-                    let res = self.imap.idle(context, watch_folder);
+                    let res = self.imap.idle(context, watch_folder).await;
                     info!(context, "{} ended...", prefix);
                     if let Err(err) = res {
                         warn!(context, "{} failed: {} -> reconnecting", prefix, err);
                         // something is borked, let's start afresh on the next occassion
-                        self.imap.disconnect(context);
+                        self.imap.disconnect(context).await;
                     }
                     false
                 }
@@ -199,7 +199,7 @@ impl JobThread {
         };
         if do_fake_idle {
             let watch_folder = self.get_watch_folder(context);
-            self.imap.fake_idle(context, watch_folder);
+            self.imap.fake_idle(context, watch_folder).await;
         }
 
         self.state.0.lock().unwrap().using_handle = false;

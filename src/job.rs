@@ -3,13 +3,12 @@
 //! This module implements a job queue maintained in the SQLite database
 //! and job types.
 
+use std::future::Future;
 use std::{fmt, time};
 
 use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
 use rand::{thread_rng, Rng};
-
-use async_std::task;
 
 use crate::blob::BlobObject;
 use crate::chat::{self, ChatId};
@@ -23,6 +22,7 @@ use crate::error::{Error, Result};
 use crate::events::Event;
 use crate::imap::*;
 use crate::imex::*;
+use crate::job;
 use crate::location;
 use crate::login_param::LoginParam;
 use crate::message::MsgId;
@@ -55,8 +55,8 @@ pub enum Status {
 macro_rules! job_try {
     ($expr:expr) => {
         match $expr {
-            ::std::result::Result::Ok(val) => val,
-            ::std::result::Result::Err(err) => {
+            std::result::Result::Ok(val) => val,
+            std::result::Result::Err(err) => {
                 return $crate::job::Status::Finished(Err(err.into()));
             }
         }
@@ -144,7 +144,7 @@ impl fmt::Display for Job {
 
 impl Job {
     /// Deletes the job from the database.
-    fn delete(&self, context: &Context) -> bool {
+    async fn delete(&self, context: &Context) -> bool {
         context
             .sql
             .execute("DELETE FROM jobs WHERE id=?;", params![self.job_id as i32])
@@ -154,7 +154,7 @@ impl Job {
     /// Updates the job already stored in the database.
     ///
     /// To add a new job, use [job_add].
-    fn update(&self, context: &Context) -> bool {
+    async fn update(&self, context: &Context) -> bool {
         sql::execute(
             context,
             &context.sql,
@@ -169,7 +169,7 @@ impl Job {
         .is_ok()
     }
 
-    fn smtp_send<F>(
+    async fn smtp_send<F, Fut>(
         &mut self,
         context: &Context,
         recipients: Vec<async_smtp::EmailAddress>,
@@ -178,7 +178,8 @@ impl Job {
         success_cb: F,
     ) -> Status
     where
-        F: FnOnce() -> Result<()>,
+        F: FnOnce() -> Fut,
+        Fut: Future<Output = Result<()>>,
     {
         // hold the smtp lock during sending of a job and
         // its ok/error response processing. Note that if a message
@@ -189,7 +190,7 @@ impl Job {
             info!(context, "smtp-sending out mime message:");
             println!("{}", String::from_utf8_lossy(&message));
         }
-        match task::block_on(smtp.send(context, recipients, message, job_id)) {
+        match smtp.send(context, recipients, message, job_id).await {
             Err(crate::smtp::send::Error::SendError(err)) => {
                 // Remote error, retry later.
                 warn!(context, "SMTP failed to send: {}", err);
@@ -232,15 +233,14 @@ impl Job {
                 Status::Finished(Err(format_err!("SMTP has not transport")))
             }
             Ok(()) => {
-                job_try!(success_cb());
+                job_try!(success_cb().await);
                 Status::Finished(Ok(()))
             }
         }
     }
 
-    #[allow(non_snake_case)]
-    fn SendMsgToSmtp(&mut self, context: &Context) -> Status {
-        /* connect to SMTP server, if not yet done */
+    async fn send_msg_to_smtp(&mut self, context: &Context) -> Status {
+        // connect to SMTP server, if not yet done
         if !context.smtp.lock().unwrap().is_connected() {
             let loginparam = LoginParam::from_database(context, "configured_");
             if let Err(err) = context.smtp.lock().unwrap().connect(context, &loginparam) {
@@ -285,18 +285,21 @@ impl Job {
 
         let foreign_id = self.foreign_id;
         self.smtp_send(context, recipients_list, body, self.job_id, || {
-            // smtp success, update db ASAP, then delete smtp file
-            if 0 != foreign_id {
-                set_delivered(context, MsgId::new(foreign_id));
+            async move {
+                // smtp success, update db ASAP, then delete smtp file
+                if 0 != foreign_id {
+                    set_delivered(context, MsgId::new(foreign_id));
+                }
+                // now also delete the generated file
+                dc_delete_file(context, filename);
+                Ok(())
             }
-            // now also delete the generated file
-            dc_delete_file(context, filename);
-            Ok(())
         })
+        .await
     }
 
     /// Get `SendMdn` jobs with foreign_id equal to `contact_id` excluding the `job_id` job.
-    fn get_additional_mdn_jobs(
+    async fn get_additional_mdn_jobs(
         &self,
         context: &Context,
         contact_id: u32,
@@ -335,8 +338,7 @@ impl Job {
         Ok((job_ids, rfc724_mids))
     }
 
-    #[allow(non_snake_case)]
-    fn SendMdn(&mut self, context: &Context) -> Status {
+    async fn send_mdn(&mut self, context: &Context) -> Status {
         if !context.get_config_bool(Config::MdnsEnabled) {
             // User has disabled MDNs after job scheduling but before
             // execution.
@@ -361,6 +363,7 @@ impl Job {
         // Try to aggregate other SendMdn jobs and send a combined MDN.
         let (additional_job_ids, additional_rfc724_mids) = self
             .get_additional_mdn_jobs(context, contact_id)
+            .await
             .unwrap_or_default();
 
         if !additional_rfc724_mids.is_empty() {
@@ -391,14 +394,16 @@ impl Job {
         }
 
         self.smtp_send(context, recipients, body, self.job_id, || {
-            // Remove additional SendMdn jobs we have aggregated into this one.
-            job_kill_ids(context, &additional_job_ids)?;
-            Ok(())
+            async move {
+                // Remove additional SendMdn jobs we have aggregated into this one.
+                job::kill_ids(context, &additional_job_ids).await?;
+                Ok(())
+            }
         })
+        .await
     }
 
-    #[allow(non_snake_case)]
-    fn MoveMsg(&mut self, context: &Context) -> Status {
+    async fn move_msg(&mut self, context: &Context) -> Status {
         let imap_inbox = &context.inbox_thread.read().unwrap().imap;
 
         let msg = job_try!(Message::load_from_db(context, MsgId::new(self.foreign_id)));
@@ -415,13 +420,16 @@ impl Job {
             let server_folder = msg.server_folder.as_ref().unwrap();
             let mut dest_uid = 0;
 
-            match imap_inbox.mv(
-                context,
-                server_folder,
-                msg.server_uid,
-                &dest_folder,
-                &mut dest_uid,
-            ) {
+            match imap_inbox
+                .mv(
+                    context,
+                    server_folder,
+                    msg.server_uid,
+                    &dest_folder,
+                    &mut dest_uid,
+                )
+                .await
+            {
                 ImapActionResult::RetryLater => Status::RetryLater,
                 ImapActionResult::Success => {
                     message::update_server_uid(context, &msg.rfc724_mid, &dest_folder, dest_uid);
@@ -437,8 +445,7 @@ impl Job {
         }
     }
 
-    #[allow(non_snake_case)]
-    fn DeleteMsgOnImap(&mut self, context: &Context) -> Status {
+    async fn delete_msg_on_imap(&mut self, context: &Context) -> Status {
         let imap_inbox = &context.inbox_thread.read().unwrap().imap;
 
         let mut msg = job_try!(Message::load_from_db(context, MsgId::new(self.foreign_id)));
@@ -468,8 +475,7 @@ impl Job {
         }
     }
 
-    #[allow(non_snake_case)]
-    fn EmptyServer(&mut self, context: &Context) -> Status {
+    async fn empty_server(&mut self, context: &Context) -> Status {
         let imap_inbox = &context.inbox_thread.read().unwrap().imap;
         if self.foreign_id & DC_EMPTY_MVBOX > 0 {
             if let Some(mvbox_folder) = context
@@ -485,8 +491,7 @@ impl Job {
         Status::Finished(Ok(()))
     }
 
-    #[allow(non_snake_case)]
-    fn MarkseenMsgOnImap(&mut self, context: &Context) -> Status {
+    async fn markseen_msg_on_imap(&mut self, context: &Context) -> Status {
         let imap_inbox = &context.inbox_thread.read().unwrap().imap;
 
         let msg = job_try!(Message::load_from_db(context, MsgId::new(self.foreign_id)));
@@ -503,7 +508,7 @@ impl Job {
                 if msg.param.get_bool(Param::WantsMdn).unwrap_or_default()
                     && context.get_config_bool(Config::MdnsEnabled)
                 {
-                    if let Err(err) = send_mdn(context, &msg) {
+                    if let Err(err) = send_mdn(context, &msg).await {
                         warn!(context, "could not send out mdn for {}: {}", msg.id, err);
                         return Status::Finished(Err(err));
                     }
@@ -513,8 +518,7 @@ impl Job {
         }
     }
 
-    #[allow(non_snake_case)]
-    fn MarkseenMdnOnImap(&mut self, context: &Context) -> Status {
+    async fn markseen_mdn_on_imap(&mut self, context: &Context) -> Status {
         let folder = self
             .param
             .get(Param::ServerFolder)
@@ -536,7 +540,9 @@ impl Job {
             if let Some(dest_folder) = dest_folder {
                 let mut dest_uid = 0;
                 if ImapActionResult::RetryLater
-                    == imap_inbox.mv(context, &folder, uid, &dest_folder, &mut dest_uid)
+                    == imap_inbox
+                        .mv(context, &folder, uid, &dest_folder, &mut dest_uid)
+                        .await
                 {
                     Status::RetryLater
                 } else {
@@ -551,8 +557,8 @@ impl Job {
     }
 }
 
-/* delete all pending jobs with the given action */
-pub fn job_kill_action(context: &Context, action: Action) -> bool {
+/// Delete all pending jobs with the given action.
+pub async fn kill_action(context: &Context, action: Action) -> bool {
     sql::execute(
         context,
         &context.sql,
@@ -563,7 +569,7 @@ pub fn job_kill_action(context: &Context, action: Action) -> bool {
 }
 
 /// Remove jobs with specified IDs.
-pub fn job_kill_ids(context: &Context, job_ids: &[u32]) -> sql::Result<()> {
+pub async fn kill_ids(context: &Context, job_ids: &[u32]) -> sql::Result<()> {
     sql::execute(
         context,
         &context.sql,
@@ -575,43 +581,40 @@ pub fn job_kill_ids(context: &Context, job_ids: &[u32]) -> sql::Result<()> {
     )
 }
 
-pub fn perform_inbox_fetch(context: &Context) {
+pub async fn perform_inbox_fetch(context: &Context) {
     let use_network = context.get_config_bool(Config::InboxWatch);
 
-    task::block_on(
-        context
-            .inbox_thread
-            .write()
-            .unwrap()
-            .fetch(context, use_network),
-    );
+    context
+        .inbox_thread
+        .write()
+        .unwrap()
+        .fetch(context, use_network)
+        .await;
 }
 
-pub fn perform_mvbox_fetch(context: &Context) {
+pub async fn perform_mvbox_fetch(context: &Context) {
     let use_network = context.get_config_bool(Config::MvboxWatch);
 
-    task::block_on(
-        context
-            .mvbox_thread
-            .write()
-            .unwrap()
-            .fetch(context, use_network),
-    );
+    context
+        .mvbox_thread
+        .write()
+        .unwrap()
+        .fetch(context, use_network)
+        .await;
 }
 
-pub fn perform_sentbox_fetch(context: &Context) {
+pub async fn perform_sentbox_fetch(context: &Context) {
     let use_network = context.get_config_bool(Config::SentboxWatch);
 
-    task::block_on(
-        context
-            .sentbox_thread
-            .write()
-            .unwrap()
-            .fetch(context, use_network),
-    );
+    context
+        .sentbox_thread
+        .write()
+        .unwrap()
+        .fetch(context, use_network)
+        .await;
 }
 
-pub fn perform_inbox_idle(context: &Context) {
+pub async fn perform_inbox_idle(context: &Context) {
     if *context.perform_inbox_jobs_needed.clone().read().unwrap() {
         info!(
             context,
@@ -625,30 +628,33 @@ pub fn perform_inbox_idle(context: &Context) {
         .inbox_thread
         .read()
         .unwrap()
-        .idle(context, use_network);
+        .idle(context, use_network)
+        .await;
 }
 
-pub fn perform_mvbox_idle(context: &Context) {
+pub async fn perform_mvbox_idle(context: &Context) {
     let use_network = context.get_config_bool(Config::MvboxWatch);
 
     context
         .mvbox_thread
         .read()
         .unwrap()
-        .idle(context, use_network);
+        .idle(context, use_network)
+        .await;
 }
 
-pub fn perform_sentbox_idle(context: &Context) {
+pub async fn perform_sentbox_idle(context: &Context) {
     let use_network = context.get_config_bool(Config::SentboxWatch);
 
     context
         .sentbox_thread
         .read()
         .unwrap()
-        .idle(context, use_network);
+        .idle(context, use_network)
+        .await;
 }
 
-pub fn interrupt_inbox_idle(context: &Context) {
+pub async fn interrupt_inbox_idle(context: &Context) {
     info!(context, "interrupt_inbox_idle called");
     // we do not block on trying to obtain the thread lock
     // because we don't know in which state the thread is.
@@ -656,7 +662,7 @@ pub fn interrupt_inbox_idle(context: &Context) {
     // but we flag it for checking jobs so that idle will be skipped.
     match context.inbox_thread.try_read() {
         Ok(inbox_thread) => {
-            inbox_thread.interrupt_idle(context);
+            inbox_thread.interrupt_idle(context).await;
         }
         Err(err) => {
             *context.perform_inbox_jobs_needed.write().unwrap() = true;
@@ -665,19 +671,25 @@ pub fn interrupt_inbox_idle(context: &Context) {
     }
 }
 
-pub fn interrupt_mvbox_idle(context: &Context) {
-    context.mvbox_thread.read().unwrap().interrupt_idle(context);
+pub async fn interrupt_mvbox_idle(context: &Context) {
+    context
+        .mvbox_thread
+        .read()
+        .unwrap()
+        .interrupt_idle(context)
+        .await;
 }
 
-pub fn interrupt_sentbox_idle(context: &Context) {
+pub async fn interrupt_sentbox_idle(context: &Context) {
     context
         .sentbox_thread
         .read()
         .unwrap()
-        .interrupt_idle(context);
+        .interrupt_idle(context)
+        .await;
 }
 
-pub fn perform_smtp_jobs(context: &Context) {
+pub async fn perform_smtp_jobs(context: &Context) {
     let probe_smtp_network = {
         let &(ref lock, _) = &*context.smtp_state.clone();
         let mut state = lock.lock().unwrap();
@@ -695,7 +707,7 @@ pub fn perform_smtp_jobs(context: &Context) {
     };
 
     info!(context, "SMTP-jobs started...",);
-    job_perform(context, Thread::Smtp, probe_smtp_network);
+    job_perform(context, Thread::Smtp, probe_smtp_network).await;
     info!(context, "SMTP-jobs ended.");
 
     {
@@ -706,7 +718,7 @@ pub fn perform_smtp_jobs(context: &Context) {
     }
 }
 
-pub fn perform_smtp_idle(context: &Context) {
+pub async fn perform_smtp_idle(context: &Context) {
     info!(context, "SMTP-idle started...",);
     {
         let &(ref lock, ref cvar) = &*context.smtp_state.clone();
@@ -762,7 +774,7 @@ fn get_next_wakeup_time(context: &Context, thread: Thread) -> time::Duration {
     wakeup_time
 }
 
-pub fn maybe_network(context: &Context) {
+pub async fn maybe_network(context: &Context) {
     {
         let &(ref lock, _) = &*context.smtp_state.clone();
         let mut state = lock.lock().unwrap();
@@ -771,13 +783,13 @@ pub fn maybe_network(context: &Context) {
         *context.probe_imap_network.write().unwrap() = true;
     }
 
-    interrupt_smtp_idle(context);
-    interrupt_inbox_idle(context);
-    interrupt_mvbox_idle(context);
-    interrupt_sentbox_idle(context);
+    interrupt_smtp_idle(context).await;
+    interrupt_inbox_idle(context).await;
+    interrupt_mvbox_idle(context).await;
+    interrupt_sentbox_idle(context).await;
 }
 
-pub fn job_action_exists(context: &Context, action: Action) -> bool {
+pub fn action_exists(context: &Context, action: Action) -> bool {
     context
         .sql
         .exists("SELECT id FROM jobs WHERE action=?;", params![action])
@@ -797,8 +809,8 @@ fn set_delivered(context: &Context, msg_id: MsgId) {
     context.call_cb(Event::MsgDelivered { chat_id, msg_id });
 }
 
-/* special case for DC_JOB_SEND_MSG_TO_SMTP */
-pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<()> {
+// special case for DC_JOB_SEND_MSG_TO_SMTP
+pub async fn send_msg(context: &Context, msg_id: MsgId) -> Result<()> {
     let mut msg = Message::load_from_db(context, msg_id)?;
     msg.try_calc_and_set_dimensions(context).ok();
 
@@ -892,31 +904,32 @@ pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<()> {
         msg.id,
         recipients,
         &rendered_msg,
-    )?;
+    )
+    .await?;
 
     Ok(())
 }
 
-pub fn perform_inbox_jobs(context: &Context) {
+pub async fn perform_inbox_jobs(context: &Context) {
     info!(context, "dc_perform_inbox_jobs starting.",);
 
     let probe_imap_network = *context.probe_imap_network.clone().read().unwrap();
     *context.probe_imap_network.write().unwrap() = false;
     *context.perform_inbox_jobs_needed.write().unwrap() = false;
 
-    job_perform(context, Thread::Imap, probe_imap_network);
+    job_perform(context, Thread::Imap, probe_imap_network).await;
     info!(context, "dc_perform_inbox_jobs ended.",);
 }
 
-pub fn perform_mvbox_jobs(context: &Context) {
-    info!(context, "dc_perform_mbox_jobs EMPTY (for now).",);
+pub async fn perform_mvbox_jobs(context: &Context) {
+    info!(context, "dc_perform_mbox_jobs EMPTY (for now).");
 }
 
-pub fn perform_sentbox_jobs(context: &Context) {
-    info!(context, "dc_perform_sentbox_jobs EMPTY (for now).",);
+pub async fn perform_sentbox_jobs(context: &Context) {
+    info!(context, "dc_perform_sentbox_jobs EMPTY (for now).");
 }
 
-fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
+async fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
     while let Some(mut job) = load_next_job(context, thread, probe_network) {
         info!(context, "{}-job {} started...", thread, job);
 
@@ -925,24 +938,26 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
         // - they may change the database handle; we do not keep old pointers therefore
         // - they can be re-executed one time AT_ONCE, but they are not saved in the database for later execution
         if Action::ConfigureImap == job.action || Action::ImexImap == job.action {
-            job_kill_action(context, job.action);
+            job::kill_action(context, job.action).await;
             context
                 .sentbox_thread
                 .clone()
                 .read()
                 .unwrap()
-                .suspend(context);
+                .suspend(context)
+                .await;
             context
                 .mvbox_thread
                 .clone()
                 .read()
                 .unwrap()
-                .suspend(context);
+                .suspend(context)
+                .await;
             suspend_smtp_thread(context, true);
         }
 
-        let try_res = match perform_job_action(context, &mut job, thread, 0) {
-            Status::RetryNow => perform_job_action(context, &mut job, thread, 1),
+        let try_res = match perform_job_action(context, &mut job, thread, 0).await {
+            Status::RetryNow => perform_job_action(context, &mut job, thread, 1).await,
             x => x,
         };
 
@@ -975,7 +990,7 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                     job.tries = tries;
                     let time_offset = get_backoff_time_offset(tries);
                     job.desired_timestamp = time() + time_offset;
-                    job.update(context);
+                    job.update(context).await;
                     info!(
                         context,
                         "{}-job #{} not succeeded on try #{}, retry in {} seconds.",
@@ -1008,7 +1023,7 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                             job.pending_error.as_ref(),
                         );
                     }
-                    job.delete(context);
+                    job.delete(context).await;
                 }
                 if !probe_network {
                     continue;
@@ -1029,13 +1044,18 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                     info!(context, "{} removes job {} as it succeeded", thread, job);
                 }
 
-                job.delete(context);
+                job.delete(context).await;
             }
         }
     }
 }
 
-fn perform_job_action(context: &Context, mut job: &mut Job, thread: Thread, tries: u32) -> Status {
+async fn perform_job_action(
+    context: &Context,
+    mut job: &mut Job,
+    thread: Thread,
+    tries: u32,
+) -> Status {
     info!(
         context,
         "{} begin immediate try {} of job {}", thread, tries, job
@@ -1043,14 +1063,14 @@ fn perform_job_action(context: &Context, mut job: &mut Job, thread: Thread, trie
 
     let try_res = match job.action {
         Action::Unknown => Status::Finished(Err(format_err!("Unknown job id found"))),
-        Action::SendMsgToSmtp => job.SendMsgToSmtp(context),
-        Action::EmptyServer => job.EmptyServer(context),
-        Action::DeleteMsgOnImap => job.DeleteMsgOnImap(context),
-        Action::MarkseenMsgOnImap => job.MarkseenMsgOnImap(context),
-        Action::MarkseenMdnOnImap => job.MarkseenMdnOnImap(context),
-        Action::MoveMsg => job.MoveMsg(context),
-        Action::SendMdn => job.SendMdn(context),
-        Action::ConfigureImap => JobConfigureImap(context),
+        Action::SendMsgToSmtp => job.send_msg_to_smtp(context).await,
+        Action::EmptyServer => job.empty_server(context).await,
+        Action::DeleteMsgOnImap => job.delete_msg_on_imap(context).await,
+        Action::MarkseenMsgOnImap => job.markseen_msg_on_imap(context).await,
+        Action::MarkseenMdnOnImap => job.markseen_mdn_on_imap(context).await,
+        Action::MoveMsg => job.move_msg(context).await,
+        Action::SendMdn => job.send_mdn(context).await,
+        Action::ConfigureImap => job_configure_imap(context).await,
         Action::ImexImap => match JobImexImap(context, &job) {
             Ok(()) => Status::Finished(Ok(())),
             Err(err) => {
@@ -1058,7 +1078,7 @@ fn perform_job_action(context: &Context, mut job: &mut Job, thread: Thread, trie
                 Status::Finished(Err(err))
             }
         },
-        Action::MaybeSendLocations => location::JobMaybeSendLocations(context, &job),
+        Action::MaybeSendLocations => location::job_maybe_send_locations(context, &job).await,
         Action::MaybeSendLocationsEnded => location::JobMaybeSendLocationsEnded(context, &mut job),
         Action::Housekeeping => {
             sql::housekeeping(context);
@@ -1097,16 +1117,16 @@ fn suspend_smtp_thread(context: &Context, suspend: bool) {
     }
 }
 
-fn send_mdn(context: &Context, msg: &Message) -> Result<()> {
+async fn send_mdn(context: &Context, msg: &Message) -> Result<()> {
     let mut param = Params::new();
     param.set(Param::MsgId, msg.id.to_u32().to_string());
 
-    job_add(context, Action::SendMdn, msg.from_id as i32, param, 0);
+    job::add(context, Action::SendMdn, msg.from_id as i32, param, 0).await;
 
     Ok(())
 }
 
-fn add_smtp_job(
+async fn add_smtp_job(
     context: &Context,
     action: Action,
     msg_id: MsgId,
@@ -1122,14 +1142,13 @@ fn add_smtp_job(
     param.set(Param::File, blob.as_name());
     param.set(Param::Recipients, &recipients);
 
-    job_add(context, action, msg_id.to_u32() as i32, param, 0);
+    add(context, action, msg_id.to_u32() as i32, param, 0).await;
 
     Ok(())
 }
 
-/// Adds a job to the database, scheduling it `delay_seconds`
-/// after the current time.
-pub fn job_add(
+/// Adds a job to the database, scheduling it `delay_seconds` after the current time.
+pub async fn add(
     context: &Context,
     action: Action,
     foreign_id: i32,
@@ -1159,13 +1178,13 @@ pub fn job_add(
     ).ok();
 
     match thread {
-        Thread::Imap => interrupt_inbox_idle(context),
-        Thread::Smtp => interrupt_smtp_idle(context),
+        Thread::Imap => interrupt_inbox_idle(context).await,
+        Thread::Smtp => interrupt_smtp_idle(context).await,
         Thread::Unknown => {}
     }
 }
 
-pub fn interrupt_smtp_idle(context: &Context) {
+pub async fn interrupt_smtp_idle(context: &Context) {
     info!(context, "Interrupting SMTP-idle...",);
 
     let &(ref lock, ref cvar) = &*context.smtp_state.clone();
