@@ -24,9 +24,6 @@ use crate::peerstate::*;
 use crate::sql;
 use crate::stock::StockMessage;
 
-/// Contacts with at least this origin value are shown in the contact list.
-const DC_ORIGIN_MIN_CONTACT_LIST: i32 = 0x100;
-
 /// An object representing a single contact in memory.
 ///
 /// The contact object is not updated.
@@ -94,6 +91,7 @@ pub enum Origin {
     UnhandledQrScan = 0x80,
 
     /// Reply-To: of incoming message of known sender
+    /// Contacts with at least this origin value are shown in the contact list.
     IncomingReplyTo = 0x100,
 
     /// Cc: of incoming message of known sender
@@ -274,7 +272,7 @@ impl Contact {
     ///
     /// To validate an e-mail address independently of the contact database
     /// use `dc_may_be_valid_addr()`.
-    pub fn lookup_id_by_addr(context: &Context, addr: impl AsRef<str>) -> u32 {
+    pub fn lookup_id_by_addr(context: &Context, addr: impl AsRef<str>, min_origin: Origin) -> u32 {
         if addr.as_ref().is_empty() {
             return 0;
         }
@@ -287,14 +285,13 @@ impl Contact {
         if addr_cmp(addr_normalized, addr_self) {
             return DC_CONTACT_ID_SELF;
         }
-
         context.sql.query_get_value(
             context,
             "SELECT id FROM contacts WHERE addr=?1 COLLATE NOCASE AND id>?2 AND origin>=?3 AND blocked=0;",
             params![
                 addr_normalized,
                 DC_CONTACT_ID_LAST_SPECIAL as i32,
-                DC_ORIGIN_MIN_CONTACT_LIST,
+                min_origin as u32,
             ],
         ).unwrap_or_default()
     }

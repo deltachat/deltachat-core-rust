@@ -1830,36 +1830,61 @@ pub fn create_group_chat(
     Ok(chat_id)
 }
 
+/// add a contact to the chats_contact table
+/// on success emit MemberAdded event and return true
 pub(crate) fn add_to_chat_contacts_table(
     context: &Context,
     chat_id: ChatId,
     contact_id: u32,
 ) -> bool {
-    // add a contact to a chat; the function does not check the type or if any of the record exist or are already
-    // added to the chat!
-    sql::execute(
+    match sql::execute(
         context,
         &context.sql,
         "INSERT INTO chats_contacts (chat_id, contact_id) VALUES(?, ?)",
         params![chat_id, contact_id as i32],
-    )
-    .is_ok()
+    ) {
+        Ok(()) => {
+            context.call_cb(Event::MemberAdded {
+                chat_id,
+                contact_id,
+            });
+
+            true
+        }
+        Err(err) => {
+            error!(
+                context,
+                "could not add {} to chat {} table: {}", contact_id, chat_id, err
+            );
+
+            false
+        }
+    }
 }
 
+/// remove a contact from the chats_contact table
+/// on success emit MemberRemoved event and return true
 pub(crate) fn remove_from_chat_contacts_table(
     context: &Context,
     chat_id: ChatId,
     contact_id: u32,
 ) -> bool {
-    // remove a contact from the chats_contact table unconditionally
-    // the function does not check the type or if the record exist
-    sql::execute(
+    match sql::execute(
         context,
         &context.sql,
         "DELETE FROM chats_contacts WHERE chat_id=? AND contact_id=?",
         params![chat_id, contact_id as i32],
-    )
-    .is_ok()
+    ) {
+        Ok(()) => {
+            context.call_cb(Event::MemberRemoved {
+                chat_id,
+                contact_id,
+            });
+
+            true
+        }
+        Err(_) => false,
+    }
 }
 
 /// Adds a contact to the chat.
@@ -1955,12 +1980,6 @@ pub(crate) fn add_contact_to_chat_ex(
         msg.param.set_int(Param::Arg2, from_handshake.into());
 
         msg.id = send_msg(context, chat_id, &mut msg)?;
-        // send_msg sends MsgsChanged event
-        // so we only send an explicit MemberAdded one
-        context.call_cb(Event::MemberAdded {
-            chat_id,
-            contact_id: contact.id,
-        });
     } else {
         // send an event for unpromoted groups
         // XXX probably not neccessary because ChatModified should suffice
@@ -2173,10 +2192,6 @@ pub fn remove_contact_from_chat(
                         msg.param.set_cmd(SystemMessage::MemberRemovedFromGroup);
                         msg.param.set(Param::Arg, contact.get_addr());
                         msg.id = send_msg(context, chat_id, &mut msg)?;
-                        context.call_cb(Event::MemberRemoved {
-                            chat_id,
-                            contact_id: contact.id,
-                        });
                         context.call_cb(Event::MsgsChanged {
                             chat_id,
                             msg_id: msg.id,

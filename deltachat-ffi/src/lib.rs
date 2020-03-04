@@ -27,7 +27,7 @@ use num_traits::{FromPrimitive, ToPrimitive};
 
 use deltachat::chat::{ChatId, ChatVisibility, MuteDuration};
 use deltachat::constants::DC_MSG_ID_LAST_SPECIAL;
-use deltachat::contact::Contact;
+use deltachat::contact::{Contact, Origin};
 use deltachat::context::Context;
 use deltachat::key::DcKey;
 use deltachat::message::MsgId;
@@ -1665,7 +1665,9 @@ pub unsafe extern "C" fn dc_lookup_contact_id_by_addr(
     }
     let ffi_context = &*context;
     ffi_context
-        .with_inner(|ctx| Contact::lookup_id_by_addr(ctx, to_string_lossy(addr)))
+        .with_inner(|ctx| {
+            Contact::lookup_id_by_addr(ctx, to_string_lossy(addr), Origin::IncomingReplyTo)
+        })
         .unwrap_or(0)
 }
 

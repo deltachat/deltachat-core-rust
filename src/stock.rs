@@ -314,7 +314,7 @@ impl Context {
         from_id: u32,
     ) -> String {
         let insert1 = if id == StockMessage::MsgAddMember || id == StockMessage::MsgDelMember {
-            let contact_id = Contact::lookup_id_by_addr(self, param1.as_ref());
+            let contact_id = Contact::lookup_id_by_addr(self, param1.as_ref(), Origin::Unknown);
             if contact_id != 0 {
                 Contact::get_by_id(self, contact_id)
                     .map(|contact| contact.get_name_n_addr())
