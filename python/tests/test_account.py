@@ -805,7 +805,7 @@ class TestOnlineAccount:
 
         lp.sec("check that a second call to mark_seen does not create change or smtp job")
         ac2._evtracker.consume_events()
-        ac2.mark_seen_messages([msg_in])
+        msg_in.mark_seen()
         try:
             ac2._evtracker.get_matching("DC_EVENT_MSG_READ", timeout=0.01)
         except queue.Empty:
