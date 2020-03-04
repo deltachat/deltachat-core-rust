@@ -276,6 +276,10 @@ class Message(object):
         """ return True if it's a file message. """
         return self._view_type == const.DC_MSG_FILE
 
+    def mark_seen(self):
+        """ mark this message as seen. """
+        self.account.mark_seen_messages([self.id])
+
 
 # some code for handling DC_MSG_* view types
 
