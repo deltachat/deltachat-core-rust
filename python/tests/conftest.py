@@ -5,9 +5,6 @@ import pytest
 import py
 
 
-from deltachat.testplugin import *  # noqa
-
-
 @pytest.fixture(scope="session")
 def data():
     class Data:
