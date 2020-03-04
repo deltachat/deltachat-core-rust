@@ -82,7 +82,7 @@ async fn main() {
         .unwrap();
     ctx.configure().await;
 
-    thread::sleep(duration);
+    async_std::task::sleep(duration).await;
 
     println!("sending a message");
     let contact_id = Contact::create(&ctx, "dignifiedquire", "dignifiedquire@gmail.com").unwrap();
@@ -101,7 +101,7 @@ async fn main() {
         println!("chat: {} - {:?} - {:?}", i, text1, text2,);
     }
 
-    thread::sleep(duration);
+    async_std::task::sleep(duration).await;
 
     println!("stopping threads");
 

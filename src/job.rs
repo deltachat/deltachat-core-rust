@@ -675,7 +675,7 @@ pub async fn perform_smtp_jobs(context: &Context) {
 }
 
 pub async fn perform_smtp_idle(context: &Context) {
-    info!(context, "SMTP-idle started...",);
+    info!(context, "SMTP-idle started...");
 
     let perform_jobs_needed = context.smtp.state.read().await.perform_jobs_needed.clone();
 
@@ -1027,7 +1027,7 @@ async fn suspend_smtp_thread(context: &Context, suspend: bool) {
             if !context.smtp.state.read().await.doing_jobs {
                 return;
             }
-            std::thread::sleep(time::Duration::from_micros(300 * 1000));
+            async_std::task::sleep(time::Duration::from_micros(300 * 1000)).await;
         }
     }
 }

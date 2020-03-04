@@ -46,7 +46,7 @@ impl JobThread {
             if !using_handle {
                 return;
             }
-            std::thread::sleep(std::time::Duration::from_micros(300 * 1000));
+            async_std::task::sleep(std::time::Duration::from_micros(300 * 1000)).await;
         }
     }
 
