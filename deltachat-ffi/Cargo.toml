@@ -23,7 +23,6 @@ failure = "0.1.6"
 serde_json = "1.0"
 
 [features]
-default = ["vendored", "nightly", "ringbuf"]
+default = ["vendored", "nightly"]
 vendored = ["deltachat/vendored"]
 nightly = ["deltachat/nightly"]
-ringbuf = ["deltachat/ringbuf"]

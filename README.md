@@ -108,7 +108,6 @@ $ cargo test -- --ignored
 
 - `vendored`: When using Openssl for TLS, this bundles a vendored version.
 - `nightly`: Enable nightly only performance and security related features.
-- `ringbuf`: Enable the use of [`slice_deque`](https://github.com/gnzlbg/slice_deque) in pgp.
 
 [circle-shield]: https://img.shields.io/circleci/project/github/deltachat/deltachat-core-rust/master.svg?style=flat-square
 [circle]: https://circleci.com/gh/deltachat/deltachat-core-rust/
