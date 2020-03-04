@@ -1,5 +1,10 @@
 # Changelog 
 
+## 1.27.0
+
+- handle keys reliably on armv7 #1327
+
+
 ## 1.26.0
 
 - change generated key type back to RSA as shipped versions
