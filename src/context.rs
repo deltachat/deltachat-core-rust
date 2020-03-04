@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Condvar, Mutex, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 use crate::chat::*;
 use crate::config::Config;
@@ -45,7 +45,6 @@ pub struct Context {
     pub sentbox_thread: JobThread,
     pub mvbox_thread: JobThread,
     pub smtp: Smtp,
-    pub smtp_state: Arc<(Mutex<SmtpState>, Condvar)>,
     pub oauth2_critical: Arc<Mutex<()>>,
     #[debug_stub = "Callback"]
     cb: Box<ContextCallback>,
@@ -114,7 +113,6 @@ impl Context {
             running_state: Arc::new(RwLock::new(Default::default())),
             sql: Sql::new(),
             smtp: Smtp::new(),
-            smtp_state: Arc::new((Mutex::new(Default::default()), Condvar::new())),
             oauth2_critical: Arc::new(Mutex::new(())),
             bob: Arc::new(RwLock::new(Default::default())),
             last_smeared_timestamp: RwLock::new(0),
@@ -476,7 +474,7 @@ pub(crate) struct BobStatus {
     pub qr_scan: Option<Lot>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub(crate) enum PerformJobsNeeded {
     Not,
     AtOnce,
@@ -487,15 +485,6 @@ impl Default for PerformJobsNeeded {
     fn default() -> Self {
         Self::Not
     }
-}
-
-#[derive(Default, Debug)]
-pub struct SmtpState {
-    pub idle: bool,
-    pub suspended: bool,
-    pub doing_jobs: bool,
-    pub(crate) perform_jobs_needed: PerformJobsNeeded,
-    pub probe_network: bool,
 }
 
 pub fn get_version_str() -> &'static str {

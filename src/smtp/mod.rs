@@ -2,15 +2,14 @@
 
 pub mod send;
 
+use async_std::sync::{channel, Receiver, RwLock, Sender};
 use std::time::{Duration, Instant};
-
-use async_std::sync::RwLock;
 
 use async_smtp::smtp::client::net::*;
 use async_smtp::*;
 
 use crate::constants::*;
-use crate::context::Context;
+use crate::context::{Context, PerformJobsNeeded};
 use crate::events::Event;
 use crate::login_param::{dc_build_tls, LoginParam};
 use crate::oauth2::*;
@@ -51,8 +50,33 @@ impl From<async_native_tls::Error> for Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+#[derive(Debug)]
+pub struct Smtp {
+    inner: RwLock<SmtpInner>,
+    pub(crate) state: RwLock<State>,
+    pub(crate) notify_sender: Sender<()>,
+    pub(crate) notify_receiver: Receiver<()>,
+}
+
+impl Default for Smtp {
+    fn default() -> Self {
+        let (notify_sender, notify_receiver) = channel(1);
+        Smtp {
+            inner: Default::default(),
+            state: Default::default(),
+            notify_sender,
+            notify_receiver,
+        }
+    }
+}
+
 #[derive(Default, Debug)]
-pub struct Smtp(RwLock<SmtpInner>);
+pub struct State {
+    pub(crate) suspended: bool,
+    pub(crate) doing_jobs: bool,
+    pub(crate) perform_jobs_needed: PerformJobsNeeded,
+    pub(crate) probe_network: bool,
+}
 
 #[derive(Default, DebugStub)]
 struct SmtpInner {
@@ -76,7 +100,7 @@ impl Smtp {
 
     /// Disconnect the SMTP transport and drop it entirely.
     pub async fn disconnect(&self) {
-        let inner = &mut *self.0.write().await;
+        let inner = &mut *self.inner.write().await;
         if let Some(mut transport) = inner.transport.take() {
             transport.close().await.ok();
         }
@@ -86,7 +110,7 @@ impl Smtp {
     /// Return true if smtp was connected but is not known to
     /// have been successfully used the last 60 seconds
     pub async fn has_maybe_stale_connection(&self) -> bool {
-        if let Some(last_success) = self.0.read().await.last_success {
+        if let Some(last_success) = self.inner.read().await.last_success {
             Instant::now().duration_since(last_success).as_secs() > 60
         } else {
             false
@@ -95,7 +119,7 @@ impl Smtp {
 
     /// Check whether we are connected.
     pub async fn is_connected(&self) -> bool {
-        self.0
+        self.inner
             .read()
             .await
             .transport
@@ -122,7 +146,7 @@ impl Smtp {
                 error: err,
             })?;
 
-        let inner = &mut *self.0.write().await;
+        let inner = &mut *self.inner.write().await;
         inner.from = Some(from);
 
         let domain = &lp.send_server;

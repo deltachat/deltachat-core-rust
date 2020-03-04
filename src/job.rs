@@ -6,6 +6,8 @@
 use std::future::Future;
 use std::{fmt, time};
 
+use async_std::prelude::*;
+
 use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
 use rand::{thread_rng, Rng};
@@ -651,8 +653,7 @@ pub async fn interrupt_sentbox_idle(context: &Context) {
 
 pub async fn perform_smtp_jobs(context: &Context) {
     let probe_smtp_network = {
-        let &(ref lock, _) = &*context.smtp_state.clone();
-        let mut state = lock.lock().unwrap();
+        let state = &mut *context.smtp.state.write().await;
 
         let probe_smtp_network = state.probe_network;
         state.probe_network = false;
@@ -670,41 +671,25 @@ pub async fn perform_smtp_jobs(context: &Context) {
     job_perform(context, Thread::Smtp, probe_smtp_network).await;
     info!(context, "SMTP-jobs ended.");
 
-    {
-        let &(ref lock, _) = &*context.smtp_state.clone();
-        let mut state = lock.lock().unwrap();
-
-        state.doing_jobs = false;
-    }
+    context.smtp.state.write().await.doing_jobs = false;
 }
 
 pub async fn perform_smtp_idle(context: &Context) {
     info!(context, "SMTP-idle started...",);
-    {
-        let &(ref lock, ref cvar) = &*context.smtp_state.clone();
-        let mut state = lock.lock().unwrap();
 
-        match state.perform_jobs_needed {
-            PerformJobsNeeded::AtOnce => {
-                info!(
-                    context,
-                    "SMTP-idle will not be started because of waiting jobs.",
-                );
-            }
-            PerformJobsNeeded::Not | PerformJobsNeeded::AvoidDos => {
-                let dur = get_next_wakeup_time(context, Thread::Smtp);
+    let perform_jobs_needed = context.smtp.state.read().await.perform_jobs_needed.clone();
 
-                loop {
-                    let res = cvar.wait_timeout(state, dur).unwrap();
-                    state = res.0;
+    match perform_jobs_needed {
+        PerformJobsNeeded::AtOnce => {
+            info!(
+                context,
+                "SMTP-idle will not be started because of waiting jobs.",
+            );
+        }
+        PerformJobsNeeded::Not | PerformJobsNeeded::AvoidDos => {
+            let dur = get_next_wakeup_time(context, Thread::Smtp);
 
-                    if state.idle || res.1.timed_out() {
-                        // We received the notification and the value has been updated, we can leave.
-                        break;
-                    }
-                }
-                state.idle = false;
-            }
+            context.smtp.notify_receiver.recv().timeout(dur).await.ok();
         }
     }
 
@@ -736,10 +721,7 @@ fn get_next_wakeup_time(context: &Context, thread: Thread) -> time::Duration {
 
 pub async fn maybe_network(context: &Context) {
     {
-        let &(ref lock, _) = &*context.smtp_state.clone();
-        let mut state = lock.lock().unwrap();
-        state.probe_network = true;
-
+        context.smtp.state.write().await.probe_network = true;
         *context.probe_imap_network.write().unwrap() = true;
     }
 
@@ -901,7 +883,7 @@ async fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
             job::kill_action(context, job.action).await;
             context.sentbox_thread.suspend(context).await;
             context.mvbox_thread.suspend(context).await;
-            suspend_smtp_thread(context, true);
+            suspend_smtp_thread(context, true).await;
         }
 
         let try_res = match perform_job_action(context, &mut job, thread, 0).await {
@@ -912,7 +894,7 @@ async fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
         if Action::ConfigureImap == job.action || Action::ImexImap == job.action {
             context.sentbox_thread.unsuspend(context).await;
             context.mvbox_thread.unsuspend(context).await;
-            suspend_smtp_thread(context, false);
+            suspend_smtp_thread(context, false).await;
             break;
         }
 
@@ -938,13 +920,8 @@ async fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                         time_offset
                     );
                     if thread == Thread::Smtp && tries < JOB_RETRIES - 1 {
-                        context
-                            .smtp_state
-                            .clone()
-                            .0
-                            .lock()
-                            .unwrap()
-                            .perform_jobs_needed = PerformJobsNeeded::AvoidDos;
+                        context.smtp.state.write().await.perform_jobs_needed =
+                            PerformJobsNeeded::AvoidDos;
                     }
                 } else {
                     info!(
@@ -1043,11 +1020,11 @@ fn get_backoff_time_offset(tries: u32) -> i64 {
     seconds as i64
 }
 
-fn suspend_smtp_thread(context: &Context, suspend: bool) {
-    context.smtp_state.0.lock().unwrap().suspended = suspend;
+async fn suspend_smtp_thread(context: &Context, suspend: bool) {
+    context.smtp.state.write().await.suspended = suspend;
     if suspend {
         loop {
-            if !context.smtp_state.0.lock().unwrap().doing_jobs {
+            if !context.smtp.state.read().await.doing_jobs {
                 return;
             }
             std::thread::sleep(time::Duration::from_micros(300 * 1000));
@@ -1125,12 +1102,9 @@ pub async fn add(
 pub async fn interrupt_smtp_idle(context: &Context) {
     info!(context, "Interrupting SMTP-idle...",);
 
-    let &(ref lock, ref cvar) = &*context.smtp_state.clone();
-    let mut state = lock.lock().unwrap();
+    context.smtp.state.write().await.perform_jobs_needed = PerformJobsNeeded::AtOnce;
+    context.smtp.notify_sender.send(()).await;
 
-    state.perform_jobs_needed = PerformJobsNeeded::AtOnce;
-    state.idle = true;
-    cvar.notify_one();
     info!(context, "Interrupting SMTP-idle... ended",);
 }
 

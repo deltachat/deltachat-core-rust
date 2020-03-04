@@ -38,7 +38,7 @@ impl Smtp {
             .collect::<Vec<String>>()
             .join(",");
 
-        let envelope = Envelope::new(self.0.read().await.from.clone(), recipients)
+        let envelope = Envelope::new(self.inner.read().await.from.clone(), recipients)
             .map_err(Error::EnvelopeError)?;
         let mail = SendableEmail::new(
             envelope,
@@ -46,7 +46,7 @@ impl Smtp {
             message,
         );
 
-        let inner = &mut *self.0.write().await;
+        let inner = &mut *self.inner.write().await;
         if let Some(ref mut transport) = inner.transport {
             transport.send(mail).await.map_err(Error::SendError)?;
 
