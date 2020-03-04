@@ -173,14 +173,29 @@ class TestOfflineChat:
     def test_add_member_event(self, ac1):
         chat = ac1.create_group_chat(name="title1")
         assert chat.is_group()
-        # promote the chat
-        chat.send_text("hello")
         contact1 = ac1.create_contact("some1@hello.com", name="some1")
 
         chat.add_contact(contact1)
         for ev in ac1.iter_events(timeout=1):
             if ev.name == "member_added":
                 assert ev.kwargs["chat"] == chat
+                if ev.kwargs["contact"] == ac1.get_self_contact():
+                    continue
+                assert ev.kwargs["contact"] == contact1
+                break
+
+    def test_remove_member_event(self, ac1):
+        chat = ac1.create_group_chat(name="title1")
+        assert chat.is_group()
+        contact1 = ac1.create_contact("some1@hello.com", name="some1")
+        chat.add_contact(contact1)
+        ac1._handle_current_events()
+        chat.remove_contact(contact1)
+        for ev in ac1.iter_events(timeout=1):
+            if ev.name == "member_removed":
+                assert ev.kwargs["chat"] == chat
+                if ev.kwargs["contact"] == ac1.get_self_contact():
+                    continue
                 assert ev.kwargs["contact"] == contact1
                 break
 
@@ -471,11 +486,13 @@ class TestOfflineChat:
         # perform plugin hooks
         ac1._handle_current_events()
 
-        assert len(in_list) == 10
+        assert len(in_list) == 11
+        chat_contacts = chat.get_contacts()
         for in_cmd, in_chat, in_contact in in_list:
             assert in_cmd == "added"
             assert in_chat == chat
-            assert in_contact in contacts
+            assert in_contact in chat_contacts
+            chat_contacts.remove(in_contact)
 
         lp.sec("ac1: removing two contacts and checking things are right")
         chat.remove_contact(contacts[9])
@@ -483,10 +500,13 @@ class TestOfflineChat:
         assert len(chat.get_contacts()) == 9
 
         ac1._handle_current_events()
-        assert len(in_list) == 12
+        assert len(in_list) == 13
         assert in_list[-2][0] == "removed"
         assert in_list[-2][1] == chat
         assert in_list[-2][2] == contacts[9]
+        assert in_list[-1][0] == "removed"
+        assert in_list[-1][1] == chat
+        assert in_list[-1][2] == contacts[3]
 
 
 class TestOnlineAccount:
@@ -1258,6 +1278,51 @@ class TestOnlineAccount:
         lp.sec("ac2: wait for message along with avatar deletion of ac1")
         msg3 = ac2._evtracker.wait_next_incoming_message()
         assert msg3.get_sender_contact().get_profile_image() is None
+
+    def test_add_remove_member_remote_events(self, acfactory, lp):
+        ac1, ac2 = acfactory.get_two_online_accounts()
+        # activate local plugin for ac2
+        in_list = queue.Queue()
+
+        class InPlugin:
+            @account_hookimpl
+            def member_added(self, chat, contact):
+                in_list.put(("added", chat, contact))
+
+            @account_hookimpl
+            def member_removed(self, chat, contact):
+                in_list.put(("removed", chat, contact))
+
+        ac2.add_account_plugin(InPlugin())
+
+        lp.sec("ac1: create group chat with ac2")
+        chat = ac1.create_group_chat("hello")
+        contact = ac1.create_contact(email=ac2.get_config("addr"))
+        chat.add_contact(contact)
+
+        lp.sec("ac1: send a message to group chat to promote the group")
+        chat.send_text("afterwards promoted")
+        ev1 = in_list.get()
+        ev2 = in_list.get()
+        assert ev1[2] == ac2.get_self_contact()
+        assert ev2[2].addr == ac1.get_config("addr")
+
+        lp.sec("ac1: add address2")
+        contact2 = ac1.create_contact(email="not@example.org")
+        chat.add_contact(contact2)
+        ev1 = in_list.get()
+        assert ev1[2].addr == contact2.addr
+
+        lp.sec("ac1: remove address2")
+        chat.remove_contact(contact2)
+        ev1 = in_list.get()
+        assert ev1[0] == "removed"
+        assert ev1[2].addr == contact2.addr
+
+        lp.sec("ac1: remove ac2 contact from chat")
+        chat.remove_contact(contact)
+        ev1 = in_list.get()
+        assert ev1[2] == ac2.get_self_contact()
 
     def test_set_get_group_image(self, acfactory, data, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()

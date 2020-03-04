@@ -800,7 +800,6 @@ fn create_or_lookup_group(
     let mut chat_id_blocked = Blocked::Not;
     let mut recreate_member_list = false;
     let mut send_EVENT_CHAT_MODIFIED = false;
-    let mut X_MrRemoveFromGrp = None;
     let mut X_MrAddToGrp = None;
     let mut X_MrGrpNameChanged = false;
     let mut better_msg: String = From::from("");
@@ -848,22 +847,25 @@ fn create_or_lookup_group(
     // but we might not know about this group
 
     let grpname = mime_parser.get(HeaderDef::ChatGroupName).cloned();
+    let mut removed_id = 0;
 
-    if let Some(optional_field) = mime_parser.get(HeaderDef::ChatGroupMemberRemoved).cloned() {
-        X_MrRemoveFromGrp = Some(optional_field);
-        mime_parser.is_system_message = SystemMessage::MemberRemovedFromGroup;
-        let left_group = Contact::lookup_id_by_addr(context, X_MrRemoveFromGrp.as_ref().unwrap())
-            == from_id as u32;
-        better_msg = context.stock_system_msg(
-            if left_group {
-                StockMessage::MsgGroupLeft
-            } else {
-                StockMessage::MsgDelMember
-            },
-            X_MrRemoveFromGrp.as_ref().unwrap(),
-            "",
-            from_id as u32,
-        )
+    if let Some(removed_addr) = mime_parser.get(HeaderDef::ChatGroupMemberRemoved).cloned() {
+        removed_id = Contact::lookup_id_by_addr(context, &removed_addr, Origin::Unknown);
+        if removed_id == 0 {
+            warn!(context, "removed {:?} has no contact_id", removed_addr);
+        } else {
+            mime_parser.is_system_message = SystemMessage::MemberRemovedFromGroup;
+            better_msg = context.stock_system_msg(
+                if removed_id == from_id as u32 {
+                    StockMessage::MsgGroupLeft
+                } else {
+                    StockMessage::MsgDelMember
+                },
+                &removed_addr,
+                "",
+                from_id as u32,
+            );
+        }
     } else {
         let field = mime_parser.get(HeaderDef::ChatGroupMemberAdded).cloned();
         if let Some(optional_field) = field {
@@ -949,7 +951,7 @@ fn create_or_lookup_group(
             && !grpid.is_empty()
             && grpname.is_some()
             // otherwise, a pending "quit" message may pop up
-            && X_MrRemoveFromGrp.is_none()
+            && removed_id == 0
             // re-create explicitly left groups only if ourself is re-added
             && (!group_explicitly_left
                 || X_MrAddToGrp.is_some() && addr_cmp(&self_addr, X_MrAddToGrp.as_ref().unwrap()))
@@ -1083,12 +1085,8 @@ fn create_or_lookup_group(
             }
         }
         send_EVENT_CHAT_MODIFIED = true;
-    } else if let Some(removed_addr) = X_MrRemoveFromGrp {
-        let contact_id = Contact::lookup_id_by_addr(context, removed_addr);
-        if contact_id != 0 {
-            info!(context, "remove {:?} from chat id={}", contact_id, chat_id);
-            chat::remove_from_chat_contacts_table(context, chat_id, contact_id);
-        }
+    } else if removed_id > 0 {
+        chat::remove_from_chat_contacts_table(context, chat_id, removed_id);
         send_EVENT_CHAT_MODIFIED = true;
     }
 
