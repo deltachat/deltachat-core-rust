@@ -12,7 +12,6 @@ use async_imap::{
     types::{Capability, Fetch, Flag, Mailbox, Name, NameAttribute},
 };
 use async_std::sync::{Mutex, RwLock};
-use async_std::task;
 
 use crate::config::*;
 use crate::constants::*;
@@ -375,7 +374,7 @@ impl Imap {
         // the trailing underscore is correct
 
         if self.connect(context, &param).await {
-            self.ensure_configured_folders(context, true)
+            self.ensure_configured_folders(context, true).await
         } else {
             Err(Error::ConnectionFailed(format!("{}", param)))
         }
@@ -964,112 +963,112 @@ impl Imap {
         }
     }
 
-    pub fn set_seen(&self, context: &Context, folder: &str, uid: u32) -> ImapActionResult {
-        task::block_on(async move {
-            if let Some(imapresult) = self
-                .prepare_imap_operation_on_msg(context, folder, uid)
-                .await
-            {
-                return imapresult;
-            }
-            // we are connected, and the folder is selected
-            info!(context, "Marking message {}/{} as seen...", folder, uid,);
+    pub async fn set_seen(&self, context: &Context, folder: &str, uid: u32) -> ImapActionResult {
+        if let Some(imapresult) = self
+            .prepare_imap_operation_on_msg(context, folder, uid)
+            .await
+        {
+            return imapresult;
+        }
+        // we are connected, and the folder is selected
+        info!(context, "Marking message {}/{} as seen...", folder, uid,);
 
-            if self.add_flag_finalized(context, uid, "\\Seen").await {
-                ImapActionResult::Success
-            } else {
-                warn!(
-                    context,
-                    "Cannot mark message {} in folder {} as seen, ignoring.", uid, folder
-                );
-                ImapActionResult::Failed
-            }
-        })
+        if self.add_flag_finalized(context, uid, "\\Seen").await {
+            ImapActionResult::Success
+        } else {
+            warn!(
+                context,
+                "Cannot mark message {} in folder {} as seen, ignoring.", uid, folder
+            );
+            ImapActionResult::Failed
+        }
     }
 
-    pub fn delete_msg(
+    pub async fn delete_msg(
         &self,
         context: &Context,
         message_id: &str,
         folder: &str,
         uid: &mut u32,
     ) -> ImapActionResult {
-        task::block_on(async move {
-            if let Some(imapresult) = self
-                .prepare_imap_operation_on_msg(context, folder, *uid)
-                .await
-            {
-                return imapresult;
-            }
-            // we are connected, and the folder is selected
+        if let Some(imapresult) = self
+            .prepare_imap_operation_on_msg(context, folder, *uid)
+            .await
+        {
+            return imapresult;
+        }
+        // we are connected, and the folder is selected
 
-            let set = format!("{}", uid);
-            let display_imap_id = format!("{}/{}", folder, uid);
+        let set = format!("{}", uid);
+        let display_imap_id = format!("{}/{}", folder, uid);
 
-            // double-check that we are deleting the correct message-id
-            // this comes at the expense of another imap query
-            if let Some(ref mut session) = &mut *self.session.lock().await {
-                match session.uid_fetch(set, DELETE_CHECK_FLAGS).await {
-                    Ok(msgs) => {
-                        let fetch = if let Some(fetch) = msgs.first() {
-                            fetch
-                        } else {
-                            warn!(
-                                context,
-                                "Cannot delete on IMAP, {}: imap entry gone '{}'",
-                                display_imap_id,
-                                message_id,
-                            );
-                            return ImapActionResult::Failed;
-                        };
-
-                        let remote_message_id = get_fetch_headers(fetch)
-                            .and_then(|headers| prefetch_get_message_id(&headers))
-                            .unwrap_or_default();
-
-                        if remote_message_id != message_id {
-                            warn!(
-                                context,
-                                "Cannot delete on IMAP, {}: remote message-id '{}' != '{}'",
-                                display_imap_id,
-                                remote_message_id,
-                                message_id,
-                            );
-                            *uid = 0;
-                        }
-                    }
-                    Err(err) => {
+        // double-check that we are deleting the correct message-id
+        // this comes at the expense of another imap query
+        if let Some(ref mut session) = &mut *self.session.lock().await {
+            match session.uid_fetch(set, DELETE_CHECK_FLAGS).await {
+                Ok(msgs) => {
+                    let fetch = if let Some(fetch) = msgs.first() {
+                        fetch
+                    } else {
                         warn!(
                             context,
-                            "Cannot delete {} on IMAP: {}", display_imap_id, err
+                            "Cannot delete on IMAP, {}: imap entry gone '{}'",
+                            display_imap_id,
+                            message_id,
+                        );
+                        return ImapActionResult::Failed;
+                    };
+
+                    let remote_message_id = get_fetch_headers(fetch)
+                        .and_then(|headers| prefetch_get_message_id(&headers))
+                        .unwrap_or_default();
+
+                    if remote_message_id != message_id {
+                        warn!(
+                            context,
+                            "Cannot delete on IMAP, {}: remote message-id '{}' != '{}'",
+                            display_imap_id,
+                            remote_message_id,
+                            message_id,
                         );
                         *uid = 0;
                     }
                 }
+                Err(err) => {
+                    warn!(
+                        context,
+                        "Cannot delete {} on IMAP: {}", display_imap_id, err
+                    );
+                    *uid = 0;
+                }
             }
+        }
 
-            // mark the message for deletion
-            if !self.add_flag_finalized(context, *uid, "\\Deleted").await {
-                warn!(
-                    context,
-                    "Cannot mark message {} as \"Deleted\".", display_imap_id
-                );
-                ImapActionResult::Failed
-            } else {
-                emit_event!(
-                    context,
-                    Event::ImapMessageDeleted(format!(
-                        "IMAP Message {} marked as deleted [{}]",
-                        display_imap_id, message_id
-                    ))
-                );
-                self.config.write().await.selected_folder_needs_expunge = true;
-                ImapActionResult::Success
-            }
-        })
+        // mark the message for deletion
+        if !self.add_flag_finalized(context, *uid, "\\Deleted").await {
+            warn!(
+                context,
+                "Cannot mark message {} as \"Deleted\".", display_imap_id
+            );
+            ImapActionResult::Failed
+        } else {
+            emit_event!(
+                context,
+                Event::ImapMessageDeleted(format!(
+                    "IMAP Message {} marked as deleted [{}]",
+                    display_imap_id, message_id
+                ))
+            );
+            self.config.write().await.selected_folder_needs_expunge = true;
+            ImapActionResult::Success
+        }
     }
 
-    pub fn ensure_configured_folders(&self, context: &Context, create_mvbox: bool) -> Result<()> {
+    pub async fn ensure_configured_folders(
+        &self,
+        context: &Context,
+        create_mvbox: bool,
+    ) -> Result<()> {
         let folders_configured = context
             .sql
             .get_raw_config_int(context, "folders_configured");
@@ -1079,101 +1078,98 @@ impl Imap {
             return Ok(());
         }
 
-        task::block_on(async move {
-            if !self.is_connected().await {
-                return Err(Error::NoConnection);
-            }
+        if !self.is_connected().await {
+            return Err(Error::NoConnection);
+        }
 
-            info!(context, "Configuring IMAP-folders.");
+        info!(context, "Configuring IMAP-folders.");
 
-            if let Some(ref mut session) = &mut *self.session.lock().await {
-                let folders = match self.list_folders(session, context).await {
-                    Some(f) => f,
-                    None => {
-                        return Err(Error::Other("list_folders failed".to_string()));
+        if let Some(ref mut session) = &mut *self.session.lock().await {
+            let folders = match self.list_folders(session, context).await {
+                Some(f) => f,
+                None => {
+                    return Err(Error::Other("list_folders failed".to_string()));
+                }
+            };
+
+            let sentbox_folder = folders
+                .iter()
+                .find(|folder| match get_folder_meaning(folder) {
+                    FolderMeaning::SentObjects => true,
+                    _ => false,
+                });
+            info!(context, "sentbox folder is {:?}", sentbox_folder);
+
+            let delimiter = self.config.read().await.imap_delimiter;
+            let fallback_folder = format!("INBOX{}DeltaChat", delimiter);
+
+            let mut mvbox_folder = folders
+                .iter()
+                .find(|folder| folder.name() == "DeltaChat" || folder.name() == fallback_folder)
+                .map(|n| n.name().to_string());
+
+            if mvbox_folder.is_none() && create_mvbox {
+                info!(context, "Creating MVBOX-folder \"DeltaChat\"...",);
+
+                match session.create("DeltaChat").await {
+                    Ok(_) => {
+                        mvbox_folder = Some("DeltaChat".into());
+
+                        info!(context, "MVBOX-folder created.",);
                     }
-                };
+                    Err(err) => {
+                        warn!(
+                            context,
+                            "Cannot create MVBOX-folder, trying to create INBOX subfolder. ({})",
+                            err
+                        );
 
-                let sentbox_folder =
-                    folders
-                        .iter()
-                        .find(|folder| match get_folder_meaning(folder) {
-                            FolderMeaning::SentObjects => true,
-                            _ => false,
-                        });
-                info!(context, "sentbox folder is {:?}", sentbox_folder);
-
-                let delimiter = self.config.read().await.imap_delimiter;
-                let fallback_folder = format!("INBOX{}DeltaChat", delimiter);
-
-                let mut mvbox_folder = folders
-                    .iter()
-                    .find(|folder| folder.name() == "DeltaChat" || folder.name() == fallback_folder)
-                    .map(|n| n.name().to_string());
-
-                if mvbox_folder.is_none() && create_mvbox {
-                    info!(context, "Creating MVBOX-folder \"DeltaChat\"...",);
-
-                    match session.create("DeltaChat").await {
-                        Ok(_) => {
-                            mvbox_folder = Some("DeltaChat".into());
-
-                            info!(context, "MVBOX-folder created.",);
-                        }
-                        Err(err) => {
-                            warn!(
-                                context,
-                                "Cannot create MVBOX-folder, trying to create INBOX subfolder. ({})",
-                                err
-                            );
-
-                            match session.create(&fallback_folder).await {
-                                Ok(_) => {
-                                    mvbox_folder = Some(fallback_folder);
-                                    info!(
-                                        context,
-                                        "MVBOX-folder created as INBOX subfolder. ({})", err
-                                    );
-                                }
-                                Err(err) => {
-                                    warn!(context, "Cannot create MVBOX-folder. ({})", err);
-                                }
+                        match session.create(&fallback_folder).await {
+                            Ok(_) => {
+                                mvbox_folder = Some(fallback_folder);
+                                info!(
+                                    context,
+                                    "MVBOX-folder created as INBOX subfolder. ({})", err
+                                );
+                            }
+                            Err(err) => {
+                                warn!(context, "Cannot create MVBOX-folder. ({})", err);
                             }
                         }
                     }
-                    // SUBSCRIBE is needed to make the folder visible to the LSUB command
-                    // that may be used by other MUAs to list folders.
-                    // for the LIST command, the folder is always visible.
-                    if let Some(ref mvbox) = mvbox_folder {
-                        if let Err(err) = session.subscribe(mvbox).await {
-                            warn!(context, "could not subscribe to {:?}: {:?}", mvbox, err);
-                        }
+                }
+                // SUBSCRIBE is needed to make the folder visible to the LSUB command
+                // that may be used by other MUAs to list folders.
+                // for the LIST command, the folder is always visible.
+                if let Some(ref mvbox) = mvbox_folder {
+                    if let Err(err) = session.subscribe(mvbox).await {
+                        warn!(context, "could not subscribe to {:?}: {:?}", mvbox, err);
                     }
                 }
-                context
-                    .sql
-                    .set_raw_config(context, "configured_inbox_folder", Some("INBOX"))?;
-                if let Some(ref mvbox_folder) = mvbox_folder {
-                    context.sql.set_raw_config(
-                        context,
-                        "configured_mvbox_folder",
-                        Some(mvbox_folder),
-                    )?;
-                }
-                if let Some(ref sentbox_folder) = sentbox_folder {
-                    context.sql.set_raw_config(
-                        context,
-                        "configured_sentbox_folder",
-                        Some(sentbox_folder.name()),
-                    )?;
-                }
-                context
-                    .sql
-                    .set_raw_config_int(context, "folders_configured", 3)?;
             }
-            info!(context, "FINISHED configuring IMAP-folders.");
-            Ok(())
-        })
+            context
+                .sql
+                .set_raw_config(context, "configured_inbox_folder", Some("INBOX"))?;
+            if let Some(ref mvbox_folder) = mvbox_folder {
+                context.sql.set_raw_config(
+                    context,
+                    "configured_mvbox_folder",
+                    Some(mvbox_folder),
+                )?;
+            }
+            if let Some(ref sentbox_folder) = sentbox_folder {
+                context.sql.set_raw_config(
+                    context,
+                    "configured_sentbox_folder",
+                    Some(sentbox_folder.name()),
+                )?;
+            }
+            context
+                .sql
+                .set_raw_config_int(context, "folders_configured", 3)?;
+        }
+        info!(context, "FINISHED configuring IMAP-folders.");
+        Ok(())
     }
 
     async fn list_folders(&self, session: &mut Session, context: &Context) -> Option<Vec<Name>> {
@@ -1193,59 +1189,56 @@ impl Imap {
         }
     }
 
-    pub fn empty_folder(&self, context: &Context, folder: &str) {
-        task::block_on(async move {
-            info!(context, "emptying folder {}", folder);
+    pub async fn empty_folder(&self, context: &Context, folder: &str) {
+        info!(context, "emptying folder {}", folder);
 
-            // we want to report all error to the user
-            // (no retry should be attempted)
-            if folder.is_empty() {
-                error!(context, "cannot perform empty, folder not set");
-                return;
-            }
-            if let Err(err) = self.setup_handle_if_needed(context).await {
-                error!(context, "could not setup imap connection: {:?}", err);
-                return;
-            }
-            if let Err(err) = self.select_folder(context, Some(&folder)).await {
-                error!(
-                    context,
-                    "Could not select {} for expunging: {:?}", folder, err
-                );
-                return;
-            }
-
-            if !self
-                .add_flag_finalized_with_set(context, SELECT_ALL, "\\Deleted")
-                .await
-            {
-                error!(context, "Cannot mark messages for deletion {}", folder);
-                return;
-            }
-
-            // we now trigger expunge to actually delete messages
-            self.config.write().await.selected_folder_needs_expunge = true;
-            match self.select_folder::<String>(context, None).await {
-                Ok(()) => {
-                    emit_event!(context, Event::ImapFolderEmptied(folder.to_string()));
-                }
-                Err(err) => {
-                    error!(context, "expunge failed {}: {:?}", folder, err);
-                }
-            }
-
-            if let Err(err) = crate::sql::execute(
+        // we want to report all error to the user
+        // (no retry should be attempted)
+        if folder.is_empty() {
+            error!(context, "cannot perform empty, folder not set");
+            return;
+        }
+        if let Err(err) = self.setup_handle_if_needed(context).await {
+            error!(context, "could not setup imap connection: {:?}", err);
+            return;
+        }
+        if let Err(err) = self.select_folder(context, Some(&folder)).await {
+            error!(
                 context,
-                &context.sql,
-                "UPDATE msgs SET server_folder='',server_uid=0 WHERE server_folder=?",
-                params![folder],
-            ) {
-                warn!(
-                    context,
-                    "Failed to reset server_uid and server_folder for deleted messages: {}", err
-                );
+                "Could not select {} for expunging: {:?}", folder, err
+            );
+            return;
+        }
+
+        if !self
+            .add_flag_finalized_with_set(context, SELECT_ALL, "\\Deleted")
+            .await
+        {
+            error!(context, "Cannot mark messages for deletion {}", folder);
+            return;
+        }
+
+        // we now trigger expunge to actually delete messages
+        self.config.write().await.selected_folder_needs_expunge = true;
+        match self.select_folder::<String>(context, None).await {
+            Ok(()) => {
+                emit_event!(context, Event::ImapFolderEmptied(folder.to_string()));
             }
-        });
+            Err(err) => {
+                error!(context, "expunge failed {}: {:?}", folder, err);
+            }
+        }
+        if let Err(err) = crate::sql::execute(
+            context,
+            &context.sql,
+            "UPDATE msgs SET server_folder='',server_uid=0 WHERE server_folder=?",
+            params![folder],
+        ) {
+            warn!(
+                context,
+                "Failed to reset server_uid and server_folder for deleted messages: {}", err
+            );
+        }
     }
 }
 

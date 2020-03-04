@@ -24,7 +24,7 @@ impl Smtp {
     /// Send a prepared mail to recipients.
     /// On successful send out Ok() is returned.
     pub async fn send(
-        &mut self,
+        &self,
         context: &Context,
         recipients: Vec<EmailAddress>,
         message: Vec<u8>,
@@ -38,22 +38,23 @@ impl Smtp {
             .collect::<Vec<String>>()
             .join(",");
 
-        let envelope =
-            Envelope::new(self.from.clone(), recipients).map_err(Error::EnvelopeError)?;
+        let envelope = Envelope::new(self.0.read().await.from.clone(), recipients)
+            .map_err(Error::EnvelopeError)?;
         let mail = SendableEmail::new(
             envelope,
             format!("{}", job_id), // only used for internal logging
             message,
         );
 
-        if let Some(ref mut transport) = self.transport {
+        let inner = &mut *self.0.write().await;
+        if let Some(ref mut transport) = inner.transport {
             transport.send(mail).await.map_err(Error::SendError)?;
 
             context.call_cb(Event::SmtpMessageSent(format!(
                 "Message len={} was smtp-sent to {}",
                 message_len, recipients_display
             )));
-            self.last_success = Some(std::time::Instant::now());
+            inner.last_success = Some(std::time::Instant::now());
 
             Ok(())
         } else {

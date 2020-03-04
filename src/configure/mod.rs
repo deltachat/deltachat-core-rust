@@ -6,8 +6,6 @@ mod read_url;
 
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
-use async_std::task;
-
 use crate::config::Config;
 use crate::constants::*;
 use crate::context::Context;
@@ -69,28 +67,11 @@ pub(crate) async fn job_configure_imap(context: &Context) -> job::Status {
 
     let mut param_autoconfig: Option<LoginParam> = None;
 
-    context
-        .inbox_thread
-        .read()
-        .unwrap()
-        .imap
-        .disconnect(context)
-        .await;
-    context
-        .sentbox_thread
-        .read()
-        .unwrap()
-        .imap
-        .disconnect(context)
-        .await;
-    context
-        .mvbox_thread
-        .read()
-        .unwrap()
-        .imap
-        .disconnect(context)
-        .await;
-    context.smtp.clone().lock().unwrap().disconnect();
+    context.inbox_thread.imap.disconnect(context).await;
+    context.sentbox_thread.imap.disconnect(context).await;
+    context.mvbox_thread.imap.disconnect(context).await;
+    context.smtp.disconnect().await;
+
     info!(context, "Configure ...",);
 
     // Variables that are shared between steps:
@@ -360,21 +341,21 @@ pub(crate) async fn job_configure_imap(context: &Context) -> job::Status {
                 /* try to connect to IMAP - if we did not got an autoconfig,
                 do some further tries with different settings and username variations */
                 imap_connected_here =
-                    try_imap_connections(context, &mut param, param_autoconfig.is_some());
+                    try_imap_connections(context, &mut param, param_autoconfig.is_some()).await;
                 imap_connected_here
             }
             15 => {
                 progress!(context, 800);
                 smtp_connected_here =
-                    try_smtp_connections(context, &mut param, param_autoconfig.is_some());
+                    try_smtp_connections(context, &mut param, param_autoconfig.is_some()).await;
                 smtp_connected_here
             }
             16 => {
                 progress!(context, 900);
                 let create_mvbox = context.get_config_bool(Config::MvboxWatch)
                     || context.get_config_bool(Config::MvboxMove);
-                let imap = &context.inbox_thread.read().unwrap().imap;
-                if let Err(err) = imap.ensure_configured_folders(context, create_mvbox) {
+                let imap = &context.inbox_thread.imap;
+                if let Err(err) = imap.ensure_configured_folders(context, create_mvbox).await {
                     warn!(context, "configuring folders failed: {:?}", err);
                     false
                 } else {
@@ -424,16 +405,10 @@ pub(crate) async fn job_configure_imap(context: &Context) -> job::Status {
         }
     }
     if imap_connected_here {
-        context
-            .inbox_thread
-            .read()
-            .unwrap()
-            .imap
-            .disconnect(context)
-            .await;
+        context.inbox_thread.imap.disconnect(context).await;
     }
     if smtp_connected_here {
-        context.smtp.clone().lock().unwrap().disconnect();
+        context.smtp.disconnect().await;
     }
 
     // remember the entered parameters on success
@@ -522,13 +497,13 @@ fn get_offline_autoconfig(context: &Context, param: &LoginParam) -> Option<Login
     None
 }
 
-fn try_imap_connections(
+async fn try_imap_connections(
     context: &Context,
     mut param: &mut LoginParam,
     was_autoconfig: bool,
 ) -> bool {
     // progress 650 and 660
-    if let Some(res) = try_imap_connection(context, &mut param, was_autoconfig, 0) {
+    if let Some(res) = try_imap_connection(context, &mut param, was_autoconfig, 0).await {
         return res;
     }
     progress!(context, 670);
@@ -543,20 +518,20 @@ fn try_imap_connections(
         param.send_user = param.send_user.split_at(at).0.to_string();
     }
     // progress 680 and 690
-    if let Some(res) = try_imap_connection(context, &mut param, was_autoconfig, 1) {
+    if let Some(res) = try_imap_connection(context, &mut param, was_autoconfig, 1).await {
         res
     } else {
         false
     }
 }
 
-fn try_imap_connection(
+async fn try_imap_connection(
     context: &Context,
     param: &mut LoginParam,
     was_autoconfig: bool,
     variation: usize,
 ) -> Option<bool> {
-    if let Some(res) = try_imap_one_param(context, &param) {
+    if let Some(res) = try_imap_one_param(context, &param).await {
         return Some(res);
     }
     if was_autoconfig {
@@ -565,17 +540,17 @@ fn try_imap_connection(
     progress!(context, 650 + variation * 30);
     param.server_flags &= !(DC_LP_IMAP_SOCKET_FLAGS);
     param.server_flags |= DC_LP_IMAP_SOCKET_STARTTLS;
-    if let Some(res) = try_imap_one_param(context, &param) {
+    if let Some(res) = try_imap_one_param(context, &param).await {
         return Some(res);
     }
 
     progress!(context, 660 + variation * 30);
     param.mail_port = 143;
 
-    try_imap_one_param(context, &param)
+    try_imap_one_param(context, &param).await
 }
 
-fn try_imap_one_param(context: &Context, param: &LoginParam) -> Option<bool> {
+async fn try_imap_one_param(context: &Context, param: &LoginParam) -> Option<bool> {
     let inf = format!(
         "imap: {}@{}:{} flags=0x{:x} certificate_checks={}",
         param.mail_user,
@@ -585,14 +560,7 @@ fn try_imap_one_param(context: &Context, param: &LoginParam) -> Option<bool> {
         param.imap_certificate_checks
     );
     info!(context, "Trying: {}", inf);
-    if task::block_on(
-        context
-            .inbox_thread
-            .read()
-            .unwrap()
-            .imap
-            .connect(context, &param),
-    ) {
+    if context.inbox_thread.imap.connect(context, &param).await {
         info!(context, "success: {}", inf);
         return Some(true);
     }
@@ -603,13 +571,13 @@ fn try_imap_one_param(context: &Context, param: &LoginParam) -> Option<bool> {
     None
 }
 
-fn try_smtp_connections(
+async fn try_smtp_connections(
     context: &Context,
     mut param: &mut LoginParam,
     was_autoconfig: bool,
 ) -> bool {
     /* try to connect to SMTP - if we did not got an autoconfig, the first try was SSL-465 and we do a second try with STARTTLS-587 */
-    if let Some(res) = try_smtp_one_param(context, &param) {
+    if let Some(res) = try_smtp_one_param(context, &param).await {
         return res;
     }
     if was_autoconfig {
@@ -620,32 +588,26 @@ fn try_smtp_connections(
     param.server_flags |= DC_LP_SMTP_SOCKET_STARTTLS as i32;
     param.send_port = 587;
 
-    if let Some(res) = try_smtp_one_param(context, &param) {
+    if let Some(res) = try_smtp_one_param(context, &param).await {
         return res;
     }
     progress!(context, 860);
     param.server_flags &= !(DC_LP_SMTP_SOCKET_FLAGS as i32);
     param.server_flags |= DC_LP_SMTP_SOCKET_STARTTLS as i32;
     param.send_port = 25;
-    if let Some(res) = try_smtp_one_param(context, &param) {
+    if let Some(res) = try_smtp_one_param(context, &param).await {
         return res;
     }
     false
 }
 
-fn try_smtp_one_param(context: &Context, param: &LoginParam) -> Option<bool> {
+async fn try_smtp_one_param(context: &Context, param: &LoginParam) -> Option<bool> {
     let inf = format!(
         "smtp: {}@{}:{} flags: 0x{:x}",
         param.send_user, param.send_server, param.send_port, param.server_flags
     );
     info!(context, "Trying: {}", inf);
-    match context
-        .smtp
-        .clone()
-        .lock()
-        .unwrap()
-        .connect(context, &param)
-    {
+    match context.smtp.connect(context, &param).await {
         Ok(()) => {
             info!(context, "success: {}", inf);
             Some(true)

@@ -1,4 +1,4 @@
-use std::sync::{Arc, Condvar, Mutex};
+use async_std::sync::{channel, Arc, Mutex, Receiver, Sender};
 
 use crate::context::Context;
 use crate::error::{Error, Result};
@@ -9,12 +9,13 @@ pub struct JobThread {
     pub name: &'static str,
     pub folder_config_name: &'static str,
     pub imap: Imap,
-    pub state: Arc<(Mutex<JobState>, Condvar)>,
+    pub state: Arc<Mutex<JobState>>,
+    notify_sender: Sender<()>,
+    notify_receiver: Receiver<()>,
 }
 
 #[derive(Clone, Debug, Default)]
 pub struct JobState {
-    idle: bool,
     jobs_needed: bool,
     suspended: bool,
     using_handle: bool,
@@ -22,22 +23,26 @@ pub struct JobState {
 
 impl JobThread {
     pub fn new(name: &'static str, folder_config_name: &'static str, imap: Imap) -> Self {
+        let (notify_sender, notify_receiver) = channel(1);
+
         JobThread {
             name,
             folder_config_name,
             imap,
-            state: Arc::new((Mutex::new(Default::default()), Condvar::new())),
+            state: Arc::new(Mutex::new(Default::default())),
+            notify_sender,
+            notify_receiver,
         }
     }
 
     pub async fn suspend(&self, context: &Context) {
         info!(context, "Suspending {}-thread.", self.name,);
         {
-            self.state.0.lock().unwrap().suspended = true;
+            self.state.lock().await.suspended = true;
         }
         self.interrupt_idle(context).await;
         loop {
-            let using_handle = self.state.0.lock().unwrap().using_handle;
+            let using_handle = self.state.lock().await.using_handle;
             if !using_handle {
                 return;
             }
@@ -45,38 +50,45 @@ impl JobThread {
         }
     }
 
-    pub fn unsuspend(&self, context: &Context) {
+    pub async fn unsuspend(&self, context: &Context) {
         info!(context, "Unsuspending {}-thread.", self.name);
 
-        let &(ref lock, ref cvar) = &*self.state.clone();
-        let mut state = lock.lock().unwrap();
+        {
+            let lock = &*self.state.clone();
+            let mut state = lock.lock().await;
 
-        state.suspended = false;
-        state.idle = true;
-        cvar.notify_one();
+            state.suspended = false;
+        }
+        self.notify_sender.send(()).await;
+    }
+
+    pub async fn try_interrupt_idle(&self, context: &Context) -> bool {
+        if self.state.lock().await.using_handle {
+            self.interrupt_idle(context).await;
+            return true;
+        }
+
+        false
     }
 
     pub async fn interrupt_idle(&self, context: &Context) {
         {
-            self.state.0.lock().unwrap().jobs_needed = true;
+            self.state.lock().await.jobs_needed = true;
         }
 
         info!(context, "Interrupting {}-IDLE...", self.name);
 
         self.imap.interrupt_idle(context).await;
 
-        let &(ref lock, ref cvar) = &*self.state.clone();
-        let mut state = lock.lock().unwrap();
+        self.notify_sender.send(()).await;
 
-        state.idle = true;
-        cvar.notify_one();
         info!(context, "Interrupting {}-IDLE... finished", self.name);
     }
 
-    pub async fn fetch(&mut self, context: &Context, use_network: bool) {
+    pub async fn fetch(&self, context: &Context, use_network: bool) {
         {
-            let &(ref lock, _) = &*self.state.clone();
-            let mut state = lock.lock().unwrap();
+            let lock = &*self.state.clone();
+            let mut state = lock.lock().await;
 
             if state.suspended {
                 return;
@@ -94,10 +106,10 @@ impl JobThread {
                 }
             }
         }
-        self.state.0.lock().unwrap().using_handle = false;
+        self.state.lock().await.using_handle = false;
     }
 
-    async fn connect_and_fetch(&mut self, context: &Context) -> Result<()> {
+    async fn connect_and_fetch(&self, context: &Context) -> Result<()> {
         let prefix = format!("{}-fetch", self.name);
         match self.imap.connect_configured(context).await {
             Ok(()) => {
@@ -137,8 +149,8 @@ impl JobThread {
 
     pub async fn idle(&self, context: &Context, use_network: bool) {
         {
-            let &(ref lock, ref cvar) = &*self.state.clone();
-            let mut state = lock.lock().unwrap();
+            let lock = &*self.state.clone();
+            let mut state = lock.lock().await;
 
             if state.jobs_needed {
                 info!(
@@ -151,10 +163,7 @@ impl JobThread {
             }
 
             if state.suspended {
-                while !state.idle {
-                    state = cvar.wait(state).unwrap();
-                }
-                state.idle = false;
+                self.notify_receiver.recv().await;
                 return;
             }
 
@@ -162,11 +171,7 @@ impl JobThread {
 
             if !use_network {
                 state.using_handle = false;
-
-                while !state.idle {
-                    state = cvar.wait(state).unwrap();
-                }
-                state.idle = false;
+                self.notify_receiver.recv().await;
                 return;
             }
         }
@@ -174,7 +179,7 @@ impl JobThread {
         let prefix = format!("{}-IDLE", self.name);
         let do_fake_idle = match self.imap.connect_configured(context).await {
             Ok(()) => {
-                if !self.imap.can_idle() {
+                if !self.imap.can_idle().await {
                     true // we have to do fake_idle
                 } else {
                     let watch_folder = self.get_watch_folder(context);
@@ -202,6 +207,6 @@ impl JobThread {
             self.imap.fake_idle(context, watch_folder).await;
         }
 
-        self.state.0.lock().unwrap().using_handle = false;
+        self.state.lock().await.using_handle = false;
     }
 }

@@ -4,6 +4,8 @@ pub mod send;
 
 use std::time::{Duration, Instant};
 
+use async_std::sync::RwLock;
+
 use async_smtp::smtp::client::net::*;
 use async_smtp::*;
 
@@ -49,8 +51,11 @@ impl From<async_native_tls::Error> for Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+#[derive(Default, Debug)]
+pub struct Smtp(RwLock<SmtpInner>);
+
 #[derive(Default, DebugStub)]
-pub struct Smtp {
+struct SmtpInner {
     #[debug_stub(some = "SmtpTransport")]
     transport: Option<smtp::SmtpTransport>,
 
@@ -70,17 +75,18 @@ impl Smtp {
     }
 
     /// Disconnect the SMTP transport and drop it entirely.
-    pub fn disconnect(&mut self) {
-        if let Some(mut transport) = self.transport.take() {
-            async_std::task::block_on(transport.close()).ok();
+    pub async fn disconnect(&self) {
+        let inner = &mut *self.0.write().await;
+        if let Some(mut transport) = inner.transport.take() {
+            transport.close().await.ok();
         }
-        self.last_success = None;
+        inner.last_success = None;
     }
 
     /// Return true if smtp was connected but is not known to
     /// have been successfully used the last 60 seconds
-    pub fn has_maybe_stale_connection(&self) -> bool {
-        if let Some(last_success) = self.last_success {
+    pub async fn has_maybe_stale_connection(&self) -> bool {
+        if let Some(last_success) = self.0.read().await.last_success {
             Instant::now().duration_since(last_success).as_secs() > 60
         } else {
             false
@@ -88,20 +94,19 @@ impl Smtp {
     }
 
     /// Check whether we are connected.
-    pub fn is_connected(&self) -> bool {
-        self.transport
+    pub async fn is_connected(&self) -> bool {
+        self.0
+            .read()
+            .await
+            .transport
             .as_ref()
             .map(|t| t.is_connected())
             .unwrap_or_default()
     }
 
     /// Connect using the provided login params.
-    pub fn connect(&mut self, context: &Context, lp: &LoginParam) -> Result<()> {
-        async_std::task::block_on(self.inner_connect(context, lp))
-    }
-
-    async fn inner_connect(&mut self, context: &Context, lp: &LoginParam) -> Result<()> {
-        if self.is_connected() {
+    pub async fn connect(&self, context: &Context, lp: &LoginParam) -> Result<()> {
+        if self.is_connected().await {
             warn!(context, "SMTP already connected.");
             return Ok(());
         }
@@ -116,7 +121,9 @@ impl Smtp {
                 address: lp.addr.clone(),
                 error: err,
             })?;
-        self.from = Some(from);
+
+        let inner = &mut *self.0.write().await;
+        inner.from = Some(from);
 
         let domain = &lp.send_server;
         let port = lp.send_port as u16;
@@ -177,8 +184,9 @@ impl Smtp {
         let mut trans = client.into_transport();
         trans.connect().await.map_err(Error::ConnectionFailure)?;
 
-        self.transport = Some(trans);
-        self.last_success = Some(Instant::now());
+        inner.transport = Some(trans);
+        inner.last_success = Some(Instant::now());
+
         context.call_cb(Event::SmtpConnected(format!(
             "SMTP-LOGIN as {} ok",
             lp.send_user,

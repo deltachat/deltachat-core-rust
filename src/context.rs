@@ -41,10 +41,10 @@ pub struct Context {
     pub sql: Sql,
     pub perform_inbox_jobs_needed: Arc<RwLock<bool>>,
     pub probe_imap_network: Arc<RwLock<bool>>,
-    pub inbox_thread: Arc<RwLock<JobThread>>,
-    pub sentbox_thread: Arc<RwLock<JobThread>>,
-    pub mvbox_thread: Arc<RwLock<JobThread>>,
-    pub smtp: Arc<Mutex<Smtp>>,
+    pub inbox_thread: JobThread,
+    pub sentbox_thread: JobThread,
+    pub mvbox_thread: JobThread,
+    pub smtp: Smtp,
     pub smtp_state: Arc<(Mutex<SmtpState>, Condvar)>,
     pub oauth2_critical: Arc<Mutex<()>>,
     #[debug_stub = "Callback"]
@@ -113,27 +113,15 @@ impl Context {
             os_name: Some(os_name),
             running_state: Arc::new(RwLock::new(Default::default())),
             sql: Sql::new(),
-            smtp: Arc::new(Mutex::new(Smtp::new())),
+            smtp: Smtp::new(),
             smtp_state: Arc::new((Mutex::new(Default::default()), Condvar::new())),
             oauth2_critical: Arc::new(Mutex::new(())),
             bob: Arc::new(RwLock::new(Default::default())),
             last_smeared_timestamp: RwLock::new(0),
             cmdline_sel_chat_id: Arc::new(RwLock::new(ChatId::new(0))),
-            inbox_thread: Arc::new(RwLock::new(JobThread::new(
-                "INBOX",
-                "configured_inbox_folder",
-                Imap::new(),
-            ))),
-            sentbox_thread: Arc::new(RwLock::new(JobThread::new(
-                "SENTBOX",
-                "configured_sentbox_folder",
-                Imap::new(),
-            ))),
-            mvbox_thread: Arc::new(RwLock::new(JobThread::new(
-                "MVBOX",
-                "configured_mvbox_folder",
-                Imap::new(),
-            ))),
+            inbox_thread: JobThread::new("INBOX", "configured_inbox_folder", Imap::new()),
+            sentbox_thread: JobThread::new("SENTBOX", "configured_sentbox_folder", Imap::new()),
+            mvbox_thread: JobThread::new("MVBOX", "configured_mvbox_folder", Imap::new()),
             probe_imap_network: Arc::new(RwLock::new(false)),
             perform_inbox_jobs_needed: Arc::new(RwLock::new(false)),
             generating_key_mutex: Mutex::new(()),
@@ -459,28 +447,14 @@ impl Drop for Context {
     fn drop(&mut self) {
         async_std::task::block_on(async move {
             info!(self, "disconnecting inbox-thread");
-            self.inbox_thread
-                .read()
-                .unwrap()
-                .imap
-                .disconnect(self)
-                .await;
+            self.inbox_thread.imap.disconnect(self).await;
             info!(self, "disconnecting sentbox-thread");
-            self.sentbox_thread
-                .read()
-                .unwrap()
-                .imap
-                .disconnect(self)
-                .await;
+            self.sentbox_thread.imap.disconnect(self).await;
             info!(self, "disconnecting mvbox-thread");
-            self.mvbox_thread
-                .read()
-                .unwrap()
-                .imap
-                .disconnect(self)
-                .await;
+            self.mvbox_thread.imap.disconnect(self).await;
             info!(self, "disconnecting SMTP");
-            self.smtp.clone().lock().unwrap().disconnect();
+            self.smtp.disconnect().await;
+
             self.sql.close(self);
         });
     }

@@ -4,7 +4,6 @@ use async_imap::extensions::idle::{Handle as ImapIdleHandle, IdleResponse};
 use async_native_tls::TlsStream;
 use async_std::net::TcpStream;
 use async_std::prelude::*;
-use async_std::task;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, SystemTime};
 
@@ -61,12 +60,12 @@ impl Session {
 }
 
 impl Imap {
-    pub fn can_idle(&self) -> bool {
-        task::block_on(async move { self.config.read().await.can_idle })
+    pub async fn can_idle(&self) -> bool {
+        self.config.read().await.can_idle
     }
 
     pub async fn idle(&self, context: &Context, watch_folder: Option<String>) -> Result<()> {
-        if !self.can_idle() {
+        if !self.can_idle().await {
             return Err(Error::IdleAbilityMissing);
         }
 

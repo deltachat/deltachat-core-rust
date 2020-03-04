@@ -185,12 +185,15 @@ impl Job {
         // its ok/error response processing. Note that if a message
         // was sent we need to mark it in the database ASAP as we
         // otherwise might send it twice.
-        let mut smtp = context.smtp.lock().unwrap();
         if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
             info!(context, "smtp-sending out mime message:");
             println!("{}", String::from_utf8_lossy(&message));
         }
-        match smtp.send(context, recipients, message, job_id).await {
+        match context
+            .smtp
+            .send(context, recipients, message, job_id)
+            .await
+        {
             Err(crate::smtp::send::Error::SendError(err)) => {
                 // Remote error, retry later.
                 warn!(context, "SMTP failed to send: {}", err);
@@ -206,7 +209,7 @@ impl Job {
                         Status::RetryLater
                     }
                     _ => {
-                        if smtp.has_maybe_stale_connection() {
+                        if context.smtp.has_maybe_stale_connection().await {
                             info!(context, "stale connection? immediately reconnecting");
                             Status::RetryNow
                         } else {
@@ -216,13 +219,13 @@ impl Job {
                 };
 
                 // this clears last_success info
-                smtp.disconnect();
+                context.smtp.disconnect().await;
 
                 res
             }
             Err(crate::smtp::send::Error::EnvelopeError(err)) => {
                 // Local error, job is invalid, do not retry.
-                smtp.disconnect();
+                context.smtp.disconnect().await;
                 warn!(context, "SMTP job is invalid: {}", err);
                 Status::Finished(Err(Error::SmtpError(err)))
             }
@@ -241,9 +244,9 @@ impl Job {
 
     async fn send_msg_to_smtp(&mut self, context: &Context) -> Status {
         // connect to SMTP server, if not yet done
-        if !context.smtp.lock().unwrap().is_connected() {
+        if !context.smtp.is_connected().await {
             let loginparam = LoginParam::from_database(context, "configured_");
-            if let Err(err) = context.smtp.lock().unwrap().connect(context, &loginparam) {
+            if let Err(err) = context.smtp.connect(context, &loginparam).await {
                 warn!(context, "SMTP connection failure: {:?}", err);
                 return Status::RetryLater;
             }
@@ -384,10 +387,10 @@ impl Job {
             .map_err(|err| format_err!("invalid recipient: {} {:?}", addr, err)));
         let recipients = vec![recipient];
 
-        /* connect to SMTP server, if not yet done */
-        if !context.smtp.lock().unwrap().is_connected() {
+        // connect to SMTP server, if not yet done
+        if !context.smtp.is_connected().await {
             let loginparam = LoginParam::from_database(context, "configured_");
-            if let Err(err) = context.smtp.lock().unwrap().connect(context, &loginparam) {
+            if let Err(err) = context.smtp.connect(context, &loginparam).await {
                 warn!(context, "SMTP connection failure: {:?}", err);
                 return Status::RetryLater;
             }
@@ -404,11 +407,11 @@ impl Job {
     }
 
     async fn move_msg(&mut self, context: &Context) -> Status {
-        let imap_inbox = &context.inbox_thread.read().unwrap().imap;
+        let imap_inbox = &context.inbox_thread.imap;
 
         let msg = job_try!(Message::load_from_db(context, MsgId::new(self.foreign_id)));
 
-        if let Err(err) = imap_inbox.ensure_configured_folders(context, true) {
+        if let Err(err) = imap_inbox.ensure_configured_folders(context, true).await {
             warn!(context, "could not configure folders: {:?}", err);
             return Status::RetryLater;
         }
@@ -446,7 +449,7 @@ impl Job {
     }
 
     async fn delete_msg_on_imap(&mut self, context: &Context) -> Status {
-        let imap_inbox = &context.inbox_thread.read().unwrap().imap;
+        let imap_inbox = &context.inbox_thread.imap;
 
         let mut msg = job_try!(Message::load_from_db(context, MsgId::new(self.foreign_id)));
 
@@ -461,7 +464,9 @@ impl Job {
                 we delete the message from the server */
                 let mid = msg.rfc724_mid;
                 let server_folder = msg.server_folder.as_ref().unwrap();
-                let res = imap_inbox.delete_msg(context, &mid, server_folder, &mut msg.server_uid);
+                let res = imap_inbox
+                    .delete_msg(context, &mid, server_folder, &mut msg.server_uid)
+                    .await;
                 if res == ImapActionResult::RetryLater {
                     // XXX RetryLater is converted to RetryNow here
                     return Status::RetryNow;
@@ -476,28 +481,28 @@ impl Job {
     }
 
     async fn empty_server(&mut self, context: &Context) -> Status {
-        let imap_inbox = &context.inbox_thread.read().unwrap().imap;
+        let imap_inbox = &context.inbox_thread.imap;
         if self.foreign_id & DC_EMPTY_MVBOX > 0 {
             if let Some(mvbox_folder) = context
                 .sql
                 .get_raw_config(context, "configured_mvbox_folder")
             {
-                imap_inbox.empty_folder(context, &mvbox_folder);
+                imap_inbox.empty_folder(context, &mvbox_folder).await;
             }
         }
         if self.foreign_id & DC_EMPTY_INBOX > 0 {
-            imap_inbox.empty_folder(context, "INBOX");
+            imap_inbox.empty_folder(context, "INBOX").await;
         }
         Status::Finished(Ok(()))
     }
 
     async fn markseen_msg_on_imap(&mut self, context: &Context) -> Status {
-        let imap_inbox = &context.inbox_thread.read().unwrap().imap;
+        let imap_inbox = &context.inbox_thread.imap;
 
         let msg = job_try!(Message::load_from_db(context, MsgId::new(self.foreign_id)));
 
         let folder = msg.server_folder.as_ref().unwrap();
-        match imap_inbox.set_seen(context, folder, msg.server_uid) {
+        match imap_inbox.set_seen(context, folder, msg.server_uid).await {
             ImapActionResult::RetryLater => Status::RetryLater,
             ImapActionResult::AlreadyDone => Status::Finished(Ok(())),
             ImapActionResult::Success | ImapActionResult::Failed => {
@@ -525,12 +530,12 @@ impl Job {
             .unwrap_or_default()
             .to_string();
         let uid = self.param.get_int(Param::ServerUid).unwrap_or_default() as u32;
-        let imap_inbox = &context.inbox_thread.read().unwrap().imap;
-        if imap_inbox.set_seen(context, &folder, uid) == ImapActionResult::RetryLater {
+        let imap_inbox = &context.inbox_thread.imap;
+        if imap_inbox.set_seen(context, &folder, uid).await == ImapActionResult::RetryLater {
             return Status::RetryLater;
         }
         if self.param.get_bool(Param::AlsoMove).unwrap_or_default() {
-            if let Err(err) = imap_inbox.ensure_configured_folders(context, true) {
+            if let Err(err) = imap_inbox.ensure_configured_folders(context, true).await {
                 warn!(context, "configuring folders failed: {:?}", err);
                 return Status::RetryLater;
             }
@@ -584,34 +589,19 @@ pub async fn kill_ids(context: &Context, job_ids: &[u32]) -> sql::Result<()> {
 pub async fn perform_inbox_fetch(context: &Context) {
     let use_network = context.get_config_bool(Config::InboxWatch);
 
-    context
-        .inbox_thread
-        .write()
-        .unwrap()
-        .fetch(context, use_network)
-        .await;
+    context.inbox_thread.fetch(context, use_network).await;
 }
 
 pub async fn perform_mvbox_fetch(context: &Context) {
     let use_network = context.get_config_bool(Config::MvboxWatch);
 
-    context
-        .mvbox_thread
-        .write()
-        .unwrap()
-        .fetch(context, use_network)
-        .await;
+    context.mvbox_thread.fetch(context, use_network).await;
 }
 
 pub async fn perform_sentbox_fetch(context: &Context) {
     let use_network = context.get_config_bool(Config::SentboxWatch);
 
-    context
-        .sentbox_thread
-        .write()
-        .unwrap()
-        .fetch(context, use_network)
-        .await;
+    context.sentbox_thread.fetch(context, use_network).await;
 }
 
 pub async fn perform_inbox_idle(context: &Context) {
@@ -624,34 +614,19 @@ pub async fn perform_inbox_idle(context: &Context) {
     }
     let use_network = context.get_config_bool(Config::InboxWatch);
 
-    context
-        .inbox_thread
-        .read()
-        .unwrap()
-        .idle(context, use_network)
-        .await;
+    context.inbox_thread.idle(context, use_network).await;
 }
 
 pub async fn perform_mvbox_idle(context: &Context) {
     let use_network = context.get_config_bool(Config::MvboxWatch);
 
-    context
-        .mvbox_thread
-        .read()
-        .unwrap()
-        .idle(context, use_network)
-        .await;
+    context.mvbox_thread.idle(context, use_network).await;
 }
 
 pub async fn perform_sentbox_idle(context: &Context) {
     let use_network = context.get_config_bool(Config::SentboxWatch);
 
-    context
-        .sentbox_thread
-        .read()
-        .unwrap()
-        .idle(context, use_network)
-        .await;
+    context.sentbox_thread.idle(context, use_network).await;
 }
 
 pub async fn interrupt_inbox_idle(context: &Context) {
@@ -660,33 +635,18 @@ pub async fn interrupt_inbox_idle(context: &Context) {
     // because we don't know in which state the thread is.
     // If it's currently fetching then we can not get the lock
     // but we flag it for checking jobs so that idle will be skipped.
-    match context.inbox_thread.try_read() {
-        Ok(inbox_thread) => {
-            inbox_thread.interrupt_idle(context).await;
-        }
-        Err(err) => {
-            *context.perform_inbox_jobs_needed.write().unwrap() = true;
-            warn!(context, "could not interrupt idle: {}", err);
-        }
+    if !context.inbox_thread.try_interrupt_idle(context).await {
+        *context.perform_inbox_jobs_needed.write().unwrap() = true;
+        warn!(context, "could not interrupt idle");
     }
 }
 
 pub async fn interrupt_mvbox_idle(context: &Context) {
-    context
-        .mvbox_thread
-        .read()
-        .unwrap()
-        .interrupt_idle(context)
-        .await;
+    context.mvbox_thread.interrupt_idle(context).await;
 }
 
 pub async fn interrupt_sentbox_idle(context: &Context) {
-    context
-        .sentbox_thread
-        .read()
-        .unwrap()
-        .interrupt_idle(context)
-        .await;
+    context.sentbox_thread.interrupt_idle(context).await;
 }
 
 pub async fn perform_smtp_jobs(context: &Context) {
@@ -939,20 +899,8 @@ async fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
         // - they can be re-executed one time AT_ONCE, but they are not saved in the database for later execution
         if Action::ConfigureImap == job.action || Action::ImexImap == job.action {
             job::kill_action(context, job.action).await;
-            context
-                .sentbox_thread
-                .clone()
-                .read()
-                .unwrap()
-                .suspend(context)
-                .await;
-            context
-                .mvbox_thread
-                .clone()
-                .read()
-                .unwrap()
-                .suspend(context)
-                .await;
+            context.sentbox_thread.suspend(context).await;
+            context.mvbox_thread.suspend(context).await;
             suspend_smtp_thread(context, true);
         }
 
@@ -962,18 +910,8 @@ async fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
         };
 
         if Action::ConfigureImap == job.action || Action::ImexImap == job.action {
-            context
-                .sentbox_thread
-                .clone()
-                .read()
-                .unwrap()
-                .unsuspend(context);
-            context
-                .mvbox_thread
-                .clone()
-                .read()
-                .unwrap()
-                .unsuspend(context);
+            context.sentbox_thread.unsuspend(context).await;
+            context.mvbox_thread.unsuspend(context).await;
             suspend_smtp_thread(context, false);
             break;
         }
