@@ -22,6 +22,11 @@ def main():
         packages=setuptools.find_packages('src'),
         package_dir={'': 'src'},
         cffi_modules=['src/deltachat/_build.py:ffibuilder'],
+        entry_points = {
+            'pytest11': [
+                'deltachat.testplugin = deltachat.testplugin',
+            ],
+        },
         classifiers=[
             'Development Status :: 4 - Beta',
             'Intended Audience :: Developers',
