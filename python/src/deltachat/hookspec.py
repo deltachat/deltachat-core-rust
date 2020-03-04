@@ -56,6 +56,10 @@ class PerAccount:
     def member_added(self, chat, contact):
         """ Called for each contact added to a chat. """
 
+    @account_hookspec
+    def member_removed(self, chat, contact):
+        """ Called for each contact removed from a chat. """
+
 
 class Global:
     """ global hook specifications using a per-process singleton

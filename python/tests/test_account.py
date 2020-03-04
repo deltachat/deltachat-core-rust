@@ -438,19 +438,55 @@ class TestOfflineChat:
     def test_group_chat_many_members_add_remove(self, ac1, lp):
         lp.sec("ac1: creating group chat with 10 other members")
         chat = ac1.create_group_chat(name="title1")
+        # promote chat
+        chat.send_text("hello")
+        assert chat.is_promoted()
+
+        # activate local plugin
+        in_list = []
+
+        class InPlugin:
+            @account_hookimpl
+            def member_added(self, chat, contact):
+                in_list.append(("added", chat, contact))
+
+            @account_hookimpl
+            def member_removed(self, chat, contact):
+                in_list.append(("removed", chat, contact))
+
+        ac1.add_account_plugin(InPlugin())
+
+        # perform add contact many times
         contacts = []
         for i in range(10):
+            lp.sec("create contact")
             contact = ac1.create_contact("some{}@example.org".format(i))
             contacts.append(contact)
+            lp.sec("add contact")
             chat.add_contact(contact)
 
         num_contacts = len(chat.get_contacts())
         assert num_contacts == 11
 
+        # perform plugin hooks
+        ac1._handle_current_events()
+
+        assert len(in_list) == 10
+        for in_cmd, in_chat, in_contact in in_list:
+            assert in_cmd == "added"
+            assert in_chat == chat
+            assert in_contact in contacts
+
         lp.sec("ac1: removing two contacts and checking things are right")
         chat.remove_contact(contacts[9])
         chat.remove_contact(contacts[3])
         assert len(chat.get_contacts()) == 9
+
+        ac1._handle_current_events()
+        assert len(in_list) == 12
+        assert in_list[-2][0] == "removed"
+        assert in_list[-2][1] == chat
+        assert in_list[-2][2] == contacts[9]
 
 
 class TestOnlineAccount:
@@ -1390,7 +1426,9 @@ class TestGroupStressTests:
 
         lp.sec("ac2: removing one contact")
         to_remove = contacts[-1]
+
         msg.chat.remove_contact(to_remove)
+        ac2._evtracker.get_matching("DC_EVENT_MEMBER_REMOVED")
 
         lp.sec("ac1: receiving system message about contact removal")
         sysmsg = ac1._evtracker.wait_next_incoming_message()
