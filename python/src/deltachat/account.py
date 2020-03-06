@@ -283,6 +283,9 @@ class Account(object):
         """ create or get an existing chat object for the
         the specified message.
 
+        If this message is in the deaddrop chat then
+        the sender will become an accepted contact.
+
         :param message: messsage id or message instance.
         :returns: a :class:`deltachat.chat.Chat` object.
         """

@@ -22,7 +22,6 @@ def test_echo_quit_plugin(acfactory):
 
     def run_bot():
         print("*"*20 + " starting bot")
-        print("*"*20 + " bot_ac.dbpath", bot_ac.db_path)
         echo_and_quit.main([
             "echo",
             "--show-ffi",
@@ -40,6 +39,7 @@ def test_echo_quit_plugin(acfactory):
     ch1.send_text("hello")
     reply = ac1._evtracker.wait_next_incoming_message()
     assert "hello" in reply.text
+    assert reply.chat == ch1
     ch1.send_text("/quit")
     t.join()
 

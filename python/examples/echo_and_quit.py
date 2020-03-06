@@ -11,10 +11,11 @@ class EchoPlugin:
         if message.text.strip() == "/quit":
             message.account.shutdown()
         else:
-            ch = message.get_sender_chat()
+            # unconditionally accept the chat
+            message.accept_sender_contact()
             addr = message.get_sender_contact().addr
             text = message.text
-            ch.send_text("echoing from {}:\n{}".format(addr, text))
+            message.chat.send_text("echoing from {}:\n{}".format(addr, text))
 
     @deltachat.hookspec.account_hookimpl
     def process_message_delivered(self, message):
