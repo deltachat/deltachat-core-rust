@@ -128,3 +128,10 @@ class FFIEventTracker:
         """ wait for and return next incoming message. """
         ev = self.get_matching("DC_EVENT_INCOMING_MSG")
         return self.account.get_message_by_id(ev.data2)
+
+    def wait_next_messages_changed(self):
+        """ wait for and return next message-changed message or None
+        if the event contains no msgid"""
+        ev = self.get_matching("DC_EVENT_MSGS_CHANGED")
+        if ev.data2 > 0:
+            return self.account.get_message_by_id(ev.data2)

@@ -276,7 +276,7 @@ class TestOfflineChat:
 
     def test_delete_and_send_fails(self, ac1, chat1):
         chat1.delete()
-        ac1._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
+        ac1._evtracker.wait_next_messages_changed()
         with pytest.raises(ValueError):
             chat1.send_text("msg1")
 
@@ -625,8 +625,8 @@ class TestOnlineAccount:
         ev = ac1._evtracker.get_matching("DC_EVENT_DELETED_BLOB_FILE")
 
         # Second client receives only second message, but not the first
-        ev = ac1_clone._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
-        assert ac1_clone.get_message_by_id(ev.data2).text == msg_out.text
+        ev_msg = ac1_clone._evtracker.wait_next_messages_changed()
+        assert ev_msg.text == msg_out.text
 
     def test_send_file_twice_unicode_filename_mangling(self, tmpdir, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
@@ -1376,6 +1376,15 @@ class TestOnlineAccount:
         chat1b = ac1.create_chat_by_message(ev.data2)
         assert chat1b.get_profile_image() is None
         assert chat.get_profile_image() is None
+
+    def test_accept_sender_contact(self, acfactory, lp):
+        ac1, ac2 = acfactory.get_two_online_accounts()
+        ch = ac1.create_chat_by_contact(ac1.create_contact(ac2.get_config("addr")))
+        ch.send_text("hello")
+        msg = ac2._evtracker.wait_next_messages_changed()
+        assert msg.chat.is_deaddrop()
+        msg.accept_sender_contact()
+        assert not msg.chat.is_deaddrop()
 
     def test_send_receive_locations(self, acfactory, lp):
         now = datetime.utcnow()
