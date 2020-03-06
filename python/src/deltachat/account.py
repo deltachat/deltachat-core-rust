@@ -54,11 +54,11 @@ class Account(object):
         self._shutdown_event = Event()
 
         # open database
+        self.db_path = db_path
         if hasattr(db_path, "encode"):
             db_path = db_path.encode("utf8")
         if not lib.dc_open(self._dc_context, db_path, ffi.NULL):
             raise ValueError("Could not dc_open: {}".format(db_path))
-        self.db_path = db_path
         self._configkeys = self.get_config("sys.config_keys").split()
         atexit.register(self.shutdown)
 
