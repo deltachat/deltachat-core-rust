@@ -3,7 +3,8 @@
 
 import deltachat
 
-class SimpleEchoPlugin:
+
+class EchoPlugin:
     @deltachat.hookspec.account_hookimpl
     def process_incoming_message(self, message):
         print("process_incoming message", message)
@@ -20,6 +21,9 @@ class SimpleEchoPlugin:
         print("process_message_delivered", message)
 
 
-if __name__ = "__main__":
-    deltachat.run_simple_cmdline(account_plugins=[SimpleEchoPlugin()])
+def main(argv=None):
+    deltachat.run_cmdline(argv=argv, account_plugins=[EchoPlugin()])
 
+
+if __name__ == "__main__":
+    main()

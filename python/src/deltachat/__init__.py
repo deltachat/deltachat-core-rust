@@ -1,8 +1,9 @@
+import sys
+
 from . import capi, const, hookspec
 from .capi import ffi
 from .account import Account  # noqa
 from . import eventlogger
-from .util import lazydecorator
 
 from pkg_resources import get_distribution, DistributionNotFound
 try:
@@ -111,10 +112,10 @@ def run_cmdline(argv=None, account_plugins=None):
     args = parser.parse_args(argv[1:])
 
     assert args.db, "you must specify --db"
-    ac = deltachat.Account(args.db)
+    ac = Account(args.db)
 
     if args.show_ffi:
-        log = deltachat.eventlogger.FFIEventLogger(ac, "echo")
+        log = eventlogger.FFIEventLogger(ac, "echo")
         ac.add_account_plugin(log)
 
     if not ac.is_configured():
@@ -126,7 +127,8 @@ def run_cmdline(argv=None, account_plugins=None):
         ac.set_config("mvbox_watch", "0")
         ac.set_config("sentbox_watch", "0")
 
-    ac.add_account_plugin(SimpleEchoPlugin())
+    for plugin in account_plugins or []:
+        ac.add_account_plugin(plugin)
 
     # start IO threads and configure if neccessary
     ac.start()
