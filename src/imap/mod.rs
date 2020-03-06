@@ -1019,7 +1019,7 @@ impl Imap {
                                 display_imap_id,
                                 message_id,
                             );
-                            return ImapActionResult::Failed;
+                            return ImapActionResult::AlreadyDone;
                         };
 
                         let remote_message_id = get_fetch_headers(fetch)
