@@ -2,6 +2,7 @@ from . import capi, const, hookspec
 from .capi import ffi
 from .account import Account  # noqa
 from . import eventlogger
+from .util import lazydecorator
 
 from pkg_resources import get_distribution, DistributionNotFound
 try:
@@ -92,3 +93,44 @@ def unregister_global_plugin(plugin):
 
 
 register_global_plugin(eventlogger)
+
+
+def run_cmdline(argv=None, account_plugins=None):
+    """ Run a simple default command line app, registering the specified
+    account plugins. """
+    import argparse
+    if argv is None:
+        argv = sys.argv
+
+    parser = argparse.ArgumentParser(prog="simple-echo")
+    parser.add_argument("--show-ffi", action="store_true", help="show low level ffi events")
+    parser.add_argument("--db", action="store", help="database file")
+    parser.add_argument("--email", action="store", help="email address")
+    parser.add_argument("--password", action="store", help="password")
+
+    args = parser.parse_args(argv[1:])
+
+    assert args.db, "you must specify --db"
+    ac = deltachat.Account(args.db)
+
+    if args.show_ffi:
+        log = deltachat.eventlogger.FFIEventLogger(ac, "echo")
+        ac.add_account_plugin(log)
+
+    if not ac.is_configured():
+        assert args.email and args.password, (
+            "you must specify --email and --password once to configure this database/account"
+        )
+        ac.set_config("addr", args.email)
+        ac.set_config("mail_pw", args.password)
+        ac.set_config("mvbox_watch", "0")
+        ac.set_config("sentbox_watch", "0")
+
+    ac.add_account_plugin(SimpleEchoPlugin())
+
+    # start IO threads and configure if neccessary
+    ac.start()
+
+    print("{}: waiting for message".format(ac.get_config("addr")))
+
+    ac.wait_shutdown()
