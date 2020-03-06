@@ -46,7 +46,7 @@ class Account(object):
         )
 
         hook = hookspec.Global._get_plugin_manager().hook
-        hook.account_init(account=self, db_path=db_path)
+        hook.account_init(account=self)
 
         self._threads = iothreads.IOThreads(self)
         self._hook_event_queue = queue.Queue()
