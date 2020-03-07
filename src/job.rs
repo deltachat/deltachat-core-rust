@@ -469,12 +469,16 @@ impl Job {
                     imap_inbox.delete_msg(context, &mid, server_folder, msg.server_uid)
                 };
                 match res {
-                    ImapActionResult::RetryLater => {
-                        return Status::RetryLater;
-                    }
                     ImapActionResult::AlreadyDone | ImapActionResult::Success => {}
-                    ImapActionResult::Failed => {
-                        return Status::Finished(Err(format_err!("Message deletion failed")));
+                    ImapActionResult::RetryLater | ImapActionResult::Failed => {
+                        // If job has failed, for example due to some
+                        // IMAP bug, we postpone it instead of failing
+                        // immediately. This will prevent adding it
+                        // immediately again if user has enabled
+                        // automatic message deletion. Without this,
+                        // we might waste a lot of traffic constantly
+                        // retrying message deletion.
+                        return Status::RetryLater;
                     }
                 }
             }
