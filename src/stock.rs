@@ -544,17 +544,17 @@ mod tests {
     async fn test_update_device_chats() {
         let t = dummy_context();
         t.ctx.update_device_chats().ok();
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 2);
 
         chats.get_chat_id(0).delete(&t.ctx).await.ok();
         chats.get_chat_id(1).delete(&t.ctx).await.ok();
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0);
 
         // a subsequent call to update_device_chats() must not re-add manally deleted messages or chats
         t.ctx.update_device_chats().ok();
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0);
     }
 }

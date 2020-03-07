@@ -19,7 +19,6 @@ use crate::lot::{Lot, LotState, Meaning};
 use crate::mimeparser::SystemMessage;
 use crate::param::*;
 use crate::pgp::*;
-use crate::sql;
 use crate::stock::StockMessage;
 
 lazy_static! {
@@ -219,12 +218,12 @@ impl Message {
         msg
     }
 
-    pub fn load_from_db(context: &Context, id: MsgId) -> Result<Message, Error> {
+    pub async fn load_from_db(context: &Context, id: MsgId) -> Result<Message, Error> {
         ensure!(
             !id.is_special(),
             "Can not load special message IDs from DB."
         );
-        context
+        let msg = context
             .sql
             .query_row(
                 concat!(
@@ -302,25 +301,23 @@ impl Message {
                     Ok(msg)
                 },
             )
-            .map_err(Into::into)
+            .await?;
+
+        Ok(msg)
     }
 
-    pub fn delete_from_db(context: &Context, msg_id: MsgId) {
-        if let Ok(msg) = Message::load_from_db(context, msg_id) {
-            sql::execute(
-                context,
-                &context.sql,
-                "DELETE FROM msgs WHERE id=?;",
-                params![msg.id],
-            )
-            .ok();
-            sql::execute(
-                context,
-                &context.sql,
-                "DELETE FROM msgs_mdns WHERE msg_id=?;",
-                params![msg.id],
-            )
-            .ok();
+    pub async fn delete_from_db(context: &Context, msg_id: MsgId) {
+        if let Ok(msg) = Message::load_from_db(context, msg_id).await {
+            context
+                .sql
+                .execute("DELETE FROM msgs WHERE id=?;", params![msg.id])
+                .await
+                .ok();
+            context
+                .sql
+                .execute("DELETE FROM msgs_mdns WHERE msg_id=?;", params![msg.id])
+                .await
+                .ok();
         }
     }
 
@@ -477,13 +474,13 @@ impl Message {
         self.param.get_int(Param::GuaranteeE2ee).unwrap_or_default() != 0
     }
 
-    pub fn get_summary(&mut self, context: &Context, chat: Option<&Chat>) -> Lot {
+    pub async fn get_summary(&mut self, context: &Context, chat: Option<&Chat>) -> Lot {
         let mut ret = Lot::new();
 
         let chat_loaded: Chat;
         let chat = if let Some(chat) = chat {
             chat
-        } else if let Ok(chat) = Chat::load_from_db(context, self.chat_id) {
+        } else if let Ok(chat) = Chat::load_from_db(context, self.chat_id).await {
             chat_loaded = chat;
             &chat_loaded
         } else {
@@ -493,7 +490,7 @@ impl Message {
         let contact = if self.from_id != DC_CONTACT_ID_SELF as u32
             && (chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup)
         {
-            Contact::get_by_id(context, self.from_id).ok()
+            Contact::get_by_id(context, self.from_id).await.ok()
         } else {
             None
         };
@@ -615,14 +612,15 @@ impl Message {
         self.save_param_to_disk(context);
     }
 
-    pub fn save_param_to_disk(&mut self, context: &Context) -> bool {
-        sql::execute(
-            context,
-            &context.sql,
-            "UPDATE msgs SET param=? WHERE id=?;",
-            params![self.param.to_string(), self.id],
-        )
-        .is_ok()
+    pub async fn save_param_to_disk(&mut self, context: &Context) -> bool {
+        context
+            .sql
+            .execute(
+                "UPDATE msgs SET param=? WHERE id=?;",
+                params![self.param.to_string(), self.id],
+            )
+            .await
+            .is_ok()
     }
 }
 
@@ -793,21 +791,24 @@ impl Lot {
     }
 }
 
-pub fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
+pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
     let mut ret = String::new();
 
-    let msg = Message::load_from_db(context, msg_id);
+    let msg = Message::load_from_db(context, msg_id).await;
     if msg.is_err() {
         return ret;
     }
 
     let msg = msg.unwrap_or_default();
 
-    let rawtxt: Option<String> = context.sql.query_get_value(
-        context,
-        "SELECT txt_raw FROM msgs WHERE id=?;",
-        params![msg_id],
-    );
+    let rawtxt: Option<String> = context
+        .sql
+        .query_get_value(
+            context,
+            "SELECT txt_raw FROM msgs WHERE id=?;",
+            params![msg_id],
+        )
+        .await;
 
     if rawtxt.is_none() {
         ret += &format!("Cannot load message {}.", msg_id);
@@ -820,6 +821,7 @@ pub fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
     ret += &format!("Sent: {}", fts);
 
     let name = Contact::load_from_db(context, msg.from_id)
+        .await
         .map(|contact| contact.get_name_n_addr())
         .unwrap_or_default();
 
@@ -952,7 +954,7 @@ pub fn get_mime_headers(context: &Context, msg_id: MsgId) -> Option<String> {
 
 pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) {
     for msg_id in msg_ids.iter() {
-        if let Ok(msg) = Message::load_from_db(context, *msg_id) {
+        if let Ok(msg) = Message::load_from_db(context, *msg_id).await {
             if msg.location_id > 0 {
                 delete_poi_location(context, msg.location_id);
             }
@@ -978,24 +980,26 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) {
     }
 }
 
-fn update_msg_chat_id(context: &Context, msg_id: MsgId, chat_id: ChatId) -> bool {
-    sql::execute(
-        context,
-        &context.sql,
-        "UPDATE msgs SET chat_id=? WHERE id=?;",
-        params![chat_id, msg_id],
-    )
-    .is_ok()
+async fn update_msg_chat_id(context: &Context, msg_id: MsgId, chat_id: ChatId) -> bool {
+    context
+        .sql
+        .execute(
+            "UPDATE msgs SET chat_id=? WHERE id=?;",
+            params![chat_id, msg_id],
+        )
+        .await
+        .is_ok()
 }
 
-fn delete_poi_location(context: &Context, location_id: u32) -> bool {
-    sql::execute(
-        context,
-        &context.sql,
-        "DELETE FROM locations WHERE independent = 1 AND id=?;",
-        params![location_id as i32],
-    )
-    .is_ok()
+async fn delete_poi_location(context: &Context, location_id: u32) -> bool {
+    context
+        .sql
+        .execute(
+            "DELETE FROM locations WHERE independent = 1 AND id=?;",
+            params![location_id as i32],
+        )
+        .await
+        .is_ok()
 }
 
 pub async fn markseen_msgs(context: &Context, msg_ids: &[MsgId]) -> bool {
@@ -1003,16 +1007,18 @@ pub async fn markseen_msgs(context: &Context, msg_ids: &[MsgId]) -> bool {
         return false;
     }
 
-    let msgs = context.sql.prepare(
-        concat!(
-            "SELECT",
-            "    m.state AS state,",
-            "    c.blocked AS blocked",
-            " FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id",
-            " WHERE m.id=? AND m.chat_id>9"
-        ),
-        |mut stmt, _| {
-            let mut res = Vec::with_capacity(msg_ids.len());
+    let msgs = context
+        .sql
+        .with_conn(|conn| {
+            let mut stmt = conn.prepare_cached(concat!(
+                "SELECT",
+                "    m.state AS state,",
+                "    c.blocked AS blocked",
+                " FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id",
+                " WHERE m.id=? AND m.chat_id>9"
+            ))?;
+
+            let mut msgs = Vec::with_capacity(msg_ids.len());
             for id in msg_ids.iter() {
                 let query_res = stmt.query_row(params![*id], |row| {
                     Ok((
@@ -1024,20 +1030,18 @@ pub async fn markseen_msgs(context: &Context, msg_ids: &[MsgId]) -> bool {
                 if let Err(rusqlite::Error::QueryReturnedNoRows) = query_res {
                     continue;
                 }
-                let (state, blocked) = query_res?;
-                res.push((id, state, blocked));
+                let (state, blocked) = query_res
+                    .map_err(|err| Error::SqlError(err.into()))
+                    .expect("query fail");
+                msgs.push((id, state, blocked));
             }
 
-            Ok(res)
-        },
-    );
+            Ok(msgs)
+        })
+        .await
+        .unwrap_or_default();
 
-    if msgs.is_err() {
-        warn!(context, "markseen_msgs failed: {:?}", msgs);
-        return false;
-    }
     let mut send_event = false;
-    let msgs = msgs.unwrap_or_default();
 
     for (id, curr_state, curr_blocked) in msgs.into_iter() {
         if curr_blocked == Blocked::Not {
@@ -1071,14 +1075,15 @@ pub async fn markseen_msgs(context: &Context, msg_ids: &[MsgId]) -> bool {
     true
 }
 
-pub fn update_msg_state(context: &Context, msg_id: MsgId, state: MessageState) -> bool {
-    sql::execute(
-        context,
-        &context.sql,
-        "UPDATE msgs SET state=? WHERE id=?;",
-        params![state, msg_id],
-    )
-    .is_ok()
+pub async fn update_msg_state(context: &Context, msg_id: MsgId, state: MessageState) -> bool {
+    context
+        .sql
+        .execute(
+            "UPDATE msgs SET state=? WHERE id=?;",
+            params![state, msg_id],
+        )
+        .await
+        .is_ok()
 }
 
 pub fn star_msgs(context: &Context, msg_ids: &[MsgId], star: bool) -> bool {
@@ -1189,8 +1194,8 @@ pub fn exists(context: &Context, msg_id: MsgId) -> bool {
     }
 }
 
-pub fn set_msg_failed(context: &Context, msg_id: MsgId, error: Option<impl AsRef<str>>) {
-    if let Ok(mut msg) = Message::load_from_db(context, msg_id) {
+pub async fn set_msg_failed(context: &Context, msg_id: MsgId, error: Option<impl AsRef<str>>) {
+    if let Ok(mut msg) = Message::load_from_db(context, msg_id).await {
         if msg.state.can_fail() {
             msg.state = MessageState::OutFailed;
         }
@@ -1199,13 +1204,14 @@ pub fn set_msg_failed(context: &Context, msg_id: MsgId, error: Option<impl AsRef
             error!(context, "{}", error.as_ref());
         }
 
-        if sql::execute(
-            context,
-            &context.sql,
-            "UPDATE msgs SET state=?, param=? WHERE id=?;",
-            params![msg.state, msg.param.to_string(), msg_id],
-        )
-        .is_ok()
+        if context
+            .sql
+            .execute(
+                "UPDATE msgs SET state=?, param=? WHERE id=?;",
+                params![msg.state, msg.param.to_string(), msg_id],
+            )
+            .await
+            .is_ok()
         {
             context.call_cb(Event::MsgFailed {
                 chat_id: msg.chat_id,
@@ -1429,21 +1435,22 @@ mod tests {
         let d = test::dummy_context();
         let ctx = &d.ctx;
 
-        let contact =
-            Contact::create(ctx, "", "dest@example.com").expect("failed to create contact");
+        let contact = Contact::create(ctx, "", "dest@example.com")
+            .await
+            .expect("failed to create contact");
 
         let res = ctx
             .set_config(Config::ConfiguredAddr, Some("self@example.com"))
             .await;
         assert!(res.is_ok());
 
-        let chat = chat::create_by_contact_id(ctx, contact).unwrap();
+        let chat = chat::create_by_contact_id(ctx, contact).await.unwrap();
 
         let mut msg = Message::new(Viewtype::Text);
 
-        let msg_id = chat::prepare_msg(ctx, chat, &mut msg).unwrap();
+        let msg_id = chat::prepare_msg(ctx, chat, &mut msg).await.unwrap();
 
-        let _msg2 = Message::load_from_db(ctx, msg_id).unwrap();
+        let _msg2 = Message::load_from_db(ctx, msg_id).await.unwrap();
         assert_eq!(_msg2.get_filemime(), None);
     }
 

@@ -143,35 +143,40 @@ fn get_self_fingerprint(context: &Context) -> Option<String> {
     None
 }
 
+async fn cleanup(
+    context: &Context,
+    contact_chat_id: ChatId,
+    ongoing_allocated: bool,
+    join_vg: bool,
+) -> ChatId {
+    let mut bob = context.bob.write().unwrap();
+    bob.expects = 0;
+    let ret_chat_id: ChatId = if bob.status == DC_BOB_SUCCESS {
+        if join_vg {
+            chat::get_chat_id_by_grpid(
+                context,
+                bob.qr_scan.as_ref().unwrap().text2.as_ref().unwrap(),
+            )
+            .await
+            .unwrap_or((ChatId::new(0), false, Blocked::Not))
+            .0
+        } else {
+            contact_chat_id
+        }
+    } else {
+        ChatId::new(0)
+    };
+    bob.qr_scan = None;
+
+    if ongoing_allocated {
+        context.free_ongoing();
+    }
+    ret_chat_id
+}
+
 /// Take a scanned QR-code and do the setup-contact/join-group handshake.
 /// See the ffi-documentation for more details.
 pub async fn dc_join_securejoin(context: &Context, qr: &str) -> ChatId {
-    let cleanup =
-        |context: &Context, contact_chat_id: ChatId, ongoing_allocated: bool, join_vg: bool| {
-            let mut bob = context.bob.write().unwrap();
-            bob.expects = 0;
-            let ret_chat_id: ChatId = if bob.status == DC_BOB_SUCCESS {
-                if join_vg {
-                    chat::get_chat_id_by_grpid(
-                        context,
-                        bob.qr_scan.as_ref().unwrap().text2.as_ref().unwrap(),
-                    )
-                    .unwrap_or((ChatId::new(0), false, Blocked::Not))
-                    .0
-                } else {
-                    contact_chat_id
-                }
-            } else {
-                ChatId::new(0)
-            };
-            bob.qr_scan = None;
-
-            if ongoing_allocated {
-                context.free_ongoing();
-            }
-            ret_chat_id
-        };
-
     /*========================================================
     ====             Bob - the joiner's side             =====
     ====   Step 2 in "Setup verified contact" protocol   =====
@@ -181,25 +186,25 @@ pub async fn dc_join_securejoin(context: &Context, qr: &str) -> ChatId {
     let mut join_vg: bool = false;
 
     info!(context, "Requesting secure-join ...",);
-    ensure_secret_key_exists(context).ok();
+    ensure_secret_key_exists(context).await.ok();
     if !context.alloc_ongoing() {
-        return cleanup(&context, contact_chat_id, false, join_vg);
+        return cleanup(&context, contact_chat_id, false, join_vg).await;
     }
-    let qr_scan = check_qr(context, &qr);
+    let qr_scan = check_qr(context, &qr).await;
     if qr_scan.state != LotState::QrAskVerifyContact && qr_scan.state != LotState::QrAskVerifyGroup
     {
         error!(context, "Unknown QR code.",);
-        return cleanup(&context, contact_chat_id, true, join_vg);
+        return cleanup(&context, contact_chat_id, true, join_vg).await;
     }
-    contact_chat_id = match chat::create_by_contact_id(context, qr_scan.id) {
+    contact_chat_id = match chat::create_by_contact_id(context, qr_scan.id).await {
         Ok(chat_id) => chat_id,
         Err(_) => {
             error!(context, "Unknown contact.");
-            return cleanup(&context, contact_chat_id, true, join_vg);
+            return cleanup(&context, contact_chat_id, true, join_vg).await;
         }
     };
     if context.shall_stop_ongoing() {
-        return cleanup(&context, contact_chat_id, true, join_vg);
+        return cleanup(&context, contact_chat_id, true, join_vg).await;
     }
     join_vg = qr_scan.get_state() == LotState::QrAskVerifyGroup;
     {
@@ -266,7 +271,7 @@ pub async fn dc_join_securejoin(context: &Context, qr: &str) -> ChatId {
         while !context.shall_stop_ongoing() {
             std::thread::sleep(std::time::Duration::from_millis(200));
         }
-        cleanup(&context, contact_chat_id, true, join_vg)
+        cleanup(&context, contact_chat_id, true, join_vg).await
     } else {
         // for a one-to-one-chat, the chat is already known, return the chat-id,
         // the verification runs in background
@@ -412,7 +417,7 @@ pub(crate) async fn handle_securejoin_handshake(
     );
 
     let contact_chat_id =
-        match chat::create_or_lookup_by_contact_id(context, contact_id, Blocked::Not) {
+        match chat::create_or_lookup_by_contact_id(context, contact_id, Blocked::Not).await {
             Ok((chat_id, blocked)) => {
                 if blocked != Blocked::Not {
                     chat_id.unblock(context);
@@ -447,7 +452,7 @@ pub(crate) async fn handle_securejoin_handshake(
                     return Ok(HandshakeMessage::Ignore);
                 }
             };
-            if !token::exists(context, token::Namespace::InviteNumber, &invitenumber) {
+            if !token::exists(context, token::Namespace::InviteNumber, &invitenumber).await {
                 warn!(context, "Secure-join denied (bad invitenumber).");
                 return Ok(HandshakeMessage::Ignore);
             }
@@ -583,7 +588,7 @@ pub(crate) async fn handle_securejoin_handshake(
                     return Ok(HandshakeMessage::Ignore);
                 }
             };
-            if !token::exists(context, token::Namespace::Auth, &auth_0) {
+            if !token::exists(context, token::Namespace::Auth, &auth_0).await {
                 could_not_establish_secure_connection(context, contact_chat_id, "Auth invalid.");
                 return Ok(HandshakeMessage::Ignore);
             }
@@ -611,7 +616,7 @@ pub(crate) async fn handle_securejoin_handshake(
                         return Ok(HandshakeMessage::Ignore);
                     }
                 };
-                match chat::get_chat_id_by_grpid(context, field_grpid) {
+                match chat::get_chat_id_by_grpid(context, field_grpid).await {
                     Ok((group_chat_id, _, _)) => {
                         if let Err(err) =
                             chat::add_contact_to_chat_ex(context, group_chat_id, contact_id, true)
@@ -672,6 +677,7 @@ pub(crate) async fn handle_securejoin_handshake(
                 // only after we have returned.  It does not impact
                 // the security invariants of secure-join however.
                 let (_, is_verified_group, _) = chat::get_chat_id_by_grpid(context, &group_id)
+                    .await
                     .unwrap_or((ChatId::new(0), false, Blocked::Not));
                 // when joining a non-verified group
                 // the vg-member-added message may be unencrypted
@@ -711,6 +717,7 @@ pub(crate) async fn handle_securejoin_handshake(
             if join_vg
                 && !context
                     .is_self_addr(cg_member_added)
+                    .await
                     .map_err(|_| HandshakeError::NoSelfAddr)?
             {
                 info!(context, "Message belongs to a different handshake (scaled up contact anyway to allow creation of group).");
@@ -744,7 +751,7 @@ pub(crate) async fn handle_securejoin_handshake(
             ====  Step 8 in "Out-of-band verified groups" protocol  ====
             ==========================================================*/
 
-            if let Ok(contact) = Contact::get_by_id(context, contact_id) {
+            if let Ok(contact) = Contact::get_by_id(context, contact_id).await {
                 if contact.is_verified(context) == VerifiedStatus::Unverified {
                     warn!(context, "vg-member-added-received invalid.",);
                     return Ok(HandshakeMessage::Ignore);
@@ -756,6 +763,7 @@ pub(crate) async fn handle_securejoin_handshake(
                     .map(|s| s.as_str())
                     .unwrap_or_else(|| "");
                 let (group_chat_id, _, _) = chat::get_chat_id_by_grpid(context, &field_grpid)
+                    .await
                     .map_err(|err| {
                         warn!(context, "Failed to lookup chat_id from grpid: {}", err);
                         HandshakeError::ChatNotFound {
@@ -868,18 +876,25 @@ fn encrypted_and_signed(
     }
 }
 
-pub fn handle_degrade_event(context: &Context, peerstate: &Peerstate) -> Result<(), Error> {
+pub async fn handle_degrade_event(
+    context: &Context,
+    peerstate: &Peerstate<'_>,
+) -> Result<(), Error> {
     // - we do not issue an warning for DC_DE_ENCRYPTION_PAUSED as this is quite normal
     // - currently, we do not issue an extra warning for DC_DE_VERIFICATION_LOST - this always comes
     //   together with DC_DE_FINGERPRINT_CHANGED which is logged, the idea is not to bother
     //   with things they cannot fix, so the user is just kicked from the verified group
     //   (and he will know this and can fix this)
     if Some(DegradeEvent::FingerprintChanged) == peerstate.degrade_event {
-        let contact_id: i32 = match context.sql.query_get_value(
-            context,
-            "SELECT id FROM contacts WHERE addr=?;",
-            params![&peerstate.addr],
-        ) {
+        let contact_id: i32 = match context
+            .sql
+            .query_get_value(
+                context,
+                "SELECT id FROM contacts WHERE addr=?;",
+                params![&peerstate.addr],
+            )
+            .await
+        {
             None => bail!(
                 "contact with peerstate.addr {:?} not found",
                 &peerstate.addr
@@ -889,6 +904,7 @@ pub fn handle_degrade_event(context: &Context, peerstate: &Peerstate) -> Result<
         if contact_id > 0 {
             let (contact_chat_id, _) =
                 chat::create_or_lookup_by_contact_id(context, contact_id as u32, Blocked::Deaddrop)
+                    .await
                     .unwrap_or_default();
 
             let msg = context

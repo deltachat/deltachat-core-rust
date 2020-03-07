@@ -27,18 +27,18 @@ pub struct EncryptHelper {
 }
 
 impl EncryptHelper {
-    pub fn new(context: &Context) -> Result<EncryptHelper> {
+    pub async fn new(context: &Context) -> Result<EncryptHelper> {
         let prefer_encrypt =
-            EncryptPreference::from_i32(context.get_config_int(Config::E2eeEnabled))
+            EncryptPreference::from_i32(context.get_config_int(Config::E2eeEnabled).await)
                 .unwrap_or_default();
-        let addr = match context.get_config(Config::ConfiguredAddr) {
+        let addr = match context.get_config(Config::ConfiguredAddr).await {
             None => {
                 bail!("addr not configured!");
             }
             Some(addr) => addr,
         };
 
-        let public_key = load_or_generate_self_public_key(context, &addr)?;
+        let public_key = load_or_generate_self_public_key(context, &addr).await?;
 
         Ok(EncryptHelper {
             prefer_encrypt,
@@ -88,12 +88,12 @@ impl EncryptHelper {
     }
 
     /// Tries to encrypt the passed in `mail`.
-    pub fn encrypt(
+    pub async fn encrypt(
         &mut self,
         context: &Context,
         min_verified: PeerstateVerifiedStatus,
         mail_to_encrypt: lettre_email::PartBuilder,
-        peerstates: &[(Option<Peerstate>, &str)],
+        peerstates: &[(Option<Peerstate<'_>>, &str)],
     ) -> Result<String> {
         let mut keyring = Keyring::default();
 
@@ -109,6 +109,7 @@ impl EncryptHelper {
         let public_key = Key::from(self.public_key.clone());
         keyring.add_ref(&public_key);
         let sign_key = Key::from_self_private(context, self.addr.clone(), &context.sql)
+            .await
             .ok_or_else(|| format_err!("missing own private key"))?;
 
         let raw_message = mail_to_encrypt.build().as_string().into_bytes();
@@ -119,7 +120,7 @@ impl EncryptHelper {
     }
 }
 
-pub fn try_decrypt(
+pub async fn try_decrypt(
     context: &Context,
     mail: &ParsedMail<'_>,
     message_time: i64,
@@ -141,14 +142,14 @@ pub fn try_decrypt(
         if let Some(ref mut peerstate) = peerstate {
             if let Some(ref header) = autocryptheader {
                 peerstate.apply_header(&header, message_time);
-                peerstate.save_to_db(&context.sql, false)?;
+                peerstate.save_to_db(&context.sql, false).await?;
             } else if message_time > peerstate.last_seen_autocrypt && !contains_report(mail) {
                 peerstate.degrade_encryption(message_time);
-                peerstate.save_to_db(&context.sql, false)?;
+                peerstate.save_to_db(&context.sql, false).await?;
             }
         } else if let Some(ref header) = autocryptheader {
             let p = Peerstate::from_header(context, header, message_time);
-            p.save_to_db(&context.sql, true)?;
+            p.save_to_db(&context.sql, true).await?;
             peerstate = Some(p);
         }
     }
@@ -158,16 +159,19 @@ pub fn try_decrypt(
     let mut public_keyring_for_validate = Keyring::default();
     let mut out_mail = None;
     let mut signatures = HashSet::default();
-    let self_addr = context.get_config(Config::ConfiguredAddr);
+    let self_addr = context.get_config(Config::ConfiguredAddr).await;
 
     if let Some(self_addr) = self_addr {
-        if private_keyring.load_self_private_for_decrypting(context, self_addr, &context.sql) {
+        if private_keyring
+            .load_self_private_for_decrypting(context, self_addr, &context.sql)
+            .await
+        {
             if peerstate.as_ref().map(|p| p.last_seen).unwrap_or_else(|| 0) == 0 {
                 peerstate = Peerstate::from_addr(&context, &context.sql, &from);
             }
             if let Some(ref peerstate) = peerstate {
                 if peerstate.degrade_event.is_some() {
-                    handle_degrade_event(context, &peerstate)?;
+                    handle_degrade_event(context, &peerstate).await?;
                 }
                 if let Some(ref key) = peerstate.gossip_key {
                     public_keyring_for_validate.add_ref(key);
@@ -195,18 +199,18 @@ pub fn try_decrypt(
 /// storing a new one when one doesn't exist yet.  Care is taken to
 /// only generate one key per context even when multiple threads call
 /// this function concurrently.
-fn load_or_generate_self_public_key(
+async fn load_or_generate_self_public_key(
     context: &Context,
     self_addr: impl AsRef<str>,
 ) -> Result<SignedPublicKey> {
-    if let Some(key) = Key::from_self_public(context, &self_addr, &context.sql) {
+    if let Some(key) = Key::from_self_public(context, &self_addr, &context.sql).await {
         return SignedPublicKey::try_from(key)
             .map_err(|_| Error::Message("Not a public key".into()));
     }
     let _guard = context.generating_key_mutex.lock().unwrap();
 
     // Check again in case the key was generated while we were waiting for the lock.
-    if let Some(key) = Key::from_self_public(context, &self_addr, &context.sql) {
+    if let Some(key) = Key::from_self_public(context, &self_addr, &context.sql).await {
         return SignedPublicKey::try_from(key)
             .map_err(|_| Error::Message("Not a public key".into()));
     }
@@ -214,10 +218,10 @@ fn load_or_generate_self_public_key(
     let start = std::time::Instant::now();
 
     let keygen_type =
-        KeyGenType::from_i32(context.get_config_int(Config::KeyGenType)).unwrap_or_default();
+        KeyGenType::from_i32(context.get_config_int(Config::KeyGenType).await).unwrap_or_default();
     info!(context, "Generating keypair with type {}", keygen_type);
     let keypair = pgp::create_keypair(EmailAddress::new(self_addr.as_ref())?, keygen_type)?;
-    key::store_self_keypair(context, &keypair, KeyPairUse::Default)?;
+    key::store_self_keypair(context, &keypair, KeyPairUse::Default).await?;
     info!(
         context,
         "Keypair generated in {:.3}s.",
@@ -347,14 +351,18 @@ fn contains_report(mail: &ParsedMail<'_>) -> bool {
 ///
 /// If this succeeds you are also guaranteed that the
 /// [Config::ConfiguredAddr] is configured, this address is returned.
-pub fn ensure_secret_key_exists(context: &Context) -> Result<String> {
-    let self_addr = context.get_config(Config::ConfiguredAddr).ok_or_else(|| {
-        format_err!(concat!(
-            "Failed to get self address, ",
-            "cannot ensure secret key if not configured."
-        ))
-    })?;
-    load_or_generate_self_public_key(context, &self_addr)?;
+pub async fn ensure_secret_key_exists(context: &Context) -> Result<String> {
+    let self_addr = context
+        .get_config(Config::ConfiguredAddr)
+        .await
+        .ok_or_else(|| {
+            format_err!(concat!(
+                "Failed to get self address, ",
+                "cannot ensure secret key if not configured."
+            ))
+        })?;
+    load_or_generate_self_public_key(context, &self_addr).await?;
+
     Ok(self_addr)
 }
 
@@ -371,7 +379,7 @@ mod tests {
         async fn test_prexisting() {
             let t = dummy_context();
             let test_addr = configure_alice_keypair(&t.ctx).await;
-            assert_eq!(ensure_secret_key_exists(&t.ctx).unwrap(), test_addr);
+            assert_eq!(ensure_secret_key_exists(&t.ctx).await.unwrap(), test_addr);
         }
 
         #[test]
@@ -412,7 +420,7 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         async fn test_existing() {
             let t = dummy_context();
             let addr = configure_alice_keypair(&t.ctx).await;
-            let key = load_or_generate_self_public_key(&t.ctx, addr);
+            let key = load_or_generate_self_public_key(&t.ctx, addr).await;
             assert!(key.is_ok());
         }
 

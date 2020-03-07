@@ -40,13 +40,13 @@ impl Into<Lot> for Error {
 /// Check a scanned QR code.
 /// The function should be called after a QR code is scanned.
 /// The function takes the raw text scanned and checks what can be done with it.
-pub fn check_qr(context: &Context, qr: impl AsRef<str>) -> Lot {
+pub async fn check_qr(context: &Context, qr: impl AsRef<str>) -> Lot {
     let qr = qr.as_ref();
 
     info!(context, "Scanned QR code: {}", qr);
 
     if qr.starts_with(OPENPGP4FPR_SCHEME) {
-        decode_openpgp(context, qr)
+        decode_openpgp(context, qr).await
     } else if qr.starts_with(DCACCOUNT_SCHEME) {
         decode_account(context, qr)
     } else if qr.starts_with(MAILTO_SCHEME) {
@@ -66,7 +66,7 @@ pub fn check_qr(context: &Context, qr: impl AsRef<str>) -> Lot {
 
 /// scheme: `OPENPGP4FPR:FINGERPRINT#a=ADDR&n=NAME&i=INVITENUMBER&s=AUTH`
 ///     or: `OPENPGP4FPR:FINGERPRINT#a=ADDR&g=GROUPNAME&x=GROUPID&i=INVITENUMBER&s=AUTH`
-fn decode_openpgp(context: &Context, qr: &str) -> Lot {
+async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
     let payload = &qr[OPENPGP4FPR_SCHEME.len()..];
 
     let (fingerprint, fragment) = match payload.find('#').map(|offset| {
@@ -152,10 +152,12 @@ fn decode_openpgp(context: &Context, qr: &str) -> Lot {
                 peerstate.addr.clone(),
                 Origin::UnhandledQrScan,
             )
+            .await
             .map(|(id, _)| id)
             .unwrap_or_default();
 
             let (id, _) = chat::create_or_lookup_by_contact_id(context, lot.id, Blocked::Deaddrop)
+                .await
                 .unwrap_or_default();
 
             chat::add_info_msg(context, id, format!("{} verified.", peerstate.addr));
@@ -172,6 +174,7 @@ fn decode_openpgp(context: &Context, qr: &str) -> Lot {
             lot.state = LotState::QrAskVerifyContact;
         }
         lot.id = Contact::add_or_lookup(context, &name, &addr, Origin::UnhandledQrScan)
+            .await
             .map(|(id, _)| id)
             .unwrap_or_default();
 

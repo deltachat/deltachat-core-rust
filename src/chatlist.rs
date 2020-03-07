@@ -85,7 +85,7 @@ impl Chatlist {
     ///     are returned.
     /// `query_contact_id`: An optional contact ID for filtering the list. Only chats including this contact ID
     ///     are returned.
-    pub fn try_load(
+    pub async fn try_load(
         context: &Context,
         listflags: usize,
         query: Option<&str>,
@@ -139,11 +139,13 @@ impl Chatlist {
                 params![MessageState::OutDraft, query_contact_id as i32, ChatVisibility::Pinned],
                 process_row,
                 process_rows,
-            )?
+            ).await?
         } else if 0 != listflags & DC_GCL_ARCHIVED_ONLY {
             // show archived chats
-            context.sql.query_map(
-                "SELECT c.id, m.id
+            context
+                .sql
+                .query_map(
+                    "SELECT c.id, m.id
                  FROM chats c
                  LEFT JOIN msgs m
                         ON c.id=m.chat_id
@@ -157,23 +159,26 @@ impl Chatlist {
                    AND c.archived=1
                  GROUP BY c.id
                  ORDER BY IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
-                params![MessageState::OutDraft],
-                process_row,
-                process_rows,
-            )?
+                    params![MessageState::OutDraft],
+                    process_row,
+                    process_rows,
+                )
+                .await?
         } else if let Some(query) = query {
             let query = query.trim().to_string();
             ensure!(!query.is_empty(), "missing query");
 
             // allow searching over special names that may change at any time
             // when the ui calls set_stock_translation()
-            if let Err(err) = update_special_chat_names(context) {
+            if let Err(err) = update_special_chat_names(context).await {
                 warn!(context, "cannot update special chat names: {:?}", err)
             }
 
             let str_like_cmd = format!("%{}%", query);
-            context.sql.query_map(
-                "SELECT c.id, m.id
+            context
+                .sql
+                .query_map(
+                    "SELECT c.id, m.id
                  FROM chats c
                  LEFT JOIN msgs m
                         ON c.id=m.chat_id
@@ -187,10 +192,11 @@ impl Chatlist {
                    AND c.name LIKE ?
                  GROUP BY c.id
                  ORDER BY IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
-                params![MessageState::OutDraft, str_like_cmd],
-                process_row,
-                process_rows,
-            )?
+                    params![MessageState::OutDraft, str_like_cmd],
+                    process_row,
+                    process_rows,
+                )
+                .await?
         } else {
             //  show normal chatlist
             let sort_id_up = if 0 != listflags & DC_GCL_FOR_FORWARDING {
@@ -218,9 +224,10 @@ impl Chatlist {
                 params![MessageState::OutDraft, ChatVisibility::Archived, sort_id_up, ChatVisibility::Pinned],
                 process_row,
                 process_rows,
-            )?;
+            ).await?;
             if 0 == listflags & DC_GCL_NO_SPECIALS {
-                if let Some(last_deaddrop_fresh_msg_id) = get_last_deaddrop_fresh_msg(context) {
+                if let Some(last_deaddrop_fresh_msg_id) = get_last_deaddrop_fresh_msg(context).await
+                {
                     if 0 == listflags & DC_GCL_FOR_FORWARDING {
                         ids.insert(
                             0,
@@ -233,7 +240,7 @@ impl Chatlist {
             ids
         };
 
-        if add_archived_link_item && dc_get_archived_cnt(context) > 0 {
+        if add_archived_link_item && dc_get_archived_cnt(context).await > 0 {
             if ids.is_empty() && 0 != listflags & DC_GCL_ADD_ALLDONE_HINT {
                 ids.push((ChatId::new(DC_CHAT_ID_ALLDONE_HINT), MsgId::new(0)));
             }
@@ -285,7 +292,7 @@ impl Chatlist {
     /// - dc_lot_t::timestamp: the timestamp of the message.  0 if not applicable.
     /// - dc_lot_t::state: The state of the message as one of the DC_STATE_* constants (see #dc_msg_get_state()).
     //    0 if not applicable.
-    pub fn get_summary(&self, context: &Context, index: usize, chat: Option<&Chat>) -> Lot {
+    pub async fn get_summary(&self, context: &Context, index: usize, chat: Option<&Chat>) -> Lot {
         // The summary is created by the chat, not by the last message.
         // This is because we may want to display drafts here or stuff as
         // "is typing".
@@ -300,7 +307,7 @@ impl Chatlist {
         let chat_loaded: Chat;
         let chat = if let Some(chat) = chat {
             chat
-        } else if let Ok(chat) = Chat::load_from_db(context, self.ids[index].0) {
+        } else if let Ok(chat) = Chat::load_from_db(context, self.ids[index].0).await {
             chat_loaded = chat;
             &chat_loaded
         } else {
@@ -310,11 +317,11 @@ impl Chatlist {
         let lastmsg_id = self.ids[index].1;
         let mut lastcontact = None;
 
-        let lastmsg = if let Ok(lastmsg) = Message::load_from_db(context, lastmsg_id) {
+        let lastmsg = if let Ok(lastmsg) = Message::load_from_db(context, lastmsg_id).await {
             if lastmsg.from_id != DC_CONTACT_ID_SELF
                 && (chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup)
             {
-                lastcontact = Contact::load_from_db(context, lastmsg.from_id).ok();
+                lastcontact = Contact::load_from_db(context, lastmsg.from_id).await.ok();
             }
 
             Some(lastmsg)
@@ -340,7 +347,7 @@ impl Chatlist {
 }
 
 /// Returns the number of archived chats
-pub fn dc_get_archived_cnt(context: &Context) -> u32 {
+pub async fn dc_get_archived_cnt(context: &Context) -> u32 {
     context
         .sql
         .query_get_value(
@@ -348,26 +355,30 @@ pub fn dc_get_archived_cnt(context: &Context) -> u32 {
             "SELECT COUNT(*) FROM chats WHERE blocked=0 AND archived=1;",
             params![],
         )
+        .await
         .unwrap_or_default()
 }
 
-fn get_last_deaddrop_fresh_msg(context: &Context) -> Option<MsgId> {
+async fn get_last_deaddrop_fresh_msg(context: &Context) -> Option<MsgId> {
     // We have an index over the state-column, this should be
     // sufficient as there are typically only few fresh messages.
-    context.sql.query_get_value(
-        context,
-        concat!(
-            "SELECT m.id",
-            " FROM msgs m",
-            " LEFT JOIN chats c",
-            "        ON c.id=m.chat_id",
-            " WHERE m.state=10",
-            "   AND m.hidden=0",
-            "   AND c.blocked=2",
-            " ORDER BY m.timestamp DESC, m.id DESC;"
-        ),
-        params![],
-    )
+    context
+        .sql
+        .query_get_value(
+            context,
+            concat!(
+                "SELECT m.id",
+                " FROM msgs m",
+                " LEFT JOIN chats c",
+                "        ON c.id=m.chat_id",
+                " WHERE m.state=10",
+                "   AND m.hidden=0",
+                "   AND c.blocked=2",
+                " ORDER BY m.timestamp DESC, m.id DESC;"
+            ),
+            params![],
+        )
+        .await
 }
 
 #[cfg(test)]
@@ -376,15 +387,21 @@ mod tests {
 
     use crate::test_utils::*;
 
-    #[test]
-    fn test_try_load() {
+    #[async_std::test]
+    async fn test_try_load() {
         let t = dummy_context();
-        let chat_id1 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "a chat").unwrap();
-        let chat_id2 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "b chat").unwrap();
-        let chat_id3 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "c chat").unwrap();
+        let chat_id1 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "a chat")
+            .await
+            .unwrap();
+        let chat_id2 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "b chat")
+            .await
+            .unwrap();
+        let chat_id3 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "c chat")
+            .await
+            .unwrap();
 
         // check that the chatlist starts with the most recent message
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 3);
         assert_eq!(chats.get_chat_id(0), chat_id3);
         assert_eq!(chats.get_chat_id(1), chat_id2);
@@ -394,20 +411,27 @@ mod tests {
         let mut msg = Message::new(Viewtype::Text);
         msg.set_text(Some("hello".to_string()));
         chat_id2.set_draft(&t.ctx, Some(&mut msg));
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.get_chat_id(0), chat_id2);
 
         // check chatlist query and archive functionality
-        let chats = Chatlist::try_load(&t.ctx, 0, Some("b"), None).unwrap();
+        let chats = Chatlist::try_load(&t.ctx, 0, Some("b"), None)
+            .await
+            .unwrap();
         assert_eq!(chats.len(), 1);
 
-        let chats = Chatlist::try_load(&t.ctx, DC_GCL_ARCHIVED_ONLY, None, None).unwrap();
+        let chats = Chatlist::try_load(&t.ctx, DC_GCL_ARCHIVED_ONLY, None, None)
+            .await
+            .unwrap();
         assert_eq!(chats.len(), 0);
 
         chat_id1
             .set_visibility(&t.ctx, ChatVisibility::Archived)
+            .await
             .ok();
-        let chats = Chatlist::try_load(&t.ctx, DC_GCL_ARCHIVED_ONLY, None, None).unwrap();
+        let chats = Chatlist::try_load(&t.ctx, DC_GCL_ARCHIVED_ONLY, None, None)
+            .await
+            .unwrap();
         assert_eq!(chats.len(), 1);
     }
 
@@ -427,40 +451,50 @@ mod tests {
             .is_self_talk());
     }
 
-    #[test]
-    fn test_search_special_chat_names() {
+    #[async_std::test]
+    async fn test_search_special_chat_names() {
         let t = dummy_context();
         t.ctx.update_device_chats().unwrap();
 
-        let chats = Chatlist::try_load(&t.ctx, 0, Some("t-1234-s"), None).unwrap();
+        let chats = Chatlist::try_load(&t.ctx, 0, Some("t-1234-s"), None)
+            .await
+            .unwrap();
         assert_eq!(chats.len(), 0);
-        let chats = Chatlist::try_load(&t.ctx, 0, Some("t-5678-b"), None).unwrap();
+        let chats = Chatlist::try_load(&t.ctx, 0, Some("t-5678-b"), None)
+            .await
+            .unwrap();
         assert_eq!(chats.len(), 0);
 
         t.ctx
             .set_stock_translation(StockMessage::SavedMessages, "test-1234-save".to_string())
             .unwrap();
-        let chats = Chatlist::try_load(&t.ctx, 0, Some("t-1234-s"), None).unwrap();
+        let chats = Chatlist::try_load(&t.ctx, 0, Some("t-1234-s"), None)
+            .await
+            .unwrap();
         assert_eq!(chats.len(), 1);
 
         t.ctx
             .set_stock_translation(StockMessage::DeviceMessages, "test-5678-babbel".to_string())
             .unwrap();
-        let chats = Chatlist::try_load(&t.ctx, 0, Some("t-5678-b"), None).unwrap();
+        let chats = Chatlist::try_load(&t.ctx, 0, Some("t-5678-b"), None)
+            .await
+            .unwrap();
         assert_eq!(chats.len(), 1);
     }
 
-    #[test]
-    fn test_get_summary_unwrap() {
+    #[async_std::test]
+    async fn test_get_summary_unwrap() {
         let t = dummy_context();
-        let chat_id1 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "a chat").unwrap();
+        let chat_id1 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "a chat")
+            .await
+            .unwrap();
 
         let mut msg = Message::new(Viewtype::Text);
         msg.set_text(Some("foo:\nbar \r\n test".to_string()));
         chat_id1.set_draft(&t.ctx, Some(&mut msg));
 
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
-        let summary = chats.get_summary(&t.ctx, 0, None);
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let summary = chats.get_summary(&t.ctx, 0, None).await;
         assert_eq!(summary.get_text2().unwrap(), "foo: bar test"); // the linebreak should be removed from summary
     }
 }

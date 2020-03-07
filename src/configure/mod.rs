@@ -42,8 +42,8 @@ impl Context {
     }
 
     /// Checks if the context is already configured.
-    pub fn is_configured(&self) -> bool {
-        self.sql.get_raw_config_bool(self, "configured")
+    pub async fn is_configured(&self) -> bool {
+        self.sql.get_raw_config_bool(self, "configured").await
     }
 }
 
@@ -52,7 +52,7 @@ impl Context {
  ******************************************************************************/
 #[allow(clippy::cognitive_complexity)]
 pub(crate) async fn job_configure_imap(context: &Context) -> job::Status {
-    if !context.sql.is_open() {
+    if !context.sql.is_open().await {
         error!(context, "Cannot configure, database not opened.",);
         progress!(context, 0);
         return job::Status::Finished(Err(format_err!("Database not opened")));
@@ -75,7 +75,7 @@ pub(crate) async fn job_configure_imap(context: &Context) -> job::Status {
     info!(context, "Configure ...",);
 
     // Variables that are shared between steps:
-    let mut param = LoginParam::from_database(context, "");
+    let mut param = LoginParam::from_database(context, "").await;
     // need all vars here to be mutable because rust thinks the same step could be called multiple times
     // and also initialize, because otherwise rust thinks it's used while unitilized, even if thats not the case as the loop goes only forward
     let mut param_domain = "undefined.undefined".to_owned();
@@ -115,6 +115,7 @@ pub(crate) async fn job_configure_imap(context: &Context) -> job::Status {
                         context
                             .sql
                             .set_raw_config(context, "addr", Some(param.addr.as_str()))
+                            .await
                             .ok();
                     }
                     progress!(context, 20);
@@ -352,8 +353,8 @@ pub(crate) async fn job_configure_imap(context: &Context) -> job::Status {
             }
             16 => {
                 progress!(context, 900);
-                let create_mvbox = context.get_config_bool(Config::MvboxWatch)
-                    || context.get_config_bool(Config::MvboxMove);
+                let create_mvbox = context.get_config_bool(Config::MvboxWatch).await
+                    || context.get_config_bool(Config::MvboxMove).await;
                 let imap = &context.inbox_thread.imap;
                 if let Err(err) = imap.ensure_configured_folders(context, create_mvbox).await {
                     warn!(context, "configuring folders failed: {:?}", err);
@@ -376,11 +377,13 @@ pub(crate) async fn job_configure_imap(context: &Context) -> job::Status {
                         context,
                         "configured_", /*the trailing underscore is correct*/
                     )
+                    .await
                     .ok();
 
                 context
                     .sql
                     .set_raw_config_bool(context, "configured", true)
+                    .await
                     .ok();
                 true
             }
@@ -389,7 +392,7 @@ pub(crate) async fn job_configure_imap(context: &Context) -> job::Status {
                 // we generate the keypair just now - we could also postpone this until the first message is sent, however,
                 // this may result in a unexpected and annoying delay when the user sends his very first message
                 // (~30 seconds on a Moto G4 play) and might looks as if message sending is always that slow.
-                success = e2ee::ensure_secret_key_exists(context).is_ok();
+                success = e2ee::ensure_secret_key_exists(context).await.is_ok();
                 info!(context, "key generation completed");
                 progress!(context, 940);
                 break; // We are done here
@@ -416,11 +419,15 @@ pub(crate) async fn job_configure_imap(context: &Context) -> job::Status {
     // this way, the parameters visible to the ui are always in-sync with the current configuration.
     if success {
         LoginParam::from_database(context, "")
+            .await
             .save_to_database(context, "configured_raw_")
+            .await
             .ok();
     } else {
         LoginParam::from_database(context, "configured_raw_")
+            .await
             .save_to_database(context, "")
+            .await
             .ok();
     }
 
@@ -428,7 +435,10 @@ pub(crate) async fn job_configure_imap(context: &Context) -> job::Status {
         if !provider.after_login_hint.is_empty() {
             let mut msg = Message::new(Viewtype::Text);
             msg.text = Some(provider.after_login_hint.to_string());
-            if chat::add_device_msg(context, Some("core-provider-info"), Some(&mut msg)).is_err() {
+            if chat::add_device_msg(context, Some("core-provider-info"), Some(&mut msg))
+                .await
+                .is_err()
+            {
                 warn!(context, "cannot add after_login_hint as core-provider-info");
             }
         }

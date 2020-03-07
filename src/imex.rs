@@ -81,7 +81,7 @@ pub async fn imex(context: &Context, what: ImexMode, param1: Option<impl AsRef<P
 }
 
 /// Returns the filename of the backup found (otherwise an error)
-pub fn has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result<String> {
+pub async fn has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result<String> {
     let dir_name = dir_name.as_ref();
     let dir_iter = std::fs::read_dir(dir_name)?;
     let mut newest_backup_time = 0;
@@ -93,16 +93,17 @@ pub fn has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result<Strin
             let name = name.to_string_lossy();
             if name.starts_with("delta-chat") && name.ends_with(".bak") {
                 let sql = Sql::new();
-                if sql.open(context, &path, true) {
+                if sql.open(context, &path, true).await {
                     let curr_backup_time = sql
                         .get_raw_config_int(context, "backup_time")
+                        .await
                         .unwrap_or_default();
                     if curr_backup_time > newest_backup_time {
                         newest_backup_path = Some(path);
                         newest_backup_time = curr_backup_time;
                     }
                     info!(context, "backup_time of {} is {}", name, curr_backup_time);
-                    sql.close(&context);
+                    sql.close(&context).await;
                 }
             }
         }
@@ -125,7 +126,7 @@ async fn do_initiate_key_transfer(context: &Context) -> Result<String> {
     let setup_code = create_setup_code(context);
     /* this may require a keypair to be created. this may take a second ... */
     ensure!(!context.shall_stop_ongoing(), "canceled");
-    let setup_file_content = render_setup_file(context, &setup_code)?;
+    let setup_file_content = render_setup_file(context, &setup_code).await?;
     /* encrypting may also take a while ... */
     ensure!(!context.shall_stop_ongoing(), "canceled");
     let setup_file_blob = BlobObject::create(
@@ -134,7 +135,7 @@ async fn do_initiate_key_transfer(context: &Context) -> Result<String> {
         setup_file_content.as_bytes(),
     )?;
 
-    let chat_id = chat::create_by_contact_id(context, DC_CONTACT_ID_SELF)?;
+    let chat_id = chat::create_by_contact_id(context, DC_CONTACT_ID_SELF).await?;
     msg = Message::default();
     msg.viewtype = Viewtype::File;
     msg.param.set(Param::File, setup_file_blob.as_name());
@@ -152,7 +153,7 @@ async fn do_initiate_key_transfer(context: &Context) -> Result<String> {
     info!(context, "Wait for setup message being sent ...",);
     while !context.shall_stop_ongoing() {
         std::thread::sleep(std::time::Duration::from_secs(1));
-        if let Ok(msg) = Message::load_from_db(context, msg_id) {
+        if let Ok(msg) = Message::load_from_db(context, msg_id).await {
             if msg.is_sent() {
                 info!(context, "... setup message sent.",);
                 break;
@@ -170,15 +171,16 @@ async fn do_initiate_key_transfer(context: &Context) -> Result<String> {
 /// Renders HTML body of a setup file message.
 ///
 /// The `passphrase` must be at least 2 characters long.
-pub fn render_setup_file(context: &Context, passphrase: &str) -> Result<String> {
+pub async fn render_setup_file(context: &Context, passphrase: &str) -> Result<String> {
     ensure!(
         passphrase.len() >= 2,
         "Passphrase must be at least 2 chars long."
     );
-    let self_addr = e2ee::ensure_secret_key_exists(context)?;
+    let self_addr = e2ee::ensure_secret_key_exists(context).await?;
     let private_key = Key::from_self_private(context, self_addr, &context.sql)
+        .await
         .ok_or_else(|| format_err!("Failed to get private key."))?;
-    let ac_headers = match context.get_config_bool(Config::E2eeEnabled) {
+    let ac_headers = match context.get_config_bool(Config::E2eeEnabled).await {
         false => None,
         true => Some(("Autocrypt-Prefer-Encrypt", "mutual")),
     };
@@ -239,8 +241,8 @@ pub fn create_setup_code(_context: &Context) -> String {
     ret
 }
 
-fn maybe_add_bcc_self_device_msg(context: &Context) -> Result<()> {
-    if !context.sql.get_raw_config_bool(context, "bcc_self") {
+async fn maybe_add_bcc_self_device_msg(context: &Context) -> Result<()> {
+    if !context.sql.get_raw_config_bool(context, "bcc_self").await {
         let mut msg = Message::new(Viewtype::Text);
         // TODO: define this as a stockstring once the wording is settled.
         msg.text = Some(
@@ -249,15 +251,19 @@ fn maybe_add_bcc_self_device_msg(context: &Context) -> Result<()> {
              go to the settings and enable \"Send copy to self\"."
                 .to_string(),
         );
-        chat::add_device_msg(context, Some("bcc-self-hint"), Some(&mut msg))?;
+        chat::add_device_msg(context, Some("bcc-self-hint"), Some(&mut msg)).await?;
     }
     Ok(())
 }
 
-pub fn continue_key_transfer(context: &Context, msg_id: MsgId, setup_code: &str) -> Result<()> {
+pub async fn continue_key_transfer(
+    context: &Context,
+    msg_id: MsgId,
+    setup_code: &str,
+) -> Result<()> {
     ensure!(!msg_id.is_special(), "wrong id");
 
-    let msg = Message::load_from_db(context, msg_id)?;
+    let msg = Message::load_from_db(context, msg_id).await?;
     ensure!(
         msg.is_setupmessage(),
         "Message is no Autocrypt Setup Message."
@@ -267,8 +273,8 @@ pub fn continue_key_transfer(context: &Context, msg_id: MsgId, setup_code: &str)
         let file = dc_open_file(context, filename)?;
         let sc = normalize_setup_code(setup_code);
         let armored_key = decrypt_setup_file(context, &sc, file)?;
-        set_self_key(context, &armored_key, true, true)?;
-        maybe_add_bcc_self_device_msg(context)?;
+        set_self_key(context, &armored_key, true, true).await?;
+        maybe_add_bcc_self_device_msg(context).await?;
 
         Ok(())
     } else {
@@ -276,7 +282,7 @@ pub fn continue_key_transfer(context: &Context, msg_id: MsgId, setup_code: &str)
     }
 }
 
-fn set_self_key(
+async fn set_self_key(
     context: &Context,
     armored: &str,
     set_default: bool,
@@ -301,7 +307,8 @@ fn set_self_key(
             };
             context
                 .sql
-                .set_raw_config_int(context, "e2ee_enabled", e2ee_enabled)?;
+                .set_raw_config_int(context, "e2ee_enabled", e2ee_enabled)
+                .await?;
         }
         None => {
             if prefer_encrypt_required {
@@ -310,7 +317,7 @@ fn set_self_key(
         }
     };
 
-    let self_addr = context.get_config(Config::ConfiguredAddr);
+    let self_addr = context.get_config(Config::ConfiguredAddr).await;
     ensure!(self_addr.is_some(), "Missing self addr");
     let addr = EmailAddress::new(&self_addr.unwrap_or_default())?;
 
@@ -331,7 +338,8 @@ fn set_self_key(
         } else {
             key::KeyPairUse::ReadOnly
         },
-    )?;
+    )
+    .await?;
     Ok(())
 }
 
@@ -359,8 +367,7 @@ pub fn normalize_setup_code(s: &str) -> String {
     out
 }
 
-#[allow(non_snake_case)]
-pub fn JobImexImap(context: &Context, job: &Job) -> Result<()> {
+pub async fn job_imex_imap(context: &Context, job: &Job) -> Result<()> {
     ensure!(context.alloc_ongoing(), "could not allocate ongoing");
     let what: Option<ImexMode> = job.param.get_int(Param::Cmd).and_then(ImexMode::from_i32);
     let param = job.param.get(Param::Arg).unwrap_or_default();
@@ -369,10 +376,10 @@ pub fn JobImexImap(context: &Context, job: &Job) -> Result<()> {
     info!(context, "Import/export process started.");
     context.call_cb(Event::ImexProgress(10));
 
-    ensure!(context.sql.is_open(), "Database not opened.");
+    ensure!(context.sql.is_open().await, "Database not opened.");
     if what == Some(ImexMode::ExportBackup) || what == Some(ImexMode::ExportSelfKeys) {
         // before we export anything, make sure the private key exists
-        if e2ee::ensure_secret_key_exists(context).is_err() {
+        if e2ee::ensure_secret_key_exists(context).await.is_err() {
             context.free_ongoing();
             bail!("Cannot create private key or private key not available.");
         } else {
@@ -381,10 +388,10 @@ pub fn JobImexImap(context: &Context, job: &Job) -> Result<()> {
     }
     let path = Path::new(param);
     let success = match what {
-        Some(ImexMode::ExportSelfKeys) => export_self_keys(context, path),
-        Some(ImexMode::ImportSelfKeys) => import_self_keys(context, path),
-        Some(ImexMode::ExportBackup) => export_backup(context, path),
-        Some(ImexMode::ImportBackup) => import_backup(context, path),
+        Some(ImexMode::ExportSelfKeys) => export_self_keys(context, path).await,
+        Some(ImexMode::ImportSelfKeys) => import_self_keys(context, path).await,
+        Some(ImexMode::ExportBackup) => export_backup(context, path).await,
+        Some(ImexMode::ImportBackup) => import_backup(context, path).await,
         None => {
             bail!("unknown IMEX type");
         }
@@ -404,7 +411,7 @@ pub fn JobImexImap(context: &Context, job: &Job) -> Result<()> {
 }
 
 /// Import Backup
-fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) -> Result<()> {
+async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) -> Result<()> {
     info!(
         context,
         "Import \"{}\" to \"{}\".",
@@ -413,7 +420,7 @@ fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) -> Resul
     );
 
     ensure!(
-        !context.is_configured(),
+        !context.is_configured().await,
         "Cannot import backups to accounts in use."
     );
     context.sql.close(&context);
@@ -430,61 +437,71 @@ fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) -> Resul
     /* error already logged */
     /* re-open copied database file */
     ensure!(
-        context.sql.open(&context, &context.get_dbfile(), false),
+        context
+            .sql
+            .open(&context, &context.get_dbfile(), false)
+            .await,
         "could not re-open db"
     );
 
-    delete_and_reset_all_device_msgs(&context)?;
+    delete_and_reset_all_device_msgs(&context).await?;
 
     let total_files_cnt = context
         .sql
         .query_get_value::<_, isize>(context, "SELECT COUNT(*) FROM backup_blobs;", params![])
+        .await
         .unwrap_or_default() as usize;
     info!(
         context,
         "***IMPORT-in-progress: total_files_cnt={:?}", total_files_cnt,
     );
 
-    let res = context.sql.query_map(
-        "SELECT file_name, file_content FROM backup_blobs ORDER BY id;",
-        params![],
-        |row| {
-            let name: String = row.get(0)?;
-            let blob: Vec<u8> = row.get(1)?;
+    let res = context
+        .sql
+        .query_map(
+            "SELECT file_name, file_content FROM backup_blobs ORDER BY id;",
+            params![],
+            |row| {
+                let name: String = row.get(0)?;
+                let blob: Vec<u8> = row.get(1)?;
 
-            Ok((name, blob))
-        },
-        |files| {
-            for (processed_files_cnt, file) in files.enumerate() {
-                let (file_name, file_blob) = file?;
-                if context.shall_stop_ongoing() {
-                    return Ok(false);
-                }
-                let mut permille = processed_files_cnt * 1000 / total_files_cnt;
-                if permille < 10 {
-                    permille = 10
-                }
-                if permille > 990 {
-                    permille = 990
-                }
-                context.call_cb(Event::ImexProgress(permille));
-                if file_blob.is_empty() {
-                    continue;
-                }
+                Ok((name, blob))
+            },
+            |files| {
+                for (processed_files_cnt, file) in files.enumerate() {
+                    let (file_name, file_blob) = file?;
+                    if context.shall_stop_ongoing() {
+                        return Ok(false);
+                    }
+                    let mut permille = processed_files_cnt * 1000 / total_files_cnt;
+                    if permille < 10 {
+                        permille = 10
+                    }
+                    if permille > 990 {
+                        permille = 990
+                    }
+                    context.call_cb(Event::ImexProgress(permille));
+                    if file_blob.is_empty() {
+                        continue;
+                    }
 
-                let path_filename = context.get_blobdir().join(file_name);
-                dc_write_file(context, &path_filename, &file_blob)?;
-            }
-            Ok(true)
-        },
-    );
+                    let path_filename = context.get_blobdir().join(file_name);
+                    dc_write_file(context, &path_filename, &file_blob)?;
+                }
+                Ok(true)
+            },
+        )
+        .await;
 
     match res {
         Ok(all_files_extracted) => {
             if all_files_extracted {
                 // only delete backup_blobs if all files were successfully extracted
-                sql::execute(context, &context.sql, "DROP TABLE backup_blobs;", params![])?;
-                sql::try_execute(context, &context.sql, "VACUUM;").ok();
+                context
+                    .sql
+                    .execute("DROP TABLE backup_blobs;", params![])
+                    .await?;
+                context.sql.execute("VACUUM;", params![]).await.ok();
                 Ok(())
             } else {
                 bail!("received stop signal");
@@ -499,7 +516,7 @@ fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) -> Resul
  ******************************************************************************/
 /* the FILE_PROGRESS macro calls the callback with the permille of files processed.
 The macro avoids weird values of 0% or 100% while still working. */
-fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
+async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     // get a fine backup file name (the name includes the date so that multiple backup instances are possible)
     // FIXME: we should write to a temporary file first and rename it on success. this would guarantee the backup is complete.
     // let dest_path_filename = dc_get_next_backup_file(context, dir, res);
@@ -507,9 +524,9 @@ fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     let dest_path_filename = dc_get_next_backup_path(dir, now)?;
     let dest_path_string = dest_path_filename.to_string_lossy().to_string();
 
-    sql::housekeeping(context);
+    sql::housekeeping(context).await;
 
-    sql::try_execute(context, &context.sql, "VACUUM;").ok();
+    context.sql.execute("VACUUM;", params![]).await.ok();
 
     // we close the database during the copy of the dbfile
     context.sql.close(context);
@@ -531,18 +548,20 @@ fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     }
     let dest_sql = Sql::new();
     ensure!(
-        dest_sql.open(context, &dest_path_filename, false),
+        dest_sql.open(context, &dest_path_filename, false).await,
         "could not open exported database {}",
         dest_path_string
     );
-    let res = match add_files_to_export(context, &dest_sql) {
+    let res = match add_files_to_export(context, &dest_sql).await {
         Err(err) => {
             dc_delete_file(context, &dest_path_filename);
             error!(context, "backup failed: {}", err);
             Err(err)
         }
         Ok(()) => {
-            dest_sql.set_raw_config_int(context, "backup_time", now as i32)?;
+            dest_sql
+                .set_raw_config_int(context, "backup_time", now as i32)
+                .await?;
             context.call_cb(Event::ImexFileWritten(dest_path_filename));
             Ok(())
         }
@@ -552,16 +571,15 @@ fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     Ok(res?)
 }
 
-fn add_files_to_export(context: &Context, sql: &Sql) -> Result<()> {
+async fn add_files_to_export(context: &Context, sql: &Sql) -> Result<()> {
     // add all files as blobs to the database copy (this does not require
     // the source to be locked, neigher the destination as it is used only here)
-    if !sql.table_exists("backup_blobs") {
-        sql::execute(
-            context,
-            &sql,
+    if !sql.table_exists("backup_blobs").await? {
+        sql.execute(
             "CREATE TABLE backup_blobs (id INTEGER PRIMARY KEY, file_name, file_content);",
             params![],
-        )?
+        )
+        .await?;
     }
     // copy all files from BLOBDIR into backup-db
     let mut total_files_cnt = 0;
@@ -570,47 +588,50 @@ fn add_files_to_export(context: &Context, sql: &Sql) -> Result<()> {
     total_files_cnt += dir_handle.filter(|r| r.is_ok()).count();
 
     info!(context, "EXPORT: total_files_cnt={}", total_files_cnt);
-    // scan directory, pass 2: copy files
-    let dir_handle = std::fs::read_dir(&dir)?;
-    let exported_all_files = sql.prepare(
-        "INSERT INTO backup_blobs (file_name, file_content) VALUES (?, ?);",
-        |mut stmt, _| {
-            let mut processed_files_cnt = 0;
-            for entry in dir_handle {
-                let entry = entry?;
-                if context.shall_stop_ongoing() {
-                    return Ok(false);
-                }
-                processed_files_cnt += 1;
-                let permille = max(min(processed_files_cnt * 1000 / total_files_cnt, 990), 10);
-                context.call_cb(Event::ImexProgress(permille));
 
-                let name_f = entry.file_name();
-                let name = name_f.to_string_lossy();
-                if name.starts_with("delta-chat") && name.ends_with(".bak") {
+    sql.with_conn(|conn| {
+        // scan directory, pass 2: copy files
+        let dir_handle = std::fs::read_dir(&dir)?;
+
+        let mut stmt = conn
+            .prepare_cached("INSERT INTO backup_blobs (file_name, file_content) VALUES (?, ?);")?;
+
+        let mut processed_files_cnt = 0;
+        for entry in dir_handle {
+            let entry = entry?;
+            if context.shall_stop_ongoing() {
+                return Ok(());
+            }
+            processed_files_cnt += 1;
+            let permille = max(min(processed_files_cnt * 1000 / total_files_cnt, 990), 10);
+            context.call_cb(Event::ImexProgress(permille));
+
+            let name_f = entry.file_name();
+            let name = name_f.to_string_lossy();
+            if name.starts_with("delta-chat") && name.ends_with(".bak") {
+                continue;
+            }
+            info!(context, "EXPORT: copying filename={}", name);
+            let curr_path_filename = context.get_blobdir().join(entry.file_name());
+            if let Ok(buf) = dc_read_file(context, &curr_path_filename) {
+                if buf.is_empty() {
                     continue;
                 }
-                info!(context, "EXPORT: copying filename={}", name);
-                let curr_path_filename = context.get_blobdir().join(entry.file_name());
-                if let Ok(buf) = dc_read_file(context, &curr_path_filename) {
-                    if buf.is_empty() {
-                        continue;
-                    }
-                    // bail out if we can't insert
-                    stmt.execute(params![name, buf])?;
-                }
+                // bail out if we can't insert
+                stmt.execute(params![name, buf])?;
             }
-            Ok(true)
-        },
-    )?;
-    ensure!(exported_all_files, "canceled during export-files");
+        }
+        Ok(())
+    })
+    .await?;
+
     Ok(())
 }
 
 /*******************************************************************************
  * Classic key import
  ******************************************************************************/
-fn import_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
+async fn import_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     /* hint: even if we switch to import Autocrypt Setup Files, we should leave the possibility to import
     plain ASC keys, at least keys without a password, if we do not want to implement a password entry function.
     Importing ASC keys is useful to use keys in Delta Chat used by any other non-Autocrypt-PGP implementation.
@@ -645,7 +666,7 @@ fn import_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
         match dc_read_file(context, &path_plus_name) {
             Ok(buf) => {
                 let armored = std::string::String::from_utf8_lossy(&buf);
-                if let Err(err) = set_self_key(context, &armored, set_default, false) {
+                if let Err(err) = set_self_key(context, &armored, set_default, false).await {
                     error!(context, "set_self_key: {}", err);
                     continue;
                 }
@@ -662,45 +683,48 @@ fn import_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     Ok(())
 }
 
-fn export_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
+async fn export_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     let mut export_errors = 0;
 
-    context.sql.query_map(
-        "SELECT id, public_key, private_key, is_default FROM keypairs;",
-        params![],
-        |row| {
-            let id = row.get(0)?;
-            let public_key_blob: Vec<u8> = row.get(1)?;
-            let public_key = Key::from_slice(&public_key_blob, KeyType::Public);
-            let private_key_blob: Vec<u8> = row.get(2)?;
-            let private_key = Key::from_slice(&private_key_blob, KeyType::Private);
-            let is_default: i32 = row.get(3)?;
+    context
+        .sql
+        .query_map(
+            "SELECT id, public_key, private_key, is_default FROM keypairs;",
+            params![],
+            |row| {
+                let id = row.get(0)?;
+                let public_key_blob: Vec<u8> = row.get(1)?;
+                let public_key = Key::from_slice(&public_key_blob, KeyType::Public);
+                let private_key_blob: Vec<u8> = row.get(2)?;
+                let private_key = Key::from_slice(&private_key_blob, KeyType::Private);
+                let is_default: i32 = row.get(3)?;
 
-            Ok((id, public_key, private_key, is_default))
-        },
-        |keys| {
-            for key_pair in keys {
-                let (id, public_key, private_key, is_default) = key_pair?;
-                let id = Some(id).filter(|_| is_default != 0);
-                if let Some(key) = public_key {
-                    if export_key_to_asc_file(context, &dir, id, &key).is_err() {
+                Ok((id, public_key, private_key, is_default))
+            },
+            |keys| {
+                for key_pair in keys {
+                    let (id, public_key, private_key, is_default) = key_pair?;
+                    let id = Some(id).filter(|_| is_default != 0);
+                    if let Some(key) = public_key {
+                        if export_key_to_asc_file(context, &dir, id, &key).is_err() {
+                            export_errors += 1;
+                        }
+                    } else {
                         export_errors += 1;
                     }
-                } else {
-                    export_errors += 1;
-                }
-                if let Some(key) = private_key {
-                    if export_key_to_asc_file(context, &dir, id, &key).is_err() {
+                    if let Some(key) = private_key {
+                        if export_key_to_asc_file(context, &dir, id, &key).is_err() {
+                            export_errors += 1;
+                        }
+                    } else {
                         export_errors += 1;
                     }
-                } else {
-                    export_errors += 1;
                 }
-            }
 
-            Ok(())
-        },
-    )?;
+                Ok(())
+            },
+        )
+        .await?;
 
     ensure!(export_errors == 0, "errors while exporting keys");
     Ok(())
@@ -745,7 +769,7 @@ mod tests {
         let t = test_context(Some(Box::new(logging_cb)));
 
         configure_alice_keypair(&t.ctx).await;
-        let msg = render_setup_file(&t.ctx, "hello").unwrap();
+        let msg = render_setup_file(&t.ctx, "hello").await.unwrap();
         println!("{}", &msg);
         // Check some substrings, indicating things got substituted.
         // In particular note the mixing of `\r\n` and `\n` depending
@@ -767,7 +791,7 @@ mod tests {
             .set_stock_translation(StockMessage::AcSetupMsgBody, "hello\r\nthere".to_string())
             .unwrap();
         configure_alice_keypair(&t.ctx).await;
-        let msg = render_setup_file(&t.ctx, "pw").unwrap();
+        let msg = render_setup_file(&t.ctx, "pw").await.unwrap();
         println!("{}", &msg);
         assert!(msg.contains("<p>hello<br>there</p>"));
     }

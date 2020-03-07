@@ -15,7 +15,6 @@ use crate::job::{self, Job};
 use crate::message::{Message, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::param::*;
-use crate::sql;
 use crate::stock::StockMessage;
 
 /// Location record
@@ -195,21 +194,22 @@ impl Kml {
 pub async fn send_locations_to_chat(context: &Context, chat_id: ChatId, seconds: i64) {
     let now = time();
     if !(seconds < 0 || chat_id.is_special()) {
-        let is_sending_locations_before = is_sending_locations_to_chat(context, chat_id);
-        if sql::execute(
-            context,
-            &context.sql,
-            "UPDATE chats    \
+        let is_sending_locations_before = is_sending_locations_to_chat(context, chat_id).await;
+        if context
+            .sql
+            .execute(
+                "UPDATE chats    \
              SET locations_send_begin=?,        \
              locations_send_until=?  \
              WHERE id=?",
-            params![
-                if 0 != seconds { now } else { 0 },
-                if 0 != seconds { now + seconds } else { 0 },
-                chat_id,
-            ],
-        )
-        .is_ok()
+                params![
+                    if 0 != seconds { now } else { 0 },
+                    if 0 != seconds { now + seconds } else { 0 },
+                    chat_id,
+                ],
+            )
+            .await
+            .is_ok()
         {
             if 0 != seconds && !is_sending_locations_before {
                 let mut msg = Message::new(Viewtype::Text);
@@ -241,7 +241,7 @@ pub async fn send_locations_to_chat(context: &Context, chat_id: ChatId, seconds:
 }
 
 async fn schedule_maybe_send_locations(context: &Context, force_schedule: bool) {
-    if force_schedule || !job::action_exists(context, job::Action::MaybeSendLocations) {
+    if force_schedule || !job::action_exists(context, job::Action::MaybeSendLocations).await {
         job::add(
             context,
             job::Action::MaybeSendLocations,
@@ -253,13 +253,14 @@ async fn schedule_maybe_send_locations(context: &Context, force_schedule: bool) 
     };
 }
 
-pub fn is_sending_locations_to_chat(context: &Context, chat_id: ChatId) -> bool {
+pub async fn is_sending_locations_to_chat(context: &Context, chat_id: ChatId) -> bool {
     context
         .sql
         .exists(
             "SELECT id  FROM chats  WHERE (? OR id=?)   AND locations_send_until>?;",
             params![if chat_id.is_unset() { 1 } else { 0 }, chat_id, time()],
         )
+        .await
         .unwrap_or_default()
 }
 
@@ -269,12 +270,16 @@ pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64
     }
     let mut continue_streaming = false;
 
-    if let Ok(chats) = context.sql.query_map(
-        "SELECT id FROM chats WHERE locations_send_until>?;",
-        params![time()],
-        |row| row.get::<_, i32>(0),
-        |chats| chats.collect::<Result<Vec<_>, _>>().map_err(Into::into),
-    ) {
+    if let Ok(chats) = context
+        .sql
+        .query_map(
+            "SELECT id FROM chats WHERE locations_send_until>?;",
+            params![time()],
+            |row| row.get::<_, i32>(0),
+            |chats| chats.collect::<Result<Vec<_>, _>>().map_err(Into::into),
+        )
+        .await
+    {
         for chat_id in chats {
             if let Err(err) = context.sql.execute(
                     "INSERT INTO locations  \
@@ -287,7 +292,7 @@ pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64
                         chat_id,
                         DC_CONTACT_ID_SELF,
                     ]
-            ) {
+            ).await {
                 warn!(context, "failed to store location {:?}", err);
             } else {
                 continue_streaming = true;
@@ -302,7 +307,7 @@ pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64
     continue_streaming
 }
 
-pub fn get_range(
+pub async fn get_range(
     context: &Context,
     chat_id: ChatId,
     contact_id: u32,
@@ -360,6 +365,7 @@ pub fn get_range(
                 Ok(ret)
             },
         )
+        .await
         .unwrap_or_default()
 }
 
@@ -368,17 +374,21 @@ fn is_marker(txt: &str) -> bool {
 }
 
 /// Deletes all locations from the database.
-pub fn delete_all(context: &Context) -> Result<(), Error> {
-    sql::execute(context, &context.sql, "DELETE FROM locations;", params![])?;
+pub async fn delete_all(context: &Context) -> Result<(), Error> {
+    context
+        .sql
+        .execute("DELETE FROM locations;", params![])
+        .await?;
     context.call_cb(Event::LocationChanged(None));
     Ok(())
 }
 
-pub fn get_kml(context: &Context, chat_id: ChatId) -> Result<(String, u32), Error> {
+pub async fn get_kml(context: &Context, chat_id: ChatId) -> Result<(String, u32), Error> {
     let mut last_added_location_id = 0;
 
     let self_addr = context
         .get_config(Config::ConfiguredAddr)
+        .await
         .unwrap_or_default();
 
     let (locations_send_begin, locations_send_until, locations_last_sent) = context.sql.query_row(
@@ -389,7 +399,8 @@ pub fn get_kml(context: &Context, chat_id: ChatId) -> Result<(String, u32), Erro
             let last_sent: i64 = row.get(2)?;
 
             Ok((send_begin, send_until, last_sent))
-        })?;
+        })
+        .await?;
 
     let now = time();
     let mut location_count = 0;
@@ -433,7 +444,7 @@ pub fn get_kml(context: &Context, chat_id: ChatId) -> Result<(String, u32), Erro
                 }
                 Ok(())
             }
-        )?;
+        ).await?;
         ret += "</Document>\n</kml>";
     }
 
@@ -466,37 +477,38 @@ pub fn get_message_kml(timestamp: i64, latitude: f64, longitude: f64) -> String 
     )
 }
 
-pub fn set_kml_sent_timestamp(
+pub async fn set_kml_sent_timestamp(
     context: &Context,
     chat_id: ChatId,
     timestamp: i64,
 ) -> Result<(), Error> {
-    sql::execute(
-        context,
-        &context.sql,
-        "UPDATE chats SET locations_last_sent=? WHERE id=?;",
-        params![timestamp, chat_id],
-    )?;
-
+    context
+        .sql
+        .execute(
+            "UPDATE chats SET locations_last_sent=? WHERE id=?;",
+            params![timestamp, chat_id],
+        )
+        .await?;
     Ok(())
 }
 
-pub fn set_msg_location_id(
+pub async fn set_msg_location_id(
     context: &Context,
     msg_id: MsgId,
     location_id: u32,
 ) -> Result<(), Error> {
-    sql::execute(
-        context,
-        &context.sql,
-        "UPDATE msgs SET location_id=? WHERE id=?;",
-        params![location_id, msg_id],
-    )?;
+    context
+        .sql
+        .execute(
+            "UPDATE msgs SET location_id=? WHERE id=?;",
+            params![location_id, msg_id],
+        )
+        .await?;
 
     Ok(())
 }
 
-pub fn save(
+pub async fn save(
     context: &Context,
     chat_id: ChatId,
     contact_id: u32,
@@ -504,50 +516,56 @@ pub fn save(
     independent: bool,
 ) -> Result<u32, Error> {
     ensure!(!chat_id.is_special(), "Invalid chat id");
-    context
+
+    let newest_location_id = context
         .sql
-        .prepare2(
-            "SELECT id FROM locations WHERE timestamp=? AND from_id=?",
-            "INSERT INTO locations\
+        .with_conn(|mut conn| {
+            let mut newest_timestamp = 0;
+            let mut newest_location_id = 0;
+
+            for location in locations {
+                let mut stmt_test = conn
+                    .prepare_cached("SELECT id FROM locations WHERE timestamp=? AND from_id=?")?;
+                let mut stmt_insert = conn.prepare_cached(
+                    "INSERT INTO locations\
              (timestamp, from_id, chat_id, latitude, longitude, accuracy, independent) \
              VALUES (?,?,?,?,?,?,?);",
-            |mut stmt_test, mut stmt_insert, conn| {
-                let mut newest_timestamp = 0;
-                let mut newest_location_id = 0;
+                )?;
 
-                for location in locations {
-                    let exists =
-                        stmt_test.exists(params![location.timestamp, contact_id as i32])?;
+                let exists = stmt_test.exists(params![location.timestamp, contact_id as i32])?;
 
-                    if independent || !exists {
-                        stmt_insert.execute(params![
+                if independent || !exists {
+                    stmt_insert.execute(params![
+                        location.timestamp,
+                        contact_id as i32,
+                        chat_id,
+                        location.latitude,
+                        location.longitude,
+                        location.accuracy,
+                        independent,
+                    ])?;
+
+                    if location.timestamp > newest_timestamp {
+                        // okay to drop, as we use cached prepared statements
+                        drop(stmt_test);
+                        drop(stmt_insert);
+                        newest_timestamp = location.timestamp;
+                        newest_location_id = crate::sql::get_rowid2(
+                            context,
+                            &mut conn,
+                            "locations",
+                            "timestamp",
                             location.timestamp,
+                            "from_id",
                             contact_id as i32,
-                            chat_id,
-                            location.latitude,
-                            location.longitude,
-                            location.accuracy,
-                            independent,
-                        ])?;
-
-                        if location.timestamp > newest_timestamp {
-                            newest_timestamp = location.timestamp;
-                            newest_location_id = sql::get_rowid2_with_conn(
-                                context,
-                                conn,
-                                "locations",
-                                "timestamp",
-                                location.timestamp,
-                                "from_id",
-                                contact_id as i32,
-                            );
-                        }
+                        )?;
                     }
                 }
-                Ok(newest_location_id)
-            },
-        )
-        .map_err(Into::into)
+            }
+            Ok(newest_location_id)
+        })
+        .await?;
+    Ok(newest_location_id)
 }
 
 pub(crate) async fn job_maybe_send_locations(context: &Context, _job: &Job) -> job::Status {
@@ -558,80 +576,87 @@ pub(crate) async fn job_maybe_send_locations(context: &Context, _job: &Job) -> j
         " ----------------- MAYBE_SEND_LOCATIONS -------------- ",
     );
 
-    if let Ok(rows) = context.sql.query_map(
-        "SELECT id, locations_send_begin, locations_last_sent \
+    if let Ok(ref rows) = context
+        .sql
+        .query_map(
+            "SELECT id, locations_send_begin, locations_last_sent \
          FROM chats \
          WHERE locations_send_until>?;",
-        params![now],
-        |row| {
-            let chat_id: ChatId = row.get(0)?;
-            let locations_send_begin: i64 = row.get(1)?;
-            let locations_last_sent: i64 = row.get(2)?;
-            continue_streaming = true;
+            params![now],
+            |row| {
+                let chat_id: ChatId = row.get(0)?;
+                let locations_send_begin: i64 = row.get(1)?;
+                let locations_last_sent: i64 = row.get(2)?;
+                continue_streaming = true;
 
-            // be a bit tolerant as the timer may not align exactly with time(NULL)
-            if now - locations_last_sent < (60 - 3) {
-                Ok(None)
-            } else {
-                Ok(Some((chat_id, locations_send_begin, locations_last_sent)))
-            }
-        },
-        |rows| {
-            rows.filter_map(|v| v.transpose())
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(Into::into)
-        },
-    ) {
+                // be a bit tolerant as the timer may not align exactly with time(NULL)
+                if now - locations_last_sent < (60 - 3) {
+                    Ok(None)
+                } else {
+                    Ok(Some((chat_id, locations_send_begin, locations_last_sent)))
+                }
+            },
+            |rows| {
+                rows.filter_map(|v| v.transpose())
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(Into::into)
+            },
+        )
+        .await
+    {
         let msgs = context
             .sql
-            .prepare(
-                "SELECT id \
+            .with_conn(|conn| {
+                let mut stmt_locations = conn.prepare_cached(
+                    "SELECT id \
                  FROM locations \
                  WHERE from_id=? \
                  AND timestamp>=? \
                  AND timestamp>? \
                  AND independent=0 \
                  ORDER BY timestamp;",
-                |mut stmt_locations, _| {
-                    let msgs = rows
-                        .into_iter()
-                        .filter_map(|(chat_id, locations_send_begin, locations_last_sent)| {
-                            if !stmt_locations
-                                .exists(params![
-                                    DC_CONTACT_ID_SELF,
-                                    locations_send_begin,
-                                    locations_last_sent,
-                                ])
-                                .unwrap_or_default()
-                            {
-                                // if there is no new location, there's nothing to send.
-                                // however, maybe we want to bypass this test eg. 15 minutes
-                                None
-                            } else {
-                                // pending locations are attached automatically to every message,
-                                // so also to this empty text message.
-                                // DC_CMD_LOCATION is only needed to create a nicer subject.
-                                //
-                                // for optimisation and to avoid flooding the sending queue,
-                                // we could sending these messages only if we're really online.
-                                // the easiest way to determine this, is to check for an empty message queue.
-                                // (might not be 100%, however, as positions are sent combined later
-                                // and dc_set_location() is typically called periodically, this is ok)
-                                let mut msg = Message::new(Viewtype::Text);
-                                msg.hidden = true;
-                                msg.param.set_cmd(SystemMessage::LocationOnly);
-                                Some((chat_id, msg))
-                            }
-                        })
-                        .collect::<Vec<_>>();
-                    Ok(msgs)
-                },
-            )
-            .unwrap_or_default(); // TODO: Better error handling
+                )?;
+
+                let msgs = rows
+                    .iter()
+                    .filter_map(|(chat_id, locations_send_begin, locations_last_sent)| {
+                        if !stmt_locations
+                            .exists(params![
+                                DC_CONTACT_ID_SELF,
+                                locations_send_begin,
+                                locations_last_sent,
+                            ])
+                            .unwrap_or_default()
+                        {
+                            // if there is no new location, there's nothing to send.
+                            // however, maybe we want to bypass this test eg. 15 minutes
+                            None
+                        } else {
+                            // pending locations are attached automatically to every message,
+                            // so also to this empty text message.
+                            // DC_CMD_LOCATION is only needed to create a nicer subject.
+                            //
+                            // for optimisation and to avoid flooding the sending queue,
+                            // we could sending these messages only if we're really online.
+                            // the easiest way to determine this, is to check for an empty message queue.
+                            // (might not be 100%, however, as positions are sent combined later
+                            // and dc_set_location() is typically called periodically, this is ok)
+                            let mut msg = Message::new(Viewtype::Text);
+                            msg.hidden = true;
+                            msg.param.set_cmd(SystemMessage::LocationOnly);
+                            Some((chat_id, msg))
+                        }
+                    })
+                    .collect::<Vec<_>>();
+
+                Ok(msgs)
+            })
+            .await
+            .unwrap_or_default();
 
         for (chat_id, mut msg) in msgs.into_iter() {
             // TODO: better error handling
-            chat::send_msg(context, chat_id, &mut msg)
+            chat::send_msg(context, *chat_id, &mut msg)
                 .await
                 .unwrap_or_default();
         }
@@ -642,19 +667,26 @@ pub(crate) async fn job_maybe_send_locations(context: &Context, _job: &Job) -> j
     job::Status::Finished(Ok(()))
 }
 
-#[allow(non_snake_case)]
-pub(crate) fn JobMaybeSendLocationsEnded(context: &Context, job: &mut Job) -> job::Status {
+pub(crate) async fn job_maybe_send_locations_ended(
+    context: &Context,
+    job: &mut Job,
+) -> job::Status {
     // this function is called when location-streaming _might_ have ended for a chat.
     // the function checks, if location-streaming is really ended;
     // if so, a device-message is added if not yet done.
 
     let chat_id = ChatId::new(job.foreign_id);
 
-    let (send_begin, send_until) = job_try!(context.sql.query_row(
-        "SELECT locations_send_begin, locations_send_until  FROM chats  WHERE id=?",
-        params![chat_id],
-        |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
-    ));
+    let (send_begin, send_until) = job_try!(
+        context
+            .sql
+            .query_row(
+                "SELECT locations_send_begin, locations_send_until  FROM chats  WHERE id=?",
+                params![chat_id],
+                |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+            )
+            .await
+    );
 
     if !(send_begin != 0 && time() <= send_until) {
         // still streaming -
@@ -665,7 +697,7 @@ pub(crate) fn JobMaybeSendLocationsEnded(context: &Context, job: &mut Job) -> jo
             job_try!(context.sql.execute(
                 "UPDATE chats    SET locations_send_begin=0, locations_send_until=0  WHERE id=?",
                 params![chat_id],
-            ));
+            ).await);
 
             let stock_str = context.stock_system_msg(StockMessage::MsgLocationDisabled, "", "", 0);
             chat::add_info_msg(context, chat_id, stock_str);

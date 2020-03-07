@@ -17,7 +17,6 @@ use crate::mimeparser::*;
 use crate::param::*;
 use crate::peerstate::*;
 use crate::securejoin::{self, handle_securejoin_handshake};
-use crate::sql;
 use crate::stock::StockMessage;
 use crate::{contact, location};
 
@@ -54,7 +53,7 @@ pub async fn dc_receive_imf(
         println!("{}", String::from_utf8_lossy(imf_raw));
     }
 
-    let mut mime_parser = MimeMessage::from_bytes(context, imf_raw)?;
+    let mut mime_parser = MimeMessage::from_bytes(context, imf_raw).await?;
 
     // we can not add even an empty record if we have no info whatsoever
     ensure!(mime_parser.has_headers(), "No Headers Found");
@@ -183,7 +182,7 @@ pub async fn dc_receive_imf(
     }
 
     if let Some(avatar_action) = &mime_parser.user_avatar {
-        match contact::set_profile_image(&context, from_id, avatar_action) {
+        match contact::set_profile_image(&context, from_id, avatar_action).await {
             Ok(()) => {
                 context.call_cb(Event::ChatModified(chat_id));
             }
@@ -317,7 +316,7 @@ async fn add_parts(
     // incoming non-chat messages may be discarded
     let mut allow_creation = true;
     let show_emails =
-        ShowEmails::from_i32(context.get_config_int(Config::ShowEmails)).unwrap_or_default();
+        ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await).unwrap_or_default();
     if mime_parser.is_system_message != SystemMessage::AutocryptSetupMessage
         && msgrmsg == MessengerMessage::No
     {
@@ -377,7 +376,9 @@ async fn add_parts(
         }
 
         let (test_normal_chat_id, test_normal_chat_id_blocked) =
-            chat::lookup_by_contact_id(context, from_id).unwrap_or_default();
+            chat::lookup_by_contact_id(context, from_id)
+                .await
+                .unwrap_or_default();
 
         // get the chat_id - a chat_id here is no indicator that the chat is displayed in the normal list,
         // it might also be blocked and displayed in the deaddrop as a result
@@ -399,7 +400,8 @@ async fn add_parts(
                 create_blocked,
                 from_id,
                 to_ids,
-            )?;
+            )
+            .await?;
             *chat_id = new_chat_id;
             chat_id_blocked = new_chat_id_blocked;
             if !chat_id.is_unset()
@@ -433,6 +435,7 @@ async fn add_parts(
             } else if allow_creation {
                 let (id, bl) =
                     chat::create_or_lookup_by_contact_id(context, from_id, create_blocked)
+                        .await
                         .unwrap_or_default();
                 *chat_id = id;
                 chat_id_blocked = bl;
@@ -487,7 +490,8 @@ async fn add_parts(
                     Blocked::Not,
                     from_id,
                     to_ids,
-                )?;
+                )
+                .await?;
                 *chat_id = new_chat_id;
                 chat_id_blocked = new_chat_id_blocked;
                 // automatically unblock chat when the user sends a message
@@ -498,13 +502,14 @@ async fn add_parts(
             }
             if chat_id.is_unset() && allow_creation {
                 let create_blocked = if MessengerMessage::No != msgrmsg
-                    && !Contact::is_blocked_load(context, to_id)
+                    && !Contact::is_blocked_load(context, to_id).await
                 {
                     Blocked::Not
                 } else {
                     Blocked::Deaddrop
                 };
                 let (id, bl) = chat::create_or_lookup_by_contact_id(context, to_id, create_blocked)
+                    .await
                     .unwrap_or_default();
                 *chat_id = id;
                 chat_id_blocked = bl;
@@ -527,6 +532,7 @@ async fn add_parts(
             // maybe an Autocrypt Setup Message
             let (id, bl) =
                 chat::create_or_lookup_by_contact_id(context, DC_CONTACT_ID_SELF, Blocked::Not)
+                    .await
                     .unwrap_or_default();
             *chat_id = id;
             chat_id_blocked = bl;
@@ -554,11 +560,11 @@ async fn add_parts(
     );
 
     // unarchive chat
-    chat_id.unarchive(context)?;
+    chat_id.unarchive(context).await?;
 
     // if the mime-headers should be saved, find out its size
     // (the mime-header ends with an empty line)
-    let save_mime_headers = context.get_config_bool(Config::SaveMimeHeaders);
+    let save_mime_headers = context.get_config_bool(Config::SaveMimeHeaders).await;
     if let Some(raw) = mime_parser.get(HeaderDef::InReplyTo) {
         mime_in_reply_to = raw.clone();
     }
@@ -573,18 +579,21 @@ async fn add_parts(
     // (eg. one per attachment))
     let icnt = mime_parser.parts.len();
 
-    let mut txt_raw = None;
+    context
+        .sql
+        .with_conn(|mut conn| {
+            let subject = mime_parser.get_subject().unwrap_or_default();
+            let mut txt_raw = None;
 
-    context.sql.prepare(
-        "INSERT INTO msgs \
+            for part in mime_parser.parts.iter_mut() {
+                let mut stmt = conn.prepare_cached(
+                    "INSERT INTO msgs \
          (rfc724_mid, server_folder, server_uid, chat_id, from_id, to_id, timestamp, \
          timestamp_sent, timestamp_rcvd, type, state, msgrmsg,  txt, txt_raw, param, \
          bytes, hidden, mime_headers,  mime_in_reply_to, mime_references) \
          VALUES (?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?);",
-        |mut stmt, conn| {
-            let subject = mime_parser.get_subject().unwrap_or_default();
+                )?;
 
-            for part in mime_parser.parts.iter_mut() {
                 if mime_parser.location_kml.is_some()
                     && icnt == 1
                     && (part.msg == "-location-" || part.msg.is_empty())
@@ -633,14 +642,17 @@ async fn add_parts(
                 ])?;
 
                 txt_raw = None;
+
+                // This is okay, as we use a cached prepared statement.
+                drop(stmt);
                 let row_id =
-                    sql::get_rowid_with_conn(context, conn, "msgs", "rfc724_mid", &rfc724_mid);
+                    crate::sql::get_rowid(context, &mut conn, "msgs", "rfc724_mid", &rfc724_mid)?;
                 *insert_msg_id = MsgId::new(row_id);
                 created_db_entries.push((*chat_id, *insert_msg_id));
             }
             Ok(())
-        },
-    )?;
+        })
+        .await?;
 
     info!(
         context,
@@ -763,7 +775,7 @@ fn calc_timestamps(
 ///
 /// on success the function returns the found/created (chat_id, chat_blocked) tuple .
 #[allow(non_snake_case, clippy::cognitive_complexity)]
-fn create_or_lookup_group(
+async fn create_or_lookup_group(
     context: &Context,
     mime_parser: &mut MimeMessage,
     allow_creation: bool,
@@ -827,6 +839,7 @@ fn create_or_lookup_group(
         X_MrRemoveFromGrp = Some(optional_field);
         mime_parser.is_system_message = SystemMessage::MemberRemovedFromGroup;
         let left_group = Contact::lookup_id_by_addr(context, X_MrRemoveFromGrp.as_ref().unwrap())
+            .await
             == from_id as u32;
         better_msg = context.stock_system_msg(
             if left_group {
@@ -889,6 +902,7 @@ fn create_or_lookup_group(
 
     // check, if we have a chat with this group ID
     let (mut chat_id, chat_id_verified, _blocked) = chat::get_chat_id_by_grpid(context, &grpid)
+        .await
         .unwrap_or((ChatId::new(0), false, Blocked::Not));
     if !chat_id.is_error() {
         if chat_id_verified {
@@ -900,7 +914,7 @@ fn create_or_lookup_group(
                 mime_parser.repl_msg_by_error(s);
             }
         }
-        if !chat::is_contact_in_chat(context, chat_id, from_id as u32) {
+        if !chat::is_contact_in_chat(context, chat_id, from_id as u32).await {
             // The From-address is not part of this group.
             // It could be a new user or a DSN from a mailer-daemon.
             // in any case we do not want to recreate the member list
@@ -913,9 +927,12 @@ fn create_or_lookup_group(
     }
 
     // check if the group does not exist but should be created
-    let group_explicitly_left = chat::is_group_explicitly_left(context, &grpid).unwrap_or_default();
+    let group_explicitly_left = chat::is_group_explicitly_left(context, &grpid)
+        .await
+        .unwrap_or_default();
     let self_addr = context
         .get_config(Config::ConfiguredAddr)
+        .await
         .unwrap_or_default();
 
     if chat_id.is_error()
@@ -953,7 +970,8 @@ fn create_or_lookup_group(
             grpname.as_ref().unwrap(),
             create_blocked,
             create_verified,
-        );
+        )
+        .await;
         chat_id_blocked = create_blocked;
         recreate_member_list = true;
     }
@@ -997,13 +1015,14 @@ fn create_or_lookup_group(
         if let Some(ref grpname) = grpname {
             if grpname.len() < 200 {
                 info!(context, "updating grpname for chat {}", chat_id);
-                if sql::execute(
-                    context,
-                    &context.sql,
-                    "UPDATE chats SET name=? WHERE id=?;",
-                    params![grpname, chat_id],
-                )
-                .is_ok()
+                if context
+                    .sql
+                    .execute(
+                        "UPDATE chats SET name=? WHERE id=?;",
+                        params![grpname, chat_id],
+                    )
+                    .await
+                    .is_ok()
                 {
                     context.call_cb(Event::ChatModified(chat_id));
                 }
@@ -1012,7 +1031,7 @@ fn create_or_lookup_group(
     }
     if let Some(avatar_action) = &mime_parser.group_avatar {
         info!(context, "group-avatar change for {}", chat_id);
-        if let Ok(mut chat) = Chat::load_from_db(context, chat_id) {
+        if let Ok(mut chat) = Chat::load_from_db(context, chat_id).await {
             match avatar_action {
                 AvatarAction::Change(profile_image) => {
                     chat.param.set(Param::ProfileImage, profile_image);
@@ -1021,33 +1040,33 @@ fn create_or_lookup_group(
                     chat.param.remove(Param::ProfileImage);
                 }
             };
-            chat.update_param(context)?;
+            chat.update_param(context).await?;
             send_EVENT_CHAT_MODIFIED = true;
         }
     }
 
     // add members to group/check members
     if recreate_member_list {
-        if !chat::is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF) {
-            chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF);
+        if !chat::is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF).await {
+            chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await;
         }
         if from_id > DC_CONTACT_ID_LAST_SPECIAL
-            && !Contact::addr_equals_contact(context, &self_addr, from_id as u32)
-            && !chat::is_contact_in_chat(context, chat_id, from_id)
+            && !Contact::addr_equals_contact(context, &self_addr, from_id as u32).await
+            && !chat::is_contact_in_chat(context, chat_id, from_id).await
         {
-            chat::add_to_chat_contacts_table(context, chat_id, from_id as u32);
+            chat::add_to_chat_contacts_table(context, chat_id, from_id as u32).await;
         }
         for &to_id in to_ids.iter() {
             info!(context, "adding to={:?} to chat id={}", to_id, chat_id);
-            if !Contact::addr_equals_contact(context, &self_addr, to_id)
-                && !chat::is_contact_in_chat(context, chat_id, to_id)
+            if !Contact::addr_equals_contact(context, &self_addr, to_id).await
+                && !chat::is_contact_in_chat(context, chat_id, to_id).await
             {
                 chat::add_to_chat_contacts_table(context, chat_id, to_id);
             }
         }
         send_EVENT_CHAT_MODIFIED = true;
     } else if let Some(removed_addr) = X_MrRemoveFromGrp {
-        let contact_id = Contact::lookup_id_by_addr(context, removed_addr);
+        let contact_id = Contact::lookup_id_by_addr(context, removed_addr).await;
         if contact_id != 0 {
             info!(context, "remove {:?} from chat id={}", contact_id, chat_id);
             chat::remove_from_chat_contacts_table(context, chat_id, contact_id);
@@ -1178,16 +1197,14 @@ fn create_or_lookup_adhoc_group(
     Ok((new_chat_id, create_blocked))
 }
 
-fn create_group_record(
+async fn create_group_record(
     context: &Context,
     grpid: impl AsRef<str>,
     grpname: impl AsRef<str>,
     create_blocked: Blocked,
     create_verified: VerifiedStatus,
 ) -> ChatId {
-    if sql::execute(
-        context,
-        &context.sql,
+    if context.sql.execute(
         "INSERT INTO chats (type, name, grpid, blocked, created_timestamp) VALUES(?, ?, ?, ?, ?);",
         params![
             if VerifiedStatus::Unverified != create_verified {
@@ -1200,7 +1217,7 @@ fn create_group_record(
             create_blocked,
             time(),
         ],
-    )
+    ).await
     .is_err()
     {
         warn!(
@@ -1211,7 +1228,12 @@ fn create_group_record(
         );
         return ChatId::new(0);
     }
-    let row_id = sql::get_rowid(context, &context.sql, "chats", "grpid", grpid.as_ref());
+    let row_id = context
+        .sql
+        .get_rowid(context, "chats", "grpid", grpid.as_ref())
+        .await
+        .unwrap_or_default();
+
     let chat_id = ChatId::new(row_id);
     info!(
         context,

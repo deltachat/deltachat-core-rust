@@ -115,7 +115,7 @@ impl JobThread {
         let prefix = format!("{}-fetch", self.name);
         match self.imap.connect_configured(context).await {
             Ok(()) => {
-                if let Some(watch_folder) = self.get_watch_folder(context) {
+                if let Some(watch_folder) = self.get_watch_folder(context).await {
                     let start = std::time::Instant::now();
                     info!(context, "{} started...", prefix);
                     let res = self
@@ -135,8 +135,12 @@ impl JobThread {
         }
     }
 
-    fn get_watch_folder(&self, context: &Context) -> Option<String> {
-        match context.sql.get_raw_config(context, self.folder_config_name) {
+    async fn get_watch_folder(&self, context: &Context) -> Option<String> {
+        match context
+            .sql
+            .get_raw_config(context, self.folder_config_name)
+            .await
+        {
             Some(name) => Some(name),
             None => {
                 if self.folder_config_name == "configured_inbox_folder" {
@@ -184,7 +188,7 @@ impl JobThread {
                 if !self.imap.can_idle().await {
                     true // we have to do fake_idle
                 } else {
-                    let watch_folder = self.get_watch_folder(context);
+                    let watch_folder = self.get_watch_folder(context).await;
                     info!(context, "{} started...", prefix);
                     let res = self.imap.idle(context, watch_folder).await;
                     info!(context, "{} ended...", prefix);
@@ -205,7 +209,7 @@ impl JobThread {
             }
         };
         if do_fake_idle {
-            let watch_folder = self.get_watch_folder(context);
+            let watch_folder = self.get_watch_folder(context).await;
             self.imap.fake_idle(context, watch_folder).await;
         }
 

@@ -195,10 +195,11 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         })
     }
 
-    fn peerstates_for_recipients(&self) -> Result<Vec<(Option<Peerstate>, &str)>, Error> {
+    async fn peerstates_for_recipients(&self) -> Result<Vec<(Option<Peerstate<'_>>, &str)>, Error> {
         let self_addr = self
             .context
             .get_config(Config::ConfiguredAddr)
+            .await
             .ok_or_else(|| format_err!("Not configured"))?;
 
         Ok(self

@@ -367,11 +367,11 @@ impl Imap {
         if self.is_connected().await && !self.should_reconnect() {
             return Ok(());
         }
-        if !context.sql.get_raw_config_bool(context, "configured") {
+        if !context.sql.get_raw_config_bool(context, "configured").await {
             return Err(Error::ConnectWithoutConfigure);
         }
 
-        let param = LoginParam::from_database(context, "configured_");
+        let param = LoginParam::from_database(context, "configured_").await;
         // the trailing underscore is correct
 
         if self.connect(context, &param).await {
@@ -415,7 +415,7 @@ impl Imap {
         let teardown = match &mut *self.session.lock().await {
             Some(ref mut session) => match session.capabilities().await {
                 Ok(caps) => {
-                    if !context.sql.is_open() {
+                    if !context.sql.is_open().await {
                         warn!(context, "IMAP-LOGIN as {} ok but ABORTING", lp.mail_user,);
                         true
                     } else {
@@ -465,7 +465,7 @@ impl Imap {
     }
 
     pub async fn fetch(&self, context: &Context, watch_folder: &str) -> Result<()> {
-        if !context.sql.is_open() {
+        if !context.sql.is_open().await {
             // probably shutdown
             return Err(Error::InTeardown);
         }
@@ -477,9 +477,13 @@ impl Imap {
         Ok(())
     }
 
-    fn get_config_last_seen_uid<S: AsRef<str>>(&self, context: &Context, folder: S) -> (u32, u32) {
+    async fn get_config_last_seen_uid<S: AsRef<str>>(
+        &self,
+        context: &Context,
+        folder: S,
+    ) -> (u32, u32) {
         let key = format!("imap.mailbox.{}", folder.as_ref());
-        if let Some(entry) = context.sql.get_raw_config(context, &key) {
+        if let Some(entry) = context.sql.get_raw_config(context, &key).await {
             // the entry has the format `imap.mailbox.<folder>=<uidvalidity>:<lastseenuid>`
             let mut parts = entry.split(':');
             (
@@ -508,7 +512,7 @@ impl Imap {
         self.select_folder(context, Some(folder)).await?;
 
         // compare last seen UIDVALIDITY against the current one
-        let (uid_validity, last_seen_uid) = self.get_config_last_seen_uid(context, &folder);
+        let (uid_validity, last_seen_uid) = self.get_config_last_seen_uid(context, &folder).await;
 
         let config = self.config.read().await;
         let mailbox = config
@@ -590,8 +594,8 @@ impl Imap {
         context: &Context,
         folder: S,
     ) -> Result<bool> {
-        let show_emails =
-            ShowEmails::from_i32(context.get_config_int(Config::ShowEmails)).unwrap_or_default();
+        let show_emails = ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await)
+            .unwrap_or_default();
 
         let (uid_validity, last_seen_uid) = self
             .select_with_uidvalidity(context, folder.as_ref())
@@ -706,7 +710,7 @@ impl Imap {
         Ok(read_cnt > 0)
     }
 
-    fn set_config_last_seen_uid<S: AsRef<str>>(
+    async fn set_config_last_seen_uid<S: AsRef<str>>(
         &self,
         context: &Context,
         folder: S,
@@ -716,7 +720,11 @@ impl Imap {
         let key = format!("imap.mailbox.{}", folder.as_ref());
         let val = format!("{}:{}", uidvalidity, lastseenuid);
 
-        context.sql.set_raw_config(context, &key, Some(&val)).ok();
+        context
+            .sql
+            .set_raw_config(context, &key, Some(&val))
+            .await
+            .ok();
     }
 
     /// Fetches a single message by server UID.
@@ -1080,7 +1088,8 @@ impl Imap {
     ) -> Result<()> {
         let folders_configured = context
             .sql
-            .get_raw_config_int(context, "folders_configured");
+            .get_raw_config_int(context, "folders_configured")
+            .await;
         if folders_configured.unwrap_or_default() >= 3 {
             // the "3" here we increase if we have future updates to
             // to folder configuration
@@ -1168,24 +1177,28 @@ impl Imap {
             }
             context
                 .sql
-                .set_raw_config(context, "configured_inbox_folder", Some("INBOX"))?;
+                .set_raw_config(context, "configured_inbox_folder", Some("INBOX"))
+                .await?;
             if let Some(ref mvbox_folder) = mvbox_folder {
-                context.sql.set_raw_config(
-                    context,
-                    "configured_mvbox_folder",
-                    Some(mvbox_folder),
-                )?;
+                context
+                    .sql
+                    .set_raw_config(context, "configured_mvbox_folder", Some(mvbox_folder))
+                    .await?;
             }
             if let Some(ref sentbox_folder) = sentbox_folder {
-                context.sql.set_raw_config(
-                    context,
-                    "configured_sentbox_folder",
-                    Some(sentbox_folder.name()),
-                )?;
+                context
+                    .sql
+                    .set_raw_config(
+                        context,
+                        "configured_sentbox_folder",
+                        Some(sentbox_folder.name()),
+                    )
+                    .await?;
             }
             context
                 .sql
-                .set_raw_config_int(context, "folders_configured", 3)?;
+                .set_raw_config_int(context, "folders_configured", 3)
+                .await?;
         }
         info!(context, "FINISHED configuring IMAP-folders.");
         Ok(())

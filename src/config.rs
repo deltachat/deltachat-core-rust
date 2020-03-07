@@ -95,16 +95,16 @@ pub enum Config {
 
 impl Context {
     /// Get a configuration key. Returns `None` if no value is set, and no default value found.
-    pub fn get_config(&self, key: Config) -> Option<String> {
+    pub async fn get_config(&self, key: Config) -> Option<String> {
         let value = match key {
             Config::Selfavatar => {
-                let rel_path = self.sql.get_raw_config(self, key);
+                let rel_path = self.sql.get_raw_config(self, key).await;
                 rel_path.map(|p| dc_get_abs_path(self, &p).to_string_lossy().into_owned())
             }
             Config::SysVersion => Some((&*DC_VERSION_STR).clone()),
             Config::SysMsgsizeMaxRecommended => Some(format!("{}", RECOMMENDED_FILE_SIZE)),
             Config::SysConfigKeys => Some(get_config_keys_string()),
-            _ => self.sql.get_raw_config(self, key),
+            _ => self.sql.get_raw_config(self, key).await,
         };
 
         if value.is_some() {
@@ -118,14 +118,15 @@ impl Context {
         }
     }
 
-    pub fn get_config_int(&self, key: Config) -> i32 {
+    pub async fn get_config_int(&self, key: Config) -> i32 {
         self.get_config(key)
+            .await
             .and_then(|s| s.parse().ok())
             .unwrap_or_default()
     }
 
-    pub fn get_config_bool(&self, key: Config) -> bool {
-        self.get_config_int(key) != 0
+    pub async fn get_config_bool(&self, key: Config) -> bool {
+        self.get_config_int(key).await != 0
     }
 
     /// Set the given config key.
@@ -134,30 +135,34 @@ impl Context {
         match key {
             Config::Selfavatar => {
                 self.sql
-                    .execute("UPDATE contacts SET selfavatar_sent=0;", NO_PARAMS)?;
+                    .execute("UPDATE contacts SET selfavatar_sent=0;", NO_PARAMS)
+                    .await?;
                 self.sql
-                    .set_raw_config_bool(self, "attach_selfavatar", true)?;
+                    .set_raw_config_bool(self, "attach_selfavatar", true)
+                    .await?;
                 match value {
                     Some(value) => {
                         let blob = BlobObject::new_from_path(&self, value)?;
                         blob.recode_to_avatar_size(self)?;
-                        self.sql.set_raw_config(self, key, Some(blob.as_name()))
+                        self.sql
+                            .set_raw_config(self, key, Some(blob.as_name()))
+                            .await
                     }
-                    None => self.sql.set_raw_config(self, key, None),
+                    None => self.sql.set_raw_config(self, key, None).await,
                 }
             }
             Config::InboxWatch => {
-                let ret = self.sql.set_raw_config(self, key, value);
+                let ret = self.sql.set_raw_config(self, key, value).await;
                 interrupt_inbox_idle(self).await;
                 ret
             }
             Config::SentboxWatch => {
-                let ret = self.sql.set_raw_config(self, key, value);
+                let ret = self.sql.set_raw_config(self, key, value).await;
                 interrupt_sentbox_idle(self).await;
                 ret
             }
             Config::MvboxWatch => {
-                let ret = self.sql.set_raw_config(self, key, value);
+                let ret = self.sql.set_raw_config(self, key, value).await;
                 interrupt_mvbox_idle(self).await;
                 ret
             }
@@ -169,9 +174,9 @@ impl Context {
                     value
                 };
 
-                self.sql.set_raw_config(self, key, val)
+                self.sql.set_raw_config(self, key, val).await
             }
-            _ => self.sql.set_raw_config(self, key, value),
+            _ => self.sql.set_raw_config(self, key, value).await,
         }
     }
 }
@@ -234,7 +239,7 @@ mod tests {
             .unwrap();
         assert!(avatar_blob.exists());
         assert!(std::fs::metadata(&avatar_blob).unwrap().len() < avatar_bytes.len() as u64);
-        let avatar_cfg = t.ctx.get_config(Config::Selfavatar);
+        let avatar_cfg = t.ctx.get_config(Config::Selfavatar).await;
         assert_eq!(avatar_cfg, avatar_blob.to_str().map(|s| s.to_string()));
 
         let img = image::open(avatar_src).unwrap();
@@ -264,7 +269,7 @@ mod tests {
             .set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))
             .await
             .unwrap();
-        let avatar_cfg = t.ctx.get_config(Config::Selfavatar);
+        let avatar_cfg = t.ctx.get_config(Config::Selfavatar).await;
         assert_eq!(avatar_cfg, avatar_src.to_str().map(|s| s.to_string()));
 
         let img = image::open(avatar_src).unwrap();

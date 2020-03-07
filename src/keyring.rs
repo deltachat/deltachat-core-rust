@@ -27,7 +27,7 @@ impl<'a> Keyring<'a> {
         &self.keys
     }
 
-    pub fn load_self_private_for_decrypting(
+    pub async fn load_self_private_for_decrypting(
         &mut self,
         context: &Context,
         self_addr: impl AsRef<str>,
@@ -38,6 +38,7 @@ impl<'a> Keyring<'a> {
             "SELECT private_key FROM keypairs ORDER BY addr=? DESC, is_default DESC;",
             &[self_addr.as_ref()],
         )
+        .await
         .and_then(|blob: Vec<u8>| Key::from_slice(&blob, KeyType::Private))
         .map(|key| self.add_owned(key))
         .is_some()

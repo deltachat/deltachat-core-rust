@@ -9,7 +9,7 @@ use crate::aheader::*;
 use crate::constants::*;
 use crate::context::Context;
 use crate::key::{Key, SignedPublicKey};
-use crate::sql::{self, Sql};
+use crate::sql::Sql;
 
 #[derive(Debug)]
 pub enum PeerstateKeyType {
@@ -409,20 +409,17 @@ impl<'a> Peerstate<'a> {
         }
     }
 
-    pub fn save_to_db(&self, sql: &Sql, create: bool) -> crate::sql::Result<()> {
+    pub async fn save_to_db(&self, sql: &Sql, create: bool) -> crate::sql::Result<()> {
         if create {
-            sql::execute(
-                self.context,
-                sql,
+            sql.execute(
                 "INSERT INTO acpeerstates (addr) VALUES(?);",
                 params![self.addr],
-            )?;
+            )
+            .await?;
         }
 
         if self.to_save == Some(ToSave::All) || create {
-            sql::execute(
-                self.context,
-                sql,
+            sql.execute(
                 "UPDATE acpeerstates \
                  SET last_seen=?, last_seen_autocrypt=?, prefer_encrypted=?, \
                  public_key=?, gossip_timestamp=?, gossip_key=?, public_key_fingerprint=?, gossip_key_fingerprint=?, \
@@ -441,11 +438,9 @@ impl<'a> Peerstate<'a> {
                     &self.verified_key_fingerprint,
                     &self.addr,
                 ],
-            )?;
+            ).await?;
         } else if self.to_save == Some(ToSave::Timestamps) {
-            sql::execute(
-                self.context,
-                sql,
+            sql.execute(
                 "UPDATE acpeerstates SET last_seen=?, last_seen_autocrypt=?, gossip_timestamp=? \
                  WHERE addr=?;",
                 params![
@@ -454,7 +449,8 @@ impl<'a> Peerstate<'a> {
                     self.gossip_timestamp,
                     &self.addr
                 ],
-            )?;
+            )
+            .await?;
         }
 
         Ok(())

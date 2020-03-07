@@ -80,7 +80,7 @@ impl Default for SystemMessage {
 const MIME_AC_SETUP_FILE: &str = "application/autocrypt-setup";
 
 impl MimeMessage {
-    pub fn from_bytes(context: &Context, body: &[u8]) -> Result<Self> {
+    pub async fn from_bytes(context: &Context, body: &[u8]) -> Result<Self> {
         let mail = mailparse::parse_mail(body)?;
 
         let message_time = mail
@@ -98,7 +98,7 @@ impl MimeMessage {
         let mail_raw;
         let mut gossipped_addr = Default::default();
 
-        let (mail, signatures) = match e2ee::try_decrypt(context, &mail, message_time) {
+        let (mail, signatures) = match e2ee::try_decrypt(context, &mail, message_time).await {
             Ok((raw, signatures)) => {
                 if let Some(raw) = raw {
                     // Valid autocrypt message, encrypted
@@ -114,7 +114,8 @@ impl MimeMessage {
                     let gossip_headers =
                         decrypted_mail.headers.get_all_values("Autocrypt-Gossip")?;
                     gossipped_addr =
-                        update_gossip_peerstates(context, message_time, &mail, gossip_headers)?;
+                        update_gossip_peerstates(context, message_time, &mail, gossip_headers)
+                            .await?;
 
                     // let known protected headers from the decrypted
                     // part override the unencrypted top-level
@@ -837,7 +838,7 @@ impl MimeMessage {
             let mut param = Params::new();
             param.set(Param::ServerFolder, server_folder.as_ref());
             param.set_int(Param::ServerUid, server_uid as i32);
-            if self.has_chat_version() && context.get_config_bool(Config::MvboxMove) {
+            if self.has_chat_version() && context.get_config_bool(Config::MvboxMove).await {
                 param.set_int(Param::AlsoMove, 1);
             }
             job::add(context, Action::MarkseenMdnOnImap, 0, param, 0).await;
@@ -845,7 +846,7 @@ impl MimeMessage {
     }
 }
 
-fn update_gossip_peerstates(
+async fn update_gossip_peerstates(
     context: &Context,
     message_time: i64,
     mail: &mailparse::ParsedMail<'_>,
@@ -878,15 +879,15 @@ fn update_gossip_peerstates(
                 let mut peerstate = Peerstate::from_addr(context, &context.sql, &header.addr);
                 if let Some(ref mut peerstate) = peerstate {
                     peerstate.apply_gossip(header, message_time);
-                    peerstate.save_to_db(&context.sql, false)?;
+                    peerstate.save_to_db(&context.sql, false).await?;
                 } else {
                     let p = Peerstate::from_gossip(context, header, message_time);
-                    p.save_to_db(&context.sql, true)?;
+                    p.save_to_db(&context.sql, true).await?;
                     peerstate = Some(p);
                 }
                 if let Some(peerstate) = peerstate {
                     if peerstate.degrade_event.is_some() {
-                        handle_degrade_event(context, &peerstate)?;
+                        handle_degrade_event(context, &peerstate).await?;
                     }
                 }
 

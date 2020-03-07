@@ -197,7 +197,7 @@ impl Key {
         }
     }
 
-    pub fn from_self_public(
+    pub async fn from_self_public(
         context: &Context,
         self_addr: impl AsRef<str>,
         sql: &Sql,
@@ -209,10 +209,11 @@ impl Key {
             "SELECT public_key FROM keypairs WHERE addr=? AND is_default=1;",
             &[addr],
         )
+        .await
         .and_then(|blob: Vec<u8>| Self::from_slice(&blob, KeyType::Public))
     }
 
-    pub fn from_self_private(
+    pub async fn from_self_private(
         context: &Context,
         self_addr: impl AsRef<str>,
         sql: &Sql,
@@ -222,6 +223,7 @@ impl Key {
             "SELECT private_key FROM keypairs WHERE addr=? AND is_default=1;",
             &[self_addr.as_ref()],
         )
+        .await
         .and_then(|blob: Vec<u8>| Self::from_slice(&blob, KeyType::Private))
     }
 
@@ -347,7 +349,7 @@ impl SaveKeyError {
 /// same key again overwrites it.
 ///
 /// [Config::ConfiguredAddr]: crate::config::Config::ConfiguredAddr
-pub fn store_self_keypair(
+pub async fn store_self_keypair(
     context: &Context,
     keypair: &KeyPair,
     default: KeyPairUse,
@@ -368,11 +370,13 @@ pub fn store_self_keypair(
             "DELETE FROM keypairs WHERE public_key=? OR private_key=?;",
             params![public_key, secret_key],
         )
+        .await
         .map_err(|err| SaveKeyError::new("failed to remove old use of key", err))?;
     if default == KeyPairUse::Default {
         context
             .sql
             .execute("UPDATE keypairs SET is_default=0;", params![])
+            .await
             .map_err(|err| SaveKeyError::new("failed to clear default", err))?;
     }
     let is_default = match default {
@@ -392,6 +396,7 @@ pub fn store_self_keypair(
                 time()
             ],
         )
+        .await
         .map(|_| ())
         .map_err(|err| SaveKeyError::new("failed to insert keypair", err))
 }

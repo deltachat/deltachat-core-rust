@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{atomic::AtomicBool, Arc, Mutex, RwLock};
 
 use crate::chat::*;
 use crate::config::Config;
@@ -39,8 +39,8 @@ pub struct Context {
     /// Blob directory path
     blobdir: PathBuf,
     pub sql: Sql,
-    pub perform_inbox_jobs_needed: Arc<RwLock<bool>>,
-    pub probe_imap_network: Arc<RwLock<bool>>,
+    pub perform_inbox_jobs_needed: AtomicBool,
+    pub probe_imap_network: AtomicBool,
     pub inbox_thread: JobThread,
     pub sentbox_thread: JobThread,
     pub mvbox_thread: JobThread,
@@ -81,7 +81,11 @@ pub fn get_info() -> HashMap<&'static str, String> {
 
 impl Context {
     /// Creates new context.
-    pub fn new(cb: Box<ContextCallback>, os_name: String, dbfile: PathBuf) -> Result<Context> {
+    pub async fn new(
+        cb: Box<ContextCallback>,
+        os_name: String,
+        dbfile: PathBuf,
+    ) -> Result<Context> {
         pretty_env_logger::try_init_timed().ok();
 
         let mut blob_fname = OsString::new();
@@ -91,10 +95,10 @@ impl Context {
         if !blobdir.exists() {
             std::fs::create_dir_all(&blobdir)?;
         }
-        Context::with_blobdir(cb, os_name, dbfile, blobdir)
+        Context::with_blobdir(cb, os_name, dbfile, blobdir).await
     }
 
-    pub fn with_blobdir(
+    pub async fn with_blobdir(
         cb: Box<ContextCallback>,
         os_name: String,
         dbfile: PathBuf,
@@ -120,14 +124,14 @@ impl Context {
             inbox_thread: JobThread::new("INBOX", "configured_inbox_folder", Imap::new()),
             sentbox_thread: JobThread::new("SENTBOX", "configured_sentbox_folder", Imap::new()),
             mvbox_thread: JobThread::new("MVBOX", "configured_mvbox_folder", Imap::new()),
-            probe_imap_network: Arc::new(RwLock::new(false)),
-            perform_inbox_jobs_needed: Arc::new(RwLock::new(false)),
+            probe_imap_network: Default::default(),
+            perform_inbox_jobs_needed: Default::default(),
             generating_key_mutex: Mutex::new(()),
             translated_stockstrings: RwLock::new(HashMap::new()),
         };
 
         ensure!(
-            ctx.sql.open(&ctx, &ctx.dbfile, false),
+            ctx.sql.open(&ctx, &ctx.dbfile, false).await,
             "Failed opening sqlite database"
         );
 
@@ -208,57 +212,66 @@ impl Context {
      * UI chat/message related API
      ******************************************************************************/
 
-    pub fn get_info(&self) -> HashMap<&'static str, String> {
+    pub async fn get_info(&self) -> HashMap<&'static str, String> {
         let unset = "0";
-        let l = LoginParam::from_database(self, "");
-        let l2 = LoginParam::from_database(self, "configured_");
-        let displayname = self.get_config(Config::Displayname);
-        let chats = get_chat_cnt(self) as usize;
+        let l = LoginParam::from_database(self, "").await;
+        let l2 = LoginParam::from_database(self, "configured_").await;
+        let displayname = self.get_config(Config::Displayname).await;
+        let chats = get_chat_cnt(self).await as usize;
         let real_msgs = message::get_real_msg_cnt(self) as usize;
         let deaddrop_msgs = message::get_deaddrop_msg_cnt(self) as usize;
-        let contacts = Contact::get_real_cnt(self) as usize;
-        let is_configured = self.get_config_int(Config::Configured);
+        let contacts = Contact::get_real_cnt(self).await as usize;
+        let is_configured = self.get_config_int(Config::Configured).await;
         let dbversion = self
             .sql
             .get_raw_config_int(self, "dbversion")
+            .await
             .unwrap_or_default();
 
-        let e2ee_enabled = self.get_config_int(Config::E2eeEnabled);
-        let mdns_enabled = self.get_config_int(Config::MdnsEnabled);
-        let bcc_self = self.get_config_int(Config::BccSelf);
+        let e2ee_enabled = self.get_config_int(Config::E2eeEnabled).await;
+        let mdns_enabled = self.get_config_int(Config::MdnsEnabled).await;
+        let bcc_self = self.get_config_int(Config::BccSelf).await;
 
-        let prv_key_cnt: Option<isize> =
-            self.sql
-                .query_get_value(self, "SELECT COUNT(*) FROM keypairs;", rusqlite::NO_PARAMS);
+        let prv_key_cnt: Option<isize> = self
+            .sql
+            .query_get_value(self, "SELECT COUNT(*) FROM keypairs;", rusqlite::NO_PARAMS)
+            .await;
 
-        let pub_key_cnt: Option<isize> = self.sql.query_get_value(
-            self,
-            "SELECT COUNT(*) FROM acpeerstates;",
-            rusqlite::NO_PARAMS,
-        );
+        let pub_key_cnt: Option<isize> = self
+            .sql
+            .query_get_value(
+                self,
+                "SELECT COUNT(*) FROM acpeerstates;",
+                rusqlite::NO_PARAMS,
+            )
+            .await;
 
-        let fingerprint_str = if let Some(key) = Key::from_self_public(self, &l2.addr, &self.sql) {
-            key.fingerprint()
-        } else {
-            "<Not yet calculated>".into()
-        };
+        let fingerprint_str =
+            if let Some(key) = Key::from_self_public(self, &l2.addr, &self.sql).await {
+                key.fingerprint()
+            } else {
+                "<Not yet calculated>".into()
+            };
 
-        let inbox_watch = self.get_config_int(Config::InboxWatch);
-        let sentbox_watch = self.get_config_int(Config::SentboxWatch);
-        let mvbox_watch = self.get_config_int(Config::MvboxWatch);
-        let mvbox_move = self.get_config_int(Config::MvboxMove);
+        let inbox_watch = self.get_config_int(Config::InboxWatch).await;
+        let sentbox_watch = self.get_config_int(Config::SentboxWatch).await;
+        let mvbox_watch = self.get_config_int(Config::MvboxWatch).await;
+        let mvbox_move = self.get_config_int(Config::MvboxMove).await;
         let folders_configured = self
             .sql
             .get_raw_config_int(self, "folders_configured")
+            .await
             .unwrap_or_default();
 
         let configured_sentbox_folder = self
             .sql
             .get_raw_config(self, "configured_sentbox_folder")
+            .await
             .unwrap_or_else(|| "<unset>".to_string());
         let configured_mvbox_folder = self
             .sql
             .get_raw_config(self, "configured_mvbox_folder")
+            .await
             .unwrap_or_else(|| "<unset>".to_string());
 
         let mut res = get_info();
@@ -273,6 +286,7 @@ impl Context {
         res.insert(
             "selfavatar",
             self.get_config(Config::Selfavatar)
+                .await
                 .unwrap_or_else(|| "<unset>".to_string()),
         );
         res.insert("is_configured", is_configured.to_string());
@@ -301,7 +315,7 @@ impl Context {
         res
     }
 
-    pub fn get_fresh_msgs(&self) -> Vec<MsgId> {
+    pub async fn get_fresh_msgs(&self) -> Vec<MsgId> {
         let show_deaddrop = 0;
         self.sql
             .query_map(
@@ -329,11 +343,12 @@ impl Context {
                     Ok(ret)
                 },
             )
+            .await
             .unwrap_or_default()
     }
 
     #[allow(non_snake_case)]
-    pub fn search_msgs(&self, chat_id: ChatId, query: impl AsRef<str>) -> Vec<MsgId> {
+    pub async fn search_msgs(&self, chat_id: ChatId, query: impl AsRef<str>) -> Vec<MsgId> {
         let real_query = query.as_ref().trim();
         if real_query.is_empty() {
             return Vec::new();
@@ -383,6 +398,7 @@ impl Context {
                     Ok(ret)
                 },
             )
+            .await
             .unwrap_or_default()
     }
 
@@ -390,8 +406,11 @@ impl Context {
         folder_name.as_ref() == "INBOX"
     }
 
-    pub fn is_sentbox(&self, folder_name: impl AsRef<str>) -> bool {
-        let sentbox_name = self.sql.get_raw_config(self, "configured_sentbox_folder");
+    pub async fn is_sentbox(&self, folder_name: impl AsRef<str>) -> bool {
+        let sentbox_name = self
+            .sql
+            .get_raw_config(self, "configured_sentbox_folder")
+            .await;
         if let Some(name) = sentbox_name {
             name == folder_name.as_ref()
         } else {
@@ -399,8 +418,11 @@ impl Context {
         }
     }
 
-    pub fn is_mvbox(&self, folder_name: impl AsRef<str>) -> bool {
-        let mvbox_name = self.sql.get_raw_config(self, "configured_mvbox_folder");
+    pub async fn is_mvbox(&self, folder_name: impl AsRef<str>) -> bool {
+        let mvbox_name = self
+            .sql
+            .get_raw_config(self, "configured_mvbox_folder")
+            .await;
 
         if let Some(name) = mvbox_name {
             name == folder_name.as_ref()
@@ -410,14 +432,14 @@ impl Context {
     }
 
     pub async fn do_heuristics_moves(&self, folder: &str, msg_id: MsgId) {
-        if !self.get_config_bool(Config::MvboxMove) {
+        if !self.get_config_bool(Config::MvboxMove).await {
             return;
         }
 
-        if self.is_mvbox(folder) {
+        if self.is_mvbox(folder).await {
             return;
         }
-        if let Ok(msg) = Message::load_from_db(self, msg_id) {
+        if let Ok(msg) = Message::load_from_db(self, msg_id).await {
             if msg.is_setupmessage() {
                 // do not move setup messages;
                 // there may be a non-delta device that wants to handle it
@@ -567,11 +589,11 @@ mod tests {
         std::mem::drop(t.ctx);
     }
 
-    #[test]
-    fn test_get_info() {
+    #[async_std::test]
+    async fn test_get_info() {
         let t = dummy_context();
 
-        let info = t.ctx.get_info();
+        let info = t.ctx.get_info().await;
         assert!(info.get("database_dir").is_some());
     }
 

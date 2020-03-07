@@ -83,6 +83,7 @@ pub(crate) async fn configure_alice_keypair(ctx: &Context) -> String {
         .await
         .unwrap();
     key::store_self_keypair(&ctx, &keypair, key::KeyPairUse::Default)
+        .await
         .expect("Failed to save Alice's key");
     keypair.addr.to_string()
 }

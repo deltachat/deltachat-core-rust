@@ -49,7 +49,7 @@ async fn main() {
     let ctx1 = ctx.clone();
     let t1 = async_std::task::spawn(async move {
         while *r1.read().await {
-            // perform_inbox_jobs(&ctx1).await;
+            perform_inbox_jobs(&ctx1).await;
             if *r1.read().await {
                 perform_inbox_fetch(&ctx1).await;
 
