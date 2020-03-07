@@ -943,15 +943,25 @@ fn add_imap_deletion_jobs(context: &Context) -> sql::Result<()> {
     if let Some(delete_server_after) = context.get_config_delete_server_after() {
         let threshold_timestamp = time() - delete_server_after;
 
+        // Only try to delete messages in 2 weeks window
+        // (oldest_timestamp, threshold_timestamp). Otherwise we may
+        // waste a lot of traffic attempting to delete all the
+        // messages since the beginning of Delta Chat usage.
+        let oldest_timestamp = threshold_timestamp - 2 * 7 * 24 * 60 * 60;
+
         // Select all expired messages which don't have a
         // corresponding message deletion job yet.
         let msg_ids = context.sql.query_map(
             "SELECT id FROM msgs
-             WHERE timestamp < ?
+             WHERE timestamp < ? AND timestamp > ?
              AND server_uid != 0
              AND NOT EXISTS (SELECT 1 FROM jobs WHERE foreign_id = msgs.id
                                                       AND action = ?)",
-            params![threshold_timestamp, Action::DeleteMsgOnImap],
+            params![
+                threshold_timestamp,
+                oldest_timestamp,
+                Action::DeleteMsgOnImap
+            ],
             |row| row.get::<_, MsgId>(0),
             |ids| {
                 ids.collect::<std::result::Result<Vec<_>, _>>()
