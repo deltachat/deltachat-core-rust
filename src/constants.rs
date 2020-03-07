@@ -197,13 +197,13 @@ pub const DC_LP_SMTP_SOCKET_SSL: usize = 0x20000;
 pub const DC_LP_SMTP_SOCKET_PLAIN: usize = 0x40000;
 
 /// if none of these flags are set, the default is chosen
-pub const DC_LP_AUTH_FLAGS: i32 = (DC_LP_AUTH_OAUTH2 | DC_LP_AUTH_NORMAL);
+pub const DC_LP_AUTH_FLAGS: i32 = DC_LP_AUTH_OAUTH2 | DC_LP_AUTH_NORMAL;
 /// if none of these flags are set, the default is chosen
 pub const DC_LP_IMAP_SOCKET_FLAGS: i32 =
-    (DC_LP_IMAP_SOCKET_STARTTLS | DC_LP_IMAP_SOCKET_SSL | DC_LP_IMAP_SOCKET_PLAIN);
+    DC_LP_IMAP_SOCKET_STARTTLS | DC_LP_IMAP_SOCKET_SSL | DC_LP_IMAP_SOCKET_PLAIN;
 /// if none of these flags are set, the default is chosen
 pub const DC_LP_SMTP_SOCKET_FLAGS: usize =
-    (DC_LP_SMTP_SOCKET_STARTTLS | DC_LP_SMTP_SOCKET_SSL | DC_LP_SMTP_SOCKET_PLAIN);
+    DC_LP_SMTP_SOCKET_STARTTLS | DC_LP_SMTP_SOCKET_SSL | DC_LP_SMTP_SOCKET_PLAIN;
 
 // QR code scanning (view from Bob, the joiner)
 pub const DC_VC_AUTH_REQUIRED: i32 = 2;

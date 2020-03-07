@@ -27,22 +27,19 @@ impl Session {
         &mut self,
         reference_name: Option<&str>,
         mailbox_pattern: Option<&str>,
-    ) -> ImapResult<Vec<Name>> {
-        let res = match self {
+    ) -> ImapResult<impl Stream<Item = ImapResult<Name>> + '_ + Send + Unpin> {
+        match self {
             Session::Secure(i) => {
-                i.list(reference_name, mailbox_pattern)
-                    .await?
-                    .collect::<ImapResult<_>>()
-                    .await?
+                i.list(reference_name, mailbox_pattern).await
+                // list.collect::<ImapResult<_>>().await?
             }
             Session::Insecure(i) => {
-                i.list(reference_name, mailbox_pattern)
-                    .await?
-                    .collect::<ImapResult<_>>()
-                    .await?
+                unimplemented!()
+                // i.list(reference_name, mailbox_pattern).await
+                //     .collect::<ImapResult<_>>()
+                //     .await?
             }
-        };
-        Ok(res)
+        }
     }
 
     pub async fn create<S: AsRef<str>>(&mut self, mailbox_name: S) -> ImapResult<()> {
@@ -78,68 +75,59 @@ impl Session {
         Ok(mbox)
     }
 
-    pub async fn fetch<S1, S2>(&mut self, sequence_set: S1, query: S2) -> ImapResult<Vec<Fetch>>
+    pub async fn fetch<'a, S1, S2>(
+        &'a mut self,
+        sequence_set: S1,
+        query: S2,
+    ) -> ImapResult<impl Stream<Item = ImapResult<Fetch>> + 'a + Send + Unpin>
     where
-        S1: AsRef<str>,
-        S2: AsRef<str>,
+        S1: 'a + AsRef<str>,
+        S2: 'a + AsRef<str>,
     {
         let res = match self {
-            Session::Secure(i) => {
-                i.fetch(sequence_set, query)
-                    .await?
-                    .collect::<ImapResult<_>>()
-                    .await?
-            }
+            Session::Secure(i) => i.fetch(sequence_set, query).await?,
             Session::Insecure(i) => {
-                i.fetch(sequence_set, query)
-                    .await?
-                    .collect::<ImapResult<_>>()
-                    .await?
+                unimplemented!()
+                // i.fetch(sequence_set, query).await?
             }
         };
         Ok(res)
     }
 
-    pub async fn uid_fetch<S1, S2>(&mut self, uid_set: S1, query: S2) -> ImapResult<Vec<Fetch>>
+    pub async fn uid_fetch<'a, S1, S2>(
+        &'a mut self,
+        uid_set: S1,
+        query: S2,
+    ) -> ImapResult<impl Stream<Item = ImapResult<Fetch>> + 'a + Send + Unpin>
     where
-        S1: AsRef<str>,
-        S2: AsRef<str>,
+        S1: 'a + AsRef<str>,
+        S2: 'a + AsRef<str>,
     {
         let res = match self {
-            Session::Secure(i) => {
-                i.uid_fetch(uid_set, query)
-                    .await?
-                    .collect::<ImapResult<_>>()
-                    .await?
-            }
+            Session::Secure(i) => i.uid_fetch(uid_set, query).await?,
             Session::Insecure(i) => {
-                i.uid_fetch(uid_set, query)
-                    .await?
-                    .collect::<ImapResult<_>>()
-                    .await?
+                unimplemented!()
+                // i.uid_fetch(uid_set, query).await?
             }
         };
 
         Ok(res)
     }
 
-    pub async fn uid_store<S1, S2>(&mut self, uid_set: S1, query: S2) -> ImapResult<Vec<Fetch>>
+    pub async fn uid_store<'a, S1, S2>(
+        &'a mut self,
+        uid_set: S1,
+        query: S2,
+    ) -> ImapResult<impl Stream<Item = ImapResult<Fetch>> + 'a + Send + Unpin>
     where
-        S1: AsRef<str>,
-        S2: AsRef<str>,
+        S1: 'a + AsRef<str>,
+        S2: 'a + AsRef<str>,
     {
         let res = match self {
-            Session::Secure(i) => {
-                i.uid_store(uid_set, query)
-                    .await?
-                    .collect::<ImapResult<_>>()
-                    .await?
-            }
+            Session::Secure(i) => i.uid_store(uid_set, query).await?,
             Session::Insecure(i) => {
-                i.uid_store(uid_set, query)
-                    .await?
-                    .collect::<ImapResult<_>>()
-                    .await?
+                unimplemented!()
+                // i.uid_store(uid_set, query).await?
             }
         };
         Ok(res)

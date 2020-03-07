@@ -1,7 +1,7 @@
 extern crate deltachat;
 
-use std::sync::{Arc, RwLock};
-use std::{thread, time};
+use async_std::sync::{Arc, RwLock};
+use std::time;
 use tempfile::tempdir;
 
 use deltachat::chat;
@@ -44,28 +44,28 @@ async fn main() {
     println!("info: {:#?}", info);
 
     let ctx = Arc::new(ctx);
-    let ctx1 = ctx.clone();
     let r1 = running.clone();
-    let t1 = thread::spawn(move || {
-        while *r1.read().unwrap() {
-            async_std::task::block_on(perform_inbox_jobs(&ctx1));
-            if *r1.read().unwrap() {
-                async_std::task::block_on(perform_inbox_fetch(&ctx1));
 
-                if *r1.read().unwrap() {
-                    async_std::task::block_on(perform_inbox_idle(&ctx1));
+    let ctx1 = ctx.clone();
+    let t1 = async_std::task::spawn(async move {
+        while *r1.read().await {
+            // perform_inbox_jobs(&ctx1).await;
+            if *r1.read().await {
+                perform_inbox_fetch(&ctx1).await;
+
+                if *r1.read().await {
+                    // perform_inbox_idle(&ctx1).await;
                 }
             }
         }
     });
 
-    let ctx1 = ctx.clone();
     let r1 = running.clone();
-    let t2 = thread::spawn(move || {
-        while *r1.read().unwrap() {
-            async_std::task::block_on(perform_smtp_jobs(&ctx1));
-            if *r1.read().unwrap() {
-                async_std::task::block_on(perform_smtp_idle(&ctx1));
+    let t2 = async_std::task::spawn(async move {
+        while *r1.read().await {
+            // perform_smtp_jobs(&ctx1).await;
+            if *r1.read().await {
+                // perform_smtp_idle(&ctx1).await;
             }
         }
     });
@@ -105,13 +105,13 @@ async fn main() {
 
     println!("stopping threads");
 
-    *running.write().unwrap() = false;
+    *running.write().await = false;
     deltachat::job::interrupt_inbox_idle(&ctx).await;
     deltachat::job::interrupt_smtp_idle(&ctx).await;
 
     println!("joining");
-    t1.join().unwrap();
-    t2.join().unwrap();
+    t1.await;
+    t2.await;
 
     println!("closing");
 }

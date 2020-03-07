@@ -85,9 +85,7 @@ dependencies = [
 [[package]]
 name = "async-imap"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "async-attributes 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "async-native-tls 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "async-std 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "base64 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -627,7 +625,7 @@ dependencies = [
 name = "deltachat"
 version = "1.27.0"
 dependencies = [
- "async-imap 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "async-imap 0.2.0",
  "async-native-tls 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "async-smtp 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "async-std 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3150,7 +3148,6 @@ dependencies = [
 "checksum arrayvec 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "cff77d8686867eceff3105329d4698d96c2391c176d5d03adc90c7389162b5b8"
 "checksum ascii_utils 0.9.3 (registry+https://github.com/rust-lang/crates.io-index)" = "71938f30533e4d95a6d17aa530939da3842c2ab6f4f84b9dae68447e4129f74a"
 "checksum async-attributes 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "efd3d156917d94862e779f356c5acae312b08fd3121e792c857d7928c8088423"
-"checksum async-imap 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "46ff8df29e2a90154d85d3c21e843d1f6d9337dcdcf23b3b5a87228d18122c84"
 "checksum async-native-tls 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)" = "d40a615e861c981117e15c28c577daf9918cabd2e2d588a5e06811ae79c9da1a"
 "checksum async-smtp 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b3652e5c6072c0694a2bcdb7e8409980d2676bd4f024adf4aab10c68fd2b48f5"
 "checksum async-std 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "538ecb01eb64eecd772087e5b6f7540cbc917f047727339a472dafed2185b267"

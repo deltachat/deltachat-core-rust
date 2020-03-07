@@ -106,7 +106,9 @@ impl JobThread {
                 }
             }
         }
-        self.state.lock().await.using_handle = false;
+        {
+            self.state.lock().await.using_handle = false;
+        }
     }
 
     async fn connect_and_fetch(&self, context: &Context) -> Result<()> {
