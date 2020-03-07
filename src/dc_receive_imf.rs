@@ -192,39 +192,23 @@ pub fn dc_receive_imf(
         };
     }
 
-    if needs_delete_job && !created_db_entries.is_empty() {
-        for db_entry in &created_db_entries {
-            job_add(
-                context,
-                Action::DeleteMsgOnImap,
-                db_entry.1.to_u32() as i32,
-                Params::new(),
-                0,
-            );
-        }
-    } else {
-        // Get user-configured server deletion
-        let delete_server_after = context.get_config_delete_server_after();
+    // Get user-configured server deletion
+    let delete_server_after = context.get_config_delete_server_after();
 
-        if delete_server_after != Some(0) {
-            // Move message if we don't delete it immediately.
-            context.do_heuristics_moves(server_folder.as_ref(), insert_msg_id);
-        }
-
-        if let Some(delete_server_after) = delete_server_after {
-            info!(
-                context,
-                "Scheduling message deletion in {} seconds", delete_server_after
-            );
+    if !created_db_entries.is_empty() {
+        if needs_delete_job || delete_server_after == Some(0) {
             for db_entry in &created_db_entries {
                 job_add(
                     context,
                     Action::DeleteMsgOnImap,
                     db_entry.1.to_u32() as i32,
                     Params::new(),
-                    delete_server_after as i64,
+                    0,
                 );
             }
+        } else {
+            // Move message if we don't delete it immediately.
+            context.do_heuristics_moves(server_folder.as_ref(), insert_msg_id);
         }
     }
 

@@ -1320,35 +1320,6 @@ fn precheck_imf(context: &Context, rfc724_mid: &str, server_folder: &str, server
                     0,
                 );
             }
-
-            if let Some(delete_server_after) = delete_server_after {
-                info!(
-                    context,
-                    "Scheduling BCC-self deletion in {} seconds", delete_server_after
-                );
-
-                let msg_ids = match message::get_all_by_rfc724_mid(context, &rfc724_mid) {
-                    Err(err) => {
-                        warn!(
-                            context,
-                            "Cannot get all database records for Message-ID {}: {}",
-                            &rfc724_mid,
-                            err
-                        );
-                        vec![msg_id] // Remove at least the MsgId we know about
-                    }
-                    Ok(msg_ids) => msg_ids,
-                };
-                for part_msg_id in msg_ids {
-                    job_add(
-                        context,
-                        Action::DeleteMsgOnImap,
-                        part_msg_id.to_u32() as i32,
-                        Params::new(),
-                        delete_server_after as i64,
-                    );
-                }
-            }
         } else if old_server_folder != server_folder {
             info!(context, "[move] detected moved message {}", rfc724_mid,);
         }
