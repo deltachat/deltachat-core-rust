@@ -1,6 +1,7 @@
 from __future__ import print_function
 import os
 import sys
+import subprocess
 import pytest
 import requests
 import time
@@ -241,9 +242,38 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
             ac.start()
             return ac
 
+        def run_bot_process(self, module):
+            fn = module.__file__
+
+            bot_ac, bot_cfg = self.get_online_config()
+
+            popen = subprocess.Popen([
+                sys.executable,
+                fn,
+                "--show-ffi",
+                "--db", bot_ac.db_path,
+                "--email", bot_cfg["addr"],
+                "--password", bot_cfg["mail_pw"],
+            ])
+            bot = BotProcess(popen, bot_cfg)
+            self._finalizers.append(bot.kill)
+            return bot
+
     am = AccountMaker()
     request.addfinalizer(am.finalize)
     return am
+
+
+class BotProcess:
+    def __init__(self, popen, bot_cfg):
+        self.popen = popen
+        self.addr = bot_cfg["addr"]
+
+    def kill(self):
+        self.popen.kill()
+
+    def wait(self, timeout=30):
+        self.popen.wait(timeout=timeout)
 
 
 @pytest.fixture
