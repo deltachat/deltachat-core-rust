@@ -1046,6 +1046,25 @@ pub unsafe extern "C" fn dc_get_fresh_msg_cnt(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_estimate_deletion_cnt(
+    context: *mut dc_context_t,
+    from_server: libc::c_int,
+    seconds: i64,
+) -> libc::c_int {
+    if context.is_null() || seconds < 0 {
+        eprintln!("ignoring careless call to dc_estimate_deletion_cnt()");
+        return 0;
+    }
+    let ffi_context = &*context;
+    ffi_context
+        .with_inner(|ctx| {
+            message::estimate_deletion_cnt(ctx, from_server as bool, seconds).unwrap_or(0)
+                as libc::c_int
+        })
+        .unwrap_or(0)
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_get_fresh_msgs(
     context: *mut dc_context_t,
 ) -> *mut dc_array::dc_array_t {
