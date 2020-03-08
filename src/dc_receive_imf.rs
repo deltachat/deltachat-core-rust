@@ -219,7 +219,7 @@ pub fn dc_receive_imf(
 
     cleanup(context, &create_event_to_send, created_db_entries);
 
-    mime_parser.handle_reports(context, from_id, sent_timestamp, &server_folder, server_uid);
+    mime_parser.handle_reports(context, from_id, sent_timestamp);
 
     Ok(())
 }
