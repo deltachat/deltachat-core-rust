@@ -1369,6 +1369,14 @@ pub fn get_deaddrop_msg_cnt(context: &Context) -> usize {
     }
 }
 
+pub fn estimate_deletion_cnt(
+    _context: &Context,
+    _from_server: bool,
+    _seconds: i64,
+) -> Result<usize, Error> {
+    Ok(0)
+}
+
 /// Counts number of database records pointing to specified
 /// Message-ID.
 ///
