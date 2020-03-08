@@ -452,7 +452,14 @@ impl Job {
         let msg = job_try!(Message::load_from_db(context, MsgId::new(self.foreign_id)));
 
         if !msg.rfc724_mid.is_empty() {
-            if message::rfc724_mid_cnt(context, &msg.rfc724_mid) > 1 {
+            let cnt = message::rfc724_mid_cnt(context, &msg.rfc724_mid);
+            info!(
+                context,
+                "Running delete job for message {} which has {} entries in the database",
+                &msg.rfc724_mid,
+                cnt
+            );
+            if cnt > 1 {
                 info!(
                     context,
                     "The message is deleted from the server when all parts are deleted.",
