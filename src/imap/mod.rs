@@ -1291,7 +1291,10 @@ fn precheck_imf(context: &Context, rfc724_mid: &str, server_folder: &str, server
         message::rfc724_mid_exists(context, &rfc724_mid)
     {
         if old_server_folder.is_empty() && old_server_uid == 0 {
-            info!(context, "[move] detected bcc-self {}", rfc724_mid,);
+            info!(
+                context,
+                "[move] detected bcc-self {} as {}/{}", rfc724_mid, server_folder, server_uid
+            );
 
             let delete_server_after = context.get_config_delete_server_after();
 
@@ -1306,7 +1309,34 @@ fn precheck_imf(context: &Context, rfc724_mid: &str, server_folder: &str, server
                 );
             }
         } else if old_server_folder != server_folder {
-            info!(context, "[move] detected moved message {}", rfc724_mid,);
+            info!(
+                context,
+                "[move] detected message {} moved by other device from {}/{} to {}/{}",
+                rfc724_mid,
+                old_server_folder,
+                old_server_uid,
+                server_folder,
+                server_uid
+            );
+        } else if old_server_uid == 0 {
+            info!(
+                context,
+                "[move] detected message {} moved by us from {}/{} to {}/{}",
+                rfc724_mid,
+                old_server_folder,
+                old_server_uid,
+                server_folder,
+                server_uid
+            );
+        } else if old_server_uid != server_uid {
+            warn!(
+                context,
+                "UID for message {} in folder {} changed from {} to {}",
+                rfc724_mid,
+                server_folder,
+                old_server_uid,
+                server_uid
+            );
         }
 
         if old_server_folder != server_folder || old_server_uid != server_uid {
