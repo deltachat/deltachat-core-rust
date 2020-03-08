@@ -128,7 +128,7 @@ impl MsgId {
             context,
             &context.sql,
             "UPDATE msgs \
-             SET unlinked=1, server_folder='', server_uid=0 \
+             SET server_folder='', server_uid=0 \
              WHERE id=?",
             params![self],
         )
@@ -1376,7 +1376,7 @@ pub fn get_deaddrop_msg_cnt(context: &Context) -> usize {
 pub fn rfc724_mid_cnt(context: &Context, rfc724_mid: &str) -> i32 {
     // check the number of messages with the same rfc724_mid
     match context.sql.query_row(
-        "SELECT COUNT(*) FROM msgs WHERE rfc724_mid=? AND NOT unlinked",
+        "SELECT COUNT(*) FROM msgs WHERE rfc724_mid=? AND NOT server_uid = 0",
         &[rfc724_mid],
         |row| row.get(0),
     ) {
@@ -1417,7 +1417,7 @@ pub fn update_server_uid(
     server_uid: u32,
 ) {
     match context.sql.execute(
-        "UPDATE msgs SET server_folder=?, server_uid=?, unlinked=0 \
+        "UPDATE msgs SET server_folder=?, server_uid=? \
          WHERE rfc724_mid=?",
         params![server_folder.as_ref(), server_uid, rfc724_mid],
     ) {
