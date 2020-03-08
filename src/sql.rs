@@ -162,19 +162,20 @@ impl Sql {
         Ok(conn)
     }
 
-    pub async fn with_conn<G, H>(&self, mut g: G) -> Result<H>
+    pub async fn with_conn<G, H>(&self, g: G) -> Result<H>
     where
-        G: FnMut(r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManager>) -> Result<H>,
+        H: Send + 'static,
+        G: Send
+            + 'static
+            + FnOnce(r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManager>) -> Result<H>,
     {
         let lock = self.pool.read().await;
         let pool = lock.as_ref().ok_or_else(|| Error::SqlNoConnection)?;
+        let conn = pool.get()?;
 
-        let res = {
-            let conn = pool.get()?;
-            let res = g(conn);
-            self.in_use.remove();
-            res
-        };
+        let res = async_std::task::spawn_blocking(move || g(conn)).await;
+        self.in_use.remove();
+
         res
     }
 
@@ -234,9 +235,10 @@ impl Sql {
 
     pub async fn table_exists(&self, name: impl AsRef<str>) -> Result<bool> {
         self.start_stmt("table_exists");
-        self.with_conn(|conn| {
+        let name = name.as_ref().to_string();
+        self.with_conn(move |conn| {
             let mut exists = false;
-            conn.pragma(None, "table_info", &name.as_ref().to_string(), |_row| {
+            conn.pragma(None, "table_info", &name, |_row| {
                 // will only be executed if the info was found
                 exists = true;
                 Ok(())
@@ -422,7 +424,7 @@ impl Sql {
     /// eg. if a Message-ID is split into different messages.
     pub async fn get_rowid(
         &self,
-        context: &Context,
+        _context: &Context,
         table: impl AsRef<str>,
         field: impl AsRef<str>,
         value: impl AsRef<str>,
@@ -431,7 +433,7 @@ impl Sql {
 
         let res = {
             let mut conn = self.get_conn().await?;
-            let res = get_rowid(context, &mut conn, table, field, value);
+            let res = get_rowid(&mut conn, table, field, value);
             self.in_use.remove();
             res
         };
@@ -441,7 +443,7 @@ impl Sql {
 
     pub async fn get_rowid2(
         &self,
-        context: &Context,
+        _context: &Context,
         table: impl AsRef<str>,
         field: impl AsRef<str>,
         value: i64,
@@ -452,7 +454,7 @@ impl Sql {
 
         let res = {
             let mut conn = self.get_conn().await?;
-            let res = get_rowid2(context, &mut conn, table, field, value, field2, value2);
+            let res = get_rowid2(&mut conn, table, field, value, field2, value2);
             self.in_use.remove();
             res
         };
@@ -462,7 +464,6 @@ impl Sql {
 }
 
 pub fn get_rowid(
-    _context: &Context,
     conn: &mut Connection,
     table: impl AsRef<str>,
     field: impl AsRef<str>,
@@ -481,7 +482,6 @@ pub fn get_rowid(
 }
 
 pub fn get_rowid2(
-    _context: &Context,
     conn: &mut Connection,
     table: impl AsRef<str>,
     field: impl AsRef<str>,

@@ -1225,11 +1225,11 @@ pub(crate) async fn create_or_lookup_by_contact_id(
     }
 
     let contact = Contact::load_from_db(context, contact_id).await?;
-    let chat_name = contact.get_display_name();
+    let chat_name = contact.get_display_name().to_string();
 
     context
         .sql
-        .with_conn(|mut conn| {
+        .with_conn(move |mut conn| {
             let conn2 = &mut conn;
             let tx = conn2.transaction()?;
             tx.execute(

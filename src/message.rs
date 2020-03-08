@@ -1026,14 +1026,14 @@ async fn delete_poi_location(context: &Context, location_id: u32) -> bool {
         .is_ok()
 }
 
-pub async fn markseen_msgs(context: &Context, msg_ids: &[MsgId]) -> bool {
+pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
     if msg_ids.is_empty() {
         return false;
     }
 
     let msgs = context
         .sql
-        .with_conn(|conn| {
+        .with_conn(move |conn| {
             let mut stmt = conn.prepare_cached(concat!(
                 "SELECT",
                 "    m.state AS state,",
@@ -1043,8 +1043,8 @@ pub async fn markseen_msgs(context: &Context, msg_ids: &[MsgId]) -> bool {
             ))?;
 
             let mut msgs = Vec::with_capacity(msg_ids.len());
-            for id in msg_ids.iter() {
-                let query_res = stmt.query_row(paramsv![*id], |row| {
+            for id in msg_ids.into_iter() {
+                let query_res = stmt.query_row(paramsv![id], |row| {
                     Ok((
                         row.get::<_, MessageState>("state")?,
                         row.get::<_, Option<Blocked>>("blocked")?
@@ -1070,7 +1070,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: &[MsgId]) -> bool {
     for (id, curr_state, curr_blocked) in msgs.into_iter() {
         if curr_blocked == Blocked::Not {
             if curr_state == MessageState::InFresh || curr_state == MessageState::InNoticed {
-                update_msg_state(context, *id, MessageState::InSeen).await;
+                update_msg_state(context, id, MessageState::InSeen).await;
                 info!(context, "Seen message {}.", id);
 
                 job::add(
@@ -1084,7 +1084,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: &[MsgId]) -> bool {
                 send_event = true;
             }
         } else if curr_state == MessageState::InFresh {
-            update_msg_state(context, *id, MessageState::InNoticed).await;
+            update_msg_state(context, id, MessageState::InNoticed).await;
             send_event = true;
         }
     }
@@ -1110,16 +1110,16 @@ pub async fn update_msg_state(context: &Context, msg_id: MsgId, state: MessageSt
         .is_ok()
 }
 
-pub async fn star_msgs(context: &Context, msg_ids: &[MsgId], star: bool) -> bool {
+pub async fn star_msgs(context: &Context, msg_ids: Vec<MsgId>, star: bool) -> bool {
     if msg_ids.is_empty() {
         return false;
     }
     context
         .sql
-        .with_conn(|conn| {
+        .with_conn(move |conn| {
             let mut stmt = conn.prepare("UPDATE msgs SET starred=? WHERE id=?;")?;
-            for msg_id in msg_ids.iter() {
-                stmt.execute(paramsv![star as i32, *msg_id])?;
+            for msg_id in msg_ids.into_iter() {
+                stmt.execute(paramsv![star as i32, msg_id])?;
             }
             Ok(())
         })

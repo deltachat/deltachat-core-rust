@@ -586,13 +586,32 @@ async fn add_parts(
     // (eg. one per attachment))
     let icnt = mime_parser.parts.len();
 
-    context
-        .sql
-        .with_conn(|mut conn| {
-            let subject = mime_parser.get_subject().unwrap_or_default();
-            let mut txt_raw = None;
+    let subject = mime_parser.get_subject().unwrap_or_default();
 
-            for part in mime_parser.parts.iter_mut() {
+    let mut parts = std::mem::replace(&mut mime_parser.parts, Vec::new());
+    let server_folder = server_folder.as_ref().to_string();
+    let location_kml_is = mime_parser.location_kml.is_some();
+    let is_system_message = mime_parser.is_system_message;
+    let mime_headers = if save_mime_headers {
+        Some(String::from_utf8_lossy(imf_raw).to_string())
+    } else {
+        None
+    };
+    let sent_timestamp = *sent_timestamp;
+    let is_hidden = *hidden;
+    let chat_id = *chat_id;
+
+    // TODO: can this clone be avoided?
+    let rfc724_mid = rfc724_mid.to_string();
+
+    let (new_parts, ids, is_hidden) = context
+        .sql
+        .with_conn(move |mut conn| {
+            let mut ids = Vec::with_capacity(parts.len());
+            for part in &mut parts {
+                let mut txt_raw = "".to_string();
+                let mut is_hidden = is_hidden;
+
                 let mut stmt = conn.prepare_cached(
                     "INSERT INTO msgs \
          (rfc724_mid, server_folder, server_uid, chat_id, from_id, to_id, timestamp, \
@@ -601,11 +620,9 @@ async fn add_parts(
          VALUES (?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?);",
                 )?;
 
-                if mime_parser.location_kml.is_some()
-                    && icnt == 1
-                    && (part.msg == "-location-" || part.msg.is_empty())
+                if location_kml_is && icnt == 1 && (part.msg == "-location-" || part.msg.is_empty())
                 {
-                    *hidden = true;
+                    is_hidden = true;
                     if state == MessageState::InFresh {
                         state = MessageState::InNoticed;
                     }
@@ -613,57 +630,59 @@ async fn add_parts(
 
                 if part.typ == Viewtype::Text {
                     let msg_raw = part.msg_raw.as_ref().cloned().unwrap_or_default();
-                    txt_raw = Some(format!("{}\n\n{}", subject, msg_raw));
+                    txt_raw = format!("{}\n\n{}", subject, msg_raw);
                 }
-                if mime_parser.is_system_message != SystemMessage::Unknown {
-                    part.param
-                        .set_int(Param::Cmd, mime_parser.is_system_message as i32);
+                if is_system_message != SystemMessage::Unknown {
+                    part.param.set_int(Param::Cmd, is_system_message as i32);
                 }
 
                 stmt.execute(paramsv![
                     rfc724_mid,
-                    server_folder.as_ref().to_string(),
+                    server_folder,
                     server_uid as i32,
-                    *chat_id,
+                    chat_id,
                     from_id as i32,
                     to_id as i32,
                     sort_timestamp,
-                    *sent_timestamp,
+                    sent_timestamp,
                     rcvd_timestamp,
                     part.typ,
                     state,
                     msgrmsg,
                     part.msg,
                     // txt_raw might contain invalid utf8
-                    txt_raw.unwrap_or_default(),
+                    txt_raw,
                     part.param.to_string(),
                     part.bytes as isize,
-                    *hidden,
-                    if save_mime_headers {
-                        Some(String::from_utf8_lossy(imf_raw))
-                    } else {
-                        None
-                    },
+                    is_hidden,
+                    mime_headers,
                     mime_in_reply_to,
                     mime_references,
                 ])?;
 
-                txt_raw = None;
-
-                // This is okay, as we use a cached prepared statement.
                 drop(stmt);
-                let row_id =
-                    crate::sql::get_rowid(context, &mut conn, "msgs", "rfc724_mid", &rfc724_mid)?;
-                *insert_msg_id = MsgId::new(row_id);
-                created_db_entries.push((*chat_id, *insert_msg_id));
+                ids.push(MsgId::new(crate::sql::get_rowid(
+                    &mut conn,
+                    "msgs",
+                    "rfc724_mid",
+                    &rfc724_mid,
+                )?));
             }
-            Ok(())
+            Ok((parts, ids, is_hidden))
         })
         .await?;
 
+    if let Some(id) = ids.iter().last() {
+        *insert_msg_id = *id;
+    }
+
+    *hidden = is_hidden;
+    created_db_entries.extend(ids.iter().map(|id| (chat_id, *id)));
+    mime_parser.parts = new_parts;
+
     info!(
         context,
-        "Message has {} parts and is assigned to chat #{}.", icnt, *chat_id,
+        "Message has {} parts and is assigned to chat #{}.", icnt, chat_id,
     );
 
     // check event to send

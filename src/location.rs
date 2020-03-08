@@ -521,13 +521,15 @@ pub async fn save(
 ) -> Result<u32, Error> {
     ensure!(!chat_id.is_special(), "Invalid chat id");
 
-    let newest_location_id = context
-        .sql
-        .with_conn(|mut conn| {
-            let mut newest_timestamp = 0;
-            let mut newest_location_id = 0;
+    let mut newest_timestamp = 0;
+    let mut newest_location_id = 0;
 
-            for location in locations {
+    for location in locations {
+        // TODO: can this clone be avoided?
+        let location = location.clone();
+        context
+            .sql
+            .with_conn(move |mut conn| {
                 let mut stmt_test = conn
                     .prepare_cached("SELECT id FROM locations WHERE timestamp=? AND from_id=?")?;
                 let mut stmt_insert = conn.prepare_cached(
@@ -555,7 +557,6 @@ pub async fn save(
                         drop(stmt_insert);
                         newest_timestamp = location.timestamp;
                         newest_location_id = crate::sql::get_rowid2(
-                            context,
                             &mut conn,
                             "locations",
                             "timestamp",
@@ -565,10 +566,11 @@ pub async fn save(
                         )?;
                     }
                 }
-            }
-            Ok(newest_location_id)
-        })
-        .await?;
+                Ok(())
+            })
+            .await?;
+    }
+
     Ok(newest_location_id)
 }
 
@@ -580,7 +582,7 @@ pub(crate) async fn job_maybe_send_locations(context: &Context, _job: &Job) -> j
         " ----------------- MAYBE_SEND_LOCATIONS -------------- ",
     );
 
-    if let Ok(ref rows) = context
+    let rows = context
         .sql
         .query_map(
             "SELECT id, locations_send_begin, locations_last_sent \
@@ -606,11 +608,14 @@ pub(crate) async fn job_maybe_send_locations(context: &Context, _job: &Job) -> j
                     .map_err(Into::into)
             },
         )
-        .await
-    {
+        .await;
+
+    if rows.is_ok() {
         let msgs = context
             .sql
-            .with_conn(|conn| {
+            .with_conn(move |conn| {
+                let rows = rows.unwrap();
+
                 let mut stmt_locations = conn.prepare_cached(
                     "SELECT id \
                  FROM locations \
@@ -621,37 +626,34 @@ pub(crate) async fn job_maybe_send_locations(context: &Context, _job: &Job) -> j
                  ORDER BY timestamp;",
                 )?;
 
-                let msgs = rows
-                    .iter()
-                    .filter_map(|(chat_id, locations_send_begin, locations_last_sent)| {
-                        if !stmt_locations
-                            .exists(paramsv![
-                                DC_CONTACT_ID_SELF,
-                                *locations_send_begin,
-                                *locations_last_sent,
-                            ])
-                            .unwrap_or_default()
-                        {
-                            // if there is no new location, there's nothing to send.
-                            // however, maybe we want to bypass this test eg. 15 minutes
-                            None
-                        } else {
-                            // pending locations are attached automatically to every message,
-                            // so also to this empty text message.
-                            // DC_CMD_LOCATION is only needed to create a nicer subject.
-                            //
-                            // for optimisation and to avoid flooding the sending queue,
-                            // we could sending these messages only if we're really online.
-                            // the easiest way to determine this, is to check for an empty message queue.
-                            // (might not be 100%, however, as positions are sent combined later
-                            // and dc_set_location() is typically called periodically, this is ok)
-                            let mut msg = Message::new(Viewtype::Text);
-                            msg.hidden = true;
-                            msg.param.set_cmd(SystemMessage::LocationOnly);
-                            Some((chat_id, msg))
-                        }
-                    })
-                    .collect::<Vec<_>>();
+                let mut msgs = Vec::new();
+                for (chat_id, locations_send_begin, locations_last_sent) in &rows {
+                    if !stmt_locations
+                        .exists(paramsv![
+                            DC_CONTACT_ID_SELF,
+                            *locations_send_begin,
+                            *locations_last_sent,
+                        ])
+                        .unwrap_or_default()
+                    {
+                        // if there is no new location, there's nothing to send.
+                        // however, maybe we want to bypass this test eg. 15 minutes
+                    } else {
+                        // pending locations are attached automatically to every message,
+                        // so also to this empty text message.
+                        // DC_CMD_LOCATION is only needed to create a nicer subject.
+                        //
+                        // for optimisation and to avoid flooding the sending queue,
+                        // we could sending these messages only if we're really online.
+                        // the easiest way to determine this, is to check for an empty message queue.
+                        // (might not be 100%, however, as positions are sent combined later
+                        // and dc_set_location() is typically called periodically, this is ok)
+                        let mut msg = Message::new(Viewtype::Text);
+                        msg.hidden = true;
+                        msg.param.set_cmd(SystemMessage::LocationOnly);
+                        msgs.push((*chat_id, msg));
+                    }
+                }
 
                 Ok(msgs)
             })
@@ -660,11 +662,12 @@ pub(crate) async fn job_maybe_send_locations(context: &Context, _job: &Job) -> j
 
         for (chat_id, mut msg) in msgs.into_iter() {
             // TODO: better error handling
-            chat::send_msg(context, *chat_id, &mut msg)
+            chat::send_msg(context, chat_id, &mut msg)
                 .await
                 .unwrap_or_default();
         }
     }
+
     if continue_streaming {
         schedule_maybe_send_locations(context, true).await;
     }
