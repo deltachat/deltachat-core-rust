@@ -1234,6 +1234,18 @@ impl Imap {
                     error!(context, "expunge failed {}: {:?}", folder, err);
                 }
             }
+
+            if let Err(err) = crate::sql::execute(
+                context,
+                &context.sql,
+                "UPDATE msgs SET server_folder='',server_uid=0 WHERE server_folder=?",
+                params![folder],
+            ) {
+                warn!(
+                    context,
+                    "Failed to reset server_uid and server_folder for deleted messages: {}", err
+                );
+            }
         });
     }
 }
