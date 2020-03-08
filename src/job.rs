@@ -80,9 +80,14 @@ pub enum Action {
     // Jobs in the INBOX-thread, range from DC_IMAP_THREAD..DC_IMAP_THREAD+999
     Housekeeping = 105, // low priority ...
     EmptyServer = 107,
-    DeleteMsgOnImap = 110,
+    OldDeleteMsgOnImap = 110,
     MarkseenMsgOnImap = 130,
+
+    // Moving message is prioritized lower than deletion so we don't
+    // bother moving message if it is already scheduled for deletion.
     MoveMsg = 200,
+
+    DeleteMsgOnImap = 210,
     ConfigureImap = 900,
     ImexImap = 910, // ... high priority
 
@@ -107,6 +112,7 @@ impl From<Action> for Thread {
             Unknown => Thread::Unknown,
 
             Housekeeping => Thread::Imap,
+            OldDeleteMsgOnImap => Thread::Imap,
             DeleteMsgOnImap => Thread::Imap,
             EmptyServer => Thread::Imap,
             MarkseenMsgOnImap => Thread::Imap,
@@ -1091,6 +1097,7 @@ fn perform_job_action(context: &Context, mut job: &mut Job, thread: Thread, trie
         Action::Unknown => Status::Finished(Err(format_err!("Unknown job id found"))),
         Action::SendMsgToSmtp => job.SendMsgToSmtp(context),
         Action::EmptyServer => job.EmptyServer(context),
+        Action::OldDeleteMsgOnImap => job.DeleteMsgOnImap(context),
         Action::DeleteMsgOnImap => job.DeleteMsgOnImap(context),
         Action::MarkseenMsgOnImap => job.MarkseenMsgOnImap(context),
         Action::MoveMsg => job.MoveMsg(context),
