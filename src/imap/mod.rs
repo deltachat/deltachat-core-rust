@@ -794,7 +794,6 @@ impl Imap {
         folder: &str,
         uid: u32,
         dest_folder: &str,
-        dest_uid: &mut u32,
     ) -> ImapActionResult {
         task::block_on(async move {
             if folder == dest_folder {
@@ -811,10 +810,6 @@ impl Imap {
                 return imapresult;
             }
             // we are connected, and the folder is selected
-
-            // XXX Rust-Imap provides no target uid on mv, so just set it to 0
-            *dest_uid = 0;
-
             let set = format!("{}", uid);
             let display_folder_id = format!("{}/{}", folder, uid);
 
