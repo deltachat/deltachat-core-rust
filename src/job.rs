@@ -81,7 +81,6 @@ pub enum Action {
     Housekeeping = 105, // low priority ...
     EmptyServer = 107,
     DeleteMsgOnImap = 110,
-    MarkseenMdnOnImap = 120,
     MarkseenMsgOnImap = 130,
     MoveMsg = 200,
     ConfigureImap = 900,
@@ -110,7 +109,6 @@ impl From<Action> for Thread {
             Housekeeping => Thread::Imap,
             DeleteMsgOnImap => Thread::Imap,
             EmptyServer => Thread::Imap,
-            MarkseenMdnOnImap => Thread::Imap,
             MarkseenMsgOnImap => Thread::Imap,
             MoveMsg => Thread::Imap,
             ConfigureImap => Thread::Imap,
@@ -553,46 +551,6 @@ impl Job {
                 }
                 Status::Finished(Ok(()))
             }
-        }
-    }
-
-    #[allow(non_snake_case)]
-    fn MarkseenMdnOnImap(&mut self, context: &Context) -> Status {
-        let folder = self
-            .param
-            .get(Param::ServerFolder)
-            .unwrap_or_default()
-            .to_string();
-        let uid = self.param.get_int(Param::ServerUid).unwrap_or_default() as u32;
-        let imap_inbox = &context.inbox_thread.read().unwrap().imap;
-        if imap_inbox.set_seen(context, &folder, uid) == ImapActionResult::RetryLater {
-            return Status::RetryLater;
-        }
-        if self.param.get_bool(Param::AlsoMove).unwrap_or_default() {
-            if let Err(err) = imap_inbox.ensure_configured_folders(context, true) {
-                warn!(context, "configuring folders failed: {:?}", err);
-                return Status::RetryLater;
-            }
-            let dest_folder = context
-                .sql
-                .get_raw_config(context, "configured_mvbox_folder");
-            if let Some(dest_folder) = dest_folder {
-                if ImapActionResult::RetryLater
-                    == imap_inbox.mv(context, &folder, uid, &dest_folder)
-                {
-                    Status::RetryLater
-                } else {
-                    // FIXME: server UID should be updated for all
-                    // hidden MDN entries, but it does not happen
-                    // because we don't know Message-ID here and can't
-                    // find corresponding MsgId.
-                    Status::Finished(Ok(()))
-                }
-            } else {
-                Status::Finished(Err(format_err!("MVBOX is not configured")))
-            }
-        } else {
-            Status::Finished(Ok(()))
         }
     }
 }
@@ -1135,7 +1093,6 @@ fn perform_job_action(context: &Context, mut job: &mut Job, thread: Thread, trie
         Action::EmptyServer => job.EmptyServer(context),
         Action::DeleteMsgOnImap => job.DeleteMsgOnImap(context),
         Action::MarkseenMsgOnImap => job.MarkseenMsgOnImap(context),
-        Action::MarkseenMdnOnImap => job.MarkseenMdnOnImap(context),
         Action::MoveMsg => job.MoveMsg(context),
         Action::SendMdn => job.SendMdn(context),
         Action::ConfigureImap => JobConfigureImap(context),
