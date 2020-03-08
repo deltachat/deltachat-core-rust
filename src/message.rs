@@ -1417,8 +1417,8 @@ pub fn update_server_uid(
     server_uid: u32,
 ) {
     match context.sql.execute(
-        "UPDATE msgs SET server_folder=?, server_uid=? \
-         WHERE rfc724_mid=? AND NOT unlinked",
+        "UPDATE msgs SET server_folder=?, server_uid=?, unlinked=0 \
+         WHERE rfc724_mid=?",
         params![server_folder.as_ref(), server_uid, rfc724_mid],
     ) {
         Ok(_) => {}
