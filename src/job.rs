@@ -413,18 +413,12 @@ impl Job {
 
         if let Some(dest_folder) = dest_folder {
             let server_folder = msg.server_folder.as_ref().unwrap();
-            let mut dest_uid = 0;
 
-            match imap_inbox.mv(
-                context,
-                server_folder,
-                msg.server_uid,
-                &dest_folder,
-                &mut dest_uid,
-            ) {
+            match imap_inbox.mv(context, server_folder, msg.server_uid, &dest_folder) {
                 ImapActionResult::RetryLater => Status::RetryLater,
                 ImapActionResult::Success => {
-                    message::update_server_uid(context, &msg.rfc724_mid, &dest_folder, dest_uid);
+                    // XXX Rust-Imap provides no target uid on mv, so just set it to 0
+                    message::update_server_uid(context, &msg.rfc724_mid, &dest_folder, 0);
                     Status::Finished(Ok(()))
                 }
                 ImapActionResult::Failed => {
@@ -583,12 +577,15 @@ impl Job {
                 .sql
                 .get_raw_config(context, "configured_mvbox_folder");
             if let Some(dest_folder) = dest_folder {
-                let mut dest_uid = 0;
                 if ImapActionResult::RetryLater
-                    == imap_inbox.mv(context, &folder, uid, &dest_folder, &mut dest_uid)
+                    == imap_inbox.mv(context, &folder, uid, &dest_folder)
                 {
                     Status::RetryLater
                 } else {
+                    // FIXME: server UID should be updated for all
+                    // hidden MDN entries, but it does not happen
+                    // because we don't know Message-ID here and can't
+                    // find corresponding MsgId.
                     Status::Finished(Ok(()))
                 }
             } else {
