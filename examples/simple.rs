@@ -36,10 +36,11 @@ async fn main() {
     let dir = tempdir().unwrap();
     let dbfile = dir.path().join("db.sqlite");
     println!("creating database {:?}", dbfile);
-    let ctx =
-        Context::new(Box::new(cb), "FakeOs".into(), dbfile).expect("Failed to create context");
+    let ctx = Context::new(Box::new(cb), "FakeOs".into(), dbfile)
+        .await
+        .expect("Failed to create context");
     let running = Arc::new(RwLock::new(true));
-    let info = ctx.get_info();
+    let info = ctx.get_info().await;
     let duration = time::Duration::from_millis(4000);
     println!("info: {:#?}", info);
 
@@ -54,18 +55,19 @@ async fn main() {
                 perform_inbox_fetch(&ctx1).await;
 
                 if *r1.read().await {
-                    // perform_inbox_idle(&ctx1).await;
+                    perform_inbox_idle(&ctx1).await;
                 }
             }
         }
     });
 
     let r1 = running.clone();
+    let ctx1 = ctx.clone();
     let t2 = async_std::task::spawn(async move {
         while *r1.read().await {
-            // perform_smtp_jobs(&ctx1).await;
+            perform_smtp_jobs(&ctx1).await;
             if *r1.read().await {
-                // perform_smtp_idle(&ctx1).await;
+                perform_smtp_idle(&ctx1).await;
             }
         }
     });
@@ -85,17 +87,19 @@ async fn main() {
     async_std::task::sleep(duration).await;
 
     println!("sending a message");
-    let contact_id = Contact::create(&ctx, "dignifiedquire", "dignifiedquire@gmail.com").unwrap();
-    let chat_id = chat::create_by_contact_id(&ctx, contact_id).unwrap();
+    let contact_id = Contact::create(&ctx, "dignifiedquire", "dignifiedquire@gmail.com")
+        .await
+        .unwrap();
+    let chat_id = chat::create_by_contact_id(&ctx, contact_id).await.unwrap();
     chat::send_text_msg(&ctx, chat_id, "Hi, here is my first message!".into())
         .await
         .unwrap();
 
     println!("fetching chats..");
-    let chats = Chatlist::try_load(&ctx, 0, None, None).unwrap();
+    let chats = Chatlist::try_load(&ctx, 0, None, None).await.unwrap();
 
     for i in 0..chats.len() {
-        let summary = chats.get_summary(&ctx, 0, None);
+        let summary = chats.get_summary(&ctx, 0, None).await;
         let text1 = summary.get_text1();
         let text2 = summary.get_text2();
         println!("chat: {} - {:?} - {:?}", i, text1, text2,);

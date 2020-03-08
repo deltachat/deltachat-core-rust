@@ -137,7 +137,7 @@ pub async fn try_decrypt(
     let autocryptheader = Aheader::from_headers(context, &from, &mail.headers);
 
     if message_time > 0 {
-        peerstate = Peerstate::from_addr(context, &context.sql, &from);
+        peerstate = Peerstate::from_addr(context, &context.sql, &from).await;
 
         if let Some(ref mut peerstate) = peerstate {
             if let Some(ref header) = autocryptheader {
@@ -167,7 +167,7 @@ pub async fn try_decrypt(
             .await
         {
             if peerstate.as_ref().map(|p| p.last_seen).unwrap_or_else(|| 0) == 0 {
-                peerstate = Peerstate::from_addr(&context, &context.sql, &from);
+                peerstate = Peerstate::from_addr(&context, &context.sql, &from).await;
             }
             if let Some(ref peerstate) = peerstate {
                 if peerstate.degrade_event.is_some() {
@@ -207,7 +207,7 @@ async fn load_or_generate_self_public_key(
         return SignedPublicKey::try_from(key)
             .map_err(|_| Error::Message("Not a public key".into()));
     }
-    let _guard = context.generating_key_mutex.lock().unwrap();
+    let _guard = context.generating_key_mutex.lock().await;
 
     // Check again in case the key was generated while we were waiting for the lock.
     if let Some(key) = Key::from_self_public(context, &self_addr, &context.sql).await {
@@ -377,15 +377,15 @@ mod tests {
 
         #[async_std::test]
         async fn test_prexisting() {
-            let t = dummy_context();
+            let t = dummy_context().await;
             let test_addr = configure_alice_keypair(&t.ctx).await;
             assert_eq!(ensure_secret_key_exists(&t.ctx).await.unwrap(), test_addr);
         }
 
-        #[test]
-        fn test_not_configured() {
-            let t = dummy_context();
-            assert!(ensure_secret_key_exists(&t.ctx).is_err());
+        #[async_std::test]
+        async fn test_not_configured() {
+            let t = dummy_context().await;
+            assert!(ensure_secret_key_exists(&t.ctx).await.is_err());
         }
     }
 
@@ -418,40 +418,42 @@ Sent with my Delta Chat Messenger: https://delta.chat";
 
         #[async_std::test]
         async fn test_existing() {
-            let t = dummy_context();
+            let t = dummy_context().await;
             let addr = configure_alice_keypair(&t.ctx).await;
             let key = load_or_generate_self_public_key(&t.ctx, addr).await;
             assert!(key.is_ok());
         }
 
-        #[test]
+        #[async_std::test]
         #[ignore] // generating keys is expensive
-        fn test_generate() {
-            let t = dummy_context();
+        async fn test_generate() {
+            let t = dummy_context().await;
             let addr = "alice@example.org";
-            let key0 = load_or_generate_self_public_key(&t.ctx, addr);
+            let key0 = load_or_generate_self_public_key(&t.ctx, addr).await;
             assert!(key0.is_ok());
-            let key1 = load_or_generate_self_public_key(&t.ctx, addr);
+            let key1 = load_or_generate_self_public_key(&t.ctx, addr).await;
             assert!(key1.is_ok());
             assert_eq!(key0.unwrap(), key1.unwrap());
         }
 
-        #[test]
+        #[async_std::test]
         #[ignore]
-        fn test_generate_concurrent() {
+        async fn test_generate_concurrent() {
             use std::sync::Arc;
-            use std::thread;
 
-            let t = dummy_context();
+            let t = dummy_context().await;
             let ctx = Arc::new(t.ctx);
             let ctx0 = Arc::clone(&ctx);
-            let thr0 =
-                thread::spawn(move || load_or_generate_self_public_key(&ctx0, "alice@example.org"));
+            let thr0 = async_std::task::spawn(async move {
+                load_or_generate_self_public_key(&ctx0, "alice@example.org").await
+            });
             let ctx1 = Arc::clone(&ctx);
-            let thr1 =
-                thread::spawn(move || load_or_generate_self_public_key(&ctx1, "alice@example.org"));
-            let res0 = thr0.join().unwrap();
-            let res1 = thr1.join().unwrap();
+            let thr1 = async_std::task::spawn(async move {
+                load_or_generate_self_public_key(&ctx1, "alice@example.org").await
+            });
+
+            let res0 = thr0.await;
+            let res1 = thr1.await;
             assert_eq!(res0.unwrap(), res1.unwrap());
         }
     }

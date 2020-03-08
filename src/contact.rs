@@ -170,7 +170,7 @@ impl Contact {
                 "SELECT c.name, c.addr, c.origin, c.blocked, c.authname, c.param
                FROM contacts c
               WHERE c.id=?;",
-                params![contact_id as i32],
+                paramsv![contact_id as i32],
                 |row| {
                     let contact = Self {
                         id: contact_id,
@@ -186,13 +186,16 @@ impl Contact {
             )
             .await?;
         if contact_id == DC_CONTACT_ID_SELF {
-            res.name = context.stock_str(StockMessage::SelfMsg).to_string();
+            res.name = context.stock_str(StockMessage::SelfMsg).await.to_string();
             res.addr = context
                 .get_config(Config::ConfiguredAddr)
                 .await
                 .unwrap_or_default();
         } else if contact_id == DC_CONTACT_ID_DEVICE {
-            res.name = context.stock_str(StockMessage::DeviceMessages).to_string();
+            res.name = context
+                .stock_str(StockMessage::DeviceMessages)
+                .await
+                .to_string();
             res.addr = DC_CONTACT_ID_DEVICE_ADDR.to_string();
         }
         Ok(res)
@@ -251,7 +254,7 @@ impl Contact {
             },
         ));
         if blocked {
-            Contact::unblock(context, contact_id);
+            Contact::unblock(context, contact_id).await;
         }
 
         Ok(contact_id)
@@ -266,7 +269,7 @@ impl Contact {
             .sql
             .execute(
                 "UPDATE msgs SET state=? WHERE from_id=? AND state=?;",
-                params![MessageState::InNoticed, id as i32, MessageState::InFresh],
+                paramsv![MessageState::InNoticed, id as i32, MessageState::InFresh],
             )
             .await
             .is_ok()
@@ -301,7 +304,7 @@ impl Contact {
         context.sql.query_get_value(
             context,
             "SELECT id FROM contacts WHERE addr=?1 COLLATE NOCASE AND id>?2 AND origin>=?3 AND blocked=0;",
-            params![
+            paramsv![
                 addr_normalized,
                 DC_CONTACT_ID_LAST_SPECIAL as i32,
                 DC_ORIGIN_MIN_CONTACT_LIST,
@@ -348,13 +351,13 @@ impl Contact {
         );
         ensure!(origin != Origin::Unknown, "Missing valid origin");
 
-        let addr = addr_normalize(addr.as_ref());
+        let addr = addr_normalize(addr.as_ref()).to_string();
         let addr_self = context
             .get_config(Config::ConfiguredAddr)
             .await
             .unwrap_or_default();
 
-        if addr_cmp(addr, addr_self) {
+        if addr_cmp(&addr, addr_self) {
             return Ok((DC_CONTACT_ID_SELF, sth_modified));
         }
 
@@ -379,7 +382,7 @@ impl Contact {
 
         if let Ok((id, row_name, row_addr, row_origin, row_authname)) = context.sql.query_row(
             "SELECT id, name, addr, origin, authname FROM contacts WHERE addr=? COLLATE NOCASE;",
-            params![addr],
+            paramsv![addr.to_string()],
             |row| {
                 let row_id = row.get(0)?;
                 let row_name: String = row.get(1)?;
@@ -416,30 +419,30 @@ impl Contact {
             if update_name || update_authname || update_addr || origin > row_origin {
                 let new_name = if update_name {
                     if !name.as_ref().is_empty() {
-                        name.as_ref()
+                        name.as_ref().to_string()
                     } else {
-                        &row_authname
+                        row_authname.clone()
                     }
                 } else {
-                    &row_name
+                    row_name
                 };
 
                 context
                     .sql
                     .execute(
                         "UPDATE contacts SET name=?, addr=?, origin=?, authname=? WHERE id=?;",
-                        params![
+                        paramsv![
                             new_name,
-                            if update_addr { addr } else { &row_addr },
+                            if update_addr { addr.to_string() } else { row_addr },
                             if origin > row_origin {
                                 origin
                             } else {
                                 row_origin
                             },
                             if update_authname {
-                                name.as_ref()
+                                name.as_ref().to_string()
                             } else {
-                                &row_authname
+                                row_authname
                             },
                             row_id
                         ],
@@ -452,7 +455,7 @@ impl Contact {
                     // This is one of the few duplicated data, however, getting the chat list is easier this way.
                     context.sql.execute(
                     "UPDATE chats SET name=? WHERE type=? AND id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?);",
-                    params![new_name, Chattype::Single, row_id]
+                    paramsv![new_name, Chattype::Single, row_id]
                 ).await.ok();
                 }
                 sth_modified = Modifier::Modified;
@@ -466,11 +469,11 @@ impl Contact {
                 .sql
                 .execute(
                     "INSERT INTO contacts (name, addr, origin, authname) VALUES(?, ?, ?, ?);",
-                    params![
-                        name.as_ref(),
+                    paramsv![
+                        name.as_ref().to_string(),
                         addr,
                         origin,
-                        if update_authname { name.as_ref() } else { "" }
+                        if update_authname { name.as_ref().to_string() } else { "".to_string() }
                     ],
                 )
                 .await
@@ -478,10 +481,10 @@ impl Contact {
             {
                 row_id = context
                     .sql
-                    .get_rowid(context, "contacts", "addr", addr)
+                    .get_rowid(context, "contacts", "addr", &addr)
                     .await?;
                 sth_modified = Modifier::Created;
-                info!(context, "added contact id={} addr={}", row_id, addr);
+                info!(context, "added contact id={} addr={}", row_id, &addr);
             } else {
                 error!(context, "Cannot add contact.");
             }
@@ -577,13 +580,13 @@ impl Contact {
                  AND (c.name LIKE ?4 OR c.addr LIKE ?5) \
                  AND (1=?6 OR LENGTH(ps.verified_key_fingerprint)!=0)  \
                  ORDER BY LOWER(c.name||c.addr),c.id;",
-                    params![
+                    paramsv![
                         self_addr,
                         DC_CONTACT_ID_LAST_SPECIAL as i32,
                         Origin::IncomingReplyTo,
-                        &s3str_like_cmd,
-                        &s3str_like_cmd,
-                        if flag_verified_only { 0 } else { 1 },
+                        s3str_like_cmd,
+                        s3str_like_cmd,
+                        if flag_verified_only { 0i32 } else { 1i32 },
                     ],
                     |row| row.get::<_, i32>(0),
                     |ids| {
@@ -604,7 +607,7 @@ impl Contact {
             if let Some(query) = query {
                 if self_addr.contains(query.as_ref())
                     || self_name.contains(query.as_ref())
-                    || self_name2.contains(query.as_ref())
+                    || self_name2.await.contains(query.as_ref())
                 {
                     add_self = true;
                 }
@@ -616,7 +619,7 @@ impl Contact {
 
             context.sql.query_map(
                 "SELECT id FROM contacts WHERE addr!=?1 AND id>?2 AND origin>=?3 AND blocked=0 ORDER BY LOWER(name||addr),id;",
-                params![self_addr, DC_CONTACT_ID_LAST_SPECIAL as i32, 0x100],
+                paramsv![self_addr, DC_CONTACT_ID_LAST_SPECIAL as i32, 0x100],
                 |row| row.get::<_, i32>(0),
                 |ids| {
                     for id in ids {
@@ -637,10 +640,10 @@ impl Contact {
     pub async fn get_blocked_cnt(context: &Context) -> usize {
         context
             .sql
-            .query_get_value::<_, isize>(
+            .query_get_value::<isize>(
                 context,
                 "SELECT COUNT(*) FROM contacts WHERE id>? AND blocked!=0",
-                params![DC_CONTACT_ID_LAST_SPECIAL as i32],
+                paramsv![DC_CONTACT_ID_LAST_SPECIAL as i32],
             )
             .await
             .unwrap_or_default() as usize
@@ -652,7 +655,7 @@ impl Contact {
             .sql
             .query_map(
                 "SELECT id FROM contacts WHERE id>? AND blocked!=0 ORDER BY LOWER(name||addr),id;",
-                params![DC_CONTACT_ID_LAST_SPECIAL as i32],
+                paramsv![DC_CONTACT_ID_LAST_SPECIAL as i32],
                 |row| row.get::<_, u32>(0),
                 |ids| {
                     ids.collect::<std::result::Result<Vec<_>, _>>()
@@ -672,7 +675,7 @@ impl Contact {
         let mut ret = String::new();
 
         if let Ok(contact) = Contact::load_from_db(context, contact_id).await {
-            let peerstate = Peerstate::from_addr(context, &context.sql, &contact.addr);
+            let peerstate = Peerstate::from_addr(context, &context.sql, &contact.addr).await;
             let loginparam = LoginParam::from_database(context, "configured_").await;
 
             let mut self_key = Key::from_self_public(context, &loginparam.addr, &context.sql).await;
@@ -684,18 +687,19 @@ impl Contact {
                     .is_some()
             {
                 let peerstate = peerstate.as_ref().unwrap();
-                let p =
-                    context.stock_str(if peerstate.prefer_encrypt == EncryptPreference::Mutual {
+                let p = context
+                    .stock_str(if peerstate.prefer_encrypt == EncryptPreference::Mutual {
                         StockMessage::E2ePreferred
                     } else {
                         StockMessage::E2eAvailable
-                    });
+                    })
+                    .await;
                 ret += &p;
                 if self_key.is_none() {
                     e2ee::ensure_secret_key_exists(context).await?;
                     self_key = Key::from_self_public(context, &loginparam.addr, &context.sql).await;
                 }
-                let p = context.stock_str(StockMessage::FingerPrints);
+                let p = context.stock_str(StockMessage::FingerPrints).await;
                 ret += &format!(" {}:", p);
 
                 let fingerprint_self = self_key
@@ -729,9 +733,9 @@ impl Contact {
             } else if 0 == loginparam.server_flags & DC_LP_IMAP_SOCKET_PLAIN as i32
                 && 0 == loginparam.server_flags & DC_LP_SMTP_SOCKET_PLAIN as i32
             {
-                ret += &context.stock_str(StockMessage::EncrTransp);
+                ret += &context.stock_str(StockMessage::EncrTransp).await;
             } else {
-                ret += &context.stock_str(StockMessage::EncrNone);
+                ret += &context.stock_str(StockMessage::EncrNone).await;
             }
         }
 
@@ -753,7 +757,7 @@ impl Contact {
             .query_get_value(
                 context,
                 "SELECT COUNT(*) FROM chats_contacts WHERE contact_id=?;",
-                params![contact_id as i32],
+                paramsv![contact_id as i32],
             )
             .await
             .unwrap_or_default();
@@ -764,7 +768,7 @@ impl Contact {
                 .query_get_value(
                     context,
                     "SELECT COUNT(*) FROM msgs WHERE from_id=? OR to_id=?;",
-                    params![contact_id as i32, contact_id as i32],
+                    paramsv![contact_id as i32, contact_id as i32],
                 )
                 .await
                 .unwrap_or_default()
@@ -777,7 +781,7 @@ impl Contact {
                 .sql
                 .execute(
                     "DELETE FROM contacts WHERE id=?;",
-                    params![contact_id as i32],
+                    paramsv![contact_id as i32],
                 )
                 .await
             {
@@ -815,7 +819,7 @@ impl Contact {
             .sql
             .execute(
                 "UPDATE contacts SET param=? WHERE id=?",
-                params![self.param.to_string(), self.id as i32],
+                paramsv![self.param.to_string(), self.id as i32],
             )
             .await?;
         Ok(())
@@ -913,17 +917,17 @@ impl Contact {
     ///
     /// The UI may draw a checkbox or something like that beside verified contacts.
     ///
-    pub fn is_verified(&self, context: &Context) -> VerifiedStatus {
-        self.is_verified_ex(context, None)
+    pub async fn is_verified(&self, context: &Context) -> VerifiedStatus {
+        self.is_verified_ex(context, None).await
     }
 
     /// Same as `Contact::is_verified` but allows speeding up things
     /// by adding the peerstate belonging to the contact.
     /// If you do not have the peerstate available, it is loaded automatically.
-    pub fn is_verified_ex(
+    pub async fn is_verified_ex(
         &self,
         context: &Context,
-        peerstate: Option<&Peerstate>,
+        peerstate: Option<&Peerstate<'_>>,
     ) -> VerifiedStatus {
         // We're always sort of secured-verified as we could verify the key on this device any time with the key
         // on this device
@@ -937,7 +941,7 @@ impl Contact {
             }
         }
 
-        let peerstate = Peerstate::from_addr(context, &context.sql, &self.addr);
+        let peerstate = Peerstate::from_addr(context, &context.sql, &self.addr).await;
         if let Some(ps) = peerstate {
             if ps.verified_key.is_some() {
                 return VerifiedStatus::BidirectVerified;
@@ -975,10 +979,10 @@ impl Contact {
 
         context
             .sql
-            .query_get_value::<_, isize>(
+            .query_get_value::<isize>(
                 context,
                 "SELECT COUNT(*) FROM contacts WHERE id>?;",
-                params![DC_CONTACT_ID_LAST_SPECIAL as i32],
+                paramsv![DC_CONTACT_ID_LAST_SPECIAL as i32],
             )
             .await
             .unwrap_or_default() as usize
@@ -993,7 +997,7 @@ impl Contact {
             .sql
             .exists(
                 "SELECT id FROM contacts WHERE id=?;",
-                params![contact_id as i32],
+                paramsv![contact_id as i32],
             )
             .await
             .unwrap_or_default()
@@ -1004,7 +1008,7 @@ impl Contact {
             .sql
             .execute(
                 "UPDATE contacts SET origin=? WHERE id=? AND origin<?;",
-                params![origin, contact_id as i32, origin],
+                paramsv![origin, contact_id as i32, origin],
             )
             .await
             .is_ok()
@@ -1044,7 +1048,7 @@ async fn set_block_contact(context: &Context, contact_id: u32, new_blocking: boo
                 .sql
                 .execute(
                     "UPDATE contacts SET blocked=? WHERE id=?;",
-                    params![new_blocking as i32, contact_id as i32],
+                    paramsv![new_blocking as i32, contact_id as i32],
                 )
                 .await
                 .is_ok()
@@ -1056,9 +1060,9 @@ async fn set_block_contact(context: &Context, contact_id: u32, new_blocking: boo
             // this would result in recreating the same group...)
             if context.sql.execute(
                     "UPDATE chats SET blocked=? WHERE type=? AND id IN (SELECT chat_id FROM chats_contacts WHERE contact_id=?);",
-                    params![new_blocking, 100, contact_id as i32],
+                    paramsv![new_blocking, 100, contact_id as i32],
                 ).await.is_ok() {
-                    Contact::mark_noticed(context, contact_id);
+                    Contact::mark_noticed(context, contact_id).await;
                     context.call_cb(Event::ContactsChanged(None));
                 }
         }
@@ -1240,25 +1244,33 @@ mod tests {
         )
     }
 
-    #[test]
-    fn test_get_contacts() {
-        let context = dummy_context();
-        let contacts = Contact::get_all(&context.ctx, 0, Some("some2")).unwrap();
+    #[async_std::test]
+    async fn test_get_contacts() {
+        let context = dummy_context().await;
+        let contacts = Contact::get_all(&context.ctx, 0, Some("some2"))
+            .await
+            .unwrap();
         assert_eq!(contacts.len(), 0);
 
-        let id = Contact::create(&context.ctx, "bob", "bob@mail.de").unwrap();
+        let id = Contact::create(&context.ctx, "bob", "bob@mail.de")
+            .await
+            .unwrap();
         assert_ne!(id, 0);
 
-        let contacts = Contact::get_all(&context.ctx, 0, Some("bob")).unwrap();
+        let contacts = Contact::get_all(&context.ctx, 0, Some("bob"))
+            .await
+            .unwrap();
         assert_eq!(contacts.len(), 1);
 
-        let contacts = Contact::get_all(&context.ctx, 0, Some("alice")).unwrap();
+        let contacts = Contact::get_all(&context.ctx, 0, Some("alice"))
+            .await
+            .unwrap();
         assert_eq!(contacts.len(), 0);
     }
 
     #[async_std::test]
     async fn test_is_self_addr() -> Result<()> {
-        let t = test_context(None);
+        let t = test_context(None).await;
         assert!(t.ctx.is_self_addr("me@me.org").await.is_err());
 
         let addr = configure_alice_keypair(&t.ctx).await;
@@ -1268,10 +1280,10 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn test_add_or_lookup() {
+    #[async_std::test]
+    async fn test_add_or_lookup() {
         // add some contacts, this also tests add_address_book()
-        let t = dummy_context();
+        let t = dummy_context().await;
         let book = concat!(
             "  Name one  \n one@eins.org \n",
             "Name two\ntwo@deux.net\n",
@@ -1279,15 +1291,16 @@ mod tests {
             "\nthree@drei.sam\n",
             "Name two\ntwo@deux.net\n" // should not be added again
         );
-        assert_eq!(Contact::add_address_book(&t.ctx, book).unwrap(), 3);
+        assert_eq!(Contact::add_address_book(&t.ctx, book).await.unwrap(), 3);
 
         // check first added contact, this does not modify because of lower origin
         let (contact_id, sth_modified) =
             Contact::add_or_lookup(&t.ctx, "bla foo", "one@eins.org", Origin::IncomingUnknownTo)
+                .await
                 .unwrap();
         assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
         assert_eq!(sth_modified, Modifier::None);
-        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
         assert_eq!(contact.get_id(), contact_id);
         assert_eq!(contact.get_name(), "Name one");
         assert_eq!(contact.get_display_name(), "Name one");
@@ -1301,10 +1314,11 @@ mod tests {
             " one@eins.org  ",
             Origin::ManuallyCreated,
         )
+        .await
         .unwrap();
         assert_eq!(contact_id, contact_id_test);
         assert_eq!(sth_modified, Modifier::Modified);
-        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
         assert_eq!(contact.get_name(), "Real one");
         assert_eq!(contact.get_addr(), "one@eins.org");
         assert!(!contact.is_blocked());
@@ -1312,10 +1326,11 @@ mod tests {
         // check third added contact (contact without name)
         let (contact_id, sth_modified) =
             Contact::add_or_lookup(&t.ctx, "", "three@drei.sam", Origin::IncomingUnknownTo)
+                .await
                 .unwrap();
         assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
         assert_eq!(sth_modified, Modifier::None);
-        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
         assert_eq!(contact.get_name(), "");
         assert_eq!(contact.get_display_name(), "three@drei.sam");
         assert_eq!(contact.get_addr(), "three@drei.sam");
@@ -1328,10 +1343,11 @@ mod tests {
             "three@drei.sam",
             Origin::IncomingUnknownFrom,
         )
+        .await
         .unwrap();
         assert_eq!(contact_id, contact_id_test);
         assert_eq!(sth_modified, Modifier::Modified);
-        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
         assert_eq!(contact.get_name_n_addr(), "m. serious (three@drei.sam)");
         assert!(!contact.is_blocked());
 
@@ -1342,25 +1358,31 @@ mod tests {
             "three@drei.sam",
             Origin::ManuallyCreated,
         )
+        .await
         .unwrap();
         assert_eq!(contact_id, contact_id_test);
         assert_eq!(sth_modified, Modifier::Modified);
-        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "m. serious");
         assert_eq!(contact.get_name_n_addr(), "schnucki (three@drei.sam)");
         assert!(!contact.is_blocked());
 
         // check SELF
-        let contact = Contact::load_from_db(&t.ctx, DC_CONTACT_ID_SELF).unwrap();
+        let contact = Contact::load_from_db(&t.ctx, DC_CONTACT_ID_SELF)
+            .await
+            .unwrap();
         assert_eq!(DC_CONTACT_ID_SELF, 1);
-        assert_eq!(contact.get_name(), t.ctx.stock_str(StockMessage::SelfMsg));
+        assert_eq!(
+            contact.get_name(),
+            t.ctx.stock_str(StockMessage::SelfMsg).await
+        );
         assert_eq!(contact.get_addr(), ""); // we're not configured
         assert!(!contact.is_blocked());
     }
 
-    #[test]
-    fn test_remote_authnames() {
-        let t = dummy_context();
+    #[async_std::test]
+    async fn test_remote_authnames() {
+        let t = dummy_context().await;
 
         // incoming mail `From: bob1 <bob@example.org>` - this should init authname and name
         let (contact_id, sth_modified) = Contact::add_or_lookup(
@@ -1369,10 +1391,11 @@ mod tests {
             "bob@example.org",
             Origin::IncomingUnknownFrom,
         )
+        .await
         .unwrap();
         assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
         assert_eq!(sth_modified, Modifier::Created);
-        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "bob1");
         assert_eq!(contact.get_name(), "bob1");
         assert_eq!(contact.get_display_name(), "bob1");
@@ -1384,18 +1407,21 @@ mod tests {
             "bob@example.org",
             Origin::IncomingUnknownFrom,
         )
+        .await
         .unwrap();
         assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
         assert_eq!(sth_modified, Modifier::Modified);
-        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "bob2");
         assert_eq!(contact.get_name(), "bob2");
         assert_eq!(contact.get_display_name(), "bob2");
 
         // manually edit name to "bob3" - authname should be still be "bob2" a given in `From:` above
-        let contact_id = Contact::create(&t.ctx, "bob3", "bob@example.org").unwrap();
+        let contact_id = Contact::create(&t.ctx, "bob3", "bob@example.org")
+            .await
+            .unwrap();
         assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
-        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "bob2");
         assert_eq!(contact.get_name(), "bob3");
         assert_eq!(contact.get_display_name(), "bob3");
@@ -1407,23 +1433,26 @@ mod tests {
             "bob@example.org",
             Origin::IncomingUnknownFrom,
         )
+        .await
         .unwrap();
         assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
         assert_eq!(sth_modified, Modifier::Modified);
-        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "bob4");
         assert_eq!(contact.get_name(), "bob3");
         assert_eq!(contact.get_display_name(), "bob3");
     }
 
-    #[test]
-    fn test_remote_authnames_create_empty() {
-        let t = dummy_context();
+    #[async_std::test]
+    async fn test_remote_authnames_create_empty() {
+        let t = dummy_context().await;
 
         // manually create "claire@example.org" without a given name
-        let contact_id = Contact::create(&t.ctx, "", "claire@example.org").unwrap();
+        let contact_id = Contact::create(&t.ctx, "", "claire@example.org")
+            .await
+            .unwrap();
         assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
-        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "");
         assert_eq!(contact.get_name(), "");
         assert_eq!(contact.get_display_name(), "claire@example.org");
@@ -1435,10 +1464,11 @@ mod tests {
             "claire@example.org",
             Origin::IncomingUnknownFrom,
         )
+        .await
         .unwrap();
         assert_eq!(contact_id, contact_id_same);
         assert_eq!(sth_modified, Modifier::Modified);
-        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "claire1");
         assert_eq!(contact.get_name(), "claire1");
         assert_eq!(contact.get_display_name(), "claire1");
@@ -1450,22 +1480,25 @@ mod tests {
             "claire@example.org",
             Origin::IncomingUnknownFrom,
         )
+        .await
         .unwrap();
         assert_eq!(contact_id, contact_id_same);
         assert_eq!(sth_modified, Modifier::Modified);
-        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "claire2");
         assert_eq!(contact.get_name(), "claire2");
         assert_eq!(contact.get_display_name(), "claire2");
     }
 
-    #[test]
-    fn test_remote_authnames_edit_empty() {
-        let t = dummy_context();
+    #[async_std::test]
+    async fn test_remote_authnames_edit_empty() {
+        let t = dummy_context().await;
 
         // manually create "dave@example.org"
-        let contact_id = Contact::create(&t.ctx, "dave1", "dave@example.org").unwrap();
-        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        let contact_id = Contact::create(&t.ctx, "dave1", "dave@example.org")
+            .await
+            .unwrap();
+        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "");
         assert_eq!(contact.get_name(), "dave1");
         assert_eq!(contact.get_display_name(), "dave1");
@@ -1477,15 +1510,18 @@ mod tests {
             "dave@example.org",
             Origin::IncomingUnknownFrom,
         )
+        .await
         .unwrap();
-        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "dave2");
         assert_eq!(contact.get_name(), "dave1");
         assert_eq!(contact.get_display_name(), "dave1");
 
         // manually clear the name
-        Contact::create(&t.ctx, "", "dave@example.org").unwrap();
-        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        Contact::create(&t.ctx, "", "dave@example.org")
+            .await
+            .unwrap();
+        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "dave2");
         assert_eq!(contact.get_name(), "dave2");
         assert_eq!(contact.get_display_name(), "dave2");

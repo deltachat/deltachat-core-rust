@@ -144,12 +144,16 @@ impl<'a> Peerstate<'a> {
         res
     }
 
-    pub fn from_addr(context: &'a Context, _sql: &Sql, addr: &str) -> Option<Self> {
+    pub async fn from_addr(context: &'a Context, _sql: &Sql, addr: &str) -> Option<Peerstate<'a>> {
         let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, verified_key, verified_key_fingerprint FROM acpeerstates  WHERE addr=? COLLATE NOCASE;";
-        Self::from_stmt(context, query, &[addr])
+        Self::from_stmt(context, query, paramsv![addr]).await
     }
 
-    pub fn from_fingerprint(context: &'a Context, _sql: &Sql, fingerprint: &str) -> Option<Self> {
+    pub async fn from_fingerprint(
+        context: &'a Context,
+        _sql: &Sql,
+        fingerprint: &str,
+    ) -> Option<Peerstate<'a>> {
         let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, \
                      gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
                      verified_key, verified_key_fingerprint \
@@ -161,15 +165,16 @@ impl<'a> Peerstate<'a> {
         Self::from_stmt(
             context,
             query,
-            params![fingerprint, fingerprint, fingerprint],
+            paramsv![fingerprint, fingerprint, fingerprint],
         )
+        .await
     }
 
-    fn from_stmt<P>(context: &'a Context, query: &str, params: P) -> Option<Self>
-    where
-        P: IntoIterator,
-        P::Item: rusqlite::ToSql,
-    {
+    async fn from_stmt(
+        context: &'a Context,
+        query: &str,
+        params: Vec<&dyn crate::ToSql>,
+    ) -> Option<Peerstate<'a>> {
         context
             .sql
             .query_row(query, params, |row| {
@@ -227,6 +232,7 @@ impl<'a> Peerstate<'a> {
 
                 Ok(res)
             })
+            .await
             .ok()
     }
 
@@ -413,7 +419,7 @@ impl<'a> Peerstate<'a> {
         if create {
             sql.execute(
                 "INSERT INTO acpeerstates (addr) VALUES(?);",
-                params![self.addr],
+                paramsv![self.addr],
             )
             .await?;
         }
@@ -425,29 +431,29 @@ impl<'a> Peerstate<'a> {
                  public_key=?, gossip_timestamp=?, gossip_key=?, public_key_fingerprint=?, gossip_key_fingerprint=?, \
                  verified_key=?, verified_key_fingerprint=? \
                  WHERE addr=?;",
-                params![
+                paramsv![
                     self.last_seen,
                     self.last_seen_autocrypt,
                     self.prefer_encrypt as i64,
                     self.public_key.as_ref().map(|k| k.to_bytes()),
                     self.gossip_timestamp,
                     self.gossip_key.as_ref().map(|k| k.to_bytes()),
-                    &self.public_key_fingerprint,
-                    &self.gossip_key_fingerprint,
+                    self.public_key_fingerprint,
+                    self.gossip_key_fingerprint,
                     self.verified_key.as_ref().map(|k| k.to_bytes()),
-                    &self.verified_key_fingerprint,
-                    &self.addr,
+                    self.verified_key_fingerprint,
+                    self.addr,
                 ],
             ).await?;
         } else if self.to_save == Some(ToSave::Timestamps) {
             sql.execute(
                 "UPDATE acpeerstates SET last_seen=?, last_seen_autocrypt=?, gossip_timestamp=? \
                  WHERE addr=?;",
-                params![
+                paramsv![
                     self.last_seen,
                     self.last_seen_autocrypt,
                     self.gossip_timestamp,
-                    &self.addr
+                    self.addr
                 ],
             )
             .await?;
@@ -475,9 +481,9 @@ mod tests {
     use pretty_assertions::assert_eq;
     use tempfile::TempDir;
 
-    #[test]
-    fn test_peerstate_save_to_db() {
-        let ctx = crate::test_utils::dummy_context();
+    #[async_std::test]
+    async fn test_peerstate_save_to_db() {
+        let ctx = crate::test_utils::dummy_context().await;
         let addr = "hello@mail.com";
 
         let pub_key = crate::key::Key::from(alice_keypair().public);
@@ -500,11 +506,12 @@ mod tests {
         };
 
         assert!(
-            peerstate.save_to_db(&ctx.ctx.sql, true).is_ok(),
+            peerstate.save_to_db(&ctx.ctx.sql, true).await.is_ok(),
             "failed to save to db"
         );
 
         let peerstate_new = Peerstate::from_addr(&ctx.ctx, &ctx.ctx.sql, addr)
+            .await
             .expect("failed to load peerstate from db");
 
         // clear to_save, as that is not persissted
@@ -512,13 +519,14 @@ mod tests {
         assert_eq!(peerstate, peerstate_new);
         let peerstate_new2 =
             Peerstate::from_fingerprint(&ctx.ctx, &ctx.ctx.sql, &pub_key.fingerprint())
+                .await
                 .expect("failed to load peerstate from db");
         assert_eq!(peerstate, peerstate_new2);
     }
 
-    #[test]
-    fn test_peerstate_double_create() {
-        let ctx = crate::test_utils::dummy_context();
+    #[async_std::test]
+    async fn test_peerstate_double_create() {
+        let ctx = crate::test_utils::dummy_context().await;
         let addr = "hello@mail.com";
         let pub_key = crate::key::Key::from(alice_keypair().public);
 
@@ -540,18 +548,18 @@ mod tests {
         };
 
         assert!(
-            peerstate.save_to_db(&ctx.ctx.sql, true).is_ok(),
+            peerstate.save_to_db(&ctx.ctx.sql, true).await.is_ok(),
             "failed to save"
         );
         assert!(
-            peerstate.save_to_db(&ctx.ctx.sql, true).is_ok(),
+            peerstate.save_to_db(&ctx.ctx.sql, true).await.is_ok(),
             "double-call with create failed"
         );
     }
 
-    #[test]
-    fn test_peerstate_with_empty_gossip_key_save_to_db() {
-        let ctx = crate::test_utils::dummy_context();
+    #[async_std::test]
+    async fn test_peerstate_with_empty_gossip_key_save_to_db() {
+        let ctx = crate::test_utils::dummy_context().await;
         let addr = "hello@mail.com";
 
         let pub_key = crate::key::Key::from(alice_keypair().public);
@@ -574,11 +582,12 @@ mod tests {
         };
 
         assert!(
-            peerstate.save_to_db(&ctx.ctx.sql, true).is_ok(),
+            peerstate.save_to_db(&ctx.ctx.sql, true).await.is_ok(),
             "failed to save"
         );
 
         let peerstate_new = Peerstate::from_addr(&ctx.ctx, &ctx.ctx.sql, addr)
+            .await
             .expect("failed to load peerstate from db");
 
         // clear to_save, as that is not persissted

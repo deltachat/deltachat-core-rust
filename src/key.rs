@@ -207,7 +207,7 @@ impl Key {
         sql.query_get_value(
             context,
             "SELECT public_key FROM keypairs WHERE addr=? AND is_default=1;",
-            &[addr],
+            paramsv![addr],
         )
         .await
         .and_then(|blob: Vec<u8>| Self::from_slice(&blob, KeyType::Public))
@@ -221,7 +221,7 @@ impl Key {
         sql.query_get_value(
             context,
             "SELECT private_key FROM keypairs WHERE addr=? AND is_default=1;",
-            &[self_addr.as_ref()],
+            paramsv![self_addr.as_ref()],
         )
         .await
         .and_then(|blob: Vec<u8>| Self::from_slice(&blob, KeyType::Private))
@@ -368,37 +368,37 @@ pub async fn store_self_keypair(
         .sql
         .execute(
             "DELETE FROM keypairs WHERE public_key=? OR private_key=?;",
-            params![public_key, secret_key],
+            paramsv![public_key, secret_key],
         )
         .await
         .map_err(|err| SaveKeyError::new("failed to remove old use of key", err))?;
     if default == KeyPairUse::Default {
         context
             .sql
-            .execute("UPDATE keypairs SET is_default=0;", params![])
+            .execute("UPDATE keypairs SET is_default=0;", paramsv![])
             .await
             .map_err(|err| SaveKeyError::new("failed to clear default", err))?;
     }
     let is_default = match default {
-        KeyPairUse::Default => true,
-        KeyPairUse::ReadOnly => false,
+        KeyPairUse::Default => true as i32,
+        KeyPairUse::ReadOnly => false as i32,
     };
+
+    let addr = keypair.addr.to_string();
+    let t = time();
+
+    let params = paramsv![addr, is_default, public_key, secret_key, t];
     context
         .sql
         .execute(
             "INSERT INTO keypairs (addr, is_default, public_key, private_key, created)
                 VALUES (?,?,?,?,?);",
-            params![
-                keypair.addr.to_string(),
-                is_default as i32,
-                public_key,
-                secret_key,
-                time()
-            ],
+            params,
         )
         .await
-        .map(|_| ())
-        .map_err(|err| SaveKeyError::new("failed to insert keypair", err))
+        .map_err(|err| SaveKeyError::new("failed to insert keypair", err))?;
+
+    Ok(())
 }
 
 /// Make a fingerprint human-readable, in hex format.
@@ -433,6 +433,7 @@ mod tests {
     use crate::test_utils::*;
     use std::convert::TryFrom;
 
+    use async_std::sync::Arc;
     use lazy_static::lazy_static;
 
     lazy_static! {
@@ -583,22 +584,29 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
         assert_eq!(public.primary_key, KEYPAIR.public.primary_key);
     }
 
-    #[test]
-    fn test_save_self_key_twice() {
+    #[async_std::test]
+    async fn test_save_self_key_twice() {
         // Saving the same key twice should result in only one row in
         // the keypairs table.
-        let t = dummy_context();
-        let nrows = || {
-            t.ctx
-                .sql
-                .query_get_value::<_, u32>(&t.ctx, "SELECT COUNT(*) FROM keypairs;", params![])
+        let t = dummy_context().await;
+        let ctx = Arc::new(t.ctx);
+
+        let ctx1 = ctx.clone();
+        let nrows = || async {
+            ctx1.sql
+                .query_get_value::<u32>(&ctx1, "SELECT COUNT(*) FROM keypairs;", paramsv![])
+                .await
                 .unwrap()
         };
-        assert_eq!(nrows(), 0);
-        store_self_keypair(&t.ctx, &KEYPAIR, KeyPairUse::Default).unwrap();
-        assert_eq!(nrows(), 1);
-        store_self_keypair(&t.ctx, &KEYPAIR, KeyPairUse::Default).unwrap();
-        assert_eq!(nrows(), 1);
+        assert_eq!(nrows().await, 0);
+        store_self_keypair(&ctx, &KEYPAIR, KeyPairUse::Default)
+            .await
+            .unwrap();
+        assert_eq!(nrows().await, 1);
+        store_self_keypair(&ctx, &KEYPAIR, KeyPairUse::Default)
+            .await
+            .unwrap();
+        assert_eq!(nrows().await, 1);
     }
 
     // Convenient way to create a new key if you need one, run with

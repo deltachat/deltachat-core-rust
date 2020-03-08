@@ -1,4 +1,6 @@
 use std::collections::{HashMap, HashSet};
+use std::future::Future;
+use std::pin::Pin;
 
 use deltachat_derive::{FromSql, ToSql};
 use lettre_email::mime::{self, Mime};
@@ -156,7 +158,7 @@ impl MimeMessage {
             user_avatar: None,
             group_avatar: None,
         };
-        parser.parse_mime_recursive(context, &mail)?;
+        parser.parse_mime_recursive(context, &mail).await?;
         parser.parse_headers(context)?;
 
         Ok(parser)
@@ -405,63 +407,69 @@ impl MimeMessage {
         None
     }
 
-    fn parse_mime_recursive(
-        &mut self,
-        context: &Context,
-        mail: &mailparse::ParsedMail<'_>,
-    ) -> Result<bool> {
-        if mail.ctype.params.get("protected-headers").is_some() {
-            if mail.ctype.mimetype == "text/rfc822-headers" {
-                warn!(
+    fn parse_mime_recursive<'a>(
+        &'a mut self,
+        context: &'a Context,
+        mail: &'a mailparse::ParsedMail<'a>,
+    ) -> Pin<Box<dyn Future<Output = Result<bool>> + 'a + Send>> {
+        use futures::future::FutureExt;
+
+        // Boxed future to deal with recursion
+        async move {
+            if mail.ctype.params.get("protected-headers").is_some() {
+                if mail.ctype.mimetype == "text/rfc822-headers" {
+                    warn!(
                     context,
                     "Protected headers found in text/rfc822-headers attachment: Will be ignored.",
                 );
-                return Ok(false);
-            }
-
-            warn!(context, "Ignoring nested protected headers");
-        }
-
-        enum MimeS {
-            Multiple,
-            Single,
-            Message,
-        }
-
-        let mimetype = mail.ctype.mimetype.to_lowercase();
-
-        let m = if mimetype.starts_with("multipart") {
-            if mail.ctype.params.get("boundary").is_some() {
-                MimeS::Multiple
-            } else {
-                MimeS::Single
-            }
-        } else if mimetype.starts_with("message") {
-            if mimetype == "message/rfc822" {
-                MimeS::Message
-            } else {
-                MimeS::Single
-            }
-        } else {
-            MimeS::Single
-        };
-
-        match m {
-            MimeS::Multiple => self.handle_multiple(context, mail),
-            MimeS::Message => {
-                let raw = mail.get_body_raw()?;
-                if raw.is_empty() {
                     return Ok(false);
                 }
-                let mail = mailparse::parse_mail(&raw).unwrap();
 
-                self.parse_mime_recursive(context, &mail)
+                warn!(context, "Ignoring nested protected headers");
             }
-            MimeS::Single => self.add_single_part_if_known(context, mail),
+
+            enum MimeS {
+                Multiple,
+                Single,
+                Message,
+            }
+
+            let mimetype = mail.ctype.mimetype.to_lowercase();
+
+            let m = if mimetype.starts_with("multipart") {
+                if mail.ctype.params.get("boundary").is_some() {
+                    MimeS::Multiple
+                } else {
+                    MimeS::Single
+                }
+            } else if mimetype.starts_with("message") {
+                if mimetype == "message/rfc822" {
+                    MimeS::Message
+                } else {
+                    MimeS::Single
+                }
+            } else {
+                MimeS::Single
+            };
+
+            match m {
+                MimeS::Multiple => self.handle_multiple(context, mail).await,
+                MimeS::Message => {
+                    let raw = mail.get_body_raw()?;
+                    if raw.is_empty() {
+                        return Ok(false);
+                    }
+                    let mail = mailparse::parse_mail(&raw).unwrap();
+
+                    self.parse_mime_recursive(context, &mail).await
+                }
+                MimeS::Single => self.add_single_part_if_known(context, mail),
+            }
         }
+        .boxed()
     }
 
-    fn handle_multiple(
+    async fn handle_multiple(
         &mut self,
         context: &Context,
         mail: &mailparse::ParsedMail<'_>,
@@ -476,7 +484,7 @@ impl MimeMessage {
             (mime::MULTIPART, "alternative") => {
                 for cur_data in &mail.subparts {
                     if get_mime_type(cur_data)?.0 == "multipart/mixed" {
-                        any_part_added = self.parse_mime_recursive(context, cur_data)?;
+                        any_part_added = self.parse_mime_recursive(context, cur_data).await?;
                         break;
                     }
                 }
@@ -484,7 +492,7 @@ impl MimeMessage {
                     /* search for text/plain and add this */
                     for cur_data in &mail.subparts {
                         if get_mime_type(cur_data)?.0.type_() == mime::TEXT {
-                            any_part_added = self.parse_mime_recursive(context, cur_data)?;
+                            any_part_added = self.parse_mime_recursive(context, cur_data).await?;
                             break;
                         }
                     }
@@ -492,7 +500,7 @@ impl MimeMessage {
                 if !any_part_added {
                     /* `text/plain` not found - use the first part */
                     for cur_part in &mail.subparts {
-                        if self.parse_mime_recursive(context, cur_part)? {
+                        if self.parse_mime_recursive(context, cur_part).await? {
                             any_part_added = true;
                             break;
                         }
@@ -505,14 +513,14 @@ impl MimeMessage {
                 being the first one, which may not be always true ...
                 however, most times it seems okay. */
                 if let Some(first) = mail.subparts.iter().next() {
-                    any_part_added = self.parse_mime_recursive(context, first)?;
+                    any_part_added = self.parse_mime_recursive(context, first).await?;
                 }
             }
             (mime::MULTIPART, "encrypted") => {
                 // we currently do not try to decrypt non-autocrypt messages
                 // at all. If we see an encrypted part, we set
                 // decrypting_failed.
-                let msg_body = context.stock_str(StockMessage::CantDecryptMsgBody);
+                let msg_body = context.stock_str(StockMessage::CantDecryptMsgBody).await;
                 let txt = format!("[{}]", msg_body);
 
                 let mut part = Part::default();
@@ -535,7 +543,7 @@ impl MimeMessage {
                 https://k9mail.github.io/2016/11/24/OpenPGP-Considerations-Part-I.html
                 for background information why we use encrypted+signed) */
                 if let Some(first) = mail.subparts.iter().next() {
-                    any_part_added = self.parse_mime_recursive(context, first)?;
+                    any_part_added = self.parse_mime_recursive(context, first).await?;
                 }
             }
             (mime::MULTIPART, "report") => {
@@ -550,7 +558,7 @@ impl MimeMessage {
                             /* eg. `report-type=delivery-status`;
                             maybe we should show them as a little error icon */
                             if let Some(first) = mail.subparts.iter().next() {
-                                any_part_added = self.parse_mime_recursive(context, first)?;
+                                any_part_added = self.parse_mime_recursive(context, first).await?;
                             }
                         }
                     }
@@ -560,7 +568,7 @@ impl MimeMessage {
                 // Add all parts (in fact, AddSinglePartIfKnown() later check if
                 // the parts are really supported)
                 for cur_data in mail.subparts.iter() {
-                    if self.parse_mime_recursive(context, cur_data)? {
+                    if self.parse_mime_recursive(context, cur_data).await? {
                         any_part_added = true;
                     }
                 }
@@ -827,6 +835,7 @@ impl MimeMessage {
             {
                 if let Some((chat_id, msg_id)) =
                     message::mdn_from_ext(context, from_id, original_message_id, sent_timestamp)
+                        .await
                 {
                     context.call_cb(Event::MsgRead { chat_id, msg_id });
                     mdn_recognized = true;
@@ -876,7 +885,7 @@ async fn update_gossip_peerstates(
                 .unwrap()
                 .contains(&header.addr.to_lowercase())
             {
-                let mut peerstate = Peerstate::from_addr(context, &context.sql, &header.addr);
+                let mut peerstate = Peerstate::from_addr(context, &context.sql, &header.addr).await;
                 if let Some(ref mut peerstate) = peerstate {
                     peerstate.apply_gossip(header, message_time);
                     peerstate.save_to_db(&context.sql, false).await?;
@@ -1103,21 +1112,25 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_dc_mimeparser_crash() {
-        let context = dummy_context();
+    #[async_std::test]
+    async fn test_dc_mimeparser_crash() {
+        let context = dummy_context().await;
         let raw = include_bytes!("../test-data/message/issue_523.txt");
-        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
+            .unwrap();
 
         assert_eq!(mimeparser.get_subject(), None);
         assert_eq!(mimeparser.parts.len(), 1);
     }
 
-    #[test]
-    fn test_get_rfc724_mid_exists() {
-        let context = dummy_context();
+    #[async_std::test]
+    async fn test_get_rfc724_mid_exists() {
+        let context = dummy_context().await;
         let raw = include_bytes!("../test-data/message/mail_with_message_id.txt");
-        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
+            .unwrap();
 
         assert_eq!(
             mimeparser.get_rfc724_mid(),
@@ -1125,19 +1138,23 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_get_rfc724_mid_not_exists() {
-        let context = dummy_context();
+    #[async_std::test]
+    async fn test_get_rfc724_mid_not_exists() {
+        let context = dummy_context().await;
         let raw = include_bytes!("../test-data/message/issue_523.txt");
-        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
+            .unwrap();
         assert_eq!(mimeparser.get_rfc724_mid(), None);
     }
 
-    #[test]
-    fn test_get_recipients() {
-        let context = dummy_context();
+    #[async_std::test]
+    async fn test_get_recipients() {
+        let context = dummy_context().await;
         let raw = include_bytes!("../test-data/message/mail_with_cc.txt");
-        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
+            .unwrap();
         let recipients = get_recipients(mimeparser.header.iter());
         assert!(recipients.contains("abc@bcd.com"));
         assert!(recipients.contains("def@def.de"));
@@ -1182,9 +1199,9 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_parse_first_addr() {
-        let context = dummy_context();
+    #[async_std::test]
+    async fn test_parse_first_addr() {
+        let context = dummy_context().await;
         let raw = b"From: hello@one.org, world@two.org\n\
                     Chat-Disposition-Notification-To: wrong\n\
                     Content-Type: text/plain\n\
@@ -1193,7 +1210,9 @@ mod tests {
                     test1\n\
                     ";
 
-        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
+            .unwrap();
 
         let of = mimeparser
             .parse_first_addr(&context.ctx, HeaderDef::From_)
@@ -1205,9 +1224,9 @@ mod tests {
         assert!(of.is_none());
     }
 
-    #[test]
-    fn test_mimeparser_with_context() {
-        let context = dummy_context();
+    #[async_std::test]
+    async fn test_mimeparser_with_context() {
+        let context = dummy_context().await;
         let raw = b"From: hello\n\
                     Content-Type: multipart/mixed; boundary=\"==break==\";\n\
                     Subject: outer-subject\n\
@@ -1226,7 +1245,9 @@ mod tests {
                     --==break==--\n\
                     \n";
 
-        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
+            .unwrap();
 
         // non-overwritten headers do not bubble up
         let of = mimeparser.get(HeaderDef::SecureJoinGroup).unwrap();
@@ -1246,31 +1267,31 @@ mod tests {
         assert_eq!(mimeparser.parts.len(), 1);
     }
 
-    #[test]
-    fn test_mimeparser_with_avatars() {
-        let t = dummy_context();
+    #[async_std::test]
+    async fn test_mimeparser_with_avatars() {
+        let t = dummy_context().await;
 
         let raw = include_bytes!("../test-data/message/mail_attach_txt.eml");
-        let mimeparser = MimeMessage::from_bytes(&t.ctx, &raw[..]).unwrap();
+        let mimeparser = MimeMessage::from_bytes(&t.ctx, &raw[..]).await.unwrap();
         assert_eq!(mimeparser.user_avatar, None);
         assert_eq!(mimeparser.group_avatar, None);
 
         let raw = include_bytes!("../test-data/message/mail_with_user_avatar.eml");
-        let mimeparser = MimeMessage::from_bytes(&t.ctx, &raw[..]).unwrap();
+        let mimeparser = MimeMessage::from_bytes(&t.ctx, &raw[..]).await.unwrap();
         assert_eq!(mimeparser.parts.len(), 1);
         assert_eq!(mimeparser.parts[0].typ, Viewtype::Text);
         assert!(mimeparser.user_avatar.unwrap().is_change());
         assert_eq!(mimeparser.group_avatar, None);
 
         let raw = include_bytes!("../test-data/message/mail_with_user_avatar_deleted.eml");
-        let mimeparser = MimeMessage::from_bytes(&t.ctx, &raw[..]).unwrap();
+        let mimeparser = MimeMessage::from_bytes(&t.ctx, &raw[..]).await.unwrap();
         assert_eq!(mimeparser.parts.len(), 1);
         assert_eq!(mimeparser.parts[0].typ, Viewtype::Text);
         assert_eq!(mimeparser.user_avatar, Some(AvatarAction::Delete));
         assert_eq!(mimeparser.group_avatar, None);
 
         let raw = include_bytes!("../test-data/message/mail_with_user_and_group_avatars.eml");
-        let mimeparser = MimeMessage::from_bytes(&t.ctx, &raw[..]).unwrap();
+        let mimeparser = MimeMessage::from_bytes(&t.ctx, &raw[..]).await.unwrap();
         assert_eq!(mimeparser.parts.len(), 1);
         assert_eq!(mimeparser.parts[0].typ, Viewtype::Text);
         assert!(mimeparser.user_avatar.unwrap().is_change());
@@ -1280,16 +1301,18 @@ mod tests {
         let raw = include_bytes!("../test-data/message/mail_with_user_and_group_avatars.eml");
         let raw = String::from_utf8_lossy(raw).to_string();
         let raw = raw.replace("Chat-User-Avatar:", "Xhat-Xser-Xvatar:");
-        let mimeparser = MimeMessage::from_bytes(&t.ctx, raw.as_bytes()).unwrap();
+        let mimeparser = MimeMessage::from_bytes(&t.ctx, raw.as_bytes())
+            .await
+            .unwrap();
         assert_eq!(mimeparser.parts.len(), 1);
         assert_eq!(mimeparser.parts[0].typ, Viewtype::Image);
         assert_eq!(mimeparser.user_avatar, None);
         assert!(mimeparser.group_avatar.unwrap().is_change());
     }
 
-    #[test]
-    fn test_mimeparser_message_kml() {
-        let context = dummy_context();
+    #[async_std::test]
+    async fn test_mimeparser_message_kml() {
+        let context = dummy_context().await;
         let raw = b"Chat-Version: 1.0\n\
 From: foo <foo@example.org>\n\
 To: bar <bar@example.org>\n\
@@ -1317,7 +1340,9 @@ Content-Disposition: attachment; filename=\"message.kml\"\n\
 --==break==--\n\
 ;";
 
-        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
+            .unwrap();
         assert_eq!(
             mimeparser.get_subject(),
             Some("Location streaming".to_string())
@@ -1330,9 +1355,9 @@ Content-Disposition: attachment; filename=\"message.kml\"\n\
         assert_eq!(mimeparser.parts.len(), 1);
     }
 
-    #[test]
-    fn test_parse_mdn() {
-        let context = dummy_context();
+    #[async_std::test]
+    async fn test_parse_mdn() {
+        let context = dummy_context().await;
         let raw = b"Subject: =?utf-8?q?Chat=3A_Message_opened?=\n\
 Date: Mon, 10 Jan 2020 00:00:00 +0000\n\
 Chat-Version: 1.0\n\
@@ -1364,7 +1389,9 @@ Disposition: manual-action/MDN-sent-automatically; displayed\n\
 --kJBbU58X1xeWNHgBtTbMk80M5qnV4N--\n\
 ";
 
-        let message = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
+        let message = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
+            .unwrap();
         assert_eq!(
             message.get_subject(),
             Some("Chat: Message opened".to_string())
@@ -1378,9 +1405,9 @@ Disposition: manual-action/MDN-sent-automatically; displayed\n\
     ///
     /// RFC 6522 specifically allows MDNs to be nested inside
     /// multipart MIME messages.
-    #[test]
-    fn test_parse_multiple_mdns() {
-        let context = dummy_context();
+    #[async_std::test]
+    async fn test_parse_multiple_mdns() {
+        let context = dummy_context().await;
         let raw = b"Subject: =?utf-8?q?Chat=3A_Message_opened?=\n\
 Date: Mon, 10 Jan 2020 00:00:00 +0000\n\
 Chat-Version: 1.0\n\
@@ -1442,7 +1469,9 @@ Disposition: manual-action/MDN-sent-automatically; displayed\n\
 --outer--\n\
 ";
 
-        let message = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
+        let message = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
+            .unwrap();
         assert_eq!(
             message.get_subject(),
             Some("Chat: Message opened".to_string())
@@ -1452,9 +1481,9 @@ Disposition: manual-action/MDN-sent-automatically; displayed\n\
         assert_eq!(message.reports.len(), 2);
     }
 
-    #[test]
-    fn test_parse_mdn_with_additional_message_ids() {
-        let context = dummy_context();
+    #[async_std::test]
+    async fn test_parse_mdn_with_additional_message_ids() {
+        let context = dummy_context().await;
         let raw = b"Subject: =?utf-8?q?Chat=3A_Message_opened?=\n\
 Date: Mon, 10 Jan 2020 00:00:00 +0000\n\
 Chat-Version: 1.0\n\
@@ -1487,7 +1516,9 @@ Additional-Message-IDs: <foo@example.com> <foo@example.net>\n\
 --kJBbU58X1xeWNHgBtTbMk80M5qnV4N--\n\
 ";
 
-        let message = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
+        let message = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
+            .unwrap();
         assert_eq!(
             message.get_subject(),
             Some("Chat: Message opened".to_string())
@@ -1502,9 +1533,9 @@ Additional-Message-IDs: <foo@example.com> <foo@example.net>\n\
         );
     }
 
-    #[test]
-    fn test_parse_inline_attachment() {
-        let context = dummy_context();
+    #[async_std::test]
+    async fn test_parse_inline_attachment() {
+        let context = dummy_context().await;
         let raw = br#"Date: Thu, 13 Feb 2020 22:41:20 +0000 (UTC)
 From: sender@example.com
 To: receiver@example.com
@@ -1529,7 +1560,9 @@ MDYyMDYxNTE1RTlDOEE4Cj4+CnN0YXJ0eHJlZgo4Mjc4CiUlRU9GCg==
 ------=_Part_25_46172632.1581201680436--
 "#;
 
-        let message = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
+        let message = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
+            .unwrap();
         assert_eq!(
             message.get_subject(),
             Some("Mail with inline attachment".to_string())

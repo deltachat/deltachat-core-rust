@@ -33,7 +33,7 @@ macro_rules! progress {
 impl Context {
     /// Starts a configuration job.
     pub async fn configure(&self) {
-        if self.has_ongoing() {
+        if self.has_ongoing().await {
             warn!(self, "There is already another ongoing process running.",);
             return;
         }
@@ -57,7 +57,7 @@ pub(crate) async fn job_configure_imap(context: &Context) -> job::Status {
         progress!(context, 0);
         return job::Status::Finished(Err(format_err!("Database not opened")));
     }
-    if !context.alloc_ongoing() {
+    if !context.alloc_ongoing().await {
         progress!(context, 0);
         return job::Status::Finished(Err(format_err!("Cannot allocated ongoing process")));
     }
@@ -87,7 +87,7 @@ pub(crate) async fn job_configure_imap(context: &Context) -> job::Status {
     const STEP_13_AFTER_AUTOCONFIG: u8 = 13;
 
     let mut step_counter: u8 = 0;
-    while !context.shall_stop_ongoing() {
+    while !context.shall_stop_ongoing().await {
         step_counter += 1;
 
         let success = match step_counter {
@@ -108,6 +108,7 @@ pub(crate) async fn job_configure_imap(context: &Context) -> job::Status {
                     progress!(context, 10);
                     if let Some(oauth2_addr) =
                         dc_get_oauth2_addr(context, &param.addr, &param.mail_pw)
+                            .await
                             .and_then(|e| e.parse().ok())
                     {
                         info!(context, "Authorized address is {}", oauth2_addr);
@@ -444,7 +445,7 @@ pub(crate) async fn job_configure_imap(context: &Context) -> job::Status {
         }
     }
 
-    context.free_ongoing();
+    context.free_ongoing().await;
     progress!(context, if success { 1000 } else { 0 });
     job::Status::Finished(Ok(()))
 }
@@ -574,7 +575,7 @@ async fn try_imap_one_param(context: &Context, param: &LoginParam) -> Option<boo
         info!(context, "success: {}", inf);
         return Some(true);
     }
-    if context.shall_stop_ongoing() {
+    if context.shall_stop_ongoing().await {
         return Some(false);
     }
     info!(context, "Could not connect: {}", inf);
@@ -623,7 +624,7 @@ async fn try_smtp_one_param(context: &Context, param: &LoginParam) -> Option<boo
             Some(true)
         }
         Err(err) => {
-            if context.shall_stop_ongoing() {
+            if context.shall_stop_ongoing().await {
                 Some(false)
             } else {
                 warn!(context, "could not connect: {}", err);
@@ -642,7 +643,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_no_panic_on_bad_credentials() {
-        let t = dummy_context();
+        let t = dummy_context().await;
         t.ctx
             .set_config(Config::Addr, Some("probably@unexistant.addr"))
             .await
@@ -654,9 +655,9 @@ mod tests {
         job_configure_imap(&t.ctx).await;
     }
 
-    #[test]
-    fn test_get_offline_autoconfig() {
-        let context = dummy_context().ctx;
+    #[async_std::test]
+    async fn test_get_offline_autoconfig() {
+        let context = dummy_context().await.ctx;
 
         let mut params = LoginParam::new();
         params.addr = "someone123@example.org".to_string();

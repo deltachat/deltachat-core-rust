@@ -202,7 +202,7 @@ pub async fn send_locations_to_chat(context: &Context, chat_id: ChatId, seconds:
              SET locations_send_begin=?,        \
              locations_send_until=?  \
              WHERE id=?",
-                params![
+                paramsv![
                     if 0 != seconds { now } else { 0 },
                     if 0 != seconds { now + seconds } else { 0 },
                     chat_id,
@@ -213,16 +213,20 @@ pub async fn send_locations_to_chat(context: &Context, chat_id: ChatId, seconds:
         {
             if 0 != seconds && !is_sending_locations_before {
                 let mut msg = Message::new(Viewtype::Text);
-                msg.text =
-                    Some(context.stock_system_msg(StockMessage::MsgLocationEnabled, "", "", 0));
+                msg.text = Some(
+                    context
+                        .stock_system_msg(StockMessage::MsgLocationEnabled, "", "", 0)
+                        .await,
+                );
                 msg.param.set_cmd(SystemMessage::LocationStreamingEnabled);
                 chat::send_msg(context, chat_id, &mut msg)
                     .await
                     .unwrap_or_default();
             } else if 0 == seconds && is_sending_locations_before {
-                let stock_str =
-                    context.stock_system_msg(StockMessage::MsgLocationDisabled, "", "", 0);
-                chat::add_info_msg(context, chat_id, stock_str);
+                let stock_str = context
+                    .stock_system_msg(StockMessage::MsgLocationDisabled, "", "", 0)
+                    .await;
+                chat::add_info_msg(context, chat_id, stock_str).await;
             }
             context.call_cb(Event::ChatModified(chat_id));
             if 0 != seconds {
@@ -258,7 +262,7 @@ pub async fn is_sending_locations_to_chat(context: &Context, chat_id: ChatId) ->
         .sql
         .exists(
             "SELECT id  FROM chats  WHERE (? OR id=?)   AND locations_send_until>?;",
-            params![if chat_id.is_unset() { 1 } else { 0 }, chat_id, time()],
+            paramsv![if chat_id.is_unset() { 1 } else { 0 }, chat_id, time()],
         )
         .await
         .unwrap_or_default()
@@ -274,7 +278,7 @@ pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64
         .sql
         .query_map(
             "SELECT id FROM chats WHERE locations_send_until>?;",
-            params![time()],
+            paramsv![time()],
             |row| row.get::<_, i32>(0),
             |chats| chats.collect::<Result<Vec<_>, _>>().map_err(Into::into),
         )
@@ -284,7 +288,7 @@ pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64
             if let Err(err) = context.sql.execute(
                     "INSERT INTO locations  \
                      (latitude, longitude, accuracy, timestamp, chat_id, from_id) VALUES (?,?,?,?,?,?);",
-                    params![
+                    paramsv![
                         latitude,
                         longitude,
                         accuracy,
@@ -326,7 +330,7 @@ pub async fn get_range(
              AND (? OR l.from_id=?) \
              AND (l.independent=1 OR (l.timestamp>=? AND l.timestamp<=?)) \
              ORDER BY l.timestamp DESC, l.id DESC, msg_id DESC;",
-            params![
+            paramsv![
                 if chat_id.is_unset() { 1 } else { 0 },
                 chat_id,
                 if contact_id == 0 { 1 } else { 0 },
@@ -377,7 +381,7 @@ fn is_marker(txt: &str) -> bool {
 pub async fn delete_all(context: &Context) -> Result<(), Error> {
     context
         .sql
-        .execute("DELETE FROM locations;", params![])
+        .execute("DELETE FROM locations;", paramsv![])
         .await?;
     context.call_cb(Event::LocationChanged(None));
     Ok(())
@@ -393,7 +397,7 @@ pub async fn get_kml(context: &Context, chat_id: ChatId) -> Result<(String, u32)
 
     let (locations_send_begin, locations_send_until, locations_last_sent) = context.sql.query_row(
         "SELECT locations_send_begin, locations_send_until, locations_last_sent  FROM chats  WHERE id=?;",
-        params![chat_id], |row| {
+        paramsv![chat_id], |row| {
             let send_begin: i64 = row.get(0)?;
             let send_until: i64 = row.get(1)?;
             let last_sent: i64 = row.get(2)?;
@@ -419,7 +423,7 @@ pub async fn get_kml(context: &Context, chat_id: ChatId) -> Result<(String, u32)
              AND independent=0 \
              GROUP BY timestamp \
              ORDER BY timestamp;",
-            params![DC_CONTACT_ID_SELF, locations_send_begin, locations_last_sent, DC_CONTACT_ID_SELF],
+            paramsv![DC_CONTACT_ID_SELF, locations_send_begin, locations_last_sent, DC_CONTACT_ID_SELF],
             |row| {
                 let location_id: i32 = row.get(0)?;
                 let latitude: f64 = row.get(1)?;
@@ -486,7 +490,7 @@ pub async fn set_kml_sent_timestamp(
         .sql
         .execute(
             "UPDATE chats SET locations_last_sent=? WHERE id=?;",
-            params![timestamp, chat_id],
+            paramsv![timestamp, chat_id],
         )
         .await?;
     Ok(())
@@ -501,7 +505,7 @@ pub async fn set_msg_location_id(
         .sql
         .execute(
             "UPDATE msgs SET location_id=? WHERE id=?;",
-            params![location_id, msg_id],
+            paramsv![location_id, msg_id],
         )
         .await?;
 
@@ -532,10 +536,10 @@ pub async fn save(
              VALUES (?,?,?,?,?,?,?);",
                 )?;
 
-                let exists = stmt_test.exists(params![location.timestamp, contact_id as i32])?;
+                let exists = stmt_test.exists(paramsv![location.timestamp, contact_id as i32])?;
 
                 if independent || !exists {
-                    stmt_insert.execute(params![
+                    stmt_insert.execute(paramsv![
                         location.timestamp,
                         contact_id as i32,
                         chat_id,
@@ -582,7 +586,7 @@ pub(crate) async fn job_maybe_send_locations(context: &Context, _job: &Job) -> j
             "SELECT id, locations_send_begin, locations_last_sent \
          FROM chats \
          WHERE locations_send_until>?;",
-            params![now],
+            paramsv![now],
             |row| {
                 let chat_id: ChatId = row.get(0)?;
                 let locations_send_begin: i64 = row.get(1)?;
@@ -621,10 +625,10 @@ pub(crate) async fn job_maybe_send_locations(context: &Context, _job: &Job) -> j
                     .iter()
                     .filter_map(|(chat_id, locations_send_begin, locations_last_sent)| {
                         if !stmt_locations
-                            .exists(params![
+                            .exists(paramsv![
                                 DC_CONTACT_ID_SELF,
-                                locations_send_begin,
-                                locations_last_sent,
+                                *locations_send_begin,
+                                *locations_last_sent,
                             ])
                             .unwrap_or_default()
                         {
@@ -682,7 +686,7 @@ pub(crate) async fn job_maybe_send_locations_ended(
             .sql
             .query_row(
                 "SELECT locations_send_begin, locations_send_until  FROM chats  WHERE id=?",
-                params![chat_id],
+                paramsv![chat_id],
                 |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
             )
             .await
@@ -696,11 +700,13 @@ pub(crate) async fn job_maybe_send_locations_ended(
             // not streaming, device-message already sent
             job_try!(context.sql.execute(
                 "UPDATE chats    SET locations_send_begin=0, locations_send_until=0  WHERE id=?",
-                params![chat_id],
+                paramsv![chat_id],
             ).await);
 
-            let stock_str = context.stock_system_msg(StockMessage::MsgLocationDisabled, "", "", 0);
-            chat::add_info_msg(context, chat_id, stock_str);
+            let stock_str = context
+                .stock_system_msg(StockMessage::MsgLocationDisabled, "", "", 0)
+                .await;
+            chat::add_info_msg(context, chat_id, stock_str).await;
             context.call_cb(Event::ChatModified(chat_id));
         }
     }
@@ -712,9 +718,9 @@ mod tests {
     use super::*;
     use crate::test_utils::dummy_context;
 
-    #[test]
-    fn test_kml_parse() {
-        let context = dummy_context();
+    #[async_std::test]
+    async fn test_kml_parse() {
+        let context = dummy_context().await;
 
         let xml =
             b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n<Document addr=\"user@example.org\">\n<Placemark><Timestamp><when>2019-03-06T21:09:57Z</when></Timestamp><Point><coordinates accuracy=\"32.000000\">9.423110,53.790302</coordinates></Point></Placemark>\n<PlaceMARK>\n<Timestamp><WHEN > \n\t2018-12-13T22:11:12Z\t</WHEN></Timestamp><Point><coordinates aCCuracy=\"2.500000\"> 19.423110 \t , \n 63.790302\n </coordinates></Point></PlaceMARK>\n</Document>\n</kml>";

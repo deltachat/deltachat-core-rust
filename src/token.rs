@@ -34,7 +34,7 @@ pub async fn save(context: &Context, namespace: Namespace, foreign_id: ChatId) -
         .sql
         .execute(
             "INSERT INTO tokens (namespc, foreign_id, token, timestamp) VALUES (?, ?, ?, ?);",
-            params![namespace, foreign_id, &token, time()],
+            paramsv![namespace, foreign_id, token, time()],
         )
         .await
         .ok();
@@ -44,10 +44,10 @@ pub async fn save(context: &Context, namespace: Namespace, foreign_id: ChatId) -
 pub async fn lookup(context: &Context, namespace: Namespace, foreign_id: ChatId) -> Option<String> {
     context
         .sql
-        .query_get_value::<_, String>(
+        .query_get_value::<String>(
             context,
             "SELECT token FROM tokens WHERE namespc=? AND foreign_id=?;",
-            params![namespace, foreign_id],
+            paramsv![namespace, foreign_id],
         )
         .await
 }
@@ -65,7 +65,7 @@ pub async fn exists(context: &Context, namespace: Namespace, token: &str) -> boo
         .sql
         .exists(
             "SELECT id FROM tokens WHERE namespc=? AND token=?;",
-            params![namespace, token],
+            paramsv![namespace, token],
         )
         .await
         .unwrap_or_default()

@@ -16,6 +16,19 @@ extern crate strum_macros;
 #[macro_use]
 extern crate debug_stub_derive;
 
+pub trait ToSql: rusqlite::ToSql + Send + Sync {}
+
+impl<T: rusqlite::ToSql + Send + Sync> ToSql for T {}
+
+macro_rules! paramsv {
+    () => {
+        Vec::new()
+    };
+    ($($param:expr),+ $(,)?) => {
+        vec![$(&$param as &dyn $crate::ToSql),+]
+    };
+}
+
 #[macro_use]
 pub mod log;
 #[macro_use]
@@ -58,7 +71,7 @@ pub mod qr;
 pub mod securejoin;
 mod simplify;
 mod smtp;
-pub mod sql;
+mod sql;
 pub mod stock;
 mod token;
 #[macro_use]

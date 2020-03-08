@@ -8,8 +8,11 @@ use tempfile::{tempdir, TempDir};
 /* some data used for testing
  ******************************************************************************/
 
-fn stress_functions(context: &Context) {
-    let res = context.get_config(config::Config::SysConfigKeys).unwrap();
+async fn stress_functions(context: &Context) {
+    let res = context
+        .get_config(config::Config::SysConfigKeys)
+        .await
+        .unwrap();
 
     assert!(!res.contains(" probably_never_a_key "));
     assert!(res.contains(" addr "));
@@ -98,15 +101,17 @@ struct TestContext {
     dir: TempDir,
 }
 
-fn create_test_context() -> TestContext {
+async fn create_test_context() -> TestContext {
     let dir = tempdir().unwrap();
     let dbfile = dir.path().join("db.sqlite");
-    let ctx = Context::new(Box::new(cb), "FakeOs".into(), dbfile).unwrap();
+    let ctx = Context::new(Box::new(cb), "FakeOs".into(), dbfile)
+        .await
+        .unwrap();
     TestContext { ctx, dir }
 }
 
-#[test]
-fn test_stress_tests() {
-    let context = create_test_context();
-    stress_functions(&context.ctx);
+#[async_std::test]
+async fn test_stress_tests() {
+    let context = create_test_context().await;
+    stress_functions(&context.ctx).await;
 }

@@ -7,7 +7,7 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::time::Duration;
 
-use rusqlite::{Connection, Error as SqlError, OpenFlags, NO_PARAMS};
+use rusqlite::{Connection, Error as SqlError, OpenFlags};
 use thread_local_object::ThreadLocal;
 
 use crate::chat::{update_device_icon, update_saved_messages_icon};
@@ -107,34 +107,34 @@ impl Sql {
         }
     }
 
-    pub async fn execute<P, S: AsRef<str>>(&self, sql: S, params: P) -> Result<usize>
-    where
-        P: IntoIterator,
-        P::Item: rusqlite::ToSql,
-    {
+    pub async fn execute<S: AsRef<str>>(
+        &self,
+        sql: S,
+        params: Vec<&dyn crate::ToSql>,
+    ) -> Result<usize> {
         self.start_stmt(sql.as_ref());
 
         let res = {
             let conn = self.get_conn().await?;
-            conn.execute(sql.as_ref(), params)?
+            let res = conn.execute(sql.as_ref(), params);
+            self.in_use.remove();
+            res
         };
 
-        Ok(res)
+        res.map_err(Into::into)
     }
 
     /// Prepares and executes the statement and maps a function over the resulting rows.
     /// Then executes the second function over the returned iterator and returns the
     /// result of that function.
-    pub async fn query_map<T, P, F, G, H>(
+    pub async fn query_map<T, F, G, H>(
         &self,
         sql: impl AsRef<str>,
-        params: P,
+        params: Vec<&dyn crate::ToSql>,
         f: F,
         mut g: G,
     ) -> Result<H>
     where
-        P: IntoIterator,
-        P::Item: rusqlite::ToSql,
         F: FnMut(&rusqlite::Row) -> rusqlite::Result<T>,
         G: FnMut(rusqlite::MappedRows<F>) -> Result<H>,
     {
@@ -144,41 +144,12 @@ impl Sql {
         let res = {
             let conn = self.get_conn().await?;
             let mut stmt = conn.prepare(sql)?;
-            let res = stmt.query_map(params, f)?;
-            g(res)?
+            let res = stmt.query_map(&params, f)?;
+            self.in_use.remove();
+            g(res)
         };
 
-        Ok(res)
-    }
-
-    /// Prepares and executes the statement and maps a function over the resulting rows.
-    /// Then executes the second function over the returned iterator and returns the
-    /// result of that function.
-    pub async fn query_map_async<'a, T, P, F, G, H, Fut>(
-        &self,
-        sql: impl AsRef<str>,
-        params: P,
-        f: F,
-        g: G,
-    ) -> Result<H>
-    where
-        P: IntoIterator,
-        P::Item: rusqlite::ToSql,
-        F: FnMut(&rusqlite::Row) -> rusqlite::Result<T>,
-        G: FnMut(rusqlite::MappedRows<'a, F>) -> Fut,
-        Fut: Future<Output = Result<H>> + 'a,
-    {
-        self.start_stmt(sql.as_ref().to_string());
-        unimplemented!()
-        // let sql = sql.as_ref();
-        // self.with_conn_async(|conn| async move {
-        //     let mut stmt = conn.prepare(sql)?;
-        //     {
-        //         let res = stmt.query_map(params, f)?;
-        //         g(res).await
-        //     }
-        // })
-        // .await
+        res
     }
 
     pub async fn get_conn(
@@ -226,36 +197,39 @@ impl Sql {
 
     /// Return `true` if a query in the SQL statement it executes returns one or more
     /// rows and false if the SQL returns an empty set.
-    pub async fn exists<P>(&self, sql: &str, params: P) -> Result<bool>
-    where
-        P: IntoIterator,
-        P::Item: rusqlite::ToSql,
-    {
+    pub async fn exists(&self, sql: &str, params: Vec<&dyn crate::ToSql>) -> Result<bool> {
         self.start_stmt(sql.to_string());
         let res = {
             let conn = self.get_conn().await?;
             let mut stmt = conn.prepare(sql)?;
-            stmt.exists(params)?
+            let res = stmt.exists(&params);
+            self.in_use.remove();
+            res
         };
 
-        Ok(res)
+        res.map_err(Into::into)
     }
 
     /// Execute a query which is expected to return one row.
-    pub async fn query_row<T, P, F>(&self, sql: impl AsRef<str>, params: P, f: F) -> Result<T>
+    pub async fn query_row<T, F>(
+        &self,
+        sql: impl AsRef<str>,
+        params: Vec<&dyn crate::ToSql>,
+        f: F,
+    ) -> Result<T>
     where
-        P: IntoIterator + Copy,
-        P::Item: rusqlite::ToSql,
         F: FnOnce(&rusqlite::Row) -> rusqlite::Result<T>,
     {
         self.start_stmt(sql.as_ref().to_string());
         let sql = sql.as_ref();
         let res = {
             let conn = self.get_conn().await?;
-            conn.query_row(sql, params, f)?
+            let res = conn.query_row(sql, params, f);
+            self.in_use.remove();
+            res
         };
 
-        Ok(res)
+        res.map_err(Into::into)
     }
 
     pub async fn table_exists(&self, name: impl AsRef<str>) -> Result<bool> {
@@ -276,10 +250,12 @@ impl Sql {
     /// Executes a query which is expected to return one row and one
     /// column. If the query does not return a value or returns SQL
     /// `NULL`, returns `Ok(None)`.
-    pub async fn query_get_value_result<P, T>(&self, query: &str, params: P) -> Result<Option<T>>
+    pub async fn query_get_value_result<T>(
+        &self,
+        query: &str,
+        params: Vec<&dyn crate::ToSql>,
+    ) -> Result<Option<T>>
     where
-        P: IntoIterator + Copy,
-        P::Item: rusqlite::ToSql,
         T: rusqlite::types::FromSql,
     {
         match self
@@ -299,15 +275,13 @@ impl Sql {
 
     /// Not resultified version of `query_get_value_result`. Returns
     /// `None` on error.
-    pub async fn query_get_value<P, T>(
+    pub async fn query_get_value<T>(
         &self,
         context: &Context,
         query: &str,
-        params: P,
+        params: Vec<&dyn crate::ToSql>,
     ) -> Option<T>
     where
-        P: IntoIterator + Copy,
-        P::Item: rusqlite::ToSql,
         T: rusqlite::types::FromSql,
     {
         match self.query_get_value_result(query, params).await {
@@ -337,23 +311,23 @@ impl Sql {
         let key = key.as_ref();
         let res = if let Some(ref value) = value {
             let exists = self
-                .exists("SELECT value FROM config WHERE keyname=?;", params![key])
+                .exists("SELECT value FROM config WHERE keyname=?;", paramsv![key])
                 .await?;
             if exists {
                 self.execute(
                     "UPDATE config SET value=? WHERE keyname=?;",
-                    params![value, key],
+                    paramsv![value.to_string(), key.to_string()],
                 )
                 .await
             } else {
                 self.execute(
                     "INSERT INTO config (keyname, value) VALUES (?, ?);",
-                    params![key, value],
+                    paramsv![key.to_string(), value.to_string()],
                 )
                 .await
             }
         } else {
-            self.execute("DELETE FROM config WHERE keyname=?;", params![key])
+            self.execute("DELETE FROM config WHERE keyname=?;", paramsv![key])
                 .await
         };
 
@@ -374,7 +348,7 @@ impl Sql {
         self.query_get_value(
             context,
             "SELECT value FROM config WHERE keyname=?;",
-            params![key.as_ref()],
+            paramsv![key.as_ref().to_string()],
         )
         .await
     }
@@ -455,18 +429,14 @@ impl Sql {
     ) -> Result<u32> {
         self.start_stmt("get rowid".to_string());
 
-        let query = format!(
-            "SELECT id FROM {} WHERE {}=? ORDER BY id DESC",
-            table.as_ref(),
-            field.as_ref(),
-        );
-
         let res = {
             let mut conn = self.get_conn().await?;
-            get_rowid(context, &mut conn, table, field, value)?
+            let res = get_rowid(context, &mut conn, table, field, value);
+            self.in_use.remove();
+            res
         };
 
-        Ok(res)
+        res.map_err(Into::into)
     }
 
     pub async fn get_rowid2(
@@ -482,15 +452,17 @@ impl Sql {
 
         let res = {
             let mut conn = self.get_conn().await?;
-            get_rowid2(context, &mut conn, table, field, value, field2, value2)?
+            let res = get_rowid2(context, &mut conn, table, field, value, field2, value2);
+            self.in_use.remove();
+            res
         };
 
-        Ok(res)
+        res.map_err(Into::into)
     }
 }
 
 pub fn get_rowid(
-    context: &Context,
+    _context: &Context,
     conn: &mut Connection,
     table: impl AsRef<str>,
     field: impl AsRef<str>,
@@ -509,7 +481,7 @@ pub fn get_rowid(
 }
 
 pub fn get_rowid2(
-    context: &Context,
+    _context: &Context,
     conn: &mut Connection,
     table: impl AsRef<str>,
     field: impl AsRef<str>,
@@ -526,7 +498,7 @@ pub fn get_rowid2(
             field2.as_ref(),
             value2,
         ),
-        NO_PARAMS,
+        params![],
         |row| row.get::<_, u32>(0),
     )
 }
@@ -569,7 +541,7 @@ pub async fn housekeeping(context: &Context) {
         .sql
         .query_map(
             "SELECT value FROM config;",
-            params![],
+            paramsv![],
             |row| row.get::<_, String>(0),
             |rows| {
                 for row in rows {
@@ -683,7 +655,7 @@ async fn maybe_add_from_param(
         .sql
         .query_map(
             query,
-            NO_PARAMS,
+            paramsv![],
             |row| row.get::<_, String>(0),
             |rows| {
                 for row in rows {
@@ -762,11 +734,14 @@ async fn open(
             );
             sql.execute(
                 "CREATE TABLE config (id INTEGER PRIMARY KEY, keyname TEXT, value TEXT);",
-                NO_PARAMS,
+                paramsv![],
             )
             .await?;
-            sql.execute("CREATE INDEX config_index1 ON config (keyname);", NO_PARAMS)
-                .await?;
+            sql.execute(
+                "CREATE INDEX config_index1 ON config (keyname);",
+                paramsv![],
+            )
+            .await?;
             sql.execute(
                 "CREATE TABLE contacts (\
                  id INTEGER PRIMARY KEY AUTOINCREMENT, \
@@ -776,17 +751,17 @@ async fn open(
                  blocked INTEGER DEFAULT 0, \
                  last_seen INTEGER DEFAULT 0, \
                  param TEXT DEFAULT '');",
-                params![],
+                paramsv![],
             )
             .await?;
             sql.execute(
                 "CREATE INDEX contacts_index1 ON contacts (name COLLATE NOCASE);",
-                params![],
+                paramsv![],
             )
             .await?;
             sql.execute(
                 "CREATE INDEX contacts_index2 ON contacts (addr COLLATE NOCASE);",
-                params![],
+                paramsv![],
             )
             .await?;
             sql.execute(
@@ -794,7 +769,7 @@ async fn open(
                  (1,'self',262144), (2,'info',262144), (3,'rsvd',262144), \
                  (4,'rsvd',262144), (5,'device',262144), (6,'rsvd',262144), \
                  (7,'rsvd',262144), (8,'rsvd',262144), (9,'rsvd',262144);",
-                params![],
+                paramsv![],
             )
             .await?;
             sql.execute(
@@ -807,19 +782,19 @@ async fn open(
                  blocked INTEGER DEFAULT 0, \
                  grpid TEXT DEFAULT '', \
                  param TEXT DEFAULT '');",
-                params![],
+                paramsv![],
             )
             .await?;
-            sql.execute("CREATE INDEX chats_index1 ON chats (grpid);", params![])
+            sql.execute("CREATE INDEX chats_index1 ON chats (grpid);", paramsv![])
                 .await?;
             sql.execute(
                 "CREATE TABLE chats_contacts (chat_id INTEGER, contact_id INTEGER);",
-                params![],
+                paramsv![],
             )
             .await?;
             sql.execute(
                 "CREATE INDEX chats_contacts_index1 ON chats_contacts (chat_id);",
-                params![],
+                paramsv![],
             )
             .await?;
             sql.execute(
@@ -827,7 +802,7 @@ async fn open(
                  (1,120,'deaddrop'), (2,120,'rsvd'), (3,120,'trash'), \
                  (4,120,'msgs_in_creation'), (5,120,'starred'), (6,120,'archivedlink'), \
                  (7,100,'rsvd'), (8,100,'rsvd'), (9,100,'rsvd');",
-                params![],
+                paramsv![],
             )
             .await?;
             sql.execute(
@@ -847,23 +822,23 @@ async fn open(
                  txt TEXT DEFAULT '', \
                  txt_raw TEXT DEFAULT '', \
                  param TEXT DEFAULT '');",
-                params![],
+                paramsv![],
             )
             .await?;
-            sql.execute("CREATE INDEX msgs_index1 ON msgs (rfc724_mid);", params![])
+            sql.execute("CREATE INDEX msgs_index1 ON msgs (rfc724_mid);", paramsv![])
                 .await?;
-            sql.execute("CREATE INDEX msgs_index2 ON msgs (chat_id);", params![])
+            sql.execute("CREATE INDEX msgs_index2 ON msgs (chat_id);", paramsv![])
                 .await?;
-            sql.execute("CREATE INDEX msgs_index3 ON msgs (timestamp);", params![])
+            sql.execute("CREATE INDEX msgs_index3 ON msgs (timestamp);", paramsv![])
                 .await?;
-            sql.execute("CREATE INDEX msgs_index4 ON msgs (state);", params![])
+            sql.execute("CREATE INDEX msgs_index4 ON msgs (state);", paramsv![])
                 .await?;
             sql.execute(
                 "INSERT INTO msgs (id,msgrmsg,txt) VALUES \
                  (1,0,'marker1'), (2,0,'rsvd'), (3,0,'rsvd'), \
                  (4,0,'rsvd'), (5,0,'rsvd'), (6,0,'rsvd'), (7,0,'rsvd'), \
                  (8,0,'rsvd'), (9,0,'daymarker');",
-                params![],
+                paramsv![],
             )
             .await?;
             sql.execute(
@@ -874,12 +849,12 @@ async fn open(
                  action INTEGER, \
                  foreign_id INTEGER, \
                  param TEXT DEFAULT '');",
-                params![],
+                paramsv![],
             )
             .await?;
             sql.execute(
                 "CREATE INDEX jobs_index1 ON jobs (desired_timestamp);",
-                params![],
+                paramsv![],
             )
             .await?;
             if !sql.table_exists("config").await?
@@ -920,12 +895,12 @@ async fn open(
             info!(context, "[migration] v1");
             sql.execute(
                 "CREATE TABLE leftgrps ( id INTEGER PRIMARY KEY, grpid TEXT DEFAULT '');",
-                params![],
+                paramsv![],
             )
             .await?;
             sql.execute(
                 "CREATE INDEX leftgrps_index1 ON leftgrps (grpid);",
-                params![],
+                paramsv![],
             )
             .await?;
             dbversion = 1;
@@ -935,7 +910,7 @@ async fn open(
             info!(context, "[migration] v2");
             sql.execute(
                 "ALTER TABLE contacts ADD COLUMN authname TEXT DEFAULT '';",
-                params![],
+                paramsv![],
             )
             .await?;
             dbversion = 2;
@@ -951,7 +926,7 @@ async fn open(
                  private_key, \
                  public_key, \
                  created INTEGER DEFAULT 0);",
-                params![],
+                paramsv![],
             )
             .await?;
             dbversion = 7;
@@ -967,12 +942,12 @@ async fn open(
                  last_seen_autocrypt INTEGER DEFAULT 0, \
                  public_key, \
                  prefer_encrypted INTEGER DEFAULT 0);",
-                params![],
+                paramsv![],
             )
             .await?;
             sql.execute(
                 "CREATE INDEX acpeerstates_index1 ON acpeerstates (addr);",
-                params![],
+                paramsv![],
             )
             .await?;
             dbversion = 10;
@@ -982,12 +957,12 @@ async fn open(
             info!(context, "[migration] v12");
             sql.execute(
                 "CREATE TABLE msgs_mdns ( msg_id INTEGER,  contact_id INTEGER);",
-                params![],
+                paramsv![],
             )
             .await?;
             sql.execute(
                 "CREATE INDEX msgs_mdns_index1 ON msgs_mdns (msg_id);",
-                params![],
+                paramsv![],
             )
             .await?;
             dbversion = 12;
@@ -997,17 +972,17 @@ async fn open(
             info!(context, "[migration] v17");
             sql.execute(
                 "ALTER TABLE chats ADD COLUMN archived INTEGER DEFAULT 0;",
-                params![],
+                paramsv![],
             )
             .await?;
-            sql.execute("CREATE INDEX chats_index2 ON chats (archived);", params![])
+            sql.execute("CREATE INDEX chats_index2 ON chats (archived);", paramsv![])
                 .await?;
             sql.execute(
                 "ALTER TABLE msgs ADD COLUMN starred INTEGER DEFAULT 0;",
-                params![],
+                paramsv![],
             )
             .await?;
-            sql.execute("CREATE INDEX msgs_index5 ON msgs (starred);", params![])
+            sql.execute("CREATE INDEX msgs_index5 ON msgs (starred);", paramsv![])
                 .await?;
             dbversion = 17;
             sql.set_raw_config_int(context, "dbversion", 17).await?;
@@ -1016,11 +991,14 @@ async fn open(
             info!(context, "[migration] v18");
             sql.execute(
                 "ALTER TABLE acpeerstates ADD COLUMN gossip_timestamp INTEGER DEFAULT 0;",
-                params![],
+                paramsv![],
             )
             .await?;
-            sql.execute("ALTER TABLE acpeerstates ADD COLUMN gossip_key;", params![])
-                .await?;
+            sql.execute(
+                "ALTER TABLE acpeerstates ADD COLUMN gossip_key;",
+                paramsv![],
+            )
+            .await?;
             dbversion = 18;
             sql.set_raw_config_int(context, "dbversion", 18).await?;
         }
@@ -1028,21 +1006,21 @@ async fn open(
             info!(context, "[migration] v27");
             // chat.id=1 and chat.id=2 are the old deaddrops,
             // the current ones are defined by chats.blocked=2
-            sql.execute("DELETE FROM msgs WHERE chat_id=1 OR chat_id=2;", params![])
+            sql.execute("DELETE FROM msgs WHERE chat_id=1 OR chat_id=2;", paramsv![])
                 .await?;
             sql.execute(
                 "CREATE INDEX chats_contacts_index2 ON chats_contacts (contact_id);",
-                params![],
+                paramsv![],
             )
             .await?;
             sql.execute(
                 "ALTER TABLE msgs ADD COLUMN timestamp_sent INTEGER DEFAULT 0;",
-                params![],
+                paramsv![],
             )
             .await?;
             sql.execute(
                 "ALTER TABLE msgs ADD COLUMN timestamp_rcvd INTEGER DEFAULT 0;",
-                params![],
+                paramsv![],
             )
             .await?;
             dbversion = 27;
@@ -1052,32 +1030,32 @@ async fn open(
             info!(context, "[migration] v34");
             sql.execute(
                 "ALTER TABLE msgs ADD COLUMN hidden INTEGER DEFAULT 0;",
-                params![],
+                paramsv![],
             )
             .await?;
             sql.execute(
                 "ALTER TABLE msgs_mdns ADD COLUMN timestamp_sent INTEGER DEFAULT 0;",
-                params![],
+                paramsv![],
             )
             .await?;
             sql.execute(
                 "ALTER TABLE acpeerstates ADD COLUMN public_key_fingerprint TEXT DEFAULT '';",
-                params![],
+                paramsv![],
             )
             .await?;
             sql.execute(
                 "ALTER TABLE acpeerstates ADD COLUMN gossip_key_fingerprint TEXT DEFAULT '';",
-                params![],
+                paramsv![],
             )
             .await?;
             sql.execute(
                 "CREATE INDEX acpeerstates_index3 ON acpeerstates (public_key_fingerprint);",
-                params![],
+                paramsv![],
             )
             .await?;
             sql.execute(
                 "CREATE INDEX acpeerstates_index4 ON acpeerstates (gossip_key_fingerprint);",
-                params![],
+                paramsv![],
             )
             .await?;
             recalc_fingerprints = true;
@@ -1088,21 +1066,21 @@ async fn open(
             info!(context, "[migration] v39");
             sql.execute(
                 "CREATE TABLE tokens ( id INTEGER PRIMARY KEY, namespc INTEGER DEFAULT 0, foreign_id INTEGER DEFAULT 0, token TEXT DEFAULT '', timestamp INTEGER DEFAULT 0);",
-                params![]
+                paramsv![]
             ).await?;
             sql.execute(
                 "ALTER TABLE acpeerstates ADD COLUMN verified_key;",
-                params![],
+                paramsv![],
             )
             .await?;
             sql.execute(
                 "ALTER TABLE acpeerstates ADD COLUMN verified_key_fingerprint TEXT DEFAULT '';",
-                params![],
+                paramsv![],
             )
             .await?;
             sql.execute(
                 "CREATE INDEX acpeerstates_index5 ON acpeerstates (verified_key_fingerprint);",
-                params![],
+                paramsv![],
             )
             .await?;
             dbversion = 39;
@@ -1112,7 +1090,7 @@ async fn open(
             info!(context, "[migration] v40");
             sql.execute(
                 "ALTER TABLE jobs ADD COLUMN thread INTEGER DEFAULT 0;",
-                params![],
+                paramsv![],
             )
             .await?;
             dbversion = 40;
@@ -1120,7 +1098,7 @@ async fn open(
         }
         if dbversion < 44 {
             info!(context, "[migration] v44");
-            sql.execute("ALTER TABLE msgs ADD COLUMN mime_headers TEXT;", params![])
+            sql.execute("ALTER TABLE msgs ADD COLUMN mime_headers TEXT;", paramsv![])
                 .await?;
             dbversion = 44;
             sql.set_raw_config_int(context, "dbversion", 44).await?;
@@ -1129,12 +1107,12 @@ async fn open(
             info!(context, "[migration] v46");
             sql.execute(
                 "ALTER TABLE msgs ADD COLUMN mime_in_reply_to TEXT;",
-                params![],
+                paramsv![],
             )
             .await?;
             sql.execute(
                 "ALTER TABLE msgs ADD COLUMN mime_references TEXT;",
-                params![],
+                paramsv![],
             )
             .await?;
             dbversion = 46;
@@ -1144,7 +1122,7 @@ async fn open(
             info!(context, "[migration] v47");
             sql.execute(
                 "ALTER TABLE jobs ADD COLUMN tries INTEGER DEFAULT 0;",
-                params![],
+                paramsv![],
             )
             .await?;
             dbversion = 47;
@@ -1155,7 +1133,7 @@ async fn open(
             // NOTE: move_state is not used anymore
             sql.execute(
                 "ALTER TABLE msgs ADD COLUMN move_state INTEGER DEFAULT 1;",
-                params![],
+                paramsv![],
             )
             .await?;
 
@@ -1166,7 +1144,7 @@ async fn open(
             info!(context, "[migration] v49");
             sql.execute(
                 "ALTER TABLE chats ADD COLUMN gossiped_timestamp INTEGER DEFAULT 0;",
-                params![],
+                paramsv![],
             )
             .await?;
             dbversion = 49;
@@ -1190,36 +1168,36 @@ async fn open(
             // are also added to the database as _hidden_.
             sql.execute(
                 "CREATE TABLE locations ( id INTEGER PRIMARY KEY AUTOINCREMENT, latitude REAL DEFAULT 0.0, longitude REAL DEFAULT 0.0, accuracy REAL DEFAULT 0.0, timestamp INTEGER DEFAULT 0, chat_id INTEGER DEFAULT 0, from_id INTEGER DEFAULT 0);",
-                params![]
+                paramsv![]
             ).await?;
             sql.execute(
                 "CREATE INDEX locations_index1 ON locations (from_id);",
-                params![],
+                paramsv![],
             )
             .await?;
             sql.execute(
                 "CREATE INDEX locations_index2 ON locations (timestamp);",
-                params![],
+                paramsv![],
             )
             .await?;
             sql.execute(
                 "ALTER TABLE chats ADD COLUMN locations_send_begin INTEGER DEFAULT 0;",
-                params![],
+                paramsv![],
             )
             .await?;
             sql.execute(
                 "ALTER TABLE chats ADD COLUMN locations_send_until INTEGER DEFAULT 0;",
-                params![],
+                paramsv![],
             )
             .await?;
             sql.execute(
                 "ALTER TABLE chats ADD COLUMN locations_last_sent INTEGER DEFAULT 0;",
-                params![],
+                paramsv![],
             )
             .await?;
             sql.execute(
                 "CREATE INDEX chats_index3 ON chats (locations_send_until);",
-                params![],
+                paramsv![],
             )
             .await?;
             dbversion = 53;
@@ -1229,11 +1207,14 @@ async fn open(
             info!(context, "[migration] v54");
             sql.execute(
                 "ALTER TABLE msgs ADD COLUMN location_id INTEGER DEFAULT 0;",
-                params![],
+                paramsv![],
             )
             .await?;
-            sql.execute("CREATE INDEX msgs_index6 ON msgs (location_id);", params![])
-                .await?;
+            sql.execute(
+                "CREATE INDEX msgs_index6 ON msgs (location_id);",
+                paramsv![],
+            )
+            .await?;
             dbversion = 54;
             sql.set_raw_config_int(context, "dbversion", 54).await?;
         }
@@ -1241,7 +1222,7 @@ async fn open(
             info!(context, "[migration] v55");
             sql.execute(
                 "ALTER TABLE locations ADD COLUMN independent INTEGER DEFAULT 0;",
-                params![],
+                paramsv![],
             )
             .await?;
             sql.set_raw_config_int(context, "dbversion", 55).await?;
@@ -1252,11 +1233,11 @@ async fn open(
             // so, msg_id may or may not exist.
             sql.execute(
                 "CREATE TABLE devmsglabels (id INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT, msg_id INTEGER DEFAULT 0);",
-                NO_PARAMS,
+                paramsv![],
             ).await?;
             sql.execute(
                 "CREATE INDEX devmsglabels_index1 ON devmsglabels (label);",
-                NO_PARAMS,
+                paramsv![],
             )
             .await?;
             if exists_before_update && sql.get_raw_config_int(context, "bcc_self").await.is_none() {
@@ -1268,7 +1249,7 @@ async fn open(
             info!(context, "[migration] v60");
             sql.execute(
                 "ALTER TABLE chats ADD COLUMN created_timestamp INTEGER DEFAULT 0;",
-                NO_PARAMS,
+                paramsv![],
             )
             .await?;
             sql.set_raw_config_int(context, "dbversion", 60).await?;
@@ -1277,7 +1258,7 @@ async fn open(
             info!(context, "[migration] v61");
             sql.execute(
                 "ALTER TABLE contacts ADD COLUMN selfavatar_sent INTEGER DEFAULT 0;",
-                NO_PARAMS,
+                paramsv![],
             )
             .await?;
             update_icons = true;
@@ -1287,14 +1268,14 @@ async fn open(
             info!(context, "[migration] v62");
             sql.execute(
                 "ALTER TABLE chats ADD COLUMN muted_until INTEGER DEFAULT 0;",
-                NO_PARAMS,
+                paramsv![],
             )
             .await?;
             sql.set_raw_config_int(context, "dbversion", 62).await?;
         }
         if dbversion < 63 {
             info!(context, "[migration] v63");
-            sql.execute("UPDATE chats SET grpid='' WHERE type=100", NO_PARAMS)
+            sql.execute("UPDATE chats SET grpid='' WHERE type=100", paramsv![])
                 .await?;
             sql.set_raw_config_int(context, "dbversion", 63).await?;
         }
@@ -1305,22 +1286,24 @@ async fn open(
 
         if recalc_fingerprints {
             info!(context, "[migration] recalc fingerprints");
-            sql.query_map_async(
-                "SELECT addr FROM acpeerstates;",
-                params![],
-                |row| row.get::<_, String>(0),
-                |addrs| async move {
-                    for addr in addrs {
-                        if let Some(ref mut peerstate) = Peerstate::from_addr(context, sql, &addr?)
-                        {
-                            peerstate.recalc_fingerprint();
-                            peerstate.save_to_db(sql, false).await?;
-                        }
-                    }
-                    Ok(())
-                },
-            )
-            .await?;
+            let addrs = sql
+                .query_map(
+                    "SELECT addr FROM acpeerstates;",
+                    paramsv![],
+                    |row| row.get::<_, String>(0),
+                    |addrs| {
+                        addrs
+                            .collect::<std::result::Result<Vec<_>, _>>()
+                            .map_err(Into::into)
+                    },
+                )
+                .await?;
+            for addr in &addrs {
+                if let Some(ref mut peerstate) = Peerstate::from_addr(context, sql, addr).await {
+                    peerstate.recalc_fingerprint();
+                    peerstate.save_to_db(sql, false).await?;
+                }
+            }
         }
         if update_icons {
             update_saved_messages_icon(context).await?;

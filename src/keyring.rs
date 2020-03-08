@@ -36,7 +36,7 @@ impl<'a> Keyring<'a> {
         sql.query_get_value(
             context,
             "SELECT private_key FROM keypairs ORDER BY addr=? DESC, is_default DESC;",
-            &[self_addr.as_ref()],
+            paramsv![self_addr.as_ref().to_string()],
         )
         .await
         .and_then(|blob: Vec<u8>| Key::from_slice(&blob, KeyType::Private))

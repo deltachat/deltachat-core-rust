@@ -48,7 +48,7 @@ struct Response {
     scope: Option<String>,
 }
 
-pub fn dc_get_oauth2_url(
+pub async fn dc_get_oauth2_url(
     context: &Context,
     addr: impl AsRef<str>,
     redirect_uri: impl AsRef<str>,
@@ -61,6 +61,7 @@ pub fn dc_get_oauth2_url(
                 "oauth2_pending_redirect_uri",
                 Some(redirect_uri.as_ref()),
             )
+            .await
             .is_err()
         {
             return None;
@@ -76,7 +77,7 @@ pub fn dc_get_oauth2_url(
 
 // The following function may block due http-requests;
 // must not be called from the main thread or by the ui!
-pub fn dc_get_oauth2_access_token(
+pub async fn dc_get_oauth2_access_token(
     context: &Context,
     addr: impl AsRef<str>,
     code: impl AsRef<str>,
@@ -84,11 +85,14 @@ pub fn dc_get_oauth2_access_token(
 ) -> Option<String> {
     if let Some(oauth2) = Oauth2::from_address(addr) {
         let lock = context.oauth2_critical.clone();
-        let _l = lock.lock().unwrap();
+        let _l = lock.lock().await;
 
         // read generated token
-        if !regenerate && !is_expired(context) {
-            let access_token = context.sql.get_raw_config(context, "oauth2_access_token");
+        if !regenerate && !is_expired(context).await {
+            let access_token = context
+                .sql
+                .get_raw_config(context, "oauth2_access_token")
+                .await;
             if access_token.is_some() {
                 // success
                 return access_token;
@@ -96,10 +100,14 @@ pub fn dc_get_oauth2_access_token(
         }
 
         // generate new token: build & call auth url
-        let refresh_token = context.sql.get_raw_config(context, "oauth2_refresh_token");
+        let refresh_token = context
+            .sql
+            .get_raw_config(context, "oauth2_refresh_token")
+            .await;
         let refresh_token_for = context
             .sql
             .get_raw_config(context, "oauth2_refresh_token_for")
+            .await
             .unwrap_or_else(|| "unset".into());
 
         let (redirect_uri, token_url, update_redirect_uri_on_success) =
@@ -109,6 +117,7 @@ pub fn dc_get_oauth2_access_token(
                     context
                         .sql
                         .get_raw_config(context, "oauth2_pending_redirect_uri")
+                        .await
                         .unwrap_or_else(|| "unset".into()),
                     oauth2.init_token,
                     true,
@@ -122,6 +131,7 @@ pub fn dc_get_oauth2_access_token(
                     context
                         .sql
                         .get_raw_config(context, "oauth2_redirect_uri")
+                        .await
                         .unwrap_or_else(|| "unset".into()),
                     oauth2.refresh_token,
                     false,
@@ -193,10 +203,12 @@ pub fn dc_get_oauth2_access_token(
             context
                 .sql
                 .set_raw_config(context, "oauth2_refresh_token", Some(token))
+                .await
                 .ok();
             context
                 .sql
                 .set_raw_config(context, "oauth2_refresh_token_for", Some(code.as_ref()))
+                .await
                 .ok();
         }
 
@@ -206,6 +218,7 @@ pub fn dc_get_oauth2_access_token(
             context
                 .sql
                 .set_raw_config(context, "oauth2_access_token", Some(token))
+                .await
                 .ok();
             let expires_in = response
                 .expires_in
@@ -215,12 +228,14 @@ pub fn dc_get_oauth2_access_token(
             context
                 .sql
                 .set_raw_config_int64(context, "oauth2_timestamp_expires", expires_in)
+                .await
                 .ok();
 
             if update_redirect_uri_on_success {
                 context
                     .sql
                     .set_raw_config(context, "oauth2_redirect_uri", Some(redirect_uri.as_ref()))
+                    .await
                     .ok();
             }
         } else {
@@ -235,7 +250,7 @@ pub fn dc_get_oauth2_access_token(
     }
 }
 
-pub fn dc_get_oauth2_addr(
+pub async fn dc_get_oauth2_addr(
     context: &Context,
     addr: impl AsRef<str>,
     code: impl AsRef<str>,
@@ -244,12 +259,13 @@ pub fn dc_get_oauth2_addr(
     oauth2.get_userinfo?;
 
     if let Some(access_token) =
-        dc_get_oauth2_access_token(context, addr.as_ref(), code.as_ref(), false)
+        dc_get_oauth2_access_token(context, addr.as_ref(), code.as_ref(), false).await
     {
         let addr_out = oauth2.get_addr(context, access_token);
         if addr_out.is_none() {
             // regenerate
-            if let Some(access_token) = dc_get_oauth2_access_token(context, addr, code, true) {
+            if let Some(access_token) = dc_get_oauth2_access_token(context, addr, code, true).await
+            {
                 oauth2.get_addr(context, access_token)
             } else {
                 None
@@ -331,10 +347,11 @@ impl Oauth2 {
     }
 }
 
-fn is_expired(context: &Context) -> bool {
+async fn is_expired(context: &Context) -> bool {
     let expire_timestamp = context
         .sql
         .get_raw_config_int64(context, "oauth2_timestamp_expires")
+        .await
         .unwrap_or_default();
 
     if expire_timestamp <= 0 {
@@ -393,32 +410,32 @@ mod tests {
         assert_eq!(Oauth2::from_address("hello@web.de"), None);
     }
 
-    #[test]
-    fn test_dc_get_oauth2_addr() {
-        let ctx = dummy_context();
+    #[async_std::test]
+    async fn test_dc_get_oauth2_addr() {
+        let ctx = dummy_context().await;
         let addr = "dignifiedquire@gmail.com";
         let code = "fail";
-        let res = dc_get_oauth2_addr(&ctx.ctx, addr, code);
+        let res = dc_get_oauth2_addr(&ctx.ctx, addr, code).await;
         // this should fail as it is an invalid password
         assert_eq!(res, None);
     }
 
-    #[test]
-    fn test_dc_get_oauth2_url() {
-        let ctx = dummy_context();
+    #[async_std::test]
+    async fn test_dc_get_oauth2_url() {
+        let ctx = dummy_context().await;
         let addr = "dignifiedquire@gmail.com";
         let redirect_uri = "chat.delta:/com.b44t.messenger";
-        let res = dc_get_oauth2_url(&ctx.ctx, addr, redirect_uri);
+        let res = dc_get_oauth2_url(&ctx.ctx, addr, redirect_uri).await;
 
         assert_eq!(res, Some("https://accounts.google.com/o/oauth2/auth?client_id=959970109878%2D4mvtgf6feshskf7695nfln6002mom908%2Eapps%2Egoogleusercontent%2Ecom&redirect_uri=chat%2Edelta%3A%2Fcom%2Eb44t%2Emessenger&response_type=code&scope=https%3A%2F%2Fmail.google.com%2F%20email&access_type=offline".into()));
     }
 
-    #[test]
-    fn test_dc_get_oauth2_token() {
-        let ctx = dummy_context();
+    #[async_std::test]
+    async fn test_dc_get_oauth2_token() {
+        let ctx = dummy_context().await;
         let addr = "dignifiedquire@gmail.com";
         let code = "fail";
-        let res = dc_get_oauth2_access_token(&ctx.ctx, addr, code, false);
+        let res = dc_get_oauth2_access_token(&ctx.ctx, addr, code, false).await;
         // this should fail as it is an invalid password
         assert_eq!(res, None);
     }

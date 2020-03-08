@@ -280,7 +280,9 @@ impl Imap {
                 if (server_flags & DC_LP_AUTH_OAUTH2) != 0 {
                     let addr: &str = config.addr.as_ref();
 
-                    if let Some(token) = dc_get_oauth2_access_token(context, addr, imap_pw, true) {
+                    if let Some(token) =
+                        dc_get_oauth2_access_token(context, addr, imap_pw, true).await
+                    {
                         let auth = OAuth2 {
                             user: imap_user.into(),
                             access_token: token,
@@ -298,11 +300,13 @@ impl Imap {
                     let config = self.config.read().await;
                     let imap_server: &str = config.imap_server.as_ref();
                     let imap_port = config.imap_port;
-                    context.stock_string_repl_str2(
-                        StockMessage::ServerResponse,
-                        format!("{}:{}", imap_server, imap_port),
-                        err.to_string(),
-                    )
+                    context
+                        .stock_string_repl_str2(
+                            StockMessage::ServerResponse,
+                            format!("{}:{}", imap_server, imap_port),
+                            err.to_string(),
+                        )
+                        .await
                 };
                 // IMAP connection failures are reported to users
                 emit_event!(context, Event::ErrorNetwork(message));
@@ -319,7 +323,9 @@ impl Imap {
             }
             Err((err, _)) => {
                 let imap_user = self.config.read().await.imap_user.to_owned();
-                let message = context.stock_string_repl_str(StockMessage::CannotLogin, &imap_user);
+                let message = context
+                    .stock_string_repl_str(StockMessage::CannotLogin, &imap_user)
+                    .await;
 
                 emit_event!(
                     context,
@@ -539,7 +545,8 @@ impl Imap {
             // id we do not do this here, we'll miss the first message
             // as we will get in here again and fetch from lastseenuid+1 then
 
-            self.set_config_last_seen_uid(context, &folder, new_uid_validity, 0);
+            self.set_config_last_seen_uid(context, &folder, new_uid_validity, 0)
+                .await;
             return Ok((new_uid_validity, 0));
         }
 
@@ -577,7 +584,8 @@ impl Imap {
             }
         };
 
-        self.set_config_last_seen_uid(context, &folder, new_uid_validity, new_last_seen_uid);
+        self.set_config_last_seen_uid(context, &folder, new_uid_validity, new_last_seen_uid)
+            .await;
         info!(
             context,
             "uid/validity change: new {}/{} current {}/{}",
@@ -651,6 +659,7 @@ impl Imap {
                     );
                 } else {
                     let show = prefetch_should_download(context, &headers, show_emails)
+                        .await
                         .map_err(|err| {
                             warn!(context, "prefetch_should_download error: {}", err);
                             err
@@ -687,7 +696,8 @@ impl Imap {
         };
 
         if new_last_seen_uid > last_seen_uid {
-            self.set_config_last_seen_uid(context, &folder, uid_validity, new_last_seen_uid);
+            self.set_config_last_seen_uid(context, &folder, uid_validity, new_last_seen_uid)
+                .await;
         }
 
         if read_errors > 0 {
@@ -1322,7 +1332,7 @@ async fn precheck_imf(
     server_uid: u32,
 ) -> bool {
     if let Ok((old_server_folder, old_server_uid, msg_id)) =
-        message::rfc724_mid_exists(context, &rfc724_mid)
+        message::rfc724_mid_exists(context, &rfc724_mid).await
     {
         if old_server_folder.is_empty() && old_server_uid == 0 {
             info!(context, "[move] detected bcc-self {}", rfc724_mid,);
@@ -1342,7 +1352,7 @@ async fn precheck_imf(
         }
 
         if old_server_folder != server_folder || old_server_uid != server_uid {
-            update_server_uid(context, &rfc724_mid, server_folder, server_uid);
+            update_server_uid(context, &rfc724_mid, server_folder, server_uid).await;
         }
         true
     } else {
@@ -1367,18 +1377,18 @@ fn prefetch_get_message_id(headers: &[mailparse::MailHeader]) -> Result<String> 
     }
 }
 
-fn prefetch_is_reply_to_chat_message(
+async fn prefetch_is_reply_to_chat_message(
     context: &Context,
-    headers: &[mailparse::MailHeader],
+    headers: &[mailparse::MailHeader<'_>],
 ) -> Result<bool> {
     if let Some(value) = headers.get_header_value(HeaderDef::InReplyTo)? {
-        if is_msgrmsg_rfc724_mid_in_list(context, &value) {
+        if is_msgrmsg_rfc724_mid_in_list(context, &value).await {
             return Ok(true);
         }
     }
 
     if let Some(value) = headers.get_header_value(HeaderDef::References)? {
-        if is_msgrmsg_rfc724_mid_in_list(context, &value) {
+        if is_msgrmsg_rfc724_mid_in_list(context, &value).await {
             return Ok(true);
         }
     }
@@ -1386,13 +1396,13 @@ fn prefetch_is_reply_to_chat_message(
     Ok(false)
 }
 
-fn prefetch_should_download(
+async fn prefetch_should_download(
     context: &Context,
-    headers: &[mailparse::MailHeader],
+    headers: &[mailparse::MailHeader<'_>],
     show_emails: ShowEmails,
 ) -> Result<bool> {
     let is_chat_message = headers.get_header_value(HeaderDef::ChatVersion)?.is_some();
-    let is_reply_to_chat_message = prefetch_is_reply_to_chat_message(context, &headers)?;
+    let is_reply_to_chat_message = prefetch_is_reply_to_chat_message(context, &headers).await?;
 
     // Autocrypt Setup Message should be shown even if it is from non-chat client.
     let is_autocrypt_setup_message = headers
@@ -1403,7 +1413,8 @@ fn prefetch_should_download(
         .get_header_value(HeaderDef::From_)?
         .unwrap_or_default();
 
-    let (_contact_id, blocked_contact, origin) = from_field_to_contact_id(context, &from_field)?;
+    let (_contact_id, blocked_contact, origin) =
+        from_field_to_contact_id(context, &from_field).await?;
     let accepted_contact = origin.is_known();
 
     let show = is_autocrypt_setup_message

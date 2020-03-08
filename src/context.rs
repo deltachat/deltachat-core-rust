@@ -3,7 +3,9 @@
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::sync::{atomic::AtomicBool, Arc, Mutex, RwLock};
+use std::sync::atomic::AtomicBool;
+
+use async_std::sync::{Arc, Mutex, RwLock};
 
 use crate::chat::*;
 use crate::config::Config;
@@ -156,14 +158,14 @@ impl Context {
      * Ongoing process allocation/free/check
      ******************************************************************************/
 
-    pub fn alloc_ongoing(&self) -> bool {
-        if self.has_ongoing() {
+    pub async fn alloc_ongoing(&self) -> bool {
+        if self.has_ongoing().await {
             warn!(self, "There is already another ongoing process running.",);
 
             false
         } else {
             let s_a = self.running_state.clone();
-            let mut s = s_a.write().unwrap();
+            let mut s = s_a.write().await;
 
             s.ongoing_running = true;
             s.shall_stop_ongoing = false;
@@ -172,25 +174,25 @@ impl Context {
         }
     }
 
-    pub fn free_ongoing(&self) {
+    pub async fn free_ongoing(&self) {
         let s_a = self.running_state.clone();
-        let mut s = s_a.write().unwrap();
+        let mut s = s_a.write().await;
 
         s.ongoing_running = false;
         s.shall_stop_ongoing = true;
     }
 
-    pub fn has_ongoing(&self) -> bool {
+    pub async fn has_ongoing(&self) -> bool {
         let s_a = self.running_state.clone();
-        let s = s_a.read().unwrap();
+        let s = s_a.read().await;
 
         s.ongoing_running || !s.shall_stop_ongoing
     }
 
     /// Signal an ongoing process to stop.
-    pub fn stop_ongoing(&self) {
+    pub async fn stop_ongoing(&self) {
         let s_a = self.running_state.clone();
-        let mut s = s_a.write().unwrap();
+        let mut s = s_a.write().await;
 
         if s.ongoing_running && !s.shall_stop_ongoing {
             info!(self, "Signaling the ongoing process to stop ASAP.",);
@@ -200,12 +202,8 @@ impl Context {
         };
     }
 
-    pub fn shall_stop_ongoing(&self) -> bool {
-        self.running_state
-            .clone()
-            .read()
-            .unwrap()
-            .shall_stop_ongoing
+    pub async fn shall_stop_ongoing(&self) -> bool {
+        self.running_state.clone().read().await.shall_stop_ongoing
     }
 
     /*******************************************************************************
@@ -218,8 +216,8 @@ impl Context {
         let l2 = LoginParam::from_database(self, "configured_").await;
         let displayname = self.get_config(Config::Displayname).await;
         let chats = get_chat_cnt(self).await as usize;
-        let real_msgs = message::get_real_msg_cnt(self) as usize;
-        let deaddrop_msgs = message::get_deaddrop_msg_cnt(self) as usize;
+        let real_msgs = message::get_real_msg_cnt(self).await as usize;
+        let deaddrop_msgs = message::get_deaddrop_msg_cnt(self).await as usize;
         let contacts = Contact::get_real_cnt(self).await as usize;
         let is_configured = self.get_config_int(Config::Configured).await;
         let dbversion = self
@@ -234,16 +232,12 @@ impl Context {
 
         let prv_key_cnt: Option<isize> = self
             .sql
-            .query_get_value(self, "SELECT COUNT(*) FROM keypairs;", rusqlite::NO_PARAMS)
+            .query_get_value(self, "SELECT COUNT(*) FROM keypairs;", paramsv![])
             .await;
 
         let pub_key_cnt: Option<isize> = self
             .sql
-            .query_get_value(
-                self,
-                "SELECT COUNT(*) FROM acpeerstates;",
-                rusqlite::NO_PARAMS,
-            )
+            .query_get_value(self, "SELECT COUNT(*) FROM acpeerstates;", paramsv![])
             .await;
 
         let fingerprint_str =
@@ -316,7 +310,7 @@ impl Context {
     }
 
     pub async fn get_fresh_msgs(&self) -> Vec<MsgId> {
-        let show_deaddrop = 0;
+        let show_deaddrop: i32 = 0;
         self.sql
             .query_map(
                 concat!(
@@ -333,7 +327,7 @@ impl Context {
                     "   AND (c.blocked=0 OR c.blocked=?)",
                     " ORDER BY m.timestamp DESC,m.id DESC;"
                 ),
-                &[10, 9, if 0 != show_deaddrop { 2 } else { 0 }],
+                paramsv![10, 9, if 0 != show_deaddrop { 2 } else { 0 }],
                 |row| row.get::<_, MsgId>(0),
                 |rows| {
                     let mut ret = Vec::new();
@@ -388,7 +382,7 @@ impl Context {
         self.sql
             .query_map(
                 query,
-                params![chat_id, &strLikeInText, &strLikeBeg],
+                paramsv![chat_id, strLikeInText, strLikeBeg],
                 |row| row.get::<_, MsgId>("id"),
                 |rows| {
                     let mut ret = Vec::new();
@@ -475,7 +469,7 @@ impl Drop for Context {
             info!(self, "disconnecting SMTP");
             self.smtp.disconnect().await;
 
-            self.sql.close(self);
+            self.sql.close(self).await;
         });
     }
 }
@@ -519,79 +513,85 @@ mod tests {
 
     use crate::test_utils::*;
 
-    #[test]
-    fn test_wrong_db() {
+    #[async_std::test]
+    async fn test_wrong_db() {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         std::fs::write(&dbfile, b"123").unwrap();
-        let res = Context::new(Box::new(|_, _| ()), "FakeOs".into(), dbfile);
+        let res = Context::new(Box::new(|_, _| ()), "FakeOs".into(), dbfile).await;
         assert!(res.is_err());
     }
 
-    #[test]
-    fn test_get_fresh_msgs() {
-        let t = dummy_context();
-        let fresh = t.ctx.get_fresh_msgs();
+    #[async_std::test]
+    async fn test_get_fresh_msgs() {
+        let t = dummy_context().await;
+        let fresh = t.ctx.get_fresh_msgs().await;
         assert!(fresh.is_empty())
     }
 
-    #[test]
-    fn test_blobdir_exists() {
+    #[async_std::test]
+    async fn test_blobdir_exists() {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
-        Context::new(Box::new(|_, _| ()), "FakeOS".into(), dbfile).unwrap();
+        Context::new(Box::new(|_, _| ()), "FakeOS".into(), dbfile)
+            .await
+            .unwrap();
         let blobdir = tmp.path().join("db.sqlite-blobs");
         assert!(blobdir.is_dir());
     }
 
-    #[test]
-    fn test_wrong_blogdir() {
+    #[async_std::test]
+    async fn test_wrong_blogdir() {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = tmp.path().join("db.sqlite-blobs");
         std::fs::write(&blobdir, b"123").unwrap();
-        let res = Context::new(Box::new(|_, _| ()), "FakeOS".into(), dbfile);
+        let res = Context::new(Box::new(|_, _| ()), "FakeOS".into(), dbfile).await;
         assert!(res.is_err());
     }
 
-    #[test]
-    fn test_sqlite_parent_not_exists() {
+    #[async_std::test]
+    async fn test_sqlite_parent_not_exists() {
         let tmp = tempfile::tempdir().unwrap();
         let subdir = tmp.path().join("subdir");
         let dbfile = subdir.join("db.sqlite");
         let dbfile2 = dbfile.clone();
-        Context::new(Box::new(|_, _| ()), "FakeOS".into(), dbfile).unwrap();
+        Context::new(Box::new(|_, _| ()), "FakeOS".into(), dbfile)
+            .await
+            .unwrap();
         assert!(subdir.is_dir());
         assert!(dbfile2.is_file());
     }
 
-    #[test]
-    fn test_with_empty_blobdir() {
+    #[async_std::test]
+    async fn test_with_empty_blobdir() {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = PathBuf::new();
-        let res = Context::with_blobdir(Box::new(|_, _| ()), "FakeOS".into(), dbfile, blobdir);
+        let res =
+            Context::with_blobdir(Box::new(|_, _| ()), "FakeOS".into(), dbfile, blobdir).await;
         assert!(res.is_err());
     }
 
-    #[test]
-    fn test_with_blobdir_not_exists() {
+    #[async_std::test]
+    async fn test_with_blobdir_not_exists() {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = tmp.path().join("blobs");
-        let res = Context::with_blobdir(Box::new(|_, _| ()), "FakeOS".into(), dbfile, blobdir);
+        let res =
+            Context::with_blobdir(Box::new(|_, _| ()), "FakeOS".into(), dbfile, blobdir).await;
         assert!(res.is_err());
     }
 
-    #[test]
-    fn no_crashes_on_context_deref() {
-        let t = dummy_context();
+    #[async_std::test]
+    async fn no_crashes_on_context_deref() {
+        let t = dummy_context().await;
         std::mem::drop(t.ctx);
     }
 
     #[async_std::test]
     async fn test_get_info() {
-        let t = dummy_context();
+        let t = dummy_context().await;
 
         let info = t.ctx.get_info().await;
         assert!(info.get("database_dir").is_some());

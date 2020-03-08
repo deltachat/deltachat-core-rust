@@ -25,14 +25,14 @@ pub(crate) struct TestContext {
 /// "db.sqlite" in the [TestContext.dir] directory.
 ///
 /// [Context]: crate::context::Context
-pub(crate) fn test_context(callback: Option<Box<ContextCallback>>) -> TestContext {
+pub(crate) async fn test_context(callback: Option<Box<ContextCallback>>) -> TestContext {
     let dir = tempdir().unwrap();
     let dbfile = dir.path().join("db.sqlite");
     let cb: Box<ContextCallback> = match callback {
         Some(cb) => cb,
         None => Box::new(|_, _| ()),
     };
-    let ctx = Context::new(cb, "FakeOs".into(), dbfile).unwrap();
+    let ctx = Context::new(cb, "FakeOs".into(), dbfile).await.unwrap();
     TestContext { ctx, dir }
 }
 
@@ -41,8 +41,8 @@ pub(crate) fn test_context(callback: Option<Box<ContextCallback>>) -> TestContex
 /// The context will be opened and use the SQLite database as
 /// specified in [test_context] but there is no callback hooked up,
 /// i.e. [Context::call_cb] will always return `0`.
-pub(crate) fn dummy_context() -> TestContext {
-    test_context(None)
+pub(crate) async fn dummy_context() -> TestContext {
+    test_context(None).await
 }
 
 pub(crate) fn logging_cb(_ctx: &Context, evt: Event) {

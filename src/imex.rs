@@ -115,9 +115,9 @@ pub async fn has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result
 }
 
 pub async fn initiate_key_transfer(context: &Context) -> Result<String> {
-    ensure!(context.alloc_ongoing(), "could not allocate ongoing");
+    ensure!(context.alloc_ongoing().await, "could not allocate ongoing");
     let res = do_initiate_key_transfer(context).await;
-    context.free_ongoing();
+    context.free_ongoing().await;
     res
 }
 
@@ -125,10 +125,10 @@ async fn do_initiate_key_transfer(context: &Context) -> Result<String> {
     let mut msg: Message;
     let setup_code = create_setup_code(context);
     /* this may require a keypair to be created. this may take a second ... */
-    ensure!(!context.shall_stop_ongoing(), "canceled");
+    ensure!(!context.shall_stop_ongoing().await, "canceled");
     let setup_file_content = render_setup_file(context, &setup_code).await?;
     /* encrypting may also take a while ... */
-    ensure!(!context.shall_stop_ongoing(), "canceled");
+    ensure!(!context.shall_stop_ongoing().await, "canceled");
     let setup_file_blob = BlobObject::create(
         context,
         "autocrypt-setup-message.html",
@@ -148,11 +148,11 @@ async fn do_initiate_key_transfer(context: &Context) -> Result<String> {
         ForcePlaintext::NoAutocryptHeader as i32,
     );
 
-    ensure!(!context.shall_stop_ongoing(), "canceled");
+    ensure!(!context.shall_stop_ongoing().await, "canceled");
     let msg_id = chat::send_msg(context, chat_id, &mut msg).await?;
     info!(context, "Wait for setup message being sent ...",);
-    while !context.shall_stop_ongoing() {
-        std::thread::sleep(std::time::Duration::from_secs(1));
+    while !context.shall_stop_ongoing().await {
+        async_std::task::sleep(std::time::Duration::from_secs(1)).await;
         if let Ok(msg) = Message::load_from_db(context, msg_id).await {
             if msg.is_sent() {
                 info!(context, "... setup message sent.",);
@@ -197,8 +197,8 @@ pub async fn render_setup_file(context: &Context, passphrase: &str) -> Result<St
     );
     let pgp_msg = encr.replace("-----BEGIN PGP MESSAGE-----", &replacement);
 
-    let msg_subj = context.stock_str(StockMessage::AcSetupMsgSubject);
-    let msg_body = context.stock_str(StockMessage::AcSetupMsgBody);
+    let msg_subj = context.stock_str(StockMessage::AcSetupMsgSubject).await;
+    let msg_body = context.stock_str(StockMessage::AcSetupMsgBody).await;
     let msg_body_html = msg_body.replace("\r", "").replace("\n", "<br>");
     Ok(format!(
         concat!(
@@ -368,7 +368,7 @@ pub fn normalize_setup_code(s: &str) -> String {
 }
 
 pub async fn job_imex_imap(context: &Context, job: &Job) -> Result<()> {
-    ensure!(context.alloc_ongoing(), "could not allocate ongoing");
+    ensure!(context.alloc_ongoing().await, "could not allocate ongoing");
     let what: Option<ImexMode> = job.param.get_int(Param::Cmd).and_then(ImexMode::from_i32);
     let param = job.param.get(Param::Arg).unwrap_or_default();
 
@@ -380,7 +380,7 @@ pub async fn job_imex_imap(context: &Context, job: &Job) -> Result<()> {
     if what == Some(ImexMode::ExportBackup) || what == Some(ImexMode::ExportSelfKeys) {
         // before we export anything, make sure the private key exists
         if e2ee::ensure_secret_key_exists(context).await.is_err() {
-            context.free_ongoing();
+            context.free_ongoing().await;
             bail!("Cannot create private key or private key not available.");
         } else {
             dc_create_folder(context, &param)?;
@@ -396,7 +396,7 @@ pub async fn job_imex_imap(context: &Context, job: &Job) -> Result<()> {
             bail!("unknown IMEX type");
         }
     };
-    context.free_ongoing();
+    context.free_ongoing().await;
     match success {
         Ok(()) => {
             info!(context, "IMEX successfully completed");
@@ -423,7 +423,7 @@ async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) ->
         !context.is_configured().await,
         "Cannot import backups to accounts in use."
     );
-    context.sql.close(&context);
+    context.sql.close(&context).await;
     dc_delete_file(context, context.get_dbfile());
     ensure!(
         !context.get_dbfile().exists(),
@@ -448,7 +448,7 @@ async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) ->
 
     let total_files_cnt = context
         .sql
-        .query_get_value::<_, isize>(context, "SELECT COUNT(*) FROM backup_blobs;", params![])
+        .query_get_value::<isize>(context, "SELECT COUNT(*) FROM backup_blobs;", paramsv![])
         .await
         .unwrap_or_default() as usize;
     info!(
@@ -456,11 +456,11 @@ async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) ->
         "***IMPORT-in-progress: total_files_cnt={:?}", total_files_cnt,
     );
 
-    let res = context
+    let files = context
         .sql
         .query_map(
             "SELECT file_name, file_content FROM backup_blobs ORDER BY id;",
-            params![],
+            paramsv![],
             |row| {
                 let name: String = row.get(0)?;
                 let blob: Vec<u8> = row.get(1)?;
@@ -468,46 +468,45 @@ async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) ->
                 Ok((name, blob))
             },
             |files| {
-                for (processed_files_cnt, file) in files.enumerate() {
-                    let (file_name, file_blob) = file?;
-                    if context.shall_stop_ongoing() {
-                        return Ok(false);
-                    }
-                    let mut permille = processed_files_cnt * 1000 / total_files_cnt;
-                    if permille < 10 {
-                        permille = 10
-                    }
-                    if permille > 990 {
-                        permille = 990
-                    }
-                    context.call_cb(Event::ImexProgress(permille));
-                    if file_blob.is_empty() {
-                        continue;
-                    }
-
-                    let path_filename = context.get_blobdir().join(file_name);
-                    dc_write_file(context, &path_filename, &file_blob)?;
-                }
-                Ok(true)
+                files
+                    .collect::<std::result::Result<Vec<_>, _>>()
+                    .map_err(Into::into)
             },
         )
-        .await;
+        .await?;
 
-    match res {
-        Ok(all_files_extracted) => {
-            if all_files_extracted {
-                // only delete backup_blobs if all files were successfully extracted
-                context
-                    .sql
-                    .execute("DROP TABLE backup_blobs;", params![])
-                    .await?;
-                context.sql.execute("VACUUM;", params![]).await.ok();
-                Ok(())
-            } else {
-                bail!("received stop signal");
-            }
+    let mut all_files_extracted = true;
+    for (processed_files_cnt, (file_name, file_blob)) in files.into_iter().enumerate() {
+        if context.shall_stop_ongoing().await {
+            all_files_extracted = false;
+            break;
         }
-        Err(err) => Err(err.into()),
+        let mut permille = processed_files_cnt * 1000 / total_files_cnt;
+        if permille < 10 {
+            permille = 10
+        }
+        if permille > 990 {
+            permille = 990
+        }
+        context.call_cb(Event::ImexProgress(permille));
+        if file_blob.is_empty() {
+            continue;
+        }
+
+        let path_filename = context.get_blobdir().join(file_name);
+        dc_write_file(context, &path_filename, &file_blob)?;
+    }
+
+    if all_files_extracted {
+        // only delete backup_blobs if all files were successfully extracted
+        context
+            .sql
+            .execute("DROP TABLE backup_blobs;", paramsv![])
+            .await?;
+        context.sql.execute("VACUUM;", paramsv![]).await.ok();
+        Ok(())
+    } else {
+        bail!("received stop signal");
     }
 }
 
@@ -526,10 +525,10 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
 
     sql::housekeeping(context).await;
 
-    context.sql.execute("VACUUM;", params![]).await.ok();
+    context.sql.execute("VACUUM;", paramsv![]).await.ok();
 
     // we close the database during the copy of the dbfile
-    context.sql.close(context);
+    context.sql.close(context).await;
     info!(
         context,
         "Backup '{}' to '{}'.",
@@ -537,7 +536,10 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
         dest_path_filename.display(),
     );
     let copied = dc_copy_file(context, context.get_dbfile(), &dest_path_filename);
-    context.sql.open(&context, &context.get_dbfile(), false);
+    context
+        .sql
+        .open(&context, &context.get_dbfile(), false)
+        .await;
 
     if !copied {
         bail!(
@@ -566,7 +568,7 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
             Ok(())
         }
     };
-    dest_sql.close(context);
+    dest_sql.close(context).await;
 
     Ok(res?)
 }
@@ -577,7 +579,7 @@ async fn add_files_to_export(context: &Context, sql: &Sql) -> Result<()> {
     if !sql.table_exists("backup_blobs").await? {
         sql.execute(
             "CREATE TABLE backup_blobs (id INTEGER PRIMARY KEY, file_name, file_content);",
-            params![],
+            paramsv![],
         )
         .await?;
     }
@@ -589,17 +591,14 @@ async fn add_files_to_export(context: &Context, sql: &Sql) -> Result<()> {
 
     info!(context, "EXPORT: total_files_cnt={}", total_files_cnt);
 
-    sql.with_conn(|conn| {
+    sql.with_conn_async(|conn| async move {
         // scan directory, pass 2: copy files
         let dir_handle = std::fs::read_dir(&dir)?;
-
-        let mut stmt = conn
-            .prepare_cached("INSERT INTO backup_blobs (file_name, file_content) VALUES (?, ?);")?;
 
         let mut processed_files_cnt = 0;
         for entry in dir_handle {
             let entry = entry?;
-            if context.shall_stop_ongoing() {
+            if context.shall_stop_ongoing().await {
                 return Ok(());
             }
             processed_files_cnt += 1;
@@ -618,7 +617,10 @@ async fn add_files_to_export(context: &Context, sql: &Sql) -> Result<()> {
                     continue;
                 }
                 // bail out if we can't insert
-                stmt.execute(params![name, buf])?;
+                let mut stmt = conn.prepare_cached(
+                    "INSERT INTO backup_blobs (file_name, file_content) VALUES (?, ?);",
+                )?;
+                stmt.execute(paramsv![name, buf])?;
             }
         }
         Ok(())
@@ -690,7 +692,7 @@ async fn export_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()
         .sql
         .query_map(
             "SELECT id, public_key, private_key, is_default FROM keypairs;",
-            params![],
+            paramsv![],
             |row| {
                 let id = row.get(0)?;
                 let public_key_blob: Vec<u8> = row.get(1)?;
@@ -766,7 +768,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_render_setup_file() {
-        let t = test_context(Some(Box::new(logging_cb)));
+        let t = test_context(Some(Box::new(logging_cb))).await;
 
         configure_alice_keypair(&t.ctx).await;
         let msg = render_setup_file(&t.ctx, "hello").await.unwrap();
@@ -786,9 +788,10 @@ mod tests {
 
     #[async_std::test]
     async fn test_render_setup_file_newline_replace() {
-        let t = dummy_context();
+        let t = dummy_context().await;
         t.ctx
             .set_stock_translation(StockMessage::AcSetupMsgBody, "hello\r\nthere".to_string())
+            .await
             .unwrap();
         configure_alice_keypair(&t.ctx).await;
         let msg = render_setup_file(&t.ctx, "pw").await.unwrap();
@@ -796,9 +799,9 @@ mod tests {
         assert!(msg.contains("<p>hello<br>there</p>"));
     }
 
-    #[test]
-    fn test_create_setup_code() {
-        let t = dummy_context();
+    #[async_std::test]
+    async fn test_create_setup_code() {
+        let t = dummy_context().await;
         let setupcode = create_setup_code(&t.ctx);
         assert_eq!(setupcode.len(), 44);
         assert_eq!(setupcode.chars().nth(4).unwrap(), '-');
@@ -811,9 +814,9 @@ mod tests {
         assert_eq!(setupcode.chars().nth(39).unwrap(), '-');
     }
 
-    #[test]
-    fn test_export_key_to_asc_file() {
-        let context = dummy_context();
+    #[async_std::test]
+    async fn test_export_key_to_asc_file() {
+        let context = dummy_context().await;
         let key = Key::from(alice_keypair().public);
         let blobdir = "$BLOBDIR";
         assert!(export_key_to_asc_file(&context.ctx, blobdir, None, &key).is_ok());
@@ -839,9 +842,9 @@ mod tests {
     const S_EM_SETUPCODE: &str = "1742-0185-6197-1303-7016-8412-3581-4441-0597";
     const S_EM_SETUPFILE: &str = include_str!("../test-data/message/stress.txt");
 
-    #[test]
-    fn test_split_and_decrypt() {
-        let ctx = dummy_context();
+    #[async_std::test]
+    async fn test_split_and_decrypt() {
+        let ctx = dummy_context().await;
         let context = &ctx.ctx;
 
         let buf_1 = S_EM_SETUPFILE.as_bytes().to_vec();

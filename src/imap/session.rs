@@ -29,15 +29,10 @@ impl Session {
         mailbox_pattern: Option<&str>,
     ) -> ImapResult<impl Stream<Item = ImapResult<Name>> + '_ + Send + Unpin> {
         match self {
-            Session::Secure(i) => {
-                i.list(reference_name, mailbox_pattern).await
-                // list.collect::<ImapResult<_>>().await?
-            }
-            Session::Insecure(i) => {
+            Session::Secure(i) => i.list(reference_name, mailbox_pattern).await,
+            Session::Insecure(_i) => {
                 unimplemented!()
                 // i.list(reference_name, mailbox_pattern).await
-                //     .collect::<ImapResult<_>>()
-                //     .await?
             }
         }
     }
@@ -86,7 +81,7 @@ impl Session {
     {
         let res = match self {
             Session::Secure(i) => i.fetch(sequence_set, query).await?,
-            Session::Insecure(i) => {
+            Session::Insecure(_i) => {
                 unimplemented!()
                 // i.fetch(sequence_set, query).await?
             }
@@ -105,7 +100,7 @@ impl Session {
     {
         let res = match self {
             Session::Secure(i) => i.uid_fetch(uid_set, query).await?,
-            Session::Insecure(i) => {
+            Session::Insecure(_i) => {
                 unimplemented!()
                 // i.uid_fetch(uid_set, query).await?
             }
@@ -125,7 +120,7 @@ impl Session {
     {
         let res = match self {
             Session::Secure(i) => i.uid_store(uid_set, query).await?,
-            Session::Insecure(i) => {
+            Session::Insecure(_i) => {
                 unimplemented!()
                 // i.uid_store(uid_set, query).await?
             }

@@ -10,7 +10,6 @@ use crate::dc_tools::*;
 use crate::job::*;
 use crate::mimefactory::RECOMMENDED_FILE_SIZE;
 use crate::stock::StockMessage;
-use rusqlite::NO_PARAMS;
 
 /// The available configuration keys.
 #[derive(
@@ -113,7 +112,7 @@ impl Context {
 
         // Default values
         match key {
-            Config::Selfstatus => Some(self.stock_str(StockMessage::StatusLine).into_owned()),
+            Config::Selfstatus => Some(self.stock_str(StockMessage::StatusLine).await.into_owned()),
             _ => key.get_str("default").map(|s| s.to_string()),
         }
     }
@@ -135,7 +134,7 @@ impl Context {
         match key {
             Config::Selfavatar => {
                 self.sql
-                    .execute("UPDATE contacts SET selfavatar_sent=0;", NO_PARAMS)
+                    .execute("UPDATE contacts SET selfavatar_sent=0;", paramsv![])
                     .await?;
                 self.sql
                     .set_raw_config_bool(self, "attach_selfavatar", true)
@@ -167,7 +166,7 @@ impl Context {
                 ret
             }
             Config::Selfstatus => {
-                let def = self.stock_str(StockMessage::StatusLine);
+                let def = self.stock_str(StockMessage::StatusLine).await;
                 let val = if value.is_none() || value.unwrap() == def {
                     None
                 } else {
@@ -224,7 +223,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_selfavatar_outside_blobdir() {
-        let t = dummy_context();
+        let t = dummy_context().await;
         let avatar_src = t.dir.path().join("avatar.jpg");
         let avatar_bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
         File::create(&avatar_src)
@@ -253,7 +252,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_selfavatar_in_blobdir() {
-        let t = dummy_context();
+        let t = dummy_context().await;
         let avatar_src = t.ctx.get_blobdir().join("avatar.png");
         let avatar_bytes = include_bytes!("../test-data/image/avatar900x900.png");
         File::create(&avatar_src)

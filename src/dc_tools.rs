@@ -99,9 +99,9 @@ const MAX_SECONDS_TO_LEND_FROM_FUTURE: i64 = 5;
 // returns the currently smeared timestamp,
 // may be used to check if call to dc_create_smeared_timestamp() is needed or not.
 // the returned timestamp MUST NOT be used to be sent out or saved in the database!
-pub(crate) fn dc_smeared_time(context: &Context) -> i64 {
+pub(crate) async fn dc_smeared_time(context: &Context) -> i64 {
     let mut now = time();
-    let ts = *context.last_smeared_timestamp.read().unwrap();
+    let ts = *context.last_smeared_timestamp.read().await;
     if ts >= now {
         now = ts + 1;
     }
@@ -110,11 +110,11 @@ pub(crate) fn dc_smeared_time(context: &Context) -> i64 {
 }
 
 // returns a timestamp that is guaranteed to be unique.
-pub(crate) fn dc_create_smeared_timestamp(context: &Context) -> i64 {
+pub(crate) async fn dc_create_smeared_timestamp(context: &Context) -> i64 {
     let now = time();
     let mut ret = now;
 
-    let mut last_smeared_timestamp = context.last_smeared_timestamp.write().unwrap();
+    let mut last_smeared_timestamp = context.last_smeared_timestamp.write().await;
     if ret <= *last_smeared_timestamp {
         ret = *last_smeared_timestamp + 1;
         if ret - now > MAX_SECONDS_TO_LEND_FROM_FUTURE {
@@ -129,12 +129,12 @@ pub(crate) fn dc_create_smeared_timestamp(context: &Context) -> i64 {
 // creates `count` timestamps that are guaranteed to be unique.
 // the frist created timestamps is returned directly,
 // get the other timestamps just by adding 1..count-1
-pub(crate) fn dc_create_smeared_timestamps(context: &Context, count: usize) -> i64 {
+pub(crate) async fn dc_create_smeared_timestamps(context: &Context, count: usize) -> i64 {
     let now = time();
     let count = count as i64;
     let mut start = now + min(count, MAX_SECONDS_TO_LEND_FROM_FUTURE) - count;
 
-    let mut last_smeared_timestamp = context.last_smeared_timestamp.write().unwrap();
+    let mut last_smeared_timestamp = context.last_smeared_timestamp.write().await;
     start = max(*last_smeared_timestamp + 1, start);
 
     *last_smeared_timestamp = start + count - 1;
@@ -711,9 +711,9 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_file_handling() {
-        let t = dummy_context();
+    #[async_std::test]
+    async fn test_file_handling() {
+        let t = dummy_context().await;
         let context = &t.ctx;
         let dc_file_exist = |ctx: &Context, fname: &str| {
             ctx.get_blobdir()
@@ -784,15 +784,15 @@ mod tests {
         assert!(!listflags_has(listflags, DC_GCL_ADD_SELF));
     }
 
-    #[test]
-    fn test_create_smeared_timestamp() {
-        let t = dummy_context();
+    #[async_std::test]
+    async fn test_create_smeared_timestamp() {
+        let t = dummy_context().await;
         assert_ne!(
-            dc_create_smeared_timestamp(&t.ctx),
-            dc_create_smeared_timestamp(&t.ctx)
+            dc_create_smeared_timestamp(&t.ctx).await,
+            dc_create_smeared_timestamp(&t.ctx).await
         );
         assert!(
-            dc_create_smeared_timestamp(&t.ctx)
+            dc_create_smeared_timestamp(&t.ctx).await
                 >= SystemTime::now()
                     .duration_since(SystemTime::UNIX_EPOCH)
                     .unwrap()
@@ -800,17 +800,17 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_create_smeared_timestamps() {
-        let t = dummy_context();
+    #[async_std::test]
+    async fn test_create_smeared_timestamps() {
+        let t = dummy_context().await;
         let count = MAX_SECONDS_TO_LEND_FROM_FUTURE - 1;
-        let start = dc_create_smeared_timestamps(&t.ctx, count as usize);
-        let next = dc_smeared_time(&t.ctx);
+        let start = dc_create_smeared_timestamps(&t.ctx, count as usize).await;
+        let next = dc_smeared_time(&t.ctx).await;
         assert!((start + count - 1) < next);
 
         let count = MAX_SECONDS_TO_LEND_FROM_FUTURE + 30;
-        let start = dc_create_smeared_timestamps(&t.ctx, count as usize);
-        let next = dc_smeared_time(&t.ctx);
+        let start = dc_create_smeared_timestamps(&t.ctx, count as usize).await;
+        let next = dc_smeared_time(&t.ctx).await;
         assert!((start + count - 1) < next);
     }
 }

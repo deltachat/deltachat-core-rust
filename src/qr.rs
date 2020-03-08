@@ -50,13 +50,13 @@ pub async fn check_qr(context: &Context, qr: impl AsRef<str>) -> Lot {
     } else if qr.starts_with(DCACCOUNT_SCHEME) {
         decode_account(context, qr)
     } else if qr.starts_with(MAILTO_SCHEME) {
-        decode_mailto(context, qr)
+        decode_mailto(context, qr).await
     } else if qr.starts_with(SMTP_SCHEME) {
-        decode_smtp(context, qr)
+        decode_smtp(context, qr).await
     } else if qr.starts_with(MATMSG_SCHEME) {
-        decode_matmsg(context, qr)
+        decode_matmsg(context, qr).await
     } else if qr.starts_with(VCARD_SCHEME) {
-        decode_vcard(context, qr)
+        decode_vcard(context, qr).await
     } else if qr.starts_with(HTTP_SCHEME) || qr.starts_with(HTTPS_SCHEME) {
         Lot::from_url(qr)
     } else {
@@ -140,7 +140,7 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
     let mut lot = Lot::new();
 
     // retrieve known state for this fingerprint
-    let peerstate = Peerstate::from_fingerprint(context, &context.sql, &fingerprint);
+    let peerstate = Peerstate::from_fingerprint(context, &context.sql, &fingerprint).await;
 
     if invitenumber.is_none() || auth.is_none() {
         if let Some(peerstate) = peerstate {
@@ -160,7 +160,7 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
                 .await
                 .unwrap_or_default();
 
-            chat::add_info_msg(context, id, format!("{} verified.", peerstate.addr));
+            chat::add_info_msg(context, id, format!("{} verified.", peerstate.addr)).await;
         } else {
             lot.state = LotState::QrFprWithoutAddr;
             lot.text1 = Some(dc_format_fingerprint(&fingerprint));
@@ -262,7 +262,7 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<(), Error
 /// Extract address for the mailto scheme.
 ///
 /// Scheme: `mailto:addr...?subject=...&body=..`
-fn decode_mailto(context: &Context, qr: &str) -> Lot {
+async fn decode_mailto(context: &Context, qr: &str) -> Lot {
     let payload = &qr[MAILTO_SCHEME.len()..];
 
     let addr = if let Some(query_index) = payload.find('?') {
@@ -277,13 +277,13 @@ fn decode_mailto(context: &Context, qr: &str) -> Lot {
     };
 
     let name = "".to_string();
-    Lot::from_address(context, name, addr)
+    Lot::from_address(context, name, addr).await
 }
 
 /// Extract address for the smtp scheme.
 ///
 /// Scheme: `SMTP:addr...:subject...:body...`
-fn decode_smtp(context: &Context, qr: &str) -> Lot {
+async fn decode_smtp(context: &Context, qr: &str) -> Lot {
     let payload = &qr[SMTP_SCHEME.len()..];
 
     let addr = if let Some(query_index) = payload.find(':') {
@@ -298,7 +298,7 @@ fn decode_smtp(context: &Context, qr: &str) -> Lot {
     };
 
     let name = "".to_string();
-    Lot::from_address(context, name, addr)
+    Lot::from_address(context, name, addr).await
 }
 
 /// Extract address for the matmsg scheme.
@@ -306,7 +306,7 @@ fn decode_smtp(context: &Context, qr: &str) -> Lot {
 /// Scheme: `MATMSG:TO:addr...;SUB:subject...;BODY:body...;`
 ///
 /// There may or may not be linebreaks after the fields.
-fn decode_matmsg(context: &Context, qr: &str) -> Lot {
+async fn decode_matmsg(context: &Context, qr: &str) -> Lot {
     // Does not work when the text `TO:` is used in subject/body _and_ TO: is not the first field.
     // we ignore this case.
     let addr = if let Some(to_index) = qr.find("TO:") {
@@ -326,7 +326,7 @@ fn decode_matmsg(context: &Context, qr: &str) -> Lot {
     };
 
     let name = "".to_string();
-    Lot::from_address(context, name, addr)
+    Lot::from_address(context, name, addr).await
 }
 
 lazy_static! {
@@ -339,7 +339,7 @@ lazy_static! {
 /// Extract address for the matmsg scheme.
 ///
 /// Scheme: `VCARD:BEGIN\nN:last name;first name;...;\nEMAIL;<type>:addr...;
-fn decode_vcard(context: &Context, qr: &str) -> Lot {
+async fn decode_vcard(context: &Context, qr: &str) -> Lot {
     let name = VCARD_NAME_RE
         .captures(qr)
         .map(|caps| {
@@ -359,7 +359,7 @@ fn decode_vcard(context: &Context, qr: &str) -> Lot {
         return format_err!("Bad e-mail address").into();
     };
 
-    Lot::from_address(context, name, addr)
+    Lot::from_address(context, name, addr).await
 }
 
 impl Lot {
@@ -379,10 +379,10 @@ impl Lot {
         l
     }
 
-    pub fn from_address(context: &Context, name: String, addr: String) -> Self {
+    pub async fn from_address(context: &Context, name: String, addr: String) -> Self {
         let mut l = Lot::new();
         l.state = LotState::QrAddr;
-        l.id = match Contact::add_or_lookup(context, name, addr, Origin::UnhandledQrScan) {
+        l.id = match Contact::add_or_lookup(context, name, addr, Origin::UnhandledQrScan).await {
             Ok((id, _)) => id,
             Err(err) => return err.into(),
         };
@@ -408,11 +408,11 @@ mod tests {
 
     use crate::test_utils::dummy_context;
 
-    #[test]
-    fn test_decode_http() {
-        let ctx = dummy_context();
+    #[async_std::test]
+    async fn test_decode_http() {
+        let ctx = dummy_context().await;
 
-        let res = check_qr(&ctx.ctx, "http://www.hello.com");
+        let res = check_qr(&ctx.ctx, "http://www.hello.com").await;
 
         assert_eq!(res.get_state(), LotState::QrUrl);
         assert_eq!(res.get_id(), 0);
@@ -420,11 +420,11 @@ mod tests {
         assert!(res.get_text2().is_none());
     }
 
-    #[test]
-    fn test_decode_https() {
-        let ctx = dummy_context();
+    #[async_std::test]
+    async fn test_decode_https() {
+        let ctx = dummy_context().await;
 
-        let res = check_qr(&ctx.ctx, "https://www.hello.com");
+        let res = check_qr(&ctx.ctx, "https://www.hello.com").await;
 
         assert_eq!(res.get_state(), LotState::QrUrl);
         assert_eq!(res.get_id(), 0);
@@ -432,11 +432,11 @@ mod tests {
         assert!(res.get_text2().is_none());
     }
 
-    #[test]
-    fn test_decode_text() {
-        let ctx = dummy_context();
+    #[async_std::test]
+    async fn test_decode_text() {
+        let ctx = dummy_context().await;
 
-        let res = check_qr(&ctx.ctx, "I am so cool");
+        let res = check_qr(&ctx.ctx, "I am so cool").await;
 
         assert_eq!(res.get_state(), LotState::QrText);
         assert_eq!(res.get_id(), 0);
@@ -444,124 +444,127 @@ mod tests {
         assert!(res.get_text2().is_none());
     }
 
-    #[test]
-    fn test_decode_vcard() {
-        let ctx = dummy_context();
+    #[async_std::test]
+    async fn test_decode_vcard() {
+        let ctx = dummy_context().await;
 
         let res = check_qr(
             &ctx.ctx,
             "BEGIN:VCARD\nVERSION:3.0\nN:Last;First\nEMAIL;TYPE=INTERNET:stress@test.local\nEND:VCARD"
-        );
+        ).await;
 
         println!("{:?}", res);
         assert_eq!(res.get_state(), LotState::QrAddr);
         assert_ne!(res.get_id(), 0);
 
-        let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).unwrap();
+        let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).await.unwrap();
         assert_eq!(contact.get_addr(), "stress@test.local");
         assert_eq!(contact.get_name(), "First Last");
     }
 
-    #[test]
-    fn test_decode_matmsg() {
-        let ctx = dummy_context();
+    #[async_std::test]
+    async fn test_decode_matmsg() {
+        let ctx = dummy_context().await;
 
         let res = check_qr(
             &ctx.ctx,
             "MATMSG:TO:\n\nstress@test.local ; \n\nSUB:\n\nSubject here\n\nBODY:\n\nhelloworld\n;;",
-        );
+        )
+        .await;
 
         println!("{:?}", res);
         assert_eq!(res.get_state(), LotState::QrAddr);
         assert_ne!(res.get_id(), 0);
 
-        let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).unwrap();
+        let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).await.unwrap();
         assert_eq!(contact.get_addr(), "stress@test.local");
     }
 
-    #[test]
-    fn test_decode_mailto() {
-        let ctx = dummy_context();
+    #[async_std::test]
+    async fn test_decode_mailto() {
+        let ctx = dummy_context().await;
 
         let res = check_qr(
             &ctx.ctx,
             "mailto:stress@test.local?subject=hello&body=world",
-        );
+        )
+        .await;
         println!("{:?}", res);
         assert_eq!(res.get_state(), LotState::QrAddr);
         assert_ne!(res.get_id(), 0);
-        let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).unwrap();
+        let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).await.unwrap();
         assert_eq!(contact.get_addr(), "stress@test.local");
 
-        let res = check_qr(&ctx.ctx, "mailto:no-questionmark@example.org");
+        let res = check_qr(&ctx.ctx, "mailto:no-questionmark@example.org").await;
         assert_eq!(res.get_state(), LotState::QrAddr);
         assert_ne!(res.get_id(), 0);
-        let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).unwrap();
+        let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).await.unwrap();
         assert_eq!(contact.get_addr(), "no-questionmark@example.org");
 
-        let res = check_qr(&ctx.ctx, "mailto:no-addr");
+        let res = check_qr(&ctx.ctx, "mailto:no-addr").await;
         assert_eq!(res.get_state(), LotState::QrError);
         assert!(res.get_text1().is_some());
     }
 
-    #[test]
-    fn test_decode_smtp() {
-        let ctx = dummy_context();
+    #[async_std::test]
+    async fn test_decode_smtp() {
+        let ctx = dummy_context().await;
 
-        let res = check_qr(&ctx.ctx, "SMTP:stress@test.local:subjecthello:bodyworld");
+        let res = check_qr(&ctx.ctx, "SMTP:stress@test.local:subjecthello:bodyworld").await;
 
         println!("{:?}", res);
         assert_eq!(res.get_state(), LotState::QrAddr);
         assert_ne!(res.get_id(), 0);
 
-        let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).unwrap();
+        let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).await.unwrap();
         assert_eq!(contact.get_addr(), "stress@test.local");
     }
 
-    #[test]
-    fn test_decode_openpgp_group() {
-        let ctx = dummy_context();
+    #[async_std::test]
+    async fn test_decode_openpgp_group() {
+        let ctx = dummy_context().await;
 
         let res = check_qr(
             &ctx.ctx,
             "OPENPGP4FPR:79252762C34C5096AF57958F4FC3D21A81B0F0A7#a=cli%40deltachat.de&g=test%20%3F+test%20%21&x=h-0oKQf2CDK&i=9JEXlxAqGM0&s=0V7LzL9cxRL"
-        );
+        ).await;
 
         println!("{:?}", res);
         assert_eq!(res.get_state(), LotState::QrAskVerifyGroup);
         assert_ne!(res.get_id(), 0);
         assert_eq!(res.get_text1().unwrap(), "test ? test !");
 
-        let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).unwrap();
+        let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).await.unwrap();
         assert_eq!(contact.get_addr(), "cli@deltachat.de");
     }
 
-    #[test]
-    fn test_decode_openpgp_secure_join() {
-        let ctx = dummy_context();
+    #[async_std::test]
+    async fn test_decode_openpgp_secure_join() {
+        let ctx = dummy_context().await;
 
         let res = check_qr(
             &ctx.ctx,
             "OPENPGP4FPR:79252762C34C5096AF57958F4FC3D21A81B0F0A7#a=cli%40deltachat.de&n=J%C3%B6rn%20P.+P.&i=TbnwJ6lSvD5&s=0ejvbdFSQxB"
-        );
+        ).await;
 
         println!("{:?}", res);
         assert_eq!(res.get_state(), LotState::QrAskVerifyContact);
         assert_ne!(res.get_id(), 0);
 
-        let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).unwrap();
+        let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).await.unwrap();
         assert_eq!(contact.get_addr(), "cli@deltachat.de");
         assert_eq!(contact.get_name(), "Jörn P. P.");
     }
 
-    #[test]
-    fn test_decode_openpgp_without_addr() {
-        let ctx = dummy_context();
+    #[async_std::test]
+    async fn test_decode_openpgp_without_addr() {
+        let ctx = dummy_context().await;
 
         let res = check_qr(
             &ctx.ctx,
             "OPENPGP4FPR:1234567890123456789012345678901234567890",
-        );
+        )
+        .await;
         assert_eq!(res.get_state(), LotState::QrFprWithoutAddr);
         assert_eq!(
             res.get_text1().unwrap(),
@@ -569,31 +572,32 @@ mod tests {
         );
         assert_eq!(res.get_id(), 0);
 
-        let res = check_qr(&ctx.ctx, "OPENPGP4FPR:12345678901234567890");
+        let res = check_qr(&ctx.ctx, "OPENPGP4FPR:12345678901234567890").await;
         assert_eq!(res.get_state(), LotState::QrError);
         assert_eq!(res.get_id(), 0);
     }
 
-    #[test]
-    fn test_decode_account() {
-        let ctx = dummy_context();
+    #[async_std::test]
+    async fn test_decode_account() {
+        let ctx = dummy_context().await;
 
         let res = check_qr(
             &ctx.ctx,
             "DCACCOUNT:https://example.org/new_email?t=1w_7wDjgjelxeX884x96v3",
-        );
+        )
+        .await;
         assert_eq!(res.get_state(), LotState::QrAccount);
         assert_eq!(res.get_text1().unwrap(), "example.org");
     }
 
-    #[test]
-    fn test_decode_account_bad_scheme() {
-        let ctx = dummy_context();
-
+    #[async_std::test]
+    async fn test_decode_account_bad_scheme() {
+        let ctx = dummy_context().await;
         let res = check_qr(
             &ctx.ctx,
             "DCACCOUNT:http://example.org/new_email?t=1w_7wDjgjelxeX884x96v3",
-        );
+        )
+        .await;
         assert_eq!(res.get_state(), LotState::QrError);
         assert!(res.get_text1().is_some());
     }

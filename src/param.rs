@@ -417,9 +417,9 @@ mod tests {
         assert_eq!(p1.get(Param::Forwarded).unwrap(), "cli%40deltachat.de");
     }
 
-    #[test]
-    fn test_params_file_fs_path() {
-        let t = dummy_context();
+    #[async_std::test]
+    async fn test_params_file_fs_path() {
+        let t = dummy_context().await;
         if let ParamsFile::FsPath(p) = ParamsFile::from_param(&t.ctx, "/foo/bar/baz").unwrap() {
             assert_eq!(p, Path::new("/foo/bar/baz"));
         } else {
@@ -427,9 +427,9 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_params_file_blob() {
-        let t = dummy_context();
+    #[async_std::test]
+    async fn test_params_file_blob() {
+        let t = dummy_context().await;
         if let ParamsFile::Blob(b) = ParamsFile::from_param(&t.ctx, "$BLOBDIR/foo").unwrap() {
             assert_eq!(b.as_name(), "$BLOBDIR/foo");
         } else {
@@ -438,9 +438,9 @@ mod tests {
     }
 
     // Tests for Params::get_file(), Params::get_path() and Params::get_blob().
-    #[test]
-    fn test_params_get_fileparam() {
-        let t = dummy_context();
+    #[async_std::test]
+    async fn test_params_get_fileparam() {
+        let t = dummy_context().await;
         let fname = t.dir.path().join("foo");
         let mut p = Params::new();
         p.set(Param::File, fname.to_str().unwrap());

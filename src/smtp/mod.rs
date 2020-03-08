@@ -159,7 +159,7 @@ impl Smtp {
             // oauth2
             let addr = &lp.addr;
             let send_pw = &lp.send_pw;
-            let access_token = dc_get_oauth2_access_token(context, addr, send_pw, false);
+            let access_token = dc_get_oauth2_access_token(context, addr, send_pw, false).await;
             if access_token.is_none() {
                 return Err(Error::Oauth2Error {
                     address: addr.to_string(),

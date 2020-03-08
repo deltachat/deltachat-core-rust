@@ -96,7 +96,7 @@ pub async fn dc_receive_imf(
     // https://github.com/deltachat/deltachat-core/issues/150)
     let (from_id, from_id_blocked, incoming_origin) =
         if let Some(field_from) = mime_parser.get(HeaderDef::From_) {
-            from_field_to_contact_id(context, field_from)?
+            from_field_to_contact_id(context, field_from).await?
         } else {
             (0, false, Origin::Unknown)
         };
@@ -105,17 +105,20 @@ pub async fn dc_receive_imf(
     let mut to_ids = ContactIds::new();
     for header_def in &[HeaderDef::To, HeaderDef::Cc] {
         if let Some(field) = mime_parser.get(header_def.clone()) {
-            to_ids.extend(&dc_add_or_lookup_contacts_by_address_list(
-                context,
-                &field,
-                if !incoming {
-                    Origin::OutgoingTo
-                } else if incoming_origin.is_known() {
-                    Origin::IncomingTo
-                } else {
-                    Origin::IncomingUnknownTo
-                },
-            )?);
+            to_ids.extend(
+                &dc_add_or_lookup_contacts_by_address_list(
+                    context,
+                    &field,
+                    if !incoming {
+                        Origin::OutgoingTo
+                    } else if incoming_origin.is_known() {
+                        Origin::IncomingTo
+                    } else {
+                        Origin::IncomingUnknownTo
+                    },
+                )
+                .await?,
+            );
         }
     }
 
@@ -178,7 +181,8 @@ pub async fn dc_receive_imf(
             from_id,
             insert_msg_id,
             hidden,
-        );
+        )
+        .await;
     }
 
     if let Some(avatar_action) = &mime_parser.user_avatar {
@@ -225,7 +229,7 @@ pub async fn dc_receive_imf(
 /// Converts "From" field to contact id.
 ///
 /// Also returns whether it is blocked or not and its origin.
-pub fn from_field_to_contact_id(
+pub async fn from_field_to_contact_id(
     context: &Context,
     field_from: &str,
 ) -> Result<(u32, bool, Origin)> {
@@ -233,7 +237,8 @@ pub fn from_field_to_contact_id(
         context,
         &field_from,
         Origin::IncomingUnknownFrom,
-    )?;
+    )
+    .await?;
 
     if from_ids.contains(&DC_CONTACT_ID_SELF) {
         Ok((DC_CONTACT_ID_SELF, false, Origin::OutgoingBcc))
@@ -248,7 +253,7 @@ pub fn from_field_to_contact_id(
 
         let mut from_id_blocked = false;
         let mut incoming_origin = Origin::Unknown;
-        if let Ok(contact) = Contact::load_from_db(context, from_id) {
+        if let Ok(contact) = Contact::load_from_db(context, from_id).await {
             from_id_blocked = contact.blocked;
             incoming_origin = contact.origin;
         }
@@ -297,10 +302,11 @@ async fn add_parts(
     // (if the mail was moved around) and finish. (we may get a mail twice eg. if it is
     // moved between folders. make sure, this check is done eg. before securejoin-processing) */
     if let Ok((old_server_folder, old_server_uid, _)) =
-        message::rfc724_mid_exists(context, &rfc724_mid)
+        message::rfc724_mid_exists(context, &rfc724_mid).await
     {
         if old_server_folder != server_folder.as_ref() || old_server_uid != server_uid {
-            message::update_server_uid(context, &rfc724_mid, server_folder.as_ref(), server_uid);
+            message::update_server_uid(context, &rfc724_mid, server_folder.as_ref(), server_uid)
+                .await;
         }
 
         bail!("Message already in DB");
@@ -308,7 +314,7 @@ async fn add_parts(
 
     let mut msgrmsg = if mime_parser.has_chat_version() {
         MessengerMessage::Yes
-    } else if is_reply_to_messenger_message(context, mime_parser) {
+    } else if is_reply_to_messenger_message(context, mime_parser).await {
         MessengerMessage::Reply
     } else {
         MessengerMessage::No
@@ -368,8 +374,8 @@ async fn add_parts(
                 }
                 Err(err) => {
                     *hidden = true;
-                    context.bob.write().unwrap().status = 0; // secure-join failed
-                    context.stop_ongoing();
+                    context.bob.write().await.status = 0; // secure-join failed
+                    context.stop_ongoing().await;
                     error!(context, "Error in Secure-Join message handling: {}", err);
                 }
             }
@@ -408,7 +414,7 @@ async fn add_parts(
                 && chat_id_blocked != Blocked::Not
                 && create_blocked == Blocked::Not
             {
-                new_chat_id.unblock(context);
+                new_chat_id.unblock(context).await;
                 chat_id_blocked = Blocked::Not;
             }
         }
@@ -442,12 +448,12 @@ async fn add_parts(
             }
             if !chat_id.is_unset() && Blocked::Not != chat_id_blocked {
                 if Blocked::Not == create_blocked {
-                    chat_id.unblock(context);
+                    chat_id.unblock(context).await;
                     chat_id_blocked = Blocked::Not;
-                } else if is_reply_to_known_message(context, mime_parser) {
+                } else if is_reply_to_known_message(context, mime_parser).await {
                     // we do not want any chat to be created implicitly.  Because of the origin-scale-up,
                     // the contact requests will pop up and this should be just fine.
-                    Contact::scaleup_origin_by_id(context, from_id, Origin::IncomingReplyTo);
+                    Contact::scaleup_origin_by_id(context, from_id, Origin::IncomingReplyTo).await;
                     info!(
                         context,
                         "Message is a reply to a known message, mark sender as known.",
@@ -496,7 +502,7 @@ async fn add_parts(
                 chat_id_blocked = new_chat_id_blocked;
                 // automatically unblock chat when the user sends a message
                 if !chat_id.is_unset() && chat_id_blocked != Blocked::Not {
-                    new_chat_id.unblock(context);
+                    new_chat_id.unblock(context).await;
                     chat_id_blocked = Blocked::Not;
                 }
             }
@@ -518,7 +524,7 @@ async fn add_parts(
                     && Blocked::Not != chat_id_blocked
                     && Blocked::Not == create_blocked
                 {
-                    chat_id.unblock(context);
+                    chat_id.unblock(context).await;
                     chat_id_blocked = Blocked::Not;
                 }
             }
@@ -538,7 +544,7 @@ async fn add_parts(
             chat_id_blocked = bl;
 
             if !chat_id.is_unset() && Blocked::Not != chat_id_blocked {
-                chat_id.unblock(context);
+                chat_id.unblock(context).await;
                 chat_id_blocked = Blocked::Not;
             }
         }
@@ -557,7 +563,8 @@ async fn add_parts(
         &mut sort_timestamp,
         sent_timestamp,
         &mut rcvd_timestamp,
-    );
+    )
+    .await;
 
     // unarchive chat
     chat_id.unarchive(context).await?;
@@ -613,9 +620,9 @@ async fn add_parts(
                         .set_int(Param::Cmd, mime_parser.is_system_message as i32);
                 }
 
-                stmt.execute(params![
+                stmt.execute(paramsv![
                     rfc724_mid,
-                    server_folder.as_ref(),
+                    server_folder.as_ref().to_string(),
                     server_uid as i32,
                     *chat_id,
                     from_id as i32,
@@ -626,7 +633,7 @@ async fn add_parts(
                     part.typ,
                     state,
                     msgrmsg,
-                    &part.msg,
+                    part.msg,
                     // txt_raw might contain invalid utf8
                     txt_raw.unwrap_or_default(),
                     part.param.to_string(),
@@ -675,7 +682,7 @@ async fn add_parts(
     Ok(())
 }
 
-fn save_locations(
+async fn save_locations(
     context: &Context,
     mime_parser: &MimeMessage,
     chat_id: ChatId,
@@ -691,11 +698,14 @@ fn save_locations(
 
     if mime_parser.message_kml.is_some() {
         let locations = &mime_parser.message_kml.as_ref().unwrap().locations;
-        let newest_location_id =
-            location::save(context, chat_id, from_id, locations, true).unwrap_or_default();
+        let newest_location_id = location::save(context, chat_id, from_id, locations, true)
+            .await
+            .unwrap_or_default();
         if 0 != newest_location_id
             && !hidden
-            && location::set_msg_location_id(context, insert_msg_id, newest_location_id).is_ok()
+            && location::set_msg_location_id(context, insert_msg_id, newest_location_id)
+                .await
+                .is_ok()
         {
             location_id_written = true;
             send_event = true;
@@ -704,18 +714,21 @@ fn save_locations(
 
     if mime_parser.location_kml.is_some() {
         if let Some(ref addr) = mime_parser.location_kml.as_ref().unwrap().addr {
-            if let Ok(contact) = Contact::get_by_id(context, from_id) {
+            if let Ok(contact) = Contact::get_by_id(context, from_id).await {
                 if contact.get_addr().to_lowercase() == addr.to_lowercase() {
                     let locations = &mime_parser.location_kml.as_ref().unwrap().locations;
                     let newest_location_id =
                         location::save(context, chat_id, from_id, locations, false)
+                            .await
                             .unwrap_or_default();
                     if newest_location_id != 0 && !hidden && !location_id_written {
                         if let Err(err) = location::set_msg_location_id(
                             context,
                             insert_msg_id,
                             newest_location_id,
-                        ) {
+                        )
+                        .await
+                        {
                             error!(context, "Failed to set msg_location_id: {:?}", err);
                         }
                     }
@@ -730,7 +743,7 @@ fn save_locations(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn calc_timestamps(
+async fn calc_timestamps(
     context: &Context,
     chat_id: ChatId,
     from_id: u32,
@@ -747,19 +760,22 @@ fn calc_timestamps(
     }
     *sort_timestamp = message_timestamp;
     if is_fresh_msg {
-        let last_msg_time: Option<i64> = context.sql.query_get_value(
-            context,
-            "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? and from_id!=? AND timestamp>=?",
-            params![chat_id, from_id as i32, *sort_timestamp],
-        );
+        let last_msg_time: Option<i64> = context
+            .sql
+            .query_get_value(
+                context,
+                "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? and from_id!=? AND timestamp>=?",
+                paramsv![chat_id, from_id as i32, *sort_timestamp],
+            )
+            .await;
         if let Some(last_msg_time) = last_msg_time {
             if last_msg_time > 0 && *sort_timestamp <= last_msg_time {
                 *sort_timestamp = last_msg_time + 1;
             }
         }
     }
-    if *sort_timestamp >= dc_smeared_time(context) {
-        *sort_timestamp = dc_create_smeared_timestamp(context);
+    if *sort_timestamp >= dc_smeared_time(context).await {
+        *sort_timestamp = dc_create_smeared_timestamp(context).await;
     }
 }
 
@@ -792,8 +808,9 @@ async fn create_or_lookup_group(
     let mut better_msg: String = From::from("");
 
     if mime_parser.is_system_message == SystemMessage::LocationStreamingEnabled {
-        better_msg =
-            context.stock_system_msg(StockMessage::MsgLocationEnabled, "", "", from_id as u32);
+        better_msg = context
+            .stock_system_msg(StockMessage::MsgLocationEnabled, "", "", from_id as u32)
+            .await;
         set_better_msg(mime_parser, &better_msg);
     }
 
@@ -823,6 +840,7 @@ async fn create_or_lookup_group(
                     from_id,
                     to_ids,
                 )
+                .await
                 .map_err(|err| {
                     info!(context, "could not create adhoc-group: {:?}", err);
                     err
@@ -841,41 +859,47 @@ async fn create_or_lookup_group(
         let left_group = Contact::lookup_id_by_addr(context, X_MrRemoveFromGrp.as_ref().unwrap())
             .await
             == from_id as u32;
-        better_msg = context.stock_system_msg(
-            if left_group {
-                StockMessage::MsgGroupLeft
-            } else {
-                StockMessage::MsgDelMember
-            },
-            X_MrRemoveFromGrp.as_ref().unwrap(),
-            "",
-            from_id as u32,
-        )
+        better_msg = context
+            .stock_system_msg(
+                if left_group {
+                    StockMessage::MsgGroupLeft
+                } else {
+                    StockMessage::MsgDelMember
+                },
+                X_MrRemoveFromGrp.as_ref().unwrap(),
+                "",
+                from_id as u32,
+            )
+            .await
     } else {
         let field = mime_parser.get(HeaderDef::ChatGroupMemberAdded).cloned();
         if let Some(optional_field) = field {
             mime_parser.is_system_message = SystemMessage::MemberAddedToGroup;
-            better_msg = context.stock_system_msg(
-                StockMessage::MsgAddMember,
-                &optional_field,
-                "",
-                from_id as u32,
-            );
+            better_msg = context
+                .stock_system_msg(
+                    StockMessage::MsgAddMember,
+                    &optional_field,
+                    "",
+                    from_id as u32,
+                )
+                .await;
             X_MrAddToGrp = Some(optional_field);
         } else {
             let field = mime_parser.get(HeaderDef::ChatGroupNameChanged);
             if let Some(field) = field {
                 X_MrGrpNameChanged = true;
-                better_msg = context.stock_system_msg(
-                    StockMessage::MsgGrpName,
-                    field,
-                    if let Some(ref name) = grpname {
-                        name
-                    } else {
-                        ""
-                    },
-                    from_id as u32,
-                );
+                better_msg = context
+                    .stock_system_msg(
+                        StockMessage::MsgGrpName,
+                        field,
+                        if let Some(ref name) = grpname {
+                            name
+                        } else {
+                            ""
+                        },
+                        from_id as u32,
+                    )
+                    .await;
 
                 mime_parser.is_system_message = SystemMessage::GroupNameChanged;
             } else if let Some(value) = mime_parser.get(HeaderDef::ChatContent) {
@@ -884,15 +908,17 @@ async fn create_or_lookup_group(
                         // this is just an explicit message containing the group-avatar,
                         // apart from that, the group-avatar is send along with various other messages
                         mime_parser.is_system_message = SystemMessage::GroupImageChanged;
-                        better_msg = context.stock_system_msg(
-                            match avatar_action {
-                                AvatarAction::Delete => StockMessage::MsgGrpImgDeleted,
-                                AvatarAction::Change(_) => StockMessage::MsgGrpImgChanged,
-                            },
-                            "",
-                            "",
-                            from_id as u32,
-                        )
+                        better_msg = context
+                            .stock_system_msg(
+                                match avatar_action {
+                                    AvatarAction::Delete => StockMessage::MsgGrpImgDeleted,
+                                    AvatarAction::Change(_) => StockMessage::MsgGrpImgChanged,
+                                },
+                                "",
+                                "",
+                                from_id as u32,
+                            )
+                            .await
                     }
                 }
             }
@@ -907,7 +933,7 @@ async fn create_or_lookup_group(
     if !chat_id.is_error() {
         if chat_id_verified {
             if let Err(err) =
-                check_verified_properties(context, mime_parser, from_id as u32, to_ids)
+                check_verified_properties(context, mime_parser, from_id as u32, to_ids).await
             {
                 warn!(context, "verification problem: {}", err);
                 let s = format!("{}. See 'Info' for more details", err);
@@ -921,7 +947,7 @@ async fn create_or_lookup_group(
             // but still show the message as part of the chat.
             // After all, the sender has a reference/in-reply-to that
             // points to this chat.
-            let s = context.stock_str(StockMessage::UnknownSenderForChat);
+            let s = context.stock_str(StockMessage::UnknownSenderForChat).await;
             mime_parser.repl_msg_by_error(s.to_string());
         }
     }
@@ -948,7 +974,7 @@ async fn create_or_lookup_group(
         // group does not exist but should be created
         let create_verified = if mime_parser.get(HeaderDef::ChatVerified).is_some() {
             if let Err(err) =
-                check_verified_properties(context, mime_parser, from_id as u32, to_ids)
+                check_verified_properties(context, mime_parser, from_id as u32, to_ids).await
             {
                 warn!(context, "verification problem: {}", err);
                 let s = format!("{}. See 'Info' for more details", err);
@@ -989,6 +1015,7 @@ async fn create_or_lookup_group(
                 from_id,
                 to_ids,
             )
+            .await
             .map_err(|err| {
                 warn!(context, "failed to create ad-hoc group: {:?}", err);
                 err
@@ -1019,7 +1046,7 @@ async fn create_or_lookup_group(
                     .sql
                     .execute(
                         "UPDATE chats SET name=? WHERE id=?;",
-                        params![grpname, chat_id],
+                        paramsv![grpname.to_string(), chat_id],
                     )
                     .await
                     .is_ok()
@@ -1061,7 +1088,7 @@ async fn create_or_lookup_group(
             if !Contact::addr_equals_contact(context, &self_addr, to_id).await
                 && !chat::is_contact_in_chat(context, chat_id, to_id).await
             {
-                chat::add_to_chat_contacts_table(context, chat_id, to_id);
+                chat::add_to_chat_contacts_table(context, chat_id, to_id).await;
             }
         }
         send_EVENT_CHAT_MODIFIED = true;
@@ -1069,7 +1096,7 @@ async fn create_or_lookup_group(
         let contact_id = Contact::lookup_id_by_addr(context, removed_addr).await;
         if contact_id != 0 {
             info!(context, "remove {:?} from chat id={}", contact_id, chat_id);
-            chat::remove_from_chat_contacts_table(context, chat_id, contact_id);
+            chat::remove_from_chat_contacts_table(context, chat_id, contact_id).await;
         }
         send_EVENT_CHAT_MODIFIED = true;
     }
@@ -1091,7 +1118,7 @@ fn extract_grpid(mime_parser: &MimeMessage, headerdef: HeaderDef) -> Option<&str
 }
 
 /// Handle groups for received messages, return chat_id/Blocked status on success
-fn create_or_lookup_adhoc_group(
+async fn create_or_lookup_adhoc_group(
     context: &Context,
     mime_parser: &MimeMessage,
     allow_creation: bool,
@@ -1126,12 +1153,14 @@ fn create_or_lookup_adhoc_group(
         return Ok((ChatId::new(0), Blocked::Not));
     }
 
-    let chat_ids = search_chat_ids_by_contact_ids(context, &member_ids)?;
+    let chat_ids = search_chat_ids_by_contact_ids(context, &member_ids).await?;
     if !chat_ids.is_empty() {
         let chat_ids_str = join(chat_ids.iter().map(|x| x.to_string()), ",");
-        let res = context.sql.query_row(
-            format!(
-                "SELECT c.id,
+        let res = context
+            .sql
+            .query_row(
+                format!(
+                    "SELECT c.id,
                         c.blocked
                    FROM chats c
                    LEFT JOIN msgs m
@@ -1140,16 +1169,17 @@ fn create_or_lookup_adhoc_group(
                   ORDER BY m.timestamp DESC,
                            m.id DESC
                   LIMIT 1;",
-                chat_ids_str
-            ),
-            params![],
-            |row| {
-                Ok((
-                    row.get::<_, ChatId>(0)?,
-                    row.get::<_, Option<Blocked>>(1)?.unwrap_or_default(),
-                ))
-            },
-        );
+                    chat_ids_str
+                ),
+                paramsv![],
+                |row| {
+                    Ok((
+                        row.get::<_, ChatId>(0)?,
+                        row.get::<_, Option<Blocked>>(1)?.unwrap_or_default(),
+                    ))
+                },
+            )
+            .await;
 
         if let Ok((id, id_blocked)) = res {
             /* success, chat found */
@@ -1167,7 +1197,7 @@ fn create_or_lookup_adhoc_group(
 
     // create a new ad-hoc group
     // - there is no need to check if this group exists; otherwise we would have caught it above
-    let grpid = create_adhoc_grp_id(context, &member_ids);
+    let grpid = create_adhoc_grp_id(context, &member_ids).await;
     if grpid.is_empty() {
         warn!(
             context,
@@ -1176,9 +1206,10 @@ fn create_or_lookup_adhoc_group(
         return Ok((ChatId::new(0), Blocked::Not));
     }
     // use subject as initial chat name
-    let grpname = mime_parser.get_subject().unwrap_or_else(|| {
-        context.stock_string_repl_int(StockMessage::Member, member_ids.len() as i32)
-    });
+    let default_name = context
+        .stock_string_repl_int(StockMessage::Member, member_ids.len() as i32)
+        .await;
+    let grpname = mime_parser.get_subject().unwrap_or_else(|| default_name);
 
     // create group record
     let new_chat_id: ChatId = create_group_record(
@@ -1187,9 +1218,10 @@ fn create_or_lookup_adhoc_group(
         grpname,
         create_blocked,
         VerifiedStatus::Unverified,
-    );
+    )
+    .await;
     for &member_id in &member_ids {
-        chat::add_to_chat_contacts_table(context, new_chat_id, member_id);
+        chat::add_to_chat_contacts_table(context, new_chat_id, member_id).await;
     }
 
     context.call_cb(Event::ChatModified(new_chat_id));
@@ -1206,7 +1238,7 @@ async fn create_group_record(
 ) -> ChatId {
     if context.sql.execute(
         "INSERT INTO chats (type, name, grpid, blocked, created_timestamp) VALUES(?, ?, ?, ?, ?);",
-        params![
+        paramsv![
             if VerifiedStatus::Unverified != create_verified {
                 Chattype::VerifiedGroup
             } else {
@@ -1245,7 +1277,7 @@ async fn create_group_record(
     chat_id
 }
 
-fn create_adhoc_grp_id(context: &Context, member_ids: &[u32]) -> String {
+async fn create_adhoc_grp_id(context: &Context, member_ids: &[u32]) -> String {
     /* algorithm:
     - sort normalized, lowercased, e-mail addresses alphabetically
     - put all e-mail addresses into a single string, separate the address by a single comma
@@ -1255,6 +1287,7 @@ fn create_adhoc_grp_id(context: &Context, member_ids: &[u32]) -> String {
     let member_ids_str = join(member_ids.iter().map(|x| x.to_string()), ",");
     let member_cs = context
         .get_config(Config::ConfiguredAddr)
+        .await
         .unwrap_or_else(|| "no-self".to_string())
         .to_lowercase();
 
@@ -1265,7 +1298,7 @@ fn create_adhoc_grp_id(context: &Context, member_ids: &[u32]) -> String {
                 "SELECT addr FROM contacts WHERE id IN({}) AND id!=1", // 1=DC_CONTACT_ID_SELF
                 member_ids_str
             ),
-            params![],
+            paramsv![],
             |row| row.get::<_, String>(0),
             |rows| {
                 let mut addrs = rows.collect::<std::result::Result<Vec<_>, _>>()?;
@@ -1278,6 +1311,7 @@ fn create_adhoc_grp_id(context: &Context, member_ids: &[u32]) -> String {
                 Ok(acc)
             },
         )
+        .await
         .unwrap_or_else(|_| member_cs);
 
     hex_hash(&members)
@@ -1289,7 +1323,7 @@ fn hex_hash(s: impl AsRef<str>) -> String {
     hex::encode(&result[..8])
 }
 
-fn search_chat_ids_by_contact_ids(
+async fn search_chat_ids_by_contact_ids(
     context: &Context,
     unsorted_contact_ids: &[u32],
 ) -> Result<Vec<ChatId>> {
@@ -1318,7 +1352,7 @@ fn search_chat_ids_by_contact_ids(
                       ORDER BY cc.chat_id, cc.contact_id;", // 1=DC_CONTACT_ID_SELF
                     contact_ids_str
                 ),
-                params![],
+                paramsv![],
                 |row| Ok((row.get::<_, ChatId>(0)?, row.get::<_, u32>(1)?)),
                 |rows| {
                     let mut last_chat_id = ChatId::new(0);
@@ -1347,20 +1381,20 @@ fn search_chat_ids_by_contact_ids(
                     }
                 Ok(())
                 }
-            )?;
+            ).await?;
         }
     }
 
     Ok(chat_ids)
 }
 
-fn check_verified_properties(
+async fn check_verified_properties(
     context: &Context,
     mimeparser: &MimeMessage,
     from_id: u32,
     to_ids: &ContactIds,
 ) -> Result<()> {
-    let contact = Contact::load_from_db(context, from_id)?;
+    let contact = Contact::load_from_db(context, from_id).await?;
 
     ensure!(mimeparser.was_encrypted(), "This message is not encrypted.");
 
@@ -1369,10 +1403,10 @@ fn check_verified_properties(
     // this check is skipped for SELF as there is no proper SELF-peerstate
     // and results in group-splits otherwise.
     if from_id != DC_CONTACT_ID_SELF {
-        let peerstate = Peerstate::from_addr(context, &context.sql, contact.get_addr());
+        let peerstate = Peerstate::from_addr(context, &context.sql, contact.get_addr()).await;
 
         if peerstate.is_none()
-            || contact.is_verified_ex(context, peerstate.as_ref())
+            || contact.is_verified_ex(context, peerstate.as_ref()).await
                 != VerifiedStatus::BidirectVerified
         {
             bail!(
@@ -1398,29 +1432,32 @@ fn check_verified_properties(
     }
     let to_ids_str = join(to_ids.iter().map(|x| x.to_string()), ",");
 
-    let rows = context.sql.query_map(
-        format!(
-            "SELECT c.addr, LENGTH(ps.verified_key_fingerprint)  FROM contacts c  \
+    let rows = context
+        .sql
+        .query_map(
+            format!(
+                "SELECT c.addr, LENGTH(ps.verified_key_fingerprint)  FROM contacts c  \
              LEFT JOIN acpeerstates ps ON c.addr=ps.addr  WHERE c.id IN({}) ",
-            to_ids_str
-        ),
-        params![],
-        |row| Ok((row.get::<_, String>(0)?, row.get::<_, i32>(1).unwrap_or(0))),
-        |rows| {
-            rows.collect::<std::result::Result<Vec<_>, _>>()
-                .map_err(Into::into)
-        },
-    )?;
+                to_ids_str
+            ),
+            paramsv![],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, i32>(1).unwrap_or(0))),
+            |rows| {
+                rows.collect::<std::result::Result<Vec<_>, _>>()
+                    .map_err(Into::into)
+            },
+        )
+        .await?;
 
     for (to_addr, _is_verified) in rows.into_iter() {
         info!(
             context,
             "check_verified_properties: {:?} self={:?}",
             to_addr,
-            context.is_self_addr(&to_addr)
+            context.is_self_addr(&to_addr).await
         );
         let mut is_verified = _is_verified != 0;
-        let peerstate = Peerstate::from_addr(context, &context.sql, &to_addr);
+        let peerstate = Peerstate::from_addr(context, &context.sql, &to_addr).await;
 
         // mark gossiped keys (if any) as verified
         if mimeparser.gossipped_addr.contains(&to_addr) {
@@ -1442,7 +1479,7 @@ fn check_verified_properties(
                             &fp,
                             PeerstateVerifiedStatus::BidirectVerified,
                         );
-                        peerstate.save_to_db(&context.sql, false)?;
+                        peerstate.save_to_db(&context.sql, false).await?;
                         is_verified = true;
                     }
                 }
@@ -1468,18 +1505,18 @@ fn set_better_msg(mime_parser: &mut MimeMessage, better_msg: impl AsRef<str>) {
     }
 }
 
-fn is_reply_to_known_message(context: &Context, mime_parser: &MimeMessage) -> bool {
+async fn is_reply_to_known_message(context: &Context, mime_parser: &MimeMessage) -> bool {
     /* check if the message is a reply to a known message; the replies are identified by the Message-ID from
     `In-Reply-To`/`References:` (to support non-Delta-Clients) */
 
     if let Some(field) = mime_parser.get(HeaderDef::InReplyTo) {
-        if is_known_rfc724_mid_in_list(context, &field) {
+        if is_known_rfc724_mid_in_list(context, &field).await {
             return true;
         }
     }
 
     if let Some(field) = mime_parser.get(HeaderDef::References) {
-        if is_known_rfc724_mid_in_list(context, &field) {
+        if is_known_rfc724_mid_in_list(context, &field).await {
             return true;
         }
     }
@@ -1487,14 +1524,14 @@ fn is_reply_to_known_message(context: &Context, mime_parser: &MimeMessage) -> bo
     false
 }
 
-fn is_known_rfc724_mid_in_list(context: &Context, mid_list: &str) -> bool {
+async fn is_known_rfc724_mid_in_list(context: &Context, mid_list: &str) -> bool {
     if mid_list.is_empty() {
         return false;
     }
 
     if let Ok(ids) = mailparse::msgidparse(mid_list) {
         for id in ids.iter() {
-            if is_known_rfc724_mid(context, id) {
+            if is_known_rfc724_mid(context, id).await {
                 return true;
             }
         }
@@ -1504,7 +1541,7 @@ fn is_known_rfc724_mid_in_list(context: &Context, mid_list: &str) -> bool {
 }
 
 /// Check if a message is a reply to a known message (messenger or non-messenger).
-fn is_known_rfc724_mid(context: &Context, rfc724_mid: &str) -> bool {
+async fn is_known_rfc724_mid(context: &Context, rfc724_mid: &str) -> bool {
     context
         .sql
         .exists(
@@ -1512,8 +1549,9 @@ fn is_known_rfc724_mid(context: &Context, rfc724_mid: &str) -> bool {
              LEFT JOIN chats c ON m.chat_id=c.id  \
              WHERE m.rfc724_mid=?  \
              AND m.chat_id>9 AND c.blocked=0;",
-            params![rfc724_mid],
+            paramsv![rfc724_mid],
         )
+        .await
         .unwrap_or_default()
 }
 
@@ -1522,15 +1560,15 @@ fn is_known_rfc724_mid(context: &Context, rfc724_mid: &str) -> bool {
 /// - checks also if any of the referenced IDs are send by a messenger
 /// - it is okay, if the referenced messages are moved to trash here
 /// - no check for the Chat-* headers (function is only called if it is no messenger message itself)
-fn is_reply_to_messenger_message(context: &Context, mime_parser: &MimeMessage) -> bool {
+async fn is_reply_to_messenger_message(context: &Context, mime_parser: &MimeMessage) -> bool {
     if let Some(value) = mime_parser.get(HeaderDef::InReplyTo) {
-        if is_msgrmsg_rfc724_mid_in_list(context, &value) {
+        if is_msgrmsg_rfc724_mid_in_list(context, &value).await {
             return true;
         }
     }
 
     if let Some(value) = mime_parser.get(HeaderDef::References) {
-        if is_msgrmsg_rfc724_mid_in_list(context, &value) {
+        if is_msgrmsg_rfc724_mid_in_list(context, &value).await {
             return true;
         }
     }
@@ -1538,10 +1576,10 @@ fn is_reply_to_messenger_message(context: &Context, mime_parser: &MimeMessage) -
     false
 }
 
-pub(crate) fn is_msgrmsg_rfc724_mid_in_list(context: &Context, mid_list: &str) -> bool {
+pub(crate) async fn is_msgrmsg_rfc724_mid_in_list(context: &Context, mid_list: &str) -> bool {
     if let Ok(ids) = mailparse::msgidparse(mid_list) {
         for id in ids.iter() {
-            if is_msgrmsg_rfc724_mid(context, id) {
+            if is_msgrmsg_rfc724_mid(context, id).await {
                 return true;
             }
         }
@@ -1550,17 +1588,18 @@ pub(crate) fn is_msgrmsg_rfc724_mid_in_list(context: &Context, mid_list: &str) -
 }
 
 /// Check if a message is a reply to any messenger message.
-fn is_msgrmsg_rfc724_mid(context: &Context, rfc724_mid: &str) -> bool {
+async fn is_msgrmsg_rfc724_mid(context: &Context, rfc724_mid: &str) -> bool {
     context
         .sql
         .exists(
             "SELECT id FROM msgs  WHERE rfc724_mid=?  AND msgrmsg!=0  AND chat_id>9;",
-            params![rfc724_mid],
+            paramsv![rfc724_mid],
         )
+        .await
         .unwrap_or_default()
 }
 
-fn dc_add_or_lookup_contacts_by_address_list(
+async fn dc_add_or_lookup_contacts_by_address_list(
     context: &Context,
     addr_list_raw: &str,
     origin: Origin,
@@ -1576,21 +1615,22 @@ fn dc_add_or_lookup_contacts_by_address_list(
     for addr in addrs.iter() {
         match addr {
             mailparse::MailAddr::Single(info) => {
-                contact_ids.insert(add_or_lookup_contact_by_addr(
-                    context,
-                    &info.display_name,
-                    &info.addr,
-                    origin,
-                )?);
+                contact_ids.insert(
+                    add_or_lookup_contact_by_addr(context, &info.display_name, &info.addr, origin)
+                        .await?,
+                );
             }
             mailparse::MailAddr::Group(infos) => {
                 for info in &infos.addrs {
-                    contact_ids.insert(add_or_lookup_contact_by_addr(
-                        context,
-                        &info.display_name,
-                        &info.addr,
-                        origin,
-                    )?);
+                    contact_ids.insert(
+                        add_or_lookup_contact_by_addr(
+                            context,
+                            &info.display_name,
+                            &info.addr,
+                            origin,
+                        )
+                        .await?,
+                    );
                 }
             }
         }
@@ -1600,13 +1640,13 @@ fn dc_add_or_lookup_contacts_by_address_list(
 }
 
 /// Add contacts to database on receiving messages.
-fn add_or_lookup_contact_by_addr(
+async fn add_or_lookup_contact_by_addr(
     context: &Context,
     display_name: &Option<String>,
     addr: &str,
     origin: Origin,
 ) -> Result<u32> {
-    if context.is_self_addr(addr)? {
+    if context.is_self_addr(addr).await? {
         return Ok(DC_CONTACT_ID_SELF);
     }
     let display_name_normalized = display_name
@@ -1615,7 +1655,7 @@ fn add_or_lookup_contact_by_addr(
         .unwrap_or_default();
 
     let (row_id, _modified) =
-        Contact::add_or_lookup(context, display_name_normalized, addr, origin)?;
+        Contact::add_or_lookup(context, display_name_normalized, addr, origin).await?;
     ensure!(row_id > 0, "could not add contact: {:?}", addr);
 
     Ok(row_id)
@@ -1650,31 +1690,35 @@ mod tests {
         assert_eq!(res, "b94d27b9934d3e08");
     }
 
-    #[test]
-    fn test_grpid_simple() {
-        let context = dummy_context();
+    #[async_std::test]
+    async fn test_grpid_simple() {
+        let context = dummy_context().await;
         let raw = b"From: hello\n\
                     Subject: outer-subject\n\
                     In-Reply-To: <lqkjwelq123@123123>\n\
                     References: <Gr.HcxyMARjyJy.9-uvzWPTLtV@nauta.cu>\n\
                     \n\
                     hello\x00";
-        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
+            .unwrap();
         assert_eq!(extract_grpid(&mimeparser, HeaderDef::InReplyTo), None);
         let grpid = Some("HcxyMARjyJy");
         assert_eq!(extract_grpid(&mimeparser, HeaderDef::References), grpid);
     }
 
-    #[test]
-    fn test_grpid_from_multiple() {
-        let context = dummy_context();
+    #[async_std::test]
+    async fn test_grpid_from_multiple() {
+        let context = dummy_context().await;
         let raw = b"From: hello\n\
                     Subject: outer-subject\n\
                     In-Reply-To: <Gr.HcxyMARjyJy.9-qweqwe@asd.net>\n\
                     References: <qweqweqwe>, <Gr.HcxyMARjyJy.9-uvzWPTLtV@nau.ca>\n\
                     \n\
                     hello\x00";
-        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
+            .unwrap();
         let grpid = Some("HcxyMARjyJy");
         assert_eq!(extract_grpid(&mimeparser, HeaderDef::InReplyTo), grpid);
         assert_eq!(extract_grpid(&mimeparser, HeaderDef::References), grpid);
