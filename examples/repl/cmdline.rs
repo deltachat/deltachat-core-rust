@@ -1,6 +1,7 @@
 extern crate dirs;
 
 use std::str::FromStr;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, ensure, Error};
 use async_std::path::Path;
@@ -13,6 +14,8 @@ use deltachat::contact::*;
 use deltachat::context::*;
 use deltachat::dc_receive_imf::*;
 use deltachat::dc_tools::*;
+use deltachat::error::Error;
+use deltachat::export_chat::{export_chat, pack_exported_chat};
 use deltachat::imex::*;
 use deltachat::location;
 use deltachat::log::LogExt;
@@ -387,6 +390,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  protect <chat-id>\n\
                  unprotect <chat-id>\n\
                  delchat <chat-id>\n\
+                 export-chat <chat-id>\n\
                  ===========================Contact requests==\n\
                  decidestartchat <msg-id>\n\
                  decideblock <msg-id>\n\
@@ -1021,6 +1025,24 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
             let chat_id = ChatId::new(arg1.parse()?);
             chat_id.delete(&context).await?;
+        }
+        "export-chat" => {
+            ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
+            let chat_id = ChatId::new(arg1.parse()?);
+            let res = export_chat(context, chat_id);
+            println!("{:?}", res);
+            let timestamp = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+            let destination_raw = context.get_blobdir().join(format!(
+                "exported_{}_{}.zip",
+                chat_id.to_u32(),
+                timestamp
+            ));
+            let destination = destination_raw.to_str().unwrap();
+            let pack_res = pack_exported_chat(context, res, destination);
+            println!("{:?} - destination: {}", pack_res, destination);
         }
         "msginfo" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
