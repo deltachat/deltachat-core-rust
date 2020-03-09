@@ -376,11 +376,12 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  * - `delete_device_after` = 0=do not delete messages from device automatically (default),
  *                    >=1=seconds, after which messages are deleted automatically from the device.
  *                    Messages in the "saved messages" chat (see dc_chat_is_self_talk()) are skipped.
+ *                    Messages are deleted whether they were seen or not, the UI should clearly point that out.
  * - `delete_server_after` = 0=do not delete messages from server automatically (default),
  *                    >=1=seconds, after which messages are deleted automatically from the server.
+ *                    Messages in the "saved messages" chat (see dc_chat_is_self_talk()) are skipped.
  *                    Also emails matching the `show_emails` settings above are deleted from the server,
  *                    the UI should clearly point that out.
- *                    Messages in the "saved messages" chat (see dc_chat_is_self_talk()) are skipped.
  *
  * If you want to retrieve a value, use dc_get_config().
  *
@@ -1302,7 +1303,7 @@ int             dc_get_fresh_msg_cnt         (dc_context_t* context, uint32_t ch
 
 
 /**
- * Estimte the number of messages that will be deleted
+ * Estimate the number of messages that will be deleted
  * by the dc_set_config()-options `delete_device_after` or `delete_server_after`.
  * This is typically used to show the estimated impact to the user before actually enabling ephemeral messages.
  *

@@ -1385,17 +1385,10 @@ pub fn estimate_deletion_cnt(
             "SELECT COUNT(*)
              FROM msgs m
              WHERE m.id > ?
-               AND (state = ? OR state >= ?)
-               AND chat_id != ?
                AND timestamp < ?
+               AND chat_id != ?
                AND server_uid != 0;",
-            params![
-                DC_MSG_ID_LAST_SPECIAL,
-                MessageState::InSeen,
-                MessageState::OutFailed,
-                self_chat_id,
-                threshold_timestamp
-            ],
+            params![DC_MSG_ID_LAST_SPECIAL, threshold_timestamp, self_chat_id],
             |row| row.get(0),
         )?;
     } else {
@@ -1403,16 +1396,13 @@ pub fn estimate_deletion_cnt(
             "SELECT COUNT(*)
              FROM msgs m
              WHERE m.id > ?
-               AND (state = ? OR state >= ?)
-               AND chat_id != ?
                AND timestamp < ?
-               AND chat_id != ?;",
+               AND chat_id != ?
+               AND chat_id != ? AND hidden = 0;",
             params![
                 DC_MSG_ID_LAST_SPECIAL,
-                MessageState::InSeen,
-                MessageState::OutFailed,
-                self_chat_id,
                 threshold_timestamp,
+                self_chat_id,
                 ChatId::new(DC_CHAT_ID_TRASH)
             ],
             |row| row.get(0),
