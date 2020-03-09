@@ -159,6 +159,17 @@ impl Context {
         }
     }
 
+    /// Gets configured "delete_device_after" value.
+    ///
+    /// `None` means never delete the message, `Some(x)` means delete
+    /// after `x` seconds.
+    pub fn get_config_delete_device_after(&self) -> Option<i64> {
+        match self.get_config_int(Config::DeleteDeviceAfter) {
+            0 => None,
+            x => Some(x as i64),
+        }
+    }
+
     /// Set the given config key.
     /// If `None` is passed as a value the value is cleared and set to the default if there is one.
     pub fn set_config(&self, key: Config, value: Option<&str>) -> crate::sql::Result<()> {
