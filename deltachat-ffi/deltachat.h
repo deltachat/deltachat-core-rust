@@ -379,9 +379,8 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    Messages are deleted whether they were seen or not, the UI should clearly point that out.
  * - `delete_server_after` = 0=do not delete messages from server automatically (default),
  *                    >=1=seconds, after which messages are deleted automatically from the server.
- *                    Messages in the "saved messages" chat (see dc_chat_is_self_talk()) are skipped.
- *                    Also emails matching the `show_emails` settings above are deleted from the server,
- *                    the UI should clearly point that out.
+ *                    "Saved messages" are deleted from the server as well as
+ *                    emails matching the `show_emails` settings above, the UI should clearly point that out.
  *
  * If you want to retrieve a value, use dc_get_config().
  *
