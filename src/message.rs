@@ -1379,9 +1379,8 @@ pub fn estimate_deletion_cnt(
         .0;
     let threshold_timestamp = time() - seconds;
 
-    let cnt: isize;
-    if from_server {
-        cnt = context.sql.query_row(
+    let cnt: isize = if from_server {
+        context.sql.query_row(
             "SELECT COUNT(*)
              FROM msgs m
              WHERE m.id > ?
@@ -1390,9 +1389,9 @@ pub fn estimate_deletion_cnt(
                AND server_uid != 0;",
             params![DC_MSG_ID_LAST_SPECIAL, threshold_timestamp, self_chat_id],
             |row| row.get(0),
-        )?;
+        )?
     } else {
-        cnt = context.sql.query_row(
+        context.sql.query_row(
             "SELECT COUNT(*)
              FROM msgs m
              WHERE m.id > ?
@@ -1406,8 +1405,8 @@ pub fn estimate_deletion_cnt(
                 ChatId::new(DC_CHAT_ID_TRASH)
             ],
             |row| row.get(0),
-        )?;
-    }
+        )?
+    };
     Ok(cnt as usize)
 }
 
