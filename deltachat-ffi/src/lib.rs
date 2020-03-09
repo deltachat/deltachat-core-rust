@@ -1058,7 +1058,7 @@ pub unsafe extern "C" fn dc_estimate_deletion_cnt(
     let ffi_context = &*context;
     ffi_context
         .with_inner(|ctx| {
-            message::estimate_deletion_cnt(ctx, from_server as bool, seconds).unwrap_or(0)
+            message::estimate_deletion_cnt(ctx, from_server != 0, seconds).unwrap_or(0)
                 as libc::c_int
         })
         .unwrap_or(0)
