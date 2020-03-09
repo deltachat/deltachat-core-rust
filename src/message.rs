@@ -1370,11 +1370,55 @@ pub fn get_deaddrop_msg_cnt(context: &Context) -> usize {
 }
 
 pub fn estimate_deletion_cnt(
-    _context: &Context,
-    _from_server: bool,
-    _seconds: i64,
+    context: &Context,
+    from_server: bool,
+    seconds: i64,
 ) -> Result<usize, Error> {
-    Ok(0)
+    let self_chat_id = chat::lookup_by_contact_id(context, DC_CONTACT_ID_SELF)
+        .unwrap_or_default()
+        .0;
+    let threshold_timestamp = time() - seconds;
+
+    let cnt: isize;
+    if from_server {
+        cnt = context.sql.query_row(
+            "SELECT COUNT(*)
+             FROM msgs m
+             WHERE m.id > ?
+               AND (state = ? OR state >= ?)
+               AND chat_id != ?
+               AND timestamp < ?
+               AND server_uid != 0;",
+            params![
+                DC_MSG_ID_LAST_SPECIAL,
+                MessageState::InSeen,
+                MessageState::OutFailed,
+                self_chat_id,
+                threshold_timestamp
+            ],
+            |row| row.get(0),
+        )?;
+    } else {
+        cnt = context.sql.query_row(
+            "SELECT COUNT(*)
+             FROM msgs m
+             WHERE m.id > ?
+               AND (state = ? OR state >= ?)
+               AND chat_id != ?
+               AND timestamp < ?
+               AND chat_id != ?;",
+            params![
+                DC_MSG_ID_LAST_SPECIAL,
+                MessageState::InSeen,
+                MessageState::OutFailed,
+                self_chat_id,
+                threshold_timestamp,
+                ChatId::new(DC_CHAT_ID_TRASH)
+            ],
+            |row| row.get(0),
+        )?;
+    }
+    Ok(cnt as usize)
 }
 
 /// Counts number of database records pointing to specified
