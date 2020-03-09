@@ -1309,7 +1309,7 @@ int             dc_get_fresh_msg_cnt         (dc_context_t* context, uint32_t ch
  * @param context The context object as returned from dc_context_new().
  * @param from_server 1=Estimate deletion count for server, 0=Estimate deletion count for device
  * @param seconds Count messages older than the given number of seconds.
- * @return Number of messages that are older than the given number of messages.
+ * @return Number of messages that are older than the given number of seconds.
  *     This includes emails downloaded due to the `show_emails` option.
  *     Messages in the "saved messages" folder are not counted as they will not be deleted automatically.
  */
