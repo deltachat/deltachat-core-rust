@@ -76,6 +76,14 @@ pub enum Config {
     #[strum(props(default = "0"))]
     DeleteServerAfter,
 
+    /// Timer in seconds after which the message is deleted from the
+    /// device.
+    ///
+    /// Equals to 0 by default, which means the message is never
+    /// deleted.
+    #[strum(props(default = "0"))]
+    DeleteDeviceAfter,
+
     SaveMimeHeaders,
     ConfiguredAddr,
     ConfiguredMailServer,
