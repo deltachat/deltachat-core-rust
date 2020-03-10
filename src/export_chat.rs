@@ -57,7 +57,7 @@ pub fn export_chat(context: &Context, chat_id: ChatId) -> ExportChatResult {
         if let Ok(c) = contact {
             let profile_img_path: String;
             if let Some(path) = c.get_profile_image(context) {
-                profile_img_path = path.to_str().unwrap_or_else(|| "").to_owned();
+                profile_img_path = path.file_name().unwrap_or_else(|| std::ffi::OsStr::new("")).to_str().unwrap().to_owned();
                  // push referenced blobs (avatars)
                  blobs.push(profile_img_path.clone());
             } else {
@@ -78,10 +78,11 @@ pub fn export_chat(context: &Context, chat_id: ChatId) -> ExportChatResult {
         }
     }
 
+    // run message_to_html for each message and generate the html that way
     let mut html_messages:Vec<String> = Vec::new();
     for message in messages {
         if let Ok(msg) = message {
-            html_messages.push(message_to_html(&context, &chat_authors, msg));
+            html_messages.push(message_to_html(&chat_authors, msg));
         } else {
             html_messages.push(
                 format!(
@@ -100,18 +101,20 @@ pub fn export_chat(context: &Context, chat_id: ChatId) -> ExportChatResult {
         }
     }
 
-    // run message_to_html for each message and generate the html that way
-
     // todo chat image, chat name and so on..
 
     // todo option to export locations as kml?
+
+    // todo export message infos and save them to txt files
+    // (those can be linked from the messages, they are stored in msg_info/[msg-id].txt)
+
     ExportChatResult {
         html: format!(r#"<ul>{}</ul>"#, html_messages.join("")),
         referenced_blobs: blobs,
     }
 }
 
-fn message_to_html(ctx: &Context, author_cache: &HashMap<u32, ContactInfo>, message: Message) -> String {
+fn message_to_html(author_cache: &HashMap<u32, ContactInfo>, message: Message) -> String {
     let author: &ContactInfo = {
         if let Some(c) = author_cache.get(&message.get_from_id()) {
             c
@@ -126,7 +129,7 @@ fn message_to_html(ctx: &Context, author_cache: &HashMap<u32, ContactInfo>, mess
                 r#"<div class="author-avatar">
                     <img
                         alt="{author_name}"
-                        src="{author_avatar_src}"
+                        src="blobs/{author_avatar_src}"
                     />
                 </div>"#,
                 author_name = author.name,
@@ -161,11 +164,8 @@ fn message_to_html(ctx: &Context, author_cache: &HashMap<u32, ContactInfo>, mess
             </div>
             <div class="metadata">
               {encryption}
-              <span
-                class="date date--{direction}"
-                title="{full_time}"
-                >{relative_time}</span
-              ><span class="spacer"></span>
+              <span class="date date--{direction}" title="{full_time}">{relative_time}</span>
+              <span class="spacer"></span>
             </div>
           </div>
         </div>

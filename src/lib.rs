@@ -36,7 +36,7 @@ pub mod constants;
 pub mod contact;
 pub mod context;
 mod e2ee;
-mod export_chat;
+pub mod export_chat;
 mod imap;
 pub mod imex;
 #[macro_use]

@@ -11,6 +11,7 @@ use deltachat::dc_tools::*;
 use deltachat::error::Error;
 use deltachat::imex::*;
 use deltachat::job::*;
+use deltachat::export_chat::export_chat;
 use deltachat::location;
 use deltachat::lot::LotState;
 use deltachat::message::{self, Message, MessageState, MsgId};
@@ -374,6 +375,7 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
                  pin <chat-id>\n\
                  unpin <chat-id>\n\
                  delchat <chat-id>\n\
+                 export-chat <chat-id>\n\
                  ===========================Message commands==\n\
                  listmsgs <query>\n\
                  msginfo <msg-id>\n\
@@ -867,6 +869,12 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
             ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
             let chat_id = ChatId::new(arg1.parse()?);
             chat_id.delete(context)?;
+        }
+        "export-chat" => {
+            ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
+            let chat_id = ChatId::new(arg1.parse()?);
+            let res = export_chat(context, chat_id);
+            println!("{:?}", res);
         }
         "msginfo" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
