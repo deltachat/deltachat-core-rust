@@ -7,16 +7,17 @@ use crate::error::Error;
 use crate::message::*;
 use std::collections::HashMap;
 
+#[derive(Debug)]
 pub struct ExportChatResult {
     html: String,
     referenced_blobs: Vec<String>,
 }
 
-struct ContactInfo<'t> {
-    name: &'t str,
-    initial: &'t str,
-    color: &'t str,
-    profile_img: Option<&'t str>,
+struct ContactInfo {
+    name: String,
+    initial: String,
+    color: String,
+    profile_img: Option<String>,
 }
 
 // pub fn packExportedChat(artifact:ExportChatResult) -> ? {}
@@ -31,10 +32,11 @@ pub fn export_chat(context: &Context, chat_id: ChatId) -> ExportChatResult {
             .map(|msg_id| Message::load_from_db(context, msg_id))
             .collect();
     // push all referenced blobs and populate contactid list
-    for message in messages {
-        if let Ok(msg) = message {
+    for message in &messages {
+        if let Ok(msg) = &message {
             let filename = msg.get_filename();
             if let Some(file) = filename {
+                // push referenced blobs (attachments)
                 blobs.push(file);
             }
             chat_author_ids.push(msg.from_id);
@@ -42,63 +44,84 @@ pub fn export_chat(context: &Context, chat_id: ChatId) -> ExportChatResult {
     }
     // deduplicate contact list and load the contacts
     chat_author_ids.dedup();
+    // chache information about the authors
     let mut chat_authors: HashMap<u32, ContactInfo> = HashMap::new();
+    chat_authors.insert(0, ContactInfo {
+        name: "Err: Contact not found".to_owned(),
+        initial: "#".to_owned(),
+        profile_img: None,
+        color: "grey".to_owned(),
+    });
     for author_id in chat_author_ids {
         let contact = Contact::get_by_id(context, author_id);
         if let Ok(c) = contact {
             let profile_img_path: String;
             if let Some(path) = c.get_profile_image(context) {
                 profile_img_path = path.to_str().unwrap_or_else(|| "").to_owned();
-                blobs.push(profile_img_path.clone());
+                 // push referenced blobs (avatars)
+                 blobs.push(profile_img_path.clone());
             } else {
                 profile_img_path = "".to_owned();
             }
             chat_authors.insert(
                 author_id,
                 ContactInfo {
-                    name: c.get_display_name(),
-                    initial: "#",
+                    name: c.get_display_name().to_owned(),
+                    initial: "#".to_owned(), // TODO
                     profile_img: match profile_img_path != "" {
-                        true => Some(&profile_img_path),
+                        true => Some(profile_img_path),
                         false => None,
                     },
-                    color: "rgb(18, 126, 208)",
+                    color: "rgb(18, 126, 208)".to_owned(), // TODO
                 },
             );
         }
     }
 
-    // author props
-    // name, id, image, color
-
-    // push all referenced blobs (avatars)
+    let mut html_messages:Vec<String> = Vec::new();
+    for message in messages {
+        if let Ok(msg) = message {
+            html_messages.push(message_to_html(&context, &chat_authors, msg));
+        } else {
+            html_messages.push(
+                format!(
+                    r#"<li>
+                        <div class='message error'>
+                            <div class="msg-container">
+                                <div class="msg-body">
+                                    <div dir="auto" class="text">{:?}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </li>"#,
+                    message.unwrap_err()
+                )
+            );
+        }
+    }
 
     // run message_to_html for each message and generate the html that way
 
+    // todo chat image, chat name and so on..
+
+    // todo option to export locations as kml?
     ExportChatResult {
-        html: "".to_owned(),
+        html: format!(r#"<ul>{}</ul>"#, html_messages.join("")),
         referenced_blobs: blobs,
     }
 }
 
-fn message_to_html(ctx: &Context, author_cache: HashMap<u32, ContactInfo>, id: MsgId) -> String {
-    let message = Message::load_from_db(ctx, id).unwrap();
-
+fn message_to_html(ctx: &Context, author_cache: &HashMap<u32, ContactInfo>, message: Message) -> String {
     let author: &ContactInfo = {
         if let Some(c) = author_cache.get(&message.get_from_id()) {
             c
         } else {
-            &ContactInfo {
-                name: "Err: Contact not found",
-                initial: "#",
-                profile_img: None,
-                color: "grey",
-            }
+            author_cache.get(&0).unwrap()
         }
     };
 
     let avatar: String = {
-        if let Some(profile_img) = author.profile_img {
+        if let Some(profile_img) = &author.profile_img {
             format!(
                 r#"<div class="author-avatar">
                     <img
