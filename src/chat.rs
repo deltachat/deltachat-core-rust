@@ -2508,6 +2508,31 @@ pub(crate) fn add_info_msg(context: &Context, chat_id: ChatId, text: impl AsRef<
     });
 }
 
+/// Hides or deletes messages which are expired according to
+/// "delete_device_after" setting.
+pub fn delete_device_expired_messages(context: &Context) -> sql::Result<()> {
+    if let Some(delete_device_after) = context.get_config_delete_device_after() {
+        let threshold_timestamp = time() - delete_device_after;
+
+        // Hide expired messages
+        context.sql.execute(
+            "UPDATE msgs \
+             SET txt = '', hidden = 1 \
+             WHERE timestamp < ?",
+            params![threshold_timestamp],
+        )?;
+
+        // Delete hidden messages that are removed from the server.
+        context.sql.execute(
+            "DELETE FROM msgs \
+             WHERE (chat_id = ? OR hidden) \
+             AND server_uid = 0",
+            params![DC_CHAT_ID_TRASH],
+        )?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
