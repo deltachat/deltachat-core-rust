@@ -80,6 +80,7 @@ pub(crate) const DC_FROM_HANDSHAKE: i32 = 0x01;
 pub const DC_GCL_ARCHIVED_ONLY: usize = 0x01;
 pub const DC_GCL_NO_SPECIALS: usize = 0x02;
 pub const DC_GCL_ADD_ALLDONE_HINT: usize = 0x04;
+pub const DC_GCL_FOR_FORWARDING: usize = 0x08;
 
 pub const DC_GCM_ADDDAYMARKER: u32 = 0x01;
 

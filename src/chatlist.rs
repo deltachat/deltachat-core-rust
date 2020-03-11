@@ -1,5 +1,6 @@
 //! # Chat list module
 
+use crate::chat;
 use crate::chat::*;
 use crate::constants::*;
 use crate::contact::*;
@@ -73,6 +74,8 @@ impl Chatlist {
     ///   if DC_GCL_ARCHIVED_ONLY is not set, only unarchived chats are returned and
     ///   the pseudo-chat DC_CHAT_ID_ARCHIVED_LINK is added if there are *any* archived
     ///   chats
+    /// - the flag DC_GCL_FOR_FORWARDING sorts "Saved messages" to the top of the chatlist,
+    //    typically used on forwarding, may be combined with DC_GCL_NO_SPECIALS
     /// - if the flag DC_GCL_NO_SPECIALS is set, deaddrop and archive link are not added
     ///   to the list (may be used eg. for selecting chats on forwarding, the flag is
     ///   not needed when DC_GCL_ARCHIVED_ONLY is already set)
@@ -190,6 +193,13 @@ impl Chatlist {
             )?
         } else {
             //  show normal chatlist
+            let sort_id_up = if 0 != listflags & DC_GCL_FOR_FORWARDING {
+                chat::lookup_by_contact_id(context, DC_CONTACT_ID_SELF)
+                    .unwrap_or_default()
+                    .0
+            } else {
+                ChatId::new(0)
+            };
             let mut ids = context.sql.query_map(
                 "SELECT c.id, m.id
                  FROM chats c
@@ -204,17 +214,19 @@ impl Chatlist {
                    AND c.blocked=0
                    AND NOT c.archived=?2
                  GROUP BY c.id
-                 ORDER BY c.archived=?3 DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
-                params![MessageState::OutDraft, ChatVisibility::Archived, ChatVisibility::Pinned],
+                 ORDER BY c.id=?3 DESC, c.archived=?4 DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
+                params![MessageState::OutDraft, ChatVisibility::Archived, sort_id_up, ChatVisibility::Pinned],
                 process_row,
                 process_rows,
             )?;
             if 0 == listflags & DC_GCL_NO_SPECIALS {
                 if let Some(last_deaddrop_fresh_msg_id) = get_last_deaddrop_fresh_msg(context) {
-                    ids.insert(
-                        0,
-                        (ChatId::new(DC_CHAT_ID_DEADDROP), last_deaddrop_fresh_msg_id),
-                    );
+                    if 0 == listflags & DC_GCL_FOR_FORWARDING {
+                        ids.insert(
+                            0,
+                            (ChatId::new(DC_CHAT_ID_DEADDROP), last_deaddrop_fresh_msg_id),
+                        );
+                    }
                 }
                 add_archived_link_item = true;
             }
@@ -397,6 +409,22 @@ mod tests {
             .ok();
         let chats = Chatlist::try_load(&t.ctx, DC_GCL_ARCHIVED_ONLY, None, None).unwrap();
         assert_eq!(chats.len(), 1);
+    }
+
+    #[test]
+    fn test_sort_self_talk_up_on_forward() {
+        let t = dummy_context();
+        t.ctx.update_device_chats().unwrap();
+
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        assert!(Chat::load_from_db(&t.ctx, chats.get_chat_id(0))
+            .unwrap()
+            .is_device_talk());
+
+        let chats = Chatlist::try_load(&t.ctx, DC_GCL_FOR_FORWARDING, None, None).unwrap();
+        assert!(Chat::load_from_db(&t.ctx, chats.get_chat_id(0))
+            .unwrap()
+            .is_self_talk());
     }
 
     #[test]
