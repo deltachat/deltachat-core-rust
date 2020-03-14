@@ -1,7 +1,6 @@
 //! # Messages and their identifiers
 
-use std::path::{Path, PathBuf};
-
+use async_std::path::{Path, PathBuf};
 use deltachat_derive::{FromSql, ToSql};
 use failure::Fail;
 use lazy_static::lazy_static;
@@ -349,7 +348,7 @@ impl Message {
                     self.param.set_int(Param::Width, 0);
                     self.param.set_int(Param::Height, 0);
 
-                    if let Ok(buf) = dc_read_file(context, path_and_filename) {
+                    if let Ok(buf) = dc_read_file(context, path_and_filename).await {
                         if let Ok((width, height)) = dc_get_filemeta(&buf) {
                             self.param.set_int(Param::Width, width as i32);
                             self.param.set_int(Param::Height, height as i32);
@@ -450,12 +449,12 @@ impl Message {
             .map(|name| name.to_string_lossy().to_string())
     }
 
-    pub fn get_filebytes(&self, context: &Context) -> u64 {
-        self.param
-            .get_path(Param::File, context)
-            .unwrap_or(None)
-            .map(|path| dc_get_filebytes(context, &path))
-            .unwrap_or_default()
+    pub async fn get_filebytes(&self, context: &Context) -> u64 {
+        match self.param.get_path(Param::File, context) {
+            Ok(Some(path)) => dc_get_filebytes(context, &path).await,
+            Ok(None) => 0,
+            Err(_) => 0,
+        }
     }
 
     pub fn get_width(&self) -> i32 {
@@ -558,13 +557,13 @@ impl Message {
         self.param.get_cmd() == SystemMessage::AutocryptSetupMessage
     }
 
-    pub fn get_setupcodebegin(&self, context: &Context) -> Option<String> {
+    pub async fn get_setupcodebegin(&self, context: &Context) -> Option<String> {
         if !self.is_setupmessage() {
             return None;
         }
 
         if let Some(filename) = self.get_file(context) {
-            if let Ok(ref buf) = dc_read_file(context, filename) {
+            if let Ok(ref buf) = dc_read_file(context, filename).await {
                 if let Ok((typ, headers, _)) = split_armored_data(buf) {
                     if typ == pgp::armor::BlockType::Message {
                         return headers.get(crate::pgp::HEADER_SETUPCODE).cloned();
@@ -909,7 +908,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
     }
 
     if let Some(path) = msg.get_file(context) {
-        let bytes = dc_get_filebytes(context, &path);
+        let bytes = dc_get_filebytes(context, &path).await;
         ret += &format!("\nFile: {}, {}, bytes\n", path.display(), bytes);
     }
 

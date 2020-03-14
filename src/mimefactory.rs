@@ -808,7 +808,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             meta.viewtype = Viewtype::Image;
             meta.param.set(Param::File, grpimage);
 
-            let (mail, filename_as_sent) = build_body_file(context, &meta, "group-image")?;
+            let (mail, filename_as_sent) = build_body_file(context, &meta, "group-image").await?;
             meta_part = Some(mail);
             protected_headers.push(Header::new("Chat-Group-Avatar".into(), filename_as_sent));
         }
@@ -879,13 +879,13 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
 
         // add attachment part
         if chat::msgtype_has_file(self.msg.viewtype) {
-            if !is_file_size_okay(context, &self.msg) {
+            if !is_file_size_okay(context, &self.msg).await {
                 bail!(
                     "Message exceeds the recommended {} MB.",
                     RECOMMENDED_FILE_SIZE / 1_000_000,
                 );
             } else {
-                let (file_part, _) = build_body_file(context, &self.msg, "")?;
+                let (file_part, _) = build_body_file(context, &self.msg, "").await?;
                 parts.push(file_part);
             }
         }
@@ -1035,14 +1035,15 @@ fn wrapped_base64_encode(buf: &[u8]) -> String {
         .join("\r\n")
 }
 
-fn build_body_file(
+async fn build_body_file(
     context: &Context,
     msg: &Message,
     base_name: &str,
 ) -> Result<(PartBuilder, String), Error> {
     let blob = msg
         .param
-        .get_blob(Param::File, context, true)?
+        .get_blob(Param::File, context, true)
+        .await?
         .ok_or_else(|| format_err!("msg has no filename"))?;
     let suffix = blob.suffix().unwrap_or("dat");
 
@@ -1138,10 +1139,10 @@ fn recipients_contain_addr(recipients: &[(String, String)], addr: &str) -> bool 
         .any(|(_, cur)| cur.to_lowercase() == addr_lc)
 }
 
-fn is_file_size_okay(context: &Context, msg: &Message) -> bool {
+async fn is_file_size_okay(context: &Context, msg: &Message) -> bool {
     match msg.param.get_path(Param::File, context).unwrap_or(None) {
         Some(path) => {
-            let bytes = dc_get_filebytes(context, &path);
+            let bytes = dc_get_filebytes(context, &path).await;
             bytes <= UPPER_LIMIT_FILE_SIZE
         }
         None => false,

@@ -463,7 +463,7 @@ impl MimeMessage {
 
                     self.parse_mime_recursive(context, &mail).await
                 }
-                MimeS::Single => self.add_single_part_if_known(context, mail),
+                MimeS::Single => self.add_single_part_if_known(context, mail).await,
             }
         }
         .boxed()
@@ -578,7 +578,7 @@ impl MimeMessage {
         Ok(any_part_added)
     }
 
-    fn add_single_part_if_known(
+    async fn add_single_part_if_known(
         &mut self,
         context: &Context,
         mail: &mailparse::ParsedMail<'_>,
@@ -600,7 +600,8 @@ impl MimeMessage {
                     &raw_mime,
                     &mail.get_body_raw()?,
                     &filename,
-                );
+                )
+                .await;
             }
             None => {
                 match mime_type.type_() {
@@ -652,7 +653,7 @@ impl MimeMessage {
         Ok(self.parts.len() > old_part_count)
     }
 
-    fn do_add_single_file_part(
+    async fn do_add_single_file_part(
         &mut self,
         context: &Context,
         msg_type: Viewtype,
@@ -685,7 +686,7 @@ impl MimeMessage {
         /* we have a regular file attachment,
         write decoded data to new blob object */
 
-        let blob = match BlobObject::create(context, filename, decoded_data) {
+        let blob = match BlobObject::create(context, filename, decoded_data).await {
             Ok(blob) => blob,
             Err(err) => {
                 error!(

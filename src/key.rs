@@ -2,8 +2,8 @@
 
 use std::collections::BTreeMap;
 use std::io::Cursor;
-use std::path::Path;
 
+use async_std::path::Path;
 use pgp::composed::Deserializable;
 use pgp::ser::Serialize;
 use pgp::types::{KeyTrait, SecretKeyTrait};
@@ -268,14 +268,14 @@ impl Key {
             .expect("failed to serialize key")
     }
 
-    pub fn write_asc_to_file(
+    pub async fn write_asc_to_file(
         &self,
         file: impl AsRef<Path>,
         context: &Context,
     ) -> std::io::Result<()> {
         let file_content = self.to_asc(None).into_bytes();
 
-        let res = dc_write_file(context, &file, &file_content);
+        let res = dc_write_file(context, &file, &file_content).await;
         if res.is_err() {
             error!(context, "Cannot write key to {}", file.as_ref().display());
         }

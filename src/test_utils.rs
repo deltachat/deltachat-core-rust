@@ -32,7 +32,9 @@ pub(crate) async fn test_context(callback: Option<Box<ContextCallback>>) -> Test
         Some(cb) => cb,
         None => Box::new(|_, _| ()),
     };
-    let ctx = Context::new(cb, "FakeOs".into(), dbfile).await.unwrap();
+    let ctx = Context::new(cb, "FakeOs".into(), dbfile.into())
+        .await
+        .unwrap();
     TestContext { ctx, dir }
 }
 

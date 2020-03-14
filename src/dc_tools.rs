@@ -3,11 +3,12 @@
 
 use core::cmp::{max, min};
 use std::borrow::Cow;
-use std::path::{Path, PathBuf};
+use std::fmt;
 use std::str::FromStr;
 use std::time::SystemTime;
-use std::{fmt, fs};
 
+use async_std::path::{Path, PathBuf};
+use async_std::{fs, io};
 use chrono::{Local, TimeZone};
 use rand::{thread_rng, Rng};
 
@@ -240,11 +241,8 @@ pub fn dc_get_filemeta(buf: &[u8]) -> Result<(u32, u32), Error> {
 ///
 /// If `path` starts with "$BLOBDIR", replaces it with the blobdir path.
 /// Otherwise, returns path as is.
-pub(crate) fn dc_get_abs_path<P: AsRef<std::path::Path>>(
-    context: &Context,
-    path: P,
-) -> std::path::PathBuf {
-    let p: &std::path::Path = path.as_ref();
+pub(crate) fn dc_get_abs_path<P: AsRef<Path>>(context: &Context, path: P) -> PathBuf {
+    let p: &Path = path.as_ref();
     if let Ok(p) = p.strip_prefix("$BLOBDIR") {
         context.get_blobdir().join(p)
     } else {
@@ -252,20 +250,20 @@ pub(crate) fn dc_get_abs_path<P: AsRef<std::path::Path>>(
     }
 }
 
-pub(crate) fn dc_get_filebytes(context: &Context, path: impl AsRef<std::path::Path>) -> u64 {
+pub(crate) async fn dc_get_filebytes(context: &Context, path: impl AsRef<Path>) -> u64 {
     let path_abs = dc_get_abs_path(context, &path);
-    match fs::metadata(&path_abs) {
+    match fs::metadata(&path_abs).await {
         Ok(meta) => meta.len() as u64,
         Err(_err) => 0,
     }
 }
 
-pub(crate) fn dc_delete_file(context: &Context, path: impl AsRef<std::path::Path>) -> bool {
+pub(crate) async fn dc_delete_file(context: &Context, path: impl AsRef<Path>) -> bool {
     let path_abs = dc_get_abs_path(context, &path);
-    if !path_abs.exists() {
+    if !path_abs.exists().await {
         return false;
     }
-    if !path_abs.is_file() {
+    if !path_abs.is_file().await {
         warn!(
             context,
             "refusing to delete non-file \"{}\".",
@@ -275,7 +273,7 @@ pub(crate) fn dc_delete_file(context: &Context, path: impl AsRef<std::path::Path
     }
 
     let dpath = format!("{}", path.as_ref().to_string_lossy());
-    match fs::remove_file(path_abs) {
+    match fs::remove_file(path_abs).await {
         Ok(_) => {
             context.call_cb(Event::DeletedBlobFile(dpath));
             true
@@ -287,13 +285,13 @@ pub(crate) fn dc_delete_file(context: &Context, path: impl AsRef<std::path::Path
     }
 }
 
-pub(crate) fn dc_copy_file(
+pub(crate) async fn dc_copy_file(
     context: &Context,
-    src_path: impl AsRef<std::path::Path>,
-    dest_path: impl AsRef<std::path::Path>,
+    src_path: impl AsRef<Path>,
+    dest_path: impl AsRef<Path>,
 ) -> bool {
     let src_abs = dc_get_abs_path(context, &src_path);
-    let mut src_file = match fs::File::open(&src_abs) {
+    let mut src_file = match fs::File::open(&src_abs).await {
         Ok(file) => file,
         Err(err) => {
             warn!(
@@ -311,6 +309,7 @@ pub(crate) fn dc_copy_file(
         .create_new(true)
         .write(true)
         .open(&dest_abs)
+        .await
     {
         Ok(file) => file,
         Err(err) => {
@@ -324,7 +323,7 @@ pub(crate) fn dc_copy_file(
         }
     };
 
-    match std::io::copy(&mut src_file, &mut dest_file) {
+    match io::copy(&mut src_file, &mut dest_file).await {
         Ok(_) => true,
         Err(err) => {
             error!(
@@ -336,20 +335,20 @@ pub(crate) fn dc_copy_file(
             );
             {
                 // Attempt to remove the failed file, swallow errors resulting from that.
-                fs::remove_file(dest_abs).ok();
+                fs::remove_file(dest_abs).await.ok();
             }
             false
         }
     }
 }
 
-pub(crate) fn dc_create_folder(
+pub(crate) async fn dc_create_folder(
     context: &Context,
-    path: impl AsRef<std::path::Path>,
-) -> Result<(), std::io::Error> {
+    path: impl AsRef<Path>,
+) -> Result<(), io::Error> {
     let path_abs = dc_get_abs_path(context, &path);
-    if !path_abs.exists() {
-        match fs::create_dir_all(path_abs) {
+    if !path_abs.exists().await {
+        match fs::create_dir_all(path_abs).await {
             Ok(_) => Ok(()),
             Err(err) => {
                 warn!(
@@ -367,13 +366,13 @@ pub(crate) fn dc_create_folder(
 }
 
 /// Write a the given content to provied file path.
-pub(crate) fn dc_write_file(
+pub(crate) async fn dc_write_file(
     context: &Context,
     path: impl AsRef<Path>,
     buf: &[u8],
-) -> Result<(), std::io::Error> {
+) -> Result<(), io::Error> {
     let path_abs = dc_get_abs_path(context, &path);
-    fs::write(&path_abs, buf).map_err(|err| {
+    fs::write(&path_abs, buf).await.map_err(|err| {
         warn!(
             context,
             "Cannot write {} bytes to \"{}\": {}",
@@ -385,13 +384,10 @@ pub(crate) fn dc_write_file(
     })
 }
 
-pub fn dc_read_file<P: AsRef<std::path::Path>>(
-    context: &Context,
-    path: P,
-) -> Result<Vec<u8>, Error> {
+pub async fn dc_read_file<P: AsRef<Path>>(context: &Context, path: P) -> Result<Vec<u8>, Error> {
     let path_abs = dc_get_abs_path(context, &path);
 
-    match fs::read(&path_abs) {
+    match fs::read(&path_abs).await {
         Ok(bytes) => Ok(bytes),
         Err(err) => {
             warn!(
@@ -405,13 +401,31 @@ pub fn dc_read_file<P: AsRef<std::path::Path>>(
     }
 }
 
-pub fn dc_open_file<P: AsRef<std::path::Path>>(
+pub async fn dc_open_file<P: AsRef<Path>>(context: &Context, path: P) -> Result<fs::File, Error> {
+    let path_abs = dc_get_abs_path(context, &path);
+
+    match fs::File::open(&path_abs).await {
+        Ok(bytes) => Ok(bytes),
+        Err(err) => {
+            warn!(
+                context,
+                "Cannot read \"{}\" or file is empty: {}",
+                path.as_ref().display(),
+                err
+            );
+            Err(err.into())
+        }
+    }
+}
+
+pub fn dc_open_file_std<P: AsRef<std::path::Path>>(
     context: &Context,
     path: P,
 ) -> Result<std::fs::File, Error> {
-    let path_abs = dc_get_abs_path(context, &path);
+    let p: PathBuf = path.as_ref().into();
+    let path_abs = dc_get_abs_path(context, p);
 
-    match fs::File::open(&path_abs) {
+    match std::fs::File::open(&path_abs) {
         Ok(bytes) => Ok(bytes),
         Err(err) => {
             warn!(
@@ -425,7 +439,7 @@ pub fn dc_open_file<P: AsRef<std::path::Path>>(
     }
 }
 
-pub(crate) fn dc_get_next_backup_path(
+pub(crate) async fn dc_get_next_backup_path(
     folder: impl AsRef<Path>,
     backup_time: i64,
 ) -> Result<PathBuf, Error> {
@@ -438,7 +452,7 @@ pub(crate) fn dc_get_next_backup_path(
     for i in 0..64 {
         let mut path = folder.clone();
         path.push(format!("{}-{}.bak", stem, i));
-        if !path.exists() {
+        if !path.exists().await {
             return Ok(path);
         }
     }
@@ -715,27 +729,31 @@ mod tests {
     async fn test_file_handling() {
         let t = dummy_context().await;
         let context = &t.ctx;
-        let dc_file_exist = |ctx: &Context, fname: &str| {
-            ctx.get_blobdir()
-                .join(Path::new(fname).file_name().unwrap())
-                .exists()
-        };
-
-        assert!(!dc_delete_file(context, "$BLOBDIR/lkqwjelqkwlje"));
-        if dc_file_exist(context, "$BLOBDIR/foobar")
-            || dc_file_exist(context, "$BLOBDIR/dada")
-            || dc_file_exist(context, "$BLOBDIR/foobar.dadada")
-            || dc_file_exist(context, "$BLOBDIR/foobar-folder")
-        {
-            dc_delete_file(context, "$BLOBDIR/foobar");
-            dc_delete_file(context, "$BLOBDIR/dada");
-            dc_delete_file(context, "$BLOBDIR/foobar.dadada");
-            dc_delete_file(context, "$BLOBDIR/foobar-folder");
+        macro_rules! dc_file_exist {
+            ($ctx:expr, $fname:expr) => {
+                $ctx.get_blobdir()
+                    .join(Path::new($fname).file_name().unwrap())
+                    .exists()
+            };
         }
-        assert!(dc_write_file(context, "$BLOBDIR/foobar", b"content").is_ok());
-        assert!(dc_file_exist(context, "$BLOBDIR/foobar",));
-        assert!(!dc_file_exist(context, "$BLOBDIR/foobarx"));
-        assert_eq!(dc_get_filebytes(context, "$BLOBDIR/foobar"), 7);
+
+        assert!(!dc_delete_file(context, "$BLOBDIR/lkqwjelqkwlje").await);
+        if dc_file_exist!(context, "$BLOBDIR/foobar").await
+            || dc_file_exist!(context, "$BLOBDIR/dada").await
+            || dc_file_exist!(context, "$BLOBDIR/foobar.dadada").await
+            || dc_file_exist!(context, "$BLOBDIR/foobar-folder").await
+        {
+            dc_delete_file(context, "$BLOBDIR/foobar").await;
+            dc_delete_file(context, "$BLOBDIR/dada").await;
+            dc_delete_file(context, "$BLOBDIR/foobar.dadada").await;
+            dc_delete_file(context, "$BLOBDIR/foobar-folder").await;
+        }
+        assert!(dc_write_file(context, "$BLOBDIR/foobar", b"content")
+            .await
+            .is_ok());
+        assert!(dc_file_exist!(context, "$BLOBDIR/foobar").await);
+        assert!(!dc_file_exist!(context, "$BLOBDIR/foobarx").await);
+        assert_eq!(dc_get_filebytes(context, "$BLOBDIR/foobar").await, 7);
 
         let abs_path = context
             .get_blobdir()
@@ -743,31 +761,33 @@ mod tests {
             .to_string_lossy()
             .to_string();
 
-        assert!(dc_file_exist(context, &abs_path));
+        assert!(dc_file_exist!(context, &abs_path).await);
 
-        assert!(dc_copy_file(context, "$BLOBDIR/foobar", "$BLOBDIR/dada",));
+        assert!(dc_copy_file(context, "$BLOBDIR/foobar", "$BLOBDIR/dada").await);
 
         // attempting to copy a second time should fail
-        assert!(!dc_copy_file(context, "$BLOBDIR/foobar", "$BLOBDIR/dada",));
+        assert!(!dc_copy_file(context, "$BLOBDIR/foobar", "$BLOBDIR/dada").await);
 
-        assert_eq!(dc_get_filebytes(context, "$BLOBDIR/dada",), 7);
+        assert_eq!(dc_get_filebytes(context, "$BLOBDIR/dada").await, 7);
 
-        let buf = dc_read_file(context, "$BLOBDIR/dada").unwrap();
+        let buf = dc_read_file(context, "$BLOBDIR/dada").await.unwrap();
 
         assert_eq!(buf.len(), 7);
         assert_eq!(&buf, b"content");
 
-        assert!(dc_delete_file(context, "$BLOBDIR/foobar"));
-        assert!(dc_delete_file(context, "$BLOBDIR/dada"));
-        assert!(dc_create_folder(context, "$BLOBDIR/foobar-folder").is_ok());
-        assert!(dc_file_exist(context, "$BLOBDIR/foobar-folder",));
-        assert!(!dc_delete_file(context, "$BLOBDIR/foobar-folder"));
+        assert!(dc_delete_file(context, "$BLOBDIR/foobar").await);
+        assert!(dc_delete_file(context, "$BLOBDIR/dada").await);
+        assert!(dc_create_folder(context, "$BLOBDIR/foobar-folder")
+            .await
+            .is_ok());
+        assert!(dc_file_exist!(context, "$BLOBDIR/foobar-folder").await);
+        assert!(!dc_delete_file(context, "$BLOBDIR/foobar-folder").await);
 
         let fn0 = "$BLOBDIR/data.data";
-        assert!(dc_write_file(context, &fn0, b"content").is_ok());
+        assert!(dc_write_file(context, &fn0, b"content").await.is_ok());
 
-        assert!(dc_delete_file(context, &fn0));
-        assert!(!dc_file_exist(context, &fn0));
+        assert!(dc_delete_file(context, &fn0).await);
+        assert!(!dc_file_exist!(context, &fn0).await);
     }
 
     #[test]

@@ -1,8 +1,9 @@
 //! # Import/export module
 
-use core::cmp::{max, min};
-use std::path::Path;
+use std::cmp::{max, min};
 
+use async_std::path::{Path, PathBuf};
+use async_std::prelude::*;
 use num_traits::FromPrimitive;
 use rand::{thread_rng, Rng};
 
@@ -83,10 +84,10 @@ pub async fn imex(context: &Context, what: ImexMode, param1: Option<impl AsRef<P
 /// Returns the filename of the backup found (otherwise an error)
 pub async fn has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result<String> {
     let dir_name = dir_name.as_ref();
-    let dir_iter = std::fs::read_dir(dir_name)?;
+    let mut dir_iter = async_std::fs::read_dir(dir_name).await?;
     let mut newest_backup_time = 0;
-    let mut newest_backup_path: Option<std::path::PathBuf> = None;
-    for dirent in dir_iter {
+    let mut newest_backup_path: Option<PathBuf> = None;
+    while let Some(dirent) = dir_iter.next().await {
         if let Ok(dirent) = dirent {
             let path = dirent.path();
             let name = dirent.file_name();
@@ -133,7 +134,8 @@ async fn do_initiate_key_transfer(context: &Context) -> Result<String> {
         context,
         "autocrypt-setup-message.html",
         setup_file_content.as_bytes(),
-    )?;
+    )
+    .await?;
 
     let chat_id = chat::create_by_contact_id(context, DC_CONTACT_ID_SELF).await?;
     msg = Message::default();
@@ -270,7 +272,7 @@ pub async fn continue_key_transfer(
     );
 
     if let Some(filename) = msg.get_file(context) {
-        let file = dc_open_file(context, filename)?;
+        let file = dc_open_file_std(context, filename)?;
         let sc = normalize_setup_code(setup_code);
         let armored_key = decrypt_setup_file(context, &sc, file)?;
         set_self_key(context, &armored_key, true, true).await?;
@@ -383,7 +385,7 @@ pub async fn job_imex_imap(context: &Context, job: &Job) -> Result<()> {
             context.free_ongoing().await;
             bail!("Cannot create private key or private key not available.");
         } else {
-            dc_create_folder(context, &param)?;
+            dc_create_folder(context, &param).await?;
         }
     }
     let path = Path::new(param);
@@ -424,14 +426,14 @@ async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) ->
         "Cannot import backups to accounts in use."
     );
     context.sql.close(&context).await;
-    dc_delete_file(context, context.get_dbfile());
+    dc_delete_file(context, context.get_dbfile()).await;
     ensure!(
-        !context.get_dbfile().exists(),
+        !context.get_dbfile().exists().await,
         "Cannot delete old database."
     );
 
     ensure!(
-        dc_copy_file(context, backup_to_import.as_ref(), context.get_dbfile()),
+        dc_copy_file(context, backup_to_import.as_ref(), context.get_dbfile()).await,
         "could not copy file"
     );
     /* error already logged */
@@ -494,7 +496,7 @@ async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) ->
         }
 
         let path_filename = context.get_blobdir().join(file_name);
-        dc_write_file(context, &path_filename, &file_blob)?;
+        dc_write_file(context, &path_filename, &file_blob).await?;
     }
 
     if all_files_extracted {
@@ -520,7 +522,7 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     // FIXME: we should write to a temporary file first and rename it on success. this would guarantee the backup is complete.
     // let dest_path_filename = dc_get_next_backup_file(context, dir, res);
     let now = time();
-    let dest_path_filename = dc_get_next_backup_path(dir, now)?;
+    let dest_path_filename = dc_get_next_backup_path(dir, now).await?;
     let dest_path_string = dest_path_filename.to_string_lossy().to_string();
 
     sql::housekeeping(context).await;
@@ -535,7 +537,7 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
         context.get_dbfile().display(),
         dest_path_filename.display(),
     );
-    let copied = dc_copy_file(context, context.get_dbfile(), &dest_path_filename);
+    let copied = dc_copy_file(context, context.get_dbfile(), &dest_path_filename).await;
     context
         .sql
         .open(&context, &context.get_dbfile(), false)
@@ -556,7 +558,7 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     );
     let res = match add_files_to_export(context, &dest_sql).await {
         Err(err) => {
-            dc_delete_file(context, &dest_path_filename);
+            dc_delete_file(context, &dest_path_filename).await;
             error!(context, "backup failed: {}", err);
             Err(err)
         }
@@ -586,17 +588,17 @@ async fn add_files_to_export(context: &Context, sql: &Sql) -> Result<()> {
     // copy all files from BLOBDIR into backup-db
     let mut total_files_cnt = 0;
     let dir = context.get_blobdir();
-    let dir_handle = std::fs::read_dir(&dir)?;
-    total_files_cnt += dir_handle.filter(|r| r.is_ok()).count();
+    let dir_handle = async_std::fs::read_dir(&dir).await?;
+    total_files_cnt += dir_handle.filter(|r| r.is_ok()).count().await;
 
     info!(context, "EXPORT: total_files_cnt={}", total_files_cnt);
 
     sql.with_conn_async(|conn| async move {
         // scan directory, pass 2: copy files
-        let dir_handle = std::fs::read_dir(&dir)?;
+        let mut dir_handle = async_std::fs::read_dir(&dir).await?;
 
         let mut processed_files_cnt = 0;
-        for entry in dir_handle {
+        while let Some(entry) = dir_handle.next().await {
             let entry = entry?;
             if context.shall_stop_ongoing().await {
                 return Ok(());
@@ -612,7 +614,7 @@ async fn add_files_to_export(context: &Context, sql: &Sql) -> Result<()> {
             }
             info!(context, "EXPORT: copying filename={}", name);
             let curr_path_filename = context.get_blobdir().join(entry.file_name());
-            if let Ok(buf) = dc_read_file(context, &curr_path_filename) {
+            if let Ok(buf) = dc_read_file(context, &curr_path_filename).await {
                 if buf.is_empty() {
                     continue;
                 }
@@ -644,8 +646,8 @@ async fn import_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()
     let mut imported_cnt = 0;
 
     let dir_name = dir.as_ref().to_string_lossy();
-    let dir_handle = std::fs::read_dir(&dir)?;
-    for entry in dir_handle {
+    let mut dir_handle = async_std::fs::read_dir(&dir).await?;
+    while let Some(entry) = dir_handle.next().await {
         let entry_fn = entry?.file_name();
         let name_f = entry_fn.to_string_lossy();
         let path_plus_name = dir.as_ref().join(&entry_fn);
@@ -665,7 +667,7 @@ async fn import_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()
                 continue;
             }
         }
-        match dc_read_file(context, &path_plus_name) {
+        match dc_read_file(context, &path_plus_name).await {
             Ok(buf) => {
                 let armored = std::string::String::from_utf8_lossy(&buf);
                 if let Err(err) = set_self_key(context, &armored, set_default, false).await {
@@ -688,7 +690,7 @@ async fn import_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()
 async fn export_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     let mut export_errors = 0;
 
-    context
+    let keys = context
         .sql
         .query_map(
             "SELECT id, public_key, private_key, is_default FROM keypairs;",
@@ -704,29 +706,35 @@ async fn export_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()
                 Ok((id, public_key, private_key, is_default))
             },
             |keys| {
-                for key_pair in keys {
-                    let (id, public_key, private_key, is_default) = key_pair?;
-                    let id = Some(id).filter(|_| is_default != 0);
-                    if let Some(key) = public_key {
-                        if export_key_to_asc_file(context, &dir, id, &key).is_err() {
-                            export_errors += 1;
-                        }
-                    } else {
-                        export_errors += 1;
-                    }
-                    if let Some(key) = private_key {
-                        if export_key_to_asc_file(context, &dir, id, &key).is_err() {
-                            export_errors += 1;
-                        }
-                    } else {
-                        export_errors += 1;
-                    }
-                }
-
-                Ok(())
+                keys.collect::<std::result::Result<Vec<_>, _>>()
+                    .map_err(Into::into)
             },
         )
         .await?;
+
+    for (id, public_key, private_key, is_default) in keys {
+        let id = Some(id).filter(|_| is_default != 0);
+        if let Some(key) = public_key {
+            if export_key_to_asc_file(context, &dir, id, &key)
+                .await
+                .is_err()
+            {
+                export_errors += 1;
+            }
+        } else {
+            export_errors += 1;
+        }
+        if let Some(key) = private_key {
+            if export_key_to_asc_file(context, &dir, id, &key)
+                .await
+                .is_err()
+            {
+                export_errors += 1;
+            }
+        } else {
+            export_errors += 1;
+        }
+    }
 
     ensure!(export_errors == 0, "errors while exporting keys");
     Ok(())
@@ -735,7 +743,7 @@ async fn export_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()
 /*******************************************************************************
  * Classic key export
  ******************************************************************************/
-fn export_key_to_asc_file(
+async fn export_key_to_asc_file(
     context: &Context,
     dir: impl AsRef<Path>,
     id: Option<i64>,
@@ -748,9 +756,9 @@ fn export_key_to_asc_file(
         dir.as_ref().join(format!("{}-key-{}.asc", kind, &id))
     };
     info!(context, "Exporting key {}", file_name.display());
-    dc_delete_file(context, &file_name);
+    dc_delete_file(context, &file_name).await;
 
-    let res = key.write_asc_to_file(&file_name, context);
+    let res = key.write_asc_to_file(&file_name, context).await;
     if res.is_err() {
         error!(context, "Cannot write key to {}", file_name.display());
     } else {
@@ -819,10 +827,12 @@ mod tests {
         let context = dummy_context().await;
         let key = Key::from(alice_keypair().public);
         let blobdir = "$BLOBDIR";
-        assert!(export_key_to_asc_file(&context.ctx, blobdir, None, &key).is_ok());
+        assert!(export_key_to_asc_file(&context.ctx, blobdir, None, &key)
+            .await
+            .is_ok());
         let blobdir = context.ctx.get_blobdir().to_str().unwrap();
         let filename = format!("{}/public-key-default.asc", blobdir);
-        let bytes = std::fs::read(&filename).unwrap();
+        let bytes = async_std::fs::read(&filename).await.unwrap();
 
         assert_eq!(bytes, key.to_asc(None).into_bytes());
     }

@@ -141,7 +141,7 @@ impl Context {
                     .await?;
                 match value {
                     Some(value) => {
-                        let blob = BlobObject::new_from_path(&self, value)?;
+                        let blob = BlobObject::new_from_path(&self, value).await?;
                         blob.recode_to_avatar_size(self)?;
                         self.sql
                             .set_raw_config(self, key, Some(blob.as_name()))
@@ -231,12 +231,12 @@ mod tests {
             .write_all(avatar_bytes)
             .unwrap();
         let avatar_blob = t.ctx.get_blobdir().join("avatar.jpg");
-        assert!(!avatar_blob.exists());
+        assert!(!avatar_blob.exists().await);
         t.ctx
             .set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))
             .await
             .unwrap();
-        assert!(avatar_blob.exists());
+        assert!(avatar_blob.exists().await);
         assert!(std::fs::metadata(&avatar_blob).unwrap().len() < avatar_bytes.len() as u64);
         let avatar_cfg = t.ctx.get_config(Config::Selfavatar).await;
         assert_eq!(avatar_cfg, avatar_blob.to_str().map(|s| s.to_string()));

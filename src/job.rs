@@ -261,7 +261,7 @@ impl Job {
             .get_path(Param::File, context)
             .map_err(|_| format_err!("Can't get filename")))
         .ok_or_else(|| format_err!("Can't get filename")));
-        let body = job_try!(dc_read_file(context, &filename));
+        let body = job_try!(dc_read_file(context, &filename).await);
         let recipients = job_try!(self.param.get(Param::Recipients).ok_or_else(|| {
             warn!(context, "Missing recipients for job {}", self.job_id);
             format_err!("Missing recipients")
@@ -298,7 +298,7 @@ impl Job {
                     set_delivered(context, MsgId::new(foreign_id)).await;
                 }
                 // now also delete the generated file
-                dc_delete_file(context, filename);
+                dc_delete_file(context, filename).await;
                 Ok(())
             }
         })
@@ -1086,7 +1086,7 @@ async fn add_smtp_job(
     ensure!(!recipients.is_empty(), "no recipients for smtp job set");
     let mut param = Params::new();
     let bytes = &rendered_msg.message;
-    let blob = BlobObject::create(context, &rendered_msg.rfc724_mid, bytes)?;
+    let blob = BlobObject::create(context, &rendered_msg.rfc724_mid, bytes).await?;
 
     let recipients = recipients.join("\x1e");
     param.set(Param::File, blob.as_name());

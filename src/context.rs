@@ -2,9 +2,9 @@
 
 use std::collections::HashMap;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 
+use async_std::path::{Path, PathBuf};
 use async_std::sync::{Arc, Mutex, RwLock};
 
 use crate::chat::*;
@@ -94,7 +94,7 @@ impl Context {
         blob_fname.push(dbfile.file_name().unwrap_or_default());
         blob_fname.push("-blobs");
         let blobdir = dbfile.with_file_name(blob_fname);
-        if !blobdir.exists() {
+        if !blobdir.exists().await {
             std::fs::create_dir_all(&blobdir)?;
         }
         Context::with_blobdir(cb, os_name, dbfile, blobdir).await
@@ -107,7 +107,7 @@ impl Context {
         blobdir: PathBuf,
     ) -> Result<Context> {
         ensure!(
-            blobdir.is_dir(),
+            blobdir.is_dir().await,
             "Blobdir does not exist: {}",
             blobdir.display()
         );
@@ -518,7 +518,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         std::fs::write(&dbfile, b"123").unwrap();
-        let res = Context::new(Box::new(|_, _| ()), "FakeOs".into(), dbfile).await;
+        let res = Context::new(Box::new(|_, _| ()), "FakeOs".into(), dbfile.into()).await;
         assert!(res.is_err());
     }
 
@@ -533,7 +533,7 @@ mod tests {
     async fn test_blobdir_exists() {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
-        Context::new(Box::new(|_, _| ()), "FakeOS".into(), dbfile)
+        Context::new(Box::new(|_, _| ()), "FakeOS".into(), dbfile.into())
             .await
             .unwrap();
         let blobdir = tmp.path().join("db.sqlite-blobs");
@@ -546,7 +546,7 @@ mod tests {
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = tmp.path().join("db.sqlite-blobs");
         std::fs::write(&blobdir, b"123").unwrap();
-        let res = Context::new(Box::new(|_, _| ()), "FakeOS".into(), dbfile).await;
+        let res = Context::new(Box::new(|_, _| ()), "FakeOS".into(), dbfile.into()).await;
         assert!(res.is_err());
     }
 
@@ -556,7 +556,7 @@ mod tests {
         let subdir = tmp.path().join("subdir");
         let dbfile = subdir.join("db.sqlite");
         let dbfile2 = dbfile.clone();
-        Context::new(Box::new(|_, _| ()), "FakeOS".into(), dbfile)
+        Context::new(Box::new(|_, _| ()), "FakeOS".into(), dbfile.into())
             .await
             .unwrap();
         assert!(subdir.is_dir());
@@ -568,8 +568,13 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = PathBuf::new();
-        let res =
-            Context::with_blobdir(Box::new(|_, _| ()), "FakeOS".into(), dbfile, blobdir).await;
+        let res = Context::with_blobdir(
+            Box::new(|_, _| ()),
+            "FakeOS".into(),
+            dbfile.into(),
+            blobdir.into(),
+        )
+        .await;
         assert!(res.is_err());
     }
 
@@ -578,8 +583,13 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = tmp.path().join("blobs");
-        let res =
-            Context::with_blobdir(Box::new(|_, _| ()), "FakeOS".into(), dbfile, blobdir).await;
+        let res = Context::with_blobdir(
+            Box::new(|_, _| ()),
+            "FakeOS".into(),
+            dbfile.into(),
+            blobdir.into(),
+        )
+        .await;
         assert!(res.is_err());
     }
 

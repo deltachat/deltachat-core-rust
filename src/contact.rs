@@ -1,7 +1,6 @@
 //! Contacts module
 
-use std::path::PathBuf;
-
+use async_std::path::PathBuf;
 use deltachat_derive::*;
 use itertools::Itertools;
 use rusqlite;

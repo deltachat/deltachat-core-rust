@@ -96,7 +96,7 @@ impl Sql {
     }
 
     // return true on success, false on failure
-    pub async fn open(&self, context: &Context, dbfile: &Path, readonly: bool) -> bool {
+    pub async fn open<T: AsRef<Path>>(&self, context: &Context, dbfile: T, readonly: bool) -> bool {
         match open(context, self, dbfile, readonly).await {
             Ok(_) => true,
             Err(crate::error::Error::SqlError(Error::SqlAlreadyOpen)) => false,
@@ -607,7 +607,7 @@ pub async fn housekeeping(context: &Context) {
                     entry.file_name()
                 );
                 let path = entry.path();
-                dc_delete_file(context, path);
+                dc_delete_file(context, path).await;
             }
         }
         Err(err) => {

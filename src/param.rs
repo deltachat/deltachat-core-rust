@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 use std::fmt;
-use std::path::PathBuf;
 use std::str;
 
+use async_std::path::PathBuf;
 use num_traits::FromPrimitive;
 use serde::{Deserialize, Serialize};
 
@@ -281,7 +281,7 @@ impl Params {
     /// created without copying if the path already referes to a valid
     /// blob.  If so a [BlobObject] will be returned regardless of the
     /// `create` argument.
-    pub fn get_blob<'a>(
+    pub async fn get_blob<'a>(
         &self,
         key: Param,
         context: &'a Context,
@@ -294,7 +294,7 @@ impl Params {
         let file = ParamsFile::from_param(context, val)?;
         let blob = match file {
             ParamsFile::FsPath(path) => match create {
-                true => BlobObject::new_from_path(context, path)?,
+                true => BlobObject::new_from_path(context, path).await?,
                 false => BlobObject::from_path(context, path)?,
             },
             ParamsFile::Blob(blob) => blob,
@@ -368,8 +368,8 @@ impl<'a> ParamsFile<'a> {
 mod tests {
     use super::*;
 
-    use std::fs;
-    use std::path::Path;
+    use async_std::fs;
+    use async_std::path::Path;
 
     use crate::test_utils::*;
 
@@ -446,20 +446,25 @@ mod tests {
         p.set(Param::File, fname.to_str().unwrap());
 
         let file = p.get_file(Param::File, &t.ctx).unwrap().unwrap();
-        assert_eq!(file, ParamsFile::FsPath(fname.clone()));
+        assert_eq!(file, ParamsFile::FsPath(fname.clone().into()));
 
-        let path = p.get_path(Param::File, &t.ctx).unwrap().unwrap();
+        let path: PathBuf = p.get_path(Param::File, &t.ctx).unwrap().unwrap();
+        let fname: PathBuf = fname.into();
         assert_eq!(path, fname);
 
         // Blob does not exist yet, expect BlobError.
-        let err = p.get_blob(Param::File, &t.ctx, false).unwrap_err();
+        let err = p.get_blob(Param::File, &t.ctx, false).await.unwrap_err();
         match err {
             BlobError::WrongBlobdir { .. } => (),
             _ => panic!("wrong error type/variant: {:?}", err),
         }
 
-        fs::write(fname, b"boo").unwrap();
-        let blob = p.get_blob(Param::File, &t.ctx, true).unwrap().unwrap();
+        fs::write(fname, b"boo").await.unwrap();
+        let blob = p
+            .get_blob(Param::File, &t.ctx, true)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(
             blob,
             BlobObject::from_name(&t.ctx, "foo".to_string()).unwrap()
@@ -468,7 +473,11 @@ mod tests {
         // Blob in blobdir, expect blob.
         let bar = t.ctx.get_blobdir().join("bar");
         p.set(Param::File, bar.to_str().unwrap());
-        let blob = p.get_blob(Param::File, &t.ctx, false).unwrap().unwrap();
+        let blob = p
+            .get_blob(Param::File, &t.ctx, false)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(
             blob,
             BlobObject::from_name(&t.ctx, "bar".to_string()).unwrap()
@@ -477,6 +486,10 @@ mod tests {
         p.remove(Param::File);
         assert!(p.get_file(Param::File, &t.ctx).unwrap().is_none());
         assert!(p.get_path(Param::File, &t.ctx).unwrap().is_none());
-        assert!(p.get_blob(Param::File, &t.ctx, false).unwrap().is_none());
+        assert!(p
+            .get_blob(Param::File, &t.ctx, false)
+            .await
+            .unwrap()
+            .is_none());
     }
 }

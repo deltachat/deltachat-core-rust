@@ -36,7 +36,7 @@ async fn main() {
     let dir = tempdir().unwrap();
     let dbfile = dir.path().join("db.sqlite");
     println!("creating database {:?}", dbfile);
-    let ctx = Context::new(Box::new(cb), "FakeOs".into(), dbfile)
+    let ctx = Context::new(Box::new(cb), "FakeOs".into(), dbfile.into())
         .await
         .expect("Failed to create context");
     let running = Arc::new(RwLock::new(true));

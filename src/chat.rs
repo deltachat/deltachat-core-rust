@@ -1,9 +1,9 @@
 //! # Chat module
 
 use std::convert::TryFrom;
-use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
+use async_std::path::{Path, PathBuf};
 use itertools::Itertools;
 use num_traits::FromPrimitive;
 use serde::{Deserialize, Serialize};
@@ -326,7 +326,8 @@ impl ChatId {
             _ => {
                 let blob = msg
                     .param
-                    .get_blob(Param::File, context, !msg.is_increation())?
+                    .get_blob(Param::File, context, !msg.is_increation())
+                    .await?
                     .ok_or_else(|| format_err!("No file stored in params"))?;
                 msg.param.set(Param::File, blob.as_name());
             }
@@ -697,7 +698,8 @@ impl Chat {
             profile_image: self
                 .get_profile_image(context)
                 .await
-                .unwrap_or_else(PathBuf::new),
+                .map(Into::into)
+                .unwrap_or_else(std::path::PathBuf::new),
             subtitle: self.get_subtitle(context).await,
             draft,
             is_muted: self.is_muted(),
@@ -1046,7 +1048,7 @@ pub struct ChatInfo {
     ///
     /// If there is no profile image set this will be an empty string
     /// currently.
-    pub profile_image: PathBuf,
+    pub profile_image: std::path::PathBuf,
 
     /// Subtitle for the chat.
     pub subtitle: String,
@@ -1158,7 +1160,7 @@ pub(crate) async fn update_saved_messages_icon(context: &Context) -> Result<(), 
     // if there is no saved-messages chat, there is nothing to update. this is no error.
     if let Ok((chat_id, _)) = lookup_by_contact_id(context, DC_CONTACT_ID_SELF).await {
         let icon = include_bytes!("../assets/icon-saved-messages.png");
-        let blob = BlobObject::create(context, "icon-saved-messages.png".to_string(), icon)?;
+        let blob = BlobObject::create(context, "icon-saved-messages.png".to_string(), icon).await?;
         let icon = blob.as_name().to_string();
 
         let mut chat = Chat::load_from_db(context, chat_id).await?;
@@ -1172,7 +1174,7 @@ pub(crate) async fn update_device_icon(context: &Context) -> Result<(), Error> {
     // if there is no device-chat, there is nothing to update. this is no error.
     if let Ok((chat_id, _)) = lookup_by_contact_id(context, DC_CONTACT_ID_DEVICE).await {
         let icon = include_bytes!("../assets/icon-device.png");
-        let blob = BlobObject::create(context, "icon-device.png".to_string(), icon)?;
+        let blob = BlobObject::create(context, "icon-device.png".to_string(), icon).await?;
         let icon = blob.as_name().to_string();
 
         let mut chat = Chat::load_from_db(context, chat_id).await?;
@@ -1335,13 +1337,14 @@ pub(crate) fn msgtype_has_file(msgtype: Viewtype) -> bool {
     }
 }
 
-fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<(), Error> {
+async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<(), Error> {
     if msg.viewtype == Viewtype::Text {
         // the caller should check if the message text is empty
     } else if msgtype_has_file(msg.viewtype) {
         let blob = msg
             .param
-            .get_blob(Param::File, context, !msg.is_increation())?
+            .get_blob(Param::File, context, !msg.is_increation())
+            .await?
             .ok_or_else(|| {
                 format_err!("Attachment missing for message of type #{}", msg.viewtype)
             })?;
@@ -1383,7 +1386,7 @@ async fn prepare_msg_common(
     msg: &mut Message,
 ) -> Result<MsgId, Error> {
     msg.id = MsgId::new_unset();
-    prepare_msg_blob(context, msg)?;
+    prepare_msg_blob(context, msg).await?;
     chat_id.unarchive(context).await?;
 
     let mut chat = Chat::load_from_db(context, chat_id).await?;
@@ -2364,14 +2367,15 @@ pub async fn set_chat_profile_image(
                 .await,
         );
     } else {
-        let image_blob = BlobObject::from_path(context, Path::new(new_image.as_ref())).or_else(
-            |err| match err {
+        let image_blob = match BlobObject::from_path(context, Path::new(new_image.as_ref())) {
+            Ok(blob) => Ok(blob),
+            Err(err) => match err {
                 BlobError::WrongBlobdir { .. } => {
-                    BlobObject::create_and_copy(context, Path::new(new_image.as_ref()))
+                    BlobObject::create_and_copy(context, Path::new(new_image.as_ref())).await
                 }
                 _ => Err(err),
             },
-        )?;
+        }?;
         image_blob.recode_to_avatar_size(context)?;
         chat.param.set(Param::ProfileImage, image_blob.as_name());
         msg.param.set(Param::Arg, image_blob.as_name());
@@ -2560,7 +2564,7 @@ pub async fn add_device_msg(
 
         let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
         msg.try_calc_and_set_dimensions(context).await.ok();
-        prepare_msg_blob(context, msg)?;
+        prepare_msg_blob(context, msg).await?;
         chat_id.unarchive(context).await?;
 
         context.sql.execute(
