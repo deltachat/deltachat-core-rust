@@ -201,6 +201,7 @@ impl Chatlist {
             //  show normal chatlist
             let sort_id_up = if 0 != listflags & DC_GCL_FOR_FORWARDING {
                 chat::lookup_by_contact_id(context, DC_CONTACT_ID_SELF)
+                    .await
                     .unwrap_or_default()
                     .0
             } else {
@@ -441,18 +442,22 @@ mod tests {
         assert_eq!(chats.len(), 1);
     }
 
-    #[test]
-    fn test_sort_self_talk_up_on_forward() {
-        let t = dummy_context();
-        t.ctx.update_device_chats().unwrap();
+    #[async_std::test]
+    async fn test_sort_self_talk_up_on_forward() {
+        let t = dummy_context().await;
+        t.ctx.update_device_chats().await.unwrap();
 
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert!(Chat::load_from_db(&t.ctx, chats.get_chat_id(0))
+            .await
             .unwrap()
             .is_device_talk());
 
-        let chats = Chatlist::try_load(&t.ctx, DC_GCL_FOR_FORWARDING, None, None).unwrap();
+        let chats = Chatlist::try_load(&t.ctx, DC_GCL_FOR_FORWARDING, None, None)
+            .await
+            .unwrap();
         assert!(Chat::load_from_db(&t.ctx, chats.get_chat_id(0))
+            .await
             .unwrap()
             .is_self_talk());
     }
