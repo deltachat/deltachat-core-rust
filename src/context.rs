@@ -6,6 +6,7 @@ use std::sync::atomic::AtomicBool;
 
 use async_std::path::{Path, PathBuf};
 use async_std::sync::{Arc, Mutex, RwLock};
+use crossbeam_queue::SegQueue;
 
 use crate::chat::*;
 use crate::config::Config;
@@ -24,16 +25,6 @@ use crate::param::Params;
 use crate::smtp::Smtp;
 use crate::sql::Sql;
 
-/// Callback function type for [Context]
-///
-/// # Parameters
-///
-/// * `context` - The context object as returned by [Context::new].
-/// * `event` - One of the [Event] items.
-/// * `data1` - Depends on the event parameter, see [Event].
-/// * `data2` - Depends on the event parameter, see [Event].
-pub type ContextCallback = dyn Fn(&Context, Event) -> () + Send + Sync;
-
 #[derive(DebugStub)]
 pub struct Context {
     /// Database file path
@@ -48,8 +39,6 @@ pub struct Context {
     pub mvbox_thread: JobThread,
     pub smtp: Smtp,
     pub oauth2_critical: Arc<Mutex<()>>,
-    #[debug_stub = "Callback"]
-    cb: Box<ContextCallback>,
     pub os_name: Option<String>,
     pub cmdline_sel_chat_id: Arc<RwLock<ChatId>>,
     pub(crate) bob: Arc<RwLock<BobStatus>>,
@@ -58,6 +47,8 @@ pub struct Context {
     /// Mutex to avoid generating the key for the user more than once.
     pub generating_key_mutex: Mutex<()>,
     pub translated_stockstrings: RwLock<HashMap<usize, String>>,
+
+    pub(crate) logs: SegQueue<Event>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -83,11 +74,7 @@ pub fn get_info() -> HashMap<&'static str, String> {
 
 impl Context {
     /// Creates new context.
-    pub async fn new(
-        cb: Box<ContextCallback>,
-        os_name: String,
-        dbfile: PathBuf,
-    ) -> Result<Context> {
+    pub async fn new(os_name: String, dbfile: PathBuf) -> Result<Context> {
         pretty_env_logger::try_init_timed().ok();
 
         let mut blob_fname = OsString::new();
@@ -95,13 +82,12 @@ impl Context {
         blob_fname.push("-blobs");
         let blobdir = dbfile.with_file_name(blob_fname);
         if !blobdir.exists().await {
-            std::fs::create_dir_all(&blobdir)?;
+            async_std::fs::create_dir_all(&blobdir).await?;
         }
-        Context::with_blobdir(cb, os_name, dbfile, blobdir).await
+        Context::with_blobdir(os_name, dbfile, blobdir).await
     }
 
     pub async fn with_blobdir(
-        cb: Box<ContextCallback>,
         os_name: String,
         dbfile: PathBuf,
         blobdir: PathBuf,
@@ -114,7 +100,6 @@ impl Context {
         let ctx = Context {
             blobdir,
             dbfile,
-            cb,
             os_name: Some(os_name),
             running_state: Arc::new(RwLock::new(Default::default())),
             sql: Sql::new(),
@@ -130,6 +115,7 @@ impl Context {
             perform_inbox_jobs_needed: Default::default(),
             generating_key_mutex: Mutex::new(()),
             translated_stockstrings: RwLock::new(HashMap::new()),
+            logs: SegQueue::new(),
         };
 
         ensure!(
@@ -151,7 +137,17 @@ impl Context {
     }
 
     pub fn call_cb(&self, event: Event) {
-        (*self.cb)(self, event);
+        self.logs.push(event);
+    }
+
+    pub fn get_next_event(&self) -> Result<Event> {
+        let event = self.logs.pop()?;
+
+        Ok(event)
+    }
+
+    pub fn has_next_event(&self) -> bool {
+        !self.logs.is_empty()
     }
 
     /*******************************************************************************
@@ -518,7 +514,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         std::fs::write(&dbfile, b"123").unwrap();
-        let res = Context::new(Box::new(|_, _| ()), "FakeOs".into(), dbfile.into()).await;
+        let res = Context::new("FakeOs".into(), dbfile.into()).await;
         assert!(res.is_err());
     }
 
@@ -533,9 +529,7 @@ mod tests {
     async fn test_blobdir_exists() {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
-        Context::new(Box::new(|_, _| ()), "FakeOS".into(), dbfile.into())
-            .await
-            .unwrap();
+        Context::new("FakeOS".into(), dbfile.into()).await.unwrap();
         let blobdir = tmp.path().join("db.sqlite-blobs");
         assert!(blobdir.is_dir());
     }
@@ -546,7 +540,7 @@ mod tests {
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = tmp.path().join("db.sqlite-blobs");
         std::fs::write(&blobdir, b"123").unwrap();
-        let res = Context::new(Box::new(|_, _| ()), "FakeOS".into(), dbfile.into()).await;
+        let res = Context::new("FakeOS".into(), dbfile.into()).await;
         assert!(res.is_err());
     }
 
@@ -556,9 +550,7 @@ mod tests {
         let subdir = tmp.path().join("subdir");
         let dbfile = subdir.join("db.sqlite");
         let dbfile2 = dbfile.clone();
-        Context::new(Box::new(|_, _| ()), "FakeOS".into(), dbfile.into())
-            .await
-            .unwrap();
+        Context::new("FakeOS".into(), dbfile.into()).await.unwrap();
         assert!(subdir.is_dir());
         assert!(dbfile2.is_file());
     }
@@ -568,13 +560,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = PathBuf::new();
-        let res = Context::with_blobdir(
-            Box::new(|_, _| ()),
-            "FakeOS".into(),
-            dbfile.into(),
-            blobdir.into(),
-        )
-        .await;
+        let res = Context::with_blobdir("FakeOS".into(), dbfile.into(), blobdir.into()).await;
         assert!(res.is_err());
     }
 
@@ -583,13 +569,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = tmp.path().join("blobs");
-        let res = Context::with_blobdir(
-            Box::new(|_, _| ()),
-            "FakeOS".into(),
-            dbfile.into(),
-            blobdir.into(),
-        )
-        .await;
+        let res = Context::with_blobdir("FakeOS".into(), dbfile.into(), blobdir.into()).await;
         assert!(res.is_err());
     }
 

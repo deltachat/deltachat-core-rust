@@ -93,8 +93,6 @@ async fn stress_functions(context: &Context) {
     // free(qr.cast());
 }
 
-fn cb(_context: &Context, _event: Event) {}
-
 #[allow(dead_code)]
 struct TestContext {
     ctx: Context,
@@ -104,9 +102,7 @@ struct TestContext {
 async fn create_test_context() -> TestContext {
     let dir = tempdir().unwrap();
     let dbfile = dir.path().join("db.sqlite");
-    let ctx = Context::new(Box::new(cb), "FakeOs".into(), dbfile.into())
-        .await
-        .unwrap();
+    let ctx = Context::new("FakeOs".into(), dbfile.into()).await.unwrap();
     TestContext { ctx, dir }
 }
 

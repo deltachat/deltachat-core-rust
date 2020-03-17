@@ -1269,7 +1269,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_is_self_addr() -> Result<()> {
-        let t = test_context(None).await;
+        let t = test_context().await;
         assert!(t.ctx.is_self_addr("me@me.org").await.is_err());
 
         let addr = configure_alice_keypair(&t.ctx).await;

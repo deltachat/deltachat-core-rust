@@ -776,7 +776,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_render_setup_file() {
-        let t = test_context(Some(Box::new(logging_cb))).await;
+        let t = test_context().await;
 
         configure_alice_keypair(&t.ctx).await;
         let msg = render_setup_file(&t.ctx, "hello").await.unwrap();

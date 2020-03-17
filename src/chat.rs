@@ -2766,7 +2766,7 @@ mod tests {
     #[async_std::test]
     async fn test_add_contact_to_chat_ex_add_self() {
         // Adding self to a contact should succeed, even though it's pointless.
-        let t = test_context(Some(Box::new(logging_cb))).await;
+        let t = test_context().await;
         let chat_id = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo")
             .await
             .unwrap();
@@ -2814,7 +2814,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_add_device_msg_unlabelled() {
-        let t = test_context(Some(Box::new(logging_cb))).await;
+        let t = test_context().await;
 
         // add two device-messages
         let mut msg1 = Message::new(Viewtype::Text);
@@ -2849,7 +2849,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_add_device_msg_labelled() {
-        let t = test_context(Some(Box::new(logging_cb))).await;
+        let t = test_context().await;
 
         // add two device-messages with the same label (second attempt is not added)
         let mut msg1 = Message::new(Viewtype::Text);
@@ -2903,7 +2903,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_add_device_msg_label_only() {
-        let t = test_context(Some(Box::new(logging_cb))).await;
+        let t = test_context().await;
         let res = add_device_msg(&t.ctx, Some(""), None).await;
         assert!(res.is_err());
         let res = add_device_msg(&t.ctx, Some("some-label"), None).await;
@@ -2923,7 +2923,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_was_device_msg_ever_added() {
-        let t = test_context(Some(Box::new(logging_cb))).await;
+        let t = test_context().await;
         add_device_msg(&t.ctx, Some("some-label"), None).await.ok();
         assert!(was_device_msg_ever_added(&t.ctx, "some-label")
             .await
@@ -2947,7 +2947,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_delete_device_chat() {
-        let t = test_context(Some(Box::new(logging_cb))).await;
+        let t = test_context().await;
 
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some("message text".to_string());
@@ -2967,7 +2967,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_device_chat_cannot_sent() {
-        let t = test_context(Some(Box::new(logging_cb))).await;
+        let t = test_context().await;
         t.ctx.update_device_chats().await.unwrap();
         let (device_chat_id, _) =
             create_or_lookup_by_contact_id(&t.ctx, DC_CONTACT_ID_DEVICE, Blocked::Not)
@@ -2987,7 +2987,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_delete_and_reset_all_device_msgs() {
-        let t = test_context(Some(Box::new(logging_cb))).await;
+        let t = test_context().await;
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some("message text".to_string());
         let msg_id1 = add_device_msg(&t.ctx, Some("some-label"), Some(&mut msg))

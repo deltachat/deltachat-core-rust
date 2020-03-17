@@ -57,6 +57,9 @@ pub enum Error {
 
     #[fail(display = "Not Configured")]
     NotConfigured,
+
+    #[fail(display = "No event available")]
+    PopError(crossbeam_queue::PopError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -64,6 +67,12 @@ pub type Result<T> = std::result::Result<T, Error>;
 impl From<crate::sql::Error> for Error {
     fn from(err: crate::sql::Error) -> Error {
         Error::SqlError(err)
+    }
+}
+
+impl From<crossbeam_queue::PopError> for Error {
+    fn from(err: crossbeam_queue::PopError) -> Error {
+        Error::PopError(err)
     }
 }
 

@@ -5,9 +5,8 @@
 use tempfile::{tempdir, TempDir};
 
 use crate::config::Config;
-use crate::context::{Context, ContextCallback};
+use crate::context::Context;
 use crate::dc_tools::EmailAddress;
-use crate::events::Event;
 use crate::key::{self, DcKey};
 
 /// A Context and temporary directory.
@@ -25,16 +24,10 @@ pub(crate) struct TestContext {
 /// "db.sqlite" in the [TestContext.dir] directory.
 ///
 /// [Context]: crate::context::Context
-pub(crate) async fn test_context(callback: Option<Box<ContextCallback>>) -> TestContext {
+pub(crate) async fn test_context() -> TestContext {
     let dir = tempdir().unwrap();
     let dbfile = dir.path().join("db.sqlite");
-    let cb: Box<ContextCallback> = match callback {
-        Some(cb) => cb,
-        None => Box::new(|_, _| ()),
-    };
-    let ctx = Context::new(cb, "FakeOs".into(), dbfile.into())
-        .await
-        .unwrap();
+    let ctx = Context::new("FakeOs".into(), dbfile.into()).await.unwrap();
     TestContext { ctx, dir }
 }
 
@@ -44,16 +37,7 @@ pub(crate) async fn test_context(callback: Option<Box<ContextCallback>>) -> Test
 /// specified in [test_context] but there is no callback hooked up,
 /// i.e. [Context::call_cb] will always return `0`.
 pub(crate) async fn dummy_context() -> TestContext {
-    test_context(None).await
-}
-
-pub(crate) fn logging_cb(_ctx: &Context, evt: Event) {
-    match evt {
-        Event::Info(msg) => println!("I: {}", msg),
-        Event::Warning(msg) => println!("W: {}", msg),
-        Event::Error(msg) => println!("E: {}", msg),
-        _ => (),
-    }
+    test_context().await
 }
 
 /// Load a pre-generated keypair for alice@example.com from disk.
