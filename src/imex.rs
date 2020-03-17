@@ -77,8 +77,8 @@ pub async fn imex(context: &Context, what: ImexMode, param1: Option<impl AsRef<P
         param.set(Param::Arg, param1.as_ref().to_string_lossy());
     }
 
-    job::kill_action(context, Action::ImexImap).await;
-    job::add(context, Action::ImexImap, 0, param, 0).await;
+    // job::kill_action(context, Action::ImexImap).await;
+    // job::add(context, Action::ImexImap, 0, param, 0).await;
 }
 
 /// Returns the filename of the backup found (otherwise an error)

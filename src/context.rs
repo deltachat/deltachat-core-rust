@@ -26,7 +26,7 @@ use crate::scheduler::Scheduler;
 use crate::smtp::Smtp;
 use crate::sql::Sql;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Context {
     pub(crate) inner: Arc<InnerContext>,
 }
@@ -131,7 +131,7 @@ impl Context {
     }
 
     pub async fn run(&self) {
-        self.inner.scheduler.write().await.run().await
+        self.inner.scheduler.write().await.run(self.clone()).await
     }
 
     pub async fn stop(&self) {

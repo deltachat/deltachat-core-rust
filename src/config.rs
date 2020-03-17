@@ -152,17 +152,17 @@ impl Context {
             }
             Config::InboxWatch => {
                 let ret = self.sql.set_raw_config(self, key, value).await;
-                interrupt_inbox_idle(self).await;
+                self.interrupt_inbox().await;
                 ret
             }
             Config::SentboxWatch => {
                 let ret = self.sql.set_raw_config(self, key, value).await;
-                interrupt_sentbox_idle(self).await;
+                self.interrupt_sentbox().await;
                 ret
             }
             Config::MvboxWatch => {
                 let ret = self.sql.set_raw_config(self, key, value).await;
-                interrupt_mvbox_idle(self).await;
+                self.interrupt_mvbox().await;
                 ret
             }
             Config::Selfstatus => {

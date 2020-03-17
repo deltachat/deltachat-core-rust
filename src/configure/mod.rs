@@ -37,8 +37,8 @@ impl Context {
             warn!(self, "There is already another ongoing process running.",);
             return;
         }
-        job::kill_action(self, job::Action::ConfigureImap).await;
-        job::add(self, job::Action::ConfigureImap, 0, Params::new(), 0).await;
+        // job::kill_action(self, job::Action::ConfigureImap).await;
+        // job::add(self, job::Action::ConfigureImap, 0, Params::new(), 0).await;
     }
 
     /// Checks if the context is already configured.

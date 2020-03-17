@@ -9,10 +9,6 @@ use deltachat::chatlist::*;
 use deltachat::config;
 use deltachat::contact::*;
 use deltachat::context::*;
-use deltachat::job::{
-    perform_inbox_fetch, perform_inbox_idle, perform_inbox_jobs, perform_smtp_idle,
-    perform_smtp_jobs,
-};
 use deltachat::Event;
 
 fn cb(_ctx: &Context, event: Event) {
@@ -39,38 +35,11 @@ async fn main() {
     let ctx = Context::new("FakeOs".into(), dbfile.into())
         .await
         .expect("Failed to create context");
-    let running = Arc::new(RwLock::new(true));
     let info = ctx.get_info().await;
     let duration = time::Duration::from_millis(4000);
     println!("info: {:#?}", info);
 
-    let ctx = Arc::new(ctx);
-    let r1 = running.clone();
-
-    let ctx1 = ctx.clone();
-    let t1 = async_std::task::spawn(async move {
-        while *r1.read().await {
-            perform_inbox_jobs(&ctx1).await;
-            if *r1.read().await {
-                perform_inbox_fetch(&ctx1).await;
-
-                if *r1.read().await {
-                    perform_inbox_idle(&ctx1).await;
-                }
-            }
-        }
-    });
-
-    let r1 = running.clone();
-    let ctx1 = ctx.clone();
-    let t2 = async_std::task::spawn(async move {
-        while *r1.read().await {
-            perform_smtp_jobs(&ctx1).await;
-            if *r1.read().await {
-                perform_smtp_idle(&ctx1).await;
-            }
-        }
-    });
+    ctx.run().await;
 
     println!("configuring");
     let args = std::env::args().collect::<Vec<String>>();
@@ -107,15 +76,7 @@ async fn main() {
 
     async_std::task::sleep(duration).await;
 
-    println!("stopping threads");
-
-    *running.write().await = false;
-    deltachat::job::interrupt_inbox_idle(&ctx).await;
-    deltachat::job::interrupt_smtp_idle(&ctx).await;
-
-    println!("joining");
-    t1.await;
-    t2.await;
-
+    println!("stopping");
+    ctx.stop().await;
     println!("closing");
 }
