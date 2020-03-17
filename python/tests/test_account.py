@@ -1366,6 +1366,82 @@ class TestGroupStressTests:
         # Message should be encrypted because keys of other members are gossiped
         assert msg.is_encrypted()
 
+    def test_synchronize_member_list_on_group_rejoin(self, acfactory, lp):
+        """
+        Test that user recreates group member list when it joins the group again.
+
+        ac1 creates a group with two other accounts: ac2 and ac3
+        Then it removes ac2, removes ac3 and adds ac2 back.
+        ac2 did not see that ac3 is removed, so it should rebuild member list from scratch.
+        """
+        lp.sec("creating and configuring five accounts")
+        accounts = [acfactory.get_online_configuring_account() for i in range(3)]
+        for acc in accounts:
+            wait_configuration_progress(acc, 1000)
+        ac1 = accounts.pop()
+
+        lp.sec("ac1: setting up contacts with 2 other members")
+        contacts = []
+        for acc, name in zip(accounts, ["ac2", "ac3"]):
+            contact = ac1.create_contact(acc.get_config("addr"), name=name)
+            contacts.append(contact)
+
+            # make sure we accept the "hi" message
+            ac1.create_chat_by_contact(contact)
+
+            # make sure the other side accepts our messages
+            c1 = acc.create_contact(ac1.get_config("addr"), "a member")
+            chat1 = acc.create_chat_by_contact(c1)
+
+            # send a message to get the contact key via autocrypt header
+            chat1.send_text("hi")
+            msg = ac1.wait_next_incoming_message()
+            assert msg.text == "hi"
+
+        ac2, ac3 = accounts
+
+        lp.sec("ac1: creating group chat with 2 other members")
+        chat = ac1.create_group_chat("title1")
+        for contact in contacts:
+            chat.add_contact(contact)
+        assert not chat.is_promoted()
+
+        lp.sec("ac1: send mesage to new group chat")
+        msg = chat.send_text("hello")
+        assert chat.is_promoted()
+        assert msg.is_encrypted()
+
+        num_contacts = len(chat.get_contacts())
+        assert num_contacts == 3
+
+        lp.sec("checking that the chat arrived correctly")
+        for ac in accounts:
+            msg = ac.wait_next_incoming_message()
+            assert msg.text == "hello"
+            print("chat is", msg.chat)
+            assert len(msg.chat.get_contacts()) == 3
+
+        lp.sec("ac1: removing ac2")
+        chat.remove_contact(contacts[0])
+
+        lp.sec("ac2: wait for a message about removal from the chat")
+        msg = ac2.wait_next_incoming_message()
+
+        lp.sec("ac1: removing ac3")
+        chat.remove_contact(contacts[1])
+
+        lp.sec("ac1: adding ac2 back")
+        # Group is promoted, message is sent automatically
+        assert chat.is_promoted()
+        chat.add_contact(contacts[0])
+
+        lp.sec("ac2: check that ac3 is removed")
+        msg = ac2.wait_next_incoming_message()
+
+        # ac2 did not see that ac3 was removed
+        # FIXME: due to a bug, ac2 thinks ac3 is still in the chat
+        assert len(msg.chat.get_contacts()) == len(chat.get_contacts())
+
 
 class TestOnlineConfigureFails:
     def test_invalid_password(self, acfactory):
