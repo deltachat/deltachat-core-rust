@@ -54,7 +54,6 @@ pub mod imex;
 mod scheduler;
 #[macro_use]
 pub mod job;
-mod job_thread;
 pub mod key;
 mod keyring;
 pub mod location;

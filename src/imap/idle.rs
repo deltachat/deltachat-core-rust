@@ -4,7 +4,6 @@ use async_imap::extensions::idle::{Handle as ImapIdleHandle, IdleResponse};
 use async_native_tls::TlsStream;
 use async_std::net::TcpStream;
 use async_std::prelude::*;
-use std::sync::atomic::Ordering;
 use std::time::{Duration, SystemTime};
 
 use crate::context::Context;

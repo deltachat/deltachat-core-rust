@@ -217,14 +217,6 @@ impl Scheduler {
             _ => false,
         }
     }
-
-    /// Check if the scheduler is stoppd.
-    pub fn is_stopped(&self) -> bool {
-        match self {
-            Scheduler::Stopped => true,
-            _ => false,
-        }
-    }
 }
 
 /// Connection state logic shared between imap and smtp connections.

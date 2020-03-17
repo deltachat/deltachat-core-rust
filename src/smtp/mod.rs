@@ -2,14 +2,13 @@
 
 pub mod send;
 
-use async_std::sync::{channel, Receiver, RwLock, Sender};
 use std::time::{Duration, Instant};
 
 use async_smtp::smtp::client::net::*;
 use async_smtp::*;
 
 use crate::constants::*;
-use crate::context::{Context, PerformJobsNeeded};
+use crate::context::Context;
 use crate::events::Event;
 use crate::login_param::{dc_build_tls, LoginParam};
 use crate::oauth2::*;

@@ -14,16 +14,13 @@ use crate::constants::*;
 use crate::contact::*;
 use crate::error::*;
 use crate::events::Event;
-use crate::imap::*;
 use crate::job::{self, Action};
-use crate::job_thread::JobThread;
 use crate::key::Key;
 use crate::login_param::LoginParam;
 use crate::lot::Lot;
 use crate::message::{self, Message, MessengerMessage, MsgId};
 use crate::param::Params;
 use crate::scheduler::Scheduler;
-use crate::smtp::Smtp;
 use crate::sql::Sql;
 
 #[derive(Clone, Debug)]
@@ -490,19 +487,6 @@ pub(crate) struct BobStatus {
     pub expects: i32,
     pub status: i32,
     pub qr_scan: Option<Lot>,
-}
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub(crate) enum PerformJobsNeeded {
-    Not,
-    AtOnce,
-    AvoidDos,
-}
-
-impl Default for PerformJobsNeeded {
-    fn default() -> Self {
-        Self::Not
-    }
 }
 
 pub fn get_version_str() -> &'static str {

@@ -17,7 +17,7 @@ use crate::dc_tools::*;
 use crate::e2ee;
 use crate::error::*;
 use crate::events::Event;
-use crate::job::{self, Action, Job};
+use crate::job::Job;
 use crate::key::{self, Key};
 use crate::message::{Message, MsgId};
 use crate::mimeparser::SystemMessage;

@@ -6,8 +6,6 @@
 use std::future::Future;
 use std::{fmt, time};
 
-use async_std::prelude::*;
-
 use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
 use rand::{thread_rng, Rng};
@@ -15,16 +13,13 @@ use rand::{thread_rng, Rng};
 use crate::blob::BlobObject;
 use crate::chat::{self, ChatId};
 use crate::config::Config;
-use crate::configure::*;
 use crate::constants::*;
 use crate::contact::Contact;
-use crate::context::{Context, PerformJobsNeeded};
+use crate::context::Context;
 use crate::dc_tools::*;
 use crate::error::{Error, Result};
 use crate::events::Event;
 use crate::imap::*;
-use crate::imex::*;
-use crate::job;
 use crate::location;
 use crate::login_param::LoginParam;
 use crate::message::MsgId;

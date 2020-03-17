@@ -3,8 +3,6 @@
 //! uses [async-email/async-imap](https://github.com/async-email/async-imap)
 //! to implement connect, fetch, delete functionality with standard IMAP servers.
 
-use std::sync::atomic::{AtomicBool, Ordering};
-
 use num_traits::FromPrimitive;
 
 use async_imap::{
@@ -12,7 +10,7 @@ use async_imap::{
     types::{Capability, Fetch, Flag, Mailbox, Name, NameAttribute},
 };
 use async_std::prelude::*;
-use async_std::sync::{Mutex, Receiver, RwLock};
+use async_std::sync::Receiver;
 
 use crate::config::*;
 use crate::constants::*;
