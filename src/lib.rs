@@ -51,6 +51,7 @@ pub mod context;
 mod e2ee;
 mod imap;
 pub mod imex;
+mod scheduler;
 #[macro_use]
 pub mod job;
 mod job_thread;

@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 use std::ffi::OsString;
-use std::sync::atomic::AtomicBool;
+use std::ops::Deref;
 
 use async_std::path::{Path, PathBuf};
 use async_std::sync::{Arc, Mutex, RwLock};
@@ -22,33 +22,40 @@ use crate::login_param::LoginParam;
 use crate::lot::Lot;
 use crate::message::{self, Message, MessengerMessage, MsgId};
 use crate::param::Params;
+use crate::scheduler::Scheduler;
 use crate::smtp::Smtp;
 use crate::sql::Sql;
 
-#[derive(DebugStub)]
+#[derive(Debug)]
 pub struct Context {
-    /// Database file path
-    dbfile: PathBuf,
-    /// Blob directory path
-    blobdir: PathBuf,
-    pub sql: Sql,
-    pub perform_inbox_jobs_needed: AtomicBool,
-    pub probe_imap_network: AtomicBool,
-    pub inbox_thread: JobThread,
-    pub sentbox_thread: JobThread,
-    pub mvbox_thread: JobThread,
-    pub smtp: Smtp,
-    pub oauth2_critical: Arc<Mutex<()>>,
-    pub os_name: Option<String>,
-    pub cmdline_sel_chat_id: Arc<RwLock<ChatId>>,
-    pub(crate) bob: Arc<RwLock<BobStatus>>,
-    pub last_smeared_timestamp: RwLock<i64>,
-    pub running_state: Arc<RwLock<RunningState>>,
-    /// Mutex to avoid generating the key for the user more than once.
-    pub generating_key_mutex: Mutex<()>,
-    pub translated_stockstrings: RwLock<HashMap<usize, String>>,
+    pub(crate) inner: Arc<InnerContext>,
+}
 
+impl Deref for Context {
+    type Target = InnerContext;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+#[derive(Debug)]
+pub struct InnerContext {
+    /// Database file path
+    pub(crate) dbfile: PathBuf,
+    /// Blob directory path
+    pub(crate) blobdir: PathBuf,
+    pub(crate) sql: Sql,
+    pub(crate) os_name: Option<String>,
+    pub(crate) bob: RwLock<BobStatus>,
+    pub(crate) last_smeared_timestamp: RwLock<i64>,
+    pub(crate) running_state: RwLock<RunningState>,
+    /// Mutex to avoid generating the key for the user more than once.
+    pub(crate) generating_key_mutex: Mutex<()>,
+    pub(crate) translated_stockstrings: RwLock<HashMap<usize, String>>,
     pub(crate) logs: SegQueue<Event>,
+
+    pub(crate) scheduler: RwLock<Scheduler>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -97,33 +104,40 @@ impl Context {
             "Blobdir does not exist: {}",
             blobdir.display()
         );
-        let ctx = Context {
+
+        let inner = InnerContext {
             blobdir,
             dbfile,
             os_name: Some(os_name),
-            running_state: Arc::new(RwLock::new(Default::default())),
+            running_state: RwLock::new(Default::default()),
             sql: Sql::new(),
-            smtp: Smtp::new(),
-            oauth2_critical: Arc::new(Mutex::new(())),
-            bob: Arc::new(RwLock::new(Default::default())),
+            bob: RwLock::new(Default::default()),
             last_smeared_timestamp: RwLock::new(0),
-            cmdline_sel_chat_id: Arc::new(RwLock::new(ChatId::new(0))),
-            inbox_thread: JobThread::new("INBOX", "configured_inbox_folder", Imap::new()),
-            sentbox_thread: JobThread::new("SENTBOX", "configured_sentbox_folder", Imap::new()),
-            mvbox_thread: JobThread::new("MVBOX", "configured_mvbox_folder", Imap::new()),
-            probe_imap_network: Default::default(),
-            perform_inbox_jobs_needed: Default::default(),
             generating_key_mutex: Mutex::new(()),
             translated_stockstrings: RwLock::new(HashMap::new()),
             logs: SegQueue::new(),
+            scheduler: RwLock::new(Scheduler::Stopped),
         };
 
+        let ctx = Context {
+            inner: Arc::new(inner),
+        };
         ensure!(
             ctx.sql.open(&ctx, &ctx.dbfile, false).await,
             "Failed opening sqlite database"
         );
 
         Ok(ctx)
+    }
+
+    pub async fn run(&self) {
+        self.inner.scheduler.write().await.run().await
+    }
+
+    pub async fn stop(&self) {
+        if self.inner.scheduler.read().await.is_running() {
+            self.inner.scheduler.write().await.stop().await;
+        }
     }
 
     /// Returns database file path.
@@ -160,7 +174,7 @@ impl Context {
 
             false
         } else {
-            let s_a = self.running_state.clone();
+            let s_a = &self.running_state;
             let mut s = s_a.write().await;
 
             s.ongoing_running = true;
@@ -171,7 +185,7 @@ impl Context {
     }
 
     pub async fn free_ongoing(&self) {
-        let s_a = self.running_state.clone();
+        let s_a = &self.running_state;
         let mut s = s_a.write().await;
 
         s.ongoing_running = false;
@@ -179,7 +193,7 @@ impl Context {
     }
 
     pub async fn has_ongoing(&self) -> bool {
-        let s_a = self.running_state.clone();
+        let s_a = &self.running_state;
         let s = s_a.read().await;
 
         s.ongoing_running || !s.shall_stop_ongoing
@@ -187,7 +201,7 @@ impl Context {
 
     /// Signal an ongoing process to stop.
     pub async fn stop_ongoing(&self) {
-        let s_a = self.running_state.clone();
+        let s_a = &self.running_state;
         let mut s = s_a.write().await;
 
         if s.ongoing_running && !s.shall_stop_ongoing {
@@ -199,7 +213,7 @@ impl Context {
     }
 
     pub async fn shall_stop_ongoing(&self) -> bool {
-        self.running_state.clone().read().await.shall_stop_ongoing
+        self.running_state.read().await.shall_stop_ongoing
     }
 
     /*******************************************************************************
@@ -456,15 +470,7 @@ impl Context {
 impl Drop for Context {
     fn drop(&mut self) {
         async_std::task::block_on(async move {
-            info!(self, "disconnecting inbox-thread");
-            self.inbox_thread.imap.disconnect(self).await;
-            info!(self, "disconnecting sentbox-thread");
-            self.sentbox_thread.imap.disconnect(self).await;
-            info!(self, "disconnecting mvbox-thread");
-            self.mvbox_thread.imap.disconnect(self).await;
-            info!(self, "disconnecting SMTP");
-            self.smtp.disconnect().await;
-
+            self.stop().await;
             self.sql.close(self).await;
         });
     }

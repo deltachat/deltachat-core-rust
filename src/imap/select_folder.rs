@@ -26,14 +26,13 @@ impl Imap {
     /// select a folder, possibly update uid_validity and, if needed,
     /// expunge the folder to remove delete-marked messages.
     pub(super) async fn select_folder<S: AsRef<str>>(
-        &self,
+        &mut self,
         context: &Context,
         folder: Option<S>,
     ) -> Result<()> {
-        if self.session.lock().await.is_none() {
-            let mut cfg = self.config.write().await;
-            cfg.selected_folder = None;
-            cfg.selected_folder_needs_expunge = false;
+        if self.session.is_none() {
+            self.config.selected_folder = None;
+            self.config.selected_folder_needs_expunge = false;
             self.trigger_reconnect();
             return Err(Error::NoSession);
         }
@@ -41,7 +40,7 @@ impl Imap {
         // if there is a new folder and the new folder is equal to the selected one, there's nothing to do.
         // if there is _no_ new folder, we continue as we might want to expunge below.
         if let Some(ref folder) = folder {
-            if let Some(ref selected_folder) = self.config.read().await.selected_folder {
+            if let Some(ref selected_folder) = self.config.selected_folder {
                 if folder.as_ref() == selected_folder {
                     return Ok(());
                 }
@@ -49,14 +48,14 @@ impl Imap {
         }
 
         // deselect existing folder, if needed (it's also done implicitly by SELECT, however, without EXPUNGE then)
-        let needs_expunge = { self.config.read().await.selected_folder_needs_expunge };
+        let needs_expunge = { self.config.selected_folder_needs_expunge };
         if needs_expunge {
-            if let Some(ref folder) = self.config.read().await.selected_folder {
+            if let Some(ref folder) = self.config.selected_folder {
                 info!(context, "Expunge messages in \"{}\".", folder);
 
                 // A CLOSE-SELECT is considerably faster than an EXPUNGE-SELECT, see
                 // https://tools.ietf.org/html/rfc3501#section-6.4.2
-                if let Some(ref mut session) = &mut *self.session.lock().await {
+                if let Some(ref mut session) = &mut self.session {
                     match session.close().await {
                         Ok(_) => {
                             info!(context, "close/expunge succeeded");
@@ -70,12 +69,12 @@ impl Imap {
                     return Err(Error::NoSession);
                 }
             }
-            self.config.write().await.selected_folder_needs_expunge = false;
+            self.config.selected_folder_needs_expunge = false;
         }
 
         // select new folder
         if let Some(ref folder) = folder {
-            if let Some(ref mut session) = &mut *self.session.lock().await {
+            if let Some(ref mut session) = &mut self.session {
                 let res = session.select(folder).await;
 
                 // https://tools.ietf.org/html/rfc3501#section-6.3.1
@@ -84,21 +83,20 @@ impl Imap {
 
                 match res {
                     Ok(mailbox) => {
-                        let mut config = self.config.write().await;
-                        config.selected_folder = Some(folder.as_ref().to_string());
-                        config.selected_mailbox = Some(mailbox);
+                        self.config.selected_folder = Some(folder.as_ref().to_string());
+                        self.config.selected_mailbox = Some(mailbox);
                         Ok(())
                     }
                     Err(async_imap::error::Error::ConnectionLost) => {
                         self.trigger_reconnect();
-                        self.config.write().await.selected_folder = None;
+                        self.config.selected_folder = None;
                         Err(Error::ConnectionLost)
                     }
                     Err(async_imap::error::Error::Validate(_)) => {
                         Err(Error::BadFolderName(folder.as_ref().to_string()))
                     }
                     Err(err) => {
-                        self.config.write().await.selected_folder = None;
+                        self.config.selected_folder = None;
                         self.trigger_reconnect();
                         Err(Error::Other(err.to_string()))
                     }

@@ -60,12 +60,12 @@ impl Session {
 }
 
 impl Imap {
-    pub async fn can_idle(&self) -> bool {
-        self.config.read().await.can_idle
+    pub fn can_idle(&self) -> bool {
+        self.config.can_idle
     }
 
-    pub async fn idle(&self, context: &Context, watch_folder: Option<String>) -> Result<()> {
-        if !self.can_idle().await {
+    pub async fn idle(&mut self, context: &Context, watch_folder: Option<String>) -> Result<()> {
+        if !self.can_idle() {
             return Err(Error::IdleAbilityMissing);
         }
 
@@ -75,7 +75,7 @@ impl Imap {
 
         self.select_folder(context, watch_folder.clone()).await?;
 
-        let session = self.session.lock().await.take();
+        let session = self.session.take();
         let timeout = Duration::from_secs(23 * 60);
         if let Some(session) = session {
             match session.idle() {
@@ -87,12 +87,12 @@ impl Imap {
                     }
 
                     let (idle_wait, interrupt) = handle.wait_with_timeout(timeout);
-                    *self.interrupt.lock().await = Some(interrupt);
+                    self.interrupt = Some(interrupt);
 
-                    if self.skip_next_idle_wait.load(Ordering::SeqCst) {
+                    if self.skip_next_idle_wait {
                         // interrupt_idle has happened before we
                         // provided self.interrupt
-                        self.skip_next_idle_wait.store(false, Ordering::SeqCst);
+                        self.skip_next_idle_wait = false;
                         std::mem::drop(idle_wait);
                         info!(context, "Idle wait was skipped");
                     } else {
@@ -126,7 +126,7 @@ impl Imap {
 
                     match res {
                         Ok(session) => {
-                            *self.session.lock().await = Some(Session::Secure(session));
+                            self.session = Some(Session::Secure(session));
                         }
                         Err(err) => {
                             // if we cannot terminate IDLE it probably
@@ -143,12 +143,12 @@ impl Imap {
                     }
 
                     let (idle_wait, interrupt) = handle.wait_with_timeout(timeout);
-                    *self.interrupt.lock().await = Some(interrupt);
+                    self.interrupt = Some(interrupt);
 
-                    if self.skip_next_idle_wait.load(Ordering::SeqCst) {
+                    if self.skip_next_idle_wait {
                         // interrupt_idle has happened before we
                         // provided self.interrupt
-                        self.skip_next_idle_wait.store(false, Ordering::SeqCst);
+                        self.skip_next_idle_wait = false;
                         std::mem::drop(idle_wait);
                         info!(context, "Idle wait was skipped");
                     } else {
@@ -182,7 +182,7 @@ impl Imap {
 
                     match res {
                         Ok(session) => {
-                            *self.session.lock().await = Some(Session::Insecure(session));
+                            self.session = Some(Session::Insecure(session));
                         }
                         Err(err) => {
                             // if we cannot terminate IDLE it probably
@@ -199,7 +199,7 @@ impl Imap {
         Ok(())
     }
 
-    pub(crate) async fn fake_idle(&self, context: &Context, watch_folder: Option<String>) {
+    pub(crate) async fn fake_idle(&mut self, context: &Context, watch_folder: Option<String>) {
         // Idle using polling. This is also needed if we're not yet configured -
         // in this case, we're waiting for a configure job (and an interrupt).
 
@@ -213,11 +213,11 @@ impl Imap {
         // TODO: grow sleep durations / make them more flexible
         let interval = async_std::stream::interval(Duration::from_secs(60));
         let mut interrupt_interval = interrupt.stop_token().stop_stream(interval);
-        *self.interrupt.lock().await = Some(interrupt);
-        if self.skip_next_idle_wait.load(Ordering::SeqCst) {
+        self.interrupt = Some(interrupt);
+        if self.skip_next_idle_wait {
             // interrupt_idle has happened before we
             // provided self.interrupt
-            self.skip_next_idle_wait.store(false, Ordering::SeqCst);
+            self.skip_next_idle_wait = false;
             info!(context, "fake-idle wait was skipped");
         } else {
             // loop until we are interrupted or if we fetched something
@@ -229,7 +229,7 @@ impl Imap {
                     warn!(context, "fake_idle: could not connect: {}", err);
                     continue;
                 }
-                if self.config.read().await.can_idle {
+                if self.config.can_idle {
                     // we only fake-idled because network was gone during IDLE, probably
                     break;
                 }
@@ -255,7 +255,7 @@ impl Imap {
                 }
             }
         }
-        self.interrupt.lock().await.take();
+        self.interrupt.take();
 
         info!(
             context,
@@ -268,14 +268,14 @@ impl Imap {
         );
     }
 
-    pub async fn interrupt_idle(&self, context: &Context) {
-        let mut interrupt: Option<stop_token::StopSource> = self.interrupt.lock().await.take();
+    pub async fn interrupt_idle(&mut self, context: &Context) {
+        let mut interrupt: Option<stop_token::StopSource> = self.interrupt.take();
         if interrupt.is_none() {
             // idle wait is not running, signal it needs to skip
-            self.skip_next_idle_wait.store(true, Ordering::SeqCst);
+            self.skip_next_idle_wait = false;
 
             // meanwhile idle-wait may have produced the StopSource
-            interrupt = self.interrupt.lock().await.take();
+            interrupt = self.interrupt.take();
         }
         // let's manually drop the StopSource
         if interrupt.is_some() {

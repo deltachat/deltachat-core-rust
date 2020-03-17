@@ -84,8 +84,9 @@ pub async fn dc_get_oauth2_access_token(
     regenerate: bool,
 ) -> Option<String> {
     if let Some(oauth2) = Oauth2::from_address(addr) {
-        let lock = context.oauth2_critical.clone();
-        let _l = lock.lock().await;
+        // TODO: FIXME
+        // let lock = context.oauth2_critical.clone();
+        // let _l = lock.lock().await;
 
         // read generated token
         if !regenerate && !is_expired(context).await {

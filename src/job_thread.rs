@@ -35,7 +35,7 @@ impl JobThread {
         }
     }
 
-    pub async fn suspend(&self, context: &Context) {
+    pub async fn suspend(&mut self, context: &Context) {
         info!(context, "Suspending {}-thread.", self.name,);
         {
             self.state.lock().await.suspended = true;
@@ -62,7 +62,7 @@ impl JobThread {
         self.notify_sender.send(()).await;
     }
 
-    pub async fn try_interrupt_idle(&self, context: &Context) -> bool {
+    pub async fn try_interrupt_idle(&mut self, context: &Context) -> bool {
         if self.state.lock().await.using_handle {
             self.interrupt_idle(context).await;
             return true;
@@ -71,7 +71,7 @@ impl JobThread {
         false
     }
 
-    pub async fn interrupt_idle(&self, context: &Context) {
+    pub async fn interrupt_idle(&mut self, context: &Context) {
         {
             self.state.lock().await.jobs_needed = true;
         }
@@ -85,7 +85,7 @@ impl JobThread {
         info!(context, "Interrupting {}-IDLE... finished", self.name);
     }
 
-    pub async fn fetch(&self, context: &Context, use_network: bool) {
+    pub async fn fetch(&mut self, context: &Context, use_network: bool) {
         {
             let lock = &*self.state.clone();
             let mut state = lock.lock().await;
@@ -111,7 +111,7 @@ impl JobThread {
         }
     }
 
-    async fn connect_and_fetch(&self, context: &Context) -> Result<()> {
+    async fn connect_and_fetch(&mut self, context: &Context) -> Result<()> {
         let prefix = format!("{}-fetch", self.name);
         match self.imap.connect_configured(context).await {
             Ok(()) => {
@@ -153,7 +153,7 @@ impl JobThread {
         }
     }
 
-    pub async fn idle(&self, context: &Context, use_network: bool) {
+    pub async fn idle(&mut self, context: &Context, use_network: bool) {
         {
             let lock = &*self.state.clone();
             let mut state = lock.lock().await;
@@ -185,7 +185,7 @@ impl JobThread {
         let prefix = format!("{}-IDLE", self.name);
         let do_fake_idle = match self.imap.connect_configured(context).await {
             Ok(()) => {
-                if !self.imap.can_idle().await {
+                if !self.imap.can_idle() {
                     true // we have to do fake_idle
                 } else {
                     let watch_folder = self.get_watch_folder(context).await;
