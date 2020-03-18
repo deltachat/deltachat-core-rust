@@ -36,7 +36,7 @@ impl Context {
         self.sql.get_raw_config_bool(self, "configured").await
     }
 
-    /// Starts a configuration job.
+    /// Configures this account with the currently set parameters.
     pub async fn configure(&self) {
         if self.has_ongoing().await {
             warn!(self, "There is already another ongoing process running.",);

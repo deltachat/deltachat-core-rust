@@ -79,7 +79,7 @@ pub fn get_info() -> HashMap<&'static str, String> {
 impl Context {
     /// Creates new context.
     pub async fn new(os_name: String, dbfile: PathBuf) -> Result<Context> {
-        pretty_env_logger::try_init_timed().ok();
+        // pretty_env_logger::try_init_timed().ok();
 
         let mut blob_fname = OsString::new();
         blob_fname.push(dbfile.file_name().unwrap_or_default());

@@ -4,7 +4,6 @@ use std::cmp::{max, min};
 
 use async_std::path::{Path, PathBuf};
 use async_std::prelude::*;
-use num_traits::FromPrimitive;
 use rand::{thread_rng, Rng};
 
 use crate::blob::BlobObject;
@@ -17,7 +16,6 @@ use crate::dc_tools::*;
 use crate::e2ee;
 use crate::error::*;
 use crate::events::Event;
-use crate::job::Job;
 use crate::key::{self, Key};
 use crate::message::{Message, MsgId};
 use crate::mimeparser::SystemMessage;
@@ -70,15 +68,14 @@ pub enum ImexMode {
 ///
 /// Only one import-/export-progress can run at the same time.
 /// To cancel an import-/export-progress, use dc_stop_ongoing_process().
-pub async fn imex(context: &Context, what: ImexMode, param1: Option<impl AsRef<Path>>) {
-    let mut param = Params::new();
-    param.set_int(Param::Cmd, what as i32);
-    if let Some(param1) = param1 {
-        param.set(Param::Arg, param1.as_ref().to_string_lossy());
-    }
+pub async fn imex(
+    context: &Context,
+    what: ImexMode,
+    param1: Option<impl AsRef<Path>>,
+) -> Result<()> {
+    job_imex_imap(context, what, param1).await?;
 
-    // job::kill_action(context, Action::ImexImap).await;
-    // job::add(context, Action::ImexImap, 0, param, 0).await;
+    Ok(())
 }
 
 /// Returns the filename of the backup found (otherwise an error)
@@ -369,34 +366,35 @@ pub fn normalize_setup_code(s: &str) -> String {
     out
 }
 
-pub async fn job_imex_imap(context: &Context, job: &Job) -> Result<()> {
+pub async fn job_imex_imap(
+    context: &Context,
+    what: ImexMode,
+    param: Option<impl AsRef<Path>>,
+) -> Result<()> {
     ensure!(context.alloc_ongoing().await, "could not allocate ongoing");
-    let what: Option<ImexMode> = job.param.get_int(Param::Cmd).and_then(ImexMode::from_i32);
-    let param = job.param.get(Param::Arg).unwrap_or_default();
+    ensure!(!param.is_some(), "No Import/export dir/file given.");
 
-    ensure!(!param.is_empty(), "No Import/export dir/file given.");
     info!(context, "Import/export process started.");
     context.call_cb(Event::ImexProgress(10));
 
     ensure!(context.sql.is_open().await, "Database not opened.");
-    if what == Some(ImexMode::ExportBackup) || what == Some(ImexMode::ExportSelfKeys) {
+
+    let path = param.unwrap();
+    if what == ImexMode::ExportBackup || what == ImexMode::ExportSelfKeys {
         // before we export anything, make sure the private key exists
         if e2ee::ensure_secret_key_exists(context).await.is_err() {
             context.free_ongoing().await;
             bail!("Cannot create private key or private key not available.");
         } else {
-            dc_create_folder(context, &param).await?;
+            dc_create_folder(context, &path).await?;
         }
     }
-    let path = Path::new(param);
+
     let success = match what {
-        Some(ImexMode::ExportSelfKeys) => export_self_keys(context, path).await,
-        Some(ImexMode::ImportSelfKeys) => import_self_keys(context, path).await,
-        Some(ImexMode::ExportBackup) => export_backup(context, path).await,
-        Some(ImexMode::ImportBackup) => import_backup(context, path).await,
-        None => {
-            bail!("unknown IMEX type");
-        }
+        ImexMode::ExportSelfKeys => export_self_keys(context, path).await,
+        ImexMode::ImportSelfKeys => import_self_keys(context, path).await,
+        ImexMode::ExportBackup => export_backup(context, path).await,
+        ImexMode::ImportBackup => import_backup(context, path).await,
     };
     context.free_ongoing().await;
     match success {

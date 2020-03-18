@@ -64,6 +64,8 @@ impl Imap {
     }
 
     pub async fn idle(&mut self, context: &Context, watch_folder: Option<String>) -> Result<()> {
+        use futures::future::FutureExt;
+
         if !self.can_idle() {
             return Err(Error::IdleAbilityMissing);
         }
@@ -76,6 +78,7 @@ impl Imap {
 
         let session = self.session.take();
         let timeout = Duration::from_secs(23 * 60);
+
         if let Some(session) = session {
             match session.idle() {
                 // BEWARE: If you change the Secure branch you
@@ -86,17 +89,24 @@ impl Imap {
                     }
 
                     let (idle_wait, interrupt) = handle.wait_with_timeout(timeout);
-                    self.interrupt = Some(interrupt);
 
                     if self.skip_next_idle_wait {
                         // interrupt_idle has happened before we
                         // provided self.interrupt
                         self.skip_next_idle_wait = false;
-                        std::mem::drop(idle_wait);
+                        drop(idle_wait);
+                        drop(interrupt);
+
                         info!(context, "Idle wait was skipped");
                     } else {
                         info!(context, "Idle entering wait-on-remote state");
-                        match idle_wait.await {
+                        let fut = idle_wait.race(
+                            self.idle_interrupt
+                                .recv()
+                                .map(|_| Ok(IdleResponse::ManualInterrupt)),
+                        );
+
+                        match fut.await {
                             Ok(IdleResponse::NewData(_)) => {
                                 info!(context, "Idle has NewData");
                             }
@@ -114,9 +124,12 @@ impl Imap {
                             }
                         }
                     }
+
                     // if we can't properly terminate the idle
                     // protocol let's break the connection.
-                    let res = async_std::future::timeout(Duration::from_secs(15), handle.done())
+                    let res = handle
+                        .done()
+                        .timeout(Duration::from_secs(15))
                         .await
                         .map_err(|err| {
                             self.trigger_reconnect();
@@ -142,17 +155,23 @@ impl Imap {
                     }
 
                     let (idle_wait, interrupt) = handle.wait_with_timeout(timeout);
-                    self.interrupt = Some(interrupt);
 
                     if self.skip_next_idle_wait {
                         // interrupt_idle has happened before we
                         // provided self.interrupt
                         self.skip_next_idle_wait = false;
-                        std::mem::drop(idle_wait);
+                        drop(idle_wait);
+                        drop(interrupt);
                         info!(context, "Idle wait was skipped");
                     } else {
                         info!(context, "Idle entering wait-on-remote state");
-                        match idle_wait.await {
+                        let fut = idle_wait.race(
+                            self.idle_interrupt
+                                .recv()
+                                .map(|_| Ok(IdleResponse::ManualInterrupt)),
+                        );
+
+                        match fut.await {
                             Ok(IdleResponse::NewData(_)) => {
                                 info!(context, "Idle has NewData");
                             }
@@ -172,7 +191,9 @@ impl Imap {
                     }
                     // if we can't properly terminate the idle
                     // protocol let's break the connection.
-                    let res = async_std::future::timeout(Duration::from_secs(15), handle.done())
+                    let res = handle
+                        .done()
+                        .timeout(Duration::from_secs(15))
                         .await
                         .map_err(|err| {
                             self.trigger_reconnect();
@@ -203,58 +224,66 @@ impl Imap {
         // in this case, we're waiting for a configure job (and an interrupt).
 
         let fake_idle_start_time = SystemTime::now();
-
         info!(context, "IMAP-fake-IDLEing...");
 
-        let interrupt = stop_token::StopSource::new();
-
-        // check every minute if there are new messages
-        // TODO: grow sleep durations / make them more flexible
-        let interval = async_std::stream::interval(Duration::from_secs(60));
-        let mut interrupt_interval = interrupt.stop_token().stop_stream(interval);
-        self.interrupt = Some(interrupt);
         if self.skip_next_idle_wait {
             // interrupt_idle has happened before we
             // provided self.interrupt
             self.skip_next_idle_wait = false;
             info!(context, "fake-idle wait was skipped");
         } else {
-            // loop until we are interrupted or if we fetched something
-            while let Some(_) = interrupt_interval.next().await {
-                // try to connect with proper login params
-                // (setup_handle_if_needed might not know about them if we
-                // never successfully connected)
-                if let Err(err) = self.connect_configured(context).await {
-                    warn!(context, "fake_idle: could not connect: {}", err);
-                    continue;
-                }
-                if self.config.can_idle {
-                    // we only fake-idled because network was gone during IDLE, probably
-                    break;
-                }
-                info!(context, "fake_idle is connected");
-                // we are connected, let's see if fetching messages results
-                // in anything.  If so, we behave as if IDLE had data but
-                // will have already fetched the messages so perform_*_fetch
-                // will not find any new.
+            // check every minute if there are new messages
+            // TODO: grow sleep durations / make them more flexible
+            let mut interval = async_std::stream::interval(Duration::from_secs(60));
 
-                if let Some(ref watch_folder) = watch_folder {
-                    match self.fetch_new_messages(context, watch_folder).await {
-                        Ok(res) => {
-                            info!(context, "fetch_new_messages returned {:?}", res);
-                            if res {
-                                break;
+            // loop until we are interrupted or if we fetched something
+            loop {
+                use futures::future::FutureExt;
+                match interval
+                    .next()
+                    .race(self.idle_interrupt.recv().map(|_| None))
+                    .await
+                {
+                    Some(_) => {
+                        // try to connect with proper login params
+                        // (setup_handle_if_needed might not know about them if we
+                        // never successfully connected)
+                        if let Err(err) = self.connect_configured(context).await {
+                            warn!(context, "fake_idle: could not connect: {}", err);
+                            continue;
+                        }
+                        if self.config.can_idle {
+                            // we only fake-idled because network was gone during IDLE, probably
+                            break;
+                        }
+                        info!(context, "fake_idle is connected");
+                        // we are connected, let's see if fetching messages results
+                        // in anything.  If so, we behave as if IDLE had data but
+                        // will have already fetched the messages so perform_*_fetch
+                        // will not find any new.
+
+                        if let Some(ref watch_folder) = watch_folder {
+                            match self.fetch_new_messages(context, watch_folder).await {
+                                Ok(res) => {
+                                    info!(context, "fetch_new_messages returned {:?}", res);
+                                    if res {
+                                        break;
+                                    }
+                                }
+                                Err(err) => {
+                                    error!(context, "could not fetch from folder: {}", err);
+                                    self.trigger_reconnect()
+                                }
                             }
                         }
-                        Err(err) => {
-                            error!(context, "could not fetch from folder: {}", err);
-                            self.trigger_reconnect()
-                        }
+                    }
+                    None => {
+                        // Interrupt
+                        break;
                     }
                 }
             }
         }
-        self.interrupt.take();
 
         info!(
             context,
@@ -265,26 +294,5 @@ impl Imap {
                 .as_millis() as f64
                 / 1000.,
         );
-    }
-
-    pub async fn interrupt_idle(&mut self, context: &Context) {
-        let mut interrupt: Option<stop_token::StopSource> = self.interrupt.take();
-        if interrupt.is_none() {
-            // idle wait is not running, signal it needs to skip
-            self.skip_next_idle_wait = false;
-
-            // meanwhile idle-wait may have produced the StopSource
-            interrupt = self.interrupt.take();
-        }
-        // let's manually drop the StopSource
-        if interrupt.is_some() {
-            // the imap thread provided us a stop token but might
-            // not have entered idle_wait yet, give it some time
-            // for that to happen. XXX handle this without extra wait
-            // https://github.com/deltachat/deltachat-core-rust/issues/925
-            async_std::task::sleep(Duration::from_millis(200)).await;
-            info!(context, "low-level: dropping stop-source to interrupt idle");
-            std::mem::drop(interrupt)
-        }
     }
 }

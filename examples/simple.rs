@@ -1,6 +1,7 @@
 extern crate deltachat;
 
-use async_std::sync::{Arc, RwLock};
+use async_std::task;
+
 use std::time;
 use tempfile::tempdir;
 
@@ -11,7 +12,7 @@ use deltachat::contact::*;
 use deltachat::context::*;
 use deltachat::Event;
 
-fn cb(_ctx: &Context, event: Event) {
+fn cb(event: Event) {
     print!("[{:?}]", event);
 
     match event {
@@ -39,7 +40,16 @@ async fn main() {
     let duration = time::Duration::from_millis(4000);
     println!("info: {:#?}", info);
 
-    ctx.run().await;
+    let ctx1 = ctx.clone();
+    task::spawn(async move {
+        loop {
+            if let Ok(event) = ctx1.get_next_event() {
+                cb(event);
+            } else {
+                task::sleep(time::Duration::from_millis(100)).await;
+            }
+        }
+    });
 
     println!("configuring");
     let args = std::env::args().collect::<Vec<String>>();
@@ -51,9 +61,11 @@ async fn main() {
     ctx.set_config(config::Config::MailPw, Some(&pw))
         .await
         .unwrap();
+
     ctx.configure().await;
 
-    async_std::task::sleep(duration).await;
+    println!("------ RUN ------");
+    ctx.run().await;
 
     println!("sending a message");
     let contact_id = Contact::create(&ctx, "dignifiedquire", "dignifiedquire@gmail.com")

@@ -5,6 +5,7 @@ use async_std::task;
 use std::time::Duration;
 
 use crate::context::Context;
+use crate::error::Error;
 use crate::imap::Imap;
 use crate::job::{self, Thread};
 use crate::smtp::Smtp;
@@ -64,6 +65,7 @@ impl Scheduler {
 
                 let ctx1 = ctx.clone();
                 task::spawn(async move {
+                    info!(ctx1, "starting inbox loop");
                     let ImapConnectionHandlers {
                         mut connection,
                         stop_receiver,
@@ -71,6 +73,8 @@ impl Scheduler {
                     } = inbox_handlers;
 
                     let fut = async move {
+                        connection.connect_configured(&ctx1).await.unwrap();
+
                         loop {
                             // TODO: correct value
                             let probe_network = false;
@@ -87,11 +91,32 @@ impl Scheduler {
                                     .await;
                                 }
                                 Ok(None) | Err(async_std::future::TimeoutError { .. }) => {
+                                    let watch_folder =
+                                        get_watch_folder(&ctx1, "configured_inbox_folder")
+                                            .await
+                                            .ok_or_else(|| {
+                                                Error::WatchFolderNotFound("not-set".to_string())
+                                            })
+                                            .unwrap();
+
                                     // fetch
-                                    connection.fetch(&ctx1, "TODO").await;
+                                    connection.fetch(&ctx1, &watch_folder).await.unwrap_or_else(
+                                        |err| {
+                                            error!(ctx1, "{}", err);
+                                        },
+                                    );
 
                                     // idle
-                                    connection.idle(&ctx1, Some("TODO".into())).await;
+                                    if connection.can_idle() {
+                                        connection
+                                            .idle(&ctx1, Some(watch_folder))
+                                            .await
+                                            .unwrap_or_else(|err| {
+                                                error!(ctx1, "{}", err);
+                                            });
+                                    } else {
+                                        connection.fake_idle(&ctx1, Some(watch_folder)).await;
+                                    }
                                 }
                             }
                         }
@@ -107,6 +132,7 @@ impl Scheduler {
 
                 let ctx1 = ctx.clone();
                 task::spawn(async move {
+                    info!(ctx1, "starting smtp loop");
                     let SmtpConnectionHandlers {
                         mut connection,
                         stop_receiver,
@@ -145,6 +171,8 @@ impl Scheduler {
                     fut.race(stop_receiver.recv()).await;
                     shutdown_sender.send(()).await;
                 });
+
+                info!(ctx, "scheduler is running");
             }
             Scheduler::Running { .. } => {
                 // TODO: return an error
@@ -153,38 +181,31 @@ impl Scheduler {
         }
     }
 
-    fn inbox(&self) -> Option<&ImapConnectionState> {
-        match self {
-            Scheduler::Running { ref inbox, .. } => Some(inbox),
-            _ => None,
-        }
-    }
-
     async fn interrupt_inbox(&self) {
         match self {
             Scheduler::Running { ref inbox, .. } => inbox.interrupt().await,
-            _ => panic!("interrupt_imap must be called in running mode"),
+            _ => {}
         }
     }
 
     async fn interrupt_mvbox(&self) {
         match self {
             Scheduler::Running { ref mvbox, .. } => mvbox.interrupt().await,
-            _ => panic!("interrupt_mvbox must be called in running mode"),
+            _ => {}
         }
     }
 
     async fn interrupt_sentbox(&self) {
         match self {
             Scheduler::Running { ref sentbox, .. } => sentbox.interrupt().await,
-            _ => panic!("interrupt_sentbox must be called in running mode"),
+            _ => {}
         }
     }
 
     async fn interrupt_smtp(&self) {
         match self {
             Scheduler::Running { ref smtp, .. } => smtp.interrupt().await,
-            _ => panic!("interrupt_smtp must be called in running mode"),
+            _ => {}
         }
     }
 
@@ -337,4 +358,22 @@ struct ImapConnectionHandlers {
     connection: Imap,
     stop_receiver: Receiver<()>,
     shutdown_sender: Sender<()>,
+}
+
+async fn get_watch_folder(context: &Context, config_name: impl AsRef<str>) -> Option<String> {
+    match context
+        .sql
+        .get_raw_config(context, config_name.as_ref())
+        .await
+    {
+        Some(name) => Some(name),
+        None => {
+            if config_name.as_ref() == "configured_inbox_folder" {
+                // initialized with old version, so has not set configured_inbox_folder
+                Some("INBOX".to_string())
+            } else {
+                None
+            }
+        }
+    }
 }

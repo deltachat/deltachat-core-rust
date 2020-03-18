@@ -391,8 +391,7 @@ impl Imap {
         }
     }
 
-    /// tries connecting to imap account using the specific login
-    /// parameters
+    /// Tries connecting to imap account using the specific login parameters.
     pub async fn connect(&mut self, context: &Context, lp: &LoginParam) -> bool {
         if lp.mail_server.is_empty() || lp.mail_user.is_empty() || lp.mail_pw.is_empty() {
             return false;
