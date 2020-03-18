@@ -52,13 +52,10 @@ pub enum ImexMode {
 }
 
 /// Import/export things.
-/// For this purpose, the function creates a job that is executed in the IMAP-thread then;
-/// this requires to call dc_perform_inbox_jobs() regularly.
 ///
 /// What to do is defined by the *what* parameter.
 ///
-/// While dc_imex() returns immediately, the started job may take a while,
-/// you can stop it using dc_stop_ongoing_process(). During execution of the job,
+/// During execution of the job,
 /// some events are sent out:
 ///
 /// - A number of #DC_EVENT_IMEX_PROGRESS events are sent and may be used to create
@@ -67,7 +64,7 @@ pub enum ImexMode {
 /// - For each file written on export, the function sends #DC_EVENT_IMEX_FILE_WRITTEN
 ///
 /// Only one import-/export-progress can run at the same time.
-/// To cancel an import-/export-progress, use dc_stop_ongoing_process().
+/// To cancel an import-/export-progress, drop the future returned by this function.
 pub async fn imex(
     context: &Context,
     what: ImexMode,
@@ -101,7 +98,7 @@ pub async fn has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result
                         newest_backup_time = curr_backup_time;
                     }
                     info!(context, "backup_time of {} is {}", name, curr_backup_time);
-                    sql.close(&context).await;
+                    sql.close().await;
                 }
             }
         }
@@ -423,7 +420,7 @@ async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) ->
         !context.is_configured().await,
         "Cannot import backups to accounts in use."
     );
-    context.sql.close(&context).await;
+    context.sql.close().await;
     dc_delete_file(context, context.get_dbfile()).await;
     ensure!(
         !context.get_dbfile().exists().await,
@@ -528,7 +525,7 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     context.sql.execute("VACUUM;", paramsv![]).await.ok();
 
     // we close the database during the copy of the dbfile
-    context.sql.close(context).await;
+    context.sql.close().await;
     info!(
         context,
         "Backup '{}' to '{}'.",
@@ -568,7 +565,7 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
             Ok(())
         }
     };
-    dest_sql.close(context).await;
+    dest_sql.close().await;
 
     Ok(res?)
 }

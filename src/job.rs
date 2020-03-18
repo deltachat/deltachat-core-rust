@@ -3,8 +3,8 @@
 //! This module implements a job queue maintained in the SQLite database
 //! and job types.
 
+use std::fmt;
 use std::future::Future;
-use std::{fmt, time};
 
 use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
@@ -579,45 +579,6 @@ async fn kill_ids(context: &Context, job_ids: &[u32]) -> sql::Result<()> {
         )
         .await?;
     Ok(())
-}
-
-async fn get_next_wakeup_time(context: &Context, thread: Thread) -> time::Duration {
-    let t: i64 = context
-        .sql
-        .query_get_value(
-            context,
-            "SELECT MIN(desired_timestamp) FROM jobs WHERE thread=?;",
-            paramsv![thread],
-        )
-        .await
-        .unwrap_or_default();
-
-    let mut wakeup_time = time::Duration::new(10 * 60, 0);
-    let now = time();
-    if t > 0 {
-        if t > now {
-            wakeup_time = time::Duration::new((t - now) as u64, 0);
-        } else {
-            wakeup_time = time::Duration::new(0, 0);
-        }
-    }
-
-    wakeup_time
-}
-
-pub async fn maybe_network(context: &Context) {
-    unimplemented!();
-    // {
-    //     context.smtp.state.write().await.probe_network = true;
-    //     context
-    //         .probe_imap_network
-    //         .store(true, std::sync::atomic::Ordering::Relaxed);
-    // }
-
-    // interrupt_smtp_idle(context).await;
-    // interrupt_inbox_idle(context).await;
-    // interrupt_mvbox_idle(context).await;
-    // interrupt_sentbox_idle(context).await;
 }
 
 pub async fn action_exists(context: &Context, action: Action) -> bool {

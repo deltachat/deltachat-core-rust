@@ -19,10 +19,16 @@ pub(crate) enum Scheduler {
         mvbox: ImapConnectionState,
         sentbox: ImapConnectionState,
         smtp: SmtpConnectionState,
+        probe_network: bool,
     },
 }
 
 impl Context {
+    /// Indicate that the network likely has come back.
+    pub async fn maybe_network(&self) {
+        self.scheduler.write().await.maybe_network().await;
+    }
+
     pub(crate) async fn interrupt_inbox(&self) {
         self.scheduler.read().await.interrupt_inbox().await;
     }
@@ -52,14 +58,14 @@ async fn inbox_loop(ctx: Context, inbox_handlers: ImapConnectionHandlers) {
         connection.connect_configured(&ctx).await.unwrap();
 
         loop {
-            // TODO: correct value
-            let probe_network = false;
+            let probe_network = ctx.scheduler.read().await.get_probe_network();
             match job::load_next(&ctx, Thread::Imap, probe_network)
                 .timeout(Duration::from_millis(200))
                 .await
             {
                 Ok(Some(job)) => {
                     job::perform_job(&ctx, job::Connection::Inbox(&mut connection), job).await;
+                    ctx.scheduler.write().await.set_probe_network(false);
                 }
                 Ok(None) | Err(async_std::future::TimeoutError { .. }) => {
                     let watch_folder = get_watch_folder(&ctx, "configured_inbox_folder")
@@ -106,14 +112,14 @@ async fn smtp_loop(ctx: Context, smtp_handlers: SmtpConnectionHandlers) {
 
     let fut = async move {
         loop {
-            // TODO: correct value
-            let probe_network = false;
+            let probe_network = ctx.scheduler.read().await.get_probe_network();
             match job::load_next(&ctx, Thread::Smtp, probe_network)
                 .timeout(Duration::from_millis(200))
                 .await
             {
                 Ok(Some(job)) => {
                     job::perform_job(&ctx, job::Connection::Smtp(&mut connection), job).await;
+                    ctx.scheduler.write().await.set_probe_network(false);
                 }
                 Ok(None) | Err(async_std::future::TimeoutError { .. }) => {
                     use futures::future::FutureExt;
@@ -133,38 +139,63 @@ async fn smtp_loop(ctx: Context, smtp_handlers: SmtpConnectionHandlers) {
 
 impl Scheduler {
     /// Start the scheduler, panics if it is already running.
-    pub fn run(&mut self, ctx: Context) {
+    pub fn run(ctx: Context) -> Self {
+        let (mvbox, mvbox_handlers) = ImapConnectionState::new();
+        let (sentbox, sentbox_handlers) = ImapConnectionState::new();
+        let (smtp, smtp_handlers) = SmtpConnectionState::new();
+        let (inbox, inbox_handlers) = ImapConnectionState::new();
+
+        let ctx1 = ctx.clone();
+        task::spawn(async move { inbox_loop(ctx1, inbox_handlers).await });
+
+        // TODO: mvbox
+        // TODO: sentbox
+
+        let ctx1 = ctx.clone();
+        task::spawn(async move { smtp_loop(ctx1, smtp_handlers).await });
+
+        let res = Scheduler::Running {
+            inbox,
+            mvbox,
+            sentbox,
+            smtp,
+            probe_network: false,
+        };
+
+        info!(ctx, "scheduler is running");
+        println!("RUN DONE");
+        res
+    }
+
+    fn set_probe_network(&mut self, val: bool) {
         match self {
-            Scheduler::Stopped => {
-                let (mvbox, mvbox_handlers) = ImapConnectionState::new();
-                let (sentbox, sentbox_handlers) = ImapConnectionState::new();
-                let (smtp, smtp_handlers) = SmtpConnectionState::new();
-                let (inbox, inbox_handlers) = ImapConnectionState::new();
-
-                let ctx1 = ctx.clone();
-                let _ = task::spawn(async move { inbox_loop(ctx1, inbox_handlers).await });
-
-                // TODO: mvbox
-                // TODO: sentbox
-
-                let ctx1 = ctx.clone();
-                let _ = task::spawn(async move { smtp_loop(ctx1, smtp_handlers).await });
-
-                *self = Scheduler::Running {
-                    inbox,
-                    mvbox,
-                    sentbox,
-                    smtp,
-                };
-
-                info!(ctx, "scheduler is running");
-                println!("RUN DONE");
+            Scheduler::Running {
+                ref mut probe_network,
+                ..
+            } => {
+                *probe_network = val;
             }
-            Scheduler::Running { .. } => {
-                // TODO: return an error
-                panic!("WARN: already running");
-            }
+            _ => panic!("set_probe_network can only be called when running"),
         }
+    }
+
+    fn get_probe_network(&self) -> bool {
+        match self {
+            Scheduler::Running { probe_network, .. } => *probe_network,
+            _ => panic!("get_probe_network can only be called when running"),
+        }
+    }
+
+    async fn maybe_network(&mut self) {
+        if !self.is_running() {
+            return;
+        }
+        self.set_probe_network(true);
+        self.interrupt_inbox()
+            .join(self.interrupt_mvbox())
+            .join(self.interrupt_sentbox())
+            .join(self.interrupt_smtp())
+            .await;
     }
 
     async fn interrupt_inbox(&self) {
@@ -206,6 +237,7 @@ impl Scheduler {
                 mvbox,
                 sentbox,
                 smtp,
+                ..
             } => {
                 inbox
                     .stop()
@@ -213,6 +245,7 @@ impl Scheduler {
                     .join(sentbox.stop())
                     .join(smtp.stop())
                     .await;
+                *self = Scheduler::Stopped;
             }
         }
     }

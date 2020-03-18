@@ -377,7 +377,7 @@ impl Imap {
         if self.is_connected() && !self.should_reconnect() {
             return Ok(());
         }
-        if !context.sql.get_raw_config_bool(context, "configured").await {
+        if !context.is_configured().await {
             return Err(Error::ConnectWithoutConfigure);
         }
 

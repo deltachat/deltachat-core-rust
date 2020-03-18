@@ -1,7 +1,5 @@
 extern crate deltachat;
 
-use async_std::task;
-
 use std::time;
 use tempfile::tempdir;
 
@@ -41,13 +39,9 @@ async fn main() {
     println!("info: {:#?}", info);
 
     let ctx1 = ctx.clone();
-    task::spawn(async move {
-        loop {
-            if let Ok(event) = ctx1.get_next_event() {
-                cb(event);
-            } else {
-                task::sleep(time::Duration::from_millis(100)).await;
-            }
+    std::thread::spawn(move || loop {
+        if let Ok(event) = ctx1.get_next_event() {
+            cb(event);
         }
     });
 
@@ -62,11 +56,10 @@ async fn main() {
         .await
         .unwrap();
 
-    ctx.configure().await;
+    ctx.configure().await.unwrap();
 
     println!("------ RUN ------");
-    ctx.run().await;
-
+    ctx.clone().run().await;
     println!("--- SENDING A MESSAGE ---");
 
     let contact_id = Contact::create(&ctx, "dignifiedquire", "dignifiedquire@gmail.com")

@@ -87,12 +87,10 @@ impl Sql {
         self.pool.read().await.is_some()
     }
 
-    pub async fn close(&self, context: &Context) {
+    pub async fn close(&self) {
         let _ = self.pool.write().await.take();
         self.in_use.remove();
         // drop closes the connection
-
-        info!(context, "Database closed.");
     }
 
     // return true on success, false on failure
@@ -101,7 +99,7 @@ impl Sql {
             Ok(_) => true,
             Err(crate::error::Error::SqlError(Error::SqlAlreadyOpen)) => false,
             Err(_) => {
-                self.close(context).await;
+                self.close().await;
                 false
             }
         }
@@ -374,10 +372,8 @@ impl Sql {
     pub async fn get_raw_config_bool(&self, context: &Context, key: impl AsRef<str>) -> bool {
         // Not the most obvious way to encode bool as string, but it is matter
         // of backward compatibility.
-        self.get_raw_config_int(context, key)
-            .await
-            .unwrap_or_default()
-            > 0
+        let res = self.get_raw_config_int(context, key).await;
+        res.unwrap_or_default() > 0
     }
 
     pub async fn set_raw_config_bool<T>(&self, context: &Context, key: T, value: bool) -> Result<()>

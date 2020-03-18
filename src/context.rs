@@ -128,18 +128,16 @@ impl Context {
     }
 
     pub async fn run(&self) {
-        let ctx = self.clone();
-        println!("RUN LOCK START");
-        let l = &mut *self.inner.scheduler.write().await;
-        println!("RUN LOCK AQ");
-        l.run(ctx);
-        println!("RUN LOCK DONE");
+        if self.inner.scheduler.read().await.is_running() {
+            panic!("Already running");
+        }
+
+        let scheduler = Scheduler::run(self.clone());
+        *self.inner.scheduler.write().await = scheduler;
     }
 
     pub async fn stop(&self) {
-        if self.inner.scheduler.read().await.is_running() {
-            self.inner.scheduler.write().await.stop().await;
-        }
+        self.inner.stop().await;
     }
 
     /// Returns database file path.
@@ -469,11 +467,19 @@ impl Context {
     }
 }
 
-impl Drop for Context {
+impl InnerContext {
+    async fn stop(&self) {
+        if self.scheduler.read().await.is_running() {
+            self.scheduler.write().await.stop().await;
+        }
+    }
+}
+
+impl Drop for InnerContext {
     fn drop(&mut self) {
         async_std::task::block_on(async move {
             self.stop().await;
-            self.sql.close(self).await;
+            self.sql.close().await;
         });
     }
 }
