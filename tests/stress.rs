@@ -2,7 +2,6 @@
 
 use deltachat::config;
 use deltachat::context::*;
-use deltachat::Event;
 use tempfile::{tempdir, TempDir};
 
 /* some data used for testing

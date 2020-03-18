@@ -101,6 +101,53 @@ async fn inbox_loop(ctx: Context, inbox_handlers: ImapConnectionHandlers) {
     shutdown_sender.send(()).await;
 }
 
+async fn simple_imap_loop(
+    ctx: Context,
+    inbox_handlers: ImapConnectionHandlers,
+    folder: impl AsRef<str>,
+) {
+    info!(ctx, "starting simple loop");
+    let ImapConnectionHandlers {
+        mut connection,
+        stop_receiver,
+        shutdown_sender,
+    } = inbox_handlers;
+
+    let fut = async move {
+        connection.connect_configured(&ctx).await.unwrap();
+
+        loop {
+            let watch_folder = get_watch_folder(&ctx, folder.as_ref())
+                .await
+                .ok_or_else(|| Error::WatchFolderNotFound("not-set".to_string()))
+                .unwrap();
+
+            // fetch
+            connection
+                .fetch(&ctx, &watch_folder)
+                .await
+                .unwrap_or_else(|err| {
+                    error!(ctx, "{}", err);
+                });
+
+            // idle
+            if connection.can_idle() {
+                connection
+                    .idle(&ctx, Some(watch_folder))
+                    .await
+                    .unwrap_or_else(|err| {
+                        error!(ctx, "{}", err);
+                    });
+            } else {
+                connection.fake_idle(&ctx, Some(watch_folder)).await;
+            }
+        }
+    };
+
+    fut.race(stop_receiver.recv()).await;
+    shutdown_sender.send(()).await;
+}
+
 async fn smtp_loop(ctx: Context, smtp_handlers: SmtpConnectionHandlers) {
     info!(ctx, "starting smtp loop");
     let SmtpConnectionHandlers {
@@ -148,8 +195,15 @@ impl Scheduler {
         let ctx1 = ctx.clone();
         task::spawn(async move { inbox_loop(ctx1, inbox_handlers).await });
 
-        // TODO: mvbox
-        // TODO: sentbox
+        let ctx1 = ctx.clone();
+        task::spawn(async move {
+            simple_imap_loop(ctx1, mvbox_handlers, "configured_mvbox_folder").await
+        });
+
+        let ctx1 = ctx.clone();
+        task::spawn(async move {
+            simple_imap_loop(ctx1, sentbox_handlers, "configured_sentbox_folder").await
+        });
 
         let ctx1 = ctx.clone();
         task::spawn(async move { smtp_loop(ctx1, smtp_handlers).await });
