@@ -186,11 +186,19 @@ async fn smtp_loop(ctx: Context, smtp_handlers: SmtpConnectionHandlers) {
 
 impl Scheduler {
     /// Start the scheduler, panics if it is already running.
-    pub fn run(ctx: Context) -> Self {
+    pub fn run(&mut self, ctx: Context) {
         let (mvbox, mvbox_handlers) = ImapConnectionState::new();
         let (sentbox, sentbox_handlers) = ImapConnectionState::new();
         let (smtp, smtp_handlers) = SmtpConnectionState::new();
         let (inbox, inbox_handlers) = ImapConnectionState::new();
+
+        *self = Scheduler::Running {
+            inbox,
+            mvbox,
+            sentbox,
+            smtp,
+            probe_network: false,
+        };
 
         let ctx1 = ctx.clone();
         task::spawn(async move { inbox_loop(ctx1, inbox_handlers).await });
@@ -208,17 +216,8 @@ impl Scheduler {
         let ctx1 = ctx.clone();
         task::spawn(async move { smtp_loop(ctx1, smtp_handlers).await });
 
-        let res = Scheduler::Running {
-            inbox,
-            mvbox,
-            sentbox,
-            smtp,
-            probe_network: false,
-        };
-
         info!(ctx, "scheduler is running");
         println!("RUN DONE");
-        res
     }
 
     fn set_probe_network(&mut self, val: bool) {

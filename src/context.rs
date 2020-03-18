@@ -132,8 +132,8 @@ impl Context {
             panic!("Already running");
         }
 
-        let scheduler = Scheduler::run(self.clone());
-        *self.inner.scheduler.write().await = scheduler;
+        let l = &mut *self.inner.scheduler.write().await;
+        l.run(self.clone());
     }
 
     pub async fn stop(&self) {
