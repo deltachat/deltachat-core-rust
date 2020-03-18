@@ -128,7 +128,12 @@ impl Context {
     }
 
     pub async fn run(&self) {
-        self.inner.scheduler.write().await.run(self.clone()).await
+        let ctx = self.clone();
+        println!("RUN LOCK START");
+        let l = &mut *self.inner.scheduler.write().await;
+        println!("RUN LOCK AQ");
+        l.run(ctx);
+        println!("RUN LOCK DONE");
     }
 
     pub async fn stop(&self) {

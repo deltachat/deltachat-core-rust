@@ -67,7 +67,8 @@ async fn main() {
     println!("------ RUN ------");
     ctx.run().await;
 
-    println!("sending a message");
+    println!("--- SENDING A MESSAGE ---");
+
     let contact_id = Contact::create(&ctx, "dignifiedquire", "dignifiedquire@gmail.com")
         .await
         .unwrap();
