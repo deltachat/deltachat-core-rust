@@ -1,8 +1,6 @@
 use super::Imap;
 
-use async_imap::extensions::idle::{Handle as ImapIdleHandle, IdleResponse};
-use async_native_tls::TlsStream;
-use async_std::net::TcpStream;
+use async_imap::extensions::idle::IdleResponse;
 use async_std::prelude::*;
 use std::time::{Duration, SystemTime};
 
@@ -37,27 +35,6 @@ impl From<select_folder::Error> for Error {
     }
 }
 
-#[derive(Debug)]
-pub(crate) enum IdleHandle {
-    Secure(ImapIdleHandle<TlsStream<TcpStream>>),
-    Insecure(ImapIdleHandle<TcpStream>),
-}
-
-impl Session {
-    pub fn idle(self) -> IdleHandle {
-        match self {
-            Session::Secure(i) => {
-                let h = i.idle();
-                IdleHandle::Secure(h)
-            }
-            Session::Insecure(i) => {
-                let h = i.idle();
-                IdleHandle::Insecure(h)
-            }
-        }
-    }
-}
-
 impl Imap {
     pub fn can_idle(&self) -> bool {
         self.config.can_idle
@@ -80,138 +57,69 @@ impl Imap {
         let timeout = Duration::from_secs(23 * 60);
 
         if let Some(session) = session {
-            match session.idle() {
-                // BEWARE: If you change the Secure branch you
-                // typically also need to change the Insecure branch.
-                IdleHandle::Secure(mut handle) => {
-                    if let Err(err) = handle.init().await {
-                        return Err(Error::IdleProtocolFailed(err));
+            let mut handle = session.idle();
+            if let Err(err) = handle.init().await {
+                return Err(Error::IdleProtocolFailed(err));
+            }
+
+            let (idle_wait, interrupt) = handle.wait_with_timeout(timeout);
+
+            if self.skip_next_idle_wait {
+                // interrupt_idle has happened before we
+                // provided self.interrupt
+                self.skip_next_idle_wait = false;
+                drop(idle_wait);
+                drop(interrupt);
+
+                info!(context, "Idle wait was skipped");
+            } else {
+                info!(context, "Idle entering wait-on-remote state");
+                let fut = idle_wait.race(
+                    self.idle_interrupt
+                        .recv()
+                        .map(|_| Ok(IdleResponse::ManualInterrupt)),
+                );
+
+                match fut.await {
+                    Ok(IdleResponse::NewData(_)) => {
+                        info!(context, "Idle has NewData");
                     }
-
-                    let (idle_wait, interrupt) = handle.wait_with_timeout(timeout);
-
-                    if self.skip_next_idle_wait {
-                        // interrupt_idle has happened before we
-                        // provided self.interrupt
-                        self.skip_next_idle_wait = false;
-                        drop(idle_wait);
-                        drop(interrupt);
-
-                        info!(context, "Idle wait was skipped");
-                    } else {
-                        info!(context, "Idle entering wait-on-remote state");
-                        let fut = idle_wait.race(
-                            self.idle_interrupt
-                                .recv()
-                                .map(|_| Ok(IdleResponse::ManualInterrupt)),
-                        );
-
-                        match fut.await {
-                            Ok(IdleResponse::NewData(_)) => {
-                                info!(context, "Idle has NewData");
-                            }
-                            // TODO: idle_wait does not distinguish manual interrupts
-                            // from Timeouts if we would know it's a Timeout we could bail
-                            // directly and reconnect .
-                            Ok(IdleResponse::Timeout) => {
-                                info!(context, "Idle-wait timeout or interruption");
-                            }
-                            Ok(IdleResponse::ManualInterrupt) => {
-                                info!(context, "Idle wait was interrupted");
-                            }
-                            Err(err) => {
-                                warn!(context, "Idle wait errored: {:?}", err);
-                            }
-                        }
+                    // TODO: idle_wait does not distinguish manual interrupts
+                    // from Timeouts if we would know it's a Timeout we could bail
+                    // directly and reconnect .
+                    Ok(IdleResponse::Timeout) => {
+                        info!(context, "Idle-wait timeout or interruption");
                     }
-
-                    // if we can't properly terminate the idle
-                    // protocol let's break the connection.
-                    let res = handle
-                        .done()
-                        .timeout(Duration::from_secs(15))
-                        .await
-                        .map_err(|err| {
-                            self.trigger_reconnect();
-                            Error::IdleTimeout(err)
-                        })?;
-
-                    match res {
-                        Ok(session) => {
-                            self.session = Some(Session::Secure(session));
-                        }
-                        Err(err) => {
-                            // if we cannot terminate IDLE it probably
-                            // means that we waited long (with idle_wait)
-                            // but the network went away/changed
-                            self.trigger_reconnect();
-                            return Err(Error::IdleProtocolFailed(err));
-                        }
+                    Ok(IdleResponse::ManualInterrupt) => {
+                        info!(context, "Idle wait was interrupted");
+                    }
+                    Err(err) => {
+                        warn!(context, "Idle wait errored: {:?}", err);
                     }
                 }
-                IdleHandle::Insecure(mut handle) => {
-                    if let Err(err) = handle.init().await {
-                        return Err(Error::IdleProtocolFailed(err));
-                    }
+            }
 
-                    let (idle_wait, interrupt) = handle.wait_with_timeout(timeout);
+            // if we can't properly terminate the idle
+            // protocol let's break the connection.
+            let res = handle
+                .done()
+                .timeout(Duration::from_secs(15))
+                .await
+                .map_err(|err| {
+                    self.trigger_reconnect();
+                    Error::IdleTimeout(err)
+                })?;
 
-                    if self.skip_next_idle_wait {
-                        // interrupt_idle has happened before we
-                        // provided self.interrupt
-                        self.skip_next_idle_wait = false;
-                        drop(idle_wait);
-                        drop(interrupt);
-                        info!(context, "Idle wait was skipped");
-                    } else {
-                        info!(context, "Idle entering wait-on-remote state");
-                        let fut = idle_wait.race(
-                            self.idle_interrupt
-                                .recv()
-                                .map(|_| Ok(IdleResponse::ManualInterrupt)),
-                        );
-
-                        match fut.await {
-                            Ok(IdleResponse::NewData(_)) => {
-                                info!(context, "Idle has NewData");
-                            }
-                            // TODO: idle_wait does not distinguish manual interrupts
-                            // from Timeouts if we would know it's a Timeout we could bail
-                            // directly and reconnect .
-                            Ok(IdleResponse::Timeout) => {
-                                info!(context, "Idle-wait timeout or interruption");
-                            }
-                            Ok(IdleResponse::ManualInterrupt) => {
-                                info!(context, "Idle wait was interrupted");
-                            }
-                            Err(err) => {
-                                warn!(context, "Idle wait errored: {:?}", err);
-                            }
-                        }
-                    }
-                    // if we can't properly terminate the idle
-                    // protocol let's break the connection.
-                    let res = handle
-                        .done()
-                        .timeout(Duration::from_secs(15))
-                        .await
-                        .map_err(|err| {
-                            self.trigger_reconnect();
-                            Error::IdleTimeout(err)
-                        })?;
-
-                    match res {
-                        Ok(session) => {
-                            self.session = Some(Session::Insecure(session));
-                        }
-                        Err(err) => {
-                            // if we cannot terminate IDLE it probably
-                            // means that we waited long (with idle_wait)
-                            // but the network went away/changed
-                            self.trigger_reconnect();
-                            return Err(Error::IdleProtocolFailed(err));
-                        }
-                    }
+            match res {
+                Ok(session) => {
+                    self.session = Some(Session { inner: session });
+                }
+                Err(err) => {
+                    // if we cannot terminate IDLE it probably
+                    // means that we waited long (with idle_wait)
+                    // but the network went away/changed
+                    self.trigger_reconnect();
+                    return Err(Error::IdleProtocolFailed(err));
                 }
             }
         }

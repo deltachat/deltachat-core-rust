@@ -85,6 +85,7 @@ dependencies = [
 [[package]]
 name = "async-imap"
 version = "0.2.0"
+source = "git+https://github.com/async-email/async-imap?branch=feat/send#be7b9cace12d0f323ef1e6e0a9fc698f4e26b64d"
 dependencies = [
  "async-native-tls 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "async-std 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -618,7 +619,7 @@ dependencies = [
 name = "deltachat"
 version = "1.27.0"
 dependencies = [
- "async-imap 0.2.0",
+ "async-imap 0.2.0 (git+https://github.com/async-email/async-imap?branch=feat/send)",
  "async-native-tls 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "async-smtp 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "async-std 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3143,6 +3144,7 @@ dependencies = [
 "checksum arrayvec 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "cff77d8686867eceff3105329d4698d96c2391c176d5d03adc90c7389162b5b8"
 "checksum ascii_utils 0.9.3 (registry+https://github.com/rust-lang/crates.io-index)" = "71938f30533e4d95a6d17aa530939da3842c2ab6f4f84b9dae68447e4129f74a"
 "checksum async-attributes 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "efd3d156917d94862e779f356c5acae312b08fd3121e792c857d7928c8088423"
+"checksum async-imap 0.2.0 (git+https://github.com/async-email/async-imap?branch=feat/send)" = "<none>"
 "checksum async-native-tls 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "9e9e7a929bd34c68a82d58a4de7f86fffdaf97fb2af850162a7bb19dd7269b33"
 "checksum async-smtp 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b3652e5c6072c0694a2bcdb7e8409980d2676bd4f024adf4aab10c68fd2b48f5"
 "checksum async-std 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "538ecb01eb64eecd772087e5b6f7540cbc917f047727339a472dafed2185b267"

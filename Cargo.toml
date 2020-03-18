@@ -6,7 +6,7 @@ edition = "2018"
 license = "MPL-2.0"
 
 [profile.release]
-lto = true
+# lto = true
 
 [dependencies]
 deltachat_derive = { path = "./deltachat_derive" }
@@ -23,7 +23,7 @@ num-traits = "0.2.6"
 async-smtp = "0.2"
 email = { git = "https://github.com/deltachat/rust-email", branch = "master" }
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
-async-imap = { path = "../../async-imap"} # "0.2"
+async-imap = { git = "https://github.com/async-email/async-imap", branch = "feat/send" }
 async-native-tls = "0.3.1"
 async-std = { version = "1.4", features = ["unstable"] }
 base64 = "0.11"
@@ -90,4 +90,3 @@ required-features = ["rustyline"]
 default = ["nightly"]
 vendored = ["async-native-tls/vendored", "reqwest/native-tls-vendored", "async-smtp/native-tls-vendored"]
 nightly = ["pgp/nightly"]
-
