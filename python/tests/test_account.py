@@ -1438,8 +1438,6 @@ class TestGroupStressTests:
         lp.sec("ac2: check that ac3 is removed")
         msg = ac2.wait_next_incoming_message()
 
-        # ac2 did not see that ac3 was removed
-        # FIXME: due to a bug, ac2 thinks ac3 is still in the chat
         assert len(msg.chat.get_contacts()) == len(chat.get_contacts())
 
 
