@@ -79,9 +79,9 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let mut recipients = Vec::with_capacity(5);
         let mut req_mdn = false;
 
-        if chat.is_self_talk() {
+        if chat.is_self_talk() || context.get_config_bool(Config::BccSelf) {
             recipients.push((from_displayname.to_string(), from_addr.to_string()));
-        } else {
+        } else if !chat.is_self_talk() {
             context.sql.query_map(
                 "SELECT c.authname, c.addr  \
                  FROM chats_contacts cc  \

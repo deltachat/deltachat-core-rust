@@ -815,20 +815,7 @@ pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<()> {
 
     let mimefactory = MimeFactory::from_msg(context, &msg, attach_selfavatar)?;
 
-    let mut recipients = mimefactory.recipients();
-
-    let from = context
-        .get_config(Config::ConfiguredAddr)
-        .unwrap_or_default();
-    let lowercase_from = from.to_lowercase();
-    if context.get_config_bool(Config::BccSelf)
-        && !recipients
-            .iter()
-            .any(|x| x.to_lowercase() == lowercase_from)
-    {
-        recipients.push(from);
-    }
-
+    let recipients = mimefactory.recipients();
     if recipients.is_empty() {
         // may happen eg. for groups with only SELF and bcc_self disabled
         info!(
