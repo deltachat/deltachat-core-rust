@@ -135,7 +135,7 @@ impl MimeMessage {
                 // and the caller cannot display the message
                 // and try to assign the message to a chat
                 warn!(context, "decryption failed: {}", err);
-                (mail, Default::default())
+                return Err(err);
             }
         };
 

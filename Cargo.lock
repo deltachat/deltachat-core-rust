@@ -646,6 +646,7 @@ dependencies = [
  "hex 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "image 0.22.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "image-meta 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "imap-proto 0.10.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "indexmap 1.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "itertools 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",

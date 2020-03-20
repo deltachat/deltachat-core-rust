@@ -151,6 +151,7 @@ impl ContextWrapper {
                 | Event::Warning(msg)
                 | Event::Error(msg)
                 | Event::ErrorNetwork(msg)
+                | Event::MissingKey(msg)
                 | Event::ErrorSelfNotInGroup(msg) => {
                     let data2 = CString::new(msg).unwrap_or_default();
                     ffi_cb(self, event_id, 0, data2.as_ptr() as uintptr_t);

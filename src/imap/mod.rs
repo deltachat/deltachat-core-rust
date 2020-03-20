@@ -13,6 +13,7 @@ use async_imap::{
 };
 use async_std::sync::{Mutex, RwLock};
 use async_std::task;
+pub use imap_proto::types::Address;
 
 use crate::config::*;
 use crate::constants::*;
@@ -661,7 +662,16 @@ impl Imap {
                     );
                 } else {
                     // check passed, go fetch the rest
-                    if let Err(err) = self.fetch_single_msg(context, &folder, cur_uid).await {
+                    let from = headers.get_header_value(HeaderDef::From_)?;
+                    if let Err(err) = self
+                        .fetch_single_msg(
+                            context,
+                            &folder,
+                            cur_uid,
+                            from.unwrap_or(String::from("")),
+                        )
+                        .await
+                    {
                         info!(
                             context,
                             "Read error for message {} from \"{}\", trying over later: {}.",
@@ -720,11 +730,12 @@ impl Imap {
     /// If it succeeds, the message should be treated as received even
     /// if no database entries are created. If the function returns an
     /// error, the caller should try again later.
-    async fn fetch_single_msg<S: AsRef<str>>(
+    async fn fetch_single_msg<'a, S: AsRef<str>>(
         &self,
         context: &Context,
         folder: S,
         server_uid: u32,
+        from: String,
     ) -> Result<()> {
         if !self.is_connected().await {
             return Err(Error::Other("Not connected".to_string()));
@@ -765,13 +776,20 @@ impl Imap {
                 if let Err(err) =
                     dc_receive_imf(context, &body, folder.as_ref(), server_uid, is_seen)
                 {
-                    warn!(
-                        context,
-                        "dc_receive_imf failed for imap-message {}/{}: {:?}",
-                        folder.as_ref(),
-                        server_uid,
-                        err
-                    );
+                    match err {
+                        crate::error::Error::Pgp(pgp::errors::Error::MissingKey) => {
+                            context.call_cb(Event::MissingKey(from))
+                        }
+                        _ => {
+                            warn!(
+                                context,
+                                "dc_receive_imf failed for imap-message {}/{}: {:?}",
+                                folder.as_ref(),
+                                server_uid,
+                                err
+                            );
+                        }
+                    }
                 }
             }
         } else {
