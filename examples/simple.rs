@@ -40,16 +40,21 @@ async fn main() {
 
     let ctx1 = ctx.clone();
     std::thread::spawn(move || loop {
-        if let Ok(event) = ctx1.get_next_event() {
-            cb(event);
+        if ctx1.has_next_event() {
+            if let Ok(event) = ctx1.get_next_event() {
+                cb(event);
+            }
+        } else {
+            std::thread::sleep(time::Duration::from_millis(50));
         }
     });
 
     println!("configuring");
     let args = std::env::args().collect::<Vec<String>>();
-    assert_eq!(args.len(), 2, "missing password");
-    let pw = args[1].clone();
-    ctx.set_config(config::Config::Addr, Some("d@testrun.org"))
+    assert_eq!(args.len(), 3, "requires email password");
+    let email = args[1].clone();
+    let pw = args[2].clone();
+    ctx.set_config(config::Config::Addr, Some(&email))
         .await
         .unwrap();
     ctx.set_config(config::Config::MailPw, Some(&pw))
@@ -66,9 +71,12 @@ async fn main() {
         .await
         .unwrap();
     let chat_id = chat::create_by_contact_id(&ctx, contact_id).await.unwrap();
-    chat::send_text_msg(&ctx, chat_id, "Hi, here is my first message!".into())
-        .await
-        .unwrap();
+
+    for i in 0..2 {
+        chat::send_text_msg(&ctx, chat_id, format!("Hi, here is my {}nth message!", i))
+            .await
+            .unwrap();
+    }
 
     println!("fetching chats..");
     let chats = Chatlist::try_load(&ctx, 0, None, None).await.unwrap();
