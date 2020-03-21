@@ -30,6 +30,7 @@ ssh $SSHTARGET <<_HERE
     export CARGO_TARGET_DIR=\`pwd\`/../target
     export TARGET=release
     export DCC_PY_LIVECONFIG=$DCC_PY_LIVECONFIG
+    export DCC_NEW_TMP_EMAIL=$DCC_NEW_TMP_EMAIL
 
     #we rely on tox/virtualenv being available in the host
     #rm -rf virtualenv venv

@@ -1094,6 +1094,18 @@ async fn create_or_lookup_group(
     // add members to group/check members
     if recreate_member_list {
         if !chat::is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF).await {
+            // Members could have been removed while we were
+            // absent. We can't use existing member list and need to
+            // start from scratch.
+            context
+                .sql
+                .execute(
+                    "DELETE FROM chats_contacts WHERE chat_id=?;",
+                    paramsv![chat_id],
+                )
+                .await
+                .ok();
+
             chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await;
         }
         if from_id > DC_CONTACT_ID_LAST_SPECIAL

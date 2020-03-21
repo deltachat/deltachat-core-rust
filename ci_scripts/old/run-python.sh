@@ -46,6 +46,7 @@ if [ -n "$TESTS" ]; then
     tox --workdir "$TOXWORKDIR" -e py37 -- --reruns 3 -k "not qr"
     tox --workdir "$TOXWORKDIR" -e py37 -- --reruns 3 -k "qr"
     unset DCC_PY_LIVECONFIG
+    unset DCC_NEW_TMP_EMAIL
     tox --workdir "$TOXWORKDIR" -p4 -e lint,py35,py36,doc
     tox --workdir "$TOXWORKDIR" -e auditwheels
     popd
