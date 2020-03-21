@@ -128,8 +128,8 @@ impl Context {
     }
 
     pub async fn run(&self) {
-        if self.inner.scheduler.read().await.is_running() {
-            panic!("Already running");
+        if self.is_running().await {
+            return;
         }
 
         let l = &mut *self.inner.scheduler.write().await;
@@ -137,7 +137,7 @@ impl Context {
     }
 
     pub async fn is_running(&self) -> bool {
-        self.inner.scheduler.read().await.is_running()
+        self.inner.is_running().await
     }
 
     pub async fn stop(&self) {
@@ -480,19 +480,21 @@ impl Context {
 }
 
 impl InnerContext {
-    async fn stop(&self) {
-        if self.scheduler.read().await.is_running() {
-            self.scheduler.write().await.stop().await;
-        }
+    async fn is_running(&self) -> bool {
+        self.scheduler.read().await.is_running()
     }
-}
 
-impl Drop for InnerContext {
-    fn drop(&mut self) {
-        async_std::task::block_on(async move {
-            self.stop().await;
-            self.sql.close().await;
-        });
+    async fn stop(&self) {
+        if self.is_running().await {
+            let token = {
+                let lock = &*self.scheduler.read().await;
+                lock.pre_stop().await
+            };
+            {
+                let lock = &mut *self.scheduler.write().await;
+                lock.stop(token).await;
+            }
+        }
     }
 }
 

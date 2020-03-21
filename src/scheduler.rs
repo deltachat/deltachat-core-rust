@@ -9,6 +9,8 @@ use crate::imap::Imap;
 use crate::job::{self, Thread};
 use crate::smtp::Smtp;
 
+pub(crate) struct StopToken;
+
 /// Job and connection scheduler.
 #[derive(Debug)]
 pub(crate) enum Scheduler {
@@ -287,8 +289,8 @@ impl Scheduler {
         }
     }
 
-    /// Halt the scheduler, panics if it is already stopped.
-    pub async fn stop(&mut self) {
+    /// Halts the scheduler, must be called first, and then `stop`.
+    pub(crate) async fn pre_stop(&self) -> StopToken {
         match self {
             Scheduler::Stopped => {
                 panic!("WARN: already stopped");
@@ -306,6 +308,19 @@ impl Scheduler {
                     .join(sentbox.stop())
                     .join(smtp.stop())
                     .await;
+
+                StopToken
+            }
+        }
+    }
+
+    /// Halt the scheduler, must only be called after pre_stop.
+    pub(crate) async fn stop(&mut self, _t: StopToken) {
+        match self {
+            Scheduler::Stopped => {
+                panic!("WARN: already stopped");
+            }
+            Scheduler::Running { .. } => {
                 *self = Scheduler::Stopped;
             }
         }

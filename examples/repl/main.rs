@@ -268,13 +268,15 @@ async fn start(args: Vec<String>) -> Result<(), failure::Error> {
     let context = Context::new("CLI".into(), Path::new(&args[1]).to_path_buf()).await?;
 
     let ctx = context.clone();
-    std::thread::spawn(move || loop {
-        if ctx.has_next_event() {
-            if let Ok(event) = ctx.get_next_event() {
-                receive_event(event);
+    async_std::task::spawn(async move {
+        loop {
+            if ctx.has_next_event() {
+                if let Ok(event) = ctx.get_next_event() {
+                    receive_event(event);
+                }
+            } else {
+                async_std::task::sleep(std::time::Duration::from_millis(50)).await;
             }
-        } else {
-            std::thread::sleep(std::time::Duration::from_millis(50));
         }
     });
 
@@ -316,6 +318,7 @@ async fn start(args: Vec<String>) -> Result<(), failure::Error> {
             }
             Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => {
                 println!("Exiting...");
+                context.stop().await;
                 break;
             }
             Err(err) => {
@@ -324,10 +327,9 @@ async fn start(args: Vec<String>) -> Result<(), failure::Error> {
             }
         }
     }
+
     rl.save_history(".dc-history.txt")?;
     println!("history saved");
-
-    context.stop().await;
 
     Ok(())
 }

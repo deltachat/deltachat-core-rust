@@ -39,13 +39,15 @@ async fn main() {
     println!("info: {:#?}", info);
 
     let ctx1 = ctx.clone();
-    std::thread::spawn(move || loop {
-        if ctx1.has_next_event() {
-            if let Ok(event) = ctx1.get_next_event() {
-                cb(event);
+    async_std::task::spawn(async move {
+        loop {
+            if ctx1.has_next_event() {
+                if let Ok(event) = ctx1.get_next_event() {
+                    cb(event);
+                }
+            } else {
+                async_std::task::sleep(time::Duration::from_millis(50));
             }
-        } else {
-            std::thread::sleep(time::Duration::from_millis(50));
         }
     });
 
