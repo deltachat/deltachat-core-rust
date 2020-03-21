@@ -1176,6 +1176,10 @@ mod tests {
     fn test_normalize_name() {
         assert_eq!(&normalize_name("Doe, John"), "John Doe");
         assert_eq!(&normalize_name(" hello world   "), "hello world");
+        assert_eq!(&normalize_name("<"), "<");
+        assert_eq!(&normalize_name(">"), ">");
+        assert_eq!(&normalize_name("'"), "'");
+        assert_eq!(&normalize_name("\""), "\"");
     }
 
     #[test]
