@@ -136,8 +136,20 @@ impl Context {
         l.run(self.clone());
     }
 
+    pub async fn is_running(&self) -> bool {
+        self.inner.scheduler.read().await.is_running()
+    }
+
     pub async fn stop(&self) {
         self.inner.stop().await;
+    }
+
+    /// Returns a reference to the underlying SQL instance.
+    ///
+    /// Warning: this is only here for testing, not part of the public API.
+    #[cfg(feature = "internals")]
+    pub fn sql(&self) -> &Sql {
+        &self.inner.sql
     }
 
     /// Returns database file path.

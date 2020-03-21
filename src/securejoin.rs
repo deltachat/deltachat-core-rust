@@ -349,9 +349,7 @@ async fn fingerprint_equals_sender(
 
     if contacts.len() == 1 {
         if let Ok(contact) = Contact::load_from_db(context, contacts[0]).await {
-            if let Some(peerstate) =
-                Peerstate::from_addr(context, &context.sql, contact.get_addr()).await
-            {
+            if let Some(peerstate) = Peerstate::from_addr(context, contact.get_addr()).await {
                 let fingerprint_normalized = dc_normalize_fingerprint(fingerprint.as_ref());
                 if peerstate.public_key_fingerprint.is_some()
                     && &fingerprint_normalized == peerstate.public_key_fingerprint.as_ref().unwrap()

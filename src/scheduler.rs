@@ -217,7 +217,6 @@ impl Scheduler {
         task::spawn(async move { smtp_loop(ctx1, smtp_handlers).await });
 
         info!(ctx, "scheduler is running");
-        println!("RUN DONE");
     }
 
     fn set_probe_network(&mut self, val: bool) {

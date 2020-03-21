@@ -20,19 +20,17 @@ pub trait ToSql: rusqlite::ToSql + Send + Sync {}
 
 impl<T: rusqlite::ToSql + Send + Sync> ToSql for T {}
 
-macro_rules! paramsv {
-    () => {
-        Vec::new()
-    };
-    ($($param:expr),+ $(,)?) => {
-        vec![$(&$param as &dyn $crate::ToSql),+]
-    };
-}
-
 #[macro_use]
 pub mod log;
 #[macro_use]
 pub mod error;
+
+#[cfg(feature = "internals")]
+#[macro_use]
+pub mod sql;
+#[cfg(not(feature = "internals"))]
+#[macro_use]
+mod sql;
 
 pub mod headerdef;
 
@@ -71,7 +69,6 @@ pub mod qr;
 pub mod securejoin;
 mod simplify;
 mod smtp;
-mod sql;
 pub mod stock;
 mod token;
 #[macro_use]

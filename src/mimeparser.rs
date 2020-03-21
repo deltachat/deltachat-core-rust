@@ -886,7 +886,7 @@ async fn update_gossip_peerstates(
                 .unwrap()
                 .contains(&header.addr.to_lowercase())
             {
-                let mut peerstate = Peerstate::from_addr(context, &context.sql, &header.addr).await;
+                let mut peerstate = Peerstate::from_addr(context, &header.addr).await;
                 if let Some(ref mut peerstate) = peerstate {
                     peerstate.apply_gossip(header, message_time);
                     peerstate.save_to_db(&context.sql, false).await?;

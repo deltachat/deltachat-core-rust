@@ -144,7 +144,7 @@ impl<'a> Peerstate<'a> {
         res
     }
 
-    pub async fn from_addr(context: &'a Context, _sql: &Sql, addr: &str) -> Option<Peerstate<'a>> {
+    pub async fn from_addr(context: &'a Context, addr: &str) -> Option<Peerstate<'a>> {
         let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, verified_key, verified_key_fingerprint FROM acpeerstates  WHERE addr=? COLLATE NOCASE;";
         Self::from_stmt(context, query, paramsv![addr]).await
     }
@@ -510,7 +510,7 @@ mod tests {
             "failed to save to db"
         );
 
-        let peerstate_new = Peerstate::from_addr(&ctx.ctx, &ctx.ctx.sql, addr)
+        let peerstate_new = Peerstate::from_addr(&ctx.ctx, addr)
             .await
             .expect("failed to load peerstate from db");
 
@@ -586,7 +586,7 @@ mod tests {
             "failed to save"
         );
 
-        let peerstate_new = Peerstate::from_addr(&ctx.ctx, &ctx.ctx.sql, addr)
+        let peerstate_new = Peerstate::from_addr(&ctx.ctx, addr)
             .await
             .expect("failed to load peerstate from db");
 

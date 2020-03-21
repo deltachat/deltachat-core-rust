@@ -17,6 +17,16 @@ use crate::dc_tools::*;
 use crate::param::*;
 use crate::peerstate::*;
 
+#[macro_export]
+macro_rules! paramsv {
+    () => {
+        Vec::new()
+    };
+    ($($param:expr),+ $(,)?) => {
+        vec![$(&$param as &dyn $crate::ToSql),+]
+    };
+}
+
 #[derive(Debug, Fail)]
 pub enum Error {
     #[fail(display = "Sqlite Error: {:?}", _0)]
@@ -1295,7 +1305,7 @@ async fn open(
                 )
                 .await?;
             for addr in &addrs {
-                if let Some(ref mut peerstate) = Peerstate::from_addr(context, sql, addr).await {
+                if let Some(ref mut peerstate) = Peerstate::from_addr(context, addr).await {
                     peerstate.recalc_fingerprint();
                     peerstate.save_to_db(sql, false).await?;
                 }
