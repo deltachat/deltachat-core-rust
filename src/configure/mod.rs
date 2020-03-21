@@ -423,9 +423,7 @@ async fn exec_step(
             // "configured_" prefix; also write the "configured"-flag */
             // the trailing underscore is correct
             param.save_to_database(ctx, "configured_").await?;
-            println!("storing configured val");
             ctx.sql.set_raw_config_bool(ctx, "configured", true).await?;
-            println!("stored configured val");
         }
         18 => {
             progress!(ctx, 920);

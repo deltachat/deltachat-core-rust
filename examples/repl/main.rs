@@ -269,8 +269,12 @@ async fn start(args: Vec<String>) -> Result<(), failure::Error> {
 
     let ctx = context.clone();
     std::thread::spawn(move || loop {
-        if let Ok(event) = ctx.get_next_event() {
-            receive_event(event);
+        if ctx.has_next_event() {
+            if let Ok(event) = ctx.get_next_event() {
+                receive_event(event);
+            }
+        } else {
+            std::thread::sleep(std::time::Duration::from_millis(50));
         }
     });
 

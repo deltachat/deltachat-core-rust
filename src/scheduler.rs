@@ -5,7 +5,6 @@ use async_std::task;
 use std::time::Duration;
 
 use crate::context::Context;
-use crate::error::Error;
 use crate::imap::Imap;
 use crate::job::{self, Thread};
 use crate::smtp::Smtp;
@@ -68,11 +67,60 @@ async fn inbox_loop(ctx: Context, inbox_handlers: ImapConnectionHandlers) {
                     ctx.scheduler.write().await.set_probe_network(false);
                 }
                 Ok(None) | Err(async_std::future::TimeoutError { .. }) => {
-                    let watch_folder = get_watch_folder(&ctx, "configured_inbox_folder")
-                        .await
-                        .ok_or_else(|| Error::WatchFolderNotFound("not-set".to_string()))
-                        .unwrap();
+                    match get_watch_folder(&ctx, "configured_inbox_folder").await {
+                        Some(watch_folder) => {
+                            // fetch
+                            connection
+                                .fetch(&ctx, &watch_folder)
+                                .await
+                                .unwrap_or_else(|err| {
+                                    error!(ctx, "{}", err);
+                                });
 
+                            // idle
+                            if connection.can_idle() {
+                                connection
+                                    .idle(&ctx, Some(watch_folder))
+                                    .await
+                                    .unwrap_or_else(|err| {
+                                        error!(ctx, "{}", err);
+                                    });
+                            } else {
+                                connection.fake_idle(&ctx, Some(watch_folder)).await;
+                            }
+                        }
+                        None => {
+                            warn!(ctx, "Can not watch inbox folder, not set");
+                            connection.fake_idle(&ctx, None).await;
+                        }
+                    }
+                }
+            }
+        }
+    };
+
+    fut.race(stop_receiver.recv()).await;
+    shutdown_sender.send(()).await;
+}
+
+async fn simple_imap_loop(
+    ctx: Context,
+    inbox_handlers: ImapConnectionHandlers,
+    folder: impl AsRef<str>,
+) {
+    info!(ctx, "starting simple loop for {}", folder.as_ref());
+    let ImapConnectionHandlers {
+        mut connection,
+        stop_receiver,
+        shutdown_sender,
+    } = inbox_handlers;
+
+    let fut = async move {
+        connection.connect_configured(&ctx).await.unwrap();
+
+        loop {
+            match get_watch_folder(&ctx, folder.as_ref()).await {
+                Some(watch_folder) => {
                     // fetch
                     connection
                         .fetch(&ctx, &watch_folder)
@@ -93,53 +141,14 @@ async fn inbox_loop(ctx: Context, inbox_handlers: ImapConnectionHandlers) {
                         connection.fake_idle(&ctx, Some(watch_folder)).await;
                     }
                 }
-            }
-        }
-    };
-
-    fut.race(stop_receiver.recv()).await;
-    shutdown_sender.send(()).await;
-}
-
-async fn simple_imap_loop(
-    ctx: Context,
-    inbox_handlers: ImapConnectionHandlers,
-    folder: impl AsRef<str>,
-) {
-    info!(ctx, "starting simple loop");
-    let ImapConnectionHandlers {
-        mut connection,
-        stop_receiver,
-        shutdown_sender,
-    } = inbox_handlers;
-
-    let fut = async move {
-        connection.connect_configured(&ctx).await.unwrap();
-
-        loop {
-            let watch_folder = get_watch_folder(&ctx, folder.as_ref())
-                .await
-                .ok_or_else(|| Error::WatchFolderNotFound("not-set".to_string()))
-                .unwrap();
-
-            // fetch
-            connection
-                .fetch(&ctx, &watch_folder)
-                .await
-                .unwrap_or_else(|err| {
-                    error!(ctx, "{}", err);
-                });
-
-            // idle
-            if connection.can_idle() {
-                connection
-                    .idle(&ctx, Some(watch_folder))
-                    .await
-                    .unwrap_or_else(|err| {
-                        error!(ctx, "{}", err);
-                    });
-            } else {
-                connection.fake_idle(&ctx, Some(watch_folder)).await;
+                None => {
+                    warn!(
+                        &ctx,
+                        "No watch folder found for {}, skipping",
+                        folder.as_ref()
+                    );
+                    connection.fake_idle(&ctx, None).await
+                }
             }
         }
     };

@@ -345,18 +345,14 @@ impl Imap {
     }
 
     async fn unsetup_handle(&mut self, context: &Context) {
-        info!(context, "IMAP unsetup_handle step 2");
         if let Some(mut session) = self.session.take() {
             if let Err(err) = session.close().await {
                 warn!(context, "failed to close connection: {:?}", err);
             }
         }
         self.connected = false;
-
-        info!(context, "IMAP unsetup_handle step 3 (clearing config).");
         self.config.selected_folder = None;
         self.config.selected_mailbox = None;
-        info!(context, "IMAP unsetup_handle step 4 (disconnected)");
     }
 
     async fn free_connect_params(&mut self) {
@@ -613,90 +609,92 @@ impl Imap {
             .await?;
 
         let mut read_cnt: usize = 0;
+        let mut read_errors = 0;
 
         // prefetch info from all unfetched mails
         let mut new_last_seen_uid = last_seen_uid;
-        let mut read_errors: usize = 0;
 
-        let mut uids = Vec::new();
-        if let Some(ref mut session) = &mut self.session {
-            // fetch messages with larger UID than the last one seen
-            // `(UID FETCH lastseenuid+1:*)`, see RFC 4549
-            let set = format!("{}:*", last_seen_uid + 1);
-            let mut list = match session.uid_fetch(set, PREFETCH_FLAGS).await {
-                Ok(list) => list,
-                Err(err) => {
-                    return Err(Error::FetchFailed(err));
-                }
-            };
+        if self.session.is_none() {
+            return Err(Error::NoConnection);
+        }
+        let session = self.session.as_mut().unwrap();
 
-            while let Some(fetch) = list.next().await {
-                let fetch = fetch.map_err(|err| Error::Other(err.to_string()))?;
-                let cur_uid = fetch.uid.unwrap_or_default();
-                if cur_uid <= last_seen_uid {
-                    // If the mailbox is not empty, results always include
-                    // at least one UID, even if last_seen_uid+1 is past
-                    // the last UID in the mailbox.  It happens because
-                    // uid+1:* is interpreted the same way as *:uid+1.
-                    // See https://tools.ietf.org/html/rfc3501#page-61 for
-                    // standard reference. Therefore, sometimes we receive
-                    // already seen messages and have to filter them out.
+        // fetch messages with larger UID than the last one seen
+        // `(UID FETCH lastseenuid+1:*)`, see RFC 4549
+        let set = format!("{}:*", last_seen_uid + 1);
+        let mut list = match session.uid_fetch(set, PREFETCH_FLAGS).await {
+            Ok(list) => list,
+            Err(err) => {
+                return Err(Error::FetchFailed(err));
+            }
+        };
+
+        let mut msgs = Vec::new();
+        while let Some(fetch) = list.next().await {
+            let fetch = fetch.map_err(|err| Error::Other(err.to_string()))?;
+            msgs.push(fetch);
+        }
+        drop(list);
+
+        msgs.sort_unstable_by_key(|msg| msg.uid.unwrap_or_default());
+
+        for fetch in msgs.into_iter() {
+            let cur_uid = fetch.uid.unwrap_or_default();
+            if cur_uid <= last_seen_uid {
+                // If the mailbox is not empty, results always include
+                // at least one UID, even if last_seen_uid+1 is past
+                // the last UID in the mailbox.  It happens because
+                // uid+1:* is interpreted the same way as *:uid+1.
+                // See https://tools.ietf.org/html/rfc3501#page-61 for
+                // standard reference. Therefore, sometimes we receive
+                // already seen messages and have to filter them out.
+                info!(
+                    context,
+                    "fetch_new_messages: ignoring uid {}, last seen was {}", cur_uid, last_seen_uid
+                );
+                continue;
+            }
+            read_cnt += 1;
+            let headers = get_fetch_headers(&fetch)?;
+            let message_id = prefetch_get_message_id(&headers).unwrap_or_default();
+
+            if precheck_imf(context, &message_id, folder.as_ref(), cur_uid).await {
+                // we know the message-id already or don't want the message otherwise.
+                info!(
+                    context,
+                    "Skipping message {} from \"{}\" by precheck.",
+                    message_id,
+                    folder.as_ref(),
+                );
+            } else {
+                let show = prefetch_should_download(context, &headers, show_emails)
+                    .await
+                    .map_err(|err| {
+                        warn!(context, "prefetch_should_download error: {}", err);
+                        err
+                    })
+                    .unwrap_or(true);
+
+                if !show {
                     info!(
                         context,
-                        "fetch_new_messages: ignoring uid {}, last seen was {}",
-                        cur_uid,
-                        last_seen_uid
-                    );
-                    continue;
-                }
-                read_cnt += 1;
-                let headers = get_fetch_headers(&fetch)?;
-                let message_id = prefetch_get_message_id(&headers).unwrap_or_default();
-
-                if precheck_imf(context, &message_id, folder.as_ref(), cur_uid).await {
-                    // we know the message-id already or don't want the message otherwise.
-                    info!(
-                        context,
-                        "Skipping message {} from \"{}\" by precheck.",
+                        "Ignoring new message {} from \"{}\".",
                         message_id,
                         folder.as_ref(),
                     );
                 } else {
-                    let show = prefetch_should_download(context, &headers, show_emails)
-                        .await
-                        .map_err(|err| {
-                            warn!(context, "prefetch_should_download error: {}", err);
-                            err
-                        })
-                        .unwrap_or(true);
-
-                    if !show {
+                    // check passed, go fetch the rest
+                    if let Err(err) = self.fetch_single_msg(context, &folder, cur_uid).await {
                         info!(
                             context,
-                            "Ignoring new message {} from \"{}\".",
+                            "Read error for message {} from \"{}\", trying over later: {}.",
                             message_id,
                             folder.as_ref(),
+                            err
                         );
-                    } else {
-                        // check passed, go fetch the rest
-                        uids.push((cur_uid, message_id));
+                        read_errors += 1;
                     }
                 }
-            }
-        } else {
-            return Err(Error::NoConnection);
-        };
-
-        for (cur_uid, message_id) in uids.into_iter() {
-            if let Err(err) = self.fetch_single_msg(context, &folder, cur_uid).await {
-                info!(
-                    context,
-                    "Read error for message {} from \"{}\", trying over later: {}.",
-                    message_id,
-                    folder.as_ref(),
-                    err
-                );
-                read_errors += 1;
             }
 
             if read_errors == 0 {
@@ -1114,6 +1112,7 @@ impl Imap {
             .get_raw_config_int(context, "folders_configured")
             .await;
         if folders_configured.unwrap_or_default() >= 3 {
+            info!(context, "IMAP-folders already configured");
             // the "3" here we increase if we have future updates to
             // to folder configuration
             return Ok(());
@@ -1139,17 +1138,19 @@ impl Imap {
 
             while let Some(folder) = folders.next().await {
                 let folder = folder.map_err(|err| Error::Other(err.to_string()))?;
+                info!(context, "Scanning folder: {:?}", folder);
 
-                if folder.name() == "DeltaChat" || folder.name() == fallback_folder {
+                if mvbox_folder.is_none()
+                    && (folder.name() == "DeltaChat" || folder.name() == fallback_folder)
+                {
                     mvbox_folder = Some(folder.name().to_string());
                 }
-                let is_sentbox_folder = match get_folder_meaning(&folder) {
-                    FolderMeaning::SentObjects => true,
-                    _ => false,
-                };
-                if is_sentbox_folder {
-                    info!(context, "sentbox folder is {:?}", folder);
-                    sentbox_folder = Some(folder);
+
+                if sentbox_folder.is_none() {
+                    if let FolderMeaning::SentObjects = get_folder_meaning(&folder) {
+                        info!(context, "sentbox folder is {:?}", folder);
+                        sentbox_folder = Some(folder);
+                    }
                 }
 
                 if mvbox_folder.is_some() && sentbox_folder.is_some() {
@@ -1226,23 +1227,6 @@ impl Imap {
         info!(context, "FINISHED configuring IMAP-folders.");
         Ok(())
     }
-
-    // async fn list_folders(&self, session: &mut Session, context: &Context) -> Option<Vec<Name>> {
-    //     match session.list(Some(""), Some("*")).await {
-    //         Ok(list) => {
-    //             if list.is_empty() {
-    //                 warn!(context, "Folder list is empty.",);
-    //             }
-    //             Some(list)
-    //         }
-    //         Err(err) => {
-    //             eprintln!("list error: {:?}", err);
-    //             warn!(context, "Cannot get folder list.",);
-
-    //             None
-    //         }
-    //     }
-    // }
 
     pub async fn empty_folder(&mut self, context: &Context, folder: &str) {
         info!(context, "emptying folder {}", folder);
