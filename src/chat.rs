@@ -1447,6 +1447,10 @@ pub fn get_chat_msgs(
     flags: u32,
     marker1before: Option<MsgId>,
 ) -> Vec<MsgId> {
+    if let Err(err) = delete_device_expired_messages(context) {
+        warn!(context, "Failed to delete expired messages: {}", err);
+    }
+
     let process_row =
         |row: &rusqlite::Row| Ok((row.get::<_, MsgId>("id")?, row.get::<_, i64>("timestamp")?));
     let process_rows = |rows: rusqlite::MappedRows<_>| {
