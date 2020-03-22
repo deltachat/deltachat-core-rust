@@ -126,22 +126,22 @@ fn message_to_html(author_cache: &HashMap<u32, ContactInfo>, message: Message) -
     let avatar: String = {
         if let Some(profile_img) = &author.profile_img {
             format!(
-                r#"<div class="author-avatar">
-                    <img
-                        alt="{author_name}"
-                        src="blobs/{author_avatar_src}"
-                    />
-                </div>"#,
+                "<div class=\"author-avatar\">\
+                    <img\
+                        alt=\"{author_name}\"\
+                        src=\"blobs/{author_avatar_src}\"\
+                    />\
+                </div>",
                 author_name = author.name,
                 author_avatar_src = profile_img
             )
         } else {
             format!(
-                r#"<div class="author-avatar default" alt="{name}">
-                <div class="label" style="background-color: {color}">
-                    {initial}
-                </div>
-            </div>"#,
+                "<div class=\"author-avatar default\" alt=\"{name}\">\
+                <div class=\"label\" style=\"background-color: {color}\">\
+                    {initial}\
+                </div>\
+            </div>",
                 name = author.name,
                 initial = author.initial,
                 color = author.color
@@ -154,22 +154,24 @@ fn message_to_html(author_cache: &HashMap<u32, ContactInfo>, message: Message) -
     //todo support images / voice message / attachments
 
     format!(
-        r#"<li><div class='message {direction}'>
-    {avatar}
-    <div class="msg-container">
-          <span class="author" style="color: {author_color};">{author_name}</span>
-          <div class="msg-body">
-            <div dir="auto" class="text">
-              {content}
-            </div>
-            <div class="metadata">
-              {encryption}
-              <span class="date date--{direction}" title="{full_time}">{relative_time}</span>
-              <span class="spacer"></span>
-            </div>
-          </div>
-        </div>
-    <div></li>"#,
+        "<li>\
+            <div class=\"message {direction}\">\
+                {avatar}\
+                <div class=\"msg-container\">\
+                    <span class=\"author\" style=\"color: {author_color};\">{author_name}</span>\
+                    <div class=\"msg-body\">\
+                        <div dir=\"auto\" class=\"text\">\
+                        {content}\
+                        </div>\
+                        <div class=\"metadata\">\
+                            {encryption}\
+                            <span class=\"date date--{direction}\" title=\"{full_time}\">{relative_time}</span>\
+                            <span class=\"spacer\"></span>\
+                        </div>\
+                    </div>\
+                </div>\
+            <div>\
+        </li>",
         direction = match message.from_id == DC_CONTACT_ID_SELF {
             true => "outgoing",
             false => "incomming",
