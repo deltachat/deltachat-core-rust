@@ -1488,6 +1488,7 @@ fn is_known_rfc724_mid_in_list(context: &Context, mid_list: &str) -> bool {
 
 /// Check if a message is a reply to a known message (messenger or non-messenger).
 fn is_known_rfc724_mid(context: &Context, rfc724_mid: &str) -> bool {
+    let rfc724_mid = rfc724_mid.trim_start_matches('<').trim_end_matches('>');
     context
         .sql
         .exists(
@@ -1534,6 +1535,7 @@ pub(crate) fn is_msgrmsg_rfc724_mid_in_list(context: &Context, mid_list: &str) -
 
 /// Check if a message is a reply to any messenger message.
 fn is_msgrmsg_rfc724_mid(context: &Context, rfc724_mid: &str) -> bool {
+    let rfc724_mid = rfc724_mid.trim_start_matches('<').trim_end_matches('>');
     context
         .sql
         .exists(
