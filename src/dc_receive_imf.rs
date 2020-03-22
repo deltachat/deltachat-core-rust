@@ -1780,37 +1780,35 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_is_known_rfc724_mid() {
-        let t = dummy_context();
+    #[async_std::test]
+    async fn test_is_known_rfc724_mid() {
+        let t = dummy_context().await;
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some("first message".to_string());
-        let msg_id = chat::add_device_msg(&t.ctx, None, Some(&mut msg)).unwrap();
-        let msg = Message::load_from_db(&t.ctx, msg_id).unwrap();
+        let msg_id = chat::add_device_msg(&t.ctx, None, Some(&mut msg))
+            .await
+            .unwrap();
+        let msg = Message::load_from_db(&t.ctx, msg_id).await.unwrap();
 
         // Message-IDs may or may not be surrounded by angle brackets
-        assert!(is_known_rfc724_mid(
-            &t.ctx,
-            format!("<{}>", msg.rfc724_mid).as_str()
-        ));
-        assert!(is_known_rfc724_mid(&t.ctx, &msg.rfc724_mid));
-        assert!(!is_known_rfc724_mid(&t.ctx, "nonexistant@message.id"));
+        assert!(is_known_rfc724_mid(&t.ctx, format!("<{}>", msg.rfc724_mid).as_str()).await);
+        assert!(is_known_rfc724_mid(&t.ctx, &msg.rfc724_mid).await);
+        assert!(!is_known_rfc724_mid(&t.ctx, "nonexistant@message.id").await);
     }
 
-    #[test]
-    fn test_is_msgrmsg_rfc724_mid() {
-        let t = dummy_context();
+    #[async_std::test]
+    async fn test_is_msgrmsg_rfc724_mid() {
+        let t = dummy_context().await;
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some("first message".to_string());
-        let msg_id = chat::add_device_msg(&t.ctx, None, Some(&mut msg)).unwrap();
-        let msg = Message::load_from_db(&t.ctx, msg_id).unwrap();
+        let msg_id = chat::add_device_msg(&t.ctx, None, Some(&mut msg))
+            .await
+            .unwrap();
+        let msg = Message::load_from_db(&t.ctx, msg_id).await.unwrap();
 
         // Message-IDs may or may not be surrounded by angle brackets
-        assert!(is_msgrmsg_rfc724_mid(
-            &t.ctx,
-            format!("<{}>", msg.rfc724_mid).as_str()
-        ));
-        assert!(is_msgrmsg_rfc724_mid(&t.ctx, &msg.rfc724_mid));
-        assert!(!is_msgrmsg_rfc724_mid(&t.ctx, "nonexistant@message.id"));
+        assert!(is_msgrmsg_rfc724_mid(&t.ctx, format!("<{}>", msg.rfc724_mid).as_str()).await);
+        assert!(is_msgrmsg_rfc724_mid(&t.ctx, &msg.rfc724_mid).await);
+        assert!(!is_msgrmsg_rfc724_mid(&t.ctx, "nonexistant@message.id").await);
     }
 }
