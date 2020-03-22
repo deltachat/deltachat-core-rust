@@ -70,9 +70,16 @@ pub async fn imex(
     what: ImexMode,
     param1: Option<impl AsRef<Path>>,
 ) -> Result<()> {
-    job_imex_imap(context, what, param1).await?;
+    use futures::future::FutureExt;
 
-    Ok(())
+    let cancel = context.alloc_ongoing().await?;
+    let res = imex_inner(context, what, param1)
+        .race(cancel.recv().map(|_| Err(format_err!("canceled"))))
+        .await;
+
+    context.free_ongoing().await;
+
+    res
 }
 
 /// Returns the filename of the backup found (otherwise an error)
@@ -110,8 +117,13 @@ pub async fn has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result
 }
 
 pub async fn initiate_key_transfer(context: &Context) -> Result<String> {
-    ensure!(context.alloc_ongoing().await, "could not allocate ongoing");
-    let res = do_initiate_key_transfer(context).await;
+    use futures::future::FutureExt;
+
+    let cancel = context.alloc_ongoing().await?;
+    let res = do_initiate_key_transfer(context)
+        .race(cancel.recv().map(|_| Err(format_err!("canceled"))))
+        .await;
+
     context.free_ongoing().await;
     res
 }
@@ -120,10 +132,8 @@ async fn do_initiate_key_transfer(context: &Context) -> Result<String> {
     let mut msg: Message;
     let setup_code = create_setup_code(context);
     /* this may require a keypair to be created. this may take a second ... */
-    ensure!(!context.shall_stop_ongoing().await, "canceled");
     let setup_file_content = render_setup_file(context, &setup_code).await?;
     /* encrypting may also take a while ... */
-    ensure!(!context.shall_stop_ongoing().await, "canceled");
     let setup_file_blob = BlobObject::create(
         context,
         "autocrypt-setup-message.html",
@@ -144,7 +154,6 @@ async fn do_initiate_key_transfer(context: &Context) -> Result<String> {
         ForcePlaintext::NoAutocryptHeader as i32,
     );
 
-    ensure!(!context.shall_stop_ongoing().await, "canceled");
     let msg_id = chat::send_msg(context, chat_id, &mut msg).await?;
     info!(context, "Wait for setup message being sent ...",);
     while !context.shall_stop_ongoing().await {
@@ -363,13 +372,12 @@ pub fn normalize_setup_code(s: &str) -> String {
     out
 }
 
-pub async fn job_imex_imap(
+async fn imex_inner(
     context: &Context,
     what: ImexMode,
     param: Option<impl AsRef<Path>>,
 ) -> Result<()> {
-    ensure!(context.alloc_ongoing().await, "could not allocate ongoing");
-    ensure!(!param.is_some(), "No Import/export dir/file given.");
+    ensure!(param.is_some(), "No Import/export dir/file given.");
 
     info!(context, "Import/export process started.");
     context.call_cb(Event::ImexProgress(10));
@@ -380,7 +388,6 @@ pub async fn job_imex_imap(
     if what == ImexMode::ExportBackup || what == ImexMode::ExportSelfKeys {
         // before we export anything, make sure the private key exists
         if e2ee::ensure_secret_key_exists(context).await.is_err() {
-            context.free_ongoing().await;
             bail!("Cannot create private key or private key not available.");
         } else {
             dc_create_folder(context, &path).await?;
@@ -393,7 +400,7 @@ pub async fn job_imex_imap(
         ImexMode::ExportBackup => export_backup(context, path).await,
         ImexMode::ImportBackup => import_backup(context, path).await,
     };
-    context.free_ongoing().await;
+
     match success {
         Ok(()) => {
             info!(context, "IMEX successfully completed");

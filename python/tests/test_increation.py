@@ -15,7 +15,9 @@ class TestOnlineInCreation:
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.get_online_configuring_account()
         wait_configuration_progress(ac1, 1000)
+        ac1.start_threads()
         wait_configuration_progress(ac2, 1000)
+        ac2.start_threads()
 
         c2 = ac1.create_contact(email=ac2.get_config("addr"))
         chat = ac1.create_chat_by_contact(c2)
@@ -30,7 +32,9 @@ class TestOnlineInCreation:
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.get_online_configuring_account()
         wait_configuration_progress(ac1, 1000)
+        ac1.start_threads()
         wait_configuration_progress(ac2, 1000)
+        ac2.start_threads()
 
         c2 = ac1.create_contact(email=ac2.get_config("addr"))
         chat = ac1.create_chat_by_contact(c2)
@@ -48,7 +52,9 @@ class TestOnlineInCreation:
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.get_online_configuring_account()
         wait_configuration_progress(ac1, 1000)
+        ac1.start_threads()
         wait_configuration_progress(ac2, 1000)
+        ac2.start_threads()
 
         c2 = ac1.create_contact(email=ac2.get_config("addr"))
         chat = ac1.create_chat_by_contact(c2)

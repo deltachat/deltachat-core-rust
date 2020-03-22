@@ -349,7 +349,6 @@ class TestOfflineChat:
             ac1.configure(addr="123@example.org")
 
     def test_import_export_one_contact(self, acfactory, tmpdir):
-        print("START")
         backupdir = tmpdir.mkdir("backup")
         ac1 = acfactory.get_configured_offline_account()
         contact1 = ac1.create_contact("some1@hello.com", name="some1")
@@ -361,27 +360,22 @@ class TestOfflineChat:
         with bin.open("w") as f:
             f.write("\00123" * 10000)
         msg = chat.send_file(bin.strpath)
-        print("L1")
         contact = msg.get_sender_contact()
         assert contact == ac1.get_self_contact()
         assert not backupdir.listdir()
-        print("L2")
         path = ac1.export_all(backupdir.strpath)
         assert os.path.exists(path)
         ac2 = acfactory.get_unconfigured_account()
         ac2.import_all(path)
         contacts = ac2.get_contacts(query="some1")
         assert len(contacts) == 1
-        print("L3")
         contact2 = contacts[0]
         assert contact2.addr == "some1@hello.com"
         chat2 = ac2.create_chat_by_contact(contact2)
         messages = chat2.get_messages()
         assert len(messages) == 2
-        print("L4")
         assert messages[0].text == "msg1"
         assert os.path.exists(messages[1].filename)
-        print("STOP")
 
     def test_ac_setup_message_fails(self, ac1):
         with pytest.raises(RuntimeError):
@@ -447,7 +441,9 @@ class TestOnlineAccount:
             config={"key_gen_type": str(const.DC_KEY_GEN_ED25519)}
         )
         wait_configuration_progress(ac1, 1000)
+        ac1.start_threads()
         wait_configuration_progress(ac2, 1000)
+        ac2.start_threads()
         chat = self.get_chat(ac1, ac2, both_created=True)
 
         lp.sec("ac1: send unencrypted message to ac2")
@@ -482,6 +478,9 @@ class TestOnlineAccount:
 
     def test_export_import_self_keys(self, acfactory, tmpdir):
         ac1, ac2 = acfactory.get_two_online_accounts()
+        ac1.stop_threads()
+        ac2.stop_threads()
+        
         dir = tmpdir.mkdir("exportdir")
         export_files = ac1.export_self_keys(dir.strpath)
         assert len(export_files) == 2
@@ -499,8 +498,11 @@ class TestOnlineAccount:
         ac1_clone = acfactory.clone_online_account(ac1)
 
         wait_configuration_progress(ac1, 1000)
+        ac1.start_threads()
         wait_configuration_progress(ac2, 1000)
+        ac2.start_threads()
         wait_configuration_progress(ac1_clone, 1000)
+        ac1_clone.start_threads()
 
         chat = self.get_chat(ac1, ac2)
 
@@ -605,10 +607,12 @@ class TestOnlineAccount:
 
         lp.sec("ac2: waiting for configuration")
         wait_configuration_progress(ac2, 1000)
-
+        ac2.start_threads()
+        
         lp.sec("ac1: waiting for configuration")
         wait_configuration_progress(ac1, 1000)
-
+        ac1.start_threads()
+        
         lp.sec("ac1: send message and wait for ac2 to receive it")
         chat = self.get_chat(ac1, ac2)
         chat.send_text("message1")
@@ -620,7 +624,9 @@ class TestOnlineAccount:
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.get_online_configuring_account(mvbox=True)
         wait_configuration_progress(ac2, 1000)
+        ac2.start_threads()
         wait_configuration_progress(ac1, 1000)
+        ac1.start_threads()
         chat = self.get_chat(ac1, ac2)
         chat.send_text("message1")
         ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
@@ -632,7 +638,9 @@ class TestOnlineAccount:
         ac1.set_config("bcc_self", "1")
         ac2 = acfactory.get_online_configuring_account()
         wait_configuration_progress(ac2, 1000)
+        ac2.start_threads()
         wait_configuration_progress(ac1, 1000)
+        ac1.start_threads()
         chat = self.get_chat(ac1, ac2)
         chat.send_text("message1")
         chat.send_text("message2")
@@ -979,6 +987,7 @@ class TestOnlineAccount:
     def test_import_export_online_all(self, acfactory, tmpdir, lp):
         ac1 = acfactory.get_online_configuring_account()
         wait_configuration_progress(ac1, 1000)
+        ac1.start_threads()
 
         lp.sec("create some chat content")
         contact1 = ac1.create_contact("some1@hello.com", name="some1")
@@ -1027,7 +1036,9 @@ class TestOnlineAccount:
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.clone_online_account(ac1)
         wait_configuration_progress(ac2, 1000)
+        ac2.start_threads()
         wait_configuration_progress(ac1, 1000)
+        ac1.start_threads()
         lp.sec("trigger ac setup message and return setupcode")
         assert ac1.get_info()["fingerprint"] != ac2.get_info()["fingerprint"]
         setup_code = ac1.initiate_key_transfer()
@@ -1050,7 +1061,9 @@ class TestOnlineAccount:
         ac2 = acfactory.clone_online_account(ac1)
         ac2._evlogger.set_timeout(30)
         wait_configuration_progress(ac2, 1000)
+        ac2.start_threads()
         wait_configuration_progress(ac1, 1000)
+        ac1.start_threads()
 
         lp.sec("trigger ac setup message but ignore")
         assert ac1.get_info()["fingerprint"] != ac2.get_info()["fingerprint"]
@@ -1279,6 +1292,7 @@ class TestGroupStressTests:
         accounts = [acfactory.get_online_configuring_account() for i in range(5)]
         for acc in accounts:
             wait_configuration_progress(acc, 1000)
+            acc.start_threads()
         ac1 = accounts.pop()
 
         lp.sec("ac1: setting up contacts with 4 other members")
@@ -1382,6 +1396,7 @@ class TestGroupStressTests:
         accounts = [acfactory.get_online_configuring_account() for i in range(3)]
         for acc in accounts:
             wait_configuration_progress(acc, 1000)
+            acc.start_threads()
         ac1 = accounts.pop()
 
         lp.sec("ac1: setting up contacts with 2 other members")
@@ -1449,7 +1464,6 @@ class TestOnlineConfigureFails:
     def test_invalid_password(self, acfactory):
         ac1, configdict = acfactory.get_online_config()
         ac1.configure(addr=configdict["addr"], mail_pw="123")
-        ac1.start_threads()
         wait_configuration_progress(ac1, 500)
         ev1 = ac1._evlogger.get_matching("DC_EVENT_ERROR_NETWORK")
         assert "cannot login" in ev1[2].lower()
@@ -1458,7 +1472,6 @@ class TestOnlineConfigureFails:
     def test_invalid_user(self, acfactory):
         ac1, configdict = acfactory.get_online_config()
         ac1.configure(addr="x" + configdict["addr"], mail_pw=configdict["mail_pw"])
-        ac1.start_threads()
         wait_configuration_progress(ac1, 500)
         ev1 = ac1._evlogger.get_matching("DC_EVENT_ERROR_NETWORK")
         assert "cannot login" in ev1[2].lower()
@@ -1467,7 +1480,6 @@ class TestOnlineConfigureFails:
     def test_invalid_domain(self, acfactory):
         ac1, configdict = acfactory.get_online_config()
         ac1.configure(addr=configdict["addr"] + "x", mail_pw=configdict["mail_pw"])
-        ac1.start_threads()
         wait_configuration_progress(ac1, 500)
         ev1 = ac1._evlogger.get_matching("DC_EVENT_ERROR_NETWORK")
         assert "could not connect" in ev1[2].lower()

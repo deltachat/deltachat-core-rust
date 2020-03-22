@@ -4,6 +4,7 @@ mod auto_mozilla;
 mod auto_outlook;
 mod read_url;
 
+use async_std::prelude::*;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use crate::config::Config;
@@ -13,11 +14,11 @@ use crate::dc_tools::*;
 use crate::error::{Error, Result};
 use crate::imap::Imap;
 use crate::login_param::{CertificateChecks, LoginParam};
+use crate::message::Message;
 use crate::oauth2::*;
 use crate::smtp::Smtp;
 use crate::{chat, e2ee, provider};
 
-use crate::message::Message;
 use auto_mozilla::moz_autoconfigure;
 use auto_outlook::outlk_autodiscover;
 
@@ -39,10 +40,8 @@ impl Context {
 
     /// Configures this account with the currently set parameters.
     pub async fn configure(&self) -> Result<()> {
-        ensure!(
-            !self.has_ongoing().await,
-            "There is already another ongoing process running."
-        );
+        use futures::future::FutureExt;
+
         ensure!(
             !self.scheduler.read().await.is_running(),
             "Can not configure, already running"
@@ -51,11 +50,22 @@ impl Context {
             self.sql.is_open().await,
             "Cannot configure, database not opened."
         );
-        ensure!(
-            self.alloc_ongoing().await,
-            "Cannot allocate ongoing process"
-        );
+        let cancel_channel = self.alloc_ongoing().await?;
 
+        let res = self
+            .inner_configure()
+            .race(cancel_channel.recv().map(|_| {
+                progress!(self, 0);
+                Ok(())
+            }))
+            .await;
+
+        self.free_ongoing().await;
+
+        res
+    }
+
+    async fn inner_configure(&self) -> Result<()> {
         let mut success = false;
         let mut param_autoconfig: Option<LoginParam> = None;
 
@@ -127,14 +137,11 @@ impl Context {
         // and restore to last-entered on failure.
         // this way, the parameters visible to the ui are always in-sync with the current configuration.
         if success {
-            assert!(self.is_configured().await, "epic fail");
             LoginParam::from_database(self, "")
                 .await
                 .save_to_database(self, "configured_raw_")
                 .await
                 .ok();
-
-            self.free_ongoing().await;
 
             progress!(self, 1000);
             Ok(())
@@ -144,8 +151,6 @@ impl Context {
                 .save_to_database(self, "")
                 .await
                 .ok();
-
-            self.free_ongoing().await;
 
             progress!(self, 0);
             Err(Error::Message("Configure failed".to_string()))
@@ -398,8 +403,8 @@ async fn exec_step(
             progress!(ctx, 600);
             /* try to connect to IMAP - if we did not got an autoconfig,
             do some further tries with different settings and username variations */
-            try_imap_connections(ctx, param, param_autoconfig.is_some(), imap).await?;
-            *is_imap_connected = true;
+            *is_imap_connected =
+                try_imap_connections(ctx, param, param_autoconfig.is_some(), imap).await?;
         }
         15 => {
             progress!(ctx, 800);
@@ -512,13 +517,10 @@ async fn try_imap_connections(
     mut param: &mut LoginParam,
     was_autoconfig: bool,
     imap: &mut Imap,
-) -> Result<()> {
+) -> Result<bool> {
     // progress 650 and 660
-    if try_imap_connection(context, &mut param, was_autoconfig, 0, imap)
-        .await
-        .is_ok()
-    {
-        return Ok(());
+    if let Ok(val) = try_imap_connection(context, &mut param, was_autoconfig, 0, imap).await {
+        return Ok(val);
     }
     progress!(context, 670);
     param.server_flags &= !(DC_LP_IMAP_SOCKET_FLAGS);
@@ -532,9 +534,7 @@ async fn try_imap_connections(
         param.send_user = param.send_user.split_at(at).0.to_string();
     }
     // progress 680 and 690
-    try_imap_connection(context, &mut param, was_autoconfig, 1, imap).await?;
-
-    Ok(())
+    try_imap_connection(context, &mut param, was_autoconfig, 1, imap).await
 }
 
 async fn try_imap_connection(
@@ -543,24 +543,26 @@ async fn try_imap_connection(
     was_autoconfig: bool,
     variation: usize,
     imap: &mut Imap,
-) -> Result<()> {
+) -> Result<bool> {
     if try_imap_one_param(context, &param, imap).await.is_ok() {
-        return Ok(());
+        return Ok(true);
     }
     if was_autoconfig {
-        bail!("autoconfig");
+        return Ok(false);
     }
     progress!(context, 650 + variation * 30);
     param.server_flags &= !(DC_LP_IMAP_SOCKET_FLAGS);
     param.server_flags |= DC_LP_IMAP_SOCKET_STARTTLS;
     if try_imap_one_param(context, &param, imap).await.is_ok() {
-        return Ok(());
+        return Ok(true);
     }
 
     progress!(context, 660 + variation * 30);
     param.mail_port = 143;
 
-    try_imap_one_param(context, &param, imap).await
+    try_imap_one_param(context, &param, imap).await?;
+
+    Ok(true)
 }
 
 async fn try_imap_one_param(context: &Context, param: &LoginParam, imap: &mut Imap) -> Result<()> {
@@ -579,6 +581,10 @@ async fn try_imap_one_param(context: &Context, param: &LoginParam, imap: &mut Im
         return Ok(());
     }
 
+    if context.shall_stop_ongoing().await {
+        bail!("Interrupted");
+    }
+
     bail!("Could not connect: {}", inf);
 }
 
@@ -593,7 +599,7 @@ async fn try_smtp_connections(
         return Ok(());
     }
     if was_autoconfig {
-        bail!("autoconfig");
+        return Ok(());
     }
     progress!(context, 850);
     param.server_flags &= !(DC_LP_SMTP_SOCKET_FLAGS as i32);

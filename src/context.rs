@@ -5,7 +5,7 @@ use std::ffi::OsString;
 use std::ops::Deref;
 
 use async_std::path::{Path, PathBuf};
-use async_std::sync::{Arc, Mutex, RwLock};
+use async_std::sync::{channel, Arc, Mutex, Receiver, RwLock, Sender};
 use crossbeam_queue::SegQueue;
 
 use crate::chat::*;
@@ -55,10 +55,11 @@ pub struct InnerContext {
     pub(crate) scheduler: RwLock<Scheduler>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub struct RunningState {
     pub ongoing_running: bool,
     shall_stop_ongoing: bool,
+    cancel_sender: Option<Sender<()>>,
 }
 
 /// Return some info about deltachat-core
@@ -180,20 +181,20 @@ impl Context {
      * Ongoing process allocation/free/check
      ******************************************************************************/
 
-    pub async fn alloc_ongoing(&self) -> bool {
+    pub async fn alloc_ongoing(&self) -> Result<Receiver<()>> {
         if self.has_ongoing().await {
-            warn!(self, "There is already another ongoing process running.",);
-
-            false
-        } else {
-            let s_a = &self.running_state;
-            let mut s = s_a.write().await;
-
-            s.ongoing_running = true;
-            s.shall_stop_ongoing = false;
-
-            true
+            bail!("There is already another ongoing process running.");
         }
+
+        let s_a = &self.running_state;
+        let mut s = s_a.write().await;
+
+        s.ongoing_running = true;
+        s.shall_stop_ongoing = false;
+        let (sender, receiver) = channel(1);
+        s.cancel_sender = Some(sender);
+
+        Ok(receiver)
     }
 
     pub async fn free_ongoing(&self) {
@@ -202,6 +203,7 @@ impl Context {
 
         s.ongoing_running = false;
         s.shall_stop_ongoing = true;
+        s.cancel_sender.take();
     }
 
     pub async fn has_ongoing(&self) -> bool {
@@ -215,6 +217,9 @@ impl Context {
     pub async fn stop_ongoing(&self) {
         let s_a = &self.running_state;
         let mut s = s_a.write().await;
+        if let Some(cancel) = s.cancel_sender.take() {
+            cancel.send(()).await;
+        }
 
         if s.ongoing_running && !s.shall_stop_ongoing {
             info!(self, "Signaling the ongoing process to stop ASAP.",);
@@ -503,6 +508,7 @@ impl Default for RunningState {
         RunningState {
             ongoing_running: false,
             shall_stop_ongoing: true,
+            cancel_sender: None,
         }
     }
 }

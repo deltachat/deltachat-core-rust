@@ -223,7 +223,6 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
                 pre_generated_key=pre_generated_key)
             configdict.update(config)
             ac.configure(**configdict)
-            ac.start_threads()
             return ac
 
         def get_one_online_account(self, pre_generated_key=True):
@@ -231,6 +230,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
                 pre_generated_key=pre_generated_key)
             wait_successful_IMAP_SMTP_connection(ac1)
             wait_configuration_progress(ac1, 1000)
+            ac1.start_threads()
             return ac1
 
         def get_two_online_accounts(self):
@@ -238,8 +238,11 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
             ac2 = self.get_online_configuring_account()
             wait_successful_IMAP_SMTP_connection(ac1)
             wait_configuration_progress(ac1, 1000)
+            ac1.start_threads()
             wait_successful_IMAP_SMTP_connection(ac2)
             wait_configuration_progress(ac2, 1000)
+            ac2.start_threads()
+            
             return ac1, ac2
 
         def clone_online_account(self, account, pre_generated_key=True):
@@ -251,7 +254,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
             ac._evlogger.init_time = self.init_time
             ac._evlogger.set_timeout(30)
             ac.configure(addr=account.get_config("addr"), mail_pw=account.get_config("mail_pw"))
-            ac.start_threads()
+
             return ac
 
     am = AccountMaker()
