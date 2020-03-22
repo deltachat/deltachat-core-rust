@@ -76,6 +76,20 @@ class TestOfflineAccountBasic:
         with pytest.raises(KeyError):
             ac1.get_config("123123")
 
+    def test_empty_group_bcc_self_enabled(self, acfactory):
+        ac1 = acfactory.get_configured_offline_account()
+        ac1.set_config("bcc_self", "1")
+        chat = ac1.create_group_chat(name="group1")
+        msg = chat.send_text("msg1")
+        assert msg in chat.get_messages()
+
+    def test_empty_group_bcc_self_disabled(self, acfactory):
+        ac1 = acfactory.get_configured_offline_account()
+        ac1.set_config("bcc_self", "0")
+        chat = ac1.create_group_chat(name="group1")
+        msg = chat.send_text("msg1")
+        assert msg in chat.get_messages()
+
 
 class TestOfflineContact:
     def test_contact_attr(self, acfactory):
