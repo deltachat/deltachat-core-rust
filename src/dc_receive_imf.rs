@@ -1573,6 +1573,8 @@ async fn is_known_rfc724_mid_in_list(context: &Context, mid_list: &str) -> bool 
 
 /// Check if a message is a reply to a known message (messenger or non-messenger).
 async fn is_known_rfc724_mid(context: &Context, rfc724_mid: &str) -> bool {
+    let rfc724_mid = rfc724_mid.trim_start_matches('<').trim_end_matches('>');
+
     context
         .sql
         .exists(
@@ -1620,6 +1622,8 @@ pub(crate) async fn is_msgrmsg_rfc724_mid_in_list(context: &Context, mid_list: &
 
 /// Check if a message is a reply to any messenger message.
 async fn is_msgrmsg_rfc724_mid(context: &Context, rfc724_mid: &str) -> bool {
+    let rfc724_mid = rfc724_mid.trim_start_matches('<').trim_end_matches('>');
+
     context
         .sql
         .exists(
@@ -1711,6 +1715,7 @@ fn dc_create_incoming_rfc724_mid(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::message::Message;
     use crate::test_utils::dummy_context;
 
     #[test]
@@ -1773,5 +1778,39 @@ mod tests {
             dc_create_incoming_rfc724_mid(123, 45, &members),
             Some("123-45-9@stub".into())
         );
+    }
+
+    #[test]
+    fn test_is_known_rfc724_mid() {
+        let t = dummy_context();
+        let mut msg = Message::new(Viewtype::Text);
+        msg.text = Some("first message".to_string());
+        let msg_id = chat::add_device_msg(&t.ctx, None, Some(&mut msg)).unwrap();
+        let msg = Message::load_from_db(&t.ctx, msg_id).unwrap();
+
+        // Message-IDs may or may not be surrounded by angle brackets
+        assert!(is_known_rfc724_mid(
+            &t.ctx,
+            format!("<{}>", msg.rfc724_mid).as_str()
+        ));
+        assert!(is_known_rfc724_mid(&t.ctx, &msg.rfc724_mid));
+        assert!(!is_known_rfc724_mid(&t.ctx, "nonexistant@message.id"));
+    }
+
+    #[test]
+    fn test_is_msgrmsg_rfc724_mid() {
+        let t = dummy_context();
+        let mut msg = Message::new(Viewtype::Text);
+        msg.text = Some("first message".to_string());
+        let msg_id = chat::add_device_msg(&t.ctx, None, Some(&mut msg)).unwrap();
+        let msg = Message::load_from_db(&t.ctx, msg_id).unwrap();
+
+        // Message-IDs may or may not be surrounded by angle brackets
+        assert!(is_msgrmsg_rfc724_mid(
+            &t.ctx,
+            format!("<{}>", msg.rfc724_mid).as_str()
+        ));
+        assert!(is_msgrmsg_rfc724_mid(&t.ctx, &msg.rfc724_mid));
+        assert!(!is_msgrmsg_rfc724_mid(&t.ctx, "nonexistant@message.id"));
     }
 }

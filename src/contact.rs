@@ -1107,7 +1107,7 @@ pub fn normalize_name(full_name: impl AsRef<str>) -> String {
     }
 
     let len = full_name.len();
-    if len > 0 {
+    if len > 1 {
         let firstchar = full_name.as_bytes()[0];
         let lastchar = full_name.as_bytes()[len - 1];
         if firstchar == b'\'' && lastchar == b'\''
@@ -1216,6 +1216,10 @@ mod tests {
     fn test_normalize_name() {
         assert_eq!(&normalize_name("Doe, John"), "John Doe");
         assert_eq!(&normalize_name(" hello world   "), "hello world");
+        assert_eq!(&normalize_name("<"), "<");
+        assert_eq!(&normalize_name(">"), ">");
+        assert_eq!(&normalize_name("'"), "'");
+        assert_eq!(&normalize_name("\""), "\"");
     }
 
     #[test]
