@@ -366,7 +366,8 @@ impl ConnectionState {
     }
 
     async fn interrupt(&self) {
-        self.idle_interrupt_sender.send(()).await;
+        // Use try_send to avoid blocking on interrupts.
+        self.idle_interrupt_sender.try_send(()).ok();
     }
 }
 
