@@ -1700,7 +1700,7 @@ mod tests {
             format!("<{}>", msg.rfc724_mid).as_str()
         ));
         assert!(is_known_rfc724_mid(&t.ctx, &msg.rfc724_mid));
-        assert!(!is_known_rfc724_mid(&t.ctx, "unexistant@message.id"));
+        assert!(!is_known_rfc724_mid(&t.ctx, "nonexistant@message.id"));
     }
 
     #[test]
@@ -1717,6 +1717,6 @@ mod tests {
             format!("<{}>", msg.rfc724_mid).as_str()
         ));
         assert!(is_msgrmsg_rfc724_mid(&t.ctx, &msg.rfc724_mid));
-        assert!(!is_msgrmsg_rfc724_mid(&t.ctx, "unexistant@message.id"));
+        assert!(!is_msgrmsg_rfc724_mid(&t.ctx, "nonexistant@message.id"));
     }
 }
