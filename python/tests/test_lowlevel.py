@@ -131,8 +131,7 @@ def test_sig():
 
 def test_markseen_invalid_message_ids(acfactory):
     ac1 = acfactory.get_configured_offline_account()
-    
-    ac1.start_threads()
+
     contact1 = ac1.create_contact(email="some1@example.com", name="some1")
     chat = ac1.create_chat_by_contact(contact1)
     chat.send_text("one messae")
@@ -140,7 +139,6 @@ def test_markseen_invalid_message_ids(acfactory):
     msg_ids = [9]
     lib.dc_markseen_msgs(ac1._dc_context, msg_ids, len(msg_ids))
     ac1._evlogger.ensure_event_not_queued("DC_EVENT_WARNING|DC_EVENT_ERROR")
-    ac1.stop_threads()
 
 
 def test_get_special_message_id_returns_empty_message(acfactory):

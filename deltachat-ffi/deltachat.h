@@ -572,6 +572,8 @@ int             dc_is_configured   (const dc_context_t* context);
  */
 void            dc_context_run     (dc_context_t* context);
 
+int             dc_is_running      (const dc_context_t* context);
+
 /**
  * TODO: Document
  */

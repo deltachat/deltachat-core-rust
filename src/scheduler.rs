@@ -48,6 +48,8 @@ impl Context {
 }
 
 async fn inbox_loop(ctx: Context, inbox_handlers: ImapConnectionHandlers) {
+    use futures::future::FutureExt;
+
     info!(ctx, "starting inbox loop");
     let ImapConnectionHandlers {
         mut connection,
@@ -56,7 +58,10 @@ async fn inbox_loop(ctx: Context, inbox_handlers: ImapConnectionHandlers) {
     } = inbox_handlers;
 
     let fut = async move {
-        connection.connect_configured(&ctx).await.unwrap();
+        if let Err(err) = connection.connect_configured(&ctx).await {
+            error!(ctx, "{}", err);
+            return;
+        }
 
         loop {
             let probe_network = ctx.scheduler.read().await.get_probe_network();
@@ -101,7 +106,7 @@ async fn inbox_loop(ctx: Context, inbox_handlers: ImapConnectionHandlers) {
         }
     };
 
-    fut.race(stop_receiver.recv()).await;
+    fut.race(stop_receiver.recv().map(|_| ())).await;
     shutdown_sender.send(()).await;
 }
 
@@ -110,6 +115,8 @@ async fn simple_imap_loop(
     inbox_handlers: ImapConnectionHandlers,
     folder: impl AsRef<str>,
 ) {
+    use futures::future::FutureExt;
+
     info!(ctx, "starting simple loop for {}", folder.as_ref());
     let ImapConnectionHandlers {
         mut connection,
@@ -118,7 +125,10 @@ async fn simple_imap_loop(
     } = inbox_handlers;
 
     let fut = async move {
-        connection.connect_configured(&ctx).await.unwrap();
+        if let Err(err) = connection.connect_configured(&ctx).await {
+            error!(ctx, "{}", err);
+            return;
+        }
 
         loop {
             match get_watch_folder(&ctx, folder.as_ref()).await {
@@ -155,7 +165,7 @@ async fn simple_imap_loop(
         }
     };
 
-    fut.race(stop_receiver.recv()).await;
+    fut.race(stop_receiver.recv().map(|_| ())).await;
     shutdown_sender.send(()).await;
 }
 

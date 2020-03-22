@@ -178,7 +178,6 @@ class TestOfflineChat:
         assert d["draft"] == "" if chat.get_draft() is None else chat.get_draft()
 
     def test_group_chat_creation_with_translation(self, ac1):
-        ac1.start_threads()
         ac1.set_stock_translation(const.DC_STR_NEWGROUPDRAFT, "xyz %1$s")
         ac1._evlogger.consume_events()
         with pytest.raises(ValueError):
@@ -198,7 +197,6 @@ class TestOfflineChat:
         assert not chat.is_promoted()
         msg = chat.get_draft()
         assert msg.text == "xyz title1"
-        ac1.stop_threads()
 
     @pytest.mark.parametrize("verified", [True, False])
     def test_group_chat_qr(self, acfactory, ac1, verified):
@@ -351,6 +349,7 @@ class TestOfflineChat:
             ac1.configure(addr="123@example.org")
 
     def test_import_export_one_contact(self, acfactory, tmpdir):
+        print("START")
         backupdir = tmpdir.mkdir("backup")
         ac1 = acfactory.get_configured_offline_account()
         contact1 = ac1.create_contact("some1@hello.com", name="some1")
@@ -362,24 +361,27 @@ class TestOfflineChat:
         with bin.open("w") as f:
             f.write("\00123" * 10000)
         msg = chat.send_file(bin.strpath)
-
+        print("L1")
         contact = msg.get_sender_contact()
         assert contact == ac1.get_self_contact()
         assert not backupdir.listdir()
-
+        print("L2")
         path = ac1.export_all(backupdir.strpath)
         assert os.path.exists(path)
         ac2 = acfactory.get_unconfigured_account()
         ac2.import_all(path)
         contacts = ac2.get_contacts(query="some1")
         assert len(contacts) == 1
+        print("L3")
         contact2 = contacts[0]
         assert contact2.addr == "some1@hello.com"
         chat2 = ac2.create_chat_by_contact(contact2)
         messages = chat2.get_messages()
         assert len(messages) == 2
+        print("L4")
         assert messages[0].text == "msg1"
         assert os.path.exists(messages[1].filename)
+        print("STOP")
 
     def test_ac_setup_message_fails(self, ac1):
         with pytest.raises(RuntimeError):

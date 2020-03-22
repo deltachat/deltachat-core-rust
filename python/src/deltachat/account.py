@@ -565,15 +565,18 @@ class IOThreads:
         self._thread_quitflag = False
         self._name2thread = {}
         self._log_event = log_event
-        self._running = False
+        self._log_running = True
 
+        # Make sure the current
+        self._start_one_thread("deltachat-log", self.dc_thread_run)
+        
     def is_started(self):
-        return self._running
+        return lib.dc_is_open(self._dc_context) and lib.dc_is_running(self._dc_context) 
 
     def start(self, imap=True, smtp=True, mvbox=False, sentbox=False):
         assert not self.is_started()
-        self._running = True
-        self._start_one_thread("deltachat", self.dc_thread_run)
+        
+        lib.dc_context_run(self._dc_context)
 
     def _start_one_thread(self, name, func):
         self._name2thread[name] = t = threading.Thread(target=func, name=name)
@@ -581,18 +584,14 @@ class IOThreads:
         t.start()
 
     def stop(self, wait=False):
-        lib.dc_context_shutdown(self._dc_context)
-        if wait:
-            for name, thread in self._name2thread.items():
-                thread.join()
-        self._running = False
+        if self.is_started():
+            lib.dc_context_shutdown(self._dc_context)
 
     def dc_thread_run(self):
-        self._log_event("py-bindings-info", 0, "DC THREAD START")
+        self._log_event("py-bindings-info", 0, "DC LOG THREAD START")
 
-        lib.dc_context_run(self._dc_context)
-        while self._running:
-            if lib.dc_has_next_event(self._dc_context):
+        while self._log_running:
+            if lib.dc_is_open(self._dc_context) and lib.dc_has_next_event(self._dc_context):
                 event = lib.dc_get_next_event(self._dc_context)
                 if event != ffi.NULL:
                     deltachat.py_dc_callback(
@@ -605,7 +604,7 @@ class IOThreads:
                 else:
                     time.sleep(0.05)
 
-        self._log_event("py-bindings-info", 0, "DC THREAD FINISHED")
+        self._log_event("py-bindings-info", 0, "DC LOG THREAD FINISHED")
 
 def _destroy_dc_context(dc_context, dc_context_unref=lib.dc_context_unref):
     # destructor for dc_context

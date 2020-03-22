@@ -119,7 +119,7 @@ impl ContextWrapper {
         match guard.as_ref() {
             Some(ref ctx) => Ok(ctxfn(ctx)),
             None => {
-                eprintln!("context not open");
+                eprintln!("ignoring careless call to non open context");
                 Err(())
             }
         }
@@ -142,7 +142,7 @@ macro_rules! with_inner_async {
                     Ok(res)
                 }
                 None => {
-                    eprintln!("context not open");
+                    eprintln!("ignoring careless call to non open context");
                     Err(())
                 }
             }
@@ -150,6 +150,23 @@ macro_rules! with_inner_async {
     }};
 }
 
+macro_rules! with_inner_spawn {
+    ($ctx:expr, $name:ident, $block:expr) => {{
+        let l = $ctx.inner.clone();
+        let lock = l.read().unwrap();
+        match lock.as_ref() {
+            Some(ctx) => {
+                let $name = ctx.clone();
+                async_std::task::spawn(async move { $block.await });
+                Ok(())
+            }
+            None => {
+                eprintln!("ignoring careless call to non open context");
+                Err(())
+            }
+        }
+    }};
+}
 macro_rules! try_inner_async {
     ($ctx:expr, $name:ident, $block:expr) => {{
         let l = $ctx.inner.clone();
@@ -443,9 +460,15 @@ pub unsafe extern "C" fn dc_configure(context: *mut dc_context_t) {
         eprintln!("ignoring careless call to dc_configure()");
         return;
     }
-    // TODO: this is now blocking, maybe change this
+
     let ffi_context = &*context;
-    with_inner_async!(ffi_context, ctx, async move { ctx.configure().await }).ok();
+
+    with_inner_spawn!(ffi_context, ctx, async move {
+        ctx.configure()
+            .await
+            .log_err(ffi_context, "Configure failed")
+    })
+    .ok();
 }
 
 #[no_mangle]
@@ -470,6 +493,16 @@ pub unsafe extern "C" fn dc_context_run(context: *mut dc_context_t) {
     let ffi_context = &*context;
 
     with_inner_async!(ffi_context, ctx, { ctx.run() }).unwrap_or(())
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_is_running(context: *mut dc_context_t) -> libc::c_int {
+    if context.is_null() {
+        return 0;
+    }
+    let ffi_context = &*context;
+
+    with_inner_async!(ffi_context, ctx, { ctx.is_running() }).unwrap_or_default() as libc::c_int
 }
 
 #[no_mangle]
@@ -1833,7 +1866,7 @@ pub unsafe extern "C" fn dc_get_contact(
 #[no_mangle]
 pub unsafe extern "C" fn dc_imex(
     context: *mut dc_context_t,
-    what: libc::c_int,
+    what_raw: libc::c_int,
     param1: *const libc::c_char,
     _param2: *const libc::c_char,
 ) {
@@ -1841,21 +1874,24 @@ pub unsafe extern "C" fn dc_imex(
         eprintln!("ignoring careless call to dc_imex()");
         return;
     }
-    let what = match imex::ImexMode::from_i32(what as i32) {
+    let what = match imex::ImexMode::from_i32(what_raw as i32) {
         Some(what) => what,
         None => {
-            eprintln!("ignoring invalid argument {} to dc_imex", what);
+            eprintln!("ignoring invalid argument {} to dc_imex", what_raw);
             return;
         }
     };
 
     // TODO: this is now blocking, figure out if that is okay
     let ffi_context = &*context;
-    with_inner_async!(
-        ffi_context,
-        ctx,
-        imex::imex(&ctx, what, to_opt_string_lossy(param1))
-    )
+
+    let param1 = to_opt_string_lossy(param1);
+
+    with_inner_spawn!(ffi_context, ctx, async move {
+        imex::imex(&ctx, what, param1)
+            .await
+            .log_err(ffi_context, "IMEX failed")
+    })
     .ok();
 }
 

@@ -46,7 +46,7 @@ async fn main() {
                     cb(event);
                 }
             } else {
-                async_std::task::sleep(time::Duration::from_millis(50));
+                async_std::task::sleep(time::Duration::from_millis(50)).await;
             }
         }
     });
