@@ -1328,30 +1328,27 @@ fn get_fetch_headers(prefetch_msg: &Fetch) -> Result<Vec<mailparse::MailHeader>>
 }
 
 fn prefetch_get_message_id(headers: &[mailparse::MailHeader]) -> Result<String> {
-    if let Some(message_id) = headers.get_header_value(HeaderDef::MessageId)? {
+    if let Some(message_id) = headers.get_header_value(HeaderDef::MessageId) {
         Ok(crate::mimeparser::parse_message_id(&message_id)?)
     } else {
         Err(Error::Other("prefetch: No message ID found".to_string()))
     }
 }
 
-fn prefetch_is_reply_to_chat_message(
-    context: &Context,
-    headers: &[mailparse::MailHeader],
-) -> Result<bool> {
-    if let Some(value) = headers.get_header_value(HeaderDef::InReplyTo)? {
+fn prefetch_is_reply_to_chat_message(context: &Context, headers: &[mailparse::MailHeader]) -> bool {
+    if let Some(value) = headers.get_header_value(HeaderDef::InReplyTo) {
         if is_msgrmsg_rfc724_mid_in_list(context, &value) {
-            return Ok(true);
+            return true;
         }
     }
 
-    if let Some(value) = headers.get_header_value(HeaderDef::References)? {
+    if let Some(value) = headers.get_header_value(HeaderDef::References) {
         if is_msgrmsg_rfc724_mid_in_list(context, &value) {
-            return Ok(true);
+            return true;
         }
     }
 
-    Ok(false)
+    false
 }
 
 fn prefetch_should_download(
@@ -1359,16 +1356,16 @@ fn prefetch_should_download(
     headers: &[mailparse::MailHeader],
     show_emails: ShowEmails,
 ) -> Result<bool> {
-    let is_chat_message = headers.get_header_value(HeaderDef::ChatVersion)?.is_some();
-    let is_reply_to_chat_message = prefetch_is_reply_to_chat_message(context, &headers)?;
+    let is_chat_message = headers.get_header_value(HeaderDef::ChatVersion).is_some();
+    let is_reply_to_chat_message = prefetch_is_reply_to_chat_message(context, &headers);
 
     // Autocrypt Setup Message should be shown even if it is from non-chat client.
     let is_autocrypt_setup_message = headers
-        .get_header_value(HeaderDef::AutocryptSetupMessage)?
+        .get_header_value(HeaderDef::AutocryptSetupMessage)
         .is_some();
 
     let from_field = headers
-        .get_header_value(HeaderDef::From_)?
+        .get_header_value(HeaderDef::From_)
         .unwrap_or_default();
 
     let (_contact_id, blocked_contact, origin) = from_field_to_contact_id(context, &from_field)?;

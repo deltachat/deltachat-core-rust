@@ -126,7 +126,7 @@ pub fn try_decrypt(
 ) -> Result<(Option<Vec<u8>>, HashSet<String>)> {
     let from = mail
         .headers
-        .get_header_value(HeaderDef::From_)?
+        .get_header_value(HeaderDef::From_)
         .and_then(|from_addr| mailparse::addrparse(&from_addr).ok())
         .and_then(|from| from.extract_single_info())
         .map(|from| from.addr)
