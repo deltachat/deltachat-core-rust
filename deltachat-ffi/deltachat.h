@@ -19,6 +19,7 @@ typedef struct _dc_msg      dc_msg_t;
 typedef struct _dc_contact  dc_contact_t;
 typedef struct _dc_lot      dc_lot_t;
 typedef struct _dc_provider dc_provider_t;
+typedef struct _dc_event    dc_event_t;
 
 
 /**
@@ -189,6 +190,26 @@ typedef struct _dc_provider dc_provider_t;
  */
 
 
+
+/**
+ * TODO: document
+ */  
+int           dc_has_next_event(dc_context_t* context);
+  
+/**
+ * TODO: document
+ */  
+dc_event_t*   dc_get_next_event(dc_context_t* context);
+
+int          dc_event_get_id   (dc_event_t* event);
+uintptr_t    dc_event_get_data1(dc_event_t* event);
+uintptr_t    dc_event_get_data2(dc_event_t* event);
+
+/**
+ * TODO: document
+ */
+void          dc_event_unref   (dc_event_t* event);
+
 /**
  * @class dc_context_t
  *
@@ -198,20 +219,6 @@ typedef struct _dc_provider dc_provider_t;
  * SQLite database for offline functionality and for account-related
  * settings.
  */
-
-
-/**
- * Callback function that should be given to dc_context_new().
- *
- * @memberof dc_context_t
- * @param context The context object as returned by dc_context_new().
- * @param event one of the @ref DC_EVENT constants
- * @param data1 depends on the event parameter
- * @param data2 depends on the event parameter
- * @return return 0 unless stated otherwise in the event parameter documentation
- */
-typedef uintptr_t (*dc_callback_t) (dc_context_t* context, int event, uintptr_t data1, uintptr_t data2);
-
 
 // create/open/config/information
 

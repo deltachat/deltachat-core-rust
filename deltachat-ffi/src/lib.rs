@@ -464,10 +464,7 @@ pub unsafe extern "C" fn dc_is_configured(context: *mut dc_context_t) -> libc::c
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_context_run(context: *mut dc_context_t) {
-    eprintln!("dc_context_run");
-
     if context.is_null() {
-        eprintln!("ignoring careless call to dc_run()");
         return;
     }
     let ffi_context = &*context;
@@ -475,81 +472,168 @@ pub unsafe extern "C" fn dc_context_run(context: *mut dc_context_t) {
     with_inner_async!(ffi_context, ctx, { ctx.run() }).unwrap_or(())
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn dc_has_next_event(context: *mut dc_context_t) -> libc::c_int {
+    if context.is_null() {
+        return 0;
+    }
+    let ffi_context = &*context;
+
+    ffi_context
+        .with_inner(|ctx| ctx.has_next_event())
+        .unwrap_or_default() as libc::c_int
+}
+
+pub struct EventWrapper {
+    pub event_id: libc::c_int,
+    pub data1: uintptr_t,
+    pub data2: uintptr_t,
+}
+
+#[no_mangle]
+pub type dc_event_t = EventWrapper;
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_event_unref(a: *mut dc_event_t) {
+    if a.is_null() {
+        eprintln!("ignoring careless call to dc_event_unref()");
+        return;
+    }
+
+    Box::from_raw(a);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_event_get_id(event: *mut dc_event_t) -> libc::c_int {
+    if event.is_null() {
+        eprintln!("ignoring careless call to dc_event_get_id()");
+        return 0;
+    }
+
+    let event = &*event;
+    event.event_id
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_event_get_data1(event: *mut dc_event_t) -> uintptr_t {
+    if event.is_null() {
+        eprintln!("ignoring careless call to dc_event_get_data1()");
+        return 0;
+    }
+
+    let event = &*event;
+    event.data1
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_event_get_data2(event: *mut dc_event_t) -> uintptr_t {
+    if event.is_null() {
+        eprintln!("ignoring careless call to dc_event_get_data2()");
+        return 0;
+    }
+
+    let event = &*event;
+    event.data2
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_next_event(context: *mut dc_context_t) -> *mut dc_event_t {
+    if context.is_null() {
+        return ptr::null_mut();
+    }
+    let ffi_context = &*context;
+
+    ffi_context
+        .with_inner(|ctx| match ctx.get_next_event() {
+            Ok(ev) => translate_event(ev),
+            Err(_) => ptr::null_mut(),
+        })
+        .unwrap_or_else(|_| ptr::null_mut())
+}
+
 /// Translates the callback from the rust style to the C-style version.
-unsafe fn translate_cb(ctx: &ContextWrapper, ffi_cb: Option<dc_callback_t>, event: Event) {
-    if let Some(ffi_cb) = ffi_cb {
-        let event_id = event.as_id();
-        match event {
-            Event::Info(msg)
-            | Event::SmtpConnected(msg)
-            | Event::ImapConnected(msg)
-            | Event::SmtpMessageSent(msg)
-            | Event::ImapMessageDeleted(msg)
-            | Event::ImapMessageMoved(msg)
-            | Event::ImapFolderEmptied(msg)
-            | Event::NewBlobFile(msg)
-            | Event::DeletedBlobFile(msg)
-            | Event::Warning(msg)
-            | Event::Error(msg)
-            | Event::ErrorNetwork(msg)
-            | Event::ErrorSelfNotInGroup(msg) => {
-                let data2 = CString::new(msg).unwrap_or_default();
-                ffi_cb(ctx, event_id, 0, data2.as_ptr() as uintptr_t);
-            }
-            Event::MsgsChanged { chat_id, msg_id }
-            | Event::IncomingMsg { chat_id, msg_id }
-            | Event::MsgDelivered { chat_id, msg_id }
-            | Event::MsgFailed { chat_id, msg_id }
-            | Event::MsgRead { chat_id, msg_id } => {
-                ffi_cb(
-                    ctx,
-                    event_id,
-                    chat_id.to_u32() as uintptr_t,
-                    msg_id.to_u32() as uintptr_t,
-                );
-            }
-            Event::ChatModified(chat_id) => {
-                ffi_cb(ctx, event_id, chat_id.to_u32() as uintptr_t, 0);
-            }
-            Event::ContactsChanged(id) | Event::LocationChanged(id) => {
-                let id = id.unwrap_or_default();
-                ffi_cb(ctx, event_id, id as uintptr_t, 0);
-            }
-            Event::ConfigureProgress(progress) | Event::ImexProgress(progress) => {
-                ffi_cb(ctx, event_id, progress as uintptr_t, 0);
-            }
-            Event::ImexFileWritten(file) => {
-                let data1 = file.to_c_string().unwrap_or_default();
-                ffi_cb(ctx, event_id, data1.as_ptr() as uintptr_t, 0);
-            }
-            Event::SecurejoinInviterProgress {
-                contact_id,
-                progress,
-            }
-            | Event::SecurejoinJoinerProgress {
-                contact_id,
-                progress,
-            } => {
-                ffi_cb(
-                    ctx,
-                    event_id,
-                    contact_id as uintptr_t,
-                    progress as uintptr_t,
-                );
-            }
-            Event::SecurejoinMemberAdded {
-                chat_id,
-                contact_id,
-            } => {
-                ffi_cb(
-                    ctx,
-                    event_id,
-                    chat_id.to_u32() as uintptr_t,
-                    contact_id as uintptr_t,
-                );
+unsafe fn translate_event(event: Event) -> *mut dc_event_t {
+    let event_id = event.as_id();
+    let wrapper = match event {
+        Event::Info(msg)
+        | Event::SmtpConnected(msg)
+        | Event::ImapConnected(msg)
+        | Event::SmtpMessageSent(msg)
+        | Event::ImapMessageDeleted(msg)
+        | Event::ImapMessageMoved(msg)
+        | Event::ImapFolderEmptied(msg)
+        | Event::NewBlobFile(msg)
+        | Event::DeletedBlobFile(msg)
+        | Event::Warning(msg)
+        | Event::Error(msg)
+        | Event::ErrorNetwork(msg)
+        | Event::ErrorSelfNotInGroup(msg) => {
+            let data2 = CString::new(msg).unwrap_or_default();
+
+            EventWrapper {
+                event_id,
+                data1: 0,
+                data2: data2.into_raw() as uintptr_t,
             }
         }
-    }
+        Event::MsgsChanged { chat_id, msg_id }
+        | Event::IncomingMsg { chat_id, msg_id }
+        | Event::MsgDelivered { chat_id, msg_id }
+        | Event::MsgFailed { chat_id, msg_id }
+        | Event::MsgRead { chat_id, msg_id } => EventWrapper {
+            event_id,
+            data1: chat_id.to_u32() as uintptr_t,
+            data2: msg_id.to_u32() as uintptr_t,
+        },
+        Event::ChatModified(chat_id) => EventWrapper {
+            event_id,
+            data1: chat_id.to_u32() as uintptr_t,
+            data2: 0,
+        },
+        Event::ContactsChanged(id) | Event::LocationChanged(id) => {
+            let id = id.unwrap_or_default();
+            EventWrapper {
+                event_id,
+                data1: id as uintptr_t,
+                data2: 0,
+            }
+        }
+        Event::ConfigureProgress(progress) | Event::ImexProgress(progress) => EventWrapper {
+            event_id,
+            data1: progress as uintptr_t,
+            data2: 0,
+        },
+        Event::ImexFileWritten(file) => {
+            let data1 = file.to_c_string().unwrap_or_default();
+            EventWrapper {
+                event_id,
+                data1: data1.into_raw() as uintptr_t,
+                data2: 0,
+            }
+        }
+        Event::SecurejoinInviterProgress {
+            contact_id,
+            progress,
+        }
+        | Event::SecurejoinJoinerProgress {
+            contact_id,
+            progress,
+        } => EventWrapper {
+            event_id,
+            data1: contact_id as uintptr_t,
+            data2: progress as uintptr_t,
+        },
+        Event::SecurejoinMemberAdded {
+            chat_id,
+            contact_id,
+        } => EventWrapper {
+            event_id,
+            data1: chat_id.to_u32() as uintptr_t,
+            data2: contact_id as uintptr_t,
+        },
+    };
+
+    Box::into_raw(Box::new(wrapper))
 }
 
 #[no_mangle]

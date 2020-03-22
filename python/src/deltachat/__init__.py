@@ -13,7 +13,6 @@ except DistributionNotFound:
 _DC_CALLBACK_MAP = {}
 
 
-@capi.ffi.def_extern()
 def py_dc_callback(ctx, evt, data1, data2):
     """The global event handler.
 
@@ -32,9 +31,9 @@ def py_dc_callback(ctx, evt, data1, data2):
     evt_name = get_dc_event_name(evt)
     event_sig_types = capi.lib.dc_get_event_signature_types(evt)
     if data1 and event_sig_types & 1:
-        data1 = ffi.string(ffi.cast('char*', data1)).decode("utf8")
+        data1 = ffi.string(ffi.gc(ffi.cast('char*', data1), capi.lib.dc_str_unref)).decode("utf8")
     if data2 and event_sig_types & 2:
-        data2 = ffi.string(ffi.cast('char*', data2)).decode("utf8")
+        data2 = ffi.string(ffi.gc(ffi.cast('char*', data2), capi.lib.dc_str_unref)).decode("utf8")
         try:
             if isinstance(data2, bytes):
                 data2 = data2.decode("utf8")
@@ -43,18 +42,9 @@ def py_dc_callback(ctx, evt, data1, data2):
             # i don't want to hunt down encoding problems in the c lib
             pass
     try:
-        ret = callback(ctx, evt_name, data1, data2)
-        if ret is None:
-            ret = 0
-        assert isinstance(ret, int), repr(ret)
-        if event_sig_types & 4:
-            return ffi.cast('uintptr_t', ret)
-        elif event_sig_types & 8:
-            return ffi.cast('int', ret)
+        callback(ctx, evt_name, data1, data2)
     except:  # noqa
         raise
-        ret = 0
-    return ret
 
 
 def set_context_callback(dc_context, func):

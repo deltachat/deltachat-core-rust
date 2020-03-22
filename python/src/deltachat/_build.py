@@ -92,13 +92,6 @@ def ffibuilder():
     finally:
         shutil.rmtree(tmpdir)
 
-    builder.cdef("""
-        extern "Python" uintptr_t py_dc_callback(
-            dc_context_t* context,
-            int event,
-            uintptr_t data1,
-            uintptr_t data2);
-    """)
     return builder
 
 
