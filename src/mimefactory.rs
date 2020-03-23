@@ -368,7 +368,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             self.from_addr.clone(),
         );
 
-        let mut to = Vec::with_capacity(self.recipients.len());
+        let mut to = Vec::new();
         for (name, addr) in self.recipients.iter() {
             if name.is_empty() {
                 to.push(Address::new_mailbox(addr.clone()));
@@ -378,6 +378,10 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                     addr.clone(),
                 ));
             }
+        }
+
+        if to.is_empty() {
+            to.push(from.clone());
         }
 
         if !self.references.is_empty() {
