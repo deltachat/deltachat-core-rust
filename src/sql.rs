@@ -181,7 +181,7 @@ impl Sql {
         let pool = lock.as_ref().ok_or_else(|| Error::SqlNoConnection)?;
         let conn = pool.get()?;
 
-        let res = async_std::task::spawn_blocking(move || g(conn)).await;
+        let res = g(conn);
         self.in_use.remove();
 
         res
@@ -419,7 +419,10 @@ impl Sql {
             let bt = backtrace::Backtrace::new();
             eprintln!("old query: {}", query);
             eprintln!("Connection is already used from this thread: {:?}", bt);
-            panic!("Connection is already used from this thread");
+            panic!(
+                "Connection is already used from this thread: trying to execute {}",
+                stmt.as_ref()
+            );
         }
 
         self.in_use.set(stmt.as_ref().to_string());

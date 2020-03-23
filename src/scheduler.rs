@@ -57,7 +57,9 @@ async fn inbox_loop(ctx: Context, inbox_handlers: ImapConnectionHandlers) {
         shutdown_sender,
     } = inbox_handlers;
 
+    let ctx1 = ctx.clone();
     let fut = async move {
+        let ctx = ctx1;
         if let Err(err) = connection.connect_configured(&ctx).await {
             error!(ctx, "{}", err);
             return;
@@ -106,6 +108,7 @@ async fn inbox_loop(ctx: Context, inbox_handlers: ImapConnectionHandlers) {
         }
     };
 
+    info!(ctx, "Shutting down inbox loop");
     fut.race(stop_receiver.recv().map(|_| ())).await;
     shutdown_sender.send(()).await;
 }
@@ -201,7 +204,7 @@ async fn smtp_loop(ctx: Context, smtp_handlers: SmtpConnectionHandlers) {
         }
     };
 
-    fut.race(stop_receiver.recv()).await;
+    fut.race(stop_receiver.recv()).await.ok();
     shutdown_sender.send(()).await;
 }
 
@@ -362,7 +365,7 @@ impl ConnectionState {
         // Trigger shutdown of the run loop.
         self.stop_sender.send(()).await;
         // Wait for a notification that the run loop has been shutdown.
-        self.shutdown_receiver.recv().await;
+        self.shutdown_receiver.recv().await.ok();
     }
 
     async fn interrupt(&self) {
