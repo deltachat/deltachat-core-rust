@@ -389,7 +389,11 @@ fn add_parts(
             let (new_chat_id, new_chat_id_blocked) = create_or_lookup_group(
                 context,
                 &mut mime_parser,
-                allow_creation,
+                if test_normal_chat_id.is_unset() {
+                    allow_creation
+                } else {
+                    true
+                },
                 create_blocked,
                 from_id,
                 to_ids,
