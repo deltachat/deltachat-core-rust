@@ -2529,18 +2529,6 @@ pub fn delete_device_expired_messages(context: &Context) -> sql::Result<()> {
     Ok(())
 }
 
-/// Removes from the database locally deleted messages that also don't
-/// have a server UID.
-pub fn prune_tombstones(context: &Context) -> sql::Result<()> {
-    context.sql.execute(
-        "DELETE FROM msgs \
-         WHERE (chat_id = ? OR hidden) \
-         AND server_uid = 0",
-        params![DC_CHAT_ID_TRASH],
-    )?;
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
