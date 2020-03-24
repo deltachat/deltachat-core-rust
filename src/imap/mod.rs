@@ -1074,9 +1074,7 @@ impl Imap {
         let folders_configured = context
             .sql
             .get_raw_config_int(context, "folders_configured");
-        if folders_configured.unwrap_or_default() >= 3 {
-            // the "3" here we increase if we have future updates to
-            // to folder configuration
+        if folders_configured.unwrap_or_default() >= DC_FOLDERS_CONFIGURED_VERSION {
             return Ok(());
         }
 
@@ -1168,9 +1166,11 @@ impl Imap {
                         Some(sentbox_folder.name()),
                     )?;
                 }
-                context
-                    .sql
-                    .set_raw_config_int(context, "folders_configured", 3)?;
+                context.sql.set_raw_config_int(
+                    context,
+                    "folders_configured",
+                    DC_FOLDERS_CONFIGURED_VERSION,
+                )?;
             }
             info!(context, "FINISHED configuring IMAP-folders.");
             Ok(())
