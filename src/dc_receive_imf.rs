@@ -1639,12 +1639,13 @@ mod tests {
     #[test]
     fn test_grpid_simple() {
         let context = dummy_context();
-        let raw = b"From: hello\n\
+        let raw = ["From: hello\n\
                     Subject: outer-subject\n\
                     In-Reply-To: <lqkjwelq123@123123>\n\
-                    References: <Gr.HcxyMARjyJy.9-uvzWPTLtV@nauta.cu>\n\
+                    References: <", GROUP_PREFIX, "HcxyMARjyJy.9-uvzWPTLtV@nauta.cu>\n\
                     \n\
-                    hello\x00";
+                    hello\x00"].concat();
+        let raw = raw.as_bytes();
         let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
         assert_eq!(extract_grpid(&mimeparser, HeaderDef::InReplyTo), None);
         let grpid = Some("HcxyMARjyJy");
@@ -1654,12 +1655,13 @@ mod tests {
     #[test]
     fn test_grpid_from_multiple() {
         let context = dummy_context();
-        let raw = b"From: hello\n\
+        let raw = ["From: hello\n\
                     Subject: outer-subject\n\
-                    In-Reply-To: <Gr.HcxyMARjyJy.9-qweqwe@asd.net>\n\
-                    References: <qweqweqwe>, <Gr.HcxyMARjyJy.9-uvzWPTLtV@nau.ca>\n\
+                    In-Reply-To: <", GROUP_PREFIX, "HcxyMARjyJy.9-qweqwe@asd.net>\n\
+                    References: <qweqweqwe>, <", GROUP_PREFIX, "HcxyMARjyJy.9-uvzWPTLtV@nau.ca>\n\
                     \n\
-                    hello\x00";
+                    hello\x00"].concat();
+        let raw = raw.as_bytes();
         let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
         let grpid = Some("HcxyMARjyJy");
         assert_eq!(extract_grpid(&mimeparser, HeaderDef::InReplyTo), grpid);

@@ -15,6 +15,12 @@ use crate::context::Context;
 use crate::error::Error;
 use crate::events::Event;
 
+pub(crate) const GROUP_PREFIX: &'static str = "chat$group.";
+const CHAT_PREFIX: &'static str = "chat$";
+
+// const LEGACY_CHAT_PREFIX: &'static str = "Mr.";
+const LEGACY_GROUP_PREFIX: &'static str = "Gr.";
+
 pub(crate) fn dc_exactly_one_bit_set(v: i32) -> bool {
     0 != v && 0 == v & (v - 1)
 }
@@ -150,7 +156,7 @@ pub(crate) fn dc_create_id() -> String {
     If possible, RNG of OpenSSL is used.
 
     Additional information when used as a message-id or group-id:
-    - for OUTGOING messages this ID is written to the header as `Chat-Group-ID:` and is added to the message ID as Gr.<grpid>.<random>@<random>
+    - for OUTGOING messages this ID is written to the header as `Chat-Group-ID:` and is added to the message ID as <GROUP_PREFIX><grpid>.<random>@<random>
     - for INCOMING messages, the ID is taken from the Chat-Group-ID-header or from the Message-ID in the In-Reply-To: or References:-Header
     - the group-id should be a string with the characters [a-zA-Z0-9\-_] */
 
@@ -191,10 +197,12 @@ pub(crate) fn dc_create_outgoing_rfc724_mid(grpid: Option<&str>, from_addr: &str
         .find('@')
         .map(|k| &from_addr[k..])
         .unwrap_or("@nohost");
-    match grpid {
-        Some(grpid) => format!("Gr.{}.{}{}", grpid, dc_create_id(), hostname),
-        None => format!("Mr.{}.{}{}", dc_create_id(), dc_create_id(), hostname),
-    }
+    let id_tmp:String;
+    let (prefix, id) = match grpid {
+        Some(grpid) => (GROUP_PREFIX, grpid),
+        None => {id_tmp = dc_create_id(); (CHAT_PREFIX, id_tmp.as_ref())},
+    };
+    format!("{}{}.{}{}", prefix, id, dc_create_id(), hostname)
 }
 
 /// Extract the group id (grpid) from a message id (mid)
@@ -206,11 +214,20 @@ pub(crate) fn dc_create_outgoing_rfc724_mid(grpid: Option<&str>, from_addr: &str
 pub(crate) fn dc_extract_grpid_from_rfc724_mid(mid: &str) -> Option<&str> {
     let mid = mid.trim_start_matches('<').trim_end_matches('>');
 
-    if mid.len() < 9 || !mid.starts_with("Gr.") {
+    let prefix_len;
+    if mid.starts_with(GROUP_PREFIX) {
+        prefix_len = GROUP_PREFIX.len();
+    } else if mid.starts_with(GROUP_PREFIX) {
+        prefix_len = LEGACY_GROUP_PREFIX.len();
+    } else {
         return None;
     }
 
-    if let Some(mid_without_offset) = mid.get(3..) {
+    if mid.len() < prefix_len + 11 {
+        return None;
+    }
+
+    if let Some(mid_without_offset) = mid.get(prefix_len..) {
         if let Some(grpid_len) = mid_without_offset.find('.') {
             /* strict length comparison, the 'Gr.' magic is weak enough */
             if grpid_len == 11 || grpid_len == 16 {
@@ -612,28 +629,28 @@ mod tests {
         assert_eq!(grpid, None);
 
         // Should return None if grpid has a length which is not 11 or 16
-        let mid = "Gr.12345678.morerandom@domain.de";
-        let grpid = dc_extract_grpid_from_rfc724_mid(mid);
+        let mid = [GROUP_PREFIX, "12345678.morerandom@domain.de"].concat();
+        let grpid = dc_extract_grpid_from_rfc724_mid(&mid);
         assert_eq!(grpid, None);
 
         // Should return extracted grpid for grpid with length of 11
-        let mid = "Gr.12345678901.morerandom@domain.de";
-        let grpid = dc_extract_grpid_from_rfc724_mid(mid);
+        let mid = [GROUP_PREFIX, "12345678901.morerandom@domain.de"].concat();
+        let grpid = dc_extract_grpid_from_rfc724_mid(&mid);
         assert_eq!(grpid, Some("12345678901"));
 
         // Should return extracted grpid for grpid with length of 11
-        let mid = "Gr.1234567890123456.morerandom@domain.de";
-        let grpid = dc_extract_grpid_from_rfc724_mid(mid);
+        let mid = [GROUP_PREFIX, "1234567890123456.morerandom@domain.de"].concat();
+        let grpid = dc_extract_grpid_from_rfc724_mid(&mid);
         assert_eq!(grpid, Some("1234567890123456"));
 
         // Should return extracted grpid for grpid with length of 11
-        let mid = "<Gr.12345678901.morerandom@domain.de>";
-        let grpid = dc_extract_grpid_from_rfc724_mid(mid);
+        let mid = ["<", GROUP_PREFIX, "12345678901.morerandom@domain.de>"].concat();
+        let grpid = dc_extract_grpid_from_rfc724_mid(&mid);
         assert_eq!(grpid, Some("12345678901"));
 
         // Should return extracted grpid for grpid with length of 11
-        let mid = "<Gr.1234567890123456.morerandom@domain.de>";
-        let grpid = dc_extract_grpid_from_rfc724_mid(mid);
+        let mid = ["<", GROUP_PREFIX, "1234567890123456.morerandom@domain.de>"].concat();
+        let grpid = dc_extract_grpid_from_rfc724_mid(&mid);
         assert_eq!(grpid, Some("1234567890123456"));
     }
 
@@ -641,14 +658,14 @@ mod tests {
     fn test_dc_create_outgoing_rfc724_mid() {
         // create a normal message-id
         let mid = dc_create_outgoing_rfc724_mid(None, "foo@bar.de");
-        assert!(mid.starts_with("Mr."));
+        assert!(mid.starts_with(CHAT_PREFIX));
         assert!(mid.ends_with("bar.de"));
         assert!(dc_extract_grpid_from_rfc724_mid(mid.as_str()).is_none());
 
         // create a message-id containing a group-id
         let grpid = dc_create_id();
         let mid = dc_create_outgoing_rfc724_mid(Some(&grpid), "foo@bar.de");
-        assert!(mid.starts_with("Gr."));
+        assert!(mid.starts_with(GROUP_PREFIX));
         assert!(mid.ends_with("bar.de"));
         assert_eq!(
             dc_extract_grpid_from_rfc724_mid(mid.as_str()),
