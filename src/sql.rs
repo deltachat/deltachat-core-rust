@@ -8,7 +8,7 @@ use rusqlite::{Connection, OpenFlags, Statement, NO_PARAMS};
 use thread_local_object::ThreadLocal;
 
 use crate::chat::{update_device_icon, update_saved_messages_icon};
-use crate::constants::ShowEmails;
+use crate::constants::{ShowEmails, DC_CHAT_ID_TRASH};
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::param::*;
@@ -1053,6 +1053,18 @@ pub fn get_rowid2_with_conn(
     }
 }
 
+/// Removes from the database locally deleted messages that also don't
+/// have a server UID.
+fn prune_tombstones(context: &Context) -> Result<()> {
+    context.sql.execute(
+        "DELETE FROM msgs \
+         WHERE (chat_id = ? OR hidden) \
+         AND server_uid = 0",
+        params![DC_CHAT_ID_TRASH],
+    )?;
+    Ok(())
+}
+
 pub fn housekeeping(context: &Context) {
     let mut files_in_use = HashSet::new();
     let mut unreferenced_count = 0;
@@ -1163,6 +1175,13 @@ pub fn housekeeping(context: &Context) {
                 err
             );
         }
+    }
+
+    if let Err(err) = prune_tombstones(context) {
+        warn!(
+            context,
+            "Houskeeping: Cannot prune message tombstones: {}", err
+        );
     }
 
     info!(context, "Housekeeping done.",);
