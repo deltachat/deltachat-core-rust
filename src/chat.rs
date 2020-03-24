@@ -2522,8 +2522,9 @@ pub fn delete_device_expired_messages(context: &Context) -> sql::Result<()> {
         context.sql.execute(
             "UPDATE msgs \
              SET txt = '', hidden = 1 \
-             WHERE timestamp < ?",
-            params![threshold_timestamp],
+             WHERE timestamp < ? \
+             AND chat_id > ?",
+            params![threshold_timestamp, DC_CHAT_ID_LAST_SPECIAL],
         )?;
     }
     Ok(())
