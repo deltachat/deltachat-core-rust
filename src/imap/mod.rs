@@ -1078,6 +1078,10 @@ impl Imap {
             return Ok(());
         }
 
+        self.configure_folders(context, create_mvbox)
+    }
+
+    pub fn configure_folders(&self, context: &Context, create_mvbox: bool) -> Result<()> {
         task::block_on(async move {
             if !self.is_connected().await {
                 return Err(Error::NoConnection);
