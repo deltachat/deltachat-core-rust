@@ -1,5 +1,19 @@
 # Changelog 
 
+## 1.28.0
+
+- new flag DC_GCL_FOR_FORWARDING for dc_get_chatlist()
+  that will sort the "saved messages" chat to the top of the chatlist #1336
+- mark mails as being deleted from server in dc_empty_server() #1333
+- fix interaction with servers that do not allow folder creation on root-level;
+  use path separator as defined by the email server #1359
+- fix group creation if group was created by non-delta clients #1357
+- fix showing replies from non-delta clients #1353
+- fix member list on rejoining left groups #1343
+- fix crash when using empty groups #1354
+- fix potential crash on special names #1350
+
+
 ## 1.27.0
 
 - handle keys reliably on armv7 #1327
