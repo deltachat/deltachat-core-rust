@@ -389,7 +389,11 @@ fn add_parts(
             let (new_chat_id, new_chat_id_blocked) = create_or_lookup_group(
                 context,
                 &mut mime_parser,
-                allow_creation,
+                if test_normal_chat_id.is_unset() {
+                    allow_creation
+                } else {
+                    true
+                },
                 create_blocked,
                 from_id,
                 to_ids,
@@ -1625,8 +1629,9 @@ fn dc_create_incoming_rfc724_mid(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chatlist::Chatlist;
     use crate::message::Message;
-    use crate::test_utils::dummy_context;
+    use crate::test_utils::{dummy_context, TestContext};
 
     #[test]
     fn test_hex_hash() {
@@ -1718,5 +1723,137 @@ mod tests {
         ));
         assert!(is_msgrmsg_rfc724_mid(&t.ctx, &msg.rfc724_mid));
         assert!(!is_msgrmsg_rfc724_mid(&t.ctx, "nonexistant@message.id"));
+    }
+
+    fn configured_offline_context() -> TestContext {
+        let t = dummy_context();
+        t.ctx
+            .set_config(Config::Addr, Some("alice@example.org"))
+            .unwrap();
+        t.ctx
+            .set_config(Config::ConfiguredAddr, Some("alice@example.org"))
+            .unwrap();
+        t.ctx.set_config(Config::Configured, Some("1")).unwrap();
+        t
+    }
+
+    static MSGRMSG: &[u8] = b"From: Bob <bob@example.org>\n\
+                    To: alice@example.org\n\
+                    Chat-Version: 1.0\n\
+                    Subject: Chat: hello\n\
+                    Message-ID: <Mr.1111@example.org>\n\
+                    Date: Sun, 22 Mar 2020 22:37:55 +0000\n\
+                    \n\
+                    hello\n";
+
+    static ONETOONE_NOREPLY_MAIL: &[u8] = b"From: Bob <bob@example.org>\n\
+                    To: alice@example.org\n\
+                    Subject: Chat: hello\n\
+                    Message-ID: <2222@example.org>\n\
+                    Date: Sun, 22 Mar 2020 22:37:56 +0000\n\
+                    \n\
+                    hello\n";
+
+    static GRP_MAIL: &[u8] = b"From: bob@example.org\n\
+                    To: alice@example.org, claire@example.org\n\
+                    Subject: group with Alice, Bob and Claire\n\
+                    Message-ID: <3333@example.org>\n\
+                    Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                    \n\
+                    hello\n";
+
+    #[test]
+    fn test_adhoc_group_show_chats_only() {
+        let t = configured_offline_context();
+        assert_eq!(t.ctx.get_config_int(Config::ShowEmails), 0);
+
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        assert_eq!(chats.len(), 0);
+
+        dc_receive_imf(&t.ctx, MSGRMSG, "INBOX", 1, false).unwrap();
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        assert_eq!(chats.len(), 1);
+
+        dc_receive_imf(&t.ctx, ONETOONE_NOREPLY_MAIL, "INBOX", 1, false).unwrap();
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        assert_eq!(chats.len(), 1);
+
+        dc_receive_imf(&t.ctx, GRP_MAIL, "INBOX", 1, false).unwrap();
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        assert_eq!(chats.len(), 1);
+    }
+
+    #[test]
+    fn test_adhoc_group_show_accepted_contact_unknown() {
+        let t = configured_offline_context();
+        t.ctx.set_config(Config::ShowEmails, Some("1")).unwrap();
+        dc_receive_imf(&t.ctx, GRP_MAIL, "INBOX", 1, false).unwrap();
+
+        // adhoc-group with unknown contacts with show_emails=accepted is ignored for unknown contacts
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        assert_eq!(chats.len(), 0);
+    }
+
+    #[test]
+    fn test_adhoc_group_show_accepted_contact_known() {
+        let t = configured_offline_context();
+        t.ctx.set_config(Config::ShowEmails, Some("1")).unwrap();
+        Contact::create(&t.ctx, "Bob", "bob@example.org").unwrap();
+        dc_receive_imf(&t.ctx, GRP_MAIL, "INBOX", 1, false).unwrap();
+
+        // adhoc-group with known contacts with show_emails=accepted is still ignored for known contacts
+        // (and existent chat is required)
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        assert_eq!(chats.len(), 0);
+    }
+
+    #[test]
+    fn test_adhoc_group_show_accepted_contact_accepted() {
+        let t = configured_offline_context();
+        t.ctx.set_config(Config::ShowEmails, Some("1")).unwrap();
+
+        // accept Bob by accepting a delta-message from Bob
+        dc_receive_imf(&t.ctx, MSGRMSG, "INBOX", 1, false).unwrap();
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        assert_eq!(chats.len(), 1);
+        assert!(chats.get_chat_id(0).is_deaddrop());
+        let chat_id = chat::create_by_msg_id(&t.ctx, chats.get_msg_id(0).unwrap()).unwrap();
+        assert!(!chat_id.is_special());
+        let chat = chat::Chat::load_from_db(&t.ctx, chat_id).unwrap();
+        assert_eq!(chat.typ, Chattype::Single);
+        assert_eq!(chat.name, "Bob");
+        assert_eq!(chat::get_chat_contacts(&t.ctx, chat_id).len(), 1);
+        assert_eq!(chat::get_chat_msgs(&t.ctx, chat_id, 0, None).len(), 1);
+
+        // receive a non-delta-message from Bob, shows up because of the show_emails setting
+        dc_receive_imf(&t.ctx, ONETOONE_NOREPLY_MAIL, "INBOX", 2, false).unwrap();
+        assert_eq!(chat::get_chat_msgs(&t.ctx, chat_id, 0, None).len(), 2);
+
+        // let Bob create an adhoc-group by a non-delta-message, shows up because of the show_emails setting
+        dc_receive_imf(&t.ctx, GRP_MAIL, "INBOX", 3, false).unwrap();
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        assert_eq!(chats.len(), 2);
+        let chat_id = chat::create_by_msg_id(&t.ctx, chats.get_msg_id(0).unwrap()).unwrap();
+        let chat = chat::Chat::load_from_db(&t.ctx, chat_id).unwrap();
+        assert_eq!(chat.typ, Chattype::Group);
+        assert_eq!(chat.name, "group with Alice, Bob and Claire");
+        assert_eq!(chat::get_chat_contacts(&t.ctx, chat_id).len(), 3);
+    }
+
+    #[test]
+    fn test_adhoc_group_show_all() {
+        let t = configured_offline_context();
+        t.ctx.set_config(Config::ShowEmails, Some("2")).unwrap();
+        dc_receive_imf(&t.ctx, GRP_MAIL, "INBOX", 1, false).unwrap();
+
+        // adhoc-group with unknown contacts with show_emails=all will show up in the deaddrop
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        assert_eq!(chats.len(), 1);
+        assert!(chats.get_chat_id(0).is_deaddrop());
+        let chat_id = chat::create_by_msg_id(&t.ctx, chats.get_msg_id(0).unwrap()).unwrap();
+        let chat = chat::Chat::load_from_db(&t.ctx, chat_id).unwrap();
+        assert_eq!(chat.typ, Chattype::Group);
+        assert_eq!(chat.name, "group with Alice, Bob and Claire");
+        assert_eq!(chat::get_chat_contacts(&t.ctx, chat_id).len(), 3);
     }
 }
