@@ -480,7 +480,7 @@ class TestOnlineAccount:
         ac1, ac2 = acfactory.get_two_online_accounts()
         ac1.stop_threads()
         ac2.stop_threads()
-        
+
         dir = tmpdir.mkdir("exportdir")
         export_files = ac1.export_self_keys(dir.strpath)
         assert len(export_files) == 2
@@ -608,11 +608,11 @@ class TestOnlineAccount:
         lp.sec("ac2: waiting for configuration")
         wait_configuration_progress(ac2, 1000)
         ac2.start_threads()
-        
+
         lp.sec("ac1: waiting for configuration")
         wait_configuration_progress(ac1, 1000)
         ac1.start_threads()
-        
+
         lp.sec("ac1: send message and wait for ac2 to receive it")
         chat = self.get_chat(ac1, ac2)
         chat.send_text("message1")

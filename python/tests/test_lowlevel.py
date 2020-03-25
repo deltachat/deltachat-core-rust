@@ -1,10 +1,10 @@
 from __future__ import print_function
 import threading
 import time
-from deltachat import capi, cutil, const, set_context_callback, clear_context_callback
+from deltachat import capi, cutil, const, set_context_callback, clear_context_callback, py_dc_callback
 from deltachat.capi import ffi
 from deltachat.capi import lib
-from deltachat.account import EventLogger
+# from deltachat.account import EventLogger
 
 
 class EventThread(threading.Thread):
@@ -16,11 +16,11 @@ class EventThread(threading.Thread):
 
     def run(self):
         lib.dc_context_run(self.dc_context)
-        while self._running: 
+        while self._running:
             if lib.dc_has_next_event(self.dc_context):
                 event = lib.dc_get_next_event(self.dc_context)
                 if event != ffi.NULL:
-                    deltachat.py_dc_callback(
+                    py_dc_callback(
                         self._dc_context,
                         lib.dc_event_get_id(event),
                         lib.dc_event_get_data1(event),
@@ -45,6 +45,7 @@ def test_callback_None2int():
     set_context_callback(ctx, lambda *args: None)
     capi.lib.dc_close(ctx)
     clear_context_callback(ctx)
+
 
 def test_start_stop_event_thread_basic():
     print("1")

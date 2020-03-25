@@ -569,13 +569,13 @@ class IOThreads:
 
         # Make sure the current
         self._start_one_thread("deltachat-log", self.dc_thread_run)
-        
+
     def is_started(self):
-        return lib.dc_is_open(self._dc_context) and lib.dc_is_running(self._dc_context) 
+        return lib.dc_is_open(self._dc_context) and lib.dc_is_running(self._dc_context)
 
     def start(self, imap=True, smtp=True, mvbox=False, sentbox=False):
         assert not self.is_started()
-        
+
         lib.dc_context_run(self._dc_context)
 
     def _start_one_thread(self, name, func):
@@ -605,6 +605,7 @@ class IOThreads:
                     time.sleep(0.05)
 
         self._log_event("py-bindings-info", 0, "DC LOG THREAD FINISHED")
+
 
 def _destroy_dc_context(dc_context, dc_context_unref=lib.dc_context_unref):
     # destructor for dc_context

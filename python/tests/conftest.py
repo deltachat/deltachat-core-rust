@@ -242,7 +242,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
             wait_successful_IMAP_SMTP_connection(ac2)
             wait_configuration_progress(ac2, 1000)
             ac2.start_threads()
-            
+
             return ac1, ac2
 
         def clone_online_account(self, account, pre_generated_key=True):
