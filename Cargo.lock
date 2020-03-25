@@ -93,7 +93,7 @@ dependencies = [
 [[package]]
 name = "async-imap"
 version = "0.2.0"
-source = "git+https://github.com/async-email/async-imap?branch=feat/send#be7b9cace12d0f323ef1e6e0a9fc698f4e26b64d"
+source = "git+https://github.com/async-email/async-imap?branch=feat/send#94a48158d6cc622aa0ed99d10b84088e9e53eb2f"
 dependencies = [
  "async-native-tls 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "async-std 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",

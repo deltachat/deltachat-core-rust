@@ -120,21 +120,24 @@ impl Client {
 
     pub async fn secure<S: AsRef<str>>(
         self,
-        _domain: S,
-        _certificate_checks: CertificateChecks,
+        domain: S,
+        certificate_checks: CertificateChecks,
     ) -> ImapResult<Client> {
         if self.is_secure {
             Ok(self)
         } else {
-            unimplemented!()
-            // let Client { inner, .. } = self;
-            // let tls = dc_build_tls(certificate_checks);
-            // let client_sec = inner.secure(domain, tls).await?;
+            let Client { mut inner, .. } = self;
+            let tls = dc_build_tls(certificate_checks);
+            inner.run_command_and_check_ok("STARTTLS", None).await?;
 
-            // Ok(Client {
-            //     is_secure: true,
-            //     inner: client_sec,
-            // })
+            let stream = inner.into_inner();
+            let ssl_stream = tls.connect(domain.as_ref(), stream).await?;
+            let boxed: Box<dyn SessionStream> = Box::new(ssl_stream);
+
+            Ok(Client {
+                is_secure: true,
+                inner: ImapClient::new(boxed),
+            })
         }
     }
 }

@@ -14,6 +14,7 @@ pub(crate) trait SessionStream:
 {
 }
 
+impl SessionStream for TlsStream<Box<dyn SessionStream>> {}
 impl SessionStream for TlsStream<TcpStream> {}
 impl SessionStream for TcpStream {}
 
