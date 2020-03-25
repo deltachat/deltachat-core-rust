@@ -71,7 +71,7 @@ class FFIEventLogger:
             locname += "-" + self.logid
         s = "{:2.2f} [{}] {}".format(elapsed, locname, message)
         with self._loglock:
-            print(s)
+            print(s, flush=True)
 
 
 class FFIEventTracker:

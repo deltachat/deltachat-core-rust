@@ -13,6 +13,10 @@ class GroupTrackingPlugin:
             print("chat member: {}".format(member.addr))
 
     @deltachat.hookspec.account_hookimpl
+    def configure_completed(self, success):
+        print("*** configure_completed:", success)
+
+    @deltachat.hookspec.account_hookimpl
     def member_added(self, chat, contact):
         print("*** member_added", contact.addr, "from", chat)
         for member in chat.get_contacts():
