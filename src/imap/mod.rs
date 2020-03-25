@@ -188,7 +188,6 @@ struct ImapConfig {
     /// True if the server has MOVE capability as defined in
     /// https://tools.ietf.org/html/rfc6851
     pub can_move: bool,
-    pub imap_delimiter: char,
 }
 
 impl Default for ImapConfig {
@@ -206,7 +205,6 @@ impl Default for ImapConfig {
             selected_folder_needs_expunge: false,
             can_idle: false,
             can_move: false,
-            imap_delimiter: '.',
         }
     }
 }
