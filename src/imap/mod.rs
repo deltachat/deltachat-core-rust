@@ -1106,7 +1106,15 @@ impl Imap {
                         });
                 info!(context, "sentbox folder is {:?}", sentbox_folder);
 
-                let delimiter = self.config.read().await.imap_delimiter;
+                let mut delimiter = ".";
+                if !folders.is_empty() {
+                    if let Some(d) = &folders[0].delimiter() {
+                        if !d.is_empty() {
+                            delimiter = d;
+                        }
+                    }
+                }
+                info!(context, "Using \"{}\" as folder-delimiter.", delimiter);
                 let fallback_folder = format!("INBOX{}DeltaChat", delimiter);
 
                 let mut mvbox_folder = folders
