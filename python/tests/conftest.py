@@ -279,11 +279,11 @@ def lp():
     return Printer()
 
 
-def wait_configuration_progress(account, min_target, max_target=1001):
+def wait_configuration_progress(account, min_target, max_target=1001, check_error=True):
     min_target = min(min_target, max_target)
     while 1:
         evt_name, data1, data2 = \
-            account._evlogger.get_matching("DC_EVENT_CONFIGURE_PROGRESS")
+            account._evlogger.get_matching("DC_EVENT_CONFIGURE_PROGRESS", check_error=check_error)
         if data1 >= min_target and data1 <= max_target:
             print("** CONFIG PROGRESS {}".format(min_target), account)
             break

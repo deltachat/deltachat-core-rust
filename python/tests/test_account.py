@@ -1465,22 +1465,22 @@ class TestOnlineConfigureFails:
         ac1, configdict = acfactory.get_online_config()
         ac1.configure(addr=configdict["addr"], mail_pw="123")
         wait_configuration_progress(ac1, 500)
-        ev1 = ac1._evlogger.get_matching("DC_EVENT_ERROR_NETWORK")
+        ev1 = ac1._evlogger.get_matching("DC_EVENT_ERROR_NETWORK", check_error=False)
         assert "cannot login" in ev1[2].lower()
-        wait_configuration_progress(ac1, 0, 0)
+        wait_configuration_progress(ac1, 0, 0, check_error=False)
 
     def test_invalid_user(self, acfactory):
         ac1, configdict = acfactory.get_online_config()
         ac1.configure(addr="x" + configdict["addr"], mail_pw=configdict["mail_pw"])
         wait_configuration_progress(ac1, 500)
-        ev1 = ac1._evlogger.get_matching("DC_EVENT_ERROR_NETWORK")
+        ev1 = ac1._evlogger.get_matching("DC_EVENT_ERROR_NETWORK", check_error=False)
         assert "cannot login" in ev1[2].lower()
-        wait_configuration_progress(ac1, 0, 0)
+        wait_configuration_progress(ac1, 0, 0, check_error=False)
 
     def test_invalid_domain(self, acfactory):
         ac1, configdict = acfactory.get_online_config()
         ac1.configure(addr=configdict["addr"] + "x", mail_pw=configdict["mail_pw"])
-        wait_configuration_progress(ac1, 500)
+        wait_configuration_progress(ac1, 500, check_error=False)
         ev1 = ac1._evlogger.get_matching("DC_EVENT_ERROR_NETWORK")
         assert "could not connect" in ev1[2].lower()
-        wait_configuration_progress(ac1, 0, 0)
+        wait_configuration_progress(ac1, 0, 0, check_error=False)
