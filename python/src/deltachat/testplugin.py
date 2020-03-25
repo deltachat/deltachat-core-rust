@@ -2,6 +2,9 @@ from __future__ import print_function
 import os
 import sys
 import subprocess
+import queue
+import threading
+import fnmatch
 import pytest
 import requests
 import time
@@ -10,6 +13,8 @@ from .tracker import ConfigureTracker
 from .capi import lib
 from .eventlogger import FFIEventLogger, FFIEventTracker
 from _pytest.monkeypatch import MonkeyPatch
+from _pytest._code import Source
+
 import tempfile
 
 
@@ -138,11 +143,12 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
                 fin = self._finalizers.pop()
                 fin()
 
-        def make_account(self, path, logid):
+        def make_account(self, path, logid, quiet=False):
             ac = Account(path)
             ac._evtracker = ac.add_account_plugin(FFIEventTracker(ac))
             ac._configtracker = ac.add_account_plugin(ConfigureTracker())
-            ac.add_account_plugin(FFIEventLogger(ac, logid=logid))
+            if not quiet:
+                ac.add_account_plugin(FFIEventLogger(ac, logid=logid))
             self._finalizers.append(ac.shutdown)
             return ac
 
@@ -177,7 +183,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
             lib.dc_set_config(ac._dc_context, b"configured", b"1")
             return ac
 
-        def get_online_config(self, pre_generated_key=True):
+        def get_online_config(self, pre_generated_key=True, quiet=False):
             if not session_liveconfig:
                 pytest.skip("specify DCC_NEW_TMP_EMAIL or --liveconfig")
             configdict = session_liveconfig.get(self.live_count)
@@ -190,7 +196,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
             configdict["smtp_certificate_checks"] = str(const.DC_CERTCK_STRICT)
 
             tmpdb = tmpdir.join("livedb%d" % self.live_count)
-            ac = self.make_account(tmpdb.strpath, logid="ac{}".format(self.live_count))
+            ac = self.make_account(tmpdb.strpath, logid="ac{}".format(self.live_count), quiet=quiet)
             if pre_generated_key:
                 self._preconfigure_key(ac, configdict['addr'])
             ac._evtracker.init_time = self.init_time
@@ -198,9 +204,9 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
             return ac, dict(configdict)
 
         def get_online_configuring_account(self, mvbox=False, sentbox=False, move=False,
-                                           pre_generated_key=True, config={}):
+                                           pre_generated_key=True, quiet=False, config={}):
             ac, configdict = self.get_online_config(
-                pre_generated_key=pre_generated_key)
+                pre_generated_key=pre_generated_key, quiet=quiet)
             configdict.update(config)
             configdict["mvbox_watch"] = str(int(mvbox))
             configdict["mvbox_move"] = str(int(move))
@@ -217,9 +223,9 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
             ac1._configtracker.wait_finish()
             return ac1
 
-        def get_two_online_accounts(self, move=False):
-            ac1 = self.get_online_configuring_account(move=True)
-            ac2 = self.get_online_configuring_account()
+        def get_two_online_accounts(self, move=False, quiet=False):
+            ac1 = self.get_online_configuring_account(move=True, quiet=quiet)
+            ac2 = self.get_online_configuring_account(quiet=quiet)
             ac1._configtracker.wait_finish()
             ac2._configtracker.wait_finish()
             return ac1, ac2
@@ -247,14 +253,24 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
 
             bot_ac, bot_cfg = self.get_online_config()
 
-            popen = subprocess.Popen([
+            args = [
                 sys.executable,
                 fn,
                 "--show-ffi",
                 "--db", bot_ac.db_path,
                 "--email", bot_cfg["addr"],
                 "--password", bot_cfg["mail_pw"],
-            ])
+            ]
+            print("$", " ".join(args))
+            popen = subprocess.Popen(
+                args=args,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,  # combine stdout/stderr in one stream
+                bufsize=1,                 # line buffering
+                close_fds=True,            # close all FDs other than 0/1/2
+                universal_newlines=True    # give back text
+            )
             bot = BotProcess(popen, bot_cfg)
             self._finalizers.append(bot.kill)
             return bot
@@ -269,11 +285,44 @@ class BotProcess:
         self.popen = popen
         self.addr = bot_cfg["addr"]
 
+        # we read stdout as quickly as we can in a thread and make
+        # the (unicode) lines available for readers through a queue.
+        self.stdout_queue = queue.Queue()
+        self.stdout_thread = t = threading.Thread(target=self._run_stdout_thread, name="bot-stdout-thread")
+        t.setDaemon(1)
+        t.start()
+
+    def _run_stdout_thread(self):
+        try:
+            while 1:
+                line = self.popen.stdout.readline()
+                if not line:
+                    break
+                line = line.strip()
+                print("QUEUING:", repr(line))
+                self.stdout_queue.put(line)
+        finally:
+            self.stdout_queue.put(None)
+
     def kill(self):
         self.popen.kill()
 
     def wait(self, timeout=30):
         self.popen.wait(timeout=timeout)
+
+    def fnmatch_lines(self, pattern_lines):
+        patterns = [x.strip() for x in Source(pattern_lines.rstrip()).lines if x.strip()]
+        for next_pattern in patterns:
+            print("+++FNMATCH:", next_pattern)
+            while 1:
+                line = self.stdout_queue.get(timeout=15)
+                if line is None:
+                    raise IOError("BOT stdout-thread terminated")
+                if fnmatch.fnmatch(line, next_pattern):
+                    print("+++MATCHED:", line)
+                    break
+                else:
+                    print("+++IGN:", line)
 
 
 @pytest.fixture

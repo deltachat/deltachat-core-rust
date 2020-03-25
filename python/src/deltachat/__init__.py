@@ -115,7 +115,7 @@ def run_cmdline(argv=None, account_plugins=None):
     ac = Account(args.db)
 
     if args.show_ffi:
-        log = eventlogger.FFIEventLogger(ac, "echo")
+        log = eventlogger.FFIEventLogger(ac, "bot")
         ac.add_account_plugin(log)
 
     if not ac.is_configured():
@@ -124,6 +124,7 @@ def run_cmdline(argv=None, account_plugins=None):
         )
         ac.set_config("addr", args.email)
         ac.set_config("mail_pw", args.password)
+        ac.set_config("mvbox_move", "0")
         ac.set_config("mvbox_watch", "0")
         ac.set_config("sentbox_watch", "0")
 

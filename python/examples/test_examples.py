@@ -3,6 +3,7 @@ import pytest
 import py
 import echo_and_quit
 import group_tracking
+from deltachat.eventlogger import FFIEventLogger
 
 
 @pytest.fixture(scope='session')
@@ -30,19 +31,39 @@ def test_echo_quit_plugin(acfactory):
     botproc.wait()
 
 
-@pytest.mark.skip(reason="botproc-matching not implementing")
-def test_group_tracking_plugin(acfactory):
+def test_group_tracking_plugin(acfactory, lp):
+    lp.sec("creating one group-tracking bot and two temp accounts")
     botproc = acfactory.run_bot_process(group_tracking)
 
-    ac1 = acfactory.get_one_online_account()
-    bot_contact = ac1.create_contact(botproc.addr)
-    ch1 = ac1.create_group_chat("bot test group")
-    ch1.add_contact(bot_contact)
-    ch1.send_text("hello")
-    ch1.add_contact(ac1.create_contact("x@example.org"))
+    ac1, ac2 = acfactory.get_two_online_accounts(quiet=True)
 
     botproc.fnmatch_lines("""
-        *member_added x@example.org*
+        *configure_completed: True*
     """)
+    ac1.add_account_plugin(FFIEventLogger(ac1, "ac1"))
+    ac2.add_account_plugin(FFIEventLogger(ac2, "ac2"))
 
-    botproc.kill()
+    lp.sec("creating bot test group with all three")
+    bot_contact = ac1.create_contact(botproc.addr)
+    ch = ac1.create_group_chat("bot test group")
+    ch.add_contact(bot_contact)
+    ch.send_text("hello")
+
+    botproc.fnmatch_lines("""
+        *member_added {}*
+    """.format(ac1.get_config("addr")))
+
+    lp.sec("adding third member {}".format(ac2.get_config("addr")))
+    contact3 = ac1.create_contact(ac2.get_config("addr"))
+    ch.add_contact(contact3)
+
+    lp.sec("now looking at what the bot received")
+    botproc.fnmatch_lines("""
+        *member_added {}*
+    """.format(contact3.addr))
+
+    lp.sec("contact successfully added, now removing")
+    ch.remove_contact(contact3)
+    botproc.fnmatch_lines("""
+        *member_removed {}*
+    """.format(contact3.addr))
