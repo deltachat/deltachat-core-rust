@@ -4,6 +4,7 @@ from . import capi, const, hookspec
 from .capi import ffi
 from .account import Account  # noqa
 from . import eventlogger
+from .hookspec import account_hookimpl, global_hookimpl  # noqa
 
 from pkg_resources import get_distribution, DistributionNotFound
 try:
@@ -104,14 +105,13 @@ def run_cmdline(argv=None, account_plugins=None):
         argv = sys.argv
 
     parser = argparse.ArgumentParser(prog=argv[0] if argv else None)
+    parser.add_argument("db", action="store", help="database file")
     parser.add_argument("--show-ffi", action="store_true", help="show low level ffi events")
-    parser.add_argument("--db", action="store", help="database file")
     parser.add_argument("--email", action="store", help="email address")
     parser.add_argument("--password", action="store", help="password")
 
     args = parser.parse_args(argv[1:])
 
-    assert args.db, "you must specify --db"
     ac = Account(args.db)
 
     if args.show_ffi:

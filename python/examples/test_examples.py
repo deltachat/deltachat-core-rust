@@ -57,6 +57,9 @@ def test_group_tracking_plugin(acfactory, lp):
     contact3 = ac1.create_contact(ac2.get_config("addr"))
     ch.add_contact(contact3)
 
+    reply = ac1._evtracker.wait_next_incoming_message()
+    assert "hello" in reply.text
+
     lp.sec("now looking at what the bot received")
     botproc.fnmatch_lines("""
         *member_added {}*
