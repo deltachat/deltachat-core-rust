@@ -1105,8 +1105,8 @@ impl Imap {
                 info!(context, "sentbox folder is {:?}", sentbox_folder);
 
                 let mut delimiter = ".";
-                if !folders.is_empty() {
-                    if let Some(d) = &folders[0].delimiter() {
+                if let Some(folder) = folders.first() {
+                    if let Some(d) = folder.delimiter() {
                         if !d.is_empty() {
                             delimiter = d;
                         }
