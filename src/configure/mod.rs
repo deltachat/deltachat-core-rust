@@ -371,7 +371,7 @@ pub(crate) fn JobConfigureImap(context: &Context) -> job::Status {
                 let create_mvbox = context.get_config_bool(Config::MvboxWatch)
                     || context.get_config_bool(Config::MvboxMove);
                 let imap = &context.inbox_thread.read().unwrap().imap;
-                if let Err(err) = imap.ensure_configured_folders(context, create_mvbox) {
+                if let Err(err) = imap.configure_folders(context, create_mvbox) {
                     warn!(context, "configuring folders failed: {:?}", err);
                     false
                 } else {

@@ -188,7 +188,6 @@ struct ImapConfig {
     /// True if the server has MOVE capability as defined in
     /// https://tools.ietf.org/html/rfc6851
     pub can_move: bool,
-    pub imap_delimiter: char,
 }
 
 impl Default for ImapConfig {
@@ -206,7 +205,6 @@ impl Default for ImapConfig {
             selected_folder_needs_expunge: false,
             can_idle: false,
             can_move: false,
-            imap_delimiter: '.',
         }
     }
 }
@@ -1074,12 +1072,14 @@ impl Imap {
         let folders_configured = context
             .sql
             .get_raw_config_int(context, "folders_configured");
-        if folders_configured.unwrap_or_default() >= 3 {
-            // the "3" here we increase if we have future updates to
-            // to folder configuration
+        if folders_configured.unwrap_or_default() >= DC_FOLDERS_CONFIGURED_VERSION {
             return Ok(());
         }
 
+        self.configure_folders(context, create_mvbox)
+    }
+
+    pub fn configure_folders(&self, context: &Context, create_mvbox: bool) -> Result<()> {
         task::block_on(async move {
             if !self.is_connected().await {
                 return Err(Error::NoConnection);
@@ -1104,7 +1104,15 @@ impl Imap {
                         });
                 info!(context, "sentbox folder is {:?}", sentbox_folder);
 
-                let delimiter = self.config.read().await.imap_delimiter;
+                let mut delimiter = ".";
+                if let Some(folder) = folders.first() {
+                    if let Some(d) = folder.delimiter() {
+                        if !d.is_empty() {
+                            delimiter = d;
+                        }
+                    }
+                }
+                info!(context, "Using \"{}\" as folder-delimiter.", delimiter);
                 let fallback_folder = format!("INBOX{}DeltaChat", delimiter);
 
                 let mut mvbox_folder = folders
@@ -1168,9 +1176,11 @@ impl Imap {
                         Some(sentbox_folder.name()),
                     )?;
                 }
-                context
-                    .sql
-                    .set_raw_config_int(context, "folders_configured", 3)?;
+                context.sql.set_raw_config_int(
+                    context,
+                    "folders_configured",
+                    DC_FOLDERS_CONFIGURED_VERSION,
+                )?;
             }
             info!(context, "FINISHED configuring IMAP-folders.");
             Ok(())
