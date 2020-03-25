@@ -257,9 +257,9 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
                 sys.executable,
                 fn,
                 "--show-ffi",
-                "--db", bot_ac.db_path,
                 "--email", bot_cfg["addr"],
                 "--password", bot_cfg["mail_pw"],
+                bot_ac.db_path,
             ]
             print("$", " ".join(args))
             popen = subprocess.Popen(
@@ -299,7 +299,6 @@ class BotProcess:
                 if not line:
                     break
                 line = line.strip()
-                print("QUEUING:", repr(line))
                 self.stdout_queue.put(line)
         finally:
             self.stdout_queue.put(None)
