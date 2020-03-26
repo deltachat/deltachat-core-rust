@@ -1563,7 +1563,7 @@ class TestGroupStressTests:
 
             # send a message to get the contact key via autocrypt header
             chat1.send_text("hi")
-            msg = ac1.wait_next_incoming_message()
+            msg = ac1._evtracker.wait_next_incoming_message()
             assert msg.text == "hi"
 
         ac2, ac3 = accounts
@@ -1584,7 +1584,7 @@ class TestGroupStressTests:
 
         lp.sec("checking that the chat arrived correctly")
         for ac in accounts:
-            msg = ac.wait_next_incoming_message()
+            msg = ac._evtracker.wait_next_incoming_message()
             assert msg.text == "hello"
             print("chat is", msg.chat)
             assert len(msg.chat.get_contacts()) == 3
@@ -1593,7 +1593,7 @@ class TestGroupStressTests:
         chat.remove_contact(contacts[0])
 
         lp.sec("ac2: wait for a message about removal from the chat")
-        msg = ac2.wait_next_incoming_message()
+        msg = ac2._evtracker.wait_next_incoming_message()
 
         lp.sec("ac1: removing ac3")
         chat.remove_contact(contacts[1])
@@ -1604,7 +1604,7 @@ class TestGroupStressTests:
         chat.add_contact(contacts[0])
 
         lp.sec("ac2: check that ac3 is removed")
-        msg = ac2.wait_next_incoming_message()
+        msg = ac2._evtracker.wait_next_incoming_message()
 
         assert len(msg.chat.get_contacts()) == len(chat.get_contacts())
 
