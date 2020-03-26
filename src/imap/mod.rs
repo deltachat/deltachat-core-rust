@@ -187,7 +187,6 @@ struct ImapConfig {
     /// True if the server has MOVE capability as defined in
     /// https://tools.ietf.org/html/rfc6851
     pub can_move: bool,
-    pub imap_delimiter: char,
 }
 
 impl Default for ImapConfig {
@@ -205,7 +204,6 @@ impl Default for ImapConfig {
             selected_folder_needs_expunge: false,
             can_idle: false,
             can_move: false,
-            imap_delimiter: '.',
         }
     }
 }
@@ -1111,17 +1109,17 @@ impl Imap {
             .sql
             .get_raw_config_int(context, "folders_configured")
             .await;
-        if folders_configured.unwrap_or_default() >= 3 {
-            info!(context, "IMAP-folders already configured");
-            // the "3" here we increase if we have future updates to
-            // to folder configuration
+        if folders_configured.unwrap_or_default() >= DC_FOLDERS_CONFIGURED_VERSION {
             return Ok(());
         }
 
+        self.configure_folders(context, create_mvbox).await
+    }
+
+    pub async fn configure_folders(&mut self, context: &Context, create_mvbox: bool) -> Result<()> {
         if !self.is_connected() {
             return Err(Error::NoConnection);
         }
-        info!(context, "Configuring IMAP-folders.");
 
         if let Some(ref mut session) = &mut self.session {
             let mut folders = match session.list(Some(""), Some("*")).await {
@@ -1133,7 +1131,17 @@ impl Imap {
 
             let mut sentbox_folder = None;
             let mut mvbox_folder = None;
-            let delimiter = self.config.imap_delimiter;
+
+            let mut delimiter = ".".to_string();
+            if let Some(folder) = folders.next().await {
+                let folder = folder.map_err(|err| Error::Other(err.to_string()))?;
+                if let Some(d) = folder.delimiter() {
+                    if !d.is_empty() {
+                        delimiter = d.to_string();
+                    }
+                }
+            }
+            info!(context, "Using \"{}\" as folder-delimiter.", delimiter);
             let fallback_folder = format!("INBOX{}DeltaChat", delimiter);
 
             while let Some(folder) = folders.next().await {
@@ -1221,9 +1229,14 @@ impl Imap {
             }
             context
                 .sql
-                .set_raw_config_int(context, "folders_configured", 3)
+                .set_raw_config_int(context, "folders_configured", DC_FOLDERS_CONFIGURED_VERSION)
                 .await?;
         }
+        context
+            .sql
+            .set_raw_config_int(context, "folders_configured", 3)
+            .await?;
+
         info!(context, "FINISHED configuring IMAP-folders.");
         Ok(())
     }

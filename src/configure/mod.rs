@@ -412,9 +412,11 @@ async fn exec_step(
         }
         16 => {
             progress!(ctx, 900);
+
             let create_mvbox = ctx.get_config_bool(Config::MvboxWatch).await
                 || ctx.get_config_bool(Config::MvboxMove).await;
-            if let Err(err) = imap.ensure_configured_folders(ctx, create_mvbox).await {
+
+            if let Err(err) = imap.configure_folders(ctx, create_mvbox).await {
                 bail!("configuring folders failed: {:?}", err);
             }
 

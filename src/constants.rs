@@ -214,6 +214,9 @@ pub const DC_BOB_SUCCESS: i32 = 1;
 // max. width/height of an avatar
 pub const AVATAR_SIZE: u32 = 192;
 
+// this value can be increased if the folder configuration is changed and must be redone on next program start
+pub const DC_FOLDERS_CONFIGURED_VERSION: i32 = 3;
+
 #[derive(
     Debug,
     Display,
