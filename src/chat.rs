@@ -1743,12 +1743,12 @@ pub fn get_next_media(
                 match direction {
                     Direction::Forward => {
                         if i + 1 < list.len() {
-                            ret = Some(list[i + 1]);
+                            ret = list.get(i + 1).copied();
                         }
                     }
                     Direction::Backward => {
                         if i >= 1 {
-                            ret = Some(list[i - 1]);
+                            ret = list.get(i - 1).copied();
                         }
                     }
                 }
