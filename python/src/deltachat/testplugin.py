@@ -127,7 +127,37 @@ def session_liveconfig(request):
 
 
 @pytest.fixture
-def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
+def data(request):
+    class Data:
+        def __init__(self):
+            # trying to find test data heuristically
+            # because we are run from a dev-setup with pytest direct,
+            # through tox, and then maybe also from deltachat-binding
+            # users like "deltabot".
+            self.paths = [os.path.normpath(x) for x in [
+                os.path.join(os.path.dirname(request.fspath.strpath), "data"),
+                os.path.join(os.path.dirname(__file__), "..", "..", "..", "test-data")
+            ]]
+
+        def get_path(self, bn):
+            """ return path of file or None if it doesn't exist. """
+            for path in self.paths:
+                fn = os.path.join(path, *bn.split("/"))
+                if os.path.exists(fn):
+                    return fn
+            print("WARNING: path does not exist: {!r}".format(fn))
+
+        def read_path(self, bn, mode="r"):
+            fn = self.get_path(bn)
+            if fn is not None:
+                with open(fn, mode) as f:
+                    return f.read()
+
+    return Data()
+
+
+@pytest.fixture
+def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
 
     class AccountMaker:
         def __init__(self):
@@ -164,11 +194,13 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, datadir):
             # Only set a key if we haven't used it yet for another account.
             if self._generated_keys:
                 keyname = self._generated_keys.pop(0)
-                fname_pub = "key/{name}-public.asc".format(name=keyname)
-                fname_sec = "key/{name}-secret.asc".format(name=keyname)
-                account._preconfigure_keypair(addr,
-                                              datadir.join(fname_pub).read(),
-                                              datadir.join(fname_sec).read())
+                fname_pub = data.read_path("key/{name}-public.asc".format(name=keyname))
+                fname_sec = data.read_path("key/{name}-secret.asc".format(name=keyname))
+                if fname_pub and fname_sec:
+                    account._preconfigure_keypair(addr, fname_pub, fname_sec)
+                    return True
+                else:
+                    print("WARN: could not use preconfigured keys for {!r}".format(addr))
 
         def get_configured_offline_account(self):
             ac = self.get_unconfigured_account()
