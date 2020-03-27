@@ -127,14 +127,10 @@ impl str::FromStr for Aheader {
             .split(';')
             .filter_map(|a| {
                 let attribute: Vec<&str> = a.trim().splitn(2, '=').collect();
-                if attribute.len() < 2 {
-                    return None;
+                match &attribute[..] {
+                    [key, value] => Some((key.trim().to_string(), value.trim().to_string())),
+                    _ => None,
                 }
-
-                Some((
-                    attribute[0].trim().to_string(),
-                    attribute[1].trim().to_string(),
-                ))
             })
             .collect();
 
