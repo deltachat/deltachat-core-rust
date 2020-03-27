@@ -1,33 +1,5 @@
 from __future__ import print_function
 
-import os
-import pytest
-import py
-
-
-@pytest.fixture(scope="session")
-def data():
-    class Data:
-        def __init__(self):
-            self.path = os.path.join(os.path.dirname(__file__), "data")
-
-        def get_path(self, bn):
-            fn = os.path.join(self.path, bn)
-            assert os.path.exists(fn)
-            return fn
-    return Data()
-
-
-@pytest.fixture(scope='session')
-def datadir():
-    """The py.path.local object of the test-data/ directory."""
-    for path in reversed(py.path.local(__file__).parts()):
-        datadir = path.join('test-data')
-        if datadir.isdir():
-            return datadir
-    else:
-        pytest.skip('test-data directory not found')
-
 
 def wait_configuration_progress(account, min_target, max_target=1001):
     min_target = min(min_target, max_target)

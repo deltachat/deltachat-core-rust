@@ -46,7 +46,6 @@ class Account(object):
         )
 
         hook = hookspec.Global._get_plugin_manager().hook
-        hook.account_init(account=self)
 
         self._threads = iothreads.IOThreads(self)
         self._hook_event_queue = queue.Queue()
@@ -61,6 +60,7 @@ class Account(object):
             raise ValueError("Could not dc_open: {}".format(db_path))
         self._configkeys = self.get_config("sys.config_keys").split()
         atexit.register(self.shutdown)
+        hook.account_init(account=self)
 
     @hookspec.account_hookimpl
     def process_ffi_event(self, ffi_event):
@@ -519,11 +519,11 @@ class Account(object):
     # meta API for start/stop and event based processing
     #
 
-    def add_account_plugin(self, plugin):
+    def add_account_plugin(self, plugin, name=None):
         """ add an account plugin which implements one or more of
         the :class:`deltachat.hookspec.PerAccount` hooks.
         """
-        self._pm.register(plugin)
+        self._pm.register(plugin, name=name)
         self._pm.check_pending()
         return plugin
 

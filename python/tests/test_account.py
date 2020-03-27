@@ -26,11 +26,12 @@ class TestOfflineAccountBasic:
         ac1 = Account(p.strpath, os_name="solarpunk")
         ac1.get_info()
 
-    def test_preconfigure_keypair(self, acfactory, datadir):
+    def test_preconfigure_keypair(self, acfactory, data):
         ac = acfactory.get_unconfigured_account()
-        ac._preconfigure_keypair("alice@example.com",
-                                 datadir.join("key/alice-public.asc").read(),
-                                 datadir.join("key/alice-secret.asc").read())
+        alice_public = data.read_path("key/alice-public.asc")
+        alice_secret = data.read_path("key/alice-secret.asc")
+        assert alice_public and alice_secret
+        ac._preconfigure_keypair("alice@example.com", alice_public, alice_secret)
 
     def test_getinfo(self, acfactory):
         ac1 = acfactory.get_unconfigured_account()
@@ -827,7 +828,7 @@ class TestOnlineAccount:
         assert msg_in in chat2.get_messages()
         assert chat2.is_deaddrop()
         assert chat2.count_fresh_messages() == 0
-        assert msg_in.time_received > msg_in.time_sent
+        assert msg_in.time_received >= msg_out.time_sent
 
         lp.sec("create new chat with contact and verify it's proper")
         chat2b = ac2.create_chat_by_message(msg_in)
