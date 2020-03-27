@@ -1738,8 +1738,8 @@ pub fn get_next_media(
             msg_type2,
             msg_type3,
         );
-        for i in 0..list.len() {
-            if curr_msg_id == list[i] {
+        for (i, msg_id) in list.iter().enumerate() {
+            if curr_msg_id == *msg_id {
                 match direction {
                     Direction::Forward => {
                         if i + 1 < list.len() {
