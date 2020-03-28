@@ -389,13 +389,17 @@ impl ChatId {
             let threshold_timestamp = time() - delete_device_after;
 
             // Hide expired messages
-            context.sql.execute(
+            let rows_modified = context.sql.execute(
                 "UPDATE msgs \
                  SET txt = 'DELETED', hidden = 1 \
                  WHERE timestamp < ? \
                  AND chat_id == ?",
                 params![threshold_timestamp, self],
             )?;
+
+            if rows_modified > 0 {
+                context.call_cb(Event::ChatModified(self));
+            }
         }
         Ok(())
     }
