@@ -91,6 +91,8 @@ impl Chatlist {
         query: Option<&str>,
         query_contact_id: Option<u32>,
     ) -> Result<Self> {
+        delete_device_expired_messages_all_chats(context)?;
+
         let mut add_archived_link_item = false;
 
         let process_row = |row: &rusqlite::Row| {
