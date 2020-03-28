@@ -92,7 +92,9 @@ impl Chatlist {
         query: Option<&str>,
         query_contact_id: Option<u32>,
     ) -> Result<Self> {
-        delete_device_expired_messages_all_chats(context)?;
+        // Note that we do not emit DC_EVENT_MSGS_MODIFIED here even if some
+        // messages get hidden to avoid reloading the same chatlist.
+        hide_device_expired_messages(context)?;
 
         let mut add_archived_link_item = false;
 

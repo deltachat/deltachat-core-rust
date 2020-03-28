@@ -378,38 +378,6 @@ impl ChatId {
         Ok(self.get_param(context)?.exists(Param::Devicetalk))
     }
 
-    /// Hides or deletes messages which are expired according to
-    /// "delete_device_after" setting.
-    ///
-    /// Returns true if any message is hidden, so event can be emitted. If
-    /// nothing has been hidden, returns false.
-    pub fn delete_device_expired_messages(self, context: &Context) -> Result<bool, Error> {
-        if self.is_special() || self.is_self_talk(context)? || self.is_device_talk(context)? {
-            return Ok(false);
-        }
-
-        if let Some(delete_device_after) = context.get_config_delete_device_after() {
-            let threshold_timestamp = time() - delete_device_after;
-
-            // Hide expired messages
-            //
-            // Only update the rows that have to be updated, to avoid emitting
-            // unnecessary "chat modified" events.
-            let rows_modified = context.sql.execute(
-                "UPDATE msgs \
-                 SET txt = 'DELETED', hidden = 1 \
-                 WHERE timestamp < ? \
-                 AND chat_id == ? \
-                 AND NOT hidden",
-                params![threshold_timestamp, self],
-            )?;
-
-            Ok(rows_modified > 0)
-        } else {
-            Ok(false)
-        }
-    }
-
     /// Bad evil escape hatch.
     ///
     /// Avoid using this, eventually types should be cleaned up enough
@@ -1498,11 +1466,14 @@ pub fn get_chat_msgs(
     flags: u32,
     marker1before: Option<MsgId>,
 ) -> Vec<MsgId> {
-    match chat_id.delete_device_expired_messages(context) {
+    match hide_device_expired_messages(context) {
         Err(err) => warn!(context, "Failed to delete expired messages: {}", err),
         Ok(messages_deleted) => {
             if messages_deleted {
-                context.call_cb(Event::ChatModified(chat_id));
+                context.call_cb(Event::MsgsChanged {
+                    msg_id: MsgId::new(0),
+                    chat_id: ChatId::new(0),
+                })
             }
         }
     }
@@ -1641,26 +1612,41 @@ pub fn marknoticed_all_chats(context: &Context) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn delete_device_expired_messages_all_chats(context: &Context) -> Result<(), Error> {
-    let chat_ids = context.sql.query_map(
-        "SELECT id FROM chats WHERE id > 9",
-        params![],
-        |row| row.get::<_, ChatId>(0),
-        |ids| {
-            let mut ret = Vec::new();
-            for id in ids {
-                if let Ok(chat_id) = id {
-                    ret.push(chat_id)
-                }
-            }
-            Ok(ret)
-        },
-    )?;
+/// Hides messages which are expired according to "delete_device_after" setting.
+///
+/// Returns true if any message is hidden, so event can be emitted. If nothing
+/// has been hidden, returns false.
+pub fn hide_device_expired_messages(context: &Context) -> Result<bool, Error> {
+    if let Some(delete_device_after) = context.get_config_delete_device_after() {
+        let threshold_timestamp = time() - delete_device_after;
 
-    for chat_id in chat_ids {
-        chat_id.delete_device_expired_messages(context)?;
+        let self_chat_id = lookup_by_contact_id(context, DC_CONTACT_ID_SELF)?.0;
+        let device_chat_id = lookup_by_contact_id(context, DC_CONTACT_ID_DEVICE)?.0;
+
+        // Hide expired messages
+        //
+        // Only update the rows that have to be updated, to avoid emitting
+        // unnecessary "chat modified" events.
+        let rows_modified = context.sql.execute(
+            "UPDATE msgs \
+             SET txt = 'DELETED', hidden = 1 \
+             WHERE timestamp < ? \
+             AND chat_id > ? \
+             AND chat_id != ? \
+             AND chat_id != ? \
+             AND NOT hidden",
+            params![
+                threshold_timestamp,
+                DC_CHAT_ID_LAST_SPECIAL,
+                self_chat_id,
+                device_chat_id
+            ],
+        )?;
+
+        Ok(rows_modified > 0)
+    } else {
+        Ok(false)
     }
-    Ok(())
 }
 
 pub fn get_chat_media(
