@@ -40,11 +40,11 @@ impl Lot {
     }
 
     pub fn get_text1(&self) -> Option<&str> {
-        self.text1.as_ref().map(|s| s.as_str())
+        self.text1.as_deref()
     }
 
     pub fn get_text2(&self) -> Option<&str> {
-        self.text2.as_ref().map(|s| s.as_str())
+        self.text2.as_deref()
     }
 
     pub fn get_text1_meaning(&self) -> Meaning {
