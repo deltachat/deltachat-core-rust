@@ -67,14 +67,13 @@ pub fn simplify(mut input: String, is_chat_message: bool) -> (String, bool) {
 /// Returns message body lines and a boolean indicating whether
 /// a message is forwarded or not.
 fn skip_forward_header<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
-    if lines.len() >= 3
-        && lines[0] == "---------- Forwarded message ----------"
-        && lines[1].starts_with("From: ")
-        && lines[2].is_empty()
-    {
-        (&lines[3..], true)
-    } else {
-        (lines, false)
+    match lines {
+        ["---------- Forwarded message ----------", first_line, "", rest @ ..]
+            if first_line.starts_with("From: ") =>
+        {
+            (rest, true)
+        }
+        _ => (lines, false),
     }
 }
 
