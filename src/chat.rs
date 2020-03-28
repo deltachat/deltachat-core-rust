@@ -380,9 +380,12 @@ impl ChatId {
 
     /// Hides or deletes messages which are expired according to
     /// "delete_device_after" setting.
-    pub fn delete_device_expired_messages(self, context: &Context) -> Result<(), Error> {
+    ///
+    /// Returns true if any message is hidden, so event can be emitted. If
+    /// nothing has been hidden, returns false.
+    pub fn delete_device_expired_messages(self, context: &Context) -> Result<bool, Error> {
         if self.is_special() || self.is_self_talk(context)? || self.is_device_talk(context)? {
-            return Ok(());
+            return Ok(false);
         }
 
         if let Some(delete_device_after) = context.get_config_delete_device_after() {
@@ -401,11 +404,10 @@ impl ChatId {
                 params![threshold_timestamp, self],
             )?;
 
-            if rows_modified > 0 {
-                context.call_cb(Event::ChatModified(self));
-            }
+            Ok(rows_modified > 0)
+        } else {
+            Ok(false)
         }
-        Ok(())
     }
 
     /// Bad evil escape hatch.
@@ -1496,8 +1498,13 @@ pub fn get_chat_msgs(
     flags: u32,
     marker1before: Option<MsgId>,
 ) -> Vec<MsgId> {
-    if let Err(err) = chat_id.delete_device_expired_messages(context) {
-        warn!(context, "Failed to delete expired messages: {}", err);
+    match chat_id.delete_device_expired_messages(context) {
+        Err(err) => warn!(context, "Failed to delete expired messages: {}", err),
+        Ok(messages_deleted) => {
+            if messages_deleted {
+                context.call_cb(Event::ChatModified(chat_id));
+            }
+        }
     }
 
     let process_row =
