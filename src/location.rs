@@ -123,9 +123,9 @@ impl Kml {
                 }
             } else if self.tag.contains(KmlTag::COORDINATES) {
                 let parts = val.splitn(2, ',').collect::<Vec<_>>();
-                if parts.len() == 2 {
-                    self.curr.longitude = parts[0].parse().unwrap_or_default();
-                    self.curr.latitude = parts[1].parse().unwrap_or_default();
+                if let [longitude, latitude] = &parts[..] {
+                    self.curr.longitude = longitude.parse().unwrap_or_default();
+                    self.curr.latitude = latitude.parse().unwrap_or_default();
                 }
             }
         }
