@@ -1095,7 +1095,7 @@ fn is_file_size_okay(context: &Context, msg: &Message) -> bool {
 fn render_rfc724_mid(rfc724_mid: &str) -> String {
     let rfc724_mid = rfc724_mid.trim().to_string();
 
-    if rfc724_mid.chars().nth(0).unwrap_or_default() == '<' {
+    if rfc724_mid.chars().next().unwrap_or_default() == '<' {
         rfc724_mid
     } else {
         format!("<{}>", rfc724_mid)
