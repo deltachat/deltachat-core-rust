@@ -2522,7 +2522,7 @@ pub fn delete_device_expired_messages(context: &Context) -> sql::Result<()> {
         // Hide expired messages
         context.sql.execute(
             "UPDATE msgs \
-             SET txt = '', hidden = 1 \
+             SET txt = 'DELETED', hidden = 1 \
              WHERE timestamp < ? \
              AND chat_id > ?",
             params![threshold_timestamp, DC_CHAT_ID_LAST_SPECIAL],
