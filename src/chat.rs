@@ -359,6 +359,25 @@ impl ChatId {
             .unwrap_or_default() as usize
     }
 
+    pub(crate) fn get_param(self, context: &Context) -> Result<Params, Error> {
+        let res: Option<String> = context
+            .sql
+            .query_get_value_result::<_, _>("SELECT param FROM chats WHERE id=?", params![self])?;
+        Ok(res
+            .map(|s| s.parse().unwrap_or_default())
+            .unwrap_or_default())
+    }
+
+    // Returns true if chat is a saved messages chat.
+    pub fn is_self_talk(self, context: &Context) -> Result<bool, Error> {
+        Ok(self.get_param(context)?.exists(Param::Selftalk))
+    }
+
+    /// Returns true if chat is a device chat.
+    pub fn is_device_talk(self, context: &Context) -> Result<bool, Error> {
+        Ok(self.get_param(context)?.exists(Param::Devicetalk))
+    }
+
     /// Bad evil escape hatch.
     ///
     /// Avoid using this, eventually types should be cleaned up enough
