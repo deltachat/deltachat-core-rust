@@ -312,25 +312,27 @@ impl Chatlist {
         // Also, sth. as "No messages" would not work if the summary comes from a message.
         let mut ret = Lot::new();
 
-        if index >= self.ids.len() {
-            ret.text2 = Some("ErrBadChatlistIndex".to_string());
-            return ret;
-        }
+        let (chat_id, lastmsg_id) = match self.ids.get(index) {
+            Some(ids) => ids,
+            None => {
+                ret.text2 = Some("ErrBadChatlistIndex".to_string());
+                return ret;
+            }
+        };
 
         let chat_loaded: Chat;
         let chat = if let Some(chat) = chat {
             chat
-        } else if let Ok(chat) = Chat::load_from_db(context, self.ids[index].0) {
+        } else if let Ok(chat) = Chat::load_from_db(context, *chat_id) {
             chat_loaded = chat;
             &chat_loaded
         } else {
             return ret;
         };
 
-        let lastmsg_id = self.ids[index].1;
         let mut lastcontact = None;
 
-        let lastmsg = if let Ok(lastmsg) = Message::load_from_db(context, lastmsg_id) {
+        let lastmsg = if let Ok(lastmsg) = Message::load_from_db(context, *lastmsg_id) {
             if lastmsg.from_id != DC_CONTACT_ID_SELF
                 && (chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup)
             {
