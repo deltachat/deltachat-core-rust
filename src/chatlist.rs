@@ -5,7 +5,7 @@ use crate::chat::*;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::*;
-use crate::error::{ensure, Result};
+use crate::error::{bail, ensure, Result};
 use crate::lot::Lot;
 use crate::message::{Message, MessageState, MsgId};
 use crate::stock::StockMessage;
@@ -275,18 +275,20 @@ impl Chatlist {
     ///
     /// To get the message object from the message ID, use dc_get_chat().
     pub fn get_chat_id(&self, index: usize) -> ChatId {
-        if index >= self.ids.len() {
-            return ChatId::new(0);
+        match self.ids.get(index) {
+            Some((chat_id, _msg_id)) => *chat_id,
+            None => ChatId::new(0),
         }
-        self.ids[index].0
     }
 
     /// Get a single message ID of a chatlist.
     ///
     /// To get the message object from the message ID, use dc_get_msg().
     pub fn get_msg_id(&self, index: usize) -> Result<MsgId> {
-        ensure!(index < self.ids.len(), "Chatlist index out of range");
-        Ok(self.ids[index].1)
+        match self.ids.get(index) {
+            Some((_chat_id, msg_id)) => Ok(*msg_id),
+            None => bail!("Chatlist index out of range"),
+        }
     }
 
     /// Get a summary for a chatlist index.
