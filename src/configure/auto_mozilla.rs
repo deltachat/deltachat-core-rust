@@ -43,11 +43,11 @@ fn parse_xml(in_emailaddr: &str, xml_raw: &str) -> Result<LoginParam, Error> {
     reader.trim_text(true);
 
     // Split address into local part and domain part.
-    let p = in_emailaddr
-        .find('@')
-        .ok_or_else(|| Error::InvalidEmailAddress(in_emailaddr.to_string()))?;
-    let (in_emaillocalpart, in_emaildomain) = in_emailaddr.split_at(p);
-    let in_emaildomain = &in_emaildomain[1..];
+    let parts: Vec<&str> = in_emailaddr.rsplitn(2, '@').collect();
+    let (in_emaillocalpart, in_emaildomain) = match &parts[..] {
+        [domain, local] => (local, domain),
+        _ => return Err(Error::InvalidEmailAddress(in_emailaddr.to_string())),
+    };
 
     let mut moz_ac = MozAutoconfigure {
         in_emailaddr,
