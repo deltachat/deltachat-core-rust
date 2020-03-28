@@ -378,6 +378,28 @@ impl ChatId {
         Ok(self.get_param(context)?.exists(Param::Devicetalk))
     }
 
+    /// Hides or deletes messages which are expired according to
+    /// "delete_device_after" setting.
+    pub fn delete_device_expired_messages(self, context: &Context) -> Result<(), Error> {
+        if self.is_special() || self.is_self_talk(context)? || self.is_device_talk(context)? {
+            return Ok(());
+        }
+
+        if let Some(delete_device_after) = context.get_config_delete_device_after() {
+            let threshold_timestamp = time() - delete_device_after;
+
+            // Hide expired messages
+            context.sql.execute(
+                "UPDATE msgs \
+                 SET txt = 'DELETED', hidden = 1 \
+                 WHERE timestamp < ? \
+                 AND chat_id == ?",
+                params![threshold_timestamp, self],
+            )?;
+        }
+        Ok(())
+    }
+
     /// Bad evil escape hatch.
     ///
     /// Avoid using this, eventually types should be cleaned up enough
@@ -1466,7 +1488,7 @@ pub fn get_chat_msgs(
     flags: u32,
     marker1before: Option<MsgId>,
 ) -> Vec<MsgId> {
-    if let Err(err) = delete_device_expired_messages(context) {
+    if let Err(err) = chat_id.delete_device_expired_messages(context) {
         warn!(context, "Failed to delete expired messages: {}", err);
     }
 
@@ -2529,24 +2551,6 @@ pub(crate) fn add_info_msg(context: &Context, chat_id: ChatId, text: impl AsRef<
         chat_id,
         msg_id: MsgId::new(row_id),
     });
-}
-
-/// Hides or deletes messages which are expired according to
-/// "delete_device_after" setting.
-pub fn delete_device_expired_messages(context: &Context) -> sql::Result<()> {
-    if let Some(delete_device_after) = context.get_config_delete_device_after() {
-        let threshold_timestamp = time() - delete_device_after;
-
-        // Hide expired messages
-        context.sql.execute(
-            "UPDATE msgs \
-             SET txt = 'DELETED', hidden = 1 \
-             WHERE timestamp < ? \
-             AND chat_id > ?",
-            params![threshold_timestamp, DC_CHAT_ID_LAST_SPECIAL],
-        )?;
-    }
-    Ok(())
 }
 
 #[cfg(test)]
