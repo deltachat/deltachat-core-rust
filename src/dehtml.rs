@@ -3,7 +3,6 @@
 //! A module to remove HTML tags from the email text
 
 use lazy_static::lazy_static;
-use quick_xml;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
 lazy_static! {

@@ -4,7 +4,6 @@ use std::path::PathBuf;
 
 use deltachat_derive::*;
 use itertools::Itertools;
-use rusqlite;
 
 use crate::aheader::EncryptPreference;
 use crate::chat::ChatId;

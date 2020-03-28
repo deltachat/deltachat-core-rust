@@ -1,7 +1,6 @@
 //! Location handling
 
 use bitflags::bitflags;
-use quick_xml;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
 use crate::chat::{self, ChatId};
