@@ -324,7 +324,7 @@ impl ChatId {
                 time(),
                 msg.viewtype,
                 MessageState::OutDraft,
-                msg.text.as_ref().map(String::as_str).unwrap_or(""),
+                msg.text.as_deref().unwrap_or(""),
                 msg.param.to_string(),
                 1,
             ],
