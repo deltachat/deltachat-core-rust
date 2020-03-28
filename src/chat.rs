@@ -1630,6 +1630,28 @@ pub fn marknoticed_all_chats(context: &Context) -> Result<(), Error> {
     Ok(())
 }
 
+pub fn delete_device_expired_messages_all_chats(context: &Context) -> Result<(), Error> {
+    let chat_ids = context.sql.query_map(
+        "SELECT id FROM chats WHERE id > 9",
+        params![],
+        |row| row.get::<_, ChatId>(0),
+        |ids| {
+            let mut ret = Vec::new();
+            for id in ids {
+                if let Ok(chat_id) = id {
+                    ret.push(chat_id)
+                }
+            }
+            Ok(ret)
+        },
+    )?;
+
+    for chat_id in chat_ids {
+        chat_id.delete_device_expired_messages(context)?;
+    }
+    Ok(())
+}
+
 pub fn get_chat_media(
     context: &Context,
     chat_id: ChatId,
