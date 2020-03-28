@@ -203,10 +203,12 @@ impl MimeMessage {
     /// Delta Chat sends attachments, such as images, in two-part messages, with the first message
     /// containing an explanation. If such a message is detected, first part can be safely dropped.
     fn squash_attachment_parts(&mut self) {
-        if self.has_chat_version() && self.parts.len() == 2 {
+        if !self.has_chat_version() {
+            return;
+        }
+
+        if let [textpart, filepart] = &self.parts[..] {
             let need_drop = {
-                let textpart = &self.parts[0];
-                let filepart = &self.parts[1];
                 textpart.typ == Viewtype::Text
                     && (filepart.typ == Viewtype::Image
                         || filepart.typ == Viewtype::Gif
