@@ -1,7 +1,6 @@
 //! # Thunderbird's Autoconfiguration implementation
 //!
 //! Documentation: https://developer.mozilla.org/en-US/docs/Mozilla/Thunderbird/Autoconfiguration */
-use quick_xml;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
 use crate::constants::*;

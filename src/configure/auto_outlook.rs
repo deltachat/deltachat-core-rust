@@ -1,6 +1,5 @@
 //! Outlook's Autodiscover
 
-use quick_xml;
 use quick_xml::events::BytesEnd;
 
 use crate::constants::*;
