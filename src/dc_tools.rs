@@ -494,24 +494,25 @@ impl FromStr for EmailAddress {
         ensure!(!input.is_empty(), "empty string is not valid");
         let parts: Vec<&str> = input.rsplitn(2, '@').collect();
 
-        ensure!(parts.len() > 1, "missing '@' character");
-        let local = parts[1];
-        let domain = parts[0];
+        match &parts[..] {
+            [domain, local] => {
+                ensure!(
+                    !local.is_empty(),
+                    "empty string is not valid for local part"
+                );
+                ensure!(domain.len() > 3, "domain is too short");
 
-        ensure!(
-            !local.is_empty(),
-            "empty string is not valid for local part"
-        );
-        ensure!(domain.len() > 3, "domain is too short");
+                let dot = domain.find('.');
+                ensure!(dot.is_some(), "invalid domain");
+                ensure!(dot.unwrap() < domain.len() - 2, "invalid domain");
 
-        let dot = domain.find('.');
-        ensure!(dot.is_some(), "invalid domain");
-        ensure!(dot.unwrap() < domain.len() - 2, "invalid domain");
-
-        Ok(EmailAddress {
-            local: local.to_string(),
-            domain: domain.to_string(),
-        })
+                Ok(EmailAddress {
+                    local: (*local).to_string(),
+                    domain: (*domain).to_string(),
+                })
+            }
+            _ => bail!("missing '@' character"),
+        }
     }
 }
 
