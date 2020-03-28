@@ -4,10 +4,13 @@ use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
 
 use crate::blob::BlobObject;
+use crate::chat::ChatId;
 use crate::constants::DC_VERSION_STR;
 use crate::context::Context;
 use crate::dc_tools::*;
+use crate::events::Event;
 use crate::job::*;
+use crate::message::MsgId;
 use crate::mimefactory::RECOMMENDED_FILE_SIZE;
 use crate::stock::StockMessage;
 use rusqlite::NO_PARAMS;
@@ -212,6 +215,15 @@ impl Context {
                 };
 
                 self.sql.set_raw_config(self, key, val)
+            }
+            Config::DeleteDeviceAfter => {
+                let ret = self.sql.set_raw_config(self, key, value);
+                // Force chatlist reload to delete old messages immediately.
+                self.call_cb(Event::MsgsChanged {
+                    msg_id: MsgId::new(0),
+                    chat_id: ChatId::new(0),
+                });
+                ret
             }
             _ => self.sql.set_raw_config(self, key, value),
         }
