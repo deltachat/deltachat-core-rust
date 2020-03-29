@@ -368,6 +368,17 @@ class TestOfflineChat:
         assert msg2 != msg
         assert msg2.filename != msg.filename
 
+    def test_create_contact(self, acfactory):
+        ac1 = acfactory.get_configured_offline_account()
+        email = "hello <hello@example.org>"
+        contact1 = ac1.create_contact(email)
+        assert contact1.addr == "hello@example.org"
+        assert contact1.display_name == "hello"
+        contact1 = ac1.create_contact(email, name="world")
+        assert contact1.display_name == "world"
+        contact2 = ac1.create_contact("display1 <x@example.org>", "real")
+        assert contact2.display_name == "real"
+
     def test_create_chat_mismatch(self, acfactory):
         ac1 = acfactory.get_configured_offline_account()
         ac2 = acfactory.get_configured_offline_account()

@@ -3,6 +3,7 @@
 from __future__ import print_function
 import atexit
 from contextlib import contextmanager
+from email.utils import parseaddr
 import queue
 from threading import Event
 import os
@@ -225,9 +226,12 @@ class Account(object):
         :param name: display name for this contact (optional)
         :returns: :class:`deltachat.contact.Contact` instance.
         """
-        name = as_dc_charpointer(name)
-        email = as_dc_charpointer(email)
-        contact_id = lib.dc_create_contact(self._dc_context, name, email)
+        realname, addr = parseaddr(email)
+        if name:
+            realname = name
+        realname = as_dc_charpointer(realname)
+        addr = as_dc_charpointer(addr)
+        contact_id = lib.dc_create_contact(self._dc_context, realname, addr)
         assert contact_id > const.DC_CHAT_ID_LAST_SPECIAL
         return Contact(self, contact_id)
 
