@@ -3,8 +3,11 @@ import sys
 from . import capi, const, hookspec
 from .capi import ffi
 from .account import Account  # noqa
-from . import eventlogger
+from .message import Message  # noqa
+from .contact import Contact  # noqa
+from .chat import Chat        # noqa
 from .hookspec import account_hookimpl, global_hookimpl  # noqa
+from . import eventlogger
 
 from pkg_resources import get_distribution, DistributionNotFound
 try:

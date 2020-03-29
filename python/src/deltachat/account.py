@@ -214,7 +214,6 @@ class Account(object):
 
         :returns: :class:`deltachat.contact.Contact`
         """
-        self.check_is_configured()
         return Contact(self, const.DC_CONTACT_ID_SELF)
 
     def create_contact(self, email, name=None):
