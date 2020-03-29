@@ -44,9 +44,9 @@ fn stress_functions(context: &Context) {
     // assert!(dc_is_configured(context) != 0, "Missing configured context");
 
     // let setupcode = dc_create_setup_code(context);
-    // let setupcode_c = CString::yolo(setupcode.clone());
+    // let setupcode_c = CString::new(setupcode.clone()).unwrap();
     // let setupfile = dc_render_setup_file(context, &setupcode).unwrap();
-    // let setupfile_c = CString::yolo(setupfile);
+    // let setupfile_c = CString::new(setupfile).unwrap();
     // let mut headerline_2: *const libc::c_char = ptr::null();
     // let payload = dc_decrypt_setup_file(context, setupcode_c.as_ptr(), setupfile_c.as_ptr());
 
