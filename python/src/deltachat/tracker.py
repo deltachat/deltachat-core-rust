@@ -14,7 +14,7 @@ class ImexTracker:
         self._imex_events = Queue()
 
     @account_hookimpl
-    def process_ffi_event(self, ffi_event):
+    def ac_process_ffi_event(self, ffi_event):
         if ffi_event.name == "DC_EVENT_IMEX_PROGRESS":
             self._imex_events.put(ffi_event.data1)
         elif ffi_event.name == "DC_EVENT_IMEX_FILE_WRITTEN":
@@ -47,7 +47,7 @@ class ConfigureTracker:
         self._ffi_events = []
 
     @account_hookimpl
-    def process_ffi_event(self, ffi_event):
+    def ac_process_ffi_event(self, ffi_event):
         self._ffi_events.append(ffi_event)
         if ffi_event.name == "DC_EVENT_SMTP_CONNECTED":
             self._smtp_finished.set()
@@ -55,7 +55,7 @@ class ConfigureTracker:
             self._imap_finished.set()
 
     @account_hookimpl
-    def configure_completed(self, success):
+    def ac_configure_completed(self, success):
         self._configure_events.put(success)
 
     def wait_smtp_connected(self):

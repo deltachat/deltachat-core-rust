@@ -38,7 +38,7 @@ def test_group_tracking_plugin(acfactory, lp):
     ac1, ac2 = acfactory.get_two_online_accounts(quiet=True)
 
     botproc.fnmatch_lines("""
-        *configure_completed: True*
+        *ac_configure_completed: True*
     """)
     ac1.add_account_plugin(FFIEventLogger(ac1, "ac1"))
     ac2.add_account_plugin(FFIEventLogger(ac2, "ac2"))
@@ -50,7 +50,7 @@ def test_group_tracking_plugin(acfactory, lp):
     ch.send_text("hello")
 
     botproc.fnmatch_lines("""
-        *member_added {}*
+        *ac_member_added {}*
     """.format(ac1.get_config("addr")))
 
     lp.sec("adding third member {}".format(ac2.get_config("addr")))
@@ -62,11 +62,11 @@ def test_group_tracking_plugin(acfactory, lp):
 
     lp.sec("now looking at what the bot received")
     botproc.fnmatch_lines("""
-        *member_added {}*
+        *ac_member_added {}*
     """.format(contact3.addr))
 
     lp.sec("contact successfully added, now removing")
     ch.remove_contact(contact3)
     botproc.fnmatch_lines("""
-        *member_removed {}*
+        *ac_member_removed {}*
     """.format(contact3.addr))

@@ -3,29 +3,29 @@
 import pluggy
 
 
-_account_name = "deltachat-account"
-account_hookspec = pluggy.HookspecMarker(_account_name)
-account_hookimpl = pluggy.HookimplMarker(_account_name)
+account_spec_name = "deltachat-account"
+account_hookspec = pluggy.HookspecMarker(account_spec_name)
+account_hookimpl = pluggy.HookimplMarker(account_spec_name)
 
-_global_name = "deltachat-global"
-global_hookspec = pluggy.HookspecMarker(_global_name)
-global_hookimpl = pluggy.HookimplMarker(_global_name)
+global_spec_name = "deltachat-global"
+global_hookspec = pluggy.HookspecMarker(global_spec_name)
+global_hookimpl = pluggy.HookimplMarker(global_spec_name)
 
 
 class PerAccount:
     """ per-Account-instance hook specifications.
 
-    Except for process_ffi_event all hooks are executed
+    Except for ac_process_ffi_event all hooks are executed
     in the thread which calls Account.wait_shutdown().
     """
     @classmethod
     def _make_plugin_manager(cls):
-        pm = pluggy.PluginManager(_account_name)
+        pm = pluggy.PluginManager(account_spec_name)
         pm.add_hookspecs(cls)
         return pm
 
     @account_hookspec
-    def process_ffi_event(self, ffi_event):
+    def ac_process_ffi_event(self, ffi_event):
         """ process a CFFI low level events for a given account.
 
         ffi_event has "name", "data1", "data2" values as specified
@@ -37,27 +37,27 @@ class PerAccount:
         """
 
     @account_hookspec
-    def log_line(self, message):
+    def ac_log_line(self, message):
         """ log a message related to the account. """
 
     @account_hookspec
-    def configure_completed(self, success):
+    def ac_configure_completed(self, success):
         """ Called when a configure process completed. """
 
     @account_hookspec
-    def process_incoming_message(self, message):
+    def ac_incoming_message(self, message):
         """ Called on any incoming message (to deaddrop or chat). """
 
     @account_hookspec
-    def process_message_delivered(self, message):
+    def ac_message_delivered(self, message):
         """ Called when an outgoing message has been delivered to SMTP. """
 
     @account_hookspec
-    def member_added(self, chat, contact):
+    def ac_member_added(self, chat, contact):
         """ Called for each contact added to a chat. """
 
     @account_hookspec
-    def member_removed(self, chat, contact):
+    def ac_member_removed(self, chat, contact):
         """ Called for each contact removed from a chat. """
 
 
@@ -71,14 +71,14 @@ class Global:
     @classmethod
     def _get_plugin_manager(cls):
         if cls._plugin_manager is None:
-            cls._plugin_manager = pm = pluggy.PluginManager(_global_name)
+            cls._plugin_manager = pm = pluggy.PluginManager(global_spec_name)
             pm.add_hookspecs(cls)
         return cls._plugin_manager
 
     @global_hookspec
-    def account_init(self, account):
+    def dc_account_init(self, account):
         """ called when `Account::__init__()` function starts executing. """
 
     @global_hookspec
-    def account_after_shutdown(self, account, dc_context):
+    def dc_account_after_shutdown(self, account, dc_context):
         """ Called after the account has been shutdown. """

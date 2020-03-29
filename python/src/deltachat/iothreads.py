@@ -38,9 +38,9 @@ class IOThreads:
 
     @contextmanager
     def log_execution(self, message):
-        self.account.log_line(message + " START")
+        self.account.ac_log_line(message + " START")
         yield
-        self.account.log_line(message + " FINISHED")
+        self.account.ac_log_line(message + " FINISHED")
 
     def stop(self, wait=False):
         self._thread_quitflag = True
@@ -68,7 +68,7 @@ class IOThreads:
                     ev = next(it)
                 except StopIteration:
                     break
-                self.account.log_line("calling hook name={} kwargs={}".format(ev.name, ev.kwargs))
+                self.account.ac_log_line("calling hook name={} kwargs={}".format(ev.name, ev.kwargs))
                 ev.call_hook()
 
     def imap_thread_run(self):
