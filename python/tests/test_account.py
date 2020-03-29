@@ -178,7 +178,7 @@ class TestOfflineChat:
 
         chat.add_contact(contact1)
         for ev in ac1.iter_events(timeout=1):
-            if ev.name == "member_added":
+            if ev.name == "ac_member_added":
                 assert ev.kwargs["chat"] == chat
                 if ev.kwargs["contact"] == ac1.get_self_contact():
                     continue
@@ -193,7 +193,7 @@ class TestOfflineChat:
         ac1._handle_current_events()
         chat.remove_contact(contact1)
         for ev in ac1.iter_events(timeout=1):
-            if ev.name == "member_removed":
+            if ev.name == "ac_member_removed":
                 assert ev.kwargs["chat"] == chat
                 if ev.kwargs["contact"] == ac1.get_self_contact():
                     continue
@@ -463,11 +463,11 @@ class TestOfflineChat:
 
         class InPlugin:
             @account_hookimpl
-            def member_added(self, chat, contact):
+            def ac_member_added(self, chat, contact):
                 in_list.append(("added", chat, contact))
 
             @account_hookimpl
-            def member_removed(self, chat, contact):
+            def ac_member_removed(self, chat, contact):
                 in_list.append(("removed", chat, contact))
 
         ac1.add_account_plugin(InPlugin())
@@ -1051,14 +1051,14 @@ class TestOnlineAccount:
 
         class InPlugin:
             @account_hookimpl
-            def process_incoming_message(self, message):
+            def ac_incoming_message(self, message):
                 message_queue.put(message)
 
         delivered = queue.Queue()
 
         class OutPlugin:
             @account_hookimpl
-            def process_message_delivered(self, message):
+            def ac_message_delivered(self, message):
                 delivered.put(message)
 
         ac1.add_account_plugin(OutPlugin())
@@ -1287,11 +1287,11 @@ class TestOnlineAccount:
 
         class InPlugin:
             @account_hookimpl
-            def member_added(self, chat, contact):
+            def ac_member_added(self, chat, contact):
                 in_list.put(("added", chat, contact))
 
             @account_hookimpl
-            def member_removed(self, chat, contact):
+            def ac_member_removed(self, chat, contact):
                 in_list.put(("removed", chat, contact))
 
         ac2.add_account_plugin(InPlugin())

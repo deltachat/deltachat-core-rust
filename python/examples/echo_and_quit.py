@@ -6,7 +6,7 @@ from deltachat import account_hookimpl, run_cmdline
 
 class EchoPlugin:
     @account_hookimpl
-    def process_incoming_message(self, message):
+    def ac_incoming_message(self, message):
         print("process_incoming message", message)
         if message.text.strip() == "/quit":
             message.account.shutdown()
@@ -18,8 +18,8 @@ class EchoPlugin:
             message.chat.send_text("echoing from {}:\n{}".format(addr, text))
 
     @account_hookimpl
-    def process_message_delivered(self, message):
-        print("process_message_delivered", message)
+    def ac_message_delivered(self, message):
+        print("ac_message_delivered", message)
 
 
 def main(argv=None):

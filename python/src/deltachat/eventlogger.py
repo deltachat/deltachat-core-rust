@@ -7,19 +7,19 @@ from .hookspec import account_hookimpl, global_hookimpl
 
 
 @global_hookimpl
-def account_init(account):
+def dc_account_init(account):
     # send all FFI events for this account to a plugin hook
     def _ll_event(ctx, evt_name, data1, data2):
         assert ctx == account._dc_context
         ffi_event = FFIEvent(name=evt_name, data1=data1, data2=data2)
-        account._pm.hook.process_ffi_event(
+        account._pm.hook.ac_process_ffi_event(
             account=account, ffi_event=ffi_event
         )
     deltachat.set_context_callback(account._dc_context, _ll_event)
 
 
 @global_hookimpl
-def account_after_shutdown(dc_context):
+def dc_account_after_shutdown(dc_context):
     deltachat.clear_context_callback(dc_context)
 
 
@@ -50,17 +50,17 @@ class FFIEventLogger:
         self.init_time = time.time()
 
     @account_hookimpl
-    def process_ffi_event(self, ffi_event):
+    def ac_process_ffi_event(self, ffi_event):
         self._log_event(ffi_event)
 
     def _log_event(self, ffi_event):
         # don't show events that are anyway empty impls now
         if ffi_event.name == "DC_EVENT_GET_STRING":
             return
-        self.account.log_line(str(ffi_event))
+        self.account.ac_log_line(str(ffi_event))
 
     @account_hookimpl
-    def log_line(self, message):
+    def ac_log_line(self, message):
         t = threading.currentThread()
         tname = getattr(t, "name", t)
         if tname == "MainThread":
@@ -81,7 +81,7 @@ class FFIEventTracker:
         self._event_queue = Queue()
 
     @account_hookimpl
-    def process_ffi_event(self, ffi_event):
+    def ac_process_ffi_event(self, ffi_event):
         self._event_queue.put(ffi_event)
 
     def set_timeout(self, timeout):
@@ -110,7 +110,7 @@ class FFIEventTracker:
                 assert not rex.match(ev.name), "event found {}".format(ev)
 
     def get_matching(self, event_name_regex, check_error=True, timeout=None):
-        self.account.log_line("-- waiting for event with regex: {} --".format(event_name_regex))
+        self.account.ac_log_line("-- waiting for event with regex: {} --".format(event_name_regex))
         rex = re.compile("(?:{}).*".format(event_name_regex))
         while 1:
             ev = self.get(timeout=timeout, check_error=check_error)

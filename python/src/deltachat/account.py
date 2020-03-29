@@ -60,10 +60,10 @@ class Account(object):
             raise ValueError("Could not dc_open: {}".format(db_path))
         self._configkeys = self.get_config("sys.config_keys").split()
         atexit.register(self.shutdown)
-        hook.account_init(account=self)
+        hook.dc_account_init(account=self)
 
     @hookspec.account_hookimpl
-    def process_ffi_event(self, ffi_event):
+    def ac_process_ffi_event(self, ffi_event):
         name, kwargs = self._map_ffi_event(ffi_event)
         if name is not None:
             ev = HookEvent(self, name=name, kwargs=kwargs)
@@ -72,8 +72,8 @@ class Account(object):
     # def __del__(self):
     #    self.shutdown()
 
-    def log_line(self, msg):
-        self._pm.hook.log_line(message=msg)
+    def ac_log_line(self, msg):
+        self._pm.hook.ac_log_line(message=msg)
 
     def _check_config_key(self, name):
         if name not in self._configkeys:
@@ -579,7 +579,7 @@ class Account(object):
         atexit.unregister(self.shutdown)
         self._shutdown_event.set()
         hook = hookspec.Global._get_plugin_manager().hook
-        hook.account_after_shutdown(account=self, dc_context=dc_context)
+        hook.dc_account_after_shutdown(account=self, dc_context=dc_context)
 
     def _handle_current_events(self):
         """ handle all currently queued events and then return. """
@@ -611,26 +611,26 @@ class Account(object):
             data1 = ffi_event.data1
             if data1 == 0 or data1 == 1000:
                 success = data1 == 1000
-                return "configure_completed", dict(success=success)
+                return "ac_configure_completed", dict(success=success)
         elif name == "DC_EVENT_INCOMING_MSG":
             msg = self.get_message_by_id(ffi_event.data2)
-            return "process_incoming_message", dict(message=msg)
+            return "ac_incoming_message", dict(message=msg)
         elif name == "DC_EVENT_MSGS_CHANGED":
             if ffi_event.data2 != 0:
                 msg = self.get_message_by_id(ffi_event.data2)
                 if msg.is_in_fresh():
-                    return "process_incoming_message", dict(message=msg)
+                    return "ac_incoming_message", dict(message=msg)
         elif name == "DC_EVENT_MSG_DELIVERED":
             msg = self.get_message_by_id(ffi_event.data2)
-            return "process_message_delivered", dict(message=msg)
+            return "ac_message_delivered", dict(message=msg)
         elif name == "DC_EVENT_MEMBER_ADDED":
             chat = self.get_chat_by_id(ffi_event.data1)
             contact = self.get_contact_by_id(ffi_event.data2)
-            return "member_added", dict(chat=chat, contact=contact)
+            return "ac_member_added", dict(chat=chat, contact=contact)
         elif name == "DC_EVENT_MEMBER_REMOVED":
             chat = self.get_chat_by_id(ffi_event.data1)
             contact = self.get_contact_by_id(ffi_event.data2)
-            return "member_removed", dict(chat=chat, contact=contact)
+            return "ac_member_removed", dict(chat=chat, contact=contact)
         return None, {}
 
 

@@ -26,7 +26,7 @@ def test_dc_close_events(tmpdir, acfactory):
 
     class ShutdownPlugin:
         @global_hookimpl
-        def account_after_shutdown(self, account):
+        def dc_account_after_shutdown(self, account):
             assert account._dc_context is None
             shutdowns.append(account)
     register_global_plugin(ShutdownPlugin())
