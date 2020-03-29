@@ -64,8 +64,7 @@ class TestOfflineAccountBasic:
 
     def test_selfcontact_if_unconfigured(self, acfactory):
         ac1 = acfactory.get_unconfigured_account()
-        with pytest.raises(ValueError):
-            ac1.get_self_contact()
+        assert not ac1.get_self_contact().addr
 
     def test_selfcontact_configured(self, acfactory):
         ac1 = acfactory.get_configured_offline_account()
