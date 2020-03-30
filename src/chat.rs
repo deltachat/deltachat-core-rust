@@ -2063,7 +2063,7 @@ pub fn remove_contact_from_chat(
                         "Cannot remove contact from chat; self not in group.".into()
                     )
                 );
-            } else {
+            } else if remove_from_chat_contacts_table(context, chat_id, contact_id) {
                 /* we should respect this - whatever we send to the group, it gets discarded anyway! */
                 if let Ok(contact) = Contact::get_by_id(context, contact_id) {
                     if chat.is_promoted() {
@@ -2093,10 +2093,9 @@ pub fn remove_contact_from_chat(
                         });
                     }
                 }
-                if remove_from_chat_contacts_table(context, chat_id, contact_id) {
-                    context.call_cb(Event::ChatModified(chat_id));
-                    success = true;
-                }
+
+                context.call_cb(Event::ChatModified(chat_id));
+                success = true;
             }
         }
     }
