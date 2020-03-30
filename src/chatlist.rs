@@ -74,7 +74,8 @@ impl Chatlist {
     ///   if DC_GCL_ARCHIVED_ONLY is not set, only unarchived chats are returned and
     ///   the pseudo-chat DC_CHAT_ID_ARCHIVED_LINK is added if there are *any* archived
     ///   chats
-    /// - the flag DC_GCL_FOR_FORWARDING sorts "Saved messages" to the top of the chatlist,
+    /// - the flag DC_GCL_FOR_FORWARDING sorts "Saved messages" to the top of the chatlist
+    ///   and hides the device-chat,
     //    typically used on forwarding, may be combined with DC_GCL_NO_SPECIALS
     /// - if the flag DC_GCL_NO_SPECIALS is set, deaddrop and archive link are not added
     ///   to the list (may be used eg. for selecting chats on forwarding, the flag is
@@ -102,6 +103,14 @@ impl Chatlist {
         let process_rows = |rows: rusqlite::MappedRows<_>| {
             rows.collect::<std::result::Result<Vec<_>, _>>()
                 .map_err(Into::into)
+        };
+
+        let skip_id = if 0 != listflags & DC_GCL_FOR_FORWARDING {
+            chat::lookup_by_contact_id(context, DC_CONTACT_ID_DEVICE)
+                .unwrap_or_default()
+                .0
+        } else {
+            ChatId::new(0)
         };
 
         // select with left join and minimum:
@@ -142,6 +151,9 @@ impl Chatlist {
             )?
         } else if 0 != listflags & DC_GCL_ARCHIVED_ONLY {
             // show archived chats
+            // (this includes the archived device-chat; we could skip it,
+            // however, then the number of archived chats do not match, which might be even more irritating.
+            // and adapting the number requires larger refactorings and seems not to be worth the effort)
             context.sql.query_map(
                 "SELECT c.id, m.id
                  FROM chats c
@@ -181,13 +193,13 @@ impl Chatlist {
                                SELECT MAX(timestamp)
                                  FROM msgs
                                 WHERE chat_id=c.id
-                                  AND (hidden=0 OR state=?))
-                 WHERE c.id>9
+                                  AND (hidden=0 OR state=?1))
+                 WHERE c.id>9 AND c.id!=?2
                    AND c.blocked=0
-                   AND c.name LIKE ?
+                   AND c.name LIKE ?3
                  GROUP BY c.id
                  ORDER BY IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
-                params![MessageState::OutDraft, str_like_cmd],
+                params![MessageState::OutDraft, skip_id, str_like_cmd],
                 process_row,
                 process_rows,
             )?
@@ -210,12 +222,12 @@ impl Chatlist {
                                  FROM msgs
                                 WHERE chat_id=c.id
                                   AND (hidden=0 OR state=?1))
-                 WHERE c.id>9
+                 WHERE c.id>9 AND c.id!=?2
                    AND c.blocked=0
-                   AND NOT c.archived=?2
+                   AND NOT c.archived=?3
                  GROUP BY c.id
-                 ORDER BY c.id=?3 DESC, c.archived=?4 DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
-                params![MessageState::OutDraft, ChatVisibility::Archived, sort_id_up, ChatVisibility::Pinned],
+                 ORDER BY c.id=?4 DESC, c.archived=?5 DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
+                params![MessageState::OutDraft, skip_id, ChatVisibility::Archived, sort_id_up, ChatVisibility::Pinned],
                 process_row,
                 process_rows,
             )?;
@@ -415,13 +427,16 @@ mod tests {
     fn test_sort_self_talk_up_on_forward() {
         let t = dummy_context();
         t.ctx.update_device_chats().unwrap();
+        create_group_chat(&t.ctx, VerifiedStatus::Unverified, "a chat").unwrap();
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
-        assert!(Chat::load_from_db(&t.ctx, chats.get_chat_id(0))
+        assert!(chats.len() == 3);
+        assert!(!Chat::load_from_db(&t.ctx, chats.get_chat_id(0))
             .unwrap()
-            .is_device_talk());
+            .is_self_talk());
 
         let chats = Chatlist::try_load(&t.ctx, DC_GCL_FOR_FORWARDING, None, None).unwrap();
+        assert!(chats.len() == 2); // device chat cannot be written and is skipped on forwarding
         assert!(Chat::load_from_db(&t.ctx, chats.get_chat_id(0))
             .unwrap()
             .is_self_talk());
