@@ -988,7 +988,7 @@ pub fn delete_msgs(context: &Context, msg_ids: &[MsgId]) {
             }
         }
         if let Err(err) = msg_id.trash(context) {
-            warn!(context, "Unable to trash message {}: {}", msg_id, err);
+            error!(context, "Unable to trash message {}: {}", msg_id, err);
         }
         job_add(
             context,
