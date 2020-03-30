@@ -918,11 +918,11 @@ fn add_imap_deletion_jobs(context: &Context) -> sql::Result<()> {
         // Select all expired messages which don't have a
         // corresponding message deletion job yet.
         let msg_ids = context.sql.query_map(
-            "SELECT id FROM msgs
-             WHERE timestamp < ?
-             AND server_uid != 0
-             AND NOT EXISTS (SELECT 1 FROM jobs WHERE foreign_id = msgs.id
-                                                      AND action = ?)",
+            "SELECT id FROM msgs \
+             WHERE timestamp < ? \
+             AND server_uid != 0 \
+             AND NOT EXISTS (SELECT 1 FROM jobs WHERE foreign_id = msgs.id \
+             AND action = ?)",
             params![threshold_timestamp, Action::DeleteMsgOnImap],
             |row| row.get::<_, MsgId>(0),
             |ids| {
