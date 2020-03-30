@@ -362,7 +362,7 @@ impl ChatId {
     pub(crate) fn get_param(self, context: &Context) -> Result<Params, Error> {
         let res: Option<String> = context
             .sql
-            .query_get_value_result::<_, _>("SELECT param FROM chats WHERE id=?", params![self])?;
+            .query_get_value_result("SELECT param FROM chats WHERE id=?", params![self])?;
         Ok(res
             .map(|s| s.parse().unwrap_or_default())
             .unwrap_or_default())
