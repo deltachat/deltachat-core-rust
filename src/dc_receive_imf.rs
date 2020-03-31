@@ -1657,6 +1657,7 @@ fn dc_create_incoming_rfc724_mid(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chat::ChatVisibility;
     use crate::chatlist::Chatlist;
     use crate::message::Message;
     use crate::test_utils::{dummy_context, TestContext};
@@ -1883,5 +1884,123 @@ mod tests {
         assert_eq!(chat.typ, Chattype::Group);
         assert_eq!(chat.name, "group with Alice, Bob and Claire");
         assert_eq!(chat::get_chat_contacts(&t.ctx, chat_id).len(), 3);
+    }
+
+    #[test]
+    fn test_read_receipt_and_unarchive() {
+        // create alice's account
+        let t = configured_offline_context();
+
+        // create one-to-one with bob, archive one-to-one
+        let bob_id = Contact::create(&t.ctx, "bob", "bob@exampel.org").unwrap();
+        let one2one_id = chat::create_by_contact_id(&t.ctx, bob_id).unwrap();
+        one2one_id
+            .set_visibility(&t.ctx, ChatVisibility::Archived)
+            .unwrap();
+        let one2one = Chat::load_from_db(&t.ctx, one2one_id).unwrap();
+        assert!(one2one.get_visibility() == ChatVisibility::Archived);
+
+        // create a group with bob, archive group
+        let group_id = chat::create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo").unwrap();
+        chat::add_contact_to_chat(&t.ctx, group_id, bob_id);
+        assert_eq!(chat::get_chat_msgs(&t.ctx, group_id, 0, None).len(), 0);
+        group_id
+            .set_visibility(&t.ctx, ChatVisibility::Archived)
+            .unwrap();
+        let group = Chat::load_from_db(&t.ctx, group_id).unwrap();
+        assert!(group.get_visibility() == ChatVisibility::Archived);
+
+        // everything archived, chatlist should be empty
+        assert_eq!(
+            Chatlist::try_load(&t.ctx, DC_GCL_NO_SPECIALS, None, None)
+                .unwrap()
+                .len(),
+            0
+        );
+
+        // send a message to group with bob
+        dc_receive_imf(
+            &t.ctx,
+            format!(
+                "From: alice@example.org\n\
+                 To: bob@example.org\n\
+                 Subject: foo\n\
+                 Message-ID: <Gr.{}.12345678901@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Chat-Group-ID: {}\n\
+                 Chat-Group-Name: foo\n\
+                 Chat-Disposition-Notification-To: alice@example.org\n\
+                 Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                 \n\
+                 hello\n",
+                group.grpid, group.grpid
+            )
+            .as_bytes(),
+            "INBOX",
+            1,
+            false,
+        )
+        .unwrap();
+        let msgs = chat::get_chat_msgs(&t.ctx, group_id, 0, None);
+        assert_eq!(msgs.len(), 1);
+        let msg_id = msgs.first().unwrap();
+        let msg = message::Message::load_from_db(&t.ctx, msg_id.clone()).unwrap();
+        assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
+        assert_eq!(msg.text.unwrap(), "hello");
+        assert_eq!(msg.state, MessageState::OutDelivered);
+        let group = Chat::load_from_db(&t.ctx, group_id).unwrap();
+        assert!(group.get_visibility() == ChatVisibility::Normal);
+
+        // bob sends a read receipt to the group
+        dc_receive_imf(
+            &t.ctx,
+            format!(
+                "From: bob@example.org\n\
+                 To: alice@example.org\n\
+                 Subject: message opened\n\
+                 Date: Sun, 22 Mar 2020 23:37:57 +0000\n\
+                 Chat-Version: 1.0\n\
+                 Message-ID: <Mr.12345678902@example.org>\n\
+                 Content-Type: multipart/report; report-type=disposition-notification; boundary=\"SNIPP\"\n\
+                 \n\
+                 \n\
+                 --SNIPP\n\
+                 Content-Type: text/plain; charset=utf-8\n\
+                 \n\
+                 Read receipts do not guarantee sth. was read.\n\
+                 \n\
+                 \n\
+                 --SNIPP\n\
+                 Content-Type: message/disposition-notification\n\
+                 \n\
+                 Reporting-UA: Delta Chat 1.28.0\n\
+                 Original-Recipient: rfc822;bob@example.org\n\
+                 Final-Recipient: rfc822;bob@example.org\n\
+                 Original-Message-ID: <Gr.{}.12345678901@example.org>\n\
+                 Disposition: manual-action/MDN-sent-automatically; displayed\n\
+                 \n\
+                 \n\
+                 --SNIPP--",
+                group.grpid
+            )
+            .as_bytes(),
+            "INBOX",
+            1,
+            false,
+        )
+        .unwrap();
+        assert_eq!(chat::get_chat_msgs(&t.ctx, group_id, 0, None).len(), 1);
+        let msg = message::Message::load_from_db(&t.ctx, msg_id.clone()).unwrap();
+        assert_eq!(msg.state, MessageState::OutMdnRcvd);
+
+        // check, the read-receipt has not unarchived the one2one
+        assert_eq!(
+            Chatlist::try_load(&t.ctx, DC_GCL_NO_SPECIALS, None, None)
+                .unwrap()
+                .len(),
+            1
+        );
+        let one2one = Chat::load_from_db(&t.ctx, one2one_id).unwrap();
+        assert!(one2one.get_visibility() == ChatVisibility::Archived);
     }
 }
