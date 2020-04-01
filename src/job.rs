@@ -201,7 +201,8 @@ impl Job {
 
                 let res = match err {
                     async_smtp::smtp::error::Error::Permanent(_) => {
-                        Status::Finished(Err(format_err!("Permanent SMTP error: {}", err)))
+                        info!(context, "Permanent SMTP error, we will try again anyway because sometimes servers send a permanent error when actually it is a temporary error");
+                        Status::RetryLater
                     }
                     async_smtp::smtp::error::Error::Transient(_) => {
                         // We got a transient 4xx response from SMTP server.
