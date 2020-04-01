@@ -1210,13 +1210,13 @@ impl Imap {
                 return;
             }
             if let Err(err) = self.setup_handle_if_needed(context).await {
-                error!(context, "could not setup imap connection: {:?}", err);
+                error!(context, "could not setup imap connection: {}", err);
                 return;
             }
             if let Err(err) = self.select_folder(context, Some(&folder)).await {
                 error!(
                     context,
-                    "Could not select {} for expunging: {:?}", folder, err
+                    "Could not select {} for expunging: {}", folder, err
                 );
                 return;
             }
@@ -1236,7 +1236,7 @@ impl Imap {
                     emit_event!(context, Event::ImapFolderEmptied(folder.to_string()));
                 }
                 Err(err) => {
-                    error!(context, "expunge failed {}: {:?}", folder, err);
+                    error!(context, "expunge failed {}: {}", folder, err);
                 }
             }
 
