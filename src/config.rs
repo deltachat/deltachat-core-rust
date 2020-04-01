@@ -87,6 +87,11 @@ pub enum Config {
     #[strum(props(default = "0"))]
     DeleteDeviceAfter,
 
+    /// Maximum size in bytes for files to be sent
+    /// Default is 49*1024*1024*3/4
+    #[strum(props(default = "38535168"))]
+    MaxFileSize,
+
     SaveMimeHeaders,
     ConfiguredAddr,
     ConfiguredMailServer,
