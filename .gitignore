@@ -25,3 +25,6 @@ deltachat-ffi/html
 deltachat-ffi/xml
 
 .rsynclist
+
+.idea
+.vscode
