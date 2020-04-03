@@ -1620,8 +1620,12 @@ pub fn hide_device_expired_messages(context: &Context) -> Result<bool, Error> {
     if let Some(delete_device_after) = context.get_config_delete_device_after() {
         let threshold_timestamp = time() - delete_device_after;
 
-        let self_chat_id = lookup_by_contact_id(context, DC_CONTACT_ID_SELF)?.0;
-        let device_chat_id = lookup_by_contact_id(context, DC_CONTACT_ID_DEVICE)?.0;
+        let self_chat_id = lookup_by_contact_id(context, DC_CONTACT_ID_SELF)
+            .unwrap_or_default()
+            .0;
+        let device_chat_id = lookup_by_contact_id(context, DC_CONTACT_ID_DEVICE)
+            .unwrap_or_default()
+            .0;
 
         // Hide expired messages
         //

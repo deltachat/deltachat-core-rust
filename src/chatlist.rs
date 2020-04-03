@@ -94,7 +94,9 @@ impl Chatlist {
     ) -> Result<Self> {
         // Note that we do not emit DC_EVENT_MSGS_MODIFIED here even if some
         // messages get hidden to avoid reloading the same chatlist.
-        hide_device_expired_messages(context)?;
+        if let Err(err) = hide_device_expired_messages(context) {
+            warn!(context, "Failed to hide expired messages: {}", err);
+        }
 
         let mut add_archived_link_item = false;
 
