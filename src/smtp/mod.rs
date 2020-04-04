@@ -175,7 +175,11 @@ impl Smtp {
             .timeout(Some(Duration::from_secs(SMTP_TIMEOUT)));
 
         let mut trans = client.into_transport();
-        trans.connect().await.map_err(Error::ConnectionFailure)?;
+
+        trans.connect().await.map_err(|err| {
+            emit_event!(context, Event::ErrorNetwork(err.to_string()));
+            Error::ConnectionFailure(err)
+        })?;
 
         self.transport = Some(trans);
         self.last_success = Some(Instant::now());
