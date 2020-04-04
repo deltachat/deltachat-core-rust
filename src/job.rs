@@ -9,6 +9,9 @@ use deltachat_derive::{FromSql, ToSql};
 use itertools::Itertools;
 use rand::{thread_rng, Rng};
 
+use async_smtp::smtp::response::Category;
+use async_smtp::smtp::response::Code;
+use async_smtp::smtp::response::Detail;
 use async_std::task;
 
 use crate::blob::BlobObject;
@@ -200,8 +203,28 @@ impl Job {
                 self.pending_error = Some(err.to_string());
 
                 let res = match err {
-                    async_smtp::smtp::error::Error::Permanent(_) => {
-                        Status::Finished(Err(format_err!("Permanent SMTP error: {}", err)))
+                    async_smtp::smtp::error::Error::Permanent(ref response) => {
+                        match response.code {
+                            // Sometimes servers send a permanent error when actually it is a temporary error
+                            // For documentation see https://tools.ietf.org/html/rfc3463
+
+                            // Code 5.5.0, see https://support.delta.chat/t/every-other-message-gets-stuck/877/2
+                            Code {
+                                severity: _,
+                                category: Category::MailSystem,
+                                detail: Detail::Zero,
+                            } => Status::RetryLater,
+                            _ => {
+                                // If we do not retry, add an info message to the chat
+                                // Error 5.7.1 should definitely go here: Yandex sends 5.7.1 with a link when it thinks that the email is SPAM.
+                                chat::add_info_msg(
+                                    context,
+                                    ChatId::new(self.foreign_id),
+                                    err.to_string(),
+                                );
+                                Status::Finished(Err(format_err!("Permanent SMTP error: {}", err)))
+                            }
+                        }
                     }
                     async_smtp::smtp::error::Error::Transient(_) => {
                         // We got a transient 4xx response from SMTP server.
