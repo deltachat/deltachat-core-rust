@@ -210,10 +210,11 @@ impl Job {
 
                             // Code 5.5.0, see https://support.delta.chat/t/every-other-message-gets-stuck/877/2
                             Code {
-                                severity: _,
                                 category: Category::MailSystem,
                                 detail: Detail::Zero,
+                                ..
                             } => Status::RetryLater,
+
                             _ => {
                                 // If we do not retry, add an info message to the chat
                                 // Error 5.7.1 should definitely go here: Yandex sends 5.7.1 with a link when it thinks that the email is SPAM.
