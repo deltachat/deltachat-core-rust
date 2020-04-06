@@ -218,11 +218,19 @@ impl Job {
                             _ => {
                                 // If we do not retry, add an info message to the chat
                                 // Error 5.7.1 should definitely go here: Yandex sends 5.7.1 with a link when it thinks that the email is SPAM.
-                                chat::add_info_msg(
-                                    context,
-                                    ChatId::new(self.foreign_id),
-                                    err.to_string(),
-                                );
+                                match Message::load_from_db(context, MsgId::new(self.foreign_id)) {
+                                    Ok(message) => chat::add_info_msg(
+                                        context,
+                                        message.chat_id,
+                                        err.to_string(),
+                                    ),
+                                    Err(e) => warn!(
+                                        context,
+                                        "couldn't load chat_id to inform user about SMTP error: {}",
+                                        e
+                                    ),
+                                };
+
                                 Status::Finished(Err(format_err!("Permanent SMTP error: {}", err)))
                             }
                         }
