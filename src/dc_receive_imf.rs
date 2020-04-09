@@ -1130,8 +1130,8 @@ fn create_or_lookup_mailinglist(
 ) -> Result<(ChatId, Blocked)> {
     let re = Regex::new(r"^(.*.)<(.*.)>$").unwrap();
     let (name, listid) = match re.captures(list_id_header) {
-        Some(cap) => (cap[1].to_string(), cap[2].to_string()),
-        None => (list_id_header.to_string(), list_id_header.to_string()),
+        Some(cap) => (cap[1].trim().to_string(), cap[2].trim().to_string()),
+        None => (list_id_header.trim().to_string(), list_id_header.trim().to_string()),
     };
 
     match chat::get_chat_id_by_mailinglistid(context, &listid) {
@@ -1319,10 +1319,10 @@ fn create_mailinglist_record(
     name: impl AsRef<str>,
     create_blocked: Blocked,
 ) -> ChatId {
-    if sql::execute(
+    if let Err(e) = sql::execute(
         context,
         &context.sql,
-        "INSERT INTO chats (type, name, listid, blocked, created_timestamp) VALUES(?, ?, ?, ?, ?);",
+        "INSERT INTO chats (type, name, grpid, blocked, created_timestamp) VALUES(?, ?, ?, ?, ?);",
         params![
             Chattype::MailingList,
             name.as_ref(),
@@ -1331,21 +1331,22 @@ fn create_mailinglist_record(
             time(),
         ],
     )
-    .is_err()
     {
+        println!("{:?}", e);
         warn!(
             context,
-            "Failed to create group '{}' for listid={}",
+            "Failed to create mailinglist '{}' for listid={}",
             name.as_ref(),
             listid.as_ref()
         );
         return ChatId::new(0);
     }
-    let row_id = sql::get_rowid(context, &context.sql, "chats", "listid", listid.as_ref());
+    let row_id = sql::get_rowid(context, &context.sql, "chats", "grpid", listid.as_ref());
+    println!("row_id {}", row_id);
     let chat_id = ChatId::new(row_id);
     info!(
         context,
-        "Created group '{}' listid={} as {}",
+        "Created mailinglist '{}' listid={} as {}",
         name.as_ref(),
         listid.as_ref(),
         chat_id
@@ -1754,6 +1755,33 @@ mod tests {
     use crate::chatlist::Chatlist;
     use crate::message::Message;
     use crate::test_utils::{dummy_context, TestContext};
+
+    static MAILINGLIST: &[u8] = b"From: Github <notifications@github.com>\n\
+    To: deltachat/deltachat-core-rust <deltachat-core-rust@noreply.github.com>\n\
+    Subject: [deltachat/deltachat-core-rust] PR run failed\n\
+    Message-ID: <3333@example.org>\n\
+    List-ID: deltachat/deltachat-core-rust <deltachat-core-rust.deltachat.github.com>\n\
+    Precedence: list\n\
+    Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+    \n\
+    hello\n";
+
+    #[test]
+    fn test_mailing_list() {
+        println!("testing");
+
+        let t = configured_offline_context();
+        t.ctx.set_config(Config::ShowEmails, Some("2")).unwrap();
+        dc_receive_imf(&t.ctx, MAILINGLIST, "INBOX", 1, false).unwrap();
+
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        assert_eq!(chats.len(), 1);
+        let chat_id = chat::create_by_msg_id(&t.ctx, chats.get_msg_id(0).unwrap()).unwrap();
+        let chat = chat::Chat::load_from_db(&t.ctx, chat_id).unwrap();
+        assert_eq!(chat.typ, Chattype::MailingList);
+        assert_eq!(chat.name, "deltachat/deltachat-core-rust");
+        assert_eq!(chat::get_chat_contacts(&t.ctx, chat_id).len(), 0);
+    }
 
     #[test]
     fn test_hex_hash() {
