@@ -2466,6 +2466,23 @@ pub(crate) fn get_chat_id_by_grpid(
     )
 }
 
+pub(crate) fn get_chat_id_by_mailinglistid(
+    context: &Context,
+    listid: impl AsRef<str>,
+) -> Result<(ChatId, Blocked), sql::Error> {
+    context.sql.query_row(
+        "SELECT id, blocked, type FROM chats WHERE grpid=?;",
+        params![listid.as_ref()],
+        |row| {
+            let chat_id = row.get::<_, ChatId>(0)?;
+
+            let b = row.get::<_, Option<Blocked>>(1)?.unwrap_or_default();
+            Ok((chat_id, b))
+        },
+    )
+}
+
+
 /// Adds a message to device chat.
 ///
 /// Optional `label` can be provided to ensure that message is added only once.

@@ -2,6 +2,7 @@ use itertools::join;
 use sha2::{Digest, Sha256};
 
 use num_traits::FromPrimitive;
+use regex::Regex;
 
 use crate::chat::{self, Chat, ChatId};
 use crate::config::Config;
@@ -415,9 +416,34 @@ fn add_parts(
 
         if chat_id.is_unset() {
             // check if the message belongs to a mailing list
-            if mime_parser.is_mailinglist_message() {
-                *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
-                info!(context, "Message belongs to a mailing list and is ignored.",);
+            if let Some(list_id_header) = mime_parser.get(HeaderDef::ListId) {
+                let create_blocked = if !test_normal_chat_id.is_unset()
+                    && test_normal_chat_id_blocked == Blocked::Not
+                {
+                    Blocked::Not
+                } else {
+                    Blocked::Deaddrop
+                };
+
+                let (new_chat_id, new_chat_id_blocked) = create_or_lookup_mailinglist(
+                    context,
+                    if test_normal_chat_id.is_unset() {
+                        allow_creation
+                    } else {
+                        true
+                    },
+                    create_blocked,
+                    list_id_header,
+                )?;
+                *chat_id = new_chat_id;
+                chat_id_blocked = new_chat_id_blocked;
+                if !chat_id.is_unset()
+                    && chat_id_blocked != Blocked::Not
+                    && create_blocked == Blocked::Not
+                {
+                    new_chat_id.unblock(context);
+                    chat_id_blocked = Blocked::Not;
+                }
             }
         }
 
@@ -1096,6 +1122,35 @@ fn create_or_lookup_group(
     Ok((chat_id, chat_id_blocked))
 }
 
+fn create_or_lookup_mailinglist(
+    context: &Context,
+    allow_creation: bool,
+    create_blocked: Blocked,
+    list_id_header: &str,
+) -> Result<(ChatId, Blocked)> {
+    let re = Regex::new(r"^(.*.)<(.*.)>$").unwrap();
+    let (name, listid) = match re.captures(list_id_header) {
+        Some(cap) => (cap[1].to_string(), cap[2].to_string()),
+        None => (list_id_header.to_string(), list_id_header.to_string()),
+    };
+
+    match chat::get_chat_id_by_mailinglistid(context, &listid) {
+        Ok((chat_id, blocked)) => Ok((chat_id, blocked)),
+
+        Err(_) => {
+            // list does not exist but should be created
+
+            if !allow_creation {
+                info!(context, "creating list forbidden by caller");
+                return Ok((ChatId::new(0), Blocked::Not));
+            }
+
+            let chat_id = create_mailinglist_record(context, &listid, &name, create_blocked);
+            Ok((chat_id, create_blocked))
+        }
+    }
+}
+
 /// try extract a grpid from a message-id list header value
 fn extract_grpid(mime_parser: &MimeMessage, headerdef: HeaderDef) -> Option<&str> {
     let header = mime_parser.get(headerdef)?;
@@ -1253,6 +1308,46 @@ fn create_group_record(
         "Created group '{}' grpid={} as {}",
         grpname.as_ref(),
         grpid.as_ref(),
+        chat_id
+    );
+    chat_id
+}
+
+fn create_mailinglist_record(
+    context: &Context,
+    listid: impl AsRef<str>,
+    name: impl AsRef<str>,
+    create_blocked: Blocked,
+) -> ChatId {
+    if sql::execute(
+        context,
+        &context.sql,
+        "INSERT INTO chats (type, name, listid, blocked, created_timestamp) VALUES(?, ?, ?, ?, ?);",
+        params![
+            Chattype::MailingList,
+            name.as_ref(),
+            listid.as_ref(),
+            create_blocked,
+            time(),
+        ],
+    )
+    .is_err()
+    {
+        warn!(
+            context,
+            "Failed to create group '{}' for listid={}",
+            name.as_ref(),
+            listid.as_ref()
+        );
+        return ChatId::new(0);
+    }
+    let row_id = sql::get_rowid(context, &context.sql, "chats", "listid", listid.as_ref());
+    let chat_id = ChatId::new(row_id);
+    info!(
+        context,
+        "Created group '{}' listid={} as {}",
+        name.as_ref(),
+        listid.as_ref(),
         chat_id
     );
     chat_id
