@@ -823,7 +823,6 @@ impl Imap {
         folder: &str,
         uid: u32,
         dest_folder: &str,
-        dest_uid: &mut u32,
     ) -> ImapActionResult {
         if folder == dest_folder {
             info!(
@@ -839,10 +838,6 @@ impl Imap {
             return imapresult;
         }
         // we are connected, and the folder is selected
-
-        // XXX Rust-Imap provides no target uid on mv, so just set it to 0
-        *dest_uid = 0;
-
         let set = format!("{}", uid);
         let display_folder_id = format!("{}/{}", folder, uid);
 
@@ -1025,10 +1020,10 @@ impl Imap {
         context: &Context,
         message_id: &str,
         folder: &str,
-        uid: &mut u32,
+        uid: u32,
     ) -> ImapActionResult {
         if let Some(imapresult) = self
-            .prepare_imap_operation_on_msg(context, folder, *uid)
+            .prepare_imap_operation_on_msg(context, folder, uid)
             .await
         {
             return imapresult;
@@ -1052,7 +1047,7 @@ impl Imap {
                             display_imap_id,
                             message_id,
                         );
-                        return ImapActionResult::Failed;
+                        return ImapActionResult::AlreadyDone;
                     };
 
                     let remote_message_id = get_fetch_headers(&fetch)
@@ -1067,26 +1062,26 @@ impl Imap {
                             remote_message_id,
                             message_id,
                         );
-                        *uid = 0;
+                        return ImapActionResult::Failed;
                     }
                 }
                 Err(err) => {
                     warn!(
                         context,
-                        "Cannot delete {} on IMAP: {}", display_imap_id, err
+                        "Cannot delete on IMAP, {}: {}", display_imap_id, err,
                     );
-                    *uid = 0;
+                    return ImapActionResult::RetryLater;
                 }
             }
         }
 
         // mark the message for deletion
-        if !self.add_flag_finalized(context, *uid, "\\Deleted").await {
+        if !self.add_flag_finalized(context, uid, "\\Deleted").await {
             warn!(
                 context,
                 "Cannot mark message {} as \"Deleted\".", display_imap_id
             );
-            ImapActionResult::Failed
+            ImapActionResult::RetryLater
         } else {
             emit_event!(
                 context,
@@ -1232,11 +1227,6 @@ impl Imap {
                 .set_raw_config_int(context, "folders_configured", DC_FOLDERS_CONFIGURED_VERSION)
                 .await?;
         }
-        context
-            .sql
-            .set_raw_config_int(context, "folders_configured", 3)
-            .await?;
-
         info!(context, "FINISHED configuring IMAP-folders.");
         Ok(())
     }
@@ -1259,14 +1249,6 @@ impl Imap {
                 context,
                 "Could not select {} for expunging: {:?}", folder, err
             );
-            return;
-        }
-
-        if !self
-            .add_flag_finalized_with_set(context, SELECT_ALL, "\\Deleted")
-            .await
-        {
-            error!(context, "Cannot mark messages for deletion {}", folder);
             return;
         }
 
@@ -1347,20 +1329,55 @@ async fn precheck_imf(
         message::rfc724_mid_exists(context, &rfc724_mid).await
     {
         if old_server_folder.is_empty() && old_server_uid == 0 {
-            info!(context, "[move] detected bcc-self {}", rfc724_mid,);
-            context
-                .do_heuristics_moves(server_folder.as_ref(), msg_id)
-                .await;
-            job::add(
+            info!(
                 context,
-                Action::MarkseenMsgOnImap,
-                msg_id.to_u32() as i32,
-                Params::new(),
-                0,
-            )
-            .await;
+                "[move] detected bcc-self {} as {}/{}", rfc724_mid, server_folder, server_uid
+            );
+
+            let delete_server_after = context.get_config_delete_server_after().await;
+
+            if delete_server_after != Some(0) {
+                context
+                    .do_heuristics_moves(server_folder.as_ref(), msg_id)
+                    .await;
+                job::add(
+                    context,
+                    Action::MarkseenMsgOnImap,
+                    msg_id.to_u32() as i32,
+                    Params::new(),
+                    0,
+                )
+                .await;
+            }
         } else if old_server_folder != server_folder {
-            info!(context, "[move] detected moved message {}", rfc724_mid,);
+            info!(
+                context,
+                "[move] detected message {} moved by other device from {}/{} to {}/{}",
+                rfc724_mid,
+                old_server_folder,
+                old_server_uid,
+                server_folder,
+                server_uid
+            );
+        } else if old_server_uid == 0 {
+            info!(
+                context,
+                "[move] detected message {} moved by us from {}/{} to {}/{}",
+                rfc724_mid,
+                old_server_folder,
+                old_server_uid,
+                server_folder,
+                server_uid
+            );
+        } else if old_server_uid != server_uid {
+            warn!(
+                context,
+                "UID for message {} in folder {} changed from {} to {}",
+                rfc724_mid,
+                server_folder,
+                old_server_uid,
+                server_uid
+            );
         }
 
         if old_server_folder != server_folder || old_server_uid != server_uid {
@@ -1382,7 +1399,7 @@ fn get_fetch_headers(prefetch_msg: &Fetch) -> Result<Vec<mailparse::MailHeader>>
 }
 
 fn prefetch_get_message_id(headers: &[mailparse::MailHeader]) -> Result<String> {
-    if let Some(message_id) = headers.get_header_value(HeaderDef::MessageId)? {
+    if let Some(message_id) = headers.get_header_value(HeaderDef::MessageId) {
         Ok(crate::mimeparser::parse_message_id(&message_id)?)
     } else {
         Err(Error::Other("prefetch: No message ID found".to_string()))
@@ -1392,20 +1409,20 @@ fn prefetch_get_message_id(headers: &[mailparse::MailHeader]) -> Result<String> 
 async fn prefetch_is_reply_to_chat_message(
     context: &Context,
     headers: &[mailparse::MailHeader<'_>],
-) -> Result<bool> {
-    if let Some(value) = headers.get_header_value(HeaderDef::InReplyTo)? {
+) -> bool {
+    if let Some(value) = headers.get_header_value(HeaderDef::InReplyTo) {
         if is_msgrmsg_rfc724_mid_in_list(context, &value).await {
-            return Ok(true);
+            return true;
         }
     }
 
-    if let Some(value) = headers.get_header_value(HeaderDef::References)? {
+    if let Some(value) = headers.get_header_value(HeaderDef::References) {
         if is_msgrmsg_rfc724_mid_in_list(context, &value).await {
-            return Ok(true);
+            return true;
         }
     }
 
-    Ok(false)
+    false
 }
 
 async fn prefetch_should_download(
@@ -1413,16 +1430,16 @@ async fn prefetch_should_download(
     headers: &[mailparse::MailHeader<'_>],
     show_emails: ShowEmails,
 ) -> Result<bool> {
-    let is_chat_message = headers.get_header_value(HeaderDef::ChatVersion)?.is_some();
-    let is_reply_to_chat_message = prefetch_is_reply_to_chat_message(context, &headers).await?;
+    let is_chat_message = headers.get_header_value(HeaderDef::ChatVersion).is_some();
+    let is_reply_to_chat_message = prefetch_is_reply_to_chat_message(context, &headers).await;
 
     // Autocrypt Setup Message should be shown even if it is from non-chat client.
     let is_autocrypt_setup_message = headers
-        .get_header_value(HeaderDef::AutocryptSetupMessage)?
+        .get_header_value(HeaderDef::AutocryptSetupMessage)
         .is_some();
 
     let from_field = headers
-        .get_header_value(HeaderDef::From_)?
+        .get_header_value(HeaderDef::From_)
         .unwrap_or_default();
 
     let (_contact_id, blocked_contact, origin) =

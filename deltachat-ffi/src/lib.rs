@@ -401,7 +401,7 @@ pub unsafe extern "C" fn dc_set_config_from_qr(
 pub unsafe extern "C" fn dc_get_info(context: *mut dc_context_t) -> *mut libc::c_char {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_get_info()");
-        return dc_strdup(ptr::null());
+        return "".strdup();
     }
     let ffi_context = &*context;
 
@@ -1062,6 +1062,25 @@ pub unsafe extern "C" fn dc_get_fresh_msg_cnt(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_estimate_deletion_cnt(
+    context: *mut dc_context_t,
+    from_server: libc::c_int,
+    seconds: i64,
+) -> libc::c_int {
+    if context.is_null() || seconds < 0 {
+        eprintln!("ignoring careless call to dc_estimate_deletion_cnt()");
+        return 0;
+    }
+    let ffi_context = &*context;
+    ffi_context
+        .with_inner(|ctx| {
+            message::estimate_deletion_cnt(ctx, from_server != 0, seconds).unwrap_or(0)
+                as libc::c_int
+        })
+        .unwrap_or(0)
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_get_fresh_msgs(
     context: *mut dc_context_t,
 ) -> *mut dc_array::dc_array_t {
@@ -1488,7 +1507,7 @@ pub unsafe extern "C" fn dc_get_msg_info(
 ) -> *mut libc::c_char {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_get_msg_info()");
-        return dc_strdup(ptr::null());
+        return "".strdup();
     }
     let ffi_context = &*context;
 
@@ -2486,7 +2505,7 @@ pub unsafe extern "C" fn dc_chat_get_type(chat: *mut dc_chat_t) -> libc::c_int {
 pub unsafe extern "C" fn dc_chat_get_name(chat: *mut dc_chat_t) -> *mut libc::c_char {
     if chat.is_null() {
         eprintln!("ignoring careless call to dc_chat_get_name()");
-        return dc_strdup(ptr::null());
+        return "".strdup();
     }
     let ffi_chat = &*chat;
     ffi_chat.chat.get_name().strdup()
@@ -2810,7 +2829,7 @@ pub unsafe extern "C" fn dc_msg_get_sort_timestamp(msg: *mut dc_msg_t) -> i64 {
 pub unsafe extern "C" fn dc_msg_get_text(msg: *mut dc_msg_t) -> *mut libc::c_char {
     if msg.is_null() {
         eprintln!("ignoring careless call to dc_msg_get_text()");
-        return dc_strdup(ptr::null());
+        return "".strdup();
     }
     let ffi_msg = &*msg;
     ffi_msg.message.get_text().unwrap_or_default().strdup()
@@ -2829,8 +2848,7 @@ pub unsafe extern "C" fn dc_msg_get_file(msg: *mut dc_msg_t) -> *mut libc::c_cha
             ffi_msg
                 .message
                 .get_file(ctx)
-                .and_then(|p| p.to_c_string().ok())
-                .map(|cs| dc_strdup(cs.as_ptr()))
+                .map(|p| p.strdup())
                 .unwrap_or_else(|| "".strdup())
         })
         .unwrap_or_else(|_| "".strdup())
@@ -2840,7 +2858,7 @@ pub unsafe extern "C" fn dc_msg_get_file(msg: *mut dc_msg_t) -> *mut libc::c_cha
 pub unsafe extern "C" fn dc_msg_get_filename(msg: *mut dc_msg_t) -> *mut libc::c_char {
     if msg.is_null() {
         eprintln!("ignoring careless call to dc_msg_get_filename()");
-        return dc_strdup(ptr::null());
+        return "".strdup();
     }
     let ffi_msg = &*msg;
     ffi_msg.message.get_filename().unwrap_or_default().strdup()
@@ -2850,13 +2868,13 @@ pub unsafe extern "C" fn dc_msg_get_filename(msg: *mut dc_msg_t) -> *mut libc::c
 pub unsafe extern "C" fn dc_msg_get_filemime(msg: *mut dc_msg_t) -> *mut libc::c_char {
     if msg.is_null() {
         eprintln!("ignoring careless call to dc_msg_get_filemime()");
-        return dc_strdup(ptr::null());
+        return "".strdup();
     }
     let ffi_msg = &*msg;
     if let Some(x) = ffi_msg.message.get_filemime() {
         x.strdup()
     } else {
-        dc_strdup(ptr::null())
+        "".strdup()
     }
 }
 
@@ -3180,7 +3198,7 @@ pub unsafe extern "C" fn dc_contact_get_id(contact: *mut dc_contact_t) -> u32 {
 pub unsafe extern "C" fn dc_contact_get_addr(contact: *mut dc_contact_t) -> *mut libc::c_char {
     if contact.is_null() {
         eprintln!("ignoring careless call to dc_contact_get_addr()");
-        return dc_strdup(ptr::null());
+        return "".strdup();
     }
     let ffi_contact = &*contact;
     ffi_contact.contact.get_addr().strdup()
@@ -3190,7 +3208,7 @@ pub unsafe extern "C" fn dc_contact_get_addr(contact: *mut dc_contact_t) -> *mut
 pub unsafe extern "C" fn dc_contact_get_name(contact: *mut dc_contact_t) -> *mut libc::c_char {
     if contact.is_null() {
         eprintln!("ignoring careless call to dc_contact_get_name()");
-        return dc_strdup(ptr::null());
+        return "".strdup();
     }
     let ffi_contact = &*contact;
     ffi_contact.contact.get_name().strdup()
@@ -3202,7 +3220,7 @@ pub unsafe extern "C" fn dc_contact_get_display_name(
 ) -> *mut libc::c_char {
     if contact.is_null() {
         eprintln!("ignoring careless call to dc_contact_get_display_name()");
-        return dc_strdup(ptr::null());
+        return "".strdup();
     }
     let ffi_contact = &*contact;
     ffi_contact.contact.get_display_name().strdup()
@@ -3214,7 +3232,7 @@ pub unsafe extern "C" fn dc_contact_get_name_n_addr(
 ) -> *mut libc::c_char {
     if contact.is_null() {
         eprintln!("ignoring careless call to dc_contact_get_name_n_addr()");
-        return dc_strdup(ptr::null());
+        return "".strdup();
     }
     let ffi_contact = &*contact;
     ffi_contact.contact.get_name_n_addr().strdup()
@@ -3226,7 +3244,7 @@ pub unsafe extern "C" fn dc_contact_get_first_name(
 ) -> *mut libc::c_char {
     if contact.is_null() {
         eprintln!("ignoring careless call to dc_contact_get_first_name()");
-        return dc_strdup(ptr::null());
+        return "".strdup();
     }
     let ffi_contact = &*contact;
     ffi_contact.contact.get_first_name().strdup()

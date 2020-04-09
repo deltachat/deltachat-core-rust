@@ -9,7 +9,7 @@ use std::ptr;
 /// # Examples
 ///
 /// ```rust,norun
-/// use deltachat::dc_tools::{dc_strdup, to_string_lossy};
+/// use crate::string::{dc_strdup, to_string_lossy};
 /// unsafe {
 ///     let str_a = b"foobar\x00" as *const u8 as *const libc::c_char;
 ///     let str_a_copy = dc_strdup(str_a);
@@ -17,7 +17,7 @@ use std::ptr;
 ///     assert_ne!(str_a, str_a_copy);
 /// }
 /// ```
-pub unsafe fn dc_strdup(s: *const libc::c_char) -> *mut libc::c_char {
+unsafe fn dc_strdup(s: *const libc::c_char) -> *mut libc::c_char {
     let ret: *mut libc::c_char;
     if !s.is_null() {
         ret = libc::strdup(s);
@@ -32,7 +32,7 @@ pub unsafe fn dc_strdup(s: *const libc::c_char) -> *mut libc::c_char {
 
 /// Error type for the [OsStrExt] trait
 #[derive(Debug, Fail, PartialEq)]
-pub enum CStringError {
+pub(crate) enum CStringError {
     /// The string contains an interior null byte
     #[fail(display = "String contains an interior null byte")]
     InteriorNullByte,
@@ -66,7 +66,7 @@ pub enum CStringError {
 ///     let mut c_ptr: *mut libc::c_char = dc_strdup(path_c.as_ptr());
 /// }
 /// ```
-pub trait OsStrExt {
+pub(crate) trait OsStrExt {
     /// Convert a  [std::ffi::OsStr] to an [std::ffi::CString]
     ///
     /// This is useful to convert e.g. a [std::path::Path] to
@@ -131,15 +131,16 @@ fn os_str_to_c_string_unicode(
 }
 
 /// Convenience methods/associated functions for working with [CString]
-///
-/// This is helps transitioning from unsafe code.
-pub trait CStringExt {
-    /// Create a new [CString], yolo style
+trait CStringExt {
+    /// Create a new [CString], best effort
     ///
-    /// This unwrap the result, panicking when there are embedded NULL
-    /// bytes.
-    fn yolo<T: Into<Vec<u8>>>(t: T) -> CString {
-        CString::new(t).expect("String contains null byte, can not be CString")
+    /// Like the [to_string_lossy] this doesn't give up in the face of
+    /// bad input (embedded null bytes in this case) instead it does
+    /// the best it can by stripping the embedded null bytes.
+    fn new_lossy<T: Into<Vec<u8>>>(t: T) -> CString {
+        let mut s = t.into();
+        s.retain(|&c| c != 0);
+        CString::new(s).unwrap_or_default()
     }
 }
 
@@ -151,7 +152,7 @@ impl CStringExt for CString {}
 /// Rust strings to raw C strings.  This can be clumsy to do correctly
 /// and the compiler sometimes allows it in an unsafe way.  These
 /// methods make it more succinct and help you get it right.
-pub trait StrExt {
+pub(crate) trait Strdup {
     /// Allocate a new raw C `*char` version of this string.
     ///
     /// This allocates a new raw C string which must be freed using
@@ -168,35 +169,44 @@ pub trait StrExt {
     unsafe fn strdup(&self) -> *mut libc::c_char;
 }
 
-impl<T: AsRef<str>> StrExt for T {
+impl<T: AsRef<str>> Strdup for T {
     unsafe fn strdup(&self) -> *mut libc::c_char {
-        let tmp = CString::yolo(self.as_ref());
+        let tmp = CString::new_lossy(self.as_ref());
+        dc_strdup(tmp.as_ptr())
+    }
+}
+
+// We can not implement for AsRef<OsStr> because we already implement
+// AsRev<str> and this conflicts.  So implement for Path directly.
+impl Strdup for std::path::Path {
+    unsafe fn strdup(&self) -> *mut libc::c_char {
+        let tmp = self.to_c_string().unwrap_or_else(|_| CString::default());
         dc_strdup(tmp.as_ptr())
     }
 }
 
 /// Convenience methods to turn optional strings into C strings.
 ///
-/// This is the same as the [StrExt] trait but a different trait name
-/// to work around the type system not allowing to implement [StrExt]
-/// for `Option<impl StrExt>` When we already have an [StrExt] impl
+/// This is the same as the [Strdup] trait but a different trait name
+/// to work around the type system not allowing to implement [Strdup]
+/// for `Option<impl Strdup>` When we already have an [Strdup] impl
 /// for `AsRef<&str>`.
 ///
 /// When the [Option] is [Option::Some] this behaves just like
-/// [StrExt::strdup], when it is [Option::None] a null pointer is
+/// [Strdup::strdup], when it is [Option::None] a null pointer is
 /// returned.
-pub trait OptStrExt {
+pub(crate) trait OptStrdup {
     /// Allocate a new raw C `*char` version of this string, or NULL.
     ///
-    /// See [StrExt::strdup] for details.
+    /// See [Strdup::strdup] for details.
     unsafe fn strdup(&self) -> *mut libc::c_char;
 }
 
-impl<T: AsRef<str>> OptStrExt for Option<T> {
+impl<T: AsRef<str>> OptStrdup for Option<T> {
     unsafe fn strdup(&self) -> *mut libc::c_char {
         match self {
             Some(s) => {
-                let tmp = CString::yolo(s.as_ref());
+                let tmp = CString::new_lossy(s.as_ref());
                 dc_strdup(tmp.as_ptr())
             }
             None => ptr::null_mut(),
@@ -204,7 +214,7 @@ impl<T: AsRef<str>> OptStrExt for Option<T> {
     }
 }
 
-pub fn to_string_lossy(s: *const libc::c_char) -> String {
+pub(crate) fn to_string_lossy(s: *const libc::c_char) -> String {
     if s.is_null() {
         return "".into();
     }
@@ -214,7 +224,7 @@ pub fn to_string_lossy(s: *const libc::c_char) -> String {
     cstr.to_string_lossy().to_string()
 }
 
-pub fn to_opt_string_lossy(s: *const libc::c_char) -> Option<String> {
+pub(crate) fn to_opt_string_lossy(s: *const libc::c_char) -> Option<String> {
     if s.is_null() {
         return None;
     }
@@ -235,7 +245,7 @@ pub fn to_opt_string_lossy(s: *const libc::c_char) -> Option<String> {
 ///
 /// [Path]: std::path::Path
 #[cfg(not(target_os = "windows"))]
-pub fn as_path<'a>(s: *const libc::c_char) -> &'a std::path::Path {
+pub(crate) fn as_path<'a>(s: *const libc::c_char) -> &'a std::path::Path {
     assert!(!s.is_null(), "cannot be used on null pointers");
     use std::os::unix::ffi::OsStrExt;
     unsafe {
@@ -247,7 +257,7 @@ pub fn as_path<'a>(s: *const libc::c_char) -> &'a std::path::Path {
 
 // as_path() implementation for windows, documented above.
 #[cfg(target_os = "windows")]
-pub fn as_path<'a>(s: *const libc::c_char) -> &'a std::path::Path {
+pub(crate) fn as_path<'a>(s: *const libc::c_char) -> &'a std::path::Path {
     as_path_unicode(s)
 }
 
@@ -354,8 +364,14 @@ mod tests {
     }
 
     #[test]
-    fn test_cstring_yolo() {
-        assert_eq!(CString::new("hello").unwrap(), CString::yolo("hello"));
+    fn test_cstring_new_lossy() {
+        assert!(CString::new("hel\x00lo").is_err());
+        assert!(CString::new(String::from("hel\x00o")).is_err());
+        let r = CString::new("hello").unwrap();
+        assert_eq!(CString::new_lossy("hello"), r);
+        assert_eq!(CString::new_lossy("hel\x00lo"), r);
+        assert_eq!(CString::new_lossy(String::from("hello")), r);
+        assert_eq!(CString::new_lossy(String::from("hel\x00lo")), r);
     }
 
     #[test]

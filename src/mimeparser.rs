@@ -9,7 +9,6 @@ use mailparse::{DispositionType, MailAddr, MailHeaderMap};
 use crate::aheader::Aheader;
 use crate::bail;
 use crate::blob::BlobObject;
-use crate::config::Config;
 use crate::constants::Viewtype;
 use crate::contact::*;
 use crate::context::Context;
@@ -19,7 +18,6 @@ use crate::e2ee;
 use crate::error::Result;
 use crate::events::Event;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
-use crate::job::{self, Action};
 use crate::location;
 use crate::message;
 use crate::param::*;
@@ -87,7 +85,7 @@ impl MimeMessage {
 
         let message_time = mail
             .headers
-            .get_header_value(HeaderDef::Date)?
+            .get_header_value(HeaderDef::Date)
             .and_then(|v| mailparse::dateparse(&v).ok())
             .unwrap_or_default();
 
@@ -113,8 +111,7 @@ impl MimeMessage {
 
                     // Handle any gossip headers if the mail was encrypted.  See section
                     // "3.6 Key Gossip" of https://autocrypt.org/autocrypt-spec-1.1.0.pdf
-                    let gossip_headers =
-                        decrypted_mail.headers.get_all_values("Autocrypt-Gossip")?;
+                    let gossip_headers = decrypted_mail.headers.get_all_values("Autocrypt-Gossip");
                     gossipped_addr =
                         update_gossip_peerstates(context, message_time, &mail, gossip_headers)
                             .await?;
@@ -554,6 +551,16 @@ impl MimeMessage {
                             if let Some(report) = self.process_report(context, mail)? {
                                 self.reports.push(report);
                             }
+
+                            // Add MDN part so we can track it, avoid
+                            // downloading the message again and
+                            // delete if automatic message deletion is
+                            // enabled.
+                            let mut part = Part::default();
+                            part.typ = Viewtype::Unknown;
+                            self.parts.push(part);
+
+                            any_part_added = true;
                         } else {
                             /* eg. `report-type=delivery-status`;
                             maybe we should show them as a little error icon */
@@ -756,16 +763,13 @@ impl MimeMessage {
 
     fn merge_headers(headers: &mut HashMap<String, String>, fields: &[mailparse::MailHeader<'_>]) {
         for field in fields {
-            if let Ok(key) = field.get_key() {
-                // lowercasing all headers is technically not correct, but makes things work better
-                let key = key.to_lowercase();
-                if !headers.contains_key(&key) || // key already exists, only overwrite known types (protected headers)
+            // lowercasing all headers is technically not correct, but makes things work better
+            let key = field.get_key().to_lowercase();
+            if !headers.contains_key(&key) || // key already exists, only overwrite known types (protected headers)
                     is_known(&key) || key.starts_with("chat-")
-                {
-                    if let Ok(value) = field.get_value() {
-                        headers.insert(key, value);
-                    }
-                }
+            {
+                let value = field.get_value();
+                headers.insert(key.to_string(), value);
             }
         }
     }
@@ -780,21 +784,13 @@ impl MimeMessage {
         let (report_fields, _) = mailparse::parse_headers(&report_body)?;
 
         // must be present
-        if let Some(_disposition) = report_fields
-            .get_header_value(HeaderDef::Disposition)
-            .ok()
-            .flatten()
-        {
+        if let Some(_disposition) = report_fields.get_header_value(HeaderDef::Disposition) {
             if let Some(original_message_id) = report_fields
                 .get_header_value(HeaderDef::OriginalMessageId)
-                .ok()
-                .flatten()
                 .and_then(|v| parse_message_id(&v).ok())
             {
                 let additional_message_ids = report_fields
                     .get_header_value(HeaderDef::AdditionalMessageIds)
-                    .ok()
-                    .flatten()
                     .map_or_else(Vec::new, |v| {
                         v.split(' ')
                             .filter_map(|s| parse_message_id(s).ok())
@@ -810,26 +806,18 @@ impl MimeMessage {
         warn!(
             context,
             "ignoring unknown disposition-notification, Message-Id: {:?}",
-            report_fields.get_header_value(HeaderDef::MessageId).ok()
+            report_fields.get_header_value(HeaderDef::MessageId)
         );
 
         Ok(None)
     }
 
     /// Handle reports (only MDNs for now)
-    pub async fn handle_reports(
-        &self,
-        context: &Context,
-        from_id: u32,
-        sent_timestamp: i64,
-        server_folder: impl AsRef<str>,
-        server_uid: u32,
-    ) {
+    pub async fn handle_reports(&self, context: &Context, from_id: u32, sent_timestamp: i64) {
         if self.reports.is_empty() {
             return;
         }
 
-        let mut mdn_recognized = false;
         for report in &self.reports {
             for original_message_id in
                 std::iter::once(&report.original_message_id).chain(&report.additional_message_ids)
@@ -839,19 +827,8 @@ impl MimeMessage {
                         .await
                 {
                     context.call_cb(Event::MsgRead { chat_id, msg_id });
-                    mdn_recognized = true;
                 }
             }
-        }
-
-        if self.has_chat_version() || mdn_recognized {
-            let mut param = Params::new();
-            param.set(Param::ServerFolder, server_folder.as_ref());
-            param.set_int(Param::ServerUid, server_uid as i32);
-            if self.has_chat_version() && context.get_config_bool(Config::MvboxMove).await {
-                param.set_int(Param::AlsoMove, 1);
-            }
-            job::add(context, Action::MarkseenMdnOnImap, 0, param, 0).await;
         }
     }
 }
@@ -871,14 +848,9 @@ async fn update_gossip_peerstates(
 
         if let Ok(ref header) = gossip_header {
             if recipients.is_none() {
-                recipients = Some(get_recipients(mail.headers.iter().filter_map(|v| {
-                    let key = v.get_key();
-                    let value = v.get_value();
-                    if key.is_err() || value.is_err() {
-                        return None;
-                    }
-                    Some((v.get_key().unwrap(), v.get_value().unwrap()))
-                })));
+                recipients = Some(get_recipients(
+                    mail.headers.iter().map(|v| (v.get_key(), v.get_value())),
+                ));
             }
 
             if recipients
@@ -926,13 +898,8 @@ pub(crate) fn parse_message_id(value: &str) -> crate::error::Result<String> {
     let ids = mailparse::msgidparse(value)
         .map_err(|err| format_err!("failed to parse message id {:?}", err))?;
 
-    if ids.len() == 1 {
-        let id = &ids[0];
-        if id.starts_with('<') && id.ends_with('>') {
-            Ok(id.chars().skip(1).take(id.len() - 2).collect())
-        } else {
-            bail!("message-ID {} is not enclosed in < and >", value);
-        }
+    if let Some(id) = ids.first() {
+        Ok(id.to_string())
     } else {
         bail!("could not parse message_id: {}", value);
     }
@@ -998,15 +965,12 @@ fn get_mime_type(mail: &mailparse::ParsedMail<'_>) -> Result<(Mime, Viewtype)> {
 }
 
 fn is_attachment_disposition(mail: &mailparse::ParsedMail<'_>) -> bool {
-    if let Ok(ct) = mail.get_content_disposition() {
-        return ct.disposition == DispositionType::Attachment
-            && ct
-                .params
-                .iter()
-                .any(|(key, _value)| key.starts_with("filename"));
-    }
-
-    false
+    let ct = mail.get_content_disposition();
+    ct.disposition == DispositionType::Attachment
+        && ct
+            .params
+            .iter()
+            .any(|(key, _value)| key.starts_with("filename"))
 }
 
 /// Tries to get attachment filename.
@@ -1021,7 +985,7 @@ fn get_attachment_filename(mail: &mailparse::ParsedMail) -> Result<Option<String
     // or `Content-Disposition: ... filename*0*=... filename*1*=... filename*2*=...`
     // or `Content-Disposition: ... filename=...`
 
-    let ct = mail.get_content_disposition()?;
+    let ct = mail.get_content_disposition();
 
     let desired_filename: Option<String> = ct
         .params
@@ -1398,7 +1362,7 @@ Disposition: manual-action/MDN-sent-automatically; displayed\n\
             Some("Chat: Message opened".to_string())
         );
 
-        assert_eq!(message.parts.len(), 0);
+        assert_eq!(message.parts.len(), 1);
         assert_eq!(message.reports.len(), 1);
     }
 
@@ -1478,7 +1442,7 @@ Disposition: manual-action/MDN-sent-automatically; displayed\n\
             Some("Chat: Message opened".to_string())
         );
 
-        assert_eq!(message.parts.len(), 0);
+        assert_eq!(message.parts.len(), 2);
         assert_eq!(message.reports.len(), 2);
     }
 
@@ -1525,7 +1489,7 @@ Additional-Message-IDs: <foo@example.com> <foo@example.net>\n\
             Some("Chat: Message opened".to_string())
         );
 
-        assert_eq!(message.parts.len(), 0);
+        assert_eq!(message.parts.len(), 1);
         assert_eq!(message.reports.len(), 1);
         assert_eq!(message.reports[0].original_message_id, "foo@example.org");
         assert_eq!(

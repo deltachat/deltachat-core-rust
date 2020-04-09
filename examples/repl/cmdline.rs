@@ -394,6 +394,7 @@ pub async fn cmdline(
                  providerinfo <addr>\n\
                  event <event-id to test>\n\
                  fileinfo <file>\n\
+                 estimatedeletion <seconds>\n\
                  emptyserver <flags> (1=MVBOX 2=INBOX)\n\
                  clear -- clear screen\n\
                  exit or quit\n\
@@ -1048,6 +1049,16 @@ pub async fn cmdline(
             } else {
                 bail!("Command failed.");
             }
+        }
+        "estimatedeletion" => {
+            ensure!(!arg1.is_empty(), "Argument <seconds> missing");
+            let seconds = arg1.parse()?;
+            let device_cnt = message::estimate_deletion_cnt(context, false, seconds)?;
+            let server_cnt = message::estimate_deletion_cnt(context, true, seconds)?;
+            println!(
+                "estimated count of messages older than {} seconds:\non device: {}\non server: {}",
+                seconds, device_cnt, server_cnt
+            );
         }
         "emptyserver" => {
             ensure!(!arg1.is_empty(), "Argument <flags> missing");

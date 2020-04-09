@@ -301,10 +301,7 @@ impl ChatId {
     /// Returns `true`, if message was deleted, `false` otherwise.
     async fn maybe_delete_draft(self, context: &Context) -> bool {
         match self.get_draft_msg_id(context).await {
-            Some(msg_id) => {
-                Message::delete_from_db(context, msg_id).await;
-                true
-            }
+            Some(msg_id) => msg_id.delete_from_db(context).await.is_ok(),
             None => false,
         }
     }
@@ -380,6 +377,26 @@ impl ChatId {
             )
             .await
             .unwrap_or_default() as usize
+    }
+
+    pub(crate) async fn get_param(self, context: &Context) -> Result<Params, Error> {
+        let res: Option<String> = context
+            .sql
+            .query_get_value_result("SELECT param FROM chats WHERE id=?", paramsv![self])
+            .await?;
+        Ok(res
+            .map(|s| s.parse().unwrap_or_default())
+            .unwrap_or_default())
+    }
+
+    // Returns true if chat is a saved messages chat.
+    pub async fn is_self_talk(self, context: &Context) -> Result<bool, Error> {
+        Ok(self.get_param(context).await?.exists(Param::Selftalk))
+    }
+
+    /// Returns true if chat is a device chat.
+    pub async fn is_device_talk(self, context: &Context) -> Result<bool, Error> {
+        Ok(self.get_param(context).await?.exists(Param::Devicetalk))
     }
 
     /// Bad evil escape hatch.
@@ -1518,6 +1535,18 @@ pub async fn get_chat_msgs(
     flags: u32,
     marker1before: Option<MsgId>,
 ) -> Vec<MsgId> {
+    match hide_device_expired_messages(context).await {
+        Err(err) => warn!(context, "Failed to delete expired messages: {}", err),
+        Ok(messages_deleted) => {
+            if messages_deleted {
+                context.call_cb(Event::MsgsChanged {
+                    msg_id: MsgId::new(0),
+                    chat_id: ChatId::new(0),
+                })
+            }
+        }
+    }
+
     let process_row =
         |row: &rusqlite::Row| Ok((row.get::<_, MsgId>("id")?, row.get::<_, i64>("timestamp")?));
     let process_rows = |rows: rusqlite::MappedRows<_>| {
@@ -1669,6 +1698,52 @@ pub async fn marknoticed_all_chats(context: &Context) -> Result<(), Error> {
     });
 
     Ok(())
+}
+
+/// Hides messages which are expired according to "delete_device_after" setting.
+///
+/// Returns true if any message is hidden, so event can be emitted. If nothing
+/// has been hidden, returns false.
+pub async fn hide_device_expired_messages(context: &Context) -> Result<bool, Error> {
+    if let Some(delete_device_after) = context.get_config_delete_device_after().await {
+        let threshold_timestamp = time() - delete_device_after;
+
+        let self_chat_id = lookup_by_contact_id(context, DC_CONTACT_ID_SELF)
+            .await
+            .unwrap_or_default()
+            .0;
+        let device_chat_id = lookup_by_contact_id(context, DC_CONTACT_ID_DEVICE)
+            .await
+            .unwrap_or_default()
+            .0;
+
+        // Hide expired messages
+        //
+        // Only update the rows that have to be updated, to avoid emitting
+        // unnecessary "chat modified" events.
+        let rows_modified = context
+            .sql
+            .execute(
+                "UPDATE msgs \
+             SET txt = 'DELETED', hidden = 1 \
+             WHERE timestamp < ? \
+             AND chat_id > ? \
+             AND chat_id != ? \
+             AND chat_id != ? \
+             AND NOT hidden",
+                paramsv![
+                    threshold_timestamp,
+                    DC_CHAT_ID_LAST_SPECIAL,
+                    self_chat_id,
+                    device_chat_id
+                ],
+            )
+            .await?;
+
+        Ok(rows_modified > 0)
+    } else {
+        Ok(false)
+    }
 }
 
 pub async fn get_chat_media(
@@ -2182,7 +2257,7 @@ pub async fn remove_contact_from_chat(
                         "Cannot remove contact from chat; self not in group.".into()
                     )
                 );
-            } else {
+            } else if remove_from_chat_contacts_table(context, chat_id, contact_id).await {
                 /* we should respect this - whatever we send to the group, it gets discarded anyway! */
                 if let Ok(contact) = Contact::get_by_id(context, contact_id).await {
                     if chat.is_promoted() {
@@ -2220,10 +2295,8 @@ pub async fn remove_contact_from_chat(
                         });
                     }
                 }
-                if remove_from_chat_contacts_table(context, chat_id, contact_id).await {
-                    context.call_cb(Event::ChatModified(chat_id));
-                    success = true;
-                }
+                context.call_cb(Event::ChatModified(chat_id));
+                success = true;
             }
         }
     }

@@ -89,12 +89,6 @@ pub enum Param {
     SetLongitude = b'n',
 
     /// For Jobs
-    ServerFolder = b'Z',
-
-    /// For Jobs
-    ServerUid = b'z',
-
-    /// For Jobs
     AlsoMove = b'M',
 
     /// For Jobs: space-separated list of message recipients

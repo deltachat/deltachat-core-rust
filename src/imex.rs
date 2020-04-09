@@ -792,7 +792,6 @@ mod tests {
         assert!(msg.contains("-----BEGIN PGP MESSAGE-----\r\n"));
         assert!(msg.contains("Passphrase-Format: numeric9x4\r\n"));
         assert!(msg.contains("Passphrase-Begin: he\n"));
-        assert!(msg.contains("==\n"));
         assert!(msg.contains("-----END PGP MESSAGE-----\n"));
     }
 

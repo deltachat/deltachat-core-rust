@@ -380,6 +380,14 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  * - `save_mime_headers` = 1=save mime headers
  *                    and make dc_get_mime_headers() work for subsequent calls,
  *                    0=do not save mime headers (default)
+ * - `delete_device_after` = 0=do not delete messages from device automatically (default),
+ *                    >=1=seconds, after which messages are deleted automatically from the device.
+ *                    Messages in the "saved messages" chat (see dc_chat_is_self_talk()) are skipped.
+ *                    Messages are deleted whether they were seen or not, the UI should clearly point that out.
+ * - `delete_server_after` = 0=do not delete messages from server automatically (default),
+ *                    >=1=seconds, after which messages are deleted automatically from the server.
+ *                    "Saved messages" are deleted from the server as well as
+ *                    emails matching the `show_emails` settings above, the UI should clearly point that out.
  *
  * If you want to retrieve a value, use dc_get_config().
  *
@@ -1012,6 +1020,21 @@ int             dc_get_msg_cnt               (dc_context_t* context, uint32_t ch
 int             dc_get_fresh_msg_cnt         (dc_context_t* context, uint32_t chat_id);
 
 
+
+/**
+ * Estimate the number of messages that will be deleted
+ * by the dc_set_config()-options `delete_device_after` or `delete_server_after`.
+ * This is typically used to show the estimated impact to the user before actually enabling ephemeral messages.
+ *
+ * @param context The context object as returned from dc_context_new().
+ * @param from_server 1=Estimate deletion count for server, 0=Estimate deletion count for device
+ * @param seconds Count messages older than the given number of seconds.
+ * @return Number of messages that are older than the given number of seconds.
+ *     This includes emails downloaded due to the `show_emails` option.
+ *     Messages in the "saved messages" folder are not counted as they will not be deleted automatically.
+ */
+int             dc_estimate_deletion_cnt    (dc_context_t* context, int from_server, int64_t seconds);
+
 /**
  * Returns the message IDs of all _fresh_ messages of any chat.
  * Typically used for implementing notification summaries.
@@ -1375,8 +1398,9 @@ char*           dc_get_mime_headers          (dc_context_t* context, uint32_t ms
  */
 void            dc_delete_msgs               (dc_context_t* context, const uint32_t* msg_ids, int msg_cnt);
 
-/**
+/*
  * Empty IMAP server folder: delete all messages.
+ * Deprecated, use dc_set_config() with the key "delete_server_after" instead.
  *
  * @memberof dc_context_t
  * @param context The context object as created by dc_context_new()
@@ -3843,28 +3867,8 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  */
 
 
-/**
- * @defgroup DC_EMPTY DC_EMPTY
- *
- * These constants configure emptying imap folders with dc_empty_server()
- *
- * @addtogroup DC_EMPTY
- * @{
- */
-
-/**
- * Clear all mvbox messages.
- */
-#define DC_EMPTY_MVBOX 0x01
-
-/**
- * Clear all INBOX messages.
- */
-#define DC_EMPTY_INBOX 0x02
-
-/**
- * @}
- */
+#define DC_EMPTY_MVBOX 0x01 // Deprecated, flag for dc_empty_server(): Clear all mvbox messages
+#define DC_EMPTY_INBOX 0x02 // Deprecated, flag for dc_empty_server(): Clear all INBOX messages
 
 
 /**

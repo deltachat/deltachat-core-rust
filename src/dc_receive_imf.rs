@@ -16,7 +16,7 @@ use crate::message::{self, MessageState, MessengerMessage, MsgId};
 use crate::mimeparser::*;
 use crate::param::*;
 use crate::peerstate::*;
-use crate::securejoin::{self, handle_securejoin_handshake};
+use crate::securejoin::{self, handle_securejoin_handshake, observe_securejoin_on_other_device};
 use crate::stock::StockMessage;
 use crate::{contact, location};
 
@@ -196,20 +196,27 @@ pub async fn dc_receive_imf(
         };
     }
 
-    // if we delete we don't need to try moving messages
-    if needs_delete_job && !created_db_entries.is_empty() {
-        job::add(
-            context,
-            Action::DeleteMsgOnImap,
-            created_db_entries[0].1.to_u32() as i32,
-            Params::new(),
-            0,
-        )
-        .await;
-    } else {
-        context
-            .do_heuristics_moves(server_folder.as_ref(), insert_msg_id)
-            .await;
+    // Get user-configured server deletion
+    let delete_server_after = context.get_config_delete_server_after().await;
+
+    if !created_db_entries.is_empty() {
+        if needs_delete_job || delete_server_after == Some(0) {
+            for db_entry in &created_db_entries {
+                job::add(
+                    context,
+                    Action::DeleteMsgOnImap,
+                    db_entry.1.to_u32() as i32,
+                    Params::new(),
+                    0,
+                )
+                .await;
+            }
+        } else {
+            // Move message if we don't delete it immediately.
+            context
+                .do_heuristics_moves(server_folder.as_ref(), insert_msg_id)
+                .await;
+        }
     }
 
     info!(
@@ -220,7 +227,7 @@ pub async fn dc_receive_imf(
     cleanup(context, &create_event_to_send, created_db_entries);
 
     mime_parser
-        .handle_reports(context, from_id, sent_timestamp, &server_folder, server_uid)
+        .handle_reports(context, from_id, sent_timestamp)
         .await;
 
     Ok(())
@@ -351,11 +358,9 @@ async fn add_parts(
         };
         to_id = DC_CONTACT_ID_SELF;
 
-        // handshake messages must be processed _before_ chats are created
-        // (eg. contacs may be marked as verified)
+        // handshake may mark contacts as verified and must be processed before chats are created
         if mime_parser.get(HeaderDef::SecureJoin).is_some() {
-            // avoid discarding by show_emails setting
-            msgrmsg = MessengerMessage::Yes;
+            msgrmsg = MessengerMessage::Yes; // avoid discarding by show_emails setting
             *chat_id = ChatId::new(0);
             allow_creation = true;
             match handle_securejoin_handshake(context, mime_parser, from_id).await {
@@ -369,8 +374,7 @@ async fn add_parts(
                     state = MessageState::InSeen;
                 }
                 Ok(securejoin::HandshakeMessage::Propagate) => {
-                    // Message will still be processed as "member
-                    // added" or similar system message.
+                    // process messages as "member added" normally
                 }
                 Err(err) => {
                     *hidden = true;
@@ -491,6 +495,27 @@ async fn add_parts(
         // We cannot recreate other states (read, error).
         state = MessageState::OutDelivered;
         to_id = to_ids.get_index(0).cloned().unwrap_or_default();
+
+        // handshake may mark contacts as verified and must be processed before chats are created
+        if mime_parser.get(HeaderDef::SecureJoin).is_some() {
+            msgrmsg = MessengerMessage::Yes; // avoid discarding by show_emails setting
+            *chat_id = ChatId::new(0);
+            allow_creation = true;
+            match observe_securejoin_on_other_device(context, mime_parser, to_id) {
+                Ok(securejoin::HandshakeMessage::Done)
+                | Ok(securejoin::HandshakeMessage::Ignore) => {
+                    *hidden = true;
+                }
+                Ok(securejoin::HandshakeMessage::Propagate) => {
+                    // process messages as "member added" normally
+                }
+                Err(err) => {
+                    *hidden = true;
+                    error!(context, "Error in Secure-Join watching: {}", err);
+                }
+            }
+        }
+
         if !to_ids.is_empty() {
             if chat_id.is_unset() {
                 let (new_chat_id, new_chat_id_blocked) = create_or_lookup_group(
@@ -604,6 +629,7 @@ async fn add_parts(
     let sent_timestamp = *sent_timestamp;
     let is_hidden = *hidden;
     let chat_id = *chat_id;
+    let is_mdn = !mime_parser.reports.is_empty();
 
     // TODO: can this clone be avoided?
     let rfc724_mid = rfc724_mid.to_string();
@@ -624,8 +650,11 @@ async fn add_parts(
          VALUES (?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?);",
                 )?;
 
-                if location_kml_is && icnt == 1 && (part.msg == "-location-" || part.msg.is_empty())
-                {
+                let is_location_kml = location_kml_is
+                    && icnt == 1
+                    && (part.msg == "-location-" || part.msg.is_empty());
+
+                if is_mdn || is_location_kml {
                     is_hidden = true;
                     if state == MessageState::InFresh {
                         state = MessageState::InNoticed;

@@ -153,8 +153,8 @@ pub(crate) fn create_keypair(
     keygen_type: KeyGenType,
 ) -> std::result::Result<KeyPair, PgpKeygenError> {
     let (secret_key_type, public_key_type) = match keygen_type {
-        KeyGenType::Rsa2048 | KeyGenType::Default => (PgpKeyType::Rsa(2048), PgpKeyType::Rsa(2048)),
-        KeyGenType::Ed25519 => (PgpKeyType::EdDSA, PgpKeyType::ECDH),
+        KeyGenType::Rsa2048 => (PgpKeyType::Rsa(2048), PgpKeyType::Rsa(2048)),
+        KeyGenType::Ed25519 | KeyGenType::Default => (PgpKeyType::EdDSA, PgpKeyType::ECDH),
     };
 
     let user_id = format!("<{}>", addr);
@@ -394,7 +394,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // is too expensive
     fn test_create_keypair() {
         let keypair0 = create_keypair(
             EmailAddress::new("foo@bar.de").unwrap(),

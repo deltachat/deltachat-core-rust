@@ -127,7 +127,7 @@ pub async fn try_decrypt(
 ) -> Result<(Option<Vec<u8>>, HashSet<String>)> {
     let from = mail
         .headers
-        .get_header_value(HeaderDef::From_)?
+        .get_header_value(HeaderDef::From_)
         .and_then(|from_addr| mailparse::addrparse(&from_addr).ok())
         .and_then(|from| from.extract_single_info())
         .map(|from| from.addr)
@@ -425,7 +425,6 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         }
 
         #[async_std::test]
-        #[ignore] // generating keys is expensive
         async fn test_generate() {
             let t = dummy_context().await;
             let addr = "alice@example.org";
@@ -437,7 +436,6 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         }
 
         #[async_std::test]
-        #[ignore]
         async fn test_generate_concurrent() {
             use std::sync::Arc;
 

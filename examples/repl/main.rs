@@ -207,8 +207,17 @@ const CONTACT_COMMANDS: [&str; 6] = [
     "delcontact",
     "cleanupcontacts",
 ];
-const MISC_COMMANDS: [&str; 9] = [
-    "getqr", "getbadqr", "checkqr", "event", "fileinfo", "clear", "exit", "quit", "help",
+const MISC_COMMANDS: [&str; 10] = [
+    "getqr",
+    "getbadqr",
+    "checkqr",
+    "event",
+    "fileinfo",
+    "clear",
+    "exit",
+    "quit",
+    "help",
+    "estimatedeletion",
 ];
 
 impl Hinter for DcHelper {

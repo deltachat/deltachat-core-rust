@@ -11,7 +11,7 @@ use rusqlite::{Connection, Error as SqlError, OpenFlags};
 use thread_local_object::ThreadLocal;
 
 use crate::chat::{update_device_icon, update_saved_messages_icon};
-use crate::constants::ShowEmails;
+use crate::constants::{ShowEmails, DC_CHAT_ID_TRASH};
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::param::*;
@@ -627,6 +627,13 @@ pub async fn housekeeping(context: &Context) {
                 err
             );
         }
+    }
+
+    if let Err(err) = prune_tombstones(context).await {
+        warn!(
+            context,
+            "Houskeeping: Cannot prune message tombstones: {}", err
+        );
     }
 
     info!(context, "Housekeeping done.",);
@@ -1322,6 +1329,19 @@ async fn open(
 
     info!(context, "Opened {:?}.", dbfile.as_ref(),);
 
+    Ok(())
+}
+
+async fn prune_tombstones(context: &Context) -> Result<()> {
+    context
+        .sql
+        .execute(
+            "DELETE FROM msgs \
+         WHERE (chat_id = ? OR hidden) \
+         AND server_uid = 0",
+            paramsv![DC_CHAT_ID_TRASH],
+        )
+        .await?;
     Ok(())
 }
 

@@ -1,5 +1,5 @@
 use crate::strum::AsStaticRef;
-use mailparse::{MailHeader, MailHeaderMap, MailParseError};
+use mailparse::{MailHeader, MailHeaderMap};
 
 #[derive(Debug, Display, Clone, PartialEq, Eq, EnumVariantNames, AsStaticStr)]
 #[strum(serialize_all = "kebab_case")]
@@ -52,11 +52,11 @@ impl HeaderDef {
 }
 
 pub trait HeaderDefMap {
-    fn get_header_value(&self, headerdef: HeaderDef) -> Result<Option<String>, MailParseError>;
+    fn get_header_value(&self, headerdef: HeaderDef) -> Option<String>;
 }
 
 impl HeaderDefMap for [MailHeader<'_>] {
-    fn get_header_value(&self, headerdef: HeaderDef) -> Result<Option<String>, MailParseError> {
+    fn get_header_value(&self, headerdef: HeaderDef) -> Option<String> {
         self.get_first_value(headerdef.get_headername())
     }
 }
@@ -79,18 +79,13 @@ mod tests {
         let (headers, _) =
             mailparse::parse_headers(b"fRoM: Bob\naUtoCryPt-SeTup-MessAge: v99").unwrap();
         assert_eq!(
-            headers
-                .get_header_value(HeaderDef::AutocryptSetupMessage)
-                .unwrap(),
+            headers.get_header_value(HeaderDef::AutocryptSetupMessage),
             Some("v99".to_string())
         );
         assert_eq!(
-            headers.get_header_value(HeaderDef::From_).unwrap(),
+            headers.get_header_value(HeaderDef::From_),
             Some("Bob".to_string())
         );
-        assert_eq!(
-            headers.get_header_value(HeaderDef::Autocrypt).unwrap(),
-            None
-        );
+        assert_eq!(headers.get_header_value(HeaderDef::Autocrypt), None);
     }
 }

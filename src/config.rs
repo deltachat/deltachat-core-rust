@@ -4,9 +4,12 @@ use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
 
 use crate::blob::BlobObject;
+use crate::chat::ChatId;
 use crate::constants::DC_VERSION_STR;
 use crate::context::Context;
 use crate::dc_tools::*;
+use crate::events::Event;
+use crate::message::MsgId;
 use crate::mimefactory::RECOMMENDED_FILE_SIZE;
 use crate::stock::StockMessage;
 
@@ -62,6 +65,25 @@ pub enum Config {
 
     #[strum(props(default = "0"))]
     KeyGenType,
+
+    /// Timer in seconds after which the message is deleted from the
+    /// server.
+    ///
+    /// Equals to 0 by default, which means the message is never
+    /// deleted.
+    ///
+    /// Value 1 is treated as "delete at once": messages are deleted
+    /// immediately, without moving to DeltaChat folder.
+    #[strum(props(default = "0"))]
+    DeleteServerAfter,
+
+    /// Timer in seconds after which the message is deleted from the
+    /// device.
+    ///
+    /// Equals to 0 by default, which means the message is never
+    /// deleted.
+    #[strum(props(default = "0"))]
+    DeleteDeviceAfter,
 
     SaveMimeHeaders,
     ConfiguredAddr,
@@ -127,6 +149,29 @@ impl Context {
         self.get_config_int(key).await != 0
     }
 
+    /// Gets configured "delete_server_after" value.
+    ///
+    /// `None` means never delete the message, `Some(0)` means delete
+    /// at once, `Some(x)` means delete after `x` seconds.
+    pub async fn get_config_delete_server_after(&self) -> Option<i64> {
+        match self.get_config_int(Config::DeleteServerAfter).await {
+            0 => None,
+            1 => Some(0),
+            x => Some(x as i64),
+        }
+    }
+
+    /// Gets configured "delete_device_after" value.
+    ///
+    /// `None` means never delete the message, `Some(x)` means delete
+    /// after `x` seconds.
+    pub async fn get_config_delete_device_after(&self) -> Option<i64> {
+        match self.get_config_int(Config::DeleteDeviceAfter).await {
+            0 => None,
+            x => Some(x as i64),
+        }
+    }
+
     /// Set the given config key.
     /// If `None` is passed as a value the value is cleared and set to the default if there is one.
     pub async fn set_config(&self, key: Config, value: Option<&str>) -> crate::sql::Result<()> {
@@ -173,6 +218,15 @@ impl Context {
                 };
 
                 self.sql.set_raw_config(self, key, val).await
+            }
+            Config::DeleteDeviceAfter => {
+                let ret = self.sql.set_raw_config(self, key, value).await;
+                // Force chatlist reload to delete old messages immediately.
+                self.call_cb(Event::MsgsChanged {
+                    msg_id: MsgId::new(0),
+                    chat_id: ChatId::new(0),
+                });
+                ret
             }
             _ => self.sql.set_raw_config(self, key, value).await,
         }

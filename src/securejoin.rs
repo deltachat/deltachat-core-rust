@@ -824,9 +824,42 @@ pub(crate) async fn handle_securejoin_handshake(
     }
 }
 
+/// observe_securejoin_on_other_device() must be called when a self-sent securejoin message is seen.
+/// currently, the message is only ignored, in the future,
+/// we may mark peers as verified accross devices:
+///
+/// in a multi-device-setup, there may be other devices that "see" the handshake messages.
+/// if the seen messages seen are self-sent messages encrypted+signed correctly with our key,
+/// we can make some conclusions of it:
+///
+/// - if we see the self-sent-message vg-member-added/vc-contact-confirm,
+///   we know that we're an inviter-observer.
+///   the inviting device has marked a peer as verified on vg-request-with-auth/vc-request-with-auth
+///   before sending vg-member-added/vc-contact-confirm - so, if we observe vg-member-added/vc-contact-confirm,
+///   we can mark the peer as verified as well.
+///
+/// - if we see the self-sent-message vg-member-added-received
+///   we know that we're an joiner-observer.
+///   the joining device has marked the peer as verified on vg-member-added/vc-contact-confirm
+///   before sending vg-member-added-received - so, if we observe vg-member-added-received,
+///   we can mark the peer as verified as well.
+///
+/// to make this work, (a) some messages must not be deleted,
+/// (b) we need a vc-contact-confirm-received message if bcc_self is set,
+/// (c) we should make sure, we do not only rely on the unencrypted To:-header for identifying the peer
+/// (in handle_securejoin_handshake() we have the oob information for that)
+pub(crate) fn observe_securejoin_on_other_device(
+    _context: &Context,
+    _mime_message: &MimeMessage,
+    _contact_id: u32,
+) -> Result<HandshakeMessage, HandshakeError> {
+    Ok(HandshakeMessage::Ignore)
+}
+
 async fn secure_connection_established(context: &Context, contact_chat_id: ChatId) {
     let contact_id: u32 = chat_id_2_contact_id(context, contact_chat_id).await;
     let contact = Contact::get_by_id(context, contact_id).await;
+
     let addr = if let Ok(ref contact) = contact {
         contact.get_addr()
     } else {
