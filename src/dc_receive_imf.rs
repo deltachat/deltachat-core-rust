@@ -1131,7 +1131,10 @@ fn create_or_lookup_mailinglist(
     let re = Regex::new(r"^(.*.)<(.*.)>$").unwrap();
     let (name, listid) = match re.captures(list_id_header) {
         Some(cap) => (cap[1].trim().to_string(), cap[2].trim().to_string()),
-        None => (list_id_header.trim().to_string(), list_id_header.trim().to_string()),
+        None => (
+            list_id_header.trim().to_string(),
+            list_id_header.trim().to_string(),
+        ),
     };
 
     match chat::get_chat_id_by_mailinglistid(context, &listid) {
@@ -1145,7 +1148,18 @@ fn create_or_lookup_mailinglist(
                 return Ok((ChatId::new(0), Blocked::Not));
             }
 
-            let chat_id = create_mailinglist_record(context, &listid, &name, create_blocked);
+            let chat_id = create_mailinglist_record(context, &listid, &name, create_blocked)
+                .unwrap_or_else(|e| {
+                    warn!(
+                        context,
+                        "Failed to create group '{}' for grpid={}: {}",
+                        &name,
+                        &listid,
+                        e.to_string()
+                    );
+                    ChatId::new(0)
+                });
+            println!("err: new chatid {:?}", chat_id);
             Ok((chat_id, create_blocked))
         }
     }
@@ -1318,32 +1332,14 @@ fn create_mailinglist_record(
     listid: impl AsRef<str>,
     name: impl AsRef<str>,
     create_blocked: Blocked,
-) -> ChatId {
-    if let Err(e) = sql::execute(
+) -> Result<ChatId> {
+    let chat_id = create_group_record(
         context,
-        &context.sql,
-        "INSERT INTO chats (type, name, grpid, blocked, created_timestamp) VALUES(?, ?, ?, ?, ?);",
-        params![
-            Chattype::MailingList,
-            name.as_ref(),
-            listid.as_ref(),
-            create_blocked,
-            time(),
-        ],
-    )
-    {
-        println!("{:?}", e);
-        warn!(
-            context,
-            "Failed to create mailinglist '{}' for listid={}",
-            name.as_ref(),
-            listid.as_ref()
-        );
-        return ChatId::new(0);
-    }
-    let row_id = sql::get_rowid(context, &context.sql, "chats", "grpid", listid.as_ref());
-    println!("row_id {}", row_id);
-    let chat_id = ChatId::new(row_id);
+        &listid,
+        &name,
+        create_blocked,
+        VerifiedStatus::Unverified,
+    );
     info!(
         context,
         "Created mailinglist '{}' listid={} as {}",
@@ -1351,7 +1347,12 @@ fn create_mailinglist_record(
         listid.as_ref(),
         chat_id
     );
-    chat_id
+    let mut chat = Chat::load_from_db(context, chat_id)?;
+
+    chat.param.set(Param::MailingList, "true");
+    chat.update_param(context)?;
+
+    Ok(chat_id)
 }
 
 fn create_adhoc_grp_id(context: &Context, member_ids: &[u32]) -> String {
@@ -1778,7 +1779,8 @@ mod tests {
         assert_eq!(chats.len(), 1);
         let chat_id = chat::create_by_msg_id(&t.ctx, chats.get_msg_id(0).unwrap()).unwrap();
         let chat = chat::Chat::load_from_db(&t.ctx, chat_id).unwrap();
-        assert_eq!(chat.typ, Chattype::MailingList);
+        assert!(chat.is_mailing_list());
+        assert_eq!(chat.can_send(), false);
         assert_eq!(chat.name, "deltachat/deltachat-core-rust");
         assert_eq!(chat::get_chat_contacts(&t.ctx, chat_id).len(), 0);
     }

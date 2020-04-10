@@ -126,7 +126,6 @@ pub enum Chattype {
     Single = 100,
     Group = 120,
     VerifiedGroup = 130,
-    MailingList = 140,
 }
 
 impl Default for Chattype {

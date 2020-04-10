@@ -574,9 +574,13 @@ impl Chat {
         self.param.exists(Param::Devicetalk)
     }
 
+    pub fn is_mailing_list(&self) -> bool {
+        self.param.exists(Param::MailingList)
+    }
+
     /// Returns true if user can send messages to this chat.
     pub fn can_send(&self) -> bool {
-        !self.id.is_special() && !self.is_device_talk()
+        !self.id.is_special() && !self.is_device_talk() && !self.is_mailing_list()
     }
 
     pub fn update_param(&mut self, context: &Context) -> Result<(), Error> {
