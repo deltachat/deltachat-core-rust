@@ -7,8 +7,6 @@
 #[macro_use]
 extern crate deltachat;
 #[macro_use]
-extern crate failure;
-#[macro_use]
 extern crate lazy_static;
 #[macro_use]
 extern crate rusqlite;
@@ -20,6 +18,7 @@ use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 
+use anyhow::{bail, Error};
 use deltachat::chat::ChatId;
 use deltachat::config;
 use deltachat::context::*;
@@ -370,10 +369,10 @@ impl Highlighter for DcHelper {
 
 impl Helper for DcHelper {}
 
-fn main_0(args: Vec<String>) -> Result<(), failure::Error> {
+fn main_0(args: Vec<String>) -> Result<(), Error> {
     if args.len() < 2 {
         println!("Error: Bad arguments, expected [db-name].");
-        return Err(format_err!("No db-name specified"));
+        bail!("No db-name specified");
     }
     let context = Context::new(
         Box::new(receive_event),
@@ -443,7 +442,7 @@ enum ExitResult {
     Exit,
 }
 
-fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult, failure::Error> {
+fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult, Error> {
     let mut args = line.splitn(2, ' ');
     let arg0 = args.next().unwrap_or_default();
     let arg1 = args.next().unwrap_or_default();
@@ -526,7 +525,7 @@ fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult, failu
     Ok(ExitResult::Continue)
 }
 
-pub fn main() -> Result<(), failure::Error> {
+pub fn main() -> Result<(), Error> {
     let _ = pretty_env_logger::try_init();
 
     let args: Vec<String> = std::env::args().collect();
