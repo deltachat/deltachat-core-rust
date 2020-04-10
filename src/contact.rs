@@ -13,7 +13,7 @@ use crate::constants::*;
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::e2ee;
-use crate::error::{Error, Result};
+use crate::error::{bail, ensure, format_err, Result};
 use crate::events::Event;
 use crate::key::*;
 use crate::login_param::LoginParam;
@@ -1120,10 +1120,9 @@ fn cat_fingerprint(
 impl Context {
     /// determine whether the specified addr maps to the/a self addr
     pub fn is_self_addr(&self, addr: &str) -> Result<bool> {
-        let self_addr = match self.get_config(Config::ConfiguredAddr) {
-            Some(s) => s,
-            None => return Err(Error::NotConfigured),
-        };
+        let self_addr = self
+            .get_config(Config::ConfiguredAddr)
+            .ok_or_else(|| format_err!("Not configured"))?;
 
         Ok(addr_cmp(self_addr, addr))
     }

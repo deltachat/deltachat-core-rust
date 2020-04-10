@@ -9,33 +9,7 @@ use crate::context::Context;
 use crate::login_param::LoginParam;
 
 use super::read_url::read_url;
-
-#[derive(Debug, Fail)]
-pub enum Error {
-    #[fail(display = "Invalid email address: {:?}", _0)]
-    InvalidEmailAddress(String),
-
-    #[fail(display = "XML error at position {}", position)]
-    InvalidXml {
-        position: usize,
-        #[cause]
-        error: quick_xml::Error,
-    },
-
-    #[fail(display = "Bad or incomplete autoconfig")]
-    IncompleteAutoconfig(LoginParam),
-
-    #[fail(display = "Failed to get URL {}", _0)]
-    ReadUrlError(#[cause] super::read_url::Error),
-}
-
-pub type Result<T> = std::result::Result<T, Error>;
-
-impl From<super::read_url::Error> for Error {
-    fn from(err: super::read_url::Error) -> Error {
-        Error::ReadUrlError(err)
-    }
-}
+use super::Error;
 
 #[derive(Debug)]
 struct MozAutoconfigure<'a> {
@@ -65,7 +39,7 @@ enum MozConfigTag {
     Username,
 }
 
-fn parse_xml(in_emailaddr: &str, xml_raw: &str) -> Result<LoginParam> {
+fn parse_xml(in_emailaddr: &str, xml_raw: &str) -> Result<LoginParam, Error> {
     let mut reader = quick_xml::Reader::from_str(xml_raw);
     reader.trim_text(true);
 
@@ -125,7 +99,7 @@ pub fn moz_autoconfigure(
     context: &Context,
     url: &str,
     param_in: &LoginParam,
-) -> Result<LoginParam> {
+) -> Result<LoginParam, Error> {
     let xml_raw = read_url(context, url)?;
 
     let res = parse_xml(&param_in.addr, &xml_raw);

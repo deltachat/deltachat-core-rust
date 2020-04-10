@@ -39,76 +39,46 @@ use session::Session;
 
 type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug, Fail)]
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[fail(display = "IMAP Connect without configured params")]
+    #[error("IMAP Connect without configured params")]
     ConnectWithoutConfigure,
 
-    #[fail(display = "IMAP Connection Failed params: {}", _0)]
+    #[error("IMAP Connection Failed params: {0}")]
     ConnectionFailed(String),
 
-    #[fail(display = "IMAP No Connection established")]
+    #[error("IMAP No Connection established")]
     NoConnection,
 
-    #[fail(display = "IMAP Could not get OAUTH token")]
+    #[error("IMAP Could not get OAUTH token")]
     OauthError,
 
-    #[fail(display = "IMAP Could not login as {}", _0)]
+    #[error("IMAP Could not login as {0}")]
     LoginFailed(String),
 
-    #[fail(display = "IMAP Could not fetch")]
-    FetchFailed(#[cause] async_imap::error::Error),
+    #[error("IMAP Could not fetch")]
+    FetchFailed(#[from] async_imap::error::Error),
 
-    #[fail(display = "IMAP operation attempted while it is torn down")]
+    #[error("IMAP operation attempted while it is torn down")]
     InTeardown,
 
-    #[fail(display = "IMAP operation attempted while it is torn down")]
-    SqlError(#[cause] crate::sql::Error),
+    #[error("IMAP operation attempted while it is torn down")]
+    SqlError(#[from] crate::sql::Error),
 
-    #[fail(display = "IMAP got error from elsewhere")]
-    WrappedError(#[cause] crate::error::Error),
+    #[error("IMAP got error from elsewhere")]
+    WrappedError(#[from] crate::error::Error),
 
-    #[fail(display = "IMAP select folder error")]
-    SelectFolderError(#[cause] select_folder::Error),
+    #[error("IMAP select folder error")]
+    SelectFolderError(#[from] select_folder::Error),
 
-    #[fail(display = "Mail parse error")]
-    MailParseError(#[cause] mailparse::MailParseError),
+    #[error("Mail parse error")]
+    MailParseError(#[from] mailparse::MailParseError),
 
-    #[fail(display = "No mailbox selected, folder: {:?}", _0)]
+    #[error("No mailbox selected, folder: {0}")]
     NoMailbox(String),
 
-    #[fail(display = "IMAP other error: {:?}", _0)]
+    #[error("IMAP other error: {0}")]
     Other(String),
-}
-
-impl From<crate::sql::Error> for Error {
-    fn from(err: crate::sql::Error) -> Error {
-        Error::SqlError(err)
-    }
-}
-
-impl From<crate::error::Error> for Error {
-    fn from(err: crate::error::Error) -> Error {
-        Error::WrappedError(err)
-    }
-}
-
-impl From<Error> for crate::error::Error {
-    fn from(err: Error) -> crate::error::Error {
-        crate::error::Error::Message(err.to_string())
-    }
-}
-
-impl From<select_folder::Error> for Error {
-    fn from(err: select_folder::Error) -> Error {
-        Error::SelectFolderError(err)
-    }
-}
-
-impl From<mailparse::MailParseError> for Error {
-    fn from(err: mailparse::MailParseError) -> Error {
-        Error::MailParseError(err)
-    }
 }
 
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq)]

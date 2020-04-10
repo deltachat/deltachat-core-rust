@@ -1,7 +1,7 @@
 use std::sync::{Arc, Condvar, Mutex};
 
 use crate::context::Context;
-use crate::error::{Error, Result};
+use crate::error::{format_err, Result};
 use crate::imap::Imap;
 
 #[derive(Debug)]
@@ -99,25 +99,21 @@ impl JobThread {
 
     async fn connect_and_fetch(&mut self, context: &Context) -> Result<()> {
         let prefix = format!("{}-fetch", self.name);
-        match self.imap.connect_configured(context) {
-            Ok(()) => {
-                if let Some(watch_folder) = self.get_watch_folder(context) {
-                    let start = std::time::Instant::now();
-                    info!(context, "{} started...", prefix);
-                    let res = self
-                        .imap
-                        .fetch(context, &watch_folder)
-                        .await
-                        .map_err(Into::into);
-                    let elapsed = start.elapsed().as_millis();
-                    info!(context, "{} done in {:.3} ms.", prefix, elapsed);
+        self.imap.connect_configured(context)?;
+        if let Some(watch_folder) = self.get_watch_folder(context) {
+            let start = std::time::Instant::now();
+            info!(context, "{} started...", prefix);
+            let res = self
+                .imap
+                .fetch(context, &watch_folder)
+                .await
+                .map_err(Into::into);
+            let elapsed = start.elapsed().as_millis();
+            info!(context, "{} done in {:.3} ms.", prefix, elapsed);
 
-                    res
-                } else {
-                    Err(Error::WatchFolderNotFound("not-set".to_string()))
-                }
-            }
-            Err(err) => Err(crate::error::Error::Message(err.to_string())),
+            res
+        } else {
+            Err(format_err!("WatchFolder not found: not-set"))
         }
     }
 

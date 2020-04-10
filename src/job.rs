@@ -19,7 +19,7 @@ use crate::constants::*;
 use crate::contact::Contact;
 use crate::context::{Context, PerformJobsNeeded};
 use crate::dc_tools::*;
-use crate::error::{Error, Result};
+use crate::error::{bail, ensure, format_err, Error, Result};
 use crate::events::Event;
 use crate::imap::*;
 use crate::imex::*;
@@ -227,7 +227,7 @@ impl Job {
                 // Local error, job is invalid, do not retry.
                 smtp.disconnect();
                 warn!(context, "SMTP job is invalid: {}", err);
-                Status::Finished(Err(Error::SmtpError(err)))
+                Status::Finished(Err(err.into()))
             }
             Err(crate::smtp::send::Error::NoTransport) => {
                 // Should never happen.

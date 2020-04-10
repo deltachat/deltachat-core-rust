@@ -15,7 +15,7 @@ use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
 use crate::dc_tools::*;
-use crate::error::Error;
+use crate::error::{bail, ensure, format_err, Error};
 use crate::events::Event;
 use crate::job::*;
 use crate::message::{self, InvalidMsgId, Message, MessageState, MsgId};

@@ -18,24 +18,12 @@ pub use crate::pgp::KeyPair;
 pub use pgp::composed::{SignedPublicKey, SignedSecretKey};
 
 /// Error type for deltachat key handling.
-#[derive(Fail, Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[fail(display = "Could not decode base64")]
-    Base64Decode(#[cause] base64::DecodeError, failure::Backtrace),
-    #[fail(display = "rPGP error: {}", _0)]
-    PgpError(#[cause] pgp::errors::Error, failure::Backtrace),
-}
-
-impl From<base64::DecodeError> for Error {
-    fn from(err: base64::DecodeError) -> Error {
-        Error::Base64Decode(err, failure::Backtrace::new())
-    }
-}
-
-impl From<pgp::errors::Error> for Error {
-    fn from(err: pgp::errors::Error) -> Error {
-        Error::PgpError(err, failure::Backtrace::new())
-    }
+    #[error("Could not decode base64")]
+    Base64Decode(#[from] base64::DecodeError),
+    #[error("rPGP error: {0}")]
+    PgpError(#[from] pgp::errors::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -316,21 +304,19 @@ pub enum KeyPairUse {
 }
 
 /// Error saving a keypair to the database.
-#[derive(Fail, Debug)]
-#[fail(display = "SaveKeyError: {}", message)]
+#[derive(Debug, thiserror::Error)]
+#[error("SaveKeyError: {message}")]
 pub struct SaveKeyError {
     message: String,
-    #[cause]
-    cause: failure::Error,
-    backtrace: failure::Backtrace,
+    #[source]
+    cause: anyhow::Error,
 }
 
 impl SaveKeyError {
-    fn new(message: impl Into<String>, cause: impl Into<failure::Error>) -> Self {
+    fn new(message: impl Into<String>, cause: impl Into<anyhow::Error>) -> Self {
         Self {
             message: message.into(),
             cause: cause.into(),
-            backtrace: failure::Backtrace::new(),
         }
     }
 }

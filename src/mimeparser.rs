@@ -1,11 +1,11 @@
 use std::collections::{HashMap, HashSet};
 
+use anyhow::Context as _;
 use deltachat_derive::{FromSql, ToSql};
 use lettre_email::mime::{self, Mime};
 use mailparse::{DispositionType, MailAddr, MailHeaderMap};
 
 use crate::aheader::Aheader;
-use crate::bail;
 use crate::blob::BlobObject;
 use crate::constants::Viewtype;
 use crate::contact::*;
@@ -13,7 +13,7 @@ use crate::context::Context;
 use crate::dc_tools::*;
 use crate::dehtml::dehtml;
 use crate::e2ee;
-use crate::error::Result;
+use crate::error::{bail, Result};
 use crate::events::Event;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::location;
@@ -884,8 +884,7 @@ pub(crate) struct Report {
 }
 
 pub(crate) fn parse_message_id(value: &str) -> crate::error::Result<String> {
-    let ids = mailparse::msgidparse(value)
-        .map_err(|err| format_err!("failed to parse message id {:?}", err))?;
+    let ids = mailparse::msgidparse(value).context("failed to parse message id")?;
 
     if let Some(id) = ids.first() {
         Ok(id.to_string())

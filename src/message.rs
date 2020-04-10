@@ -3,7 +3,6 @@
 use std::path::{Path, PathBuf};
 
 use deltachat_derive::{FromSql, ToSql};
-use failure::Fail;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 
@@ -12,7 +11,7 @@ use crate::constants::*;
 use crate::contact::*;
 use crate::context::*;
 use crate::dc_tools::*;
-use crate::error::Error;
+use crate::error::{ensure, Error};
 use crate::events::Event;
 use crate::job::*;
 use crate::lot::{Lot, LotState, Meaning};
@@ -170,7 +169,7 @@ impl rusqlite::types::ToSql for MsgId {
     fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
         if self.0 <= DC_MSG_ID_LAST_SPECIAL {
             return Err(rusqlite::Error::ToSqlConversionFailure(Box::new(
-                InvalidMsgId.compat(),
+                InvalidMsgId,
             )));
         }
         let val = rusqlite::types::Value::Integer(self.0 as i64);
@@ -198,8 +197,8 @@ impl rusqlite::types::FromSql for MsgId {
 /// This usually occurs when trying to use a message ID of
 /// [DC_MSG_ID_LAST_SPECIAL] or below in a situation where this is not
 /// possible.
-#[derive(Debug, Fail)]
-#[fail(display = "Invalid Message ID.")]
+#[derive(Debug, thiserror::Error)]
+#[error("Invalid Message ID.")]
 pub struct InvalidMsgId;
 
 #[derive(

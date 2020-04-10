@@ -120,17 +120,17 @@ impl ContextWrapper {
     /// Unlock the context and execute a closure with it.
     ///
     /// This is like [ContextWrapper::with_inner] but uses
-    /// [failure::Error] as error type.  This allows you to write a
+    /// [anyhow::Error] as error type.  This allows you to write a
     /// closure which could produce many errors, use the `?` operator
     /// to return them and handle them all as the return of this call.
-    fn try_inner<T, F>(&self, ctxfn: F) -> Result<T, failure::Error>
+    fn try_inner<T, F>(&self, ctxfn: F) -> Result<T, anyhow::Error>
     where
-        F: FnOnce(&Context) -> Result<T, failure::Error>,
+        F: FnOnce(&Context) -> Result<T, anyhow::Error>,
     {
         let guard = self.inner.read().unwrap();
         match guard.as_ref() {
             Some(ref ctx) => ctxfn(ctx),
-            None => Err(failure::err_msg("context not open")),
+            None => Err(anyhow::format_err!("context not open")),
         }
     }
 

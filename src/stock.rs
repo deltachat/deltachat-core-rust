@@ -10,7 +10,7 @@ use crate::chat;
 use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
 use crate::contact::*;
 use crate::context::Context;
-use crate::error::Error;
+use crate::error::{bail, Error};
 use crate::message::Message;
 use crate::param::Param;
 use crate::stock::StockMessage::{DeviceMessagesHint, WelcomeMessage};

@@ -12,7 +12,7 @@ use chrono::{Local, TimeZone};
 use rand::{thread_rng, Rng};
 
 use crate::context::Context;
-use crate::error::Error;
+use crate::error::{bail, ensure, Error};
 use crate::events::Event;
 
 pub(crate) fn dc_exactly_one_bit_set(v: i32) -> bool {

@@ -200,15 +200,13 @@ fn load_or_generate_self_public_key(
     self_addr: impl AsRef<str>,
 ) -> Result<SignedPublicKey> {
     if let Some(key) = Key::from_self_public(context, &self_addr, &context.sql) {
-        return SignedPublicKey::try_from(key)
-            .map_err(|_| Error::Message("Not a public key".into()));
+        return SignedPublicKey::try_from(key).map_err(|_| format_err!("Not a public key"));
     }
     let _guard = context.generating_key_mutex.lock().unwrap();
 
     // Check again in case the key was generated while we were waiting for the lock.
     if let Some(key) = Key::from_self_public(context, &self_addr, &context.sql) {
-        return SignedPublicKey::try_from(key)
-            .map_err(|_| Error::Message("Not a public key".into()));
+        return SignedPublicKey::try_from(key).map_err(|_| format_err!("Not a public key"));
     }
 
     let start = std::time::Instant::now();
