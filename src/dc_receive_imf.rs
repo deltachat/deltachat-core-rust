@@ -1792,10 +1792,12 @@ mod tests {
         assert_eq!(chat.name, "deltachat/deltachat-core-rust");
         assert_eq!(chat::get_chat_contacts(&t.ctx, chat_id).len(), 0);
 
+
         dc_receive_imf(&t.ctx, MAILINGLIST2, "INBOX", 1, false).unwrap();
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
         assert_eq!(chats.len(), 1);
+        assert!(Contact::get_all(&t.ctx, 0, None as Option<String>).unwrap().is_empty());
     }
 
     #[test]
