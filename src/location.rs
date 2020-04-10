@@ -9,7 +9,7 @@ use crate::config::Config;
 use crate::constants::*;
 use crate::context::*;
 use crate::dc_tools::*;
-use crate::error::Error;
+use crate::error::{ensure, Error};
 use crate::events::Event;
 use crate::job::{self, job_action_exists, job_add, Job};
 use crate::message::{Message, MsgId};

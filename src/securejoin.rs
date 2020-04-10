@@ -9,7 +9,7 @@ use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
 use crate::e2ee::*;
-use crate::error::Error;
+use crate::error::{bail, Error};
 use crate::events::Event;
 use crate::headerdef::HeaderDef;
 use crate::key::{dc_normalize_fingerprint, Key};
@@ -343,24 +343,21 @@ fn fingerprint_equals_sender(
     }
     false
 }
-#[derive(Fail, Debug)]
+#[derive(Debug, thiserror::Error)]
 pub(crate) enum HandshakeError {
-    #[fail(display = "Can not be called with special contact ID")]
+    #[error("Can not be called with special contact ID")]
     SpecialContactId,
-    #[fail(display = "Not a Secure-Join message")]
+    #[error("Not a Secure-Join message")]
     NotSecureJoinMsg,
-    #[fail(
-        display = "Failed to look up or create chat for contact #{}",
-        contact_id
-    )]
+    #[error("Failed to look up or create chat for contact #{contact_id}")]
     NoChat {
         contact_id: u32,
-        #[cause]
+        #[source]
         cause: Error,
     },
-    #[fail(display = "Chat for group {} not found", group)]
+    #[error("Chat for group {group} not found")]
     ChatNotFound { group: String },
-    #[fail(display = "No configured self address found")]
+    #[error("No configured self address found")]
     NoSelfAddr,
 }
 

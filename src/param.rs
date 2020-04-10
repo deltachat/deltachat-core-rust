@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::blob::{BlobError, BlobObject};
 use crate::context::Context;
-use crate::error;
+use crate::error::{self, bail, ensure};
 use crate::message::MsgId;
 use crate::mimeparser::SystemMessage;
 

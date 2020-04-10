@@ -9,7 +9,7 @@ use crate::contact::*;
 use crate::context::{get_version_str, Context};
 use crate::dc_tools::*;
 use crate::e2ee::*;
-use crate::error::Error;
+use crate::error::{bail, ensure, format_err, Error};
 use crate::location;
 use crate::message::{self, Message};
 use crate::mimeparser::SystemMessage;

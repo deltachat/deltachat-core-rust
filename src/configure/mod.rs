@@ -12,6 +12,7 @@ use crate::config::Config;
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_tools::*;
+use crate::error::format_err;
 use crate::job::{self, job_add, job_kill_action};
 use crate::login_param::{CertificateChecks, LoginParam};
 use crate::oauth2::*;
@@ -649,6 +650,28 @@ fn try_smtp_one_param(context: &Context, param: &LoginParam) -> Option<bool> {
             }
         }
     }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("Invalid email address: {0:?}")]
+    InvalidEmailAddress(String),
+
+    #[error("XML error at position {position}")]
+    InvalidXml {
+        position: usize,
+        #[source]
+        error: quick_xml::Error,
+    },
+
+    #[error("Bad or incomplete autoconfig")]
+    IncompleteAutoconfig(LoginParam),
+
+    #[error("Failed to get URL")]
+    ReadUrlError(#[from] self::read_url::Error),
+
+    #[error("Number of redirection is exceeded")]
+    RedirectionError,
 }
 
 #[cfg(test)]

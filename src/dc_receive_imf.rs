@@ -9,7 +9,7 @@ use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
 use crate::dc_tools::*;
-use crate::error::Result;
+use crate::error::{bail, ensure, Result};
 use crate::events::Event;
 use crate::headerdef::HeaderDef;
 use crate::job::*;

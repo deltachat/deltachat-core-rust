@@ -5,7 +5,7 @@ use crate::chat::*;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::*;
-use crate::error::Result;
+use crate::error::{ensure, Result};
 use crate::lot::Lot;
 use crate::message::{Message, MessageState, MsgId};
 use crate::stock::StockMessage;

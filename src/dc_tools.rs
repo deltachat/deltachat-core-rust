@@ -12,7 +12,7 @@ use chrono::{Local, TimeZone};
 use rand::{thread_rng, Rng};
 
 use crate::context::Context;
-use crate::error::Error;
+use crate::error::{bail, ensure, format_err, Error};
 use crate::events::Event;
 
 pub(crate) fn dc_exactly_one_bit_set(v: i32) -> bool {
@@ -231,7 +231,7 @@ pub fn dc_get_filesuffix_lc(path_filename: impl AsRef<str>) -> Option<String> {
 
 /// Returns the `(width, height)` of the given image buffer.
 pub fn dc_get_filemeta(buf: &[u8]) -> Result<(u32, u32), Error> {
-    let meta = image_meta::load_from_buf(buf)?;
+    let meta = image_meta::load_from_buf(buf).map_err(|err| format_err!(err))?;
 
     Ok((meta.dimensions.width, meta.dimensions.height))
 }

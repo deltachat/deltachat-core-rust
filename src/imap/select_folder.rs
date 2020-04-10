@@ -4,21 +4,21 @@ use crate::context::Context;
 
 type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug, Fail)]
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[fail(display = "IMAP Could not obtain imap-session object.")]
+    #[error("IMAP Could not obtain imap-session object.")]
     NoSession,
 
-    #[fail(display = "IMAP Connection Lost or no connection established")]
+    #[error("IMAP Connection Lost or no connection established")]
     ConnectionLost,
 
-    #[fail(display = "IMAP Folder name invalid: {:?}", _0)]
+    #[error("IMAP Folder name invalid: {0}")]
     BadFolderName(String),
 
-    #[fail(display = "IMAP close/expunge failed: {}", _0)]
-    CloseExpungeFailed(#[cause] async_imap::error::Error),
+    #[error("IMAP close/expunge failed")]
+    CloseExpungeFailed(#[from] async_imap::error::Error),
 
-    #[fail(display = "IMAP other error: {:?}", _0)]
+    #[error("IMAP other error: {0}")]
     Other(String),
 }
 

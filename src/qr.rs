@@ -2,20 +2,20 @@
 
 use lazy_static::lazy_static;
 use percent_encoding::percent_decode_str;
+use reqwest::Url;
+use serde::Deserialize;
 
 use crate::chat;
 use crate::config::*;
 use crate::constants::Blocked;
 use crate::contact::*;
 use crate::context::Context;
-use crate::error::Error;
+use crate::error::{bail, ensure, format_err, Error};
 use crate::key::dc_format_fingerprint;
 use crate::key::dc_normalize_fingerprint;
 use crate::lot::{Lot, LotState};
 use crate::param::*;
 use crate::peerstate::*;
-use reqwest::Url;
-use serde::Deserialize;
 
 const OPENPGP4FPR_SCHEME: &str = "OPENPGP4FPR:"; // yes: uppercase
 const DCACCOUNT_SCHEME: &str = "DCACCOUNT:";
@@ -221,27 +221,20 @@ pub fn set_config_from_qr(context: &Context, qr: &str) -> Result<(), Error> {
 
     let response = reqwest::blocking::Client::new().post(url_str).send();
     if response.is_err() {
-        return Err(format_err!(
-            "Cannot create account, request to {} failed",
-            url_str
-        ));
+        bail!("Cannot create account, request to {} failed", url_str);
     }
     let response = response.unwrap();
     if !response.status().is_success() {
-        return Err(format_err!(
-            "Request to {} unsuccessful: {:?}",
-            url_str,
-            response
-        ));
+        bail!("Request to {} unsuccessful: {:?}", url_str, response);
     }
 
     let parsed: reqwest::Result<CreateAccountResponse> = response.json();
     if parsed.is_err() {
-        return Err(format_err!(
+        bail!(
             "Failed to parse JSON response from {}: error: {:?}",
             url_str,
             parsed
-        ));
+        );
     }
     println!("response: {:?}", &parsed);
     let parsed = parsed.unwrap();
@@ -289,7 +282,6 @@ fn decode_smtp(context: &Context, qr: &str) -> Lot {
         Ok(addr) => addr,
         Err(err) => return err.into(),
     };
-
     let name = "".to_string();
     Lot::from_address(context, name, addr)
 }

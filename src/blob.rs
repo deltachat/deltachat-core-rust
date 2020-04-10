@@ -6,12 +6,12 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use self::image::GenericImageView;
+use image::GenericImageView;
+use thiserror::Error;
+
 use crate::constants::AVATAR_SIZE;
 use crate::context::Context;
 use crate::events::Event;
-
-extern crate image;
 
 /// Represents a file in the blob directory.
 ///
@@ -56,7 +56,6 @@ impl<'a> BlobObject<'a> {
                 blobdir: blobdir.to_path_buf(),
                 blobname: name.clone(),
                 cause: err,
-                backtrace: failure::Backtrace::new(),
             })?;
         let blob = BlobObject {
             blobdir,
@@ -84,7 +83,6 @@ impl<'a> BlobObject<'a> {
                             blobdir: dir.to_path_buf(),
                             blobname: name,
                             cause: err,
-                            backtrace: failure::Backtrace::new(),
                         });
                     } else {
                         name = format!("{}-{}{}", stem, rand::random::<u32>(), ext);
@@ -97,7 +95,6 @@ impl<'a> BlobObject<'a> {
             blobdir: dir.to_path_buf(),
             blobname: name,
             cause: std::io::Error::new(std::io::ErrorKind::Other, "supposedly unreachable"),
-            backtrace: failure::Backtrace::new(),
         })
     }
 
@@ -122,7 +119,6 @@ impl<'a> BlobObject<'a> {
             blobname: String::from(""),
             src: src.as_ref().to_path_buf(),
             cause: err,
-            backtrace: failure::Backtrace::new(),
         })?;
         let (stem, ext) = BlobObject::sanitise_name(&src.as_ref().to_string_lossy());
         let (name, mut dst_file) = BlobObject::create_new_file(context.get_blobdir(), &stem, &ext)?;
@@ -138,7 +134,6 @@ impl<'a> BlobObject<'a> {
                 blobname: name_for_err,
                 src: src.as_ref().to_path_buf(),
                 cause: err,
-                backtrace: failure::Backtrace::new(),
             }
         })?;
         let blob = BlobObject {
@@ -198,17 +193,14 @@ impl<'a> BlobObject<'a> {
             .map_err(|_| BlobError::WrongBlobdir {
                 blobdir: context.get_blobdir().to_path_buf(),
                 src: path.as_ref().to_path_buf(),
-                backtrace: failure::Backtrace::new(),
             })?;
         if !BlobObject::is_acceptible_blob_name(&rel_path) {
             return Err(BlobError::WrongName {
                 blobname: path.as_ref().to_path_buf(),
-                backtrace: failure::Backtrace::new(),
             });
         }
         let name = rel_path.to_str().ok_or_else(|| BlobError::WrongName {
             blobname: path.as_ref().to_path_buf(),
-            backtrace: failure::Backtrace::new(),
         })?;
         BlobObject::from_name(context, name.to_string())
     }
@@ -236,7 +228,6 @@ impl<'a> BlobObject<'a> {
         if !BlobObject::is_acceptible_blob_name(&name) {
             return Err(BlobError::WrongName {
                 blobname: PathBuf::from(name),
-                backtrace: failure::Backtrace::new(),
             });
         }
         Ok(BlobObject {
@@ -359,7 +350,6 @@ impl<'a> BlobObject<'a> {
             blobdir: context.get_blobdir().to_path_buf(),
             blobname: blob_abs.to_str().unwrap_or_default().to_string(),
             cause: err,
-            backtrace: failure::Backtrace::new(),
         })?;
 
         if img.width() <= AVATAR_SIZE && img.height() <= AVATAR_SIZE {
@@ -372,7 +362,6 @@ impl<'a> BlobObject<'a> {
             blobdir: context.get_blobdir().to_path_buf(),
             blobname: blob_abs.to_str().unwrap_or_default().to_string(),
             cause: err,
-            backtrace: failure::Backtrace::new(),
         })?;
 
         Ok(())
@@ -386,98 +375,41 @@ impl<'a> fmt::Display for BlobObject<'a> {
 }
 
 /// Errors for the [BlobObject].
-#[derive(Fail, Debug)]
+#[derive(Debug, Error)]
 pub enum BlobError {
+    #[error("Failed to create blob {blobname} in {}", .blobdir.display())]
     CreateFailure {
         blobdir: PathBuf,
         blobname: String,
-        #[cause]
+        #[source]
         cause: std::io::Error,
-        backtrace: failure::Backtrace,
     },
+    #[error("Failed to write data to blob {blobname} in {}", .blobdir.display())]
     WriteFailure {
         blobdir: PathBuf,
         blobname: String,
-        #[cause]
+        #[source]
         cause: std::io::Error,
-        backtrace: failure::Backtrace,
     },
+    #[error("Failed to copy data from {} to blob {blobname} in {}", .src.display(), .blobdir.display())]
     CopyFailure {
         blobdir: PathBuf,
         blobname: String,
         src: PathBuf,
-        #[cause]
+        #[source]
         cause: std::io::Error,
-        backtrace: failure::Backtrace,
     },
+    #[error("Failed to recode to blob {blobname} in {}", .blobdir.display())]
     RecodeFailure {
         blobdir: PathBuf,
         blobname: String,
-        #[cause]
+        #[source]
         cause: image::ImageError,
-        backtrace: failure::Backtrace,
     },
-    WrongBlobdir {
-        blobdir: PathBuf,
-        src: PathBuf,
-        backtrace: failure::Backtrace,
-    },
-    WrongName {
-        blobname: PathBuf,
-        backtrace: failure::Backtrace,
-    },
-}
-
-// Implementing Display is done by hand because the failure
-// #[fail(display = "...")] syntax does not allow using
-// `blobdir.display()`.
-impl fmt::Display for BlobError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // Match on the data rather than kind, they are equivalent for
-        // identifying purposes but contain the actual data we need.
-        match &self {
-            BlobError::CreateFailure {
-                blobdir, blobname, ..
-            } => write!(
-                f,
-                "Failed to create blob {} in {}",
-                blobname,
-                blobdir.display()
-            ),
-            BlobError::WriteFailure {
-                blobdir, blobname, ..
-            } => write!(
-                f,
-                "Failed to write data to blob {} in {}",
-                blobname,
-                blobdir.display()
-            ),
-            BlobError::CopyFailure {
-                blobdir,
-                blobname,
-                src,
-                ..
-            } => write!(
-                f,
-                "Failed to copy data from {} to blob {} in {}",
-                src.display(),
-                blobname,
-                blobdir.display(),
-            ),
-            BlobError::RecodeFailure {
-                blobdir, blobname, ..
-            } => write!(f, "Failed to recode {} in {}", blobname, blobdir.display(),),
-            BlobError::WrongBlobdir { blobdir, src, .. } => write!(
-                f,
-                "File path {} is not in blobdir {}",
-                src.display(),
-                blobdir.display(),
-            ),
-            BlobError::WrongName { blobname, .. } => {
-                write!(f, "Blob has a bad name: {}", blobname.display(),)
-            }
-        }
-    }
+    #[error("File path {} is not in {}", .src.display(), .blobdir.display())]
+    WrongBlobdir { blobdir: PathBuf, src: PathBuf },
+    #[error("Blob has a badname {}", .blobname.display())]
+    WrongName { blobname: PathBuf },
 }
 
 #[cfg(test)]
