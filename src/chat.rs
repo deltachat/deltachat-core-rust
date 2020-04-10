@@ -2486,7 +2486,6 @@ pub(crate) fn get_chat_id_by_mailinglistid(
     )
 }
 
-
 /// Adds a message to device chat.
 ///
 /// Optional `label` can be provided to ensure that message is added only once.
