@@ -523,7 +523,7 @@ fn open(
                     dbfile.as_ref(),
                 );
                 // cannot create the tables - maybe we cannot write?
-                return Err(Error::SqlFailedToOpen.into());
+                return Err(Error::SqlFailedToOpen);
             } else {
                 sql.set_raw_config_int(context, "dbversion", 0)?;
             }
