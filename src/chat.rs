@@ -629,6 +629,10 @@ impl Chat {
                 .unwrap_or_else(|| "Err".into());
         }
 
+        if self.typ == Chattype::Group && self.is_mailing_list() {
+            return "".to_string();
+        }
+
         if self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup {
             if self.id.is_deaddrop() {
                 return context.stock_str(StockMessage::DeadDrop).into();
