@@ -1159,7 +1159,6 @@ fn create_or_lookup_mailinglist(
                     );
                     ChatId::new(0)
                 });
-            println!("err: new chatid {:?}", chat_id);
             Ok((chat_id, create_blocked))
         }
     }
@@ -1767,12 +1766,21 @@ mod tests {
     \n\
     hello\n";
 
+    static MAILINGLIST2: &[u8] = b"From: Github <notifications@github.com>\n\
+    To: deltachat/deltachat-core-rust <deltachat-core-rust@noreply.github.com>\n\
+    Subject: [deltachat/deltachat-core-rust] PR run failed\n\
+    Message-ID: <3334@example.org>\n\
+    List-ID: deltachat/deltachat-core-rust <deltachat-core-rust.deltachat.github.com>\n\
+    Precedence: list\n\
+    Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+    \n\
+    hello back\n";
+
     #[test]
     fn test_mailing_list() {
-        println!("testing");
-
         let t = configured_offline_context();
         t.ctx.set_config(Config::ShowEmails, Some("2")).unwrap();
+
         dc_receive_imf(&t.ctx, MAILINGLIST, "INBOX", 1, false).unwrap();
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
@@ -1783,6 +1791,11 @@ mod tests {
         assert_eq!(chat.can_send(), false);
         assert_eq!(chat.name, "deltachat/deltachat-core-rust");
         assert_eq!(chat::get_chat_contacts(&t.ctx, chat_id).len(), 0);
+
+        dc_receive_imf(&t.ctx, MAILINGLIST2, "INBOX", 1, false).unwrap();
+
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        assert_eq!(chats.len(), 1);
     }
 
     #[test]
