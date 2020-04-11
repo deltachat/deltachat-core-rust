@@ -190,6 +190,30 @@ impl Sql {
         self.with_conn(|conn| conn.query_row(sql.as_ref(), params, f).map_err(Into::into))
     }
 
+    /// Execute a query which is expected to return zero or one row.
+    pub fn query_row_optional<T, P, F>(
+        &self,
+        sql: impl AsRef<str>,
+        params: P,
+        f: F,
+    ) -> Result<Option<T>>
+    where
+        P: IntoIterator,
+        P::Item: rusqlite::ToSql,
+        F: FnOnce(&rusqlite::Row) -> rusqlite::Result<T>,
+    {
+        match self.query_row(sql, params, f) {
+            Ok(res) => Ok(Some(res)),
+            Err(Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => Ok(None),
+            Err(Error::Sql(rusqlite::Error::InvalidColumnType(
+                _,
+                _,
+                rusqlite::types::Type::Null,
+            ))) => Ok(None),
+            Err(err) => Err(err),
+        }
+    }
+
     pub fn table_exists(&self, name: impl AsRef<str>) -> bool {
         self.with_conn(|conn| table_exists(conn, name))
             .unwrap_or_default()
@@ -204,16 +228,7 @@ impl Sql {
         P::Item: rusqlite::ToSql,
         T: rusqlite::types::FromSql,
     {
-        match self.query_row(query, params, |row| row.get::<_, T>(0)) {
-            Ok(res) => Ok(Some(res)),
-            Err(Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => Ok(None),
-            Err(Error::Sql(rusqlite::Error::InvalidColumnType(
-                _,
-                _,
-                rusqlite::types::Type::Null,
-            ))) => Ok(None),
-            Err(err) => Err(err),
-        }
+        self.query_row_optional(query, params, |row| row.get::<_, T>(0))
     }
 
     /// Not resultified version of `query_get_value_result`. Returns
