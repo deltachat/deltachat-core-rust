@@ -378,6 +378,44 @@ impl ChatId {
         Ok(self.get_param(context)?.exists(Param::Devicetalk))
     }
 
+    fn parent_query(fields: &str) -> String {
+        // Check for server_uid guarantees that we don't
+        // select a draft or undelivered message.
+        format!(
+            "SELECT {} \
+             FROM msgs WHERE chat_id=?1 AND server_uid!=0 \
+             ORDER BY timestamp DESC, id DESC \
+             LIMIT 1;",
+            fields
+        )
+    }
+
+    fn get_parent_mime_headers(self, context: &Context) -> Option<(String, String, String)> {
+        let collect = |row: &rusqlite::Row| Ok((row.get(0)?, row.get(1)?, row.get(2)?));
+        let params = params![self];
+        let sql = &context.sql;
+
+        let query = Self::parent_query("rfc724_mid, mime_in_reply_to, mime_references");
+
+        sql.query_row(&query, params, collect).ok()
+    }
+
+    fn parent_is_encrypted(self, context: &Context) -> Result<bool, Error> {
+        let sql = &context.sql;
+        let params = params![self];
+        let query = Self::parent_query("param");
+
+        let packed: Option<String> = sql.query_get_value_result(&query, params)?;
+
+        if let Some(ref packed) = packed {
+            let param = packed.parse::<Params>()?;
+            Ok(param.exists(Param::GuaranteeE2ee))
+        } else {
+            // No messages
+            Ok(false)
+        }
+    }
+
     /// Bad evil escape hatch.
     ///
     /// Avoid using this, eventually types should be cleaned up enough
@@ -587,44 +625,6 @@ impl Chat {
         "Err".to_string()
     }
 
-    fn parent_query(fields: &str) -> String {
-        // Check for server_uid guarantees that we don't
-        // select a draft or undelivered message.
-        format!(
-            "SELECT {} \
-             FROM msgs WHERE chat_id=?1 AND server_uid!=0 \
-             ORDER BY timestamp DESC, id DESC \
-             LIMIT 1;",
-            fields
-        )
-    }
-
-    fn get_parent_mime_headers(&self, context: &Context) -> Option<(String, String, String)> {
-        let collect = |row: &rusqlite::Row| Ok((row.get(0)?, row.get(1)?, row.get(2)?));
-        let params = params![self.id];
-        let sql = &context.sql;
-
-        let query = Self::parent_query("rfc724_mid, mime_in_reply_to, mime_references");
-
-        sql.query_row(&query, params, collect).ok()
-    }
-
-    fn parent_is_encrypted(&self, context: &Context) -> Result<bool, Error> {
-        let sql = &context.sql;
-        let params = params![self.id];
-        let query = Self::parent_query("param");
-
-        let packed: Option<String> = sql.query_get_value_result(&query, params)?;
-
-        if let Some(ref packed) = packed {
-            let param = packed.parse::<Params>()?;
-            Ok(param.exists(Param::GuaranteeE2ee))
-        } else {
-            // No messages
-            Ok(false)
-        }
-    }
-
     pub fn get_profile_image(&self, context: &Context) -> Option<PathBuf> {
         if let Some(image_rel) = self.param.get(Param::ProfileImage) {
             if !image_rel.is_empty() {
@@ -831,7 +831,7 @@ impl Chat {
                     }
                 }
 
-                if can_encrypt && (all_mutual || self.parent_is_encrypted(context)?) {
+                if can_encrypt && (all_mutual || self.id.parent_is_encrypted(context)?) {
                     msg.param.set_int(Param::GuaranteeE2ee, 1);
                 }
             }
@@ -846,7 +846,7 @@ impl Chat {
             // we do not set In-Reply-To/References in this case.
             if !self.is_self_talk() {
                 if let Some((parent_rfc724_mid, parent_in_reply_to, parent_references)) =
-                    self.get_parent_mime_headers(context)
+                    self.id.get_parent_mime_headers(context)
                 {
                     if !parent_rfc724_mid.is_empty() {
                         new_in_reply_to = parent_rfc724_mid.clone();
