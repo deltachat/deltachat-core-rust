@@ -3119,4 +3119,16 @@ mod tests {
             false
         );
     }
+
+    #[test]
+    fn test_parent_is_encrypted() {
+        let t = dummy_context();
+        let chat_id = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo").unwrap();
+        assert!(!chat_id.parent_is_encrypted(&t.ctx).unwrap());
+
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text(Some("hello".to_string()));
+        chat_id.set_draft(&t.ctx, Some(&mut msg));
+        assert!(!chat_id.parent_is_encrypted(&t.ctx).unwrap());
+    }
 }
