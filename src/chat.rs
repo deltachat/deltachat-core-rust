@@ -378,34 +378,45 @@ impl ChatId {
         Ok(self.get_param(context)?.exists(Param::Devicetalk))
     }
 
-    fn parent_query(fields: &str) -> String {
-        // Check for server_uid guarantees that we don't
-        // select a draft or undelivered message.
-        format!(
+    fn parent_query<T, F>(self, context: &Context, fields: &str, f: F) -> sql::Result<Option<T>>
+    where
+        F: FnOnce(&rusqlite::Row) -> rusqlite::Result<T>,
+    {
+        let sql = &context.sql;
+        let query = format!(
             "SELECT {} \
-             FROM msgs WHERE chat_id=?1 AND server_uid!=0 \
+             FROM msgs WHERE chat_id=? AND state NOT IN (?, ?, ?, ?) \
              ORDER BY timestamp DESC, id DESC \
              LIMIT 1;",
             fields
+        );
+        sql.query_row_optional(
+            query,
+            params![
+                self,
+                MessageState::OutPreparing,
+                MessageState::OutDraft,
+                MessageState::OutPending,
+                MessageState::OutFailed
+            ],
+            f,
         )
     }
 
     fn get_parent_mime_headers(self, context: &Context) -> Option<(String, String, String)> {
         let collect = |row: &rusqlite::Row| Ok((row.get(0)?, row.get(1)?, row.get(2)?));
-        let params = params![self];
-        let sql = &context.sql;
-
-        let query = Self::parent_query("rfc724_mid, mime_in_reply_to, mime_references");
-
-        sql.query_row(&query, params, collect).ok()
+        self.parent_query(
+            context,
+            "rfc724_mid, mime_in_reply_to, mime_references",
+            collect,
+        )
+        .ok()
+        .flatten()
     }
 
     fn parent_is_encrypted(self, context: &Context) -> Result<bool, Error> {
-        let sql = &context.sql;
-        let params = params![self];
-        let query = Self::parent_query("param");
-
-        let packed: Option<String> = sql.query_get_value_result(&query, params)?;
+        let collect = |row: &rusqlite::Row| Ok(row.get(0)?);
+        let packed: Option<String> = self.parent_query(context, "param", collect)?;
 
         if let Some(ref packed) = packed {
             let param = packed.parse::<Params>()?;
