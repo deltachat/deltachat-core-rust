@@ -1051,7 +1051,10 @@ pub fn housekeeping(context: &Context) {
     maybe_add_from_param(
         context,
         &mut files_in_use,
-        "SELECT param FROM msgs  WHERE chat_id!=3   AND type!=10;",
+        "SELECT param FROM msgs \
+         WHERE chat_id!=3 \
+         AND type!=10 \
+         AND NOT hidden",
         Param::File,
     );
     maybe_add_from_param(
