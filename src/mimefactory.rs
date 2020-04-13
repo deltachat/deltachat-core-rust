@@ -106,21 +106,6 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
 
             let command = msg.param.get_cmd();
 
-            /* for added members, the list is just fine */
-            if command == SystemMessage::MemberRemovedFromGroup {
-                let email_to_remove = msg.param.get(Param::Arg).unwrap_or_default();
-
-                let self_addr = context
-                    .get_config(Config::ConfiguredAddr)
-                    .unwrap_or_default();
-
-                if !email_to_remove.is_empty()
-                    && !addr_cmp(email_to_remove, self_addr)
-                    && !recipients_contain_addr(&recipients, &email_to_remove)
-                {
-                    recipients.push(("".to_string(), email_to_remove.to_string()));
-                }
-            }
             if command != SystemMessage::AutocryptSetupMessage
                 && command != SystemMessage::SecurejoinMessage
                 && context.get_config_bool(Config::MdnsEnabled)
