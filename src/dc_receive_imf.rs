@@ -434,7 +434,7 @@ fn add_parts(
                     },
                     create_blocked,
                     list_id_header,
-                )?;
+                );
                 *chat_id = new_chat_id;
                 chat_id_blocked = new_chat_id_blocked;
                 if !chat_id.is_unset()
@@ -1127,7 +1127,7 @@ fn create_or_lookup_mailinglist(
     allow_creation: bool,
     create_blocked: Blocked,
     list_id_header: &str,
-) -> Result<(ChatId, Blocked)> {
+) -> (ChatId, Blocked) {
     let re = Regex::new(r"^(.*.)<(.*.)>$").unwrap();
     let (name, listid) = match re.captures(list_id_header) {
         Some(cap) => (cap[1].trim().to_string(), cap[2].trim().to_string()),
@@ -1137,31 +1137,26 @@ fn create_or_lookup_mailinglist(
         ),
     };
 
-    match chat::get_chat_id_by_mailinglistid(context, &listid) {
-        Ok((chat_id, blocked)) => Ok((chat_id, blocked)),
-
-        Err(_) => {
+    chat::get_chat_id_by_mailinglistid(context, &listid).unwrap_or_else(|_e| {
+        if allow_creation {
             // list does not exist but should be created
-
-            if !allow_creation {
-                info!(context, "creating list forbidden by caller");
-                return Ok((ChatId::new(0), Blocked::Not));
-            }
-
             let chat_id = create_mailinglist_record(context, &listid, &name, create_blocked)
                 .unwrap_or_else(|e| {
                     warn!(
                         context,
-                        "Failed to create group '{}' for grpid={}: {}",
+                        "Failed to create mailinglist '{}' for grpid={}: {}",
                         &name,
                         &listid,
                         e.to_string()
                     );
                     ChatId::new(0)
                 });
-            Ok((chat_id, create_blocked))
+            (chat_id, create_blocked)
+        } else {
+            info!(context, "creating list forbidden by caller");
+            (ChatId::new(0), Blocked::Not)
         }
-    }
+    })
 }
 
 /// try extract a grpid from a message-id list header value
@@ -1787,7 +1782,6 @@ mod tests {
         assert_eq!(chat.can_send(), false);
         assert_eq!(chat.name, "deltachat/deltachat-core-rust");
         assert_eq!(chat::get_chat_contacts(&t.ctx, chat_id).len(), 0);
-
 
         dc_receive_imf(&t.ctx, MAILINGLIST2, "INBOX", 1, false).unwrap();
 
