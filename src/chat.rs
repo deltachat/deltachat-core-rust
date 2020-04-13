@@ -1872,7 +1872,14 @@ pub(crate) fn remove_from_chat_contacts_table(
 
             true
         }
-        Err(_) => false,
+        Err(_) => {
+            warn!(
+                context,
+                "could not remove contact {:?} from chat {:?}", contact_id, chat_id
+            );
+
+            false
+        }
     }
 }
 
@@ -2150,8 +2157,7 @@ pub fn remove_contact_from_chat(
                         "Cannot remove contact from chat; self not in group.".into()
                     )
                 );
-            } else if remove_from_chat_contacts_table(context, chat_id, contact_id) {
-                /* we should respect this - whatever we send to the group, it gets discarded anyway! */
+            } else {
                 if let Ok(contact) = Contact::get_by_id(context, contact_id) {
                     if chat.is_promoted() {
                         msg.viewtype = Viewtype::Text;
@@ -2180,9 +2186,18 @@ pub fn remove_contact_from_chat(
                         });
                     }
                 }
-
+                // we remove the member from the chat after constructing the
+                // to-be-send message. If between send_msg() and here the
+                // process dies the user will have to re-do the action.  It's
+                // better than the other way round: you removed
+                // someone from DB but no peer or device gets to know about it and
+                // group membership is thus different on different devices.
+                // Note also that sending a message needs all recipients
+                // in order to correctly determine encryption so if we
+                // removed it first, it would complicate the
+                // check/encryption logic.
+                success = remove_from_chat_contacts_table(context, chat_id, contact_id);
                 context.call_cb(Event::ChatModified(chat_id));
-                success = true;
             }
         }
     }

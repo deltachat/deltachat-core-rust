@@ -1210,6 +1210,10 @@ class TestOnlineAccount:
         wait_securejoin_inviter_progress(ac1, 1000)
         ac1._evtracker.get_matching("DC_EVENT_MEMBER_ADDED")
 
+        ch.remove_contact(ac1.get_self_contact())
+        ac2._evtracker.get_matching("DC_EVENT_MEMBER_REMOVED")
+        ac1._evtracker.get_matching("DC_EVENT_MEMBER_REMOVED")
+
     def test_qr_verified_group_and_chatting(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
         lp.sec("ac1: create verified-group QR, ac2 scans and joins")
