@@ -1065,7 +1065,11 @@ pub fn create_by_msg_id(context: &Context, msg_id: MsgId) -> Result<ChatId, Erro
             msg_id: MsgId::new(0),
         });
     }
-    Contact::scaleup_origin_by_id(context, msg.from_id, Origin::CreateChat);
+
+    // If the message is from a mailing list, the contacts are not counted as "known"
+    if !chat.is_mailing_list() {
+        Contact::scaleup_origin_by_id(context, msg.from_id, Origin::CreateChat);
+    }
     Ok(chat.id)
 }
 

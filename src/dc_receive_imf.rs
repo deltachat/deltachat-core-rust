@@ -1785,19 +1785,22 @@ mod tests {
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
         assert_eq!(chats.len(), 1);
+
         let chat_id = chat::create_by_msg_id(&t.ctx, chats.get_msg_id(0).unwrap()).unwrap();
         let chat = chat::Chat::load_from_db(&t.ctx, chat_id).unwrap();
+
         assert!(chat.is_mailing_list());
         assert_eq!(chat.can_send(), false);
         assert_eq!(chat.name, "deltachat/deltachat-core-rust");
         assert_eq!(chat::get_chat_contacts(&t.ctx, chat_id).len(), 0);
 
-
+        
         dc_receive_imf(&t.ctx, MAILINGLIST2, "INBOX", 1, false).unwrap();
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
         assert_eq!(chats.len(), 1);
-        assert!(Contact::get_all(&t.ctx, 0, None as Option<String>).unwrap().is_empty());
+        let contacts = Contact::get_all(&t.ctx, 0, None as Option<String>).unwrap();
+        assert_eq!(contacts.len(), 0); // mailing list recipients and senders do not count as "known contacts"
     }
 
     #[test]
