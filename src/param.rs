@@ -118,7 +118,7 @@ pub enum Param {
     /// For MDN-sending job
     MsgId = b'I',
 
-    MailingList = b't'
+    MailingList = b't',
 }
 
 /// Possible values for `Param::ForcePlaintext`.
