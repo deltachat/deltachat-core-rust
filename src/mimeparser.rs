@@ -1509,4 +1509,48 @@ MDYyMDYxNTE1RTlDOEE4Cj4+CnN0YXJ0eHJlZgo4Mjc4CiUlRU9GCg==
         assert_eq!(message.parts[0].typ, Viewtype::File);
         assert_eq!(message.parts[0].msg, "Hello!");
     }
+
+    #[test]
+    fn parse_inline_image() {
+        let context = dummy_context();
+        let raw = br#"Message-ID: <foobar@example.org>
+From: foo <foo@example.org>
+Subject: example
+To: bar@example.org
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="--11019878869865180"
+
+----11019878869865180
+Content-Type: text/plain; charset=utf-8
+
+Test
+
+----11019878869865180
+Content-Type: image/jpeg;
+ name="JPEG_filename.jpg"
+Content-Transfer-Encoding: base64
+Content-Disposition: inline;
+ filename="JPEG_filename.jpg"
+
+ISVb1L3m7z15Wy5w97a2cJg6W8P8YKOYfWn3PJ/UCSFcvCPtvBhcXieiN3M3ljguzG4XK7BnGgxG
+acAQdY8e0cWz1n+zKPNeNn4Iu3GXAXz4/IPksHk54inl1//0Lv8ggZjljfjnf0q1SPftYI7lpZWT
+/4aTCkimRrAIcwrQJPnZJRb7BPSC6kfn1QJHMv77mRMz2+4WbdfpyPQQ0CWLJsgVXtBsSMf2Awal
+n+zZzhGpXyCbWTEw1ccqZcK5KaiKNqWv51N4yVXw9dzJoCvxbYtCFGZZJdx7c+ObDotaF1/9KY4C
+xJjgK9/NgTXCZP1jYm0XIBnJsFSNg0pnMRETttTuGbOVi1/s/F1RGv5RNZsCUt21d9FhkWQQXsd2
+rOzDgTdag6BQCN3hSU9eKW/GhNBuMibRN9eS7Sm1y2qFU1HgGJBQfPPRPLKxXaNi++Zt0tnon2IU
+8pg5rP/IvStXYQNUQ9SiFdfAUkLU5b1j8ltnka8xl+oXsleSG44GPz6kM0RmwUrGkl4z/+NfHSsI
+K+TuvC7qOah0WLFhcsXWn2+dDV1bXuAeC769TkqkpHhdXfUHnVgK3Pv7u3rVPT5AMeFUGxRB2dP4
+CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
+
+
+----11019878869865180--
+"#;
+
+        let message = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
+        assert_eq!(message.get_subject(), Some("example".to_string()));
+
+        assert_eq!(message.parts.len(), 1);
+        assert_eq!(message.parts[0].typ, Viewtype::Image);
+        assert_eq!(message.parts[0].msg, "Test");
+    }
 }
