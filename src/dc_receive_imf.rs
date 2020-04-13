@@ -1281,6 +1281,7 @@ fn create_or_lookup_adhoc_group(
     Ok((new_chat_id, create_blocked))
 }
 
+// Insert a group record into the database. Note that this function is also used by create_mailinglist_record() below.
 fn create_group_record(
     context: &Context,
     grpid: impl AsRef<str>,
@@ -1308,7 +1309,7 @@ fn create_group_record(
     {
         warn!(
             context,
-            "Failed to create group '{}' for grpid={}",
+            "Failed to create group or mailinglist '{}' for grpid={}",
             grpname.as_ref(),
             grpid.as_ref()
         );
@@ -1318,7 +1319,7 @@ fn create_group_record(
     let chat_id = ChatId::new(row_id);
     info!(
         context,
-        "Created group '{}' grpid={} as {}",
+        "Created group or mailinglist '{}' grpid={} as {}",
         grpname.as_ref(),
         grpid.as_ref(),
         chat_id
@@ -1338,13 +1339,6 @@ fn create_mailinglist_record(
         &name,
         create_blocked,
         VerifiedStatus::Unverified,
-    );
-    info!(
-        context,
-        "Created mailinglist '{}' listid={} as {}",
-        name.as_ref(),
-        listid.as_ref(),
-        chat_id
     );
     let mut chat = Chat::load_from_db(context, chat_id)?;
 
@@ -1794,7 +1788,7 @@ mod tests {
         assert_eq!(chat.name, "deltachat/deltachat-core-rust");
         assert_eq!(chat::get_chat_contacts(&t.ctx, chat_id).len(), 0);
 
-        
+
         dc_receive_imf(&t.ctx, MAILINGLIST2, "INBOX", 1, false).unwrap();
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
