@@ -203,10 +203,6 @@ impl MimeMessage {
     /// Delta Chat sends attachments, such as images, in two-part messages, with the first message
     /// containing an explanation. If such a message is detected, first part can be safely dropped.
     fn squash_attachment_parts(&mut self) {
-        if !self.has_chat_version() {
-            return;
-        }
-
         if let [textpart, filepart] = &self.parts[..] {
             let need_drop = {
                 textpart.typ == Viewtype::Text
@@ -1509,6 +1505,8 @@ MDYyMDYxNTE1RTlDOEE4Cj4+CnN0YXJ0eHJlZgo4Mjc4CiUlRU9GCg==
             Some("Mail with inline attachment".to_string())
         );
 
-        assert_eq!(message.parts.len(), 2);
+        assert_eq!(message.parts.len(), 1);
+        assert_eq!(message.parts[0].typ, Viewtype::File);
+        assert_eq!(message.parts[0].msg, "Hello!");
     }
 }
