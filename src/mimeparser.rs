@@ -282,6 +282,11 @@ impl MimeMessage {
                     prepend_subject = false
                 }
             }
+            // For mailing lists, always add the subject because sometimes there are different topics
+            // and otherwise it might be hard to keep track:
+            if self.get(HeaderDef::ListId).is_some() {
+                prepend_subject = true;
+            }
             if prepend_subject {
                 let subj = if let Some(n) = subject.find('[') {
                     &subject[0..n]
