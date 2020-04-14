@@ -351,16 +351,41 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                     };
                     format!("{}{}", re, chat.name)
                 } else {
-                    let raw = message::get_summarytext_by_raw(
-                        self.msg.viewtype,
-                        self.msg.text.as_ref(),
-                        &self.msg.param,
-                        32,
-                        self.context,
-                    )
-                    .await;
-                    let raw_subject = raw.lines().next().unwrap_or_default();
-                    format!("Chat: {}", raw_subject)
+                    match chat.param.get(Param::LastSubject) {
+                        Some(last_subject) => {
+                            let subject_start = if last_subject.starts_with("Chat:") {
+                                0
+                            } else {
+                                // "Antw:" is the longest abbreviation in
+                                // https://en.wikipedia.org/wiki/List_of_email_subject_abbreviations#Abbreviations_in_other_languages,
+                                // so look at the first _5_ characters:
+                                match last_subject.chars().take(5).position(|c| c == ':') {
+                                    Some(prefix_end) => prefix_end + 1,
+                                    None => 0,
+                                }
+                            };
+                            format!(
+                                "Re: {}",
+                                last_subject
+                                    .chars()
+                                    .skip(subject_start)
+                                    .collect::<String>()
+                                    .trim()
+                            )
+                        }
+                        None => {
+                            let raw = message::get_summarytext_by_raw(
+                                self.msg.viewtype,
+                                Some(""),
+                                &self.msg.param,
+                                32,
+                                self.context,
+                            )
+                            .await;
+                            let raw_subject = raw.lines().next().unwrap_or_default();
+                            format!("Chat: {}", raw_subject)
+                        }
+                    }
                 }
             }
             Loaded::MDN { .. } => self
@@ -1233,5 +1258,117 @@ mod tests {
         assert!(!needs_encoding("foobar"));
         assert!(needs_encoding(" "));
         assert!(needs_encoding("foo bar"));
+    }
+
+    use crate::test_utils::{dummy_context, TestContext};
+
+    fn configured_offline_context() -> TestContext {
+        let t = dummy_context();
+        t.ctx
+            .set_config(Config::Addr, Some("alice@example.org"))
+            .unwrap();
+        t.ctx
+            .set_config(Config::ConfiguredAddr, Some("alice@example.org"))
+            .unwrap();
+        t.ctx.set_config(Config::Configured, Some("1")).unwrap();
+        t
+    }
+
+    #[test]
+    fn test_subject() {
+        // 1.: Receive a mail from an MUA or Delta Chat
+        assert_eq!(
+            msg_to_subject_str(
+                b"From: Bob <bob@example.org>\n\
+                To: alice@example.org\n\
+                Subject: Antw: Chat: hello\n\
+                Message-ID: <2222@example.org>\n\
+                Date: Sun, 22 Mar 2020 22:37:56 +0000\n\
+                \n\
+                hello\n"
+            ),
+            "Re: Chat: hello"
+        );
+
+        // 2. Receive a message from Delta Chat when we did not send any messages before
+        assert_eq!(
+            msg_to_subject_str(
+                b"From: Charlie <charlie@example.org>\n\
+                To: alice@example.org\n\
+                Subject: Chat: hello\n\
+                Chat-Version: 1.0\n\
+                Message-ID: <2223@example.org>\n\
+                Date: Sun, 22 Mar 2020 22:37:56 +0000\n\
+                \n\
+                hello\n"
+            ),
+            "Re: Chat: hello"
+        );
+
+        // 3. Send the first message to a new contact
+        let t = configured_offline_context();
+        t.ctx.set_config(Config::ShowEmails, Some("2")).unwrap();
+
+        let contact_id =
+            Contact::add_or_lookup(&t.ctx, "Dave", "dave@example.org", Origin::ManuallyCreated)
+                .unwrap()
+                .0;
+
+        let chat_id = chat::create_by_contact_id(&t.ctx, contact_id).unwrap();
+
+        let mut new_msg = Message::new(Viewtype::Text);
+        new_msg.set_text(Some("Hi".to_string()));
+        new_msg.chat_id = chat_id;
+        chat::prepare_msg(&t.ctx, chat_id, &mut new_msg).unwrap();
+
+        let mf = MimeFactory::from_msg(&t.ctx, &new_msg, false).unwrap();
+        assert_eq!(mf.subject_str(), "Chat: ");
+
+        // 4. Receive messages with unicode characters and make sure that we do not panic (we do not care about the result)
+        msg_to_subject_str(
+            "From: Charlie <charlie@example.org>\n\
+            To: alice@example.org\n\
+            Subject: äääää\n\
+            Chat-Version: 1.0\n\
+            Message-ID: <2893@example.org>\n\
+            Date: Sun, 22 Mar 2020 22:37:56 +0000\n\
+            \n\
+            hello\n"
+                .as_bytes(),
+        );
+
+        msg_to_subject_str(
+            "From: Charlie <charlie@example.org>\n\
+            To: alice@example.org\n\
+            Subject: aäääää\n\
+            Chat-Version: 1.0\n\
+            Message-ID: <2893@example.org>\n\
+            Date: Sun, 22 Mar 2020 22:37:56 +0000\n\
+            \n\
+            hello\n"
+                .as_bytes(),
+        );
+    }
+
+    fn msg_to_subject_str(imf_raw: &[u8]) -> String {
+        use crate::chatlist::Chatlist;
+        use crate::dc_receive_imf::dc_receive_imf;
+
+        let t = configured_offline_context();
+        t.ctx.set_config(Config::ShowEmails, Some("2")).unwrap();
+
+        dc_receive_imf(&t.ctx, imf_raw, "INBOX", 1, false).unwrap();
+
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+
+        let chat_id = chat::create_by_msg_id(&t.ctx, chats.get_msg_id(0).unwrap()).unwrap();
+
+        let mut new_msg = Message::new(Viewtype::Text);
+        new_msg.set_text(Some("Hi".to_string()));
+        new_msg.chat_id = chat_id;
+        chat::prepare_msg(&t.ctx, chat_id, &mut new_msg).unwrap();
+
+        let mf = MimeFactory::from_msg(&t.ctx, &new_msg, false).unwrap();
+        mf.subject_str()
     }
 }
