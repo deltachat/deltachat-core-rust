@@ -10,7 +10,7 @@ use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
 use crate::dc_tools::*;
-use crate::error::{bail, ensure, Result};
+use crate::error::{bail, ensure, format_err, Result};
 use crate::events::Event;
 use crate::headerdef::HeaderDef;
 use crate::job::{self, Action};
@@ -748,6 +748,25 @@ async fn add_parts(
             *create_event_to_send = Some(CreateEvent::IncomingMsg);
         }
     }
+
+    || -> Result<()> {
+        let mut chat = Chat::load_from_db(context, *chat_id)?;
+        chat.param.set(
+            Param::LastSubject,
+            mime_parser
+                .get_subject()
+                .ok_or_else(|| format_err!("No subject in email"))?,
+        );
+        chat.update_param(context)?;
+        Ok(())
+    }()
+    .unwrap_or_else(|e| {
+        warn!(
+            context,
+            "Could not update LastSubject of chat: {}",
+            e.to_string()
+        )
+    });
 
     Ok(())
 }

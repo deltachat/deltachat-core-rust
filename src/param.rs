@@ -103,6 +103,9 @@ pub enum Param {
     /// For Chats
     Selftalk = b'K',
 
+    /// For Chats: So that on sending a new message we can sent the subject to "Re: <last subject>"
+    LastSubject = b't',
+
     /// For Chats
     Devicetalk = b'D',
 
