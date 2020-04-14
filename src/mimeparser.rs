@@ -472,7 +472,9 @@ impl MimeMessage {
             apple mail: "plaintext" as an alternative to "html+PDF attachment") */
             (mime::MULTIPART, "alternative") => {
                 for cur_data in &mail.subparts {
-                    if get_mime_type(cur_data)?.0 == "multipart/mixed" {
+                    if get_mime_type(cur_data)?.0 == "multipart/mixed"
+                        || get_mime_type(cur_data)?.0 == "multipart/related"
+                    {
                         any_part_added = self.parse_mime_recursive(context, cur_data)?;
                         break;
                     }
@@ -494,15 +496,6 @@ impl MimeMessage {
                             break;
                         }
                     }
-                }
-            }
-            (mime::MULTIPART, "related") => {
-                /* add the "root part" - the other parts may be referenced which is
-                not interesting for us (eg. embedded images) we assume he "root part"
-                being the first one, which may not be always true ...
-                however, most times it seems okay. */
-                if let Some(first) = mail.subparts.iter().next() {
-                    any_part_added = self.parse_mime_recursive(context, first)?;
                 }
             }
             (mime::MULTIPART, "encrypted") => {
@@ -1548,6 +1541,76 @@ CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
 
         let message = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
         assert_eq!(message.get_subject(), Some("example".to_string()));
+
+        assert_eq!(message.parts.len(), 1);
+        assert_eq!(message.parts[0].typ, Viewtype::Image);
+        assert_eq!(message.parts[0].msg, "Test");
+    }
+
+    #[test]
+    fn parse_thunderbird_html_embedded_image() {
+        let context = dummy_context();
+        let raw = br#"To: Alice <alice@example.org>
+From: Bob <bob@example.org>
+Subject: Test subject
+Message-ID: <foobarbaz@example.org>
+User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:68.0) Gecko/20100101
+ Thunderbird/68.7.0
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="------------779C1631600DF3DB8C02E53A"
+Content-Language: en-US
+
+This is a multi-part message in MIME format.
+--------------779C1631600DF3DB8C02E53A
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 7bit
+
+Test
+
+
+--------------779C1631600DF3DB8C02E53A
+Content-Type: multipart/related;
+ boundary="------------10CC6C2609EB38DA782C5CA9"
+
+
+--------------10CC6C2609EB38DA782C5CA9
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: 7bit
+
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+</head>
+<body>
+Test<br>
+<p><img moz-do-not-send="false" src="cid:part1.9DFA679B.52A88D69@example.org" alt=""></p>
+</body>
+</html>
+
+--------------10CC6C2609EB38DA782C5CA9
+Content-Type: image/png;
+ name="1.png"
+Content-Transfer-Encoding: base64
+Content-ID: <part1.9DFA679B.52A88D69@example.org>
+Content-Disposition: inline;
+ filename="1.png"
+
+ISVb1L3m7z15Wy5w97a2cJg6W8P8YKOYfWn3PJ/UCSFcvCPtvBhcXieiN3M3ljguzG4XK7BnGgxG
+acAQdY8e0cWz1n+zKPNeNn4Iu3GXAXz4/IPksHk54inl1//0Lv8ggZjljfjnf0q1SPftYI7lpZWT
+/4aTCkimRrAIcwrQJPnZJRb7BPSC6kfn1QJHMv77mRMz2+4WbdfpyPQQ0CWLJsgVXtBsSMf2Awal
+n+zZzhGpXyCbWTEw1ccqZcK5KaiKNqWv51N4yVXw9dzJoCvxbYtCFGZZJdx7c+ObDotaF1/9KY4C
+xJjgK9/NgTXCZP1jYm0XIBnJsFSNg0pnMRETttTuGbOVi1/s/F1RGv5RNZsCUt21d9FhkWQQXsd2
+rOzDgTdag6BQCN3hSU9eKW/GhNBuMibRN9eS7Sm1y2qFU1HgGJBQfPPRPLKxXaNi++Zt0tnon2IU
+8pg5rP/IvStXYQNUQ9SiFdfAUkLU5b1j8ltnka8xl+oXsleSG44GPz6kM0RmwUrGkl4z/+NfHSsI
+K+TuvC7qOah0WLFhcsXWn2+dDV1bXuAeC769TkqkpHhdXfUHnVgK3Pv7u3rVPT5AMeFUGxRB2dP4
+CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
+--------------10CC6C2609EB38DA782C5CA9--
+
+--------------779C1631600DF3DB8C02E53A--"#;
+
+        let message = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
+        assert_eq!(message.get_subject(), Some("Test subject".to_string()));
 
         assert_eq!(message.parts.len(), 1);
         assert_eq!(message.parts[0].typ, Viewtype::Image);
