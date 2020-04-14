@@ -5,9 +5,13 @@
    
 3. for `List-Id: foo <bla>`, bla now is the id and foo is the name. For GitHub and GitLab notifications this is bad because all notifications will go into one chat. Maybe we should instead take the "in-reply-to" header to find out what messages belong together. For normal mailing lists, of course, this will create a second chat if someone does not use the "Reply" button to write to that mailing list.
 
+  Björn: well, having all notifications in one chat is not that bad. i would just follow the guidelines for now, use the ID and not the Name.
+
 
 4. Currently a mailing list is shown as an empty group (ChatType `Group`) ("0 members"). 
 
    Maybe we should change the ChatType to `Single` because this way, the UI would fit better. Disadvantage: We can't show the different senders of the messages. 
    
    Or we introduce a `ChatType` `MailingList`. Very big disadvantage: We would have to adapt all UI project and it would be nice if we could keep the changes within the core.
+
+5. Contacts from mailings lists stay "unknown" now and are not shown in the contacts suggestion list..
