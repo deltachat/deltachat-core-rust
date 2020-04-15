@@ -1726,12 +1726,15 @@ fn add_or_lookup_contact_by_addr(
 
     let mut addr = Cow::from(addr);
     if let Some(list_id) = list_id_header {
+        let list_id = list_id.trim().trim_end_matches('>');
         let addr_domain = EmailAddress::new(&addr)?;
         let mut addr_domain_parts = addr_domain.domain.split('.');
         let mut list_id_parts = list_id.split('.');
         if list_id_parts.next_back() == addr_domain_parts.next_back()
             && list_id_parts.next_back() == addr_domain_parts.next_back()
         {
+            // list_id was something like "name <name.github.com" (after trimming the last '>')
+            // and addr was something like "notifications@github.com".
             // addr is not the address of the actual sender but the one of the mailing list.
             // Add the display name to the addr to make it distinguishable from other people
             // who sent to the same mailing list.
@@ -1790,6 +1793,16 @@ mod tests {
     \n\
     hello back\n";
 
+    static MAILINGLIST3: &[u8] = b"From: Alice <alice@posteo.org>\n\
+    To: delta-dev@codespeak.net\n\
+    Subject: Re: [delta-dev] What's up?\n\
+    Message-ID: <38942@posteo.org>\n\
+    List-ID: \"discussions about and around https://delta.chat developments\" <delta.codespeak.net>\n\
+    Precedence: list\n\
+    Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+    \n\
+    body\n";
+
     #[test]
     fn test_mailing_list() {
         let t = configured_offline_context();
@@ -1814,6 +1827,39 @@ mod tests {
         assert_eq!(chats.len(), 1);
         let contacts = Contact::get_all(&t.ctx, 0, None as Option<String>).unwrap();
         assert_eq!(contacts.len(), 0); // mailing list recipients and senders do not count as "known contacts"
+        let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None);
+        let contact1 = Contact::load_from_db(
+            &t.ctx,
+            Message::load_from_db(&t.ctx, msgs[0]).unwrap().from_id,
+        );
+        assert_eq!(
+            contact1.unwrap().get_addr(),
+            "Max Mustermann-notifications@github.com"
+        );
+        let contact2 = Contact::load_from_db(
+            &t.ctx,
+            Message::load_from_db(&t.ctx, msgs[1]).unwrap().from_id,
+        );
+        assert_eq!(
+            contact2.unwrap().get_addr(),
+            "Github-notifications@github.com"
+        );
+    }
+
+    #[test]
+    fn test_mailing_list2() {
+        let t = configured_offline_context();
+        t.ctx.set_config(Config::ShowEmails, Some("2")).unwrap();
+        dc_receive_imf(&t.ctx, MAILINGLIST3, "INBOX", 1, false).unwrap();
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        let chat_id = chat::create_by_msg_id(&t.ctx, chats.get_msg_id(0).unwrap()).unwrap();
+
+        let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None);
+        let contact1 = Contact::load_from_db(
+            &t.ctx,
+            Message::load_from_db(&t.ctx, msgs[0]).unwrap().from_id,
+        );
+        assert_eq!(contact1.unwrap().get_addr(), "alice@posteo.org");
     }
 
     #[test]
