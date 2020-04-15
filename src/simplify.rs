@@ -41,18 +41,27 @@ pub fn simplify(mut input: String, is_chat_message: bool) -> (String, bool) {
     let lines = split_lines(&input);
     let (lines, is_forwarded) = skip_forward_header(&lines);
 
+    let original_lines = &lines;
+
     let lines = remove_message_footer(lines);
-    let (lines, has_nonstandard_footer) = remove_nonstandard_footer(lines);
-    let (lines, has_bottom_quote) = if !is_chat_message {
+    let (lines, mut has_nonstandard_footer) = remove_nonstandard_footer(lines);
+    let (lines, mut has_bottom_quote) = if !is_chat_message {
         remove_bottom_quote(lines)
     } else {
         (lines, false)
     };
-    let (lines, has_top_quote) = if !is_chat_message {
+    let (mut lines, mut has_top_quote) = if !is_chat_message {
         remove_top_quote(lines)
     } else {
         (lines, false)
     };
+
+    if lines.iter().all(|it| it.trim().is_empty()) {
+        lines = original_lines;
+        has_top_quote = false;
+        has_bottom_quote = false;
+        has_nonstandard_footer = false;
+    }
 
     // re-create buffer from the remaining lines
     let text = render_message(
@@ -201,6 +210,17 @@ mod tests {
             let (output, _is_forwarded) = simplify(input, true);
             assert!(output.split('\n').all(|s| s != "-- "));
         }
+    }
+
+    #[test]
+    fn test_dont_remove_whole_message() {
+        let input = "\n------\nFailed\n------\n\nUh-oh, this workflow did not succeed!\n\nlots of other text".to_string();
+        let (plain, is_forwarded) = simplify(input, false);
+        assert_eq!(
+            plain,
+            "------\nFailed\n------\n\nUh-oh, this workflow did not succeed!\n\nlots of other text"
+        );
+        assert!(!is_forwarded);
     }
 
     #[test]
