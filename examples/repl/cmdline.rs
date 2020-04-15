@@ -1,5 +1,6 @@
 use std::path::Path;
 use std::str::FromStr;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use deltachat::chat::{self, Chat, ChatId, ChatVisibility};
 use deltachat::chatlist::*;
@@ -9,9 +10,9 @@ use deltachat::context::*;
 use deltachat::dc_receive_imf::*;
 use deltachat::dc_tools::*;
 use deltachat::error::Error;
+use deltachat::export_chat::{export_chat, pack_exported_chat};
 use deltachat::imex::*;
 use deltachat::job::*;
-use deltachat::export_chat::export_chat;
 use deltachat::location;
 use deltachat::lot::LotState;
 use deltachat::message::{self, Message, MessageState, MsgId};
@@ -875,6 +876,18 @@ pub fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
             let chat_id = ChatId::new(arg1.parse()?);
             let res = export_chat(context, chat_id);
             println!("{:?}", res);
+            let timestamp = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+            let destination_raw = context.get_blobdir().join(format!(
+                "exported_{}_{}.zip",
+                chat_id.to_u32(),
+                timestamp
+            ));
+            let destination = destination_raw.to_str().unwrap();
+            let pack_res = pack_exported_chat(context, res, destination);
+            println!("{:?} - destination: {}", pack_res, destination);
         }
         "msginfo" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
