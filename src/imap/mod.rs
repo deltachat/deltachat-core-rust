@@ -1378,7 +1378,11 @@ fn prefetch_should_download(
         .get_header_value(HeaderDef::From_)
         .unwrap_or_default();
 
-    let (_contact_id, blocked_contact, origin) = from_field_to_contact_id(context, &from_field)?;
+    let (_contact_id, blocked_contact, origin) = from_field_to_contact_id(
+        context,
+        &from_field,
+        headers.get_header_value(HeaderDef::ListId).as_ref(),
+    )?;
     let accepted_contact = origin.is_known();
 
     let show = is_autocrypt_setup_message

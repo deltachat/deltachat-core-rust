@@ -3,6 +3,7 @@ use sha2::{Digest, Sha256};
 
 use num_traits::FromPrimitive;
 use regex::Regex;
+use std::borrow::Cow;
 
 use crate::chat::{self, Chat, ChatId};
 use crate::config::Config;
@@ -72,6 +73,8 @@ pub fn dc_receive_imf(
     let mut created_db_entries = Vec::new();
     let mut create_event_to_send = Some(CreateEvent::MsgsChanged);
 
+    let list_id_header: Option<&String> = mime_parser.get(HeaderDef::ListId);
+
     // helper method to handle early exit and memory cleanup
     let cleanup = |context: &Context,
                    create_event_to_send: &Option<CreateEvent>,
@@ -99,7 +102,7 @@ pub fn dc_receive_imf(
     // https://github.com/deltachat/deltachat-core/issues/150)
     let (from_id, from_id_blocked, incoming_origin) =
         if let Some(field_from) = mime_parser.get(HeaderDef::From_) {
-            from_field_to_contact_id(context, field_from)?
+            from_field_to_contact_id(context, field_from, list_id_header)?
         } else {
             (0, false, Origin::Unknown)
         };
@@ -118,6 +121,7 @@ pub fn dc_receive_imf(
                 } else {
                     Origin::IncomingUnknownTo
                 },
+                list_id_header,
             )?);
         }
     }
@@ -231,11 +235,13 @@ pub fn dc_receive_imf(
 pub fn from_field_to_contact_id(
     context: &Context,
     field_from: &str,
+    list_id_header: Option<&String>,
 ) -> Result<(u32, bool, Origin)> {
     let from_ids = dc_add_or_lookup_contacts_by_address_list(
         context,
         &field_from,
         Origin::IncomingUnknownFrom,
+        list_id_header,
     )?;
 
     if from_ids.contains(&DC_CONTACT_ID_SELF) {
@@ -1664,6 +1670,7 @@ fn dc_add_or_lookup_contacts_by_address_list(
     context: &Context,
     addr_list_raw: &str,
     origin: Origin,
+    list_id_header: Option<&String>,
 ) -> Result<ContactIds> {
     let addrs = match mailparse::addrparse(addr_list_raw) {
         Ok(addrs) => addrs,
@@ -1681,6 +1688,7 @@ fn dc_add_or_lookup_contacts_by_address_list(
                     &info.display_name,
                     &info.addr,
                     origin,
+                    list_id_header,
                 )?);
             }
             mailparse::MailAddr::Group(infos) => {
@@ -1690,6 +1698,7 @@ fn dc_add_or_lookup_contacts_by_address_list(
                         &info.display_name,
                         &info.addr,
                         origin,
+                        list_id_header,
                     )?);
                 }
             }
@@ -1705,6 +1714,7 @@ fn add_or_lookup_contact_by_addr(
     display_name: &Option<String>,
     addr: &str,
     origin: Origin,
+    list_id_header: Option<&String>,
 ) -> Result<u32> {
     if context.is_self_addr(addr)? {
         return Ok(DC_CONTACT_ID_SELF);
@@ -1714,8 +1724,23 @@ fn add_or_lookup_contact_by_addr(
         .map(normalize_name)
         .unwrap_or_default();
 
+    let mut addr = Cow::from(addr);
+    if let Some(list_id) = list_id_header {
+        let addr_domain = EmailAddress::new(&addr)?;
+        let mut addr_domain_parts = addr_domain.domain.split('.');
+        let mut list_id_parts = list_id.split('.');
+        if list_id_parts.next_back() == addr_domain_parts.next_back()
+            && list_id_parts.next_back() == addr_domain_parts.next_back()
+        {
+            // addr is not the address of the actual sender but the one of the mailing list.
+            // Add the display name to the addr to make it distinguishable from other people
+            // who sent to the same mailing list.
+            *addr.to_mut() = format!("{}-{}", display_name_normalized, addr);
+        }
+    }
+
     let (row_id, _modified) =
-        Contact::add_or_lookup(context, display_name_normalized, addr, origin)?;
+        Contact::add_or_lookup(context, display_name_normalized, &addr, origin)?;
     ensure!(row_id > 0, "could not add contact: {:?}", addr);
 
     Ok(row_id)
@@ -1745,7 +1770,7 @@ mod tests {
     use crate::message::Message;
     use crate::test_utils::{dummy_context, TestContext};
 
-    static MAILINGLIST: &[u8] = b"From: Github <notifications@github.com>\n\
+    static MAILINGLIST: &[u8] = b"From: Max Mustermann <notifications@github.com>\n\
     To: deltachat/deltachat-core-rust <deltachat-core-rust@noreply.github.com>\n\
     Subject: [deltachat/deltachat-core-rust] PR run failed\n\
     Message-ID: <3333@example.org>\n\
