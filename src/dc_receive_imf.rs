@@ -1194,7 +1194,7 @@ fn create_or_lookup_adhoc_group(
     // use subject as initial chat name
     let grpname = mime_parser
         .get_subject()
-        .unwrap_or("Unnamed group".to_string());
+        .unwrap_or_else(|| "Unnamed group".to_string());
 
     // create group record
     let new_chat_id: ChatId = create_group_record(
