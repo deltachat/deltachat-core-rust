@@ -2100,16 +2100,6 @@ pub unsafe extern "C" fn dc_array_unref(a: *mut dc_array::dc_array_t) {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_array_add_id(array: *mut dc_array_t, item: libc::c_uint) {
-    if array.is_null() {
-        eprintln!("ignoring careless call to dc_array_add_id()");
-        return;
-    }
-
-    (*array).add_id(item);
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn dc_array_get_cnt(array: *const dc_array_t) -> libc::size_t {
     if array.is_null() {
         eprintln!("ignoring careless call to dc_array_get_cnt()");

@@ -2,7 +2,7 @@
 
 ## UNRELEASED
 
-- removed api: dc_chat_get_subtitle(), dc_get_version_str()
+- removed api: dc_chat_get_subtitle(), dc_get_version_str(), dc_array_add_id()
 
 
 ## 1.28.0
