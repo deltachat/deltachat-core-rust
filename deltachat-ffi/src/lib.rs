@@ -485,11 +485,6 @@ pub unsafe extern "C" fn dc_get_oauth2_url(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_get_version_str() -> *mut libc::c_char {
-    context::get_version_str().strdup()
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn dc_configure(context: *mut dc_context_t) {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_configure()");
