@@ -35,12 +35,6 @@ pub enum StockMessage {
     #[strum(props(fallback = "Draft"))]
     Draft = 3,
 
-    #[strum(props(fallback = "%1$s member(s)"))]
-    Member = 4,
-
-    #[strum(props(fallback = "%1$s contact(s)"))]
-    Contact = 6,
-
     #[strum(props(fallback = "Voice message"))]
     VoiceMessage = 7,
 
@@ -135,9 +129,6 @@ pub enum StockMessage {
         fallback = "This is the Autocrypt Setup Message used to transfer your key between clients.\n\nTo decrypt and use your key, open the message in an Autocrypt-compliant client and enter the setup code presented on the generating device."
     ))]
     AcSetupMsgBody = 43,
-
-    #[strum(props(fallback = "Messages I sent to myself"))]
-    SelfTalkSubTitle = 50,
 
     #[strum(props(fallback = "Cannot login as %1$s."))]
     CannotLogin = 60,
@@ -430,8 +421,9 @@ mod tests {
         let t = dummy_context();
         // uses %1$s substitution
         assert_eq!(
-            t.ctx.stock_string_repl_str(StockMessage::Member, "42"),
-            "42 member(s)"
+            t.ctx
+                .stock_string_repl_str(StockMessage::MsgAddMember, "Foo"),
+            "Member Foo added."
         );
         // We have no string using %1$d to test...
     }
@@ -440,8 +432,8 @@ mod tests {
     fn test_stock_string_repl_int() {
         let t = dummy_context();
         assert_eq!(
-            t.ctx.stock_string_repl_int(StockMessage::Member, 42),
-            "42 member(s)"
+            t.ctx.stock_string_repl_int(StockMessage::MsgAddMember, 42),
+            "Member 42 added."
         );
     }
 

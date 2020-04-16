@@ -604,38 +604,6 @@ impl Chat {
         &self.name
     }
 
-    pub fn get_subtitle(&self, context: &Context) -> String {
-        // returns either the address or the number of chat members
-
-        if self.typ == Chattype::Single && self.param.exists(Param::Selftalk) {
-            return context.stock_str(StockMessage::SelfTalkSubTitle).into();
-        }
-
-        if self.typ == Chattype::Single {
-            return context
-                .sql
-                .query_get_value(
-                    context,
-                    "SELECT c.addr
-                       FROM chats_contacts cc
-                       LEFT JOIN contacts c ON c.id=cc.contact_id
-                      WHERE cc.chat_id=?;",
-                    params![self.id],
-                )
-                .unwrap_or_else(|| "Err".into());
-        }
-
-        if self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup {
-            if self.id.is_deaddrop() {
-                return context.stock_str(StockMessage::DeadDrop).into();
-            }
-            let cnt = get_chat_contact_cnt(context, self.id);
-            return context.stock_string_repl_int(StockMessage::Member, cnt as i32);
-        }
-
-        "Err".to_string()
-    }
-
     pub fn get_profile_image(&self, context: &Context) -> Option<PathBuf> {
         if let Some(image_rel) = self.param.get(Param::ProfileImage) {
             if !image_rel.is_empty() {
@@ -693,7 +661,6 @@ impl Chat {
             is_sending_locations: self.is_sending_locations,
             color: self.get_color(context),
             profile_image: self.get_profile_image(context).unwrap_or_else(PathBuf::new),
-            subtitle: self.get_subtitle(context),
             draft,
             is_muted: self.is_muted(),
         })
@@ -1035,9 +1002,6 @@ pub struct ChatInfo {
     /// If there is no profile image set this will be an empty string
     /// currently.
     pub profile_image: PathBuf,
-
-    /// Subtitle for the chat.
-    pub subtitle: String,
 
     /// The draft message text.
     ///
@@ -2653,7 +2617,6 @@ mod tests {
                 "is_sending_locations": false,
                 "color": 15895624,
                 "profile_image": "",
-                "subtitle": "bob@example.com",
                 "draft": "",
                 "is_muted": false
             }

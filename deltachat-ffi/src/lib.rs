@@ -2437,19 +2437,6 @@ pub unsafe extern "C" fn dc_chat_get_name(chat: *mut dc_chat_t) -> *mut libc::c_
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_chat_get_subtitle(chat: *mut dc_chat_t) -> *mut libc::c_char {
-    if chat.is_null() {
-        eprintln!("ignoring careless call to dc_chat_get_subtitle()");
-        return "".strdup();
-    }
-    let ffi_chat = &*chat;
-    let ffi_context: &ContextWrapper = &*ffi_chat.context;
-    ffi_context
-        .with_inner(|ctx| ffi_chat.chat.get_subtitle(ctx).strdup())
-        .unwrap_or_else(|_| "".strdup())
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn dc_chat_get_profile_image(chat: *mut dc_chat_t) -> *mut libc::c_char {
     if chat.is_null() {
         eprintln!("ignoring careless call to dc_chat_get_profile_image()");

@@ -2827,19 +2827,6 @@ int             dc_chat_get_type             (const dc_chat_t* chat);
 char*           dc_chat_get_name             (const dc_chat_t* chat);
 
 
-/*
- * Get a subtitle for a chat.  The subtitle is eg. the email-address or the
- * number of group members.
- *
- * Deprecated function. Subtitles should be created in the ui
- * where plural forms and other specials can be handled more gracefully.
- *
- * @param chat The chat object to calulate the subtitle for.
- * @return Subtitle as a string. Must be released using dc_str_unref() after usage. Never NULL.
- */
-char*           dc_chat_get_subtitle         (const dc_chat_t* chat);
-
-
 /**
  * Get the chat's profile image.
  * For groups, this is the image set by any group member
@@ -4667,8 +4654,6 @@ void            dc_array_add_id              (dc_array_t*, uint32_t); // depreca
 #define DC_STR_NOMESSAGES                 1
 #define DC_STR_SELF                       2
 #define DC_STR_DRAFT                      3
-#define DC_STR_MEMBER                     4
-#define DC_STR_CONTACT                    6
 #define DC_STR_VOICEMESSAGE               7
 #define DC_STR_DEADDROP                   8
 #define DC_STR_IMAGE                      9
@@ -4700,7 +4685,6 @@ void            dc_array_add_id              (dc_array_t*, uint32_t); // depreca
 #define DC_STR_STARREDMSGS                41
 #define DC_STR_AC_SETUP_MSG_SUBJECT       42
 #define DC_STR_AC_SETUP_MSG_BODY          43
-#define DC_STR_SELFTALK_SUBTITLE          50
 #define DC_STR_CANNOT_LOGIN               60
 #define DC_STR_SERVER_RESPONSE            61
 #define DC_STR_MSGACTIONBYUSER            62

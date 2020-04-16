@@ -415,12 +415,6 @@ class Chat(object):
         """
         return lib.dc_chat_get_color(self._dc_chat)
 
-    def get_subtitle(self):
-        """return the subtitle of the chat
-        :returns: the subtitle
-        """
-        return from_dc_charpointer(lib.dc_chat_get_subtitle(self._dc_chat))
-
     # ------  location streaming API ------------------------------
 
     def is_sending_locations(self):
