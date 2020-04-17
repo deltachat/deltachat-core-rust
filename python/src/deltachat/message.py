@@ -91,6 +91,10 @@ class Message(object):
         """mime type of the file (if it exists)"""
         return from_dc_charpointer(lib.dc_msg_get_filemime(self._dc_msg))
 
+    def is_system_message(self):
+        """ return True if this message is a system/info message. """
+        return lib.dc_msg_is_info(self._dc_msg)
+
     def is_setup_message(self):
         """ return True if this message is a setup message. """
         return lib.dc_msg_is_setupmessage(self._dc_msg)
@@ -223,6 +227,13 @@ class Message(object):
         are not counted as unread but were not marked as read nor resulted in MDNs.
         """
         return self._msgstate == const.DC_STATE_IN_SEEN
+
+    def is_outgoing(self):
+        """Return True if Message is outgoing. """
+        return self._msgstate in (
+            const.DC_STATE_OUT_PREPARING, const.DC_STATE_OUT_PENDING,
+            const.DC_STATE_OUT_FAILED, const.DC_STATE_OUT_MDN_RCVD,
+            const.DC_STATE_OUT_DELIVERED)
 
     def is_out_preparing(self):
         """Return True if Message is outgoing, but its file is being prepared.

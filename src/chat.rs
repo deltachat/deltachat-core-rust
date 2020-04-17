@@ -2191,10 +2191,6 @@ pub fn remove_contact_from_chat(
                         msg.param.set_cmd(SystemMessage::MemberRemovedFromGroup);
                         msg.param.set(Param::Arg, contact.get_addr());
                         msg.id = send_msg(context, chat_id, &mut msg)?;
-                        context.call_cb(Event::MsgsChanged {
-                            chat_id,
-                            msg_id: msg.id,
-                        });
                     }
                 }
                 // we remove the member from the chat after constructing the

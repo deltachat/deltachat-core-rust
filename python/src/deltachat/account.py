@@ -245,6 +245,14 @@ class Account(object):
         assert contact_id > const.DC_CHAT_ID_LAST_SPECIAL
         return bool(lib.dc_delete_contact(self._dc_context, contact_id))
 
+    def get_contact_by_addr(self, email):
+        """ get a contact for the email address or None if it's blocked or doesn't exist. """
+        _, addr = parseaddr(email)
+        addr = as_dc_charpointer(addr)
+        contact_id = lib.dc_lookup_contact_id_by_addr(self._dc_context, addr)
+        if contact_id:
+            return self.get_contact_by_id(contact_id)
+
     def get_contacts(self, query=None, with_self=False, only_verified=False):
         """ get a (filtered) list of contacts.
 
@@ -617,24 +625,45 @@ class Account(object):
                 return "ac_configure_completed", dict(success=success)
         elif name == "DC_EVENT_INCOMING_MSG":
             msg = self.get_message_by_id(ffi_event.data2)
-            return "ac_incoming_message", dict(message=msg)
+            return self._map_incoming(msg)
         elif name == "DC_EVENT_MSGS_CHANGED":
             if ffi_event.data2 != 0:
                 msg = self.get_message_by_id(ffi_event.data2)
+                if msg.is_outgoing():
+                    evname, kwargs = self._map_incoming(msg)
+                    if evname.startswith("ac_member"):
+                        return evname, kwargs
                 if msg.is_in_fresh():
-                    return "ac_incoming_message", dict(message=msg)
+                    return self._map_incoming(msg)
         elif name == "DC_EVENT_MSG_DELIVERED":
             msg = self.get_message_by_id(ffi_event.data2)
             return "ac_message_delivered", dict(message=msg)
-        elif name == "DC_EVENT_MEMBER_ADDED":
+        elif name == "DC_EVENT_CHAT_MODIFIED":
             chat = self.get_chat_by_id(ffi_event.data1)
-            contact = self.get_contact_by_id(ffi_event.data2)
-            return "ac_member_added", dict(chat=chat, contact=contact)
-        elif name == "DC_EVENT_MEMBER_REMOVED":
-            chat = self.get_chat_by_id(ffi_event.data1)
-            contact = self.get_contact_by_id(ffi_event.data2)
-            return "ac_member_removed", dict(chat=chat, contact=contact)
+            return "ac_chat_modified", dict(chat=chat)
         return None, {}
+
+    def _map_incoming(self, msg):
+        if msg.is_system_message():
+            res = parse_system_add_remove(msg.text)
+            if res:
+                contact = msg.account.get_contact_by_addr(res[1])
+                if contact:
+                    d = dict(chat=msg.chat, contact=contact, sender=msg.get_sender_contact())
+                    return "ac_member_" + res[0], d
+        return "ac_incoming_message", dict(message=msg)
+
+
+def parse_system_add_remove(text):
+    # Member Me (x@y) removed by a@b.
+    # Member x@y removed by a@b
+    text = text.lower()
+    parts = text.split()
+    if parts[0] == "member":
+        if parts[2] in ("removed", "added"):
+            return parts[2], parts[1]
+        if parts[3] in ("removed", "added"):
+            return parts[3], parts[2].strip("()")
 
 
 def _destroy_dc_context(dc_context, dc_context_unref=lib.dc_context_unref):
