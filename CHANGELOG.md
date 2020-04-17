@@ -1,5 +1,10 @@
 # Changelog 
 
+## UNRELEASED
+
+- removed api: dc_chat_get_subtitle(), dc_get_version_str(), dc_array_add_id()
+
+
 ## 1.28.0
 
 - new flag DC_GCL_FOR_FORWARDING for dc_get_chatlist()

@@ -1192,9 +1192,9 @@ fn create_or_lookup_adhoc_group(
         return Ok((ChatId::new(0), Blocked::Not));
     }
     // use subject as initial chat name
-    let grpname = mime_parser.get_subject().unwrap_or_else(|| {
-        context.stock_string_repl_int(StockMessage::Member, member_ids.len() as i32)
-    });
+    let grpname = mime_parser
+        .get_subject()
+        .unwrap_or_else(|| "Unnamed group".to_string());
 
     // create group record
     let new_chat_id: ChatId = create_group_record(

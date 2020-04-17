@@ -485,11 +485,6 @@ pub unsafe extern "C" fn dc_get_oauth2_url(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_get_version_str() -> *mut libc::c_char {
-    context::get_version_str().strdup()
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn dc_configure(context: *mut dc_context_t) {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_configure()");
@@ -2105,16 +2100,6 @@ pub unsafe extern "C" fn dc_array_unref(a: *mut dc_array::dc_array_t) {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_array_add_id(array: *mut dc_array_t, item: libc::c_uint) {
-    if array.is_null() {
-        eprintln!("ignoring careless call to dc_array_add_id()");
-        return;
-    }
-
-    (*array).add_id(item);
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn dc_array_get_cnt(array: *const dc_array_t) -> libc::size_t {
     if array.is_null() {
         eprintln!("ignoring careless call to dc_array_get_cnt()");
@@ -2439,19 +2424,6 @@ pub unsafe extern "C" fn dc_chat_get_name(chat: *mut dc_chat_t) -> *mut libc::c_
     }
     let ffi_chat = &*chat;
     ffi_chat.chat.get_name().strdup()
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_chat_get_subtitle(chat: *mut dc_chat_t) -> *mut libc::c_char {
-    if chat.is_null() {
-        eprintln!("ignoring careless call to dc_chat_get_subtitle()");
-        return "".strdup();
-    }
-    let ffi_chat = &*chat;
-    let ffi_context: &ContextWrapper = &*ffi_chat.context;
-    ffi_context
-        .with_inner(|ctx| ffi_chat.chat.get_subtitle(ctx).strdup())
-        .unwrap_or_else(|_| "".strdup())
 }
 
 #[no_mangle]

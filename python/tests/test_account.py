@@ -221,7 +221,6 @@ class TestOfflineChat:
         # assert d["param"] == chat.param
         assert d["color"] == chat.get_color()
         assert d["profile_image"] == "" if chat.get_profile_image() is None else chat.get_profile_image()
-        assert d["subtitle"] == chat.get_subtitle()
         assert d["draft"] == "" if chat.get_draft() is None else chat.get_draft()
 
     def test_group_chat_creation_with_translation(self, ac1):

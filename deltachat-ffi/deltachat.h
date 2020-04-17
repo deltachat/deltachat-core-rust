@@ -2827,19 +2827,6 @@ int             dc_chat_get_type             (const dc_chat_t* chat);
 char*           dc_chat_get_name             (const dc_chat_t* chat);
 
 
-/*
- * Get a subtitle for a chat.  The subtitle is eg. the email-address or the
- * number of group members.
- *
- * Deprecated function. Subtitles should be created in the ui
- * where plural forms and other specials can be handled more gracefully.
- *
- * @param chat The chat object to calulate the subtitle for.
- * @return Subtitle as a string. Must be released using dc_str_unref() after usage. Never NULL.
- */
-char*           dc_chat_get_subtitle         (const dc_chat_t* chat);
-
-
 /**
  * Get the chat's profile image.
  * For groups, this is the image set by any group member
@@ -4537,8 +4524,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
 #define DC_EVENT_DATA2_IS_STRING(e)  ((e)>=100 && (e)<=499)
 #define DC_EVENT_RETURNS_INT(e)      ((e)==DC_EVENT_IS_OFFLINE) // not used anymore
 #define DC_EVENT_RETURNS_STRING(e)   ((e)==DC_EVENT_GET_STRING) // not used anymore
-char*           dc_get_version_str           (void); // deprecated
-void            dc_array_add_id              (dc_array_t*, uint32_t); // deprecated
 #define dc_archive_chat(a,b,c)  dc_set_chat_visibility((a), (b), (c)? 1 : 0) // not used anymore
 #define dc_chat_get_archived(a) (dc_chat_get_visibility((a))==1? 1 : 0)      // not used anymore
 
@@ -4668,8 +4653,6 @@ void            dc_array_add_id              (dc_array_t*, uint32_t); // depreca
 #define DC_STR_NOMESSAGES                 1
 #define DC_STR_SELF                       2
 #define DC_STR_DRAFT                      3
-#define DC_STR_MEMBER                     4
-#define DC_STR_CONTACT                    6
 #define DC_STR_VOICEMESSAGE               7
 #define DC_STR_DEADDROP                   8
 #define DC_STR_IMAGE                      9
@@ -4701,7 +4684,6 @@ void            dc_array_add_id              (dc_array_t*, uint32_t); // depreca
 #define DC_STR_STARREDMSGS                41
 #define DC_STR_AC_SETUP_MSG_SUBJECT       42
 #define DC_STR_AC_SETUP_MSG_BODY          43
-#define DC_STR_SELFTALK_SUBTITLE          50
 #define DC_STR_CANNOT_LOGIN               60
 #define DC_STR_SERVER_RESPONSE            61
 #define DC_STR_MSGACTIONBYUSER            62
