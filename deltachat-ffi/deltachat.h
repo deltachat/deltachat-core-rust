@@ -41,7 +41,7 @@ typedef struct _dc_provider dc_provider_t;
  * uintptr_t event_handler_func(dc_context_t* context, int event,
  *                              uintptr_t data1, uintptr_t data2)
  * {
- *     return 0; // for unhandled events, it is always safe to return 0
+ *     return 0;
  * }
  *
  * dc_context_t* context = dc_context_new(event_handler_func, NULL, NULL);
@@ -208,7 +208,7 @@ typedef struct _dc_provider dc_provider_t;
  * @param event one of the @ref DC_EVENT constants
  * @param data1 depends on the event parameter
  * @param data2 depends on the event parameter
- * @return return 0 unless stated otherwise in the event parameter documentation
+ * @return events do not expect a return value, just always return 0
  */
 typedef uintptr_t (*dc_callback_t) (dc_context_t* context, int event, uintptr_t data1, uintptr_t data2);
 
@@ -229,7 +229,7 @@ typedef uintptr_t (*dc_callback_t) (dc_context_t* context, int event, uintptr_t 
  *       otherwise!
  *     - The callback SHOULD return _fast_, for GUI updates etc. you should
  *       post yourself an asynchronous message to your GUI thread, if needed.
- *     - If not mentioned otherweise, the callback should return 0.
+ *     - events do not expect a return value, just always return 0.
  * @param userdata can be used by the client for any purpuse.  He finds it
  *     later in dc_get_userdata().
  * @param os_name is only for decorative use
@@ -4147,8 +4147,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * These constants are used as events
  * reported to the callback given to dc_context_new().
- * If you do not want to handle an event, it is always safe to return 0,
- * so there is no need to add a "case" for every event.
  *
  * @addtogroup DC_EVENT
  * @{
@@ -4163,7 +4161,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * @param data1 0
  * @param data2 (const char*) Info string in english language.
  *     Must not be unref'd or modified and is valid only until the callback returns.
- * @return 0
  */
 #define DC_EVENT_INFO                     100
 
@@ -4174,7 +4171,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * @param data1 0
  * @param data2 (const char*) Info string in english language.
  *     Must not be unref'd or modified and is valid only until the callback returns.
- * @return 0
  */
 #define DC_EVENT_SMTP_CONNECTED           101
 
@@ -4185,7 +4181,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * @param data1 0
  * @param data2 (const char*) Info string in english language.
  *     Must not be unref'd or modified and is valid only until the callback returns.
- * @return 0
  */
 #define DC_EVENT_IMAP_CONNECTED           102
 
@@ -4195,7 +4190,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * @param data1 0
  * @param data2 (const char*) Info string in english language.
  *     Must not be unref'd or modified and is valid only until the callback returns.
- * @return 0
  */
 #define DC_EVENT_SMTP_MESSAGE_SENT        103
 
@@ -4205,7 +4199,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * @param data1 0
  * @param data2 (const char*) Info string in english language.
  *     Must not be unref'd or modified and is valid only until the callback returns.
- * @return 0
  */
 #define DC_EVENT_IMAP_MESSAGE_DELETED   104
 
@@ -4215,7 +4208,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * @param data1 0
  * @param data2 (const char*) Info string in english language.
  *     Must not be unref'd or modified and is valid only until the callback returns.
- * @return 0
  */
 #define DC_EVENT_IMAP_MESSAGE_MOVED   105
 
@@ -4225,7 +4217,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * @param data1 0
  * @param data2 (const char*) folder name.
  *     Must not be unref'd or modified and is valid only until the callback returns.
- * @return 0
  */
 #define DC_EVENT_IMAP_FOLDER_EMPTIED  106
 
@@ -4235,7 +4226,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * @param data1 0
  * @param data2 (const char*) path name
  *     Must not be unref'd or modified and is valid only until the callback returns.
- * @return 0
  */
 #define DC_EVENT_NEW_BLOB_FILE 150
 
@@ -4245,7 +4235,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * @param data1 0
  * @param data2 (const char*) path name
  *     Must not be unref'd or modified and is valid only until the callback returns.
- * @return 0
  */
 #define DC_EVENT_DELETED_BLOB_FILE 151
 
@@ -4258,7 +4247,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * @param data1 0
  * @param data2 (const char*) Warning string in english language.
  *     Must not be unref'd or modified and is valid only until the callback returns.
- * @return 0
  */
 #define DC_EVENT_WARNING                  300
 
@@ -4281,7 +4269,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *     Some error strings are taken from dc_set_stock_translation(),
  *     however, most error strings will be in english language.
  *     Must not be unref'd or modified and is valid only until the callback returns.
- * @return 0
  */
 #define DC_EVENT_ERROR                    400
 
@@ -4305,7 +4292,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *     0=subsequent network error, should be logged only
  * @param data2 (const char*) Error string, always set, never NULL.
  *     Must not be unref'd or modified and is valid only until the callback returns.
- * @return 0
  */
 #define DC_EVENT_ERROR_NETWORK            401
 
@@ -4321,7 +4307,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * @param data2 (const char*) Info string in english language.
  *     Must not be unref'd or modified
  *     and is valid only until the callback returns.
- * @return 0
  */
 #define DC_EVENT_ERROR_SELF_NOT_IN_GROUP  410
 
@@ -4335,7 +4320,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 (int) chat_id for single added messages
  * @param data2 (int) msg_id for single added messages
- * @return 0
  */
 #define DC_EVENT_MSGS_CHANGED             2000
 
@@ -4348,7 +4332,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 (int) chat_id
  * @param data2 (int) msg_id
- * @return 0
  */
 #define DC_EVENT_INCOMING_MSG             2005
 
@@ -4359,7 +4342,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 (int) chat_id
  * @param data2 (int) msg_id
- * @return 0
  */
 #define DC_EVENT_MSG_DELIVERED            2010
 
@@ -4370,7 +4352,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 (int) chat_id
  * @param data2 (int) msg_id
- * @return 0
  */
 #define DC_EVENT_MSG_FAILED               2012
 
@@ -4381,7 +4362,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 (int) chat_id
  * @param data2 (int) msg_id
- * @return 0
  */
 #define DC_EVENT_MSG_READ                 2015
 
@@ -4394,7 +4374,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 (int) chat_id
  * @param data2 0
- * @return 0
  */
 #define DC_EVENT_CHAT_MODIFIED            2020
 
@@ -4404,7 +4383,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 (int) If not 0, this is the contact_id of an added contact that should be selected.
  * @param data2 0
- * @return 0
  */
 #define DC_EVENT_CONTACTS_CHANGED         2030
 
@@ -4417,7 +4395,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *     If the locations of several contacts have been changed,
  *     eg. after calling dc_delete_all_locations(), this parameter is set to 0.
  * @param data2 0
- * @return 0
  */
 #define DC_EVENT_LOCATION_CHANGED         2035
 
@@ -4427,7 +4404,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 (int) 0=error, 1-999=progress in permille, 1000=success and done
  * @param data2 0
- * @return 0
  */
 #define DC_EVENT_CONFIGURE_PROGRESS       2041
 
@@ -4437,7 +4413,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 (int) 0=error, 1-999=progress in permille, 1000=success and done
  * @param data2 0
- * @return 0
  */
 #define DC_EVENT_IMEX_PROGRESS            2051
 
@@ -4452,7 +4427,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * @param data1 (const char*) Path and file name.
  *     Must not be unref'd or modified and is valid only until the callback returns.
  * @param data2 0
- * @return 0
  */
 #define DC_EVENT_IMEX_FILE_WRITTEN        2052
 
@@ -4470,7 +4444,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *     600=vg-/vc-request-with-auth received, vg-member-added/vc-contact-confirm sent, typically shown as "bob@addr verified".
  *     800=vg-member-added-received received, shown as "bob@addr securely joined GROUP", only sent for the verified-group-protocol.
  *     1000=Protocol finished for this contact.
- * @return 0
  */
 #define DC_EVENT_SECUREJOIN_INVITER_PROGRESS      2060
 
@@ -4486,7 +4459,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * @param data2 (int) Progress as:
  *     400=vg-/vc-request-with-auth sent, typically shown as "alice@addr verified, introducing myself."
  *     (Bob has verified alice and waits until Alice does the same for him)
- * @return 0
  */
 #define DC_EVENT_SECUREJOIN_JOINER_PROGRESS       2061
 
@@ -4496,7 +4468,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 (int) chat_id
  * @param data2 (int) contact_id
- * @return 0
  */
 #define DC_EVENT_MEMBER_ADDED 2062
 
@@ -4505,7 +4476,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 (int) chat_id
  * @param data2 (int) contact_id
- * @return 0
  */
 #define DC_EVENT_MEMBER_REMOVED 2063
 
