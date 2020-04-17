@@ -343,20 +343,6 @@ impl Contact {
             return Ok((DC_CONTACT_ID_SELF, sth_modified));
         }
 
-        if !may_be_valid_addr(&addr) {
-            warn!(
-                context,
-                "Bad address \"{}\" for contact \"{}\".",
-                addr,
-                if !name.as_ref().is_empty() {
-                    name.as_ref()
-                } else {
-                    "<unset>"
-                },
-            );
-            bail!("Bad address supplied: {:?}", addr);
-        }
-
         let mut update_addr = false;
         let mut update_name = false;
         let mut update_authname = false;
