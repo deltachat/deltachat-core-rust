@@ -1786,7 +1786,7 @@ int             dc_may_be_valid_addr         (const char* addr);
 
 /**
  * Check if an e-mail address belongs to a known and unblocked contact.
- * Known and unblocked contacts will be returned by dc_get_contacts().
+ * To get a list of all known and unblocked contacts, use dc_get_contacts().
  *
  * To validate an e-mail address independently of the contact database
  * use dc_may_be_valid_addr().
@@ -1794,7 +1794,8 @@ int             dc_may_be_valid_addr         (const char* addr);
  * @memberof dc_context_t
  * @param context The context object as created by dc_context_new().
  * @param addr The e-mail-address to check.
- * @return 1=address is a contact in use, 0=address is not a contact in use.
+ * @return Contact ID of the contact belonging to the e-mail-address
+ *     or 0 if there is no such contact.
  */
 uint32_t        dc_lookup_contact_id_by_addr (dc_context_t* context, const char* addr);
 
