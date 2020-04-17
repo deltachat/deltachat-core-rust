@@ -1146,8 +1146,31 @@ fn create_or_lookup_mailinglist(
     chat::get_chat_id_by_mailinglistid(context, &listid).unwrap_or_else(|_e| {
         if allow_creation {
             // list does not exist but should be created
-            let chat_id = create_mailinglist_record(context, &listid, &name, create_blocked)
-                .unwrap_or_else(|e| {
+            match create_mailinglist_record(context, &listid, &name, create_blocked) {
+                Ok(chat_id) => {
+                    chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF);
+
+                    // Add the mailing list as "unknown" contact
+                    match add_or_lookup_contact_by_addr(
+                        context,
+                        &Some(name),
+                        &listid,
+                        Origin::IncomingUnknownFrom,
+                        None,
+                    ) {
+                        Ok(list_id_contact) => {
+                            chat::add_to_chat_contacts_table(context, chat_id, list_id_contact);
+                        }
+                        Err(e) => warn!(
+                            context,
+                            "Failed to lookup mailing list contact: {}",
+                            e.to_string()
+                        ),
+                    };
+
+                    (chat_id, create_blocked)
+                }
+                Err(e) => {
                     warn!(
                         context,
                         "Failed to create mailinglist '{}' for grpid={}: {}",
@@ -1155,9 +1178,9 @@ fn create_or_lookup_mailinglist(
                         &listid,
                         e.to_string()
                     );
-                    ChatId::new(0)
-                });
-            (chat_id, create_blocked)
+                    (ChatId::new(0), create_blocked)
+                }
+            }
         } else {
             info!(context, "creating list forbidden by caller");
             (ChatId::new(0), Blocked::Not)
@@ -1727,8 +1750,8 @@ fn add_or_lookup_contact_by_addr(
     let mut addr = Cow::from(addr);
     if let Some(list_id) = list_id_header {
         let list_id = list_id.trim().trim_end_matches('>');
-        let addr_domain = EmailAddress::new(&addr)?;
-        let mut addr_domain_parts = addr_domain.domain.split('.');
+        let addr_email = EmailAddress::new(&addr)?;
+        let mut addr_domain_parts = addr_email.domain.split('.');
         let mut list_id_parts = list_id.split('.');
         if list_id_parts.next_back() == addr_domain_parts.next_back()
             && list_id_parts.next_back() == addr_domain_parts.next_back()
@@ -1819,7 +1842,9 @@ mod tests {
         assert!(chat.is_mailing_list());
         assert_eq!(chat.can_send(), false);
         assert_eq!(chat.name, "deltachat/deltachat-core-rust");
-        assert_eq!(chat::get_chat_contacts(&t.ctx, chat_id).len(), 0);
+        println!("{:?}", Contact::load_from_db(&t.ctx, 1));
+        println!("{:?}", chat::get_chat_contacts(&t.ctx, chat_id));
+        assert_eq!(chat::get_chat_contacts(&t.ctx, chat_id).len(), 2);
 
         dc_receive_imf(&t.ctx, MAILINGLIST2, "INBOX", 1, false).unwrap();
 
@@ -1834,7 +1859,7 @@ mod tests {
         );
         assert_eq!(
             contact1.unwrap().get_addr(),
-            "Max Mustermann-notifications@github.com"
+            "Max Mustermann – notifications@github.com"
         );
         let contact2 = Contact::load_from_db(
             &t.ctx,
@@ -1842,7 +1867,7 @@ mod tests {
         );
         assert_eq!(
             contact2.unwrap().get_addr(),
-            "Github-notifications@github.com"
+            "Github – notifications@github.com"
         );
     }
 
