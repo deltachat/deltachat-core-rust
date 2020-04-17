@@ -11,6 +11,17 @@ from conftest import (wait_configuration_progress,
                       wait_securejoin_inviter_progress)
 
 
+@pytest.mark.parametrize("msgtext,res", [
+    ("Member Me (tmp1@x.org) removed by tmp2@x.org.", ("removed", "tmp1@x.org")),
+    ("Member tmp1@x.org added by tmp2@x.org.", ("added", "tmp1@x.org")),
+])
+def test_parse_system_add_remove(msgtext, res):
+    from deltachat.account import parse_system_add_remove
+
+    out = parse_system_add_remove(msgtext)
+    assert out == res
+
+
 class TestOfflineAccountBasic:
     def test_wrong_db(self, tmpdir):
         p = tmpdir.join("hello.db")
@@ -169,35 +180,6 @@ class TestOfflineChat:
                 break
         else:
             pytest.fail("could not find chat")
-
-    def test_add_member_event(self, ac1):
-        chat = ac1.create_group_chat(name="title1")
-        assert chat.is_group()
-        contact1 = ac1.create_contact("some1@hello.com", name="some1")
-
-        chat.add_contact(contact1)
-        for ev in ac1.iter_events(timeout=1):
-            if ev.name == "ac_member_added":
-                assert ev.kwargs["chat"] == chat
-                if ev.kwargs["contact"] == ac1.get_self_contact():
-                    continue
-                assert ev.kwargs["contact"] == contact1
-                break
-
-    def test_remove_member_event(self, ac1):
-        chat = ac1.create_group_chat(name="title1")
-        assert chat.is_group()
-        contact1 = ac1.create_contact("some1@hello.com", name="some1")
-        chat.add_contact(contact1)
-        ac1._handle_current_events()
-        chat.remove_contact(contact1)
-        for ev in ac1.iter_events(timeout=1):
-            if ev.name == "ac_member_removed":
-                assert ev.kwargs["chat"] == chat
-                if ev.kwargs["contact"] == ac1.get_self_contact():
-                    continue
-                assert ev.kwargs["contact"] == contact1
-                break
 
     def test_group_chat_creation(self, ac1):
         contact1 = ac1.create_contact("some1@hello.com", name="some1")
@@ -496,7 +478,7 @@ class TestOfflineChat:
         # perform plugin hooks
         ac1._handle_current_events()
 
-        assert len(in_list) == 11
+        assert len(in_list) == 10
         chat_contacts = chat.get_contacts()
         for in_cmd, in_chat, in_contact in in_list:
             assert in_cmd == "added"
@@ -504,19 +486,23 @@ class TestOfflineChat:
             assert in_contact in chat_contacts
             chat_contacts.remove(in_contact)
 
+        assert chat_contacts[0].id == 1  # self contact
+
+        in_list[:] = []
+
         lp.sec("ac1: removing two contacts and checking things are right")
         chat.remove_contact(contacts[9])
         chat.remove_contact(contacts[3])
         assert len(chat.get_contacts()) == 9
 
         ac1._handle_current_events()
-        assert len(in_list) == 13
-        assert in_list[-2][0] == "removed"
-        assert in_list[-2][1] == chat
-        assert in_list[-2][2] == contacts[9]
-        assert in_list[-1][0] == "removed"
-        assert in_list[-1][1] == chat
-        assert in_list[-1][2] == contacts[3]
+        assert len(in_list) == 2
+        assert in_list[0][0] == "removed"
+        assert in_list[0][1] == chat
+        assert in_list[0][2] == contacts[9]
+        assert in_list[1][0] == "removed"
+        assert in_list[1][1] == chat
+        assert in_list[1][2] == contacts[3]
 
 
 class TestOnlineAccount:
@@ -1297,48 +1283,77 @@ class TestOnlineAccount:
 
     def test_add_remove_member_remote_events(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
+        ac1_addr = ac1.get_config("addr")
+        ac2_addr = ac2.get_config("addr")
         # activate local plugin for ac2
         in_list = queue.Queue()
 
+        class EventHolder:
+            def __init__(self, **kwargs):
+                self.__dict__.update(kwargs)
+
         class InPlugin:
             @account_hookimpl
-            def ac_member_added(self, chat, contact):
-                in_list.put(("added", chat, contact))
+            def ac_incoming_message(self, message):
+                # we immediately accept the sender because
+                # otherwise we won't see member_added contacts
+                message.accept_sender_contact()
 
             @account_hookimpl
-            def ac_member_removed(self, chat, contact):
-                in_list.put(("removed", chat, contact))
+            def ac_chat_modified(self, chat):
+                in_list.put(EventHolder(action="chat-modified", chat=chat))
+
+            @account_hookimpl
+            def ac_member_added(self, chat, contact, sender):
+                in_list.put(EventHolder(action="added", chat=chat, contact=contact, sender=sender))
+
+            @account_hookimpl
+            def ac_member_removed(self, chat, contact, sender):
+                in_list.put(EventHolder(action="removed", chat=chat, contact=contact, sender=sender))
 
         ac2.add_account_plugin(InPlugin())
 
         lp.sec("ac1: create group chat with ac2")
         chat = ac1.create_group_chat("hello")
-        contact = ac1.create_contact(email=ac2.get_config("addr"))
+        contact = ac1.create_contact(email=ac2_addr)
         chat.add_contact(contact)
 
         lp.sec("ac1: send a message to group chat to promote the group")
         chat.send_text("afterwards promoted")
-        ev1 = in_list.get()
-        ev2 = in_list.get()
-        assert ev1[2] == ac2.get_self_contact()
-        assert ev2[2].addr == ac1.get_config("addr")
+        ev = in_list.get(timeout=10)
+        assert ev.action == "chat-modified"
+        assert chat.is_promoted()
+        assert sorted(x.addr for x in chat.get_contacts()) == \
+            sorted(x.addr for x in ev.chat.get_contacts())
 
         lp.sec("ac1: add address2")
-        contact2 = ac1.create_contact(email="not@example.org")
+        # note that if the above accept_sender_contact() would not
+        # happen we would not receive a proper member_added event
+        contact2 = ac1.create_contact(email="notexistingaccountihope@testrun.org")
         chat.add_contact(contact2)
-        ev1 = in_list.get()
-        assert ev1[2].addr == contact2.addr
+        ev = in_list.get(timeout=10)
+        assert ev.action == "chat-modified"
+        ev = in_list.get(timeout=10)
+        assert ev.action == "added"
+        assert ev.sender.addr == ac1_addr
+        assert ev.contact.addr == "notexistingaccountihope@testrun.org"
 
         lp.sec("ac1: remove address2")
         chat.remove_contact(contact2)
-        ev1 = in_list.get()
-        assert ev1[0] == "removed"
-        assert ev1[2].addr == contact2.addr
+        ev = in_list.get(timeout=10)
+        assert ev.action == "chat-modified"
+        ev = in_list.get(timeout=10)
+        assert ev.action == "removed"
+        assert ev.contact.addr == contact2.addr
+        assert ev.sender.addr == ac1_addr
 
         lp.sec("ac1: remove ac2 contact from chat")
         chat.remove_contact(contact)
-        ev1 = in_list.get()
-        assert ev1[2] == ac2.get_self_contact()
+        ev = in_list.get(timeout=10)
+        assert ev.action == "chat-modified"
+        ev = in_list.get(timeout=10)
+        assert ev.action == "removed"
+        assert ev.sender.addr == ac1_addr
 
     def test_set_get_group_image(self, acfactory, data, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()

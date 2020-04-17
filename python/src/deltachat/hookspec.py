@@ -53,11 +53,15 @@ class PerAccount:
         """ Called when an outgoing message has been delivered to SMTP. """
 
     @account_hookspec
-    def ac_member_added(self, chat, contact):
-        """ Called for each contact added to a chat. """
+    def ac_chat_modified(self, chat):
+        """ Chat was created or modified regarding membership, avatar, title. """
 
     @account_hookspec
-    def ac_member_removed(self, chat, contact):
+    def ac_member_added(self, chat, contact, sender):
+        """ Called for each contact added to an accepted chat. """
+
+    @account_hookspec
+    def ac_member_removed(self, chat, contact, sender):
         """ Called for each contact removed from a chat. """
 
 
