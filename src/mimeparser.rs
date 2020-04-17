@@ -288,17 +288,10 @@ impl MimeMessage {
                 prepend_subject = true;
             }
             if prepend_subject {
-                let subj = if let Some(n) = subject.find('[') {
-                    &subject[0..n]
-                } else {
-                    subject
-                }
-                .trim();
-
-                if !subj.is_empty() {
+                if !subject.is_empty() {
                     for part in self.parts.iter_mut() {
                         if part.typ == Viewtype::Text {
-                            part.msg = format!("{} – {}", subj, part.msg);
+                            part.msg = format!("{} – {}", subject, part.msg);
                             break;
                         }
                     }
