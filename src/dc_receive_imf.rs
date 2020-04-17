@@ -1738,7 +1738,7 @@ fn add_or_lookup_contact_by_addr(
             // addr is not the address of the actual sender but the one of the mailing list.
             // Add the display name to the addr to make it distinguishable from other people
             // who sent to the same mailing list.
-            *addr.to_mut() = format!("{}-{}", display_name_normalized, addr);
+            *addr.to_mut() = format!("{} – {}", display_name_normalized, addr);
         }
     }
 
