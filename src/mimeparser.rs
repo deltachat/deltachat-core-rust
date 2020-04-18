@@ -288,10 +288,13 @@ impl MimeMessage {
                 prepend_subject = true;
             }
             if prepend_subject && !subject.is_empty() {
-                self.parts
+                if let Some(mut part) = self
+                    .parts
                     .iter_mut()
                     .find(|part| part.typ == Viewtype::Text)
-                    .map(|mut part| part.msg = format!("{} – {}", subject, part.msg));
+                {
+                    part.msg = format!("{} – {}", subject, part.msg);
+                }
             }
         }
         if self.is_forwarded {
