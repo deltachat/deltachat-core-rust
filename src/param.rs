@@ -118,7 +118,13 @@ pub enum Param {
     /// For MDN-sending job
     MsgId = b'I',
 
+    // 'true' if the chat is a mailing list
     MailingList = b't',
+
+    // If this is not a contact we can send to but a contact that is only shown in a
+    // mailing list and we do not have the actual sender address, then this is set
+    // to the chat id of the mailing list.
+    MailingListPseudoContact = b'p',
 }
 
 /// Possible values for `Param::ForcePlaintext`.

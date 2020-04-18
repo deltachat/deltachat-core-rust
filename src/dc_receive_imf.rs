@@ -3,7 +3,6 @@ use sha2::{Digest, Sha256};
 
 use num_traits::FromPrimitive;
 use regex::Regex;
-use std::borrow::Cow;
 
 use crate::chat::{self, Chat, ChatId};
 use crate::config::Config;
@@ -11,7 +10,7 @@ use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
 use crate::dc_tools::*;
-use crate::error::{bail, ensure, Result};
+use crate::error::{bail, ensure, format_err, Result};
 use crate::events::Event;
 use crate::headerdef::HeaderDef;
 use crate::job::*;
@@ -441,6 +440,17 @@ fn add_parts(
                     create_blocked,
                     list_id_header,
                 );
+
+                let mut contact = Contact::load_from_db(context, from_id)?;
+                if contact.param.exists(Param::MailingListPseudoContact) {
+                    // The MailingListPseudoContact param was "0" to indicate that this is a
+                    // pseudo contact. Update it to the chat id.
+                    contact
+                        .param
+                        .set_int(Param::MailingListPseudoContact, new_chat_id.to_u32() as i32);
+                    contact.update_param(context)?
+                }
+
                 *chat_id = new_chat_id;
                 chat_id_blocked = new_chat_id_blocked;
                 if !chat_id.is_unset()
@@ -1151,23 +1161,31 @@ fn create_or_lookup_mailinglist(
                     chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF);
 
                     // Add the mailing list as "unknown" contact
-                    match add_or_lookup_contact_by_addr(
+                    add_or_lookup_contact_by_addr(
                         context,
                         &Some(name),
                         &listid,
                         Origin::IncomingUnknownFrom,
                         None,
-                    ) {
-                        Ok(list_id_contact) => {
-                            chat::add_to_chat_contacts_table(context, chat_id, list_id_contact);
-                        }
-                        Err(e) => warn!(
+                    )
+                    .and_then(|list_id_contact| {
+                        chat::add_to_chat_contacts_table(context, chat_id, list_id_contact);
+                        Contact::load_from_db(context, list_id_contact)
+                            .map_err(|e| format_err!("{:?}", e))
+                    })
+                    .and_then(|mut contact| {
+                        contact
+                            .param
+                            .set_int(Param::MailingListPseudoContact, chat_id.to_u32() as i32);
+                        contact.update_param(context)
+                    })
+                    .unwrap_or_else(|e| {
+                        warn!(
                             context,
                             "Failed to lookup mailing list contact: {}",
                             e.to_string()
-                        ),
-                    };
-
+                        )
+                    });
                     (chat_id, create_blocked)
                 }
                 Err(e) => {
@@ -1747,7 +1765,6 @@ fn add_or_lookup_contact_by_addr(
         .map(normalize_name)
         .unwrap_or_default();
 
-    let mut addr = Cow::from(addr);
     if let Some(list_id) = list_id_header {
         let list_id = list_id.trim().trim_end_matches('>');
         let addr_email = EmailAddress::new(&addr)?;
@@ -1761,7 +1778,17 @@ fn add_or_lookup_contact_by_addr(
             // addr is not the address of the actual sender but the one of the mailing list.
             // Add the display name to the addr to make it distinguishable from other people
             // who sent to the same mailing list.
-            *addr.to_mut() = format!("{} – {}", display_name_normalized, addr);
+            let addr = format!("{} – {}", display_name_normalized, addr);
+
+            let (row_id, _modified) =
+                Contact::add_or_lookup(context, display_name_normalized, &addr, origin)?;
+            ensure!(row_id > 0, "could not add contact: {:?}", addr);
+
+            let mut c = Contact::load_from_db(context, row_id)?;
+            c.param.set_int(Param::MailingListPseudoContact, 0);
+            c.update_param(context)?;
+
+            return Ok(row_id);
         }
     }
 
@@ -1842,8 +1869,6 @@ mod tests {
         assert!(chat.is_mailing_list());
         assert_eq!(chat.can_send(), false);
         assert_eq!(chat.name, "deltachat/deltachat-core-rust");
-        println!("{:?}", Contact::load_from_db(&t.ctx, 1));
-        println!("{:?}", chat::get_chat_contacts(&t.ctx, chat_id));
         assert_eq!(chat::get_chat_contacts(&t.ctx, chat_id).len(), 2);
 
         dc_receive_imf(&t.ctx, MAILINGLIST2, "INBOX", 1, false).unwrap();
@@ -1856,18 +1881,37 @@ mod tests {
         let contact1 = Contact::load_from_db(
             &t.ctx,
             Message::load_from_db(&t.ctx, msgs[0]).unwrap().from_id,
-        );
+        )
+        .unwrap();
         assert_eq!(
-            contact1.unwrap().get_addr(),
+            contact1.get_addr(),
             "Max Mustermann – notifications@github.com"
         );
+        assert_eq!(
+            contact1
+                .param
+                .get_int(Param::MailingListPseudoContact)
+                .unwrap(),
+            chat_id.to_u32() as i32
+        );
+
         let contact2 = Contact::load_from_db(
             &t.ctx,
             Message::load_from_db(&t.ctx, msgs[1]).unwrap().from_id,
-        );
+        )
+        .unwrap();
+        assert_eq!(contact2.get_addr(), "Github – notifications@github.com");
         assert_eq!(
-            contact2.unwrap().get_addr(),
-            "Github – notifications@github.com"
+            contact2
+                .param
+                .get_int(Param::MailingListPseudoContact)
+                .unwrap(),
+            chat_id.to_u32() as i32
+        );
+
+        assert_eq!(
+            chat::create_by_contact_id(&t.ctx, contact1.get_id()).unwrap(),
+            chat_id
         );
     }
 
@@ -1883,8 +1927,10 @@ mod tests {
         let contact1 = Contact::load_from_db(
             &t.ctx,
             Message::load_from_db(&t.ctx, msgs[0]).unwrap().from_id,
-        );
-        assert_eq!(contact1.unwrap().get_addr(), "alice@posteo.org");
+        )
+        .unwrap();
+        assert_eq!(contact1.get_addr(), "alice@posteo.org");
+        assert_eq!(contact1.param.get(Param::MailingListPseudoContact), None);
     }
 
     #[test]

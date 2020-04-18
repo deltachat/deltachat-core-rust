@@ -1097,6 +1097,11 @@ pub fn create_by_contact_id(context: &Context, contact_id: u32) -> Result<ChatId
                 );
                 return Err(err);
             } else {
+                let c = Contact::load_from_db(context, contact_id)?;
+                if let Some(list_chat_id) = c.param.get_int(Param::MailingListPseudoContact) {
+                    return Ok(ChatId::new(list_chat_id as u32));
+                }
+
                 let (chat_id, _) =
                     create_or_lookup_by_contact_id(context, contact_id, Blocked::Not)?;
                 Contact::scaleup_origin_by_id(context, contact_id, Origin::CreateChat);
