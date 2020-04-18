@@ -287,15 +287,11 @@ impl MimeMessage {
             if self.get(HeaderDef::ListId).is_some() {
                 prepend_subject = true;
             }
-            if prepend_subject {
-                if !subject.is_empty() {
-                    for part in self.parts.iter_mut() {
-                        if part.typ == Viewtype::Text {
-                            part.msg = format!("{} – {}", subject, part.msg);
-                            break;
-                        }
-                    }
-                }
+            if prepend_subject && !subject.is_empty() {
+                self.parts
+                    .iter_mut()
+                    .find(|part| part.typ == Viewtype::Text)
+                    .map(|mut part| part.msg = format!("{} – {}", subject, part.msg));
             }
         }
         if self.is_forwarded {
