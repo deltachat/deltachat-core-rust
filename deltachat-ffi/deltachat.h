@@ -1795,7 +1795,7 @@ int             dc_may_be_valid_addr         (const char* addr);
  * @param context The context object as created by dc_context_new().
  * @param addr The e-mail-address to check.
  * @return Contact ID of the contact belonging to the e-mail-address
- *     or 0 if there is no such contact.
+ *     or 0 if there is no contact that is or was introduced by an accepted contact.  
  */
 uint32_t        dc_lookup_contact_id_by_addr (dc_context_t* context, const char* addr);
 
