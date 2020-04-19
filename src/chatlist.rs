@@ -93,8 +93,8 @@ impl Chatlist {
         query_contact_id: Option<u32>,
     ) -> Result<Self> {
         // Note that we do not emit DC_EVENT_MSGS_MODIFIED here even if some
-        // messages get hidden to avoid reloading the same chatlist.
-        if let Err(err) = hide_device_expired_messages(context) {
+        // messages get deleted to avoid reloading the same chatlist.
+        if let Err(err) = delete_device_expired_messages(context) {
             warn!(context, "Failed to hide expired messages: {}", err);
         }
 

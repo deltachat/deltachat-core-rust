@@ -1441,7 +1441,7 @@ pub fn get_chat_msgs(
     flags: u32,
     marker1before: Option<MsgId>,
 ) -> Vec<MsgId> {
-    match hide_device_expired_messages(context) {
+    match delete_device_expired_messages(context) {
         Err(err) => warn!(context, "Failed to delete expired messages: {}", err),
         Ok(messages_deleted) => {
             if messages_deleted {
@@ -1587,11 +1587,11 @@ pub fn marknoticed_all_chats(context: &Context) -> Result<(), Error> {
     Ok(())
 }
 
-/// Hides messages which are expired according to "delete_device_after" setting.
+/// Deletes messages which are expired according to "delete_device_after" setting.
 ///
-/// Returns true if any message is hidden, so event can be emitted. If nothing
-/// has been hidden, returns false.
-pub fn hide_device_expired_messages(context: &Context) -> Result<bool, Error> {
+/// Returns true if any message is deleted, so event can be emitted. If nothing
+/// has been deleted, returns false.
+pub fn delete_device_expired_messages(context: &Context) -> Result<bool, Error> {
     if let Some(delete_device_after) = context.get_config_delete_device_after() {
         let threshold_timestamp = time() - delete_device_after;
 
@@ -1602,19 +1602,20 @@ pub fn hide_device_expired_messages(context: &Context) -> Result<bool, Error> {
             .unwrap_or_default()
             .0;
 
-        // Hide expired messages
+        // Delete expired messages
         //
         // Only update the rows that have to be updated, to avoid emitting
         // unnecessary "chat modified" events.
         let rows_modified = context.sql.execute(
             "UPDATE msgs \
-             SET txt = 'DELETED', hidden = 1 \
+             SET txt = 'DELETED', chat_id = ? \
              WHERE timestamp < ? \
              AND chat_id > ? \
              AND chat_id != ? \
              AND chat_id != ? \
              AND NOT hidden",
             params![
+                DC_CHAT_ID_TRASH,
                 threshold_timestamp,
                 DC_CHAT_ID_LAST_SPECIAL,
                 self_chat_id,
