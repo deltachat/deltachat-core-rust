@@ -44,7 +44,11 @@ pub fn simplify(mut input: String, is_chat_message: bool) -> (String, bool) {
     let original_lines = &lines;
 
     let lines = remove_message_footer(lines);
-    let (lines, mut has_nonstandard_footer) = remove_nonstandard_footer(lines);
+    let (lines, mut has_nonstandard_footer) = if !is_chat_message {
+        remove_nonstandard_footer(lines)
+    } else {
+        (lines, false)
+    };
     let (lines, mut has_bottom_quote) = if !is_chat_message {
         remove_bottom_quote(lines)
     } else {
@@ -220,6 +224,14 @@ mod tests {
             plain,
             "------\nFailed\n------\n\nUh-oh, this workflow did not succeed!\n\nlots of other text"
         );
+        assert!(!is_forwarded);
+    }
+
+    #[test]
+    fn test_chat_message() {
+        let input = "Hi! How are you?\n\n---\n\nI am good.\n-- \nSent with my Delta Chat Messenger: https://delta.chat".to_string();
+        let (plain, is_forwarded) = simplify(input, true);
+        assert_eq!(plain, "Hi! How are you?\n\n---\n\nI am good.");
         assert!(!is_forwarded);
     }
 
