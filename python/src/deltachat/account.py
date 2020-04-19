@@ -13,7 +13,7 @@ from . import const
 from .capi import ffi, lib
 from .cutil import as_dc_charpointer, from_dc_charpointer, iter_array, DCLot
 from .chat import Chat
-from .message import Message
+from .message import Message, map_system_message
 from .contact import Contact
 from .tracker import ImexTracker
 from . import hookspec, iothreads
@@ -65,8 +65,7 @@ class Account(object):
 
     @hookspec.account_hookimpl
     def ac_process_ffi_event(self, ffi_event):
-        name, kwargs = self._map_ffi_event(ffi_event)
-        if name is not None:
+        for name, kwargs in self._map_ffi_event(ffi_event):
             ev = HookEvent(self, name=name, kwargs=kwargs)
             self._hook_event_queue.put(ev)
 
@@ -622,48 +621,26 @@ class Account(object):
             data1 = ffi_event.data1
             if data1 == 0 or data1 == 1000:
                 success = data1 == 1000
-                return "ac_configure_completed", dict(success=success)
+                yield "ac_configure_completed", dict(success=success)
         elif name == "DC_EVENT_INCOMING_MSG":
             msg = self.get_message_by_id(ffi_event.data2)
-            return self._map_incoming(msg)
+            yield map_system_message(msg) or ("ac_incoming_message", dict(message=msg))
         elif name == "DC_EVENT_MSGS_CHANGED":
             if ffi_event.data2 != 0:
                 msg = self.get_message_by_id(ffi_event.data2)
                 if msg.is_outgoing():
-                    evname, kwargs = self._map_incoming(msg)
-                    if evname.startswith("ac_member"):
-                        return evname, kwargs
-                if msg.is_in_fresh():
-                    return self._map_incoming(msg)
+                    res = map_system_message(msg)
+                    if res and res[0].startswith("ac_member"):
+                        yield res
+                    yield "ac_outgoing_message", dict(message=msg)
+                elif msg.is_in_fresh():
+                    yield map_system_message(msg) or ("ac_incoming_message", dict(message=msg))
         elif name == "DC_EVENT_MSG_DELIVERED":
             msg = self.get_message_by_id(ffi_event.data2)
-            return "ac_message_delivered", dict(message=msg)
+            yield "ac_message_delivered", dict(message=msg)
         elif name == "DC_EVENT_CHAT_MODIFIED":
             chat = self.get_chat_by_id(ffi_event.data1)
-            return "ac_chat_modified", dict(chat=chat)
-        return None, {}
-
-    def _map_incoming(self, msg):
-        if msg.is_system_message():
-            res = parse_system_add_remove(msg.text)
-            if res:
-                contact = msg.account.get_contact_by_addr(res[1])
-                if contact:
-                    d = dict(chat=msg.chat, contact=contact, sender=msg.get_sender_contact())
-                    return "ac_member_" + res[0], d
-        return "ac_incoming_message", dict(message=msg)
-
-
-def parse_system_add_remove(text):
-    # Member Me (x@y) removed by a@b.
-    # Member x@y removed by a@b
-    text = text.lower()
-    parts = text.split()
-    if parts[0] == "member":
-        if parts[2] in ("removed", "added"):
-            return parts[2], parts[1]
-        if parts[3] in ("removed", "added"):
-            return parts[3], parts[2].strip("()")
+            yield "ac_chat_modified", dict(chat=chat)
 
 
 def _destroy_dc_context(dc_context, dc_context_unref=lib.dc_context_unref):

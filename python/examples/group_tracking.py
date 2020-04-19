@@ -22,6 +22,10 @@ class GroupTrackingPlugin:
         print("*** ac_configure_completed:", success)
 
     @account_hookimpl
+    def ac_chat_modified(self, chat):
+        print("*** ac_chat_modified:", chat.id, chat.get_name())
+
+    @account_hookimpl
     def ac_member_added(self, chat, contact, sender):
         print("*** ac_member_added {} to chat {} from {}".format(
             contact.addr, chat.id, sender.addr))

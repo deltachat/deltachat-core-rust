@@ -320,3 +320,26 @@ def get_viewtype_code_from_name(view_type_name):
             return code
     raise ValueError("message typecode not found for {!r}, "
                      "available {!r}".format(view_type_name, list(_view_type_mapping.values())))
+
+
+# some helper code for turning system messages into hook events
+def map_system_message(msg):
+    if msg.is_system_message():
+        res = parse_system_add_remove(msg.text)
+        if res:
+            contact = msg.account.get_contact_by_addr(res[1])
+            if contact:
+                d = dict(chat=msg.chat, contact=contact, sender=msg.get_sender_contact())
+                return "ac_member_" + res[0], d
+
+
+def parse_system_add_remove(text):
+    # Member Me (x@y) removed by a@b.
+    # Member x@y removed by a@b
+    text = text.lower()
+    parts = text.split()
+    if parts[0] == "member":
+        if parts[2] in ("removed", "added"):
+            return parts[2], parts[1]
+        if parts[3] in ("removed", "added"):
+            return parts[3], parts[2].strip("()")

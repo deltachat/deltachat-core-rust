@@ -16,7 +16,7 @@ from conftest import (wait_configuration_progress,
     ("Member tmp1@x.org added by tmp2@x.org.", ("added", "tmp1@x.org")),
 ])
 def test_parse_system_add_remove(msgtext, res):
-    from deltachat.account import parse_system_add_remove
+    from deltachat.message import parse_system_add_remove
 
     out = parse_system_add_remove(msgtext)
     assert out == res

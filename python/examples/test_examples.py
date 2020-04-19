@@ -33,12 +33,12 @@ def test_echo_quit_plugin(acfactory):
 
 def test_group_tracking_plugin(acfactory, lp):
     lp.sec("creating one group-tracking bot and two temp accounts")
-    botproc = acfactory.run_bot_process(group_tracking)
+    botproc = acfactory.run_bot_process(group_tracking, ffi=False)
 
     ac1, ac2 = acfactory.get_two_online_accounts(quiet=True)
 
     botproc.fnmatch_lines("""
-        *ac_configure_completed: True*
+        *ac_configure_completed*
     """)
     ac1.add_account_plugin(FFIEventLogger(ac1, "ac1"))
     ac2.add_account_plugin(FFIEventLogger(ac2, "ac2"))
@@ -50,7 +50,7 @@ def test_group_tracking_plugin(acfactory, lp):
     ch.send_text("hello")
 
     botproc.fnmatch_lines("""
-        *ac_chat_modified*
+        *ac_chat_modified*bot test group*
     """.format(ac1.get_config("addr")))
 
     lp.sec("adding third member {}".format(ac2.get_config("addr")))
