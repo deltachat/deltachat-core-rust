@@ -280,26 +280,28 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             ac.start()
             return ac
 
-        def run_bot_process(self, module):
+        def run_bot_process(self, module, ffi=True):
             fn = module.__file__
 
             bot_ac, bot_cfg = self.get_online_config()
 
             args = [
                 sys.executable,
+                "-u",
                 fn,
-                "--show-ffi",
                 "--email", bot_cfg["addr"],
                 "--password", bot_cfg["mail_pw"],
                 bot_ac.db_path,
             ]
+            if ffi:
+                args.insert(-1, "--show-ffi")
             print("$", " ".join(args))
             popen = subprocess.Popen(
                 args=args,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,  # combine stdout/stderr in one stream
-                bufsize=1,                 # line buffering
+                bufsize=0,                 # line buffering
                 close_fds=True,            # close all FDs other than 0/1/2
                 universal_newlines=True    # give back text
             )
