@@ -30,7 +30,7 @@ class Chat(object):
         return not (self == other)
 
     def __repr__(self):
-        return "<Chat id={} name={} dc_context={}>".format(self.id, self.get_name(), self._dc_context)
+        return "<Chat id={} name={}>".format(self.id, self.get_name())
 
     @property
     def _dc_chat(self):

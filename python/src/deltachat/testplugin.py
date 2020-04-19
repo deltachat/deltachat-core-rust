@@ -347,15 +347,21 @@ class BotProcess:
         patterns = [x.strip() for x in Source(pattern_lines.rstrip()).lines if x.strip()]
         for next_pattern in patterns:
             print("+++FNMATCH:", next_pattern)
+            ignored = []
             while 1:
                 line = self.stdout_queue.get(timeout=15)
                 if line is None:
+                    if ignored:
+                        print("BOT stdout terminated after these lines")
+                        for line in ignored:
+                            print(line)
                     raise IOError("BOT stdout-thread terminated")
                 if fnmatch.fnmatch(line, next_pattern):
                     print("+++MATCHED:", line)
                     break
                 else:
                     print("+++IGN:", line)
+                    ignored.append(line)
 
 
 @pytest.fixture

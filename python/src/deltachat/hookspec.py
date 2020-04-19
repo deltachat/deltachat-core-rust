@@ -49,6 +49,10 @@ class PerAccount:
         """ Called on any incoming message (to deaddrop or chat). """
 
     @account_hookspec
+    def ac_outgoing_message(self, message):
+        """ Called on each outgoing message (both system and "normal")."""
+
+    @account_hookspec
     def ac_message_delivered(self, message):
         """ Called when an outgoing message has been delivered to SMTP. """
 
@@ -57,12 +61,12 @@ class PerAccount:
         """ Chat was created or modified regarding membership, avatar, title. """
 
     @account_hookspec
-    def ac_member_added(self, chat, contact, sender):
+    def ac_member_added(self, chat, contact, message):
         """ Called for each contact added to an accepted chat. """
 
     @account_hookspec
-    def ac_member_removed(self, chat, contact, sender):
-        """ Called for each contact removed from a chat. """
+    def ac_member_removed(self, chat, contact, message):
+        """ Called for each contact removed from a chat.  """
 
 
 class Global:
