@@ -44,35 +44,24 @@ pub fn simplify(mut input: String, is_chat_message: bool) -> (String, bool) {
     let original_lines = &lines;
 
     let lines = remove_message_footer(lines);
-    let (lines, mut has_nonstandard_footer) = if !is_chat_message {
-        remove_nonstandard_footer(lines)
-    } else {
-        (lines, false)
-    };
-    let (lines, mut has_bottom_quote) = if !is_chat_message {
-        remove_bottom_quote(lines)
-    } else {
-        (lines, false)
-    };
-    let (mut lines, mut has_top_quote) = if !is_chat_message {
-        remove_top_quote(lines)
-    } else {
-        (lines, false)
-    };
 
-    if lines.iter().all(|it| it.trim().is_empty()) {
-        lines = original_lines;
-        has_top_quote = false;
-        has_bottom_quote = false;
-        has_nonstandard_footer = false;
-    }
+    let text = if is_chat_message {
+        render_message(lines, false, false)
+    } else {
+        let (lines, has_nonstandard_footer) = remove_nonstandard_footer(lines);
+        let (lines, has_bottom_quote) = remove_bottom_quote(lines);
+        let (lines, has_top_quote) = remove_top_quote(lines);
 
-    // re-create buffer from the remaining lines
-    let text = render_message(
-        lines,
-        has_top_quote,
-        has_nonstandard_footer || has_bottom_quote,
-    );
+        if lines.iter().all(|it| it.trim().is_empty()) {
+            render_message(original_lines, false, false)
+        } else {
+            render_message(
+                lines,
+                has_top_quote,
+                has_nonstandard_footer || has_bottom_quote,
+            )
+        }
+    };
     (text, is_forwarded)
 }
 
