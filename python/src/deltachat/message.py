@@ -28,7 +28,9 @@ class Message(object):
         return self.account == other.account and self.id == other.id
 
     def __repr__(self):
-        return "<Message id={} dc_context={}>".format(self.id, self._dc_context)
+        c = self.get_sender_contact()
+        return "<Message id={} sender={}/{} outgoing={} chat={}/{}>".format(
+            self.id, c.id, c.addr, self.is_outgoing(), self.chat.id, self.chat.get_name())
 
     @classmethod
     def from_db(cls, account, id):
@@ -322,14 +324,17 @@ def get_viewtype_code_from_name(view_type_name):
                      "available {!r}".format(view_type_name, list(_view_type_mapping.values())))
 
 
+#
 # some helper code for turning system messages into hook events
+#
+
 def map_system_message(msg):
     if msg.is_system_message():
         res = parse_system_add_remove(msg.text)
         if res:
             contact = msg.account.get_contact_by_addr(res[1])
             if contact:
-                d = dict(chat=msg.chat, contact=contact, sender=msg.get_sender_contact())
+                d = dict(chat=msg.chat, contact=contact, message=msg)
                 return "ac_member_" + res[0], d
 
 

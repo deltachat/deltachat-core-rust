@@ -18,24 +18,30 @@ class GroupTrackingPlugin:
             message.chat.send_text("echoing from {}:\n{}".format(addr, text))
 
     @account_hookimpl
+    def ac_outgoing_message(self, message):
+        print("ac_outgoing_message:", message)
+
+    @account_hookimpl
     def ac_configure_completed(self, success):
-        print("*** ac_configure_completed:", success)
+        print("ac_configure_completed:", success)
 
     @account_hookimpl
     def ac_chat_modified(self, chat):
-        print("*** ac_chat_modified:", chat.id, chat.get_name())
-
-    @account_hookimpl
-    def ac_member_added(self, chat, contact, sender):
-        print("*** ac_member_added {} to chat {} from {}".format(
-            contact.addr, chat.id, sender.addr))
+        print("ac_chat_modified:", chat.id, chat.get_name())
         for member in chat.get_contacts():
             print("chat member: {}".format(member.addr))
 
     @account_hookimpl
-    def ac_member_removed(self, chat, contact, sender):
-        print("*** ac_member_removed {} from chat {} by {}".format(
-            contact.addr, chat.id, sender.addr))
+    def ac_member_added(self, chat, contact, message):
+        print("ac_member_added {} to chat {} from {}".format(
+            contact.addr, chat.id, message.get_sender_contact().addr))
+        for member in chat.get_contacts():
+            print("chat member: {}".format(member.addr))
+
+    @account_hookimpl
+    def ac_member_removed(self, chat, contact, message):
+        print("ac_member_removed {} from chat {} by {}".format(
+            contact.addr, chat.id, message.get_sender_contact().addr))
 
 
 def main(argv=None):

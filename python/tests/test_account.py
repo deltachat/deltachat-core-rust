@@ -1052,11 +1052,16 @@ class TestOnlineAccount:
                 message_queue.put(message)
 
         delivered = queue.Queue()
+        out = queue.Queue()
 
         class OutPlugin:
             @account_hookimpl
             def ac_message_delivered(self, message):
                 delivered.put(message)
+
+            @account_hookimpl
+            def ac_outgoing_message(self, message):
+                out.put(message)
 
         ac1.add_account_plugin(OutPlugin())
         ac2.add_account_plugin(InPlugin())
@@ -1068,6 +1073,8 @@ class TestOnlineAccount:
         assert ev.data1 == chat.id
         assert ev.data2 == msg_out.id
         assert msg_out.is_out_delivered()
+        m = out.get()
+        assert m == msg_out
         m = delivered.get()
         assert m == msg_out
 
@@ -1304,12 +1311,12 @@ class TestOnlineAccount:
                 in_list.put(EventHolder(action="chat-modified", chat=chat))
 
             @account_hookimpl
-            def ac_member_added(self, chat, contact, sender):
-                in_list.put(EventHolder(action="added", chat=chat, contact=contact, sender=sender))
+            def ac_member_added(self, chat, contact, message):
+                in_list.put(EventHolder(action="added", chat=chat, contact=contact, message=message))
 
             @account_hookimpl
-            def ac_member_removed(self, chat, contact, sender):
-                in_list.put(EventHolder(action="removed", chat=chat, contact=contact, sender=sender))
+            def ac_member_removed(self, chat, contact, message):
+                in_list.put(EventHolder(action="removed", chat=chat, contact=contact, message=message))
 
         ac2.add_account_plugin(InPlugin())
 
@@ -1335,7 +1342,7 @@ class TestOnlineAccount:
         assert ev.action == "chat-modified"
         ev = in_list.get(timeout=10)
         assert ev.action == "added"
-        assert ev.sender.addr == ac1_addr
+        assert ev.message.get_sender_contact().addr == ac1_addr
         assert ev.contact.addr == "notexistingaccountihope@testrun.org"
 
         lp.sec("ac1: remove address2")
@@ -1345,7 +1352,7 @@ class TestOnlineAccount:
         ev = in_list.get(timeout=10)
         assert ev.action == "removed"
         assert ev.contact.addr == contact2.addr
-        assert ev.sender.addr == ac1_addr
+        assert ev.message.get_sender_contact().addr == ac1_addr
 
         lp.sec("ac1: remove ac2 contact from chat")
         chat.remove_contact(contact)
@@ -1353,7 +1360,7 @@ class TestOnlineAccount:
         assert ev.action == "chat-modified"
         ev = in_list.get(timeout=10)
         assert ev.action == "removed"
-        assert ev.sender.addr == ac1_addr
+        assert ev.message.get_sender_contact().addr == ac1_addr
 
     def test_set_get_group_image(self, acfactory, data, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
