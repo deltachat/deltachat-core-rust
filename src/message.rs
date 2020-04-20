@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use deltachat_derive::{FromSql, ToSql};
 use lazy_static::lazy_static;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize}
 
 use crate::chat::{self, Chat, ChatId};
 use crate::constants::*;
@@ -1115,7 +1115,10 @@ pub fn star_msgs(context: &Context, msg_ids: &[MsgId], star: bool) -> bool {
         .is_ok()
 }
 
-/// Returns a summary test.
+/// Returns a summary text, mostly depending on parameters viewtype and text
+/// This is called by subject_str to be put in the subject email header 
+/// For instance, the summary of an audio message is "Voice message" and the corresponding email subject header is "Chat: Voice message"
+/// Note that the subject header is not shown for users of Delta Chat, it it only shown to recipients using other mail agents
 pub fn get_summarytext_by_raw(
     viewtype: Viewtype,
     text: Option<impl AsRef<str>>,
@@ -1171,7 +1174,9 @@ pub fn get_summarytext_by_raw(
         if text.as_ref().is_empty() {
             prefix
         } else if prefix.is_empty() {
-            dc_truncate(text.as_ref(), approx_characters).to_string()
+            // a simple text message will have a subject "Chat: text message" (see fn subject_str)
+            // this is the least surprising for recipients who have a normal mail agent, those who are not using Delta Chat
+            "text message".to_string()
         } else {
             let tmp = format!("{} – {}", prefix, text.as_ref());
             dc_truncate(&tmp, approx_characters).to_string()
