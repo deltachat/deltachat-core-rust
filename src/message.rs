@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use deltachat_derive::{FromSql, ToSql};
 use lazy_static::lazy_static;
-use serde::{Deserialize, Serialize}
+use serde::{Deserialize, Serialize};
 
 use crate::chat::{self, Chat, ChatId};
 use crate::constants::*;
