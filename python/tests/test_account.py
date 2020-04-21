@@ -928,6 +928,13 @@ class TestOnlineAccount:
         assert msg_back.text == "message-back"
         assert msg_back.is_encrypted()
 
+        # test get_fresh_messages
+        fresh_msgs = list(ac1.get_fresh_messages())
+        assert len(fresh_msgs) == 1
+        assert fresh_msgs[0] == msg_back
+        msg_back.mark_seen()
+        assert not list(ac1.get_fresh_messages())
+
         # Test that we do not gossip peer keys in 1-to-1 chat,
         # as it makes no sense to gossip to peers their own keys.
         # Gossip is only sent in encrypted messages,

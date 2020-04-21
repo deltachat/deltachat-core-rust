@@ -273,6 +273,14 @@ class Account(object):
         )
         return list(iter_array(dc_array, lambda x: Contact(self, x)))
 
+    def get_fresh_messages(self):
+        """ yield all fresh messages from all chats. """
+        dc_array = ffi.gc(
+            lib.dc_get_fresh_msgs(self._dc_context),
+            lib.dc_array_unref
+        )
+        yield from iter_array(dc_array, lambda x: Message.from_db(self, x))
+
     def create_chat_by_contact(self, contact):
         """ create or get an existing 1:1 chat object for the specified contact or contact id.
 
