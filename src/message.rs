@@ -1431,12 +1431,12 @@ pub fn rfc724_mid_cnt(context: &Context, rfc724_mid: &str) -> i32 {
 pub(crate) fn rfc724_mid_exists(
     context: &Context,
     rfc724_mid: &str,
-) -> Result<(String, u32, MsgId), Error> {
+) -> Result<Option<(String, u32, MsgId)>, Error> {
     ensure!(!rfc724_mid.is_empty(), "empty rfc724_mid");
 
     context
         .sql
-        .query_row(
+        .query_row_optional(
             "SELECT server_folder, server_uid, id FROM msgs WHERE rfc724_mid=?",
             &[rfc724_mid],
             |row| {

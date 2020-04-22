@@ -604,7 +604,7 @@ impl Imap {
 
             let headers = get_fetch_headers(fetch)?;
             let message_id = prefetch_get_message_id(&headers).unwrap_or_default();
-            if precheck_imf(context, &message_id, folder.as_ref(), cur_uid) {
+            if precheck_imf(context, &message_id, folder.as_ref(), cur_uid)? {
                 // we know the message-id already or don't want the message otherwise.
                 info!(
                     context,
@@ -1266,9 +1266,14 @@ fn get_folder_meaning(folder_name: &Name) -> FolderMeaning {
     }
 }
 
-fn precheck_imf(context: &Context, rfc724_mid: &str, server_folder: &str, server_uid: u32) -> bool {
-    if let Ok((old_server_folder, old_server_uid, msg_id)) =
-        message::rfc724_mid_exists(context, &rfc724_mid)
+fn precheck_imf(
+    context: &Context,
+    rfc724_mid: &str,
+    server_folder: &str,
+    server_uid: u32,
+) -> Result<bool> {
+    if let Some((old_server_folder, old_server_uid, msg_id)) =
+        message::rfc724_mid_exists(context, &rfc724_mid)?
     {
         if old_server_folder.is_empty() && old_server_uid == 0 {
             info!(
@@ -1322,9 +1327,9 @@ fn precheck_imf(context: &Context, rfc724_mid: &str, server_folder: &str, server
         if old_server_folder != server_folder || old_server_uid != server_uid {
             update_server_uid(context, &rfc724_mid, server_folder, server_uid);
         }
-        true
+        Ok(true)
     } else {
-        false
+        Ok(false)
     }
 }
 
