@@ -201,22 +201,4 @@ pub enum Event {
     ///     (Bob has verified alice and waits until Alice does the same for him)
     #[strum(props(id = "2061"))]
     SecurejoinJoinerProgress { contact_id: u32, progress: usize },
-
-    /// This event is sent out to the inviter when a joiner successfully joined a group.
-    /// @param data1 (int) chat_id
-    /// @param data2 (int) contact_id
-    #[strum(props(id = "2062"))]
-    SecurejoinMemberAdded { chat_id: ChatId, contact_id: u32 },
-
-    /// This event is sent for each contact added to a chat.
-    /// @param data1 (int) chat_id
-    /// @param data2 (int) contact_id
-    #[strum(props(id = "2063"))]
-    MemberAdded { chat_id: ChatId, contact_id: u32 },
-
-    /// This event is sent for each contact removed from a chat.
-    /// @param data1 (int) chat_id
-    /// @param data2 (int) contact_id
-    #[strum(props(id = "2064"))]
-    MemberRemoved { chat_id: ChatId, contact_id: u32 },
 }

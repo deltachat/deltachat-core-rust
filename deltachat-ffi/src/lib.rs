@@ -196,25 +196,6 @@ impl ContextWrapper {
                         progress as uintptr_t,
                     );
                 }
-                Event::SecurejoinMemberAdded {
-                    chat_id,
-                    contact_id,
-                }
-                | Event::MemberAdded {
-                    chat_id,
-                    contact_id,
-                }
-                | Event::MemberRemoved {
-                    chat_id,
-                    contact_id,
-                } => {
-                    ffi_cb(
-                        self,
-                        event_id,
-                        chat_id.to_u32() as uintptr_t,
-                        contact_id as uintptr_t,
-                    );
-                }
             }
         }
     }

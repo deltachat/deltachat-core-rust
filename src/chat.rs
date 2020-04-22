@@ -1796,7 +1796,6 @@ pub fn create_group_chat(
 }
 
 /// add a contact to the chats_contact table
-/// on success emit MemberAdded event and return true
 pub(crate) fn add_to_chat_contacts_table(
     context: &Context,
     chat_id: ChatId,
@@ -1808,14 +1807,7 @@ pub(crate) fn add_to_chat_contacts_table(
         "INSERT INTO chats_contacts (chat_id, contact_id) VALUES(?, ?)",
         params![chat_id, contact_id as i32],
     ) {
-        Ok(()) => {
-            context.call_cb(Event::MemberAdded {
-                chat_id,
-                contact_id,
-            });
-
-            true
-        }
+        Ok(()) => true,
         Err(err) => {
             error!(
                 context,
@@ -1828,7 +1820,6 @@ pub(crate) fn add_to_chat_contacts_table(
 }
 
 /// remove a contact from the chats_contact table
-/// on success emit MemberRemoved event and return true
 pub(crate) fn remove_from_chat_contacts_table(
     context: &Context,
     chat_id: ChatId,
@@ -1840,14 +1831,7 @@ pub(crate) fn remove_from_chat_contacts_table(
         "DELETE FROM chats_contacts WHERE chat_id=? AND contact_id=?",
         params![chat_id, contact_id as i32],
     ) {
-        Ok(()) => {
-            context.call_cb(Event::MemberRemoved {
-                chat_id,
-                contact_id,
-            });
-
-            true
-        }
+        Ok(()) => true,
         Err(_) => {
             warn!(
                 context,

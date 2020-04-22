@@ -753,17 +753,12 @@ pub(crate) fn handle_securejoin_handshake(
                         .get(HeaderDef::SecureJoinGroup)
                         .map(|s| s.as_str())
                         .unwrap_or_else(|| "");
-                    let (group_chat_id, _, _) = chat::get_chat_id_by_grpid(context, &field_grpid)
-                        .map_err(|err| {
+                    if let Err(err) = chat::get_chat_id_by_grpid(context, &field_grpid) {
                         warn!(context, "Failed to lookup chat_id from grpid: {}", err);
-                        HandshakeError::ChatNotFound {
+                        return Err(HandshakeError::ChatNotFound {
                             group: field_grpid.to_string(),
-                        }
-                    })?;
-                    context.call_cb(Event::MemberAdded {
-                        chat_id: group_chat_id,
-                        contact_id,
-                    });
+                        });
+                    }
                 }
                 Ok(HandshakeMessage::Ignore) // "Done" deletes the message and breaks multi-device
             } else {
