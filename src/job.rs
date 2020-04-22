@@ -75,7 +75,19 @@ impl Default for Thread {
     }
 }
 
-#[derive(Debug, Display, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql)]
+#[derive(
+    Debug,
+    Display,
+    Copy,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    FromPrimitive,
+    ToPrimitive,
+    FromSql,
+    ToSql,
+)]
 #[repr(i32)]
 pub enum Action {
     Unknown = 0,
