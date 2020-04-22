@@ -323,4 +323,27 @@ mod tests {
         assert_eq!(img.width(), AVATAR_SIZE);
         assert_eq!(img.height(), AVATAR_SIZE);
     }
+
+    #[test]
+    fn test_selfavatar_copy_without_recode() {
+        let t = dummy_context();
+        let avatar_src = t.dir.path().join("avatar.png");
+        let avatar_bytes = include_bytes!("../test-data/image/avatar64x64.png");
+        File::create(&avatar_src)
+            .unwrap()
+            .write_all(avatar_bytes)
+            .unwrap();
+        let avatar_blob = t.ctx.get_blobdir().join("avatar.png");
+        assert!(!avatar_blob.exists());
+        t.ctx
+            .set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))
+            .unwrap();
+        assert!(avatar_blob.exists());
+        assert_eq!(
+            std::fs::metadata(&avatar_blob).unwrap().len(),
+            avatar_bytes.len() as u64
+        );
+        let avatar_cfg = t.ctx.get_config(Config::Selfavatar);
+        assert_eq!(avatar_cfg, avatar_blob.to_str().map(|s| s.to_string()));
+    }
 }
