@@ -42,14 +42,14 @@ pub(crate) fn test_context(callback: Option<Box<ContextCallback>>) -> TestContex
 /// specified in [test_context] but there is no callback hooked up,
 /// i.e. [Context::call_cb] will always return `0`.
 pub(crate) fn dummy_context() -> TestContext {
-    test_context(None)
+    test_context(Some(Box::new(logging_cb)))
 }
 
 pub(crate) fn logging_cb(_ctx: &Context, evt: Event) {
     match evt {
         Event::Info(msg) => println!("I: {}", msg),
-        Event::Warning(msg) => println!("W: {}", msg),
-        Event::Error(msg) => println!("E: {}", msg),
+        Event::Warning(msg) => eprintln!("=== WARNING ===\n{}\n===============", msg),
+        Event::Error(msg) => eprintln!("\n===================== ERROR =====================\n{}\n=================================================\n", msg),
         _ => (),
     }
 }
