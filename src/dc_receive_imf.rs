@@ -298,8 +298,8 @@ fn add_parts(
     // check, if the mail is already in our database - if so, just update the folder/uid
     // (if the mail was moved around) and finish. (we may get a mail twice eg. if it is
     // moved between folders. make sure, this check is done eg. before securejoin-processing) */
-    if let Ok((old_server_folder, old_server_uid, _)) =
-        message::rfc724_mid_exists(context, &rfc724_mid)
+    if let Some((old_server_folder, old_server_uid, _)) =
+        message::rfc724_mid_exists(context, &rfc724_mid)?
     {
         if old_server_folder != server_folder.as_ref() || old_server_uid != server_uid {
             message::update_server_uid(context, &rfc724_mid, server_folder.as_ref(), server_uid);
