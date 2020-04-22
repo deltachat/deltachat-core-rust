@@ -993,39 +993,34 @@ pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<()> {
     Ok(())
 }
 
-fn add_imap_deletion_jobs(context: &Context) -> sql::Result<()> {
+fn load_imap_deletion_msgid(context: &Context) -> sql::Result<Option<MsgId>> {
     if let Some(delete_server_after) = context.get_config_delete_server_after() {
         let threshold_timestamp = time() - delete_server_after;
 
-        // Select all expired messages which don't have a
-        // corresponding message deletion job yet.
-        let msg_ids = context.sql.query_map(
+        context.sql.query_row_optional(
             "SELECT id FROM msgs \
              WHERE timestamp < ? \
-             AND server_uid != 0 \
-             AND NOT EXISTS (SELECT 1 FROM jobs WHERE foreign_id = msgs.id \
-             AND action = ?)",
-            params![threshold_timestamp, Action::DeleteMsgOnImap],
+             AND server_uid != 0",
+            params![threshold_timestamp],
             |row| row.get::<_, MsgId>(0),
-            |ids| {
-                ids.collect::<std::result::Result<Vec<_>, _>>()
-                    .map_err(Into::into)
-            },
-        )?;
-
-        // Schedule IMAP deletion for expired messages.
-        for msg_id in msg_ids {
-            job_add(
-                context,
-                Action::DeleteMsgOnImap,
-                msg_id.to_u32() as i32,
-                Params::new(),
-                0,
-            )
-        }
+        )
+    } else {
+        Ok(None)
     }
+}
 
-    Ok(())
+fn load_imap_deletion_job(context: &Context) -> sql::Result<Option<Job>> {
+    let res = if let Some(msg_id) = load_imap_deletion_msgid(context)? {
+        Some(Job::new(
+            Action::DeleteMsgOnImap,
+            msg_id.to_u32(),
+            Params::new(),
+            0,
+        ))
+    } else {
+        None
+    };
+    Ok(res)
 }
 
 pub fn perform_inbox_jobs(context: &Context) {
@@ -1035,9 +1030,6 @@ pub fn perform_inbox_jobs(context: &Context) {
     *context.probe_imap_network.write().unwrap() = false;
     *context.perform_inbox_jobs_needed.write().unwrap() = false;
 
-    if let Err(err) = add_imap_deletion_jobs(context) {
-        warn!(context, "Can't add IMAP message deletion jobs: {}", err);
-    }
     job_perform(context, Thread::Imap, probe_imap_network);
     info!(context, "dc_perform_inbox_jobs ended.",);
 }
@@ -1328,7 +1320,7 @@ fn load_next_job(context: &Context, thread: Thread, probe_network: bool) -> Opti
         params_probe
     };
 
-    context
+    let job = context
         .sql
         .query_map(
             query,
@@ -1357,7 +1349,23 @@ fn load_next_job(context: &Context, thread: Thread, probe_network: bool) -> Opti
                 Ok(None)
             },
         )
-        .unwrap_or_default()
+        .unwrap_or_default();
+
+    if thread == Thread::Imap {
+        if let Some(job) = job {
+            if job.action < Action::DeleteMsgOnImap {
+                load_imap_deletion_job(context)
+                    .unwrap_or_default()
+                    .or(Some(job))
+            } else {
+                Some(job)
+            }
+        } else {
+            load_imap_deletion_job(context).unwrap_or_default()
+        }
+    } else {
+        job
+    }
 }
 
 #[cfg(test)]
