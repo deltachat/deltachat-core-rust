@@ -342,7 +342,8 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  * - `smtp_certificate_checks` = how to check SMTP certificates, one of the @ref DC_CERTCK flags, defaults to #DC_CERTCK_AUTO (0)
  * - `displayname`  = Own name to use when sending messages.  MUAs are allowed to spread this way eg. using CC, defaults to empty
  * - `selfstatus`   = Own status to display eg. in email footers, defaults to a standard text
- * - `selfavatar`   = File containing avatar. Will be copied to blob directory.
+ * - `selfavatar`   = File containing avatar. Will immediately be copied to the 
+ *                    `blobdir`; the original image will not be needed anymore.
  *                    NULL to remove the avatar.
  *                    It is planned for future versions
  *                    to send this image together with the next messages.
@@ -1612,8 +1613,10 @@ int             dc_set_chat_name             (dc_context_t* context, uint32_t ch
  * @memberof dc_context_t
  * @param context The context as created by dc_context_new().
  * @param chat_id The chat ID to set the image for.
- * @param image Full path of the image to use as the group image.  If you pass NULL here,
- *     the group image is deleted (for promoted groups, all members are informed about this change anyway).
+ * @param image Full path of the image to use as the group image. The image will immediately be copied to the 
+ *     `blobdir`; the original image will not be needed anymore.
+ *      If you pass NULL here, the group image is deleted (for promoted groups, all members are informed about 
+ *      this change anyway).
  * @return 1=success, 0=error
  */
 int             dc_set_chat_profile_image    (dc_context_t* context, uint32_t chat_id, const char* image);
