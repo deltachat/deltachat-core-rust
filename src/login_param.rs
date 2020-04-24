@@ -2,6 +2,9 @@
 
 use std::borrow::Cow;
 use std::fmt;
+use std::str::FromStr;
+use std::string::ToString;
+use strum_macros::{AsRefStr, Display, EnumString};
 
 use crate::context::Context;
 
@@ -25,22 +28,67 @@ impl Default for CertificateChecks {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(
+    Debug, Display, Clone, Copy, PartialEq, Eq, EnumString, AsRefStr, EnumIter, EnumProperty,
+)]
+#[strum(serialize_all = "snake_case")]
+pub enum AuthScheme {
+    Plain,
+    Oauth2,
+}
+
+impl Default for AuthScheme {
+    fn default() -> Self {
+        Self::Plain
+    }
+}
+
+#[derive(
+    Debug, Display, Clone, Copy, PartialEq, Eq, EnumString, AsRefStr, EnumIter, EnumProperty,
+)]
+#[strum(serialize_all = "snake_case")]
+pub enum ServerSecurity {
+    PlainSocket,
+    Ssl,
+    Starttls,
+}
+
+impl ServerSecurity {
+    /// Create as Option from string
+    pub fn from_str_opt(s: &str) -> Option<ServerSecurity> {
+        match ServerSecurity::from_str(s) {
+            Ok(sec) => Some(sec),
+            _ => None,
+        }
+    }
+}
+
+#[derive(
+    Debug, Display, Clone, Copy, PartialEq, Eq, EnumString, AsRefStr, EnumIter, EnumProperty,
+)]
+#[strum(serialize_all = "snake_case")]
+pub enum Service {
+    Imap,
+    Smtp,
+}
+
+#[derive(Clone, Default, Debug)]
+pub struct ServerParam {
+    pub hostname: String,
+    pub user: String,
+    pub pw: String,
+    pub port: i32,
+    /// TLS options: whether to allow invalid certificates and/or invalid hostnames
+    pub certificate_checks: CertificateChecks,
+    /// security option Plain TCP, SSL or SARTTLS.
+    pub security: Option<ServerSecurity>,
+}
+#[derive(Clone, Default, Debug)]
 pub struct LoginParam {
     pub addr: String,
-    pub mail_server: String,
-    pub mail_user: String,
-    pub mail_pw: String,
-    pub mail_port: i32,
-    /// IMAP TLS options: whether to allow invalid certificates and/or invalid hostnames
-    pub imap_certificate_checks: CertificateChecks,
-    pub send_server: String,
-    pub send_user: String,
-    pub send_pw: String,
-    pub send_port: i32,
-    /// SMTP TLS options: whether to allow invalid certificates and/or invalid hostnames
-    pub smtp_certificate_checks: CertificateChecks,
-    pub server_flags: i32,
+    /// Auth option OAUTH2 or plain password
+    pub auth_scheme: AuthScheme,
+    pub srv_params: [ServerParam; 2],
 }
 
 impl LoginParam {
@@ -101,22 +149,47 @@ impl LoginParam {
                 Default::default()
             };
 
-        let key = format!("{}server_flags", prefix);
-        let server_flags = sql.get_raw_config_int(context, key).unwrap_or_default();
+        let key = format!("{}auth_scheme", prefix);
+        let auth_scheme = AuthScheme::from_str(
+            sql.get_raw_config(context, key)
+                .unwrap_or_default()
+                .as_str(),
+        )
+        .unwrap_or_default();
+        let key = format!("{}imap_security", prefix);
+        let imap_security = ServerSecurity::from_str_opt(
+            sql.get_raw_config(context, key)
+                .unwrap_or_default()
+                .as_str(),
+        );
+        let key = format!("{}smtp_security", prefix);
+        let smtp_security = ServerSecurity::from_str_opt(
+            sql.get_raw_config(context, key)
+                .unwrap_or_default()
+                .as_str(),
+        );
 
         LoginParam {
             addr,
-            mail_server,
-            mail_user,
-            mail_pw,
-            mail_port,
-            imap_certificate_checks,
-            send_server,
-            send_user,
-            send_pw,
-            send_port,
-            smtp_certificate_checks,
-            server_flags,
+            auth_scheme,
+            srv_params: [
+                ServerParam {
+                    hostname: mail_server,
+                    user: mail_user,
+                    pw: mail_pw,
+                    port: mail_port,
+                    certificate_checks: imap_certificate_checks,
+                    security: imap_security,
+                },
+                ServerParam {
+                    hostname: send_server,
+                    user: send_user,
+                    pw: send_pw,
+                    port: send_port,
+                    certificate_checks: smtp_certificate_checks,
+                    security: smtp_security,
+                },
+            ],
         }
     }
 
@@ -137,64 +210,125 @@ impl LoginParam {
         sql.set_raw_config(context, key, Some(&self.addr))?;
 
         let key = format!("{}mail_server", prefix);
-        sql.set_raw_config(context, key, Some(&self.mail_server))?;
+        sql.set_raw_config(
+            context,
+            key,
+            Some(&self.srv_params[Service::Imap as usize].hostname),
+        )?;
 
         let key = format!("{}mail_port", prefix);
-        sql.set_raw_config_int(context, key, self.mail_port)?;
+        sql.set_raw_config_int(context, key, self.srv_params[Service::Imap as usize].port)?;
 
         let key = format!("{}mail_user", prefix);
-        sql.set_raw_config(context, key, Some(&self.mail_user))?;
+        sql.set_raw_config(
+            context,
+            key,
+            Some(&self.srv_params[Service::Imap as usize].user),
+        )?;
 
         let key = format!("{}mail_pw", prefix);
-        sql.set_raw_config(context, key, Some(&self.mail_pw))?;
+        sql.set_raw_config(
+            context,
+            key,
+            Some(&self.srv_params[Service::Imap as usize].pw),
+        )?;
 
         let key = format!("{}imap_certificate_checks", prefix);
-        sql.set_raw_config_int(context, key, self.imap_certificate_checks as i32)?;
+        sql.set_raw_config_int(
+            context,
+            key,
+            self.srv_params[Service::Imap as usize].certificate_checks as i32,
+        )?;
 
         let key = format!("{}send_server", prefix);
-        sql.set_raw_config(context, key, Some(&self.send_server))?;
+        sql.set_raw_config(
+            context,
+            key,
+            Some(&self.srv_params[Service::Smtp as usize].hostname),
+        )?;
 
         let key = format!("{}send_port", prefix);
-        sql.set_raw_config_int(context, key, self.send_port)?;
+        sql.set_raw_config_int(context, key, self.srv_params[Service::Smtp as usize].port)?;
 
         let key = format!("{}send_user", prefix);
-        sql.set_raw_config(context, key, Some(&self.send_user))?;
+        sql.set_raw_config(
+            context,
+            key,
+            Some(&self.srv_params[Service::Smtp as usize].user),
+        )?;
 
         let key = format!("{}send_pw", prefix);
-        sql.set_raw_config(context, key, Some(&self.send_pw))?;
+        sql.set_raw_config(
+            context,
+            key,
+            Some(&self.srv_params[Service::Smtp as usize].pw),
+        )?;
 
         let key = format!("{}smtp_certificate_checks", prefix);
-        sql.set_raw_config_int(context, key, self.smtp_certificate_checks as i32)?;
+        sql.set_raw_config_int(
+            context,
+            key,
+            self.srv_params[Service::Smtp as usize].certificate_checks as i32,
+        )?;
 
-        let key = format!("{}server_flags", prefix);
-        sql.set_raw_config_int(context, key, self.server_flags)?;
+        let key = format!("{}auth_scheme", prefix);
+        sql.set_raw_config(context, key, Some(self.auth_scheme.as_ref()))?;
+
+        if self.srv_params[Service::Imap as usize].security.is_some() {
+            let key = format!("{}imap_security", prefix);
+            let sec: ServerSecurity;
+            let val = if self.srv_params[Service::Imap as usize].security.is_none() {
+                None
+            } else {
+                sec = self.srv_params[Service::Imap as usize].security.unwrap();
+                Some(sec.as_ref())
+            };
+            sql.set_raw_config(context, key, val)?;
+        }
+
+        if self.srv_params[Service::Smtp as usize].security.is_some() {
+            let key = format!("{}smtp_security", prefix);
+            let sec: ServerSecurity;
+            let val = if self.srv_params[Service::Smtp as usize].security.is_none() {
+                None
+            } else {
+                sec = self.srv_params[Service::Smtp as usize].security.unwrap();
+                Some(sec.as_ref())
+            };
+            sql.set_raw_config(context, key, val)?;
+        }
 
         Ok(())
     }
 }
 
-impl fmt::Display for LoginParam {
+impl fmt::Display for ServerParam {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let unset = "0";
         let pw = "***";
 
-        let flags_readable = get_readable_flags(self.server_flags);
-
         write!(
             f,
-            "{} imap:{}:{}:{}:{}:cert_{} smtp:{}:{}:{}:{}:cert_{} {}",
+            "{}:{}:{}:{}:cert_{}:security_{:?}",
+            unset_empty(&self.user),
+            if !self.pw.is_empty() { pw } else { unset },
+            unset_empty(&self.hostname),
+            self.port,
+            self.certificate_checks,
+            self.security,
+        )
+    }
+}
+
+impl fmt::Display for LoginParam {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} imap:{} smtp:{} auth_{}",
             unset_empty(&self.addr),
-            unset_empty(&self.mail_user),
-            if !self.mail_pw.is_empty() { pw } else { unset },
-            unset_empty(&self.mail_server),
-            self.mail_port,
-            self.imap_certificate_checks,
-            unset_empty(&self.send_user),
-            if !self.send_pw.is_empty() { pw } else { unset },
-            unset_empty(&self.send_server),
-            self.send_port,
-            self.smtp_certificate_checks,
-            flags_readable,
+            self.srv_params[Service::Imap as usize],
+            self.srv_params[Service::Smtp as usize],
+            self.auth_scheme,
         )
     }
 }
@@ -206,56 +340,6 @@ fn unset_empty(s: &String) -> Cow<String> {
     } else {
         Cow::Borrowed(s)
     }
-}
-
-#[allow(clippy::useless_let_if_seq)]
-fn get_readable_flags(flags: i32) -> String {
-    let mut res = String::new();
-    for bit in 0..31 {
-        if 0 != flags & 1 << bit {
-            let mut flag_added = false;
-            if 1 << bit == 0x2 {
-                res += "OAUTH2 ";
-                flag_added = true;
-            }
-            if 1 << bit == 0x4 {
-                res += "AUTH_NORMAL ";
-                flag_added = true;
-            }
-            if 1 << bit == 0x100 {
-                res += "IMAP_STARTTLS ";
-                flag_added = true;
-            }
-            if 1 << bit == 0x200 {
-                res += "IMAP_SSL ";
-                flag_added = true;
-            }
-            if 1 << bit == 0x400 {
-                res += "IMAP_PLAIN ";
-                flag_added = true;
-            }
-            if 1 << bit == 0x10000 {
-                res += "SMTP_STARTTLS ";
-                flag_added = true;
-            }
-            if 1 << bit == 0x20000 {
-                res += "SMTP_SSL ";
-                flag_added = true;
-            }
-            if 1 << bit == 0x40000 {
-                res += "SMTP_PLAIN ";
-                flag_added = true;
-            }
-            if flag_added {
-                res += &format!("{:#0x}", 1 << bit);
-            }
-        }
-    }
-    if res.is_empty() {
-        res += "0";
-    }
-
-    res
 }
 
 pub fn dc_build_tls(certificate_checks: CertificateChecks) -> async_native_tls::TlsConnector {

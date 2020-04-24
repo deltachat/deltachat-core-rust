@@ -337,7 +337,9 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  * - `send_user`    = SMTP-user, guessed if left out
  * - `send_pw`      = SMTP-password, guessed if left out
  * - `send_port`    = SMTP-port, guessed if left out
- * - `server_flags` = IMAP-/SMTP-flags as a combination of @ref DC_LP flags, guessed if left out
+ * - `auth_scheme`  = authentication scheme to be used, 'plain' for plain login, 'oauth2' for oauth2, 'plain' is used if left out
+ * - `imap_security`  = IMAP connection security strategy to be used, 'plain_socket' for plain plain tcp socket, 'ssl' for ssl socket, 'starttls' for opportunistic TLS, guessed if left out
+ * - `smtp_security`  = SMTP connection security strategy to be used, 'plain_socket' for plain plain tcp socket, 'ssl' for ssl socket, 'starttls' for opportunistic TLS, guessed if left out
  * - `imap_certificate_checks` = how to check IMAP certificates, one of the @ref DC_CERTCK flags, defaults to #DC_CERTCK_AUTO (0)
  * - `smtp_certificate_checks` = how to check SMTP certificates, one of the @ref DC_CERTCK flags, defaults to #DC_CERTCK_AUTO (0)
  * - `displayname`  = Own name to use when sending messages.  MUAs are allowed to spread this way eg. using CC, defaults to empty

@@ -23,7 +23,7 @@ use crate::dc_receive_imf::{
 use crate::events::Event;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job::{job_add, Action};
-use crate::login_param::{CertificateChecks, LoginParam};
+use crate::login_param::{AuthScheme, CertificateChecks, LoginParam, ServerSecurity, Service};
 use crate::message::{self, update_server_uid};
 use crate::mimeparser;
 use crate::oauth2::dc_get_oauth2_access_token;
@@ -150,11 +150,12 @@ struct ImapConfig {
     pub imap_user: String,
     pub imap_pw: String,
     pub certificate_checks: CertificateChecks,
-    pub server_flags: usize,
+    pub server_security: ServerSecurity,
     pub selected_folder: Option<String>,
     pub selected_mailbox: Option<Mailbox>,
     pub selected_folder_needs_expunge: bool,
     pub can_idle: bool,
+    pub auth_scheme: AuthScheme,
 
     /// True if the server has MOVE capability as defined in
     /// https://tools.ietf.org/html/rfc6851
@@ -170,7 +171,8 @@ impl Default for ImapConfig {
             imap_user: "".into(),
             imap_pw: "".into(),
             certificate_checks: Default::default(),
-            server_flags: 0,
+            server_security: ServerSecurity::PlainSocket,
+            auth_scheme: AuthScheme::Plain,
             selected_folder: None,
             selected_mailbox: None,
             selected_folder_needs_expunge: false,
@@ -209,73 +211,71 @@ impl Imap {
             return Ok(());
         }
 
-        let server_flags = self.config.read().await.server_flags as i32;
-
-        let connection_res: ImapResult<Client> =
-            if (server_flags & (DC_LP_IMAP_SOCKET_STARTTLS | DC_LP_IMAP_SOCKET_PLAIN)) != 0 {
-                let config = self.config.read().await;
-                let imap_server: &str = config.imap_server.as_ref();
-                let imap_port = config.imap_port;
-
-                match Client::connect_insecure((imap_server, imap_port)).await {
+        let connection_res: ImapResult<Client> = {
+            let config = self.config.read().await;
+            let server_security = config.server_security;
+            let imap_server: &str = config.imap_server.as_ref();
+            let imap_port = config.imap_port;
+            match server_security {
+                ServerSecurity::Ssl => {
+                    Client::connect_secure(
+                        (imap_server, imap_port),
+                        imap_server,
+                        config.certificate_checks,
+                    )
+                    .await
+                }
+                _ => match Client::connect_insecure((imap_server, imap_port)).await {
                     Ok(client) => {
-                        if (server_flags & DC_LP_IMAP_SOCKET_STARTTLS) != 0 {
+                        if server_security == ServerSecurity::Starttls {
                             client.secure(imap_server, config.certificate_checks).await
                         } else {
                             Ok(client)
                         }
                     }
                     Err(err) => Err(err),
-                }
-            } else {
-                let config = self.config.read().await;
-                let imap_server: &str = config.imap_server.as_ref();
-                let imap_port = config.imap_port;
-
-                Client::connect_secure(
-                    (imap_server, imap_port),
-                    imap_server,
-                    config.certificate_checks,
-                )
-                .await
-            };
-
-        let login_res = match connection_res {
-            Ok(client) => {
-                let config = self.config.read().await;
-                let imap_user: &str = config.imap_user.as_ref();
-                let imap_pw: &str = config.imap_pw.as_ref();
-
-                if (server_flags & DC_LP_AUTH_OAUTH2) != 0 {
-                    let addr: &str = config.addr.as_ref();
-
-                    if let Some(token) = dc_get_oauth2_access_token(context, addr, imap_pw, true) {
-                        let auth = OAuth2 {
-                            user: imap_user.into(),
-                            access_token: token,
-                        };
-                        client.authenticate("XOAUTH2", &auth).await
-                    } else {
-                        return Err(Error::OauthError);
-                    }
-                } else {
-                    client.login(imap_user, imap_pw).await
-                }
+                },
             }
-            Err(err) => {
-                let message = {
-                    let config = self.config.read().await;
-                    let imap_server: &str = config.imap_server.as_ref();
-                    let imap_port = config.imap_port;
-                    context.stock_string_repl_str2(
-                        StockMessage::ServerResponse,
-                        format!("IMAP {}:{}", imap_server, imap_port),
-                        err.to_string(),
-                    )
-                };
-                // IMAP connection failures are reported to users
-                emit_event!(context, Event::ErrorNetwork(message));
-                return Err(Error::ConnectionFailed(err.to_string()));
+        };
+
+        let login_res = {
+            let config = self.config.read().await;
+            let imap_user: &str = config.imap_user.as_ref();
+            let imap_pw: &str = config.imap_pw.as_ref();
+            let auth_scheme = config.auth_scheme;
+            match connection_res {
+                Ok(client) => {
+                    if auth_scheme == AuthScheme::Oauth2 {
+                        let addr: &str = config.addr.as_ref();
+
+                        if let Some(token) = dc_get_oauth2_access_token(context, addr, imap_pw, true) {
+                            let auth = OAuth2 {
+                                user: imap_user.into(),
+                                access_token: token,
+                            };
+                            client.authenticate("XOAUTH2", &auth).await
+                        } else {
+                            return Err(Error::OauthError);
+                        }
+                    } else {
+                        client.login(imap_user, imap_pw).await
+                    }
+                }
+                Err(err) => {
+                    let message = {
+                        let config = self.config.read().await;
+                        let imap_server: &str = config.imap_server.as_ref();
+                        let imap_port = config.imap_port;
+                        context.stock_string_repl_str2(
+                            StockMessage::ServerResponse,
+                            format!("IMAP {}:{}", imap_server, imap_port),
+                            err.to_string(),
+                        )
+                    };
+                    // IMAP connection failures are reported to users
+                    emit_event!(context, Event::ErrorNetwork(message));
+                    return Err(Error::ConnectionFailed(err.to_string()));
+                }
             }
         };
 
@@ -353,17 +353,22 @@ impl Imap {
     /// tries connecting to imap account using the specific login
     /// parameters
     pub async fn connect(&self, context: &Context, lp: &LoginParam) -> bool {
-        if lp.mail_server.is_empty() || lp.mail_user.is_empty() || lp.mail_pw.is_empty() {
+        if lp.srv_params[Service::Imap as usize].hostname.is_empty()
+            || lp.srv_params[Service::Imap as usize].user.is_empty()
+            || lp.srv_params[Service::Imap as usize].pw.is_empty()
+        {
+            context.call_cb(Event::ErrorNetwork("IMAP bad parameters.".into()));
             return false;
         }
 
         {
             let addr = &lp.addr;
-            let imap_server = &lp.mail_server;
-            let imap_port = lp.mail_port as u16;
-            let imap_user = &lp.mail_user;
-            let imap_pw = &lp.mail_pw;
-            let server_flags = lp.server_flags as usize;
+            let imap_server = &lp.srv_params[Service::Imap as usize].hostname;
+            let imap_port = lp.srv_params[Service::Imap as usize].port as u16;
+            let imap_user = &lp.srv_params[Service::Imap as usize].user;
+            let imap_pw = &lp.srv_params[Service::Imap as usize].pw;
+            let server_security = lp.srv_params[Service::Imap as usize].security;
+            let auth_scheme = lp.auth_scheme;
 
             let mut config = self.config.write().await;
             config.addr = addr.to_string();
@@ -371,8 +376,9 @@ impl Imap {
             config.imap_port = imap_port;
             config.imap_user = imap_user.to_string();
             config.imap_pw = imap_pw.to_string();
-            config.certificate_checks = lp.imap_certificate_checks;
-            config.server_flags = server_flags;
+            config.certificate_checks = lp.srv_params[Service::Imap as usize].certificate_checks;
+            config.server_security = server_security.unwrap();
+            config.auth_scheme = auth_scheme;
         }
 
         if let Err(err) = self.setup_handle_if_needed(context).await {
@@ -385,7 +391,11 @@ impl Imap {
             Some(ref mut session) => match session.capabilities().await {
                 Ok(caps) => {
                     if !context.sql.is_open() {
-                        warn!(context, "IMAP-LOGIN as {} ok but ABORTING", lp.mail_user,);
+                        warn!(
+                            context,
+                            "IMAP-LOGIN as {} ok but ABORTING",
+                            lp.srv_params[Service::Imap as usize].user,
+                        );
                         true
                     } else {
                         let can_idle = caps.has_str("IDLE");
@@ -405,7 +415,8 @@ impl Imap {
                             context,
                             Event::ImapConnected(format!(
                                 "IMAP-LOGIN as {}, capabilities: {}",
-                                lp.mail_user, caps_list,
+                                lp.srv_params[Service::Imap as usize].user,
+                                caps_list,
                             ))
                         );
                         false

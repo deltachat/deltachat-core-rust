@@ -32,7 +32,12 @@ pub enum Config {
     SendPw,
     SendPort,
     SmtpCertificateChecks,
-    ServerFlags,
+
+    #[strum(props(default = "plain"))]
+    AuthScheme,
+
+    ImapSecurity,
+    SmtpSecurity,
 
     #[strum(props(default = "INBOX"))]
     ImapFolder,

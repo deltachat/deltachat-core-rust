@@ -171,53 +171,6 @@ pub const DC_CONTACT_ID_DEVICE_ADDR: &str = "device@localhost";
 pub const DC_EMPTY_MVBOX: u32 = 0x01;
 pub const DC_EMPTY_INBOX: u32 = 0x02;
 
-// Flags for configuring IMAP and SMTP servers.
-// These flags are optional
-// and may be set together with the username, password etc.
-// via dc_set_config() using the key "server_flags".
-
-/// Force OAuth2 authorization. This flag does not skip automatic configuration.
-/// Before calling configure() with DC_LP_AUTH_OAUTH2 set,
-/// the user has to confirm access at the URL returned by dc_get_oauth2_url().
-pub const DC_LP_AUTH_OAUTH2: i32 = 0x2;
-
-/// Force NORMAL authorization, this is the default.
-/// If this flag is set, automatic configuration is skipped.
-pub const DC_LP_AUTH_NORMAL: i32 = 0x4;
-
-/// Connect to IMAP via STARTTLS.
-/// If this flag is set, automatic configuration is skipped.
-pub const DC_LP_IMAP_SOCKET_STARTTLS: i32 = 0x100;
-
-/// Connect to IMAP via SSL.
-/// If this flag is set, automatic configuration is skipped.
-pub const DC_LP_IMAP_SOCKET_SSL: i32 = 0x200;
-
-/// Connect to IMAP unencrypted, this should not be used.
-/// If this flag is set, automatic configuration is skipped.
-pub const DC_LP_IMAP_SOCKET_PLAIN: i32 = 0x400;
-
-/// Connect to SMTP via STARTTLS.
-/// If this flag is set, automatic configuration is skipped.
-pub const DC_LP_SMTP_SOCKET_STARTTLS: usize = 0x10000;
-
-/// Connect to SMTP via SSL.
-/// If this flag is set, automatic configuration is skipped.
-pub const DC_LP_SMTP_SOCKET_SSL: usize = 0x20000;
-
-/// Connect to SMTP unencrypted, this should not be used.
-/// If this flag is set, automatic configuration is skipped.
-pub const DC_LP_SMTP_SOCKET_PLAIN: usize = 0x40000;
-
-/// if none of these flags are set, the default is chosen
-pub const DC_LP_AUTH_FLAGS: i32 = DC_LP_AUTH_OAUTH2 | DC_LP_AUTH_NORMAL;
-/// if none of these flags are set, the default is chosen
-pub const DC_LP_IMAP_SOCKET_FLAGS: i32 =
-    DC_LP_IMAP_SOCKET_STARTTLS | DC_LP_IMAP_SOCKET_SSL | DC_LP_IMAP_SOCKET_PLAIN;
-/// if none of these flags are set, the default is chosen
-pub const DC_LP_SMTP_SOCKET_FLAGS: usize =
-    DC_LP_SMTP_SOCKET_STARTTLS | DC_LP_SMTP_SOCKET_SSL | DC_LP_SMTP_SOCKET_PLAIN;
-
 // QR code scanning (view from Bob, the joiner)
 pub const DC_VC_AUTH_REQUIRED: i32 = 2;
 pub const DC_VC_CONTACT_CONFIRM: i32 = 6;

@@ -647,6 +647,7 @@ dependencies = [
  "email 0.0.21 (git+https://github.com/deltachat/rust-email)",
  "encoded-words 0.1.0 (git+https://github.com/async-email/encoded-words)",
  "escaper 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "image 0.22.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "image-meta 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
