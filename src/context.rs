@@ -21,6 +21,7 @@ use crate::message::{self, Message, MessengerMessage, MsgId};
 use crate::param::Params;
 use crate::smtp::Smtp;
 use crate::sql::Sql;
+use std::time::Instant;
 
 /// Callback function type for [Context]
 ///
@@ -57,6 +58,7 @@ pub struct Context {
     /// Mutex to avoid generating the key for the user more than once.
     pub generating_key_mutex: Mutex<()>,
     pub translated_stockstrings: RwLock<HashMap<usize, String>>,
+    creation_time: Instant,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -138,6 +140,7 @@ impl Context {
             perform_inbox_jobs_needed: Arc::new(RwLock::new(false)),
             generating_key_mutex: Mutex::new(()),
             translated_stockstrings: RwLock::new(HashMap::new()),
+            creation_time: std::time::Instant::now(),
         };
 
         ensure!(
@@ -310,6 +313,12 @@ impl Context {
             pub_key_cnt.unwrap_or_default().to_string(),
         );
         res.insert("fingerprint", fingerprint_str);
+
+        let elapsed = self.creation_time.elapsed().as_secs();
+        let hours = elapsed / 3600;
+        let minutes = elapsed % 3600 / 60;
+        let seconds = elapsed % 3600 % 60;
+        res.insert("uptime", format!("{}h {}m {}s", hours, minutes, seconds));
 
         res
     }
