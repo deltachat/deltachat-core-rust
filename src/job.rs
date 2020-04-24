@@ -1043,7 +1043,17 @@ pub fn perform_sentbox_jobs(context: &Context) {
 }
 
 fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
+    let mut jobs_loaded = 0;
+
     while let Some(mut job) = load_next_job(context, thread, probe_network) {
+        jobs_loaded += 1;
+        if thread == Thread::Imap && jobs_loaded > 20 {
+            // Let the fetch run, but return back to the job afterwards.
+            info!(context, "postponing {}-job {} to run fetch...", thread, job);
+            *context.perform_inbox_jobs_needed.write().unwrap() = true;
+            break;
+        }
+
         info!(context, "{}-job {} started...", thread, job);
 
         // some configuration jobs are "exclusive":
