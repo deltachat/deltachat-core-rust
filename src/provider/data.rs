@@ -268,7 +268,14 @@ lazy_static::lazy_static! {
     };
 
     // yandex.ru.md: yandex.ru, yandex.com
-    // - skipping provider with status OK and no special things to do
+    static ref P_YANDEX_RU: Provider = Provider {
+        status: Status::PREPARATION,
+        before_login_hint: "For Yandex accounts, you have to set IMAP protocol option turned on.",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/yandex-ru",
+        server: vec![
+        ],
+    };
 
     // ziggo.nl.md: ziggo.nl
     static ref P_ZIGGO_NL: Provider = Provider {
@@ -360,6 +367,8 @@ lazy_static::lazy_static! {
         ("ymail.com", &*P_YAHOO),
         ("rocketmail.com", &*P_YAHOO),
         ("yahoodns.net", &*P_YAHOO),
+        ("yandex.ru", &*P_YANDEX_RU),
+        ("yandex.com", &*P_YANDEX_RU),
         ("ziggo.nl", &*P_ZIGGO_NL),
     ].iter().copied().collect();
 }
