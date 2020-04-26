@@ -22,7 +22,7 @@ use crate::message::{self, Message, MessengerMessage, MsgId};
 use crate::param::Params;
 use crate::smtp::Smtp;
 use crate::sql::Sql;
-use std::time::Instant;
+use std::time::SystemTime;
 
 /// Callback function type for [Context]
 ///
@@ -59,7 +59,7 @@ pub struct Context {
     /// Mutex to avoid generating the key for the user more than once.
     pub generating_key_mutex: Mutex<()>,
     pub translated_stockstrings: RwLock<HashMap<usize, String>>,
-    creation_time: Instant,
+    creation_time: SystemTime,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -141,7 +141,7 @@ impl Context {
             perform_inbox_jobs_needed: Arc::new(RwLock::new(false)),
             generating_key_mutex: Mutex::new(()),
             translated_stockstrings: RwLock::new(HashMap::new()),
-            creation_time: std::time::Instant::now(),
+            creation_time: std::time::SystemTime::now(),
         };
 
         ensure!(
