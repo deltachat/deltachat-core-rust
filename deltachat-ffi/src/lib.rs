@@ -13,6 +13,7 @@ extern crate human_panic;
 extern crate num_traits;
 extern crate serde_json;
 
+use itertools::Itertools;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::ffi::CString;
@@ -437,8 +438,8 @@ fn render_info(
     info: HashMap<&'static str, String>,
 ) -> std::result::Result<String, std::fmt::Error> {
     let mut res = String::new();
-    for (key, value) in &info {
-        writeln!(&mut res, "{}={}", key, value)?;
+    for key in info.keys().sorted() {
+        writeln!(&mut res, "{}={}", key, info.get(key).unwrap())?;
     }
 
     Ok(res)
