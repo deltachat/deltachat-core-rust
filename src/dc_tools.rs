@@ -78,8 +78,8 @@ pub fn dc_timestamp_to_str(wanted: i64) -> String {
 pub fn duration_to_str(duration: Duration) -> String {
     let secs = duration.as_secs();
     let h = secs / 3600;
-    let m = secs % 3600 / 60;
-    let s = secs % 3600 % 60;
+    let m = (secs % 3600) / 60;
+    let s = (secs % 3600) % 60;
     format!("{}h {}m {}s", h, m, s)
 }
 
