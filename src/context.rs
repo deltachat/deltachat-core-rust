@@ -9,6 +9,7 @@ use crate::chat::*;
 use crate::config::Config;
 use crate::constants::*;
 use crate::contact::*;
+use crate::dc_tools::duration_to_str;
 use crate::error::*;
 use crate::events::Event;
 use crate::imap::*;
@@ -314,11 +315,8 @@ impl Context {
         );
         res.insert("fingerprint", fingerprint_str);
 
-        let elapsed = self.creation_time.elapsed().as_secs();
-        let hours = elapsed / 3600;
-        let minutes = elapsed % 3600 / 60;
-        let seconds = elapsed % 3600 % 60;
-        res.insert("uptime", format!("{}h {}m {}s", hours, minutes, seconds));
+        let elapsed = self.creation_time.elapsed();
+        res.insert("uptime", duration_to_str(elapsed.unwrap_or_default()));
 
         res
     }
