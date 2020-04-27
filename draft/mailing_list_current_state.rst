@@ -9,3 +9,5 @@
 5. In general, only the From: address is taken as the author. If the domain matches with the List-Id domain (like `deltachat.github.com` and `Hocuri <notifications@notification.github.com>`) then the display name is added to the email address -> `Hocuri - notifications@notification.github.com`. This is not really nice, but as the UIs distinguish bettween contacts only based on the address this was the only way I could find without changing the API. 
 
 6. You can't send to mailing lists.
+
+7. TODO: Block a mailing list (currently only the sender can be blocked and when someone else writes to the mailing list then it appears in Contact Requests again).
