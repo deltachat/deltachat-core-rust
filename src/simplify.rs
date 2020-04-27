@@ -184,7 +184,8 @@ fn render_message(lines: &[&str], is_cut_at_begin: bool, is_cut_at_end: bool) ->
     if is_cut_at_end && (!is_cut_at_begin || !empty_body) {
         ret += " [...]";
     }
-    ret
+    // redo escaping done by escape_message_footer_marks()
+    ret.replace("\u{200B}", "")
 }
 
 /**
@@ -329,16 +330,13 @@ mod tests {
         assert_eq!(plain, "text"); // see remove_message_footer() for some explanations
         let escaped = escape_message_footer_marks(&input);
         let (plain, _) = simplify(escaped, true);
-        assert_eq!(
-            plain,
-            "text\n\n-\u{200B}-\ntreated as footer when unescaped"
-        );
+        assert_eq!(plain, "text\n\n--\ntreated as footer when unescaped");
 
         let input = "--\ntreated as footer when unescaped".to_string();
         let (plain, _) = simplify(input.clone(), true);
         assert_eq!(plain, ""); // see remove_message_footer() for some explanations
         let escaped = escape_message_footer_marks(&input);
         let (plain, _) = simplify(escaped, true);
-        assert_eq!(plain, "-\u{200B}-\ntreated as footer when unescaped");
+        assert_eq!(plain, "--\ntreated as footer when unescaped");
     }
 }
