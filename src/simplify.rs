@@ -1,3 +1,19 @@
+// protect lines starting with `--` against being treated as a footer.
+// for that, we insert a ZERO WIDTH SPACE (ZWSP, 0x200B);
+// this should be invisible on most systems and there is no need to unescape it again
+// (which won't be done by non-deltas anyway)
+//
+// this escapes a bit more than actually needed by delta (eg. also lines as "-- footer"),
+// but for non-delta-compatibility, that seems to be better.
+// (to be only compatible with delta, only "[\r\n|\n]-- {0,2}[\r\n|\n]" needs to be replaced)
+pub fn escape_message_footer_marks(text: &str) -> String {
+    if text.starts_with("--") {
+        "-\u{200B}-".to_string() + &text[2..].replace("\n--", "\n-\u{200B}-")
+    } else {
+        text.replace("\n--", "\n-\u{200B}-")
+    }
+}
+
 /// Remove standard (RFC 3676, §4.3) footer if it is found.
 fn remove_message_footer<'a>(lines: &'a [&str]) -> &'a [&'a str] {
     let mut nearly_standard_footer = None;
@@ -282,6 +298,15 @@ mod tests {
     }
 
     #[test]
+    fn test_escape_message_footer_marks() {
+        let esc = escape_message_footer_marks("--\n--text --in line");
+        assert_eq!(esc, "-\u{200B}-\n-\u{200B}-text --in line");
+
+        let esc = escape_message_footer_marks("--\r\n--text");
+        assert_eq!(esc, "-\u{200B}-\r\n-\u{200B}-text");
+    }
+
+    #[test]
     fn test_remove_message_footer() {
         let input = "text\n--\nno footer".to_string();
         let (plain, _) = simplify(input, true);
@@ -300,11 +325,20 @@ mod tests {
         assert_eq!(plain, "text\n\n--\nno footer");
 
         let input = "text\n\n--\ntreated as footer when unescaped".to_string();
-        let (plain, _) = simplify(input, true);
+        let (plain, _) = simplify(input.clone(), true);
         assert_eq!(plain, "text"); // see remove_message_footer() for some explanations
+        let escaped = escape_message_footer_marks(&input);
+        let (plain, _) = simplify(escaped, true);
+        assert_eq!(
+            plain,
+            "text\n\n-\u{200B}-\ntreated as footer when unescaped"
+        );
 
         let input = "--\ntreated as footer when unescaped".to_string();
-        let (plain, _) = simplify(input, true);
-        assert_eq!(plain, "");
+        let (plain, _) = simplify(input.clone(), true);
+        assert_eq!(plain, ""); // see remove_message_footer() for some explanations
+        let escaped = escape_message_footer_marks(&input);
+        let (plain, _) = simplify(escaped, true);
+        assert_eq!(plain, "-\u{200B}-\ntreated as footer when unescaped");
     }
 }

@@ -15,6 +15,7 @@ use crate::message::{self, Message};
 use crate::mimeparser::SystemMessage;
 use crate::param::*;
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
+use crate::simplify::escape_message_footer_marks;
 use crate::stock::StockMessage;
 
 // attachments of 25 mb brutto should work on the majority of providers
@@ -807,7 +808,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let message_text = format!(
             "{}{}{}{}{}",
             fwdhint.unwrap_or_default(),
-            &final_text,
+            escape_message_footer_marks(final_text),
             if !final_text.is_empty() && !footer.is_empty() {
                 "\r\n\r\n"
             } else {
