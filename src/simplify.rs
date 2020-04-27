@@ -1,12 +1,24 @@
 /// Remove standard (RFC 3676, §4.3) footer if it is found.
 fn remove_message_footer<'a>(lines: &'a [&str]) -> &'a [&'a str] {
+    let mut nearly_standard_footer = None;
     for (ix, &line) in lines.iter().enumerate() {
-        // quoted-printable may encode `-- ` to `-- =20` which is converted
-        // back to `--  `
         match line {
+            // some providers encode `-- ` to `-- =20` which results in `--  `
             "-- " | "--  " => return &lines[..ix],
+            // some providers encode `-- ` to `=2D-` which results in only `--`;
+            // use that only when no other footer is found
+            // and if the line before is empty and the line after is not empty
+            "--" => {
+                if (ix == 0 || lines[ix - 1] == "") && ix != lines.len() - 1 && lines[ix + 1] != ""
+                {
+                    nearly_standard_footer = Some(ix);
+                }
+            }
             _ => (),
         }
+    }
+    if let Some(ix) = nearly_standard_footer {
+        return &lines[..ix];
     }
     lines
 }
@@ -267,5 +279,32 @@ mod tests {
         let (lines, has_top_quote) = remove_top_quote(&["not a quote", "> first", "> second"]);
         assert_eq!(lines, &["not a quote", "> first", "> second"]);
         assert!(!has_top_quote);
+    }
+
+    #[test]
+    fn test_remove_message_footer() {
+        let input = "text\n--\nno footer".to_string();
+        let (plain, _) = simplify(input, true);
+        assert_eq!(plain, "text\n--\nno footer");
+
+        let input = "text\n\n--\n\nno footer".to_string();
+        let (plain, _) = simplify(input, true);
+        assert_eq!(plain, "text\n\n--\n\nno footer");
+
+        let input = "text\n\n-- no footer\n\n".to_string();
+        let (plain, _) = simplify(input, true);
+        assert_eq!(plain, "text\n\n-- no footer");
+
+        let input = "text\n\n--\nno footer\n-- \nfooter".to_string();
+        let (plain, _) = simplify(input, true);
+        assert_eq!(plain, "text\n\n--\nno footer");
+
+        let input = "text\n\n--\ntreated as footer when unescaped".to_string();
+        let (plain, _) = simplify(input, true);
+        assert_eq!(plain, "text"); // see remove_message_footer() for some explanations
+
+        let input = "--\ntreated as footer when unescaped".to_string();
+        let (plain, _) = simplify(input, true);
+        assert_eq!(plain, "");
     }
 }
