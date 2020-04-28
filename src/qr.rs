@@ -38,7 +38,7 @@ impl Into<Lot> for Error {
 }
 
 pub fn starts_with_ignore_case(string: &str, pattern: &str) -> bool {
-    string.starts_with(&pattern.to_uppercase()) || string.starts_with(&pattern.to_lowercase())    
+    string.starts_with(&pattern.to_uppercase()) || string.starts_with(&pattern.to_lowercase())
 }
 
 /// Check a scanned QR code.
@@ -590,7 +590,6 @@ mod tests {
             "1234 5678 9012 3456 7890\n1234 5678 9012 3456 7890"
         );
         assert_eq!(res.get_id(), 0);
-
 
         let res = check_qr(&ctx.ctx, "OPENPGP4FPR:12345678901234567890");
         assert_eq!(res.get_state(), LotState::QrError);
