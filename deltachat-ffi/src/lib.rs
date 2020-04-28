@@ -13,7 +13,7 @@ extern crate human_panic;
 extern crate num_traits;
 extern crate serde_json;
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::convert::TryInto;
 use std::ffi::CString;
 use std::fmt::Write;
@@ -434,7 +434,7 @@ pub unsafe extern "C" fn dc_get_info(context: *mut dc_context_t) -> *mut libc::c
 }
 
 fn render_info(
-    info: HashMap<&'static str, String>,
+    info: BTreeMap<&'static str, String>,
 ) -> std::result::Result<String, std::fmt::Error> {
     let mut res = String::new();
     for (key, value) in &info {

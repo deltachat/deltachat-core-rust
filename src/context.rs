@@ -1,6 +1,6 @@
 //! Context module
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex, RwLock};
@@ -73,8 +73,8 @@ pub struct RunningState {
 /// actual keys and their values which will be present are not
 /// guaranteed.  Calling [Context::get_info] also includes information
 /// about the context on top of the information here.
-pub fn get_info() -> HashMap<&'static str, String> {
-    let mut res = HashMap::new();
+pub fn get_info() -> BTreeMap<&'static str, String> {
+    let mut res = BTreeMap::new();
     res.insert("deltachat_core_version", format!("v{}", &*DC_VERSION_STR));
     res.insert("sqlite_version", rusqlite::version().to_string());
     res.insert("arch", (std::mem::size_of::<usize>() * 8).to_string());
@@ -225,7 +225,7 @@ impl Context {
      * UI chat/message related API
      ******************************************************************************/
 
-    pub fn get_info(&self) -> HashMap<&'static str, String> {
+    pub fn get_info(&self) -> BTreeMap<&'static str, String> {
         let unset = "0";
         let l = LoginParam::from_database(self, "");
         let l2 = LoginParam::from_database(self, "configured_");
