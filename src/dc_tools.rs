@@ -5,7 +5,7 @@ use core::cmp::{max, min};
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 use std::{fmt, fs};
 
 use chrono::{Local, TimeZone};
@@ -73,6 +73,14 @@ pub(crate) fn dc_str_to_color(s: impl AsRef<str>) -> u32 {
 pub fn dc_timestamp_to_str(wanted: i64) -> String {
     let ts = Local.timestamp(wanted, 0);
     ts.format("%Y.%m.%d %H:%M:%S").to_string()
+}
+
+pub fn duration_to_str(duration: Duration) -> String {
+    let secs = duration.as_secs();
+    let h = secs / 3600;
+    let m = (secs % 3600) / 60;
+    let s = (secs % 3600) % 60;
+    format!("{}h {}m {}s", h, m, s)
 }
 
 pub(crate) fn dc_gm2local_offset() -> i64 {
@@ -853,5 +861,38 @@ mod tests {
         let start = dc_create_smeared_timestamps(&t.ctx, count as usize);
         let next = dc_smeared_time(&t.ctx);
         assert!((start + count - 1) < next);
+    }
+
+    #[test]
+    fn test_duration_to_str() {
+        assert_eq!(duration_to_str(Duration::from_secs(0)), "0h 0m 0s");
+        assert_eq!(duration_to_str(Duration::from_secs(59)), "0h 0m 59s");
+        assert_eq!(duration_to_str(Duration::from_secs(60)), "0h 1m 0s");
+        assert_eq!(duration_to_str(Duration::from_secs(61)), "0h 1m 1s");
+        assert_eq!(duration_to_str(Duration::from_secs(59 * 60)), "0h 59m 0s");
+        assert_eq!(
+            duration_to_str(Duration::from_secs(59 * 60 + 59)),
+            "0h 59m 59s"
+        );
+        assert_eq!(
+            duration_to_str(Duration::from_secs(59 * 60 + 60)),
+            "1h 0m 0s"
+        );
+        assert_eq!(
+            duration_to_str(Duration::from_secs(2 * 60 * 60 + 59 * 60 + 59)),
+            "2h 59m 59s"
+        );
+        assert_eq!(
+            duration_to_str(Duration::from_secs(2 * 60 * 60 + 59 * 60 + 60)),
+            "3h 0m 0s"
+        );
+        assert_eq!(
+            duration_to_str(Duration::from_secs(3 * 60 * 60 + 59)),
+            "3h 0m 59s"
+        );
+        assert_eq!(
+            duration_to_str(Duration::from_secs(3 * 60 * 60 + 60)),
+            "3h 1m 0s"
+        );
     }
 }

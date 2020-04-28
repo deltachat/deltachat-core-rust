@@ -9,6 +9,7 @@ use crate::chat::*;
 use crate::config::Config;
 use crate::constants::*;
 use crate::contact::*;
+use crate::dc_tools::duration_to_str;
 use crate::error::*;
 use crate::events::Event;
 use crate::imap::*;
@@ -21,7 +22,7 @@ use crate::message::{self, Message, MessengerMessage, MsgId};
 use crate::param::Params;
 use crate::smtp::Smtp;
 use crate::sql::Sql;
-use std::time::Instant;
+use std::time::SystemTime;
 
 /// Callback function type for [Context]
 ///
@@ -58,7 +59,7 @@ pub struct Context {
     /// Mutex to avoid generating the key for the user more than once.
     pub generating_key_mutex: Mutex<()>,
     pub translated_stockstrings: RwLock<HashMap<usize, String>>,
-    creation_time: Instant,
+    creation_time: SystemTime,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -140,7 +141,7 @@ impl Context {
             perform_inbox_jobs_needed: Arc::new(RwLock::new(false)),
             generating_key_mutex: Mutex::new(()),
             translated_stockstrings: RwLock::new(HashMap::new()),
-            creation_time: std::time::Instant::now(),
+            creation_time: std::time::SystemTime::now(),
         };
 
         ensure!(
@@ -314,11 +315,8 @@ impl Context {
         );
         res.insert("fingerprint", fingerprint_str);
 
-        let elapsed = self.creation_time.elapsed().as_secs();
-        let hours = elapsed / 3600;
-        let minutes = elapsed % 3600 / 60;
-        let seconds = elapsed % 3600 % 60;
-        res.insert("uptime", format!("{}h {}m {}s", hours, minutes, seconds));
+        let elapsed = self.creation_time.elapsed();
+        res.insert("uptime", duration_to_str(elapsed.unwrap_or_default()));
 
         res
     }
