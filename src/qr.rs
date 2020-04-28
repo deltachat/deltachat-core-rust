@@ -38,7 +38,7 @@ impl Into<Lot> for Error {
 }
 
 pub fn starts_with_ignore_case(string: &str, pattern: &str) -> bool {
-    string.starts_with(&pattern.to_uppercase()) || string.starts_with(&pattern.to_lowercase())
+    string.to_lowercase().starts_with(&pattern.to_lowercase())
 }
 
 /// Check a scanned QR code.
@@ -51,7 +51,7 @@ pub fn check_qr(context: &Context, qr: impl AsRef<str>) -> Lot {
 
     if starts_with_ignore_case(qr, OPENPGP4FPR_SCHEME) {
         decode_openpgp(context, qr)
-    } else if qr.starts_with(DCACCOUNT_SCHEME) {
+    } else if starts_with_ignore_case(qr, DCACCOUNT_SCHEME) {
         decode_account(context, qr)
     } else if qr.starts_with(MAILTO_SCHEME) {
         decode_mailto(context, qr)
@@ -521,6 +521,8 @@ mod tests {
         assert_ne!(res.get_id(), 0);
         assert_eq!(res.get_text1().unwrap(), "test ? test !");
 
+
+        // Test it again with lowercased "openpgp4fpr:" uri scheme
         let res = check_qr(
             &ctx.ctx,
             "openpgp4fpr:79252762C34C5096AF57958F4FC3D21A81B0F0A7#a=cli%40deltachat.de&g=test%20%3F+test%20%21&x=h-0oKQf2CDK&i=9JEXlxAqGM0&s=0V7LzL9cxRL"
@@ -548,7 +550,7 @@ mod tests {
         assert_eq!(res.get_state(), LotState::QrAskVerifyContact);
         assert_ne!(res.get_id(), 0);
 
-        // Test it again with lowercase
+        // Test it again with lowercased "openpgp4fpr:" uri scheme
         let res = check_qr(
             &ctx.ctx,
             "openpgp4fpr:79252762C34C5096AF57958F4FC3D21A81B0F0A7#a=cli%40deltachat.de&n=J%C3%B6rn%20P.+P.&i=TbnwJ6lSvD5&s=0ejvbdFSQxB"
@@ -578,7 +580,7 @@ mod tests {
         );
         assert_eq!(res.get_id(), 0);
 
-        // Test it again with lowercased openpgp4fpr uri scheme
+        // Test it again with lowercased "openpgp4fpr:" uri scheme
 
         let res = check_qr(
             &ctx.ctx,
@@ -606,6 +608,14 @@ mod tests {
         );
         assert_eq!(res.get_state(), LotState::QrAccount);
         assert_eq!(res.get_text1().unwrap(), "example.org");
+
+        // Test it again with lowercased "dcaccount:" uri scheme
+        let res = check_qr(
+            &ctx.ctx,
+            "dcaccount:https://example.org/new_email?t=1w_7wDjgjelxeX884x96v3",
+        );
+        assert_eq!(res.get_state(), LotState::QrAccount);
+        assert_eq!(res.get_text1().unwrap(), "example.org");
     }
 
     #[test]
@@ -615,6 +625,14 @@ mod tests {
         let res = check_qr(
             &ctx.ctx,
             "DCACCOUNT:http://example.org/new_email?t=1w_7wDjgjelxeX884x96v3",
+        );
+        assert_eq!(res.get_state(), LotState::QrError);
+        assert!(res.get_text1().is_some());
+        
+        // Test it again with lowercased "dcaccount:" uri scheme
+        let res = check_qr(
+            &ctx.ctx,
+            "dcaccount:http://example.org/new_email?t=1w_7wDjgjelxeX884x96v3",
         );
         assert_eq!(res.get_state(), LotState::QrError);
         assert!(res.get_text1().is_some());
