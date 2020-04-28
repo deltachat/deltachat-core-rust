@@ -813,12 +813,13 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             } else {
                 ""
             },
-            if !footer.is_empty() { "-- \r\n" } else { "" },
+            if !footer.is_empty() { "--=20\r\n" } else { "" },
             footer
         );
 
         // Message is sent as text/plain, with charset = utf-8
         let main_part = PartBuilder::new()
+            .header(("Content-Transfer-Encoding", "QUOTED-PRINTABLE"))
             .content_type(&mime::TEXT_PLAIN_UTF_8)
             .body(message_text);
         let mut parts = Vec::new();
