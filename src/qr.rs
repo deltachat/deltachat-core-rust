@@ -37,6 +37,10 @@ impl Into<Lot> for Error {
     }
 }
 
+pub fn starts_with_ignore_case(string: &str, pattern: &str) -> bool {
+    string.starts_with(&pattern.to_uppercase()) || string.starts_with(&pattern.to_lowercase())    
+}
+
 /// Check a scanned QR code.
 /// The function should be called after a QR code is scanned.
 /// The function takes the raw text scanned and checks what can be done with it.
@@ -45,7 +49,7 @@ pub fn check_qr(context: &Context, qr: impl AsRef<str>) -> Lot {
 
     info!(context, "Scanned QR code: {}", qr);
 
-    if qr.starts_with(OPENPGP4FPR_SCHEME) {
+    if starts_with_ignore_case(qr, OPENPGP4FPR_SCHEME) {
         decode_openpgp(context, qr)
     } else if qr.starts_with(DCACCOUNT_SCHEME) {
         decode_account(context, qr)
@@ -517,6 +521,16 @@ mod tests {
         assert_ne!(res.get_id(), 0);
         assert_eq!(res.get_text1().unwrap(), "test ? test !");
 
+        let res = check_qr(
+            &ctx.ctx,
+            "openpgp4fpr:79252762C34C5096AF57958F4FC3D21A81B0F0A7#a=cli%40deltachat.de&g=test%20%3F+test%20%21&x=h-0oKQf2CDK&i=9JEXlxAqGM0&s=0V7LzL9cxRL"
+        );
+
+        println!("{:?}", res);
+        assert_eq!(res.get_state(), LotState::QrAskVerifyGroup);
+        assert_ne!(res.get_id(), 0);
+        assert_eq!(res.get_text1().unwrap(), "test ? test !");
+
         let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).unwrap();
         assert_eq!(contact.get_addr(), "cli@deltachat.de");
     }
@@ -528,6 +542,16 @@ mod tests {
         let res = check_qr(
             &ctx.ctx,
             "OPENPGP4FPR:79252762C34C5096AF57958F4FC3D21A81B0F0A7#a=cli%40deltachat.de&n=J%C3%B6rn%20P.+P.&i=TbnwJ6lSvD5&s=0ejvbdFSQxB"
+        );
+
+        println!("{:?}", res);
+        assert_eq!(res.get_state(), LotState::QrAskVerifyContact);
+        assert_ne!(res.get_id(), 0);
+
+        // Test it again with lowercase
+        let res = check_qr(
+            &ctx.ctx,
+            "openpgp4fpr:79252762C34C5096AF57958F4FC3D21A81B0F0A7#a=cli%40deltachat.de&n=J%C3%B6rn%20P.+P.&i=TbnwJ6lSvD5&s=0ejvbdFSQxB"
         );
 
         println!("{:?}", res);
@@ -553,6 +577,20 @@ mod tests {
             "1234 5678 9012 3456 7890\n1234 5678 9012 3456 7890"
         );
         assert_eq!(res.get_id(), 0);
+
+        // Test it again with lowercased openpgp4fpr uri scheme
+
+        let res = check_qr(
+            &ctx.ctx,
+            "openpgp4fpr:1234567890123456789012345678901234567890",
+        );
+        assert_eq!(res.get_state(), LotState::QrFprWithoutAddr);
+        assert_eq!(
+            res.get_text1().unwrap(),
+            "1234 5678 9012 3456 7890\n1234 5678 9012 3456 7890"
+        );
+        assert_eq!(res.get_id(), 0);
+
 
         let res = check_qr(&ctx.ctx, "OPENPGP4FPR:12345678901234567890");
         assert_eq!(res.get_state(), LotState::QrError);
