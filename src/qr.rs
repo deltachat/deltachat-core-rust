@@ -37,7 +37,7 @@ impl Into<Lot> for Error {
     }
 }
 
-pub fn starts_with_ignore_case(string: &str, pattern: &str) -> bool {
+fn starts_with_ignore_case(string: &str, pattern: &str) -> bool {
     string.to_lowercase().starts_with(&pattern.to_lowercase())
 }
 
