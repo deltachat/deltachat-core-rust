@@ -521,7 +521,6 @@ mod tests {
         assert_ne!(res.get_id(), 0);
         assert_eq!(res.get_text1().unwrap(), "test ? test !");
 
-
         // Test it again with lowercased "openpgp4fpr:" uri scheme
         let res = check_qr(
             &ctx.ctx,
@@ -628,7 +627,7 @@ mod tests {
         );
         assert_eq!(res.get_state(), LotState::QrError);
         assert!(res.get_text1().is_some());
-        
+
         // Test it again with lowercased "dcaccount:" uri scheme
         let res = check_qr(
             &ctx.ctx,
