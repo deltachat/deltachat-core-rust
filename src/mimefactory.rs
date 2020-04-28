@@ -807,7 +807,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let message_text = format!(
             "{}{}{}{}{}",
             fwdhint.unwrap_or_default(),
-            &final_text,
+            &quoted_printable::encode_to_str(final_text),
             if !final_text.is_empty() && !footer.is_empty() {
                 "\r\n\r\n"
             } else {
