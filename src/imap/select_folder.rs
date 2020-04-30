@@ -23,6 +23,34 @@ pub enum Error {
 }
 
 impl Imap {
+    /// Issues a CLOSE command to expunge selected folder.
+    ///
+    /// CLOSE is considerably faster than an EXPUNGE, see
+    /// https://tools.ietf.org/html/rfc3501#section-6.4.2
+    async fn close_folder(&self, context: &Context) -> Result<()> {
+        if let Some(ref folder) = self.config.read().await.selected_folder {
+            info!(context, "Expunge messages in \"{}\".", folder);
+
+            if let Some(ref mut session) = &mut *self.session.lock().await {
+                match session.close().await {
+                    Ok(_) => {
+                        info!(context, "close/expunge succeeded");
+                    }
+                    Err(err) => {
+                        self.trigger_reconnect();
+                        return Err(Error::CloseExpungeFailed(err));
+                    }
+                }
+            } else {
+                return Err(Error::NoSession);
+            }
+        }
+        let mut cfg = self.config.write().await;
+        cfg.selected_folder = None;
+        cfg.selected_folder_needs_expunge = false;
+        Ok(())
+    }
+
     /// select a folder, possibly update uid_validity and, if needed,
     /// expunge the folder to remove delete-marked messages.
     pub(super) async fn select_folder<S: AsRef<str>>(
@@ -38,39 +66,14 @@ impl Imap {
             return Err(Error::NoSession);
         }
 
-        // if there is a new folder and the new folder is equal to the selected one, there's nothing to do.
-        // if there is _no_ new folder, we continue as we might want to expunge below.
-        if let Some(ref folder) = folder {
-            if let Some(ref selected_folder) = self.config.read().await.selected_folder {
-                if folder.as_ref() == selected_folder {
-                    return Ok(());
-                }
-            }
+        let needs_expunge = self.config.read().await.selected_folder_needs_expunge;
+        if needs_expunge {
+            self.close_folder(context).await?;
         }
 
-        // deselect existing folder, if needed (it's also done implicitly by SELECT, however, without EXPUNGE then)
-        let needs_expunge = { self.config.read().await.selected_folder_needs_expunge };
-        if needs_expunge {
-            if let Some(ref folder) = self.config.read().await.selected_folder {
-                info!(context, "Expunge messages in \"{}\".", folder);
-
-                // A CLOSE-SELECT is considerably faster than an EXPUNGE-SELECT, see
-                // https://tools.ietf.org/html/rfc3501#section-6.4.2
-                if let Some(ref mut session) = &mut *self.session.lock().await {
-                    match session.close().await {
-                        Ok(_) => {
-                            info!(context, "close/expunge succeeded");
-                        }
-                        Err(err) => {
-                            self.trigger_reconnect();
-                            return Err(Error::CloseExpungeFailed(err));
-                        }
-                    }
-                } else {
-                    return Err(Error::NoSession);
-                }
-            }
-            self.config.write().await.selected_folder_needs_expunge = false;
+        let folder_str: Option<&str> = folder.as_ref().map(|x| x.as_ref());
+        if self.config.read().await.selected_folder.as_deref() == folder_str {
+            return Ok(());
         }
 
         // select new folder
