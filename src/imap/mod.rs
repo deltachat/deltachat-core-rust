@@ -476,7 +476,7 @@ impl Imap {
         folder: &str,
     ) -> Result<(u32, u32)> {
         task::block_on(async move {
-            self.select_folder(context, Some(folder)).await?;
+            self.select_folder(context, folder).await?;
 
             // compare last seen UIDVALIDITY against the current one
             let (uid_validity, last_seen_uid) = self.get_config_last_seen_uid(context, &folder);
@@ -912,7 +912,7 @@ impl Imap {
                     return Some(ImapActionResult::RetryLater);
                 }
             }
-            match self.select_folder(context, Some(&folder)).await {
+            match self.select_folder(context, &folder).await {
                 Ok(()) => None,
                 Err(select_folder::Error::ConnectionLost) => {
                     warn!(context, "Lost imap connection");
@@ -1183,7 +1183,7 @@ impl Imap {
                 error!(context, "could not setup imap connection: {}", err);
                 return;
             }
-            if let Err(err) = self.select_folder(context, Some(&folder)).await {
+            if let Err(err) = self.select_folder(context, &folder).await {
                 error!(
                     context,
                     "Could not select {} for expunging: {}", folder, err
@@ -1201,7 +1201,7 @@ impl Imap {
 
             // we now trigger expunge to actually delete messages
             self.config.write().await.selected_folder_needs_expunge = true;
-            match self.select_folder::<String>(context, None).await {
+            match self.select_folder(context, &folder).await {
                 Ok(()) => {
                     emit_event!(context, Event::ImapFolderEmptied(folder.to_string()));
                 }
