@@ -4,7 +4,6 @@ use anyhow::Context as _;
 use deltachat_derive::{FromSql, ToSql};
 use lettre_email::mime::{self, Mime};
 use mailparse::{DispositionType, MailAddr, MailHeader, MailHeaderMap};
-use std::iter::{once, FromIterator};
 
 use crate::aheader::Aheader;
 use crate::blob::BlobObject;
@@ -1007,48 +1006,29 @@ fn get_attachment_filename(mail: &mailparse::ParsedMail) -> Result<Option<String
 fn get_recipients(headers: &Vec<MailHeader>) -> HashSet<String> {
     let mut recipients: HashSet<String> = Default::default();
 
-    let recipients_iter = headers
+    headers
         .into_iter()
         .filter(|header| {
             let hkey = header.get_key().to_lowercase();
             hkey == "to" || hkey == "cc"
         })
         .filter_map(|header| mailparse::addrparse_header(header).ok())
-        .flat_map(|addrs| addrs.iter())
-        .flat_map(|addr| -> Iterator<Item = String> {
-            match addr {
-                mailparse::MailAddr::Single(ref info) => {
-                    &once(addr_normalize(&info.addr).to_lowercase())
+        .for_each(|addrs| {
+            for addr in addrs.iter() {
+                match addr {
+                    mailparse::MailAddr::Single(ref info) => {
+                        recipients.insert(addr_normalize(&info.addr).to_lowercase());
+                    }
+                    mailparse::MailAddr::Group(ref infos) => {
+                        for info in &infos.addrs {
+                            recipients.insert(addr_normalize(&info.addr).to_lowercase());
+                        }
+                    }
                 }
-                mailparse::MailAddr::Group(ref infos) => &infos
-                    .addrs
-                    .iter()
-                    .map(|info| addr_normalize(&info.addr).to_lowercase()),
             }
         });
 
-    HashSet::from_iter(recipients_iter.cloned())
-
-    // for (hkey, hvalue) in headers {
-    //     let hkey = hkey.as_ref().to_lowercase();
-    //     let hvalue = hvalue.as_ref();
-    //     if hkey == "to" || hkey == "cc" {
-    //         if let Ok(addrs) = mailparse::addrparse(hvalue) {
-    //             for addr in addrs.iter() {
-    //                 match addr {
-    //                     mailparse::MailAddr::Single(ref info) => {
-    //                         recipients.insert(addr_normalize(&info.addr).to_lowercase());
-    //                     }
-    //                     mailparse::MailAddr::Group(ref infos) => {
-    //                         for info in &infos.addrs {
-    //                             recipients.insert(addr_normalize(&info.addr).to_lowercase());
-    //                         }
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     }
-    //}
+    recipients
 }
 
 /// Check if the only addrs match, ignoring names.
