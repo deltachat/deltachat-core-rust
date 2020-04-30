@@ -173,14 +173,15 @@ impl JobThread {
                 if !self.imap.can_idle() {
                     true // we have to do fake_idle
                 } else {
-                    let watch_folder = self.get_watch_folder(context);
-                    info!(context, "{} started...", prefix);
-                    let res = self.imap.idle(context, watch_folder);
-                    info!(context, "{} ended...", prefix);
-                    if let Err(err) = res {
-                        warn!(context, "{} failed: {} -> reconnecting", prefix, err);
-                        // something is borked, let's start afresh on the next occassion
-                        self.imap.disconnect(context);
+                    if let Some(watch_folder) = self.get_watch_folder(context) {
+                        info!(context, "{} started...", prefix);
+                        let res = self.imap.idle(context, watch_folder);
+                        info!(context, "{} ended...", prefix);
+                        if let Err(err) = res {
+                            warn!(context, "{} failed: {} -> reconnecting", prefix, err);
+                            // something is Label { Label }orked, let's start afresh on the next occassion
+                            self.imap.disconnect(context);
+                        }
                     }
                     false
                 }
