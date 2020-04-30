@@ -674,7 +674,7 @@ fn add_parts(
     );
 
     // check event to send
-    if chat_id.is_trash() {
+    if chat_id.is_trash() || *hidden {
         *create_event_to_send = None;
     } else if incoming && state == MessageState::InFresh {
         if from_id_blocked {
