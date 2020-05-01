@@ -69,6 +69,7 @@ pub(crate) fn JobConfigureImap(context: &Context) -> job::Status {
     let mut smtp_connected_here = false;
 
     let mut param_autoconfig: Option<LoginParam> = None;
+    let was_configured_before = context.is_configured();
 
     context
         .inbox_thread
@@ -441,6 +442,15 @@ pub(crate) fn JobConfigureImap(context: &Context) -> job::Status {
     }
 
     if let Some(provider) = provider::get_provider_info(&param.addr) {
+        if !was_configured_before {
+            if let Some(config_defaults) = &provider.config_defaults {
+                for def in config_defaults.iter() {
+                    info!(context, "apply config_defaults {}={}", def.key, def.value);
+                    context.set_config(def.key, Some(def.value));
+                }
+            }
+        }
+
         if !provider.after_login_hint.is_empty() {
             let mut msg = Message::new(Viewtype::Text);
             msg.text = Some(provider.after_login_hint.to_string());
