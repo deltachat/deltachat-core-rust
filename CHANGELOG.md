@@ -1,5 +1,12 @@
 # Changelog 
 
+## 1.30.0
+
+- expunge deleted messages #1440
+
+- do not send `DC_EVENT_MSGS_CHANGED|INCOMING_MSG` on hidden messages #1439
+
+
 ## 1.29.0
 
 - new config options `delete_device_after` and `delete_server_after`,
