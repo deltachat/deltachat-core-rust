@@ -629,7 +629,7 @@ dependencies = [
 
 [[package]]
 name = "deltachat"
-version = "1.29.0"
+version = "1.30.0"
 dependencies = [
  "anyhow 1.0.28 (registry+https://github.com/rust-lang/crates.io-index)",
  "async-imap 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -695,10 +695,10 @@ dependencies = [
 
 [[package]]
 name = "deltachat_ffi"
-version = "1.29.0"
+version = "1.30.0"
 dependencies = [
  "anyhow 1.0.28 (registry+https://github.com/rust-lang/crates.io-index)",
- "deltachat 1.29.0",
+ "deltachat 1.30.0",
  "human-panic 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.67 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-traits 0.2.11 (registry+https://github.com/rust-lang/crates.io-index)",
