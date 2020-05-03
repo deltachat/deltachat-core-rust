@@ -646,10 +646,6 @@ impl Imap {
             }
         }
 
-        if new_last_seen_uid > last_seen_uid {
-            self.set_config_last_seen_uid(context, &folder, uid_validity, new_last_seen_uid);
-        }
-
         if read_errors > 0 {
             warn!(
                 context,
@@ -665,6 +661,10 @@ impl Imap {
                 read_cnt,
                 folder.as_ref()
             );
+
+            if new_last_seen_uid > last_seen_uid {
+                self.set_config_last_seen_uid(context, &folder, uid_validity, new_last_seen_uid);
+            }
         }
 
         Ok(read_cnt > 0)
