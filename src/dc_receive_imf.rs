@@ -97,11 +97,8 @@ pub fn dc_receive_imf(
     // we do not check Return-Path any more as this is unreliable, see
     // https://github.com/deltachat/deltachat-core/issues/150)
     let (from_id, from_id_blocked, incoming_origin) =
-        if let Some(field_from) = mime_parser.get(HeaderDef::From_) {
-            from_field_to_contact_id(context, field_from)?
-        } else {
-            (0, false, Origin::Unknown)
-        };
+        from_field_to_contact_id(context, &mime_parser.from)?;
+
     let incoming = from_id != DC_CONTACT_ID_SELF;
 
     let mut to_ids = ContactIds::new();
@@ -2000,5 +1997,37 @@ mod tests {
         );
         let one2one = Chat::load_from_db(&t.ctx, one2one_id).unwrap();
         assert!(one2one.get_visibility() == ChatVisibility::Archived);
+    }
+
+    #[test]
+    fn test_no_from() {
+        // if there is no from given, from_id stays 0 which is just fine. These messages
+        // are very rare, however, we have to add them to the database (they go to the
+        // "deaddrop" chat) to avoid a re-download from the server. See also [**]
+
+        let t = configured_offline_context();
+        let context = &t.ctx;
+
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        assert!(chats.get_msg_id(0).is_none());
+
+        dc_receive_imf(
+            context,
+            b"To: bob@example.org\n\
+                 Subject: foo\n\
+                 Message-ID: <3924@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                 \n\
+                 hello\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .unwrap();
+
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        // Check that the message was added to the database:
+        assert!(chats.get_msg_id(0).is_some());
     }
 }
