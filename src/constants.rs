@@ -59,6 +59,19 @@ impl Default for ShowEmails {
 
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql)]
 #[repr(u8)]
+pub enum MediaQuality {
+    Balanced = 0,
+    Worse = 1,
+}
+
+impl Default for MediaQuality {
+    fn default() -> Self {
+        MediaQuality::Balanced // also change Config.MediaQuality props(default) on changes
+    }
+}
+
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql)]
+#[repr(u8)]
 pub enum KeyGenType {
     Default = 0,
     Rsa2048 = 1,
