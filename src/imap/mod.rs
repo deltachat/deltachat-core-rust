@@ -733,13 +733,7 @@ impl Imap {
                 if let Err(err) =
                     dc_receive_imf(context, &body, folder.as_ref(), server_uid, is_seen)
                 {
-                    warn!(
-                        context,
-                        "dc_receive_imf failed for imap-message {}/{}: {:?}",
-                        folder.as_ref(),
-                        server_uid,
-                        err
-                    );
+                    return Err(Error::Other(format!("dc_receive_imf error: {}", err)));
                 }
             }
         } else {

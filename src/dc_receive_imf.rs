@@ -32,6 +32,10 @@ enum CreateEvent {
 }
 
 /// Receive a message and add it to the database.
+///
+/// Returns an error on recoverable errors, e.g. database errors. In this case,
+/// message parsing should be retried later. If message itself is wrong, logs
+/// the error and returns success.
 pub fn dc_receive_imf(
     context: &Context,
     imf_raw: &[u8],
@@ -55,10 +59,19 @@ pub fn dc_receive_imf(
         println!("{}", String::from_utf8_lossy(imf_raw));
     }
 
-    let mut mime_parser = MimeMessage::from_bytes(context, imf_raw)?;
+    let mut mime_parser = match MimeMessage::from_bytes(context, imf_raw) {
+        Err(err) => {
+            warn!(context, "dc_receive_imf: can't parse MIME: {}", err);
+            return Ok(());
+        }
+        Ok(mime_parser) => mime_parser,
+    };
 
     // we can not add even an empty record if we have no info whatsoever
-    ensure!(mime_parser.has_headers(), "No Headers Found");
+    if !mime_parser.has_headers() {
+        warn!(context, "dc_receive_imf: no headers found");
+        return Ok(());
+    }
 
     // the function returns the number of created messages in the database
     let mut chat_id = ChatId::new(0);
@@ -305,7 +318,8 @@ fn add_parts(
             message::update_server_uid(context, &rfc724_mid, server_folder.as_ref(), server_uid);
         }
 
-        bail!("Message already in DB");
+        warn!(context, "Message already in DB");
+        return Ok(());
     }
 
     let mut msgrmsg = if mime_parser.has_chat_version() {
@@ -369,7 +383,8 @@ fn add_parts(
                     *hidden = true;
                     context.bob.write().unwrap().status = 0; // secure-join failed
                     context.stop_ongoing();
-                    error!(context, "Error in Secure-Join message handling: {}", err);
+                    warn!(context, "Error in Secure-Join message handling: {}", err);
+                    return Ok(());
                 }
             }
         }
@@ -496,7 +511,8 @@ fn add_parts(
                 }
                 Err(err) => {
                     *hidden = true;
-                    error!(context, "Error in Secure-Join watching: {}", err);
+                    warn!(context, "Error in Secure-Join watching: {}", err);
+                    return Ok(());
                 }
             }
         }
