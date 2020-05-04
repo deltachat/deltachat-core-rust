@@ -770,47 +770,36 @@ impl MimeMessage {
         from: &mut MailAddrList,
         fields: &[mailparse::MailHeader<'_>],
     ) {
-        let fields = fields
-            .iter()
-            .map(|field| (field.get_key().to_lowercase(), field));
-
-        fields
-            .filter(|(key, field)| key == "cc" || key == "to")
-            .flat_map(|(key, field)| match mailparse::addrparse_header(field) {
-                Ok(addrlist) => addrlist.clone().into_iter(),
-                Err(e) => {
-                    warn!(context, "Could not read {} address: {}", key, e);
-                    vec![].into_iter()
+        let mut my_receipients = vec![];
+        for field in fields {
+            // lowercasing all headers is technically not correct, but makes things work better
+            let key = field.get_key().to_lowercase();
+            if !headers.contains_key(&key) || // key already exists, only overwrite known types (protected headers)
+                    is_known(&key) || key.starts_with("chat-")
+            {
+                if key == "cc" || key == "to" {
+                    match mailparse::addrparse_header(field) {
+                        Ok(mut addrlist) => my_receipients.append(&mut addrlist),
+                        Err(e) => warn!(context, "Could not read {} address: {}", key, e),
+                    }
+                } else if key == "from" {
+                    match mailparse::addrparse_header(field) {
+                        Ok(mut addrlist) => {
+                            from.clear();
+                            from.append(&mut addrlist)
+                        }
+                        Err(e) => warn!(context, "Could not read {} address: {}", key, e),
+                    }
+                } else {
+                    let value = field.get_value();
+                    headers.insert(key.to_string(), value);
                 }
-            });
-        // for field in fields {
-        //     // lowercasing all headers is technically not correct, but makes things work better
-        //     let key = field.get_key().to_lowercase();
-        //     if !headers.contains_key(&key) || // key already exists, only overwrite known types (protected headers)
-        //             is_known(&key) || key.starts_with("chat-")
-        //     {
-        //         if key == "cc" || key == "to" {
-        //             match mailparse::addrparse_header(field) {
-        //                 Ok(mut addrlist) => {
-        //                     recipients.clear();
-        //                     recipients.append(&mut addrlist)
-        //                 }
-        //                 Err(e) => warn!(context, "Could not read {} address: {}", key, e),
-        //             }
-        //         } else if key == "from" {
-        //             match mailparse::addrparse_header(field) {
-        //                 Ok(mut addrlist) => {
-        //                     from.clear();
-        //                     from.append(&mut addrlist)
-        //                 }
-        //                 Err(e) => warn!(context, "Could not read {} address: {}", key, e),
-        //             }
-        //         } else {
-        //             let value = field.get_value();
-        //             headers.insert(key.to_string(), value);
-        //         }
-        //     }
-        // }
+            }
+        }
+        if my_receipients.len() > 0 {
+            recipients.clear();
+            recipients.append(&mut my_receipients);
+        }
     }
 
     fn process_report(
