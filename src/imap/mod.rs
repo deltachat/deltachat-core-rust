@@ -13,7 +13,6 @@ use async_imap::{
 };
 use async_std::sync::{Mutex, RwLock};
 use async_std::task;
-use mailparse::MailHeaderMap;
 
 use crate::config::*;
 use crate::constants::*;
@@ -1376,7 +1375,7 @@ fn prefetch_should_download(
         .is_some();
 
     let from_field = headers
-        .get_first_header("From")
+        .get_header(HeaderDef::From_)
         .ok_or_else(|| format_err!("No from field"))?;
 
     let (_contact_id, blocked_contact, origin) =

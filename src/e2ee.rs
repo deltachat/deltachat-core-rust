@@ -10,6 +10,7 @@ use crate::config::Config;
 use crate::context::Context;
 use crate::error::*;
 use crate::headerdef::HeaderDef;
+use crate::headerdef::HeaderDefMap;
 use crate::key::{DcKey, Key, SignedPublicKey, SignedSecretKey};
 use crate::keyring::*;
 use crate::peerstate::*;
@@ -122,12 +123,7 @@ pub fn try_decrypt(
 ) -> Result<(Option<Vec<u8>>, HashSet<String>)> {
     let from = mail
         .headers
-        .iter()
-        .find(|header| {
-            header
-                .get_key()
-                .eq_ignore_ascii_case(HeaderDef::From_.get_headername())
-        })
+        .get_header(HeaderDef::From_)
         .and_then(|from_addr| mailparse::addrparse_header(&from_addr).ok())
         .and_then(|from| from.extract_single_info())
         .map(|from| from.addr)
