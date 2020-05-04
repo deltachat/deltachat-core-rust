@@ -1190,7 +1190,7 @@ fn perform_job_action(context: &Context, mut job: &mut Job, thread: Thread, trie
         Action::ImexImap => match JobImexImap(context, &job) {
             Ok(()) => Status::Finished(Ok(())),
             Err(err) => {
-                error!(context, "{}", err);
+                error!(context, "Import/export failed: {}", err);
                 Status::Finished(Err(err))
             }
         },
