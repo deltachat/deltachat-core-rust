@@ -3,7 +3,7 @@ use sha2::{Digest, Sha256};
 
 use num_traits::FromPrimitive;
 
-use mailparse::MailAddrList;
+use mailparse::SingleInfo;
 
 use crate::chat::{self, Chat, ChatId};
 use crate::config::Config;
@@ -238,7 +238,7 @@ pub fn dc_receive_imf(
 /// Also returns whether it is blocked or not and its origin.
 pub fn from_field_to_contact_id(
     context: &Context,
-    from_address_list: HashMap<String, String>,
+    from_address_list: &Vec<SingleInfo>,
 ) -> Result<(u32, bool, Origin)> {
     let from_ids = dc_add_or_lookup_contacts_by_address_list(
         context,
@@ -252,7 +252,7 @@ pub fn from_field_to_contact_id(
         if from_ids.len() > 1 {
             warn!(
                 context,
-                "mail has more than one From address, only using first: {:?}", from_header
+                "mail has more than one From address, only using first: {:?}", from_address_list
             );
         }
         let from_id = from_ids.get_index(0).cloned().unwrap_or_default();
@@ -265,7 +265,10 @@ pub fn from_field_to_contact_id(
         }
         Ok((from_id, from_id_blocked, incoming_origin))
     } else {
-        warn!(context, "mail has an empty From header: {:?}", from_header);
+        warn!(
+            context,
+            "mail has an empty From header: {:?}", from_address_list
+        );
         // if there is no from given, from_id stays 0 which is just fine. These messages
         // are very rare, however, we have to add them to the database (they go to the
         // "deaddrop" chat) to avoid a re-download from the server. See also [**]
@@ -1589,15 +1592,15 @@ fn is_msgrmsg_rfc724_mid(context: &Context, rfc724_mid: &str) -> bool {
 
 fn dc_add_or_lookup_contacts_by_address_list(
     context: &Context,
-    address_list: &HashMap<String, String>, // That's a HashMap<mail_addr, display_name>
+    address_list: &Vec<SingleInfo>,
     origin: Origin,
 ) -> Result<ContactIds> {
     let mut contact_ids = ContactIds::new();
-    for (addr, display_name) in address_list.iter() {
+    for info in address_list.iter() {
         contact_ids.insert(add_or_lookup_contact_by_addr(
             context,
-            display_name,
-            addr,
+            &info.display_name,
+            &info.addr,
             origin,
         )?);
     }

@@ -5,6 +5,7 @@ use deltachat_derive::{FromSql, ToSql};
 use lettre_email::mime::{self, Mime};
 use mailparse::{
     addrparse_header, DispositionType, MailAddr, MailAddrList, MailHeader, MailHeaderMap,
+    SingleInfo,
 };
 
 use crate::aheader::Aheader;
@@ -40,11 +41,10 @@ pub struct MimeMessage {
     pub parts: Vec<Part>,
     header: HashMap<String, String>,
 
-    /// The next two are type HashMap<Address, Display_name>.
-    /// Addresses are normalized and lowercased.
-    pub recipients: HashMap<String, String>,
-    pub from: HashMap<String, String>,
-    pub chat_disposition_notification_to: Option<MailAddr>,
+    /// Addresses are normalized and lowercased:
+    pub recipients: Vec<SingleInfo>,
+    pub from: Vec<SingleInfo>,
+    pub chat_disposition_notification_to: Option<SingleInfo>,
     pub decrypting_failed: bool,
     pub signatures: HashSet<String>,
     pub gossipped_addr: HashSet<String>,
@@ -338,9 +338,9 @@ impl MimeMessage {
 
         // See if an MDN is requested from the other side
         if !self.decrypting_failed && !self.parts.is_empty() {
-            if let Some(ref dn_to_addr) = self.chat_disposition_notification_to {
-                if let Some(ref from_addr) = self.from.get(0) {
-                    if compare_addrs(from_addr, dn_to_addr) {
+            if let Some(ref dn_to) = self.chat_disposition_notification_to {
+                if let Some(ref from) = self.from.get(0) {
+                    if from.addr == dn_to.addr {
                         if let Some(part) = self.parts.last_mut() {
                             part.param.set_int(Param::WantsMdn, 1);
                         }
@@ -760,9 +760,9 @@ impl MimeMessage {
     fn merge_headers(
         context: &Context,
         headers: &mut HashMap<String, String>,
-        recipients: &mut MailAddrList,
-        from: &mut MailAddrList,
-        chat_disposition_notification_to: &mut Option<MailAddr>,
+        recipients: &mut Vec<SingleInfo>,
+        from: &mut Vec<SingleInfo>,
+        chat_disposition_notification_to: &mut Option<SingleInfo>,
         fields: &[mailparse::MailHeader<'_>],
     ) {
         for field in fields {
@@ -774,7 +774,7 @@ impl MimeMessage {
                 if key == HeaderDef::ChatDispositionNotificationTo.get_headername() {
                     match addrparse_header(field) {
                         Ok(addrlist) => {
-                            *chat_disposition_notification_to = addrlist.get(0).cloned();
+                            *chat_disposition_notification_to = addrlist.extract_single_info();
                         }
                         Err(e) => warn!(context, "Could not read {} address: {}", key, e),
                     }
@@ -784,15 +784,13 @@ impl MimeMessage {
                 }
             }
         }
-        let recipients_new = get_recipients(fields);
+        let mut recipients_new = get_recipients(fields);
         if !recipients_new.is_empty() {
-            recipients.clear();
-            recipients.append(&mut recipients_new);
+            *recipients = recipients_new;
         }
         let from_new = get_from(fields);
         if !from_new.is_empty() {
-            from.clear();
-            from.append(&mut from);
+            *from = from_new;
         }
     }
 
@@ -867,7 +865,10 @@ fn update_gossip_peerstates(
         let gossip_header = value.parse::<Aheader>();
 
         if let Ok(ref header) = gossip_header {
-            if get_recipients(&mail.headers).contains_key(&header.addr.to_lowercase()) {
+            if get_recipients(&mail.headers)
+                .iter()
+                .any(|info| info.addr == header.addr.to_lowercase())
+            {
                 let mut peerstate = Peerstate::from_addr(context, &context.sql, &header.addr);
                 if let Some(ref mut peerstate) = peerstate {
                     peerstate.apply_gossip(header, message_time);
@@ -1033,7 +1034,7 @@ fn get_attachment_filename(mail: &mailparse::ParsedMail) -> Result<Option<String
 
 /// Returns a HashMap<Address, Display_name>.
 /// Returned addresses are normalized and lowercased.
-fn get_recipients(headers: &[MailHeader]) -> HashMap<String, String> {
+fn get_recipients(headers: &[MailHeader]) -> Vec<SingleInfo> {
     get_all_addresses_from_header(headers, |header_key| {
         header_key == "to" || header_key == "cc"
     })
@@ -1041,15 +1042,15 @@ fn get_recipients(headers: &[MailHeader]) -> HashMap<String, String> {
 
 /// Returns a HashMap<Address, Display_name>.
 /// Returned addresses are normalized and lowercased.
-fn get_from(headers: &[MailHeader]) -> HashMap<String, String> {
+pub(crate) fn get_from(headers: &[MailHeader]) -> Vec<SingleInfo> {
     get_all_addresses_from_header(headers, |header_key| header_key == "from")
 }
 
-fn get_all_addresses_from_header(
-    headers: &[MailHeader],
-    pred: Fn(header_key) -> boolean,
-) -> HashMap<String, String> {
-    let mut addrs: HashSet<String> = Default::default();
+fn get_all_addresses_from_header<F>(headers: &[MailHeader], pred: F) -> Vec<SingleInfo>
+where
+    F: Fn(String) -> bool,
+{
+    let mut result: Vec<SingleInfo> = Default::default();
 
     headers
         .iter()
@@ -1059,18 +1060,24 @@ fn get_all_addresses_from_header(
             for addr in addrs.iter() {
                 match addr {
                     mailparse::MailAddr::Single(ref info) => {
-                        addrs.insert(addr_normalize(&info.addr).to_lowercase());
+                        result.push(SingleInfo {
+                            addr: addr_normalize(&info.addr).to_lowercase(),
+                            display_name: info.display_name.clone(),
+                        });
                     }
                     mailparse::MailAddr::Group(ref infos) => {
                         for info in &infos.addrs {
-                            addrs.insert(addr_normalize(&info.addr).to_lowercase());
+                            result.push(SingleInfo {
+                                addr: addr_normalize(&info.addr).to_lowercase(),
+                                display_name: info.display_name.clone(),
+                            });
                         }
                     }
                 }
             }
         });
 
-    addrs
+    result
 }
 
 /// Check if the only addrs match, ignoring names.
@@ -1140,8 +1147,8 @@ mod tests {
         let raw = include_bytes!("../test-data/message/mail_with_cc.txt");
         let mail = mailparse::parse_mail(&raw[..]).unwrap();
         let recipients = get_recipients(&mail.headers);
-        assert!(recipients.contains("abc@bcd.com"));
-        assert!(recipients.contains("def@def.de"));
+        assert!(recipients.iter().any(|info| info.addr == "abc@bcd.com"));
+        assert!(recipients.iter().any(|info| info.addr == "def@def.de"));
         assert_eq!(recipients.len(), 2);
     }
 
@@ -1197,7 +1204,7 @@ mod tests {
         let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
 
         let of = &mimeparser.from[0];
-        assert_eq!(of, &mailparse::addrparse("hello@one.org").unwrap()[0]);
+        assert_eq!(of.addr, "hello@one.org");
 
         assert!(mimeparser.chat_disposition_notification_to.is_none());
     }
