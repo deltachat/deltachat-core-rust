@@ -39,8 +39,11 @@ use crate::stock::StockMessage;
 pub struct MimeMessage {
     pub parts: Vec<Part>,
     header: HashMap<String, String>,
-    pub recipients: MailAddrList,
-    pub from: MailAddrList,
+
+    /// The next two are type HashMap<Address, Display_name>.
+    /// Addresses are normalized and lowercased.
+    pub recipients: HashMap<String, String>,
+    pub from: HashMap<String, String>,
     pub chat_disposition_notification_to: Option<MailAddr>,
     pub decrypting_failed: bool,
     pub signatures: HashSet<String>,
@@ -93,8 +96,8 @@ impl MimeMessage {
             .unwrap_or_default();
 
         let mut headers = Default::default();
-        let mut recipients = MailAddrList::from(vec![]);
-        let mut from = MailAddrList::from(vec![]);
+        let mut recipients = Default::default();
+        let mut from = Default::default();
         let mut chat_disposition_notification_to = None;
 
         // init known headers with what mailparse provided us
@@ -762,27 +765,13 @@ impl MimeMessage {
         chat_disposition_notification_to: &mut Option<MailAddr>,
         fields: &[mailparse::MailHeader<'_>],
     ) {
-        let mut my_recipients = vec![];
         for field in fields {
             // lowercasing all headers is technically not correct, but makes things work better
             let key = field.get_key().to_lowercase();
             if !headers.contains_key(&key) || // key already exists, only overwrite known types (protected headers)
                     is_known(&key) || key.starts_with("chat-")
             {
-                if key == "cc" || key == "to" {
-                    match addrparse_header(field) {
-                        Ok(mut addrlist) => my_recipients.append(&mut addrlist),
-                        Err(e) => warn!(context, "Could not read {} address: {}", key, e),
-                    }
-                } else if key == "from" {
-                    match addrparse_header(field) {
-                        Ok(mut addrlist) => {
-                            from.clear();
-                            from.append(&mut addrlist)
-                        }
-                        Err(e) => warn!(context, "Could not read {} address: {}", key, e),
-                    }
-                } else if key == HeaderDef::ChatDispositionNotificationTo.get_headername() {
+                if key == HeaderDef::ChatDispositionNotificationTo.get_headername() {
                     match addrparse_header(field) {
                         Ok(addrlist) => {
                             *chat_disposition_notification_to = addrlist.get(0).cloned();
@@ -795,9 +784,15 @@ impl MimeMessage {
                 }
             }
         }
-        if !my_recipients.is_empty() {
+        let recipients_new = get_recipients(fields);
+        if !recipients_new.is_empty() {
             recipients.clear();
-            recipients.append(&mut my_recipients);
+            recipients.append(&mut recipients_new);
+        }
+        let from_new = get_from(fields);
+        if !from_new.is_empty() {
+            from.clear();
+            from.append(&mut from);
         }
     }
 
@@ -866,22 +861,13 @@ fn update_gossip_peerstates(
     gossip_headers: Vec<String>,
 ) -> Result<HashSet<String>> {
     // XXX split the parsing from the modification part
-    let mut recipients: Option<HashSet<String>> = None;
     let mut gossipped_addr: HashSet<String> = Default::default();
 
     for value in &gossip_headers {
         let gossip_header = value.parse::<Aheader>();
 
         if let Ok(ref header) = gossip_header {
-            if recipients.is_none() {
-                recipients = Some(get_recipients(&mail.headers));
-            }
-
-            if recipients
-                .as_ref()
-                .unwrap()
-                .contains(&header.addr.to_lowercase())
-            {
+            if get_recipients(&mail.headers).contains_key(&header.addr.to_lowercase()) {
                 let mut peerstate = Peerstate::from_addr(context, &context.sql, &header.addr);
                 if let Some(ref mut peerstate) = peerstate {
                     peerstate.apply_gossip(header, message_time);
@@ -1045,33 +1031,46 @@ fn get_attachment_filename(mail: &mailparse::ParsedMail) -> Result<Option<String
     }
 }
 
-// returned addresses are normalized and lowercased.
-fn get_recipients(headers: &[MailHeader]) -> HashSet<String> {
-    let mut recipients: HashSet<String> = Default::default();
+/// Returns a HashMap<Address, Display_name>.
+/// Returned addresses are normalized and lowercased.
+fn get_recipients(headers: &[MailHeader]) -> HashMap<String, String> {
+    get_all_addresses_from_header(headers, |header_key| {
+        header_key == "to" || header_key == "cc"
+    })
+}
+
+/// Returns a HashMap<Address, Display_name>.
+/// Returned addresses are normalized and lowercased.
+fn get_from(headers: &[MailHeader]) -> HashMap<String, String> {
+    get_all_addresses_from_header(headers, |header_key| header_key == "from")
+}
+
+fn get_all_addresses_from_header(
+    headers: &[MailHeader],
+    pred: Fn(header_key) -> boolean,
+) -> HashMap<String, String> {
+    let mut addrs: HashSet<String> = Default::default();
 
     headers
         .iter()
-        .filter(|header| {
-            let hkey = header.get_key().to_lowercase();
-            hkey == "to" || hkey == "cc"
-        })
+        .filter(|header| pred(header.get_key().to_lowercase()))
         .filter_map(|header| mailparse::addrparse_header(header).ok())
         .for_each(|addrs| {
             for addr in addrs.iter() {
                 match addr {
                     mailparse::MailAddr::Single(ref info) => {
-                        recipients.insert(addr_normalize(&info.addr).to_lowercase());
+                        addrs.insert(addr_normalize(&info.addr).to_lowercase());
                     }
                     mailparse::MailAddr::Group(ref infos) => {
                         for info in &infos.addrs {
-                            recipients.insert(addr_normalize(&info.addr).to_lowercase());
+                            addrs.insert(addr_normalize(&info.addr).to_lowercase());
                         }
                     }
                 }
             }
         });
 
-    recipients
+    addrs
 }
 
 /// Check if the only addrs match, ignoring names.

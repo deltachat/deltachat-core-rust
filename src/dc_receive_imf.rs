@@ -238,11 +238,11 @@ pub fn dc_receive_imf(
 /// Also returns whether it is blocked or not and its origin.
 pub fn from_field_to_contact_id(
     context: &Context,
-    from_header: &MailAddrList,
+    from_address_list: HashMap<String, String>,
 ) -> Result<(u32, bool, Origin)> {
     let from_ids = dc_add_or_lookup_contacts_by_address_list(
         context,
-        from_header,
+        from_address_list,
         Origin::IncomingUnknownFrom,
     )?;
 
@@ -1589,31 +1589,17 @@ fn is_msgrmsg_rfc724_mid(context: &Context, rfc724_mid: &str) -> bool {
 
 fn dc_add_or_lookup_contacts_by_address_list(
     context: &Context,
-    addrs: &MailAddrList,
+    address_list: &HashMap<String, String>, // That's a HashMap<mail_addr, display_name>
     origin: Origin,
 ) -> Result<ContactIds> {
     let mut contact_ids = ContactIds::new();
-    for addr in addrs.iter() {
-        match addr {
-            mailparse::MailAddr::Single(info) => {
-                contact_ids.insert(add_or_lookup_contact_by_addr(
-                    context,
-                    &info.display_name,
-                    &info.addr,
-                    origin,
-                )?);
-            }
-            mailparse::MailAddr::Group(infos) => {
-                for info in &infos.addrs {
-                    contact_ids.insert(add_or_lookup_contact_by_addr(
-                        context,
-                        &info.display_name,
-                        &info.addr,
-                        origin,
-                    )?);
-                }
-            }
-        }
+    for (addr, display_name) in address_list.iter() {
+        contact_ids.insert(add_or_lookup_contact_by_addr(
+            context,
+            display_name,
+            addr,
+            origin,
+        )?);
     }
 
     Ok(contact_ids)
