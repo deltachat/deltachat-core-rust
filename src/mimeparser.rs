@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use anyhow::Context as _;
 use deltachat_derive::{FromSql, ToSql};
 use lettre_email::mime::{self, Mime};
-use mailparse::{DispositionType, MailAddr, MailHeader, MailHeaderMap};
+use mailparse::{DispositionType, MailAddr, MailAddrList, MailHeader, MailHeaderMap};
 
 use crate::aheader::Aheader;
 use crate::blob::BlobObject;
@@ -37,6 +37,8 @@ use crate::stock::StockMessage;
 pub struct MimeMessage {
     pub parts: Vec<Part>,
     header: HashMap<String, String>,
+    pub recipients: MailAddrList,
+    pub from: MailAddrList,
     pub decrypting_failed: bool,
     pub signatures: HashSet<String>,
     pub gossipped_addr: HashSet<String>,
@@ -88,9 +90,17 @@ impl MimeMessage {
             .unwrap_or_default();
 
         let mut headers = Default::default();
+        let mut recipients = MailAddrList::from(vec![]);
+        let mut from = MailAddrList::from(vec![]);
 
         // init known headers with what mailparse provided us
-        MimeMessage::merge_headers(&mut headers, &mail.headers);
+        MimeMessage::merge_headers(
+            context,
+            &mut headers,
+            &mut recipients,
+            &mut from,
+            &mut &mail.headers,
+        );
 
         // remove headers that are allowed _only_ in the encrypted part
         headers.remove("secure-join-fingerprint");
@@ -118,7 +128,13 @@ impl MimeMessage {
 
                     // let known protected headers from the decrypted
                     // part override the unencrypted top-level
-                    MimeMessage::merge_headers(&mut headers, &decrypted_mail.headers);
+                    MimeMessage::merge_headers(
+                        context,
+                        &mut headers,
+                        &mut recipients,
+                        &mut from,
+                        &decrypted_mail.headers,
+                    );
 
                     (decrypted_mail, signatures)
                 } else {
@@ -142,6 +158,8 @@ impl MimeMessage {
         let mut parser = MimeMessage {
             parts: Vec::new(),
             header: headers,
+            recipients,
+            from,
             decrypting_failed: false,
 
             // only non-empty if it was a valid autocrypt message
@@ -745,15 +763,39 @@ impl MimeMessage {
             .and_then(|msgid| parse_message_id(msgid).ok())
     }
 
-    fn merge_headers(headers: &mut HashMap<String, String>, fields: &[mailparse::MailHeader<'_>]) {
+    fn merge_headers(
+        context: &Context,
+        headers: &mut HashMap<String, String>,
+        recipients: &mut MailAddrList,
+        from: &mut MailAddrList,
+        fields: &[mailparse::MailHeader<'_>],
+    ) {
         for field in fields {
             // lowercasing all headers is technically not correct, but makes things work better
             let key = field.get_key().to_lowercase();
             if !headers.contains_key(&key) || // key already exists, only overwrite known types (protected headers)
                     is_known(&key) || key.starts_with("chat-")
             {
-                let value = field.get_value();
-                headers.insert(key.to_string(), value);
+                if key == "cc" || key == "to" {
+                    match mailparse::addrparse_header(field) {
+                        Ok(mut addrlist) => {
+                            recipients.clear();
+                            recipients.append(&mut addrlist)
+                        }
+                        Err(e) => warn!(context, "Could not read {} address: {}", key, e),
+                    }
+                } else if key == "from" {
+                    match mailparse::addrparse_header(field) {
+                        Ok(mut addrlist) => {
+                            from.clear();
+                            from.append(&mut addrlist)
+                        }
+                        Err(e) => warn!(context, "Could not read {} address: {}", key, e),
+                    }
+                } else {
+                    let value = field.get_value();
+                    headers.insert(key.to_string(), value);
+                }
             }
         }
     }

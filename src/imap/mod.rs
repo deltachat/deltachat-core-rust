@@ -13,6 +13,7 @@ use async_imap::{
 };
 use async_std::sync::{Mutex, RwLock};
 use async_std::task;
+use mailparse::MailHeaderMap;
 
 use crate::config::*;
 use crate::constants::*;
@@ -20,6 +21,7 @@ use crate::context::Context;
 use crate::dc_receive_imf::{
     dc_receive_imf, from_field_to_contact_id, is_msgrmsg_rfc724_mid_in_list,
 };
+use crate::error::format_err;
 use crate::events::Event;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job::{job_add, Action};
@@ -1374,10 +1376,11 @@ fn prefetch_should_download(
         .is_some();
 
     let from_field = headers
-        .get_header_value(HeaderDef::From_)
-        .unwrap_or_default();
+        .get_first_header("From")
+        .ok_or(format_err!("No from field"))?;
 
-    let (_contact_id, blocked_contact, origin) = from_field_to_contact_id(context, &from_field)?;
+    let (_contact_id, blocked_contact, origin) =
+        from_field_to_contact_id(context, &mailparse::addrparse_header(from_field)?)?;
     let accepted_contact = origin.is_known();
 
     let show = is_autocrypt_setup_message
