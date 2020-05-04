@@ -1377,7 +1377,7 @@ fn prefetch_should_download(
 
     let from_field = headers
         .get_first_header("From")
-        .ok_or(format_err!("No from field"))?;
+        .ok_or_else(|| format_err!("No from field"))?;
 
     let (_contact_id, blocked_contact, origin) =
         from_field_to_contact_id(context, &mailparse::addrparse_header(from_field)?)?;

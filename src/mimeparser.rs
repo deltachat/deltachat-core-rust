@@ -41,7 +41,7 @@ pub struct MimeMessage {
     header: HashMap<String, String>,
     pub recipients: MailAddrList,
     pub from: MailAddrList,
-    pub chatDispositionNotificationTo: Option<MailAddr>,
+    pub chat_disposition_notification_to: Option<MailAddr>,
     pub decrypting_failed: bool,
     pub signatures: HashSet<String>,
     pub gossipped_addr: HashSet<String>,
@@ -95,7 +95,7 @@ impl MimeMessage {
         let mut headers = Default::default();
         let mut recipients = MailAddrList::from(vec![]);
         let mut from = MailAddrList::from(vec![]);
-        let mut chatDispositionNotificationTo = None;
+        let mut chat_disposition_notification_to = None;
 
         // init known headers with what mailparse provided us
         MimeMessage::merge_headers(
@@ -103,8 +103,8 @@ impl MimeMessage {
             &mut headers,
             &mut recipients,
             &mut from,
-            &mut chatDispositionNotificationTo,
-            &mut &mail.headers,
+            &mut chat_disposition_notification_to,
+            &mail.headers,
         );
 
         // remove headers that are allowed _only_ in the encrypted part
@@ -138,7 +138,7 @@ impl MimeMessage {
                         &mut headers,
                         &mut recipients,
                         &mut from,
-                        &mut chatDispositionNotificationTo,
+                        &mut chat_disposition_notification_to,
                         &decrypted_mail.headers,
                     );
 
@@ -166,7 +166,7 @@ impl MimeMessage {
             header: headers,
             recipients,
             from,
-            chatDispositionNotificationTo,
+            chat_disposition_notification_to,
             decrypting_failed: false,
 
             // only non-empty if it was a valid autocrypt message
@@ -335,7 +335,7 @@ impl MimeMessage {
 
         // See if an MDN is requested from the other side
         if !self.decrypting_failed && !self.parts.is_empty() {
-            if let Some(ref dn_to_addr) = self.chatDispositionNotificationTo {
+            if let Some(ref dn_to_addr) = self.chat_disposition_notification_to {
                 if let Some(ref from_addr) = self.from.get(0) {
                     if compare_addrs(from_addr, dn_to_addr) {
                         if let Some(part) = self.parts.last_mut() {
@@ -759,7 +759,7 @@ impl MimeMessage {
         headers: &mut HashMap<String, String>,
         recipients: &mut MailAddrList,
         from: &mut MailAddrList,
-        chatDispositionNotificationTo: &mut Option<MailAddr>,
+        chat_disposition_notification_to: &mut Option<MailAddr>,
         fields: &[mailparse::MailHeader<'_>],
     ) {
         let mut my_receipients = vec![];
@@ -784,8 +784,8 @@ impl MimeMessage {
                     }
                 } else if key == HeaderDef::ChatDispositionNotificationTo.get_headername() {
                     match addrparse_header(field) {
-                        Ok(mut addrlist) => {
-                            *chatDispositionNotificationTo = addrlist.get(0).cloned();
+                        Ok(addrlist) => {
+                            *chat_disposition_notification_to = addrlist.get(0).cloned();
                         }
                         Err(e) => warn!(context, "Could not read {} address: {}", key, e),
                     }
@@ -795,7 +795,7 @@ impl MimeMessage {
                 }
             }
         }
-        if my_receipients.len() > 0 {
+        if !my_receipients.is_empty() {
             recipients.clear();
             recipients.append(&mut my_receipients);
         }
@@ -1046,11 +1046,11 @@ fn get_attachment_filename(mail: &mailparse::ParsedMail) -> Result<Option<String
 }
 
 // returned addresses are normalized and lowercased.
-fn get_recipients(headers: &Vec<MailHeader>) -> HashSet<String> {
+fn get_recipients(headers: &[MailHeader]) -> HashSet<String> {
     let mut recipients: HashSet<String> = Default::default();
 
     headers
-        .into_iter()
+        .iter()
         .filter(|header| {
             let hkey = header.get_key().to_lowercase();
             hkey == "to" || hkey == "cc"
