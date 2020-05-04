@@ -382,6 +382,14 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    >=1=seconds, after which messages are deleted automatically from the server.
  *                    "Saved messages" are deleted from the server as well as
  *                    emails matching the `show_emails` settings above, the UI should clearly point that out.
+ * - `media_quality` = DC_MEDIA_QUALITY_BALANCED (0) =
+ *                    good outgoing images/videos/voice quality at reasonable sizes (default)
+ *                    DC_MEDIA_QUALITY_WORSE (1)
+ *                    allow worse images/videos/voice quality to gain smaller sizes,
+ *                    suitable for providers or areas known to have a bad connection.
+ *                    In contrast to other options, the implementation of this option is currently up to the UIs;
+ *                    this may change in future, however,
+ *                    having the option in the core allows provider-specific-defaults already today.
  *
  * If you want to retrieve a value, use dc_get_config().
  *
@@ -4491,6 +4499,14 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
 #define DC_SHOW_EMAILS_OFF               0
 #define DC_SHOW_EMAILS_ACCEPTED_CONTACTS 1
 #define DC_SHOW_EMAILS_ALL               2
+
+
+/*
+ * Values for dc_get|set_config("media_quality")
+ */
+#define DC_MEDIA_QUALITY_BALANCED 0
+#define DC_MEDIA_QUALITY_WORSE    1
+
 
 /*
  * Values for dc_get|set_config("key_gen_type")
