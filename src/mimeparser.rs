@@ -762,7 +762,7 @@ impl MimeMessage {
         chat_disposition_notification_to: &mut Option<MailAddr>,
         fields: &[mailparse::MailHeader<'_>],
     ) {
-        let mut my_receipients = vec![];
+        let mut my_recipients = vec![];
         for field in fields {
             // lowercasing all headers is technically not correct, but makes things work better
             let key = field.get_key().to_lowercase();
@@ -771,7 +771,7 @@ impl MimeMessage {
             {
                 if key == "cc" || key == "to" {
                     match addrparse_header(field) {
-                        Ok(mut addrlist) => my_receipients.append(&mut addrlist),
+                        Ok(mut addrlist) => my_recipients.append(&mut addrlist),
                         Err(e) => warn!(context, "Could not read {} address: {}", key, e),
                     }
                 } else if key == "from" {
@@ -795,9 +795,9 @@ impl MimeMessage {
                 }
             }
         }
-        if !my_receipients.is_empty() {
+        if !my_recipients.is_empty() {
             recipients.clear();
-            recipients.append(&mut my_receipients);
+            recipients.append(&mut my_recipients);
         }
     }
 
