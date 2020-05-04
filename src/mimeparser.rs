@@ -3,7 +3,9 @@ use std::collections::{HashMap, HashSet};
 use anyhow::Context as _;
 use deltachat_derive::{FromSql, ToSql};
 use lettre_email::mime::{self, Mime};
-use mailparse::{DispositionType, MailAddr, MailAddrList, MailHeader, MailHeaderMap};
+use mailparse::{
+    addrparse_header, DispositionType, MailAddr, MailAddrList, MailHeader, MailHeaderMap,
+};
 
 use crate::aheader::Aheader;
 use crate::blob::BlobObject;
@@ -39,6 +41,7 @@ pub struct MimeMessage {
     header: HashMap<String, String>,
     pub recipients: MailAddrList,
     pub from: MailAddrList,
+    pub chatDispositionNotificationTo: Option<MailAddr>,
     pub decrypting_failed: bool,
     pub signatures: HashSet<String>,
     pub gossipped_addr: HashSet<String>,
@@ -92,6 +95,7 @@ impl MimeMessage {
         let mut headers = Default::default();
         let mut recipients = MailAddrList::from(vec![]);
         let mut from = MailAddrList::from(vec![]);
+        let mut chatDispositionNotificationTo = None;
 
         // init known headers with what mailparse provided us
         MimeMessage::merge_headers(
@@ -99,6 +103,7 @@ impl MimeMessage {
             &mut headers,
             &mut recipients,
             &mut from,
+            &mut chatDispositionNotificationTo,
             &mut &mail.headers,
         );
 
@@ -133,6 +138,7 @@ impl MimeMessage {
                         &mut headers,
                         &mut recipients,
                         &mut from,
+                        &mut chatDispositionNotificationTo,
                         &decrypted_mail.headers,
                     );
 
@@ -160,6 +166,7 @@ impl MimeMessage {
             header: headers,
             recipients,
             from,
+            chatDispositionNotificationTo,
             decrypting_failed: false,
 
             // only non-empty if it was a valid autocrypt message
@@ -328,10 +335,8 @@ impl MimeMessage {
 
         // See if an MDN is requested from the other side
         if !self.decrypting_failed && !self.parts.is_empty() {
-            if let Some(ref dn_to_addr) =
-                self.parse_first_addr(context, HeaderDef::ChatDispositionNotificationTo)
-            {
-                if let Some(ref from_addr) = self.parse_first_addr(context, HeaderDef::From_) {
+            if let Some(ref dn_to_addr) = self.chatDispositionNotificationTo {
+                if let Some(ref from_addr) = self.from.get(0) {
                     if compare_addrs(from_addr, dn_to_addr) {
                         if let Some(part) = self.parts.last_mut() {
                             part.param.set_int(Param::WantsMdn, 1);
@@ -404,20 +409,6 @@ impl MimeMessage {
 
     pub fn get(&self, headerdef: HeaderDef) -> Option<&String> {
         self.header.get(headerdef.get_headername())
-    }
-
-    fn parse_first_addr(&self, context: &Context, headerdef: HeaderDef) -> Option<MailAddr> {
-        if let Some(value) = self.get(headerdef.clone()) {
-            match mailparse::addrparse(&value) {
-                Ok(ref addrs) => {
-                    return addrs.first().cloned();
-                }
-                Err(err) => {
-                    warn!(context, "header {} parse error: {:?}", headerdef, err);
-                }
-            }
-        }
-        None
     }
 
     fn parse_mime_recursive(
@@ -768,6 +759,7 @@ impl MimeMessage {
         headers: &mut HashMap<String, String>,
         recipients: &mut MailAddrList,
         from: &mut MailAddrList,
+        chatDispositionNotificationTo: &mut Option<MailAddr>,
         fields: &[mailparse::MailHeader<'_>],
     ) {
         let mut my_receipients = vec![];
@@ -778,15 +770,22 @@ impl MimeMessage {
                     is_known(&key) || key.starts_with("chat-")
             {
                 if key == "cc" || key == "to" {
-                    match mailparse::addrparse_header(field) {
+                    match addrparse_header(field) {
                         Ok(mut addrlist) => my_receipients.append(&mut addrlist),
                         Err(e) => warn!(context, "Could not read {} address: {}", key, e),
                     }
                 } else if key == "from" {
-                    match mailparse::addrparse_header(field) {
+                    match addrparse_header(field) {
                         Ok(mut addrlist) => {
                             from.clear();
                             from.append(&mut addrlist)
+                        }
+                        Err(e) => warn!(context, "Could not read {} address: {}", key, e),
+                    }
+                } else if key == HeaderDef::ChatDispositionNotificationTo.get_headername() {
+                    match addrparse_header(field) {
+                        Ok(mut addrlist) => {
+                            *chatDispositionNotificationTo = addrlist.get(0).cloned();
                         }
                         Err(e) => warn!(context, "Could not read {} address: {}", key, e),
                     }
