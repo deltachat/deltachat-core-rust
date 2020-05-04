@@ -20,7 +20,6 @@ use crate::context::Context;
 use crate::dc_receive_imf::{
     dc_receive_imf, from_field_to_contact_id, is_msgrmsg_rfc724_mid_in_list,
 };
-use crate::error::format_err;
 use crate::events::Event;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job::{job_add, Action};

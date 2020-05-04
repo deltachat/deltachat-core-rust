@@ -3,10 +3,7 @@ use std::collections::{HashMap, HashSet};
 use anyhow::Context as _;
 use deltachat_derive::{FromSql, ToSql};
 use lettre_email::mime::{self, Mime};
-use mailparse::{
-    addrparse_header, DispositionType, MailAddr, MailAddrList, MailHeader, MailHeaderMap,
-    SingleInfo,
-};
+use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
 
 use crate::aheader::Aheader;
 use crate::blob::BlobObject;
@@ -784,7 +781,7 @@ impl MimeMessage {
                 }
             }
         }
-        let mut recipients_new = get_recipients(fields);
+        let recipients_new = get_recipients(fields);
         if !recipients_new.is_empty() {
             *recipients = recipients_new;
         }
@@ -1078,24 +1075,6 @@ where
         });
 
     result
-}
-
-/// Check if the only addrs match, ignoring names.
-fn compare_addrs(a: &mailparse::MailAddr, b: &mailparse::MailAddr) -> bool {
-    match a {
-        mailparse::MailAddr::Group(group_a) => match b {
-            mailparse::MailAddr::Group(group_b) => group_a
-                .addrs
-                .iter()
-                .zip(group_b.addrs.iter())
-                .all(|(a, b)| a.addr == b.addr),
-            _ => false,
-        },
-        mailparse::MailAddr::Single(single_a) => match b {
-            mailparse::MailAddr::Single(single_b) => single_a.addr == single_b.addr,
-            _ => false,
-        },
-    }
 }
 
 #[cfg(test)]

@@ -238,7 +238,7 @@ pub fn dc_receive_imf(
 /// Also returns whether it is blocked or not and its origin.
 pub fn from_field_to_contact_id(
     context: &Context,
-    from_address_list: &Vec<SingleInfo>,
+    from_address_list: &[SingleInfo],
 ) -> Result<(u32, bool, Origin)> {
     let from_ids = dc_add_or_lookup_contacts_by_address_list(
         context,
@@ -1592,7 +1592,7 @@ fn is_msgrmsg_rfc724_mid(context: &Context, rfc724_mid: &str) -> bool {
 
 fn dc_add_or_lookup_contacts_by_address_list(
     context: &Context,
-    address_list: &Vec<SingleInfo>,
+    address_list: &[SingleInfo],
     origin: Origin,
 ) -> Result<ContactIds> {
     let mut contact_ids = ContactIds::new();
