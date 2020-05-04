@@ -1138,12 +1138,11 @@ mod tests {
 
     #[test]
     fn test_get_recipients() {
-        let context = dummy_context();
         let raw = include_bytes!("../test-data/message/mail_with_cc.txt");
-        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
-        let recipients = mimeparser.recipients;
-        assert!(recipients.contains(&mailparse::addrparse("abc@bcd.com").unwrap()[0]));
-        assert!(recipients.contains(&mailparse::addrparse("def@def.de").unwrap()[0]));
+        let mail = mailparse::parse_mail(&raw[..]).unwrap();
+        let recipients = get_recipients(&mail.headers);
+        assert!(recipients.contains("abc@bcd.com"));
+        assert!(recipients.contains("def@def.de"));
         assert_eq!(recipients.len(), 2);
     }
 

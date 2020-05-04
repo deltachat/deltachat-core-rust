@@ -2017,7 +2017,7 @@ mod tests {
         let context = &t.ctx;
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
-        assert!(chats.get_msg_id(0).is_ok());
+        assert!(chats.get_msg_id(0).is_err());
 
         dc_receive_imf(
             context,
