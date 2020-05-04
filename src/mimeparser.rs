@@ -1141,9 +1141,9 @@ mod tests {
         let context = dummy_context();
         let raw = include_bytes!("../test-data/message/mail_with_cc.txt");
         let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
-        let recipients = get_recipients(mimeparser.header.iter());
-        assert!(recipients.contains("abc@bcd.com"));
-        assert!(recipients.contains("def@def.de"));
+        let recipients = mimeparser.recipients;
+        assert!(recipients.contains(&mailparse::addrparse("abc@bcd.com").unwrap()[0]));
+        assert!(recipients.contains(&mailparse::addrparse("def@def.de").unwrap()[0]));
         assert_eq!(recipients.len(), 2);
     }
 
@@ -1198,14 +1198,10 @@ mod tests {
 
         let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
 
-        let of = mimeparser
-            .parse_first_addr(&context.ctx, HeaderDef::From_)
-            .unwrap();
-        assert_eq!(of, mailparse::addrparse("hello@one.org").unwrap()[0]);
+        let of = &mimeparser.from[0];
+        assert_eq!(of, &mailparse::addrparse("hello@one.org").unwrap()[0]);
 
-        let of =
-            mimeparser.parse_first_addr(&context.ctx, HeaderDef::ChatDispositionNotificationTo);
-        assert!(of.is_none());
+        assert!(mimeparser.chat_disposition_notification_to.is_none());
     }
 
     #[test]

@@ -2017,7 +2017,7 @@ mod tests {
         let context = &t.ctx;
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
-        assert!(chats.get_msg_id(0).is_none());
+        assert!(chats.get_msg_id(0).is_ok());
 
         dc_receive_imf(
             context,
@@ -2036,6 +2036,6 @@ mod tests {
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
         // Check that the message was added to the database:
-        assert!(chats.get_msg_id(0).is_some());
+        assert!(chats.get_msg_id(0).is_ok());
     }
 }
