@@ -2066,12 +2066,18 @@ mod tests {
     #[test]
     fn test_escaped_recipients() {
         let t = configured_offline_context();
-        let contact_id = Contact::create(&t.ctx, "foobar", "foobar@example.com").unwrap();
+        Contact::create(&t.ctx, "foobar", "foobar@example.com").unwrap();
+
+        let carl_contact_id =
+            Contact::add_or_lookup(&t.ctx, "Carl", "carl@host.tld", Origin::IncomingUnknownFrom)
+                .unwrap()
+                .0;
+
         dc_receive_imf(
             &t.ctx,
             b"From: Foobar <foobar@example.com>\n\
                  To: =?UTF-8?B?0JjQvNGPLCDQpNCw0LzQuNC70LjRjw==?= alice@example.org\n\
-                 Cc: =?utf-8?q?=3Ch2=3E?= <carl@host.tld>
+                 Cc: =?utf-8?q?=3Ch2=3E?= <carl@host.tld>\n\
                  Subject: foo\n\
                  Message-ID: <asdklfjjaweofi@example.org>\n\
                  Chat-Version: 1.0\n\
@@ -2084,15 +2090,11 @@ mod tests {
             false,
         )
         .unwrap();
-        let carl_contact_id =
-            Contact::add_or_lookup(&t.ctx, "Carl", "carl@host.tld", Origin::Internal)
-                .unwrap()
-                .0;
         assert_eq!(
             Contact::load_from_db(&t.ctx, carl_contact_id)
                 .unwrap()
-                .get_authname(),
-            ""
+                .get_name(),
+            "h2"
         );
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
@@ -2100,5 +2102,44 @@ mod tests {
         assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
         assert_eq!(msg.text.unwrap(), "hello");
         assert_eq!(msg.param.get_int(Param::WantsMdn).unwrap(), 1);
+    }
+
+    #[test]
+    fn test_cc_to_contact() {
+        let t = configured_offline_context();
+        Contact::create(&t.ctx, "foobar", "foobar@example.com").unwrap();
+
+        let carl_contact_id = Contact::add_or_lookup(
+            &t.ctx,
+            "garabage",
+            "carl@host.tld",
+            Origin::IncomingUnknownFrom,
+        )
+        .unwrap()
+        .0;
+
+        dc_receive_imf(
+            &t.ctx,
+            b"From: Foobar <foobar@example.com>\n\
+                 To: alice@example.org\n\
+                 Cc: Carl <carl@host.tld>\n\
+                 Subject: foo\n\
+                 Message-ID: <asdklfjjaweofi@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Chat-Disposition-Notification-To: <foobar@example.com>\n\
+                 Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                 \n\
+                 hello\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .unwrap();
+        assert_eq!(
+            Contact::load_from_db(&t.ctx, carl_contact_id)
+                .unwrap()
+                .get_name(),
+            "Carl"
+        );
     }
 }
