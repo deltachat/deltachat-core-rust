@@ -1,5 +1,17 @@
 # Changelog 
 
+## 1.31.0
+
+- always describe the context of the displayed error #1451
+
+- do not emit `DC_EVENT_ERROR` when message sending fails;
+  `dc_msg_get_state()` and `dc_get_msg_info()` are sufficient #1451
+
+- new config-option `media_quality` #1449
+
+- try over if writing message to database fails #1447
+
+
 ## 1.30.0
 
 - expunge deleted messages #1440
