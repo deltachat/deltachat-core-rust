@@ -1215,7 +1215,7 @@ pub fn set_msg_failed(context: &Context, msg_id: MsgId, error: Option<impl AsRef
         }
         if let Some(error) = error {
             msg.param.set(Param::Error, error.as_ref());
-            error!(context, "{}", error.as_ref());
+            warn!(context, "Message failed: {}", error.as_ref());
         }
 
         if sql::execute(
