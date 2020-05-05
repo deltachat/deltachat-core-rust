@@ -7,6 +7,10 @@ executors:
   doxygen:
     docker:
       - image: hrektts/doxygen
+  python:
+    docker:
+      - image: 3.7.7-stretch
+            
 
 restore-workspace: &restore-workspace
   attach_workspace:
@@ -147,13 +151,13 @@ jobs:
       - run: ci_scripts/remote_tests_python.sh
 
   upload_docs_wheels:
-    machine: true
+    executor: python
     steps:
       - checkout
       - attach_workspace:
           at: workspace
-      - run: pyenv versions
-      - run: pyenv global 3.5.2
+      - run: python -m venv venv
+      - run: source venv/bin/venv 
       - run: ls -laR workspace
       - run: ci_scripts/ci_upload.sh workspace/py-docs workspace/wheelhouse workspace/c-docs
 

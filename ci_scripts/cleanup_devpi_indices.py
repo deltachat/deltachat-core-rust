@@ -48,7 +48,7 @@ def run():
         projectnames = get_projectnames(baseurl, username, indexname)
         if indexname == "master" or not indexname:
             continue
-        assert projectnames == ["deltachat"]
+        assert projectnames == ["deltachat"], (index, projectnames)
         for projectname in projectnames:
             dates = get_release_dates(baseurl, username, indexname, projectname)
             if not dates:
@@ -62,6 +62,7 @@ def run():
                 assert username and indexname
                 url = baseurl + username + "/" + indexname
                 subprocess.check_call(["devpi", "index", "-y", "--delete", url])
+                break
 
 
 
