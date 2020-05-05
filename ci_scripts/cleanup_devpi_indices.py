@@ -48,7 +48,7 @@ def run():
         projectnames = get_projectnames(baseurl, username, indexname)
         if indexname == "master" or not indexname:
             continue
-        assert projectnames == ["deltachat"], (index, projectnames)
+        assert projectnames == ["deltachat"], (indexname, projectnames)
         for projectname in projectnames:
             dates = get_release_dates(baseurl, username, indexname, projectname)
             if not dates:

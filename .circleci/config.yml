@@ -151,13 +151,13 @@ jobs:
       - run: ci_scripts/remote_tests_python.sh
 
   upload_docs_wheels:
-    executor: python
+    machine: true
     steps:
       - checkout
       - attach_workspace:
           at: workspace
-      - run: python -m venv venv
-      - run: source venv/bin/venv 
+      - run: pyenv versions
+      - run: pyenv global 3.5.2
       - run: ls -laR workspace
       - run: ci_scripts/ci_upload.sh workspace/py-docs workspace/wheelhouse workspace/c-docs
 
