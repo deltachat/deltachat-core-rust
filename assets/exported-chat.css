@@ -7,6 +7,7 @@
   height: 52px;
   width: 100%;
   z-index: 5;
+  display:flex;
 }
 
 .header .avatar {
@@ -15,7 +16,6 @@
   border-radius: 100%;
   user-select: none;
   margin: 8px;
-  display: inline-block;
 }
 
 .header .avatar.text-avatar {
@@ -31,7 +31,6 @@
   line-height: 52px;
   margin-left: 3px;
   font-size: 20px;
-  display: inline-block;
 }
 
 .message.outgoing .author-avatar, .message.outgoing .author {
