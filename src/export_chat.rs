@@ -149,7 +149,9 @@ pub fn export_chat(context: &Context, chat_id: ChatId) -> ExportChatResult {
     let chat = Chat::load_from_db(context, chat_id).unwrap();
     let chat_avatar = match chat.get_profile_image(context) {
         Some(img) => {
-            let path = img.to_str().unwrap().to_owned();
+            let path = img.file_name()
+            .unwrap_or_else(|| std::ffi::OsStr::new(""))
+            .to_str().unwrap().to_owned();
             blobs.push(path.clone());
             format!("<img class=\"avatar\" src=\"blobs/{}\" />", path)
         },
@@ -164,6 +166,7 @@ pub fn export_chat(context: &Context, chat_id: ChatId) -> ExportChatResult {
     // todo export message infos and save them to txt files
     // (those can be linked from the messages, they are stored in msg_info/[msg-id].txt)
 
+    blobs.dedup();
     ExportChatResult {
         html: format!(
             "<html>\
