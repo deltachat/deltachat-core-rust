@@ -204,7 +204,7 @@ fn message_to_html(author_cache: &HashMap<u32, ContactInfo>, message: Message) -
         if let Some(profile_img) = &author.profile_img {
             format!(
                 "<div class=\"author-avatar\">\
-                 <img\
+                 <img \
                  alt=\"{author_name}\"\
                  src=\"blobs/{author_avatar_src}\"\
                  />\
