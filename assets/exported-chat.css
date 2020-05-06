@@ -1,5 +1,38 @@
 /* TODO inlcude the referenced svgs as base64 data uris */
 
+.header {
+  background-color: #415e6b;
+  color: #fff;
+  position: absolute;
+  height: 52px;
+  width: 100%;
+  z-index: 5;
+}
+
+.header .avatar {
+  height: 36px;
+  width: 36px;
+  border-radius: 100%;
+  user-select: none;
+  margin: 8px;
+  display: inline-block;
+}
+
+.header .avatar.text-avatar {
+  background-color: #505050;
+  color: white;
+  font-size: 26px;
+  line-height: 36px;
+  text-align: center;
+}
+
+.header .name {
+  height: 52px;
+  line-height: 52px;
+  margin-left: 3px;
+  font-size: 20px;
+  display: inline-block;
+}
 :root {--colorPrimary: #42A5F5;--colorDanger: #f96856;--colorNone: #a0a0a0;--ovalButtonBg: #415e6b;--ovalButtonBgHover: rgb(120, 156, 173);--ovalButtonText: #fff;--ovalButtonTextHover: rgb(0, 0, 0);--navBarBackground: #415e6b;--navBarText: #fff;--navBarSearchPlaceholder: rgb(186, 186, 186);--navBarGroupSubtitle: rgb(186, 186, 186);--chatViewBg: #e6dcd4;--chatViewBgImgPath: url(../images/background_light.svg);--composerBg: #fff;--composerText: #010101;--composerPlaceholderText: rgba(1, 1, 1, 0.5);--composerBtnColor: rgba(1, 1, 1, 0.9);--composerSendButton: #415e6b;--emojiSelectorSelectionColor: #2090ea;--chatListItemSelectedBg: #4c6e7d;--chatListItemSelectedBgHover: #5E889B;--chatListItemSelectedText: #fff;--chatListItemBgHover: rgb(228, 228, 228);--chatListBorderColor: #b9b9b9;--chatListBorder: 1px solid undefined;--messageText: #010101;--messageTextLink: #010101;--setupMessageText: #ed824e;--infoMessageBubbleBg: #0000008c;--infoMessageBubbleText: white;--messageIncommingBg: #fff;--messageIncommingDate: #010101;--messageOutgoingBg: #efffde;--messageOutgoingStatusColor: #4caf50;--messageButtons: #8b8e91;--messageButtonsHover: #070c14;--messageStatusIcon: #4caf50;--messageStatusIconSending: #62656a;--messagePadlockOutgoing: #4caf50;--messagePadlockIncomming: #a4a6a9;--messageMetadataDate: #62656a;--messageMetadataIncomming: rgba(#ffffff, 0.7);--messageAuthor: #ffffff;--messageAttachmentIconExtentionColor: #070c14;--messageAttachmentIconBg: transparent;--messageAttachmentFileInfo: #010101;--loginInputFocusColor: #42A5F5;--loginButtonText: #42A5F5;--deltaChatPrimaryFg: #010101;--deltaChatPrimaryFgLight: #62656a;--contextMenuBg: #fff;--contextMenuBorder: rgb(221, 221, 221);--contextMenuText: #62656a;--contextMenuSelected: #f5f5f5;--contextMenuSelectedBg: #a4a6a9;--bp3DialogHeaderBg: #fff;--bp3DialogHeaderIcon: #666666;--bp3DialogBgSecondary: #ececec;--bp3DialogBgPrimary: #fff;--bp3Heading: #010101;--bp3ButtonText: #010101;--bp3ButtonBg: #fff;--bp3ButtonGradientTop: rgba(255,255,255,0.8);--bp3ButtonGradientBottom: rgba(255,255,255,0);--bp3ButtonHoverBg: #ebf1f5;--bp3InputText: #010101;--bp3InputBg: #fff;--bp3InputPlaceholder: lightgray;--bp3MenuText: #010101;--bp3MenuBg: #fff;--bp3Switch: #7a8084;--bp3SwitchShadow: unset;--bp3SwitchChecked: #acd4e8;--bp3SwitchShadowChecked: unset;--bp3SwitchKnob: #f5f5f5;--bp3SwitchKnobShadow: 0px 2px 0 0px #d2cfcfad;--bp3SwitchKnobChecked: #42A5F5;--bp3SwitchKnobShadowChecked: 0px 1px 0 0px #c9d4d2d1;--bp3SpinnerTrack: #acd4e8;--bp3SpinnerHead: #42a5f5;--bp3SelectorTop: rgba(255, 255, 255, 0.8);--bp3SelectorBottom: rgba(255, 255, 255, 0.0);--outlineProperties: 1px solid transparent;--outlineColor: b9b9b9;--emojiMartText: #010101;--emojiMartSearchBorder: lightgrey;--emojiMartBg: #fff;--emojiMartOutsideRadius: 5px;--emojiMartCategoryIcons: rgb(99, 99, 99);--emojiMartInputBg: #f5f5f5;--emojiMartInputText: #010101;--emojiMartInputPlaceholder: rgb(74, 74, 74);--emojiMartSelect: rgb(198, 198, 198);--galleryBg: #fff;--avatarLabelColor: #ffffff;--brokenMediaText: #070c14;--brokenMediaBg: #ffffff;--unreadCountBg: #2090ea;--unreadCountLabel: #ffffff;--contactListItemBg: #62656a;--contactListInitalColor: #62656a;--contactEmailColor: #62656a;--errorColor: #f44336;--globalLinkColor: #2090ea;--globalBackground: #fff;--globalText: #010101;--mapOverlayBg: #fff;--videoPlayBtnIcon: #2090ea;--videoPlayBtnBg: #ffffff;--scrollbarThumb: #666666;--scrollbarThumbHover: #606060;}
 * {
   box-sizing: border-box;
@@ -24,15 +57,6 @@ ul {
   padding-left: 0;
 }
 
-.GroupImage {
-  width: 100px;
-  height: 100px;
-  cursor: pointer;
-}
-.RemoveGroupImage {
-  width: 100px;
-  margin-bottom: 4px;
-}
 input:focus {
   outline: 0 !important;
 }
@@ -357,6 +381,7 @@ span.module-contact-name {
   max-height: 100%;
   width: 100%;
   padding: 0 0.5em;
+  top: 52px;
 }
 .message-list-and-composer__message-list
   #message-list::-webkit-scrollbar-track {

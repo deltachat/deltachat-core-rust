@@ -147,6 +147,17 @@ pub fn export_chat(context: &Context, chat_id: ChatId) -> ExportChatResult {
 
     // todo chat image, chat name and so on..
     let chat = Chat::load_from_db(context, chat_id).unwrap();
+    let chat_avatar = match chat.get_profile_image(context) {
+        Some(img) => {
+            let path = img.to_str().unwrap().to_owned();
+            blobs.push(path.clone());
+            format!("<img class=\"avatar\" src=\"blobs/{}\" />", path)
+        },
+        None => format!(
+            "<div class=\"avatar text-avatar\" style=\"background-color:#{:#}\">{}</div>",
+            chat.get_color(context), chat.get_name().chars().next().unwrap()
+        )
+    };
 
     // todo option to export locations as kml?
 
@@ -157,19 +168,24 @@ pub fn export_chat(context: &Context, chat_id: ChatId) -> ExportChatResult {
         html: format!(
             "<html>\
              <head>\
-             <title>{}</title>\
+             <title>{chat_name}</title>\
              <link rel=\"stylesheet\" href=\"styles.css\" type=\"text/css\">\
              </head>\
              <body>\
+             <div class=\"header\">\
+             {chat_avatar}\
+             <div class=\"name\">{chat_name}</div>\
+             </div>\
              <div class=\"message-list-and-composer__message-list\">\
              <div id=\"message-list\">\
-             <ul>{}</ul>\
+             <ul>{messages}</ul>\
              </div>\
              </div>\
              </body>\
              </html>",
-            chat.get_name(),
-            html_messages.join("")
+            chat_name= chat.get_name(),
+            chat_avatar= chat_avatar,
+            messages=html_messages.join("")
         ),
         referenced_blobs: blobs,
     }
