@@ -121,7 +121,7 @@ def process_data(data, file):
     # finally, add the provider
     global out_all, out_domains
     out_all += "    // " + file[file.rindex("/")+1:] + ": " + comment.strip(", ") + "\n"
-    if status == "OK" and before_login_hint == "" and after_login_hint == "" and server == "":
+    if status == "OK" and before_login_hint == "" and after_login_hint == "" and server == "" and config_defaults == "None":
         out_all += "    // - skipping provider with status OK and no special things to do\n\n"
     else:
         out_all += provider
