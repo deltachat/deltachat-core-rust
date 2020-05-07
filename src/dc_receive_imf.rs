@@ -3,6 +3,8 @@ use sha2::{Digest, Sha256};
 
 use num_traits::FromPrimitive;
 
+use mailparse::SingleInfo;
+
 use crate::chat::{self, Chat, ChatId};
 use crate::config::Config;
 use crate::constants::*;
@@ -110,29 +112,23 @@ pub fn dc_receive_imf(
     // we do not check Return-Path any more as this is unreliable, see
     // https://github.com/deltachat/deltachat-core/issues/150)
     let (from_id, from_id_blocked, incoming_origin) =
-        if let Some(field_from) = mime_parser.get(HeaderDef::From_) {
-            from_field_to_contact_id(context, field_from)?
-        } else {
-            (0, false, Origin::Unknown)
-        };
+        from_field_to_contact_id(context, &mime_parser.from)?;
+
     let incoming = from_id != DC_CONTACT_ID_SELF;
 
     let mut to_ids = ContactIds::new();
-    for header_def in &[HeaderDef::To, HeaderDef::Cc] {
-        if let Some(field) = mime_parser.get(header_def.clone()) {
-            to_ids.extend(&dc_add_or_lookup_contacts_by_address_list(
-                context,
-                &field,
-                if !incoming {
-                    Origin::OutgoingTo
-                } else if incoming_origin.is_known() {
-                    Origin::IncomingTo
-                } else {
-                    Origin::IncomingUnknownTo
-                },
-            )?);
-        }
-    }
+
+    to_ids.extend(&dc_add_or_lookup_contacts_by_address_list(
+        context,
+        &mime_parser.recipients,
+        if !incoming {
+            Origin::OutgoingTo
+        } else if incoming_origin.is_known() {
+            Origin::IncomingTo
+        } else {
+            Origin::IncomingUnknownTo
+        },
+    )?);
 
     // Add parts
 
@@ -242,11 +238,11 @@ pub fn dc_receive_imf(
 /// Also returns whether it is blocked or not and its origin.
 pub fn from_field_to_contact_id(
     context: &Context,
-    field_from: &str,
+    from_address_list: &[SingleInfo],
 ) -> Result<(u32, bool, Origin)> {
     let from_ids = dc_add_or_lookup_contacts_by_address_list(
         context,
-        &field_from,
+        from_address_list,
         Origin::IncomingUnknownFrom,
     )?;
 
@@ -256,7 +252,7 @@ pub fn from_field_to_contact_id(
         if from_ids.len() > 1 {
             warn!(
                 context,
-                "mail has more than one From address, only using first: {:?}", field_from
+                "mail has more than one From address, only using first: {:?}", from_address_list
             );
         }
         let from_id = from_ids.get_index(0).cloned().unwrap_or_default();
@@ -269,7 +265,10 @@ pub fn from_field_to_contact_id(
         }
         Ok((from_id, from_id_blocked, incoming_origin))
     } else {
-        warn!(context, "mail has an empty From header: {:?}", field_from);
+        warn!(
+            context,
+            "mail has an empty From header: {:?}", from_address_list
+        );
         // if there is no from given, from_id stays 0 which is just fine. These messages
         // are very rare, however, we have to add them to the database (they go to the
         // "deaddrop" chat) to avoid a re-download from the server. See also [**]
@@ -1593,38 +1592,17 @@ fn is_msgrmsg_rfc724_mid(context: &Context, rfc724_mid: &str) -> bool {
 
 fn dc_add_or_lookup_contacts_by_address_list(
     context: &Context,
-    addr_list_raw: &str,
+    address_list: &[SingleInfo],
     origin: Origin,
 ) -> Result<ContactIds> {
-    let addrs = match mailparse::addrparse(addr_list_raw) {
-        Ok(addrs) => addrs,
-        Err(err) => {
-            bail!("could not parse {:?}: {:?}", addr_list_raw, err);
-        }
-    };
-
     let mut contact_ids = ContactIds::new();
-    for addr in addrs.iter() {
-        match addr {
-            mailparse::MailAddr::Single(info) => {
-                contact_ids.insert(add_or_lookup_contact_by_addr(
-                    context,
-                    &info.display_name,
-                    &info.addr,
-                    origin,
-                )?);
-            }
-            mailparse::MailAddr::Group(infos) => {
-                for info in &infos.addrs {
-                    contact_ids.insert(add_or_lookup_contact_by_addr(
-                        context,
-                        &info.display_name,
-                        &info.addr,
-                        origin,
-                    )?);
-                }
-            }
-        }
+    for info in address_list.iter() {
+        contact_ids.insert(add_or_lookup_contact_by_addr(
+            context,
+            &info.display_name,
+            &info.addr,
+            origin,
+        )?);
     }
 
     Ok(contact_ids)
@@ -2016,5 +1994,152 @@ mod tests {
         );
         let one2one = Chat::load_from_db(&t.ctx, one2one_id).unwrap();
         assert!(one2one.get_visibility() == ChatVisibility::Archived);
+    }
+
+    #[test]
+    fn test_no_from() {
+        // if there is no from given, from_id stays 0 which is just fine. These messages
+        // are very rare, however, we have to add them to the database (they go to the
+        // "deaddrop" chat) to avoid a re-download from the server. See also [**]
+
+        let t = configured_offline_context();
+        let context = &t.ctx;
+
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        assert!(chats.get_msg_id(0).is_err());
+
+        dc_receive_imf(
+            context,
+            b"To: bob@example.org\n\
+                 Subject: foo\n\
+                 Message-ID: <3924@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                 \n\
+                 hello\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .unwrap();
+
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        // Check that the message was added to the database:
+        assert!(chats.get_msg_id(0).is_ok());
+    }
+
+    #[test]
+    fn test_escaped_from() {
+        let t = configured_offline_context();
+        let contact_id = Contact::create(&t.ctx, "foobar", "foobar@example.com").unwrap();
+        let chat_id = chat::create_by_contact_id(&t.ctx, contact_id).unwrap();
+        dc_receive_imf(
+            &t.ctx,
+            b"From: =?UTF-8?B?0JjQvNGPLCDQpNCw0LzQuNC70LjRjw==?= <foobar@example.com>\n\
+                 To: alice@example.org\n\
+                 Subject: foo\n\
+                 Message-ID: <asdklfjjaweofi@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Chat-Disposition-Notification-To: =?UTF-8?B?0JjQvNGPLCDQpNCw0LzQuNC70LjRjw==?= <foobar@example.com>\n\
+                 Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                 \n\
+                 hello\n",
+            "INBOX",
+            1,
+            false,
+        ).unwrap();
+        assert_eq!(
+            Contact::load_from_db(&t.ctx, contact_id)
+                .unwrap()
+                .get_authname(),
+            "Фамилия Имя", // The name was "Имя, Фамилия" and ("lastname, firstname") and should be swapped to "firstname, lastname"
+        );
+        let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None);
+        assert_eq!(msgs.len(), 1);
+        let msg_id = msgs.first().unwrap();
+        let msg = message::Message::load_from_db(&t.ctx, msg_id.clone()).unwrap();
+        assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
+        assert_eq!(msg.text.unwrap(), "hello");
+        assert_eq!(msg.param.get_int(Param::WantsMdn).unwrap(), 1);
+    }
+
+    #[test]
+    fn test_escaped_recipients() {
+        let t = configured_offline_context();
+        Contact::create(&t.ctx, "foobar", "foobar@example.com").unwrap();
+
+        let carl_contact_id =
+            Contact::add_or_lookup(&t.ctx, "Carl", "carl@host.tld", Origin::IncomingUnknownFrom)
+                .unwrap()
+                .0;
+
+        dc_receive_imf(
+            &t.ctx,
+            b"From: Foobar <foobar@example.com>\n\
+                 To: =?UTF-8?B?0JjQvNGPLCDQpNCw0LzQuNC70LjRjw==?= alice@example.org\n\
+                 Cc: =?utf-8?q?=3Ch2=3E?= <carl@host.tld>\n\
+                 Subject: foo\n\
+                 Message-ID: <asdklfjjaweofi@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Chat-Disposition-Notification-To: <foobar@example.com>\n\
+                 Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                 \n\
+                 hello\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .unwrap();
+        assert_eq!(
+            Contact::load_from_db(&t.ctx, carl_contact_id)
+                .unwrap()
+                .get_name(),
+            "h2"
+        );
+
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        let msg = Message::load_from_db(&t.ctx, chats.get_msg_id(0).unwrap()).unwrap();
+        assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
+        assert_eq!(msg.text.unwrap(), "hello");
+        assert_eq!(msg.param.get_int(Param::WantsMdn).unwrap(), 1);
+    }
+
+    #[test]
+    fn test_cc_to_contact() {
+        let t = configured_offline_context();
+        Contact::create(&t.ctx, "foobar", "foobar@example.com").unwrap();
+
+        let carl_contact_id = Contact::add_or_lookup(
+            &t.ctx,
+            "garabage",
+            "carl@host.tld",
+            Origin::IncomingUnknownFrom,
+        )
+        .unwrap()
+        .0;
+
+        dc_receive_imf(
+            &t.ctx,
+            b"From: Foobar <foobar@example.com>\n\
+                 To: alice@example.org\n\
+                 Cc: Carl <carl@host.tld>\n\
+                 Subject: foo\n\
+                 Message-ID: <asdklfjjaweofi@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Chat-Disposition-Notification-To: <foobar@example.com>\n\
+                 Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                 \n\
+                 hello\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .unwrap();
+        assert_eq!(
+            Contact::load_from_db(&t.ctx, carl_contact_id)
+                .unwrap()
+                .get_name(),
+            "Carl"
+        );
     }
 }

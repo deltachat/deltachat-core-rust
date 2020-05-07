@@ -25,6 +25,7 @@ use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job::{job_add, Action};
 use crate::login_param::{CertificateChecks, LoginParam};
 use crate::message::{self, update_server_uid};
+use crate::mimeparser;
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::param::Params;
 use crate::stock::StockMessage;
@@ -1373,11 +1374,8 @@ fn prefetch_should_download(
         .get_header_value(HeaderDef::AutocryptSetupMessage)
         .is_some();
 
-    let from_field = headers
-        .get_header_value(HeaderDef::From_)
-        .unwrap_or_default();
-
-    let (_contact_id, blocked_contact, origin) = from_field_to_contact_id(context, &from_field)?;
+    let (_contact_id, blocked_contact, origin) =
+        from_field_to_contact_id(context, &mimeparser::get_from(headers))?;
     let accepted_contact = origin.is_known();
 
     let show = is_autocrypt_setup_message

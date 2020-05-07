@@ -53,11 +53,15 @@ impl HeaderDef {
 
 pub trait HeaderDefMap {
     fn get_header_value(&self, headerdef: HeaderDef) -> Option<String>;
+    fn get_header(&self, headerdef: HeaderDef) -> Option<&MailHeader>;
 }
 
 impl HeaderDefMap for [MailHeader<'_>] {
     fn get_header_value(&self, headerdef: HeaderDef) -> Option<String> {
         self.get_first_value(headerdef.get_headername())
+    }
+    fn get_header(&self, headerdef: HeaderDef) -> Option<&MailHeader> {
+        self.get_first_header(headerdef.get_headername())
     }
 }
 

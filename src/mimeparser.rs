@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use anyhow::Context as _;
 use deltachat_derive::{FromSql, ToSql};
 use lettre_email::mime::{self, Mime};
-use mailparse::{DispositionType, MailAddr, MailHeaderMap};
+use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
 
 use crate::aheader::Aheader;
 use crate::blob::BlobObject;
@@ -37,6 +37,11 @@ use crate::stock::StockMessage;
 pub struct MimeMessage {
     pub parts: Vec<Part>,
     header: HashMap<String, String>,
+
+    /// Addresses are normalized and lowercased:
+    pub recipients: Vec<SingleInfo>,
+    pub from: Vec<SingleInfo>,
+    pub chat_disposition_notification_to: Option<SingleInfo>,
     pub decrypting_failed: bool,
     pub signatures: HashSet<String>,
     pub gossipped_addr: HashSet<String>,
@@ -88,9 +93,19 @@ impl MimeMessage {
             .unwrap_or_default();
 
         let mut headers = Default::default();
+        let mut recipients = Default::default();
+        let mut from = Default::default();
+        let mut chat_disposition_notification_to = None;
 
         // init known headers with what mailparse provided us
-        MimeMessage::merge_headers(&mut headers, &mail.headers);
+        MimeMessage::merge_headers(
+            context,
+            &mut headers,
+            &mut recipients,
+            &mut from,
+            &mut chat_disposition_notification_to,
+            &mail.headers,
+        );
 
         // remove headers that are allowed _only_ in the encrypted part
         headers.remove("secure-join-fingerprint");
@@ -118,7 +133,14 @@ impl MimeMessage {
 
                     // let known protected headers from the decrypted
                     // part override the unencrypted top-level
-                    MimeMessage::merge_headers(&mut headers, &decrypted_mail.headers);
+                    MimeMessage::merge_headers(
+                        context,
+                        &mut headers,
+                        &mut recipients,
+                        &mut from,
+                        &mut chat_disposition_notification_to,
+                        &decrypted_mail.headers,
+                    );
 
                     (decrypted_mail, signatures)
                 } else {
@@ -142,6 +164,9 @@ impl MimeMessage {
         let mut parser = MimeMessage {
             parts: Vec::new(),
             header: headers,
+            recipients,
+            from,
+            chat_disposition_notification_to,
             decrypting_failed: false,
 
             // only non-empty if it was a valid autocrypt message
@@ -310,11 +335,9 @@ impl MimeMessage {
 
         // See if an MDN is requested from the other side
         if !self.decrypting_failed && !self.parts.is_empty() {
-            if let Some(ref dn_to_addr) =
-                self.parse_first_addr(context, HeaderDef::ChatDispositionNotificationTo)
-            {
-                if let Some(ref from_addr) = self.parse_first_addr(context, HeaderDef::From_) {
-                    if compare_addrs(from_addr, dn_to_addr) {
+            if let Some(ref dn_to) = self.chat_disposition_notification_to {
+                if let Some(ref from) = self.from.get(0) {
+                    if from.addr == dn_to.addr {
                         if let Some(part) = self.parts.last_mut() {
                             part.param.set_int(Param::WantsMdn, 1);
                         }
@@ -386,20 +409,6 @@ impl MimeMessage {
 
     pub fn get(&self, headerdef: HeaderDef) -> Option<&String> {
         self.header.get(headerdef.get_headername())
-    }
-
-    fn parse_first_addr(&self, context: &Context, headerdef: HeaderDef) -> Option<MailAddr> {
-        if let Some(value) = self.get(headerdef.clone()) {
-            match mailparse::addrparse(&value) {
-                Ok(ref addrs) => {
-                    return addrs.first().cloned();
-                }
-                Err(err) => {
-                    warn!(context, "header {} parse error: {:?}", headerdef, err);
-                }
-            }
-        }
-        None
     }
 
     fn parse_mime_recursive(
@@ -745,16 +754,40 @@ impl MimeMessage {
             .and_then(|msgid| parse_message_id(msgid).ok())
     }
 
-    fn merge_headers(headers: &mut HashMap<String, String>, fields: &[mailparse::MailHeader<'_>]) {
+    fn merge_headers(
+        context: &Context,
+        headers: &mut HashMap<String, String>,
+        recipients: &mut Vec<SingleInfo>,
+        from: &mut Vec<SingleInfo>,
+        chat_disposition_notification_to: &mut Option<SingleInfo>,
+        fields: &[mailparse::MailHeader<'_>],
+    ) {
         for field in fields {
             // lowercasing all headers is technically not correct, but makes things work better
             let key = field.get_key().to_lowercase();
             if !headers.contains_key(&key) || // key already exists, only overwrite known types (protected headers)
                     is_known(&key) || key.starts_with("chat-")
             {
-                let value = field.get_value();
-                headers.insert(key.to_string(), value);
+                if key == HeaderDef::ChatDispositionNotificationTo.get_headername() {
+                    match addrparse_header(field) {
+                        Ok(addrlist) => {
+                            *chat_disposition_notification_to = addrlist.extract_single_info();
+                        }
+                        Err(e) => warn!(context, "Could not read {} address: {}", key, e),
+                    }
+                } else {
+                    let value = field.get_value();
+                    headers.insert(key.to_string(), value);
+                }
             }
+        }
+        let recipients_new = get_recipients(fields);
+        if !recipients_new.is_empty() {
+            *recipients = recipients_new;
+        }
+        let from_new = get_from(fields);
+        if !from_new.is_empty() {
+            *from = from_new;
         }
     }
 
@@ -823,23 +856,15 @@ fn update_gossip_peerstates(
     gossip_headers: Vec<String>,
 ) -> Result<HashSet<String>> {
     // XXX split the parsing from the modification part
-    let mut recipients: Option<HashSet<String>> = None;
     let mut gossipped_addr: HashSet<String> = Default::default();
 
     for value in &gossip_headers {
         let gossip_header = value.parse::<Aheader>();
 
         if let Ok(ref header) = gossip_header {
-            if recipients.is_none() {
-                recipients = Some(get_recipients(
-                    mail.headers.iter().map(|v| (v.get_key(), v.get_value())),
-                ));
-            }
-
-            if recipients
-                .as_ref()
-                .unwrap()
-                .contains(&header.addr.to_lowercase())
+            if get_recipients(&mail.headers)
+                .iter()
+                .any(|info| info.addr == header.addr.to_lowercase())
             {
                 let mut peerstate = Peerstate::from_addr(context, &context.sql, &header.addr);
                 if let Some(ref mut peerstate) = peerstate {
@@ -1004,50 +1029,50 @@ fn get_attachment_filename(mail: &mailparse::ParsedMail) -> Result<Option<String
     }
 }
 
-// returned addresses are normalized and lowercased.
-fn get_recipients<S: AsRef<str>, T: Iterator<Item = (S, S)>>(headers: T) -> HashSet<String> {
-    let mut recipients: HashSet<String> = Default::default();
+/// Returned addresses are normalized and lowercased.
+fn get_recipients(headers: &[MailHeader]) -> Vec<SingleInfo> {
+    get_all_addresses_from_header(headers, |header_key| {
+        header_key == "to" || header_key == "cc"
+    })
+}
 
-    for (hkey, hvalue) in headers {
-        let hkey = hkey.as_ref().to_lowercase();
-        let hvalue = hvalue.as_ref();
-        if hkey == "to" || hkey == "cc" {
-            if let Ok(addrs) = mailparse::addrparse(hvalue) {
-                for addr in addrs.iter() {
-                    match addr {
-                        mailparse::MailAddr::Single(ref info) => {
-                            recipients.insert(addr_normalize(&info.addr).to_lowercase());
-                        }
-                        mailparse::MailAddr::Group(ref infos) => {
-                            for info in &infos.addrs {
-                                recipients.insert(addr_normalize(&info.addr).to_lowercase());
-                            }
+/// Returned addresses are normalized and lowercased.
+pub(crate) fn get_from(headers: &[MailHeader]) -> Vec<SingleInfo> {
+    get_all_addresses_from_header(headers, |header_key| header_key == "from")
+}
+
+fn get_all_addresses_from_header<F>(headers: &[MailHeader], pred: F) -> Vec<SingleInfo>
+where
+    F: Fn(String) -> bool,
+{
+    let mut result: Vec<SingleInfo> = Default::default();
+
+    headers
+        .iter()
+        .filter(|header| pred(header.get_key().to_lowercase()))
+        .filter_map(|header| mailparse::addrparse_header(header).ok())
+        .for_each(|addrs| {
+            for addr in addrs.iter() {
+                match addr {
+                    mailparse::MailAddr::Single(ref info) => {
+                        result.push(SingleInfo {
+                            addr: addr_normalize(&info.addr).to_lowercase(),
+                            display_name: info.display_name.clone(),
+                        });
+                    }
+                    mailparse::MailAddr::Group(ref infos) => {
+                        for info in &infos.addrs {
+                            result.push(SingleInfo {
+                                addr: addr_normalize(&info.addr).to_lowercase(),
+                                display_name: info.display_name.clone(),
+                            });
                         }
                     }
                 }
             }
-        }
-    }
+        });
 
-    recipients
-}
-
-/// Check if the only addrs match, ignoring names.
-fn compare_addrs(a: &mailparse::MailAddr, b: &mailparse::MailAddr) -> bool {
-    match a {
-        mailparse::MailAddr::Group(group_a) => match b {
-            mailparse::MailAddr::Group(group_b) => group_a
-                .addrs
-                .iter()
-                .zip(group_b.addrs.iter())
-                .all(|(a, b)| a.addr == b.addr),
-            _ => false,
-        },
-        mailparse::MailAddr::Single(single_a) => match b {
-            mailparse::MailAddr::Single(single_b) => single_a.addr == single_b.addr,
-            _ => false,
-        },
-    }
+    result
 }
 
 #[cfg(test)]
@@ -1096,12 +1121,11 @@ mod tests {
 
     #[test]
     fn test_get_recipients() {
-        let context = dummy_context();
         let raw = include_bytes!("../test-data/message/mail_with_cc.txt");
-        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
-        let recipients = get_recipients(mimeparser.header.iter());
-        assert!(recipients.contains("abc@bcd.com"));
-        assert!(recipients.contains("def@def.de"));
+        let mail = mailparse::parse_mail(&raw[..]).unwrap();
+        let recipients = get_recipients(&mail.headers);
+        assert!(recipients.iter().any(|info| info.addr == "abc@bcd.com"));
+        assert!(recipients.iter().any(|info| info.addr == "def@def.de"));
         assert_eq!(recipients.len(), 2);
     }
 
@@ -1156,14 +1180,10 @@ mod tests {
 
         let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..]).unwrap();
 
-        let of = mimeparser
-            .parse_first_addr(&context.ctx, HeaderDef::From_)
-            .unwrap();
-        assert_eq!(of, mailparse::addrparse("hello@one.org").unwrap()[0]);
+        let of = &mimeparser.from[0];
+        assert_eq!(of.addr, "hello@one.org");
 
-        let of =
-            mimeparser.parse_first_addr(&context.ctx, HeaderDef::ChatDispositionNotificationTo);
-        assert!(of.is_none());
+        assert!(mimeparser.chat_disposition_notification_to.is_none());
     }
 
     #[test]
