@@ -385,7 +385,7 @@ impl ChatId {
         let sql = &context.sql;
         let query = format!(
             "SELECT {} \
-             FROM msgs WHERE chat_id=? AND state NOT IN (?, ?, ?, ?) \
+             FROM msgs WHERE chat_id=? AND state NOT IN (?, ?, ?, ?) AND NOT hidden \
              ORDER BY timestamp DESC, id DESC \
              LIMIT 1;",
             fields
