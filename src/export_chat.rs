@@ -1,6 +1,6 @@
 // use crate::dc_tools::*;
 use crate::chat::*;
-use crate::constants::DC_CONTACT_ID_SELF;
+use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
 use crate::contact::*;
 use crate::context::Context;
 use crate::error::Error;
@@ -128,7 +128,7 @@ pub fn export_chat(context: &Context, chat_id: ChatId) -> ExportChatResult {
     let mut html_messages: Vec<String> = Vec::new();
     for message in messages {
         if let Ok(msg) = message {
-            html_messages.push(message_to_html(&chat_authors, msg));
+            html_messages.push(message_to_html(&chat_authors, msg, context));
         } else {
             html_messages.push(format!(
                 r#"<li>
@@ -151,7 +151,7 @@ pub fn export_chat(context: &Context, chat_id: ChatId) -> ExportChatResult {
         Some(img) => {
             let path = img
                 .file_name()
-            .unwrap_or_else(|| std::ffi::OsStr::new(""))
+                .unwrap_or_else(|| std::ffi::OsStr::new(""))
                 .to_str()
                 .unwrap()
                 .to_owned();
@@ -198,7 +198,11 @@ pub fn export_chat(context: &Context, chat_id: ChatId) -> ExportChatResult {
     }
 }
 
-fn message_to_html(author_cache: &HashMap<u32, ContactInfo>, message: Message) -> String {
+fn message_to_html(
+    author_cache: &HashMap<u32, ContactInfo>,
+    message: Message,
+    context: &Context,
+) -> String {
     let author: &ContactInfo = {
         if let Some(c) = author_cache.get(&message.get_from_id()) {
             c
@@ -235,7 +239,62 @@ fn message_to_html(author_cache: &HashMap<u32, ContactInfo>, message: Message) -
 
     // save and refernce message source code somehow?
 
-    //todo support images / voice message / attachments
+    let has_text = message.get_text().is_some() && !message.get_text().unwrap().is_empty();
+
+    let attachment = match message.get_file(context) {
+        None => "".to_owned(),
+        Some(file) => {
+            let modifier_class = if has_text { "content-below" } else { "" };
+            let filename = file
+                .file_name()
+                .unwrap_or_else(|| std::ffi::OsStr::new(""))
+                .to_str()
+                .unwrap()
+                .to_owned();
+            match message.get_viewtype() {
+                Viewtype::Audio => {
+                    format!("<audio \
+                    controls \
+                    class=\"message-attachment-audio {}\"> \
+                    <source src=\"blobs/{}\" /> \
+                  </audio>", modifier_class ,filename)
+                },
+                Viewtype::Gif | Viewtype::Image | Viewtype::Sticker => {
+                    format!("<a \
+                        href=\"blobs/{filename}\" \
+                        role=\"button\" \
+                        class=\"message-attachment-media {modifier_class}\"> \
+                        <img className='attachment-content' src=\"blobs/{filename}\" /> \
+                    </a>", modifier_class=modifier_class, filename=filename)
+                },
+                Viewtype::Video => {
+                    format!("<a \
+                    href=\"blobs/{filename}\" \
+                    role=\"button\" \
+                    class=\"message-attachment-media {modifier_class}\"> \
+                    <video className='attachment-content' src=\"blobs/{filename}\" controls=\"true\" /> \
+                </a>", modifier_class=modifier_class, filename=filename)
+                },
+                _ => {
+                    format!("<div class=\"message-attachment-generic {modifier_class}\">\
+                        <div class=\"file-icon\">\
+                            <div class=\"file-extension\">\
+                            {extension} \
+                            </div>\
+                        </div>\
+                        <div className=\"text-part\">\
+                        <a href=\"blobs/{filename}\" className=\"name\">{filename}</a>\
+                        <div className=\"size\">{filesize}</div>\
+                        </div>\
+                    </div>",
+                    modifier_class=modifier_class,
+                    filename=filename,
+                    filesize=message.get_filebytes(&context) /* todo human readable file size*/,
+                    extension=file.extension().unwrap_or_else(|| std::ffi::OsStr::new("")).to_str().unwrap().to_owned())
+                }
+            }
+        }
+    };
 
     format!(
         "<li>\
@@ -244,10 +303,11 @@ fn message_to_html(author_cache: &HashMap<u32, ContactInfo>, message: Message) -
          <div class=\"msg-container\">\
          <span class=\"author\" style=\"color: {author_color};\">{author_name}</span>\
          <div class=\"msg-body\">\
+         {attachment}
          <div dir=\"auto\" class=\"text\">\
          {content}\
          </div>\
-         <div class=\"metadata\">\
+         <div class=\"metadata {with_image_no_caption}\">\
          {encryption}\
          <span class=\"date date--{direction}\" title=\"{full_time}\">{relative_time}</span>\
          <span class=\"spacer\"></span>\
@@ -263,16 +323,23 @@ fn message_to_html(author_cache: &HashMap<u32, ContactInfo>, message: Message) -
         avatar = avatar,
         author_name = author.name,
         author_color = author.color,
+        attachment = attachment,
         content = message.get_text().unwrap_or_else(|| "".to_owned()),
+        with_image_no_caption = if !has_text && message.get_viewtype() == Viewtype::Image {
+            "with-image-no-caption"
+        } else {
+            ""
+        },
         encryption = match message.get_showpadlock() {
             true => r#"<div aria-label="Encryption padlock" class="padlock-icon"></div>"#,
             false => "",
         },
-        full_time = "Tue, Feb 25, 2020 3:49 PM", // message.get_timestamp() ?
-        relative_time = "Tue 3:49 PM"
+        full_time = "Tue, Feb 25, 2020 3:49 PM", // message.get_timestamp() ? // todo
+        relative_time = "Tue 3:49 PM"            // todo
     )
 
-    // todo link to raw message data / link to message info
+    // todo link to raw message data
+    // todo link to message info
 }
 
 //TODO tests
