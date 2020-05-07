@@ -1029,7 +1029,6 @@ fn get_attachment_filename(mail: &mailparse::ParsedMail) -> Result<Option<String
     }
 }
 
-/// Returns a HashMap<Address, Display_name>.
 /// Returned addresses are normalized and lowercased.
 fn get_recipients(headers: &[MailHeader]) -> Vec<SingleInfo> {
     get_all_addresses_from_header(headers, |header_key| {
@@ -1037,7 +1036,6 @@ fn get_recipients(headers: &[MailHeader]) -> Vec<SingleInfo> {
     })
 }
 
-/// Returns a HashMap<Address, Display_name>.
 /// Returned addresses are normalized and lowercased.
 pub(crate) fn get_from(headers: &[MailHeader]) -> Vec<SingleInfo> {
     get_all_addresses_from_header(headers, |header_key| header_key == "from")
