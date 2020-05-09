@@ -2879,7 +2879,7 @@ mod tests {
         assert!(!chat_id2.is_special());
         assert_eq!(get_chat_cnt(&t.ctx), 2);
         assert_eq!(chatlist_len(&t.ctx, 0), 2);
-        assert_eq!(chatlist_len(&t.ctx, DC_GCL_NO_SPECIALS), 2);
+        assert_eq!(chatlist_len(&t.ctx, DC_GCL_NO_SPECIALS), 1);
         assert_eq!(chatlist_len(&t.ctx, DC_GCL_ARCHIVED_ONLY), 0);
         assert_eq!(DC_GCL_ARCHIVED_ONLY, 0x01);
         assert_eq!(DC_GCL_NO_SPECIALS, 0x02);
@@ -2979,7 +2979,7 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(1000));
         let chat_id3 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo").unwrap();
 
-        let chatlist = get_chats_from_chat_list(&t.ctx, DC_GCL_NO_SPECIALS);
+        let chatlist = get_chats_from_chat_list(&t.ctx, 0);
         assert_eq!(chatlist, vec![chat_id3, chat_id2, chat_id1]);
 
         // pin
@@ -2994,7 +2994,7 @@ mod tests {
         );
 
         // check if chat order changed
-        let chatlist = get_chats_from_chat_list(&t.ctx, DC_GCL_NO_SPECIALS);
+        let chatlist = get_chats_from_chat_list(&t.ctx, 0);
         assert_eq!(chatlist, vec![chat_id1, chat_id3, chat_id2]);
 
         // unpin
@@ -3009,7 +3009,7 @@ mod tests {
         );
 
         // check if chat order changed back
-        let chatlist = get_chats_from_chat_list(&t.ctx, DC_GCL_NO_SPECIALS);
+        let chatlist = get_chats_from_chat_list(&t.ctx, 0);
         assert_eq!(chatlist, vec![chat_id3, chat_id2, chat_id1]);
     }
 
