@@ -269,7 +269,7 @@ impl Imap {
                     let imap_port = config.imap_port;
                     context.stock_string_repl_str2(
                         StockMessage::ServerResponse,
-                        format!("{}:{}", imap_server, imap_port),
+                        format!("IMAP {}:{}", imap_server, imap_port),
                         err.to_string(),
                     )
                 };

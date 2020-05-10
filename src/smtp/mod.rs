@@ -12,6 +12,7 @@ use crate::context::Context;
 use crate::events::Event;
 use crate::login_param::{dc_build_tls, LoginParam};
 use crate::oauth2::*;
+use crate::stock::StockMessage;
 
 /// SMTP write and read timeout in seconds.
 const SMTP_TIMEOUT: u64 = 30;
@@ -171,7 +172,14 @@ impl Smtp {
         let mut trans = client.into_transport();
 
         trans.connect().await.map_err(|err| {
-            emit_event!(context, Event::ErrorNetwork(err.to_string()));
+            let message = {
+                context.stock_string_repl_str2(
+                    StockMessage::ServerResponse,
+                    format!("SMTP {}:{}", domain, port),
+                    err.to_string(),
+                )
+            };
+            emit_event!(context, Event::ErrorNetwork(message));
             Error::ConnectionFailure(err)
         })?;
 
