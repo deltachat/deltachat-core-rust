@@ -605,7 +605,12 @@ impl Imap {
 
             let headers = get_fetch_headers(fetch)?;
             let message_id = prefetch_get_message_id(&headers).unwrap_or_default();
-            if let Ok(true) = precheck_imf(context, &message_id, folder.as_ref(), cur_uid) {
+            if let Ok(true) =
+                precheck_imf(context, &message_id, folder.as_ref(), cur_uid).map_err(|err| {
+                    warn!(context, "precheck_imf error: {}", err);
+                    err
+                })
+            {
                 // we know the message-id already or don't want the message otherwise.
                 info!(
                     context,
