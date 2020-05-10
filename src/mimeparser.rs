@@ -1713,4 +1713,48 @@ CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
         assert_eq!(message.parts[0].typ, Viewtype::Image);
         assert_eq!(message.parts[0].msg, "Test");
     }
+
+    #[test]
+    fn test_parse_message_id() {
+        let test = parse_message_id("<foobar>");
+        assert!(test.is_ok());
+        assert_eq!(test.unwrap(), "foobar");
+
+        let test = parse_message_id("<foo> <bar>");
+        assert!(test.is_ok());
+        assert_eq!(test.unwrap(), "foo");
+
+        let test = parse_message_id("  < foo > <bar>");
+        assert!(test.is_ok());
+        assert_eq!(test.unwrap(), "foo");
+
+        let test = parse_message_id("foo");
+        assert!(test.is_ok());
+        assert_eq!(test.unwrap(), "foo");
+
+        let test = parse_message_id(" foo ");
+        assert!(test.is_ok());
+        assert_eq!(test.unwrap(), "foo");
+
+        let test = parse_message_id("foo bar");
+        assert!(test.is_ok());
+        assert_eq!(test.unwrap(), "foo");
+
+        let test = parse_message_id("  foo  bar ");
+        assert!(test.is_ok());
+        assert_eq!(test.unwrap(), "foo");
+
+        let test = parse_message_id("");
+        assert!(test.is_err());
+
+        let test = parse_message_id(" ");
+        assert!(test.is_err());
+
+        let test = parse_message_id("<>");
+        assert!(test.is_err());
+
+        let test = parse_message_id("<> bar");
+        assert!(test.is_ok());
+        assert_eq!(test.unwrap(), "bar");
+    }
 }
