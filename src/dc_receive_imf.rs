@@ -1520,7 +1520,7 @@ fn is_known_rfc724_mid_in_list(context: &Context, mid_list: &str) -> bool {
         return false;
     }
 
-    if let Ok(ids) = mailparse::msgidparse(mid_list) {
+    if let Ok(ids) = parse_message_ids(mid_list) {
         for id in ids.iter() {
             if is_known_rfc724_mid(context, id) {
                 return true;
@@ -1568,7 +1568,7 @@ fn is_reply_to_messenger_message(context: &Context, mime_parser: &MimeMessage) -
 }
 
 pub(crate) fn is_msgrmsg_rfc724_mid_in_list(context: &Context, mid_list: &str) -> bool {
-    if let Ok(ids) = mailparse::msgidparse(mid_list) {
+    if let Ok(ids) = parse_message_ids(mid_list) {
         for id in ids.iter() {
             if is_msgrmsg_rfc724_mid(context, id) {
                 return true;
