@@ -605,7 +605,7 @@ impl Imap {
 
             let headers = get_fetch_headers(fetch)?;
             let message_id = prefetch_get_message_id(&headers).unwrap_or_default();
-            if precheck_imf(context, &message_id, folder.as_ref(), cur_uid)? {
+            if let Ok(true) = precheck_imf(context, &message_id, folder.as_ref(), cur_uid) {
                 // we know the message-id already or don't want the message otherwise.
                 info!(
                     context,
@@ -614,6 +614,9 @@ impl Imap {
                     folder.as_ref(),
                 );
             } else {
+                // we do not know the message-id
+                // or the message-id is missing (in this case, we create one in the further process)
+                // or some other error happened
                 let show = prefetch_should_download(context, &headers, show_emails)
                     .map_err(|err| {
                         warn!(context, "prefetch_should_download error: {}", err);
