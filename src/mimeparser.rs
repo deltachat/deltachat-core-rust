@@ -1,6 +1,5 @@
 use std::collections::{HashMap, HashSet};
 
-use anyhow::Context as _;
 use deltachat_derive::{FromSql, ToSql};
 use lettre_email::mime::{self, Mime};
 use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
@@ -902,14 +901,21 @@ pub(crate) struct Report {
     additional_message_ids: Vec<String>,
 }
 
-pub(crate) fn parse_message_id(value: &str) -> crate::error::Result<String> {
-    let ids = mailparse::msgidparse(value).context("failed to parse message id")?;
-
-    if let Some(id) = ids.first() {
-        Ok(id.to_string())
-    } else {
-        bail!("could not parse message_id: {}", value);
+pub(crate) fn parse_message_id(ids: &str) -> crate::error::Result<String> {
+    // take care with mailparse::msgidparse() that is pretty untolerant eg. wrt missing `<` or `>`
+    for id in ids.split_whitespace() {
+        let mut id = id.to_string();
+        if id.starts_with('<') {
+            id = id[1..].to_string();
+        }
+        if id.ends_with('>') {
+            id = id[..id.len() - 1].to_string();
+        }
+        if !id.is_empty() {
+            return Ok(id);
+        }
     }
+    bail!("could not parse message_id: {}", ids);
 }
 
 fn is_known(key: &str) -> bool {
