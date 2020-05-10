@@ -242,7 +242,7 @@ impl Sql {
         match self.query_get_value_result(query, params) {
             Ok(res) => res,
             Err(err) => {
-                error!(context, "sql: Failed query_row: {}", err);
+                warn!(context, "sql: Failed query_row: {}", err);
                 None
             }
         }
