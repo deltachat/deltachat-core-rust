@@ -1432,7 +1432,10 @@ pub(crate) fn rfc724_mid_exists(
     context: &Context,
     rfc724_mid: &str,
 ) -> Result<Option<(String, u32, MsgId)>, Error> {
-    ensure!(!rfc724_mid.is_empty(), "empty rfc724_mid");
+    if rfc724_mid.is_empty() {
+        warn!(context, "Empty rfc724_mid passed to rfc724_mid_exists");
+        return Ok(None);
+    }
 
     context
         .sql
