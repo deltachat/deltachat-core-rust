@@ -901,8 +901,9 @@ pub(crate) struct Report {
     additional_message_ids: Vec<String>,
 }
 
-pub(crate) fn parse_message_id(ids: &str) -> crate::error::Result<String> {
+pub(crate) fn parse_message_ids(ids: &str) -> Result<Vec<String>> {
     // take care with mailparse::msgidparse() that is pretty untolerant eg. wrt missing `<` or `>`
+    let mut msgids = Vec::new();
     for id in ids.split_whitespace() {
         let mut id = id.to_string();
         if id.starts_with('<') {
@@ -912,10 +913,18 @@ pub(crate) fn parse_message_id(ids: &str) -> crate::error::Result<String> {
             id = id[..id.len() - 1].to_string();
         }
         if !id.is_empty() {
-            return Ok(id);
+            msgids.push(id);
         }
     }
-    bail!("could not parse message_id: {}", ids);
+    Ok(msgids)
+}
+
+pub(crate) fn parse_message_id(ids: &str) -> Result<String> {
+    if let Some(id) = parse_message_ids(ids)?.first() {
+        Ok(id.to_string())
+    } else {
+        bail!("could not parse message_id: {}", ids);
+    }
 }
 
 fn is_known(key: &str) -> bool {
@@ -1762,5 +1771,27 @@ CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
         let test = parse_message_id("<> bar");
         assert!(test.is_ok());
         assert_eq!(test.unwrap(), "bar");
+    }
+
+    #[test]
+    fn test_parse_message_ids() {
+        let test = parse_message_ids("  foo  bar <foobar>").unwrap();
+        assert_eq!(test.len(), 3);
+        assert_eq!(test[0], "foo");
+        assert_eq!(test[1], "bar");
+        assert_eq!(test[2], "foobar");
+
+        let test = parse_message_ids("  < foobar >").unwrap();
+        assert_eq!(test.len(), 1);
+        assert_eq!(test[0], "foobar");
+
+        let test = parse_message_ids("").unwrap();
+        assert!(test.is_empty());
+
+        let test = parse_message_ids(" ").unwrap();
+        assert!(test.is_empty());
+
+        let test = parse_message_ids("  < ").unwrap();
+        assert!(test.is_empty());
     }
 }
