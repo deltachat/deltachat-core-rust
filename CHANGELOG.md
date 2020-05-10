@@ -1,5 +1,17 @@
 # Changelog 
 
+## 1.32.0
+
+- fix endless loop when trying to download messages with bad RFC Message-ID,
+  also be more reliable on similar errors #1463 #1466 #1462
+
+- fix bug with comma in contact request #1438
+
+- do not refer to hidden messages on replies #1459
+
+- improve error handling #1468 #1465 #1464
+
+
 ## 1.31.0
 
 - always describe the context of the displayed error #1451
