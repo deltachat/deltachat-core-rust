@@ -59,7 +59,7 @@ impl Imap {
         task::block_on(async move { self.config.read().await.can_idle })
     }
 
-    pub fn idle(&self, context: &Context, watch_folder: String) -> Result<()> {
+    pub fn idle(&self, context: &Context, watch_folder: Option<String>) -> Result<()> {
         task::block_on(async move {
             if !self.can_idle() {
                 return Err(Error::IdleAbilityMissing);
@@ -67,7 +67,7 @@ impl Imap {
 
             self.setup_handle_if_needed(context).await?;
 
-            self.select_folder(context, watch_folder).await?;
+            self.select_folder(context, watch_folder.clone()).await?;
 
             let session = self.session.lock().await.take();
             let timeout = Duration::from_secs(23 * 60);
