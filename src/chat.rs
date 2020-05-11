@@ -2072,8 +2072,7 @@ impl rusqlite::types::FromSql for MuteDuration {
 
 pub fn set_muted(context: &Context, chat_id: ChatId, duration: MuteDuration) -> Result<(), Error> {
     ensure!(!chat_id.is_special(), "Invalid chat ID");
-    if real_group_exists(context, chat_id)
-        && sql::execute(
+    if sql::execute(
             context,
             &context.sql,
             "UPDATE chats SET muted_until=? WHERE id=?;",
@@ -2083,7 +2082,7 @@ pub fn set_muted(context: &Context, chat_id: ChatId, duration: MuteDuration) -> 
     {
         context.call_cb(Event::ChatModified(chat_id));
     } else {
-        bail!("Failed to set name");
+        bail!("Failed to set mute duration, chat might not exist -");
     }
     Ok(())
 }
