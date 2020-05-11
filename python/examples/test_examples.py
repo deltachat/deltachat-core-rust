@@ -51,7 +51,7 @@ def test_group_tracking_plugin(acfactory, lp):
 
     botproc.fnmatch_lines("""
         *ac_chat_modified*bot test group*
-    """.format(ac1.get_config("addr")))
+    """)
 
     lp.sec("adding third member {}".format(ac2.get_config("addr")))
     contact3 = ac1.create_contact(ac2.get_config("addr"))
