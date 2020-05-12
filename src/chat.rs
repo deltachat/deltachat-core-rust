@@ -1761,45 +1761,57 @@ pub async fn marknoticed_all_chats(context: &Context) -> Result<(), Error> {
 /// Returns true if any message is deleted, so event can be emitted. If nothing
 /// has been deleted, returns false.
 pub async fn delete_device_expired_messages(context: &Context) -> Result<bool, Error> {
-    if let Some(delete_device_after) = context.get_config_delete_device_after().await {
-        let threshold_timestamp = time() - delete_device_after;
+    let now = time();
 
-        let self_chat_id = lookup_by_contact_id(context, DC_CONTACT_ID_SELF)
-            .await
-            .unwrap_or_default()
-            .0;
-        let device_chat_id = lookup_by_contact_id(context, DC_CONTACT_ID_DEVICE)
-            .await
-            .unwrap_or_default()
-            .0;
+    let threshold_timestamp = match context.get_config_delete_device_after().await {
+        None => 0,
+        Some(delete_device_after) => now - delete_device_after,
+    };
 
-        // Delete expired messages
-        //
-        // Only update the rows that have to be updated, to avoid emitting
-        // unnecessary "chat modified" events.
-        let rows_modified = context
-            .sql
-            .execute(
-                "UPDATE msgs \
+    let self_chat_id = lookup_by_contact_id(context, DC_CONTACT_ID_SELF)
+        .await
+        .unwrap_or_default()
+        .0;
+    let device_chat_id = lookup_by_contact_id(context, DC_CONTACT_ID_DEVICE)
+        .await
+        .unwrap_or_default()
+        .0;
+
+    // Delete expired messages
+    //
+    // Only update the rows that have to be updated, to avoid emitting
+    // unnecessary "chat modified" events.
+    let rows_modified = context
+        .sql
+        .execute(
+            "UPDATE msgs \
              SET txt = 'DELETED', chat_id = ? \
-             WHERE timestamp < ? \
+             WHERE \
+             ( \
+               ( \
+                 timestamp < ? \
+                 AND chat_id != ? \
+               ) \
+               OR \
+               ( \
+                 autodelete_timestamp != 0 \
+                 AND autodelete_timestamp < ? \
+               ) \
+             ) \
              AND chat_id > ? \
-             AND chat_id != ? \
              AND chat_id != ?",
-                paramsv![
-                    DC_CHAT_ID_TRASH,
-                    threshold_timestamp,
-                    DC_CHAT_ID_LAST_SPECIAL,
-                    self_chat_id,
-                    device_chat_id
-                ],
-            )
-            .await?;
+            paramsv![
+                DC_CHAT_ID_TRASH,
+                threshold_timestamp,
+                self_chat_id,
+                now,
+                DC_CHAT_ID_LAST_SPECIAL,
+                device_chat_id
+            ],
+        )
+        .await?;
 
-        Ok(rows_modified > 0)
-    } else {
-        Ok(false)
-    }
+    Ok(rows_modified > 0)
 }
 
 pub async fn get_chat_media(
