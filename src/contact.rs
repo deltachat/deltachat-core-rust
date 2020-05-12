@@ -240,6 +240,8 @@ impl Contact {
             "Cannot create contact with empty address"
         );
 
+        let (name, addr) = sanitize_name_and_addr(name, addr);
+
         let (contact_id, sth_modified) =
             Contact::add_or_lookup(context, name, addr, Origin::ManuallyCreated).await?;
         let blocked = Contact::is_blocked_load(context, contact_id).await;
@@ -1030,6 +1032,24 @@ pub fn addr_normalize(addr: &str) -> &str {
     norm
 }
 
+fn sanitize_name_and_addr(name: impl AsRef<str>, addr: impl AsRef<str>) -> (String, String) {
+    lazy_static! {
+        static ref ADDR_WITH_NAME_REGEX: Regex = Regex::new("(.*)<(.*)>").unwrap();
+    }
+    if let Some(captures) = ADDR_WITH_NAME_REGEX.captures(addr.as_ref()) {
+        (
+            if name.as_ref().is_empty() {
+                normalize_name(&captures[1])
+            } else {
+                name.as_ref().to_string()
+            },
+            captures[2].to_string(),
+        )
+    } else {
+        (name.as_ref().to_string(), addr.as_ref().to_string())
+    }
+}
+
 async fn set_block_contact(context: &Context, contact_id: u32, new_blocking: bool) {
     if contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
         return;
@@ -1204,6 +1224,10 @@ mod tests {
         assert_eq!(may_be_valid_addr("u@d.tt"), true);
         assert_eq!(may_be_valid_addr("u@.tt"), false);
         assert_eq!(may_be_valid_addr("@d.tt"), false);
+        assert_eq!(may_be_valid_addr("<da@d.tt"), false);
+        assert_eq!(may_be_valid_addr("sk <@d.tt>"), false);
+        assert_eq!(may_be_valid_addr("as@sd.de>"), false);
+        assert_eq!(may_be_valid_addr("ask dkl@dd.tt"), false);
     }
 
     #[test]
