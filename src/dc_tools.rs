@@ -482,15 +482,6 @@ pub struct InvalidEmailError {
     addr: String,
 }
 
-impl InvalidEmailError {
-    fn new(msg: impl Into<String>, addr: impl Into<String>) -> InvalidEmailError {
-        InvalidEmailError {
-            message: msg.into(),
-            addr: addr.into(),
-        }
-    }
-}
-
 /// Very simple email address wrapper.
 ///
 /// Represents an email address, right now just the `name@domain` portion.
@@ -530,17 +521,24 @@ impl FromStr for EmailAddress {
 
     /// Performs a dead-simple parse of an email address.
     fn from_str(input: &str) -> Result<EmailAddress, InvalidEmailError> {
-        if input.is_empty() {
-            return Err(InvalidEmailError::new("empty string is not valid", input));
-        }
-        let parts: Vec<&str> = input.rsplitn(2, '@').collect();
-
         let err = |msg: &str| {
             Err(InvalidEmailError {
                 message: msg.to_string(),
                 addr: input.to_string(),
             })
         };
+        if input.is_empty() {
+            return err("empty string is not valid");
+        }
+        let parts: Vec<&str> = input.rsplitn(2, '@').collect();
+
+        if input
+            .chars()
+            .any(|c| c.is_whitespace() || c == '<' || c == '>')
+        {
+            return err("Email must not contain whitespaces, '>' or '<'");
+        }
+
         match &parts[..] {
             [domain, local] => {
                 if local.is_empty() {
