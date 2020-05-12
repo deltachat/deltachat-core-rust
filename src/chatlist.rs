@@ -92,6 +92,11 @@ impl Chatlist {
         query: Option<&str>,
         query_contact_id: Option<u32>,
     ) -> Result<Self> {
+        let flag_archived_only = 0 != listflags & DC_GCL_ARCHIVED_ONLY;
+        let flag_for_forwarding = 0 != listflags & DC_GCL_FOR_FORWARDING;
+        let flag_no_specials = 0 != listflags & DC_GCL_NO_SPECIALS;
+        let flag_add_alldone_hint = 0 != listflags & DC_GCL_ADD_ALLDONE_HINT;
+
         // Note that we do not emit DC_EVENT_MSGS_MODIFIED here even if some
         // messages get deleted to avoid reloading the same chatlist.
         if let Err(err) = delete_device_expired_messages(context) {
@@ -111,7 +116,7 @@ impl Chatlist {
                 .map_err(Into::into)
         };
 
-        let skip_id = if 0 != listflags & DC_GCL_FOR_FORWARDING {
+        let skip_id = if flag_for_forwarding {
             chat::lookup_by_contact_id(context, DC_CONTACT_ID_DEVICE)
                 .unwrap_or_default()
                 .0
@@ -155,7 +160,7 @@ impl Chatlist {
                 process_row,
                 process_rows,
             )?
-        } else if 0 != listflags & DC_GCL_ARCHIVED_ONLY {
+        } else if flag_archived_only {
             // show archived chats
             // (this includes the archived device-chat; we could skip it,
             // however, then the number of archived chats do not match, which might be even more irritating.
@@ -211,7 +216,7 @@ impl Chatlist {
             )?
         } else {
             //  show normal chatlist
-            let sort_id_up = if 0 != listflags & DC_GCL_FOR_FORWARDING {
+            let sort_id_up = if flag_for_forwarding {
                 chat::lookup_by_contact_id(context, DC_CONTACT_ID_SELF)
                     .unwrap_or_default()
                     .0
@@ -237,9 +242,9 @@ impl Chatlist {
                 process_row,
                 process_rows,
             )?;
-            if 0 == listflags & DC_GCL_NO_SPECIALS {
+            if !flag_no_specials {
                 if let Some(last_deaddrop_fresh_msg_id) = get_last_deaddrop_fresh_msg(context) {
-                    if 0 == listflags & DC_GCL_FOR_FORWARDING {
+                    if !flag_for_forwarding {
                         ids.insert(
                             0,
                             (ChatId::new(DC_CHAT_ID_DEADDROP), last_deaddrop_fresh_msg_id),
@@ -252,7 +257,7 @@ impl Chatlist {
         };
 
         if add_archived_link_item && dc_get_archived_cnt(context) > 0 {
-            if ids.is_empty() && 0 != listflags & DC_GCL_ADD_ALLDONE_HINT {
+            if ids.is_empty() && flag_add_alldone_hint {
                 ids.push((ChatId::new(DC_CHAT_ID_ALLDONE_HINT), MsgId::new(0)));
             }
             ids.push((ChatId::new(DC_CHAT_ID_ARCHIVED_LINK), MsgId::new(0)));
