@@ -959,8 +959,10 @@ int             dc_preconfigure_keypair        (dc_context_t* context, const cha
  *       if DC_GCL_ARCHIVED_ONLY is not set, only unarchived chats are returned and
  *       the pseudo-chat DC_CHAT_ID_ARCHIVED_LINK is added if there are _any_ archived
  *       chats
- *     - the flag DC_GCL_FOR_FORWARDING sorts "Saved messages" to the top of the chatlist,
+ *     - the flag DC_GCL_FOR_FORWARDING sorts "Saved messages" to the top of the chatlist
+ *       and hides the "Device chat" and the deaddrop.
  *       typically used on forwarding, may be combined with DC_GCL_NO_SPECIALS
+ *       to also hide the archive link.
  *     - if the flag DC_GCL_NO_SPECIALS is set, deaddrop and archive link are not added
  *       to the list (may be used eg. for selecting chats on forwarding, the flag is
  *       not needed when DC_GCL_ARCHIVED_ONLY is already set)
