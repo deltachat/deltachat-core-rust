@@ -1,5 +1,13 @@
 # Changelog 
 
+## 1.33.0
+
+- let `dc_set_muted()` also mute one-to-one chats #1470
+
+- fix a but that led to load and traffic if the server does not use sent-folder
+  #1472
+
+
 ## 1.32.0
 
 - fix endless loop when trying to download messages with bad RFC Message-ID,
