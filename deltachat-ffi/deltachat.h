@@ -190,12 +190,6 @@ typedef struct _dc_event    dc_event_t;
  */
 
 
-
-/**
- * TODO: document
- */  
-int           dc_has_next_event(dc_context_t* context);
-  
 /**
  * TODO: document
  */  

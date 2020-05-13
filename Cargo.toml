@@ -56,7 +56,6 @@ encoded-words = { git = "https://github.com/async-email/encoded-words", branch="
 native-tls = "0.2.3"
 image = { version = "0.22.4", default-features=false, features = ["gif_codec", "jpeg", "ico", "png_codec", "pnm", "webp", "bmp"] }
 futures = "0.3.4"
-crossbeam-queue = "0.2.1"
 thiserror = "1.0.14"
 anyhow = "1.0.28"
 
@@ -65,6 +64,7 @@ log = {version = "0.4.8", optional = true }
 rustyline = { version = "4.1.0", optional = true }
 ansi_term = { version = "0.12.1", optional = true }
 async-trait = "0.1.31"
+crossbeam-channel = "0.4.2"
 
 [dev-dependencies]
 tempfile = "3.0"

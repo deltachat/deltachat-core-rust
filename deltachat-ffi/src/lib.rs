@@ -501,18 +501,6 @@ pub unsafe extern "C" fn dc_is_running(context: *mut dc_context_t) -> libc::c_in
     with_inner_async!(ffi_context, ctx, { ctx.is_running() }).unwrap_or_default() as libc::c_int
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn dc_has_next_event(context: *mut dc_context_t) -> libc::c_int {
-    if context.is_null() {
-        return 0;
-    }
-    let ffi_context = &*context;
-
-    ffi_context
-        .with_inner(|ctx| ctx.has_next_event())
-        .unwrap_or_default() as libc::c_int
-}
-
 pub struct EventWrapper {
     pub event_id: libc::c_int,
     pub data1: uintptr_t,

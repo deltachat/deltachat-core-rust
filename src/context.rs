@@ -7,7 +7,7 @@ use std::ops::Deref;
 use anyhow::anyhow;
 use async_std::path::{Path, PathBuf};
 use async_std::sync::{channel, Arc, Mutex, Receiver, RwLock, Sender};
-use crossbeam_queue::SegQueue;
+use crossbeam_channel::{unbounded, Receiver as SyncReceiver, Sender as SyncSender};
 
 use crate::chat::*;
 use crate::config::Config;
@@ -53,7 +53,7 @@ pub struct InnerContext {
     /// Mutex to avoid generating the key for the user more than once.
     pub(crate) generating_key_mutex: Mutex<()>,
     pub(crate) translated_stockstrings: RwLock<HashMap<usize, String>>,
-    pub(crate) logs: SegQueue<Event>,
+    pub(crate) logs: (SyncSender<Event>, SyncReceiver<Event>),
 
     pub(crate) scheduler: RwLock<Scheduler>,
 
@@ -118,7 +118,7 @@ impl Context {
             last_smeared_timestamp: RwLock::new(0),
             generating_key_mutex: Mutex::new(()),
             translated_stockstrings: RwLock::new(HashMap::new()),
-            logs: SegQueue::new(),
+            logs: unbounded(),
             scheduler: RwLock::new(Scheduler::Stopped),
             creation_time: std::time::SystemTime::now(),
         };
@@ -170,22 +170,16 @@ impl Context {
     }
 
     pub fn call_cb(&self, event: Event) {
-        self.logs.push(event);
+        self.logs.0.send(event).expect("failed to send event");
     }
 
     pub fn get_next_event(&self) -> Result<Event> {
-        let event = self.logs.pop().map_err(|err| anyhow!("{}", err))?;
+        let event = self.logs.1.recv().map_err(|err| anyhow!("{}", err))?;
 
         Ok(event)
     }
 
-    pub fn has_next_event(&self) -> bool {
-        !self.logs.is_empty()
-    }
-
-    /*******************************************************************************
-     * Ongoing process allocation/free/check
-     ******************************************************************************/
+    // Ongoing process allocation/free/check
 
     pub async fn alloc_ongoing(&self) -> Result<Receiver<()>> {
         if self.has_ongoing().await {
