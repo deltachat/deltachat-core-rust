@@ -10,7 +10,7 @@ use crate::chat;
 use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
 use crate::contact::*;
 use crate::context::Context;
-use crate::error::Error;
+use crate::error::{bail, Error};
 use crate::message::Message;
 use crate::param::Param;
 use crate::stock::StockMessage::{DeviceMessagesHint, WelcomeMessage};
@@ -34,12 +34,6 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "Draft"))]
     Draft = 3,
-
-    #[strum(props(fallback = "%1$s member(s)"))]
-    Member = 4,
-
-    #[strum(props(fallback = "%1$s contact(s)"))]
-    Contact = 6,
 
     #[strum(props(fallback = "Voice message"))]
     VoiceMessage = 7,
@@ -135,9 +129,6 @@ pub enum StockMessage {
         fallback = "This is the Autocrypt Setup Message used to transfer your key between clients.\n\nTo decrypt and use your key, open the message in an Autocrypt-compliant client and enter the setup code presented on the generating device."
     ))]
     AcSetupMsgBody = 43,
-
-    #[strum(props(fallback = "Messages I sent to myself"))]
-    SelfTalkSubTitle = 50,
 
     #[strum(props(fallback = "Cannot login as %1$s."))]
     CannotLogin = 60,
@@ -317,7 +308,8 @@ impl Context {
         from_id: u32,
     ) -> String {
         let insert1 = if id == StockMessage::MsgAddMember || id == StockMessage::MsgDelMember {
-            let contact_id = Contact::lookup_id_by_addr(self, param1.as_ref()).await;
+            let contact_id =
+                Contact::lookup_id_by_addr(self, param1.as_ref(), Origin::Unknown).await;
             if contact_id != 0 {
                 Contact::get_by_id(self, contact_id)
                     .await
@@ -449,9 +441,9 @@ mod tests {
         // uses %1$s substitution
         assert_eq!(
             t.ctx
-                .stock_string_repl_str(StockMessage::Member, "42")
+                .stock_string_repl_str(StockMessage::MsgAddMember, "Foo")
                 .await,
-            "42 member(s)"
+            "Member Foo added."
         );
         // We have no string using %1$d to test...
     }
@@ -460,8 +452,10 @@ mod tests {
     async fn test_stock_string_repl_int() {
         let t = dummy_context().await;
         assert_eq!(
-            t.ctx.stock_string_repl_int(StockMessage::Member, 42).await,
-            "42 member(s)"
+            t.ctx
+                .stock_string_repl_int(StockMessage::MsgAddMember, 42)
+                .await,
+            "Member 42 added."
         );
     }
 

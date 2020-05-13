@@ -12,39 +12,34 @@ use crate::context::Context;
 use crate::events::Event;
 use crate::login_param::{dc_build_tls, LoginParam};
 use crate::oauth2::*;
+use crate::stock::StockMessage;
 
 /// SMTP write and read timeout in seconds.
 const SMTP_TIMEOUT: u64 = 30;
 
-#[derive(Debug, Fail)]
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[fail(display = "Bad parameters")]
+    #[error("Bad parameters")]
     BadParameters,
 
-    #[fail(display = "Invalid login address {}: {}", address, error)]
+    #[error("Invalid login address {address}: {error}")]
     InvalidLoginAddress {
         address: String,
-        #[cause]
+        #[source]
         error: error::Error,
     },
 
-    #[fail(display = "SMTP failed to connect: {:?}", _0)]
-    ConnectionFailure(#[cause] smtp::error::Error),
+    #[error("SMTP: failed to connect: {0:?}")]
+    ConnectionFailure(#[source] smtp::error::Error),
 
-    #[fail(display = "SMTP: failed to setup connection {:?}", _0)]
-    ConnectionSetupFailure(#[cause] smtp::error::Error),
+    #[error("SMTP: failed to setup connection {0:?}")]
+    ConnectionSetupFailure(#[source] smtp::error::Error),
 
-    #[fail(display = "SMTP: oauth2 error {:?}", _0)]
+    #[error("SMTP: oauth2 error {address}")]
     Oauth2Error { address: String },
 
-    #[fail(display = "TLS error")]
-    Tls(#[cause] async_native_tls::Error),
-}
-
-impl From<async_native_tls::Error> for Error {
-    fn from(err: async_native_tls::Error) -> Error {
-        Error::Tls(err)
-    }
+    #[error("TLS error")]
+    Tls(#[from] async_native_tls::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -172,7 +167,18 @@ impl Smtp {
             .timeout(Some(Duration::from_secs(SMTP_TIMEOUT)));
 
         let mut trans = client.into_transport();
-        trans.connect().await.map_err(Error::ConnectionFailure)?;
+        if let Err(err) = trans.connect().await {
+            let message = context
+                .stock_string_repl_str2(
+                    StockMessage::ServerResponse,
+                    format!("SMTP {}:{}", domain, port),
+                    err.to_string(),
+                )
+                .await;
+
+            emit_event!(context, Event::ErrorNetwork(message));
+            return Err(Error::ConnectionFailure(err));
+        }
 
         self.transport = Some(trans);
         self.last_success = Some(Instant::now());

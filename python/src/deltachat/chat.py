@@ -30,7 +30,7 @@ class Chat(object):
         return not (self == other)
 
     def __repr__(self):
-        return "<Chat id={} name={} dc_context={}>".format(self.id, self.get_name(), self._dc_context)
+        return "<Chat id={} name={}>".format(self.id, self.get_name())
 
     @property
     def _dc_chat(self):
@@ -50,6 +50,16 @@ class Chat(object):
         lib.dc_delete_chat(self._dc_context, self.id)
 
     # ------  chat status/metadata API ------------------------------
+
+    def is_group(self):
+        """ return true if this chat is a group chat.
+
+        :returns: True if chat is a group-chat, false if it's a contact 1:1 chat.
+        """
+        return lib.dc_chat_get_type(self._dc_chat) in (
+            const.DC_CHAT_TYPE_GROUP,
+            const.DC_CHAT_TYPE_VERIFIED_GROUP
+        )
 
     def is_deaddrop(self):
         """ return true if this chat is a deaddrop chat.
@@ -129,7 +139,7 @@ class Chat(object):
         return bool(lib.dc_chat_get_remaining_mute_duration(self.id))
 
     def get_type(self):
-        """ return type of this chat.
+        """ (deprecated) return type of this chat.
 
         :returns: one of const.DC_CHAT_TYPE_*
         """
@@ -353,7 +363,7 @@ class Chat(object):
             lib.dc_array_unref
         )
         return list(iter_array(
-            dc_array, lambda id: Contact(self._dc_context, id))
+            dc_array, lambda id: Contact(self.account, id))
         )
 
     def set_profile_image(self, img_path):
@@ -404,12 +414,6 @@ class Chat(object):
         :returns: color as 0x00rrggbb
         """
         return lib.dc_chat_get_color(self._dc_chat)
-
-    def get_subtitle(self):
-        """return the subtitle of the chat
-        :returns: the subtitle
-        """
-        return from_dc_charpointer(lib.dc_chat_get_subtitle(self._dc_chat))
 
     # ------  location streaming API ------------------------------
 

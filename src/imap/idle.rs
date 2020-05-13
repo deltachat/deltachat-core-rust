@@ -11,28 +11,22 @@ use super::session::Session;
 
 type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug, Fail)]
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[fail(display = "IMAP IDLE protocol failed to init/complete")]
-    IdleProtocolFailed(#[cause] async_imap::error::Error),
+    #[error("IMAP IDLE protocol failed to init/complete")]
+    IdleProtocolFailed(#[from] async_imap::error::Error),
 
-    #[fail(display = "IMAP IDLE protocol timed out")]
-    IdleTimeout(#[cause] async_std::future::TimeoutError),
+    #[error("IMAP IDLE protocol timed out")]
+    IdleTimeout(#[from] async_std::future::TimeoutError),
 
-    #[fail(display = "IMAP server does not have IDLE capability")]
+    #[error("IMAP server does not have IDLE capability")]
     IdleAbilityMissing,
 
-    #[fail(display = "IMAP select folder error")]
-    SelectFolderError(#[cause] select_folder::Error),
+    #[error("IMAP select folder error")]
+    SelectFolderError(#[from] select_folder::Error),
 
-    #[fail(display = "Setup handle error")]
-    SetupHandleError(#[cause] super::Error),
-}
-
-impl From<select_folder::Error> for Error {
-    fn from(err: select_folder::Error) -> Error {
-        Error::SelectFolderError(err)
-    }
+    #[error("Setup handle error")]
+    SetupHandleError(#[from] super::Error),
 }
 
 impl Imap {
@@ -46,10 +40,7 @@ impl Imap {
         if !self.can_idle() {
             return Err(Error::IdleAbilityMissing);
         }
-
-        self.setup_handle_if_needed(context)
-            .await
-            .map_err(Error::SetupHandleError)?;
+        self.setup_handle_if_needed(context).await?;
 
         self.select_folder(context, watch_folder.clone()).await?;
 

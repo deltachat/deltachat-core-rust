@@ -7,13 +7,16 @@
 #[macro_use]
 extern crate deltachat;
 #[macro_use]
-extern crate failure;
+extern crate lazy_static;
+#[macro_use]
+extern crate rusqlite;
 
 use std::borrow::Cow::{self, Borrowed, Owned};
 use std::io::{self, Write};
 use std::process::Command;
 
 use ansi_term::Color;
+use anyhow::{bail, Error};
 use async_std::path::Path;
 use deltachat::chat::ChatId;
 use deltachat::config;
@@ -269,10 +272,10 @@ impl Highlighter for DcHelper {
 
 impl Helper for DcHelper {}
 
-async fn start(args: Vec<String>) -> Result<(), failure::Error> {
+async fn start(args: Vec<String>) -> Result<(), Error> {
     if args.len() < 2 {
         println!("Error: Bad arguments, expected [db-name].");
-        return Err(format_err!("No db-name specified"));
+        bail!("No db-name specified");
     }
     let context = Context::new("CLI".into(), Path::new(&args[1]).to_path_buf()).await?;
 
@@ -353,7 +356,7 @@ async fn handle_cmd(
     line: &str,
     ctx: Context,
     selected_chat: &mut ChatId,
-) -> Result<ExitResult, failure::Error> {
+) -> Result<ExitResult, Error> {
     let mut args = line.splitn(2, ' ');
     let arg0 = args.next().unwrap_or_default();
     let arg1 = args.next().unwrap_or_default();
@@ -417,7 +420,7 @@ async fn handle_cmd(
     Ok(ExitResult::Continue)
 }
 
-fn main() -> Result<(), failure::Error> {
+fn main() -> Result<(), Error> {
     let _ = pretty_env_logger::try_init();
 
     let args = std::env::args().collect();

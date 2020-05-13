@@ -1,7 +1,6 @@
 //! # Thunderbird's Autoconfiguration implementation
 //!
 //! Documentation: https://developer.mozilla.org/en-US/docs/Mozilla/Thunderbird/Autoconfiguration */
-use quick_xml;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
 use crate::constants::*;
@@ -9,33 +8,7 @@ use crate::context::Context;
 use crate::login_param::LoginParam;
 
 use super::read_url::read_url;
-
-#[derive(Debug, Fail)]
-pub enum Error {
-    #[fail(display = "Invalid email address: {:?}", _0)]
-    InvalidEmailAddress(String),
-
-    #[fail(display = "XML error at position {}", position)]
-    InvalidXml {
-        position: usize,
-        #[cause]
-        error: quick_xml::Error,
-    },
-
-    #[fail(display = "Bad or incomplete autoconfig")]
-    IncompleteAutoconfig(LoginParam),
-
-    #[fail(display = "Failed to get URL {}", _0)]
-    ReadUrlError(#[cause] super::read_url::Error),
-}
-
-pub type Result<T> = std::result::Result<T, Error>;
-
-impl From<super::read_url::Error> for Error {
-    fn from(err: super::read_url::Error) -> Error {
-        Error::ReadUrlError(err)
-    }
-}
+use super::Error;
 
 #[derive(Debug)]
 struct MozAutoconfigure<'a> {
@@ -65,16 +38,16 @@ enum MozConfigTag {
     Username,
 }
 
-fn parse_xml(in_emailaddr: &str, xml_raw: &str) -> Result<LoginParam> {
+fn parse_xml(in_emailaddr: &str, xml_raw: &str) -> Result<LoginParam, Error> {
     let mut reader = quick_xml::Reader::from_str(xml_raw);
     reader.trim_text(true);
 
     // Split address into local part and domain part.
-    let p = in_emailaddr
-        .find('@')
-        .ok_or_else(|| Error::InvalidEmailAddress(in_emailaddr.to_string()))?;
-    let (in_emaillocalpart, in_emaildomain) = in_emailaddr.split_at(p);
-    let in_emaildomain = &in_emaildomain[1..];
+    let parts: Vec<&str> = in_emailaddr.rsplitn(2, '@').collect();
+    let (in_emaillocalpart, in_emaildomain) = match &parts[..] {
+        [domain, local] => (local, domain),
+        _ => return Err(Error::InvalidEmailAddress(in_emailaddr.to_string())),
+    };
 
     let mut moz_ac = MozAutoconfigure {
         in_emailaddr,
@@ -125,7 +98,7 @@ pub fn moz_autoconfigure(
     context: &Context,
     url: &str,
     param_in: &LoginParam,
-) -> Result<LoginParam> {
+) -> Result<LoginParam, Error> {
     let xml_raw = read_url(context, url)?;
 
     let res = parse_xml(&param_in.addr, &xml_raw);

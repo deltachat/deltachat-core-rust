@@ -1,37 +1,60 @@
 
-
 examples
 ========
 
-
-Playing around on the commandline
-----------------------------------
-
 Once you have :doc:`installed deltachat bindings <install>`
-you can start playing from the python interpreter commandline.
-For example you can type ``python`` and then::
+you need email/password credentials for an IMAP/SMTP account.
+Delta Chat developers and the CI system use a special URL to create
+temporary e-mail accounts on [testrun.org](https://testrun.org) for testing.
 
-    # instantiate and configure deltachat account
-    import deltachat
-    ac = deltachat.Account("/tmp/db")
+Receiving a Chat message from the command line
+----------------------------------------------
 
-    # start configuration activity and smtp/imap threads
-    ac.start_threads()
-    ac.configure(addr="test2@hq5.merlinux.eu", mail_pw="********")
+Here is a simple bot that:
 
-    # create a contact and send a message
-    contact = ac.create_contact("someother@email.address")
-    chat = ac.create_chat_by_contact(contact)
-    chat.send_text("hi from the python interpreter command line")
+- receives a message and sends back ("echoes") a message
 
-Checkout our :doc:`api` for the various high-level things you can do
-to send/receive messages, create contacts and chats.
+- terminates the bot if the message `/quit` is sent
 
+.. include:: ../examples/echo_and_quit.py
+    :literal:
 
-Looking at a real example
+With this file in your working directory you can run the bot
+by specifying a database path, an e-mail address and password of
+a SMTP-IMAP account::
+
+    $ cd examples
+    $ python echo_and_quit.py /tmp/db --email ADDRESS --password PASSWORD
+
+While this process is running you can start sending chat messages
+to `ADDRESS`.
+
+Track member additions and removals in a group
+----------------------------------------------
+
+Here is a simple bot that:
+
+- echoes messages sent to it
+
+- tracks if configuration completed
+
+- tracks member additions and removals for all chat groups
+
+.. include:: ../examples/group_tracking.py
+    :literal:
+
+With this file in your working directory you can run the bot
+by specifying a database path, an e-mail address and password of
+a SMTP-IMAP account::
+
+    python group_tracking.py --email ADDRESS --password PASSWORD /tmp/db
+
+When this process is running you can start sending chat messages
+to `ADDRESS`.
+
+Writing bots for real
 -------------------------
 
 The `deltabot repository <https://github.com/deltachat/deltabot#deltachat-example-bot>`_
-contains a real-life example of Python bindings usage.
-
+contains a little framework for writing deltachat bots in Python.
 

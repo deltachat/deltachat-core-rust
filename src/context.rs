@@ -1,9 +1,10 @@
 //! Context module
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::ffi::OsString;
 use std::ops::Deref;
 
+use anyhow::anyhow;
 use async_std::path::{Path, PathBuf};
 use async_std::sync::{channel, Arc, Mutex, Receiver, RwLock, Sender};
 use crossbeam_queue::SegQueue;
@@ -12,16 +13,18 @@ use crate::chat::*;
 use crate::config::Config;
 use crate::constants::*;
 use crate::contact::*;
+use crate::dc_tools::duration_to_str;
 use crate::error::*;
 use crate::events::Event;
 use crate::job::{self, Action};
-use crate::key::Key;
+use crate::key::{DcKey, Key, SignedPublicKey};
 use crate::login_param::LoginParam;
 use crate::lot::Lot;
 use crate::message::{self, Message, MessengerMessage, MsgId};
 use crate::param::Params;
 use crate::scheduler::Scheduler;
 use crate::sql::Sql;
+use std::time::SystemTime;
 
 #[derive(Clone, Debug)]
 pub struct Context {
@@ -53,6 +56,8 @@ pub struct InnerContext {
     pub(crate) logs: SegQueue<Event>,
 
     pub(crate) scheduler: RwLock<Scheduler>,
+
+    creation_time: SystemTime,
 }
 
 #[derive(Debug)]
@@ -68,8 +73,8 @@ pub struct RunningState {
 /// actual keys and their values which will be present are not
 /// guaranteed.  Calling [Context::get_info] also includes information
 /// about the context on top of the information here.
-pub fn get_info() -> HashMap<&'static str, String> {
-    let mut res = HashMap::new();
+pub fn get_info() -> BTreeMap<&'static str, String> {
+    let mut res = BTreeMap::new();
     res.insert("deltachat_core_version", format!("v{}", &*DC_VERSION_STR));
     res.insert("sqlite_version", rusqlite::version().to_string());
     res.insert("arch", (std::mem::size_of::<usize>() * 8).to_string());
@@ -115,6 +120,7 @@ impl Context {
             translated_stockstrings: RwLock::new(HashMap::new()),
             logs: SegQueue::new(),
             scheduler: RwLock::new(Scheduler::Stopped),
+            creation_time: std::time::SystemTime::now(),
         };
 
         let ctx = Context {
@@ -168,7 +174,7 @@ impl Context {
     }
 
     pub fn get_next_event(&self) -> Result<Event> {
-        let event = self.logs.pop()?;
+        let event = self.logs.pop().map_err(|err| anyhow!("{}", err))?;
 
         Ok(event)
     }
@@ -237,7 +243,7 @@ impl Context {
      * UI chat/message related API
      ******************************************************************************/
 
-    pub async fn get_info(&self) -> HashMap<&'static str, String> {
+    pub async fn get_info(&self) -> BTreeMap<&'static str, String> {
         let unset = "0";
         let l = LoginParam::from_database(self, "").await;
         let l2 = LoginParam::from_database(self, "configured_").await;
@@ -266,13 +272,10 @@ impl Context {
             .sql
             .query_get_value(self, "SELECT COUNT(*) FROM acpeerstates;", paramsv![])
             .await;
-
-        let fingerprint_str =
-            if let Some(key) = Key::from_self_public(self, &l2.addr, &self.sql).await {
-                key.fingerprint()
-            } else {
-                "<Not yet calculated>".into()
-            };
+        let fingerprint_str = match SignedPublicKey::load_self(self).await {
+            Ok(key) => Key::from(key).fingerprint(),
+            Err(err) => format!("<key failure: {}>", err),
+        };
 
         let inbox_watch = self.get_config_int(Config::InboxWatch).await;
         let sentbox_watch = self.get_config_int(Config::SentboxWatch).await;
@@ -332,6 +335,9 @@ impl Context {
             pub_key_cnt.unwrap_or_default().to_string(),
         );
         res.insert("fingerprint", fingerprint_str);
+
+        let elapsed = self.creation_time.elapsed();
+        res.insert("uptime", duration_to_str(elapsed.unwrap_or_default()));
 
         res
     }

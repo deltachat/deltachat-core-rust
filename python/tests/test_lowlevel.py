@@ -1,7 +1,10 @@
 from __future__ import print_function
+
 import threading
 import time
-from deltachat import capi, cutil, const, set_context_callback, clear_context_callback, py_dc_callback
+from deltachat import capi, cutil, const, set_context_callback, clear_context_callback
+from deltachat import register_global_plugin
+from deltachat.hookspec import global_hookimpl
 from deltachat.capi import ffi
 from deltachat.capi import lib
 # from deltachat.account import EventLogger
@@ -47,51 +50,37 @@ def test_callback_None2int():
     clear_context_callback(ctx)
 
 
-def test_start_stop_event_thread_basic():
-    print("1")
-    ctx = capi.lib.dc_context_new(ffi.NULL, ffi.NULL)
-    print("2")
-    ev_thread = EventThread(ctx)
-    print("3 -- starting event thread")
-    ev_thread.start()
-    print("4 -- stopping event thread")
-    ev_thread.stop()
+def test_dc_close_events(tmpdir, acfactory):
+    ac1 = acfactory.get_unconfigured_account()
 
+    # register after_shutdown function
+    shutdowns = []
 
-# FIXME: EventLogger doesn't work without an account anymore
-# def test_dc_close_events(tmpdir):
-#     ctx = ffi.gc(
-#         capi.lib.dc_context_new(ffi.NULL, ffi.NULL),
-#         lib.dc_context_unref,
-#     )
-#     evlog = EventLogger(ctx)
-#     evlog.set_timeout(5)
-#     set_context_callback(
-#         ctx,
-#         lambda ctx, evt_name, data1, data2: evlog(evt_name, data1, data2)
-#     )
-#     ev_thread = EventThread(ctx)
-#     ev_thread.start()
+    class ShutdownPlugin:
+        @global_hookimpl
+        def dc_account_after_shutdown(self, account):
+            assert account._dc_context is None
+            shutdowns.append(account)
+    register_global_plugin(ShutdownPlugin())
+    assert hasattr(ac1, "_dc_context")
+    ac1.shutdown()
+    assert shutdowns == [ac1]
 
-#     p = tmpdir.join("hello.db")
-#     lib.dc_open(ctx, p.strpath.encode("ascii"), ffi.NULL)
-#     capi.lib.dc_close(ctx)
+    def find(info_string):
+        evlog = ac1._evtracker
+        while 1:
+            ev = evlog.get_matching("DC_EVENT_INFO", check_error=False)
+            data2 = ev.data2
+            if info_string in data2:
+                return
+            else:
+                print("skipping event", ev)
 
-#     def find(info_string):
-#         while 1:
-#             ev = evlog.get_matching("DC_EVENT_INFO", check_error=False)
-#             data2 = ev[2]
-#             if info_string in data2:
-#                 return
-#             else:
-#                 print("skipping event", *ev)
-
-#     find("disconnecting inbox-thread")
-#     find("disconnecting sentbox-thread")
-#     find("disconnecting mvbox-thread")
-#     find("disconnecting SMTP")
-#     find("Database closed")
-#     ev_thread.stop()
+    find("disconnecting inbox-thread")
+    find("disconnecting sentbox-thread")
+    find("disconnecting mvbox-thread")
+    find("disconnecting SMTP")
+    find("Database closed")
 
 
 def test_wrong_db(tmpdir):
@@ -136,10 +125,10 @@ def test_markseen_invalid_message_ids(acfactory):
     contact1 = ac1.create_contact(email="some1@example.com", name="some1")
     chat = ac1.create_chat_by_contact(contact1)
     chat.send_text("one messae")
-    ac1._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
+    ac1._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
     msg_ids = [9]
     lib.dc_markseen_msgs(ac1._dc_context, msg_ids, len(msg_ids))
-    ac1._evlogger.ensure_event_not_queued("DC_EVENT_WARNING|DC_EVENT_ERROR")
+    ac1._evtracker.ensure_event_not_queued("DC_EVENT_WARNING|DC_EVENT_ERROR")
 
 
 def test_get_special_message_id_returns_empty_message(acfactory):

@@ -27,49 +27,27 @@ macro_rules! paramsv {
     };
 }
 
-#[derive(Debug, Fail)]
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[fail(display = "Sqlite Error: {:?}", _0)]
-    Sql(#[cause] rusqlite::Error),
-    #[fail(display = "Sqlite Connection Pool Error: {:?}", _0)]
-    ConnectionPool(#[cause] r2d2::Error),
-    #[fail(display = "Sqlite: Connection closed")]
+    #[error("Sqlite Error: {0:?}")]
+    Sql(#[from] rusqlite::Error),
+    #[error("Sqlite Connection Pool Error: {0:?}")]
+    ConnectionPool(#[from] r2d2::Error),
+    #[error("Sqlite: Connection closed")]
     SqlNoConnection,
-    #[fail(display = "Sqlite: Already open")]
+    #[error("Sqlite: Already open")]
     SqlAlreadyOpen,
-    #[fail(display = "Sqlite: Failed to open")]
+    #[error("Sqlite: Failed to open")]
     SqlFailedToOpen,
-    #[fail(display = "{:?}", _0)]
-    Io(#[cause] std::io::Error),
-    #[fail(display = "{:?}", _0)]
-    BlobError(#[cause] crate::blob::BlobError),
+    #[error("{0}")]
+    Io(#[from] std::io::Error),
+    #[error("{0:?}")]
+    BlobError(#[from] crate::blob::BlobError),
+    #[error("{0}")]
+    Other(#[from] crate::error::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
-
-impl From<rusqlite::Error> for Error {
-    fn from(err: rusqlite::Error) -> Error {
-        Error::Sql(err)
-    }
-}
-
-impl From<r2d2::Error> for Error {
-    fn from(err: r2d2::Error) -> Error {
-        Error::ConnectionPool(err)
-    }
-}
-
-impl From<std::io::Error> for Error {
-    fn from(err: std::io::Error) -> Error {
-        Error::Io(err)
-    }
-}
-
-impl From<crate::blob::BlobError> for Error {
-    fn from(err: crate::blob::BlobError) -> Error {
-        Error::BlobError(err)
-    }
-}
 
 /// A wrapper around the underlying Sqlite3 object.
 #[derive(DebugStub)]
@@ -107,11 +85,13 @@ impl Sql {
     pub async fn open<T: AsRef<Path>>(&self, context: &Context, dbfile: T, readonly: bool) -> bool {
         match open(context, self, dbfile, readonly).await {
             Ok(_) => true,
-            Err(crate::error::Error::SqlError(Error::SqlAlreadyOpen)) => false,
-            Err(_) => {
-                self.close().await;
-                false
-            }
+            Err(err) => match err.downcast_ref::<Error>() {
+                Some(Error::SqlAlreadyOpen) => false,
+                _ => {
+                    self.close().await;
+                    false
+                }
+            },
         }
     }
 
@@ -257,6 +237,28 @@ impl Sql {
         .await
     }
 
+    /// Execute a query which is expected to return zero or one row.
+    pub async fn query_row_optional<T, F>(
+        &self,
+        sql: impl AsRef<str>,
+        params: Vec<&dyn crate::ToSql>,
+        f: F,
+    ) -> Result<Option<T>>
+    where
+        F: FnOnce(&rusqlite::Row) -> rusqlite::Result<T>,
+    {
+        match self.query_row(sql, params, f).await {
+            Ok(res) => Ok(Some(res)),
+            Err(Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => Ok(None),
+            Err(Error::Sql(rusqlite::Error::InvalidColumnType(
+                _,
+                _,
+                rusqlite::types::Type::Null,
+            ))) => Ok(None),
+            Err(err) => Err(err),
+        }
+    }
+
     /// Executes a query which is expected to return one row and one
     /// column. If the query does not return a value or returns SQL
     /// `NULL`, returns `Ok(None)`.
@@ -268,19 +270,8 @@ impl Sql {
     where
         T: rusqlite::types::FromSql,
     {
-        match self
-            .query_row(query, params, |row| row.get::<_, T>(0))
+        self.query_row_optional(query, params, |row| row.get::<_, T>(0))
             .await
-        {
-            Ok(res) => Ok(Some(res)),
-            Err(Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => Ok(None),
-            Err(Error::Sql(rusqlite::Error::InvalidColumnType(
-                _,
-                _,
-                rusqlite::types::Type::Null,
-            ))) => Ok(None),
-            Err(err) => Err(err),
-        }
     }
 
     /// Not resultified version of `query_get_value_result`. Returns
@@ -297,7 +288,7 @@ impl Sql {
         match self.query_get_value_result(query, params).await {
             Ok(res) => res,
             Err(err) => {
-                error!(context, "sql: Failed query_row: {}", err);
+                warn!(context, "sql: Failed query_row: {}", err);
                 None
             }
         }
@@ -1332,6 +1323,8 @@ async fn open(
     Ok(())
 }
 
+/// Removes from the database locally deleted messages that also don't
+/// have a server UID.
 async fn prune_tombstones(context: &Context) -> Result<()> {
     context
         .sql

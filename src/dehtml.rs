@@ -3,7 +3,6 @@
 //! A module to remove HTML tags from the email text
 
 use lazy_static::lazy_static;
-use quick_xml;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
 lazy_static! {
@@ -35,6 +34,7 @@ pub fn dehtml(buf: &str) -> String {
     };
 
     let mut reader = quick_xml::Reader::from_str(buf);
+    reader.check_end_names(false);
 
     let mut buf = Vec::new();
 
@@ -224,5 +224,24 @@ mod tests {
             plain,
             "<>\"\'& äÄöÖüÜß fooÆçÇ \u{2666}\u{200e}\u{200f}\u{200c}&noent;\u{200d}"
         );
+    }
+
+    #[test]
+    fn test_unclosed_tags() {
+        let input = r##"
+        <!DOCTYPE HTML PUBLIC '-//W3C//DTD HTML 4.01 Transitional//EN'
+        'http://www.w3.org/TR/html4/loose.dtd'>
+        <html>
+        <head>
+        <title>Hi</title>
+        <meta http-equiv='Content-Type' content='text/html; charset=iso-8859-1'>						
+        </head>
+        <body>
+        lots of text
+        </body>
+        </html>
+        "##;
+        let txt = dehtml(input);
+        assert_eq!(txt.trim(), "lots of text");
     }
 }

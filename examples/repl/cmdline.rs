@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
+use anyhow::{bail, ensure};
 use async_std::path::Path;
-
 use deltachat::chat::{self, Chat, ChatId, ChatVisibility};
 use deltachat::chatlist::*;
 use deltachat::constants::*;
@@ -92,7 +92,7 @@ async fn reset_tables(context: &Context, bits: i32) {
     });
 }
 
-async fn poke_eml_file(context: &Context, filename: impl AsRef<Path>) -> Result<(), Error> {
+async fn poke_eml_file(context: &Context, filename: impl AsRef<Path>) -> Result<(), anyhow::Error> {
     let data = dc_read_file(context, filename).await?;
 
     if let Err(err) = dc_receive_imf(context, &data, "import", 0, false).await {
@@ -292,11 +292,7 @@ fn chat_prefix(chat: &Chat) -> &'static str {
     chat.typ.into()
 }
 
-pub async fn cmdline(
-    context: Context,
-    line: &str,
-    chat_id: &mut ChatId,
-) -> Result<(), failure::Error> {
+pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Result<(), Error> {
     let mut sel_chat = if !chat_id.is_unset() {
         Chat::load_from_db(&context, *chat_id).await.ok()
     } else {

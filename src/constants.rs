@@ -59,6 +59,19 @@ impl Default for ShowEmails {
 
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql)]
 #[repr(u8)]
+pub enum MediaQuality {
+    Balanced = 0,
+    Worse = 1,
+}
+
+impl Default for MediaQuality {
+    fn default() -> Self {
+        MediaQuality::Balanced // also change Config.MediaQuality props(default) on changes
+    }
+}
+
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql)]
+#[repr(u8)]
 pub enum KeyGenType {
     Default = 0,
     Rsa2048 = 1,
@@ -314,8 +327,6 @@ const DC_STR_SELFNOTINGRP: usize = 21; // deprecated;
 const DC_STR_NOMESSAGES: usize = 1;
 const DC_STR_SELF: usize = 2;
 const DC_STR_DRAFT: usize = 3;
-const DC_STR_MEMBER: usize = 4;
-const DC_STR_CONTACT: usize = 6;
 const DC_STR_VOICEMESSAGE: usize = 7;
 const DC_STR_DEADDROP: usize = 8;
 const DC_STR_IMAGE: usize = 9;
@@ -347,7 +358,6 @@ const DC_STR_ARCHIVEDCHATS: usize = 40;
 const DC_STR_STARREDMSGS: usize = 41;
 const DC_STR_AC_SETUP_MSG_SUBJECT: usize = 42;
 const DC_STR_AC_SETUP_MSG_BODY: usize = 43;
-const DC_STR_SELFTALK_SUBTITLE: usize = 50;
 const DC_STR_CANNOT_LOGIN: usize = 60;
 const DC_STR_SERVER_RESPONSE: usize = 61;
 const DC_STR_MSGACTIONBYUSER: usize = 62;

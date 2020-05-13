@@ -1,28 +1,88 @@
+import deltachat
 import threading
-import re
 import time
+import re
 from queue import Queue, Empty
-from .hookspec import hookimpl
+from .hookspec import account_hookimpl, global_hookimpl
 
 
-class EventLogger:
+@global_hookimpl
+def dc_account_init(account):
+    # send all FFI events for this account to a plugin hook
+    def _ll_event(ctx, evt_name, data1, data2):
+        assert ctx == account._dc_context
+        ffi_event = FFIEvent(name=evt_name, data1=data1, data2=data2)
+        account._pm.hook.ac_process_ffi_event(
+            account=account, ffi_event=ffi_event
+        )
+    deltachat.set_context_callback(account._dc_context, _ll_event)
+
+
+@global_hookimpl
+def dc_account_after_shutdown(dc_context):
+    deltachat.clear_context_callback(dc_context)
+
+
+class FFIEvent:
+    def __init__(self, name, data1, data2):
+        self.name = name
+        self.data1 = data1
+        self.data2 = data2
+
+    def __str__(self):
+        return "{name} data1={data1} data2={data2}".format(**self.__dict__)
+
+
+class FFIEventLogger:
+    """ If you register an instance of this logger with an Account
+    you'll get all ffi-events printed.
+    """
+    # to prevent garbled logging
     _loglock = threading.RLock()
 
-    def __init__(self, account, logid=None, debug=True):
+    def __init__(self, account, logid):
+        """
+        :param logid: an optional logging prefix that should be used with
+                      the default internal logging.
+        """
         self.account = account
-        self._event_queue = Queue()
-        self._debug = debug
-        if logid is None:
-            logid = str(self.account._dc_context).strip(">").split()[-1]
         self.logid = logid
-        self._timeout = None
         self.init_time = time.time()
 
-    @hookimpl
-    def process_low_level_event(self, account, event_name, data1, data2):
-        if self.account == account:
-            self._log_event(event_name, data1, data2)
-            self._event_queue.put((event_name, data1, data2))
+    @account_hookimpl
+    def ac_process_ffi_event(self, ffi_event):
+        self._log_event(ffi_event)
+
+    def _log_event(self, ffi_event):
+        # don't show events that are anyway empty impls now
+        if ffi_event.name == "DC_EVENT_GET_STRING":
+            return
+        self.account.ac_log_line(str(ffi_event))
+
+    @account_hookimpl
+    def ac_log_line(self, message):
+        t = threading.currentThread()
+        tname = getattr(t, "name", t)
+        if tname == "MainThread":
+            tname = "MAIN"
+        elapsed = time.time() - self.init_time
+        locname = tname
+        if self.logid:
+            locname += "-" + self.logid
+        s = "{:2.2f} [{}] {}".format(elapsed, locname, message)
+        with self._loglock:
+            print(s, flush=True)
+
+
+class FFIEventTracker:
+    def __init__(self, account, timeout=None):
+        self.account = account
+        self._timeout = timeout
+        self._event_queue = Queue()
+
+    @account_hookimpl
+    def ac_process_ffi_event(self, ffi_event):
+        self._event_queue.put(ffi_event)
 
     def set_timeout(self, timeout):
         self._timeout = timeout
@@ -32,10 +92,10 @@ class EventLogger:
             self.get(check_error=check_error)
 
     def get(self, timeout=None, check_error=True):
-        timeout = timeout or self._timeout
+        timeout = timeout if timeout is not None else self._timeout
         ev = self._event_queue.get(timeout=timeout)
-        if check_error and ev[0] == "DC_EVENT_ERROR":
-            raise ValueError("{}({!r},{!r})".format(*ev))
+        if check_error and ev.name == "DC_EVENT_ERROR":
+            raise ValueError(str(ev))
         return ev
 
     def ensure_event_not_queued(self, event_name_regex):
@@ -47,35 +107,31 @@ class EventLogger:
             except Empty:
                 break
             else:
-                assert not rex.match(ev[0]), "event found {}".format(ev)
+                assert not rex.match(ev.name), "event found {}".format(ev)
 
     def get_matching(self, event_name_regex, check_error=True, timeout=None):
-        self._log("-- waiting for event with regex: {} --".format(event_name_regex))
+        self.account.ac_log_line("-- waiting for event with regex: {} --".format(event_name_regex))
         rex = re.compile("(?:{}).*".format(event_name_regex))
         while 1:
             ev = self.get(timeout=timeout, check_error=check_error)
-            if rex.match(ev[0]):
+            if rex.match(ev.name):
                 return ev
 
     def get_info_matching(self, regex):
         rex = re.compile("(?:{}).*".format(regex))
         while 1:
             ev = self.get_matching("DC_EVENT_INFO")
-            if rex.match(ev[2]):
+            if rex.match(ev.data2):
                 return ev
 
-    def _log_event(self, evt_name, data1, data2):
-        # don't show events that are anyway empty impls now
-        if evt_name == "DC_EVENT_GET_STRING":
-            return
-        if self._debug:
-            evpart = "{}({!r},{!r})".format(evt_name, data1, data2)
-            self._log(evpart)
+    def wait_next_incoming_message(self):
+        """ wait for and return next incoming message. """
+        ev = self.get_matching("DC_EVENT_INCOMING_MSG")
+        return self.account.get_message_by_id(ev.data2)
 
-    def _log(self, msg):
-        t = threading.currentThread()
-        tname = getattr(t, "name", t)
-        if tname == "MainThread":
-            tname = "MAIN"
-        with self._loglock:
-            print("{:2.2f} [{}-{}] {}".format(time.time() - self.init_time, tname, self.logid, msg))
+    def wait_next_messages_changed(self):
+        """ wait for and return next message-changed message or None
+        if the event contains no msgid"""
+        ev = self.get_matching("DC_EVENT_MSGS_CHANGED")
+        if ev.data2 > 0:
+            return self.account.get_message_by_id(ev.data2)

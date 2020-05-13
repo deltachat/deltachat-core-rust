@@ -13,7 +13,7 @@ extern crate human_panic;
 extern crate num_traits;
 extern crate serde_json;
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::convert::TryInto;
 use std::ffi::CString;
 use std::fmt::Write;
@@ -22,13 +22,14 @@ use std::str::FromStr;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime};
 
+use anyhow::anyhow;
 use async_std::task::block_on;
 use libc::uintptr_t;
 use num_traits::{FromPrimitive, ToPrimitive};
 
 use deltachat::chat::{ChatId, ChatVisibility, MuteDuration};
 use deltachat::constants::DC_MSG_ID_LAST_SPECIAL;
-use deltachat::contact::Contact;
+use deltachat::contact::{Contact, Origin};
 use deltachat::context::Context;
 use deltachat::key::DcKey;
 use deltachat::message::MsgId;
@@ -177,7 +178,7 @@ macro_rules! try_inner_async {
                     let $name = ctx;
                     $block.await
                 }
-                None => Err(failure::err_msg("context not open")),
+                None => Err(anyhow!("context not open")),
             }
         })
     }};
@@ -416,7 +417,7 @@ pub unsafe extern "C" fn dc_get_info(context: *mut dc_context_t) -> *mut libc::c
 }
 
 fn render_info(
-    info: HashMap<&'static str, String>,
+    info: BTreeMap<&'static str, String>,
 ) -> std::result::Result<String, std::fmt::Error> {
     let mut res = String::new();
     for (key, value) in &info {
@@ -447,11 +448,6 @@ pub unsafe extern "C" fn dc_get_oauth2_url(
         }
     })
     .unwrap_or_else(|_| ptr::null_mut())
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_version_str() -> *mut libc::c_char {
-    context::get_version_str().strdup()
 }
 
 #[no_mangle]
@@ -655,14 +651,6 @@ unsafe fn translate_event(event: Event) -> *mut dc_event_t {
             event_id,
             data1: contact_id as uintptr_t,
             data2: progress as uintptr_t,
-        },
-        Event::SecurejoinMemberAdded {
-            chat_id,
-            contact_id,
-        } => EventWrapper {
-            event_id,
-            data1: chat_id.to_u32() as uintptr_t,
-            data2: contact_id as uintptr_t,
         },
     };
 
@@ -1072,12 +1060,12 @@ pub unsafe extern "C" fn dc_estimate_deletion_cnt(
         return 0;
     }
     let ffi_context = &*context;
-    ffi_context
-        .with_inner(|ctx| {
-            message::estimate_deletion_cnt(ctx, from_server != 0, seconds).unwrap_or(0)
-                as libc::c_int
-        })
-        .unwrap_or(0)
+    with_inner_async!(ffi_context, ctx, async move {
+        message::estimate_deletion_cnt(ctx, from_server != 0, seconds)
+            .await
+            .unwrap_or(0) as libc::c_int
+    })
+    .unwrap_or(0)
 }
 
 #[no_mangle]
@@ -1700,7 +1688,7 @@ pub unsafe extern "C" fn dc_lookup_contact_id_by_addr(
     with_inner_async!(
         ffi_context,
         ctx,
-        Contact::lookup_id_by_addr(&ctx, to_string_lossy(addr))
+        Contact::lookup_id_by_addr(&ctx, to_string_lossy(addr), Origin::IncomingReplyTo)
     )
     .unwrap_or(0)
 }
@@ -2172,16 +2160,6 @@ pub unsafe extern "C" fn dc_array_unref(a: *mut dc_array::dc_array_t) {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_array_add_id(array: *mut dc_array_t, item: libc::c_uint) {
-    if array.is_null() {
-        eprintln!("ignoring careless call to dc_array_add_id()");
-        return;
-    }
-
-    (*array).add_id(item);
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn dc_array_get_cnt(array: *const dc_array_t) -> libc::size_t {
     if array.is_null() {
         eprintln!("ignoring careless call to dc_array_get_cnt()");
@@ -2512,20 +2490,6 @@ pub unsafe extern "C" fn dc_chat_get_name(chat: *mut dc_chat_t) -> *mut libc::c_
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_chat_get_subtitle(chat: *mut dc_chat_t) -> *mut libc::c_char {
-    if chat.is_null() {
-        eprintln!("ignoring careless call to dc_chat_get_subtitle()");
-        return "".strdup();
-    }
-    let ffi_chat = &*chat;
-    let ffi_context: &ContextWrapper = &*ffi_chat.context;
-
-    with_inner_async!(ffi_context, ctx, ffi_chat.chat.get_subtitle(&ctx))
-        .map(|s| s.strdup())
-        .unwrap_or_else(|_| "".strdup())
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn dc_chat_get_profile_image(chat: *mut dc_chat_t) -> *mut libc::c_char {
     if chat.is_null() {
         eprintln!("ignoring careless call to dc_chat_get_profile_image()");
@@ -2848,7 +2812,7 @@ pub unsafe extern "C" fn dc_msg_get_file(msg: *mut dc_msg_t) -> *mut libc::c_cha
             ffi_msg
                 .message
                 .get_file(ctx)
-                .map(|p| p.strdup())
+                .map(|p| p.to_string_lossy().strdup())
                 .unwrap_or_else(|| "".strdup())
         })
         .unwrap_or_else(|_| "".strdup())

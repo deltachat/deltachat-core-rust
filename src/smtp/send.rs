@@ -8,15 +8,15 @@ use crate::events::Event;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug, Fail)]
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[fail(display = "Envelope error: {}", _0)]
-    EnvelopeError(#[cause] async_smtp::error::Error),
+    #[error("Envelope error: {}", _0)]
+    EnvelopeError(#[from] async_smtp::error::Error),
 
-    #[fail(display = "Send error: {}", _0)]
-    SendError(#[cause] async_smtp::smtp::error::Error),
+    #[error("Send error: {}", _0)]
+    SendError(#[from] async_smtp::smtp::error::Error),
 
-    #[fail(display = "SMTP has no transport")]
+    #[error("SMTP has no transport")]
     NoTransport,
 }
 

@@ -63,6 +63,9 @@ pub enum Config {
     #[strum(props(default = "0"))] // also change ShowEmails.default() on changes
     ShowEmails,
 
+    #[strum(props(default = "0"))] // also change MediaQuality.default() on changes
+    MediaQuality,
+
     #[strum(props(default = "0"))]
     KeyGenType,
 
@@ -251,9 +254,11 @@ mod tests {
     use std::str::FromStr;
     use std::string::ToString;
 
+    use crate::constants;
     use crate::constants::AVATAR_SIZE;
     use crate::test_utils::*;
     use image::GenericImageView;
+    use num_traits::FromPrimitive;
     use std::fs::File;
     use std::io::Write;
 
@@ -327,5 +332,49 @@ mod tests {
         let img = image::open(avatar_src).unwrap();
         assert_eq!(img.width(), AVATAR_SIZE);
         assert_eq!(img.height(), AVATAR_SIZE);
+    }
+
+    #[async_std::test]
+    async fn test_selfavatar_copy_without_recode() {
+        let t = dummy_context().await;
+        let avatar_src = t.dir.path().join("avatar.png");
+        let avatar_bytes = include_bytes!("../test-data/image/avatar64x64.png");
+        File::create(&avatar_src)
+            .unwrap()
+            .write_all(avatar_bytes)
+            .unwrap();
+        let avatar_blob = t.ctx.get_blobdir().join("avatar.png");
+        assert!(!avatar_blob.exists().await);
+        t.ctx
+            .set_config(Config::Selfavatar, Some(&avatar_src.to_str().unwrap()))
+            .await
+            .unwrap();
+        assert!(avatar_blob.exists().await);
+        assert_eq!(
+            std::fs::metadata(&avatar_blob).unwrap().len(),
+            avatar_bytes.len() as u64
+        );
+        let avatar_cfg = t.ctx.get_config(Config::Selfavatar).await;
+        assert_eq!(avatar_cfg, avatar_blob.to_str().map(|s| s.to_string()));
+    }
+
+    #[async_std::test]
+    async fn test_media_quality_config_option() {
+        let t = dummy_context().await;
+        let media_quality = t.ctx.get_config_int(Config::MediaQuality).await;
+        assert_eq!(media_quality, 0);
+        let media_quality = constants::MediaQuality::from_i32(media_quality).unwrap_or_default();
+        assert_eq!(media_quality, constants::MediaQuality::Balanced);
+
+        t.ctx
+            .set_config(Config::MediaQuality, Some("1"))
+            .await
+            .unwrap();
+
+        let media_quality = t.ctx.get_config_int(Config::MediaQuality).await;
+        assert_eq!(media_quality, 1);
+        assert_eq!(constants::MediaQuality::Worse as i32, 1);
+        let media_quality = constants::MediaQuality::from_i32(media_quality).unwrap_or_default();
+        assert_eq!(media_quality, constants::MediaQuality::Worse);
     }
 }

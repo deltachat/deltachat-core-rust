@@ -4,25 +4,52 @@ use crate::context::Context;
 
 type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug, Fail)]
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[fail(display = "IMAP Could not obtain imap-session object.")]
+    #[error("IMAP Could not obtain imap-session object.")]
     NoSession,
 
-    #[fail(display = "IMAP Connection Lost or no connection established")]
+    #[error("IMAP Connection Lost or no connection established")]
     ConnectionLost,
 
-    #[fail(display = "IMAP Folder name invalid: {:?}", _0)]
+    #[error("IMAP Folder name invalid: {0}")]
     BadFolderName(String),
 
-    #[fail(display = "IMAP close/expunge failed: {}", _0)]
-    CloseExpungeFailed(#[cause] async_imap::error::Error),
+    #[error("IMAP close/expunge failed")]
+    CloseExpungeFailed(#[from] async_imap::error::Error),
 
-    #[fail(display = "IMAP other error: {:?}", _0)]
+    #[error("IMAP other error: {0}")]
     Other(String),
 }
 
 impl Imap {
+    /// Issues a CLOSE command to expunge selected folder.
+    ///
+    /// CLOSE is considerably faster than an EXPUNGE, see
+    /// https://tools.ietf.org/html/rfc3501#section-6.4.2
+    async fn close_folder(&mut self, context: &Context) -> Result<()> {
+        if let Some(ref folder) = self.config.selected_folder {
+            info!(context, "Expunge messages in \"{}\".", folder);
+
+            if let Some(ref mut session) = self.session {
+                match session.close().await {
+                    Ok(_) => {
+                        info!(context, "close/expunge succeeded");
+                    }
+                    Err(err) => {
+                        self.trigger_reconnect();
+                        return Err(Error::CloseExpungeFailed(err));
+                    }
+                }
+            } else {
+                return Err(Error::NoSession);
+            }
+        }
+        self.config.selected_folder = None;
+        self.config.selected_folder_needs_expunge = false;
+        Ok(())
+    }
+
     /// select a folder, possibly update uid_validity and, if needed,
     /// expunge the folder to remove delete-marked messages.
     pub(super) async fn select_folder<S: AsRef<str>>(

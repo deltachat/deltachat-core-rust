@@ -5,9 +5,21 @@ import queue
 import time
 from deltachat import const, Account
 from deltachat.message import Message
+from deltachat.hookspec import account_hookimpl
 from datetime import datetime, timedelta
 from conftest import (wait_configuration_progress,
                       wait_securejoin_inviter_progress)
+
+
+@pytest.mark.parametrize("msgtext,res", [
+    ("Member Me (tmp1@x.org) removed by tmp2@x.org.", ("removed", "tmp1@x.org")),
+    ("Member tmp1@x.org added by tmp2@x.org.", ("added", "tmp1@x.org")),
+])
+def test_parse_system_add_remove(msgtext, res):
+    from deltachat.message import parse_system_add_remove
+
+    out = parse_system_add_remove(msgtext)
+    assert out == res
 
 
 class TestOfflineAccountBasic:
@@ -25,11 +37,12 @@ class TestOfflineAccountBasic:
         ac1 = Account(p.strpath, os_name="solarpunk")
         ac1.get_info()
 
-    def test_preconfigure_keypair(self, acfactory, datadir):
+    def test_preconfigure_keypair(self, acfactory, data):
         ac = acfactory.get_unconfigured_account()
-        ac._preconfigure_keypair("alice@example.com",
-                                 datadir.join("key/alice-public.asc").read(),
-                                 datadir.join("key/alice-secret.asc").read())
+        alice_public = data.read_path("key/alice-public.asc")
+        alice_secret = data.read_path("key/alice-secret.asc")
+        assert alice_public and alice_secret
+        ac._preconfigure_keypair("alice@example.com", alice_public, alice_secret)
 
     def test_getinfo(self, acfactory):
         ac1 = acfactory.get_unconfigured_account()
@@ -62,8 +75,7 @@ class TestOfflineAccountBasic:
 
     def test_selfcontact_if_unconfigured(self, acfactory):
         ac1 = acfactory.get_unconfigured_account()
-        with pytest.raises(ValueError):
-            ac1.get_self_contact()
+        assert not ac1.get_self_contact().addr
 
     def test_selfcontact_configured(self, acfactory):
         ac1 = acfactory.get_configured_offline_account()
@@ -146,6 +158,9 @@ class TestOfflineChat:
         str(chat1)
         repr(chat1)
 
+    def test_is_group(self, chat1):
+        assert not chat1.is_group()
+
     def test_chat_by_id(self, chat1):
         chat2 = chat1.account.get_chat_by_id(chat1.id)
         assert chat2 == chat1
@@ -188,18 +203,17 @@ class TestOfflineChat:
         # assert d["param"] == chat.param
         assert d["color"] == chat.get_color()
         assert d["profile_image"] == "" if chat.get_profile_image() is None else chat.get_profile_image()
-        assert d["subtitle"] == chat.get_subtitle()
         assert d["draft"] == "" if chat.get_draft() is None else chat.get_draft()
 
     def test_group_chat_creation_with_translation(self, ac1):
         ac1.set_stock_translation(const.DC_STR_NEWGROUPDRAFT, "xyz %1$s")
-        ac1._evlogger.consume_events()
+        ac1._evtracker.consume_events()
         with pytest.raises(ValueError):
             ac1.set_stock_translation(const.DC_STR_NEWGROUPDRAFT, "xyz %2$s")
-        ac1._evlogger.get_matching("DC_EVENT_WARNING")
+        ac1._evtracker.get_matching("DC_EVENT_WARNING")
         with pytest.raises(ValueError):
             ac1.set_stock_translation(500, "xyz %1$s")
-        ac1._evlogger.get_matching("DC_EVENT_WARNING")
+        ac1._evtracker.get_matching("DC_EVENT_WARNING")
         contact1 = ac1.create_contact("some1@hello.com", name="some1")
         contact2 = ac1.create_contact("some2@hello.com", name="some2")
         chat = ac1.create_group_chat(name="title1")
@@ -216,6 +230,7 @@ class TestOfflineChat:
     def test_group_chat_qr(self, acfactory, ac1, verified):
         ac2 = acfactory.get_configured_offline_account()
         chat = ac1.create_group_chat(name="title1", verified=verified)
+        assert chat.is_group()
         qr = chat.get_join_qr()
         assert ac2.check_qr(qr).is_ask_verifygroup
 
@@ -242,7 +257,7 @@ class TestOfflineChat:
 
     def test_delete_and_send_fails(self, ac1, chat1):
         chat1.delete()
-        ac1._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
+        ac1._evtracker.wait_next_messages_changed()
         with pytest.raises(ValueError):
             chat1.send_text("msg1")
 
@@ -305,9 +320,9 @@ class TestOfflineChat:
             chat1.send_image(path="notexists")
         fn = data.get_path("d.png")
         lp.sec("sending image")
-        chat1.account._evlogger.consume_events()
+        chat1.account._evtracker.consume_events()
         msg = chat1.send_image(fn)
-        chat1.account._evlogger.get_matching("DC_EVENT_NEW_BLOB_FILE")
+        chat1.account._evtracker.get_matching("DC_EVENT_NEW_BLOB_FILE")
         assert msg.is_image()
         assert msg
         assert msg.id > 0
@@ -333,6 +348,17 @@ class TestOfflineChat:
         assert msg2 != msg
         assert msg2.filename != msg.filename
 
+    def test_create_contact(self, acfactory):
+        ac1 = acfactory.get_configured_offline_account()
+        email = "hello <hello@example.org>"
+        contact1 = ac1.create_contact(email)
+        assert contact1.addr == "hello@example.org"
+        assert contact1.display_name == "hello"
+        contact1 = ac1.create_contact(email, name="world")
+        assert contact1.display_name == "world"
+        contact2 = ac1.create_contact("display1 <x@example.org>", "real")
+        assert contact2.display_name == "real"
+
     def test_create_chat_mismatch(self, acfactory):
         ac1 = acfactory.get_configured_offline_account()
         ac2 = acfactory.get_configured_offline_account()
@@ -354,13 +380,11 @@ class TestOfflineChat:
         contact = msg.get_sender_contact()
         assert contact == ac1.get_self_contact()
 
-    def test_basic_configure_ok_addr_setting_forbidden(self, ac1):
+    def test_set_config_after_configure_is_forbidden(self, ac1):
         assert ac1.get_config("mail_pw")
         assert ac1.is_configured()
         with pytest.raises(ValueError):
             ac1.set_config("addr", "123@example.org")
-        with pytest.raises(ValueError):
-            ac1.configure(addr="123@example.org")
 
     def test_import_export_one_contact(self, acfactory, tmpdir):
         backupdir = tmpdir.mkdir("backup")
@@ -419,19 +443,64 @@ class TestOfflineChat:
     def test_group_chat_many_members_add_remove(self, ac1, lp):
         lp.sec("ac1: creating group chat with 10 other members")
         chat = ac1.create_group_chat(name="title1")
+        # promote chat
+        chat.send_text("hello")
+        assert chat.is_promoted()
+
+        # activate local plugin
+        in_list = []
+
+        class InPlugin:
+            @account_hookimpl
+            def ac_member_added(self, chat, contact):
+                in_list.append(("added", chat, contact))
+
+            @account_hookimpl
+            def ac_member_removed(self, chat, contact):
+                in_list.append(("removed", chat, contact))
+
+        ac1.add_account_plugin(InPlugin())
+
+        # perform add contact many times
         contacts = []
         for i in range(10):
+            lp.sec("create contact")
             contact = ac1.create_contact("some{}@example.org".format(i))
             contacts.append(contact)
+            lp.sec("add contact")
             chat.add_contact(contact)
 
         num_contacts = len(chat.get_contacts())
         assert num_contacts == 11
 
+        # perform plugin hooks
+        ac1._handle_current_events()
+
+        assert len(in_list) == 10
+        chat_contacts = chat.get_contacts()
+        for in_cmd, in_chat, in_contact in in_list:
+            assert in_cmd == "added"
+            assert in_chat == chat
+            assert in_contact in chat_contacts
+            chat_contacts.remove(in_contact)
+
+        assert chat_contacts[0].id == 1  # self contact
+
+        in_list[:] = []
+
         lp.sec("ac1: removing two contacts and checking things are right")
         chat.remove_contact(contacts[9])
         chat.remove_contact(contacts[3])
         assert len(chat.get_contacts()) == 9
+
+        ac1._handle_current_events()
+        assert len(in_list) == 2
+        assert in_list[0][0] == "removed"
+        assert in_list[0][1] == chat
+        assert in_list[0][2] == contacts[9]
+        assert in_list[1][0] == "removed"
+        assert in_list[1][1] == chat
+        assert in_list[1][2] == contacts[3]
 
 
 class TestOnlineAccount:
@@ -442,6 +511,11 @@ class TestOnlineAccount:
         if both_created:
             ac2.create_chat_by_contact(ac2.create_contact(email=ac1.get_config("addr")))
         return chat
+
+    def test_double_iter_events(self, acfactory):
+        ac1 = acfactory.get_one_online_account()
+        with pytest.raises(RuntimeError):
+            next(ac1.iter_events())
 
     @pytest.mark.ignored
     def test_configure_generate_key(self, acfactory, lp):
@@ -454,6 +528,8 @@ class TestOnlineAccount:
             pre_generated_key=False,
             config={"key_gen_type": str(const.DC_KEY_GEN_ED25519)}
         )
+        # rsa key gen can be slow especially on CI, adjust timeout
+        ac1._evtracker.set_timeout(120)
         wait_configuration_progress(ac1, 1000)
         ac1.start_threads()
         wait_configuration_progress(ac2, 1000)
@@ -463,24 +539,24 @@ class TestOnlineAccount:
         lp.sec("ac1: send unencrypted message to ac2")
         chat.send_text("message1")
         lp.sec("ac2: waiting for message from ac1")
-        ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG")
-        msg_in = ac2.get_message_by_id(ev[2])
+        ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")
+        msg_in = ac2.get_message_by_id(ev.data2)
         assert msg_in.text == "message1"
         assert not msg_in.is_encrypted()
 
         lp.sec("ac2: send encrypted message to ac1")
         msg_in.chat.send_text("message2")
         lp.sec("ac1: waiting for message from ac2")
-        ev = ac1._evlogger.get_matching("DC_EVENT_INCOMING_MSG")
-        msg2_in = ac1.get_message_by_id(ev[2])
+        ev = ac1._evtracker.get_matching("DC_EVENT_INCOMING_MSG")
+        msg2_in = ac1.get_message_by_id(ev.data2)
         assert msg2_in.text == "message2"
         assert msg2_in.is_encrypted()
 
         lp.sec("ac1: send encrypted message to ac2")
         msg2_in.chat.send_text("message3")
         lp.sec("ac2: waiting for message from ac1")
-        ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG")
-        msg3_in = ac1.get_message_by_id(ev[2])
+        ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")
+        msg3_in = ac1.get_message_by_id(ev.data2)
         assert msg3_in.text == "message3"
         assert msg3_in.is_encrypted()
 
@@ -500,8 +576,8 @@ class TestOnlineAccount:
         assert len(export_files) == 2
         for x in export_files:
             assert x.startswith(dir.strpath)
-        ac1._evlogger.consume_events()
-        ac1.import_self_keys(dir.strpath)
+        ac1._evtracker.consume_events()
+        ac2.import_self_keys(dir.strpath)
 
     def test_one_account_send_bcc_setting(self, acfactory, lp):
         ac1 = acfactory.get_online_configuring_account()
@@ -529,13 +605,13 @@ class TestOnlineAccount:
         assert not msg_out.is_forwarded()
 
         # wait for send out (no BCC)
-        ev = ac1._evlogger.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
+        ev = ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
         assert ac1.get_config("bcc_self") == "0"
 
         # make sure we are not sending message to ourselves
-        assert self_addr not in ev[2]
-        assert other_addr in ev[2]
-        ev = ac1._evlogger.get_matching("DC_EVENT_DELETED_BLOB_FILE")
+        assert self_addr not in ev.data2
+        assert other_addr in ev.data2
+        ev = ac1._evtracker.get_matching("DC_EVENT_DELETED_BLOB_FILE")
 
         lp.sec("ac1: setting bcc_self=1")
         ac1.set_config("bcc_self", "1")
@@ -544,17 +620,17 @@ class TestOnlineAccount:
         msg_out = chat.send_text("message2")
 
         # wait for send out (BCC)
-        ev = ac1._evlogger.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
+        ev = ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
         assert ac1.get_config("bcc_self") == "1"
 
         # now make sure we are sending message to ourselves too
-        assert self_addr in ev[2]
-        assert other_addr in ev[2]
-        ev = ac1._evlogger.get_matching("DC_EVENT_DELETED_BLOB_FILE")
+        assert self_addr in ev.data2
+        assert other_addr in ev.data2
+        ev = ac1._evtracker.get_matching("DC_EVENT_DELETED_BLOB_FILE")
 
         # Second client receives only second message, but not the first
-        ev = ac1_clone._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
-        assert ac1_clone.get_message_by_id(ev[2]).text == msg_out.text
+        ev_msg = ac1_clone._evtracker.wait_next_messages_changed()
+        assert ev_msg.text == msg_out.text
 
     def test_send_file_twice_unicode_filename_mangling(self, tmpdir, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
@@ -573,9 +649,9 @@ class TestOnlineAccount:
             chat.send_msg(msg1)
 
             lp.sec("ac2: receive message")
-            ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
-            assert ev[2] > const.DC_CHAT_ID_LAST_SPECIAL
-            return ac2.get_message_by_id(ev[2])
+            ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
+            assert ev.data2 > const.DC_CHAT_ID_LAST_SPECIAL
+            return ac2.get_message_by_id(ev.data2)
 
         msg = send_and_receive_message()
         assert msg.text == "withfile"
@@ -605,16 +681,16 @@ class TestOnlineAccount:
         chat.send_file(p, mime_type="text/html")
 
         lp.sec("ac2: receive message")
-        ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
-        assert ev[2] > const.DC_CHAT_ID_LAST_SPECIAL
-        msg = ac2.get_message_by_id(ev[2])
+        ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
+        assert ev.data2 > const.DC_CHAT_ID_LAST_SPECIAL
+        msg = ac2.get_message_by_id(ev.data2)
 
         assert open(msg.filename).read() == content
         assert msg.filename.endswith(basename)
 
     def test_mvbox_sentbox_threads(self, acfactory, lp):
         lp.sec("ac1: start with mvbox thread")
-        ac1 = acfactory.get_online_configuring_account(mvbox=True, sentbox=True)
+        ac1 = acfactory.get_online_configuring_account(mvbox=True, move=True, sentbox=True)
 
         lp.sec("ac2: start without mvbox/sentbox threads")
         ac2 = acfactory.get_online_configuring_account()
@@ -630,25 +706,25 @@ class TestOnlineAccount:
         lp.sec("ac1: send message and wait for ac2 to receive it")
         chat = self.get_chat(ac1, ac2)
         chat.send_text("message1")
-        ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
-        assert ev[2] > const.DC_CHAT_ID_LAST_SPECIAL
+        ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
+        assert ev.data2 > const.DC_CHAT_ID_LAST_SPECIAL
         lp.sec("test finished")
 
     def test_move_works(self, acfactory):
         ac1 = acfactory.get_online_configuring_account()
-        ac2 = acfactory.get_online_configuring_account(mvbox=True)
+        ac2 = acfactory.get_online_configuring_account(mvbox=True, move=True)
         wait_configuration_progress(ac2, 1000)
         ac2.start_threads()
         wait_configuration_progress(ac1, 1000)
         ac1.start_threads()
         chat = self.get_chat(ac1, ac2)
         chat.send_text("message1")
-        ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
-        assert ev[2] > const.DC_CHAT_ID_LAST_SPECIAL
-        ev = ac2._evlogger.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
+        ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
+        assert ev.data2 > const.DC_CHAT_ID_LAST_SPECIAL
+        ac2._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
 
     def test_move_works_on_self_sent(self, acfactory):
-        ac1 = acfactory.get_online_configuring_account(mvbox=True)
+        ac1 = acfactory.get_online_configuring_account(mvbox=True, move=True)
         ac1.set_config("bcc_self", "1")
         ac2 = acfactory.get_online_configuring_account()
         wait_configuration_progress(ac2, 1000)
@@ -659,9 +735,9 @@ class TestOnlineAccount:
         chat.send_text("message1")
         chat.send_text("message2")
         chat.send_text("message3")
-        ac1._evlogger.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
-        ac1._evlogger.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
-        ac1._evlogger.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
+        ac1._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
+        ac1._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
+        ac1._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
 
     def test_forward_messages(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
@@ -671,8 +747,8 @@ class TestOnlineAccount:
         msg_out = chat.send_text("message2")
 
         lp.sec("ac2: wait for receive")
-        ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
-        assert ev[2] == msg_out.id
+        ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
+        assert ev.data2 == msg_out.id
         msg_in = ac2.get_message_by_id(msg_out.id)
         assert msg_in.text == "message2"
 
@@ -704,8 +780,8 @@ class TestOnlineAccount:
         msg_out = chat.send_text("message2")
 
         lp.sec("receiving message")
-        ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG")
-        msg_in = ac2.get_message_by_id(ev[2])
+        ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")
+        msg_in = ac2.get_message_by_id(ev.data2)
         assert msg_in.text == "message2"
         assert not msg_in.is_forwarded()
 
@@ -715,22 +791,22 @@ class TestOnlineAccount:
         ac1.forward_messages([msg_out], group)
 
         # wait for other account to receive
-        ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG")
-        msg_in = ac2.get_message_by_id(ev[2])
+        ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")
+        msg_in = ac2.get_message_by_id(ev.data2)
         assert msg_in.text == "message2"
         assert msg_in.is_forwarded()
 
     def test_send_self_message_and_empty_folder(self, acfactory, lp):
-        ac1 = acfactory.get_one_online_account()
+        ac1 = acfactory.get_one_online_account(mvbox=True, move=True)
         lp.sec("ac1: create self chat")
         chat = ac1.create_chat_by_contact(ac1.get_self_contact())
         chat.send_text("hello")
-        ac1._evlogger.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
+        ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
         ac1.empty_server_folders(inbox=True, mvbox=True)
-        ev = ac1._evlogger.get_matching("DC_EVENT_IMAP_FOLDER_EMPTIED")
-        assert ev[2] == "DeltaChat"
-        ev = ac1._evlogger.get_matching("DC_EVENT_IMAP_FOLDER_EMPTIED")
-        assert ev[2] == "INBOX"
+        ev1 = ac1._evtracker.get_matching("DC_EVENT_IMAP_FOLDER_EMPTIED")
+        ev2 = ac1._evtracker.get_matching("DC_EVENT_IMAP_FOLDER_EMPTIED")
+        boxes = sorted([ev1.data2, ev2.data2])
+        assert boxes == ["DeltaChat", "INBOX"]
 
     def test_send_and_receive_message_markseen(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
@@ -743,15 +819,14 @@ class TestOnlineAccount:
 
         lp.sec("sending text message from ac1 to ac2")
         msg_out = chat.send_text("message1")
-        ev = ac1._evlogger.get_matching("DC_EVENT_MSG_DELIVERED")
-        evt_name, data1, data2 = ev
-        assert data1 == chat.id
-        assert data2 == msg_out.id
+        ev = ac1._evtracker.get_matching("DC_EVENT_MSG_DELIVERED")
+        assert ev.data1 == chat.id
+        assert ev.data2 == msg_out.id
         assert msg_out.is_out_delivered()
 
         lp.sec("wait for ac2 to receive message")
-        ev = ac2._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
-        assert ev[2] == msg_out.id
+        ev = ac2._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
+        assert ev.data2 == msg_out.id
         msg_in = ac2.get_message_by_id(msg_out.id)
         assert msg_in.text == "message1"
         assert not msg_in.is_forwarded()
@@ -762,7 +837,7 @@ class TestOnlineAccount:
         assert msg_in in chat2.get_messages()
         assert chat2.is_deaddrop()
         assert chat2.count_fresh_messages() == 0
-        assert msg_in.time_received > msg_in.time_sent
+        assert msg_in.time_received >= msg_out.time_sent
 
         lp.sec("create new chat with contact and verify it's proper")
         chat2b = ac2.create_chat_by_message(msg_in)
@@ -773,37 +848,37 @@ class TestOnlineAccount:
         chat2b.mark_noticed()
         assert chat2b.count_fresh_messages() == 0
 
-        ac2._evlogger.consume_events()
+        ac2._evtracker.consume_events()
 
         lp.sec("sending a second message from ac1 to ac2")
         msg_out2 = chat.send_text("message2")
 
         lp.sec("wait for ac2 to receive second message")
-        ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG")
-        assert ev[2] == msg_out2.id
+        ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")
+        assert ev.data2 == msg_out2.id
         msg_in2 = ac2.get_message_by_id(msg_out2.id)
 
         lp.sec("mark messages as seen on ac2, wait for changes on ac1")
         ac2.mark_seen_messages([msg_in, msg_in2])
         lp.step("1")
         for i in range(2):
-            ev = ac1._evlogger.get_matching("DC_EVENT_MSG_READ")
-            assert ev[1] > const.DC_CHAT_ID_LAST_SPECIAL
-            assert ev[2] > const.DC_MSG_ID_LAST_SPECIAL
+            ev = ac1._evtracker.get_matching("DC_EVENT_MSG_READ")
+            assert ev.data1 > const.DC_CHAT_ID_LAST_SPECIAL
+            assert ev.data2 > const.DC_MSG_ID_LAST_SPECIAL
         lp.step("2")
         assert msg_out.is_out_mdn_received()
         assert msg_out2.is_out_mdn_received()
 
         lp.sec("check that a second call to mark_seen does not create change or smtp job")
-        ac2._evlogger.consume_events()
-        ac2.mark_seen_messages([msg_in])
+        ac2._evtracker.consume_events()
+        msg_in.mark_seen()
         try:
-            ac2._evlogger.get_matching("DC_EVENT_MSG_READ", timeout=0.01)
+            ac2._evtracker.get_matching("DC_EVENT_MSG_READ", timeout=0.01)
         except queue.Empty:
             pass  # mark_seen_messages() has generated events before it returns
 
     def test_mdn_asymetric(self, acfactory, lp):
-        ac1, ac2 = acfactory.get_two_online_accounts()
+        ac1, ac2 = acfactory.get_two_online_accounts(move=True)
 
         lp.sec("ac1: create chat with ac2")
         chat = self.get_chat(ac1, ac2, both_created=True)
@@ -821,7 +896,7 @@ class TestOnlineAccount:
         ac1.set_config("mdns_enabled", "0")
 
         lp.sec("wait for ac2 to receive message")
-        msg = ac2.wait_next_incoming_message()
+        msg = ac2._evtracker.wait_next_incoming_message()
 
         assert len(msg.chat.get_messages()) == 1
 
@@ -830,7 +905,7 @@ class TestOnlineAccount:
 
         lp.sec("ac1: waiting for incoming activity")
         # MDN should be moved even though MDNs are already disabled
-        ac1._evlogger.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
+        ac1._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
 
         assert len(chat.get_messages()) == 1
 
@@ -848,8 +923,8 @@ class TestOnlineAccount:
         assert not msg_out.is_encrypted()
 
         lp.sec("wait for ac2 to receive message")
-        ev = ac2._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
-        assert ev[2] == msg_out.id
+        ev = ac2._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
+        assert ev.data2 == msg_out.id
         msg_in = ac2.get_message_by_id(msg_out.id)
         assert msg_in.text == "message1"
 
@@ -858,12 +933,19 @@ class TestOnlineAccount:
         chat2b.send_text("message-back")
 
         lp.sec("wait for ac1 to receive message")
-        ev = ac1._evlogger.get_matching("DC_EVENT_INCOMING_MSG")
-        assert ev[1] == chat.id
-        assert ev[2] > msg_out.id
-        msg_back = ac1.get_message_by_id(ev[2])
+        ev = ac1._evtracker.get_matching("DC_EVENT_INCOMING_MSG")
+        assert ev.data1 == chat.id
+        assert ev.data2 > msg_out.id
+        msg_back = ac1.get_message_by_id(ev.data2)
         assert msg_back.text == "message-back"
         assert msg_back.is_encrypted()
+
+        # test get_fresh_messages
+        fresh_msgs = list(ac1.get_fresh_messages())
+        assert len(fresh_msgs) == 1
+        assert fresh_msgs[0] == msg_back
+        msg_back.mark_seen()
+        assert not list(ac1.get_fresh_messages())
 
         # Test that we do not gossip peer keys in 1-to-1 chat,
         # as it makes no sense to gossip to peers their own keys.
@@ -876,7 +958,7 @@ class TestOnlineAccount:
         chat.add_contact(ac1.create_contact(ac2.get_config("addr")))
         chat.add_contact(ac1.create_contact("notexisting@testrun.org"))
         msg = chat.send_text("test not encrypt")
-        ev = ac1._evlogger.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
+        ev = ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
         assert not msg.is_encrypted()
 
     def test_send_first_message_as_long_unicode_with_cr(self, acfactory, lp):
@@ -897,11 +979,11 @@ class TestOnlineAccount:
         assert not msg_out.is_encrypted()
 
         lp.sec("wait for ac2 to receive multi-line non-unicode message")
-        msg_in = ac2.wait_next_incoming_message()
+        msg_in = ac2._evtracker.wait_next_incoming_message()
         assert msg_in.text == text1
 
         lp.sec("wait for ac2 to receive multi-line unicode message")
-        msg_in = ac2.wait_next_incoming_message()
+        msg_in = ac2._evtracker.wait_next_incoming_message()
         assert msg_in.text == text2
         assert ac1.get_config("addr") in msg_in.chat.get_name()
 
@@ -916,7 +998,7 @@ class TestOnlineAccount:
         assert not msg_out.is_encrypted()
 
         lp.sec("wait for ac2 to receive message")
-        ev = ac2._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
+        ev = ac2._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
         msg_in = ac2.get_message_by_id(msg_out.id)
         assert msg_in.text == "message1"
         assert not msg_in.is_encrypted()
@@ -926,9 +1008,9 @@ class TestOnlineAccount:
         chat2b.send_text("message-back")
 
         lp.sec("wait for ac1 to receive message")
-        ev = ac1._evlogger.get_matching("DC_EVENT_INCOMING_MSG")
-        assert ev[1] == chat.id
-        msg_back = ac1.get_message_by_id(ev[2])
+        ev = ac1._evtracker.get_matching("DC_EVENT_INCOMING_MSG")
+        assert ev.data1 == chat.id
+        msg_back = ac1.get_message_by_id(ev.data2)
         assert msg_back.text == "message-back"
         assert msg_back.is_encrypted()
 
@@ -953,8 +1035,8 @@ class TestOnlineAccount:
         assert chat.get_draft() is None
 
         lp.sec("wait for ac2 to receive message")
-        ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG")
-        msg_in = ac2.get_message_by_id(ev[2])
+        ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")
+        msg_in = ac2.get_message_by_id(ev.data2)
         assert msg_in.text == "message2 -- should be encrypted"
         assert msg_in.is_encrypted()
 
@@ -967,12 +1049,12 @@ class TestOnlineAccount:
 
         lp.sec("sending text message from ac1 to ac2")
         msg_out = chat.send_text("message1")
-        ac1._evlogger.get_matching("DC_EVENT_MSG_DELIVERED")
+        ac1._evtracker.get_matching("DC_EVENT_MSG_DELIVERED")
         assert msg_out.get_mime_headers() is None
 
         lp.sec("wait for ac2 to receive message")
-        ev = ac2._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
-        in_id = ev[2]
+        ev = ac2._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
+        in_id = ev.data2
         mime = ac2.get_message_by_id(in_id).get_mime_headers()
         assert mime.get_all("From")
         assert mime.get_all("Received")
@@ -981,22 +1063,49 @@ class TestOnlineAccount:
         ac1, ac2 = acfactory.get_two_online_accounts()
         chat = self.get_chat(ac1, ac2)
 
+        message_queue = queue.Queue()
+
+        class InPlugin:
+            @account_hookimpl
+            def ac_incoming_message(self, message):
+                message_queue.put(message)
+
+        delivered = queue.Queue()
+        out = queue.Queue()
+
+        class OutPlugin:
+            @account_hookimpl
+            def ac_message_delivered(self, message):
+                delivered.put(message)
+
+            @account_hookimpl
+            def ac_outgoing_message(self, message):
+                out.put(message)
+
+        ac1.add_account_plugin(OutPlugin())
+        ac2.add_account_plugin(InPlugin())
+
         lp.sec("sending image message from ac1 to ac2")
         path = data.get_path("d.png")
         msg_out = chat.send_image(path)
-        ev = ac1._evlogger.get_matching("DC_EVENT_MSG_DELIVERED")
-        evt_name, data1, data2 = ev
-        assert data1 == chat.id
-        assert data2 == msg_out.id
+        ev = ac1._evtracker.get_matching("DC_EVENT_MSG_DELIVERED")
+        assert ev.data1 == chat.id
+        assert ev.data2 == msg_out.id
         assert msg_out.is_out_delivered()
+        m = out.get()
+        assert m == msg_out
+        m = delivered.get()
+        assert m == msg_out
 
         lp.sec("wait for ac2 to receive message")
-        ev = ac2._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
-        assert ev[2] == msg_out.id
+        ev = ac2._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
+        assert ev.data2 == msg_out.id
         msg_in = ac2.get_message_by_id(msg_out.id)
         assert msg_in.is_image()
         assert os.path.exists(msg_in.filename)
         assert os.stat(msg_in.filename).st_size == os.stat(path).st_size
+        m = message_queue.get()
+        assert m == msg_in
 
     def test_import_export_online_all(self, acfactory, tmpdir, lp):
         ac1 = acfactory.get_online_configuring_account()
@@ -1056,9 +1165,9 @@ class TestOnlineAccount:
         lp.sec("trigger ac setup message and return setupcode")
         assert ac1.get_info()["fingerprint"] != ac2.get_info()["fingerprint"]
         setup_code = ac1.initiate_key_transfer()
-        ac2._evlogger.set_timeout(30)
-        ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
-        msg = ac2.get_message_by_id(ev[2])
+        ac2._evtracker.set_timeout(30)
+        ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
+        msg = ac2.get_message_by_id(ev.data2)
         assert msg.is_setup_message()
         assert msg.get_setupcodebegin() == setup_code[:2]
         lp.sec("try a bad setup code")
@@ -1073,7 +1182,7 @@ class TestOnlineAccount:
     def test_ac_setup_message_twice(self, acfactory, lp):
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.clone_online_account(ac1)
-        ac2._evlogger.set_timeout(30)
+        ac2._evtracker.set_timeout(30)
         wait_configuration_progress(ac2, 1000)
         ac2.start_threads()
         wait_configuration_progress(ac1, 1000)
@@ -1082,12 +1191,12 @@ class TestOnlineAccount:
         lp.sec("trigger ac setup message but ignore")
         assert ac1.get_info()["fingerprint"] != ac2.get_info()["fingerprint"]
         ac1.initiate_key_transfer()
-        ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
+        ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
 
         lp.sec("trigger second ac setup message, wait for receive ")
         setup_code2 = ac1.initiate_key_transfer()
-        ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
-        msg = ac2.get_message_by_id(ev[2])
+        ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
+        msg = ac2.get_message_by_id(ev.data2)
         assert msg.is_setup_message()
         assert msg.get_setupcodebegin() == setup_code2[:2]
 
@@ -1099,6 +1208,7 @@ class TestOnlineAccount:
         ac1, ac2 = acfactory.get_two_online_accounts()
         lp.sec("ac1: create QR code and let ac2 scan it, starting the securejoin")
         qr = ac1.get_setup_contact_qr()
+
         lp.sec("ac2: start QR-code based setup contact protocol")
         ch = ac2.qr_setup_contact(qr)
         assert ch.id >= 10
@@ -1113,10 +1223,9 @@ class TestOnlineAccount:
         ch = ac2.qr_join_chat(qr)
         assert ch.id >= 10
         # check that at least some of the handshake messages are deleted
-        ac1._evlogger.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED")
-        ac2._evlogger.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED")
+        ac1._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED")
+        ac2._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED")
         wait_securejoin_inviter_progress(ac1, 1000)
-        ac1._evlogger.get_matching("DC_EVENT_SECUREJOIN_MEMBER_ADDED")
 
     def test_qr_verified_group_and_chatting(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
@@ -1128,10 +1237,9 @@ class TestOnlineAccount:
         chat2 = ac2.qr_join_chat(qr)
         assert chat2.id >= 10
         wait_securejoin_inviter_progress(ac1, 1000)
-        ac1._evlogger.get_matching("DC_EVENT_SECUREJOIN_MEMBER_ADDED")
 
         lp.sec("ac2: read member added message")
-        msg = ac2.wait_next_incoming_message()
+        msg = ac2._evtracker.wait_next_incoming_message()
         assert msg.is_encrypted()
         assert "added" in msg.text.lower()
 
@@ -1140,14 +1248,14 @@ class TestOnlineAccount:
         assert msg_out.is_encrypted()
 
         lp.sec("ac2: read message and check it's verified chat")
-        msg = ac2.wait_next_incoming_message()
+        msg = ac2._evtracker.wait_next_incoming_message()
         assert msg.text == "hello"
         assert msg.chat.is_verified()
         assert msg.is_encrypted()
 
         lp.sec("ac2: send message and let ac1 read it")
         chat2.send_text("world")
-        msg = ac1.wait_next_incoming_message()
+        msg = ac1._evtracker.wait_next_incoming_message()
         assert msg.text == "world"
         assert msg.is_encrypted()
 
@@ -1166,7 +1274,7 @@ class TestOnlineAccount:
         assert not msg.is_encrypted()
 
         lp.sec("ac2: wait for receiving message and avatar from ac1")
-        msg1 = ac2.wait_next_incoming_message()
+        msg1 = ac2._evtracker.wait_next_incoming_message()
         assert not msg1.chat.is_deaddrop()
         received_path = msg1.get_sender_contact().get_profile_image()
         assert open(received_path, "rb").read() == open(p, "rb").read()
@@ -1180,13 +1288,13 @@ class TestOnlineAccount:
         assert m.is_encrypted()
 
         lp.sec("ac1: wait for receiving message and avatar from ac2")
-        msg2 = ac1.wait_next_incoming_message()
+        msg2 = ac1._evtracker.wait_next_incoming_message()
         received_path = msg2.get_sender_contact().get_profile_image()
         assert received_path is not None, "did not get avatar through encrypted message"
         assert open(received_path, "rb").read() == open(p, "rb").read()
 
-        ac2._evlogger.consume_events()
-        ac1._evlogger.consume_events()
+        ac2._evtracker.consume_events()
+        ac1._evtracker.consume_events()
 
         # XXX not sure if the following is correct / possible. you may remove it
         lp.sec("ac1: delete profile image from chat, and send message to ac2")
@@ -1195,8 +1303,82 @@ class TestOnlineAccount:
         assert m.is_encrypted()
 
         lp.sec("ac2: wait for message along with avatar deletion of ac1")
-        msg3 = ac2.wait_next_incoming_message()
+        msg3 = ac2._evtracker.wait_next_incoming_message()
         assert msg3.get_sender_contact().get_profile_image() is None
+
+    def test_add_remove_member_remote_events(self, acfactory, lp):
+        ac1, ac2 = acfactory.get_two_online_accounts()
+        ac1_addr = ac1.get_config("addr")
+        ac2_addr = ac2.get_config("addr")
+        # activate local plugin for ac2
+        in_list = queue.Queue()
+
+        class EventHolder:
+            def __init__(self, **kwargs):
+                self.__dict__.update(kwargs)
+
+        class InPlugin:
+            @account_hookimpl
+            def ac_incoming_message(self, message):
+                # we immediately accept the sender because
+                # otherwise we won't see member_added contacts
+                message.accept_sender_contact()
+
+            @account_hookimpl
+            def ac_chat_modified(self, chat):
+                in_list.put(EventHolder(action="chat-modified", chat=chat))
+
+            @account_hookimpl
+            def ac_member_added(self, chat, contact, message):
+                in_list.put(EventHolder(action="added", chat=chat, contact=contact, message=message))
+
+            @account_hookimpl
+            def ac_member_removed(self, chat, contact, message):
+                in_list.put(EventHolder(action="removed", chat=chat, contact=contact, message=message))
+
+        ac2.add_account_plugin(InPlugin())
+
+        lp.sec("ac1: create group chat with ac2")
+        chat = ac1.create_group_chat("hello")
+        contact = ac1.create_contact(email=ac2_addr)
+        chat.add_contact(contact)
+
+        lp.sec("ac1: send a message to group chat to promote the group")
+        chat.send_text("afterwards promoted")
+        ev = in_list.get(timeout=10)
+        assert ev.action == "chat-modified"
+        assert chat.is_promoted()
+        assert sorted(x.addr for x in chat.get_contacts()) == \
+            sorted(x.addr for x in ev.chat.get_contacts())
+
+        lp.sec("ac1: add address2")
+        # note that if the above accept_sender_contact() would not
+        # happen we would not receive a proper member_added event
+        contact2 = ac1.create_contact(email="notexistingaccountihope@testrun.org")
+        chat.add_contact(contact2)
+        ev = in_list.get(timeout=10)
+        assert ev.action == "chat-modified"
+        ev = in_list.get(timeout=10)
+        assert ev.action == "added"
+        assert ev.message.get_sender_contact().addr == ac1_addr
+        assert ev.contact.addr == "notexistingaccountihope@testrun.org"
+
+        lp.sec("ac1: remove address2")
+        chat.remove_contact(contact2)
+        ev = in_list.get(timeout=10)
+        assert ev.action == "chat-modified"
+        ev = in_list.get(timeout=10)
+        assert ev.action == "removed"
+        assert ev.contact.addr == contact2.addr
+        assert ev.message.get_sender_contact().addr == ac1_addr
+
+        lp.sec("ac1: remove ac2 contact from chat")
+        chat.remove_contact(contact)
+        ev = in_list.get(timeout=10)
+        assert ev.action == "chat-modified"
+        ev = in_list.get(timeout=10)
+        assert ev.action == "removed"
+        assert ev.message.get_sender_contact().addr == ac1_addr
 
     def test_set_get_group_image(self, acfactory, data, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
@@ -1207,7 +1389,7 @@ class TestOnlineAccount:
 
         lp.sec("ac1: set profile image on unpromoted chat")
         chat.set_profile_image(p)
-        ac1._evlogger.get_matching("DC_EVENT_CHAT_MODIFIED")
+        ac1._evtracker.get_matching("DC_EVENT_CHAT_MODIFIED")
         assert not chat.is_promoted()
 
         lp.sec("ac1: send text to promote chat (XXX without contact added)")
@@ -1220,7 +1402,7 @@ class TestOnlineAccount:
         lp.sec("ac2: add ac1 to a chat so the message does not land in DEADDROP")
         c1 = ac2.create_contact(email=ac1.get_config("addr"))
         ac2.create_chat_by_contact(c1)
-        ev = ac2._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
+        ev = ac2._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
 
         lp.sec("ac1: add ac2 to promoted group chat")
         c2 = ac1.create_contact(email=ac2.get_config("addr"))
@@ -1231,8 +1413,8 @@ class TestOnlineAccount:
         assert chat.is_promoted()
 
         lp.sec("ac2: wait for receiving message from ac1")
-        ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG")
-        msg_in = ac2.get_message_by_id(ev[2])
+        ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")
+        msg_in = ac2.get_message_by_id(ev.data2)
         assert not msg_in.chat.is_deaddrop()
 
         lp.sec("ac2: create chat and read profile image")
@@ -1241,15 +1423,24 @@ class TestOnlineAccount:
         assert p2 is not None
         assert open(p2, "rb").read() == open(p, "rb").read()
 
-        ac2._evlogger.consume_events()
-        ac1._evlogger.consume_events()
+        ac2._evtracker.consume_events()
+        ac1._evtracker.consume_events()
         lp.sec("ac2: delete profile image from chat")
         chat2.remove_profile_image()
-        ev = ac1._evlogger.get_matching("DC_EVENT_INCOMING_MSG")
-        assert ev[1] == chat.id
-        chat1b = ac1.create_chat_by_message(ev[2])
+        ev = ac1._evtracker.get_matching("DC_EVENT_INCOMING_MSG")
+        assert ev.data1 == chat.id
+        chat1b = ac1.create_chat_by_message(ev.data2)
         assert chat1b.get_profile_image() is None
         assert chat.get_profile_image() is None
+
+    def test_accept_sender_contact(self, acfactory, lp):
+        ac1, ac2 = acfactory.get_two_online_accounts()
+        ch = ac1.create_chat_by_contact(ac1.create_contact(ac2.get_config("addr")))
+        ch.send_text("hello")
+        msg = ac2._evtracker.wait_next_messages_changed()
+        assert msg.chat.is_deaddrop()
+        msg.accept_sender_contact()
+        assert not msg.chat.is_deaddrop()
 
     def test_send_receive_locations(self, acfactory, lp):
         now = datetime.utcnow()
@@ -1263,25 +1454,25 @@ class TestOnlineAccount:
         with pytest.raises(ValueError):
             ac1.set_location(latitude=0.0, longitude=10.0)
 
-        ac1._evlogger.consume_events()
-        ac2._evlogger.consume_events()
+        ac1._evtracker.consume_events()
+        ac2._evtracker.consume_events()
 
         lp.sec("ac1: enable location sending in chat")
         chat1.enable_sending_locations(seconds=100)
         assert chat1.is_sending_locations()
-        ac1._evlogger.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
+        ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
 
         ac1.set_location(latitude=2.0, longitude=3.0, accuracy=0.5)
-        ac1._evlogger.get_matching("DC_EVENT_LOCATION_CHANGED")
+        ac1._evtracker.get_matching("DC_EVENT_LOCATION_CHANGED")
         chat1.send_text("hello")
-        ac1._evlogger.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
+        ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
 
         lp.sec("ac2: wait for incoming location message")
-        ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG")  # "enabled-location streaming"
+        ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")  # "enabled-location streaming"
 
         # currently core emits location changed before event_incoming message
-        ac2._evlogger.get_matching("DC_EVENT_LOCATION_CHANGED")
-        ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG")  # text message with location
+        ac2._evtracker.get_matching("DC_EVENT_LOCATION_CHANGED")
+        ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")  # text message with location
 
         locations = chat2.get_locations()
         assert len(locations) == 1
@@ -1324,7 +1515,7 @@ class TestGroupStressTests:
 
             # send a message to get the contact key via autocrypt header
             chat1.send_text("hi")
-            msg = ac1.wait_next_incoming_message()
+            msg = ac1._evtracker.wait_next_incoming_message()
             assert msg.text == "hi"
 
         # Save fifth account for later
@@ -1350,14 +1541,14 @@ class TestGroupStressTests:
 
         lp.sec("ac2: checking that the chat arrived correctly")
         ac2 = accounts[0]
-        msg = ac2.wait_next_incoming_message()
+        msg = ac2._evtracker.wait_next_incoming_message()
         assert msg.text == "hello"
         print("chat is", msg.chat)
         assert len(msg.chat.get_contacts()) == 4
 
         lp.sec("ac3: checking that 'ac4' is a known contact")
         ac3 = accounts[1]
-        msg3 = ac3.wait_next_incoming_message()
+        msg3 = ac3._evtracker.wait_next_incoming_message()
         assert msg3.text == "hello"
         ac3_contacts = ac3.get_contacts()
         assert len(ac3_contacts) == 3
@@ -1366,10 +1557,11 @@ class TestGroupStressTests:
 
         lp.sec("ac2: removing one contact")
         to_remove = contacts[-1]
+
         msg.chat.remove_contact(to_remove)
 
         lp.sec("ac1: receiving system message about contact removal")
-        sysmsg = ac1.wait_next_incoming_message()
+        sysmsg = ac1._evtracker.wait_next_incoming_message()
         assert to_remove.addr in sysmsg.text
         assert len(sysmsg.chat.get_contacts()) == 3
 
@@ -1378,7 +1570,7 @@ class TestGroupStressTests:
 
         lp.sec("ac1: sending another message to the chat")
         chat.send_text("hello2")
-        msg = ac2.wait_next_incoming_message()
+        msg = ac2._evtracker.wait_next_incoming_message()
         assert msg.text == "hello2"
         assert chat.get_summary()["gossiped_timestamp"] == gossiped_timestamp
 
@@ -1388,12 +1580,12 @@ class TestGroupStressTests:
         assert chat.get_summary()["gossiped_timestamp"] >= gossiped_timestamp
 
         lp.sec("ac2: receiving system message about contact addition")
-        sysmsg = ac2.wait_next_incoming_message()
+        sysmsg = ac2._evtracker.wait_next_incoming_message()
         assert contact5.addr in sysmsg.text
         assert len(sysmsg.chat.get_contacts()) == 4
 
         lp.sec("ac5: waiting for message about addition to the chat")
-        sysmsg = ac5.wait_next_incoming_message()
+        sysmsg = ac5._evtracker.wait_next_incoming_message()
         msg = sysmsg.chat.send_text("hello!")
         # Message should be encrypted because keys of other members are gossiped
         assert msg.is_encrypted()
@@ -1428,7 +1620,7 @@ class TestGroupStressTests:
 
             # send a message to get the contact key via autocrypt header
             chat1.send_text("hi")
-            msg = ac1.wait_next_incoming_message()
+            msg = ac1._evtracker.wait_next_incoming_message()
             assert msg.text == "hi"
 
         ac2, ac3 = accounts
@@ -1449,7 +1641,7 @@ class TestGroupStressTests:
 
         lp.sec("checking that the chat arrived correctly")
         for ac in accounts:
-            msg = ac.wait_next_incoming_message()
+            msg = ac._evtracker.wait_next_incoming_message()
             assert msg.text == "hello"
             print("chat is", msg.chat)
             assert len(msg.chat.get_contacts()) == 3
@@ -1458,7 +1650,7 @@ class TestGroupStressTests:
         chat.remove_contact(contacts[0])
 
         lp.sec("ac2: wait for a message about removal from the chat")
-        msg = ac2.wait_next_incoming_message()
+        msg = ac2._evtracker.wait_next_incoming_message()
 
         lp.sec("ac1: removing ac3")
         chat.remove_contact(contacts[1])
@@ -1469,7 +1661,7 @@ class TestGroupStressTests:
         chat.add_contact(contacts[0])
 
         lp.sec("ac2: check that ac3 is removed")
-        msg = ac2.wait_next_incoming_message()
+        msg = ac2._evtracker.wait_next_incoming_message()
 
         assert len(msg.chat.get_contacts()) == len(chat.get_contacts())
 
@@ -1477,24 +1669,29 @@ class TestGroupStressTests:
 class TestOnlineConfigureFails:
     def test_invalid_password(self, acfactory):
         ac1, configdict = acfactory.get_online_config()
-        ac1.configure(addr=configdict["addr"], mail_pw="123")
+
+        ac1.update_config(dict(addr=configdict["addr"], mail_pw="123"))
+        ac1.start()
         wait_configuration_progress(ac1, 500)
-        ev1 = ac1._evlogger.get_matching("DC_EVENT_ERROR_NETWORK", check_error=False)
-        assert "cannot login" in ev1[2].lower()
-        wait_configuration_progress(ac1, 0, 0, check_error=False)
+        ev = ac1._evtracker.get_matching("DC_EVENT_ERROR_NETWORK")
+        assert "cannot login" in ev.data2.lower()
+        wait_configuration_progress(ac1, 0, 0)
 
     def test_invalid_user(self, acfactory):
         ac1, configdict = acfactory.get_online_config()
-        ac1.configure(addr="x" + configdict["addr"], mail_pw=configdict["mail_pw"])
+        ac1.update_config(dict(addr="x" + configdict["addr"], mail_pw=configdict["mail_pw"]))
+        ac1.start()
         wait_configuration_progress(ac1, 500)
-        ev1 = ac1._evlogger.get_matching("DC_EVENT_ERROR_NETWORK", check_error=False)
-        assert "cannot login" in ev1[2].lower()
-        wait_configuration_progress(ac1, 0, 0, check_error=False)
+        ev = ac1._evtracker.get_matching("DC_EVENT_ERROR_NETWORK")
+        assert "cannot login" in ev.data2.lower()
+        wait_configuration_progress(ac1, 0, 0)
 
     def test_invalid_domain(self, acfactory):
         ac1, configdict = acfactory.get_online_config()
-        ac1.configure(addr=configdict["addr"] + "x", mail_pw=configdict["mail_pw"])
-        wait_configuration_progress(ac1, 500, check_error=False)
-        ev1 = ac1._evlogger.get_matching("DC_EVENT_ERROR_NETWORK")
-        assert "could not connect" in ev1[2].lower()
-        wait_configuration_progress(ac1, 0, 0, check_error=False)
+        ac1.update_config((dict(addr=configdict["addr"] + "x", mail_pw=configdict["mail_pw"])))
+        ac1.start()
+        wait_configuration_progress(ac1, 500)
+        ev = ac1._evtracker.get_matching("DC_EVENT_ERROR_NETWORK")
+        assert "could not connect" in ev.data2.lower()
+        wait_configuration_progress(ac1, 0, 0)
+

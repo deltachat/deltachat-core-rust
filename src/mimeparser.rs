@@ -4,10 +4,9 @@ use std::pin::Pin;
 
 use deltachat_derive::{FromSql, ToSql};
 use lettre_email::mime::{self, Mime};
-use mailparse::{DispositionType, MailAddr, MailHeaderMap};
+use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
 
 use crate::aheader::Aheader;
-use crate::bail;
 use crate::blob::BlobObject;
 use crate::constants::Viewtype;
 use crate::contact::*;
@@ -15,7 +14,7 @@ use crate::context::Context;
 use crate::dc_tools::*;
 use crate::dehtml::dehtml;
 use crate::e2ee;
-use crate::error::Result;
+use crate::error::{bail, Result};
 use crate::events::Event;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::location;
@@ -39,6 +38,11 @@ use crate::stock::StockMessage;
 pub struct MimeMessage {
     pub parts: Vec<Part>,
     header: HashMap<String, String>,
+
+    /// Addresses are normalized and lowercased:
+    pub recipients: Vec<SingleInfo>,
+    pub from: Vec<SingleInfo>,
+    pub chat_disposition_notification_to: Option<SingleInfo>,
     pub decrypting_failed: bool,
     pub signatures: HashSet<String>,
     pub gossipped_addr: HashSet<String>,
@@ -90,9 +94,22 @@ impl MimeMessage {
             .unwrap_or_default();
 
         let mut headers = Default::default();
+        let mut recipients = Default::default();
+        let mut from = Default::default();
+        let mut chat_disposition_notification_to = None;
 
         // init known headers with what mailparse provided us
-        MimeMessage::merge_headers(&mut headers, &mail.headers);
+        MimeMessage::merge_headers(
+            context,
+            &mut headers,
+            &mut recipients,
+            &mut from,
+            &mut chat_disposition_notification_to,
+            &mail.headers,
+        );
+
+        // remove headers that are allowed _only_ in the encrypted part
+        headers.remove("secure-join-fingerprint");
 
         // Memory location for a possible decrypted message.
         let mail_raw;
@@ -118,7 +135,14 @@ impl MimeMessage {
 
                     // let known protected headers from the decrypted
                     // part override the unencrypted top-level
-                    MimeMessage::merge_headers(&mut headers, &decrypted_mail.headers);
+                    MimeMessage::merge_headers(
+                        context,
+                        &mut headers,
+                        &mut recipients,
+                        &mut from,
+                        &mut chat_disposition_notification_to,
+                        &decrypted_mail.headers,
+                    );
 
                     (decrypted_mail, signatures)
                 } else {
@@ -142,6 +166,9 @@ impl MimeMessage {
         let mut parser = MimeMessage {
             parts: Vec::new(),
             header: headers,
+            recipients,
+            from,
+            chat_disposition_notification_to,
             decrypting_failed: false,
 
             // only non-empty if it was a valid autocrypt message
@@ -203,10 +230,8 @@ impl MimeMessage {
     /// Delta Chat sends attachments, such as images, in two-part messages, with the first message
     /// containing an explanation. If such a message is detected, first part can be safely dropped.
     fn squash_attachment_parts(&mut self) {
-        if self.has_chat_version() && self.parts.len() == 2 {
+        if let [textpart, filepart] = &self.parts[..] {
             let need_drop = {
-                let textpart = &self.parts[0];
-                let filepart = &self.parts[1];
                 textpart.typ == Viewtype::Text
                     && (filepart.typ == Viewtype::Image
                         || filepart.typ == Viewtype::Gif
@@ -312,11 +337,9 @@ impl MimeMessage {
 
         // See if an MDN is requested from the other side
         if !self.decrypting_failed && !self.parts.is_empty() {
-            if let Some(ref dn_to_addr) =
-                self.parse_first_addr(context, HeaderDef::ChatDispositionNotificationTo)
-            {
-                if let Some(ref from_addr) = self.parse_first_addr(context, HeaderDef::From_) {
-                    if compare_addrs(from_addr, dn_to_addr) {
+            if let Some(ref dn_to) = self.chat_disposition_notification_to {
+                if let Some(ref from) = self.from.get(0) {
+                    if from.addr == dn_to.addr {
                         if let Some(part) = self.parts.last_mut() {
                             part.param.set_int(Param::WantsMdn, 1);
                         }
@@ -390,20 +413,6 @@ impl MimeMessage {
         self.header.get(headerdef.get_headername())
     }
 
-    fn parse_first_addr(&self, context: &Context, headerdef: HeaderDef) -> Option<MailAddr> {
-        if let Some(value) = self.get(headerdef.clone()) {
-            match mailparse::addrparse(&value) {
-                Ok(ref addrs) => {
-                    return addrs.first().cloned();
-                }
-                Err(err) => {
-                    warn!(context, "header {} parse error: {:?}", headerdef, err);
-                }
-            }
-        }
-        None
-    }
-
     fn parse_mime_recursive<'a>(
         &'a mut self,
         context: &'a Context,
@@ -416,9 +425,9 @@ impl MimeMessage {
             if mail.ctype.params.get("protected-headers").is_some() {
                 if mail.ctype.mimetype == "text/rfc822-headers" {
                     warn!(
-                    context,
-                    "Protected headers found in text/rfc822-headers attachment: Will be ignored.",
-                );
+                        context,
+                        "Protected headers found in text/rfc822-headers attachment: Will be ignored.",
+                    );
                     return Ok(false);
                 }
 
@@ -480,7 +489,9 @@ impl MimeMessage {
             apple mail: "plaintext" as an alternative to "html+PDF attachment") */
             (mime::MULTIPART, "alternative") => {
                 for cur_data in &mail.subparts {
-                    if get_mime_type(cur_data)?.0 == "multipart/mixed" {
+                    if get_mime_type(cur_data)?.0 == "multipart/mixed"
+                        || get_mime_type(cur_data)?.0 == "multipart/related"
+                    {
                         any_part_added = self.parse_mime_recursive(context, cur_data).await?;
                         break;
                     }
@@ -502,15 +513,6 @@ impl MimeMessage {
                             break;
                         }
                     }
-                }
-            }
-            (mime::MULTIPART, "related") => {
-                /* add the "root part" - the other parts may be referenced which is
-                not interesting for us (eg. embedded images) we assume he "root part"
-                being the first one, which may not be always true ...
-                however, most times it seems okay. */
-                if let Some(first) = mail.subparts.iter().next() {
-                    any_part_added = self.parse_mime_recursive(context, first).await?;
                 }
             }
             (mime::MULTIPART, "encrypted") => {
@@ -761,16 +763,40 @@ impl MimeMessage {
             .and_then(|msgid| parse_message_id(msgid).ok())
     }
 
-    fn merge_headers(headers: &mut HashMap<String, String>, fields: &[mailparse::MailHeader<'_>]) {
+    fn merge_headers(
+        context: &Context,
+        headers: &mut HashMap<String, String>,
+        recipients: &mut Vec<SingleInfo>,
+        from: &mut Vec<SingleInfo>,
+        chat_disposition_notification_to: &mut Option<SingleInfo>,
+        fields: &[mailparse::MailHeader<'_>],
+    ) {
         for field in fields {
             // lowercasing all headers is technically not correct, but makes things work better
             let key = field.get_key().to_lowercase();
             if !headers.contains_key(&key) || // key already exists, only overwrite known types (protected headers)
                     is_known(&key) || key.starts_with("chat-")
             {
-                let value = field.get_value();
-                headers.insert(key.to_string(), value);
+                if key == HeaderDef::ChatDispositionNotificationTo.get_headername() {
+                    match addrparse_header(field) {
+                        Ok(addrlist) => {
+                            *chat_disposition_notification_to = addrlist.extract_single_info();
+                        }
+                        Err(e) => warn!(context, "Could not read {} address: {}", key, e),
+                    }
+                } else {
+                    let value = field.get_value();
+                    headers.insert(key.to_string(), value);
+                }
             }
+        }
+        let recipients_new = get_recipients(fields);
+        if !recipients_new.is_empty() {
+            *recipients = recipients_new;
+        }
+        let from_new = get_from(fields);
+        if !from_new.is_empty() {
+            *from = from_new;
         }
     }
 
@@ -840,23 +866,15 @@ async fn update_gossip_peerstates(
     gossip_headers: Vec<String>,
 ) -> Result<HashSet<String>> {
     // XXX split the parsing from the modification part
-    let mut recipients: Option<HashSet<String>> = None;
     let mut gossipped_addr: HashSet<String> = Default::default();
 
     for value in &gossip_headers {
         let gossip_header = value.parse::<Aheader>();
 
         if let Ok(ref header) = gossip_header {
-            if recipients.is_none() {
-                recipients = Some(get_recipients(
-                    mail.headers.iter().map(|v| (v.get_key(), v.get_value())),
-                ));
-            }
-
-            if recipients
-                .as_ref()
-                .unwrap()
-                .contains(&header.addr.to_lowercase())
+            if get_recipients(&mail.headers)
+                .iter()
+                .any(|info| info.addr == header.addr.to_lowercase())
             {
                 let mut peerstate = Peerstate::from_addr(context, &header.addr).await;
                 if let Some(ref mut peerstate) = peerstate {
@@ -894,14 +912,29 @@ pub(crate) struct Report {
     additional_message_ids: Vec<String>,
 }
 
-pub(crate) fn parse_message_id(value: &str) -> crate::error::Result<String> {
-    let ids = mailparse::msgidparse(value)
-        .map_err(|err| format_err!("failed to parse message id {:?}", err))?;
+pub(crate) fn parse_message_ids(ids: &str) -> Result<Vec<String>> {
+    // take care with mailparse::msgidparse() that is pretty untolerant eg. wrt missing `<` or `>`
+    let mut msgids = Vec::new();
+    for id in ids.split_whitespace() {
+        let mut id = id.to_string();
+        if id.starts_with('<') {
+            id = id[1..].to_string();
+        }
+        if id.ends_with('>') {
+            id = id[..id.len() - 1].to_string();
+        }
+        if !id.is_empty() {
+            msgids.push(id);
+        }
+    }
+    Ok(msgids)
+}
 
-    if let Some(id) = ids.first() {
+pub(crate) fn parse_message_id(ids: &str) -> Result<String> {
+    if let Some(id) = parse_message_ids(ids)?.first() {
         Ok(id.to_string())
     } else {
-        bail!("could not parse message_id: {}", value);
+        bail!("could not parse message_id: {}", ids);
     }
 }
 
@@ -1002,6 +1035,11 @@ fn get_attachment_filename(mail: &mailparse::ParsedMail) -> Result<Option<String
     let desired_filename =
         desired_filename.or_else(|| ct.params.get("name").map(|s| s.to_string()));
 
+    // MS Outlook is known to specify filename in the "name" attribute of
+    // Content-Type and omit Content-Disposition.
+    let desired_filename =
+        desired_filename.or_else(|| mail.ctype.params.get("name").map(|s| s.to_string()));
+
     // If there is no filename, but part is an attachment, guess filename
     if ct.disposition == DispositionType::Attachment && desired_filename.is_none() {
         if let Some(subtype) = mail.ctype.mimetype.split('/').nth(1) {
@@ -1017,50 +1055,50 @@ fn get_attachment_filename(mail: &mailparse::ParsedMail) -> Result<Option<String
     }
 }
 
-// returned addresses are normalized and lowercased.
-fn get_recipients<S: AsRef<str>, T: Iterator<Item = (S, S)>>(headers: T) -> HashSet<String> {
-    let mut recipients: HashSet<String> = Default::default();
+/// Returned addresses are normalized and lowercased.
+fn get_recipients(headers: &[MailHeader]) -> Vec<SingleInfo> {
+    get_all_addresses_from_header(headers, |header_key| {
+        header_key == "to" || header_key == "cc"
+    })
+}
 
-    for (hkey, hvalue) in headers {
-        let hkey = hkey.as_ref().to_lowercase();
-        let hvalue = hvalue.as_ref();
-        if hkey == "to" || hkey == "cc" {
-            if let Ok(addrs) = mailparse::addrparse(hvalue) {
-                for addr in addrs.iter() {
-                    match addr {
-                        mailparse::MailAddr::Single(ref info) => {
-                            recipients.insert(addr_normalize(&info.addr).to_lowercase());
-                        }
-                        mailparse::MailAddr::Group(ref infos) => {
-                            for info in &infos.addrs {
-                                recipients.insert(addr_normalize(&info.addr).to_lowercase());
-                            }
+/// Returned addresses are normalized and lowercased.
+pub(crate) fn get_from(headers: &[MailHeader]) -> Vec<SingleInfo> {
+    get_all_addresses_from_header(headers, |header_key| header_key == "from")
+}
+
+fn get_all_addresses_from_header<F>(headers: &[MailHeader], pred: F) -> Vec<SingleInfo>
+where
+    F: Fn(String) -> bool,
+{
+    let mut result: Vec<SingleInfo> = Default::default();
+
+    headers
+        .iter()
+        .filter(|header| pred(header.get_key().to_lowercase()))
+        .filter_map(|header| mailparse::addrparse_header(header).ok())
+        .for_each(|addrs| {
+            for addr in addrs.iter() {
+                match addr {
+                    mailparse::MailAddr::Single(ref info) => {
+                        result.push(SingleInfo {
+                            addr: addr_normalize(&info.addr).to_lowercase(),
+                            display_name: info.display_name.clone(),
+                        });
+                    }
+                    mailparse::MailAddr::Group(ref infos) => {
+                        for info in &infos.addrs {
+                            result.push(SingleInfo {
+                                addr: addr_normalize(&info.addr).to_lowercase(),
+                                display_name: info.display_name.clone(),
+                            });
                         }
                     }
                 }
             }
-        }
-    }
+        });
 
-    recipients
-}
-
-/// Check if the only addrs match, ignoring names.
-fn compare_addrs(a: &mailparse::MailAddr, b: &mailparse::MailAddr) -> bool {
-    match a {
-        mailparse::MailAddr::Group(group_a) => match b {
-            mailparse::MailAddr::Group(group_b) => group_a
-                .addrs
-                .iter()
-                .zip(group_b.addrs.iter())
-                .all(|(a, b)| a.addr == b.addr),
-            _ => false,
-        },
-        mailparse::MailAddr::Single(single_a) => match b {
-            mailparse::MailAddr::Single(single_b) => single_a.addr == single_b.addr,
-            _ => false,
-        },
-    }
+    result
 }
 
 #[cfg(test)]
@@ -1113,16 +1151,13 @@ mod tests {
         assert_eq!(mimeparser.get_rfc724_mid(), None);
     }
 
-    #[async_std::test]
-    async fn test_get_recipients() {
-        let context = dummy_context().await;
+    #[test]
+    fn test_get_recipients() {
         let raw = include_bytes!("../test-data/message/mail_with_cc.txt");
-        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
-            .await
-            .unwrap();
-        let recipients = get_recipients(mimeparser.header.iter());
-        assert!(recipients.contains("abc@bcd.com"));
-        assert!(recipients.contains("def@def.de"));
+        let mail = mailparse::parse_mail(&raw[..]).unwrap();
+        let recipients = get_recipients(&mail.headers);
+        assert!(recipients.iter().any(|info| info.addr == "abc@bcd.com"));
+        assert!(recipients.iter().any(|info| info.addr == "def@def.de"));
         assert_eq!(recipients.len(), 2);
     }
 
@@ -1179,14 +1214,10 @@ mod tests {
             .await
             .unwrap();
 
-        let of = mimeparser
-            .parse_first_addr(&context.ctx, HeaderDef::From_)
-            .unwrap();
-        assert_eq!(of, mailparse::addrparse("hello@one.org").unwrap()[0]);
+        let of = &mimeparser.from[0];
+        assert_eq!(of.addr, "hello@one.org");
 
-        let of =
-            mimeparser.parse_first_addr(&context.ctx, HeaderDef::ChatDispositionNotificationTo);
-        assert!(of.is_none());
+        assert!(mimeparser.chat_disposition_notification_to.is_none());
     }
 
     #[async_std::test]
@@ -1196,14 +1227,16 @@ mod tests {
                     Content-Type: multipart/mixed; boundary=\"==break==\";\n\
                     Subject: outer-subject\n\
                     Secure-Join-Group: no\n\
-                    Test-Header: Bar\nChat-Version: 0.0\n\
+                    Secure-Join-Fingerprint: 123456\n\
+                    Test-Header: Bar\n\
+                    chat-VERSION: 0.0\n\
                     \n\
                     --==break==\n\
                     Content-Type: text/plain; protected-headers=\"v1\";\n\
                     Subject: inner-subject\n\
                     SecureBar-Join-Group: yes\n\
                     Test-Header: Xy\n\
-                    Chat-Version: 1.0\n\
+                    chat-VERSION: 1.0\n\
                     \n\
                     test1\n\
                     \n\
@@ -1224,12 +1257,17 @@ mod tests {
 
         // the following fields would bubble up
         // if the test would really use encryption for the protected part
-        // however, as this is not the case, the outer things stay valid
+        // however, as this is not the case, the outer things stay valid.
+        // for Chat-Version, also the case-insensivity is tested.
         assert_eq!(mimeparser.get_subject(), Some("outer-subject".into()));
 
         let of = mimeparser.get(HeaderDef::ChatVersion).unwrap();
         assert_eq!(of, "0.0");
         assert_eq!(mimeparser.parts.len(), 1);
+
+        // make sure, headers that are only allowed in the encrypted part
+        // cannot be set from the outer part
+        assert!(mimeparser.get(HeaderDef::SecureJoinFingerprint).is_none());
     }
 
     #[async_std::test]
@@ -1533,6 +1571,266 @@ MDYyMDYxNTE1RTlDOEE4Cj4+CnN0YXJ0eHJlZgo4Mjc4CiUlRU9GCg==
             Some("Mail with inline attachment".to_string())
         );
 
-        assert_eq!(message.parts.len(), 2);
+        assert_eq!(message.parts.len(), 1);
+        assert_eq!(message.parts[0].typ, Viewtype::File);
+        assert_eq!(message.parts[0].msg, "Hello!");
+    }
+
+    #[async_std::test]
+    async fn parse_inline_image() {
+        let context = dummy_context().await;
+        let raw = br#"Message-ID: <foobar@example.org>
+From: foo <foo@example.org>
+Subject: example
+To: bar@example.org
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="--11019878869865180"
+
+----11019878869865180
+Content-Type: text/plain; charset=utf-8
+
+Test
+
+----11019878869865180
+Content-Type: image/jpeg;
+ name="JPEG_filename.jpg"
+Content-Transfer-Encoding: base64
+Content-Disposition: inline;
+ filename="JPEG_filename.jpg"
+
+ISVb1L3m7z15Wy5w97a2cJg6W8P8YKOYfWn3PJ/UCSFcvCPtvBhcXieiN3M3ljguzG4XK7BnGgxG
+acAQdY8e0cWz1n+zKPNeNn4Iu3GXAXz4/IPksHk54inl1//0Lv8ggZjljfjnf0q1SPftYI7lpZWT
+/4aTCkimRrAIcwrQJPnZJRb7BPSC6kfn1QJHMv77mRMz2+4WbdfpyPQQ0CWLJsgVXtBsSMf2Awal
+n+zZzhGpXyCbWTEw1ccqZcK5KaiKNqWv51N4yVXw9dzJoCvxbYtCFGZZJdx7c+ObDotaF1/9KY4C
+xJjgK9/NgTXCZP1jYm0XIBnJsFSNg0pnMRETttTuGbOVi1/s/F1RGv5RNZsCUt21d9FhkWQQXsd2
+rOzDgTdag6BQCN3hSU9eKW/GhNBuMibRN9eS7Sm1y2qFU1HgGJBQfPPRPLKxXaNi++Zt0tnon2IU
+8pg5rP/IvStXYQNUQ9SiFdfAUkLU5b1j8ltnka8xl+oXsleSG44GPz6kM0RmwUrGkl4z/+NfHSsI
+K+TuvC7qOah0WLFhcsXWn2+dDV1bXuAeC769TkqkpHhdXfUHnVgK3Pv7u3rVPT5AMeFUGxRB2dP4
+CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
+
+
+----11019878869865180--
+"#;
+
+        let message = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
+            .unwrap();
+        assert_eq!(message.get_subject(), Some("example".to_string()));
+
+        assert_eq!(message.parts.len(), 1);
+        assert_eq!(message.parts[0].typ, Viewtype::Image);
+        assert_eq!(message.parts[0].msg, "Test");
+    }
+
+    #[async_std::test]
+    async fn parse_thunderbird_html_embedded_image() {
+        let context = dummy_context().await;
+        let raw = br#"To: Alice <alice@example.org>
+From: Bob <bob@example.org>
+Subject: Test subject
+Message-ID: <foobarbaz@example.org>
+User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:68.0) Gecko/20100101
+ Thunderbird/68.7.0
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="------------779C1631600DF3DB8C02E53A"
+Content-Language: en-US
+
+This is a multi-part message in MIME format.
+--------------779C1631600DF3DB8C02E53A
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 7bit
+
+Test
+
+
+--------------779C1631600DF3DB8C02E53A
+Content-Type: multipart/related;
+ boundary="------------10CC6C2609EB38DA782C5CA9"
+
+
+--------------10CC6C2609EB38DA782C5CA9
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: 7bit
+
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+</head>
+<body>
+Test<br>
+<p><img moz-do-not-send="false" src="cid:part1.9DFA679B.52A88D69@example.org" alt=""></p>
+</body>
+</html>
+
+--------------10CC6C2609EB38DA782C5CA9
+Content-Type: image/png;
+ name="1.png"
+Content-Transfer-Encoding: base64
+Content-ID: <part1.9DFA679B.52A88D69@example.org>
+Content-Disposition: inline;
+ filename="1.png"
+
+ISVb1L3m7z15Wy5w97a2cJg6W8P8YKOYfWn3PJ/UCSFcvCPtvBhcXieiN3M3ljguzG4XK7BnGgxG
+acAQdY8e0cWz1n+zKPNeNn4Iu3GXAXz4/IPksHk54inl1//0Lv8ggZjljfjnf0q1SPftYI7lpZWT
+/4aTCkimRrAIcwrQJPnZJRb7BPSC6kfn1QJHMv77mRMz2+4WbdfpyPQQ0CWLJsgVXtBsSMf2Awal
+n+zZzhGpXyCbWTEw1ccqZcK5KaiKNqWv51N4yVXw9dzJoCvxbYtCFGZZJdx7c+ObDotaF1/9KY4C
+xJjgK9/NgTXCZP1jYm0XIBnJsFSNg0pnMRETttTuGbOVi1/s/F1RGv5RNZsCUt21d9FhkWQQXsd2
+rOzDgTdag6BQCN3hSU9eKW/GhNBuMibRN9eS7Sm1y2qFU1HgGJBQfPPRPLKxXaNi++Zt0tnon2IU
+8pg5rP/IvStXYQNUQ9SiFdfAUkLU5b1j8ltnka8xl+oXsleSG44GPz6kM0RmwUrGkl4z/+NfHSsI
+K+TuvC7qOah0WLFhcsXWn2+dDV1bXuAeC769TkqkpHhdXfUHnVgK3Pv7u3rVPT5AMeFUGxRB2dP4
+CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
+--------------10CC6C2609EB38DA782C5CA9--
+
+--------------779C1631600DF3DB8C02E53A--"#;
+
+        let message = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
+            .unwrap();
+        assert_eq!(message.get_subject(), Some("Test subject".to_string()));
+
+        assert_eq!(message.parts.len(), 1);
+        assert_eq!(message.parts[0].typ, Viewtype::Image);
+        assert_eq!(message.parts[0].msg, "Test");
+    }
+
+    // Outlook specifies filename in the "name" attribute of Content-Type
+    #[async_std::test]
+    async fn parse_outlook_html_embedded_image() {
+        let context = dummy_context().await;
+        let raw = br##"From: Anonymous <anonymous@example.org>
+To: Anonymous <anonymous@example.org>
+Subject: Delta Chat is great stuff!
+Date: Tue, 5 May 2020 01:23:45 +0000
+MIME-Version: 1.0
+Content-Type: multipart/related;
+	boundary="----=_NextPart_000_0003_01D622B3.CA753E60"
+X-Mailer: Microsoft Outlook 15.0
+
+This is a multipart message in MIME format.
+
+------=_NextPart_000_0003_01D622B3.CA753E60
+Content-Type: multipart/alternative;
+	boundary="----=_NextPart_001_0004_01D622B3.CA753E60"
+
+
+------=_NextPart_001_0004_01D622B3.CA753E60
+Content-Type: text/plain;
+	charset="us-ascii"
+Content-Transfer-Encoding: 7bit
+
+
+
+
+------=_NextPart_001_0004_01D622B3.CA753E60
+Content-Type: text/html;
+	charset="us-ascii"
+Content-Transfer-Encoding: quoted-printable
+
+<html>
+<body>
+<p>
+Test<img src="cid:image001.jpg@01D622B3.C9D8D750">
+</p>
+</body>
+</html>
+------=_NextPart_001_0004_01D622B3.CA753E60--
+
+------=_NextPart_000_0003_01D622B3.CA753E60
+Content-Type: image/jpeg;
+	name="image001.jpg"
+Content-Transfer-Encoding: base64
+Content-ID: <image001.jpg@01D622B3.C9D8D750>
+
+ISVb1L3m7z15Wy5w97a2cJg6W8P8YKOYfWn3PJ/UCSFcvCPtvBhcXieiN3M3ljguzG4XK7BnGgxG
+acAQdY8e0cWz1n+zKPNeNn4Iu3GXAXz4/IPksHk54inl1//0Lv8ggZjljfjnf0q1SPftYI7lpZWT
+/4aTCkimRrAIcwrQJPnZJRb7BPSC6kfn1QJHMv77mRMz2+4WbdfpyPQQ0CWLJsgVXtBsSMf2Awal
+n+zZzhGpXyCbWTEw1ccqZcK5KaiKNqWv51N4yVXw9dzJoCvxbYtCFGZZJdx7c+ObDotaF1/9KY4C
+xJjgK9/NgTXCZP1jYm0XIBnJsFSNg0pnMRETttTuGbOVi1/s/F1RGv5RNZsCUt21d9FhkWQQXsd2
+rOzDgTdag6BQCN3hSU9eKW/GhNBuMibRN9eS7Sm1y2qFU1HgGJBQfPPRPLKxXaNi++Zt0tnon2IU
+8pg5rP/IvStXYQNUQ9SiFdfAUkLU5b1j8ltnka8xl+oXsleSG44GPz6kM0RmwUrGkl4z/+NfHSsI
+K+TuvC7qOah0WLFhcsXWn2+dDV1bXuAeC769TkqkpHhdXfUHnVgK3Pv7u3rVPT5AMeFUGxRB2dP4
+CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
+
+------=_NextPart_000_0003_01D622B3.CA753E60--
+"##;
+
+        let message = MimeMessage::from_bytes(&context.ctx, &raw[..])
+            .await
+            .unwrap();
+        assert_eq!(
+            message.get_subject(),
+            Some("Delta Chat is great stuff!".to_string())
+        );
+
+        assert_eq!(message.parts.len(), 1);
+        assert_eq!(message.parts[0].typ, Viewtype::Image);
+        assert_eq!(message.parts[0].msg, "Test");
+    }
+
+    #[test]
+    fn test_parse_message_id() {
+        let test = parse_message_id("<foobar>");
+        assert!(test.is_ok());
+        assert_eq!(test.unwrap(), "foobar");
+
+        let test = parse_message_id("<foo> <bar>");
+        assert!(test.is_ok());
+        assert_eq!(test.unwrap(), "foo");
+
+        let test = parse_message_id("  < foo > <bar>");
+        assert!(test.is_ok());
+        assert_eq!(test.unwrap(), "foo");
+
+        let test = parse_message_id("foo");
+        assert!(test.is_ok());
+        assert_eq!(test.unwrap(), "foo");
+
+        let test = parse_message_id(" foo ");
+        assert!(test.is_ok());
+        assert_eq!(test.unwrap(), "foo");
+
+        let test = parse_message_id("foo bar");
+        assert!(test.is_ok());
+        assert_eq!(test.unwrap(), "foo");
+
+        let test = parse_message_id("  foo  bar ");
+        assert!(test.is_ok());
+        assert_eq!(test.unwrap(), "foo");
+
+        let test = parse_message_id("");
+        assert!(test.is_err());
+
+        let test = parse_message_id(" ");
+        assert!(test.is_err());
+
+        let test = parse_message_id("<>");
+        assert!(test.is_err());
+
+        let test = parse_message_id("<> bar");
+        assert!(test.is_ok());
+        assert_eq!(test.unwrap(), "bar");
+    }
+
+    #[test]
+    fn test_parse_message_ids() {
+        let test = parse_message_ids("  foo  bar <foobar>").unwrap();
+        assert_eq!(test.len(), 3);
+        assert_eq!(test[0], "foo");
+        assert_eq!(test[1], "bar");
+        assert_eq!(test[2], "foobar");
+
+        let test = parse_message_ids("  < foobar >").unwrap();
+        assert_eq!(test.len(), 1);
+        assert_eq!(test[0], "foobar");
+
+        let test = parse_message_ids("").unwrap();
+        assert!(test.is_empty());
+
+        let test = parse_message_ids(" ").unwrap();
+        assert!(test.is_empty());
+
+        let test = parse_message_ids("  < ").unwrap();
+        assert!(test.is_empty());
     }
 }

@@ -7,6 +7,10 @@ executors:
   doxygen:
     docker:
       - image: hrektts/doxygen
+  python:
+    docker:
+      - image: 3.7.7-stretch
+            
 
 restore-workspace: &restore-workspace
   attach_workspace:

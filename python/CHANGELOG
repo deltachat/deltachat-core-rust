@@ -1,3 +1,15 @@
+0.900.0 (DRAFT)
+---------------
+
+- refactored internals to use plugin-approach 
+
+- introduced PerAccount and Global hooks that plugins can implement 
+
+- introduced `ac_member_added()` and `ac_member_removed()` plugin events. 
+
+- introduced two documented examples for an echo and a group-membership
+  tracking plugin. 
+
 0.800.0
 -------
 

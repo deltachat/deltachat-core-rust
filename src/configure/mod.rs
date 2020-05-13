@@ -4,6 +4,7 @@ mod auto_mozilla;
 mod auto_outlook;
 mod read_url;
 
+use anyhow::{bail, ensure, Result};
 use async_std::prelude::*;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
@@ -11,7 +12,6 @@ use crate::config::Config;
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_tools::*;
-use crate::error::{Error, Result};
 use crate::imap::Imap;
 use crate::login_param::{CertificateChecks, LoginParam};
 use crate::message::Message;
@@ -153,7 +153,7 @@ impl Context {
                 .ok();
 
             progress!(self, 0);
-            Err(Error::Message("Configure failed".to_string()))
+            bail!("Configure failed")
         }
     }
 }
@@ -634,6 +634,28 @@ async fn try_smtp_one_param(context: &Context, param: &LoginParam, smtp: &mut Sm
     info!(context, "success: {}", inf);
     smtp.disconnect().await;
     Ok(())
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("Invalid email address: {0:?}")]
+    InvalidEmailAddress(String),
+
+    #[error("XML error at position {position}")]
+    InvalidXml {
+        position: usize,
+        #[source]
+        error: quick_xml::Error,
+    },
+
+    #[error("Bad or incomplete autoconfig")]
+    IncompleteAutoconfig(LoginParam),
+
+    #[error("Failed to get URL")]
+    ReadUrlError(#[from] self::read_url::Error),
+
+    #[error("Number of redirection is exceeded")]
+    RedirectionError,
 }
 
 #[cfg(test)]

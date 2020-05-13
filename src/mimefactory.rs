@@ -9,12 +9,13 @@ use crate::contact::*;
 use crate::context::{get_version_str, Context};
 use crate::dc_tools::*;
 use crate::e2ee::*;
-use crate::error::Error;
+use crate::error::{bail, ensure, format_err, Error};
 use crate::location;
 use crate::message::{self, Message};
 use crate::mimeparser::SystemMessage;
 use crate::param::*;
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
+use crate::simplify::escape_message_footer_marks;
 use crate::stock::StockMessage;
 
 // attachments of 25 mb brutto should work on the majority of providers
@@ -113,22 +114,6 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
 
             let command = msg.param.get_cmd();
 
-            /* for added members, the list is just fine */
-            if command == SystemMessage::MemberRemovedFromGroup {
-                let email_to_remove = msg.param.get(Param::Arg).unwrap_or_default();
-
-                let self_addr = context
-                    .get_config(Config::ConfiguredAddr)
-                    .await
-                    .unwrap_or_default();
-
-                if !email_to_remove.is_empty()
-                    && !addr_cmp(email_to_remove, self_addr)
-                    && !recipients_contain_addr(&recipients, &email_to_remove)
-                {
-                    recipients.push(("".to_string(), email_to_remove.to_string()));
-                }
-            }
             if command != SystemMessage::AutocryptSetupMessage
                 && command != SystemMessage::SecurejoinMessage
                 && context.get_config_bool(Config::MdnsEnabled).await
@@ -865,7 +850,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let message_text = format!(
             "{}{}{}{}{}",
             fwdhint.unwrap_or_default(),
-            &final_text,
+            escape_message_footer_marks(final_text),
             if !final_text.is_empty() && !footer.is_empty() {
                 "\r\n\r\n"
             } else {
@@ -1156,7 +1141,7 @@ async fn is_file_size_okay(context: &Context, msg: &Message) -> bool {
 fn render_rfc724_mid(rfc724_mid: &str) -> String {
     let rfc724_mid = rfc724_mid.trim().to_string();
 
-    if rfc724_mid.chars().nth(0).unwrap_or_default() == '<' {
+    if rfc724_mid.chars().next().unwrap_or_default() == '<' {
         rfc724_mid
     } else {
         format!("<{}>", rfc724_mid)

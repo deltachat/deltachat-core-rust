@@ -1,6 +1,13 @@
-from deltachat import capi, const
-from deltachat.capi import ffi
-from deltachat.account import Account  # noqa
+import sys
+
+from . import capi, const, hookspec
+from .capi import ffi
+from .account import Account  # noqa
+from .message import Message  # noqa
+from .contact import Contact  # noqa
+from .chat import Chat        # noqa
+from .hookspec import account_hookimpl, global_hookimpl  # noqa
+from . import eventlogger
 
 from pkg_resources import get_distribution, DistributionNotFound
 try:
@@ -64,3 +71,62 @@ def get_dc_event_name(integer, _DC_EVENTNAME_MAP={}):
             if name.startswith("DC_EVENT_"):
                 _DC_EVENTNAME_MAP[val] = name
     return _DC_EVENTNAME_MAP[integer]
+
+
+def register_global_plugin(plugin):
+    """ Register a global plugin which implements one or more
+    of the :class:`deltachat.hookspec.Global` hooks.
+    """
+    gm = hookspec.Global._get_plugin_manager()
+    gm.register(plugin)
+    gm.check_pending()
+
+
+def unregister_global_plugin(plugin):
+    gm = hookspec.Global._get_plugin_manager()
+    gm.unregister(plugin)
+
+
+register_global_plugin(eventlogger)
+
+
+def run_cmdline(argv=None, account_plugins=None):
+    """ Run a simple default command line app, registering the specified
+    account plugins. """
+    import argparse
+    if argv is None:
+        argv = sys.argv
+
+    parser = argparse.ArgumentParser(prog=argv[0] if argv else None)
+    parser.add_argument("db", action="store", help="database file")
+    parser.add_argument("--show-ffi", action="store_true", help="show low level ffi events")
+    parser.add_argument("--email", action="store", help="email address")
+    parser.add_argument("--password", action="store", help="password")
+
+    args = parser.parse_args(argv[1:])
+
+    ac = Account(args.db)
+
+    if args.show_ffi:
+        log = eventlogger.FFIEventLogger(ac, "bot")
+        ac.add_account_plugin(log)
+
+    if not ac.is_configured():
+        assert args.email and args.password, (
+            "you must specify --email and --password once to configure this database/account"
+        )
+        ac.set_config("addr", args.email)
+        ac.set_config("mail_pw", args.password)
+        ac.set_config("mvbox_move", "0")
+        ac.set_config("mvbox_watch", "0")
+        ac.set_config("sentbox_watch", "0")
+
+    for plugin in account_plugins or []:
+        ac.add_account_plugin(plugin)
+
+    # start IO threads and configure if neccessary
+    ac.start()
+
+    print("{}: waiting for message".format(ac.get_config("addr")))
+
+    ac.wait_shutdown()

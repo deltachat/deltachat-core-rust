@@ -1,7 +1,6 @@
 //! Location handling
 
 use bitflags::bitflags;
-use quick_xml;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
 use crate::chat::{self, ChatId};
@@ -9,7 +8,7 @@ use crate::config::Config;
 use crate::constants::*;
 use crate::context::*;
 use crate::dc_tools::*;
-use crate::error::Error;
+use crate::error::{ensure, Error};
 use crate::events::Event;
 use crate::job::{self, Job};
 use crate::message::{Message, MsgId};
@@ -122,9 +121,9 @@ impl Kml {
                 }
             } else if self.tag.contains(KmlTag::COORDINATES) {
                 let parts = val.splitn(2, ',').collect::<Vec<_>>();
-                if parts.len() == 2 {
-                    self.curr.longitude = parts[0].parse().unwrap_or_default();
-                    self.curr.latitude = parts[1].parse().unwrap_or_default();
+                if let [longitude, latitude] = &parts[..] {
+                    self.curr.longitude = longitude.parse().unwrap_or_default();
+                    self.curr.latitude = latitude.parse().unwrap_or_default();
                 }
             }
         }

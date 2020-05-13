@@ -1,19 +1,17 @@
 //! End-to-end encryption support.
 
 use std::collections::HashSet;
-use std::convert::TryFrom;
 
 use mailparse::ParsedMail;
 use num_traits::FromPrimitive;
 
 use crate::aheader::*;
 use crate::config::Config;
-use crate::constants::KeyGenType;
 use crate::context::Context;
-use crate::dc_tools::EmailAddress;
 use crate::error::*;
-use crate::headerdef::{HeaderDef, HeaderDefMap};
-use crate::key::{self, Key, KeyPairUse, SignedPublicKey};
+use crate::headerdef::HeaderDef;
+use crate::headerdef::HeaderDefMap;
+use crate::key::{DcKey, Key, SignedPublicKey, SignedSecretKey};
 use crate::keyring::*;
 use crate::peerstate::*;
 use crate::pgp;
@@ -38,7 +36,7 @@ impl EncryptHelper {
             Some(addr) => addr,
         };
 
-        let public_key = load_or_generate_self_public_key(context, &addr).await?;
+        let public_key = SignedPublicKey::load_self(context).await?;
 
         Ok(EncryptHelper {
             prefer_encrypt,
@@ -108,9 +106,7 @@ impl EncryptHelper {
         }
         let public_key = Key::from(self.public_key.clone());
         keyring.add_ref(&public_key);
-        let sign_key = Key::from_self_private(context, self.addr.clone(), &context.sql)
-            .await
-            .ok_or_else(|| format_err!("missing own private key"))?;
+        let sign_key = Key::from(SignedSecretKey::load_self(context).await?);
 
         let raw_message = mail_to_encrypt.build().as_string().into_bytes();
 
@@ -127,8 +123,8 @@ pub async fn try_decrypt(
 ) -> Result<(Option<Vec<u8>>, HashSet<String>)> {
     let from = mail
         .headers
-        .get_header_value(HeaderDef::From_)
-        .and_then(|from_addr| mailparse::addrparse(&from_addr).ok())
+        .get_header(HeaderDef::From_)
+        .and_then(|from_addr| mailparse::addrparse_header(&from_addr).ok())
         .and_then(|from| from.extract_single_info())
         .map(|from| from.addr)
         .unwrap_or_default();
@@ -191,43 +187,6 @@ pub async fn try_decrypt(
         }
     }
     Ok((out_mail, signatures))
-}
-
-/// Load public key from database or generate a new one.
-///
-/// This will load a public key from the database, generating and
-/// storing a new one when one doesn't exist yet.  Care is taken to
-/// only generate one key per context even when multiple threads call
-/// this function concurrently.
-async fn load_or_generate_self_public_key(
-    context: &Context,
-    self_addr: impl AsRef<str>,
-) -> Result<SignedPublicKey> {
-    if let Some(key) = Key::from_self_public(context, &self_addr, &context.sql).await {
-        return SignedPublicKey::try_from(key)
-            .map_err(|_| Error::Message("Not a public key".into()));
-    }
-    let _guard = context.generating_key_mutex.lock().await;
-
-    // Check again in case the key was generated while we were waiting for the lock.
-    if let Some(key) = Key::from_self_public(context, &self_addr, &context.sql).await {
-        return SignedPublicKey::try_from(key)
-            .map_err(|_| Error::Message("Not a public key".into()));
-    }
-
-    let start = std::time::Instant::now();
-
-    let keygen_type =
-        KeyGenType::from_i32(context.get_config_int(Config::KeyGenType).await).unwrap_or_default();
-    info!(context, "Generating keypair with type {}", keygen_type);
-    let keypair = pgp::create_keypair(EmailAddress::new(self_addr.as_ref())?, keygen_type)?;
-    key::store_self_keypair(context, &keypair, KeyPairUse::Default).await?;
-    info!(
-        context,
-        "Keypair generated in {:.3}s.",
-        start.elapsed().as_secs()
-    );
-    Ok(keypair.public)
 }
 
 /// Returns a reference to the encrypted payload and validates the autocrypt structure.
@@ -351,6 +310,7 @@ fn contains_report(mail: &ParsedMail<'_>) -> bool {
 ///
 /// If this succeeds you are also guaranteed that the
 /// [Config::ConfiguredAddr] is configured, this address is returned.
+// TODO, remove this once deltachat::key::Key no longer exists.
 pub async fn ensure_secret_key_exists(context: &Context) -> Result<String> {
     let self_addr = context
         .get_config(Config::ConfiguredAddr)
@@ -361,8 +321,7 @@ pub async fn ensure_secret_key_exists(context: &Context) -> Result<String> {
                 "cannot ensure secret key if not configured."
             ))
         })?;
-    load_or_generate_self_public_key(context, &self_addr).await?;
-
+    SignedPublicKey::load_self(context).await?;
     Ok(self_addr)
 }
 
@@ -411,49 +370,6 @@ Sent with my Delta Chat Messenger: https://delta.chat";
             mail.get_body().unwrap().starts_with(
                 "sidenote for all: things are trick atm recommend not to try to run with desktop or ios unless you are ready to hunt bugs")
         );
-    }
-
-    mod load_or_generate_self_public_key {
-        use super::*;
-
-        #[async_std::test]
-        async fn test_existing() {
-            let t = dummy_context().await;
-            let addr = configure_alice_keypair(&t.ctx).await;
-            let key = load_or_generate_self_public_key(&t.ctx, addr).await;
-            assert!(key.is_ok());
-        }
-
-        #[async_std::test]
-        async fn test_generate() {
-            let t = dummy_context().await;
-            let addr = "alice@example.org";
-            let key0 = load_or_generate_self_public_key(&t.ctx, addr).await;
-            assert!(key0.is_ok());
-            let key1 = load_or_generate_self_public_key(&t.ctx, addr).await;
-            assert!(key1.is_ok());
-            assert_eq!(key0.unwrap(), key1.unwrap());
-        }
-
-        #[async_std::test]
-        async fn test_generate_concurrent() {
-            use std::sync::Arc;
-
-            let t = dummy_context().await;
-            let ctx = Arc::new(t.ctx);
-            let ctx0 = Arc::clone(&ctx);
-            let thr0 = async_std::task::spawn(async move {
-                load_or_generate_self_public_key(&ctx0, "alice@example.org").await
-            });
-            let ctx1 = Arc::clone(&ctx);
-            let thr1 = async_std::task::spawn(async move {
-                load_or_generate_self_public_key(&ctx1, "alice@example.org").await
-            });
-
-            let res0 = thr0.await;
-            let res1 = thr1.await;
-            assert_eq!(res0.unwrap(), res1.unwrap());
-        }
     }
 
     #[test]

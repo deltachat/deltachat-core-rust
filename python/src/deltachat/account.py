@@ -2,21 +2,25 @@
 
 from __future__ import print_function
 import atexit
-import threading
+from contextlib import contextmanager
+from email.utils import parseaddr
+import queue
+from threading import Event
 import os
-import time
 from array import array
-from queue import Queue
-
 import deltachat
 from . import const
 from .capi import ffi, lib
 from .cutil import as_dc_charpointer, from_dc_charpointer, iter_array, DCLot
 from .chat import Chat
-from .message import Message
+from .message import Message, map_system_message
 from .contact import Contact
-from .eventlogger import EventLogger
-from .hookspec import get_plugin_manager, hookimpl
+from .tracker import ImexTracker
+from . import hookspec, iothreads
+
+
+class MissingCredentials(ValueError):
+    """ Account is missing `addr` and `mail_pw` config values. """
 
 
 class Account(object):
@@ -24,44 +28,52 @@ class Account(object):
     by the underlying deltachat core library.  All public Account methods are
     meant to be memory-safe and return memory-safe objects.
     """
-    def __init__(self, db_path, logid=None, os_name=None, debug=True):
+    MissingCredentials = MissingCredentials
+
+    def __init__(self, db_path, os_name=None):
         """ initialize account object.
 
         :param db_path: a path to the account database. The database
                         will be created if it doesn't exist.
-        :param logid: an optional logging prefix that should be used with
-                      the default internal logging.
         :param os_name: this will be put to the X-Mailer header in outgoing messages
-        :param debug: turn on debug logging for events.
         """
+        # initialize per-account plugin system
+        self._pm = hookspec.PerAccount._make_plugin_manager()
+        self.add_account_plugin(self)
+
         self._dc_context = ffi.gc(
             lib.dc_context_new(ffi.NULL, as_dc_charpointer(os_name)),
             _destroy_dc_context,
         )
-        self._evlogger = EventLogger(self, logid, debug)
-        self._threads = IOThreads(self._dc_context, self._evlogger._log_event)
 
-        # register event call back and initialize plugin system
-        def _ll_event(ctx, evt_name, data1, data2):
-            assert ctx == self._dc_context
-            self.pluggy.hook.process_low_level_event(
-                account=self, event_name=evt_name, data1=data1, data2=data2
-            )
+        hook = hookspec.Global._get_plugin_manager().hook
 
-        self.pluggy = get_plugin_manager()
-        self.pluggy.register(self._evlogger)
-        deltachat.set_context_callback(self._dc_context, _ll_event)
+        self._threads = iothreads.IOThreads(self)
+        self._hook_event_queue = queue.Queue()
+        self._in_use_iter_events = False
+        self._shutdown_event = Event()
 
         # open database
+        self.db_path = db_path
         if hasattr(db_path, "encode"):
             db_path = db_path.encode("utf8")
         if not lib.dc_open(self._dc_context, db_path, ffi.NULL):
             raise ValueError("Could not dc_open: {}".format(db_path))
         self._configkeys = self.get_config("sys.config_keys").split()
         atexit.register(self.shutdown)
+        hook.dc_account_init(account=self)
+
+    @hookspec.account_hookimpl
+    def ac_process_ffi_event(self, ffi_event):
+        for name, kwargs in self._map_ffi_event(ffi_event):
+            ev = HookEvent(self, name=name, kwargs=kwargs)
+            self._hook_event_queue.put(ev)
 
     # def __del__(self):
     #    self.shutdown()
+
+    def ac_log_line(self, msg):
+        self._pm.hook.ac_log_line(message=msg)
 
     def _check_config_key(self, name):
         if name not in self._configkeys:
@@ -134,16 +146,15 @@ class Account(object):
         if res == 0:
             raise Exception("Failed to set key")
 
-    def configure(self, **kwargs):
-        """ set config values and configure this account.
+    def update_config(self, kwargs):
+        """ update config values.
 
         :param kwargs: name=value config settings for this account.
                        values need to be unicode.
         :returns: None
         """
-        for name, value in kwargs.items():
-            self.set_config(name, value)
-        lib.dc_configure(self._dc_context)
+        for key, value in kwargs.items():
+            self.set_config(key, str(value))
 
     def is_configured(self):
         """ determine if the account is configured already; an initial connection
@@ -151,7 +162,7 @@ class Account(object):
 
         :returns: True if account is configured.
         """
-        return lib.dc_is_configured(self._dc_context)
+        return bool(lib.dc_is_configured(self._dc_context))
 
     def set_avatar(self, img_path):
         """Set self avatar.
@@ -202,8 +213,7 @@ class Account(object):
 
         :returns: :class:`deltachat.contact.Contact`
         """
-        self.check_is_configured()
-        return Contact(self._dc_context, const.DC_CONTACT_ID_SELF)
+        return Contact(self, const.DC_CONTACT_ID_SELF)
 
     def create_contact(self, email, name=None):
         """ create a (new) Contact. If there already is a Contact
@@ -214,11 +224,14 @@ class Account(object):
         :param name: display name for this contact (optional)
         :returns: :class:`deltachat.contact.Contact` instance.
         """
-        name = as_dc_charpointer(name)
-        email = as_dc_charpointer(email)
-        contact_id = lib.dc_create_contact(self._dc_context, name, email)
+        realname, addr = parseaddr(email)
+        if name:
+            realname = name
+        realname = as_dc_charpointer(realname)
+        addr = as_dc_charpointer(addr)
+        contact_id = lib.dc_create_contact(self._dc_context, realname, addr)
         assert contact_id > const.DC_CHAT_ID_LAST_SPECIAL
-        return Contact(self._dc_context, contact_id)
+        return Contact(self, contact_id)
 
     def delete_contact(self, contact):
         """ delete a Contact.
@@ -230,6 +243,14 @@ class Account(object):
         assert contact._dc_context == self._dc_context
         assert contact_id > const.DC_CHAT_ID_LAST_SPECIAL
         return bool(lib.dc_delete_contact(self._dc_context, contact_id))
+
+    def get_contact_by_addr(self, email):
+        """ get a contact for the email address or None if it's blocked or doesn't exist. """
+        _, addr = parseaddr(email)
+        addr = as_dc_charpointer(addr)
+        contact_id = lib.dc_lookup_contact_id_by_addr(self._dc_context, addr)
+        if contact_id:
+            return self.get_contact_by_id(contact_id)
 
     def get_contacts(self, query=None, with_self=False, only_verified=False):
         """ get a (filtered) list of contacts.
@@ -250,7 +271,15 @@ class Account(object):
             lib.dc_get_contacts(self._dc_context, flags, query),
             lib.dc_array_unref
         )
-        return list(iter_array(dc_array, lambda x: Contact(self._dc_context, x)))
+        return list(iter_array(dc_array, lambda x: Contact(self, x)))
+
+    def get_fresh_messages(self):
+        """ yield all fresh messages from all chats. """
+        dc_array = ffi.gc(
+            lib.dc_get_fresh_msgs(self._dc_context),
+            lib.dc_array_unref
+        )
+        yield from iter_array(dc_array, lambda x: Message.from_db(self, x))
 
     def create_chat_by_contact(self, contact):
         """ create or get an existing 1:1 chat object for the specified contact or contact id.
@@ -271,6 +300,9 @@ class Account(object):
     def create_chat_by_message(self, message):
         """ create or get an existing chat object for the
         the specified message.
+
+        If this message is in the deaddrop chat then
+        the sender will become an accepted contact.
 
         :param message: messsage id or message instance.
         :returns: a :class:`deltachat.chat.Chat` object.
@@ -324,6 +356,13 @@ class Account(object):
         """
         return Message.from_db(self, msg_id)
 
+    def get_contact_by_id(self, contact_id):
+        """ return Contact instance or None.
+        :param contact_id: integer id of this contact.
+        :returns: None or :class:`deltachat.contact.Contact` instance.
+        """
+        return Contact(self, contact_id)
+
     def get_chat_by_id(self, chat_id):
         """ return Chat instance.
         :param chat_id: integer id of this chat.
@@ -368,13 +407,18 @@ class Account(object):
         lib.dc_delete_msgs(self._dc_context, msg_ids, len(msg_ids))
 
     def export_self_keys(self, path):
-        """ export public and private keys to the specified directory. """
+        """ export public and private keys to the specified directory.
+
+        Note that the account does not have to be started.
+        """
         return self._export(path, imex_cmd=1)
 
     def export_all(self, path):
         """return new file containing a backup of all database state
         (chats, contacts, keys, media, ...). The file is created in the
         the `path` directory.
+
+        Note that the account does not have to be started.
         """
         export_files = self._export(path, 11)
         if len(export_files) != 1:
@@ -382,7 +426,7 @@ class Account(object):
         return export_files[0]
 
     def _export(self, path, imex_cmd):
-        with ImexTracker(self) as imex_tracker:
+        with self.temp_plugin(ImexTracker()) as imex_tracker:
             lib.dc_imex(self._dc_context, imex_cmd, as_dc_charpointer(path), ffi.NULL)
             return imex_tracker.wait_finish()
 
@@ -390,6 +434,8 @@ class Account(object):
         """ Import private keys found in the `path` directory.
         The last imported key is made the default keys unless its name
         contains the string legacy. Public keys are not imported.
+
+        Note that the account does not have to be started.
         """
         self._import(path, imex_cmd=2)
 
@@ -402,7 +448,7 @@ class Account(object):
         self._import(path, imex_cmd=12)
 
     def _import(self, path, imex_cmd):
-        with ImexTracker(self) as imex_tracker:
+        with self.temp_plugin(ImexTracker()) as imex_tracker:
             lib.dc_imex(self._dc_context, imex_cmd, as_dc_charpointer(path), ffi.NULL)
             imex_tracker.wait_finish()
 
@@ -469,46 +515,6 @@ class Account(object):
             raise ValueError("could not join group")
         return Chat(self, chat_id)
 
-    def stop_ongoing(self):
-        lib.dc_stop_ongoing_process(self._dc_context)
-
-    #
-    # meta API for start/stop and event based processing
-    #
-
-    def wait_next_incoming_message(self):
-        """ wait for and return next incoming message. """
-        ev = self._evlogger.get_matching("DC_EVENT_INCOMING_MSG")
-        return self.get_message_by_id(ev[2])
-
-    def start_threads(self):
-        """ start IMAP/SMTP threads (and configure account if it hasn't happened).
-
-        :raises: ValueError if 'addr' or 'mail_pw' are not configured.
-        :returns: None
-        """
-        if not self.is_configured():
-            self.configure()
-        self._threads.start()
-
-    def stop_threads(self, wait=True):
-        """ stop IMAP/SMTP threads. """
-        if self._threads.is_started():
-            self.stop_ongoing()
-            self._threads.stop(wait=wait)
-
-    def shutdown(self, wait=True):
-        """ stop threads and close and remove underlying dc_context and callbacks. """
-        if hasattr(self, "_dc_context") and hasattr(self, "_threads"):
-            # print("SHUTDOWN", self)
-            self.stop_threads(wait=False)
-            lib.dc_close(self._dc_context)
-            self.stop_threads(wait=wait)  # to wait for threads
-            deltachat.clear_context_callback(self._dc_context)
-            del self._dc_context
-            atexit.unregister(self.shutdown)
-        self.pluggy.unregister(self._evlogger)
-
     def set_location(self, latitude=0.0, longitude=0.0, accuracy=0.0):
         """set a new location. It effects all chats where we currently
         have enabled location streaming.
@@ -523,88 +529,122 @@ class Account(object):
         if dc_res == 0:
             raise ValueError("no chat is streaming locations")
 
+    #
+    # meta API for start/stop and event based processing
+    #
 
-class ImexTracker:
-    def __init__(self, account):
-        self._imex_events = Queue()
-        self.account = account
+    def add_account_plugin(self, plugin, name=None):
+        """ add an account plugin which implements one or more of
+        the :class:`deltachat.hookspec.PerAccount` hooks.
+        """
+        self._pm.register(plugin, name=name)
+        self._pm.check_pending()
+        return plugin
 
-    def __enter__(self):
-        self.account.pluggy.register(self)
-        return self
+    @contextmanager
+    def temp_plugin(self, plugin):
+        """ run a with-block with the given plugin temporarily registered. """
+        self._pm.register(plugin)
+        yield plugin
+        self._pm.unregister(plugin)
 
-    def __exit__(self, *args):
-        self.account.pluggy.unregister(self)
+    def stop_ongoing(self):
+        """ Stop ongoing securejoin, configuration or other core jobs. """
+        lib.dc_stop_ongoing_process(self._dc_context)
 
-    @hookimpl
-    def process_low_level_event(self, account, event_name, data1, data2):
-        # there could be multiple accounts instantiated
-        if self.account is not account:
+    def start(self, callback_thread=True):
+        """ start this account (activate imap/smtp threads etc.)
+        and return immediately.
+
+        If this account is not configured, an internal configuration
+        job will be scheduled if config values are sufficiently specified.
+
+        You may call `wait_shutdown` or `shutdown` after the
+        account is in started mode.
+
+        :raises MissingCredentials: if `addr` and `mail_pw` values are not set.
+
+        :returns: None
+        """
+        if not self.is_configured():
+            if not self.get_config("addr") or not self.get_config("mail_pw"):
+                raise MissingCredentials("addr or mail_pwd not set in config")
+            lib.dc_configure(self._dc_context)
+        self._threads.start(callback_thread=callback_thread)
+
+    def wait_shutdown(self):
+        """ wait until shutdown of this account has completed. """
+        self._shutdown_event.wait()
+
+    def shutdown(self, wait=True):
+        """ shutdown account, stop threads and close and remove
+        underlying dc_context and callbacks. """
+        dc_context = self._dc_context
+        if dc_context is None:
             return
-        if event_name == "DC_EVENT_IMEX_PROGRESS":
-            self._imex_events.put(data1)
-        elif event_name == "DC_EVENT_IMEX_FILE_WRITTEN":
-            self._imex_events.put(data1)
 
-    def wait_finish(self, progress_timeout=60):
-        """ Return list of written files, raise ValueError if ExportFailed. """
-        files_written = []
-        while True:
-            ev = self._imex_events.get(timeout=progress_timeout)
-            if isinstance(ev, str):
-                files_written.append(ev)
-            elif ev == 0:
-                raise ValueError("export failed, exp-files: {}".format(files_written))
-            elif ev == 1000:
-                return files_written
+        if self._threads.is_started():
+            self.stop_ongoing()
+            self._threads.stop(wait=False)
+        lib.dc_close(dc_context)
+        self._hook_event_queue.put(None)
+        self._threads.stop(wait=wait)  # to wait for threads
+        self._dc_context = None
+        atexit.unregister(self.shutdown)
+        self._shutdown_event.set()
+        hook = hookspec.Global._get_plugin_manager().hook
+        hook.dc_account_after_shutdown(account=self, dc_context=dc_context)
 
+    def _handle_current_events(self):
+        """ handle all currently queued events and then return. """
+        while 1:
+            try:
+                event = self._hook_event_queue.get(block=False)
+            except queue.Empty:
+                break
+            else:
+                event.call_hook()
 
-class IOThreads:
-    def __init__(self, dc_context, log_event=lambda *args: None):
-        self._dc_context = dc_context
-        self._thread_quitflag = False
-        self._name2thread = {}
-        self._log_event = log_event
-        self._log_running = True
+    def iter_events(self, timeout=None):
+        """ yield hook events until shutdown.
 
-        # Make sure the current
-        self._start_one_thread("deltachat-log", self.dc_thread_run)
+        It is not allowed to call iter_events() from multiple threads.
+        """
+        if self._in_use_iter_events:
+            raise RuntimeError("can only call iter_events() from one thread")
+        self._in_use_iter_events = True
+        while 1:
+            event = self._hook_event_queue.get(timeout=timeout)
+            if event is None:
+                break
+            yield event
 
-    def is_started(self):
-        return lib.dc_is_open(self._dc_context) and lib.dc_is_running(self._dc_context)
-
-    def start(self, imap=True, smtp=True, mvbox=False, sentbox=False):
-        assert not self.is_started()
-
-        lib.dc_context_run(self._dc_context)
-
-    def _start_one_thread(self, name, func):
-        self._name2thread[name] = t = threading.Thread(target=func, name=name)
-        t.setDaemon(1)
-        t.start()
-
-    def stop(self, wait=False):
-        if self.is_started():
-            lib.dc_context_shutdown(self._dc_context)
-
-    def dc_thread_run(self):
-        self._log_event("py-bindings-info", 0, "DC LOG THREAD START")
-
-        while self._log_running:
-            if lib.dc_is_open(self._dc_context) and lib.dc_has_next_event(self._dc_context):
-                event = lib.dc_get_next_event(self._dc_context)
-                if event != ffi.NULL:
-                    deltachat.py_dc_callback(
-                        self._dc_context,
-                        lib.dc_event_get_id(event),
-                        lib.dc_event_get_data1(event),
-                        lib.dc_event_get_data2(event)
-                    )
-                    lib.dc_event_unref(event)
-                else:
-                    time.sleep(0.05)
-
-        self._log_event("py-bindings-info", 0, "DC LOG THREAD FINISHED")
+    def _map_ffi_event(self, ffi_event):
+        name = ffi_event.name
+        if name == "DC_EVENT_CONFIGURE_PROGRESS":
+            data1 = ffi_event.data1
+            if data1 == 0 or data1 == 1000:
+                success = data1 == 1000
+                yield "ac_configure_completed", dict(success=success)
+        elif name == "DC_EVENT_INCOMING_MSG":
+            msg = self.get_message_by_id(ffi_event.data2)
+            yield map_system_message(msg) or ("ac_incoming_message", dict(message=msg))
+        elif name == "DC_EVENT_MSGS_CHANGED":
+            if ffi_event.data2 != 0:
+                msg = self.get_message_by_id(ffi_event.data2)
+                if msg.is_outgoing():
+                    res = map_system_message(msg)
+                    if res and res[0].startswith("ac_member"):
+                        yield res
+                    yield "ac_outgoing_message", dict(message=msg)
+                elif msg.is_in_fresh():
+                    yield map_system_message(msg) or ("ac_incoming_message", dict(message=msg))
+        elif name == "DC_EVENT_MSG_DELIVERED":
+            msg = self.get_message_by_id(ffi_event.data2)
+            yield "ac_message_delivered", dict(message=msg)
+        elif name == "DC_EVENT_CHAT_MODIFIED":
+            chat = self.get_chat_by_id(ffi_event.data1)
+            yield "ac_chat_modified", dict(chat=chat)
 
 
 def _destroy_dc_context(dc_context, dc_context_unref=lib.dc_context_unref):
@@ -631,3 +671,17 @@ class ScannedQRCode:
     @property
     def contact_id(self):
         return self._dc_lot.id()
+
+
+class HookEvent:
+    def __init__(self, account, name, kwargs):
+        assert hasattr(account._pm.hook, name), name
+        self.account = account
+        self.name = name
+        self.kwargs = kwargs
+
+    def call_hook(self):
+        hook = getattr(self.account._pm.hook, self.name, None)
+        if hook is None:
+            raise ValueError("event_name {} unknown".format(self.name))
+        return hook(**self.kwargs)

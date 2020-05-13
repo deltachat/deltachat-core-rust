@@ -3,7 +3,6 @@
 use async_std::path::PathBuf;
 use deltachat_derive::*;
 use itertools::Itertools;
-use rusqlite;
 
 use crate::aheader::EncryptPreference;
 use crate::chat::ChatId;
@@ -11,19 +10,15 @@ use crate::config::Config;
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_tools::*;
-use crate::e2ee;
-use crate::error::{Error, Result};
+use crate::error::{bail, ensure, format_err, Result};
 use crate::events::Event;
-use crate::key::*;
+use crate::key::{DcKey, Key, SignedPublicKey};
 use crate::login_param::LoginParam;
 use crate::message::{MessageState, MsgId};
 use crate::mimeparser::AvatarAction;
 use crate::param::*;
 use crate::peerstate::*;
 use crate::stock::StockMessage;
-
-/// Contacts with at least this origin value are shown in the contact list.
-const DC_ORIGIN_MIN_CONTACT_LIST: i32 = 0x100;
 
 /// An object representing a single contact in memory.
 ///
@@ -92,6 +87,7 @@ pub enum Origin {
     UnhandledQrScan = 0x80,
 
     /// Reply-To: of incoming message of known sender
+    /// Contacts with at least this origin value are shown in the contact list.
     IncomingReplyTo = 0x100,
 
     /// Cc: of incoming message of known sender
@@ -285,7 +281,11 @@ impl Contact {
     ///
     /// To validate an e-mail address independently of the contact database
     /// use `dc_may_be_valid_addr()`.
-    pub async fn lookup_id_by_addr(context: &Context, addr: impl AsRef<str>) -> u32 {
+    pub async fn lookup_id_by_addr(
+        context: &Context,
+        addr: impl AsRef<str>,
+        min_origin: Origin,
+    ) -> u32 {
         if addr.as_ref().is_empty() {
             return 0;
         }
@@ -299,14 +299,13 @@ impl Contact {
         if addr_cmp(addr_normalized, addr_self) {
             return DC_CONTACT_ID_SELF;
         }
-
         context.sql.query_get_value(
             context,
             "SELECT id FROM contacts WHERE addr=?1 COLLATE NOCASE AND id>?2 AND origin>=?3 AND blocked=0;",
             paramsv![
                 addr_normalized,
                 DC_CONTACT_ID_LAST_SPECIAL as i32,
-                DC_ORIGIN_MIN_CONTACT_LIST,
+                min_origin as u32,
             ],
         ).await.unwrap_or_default()
     }
@@ -677,8 +676,6 @@ impl Contact {
             let peerstate = Peerstate::from_addr(context, &contact.addr).await;
             let loginparam = LoginParam::from_database(context, "configured_").await;
 
-            let mut self_key = Key::from_self_public(context, &loginparam.addr, &context.sql).await;
-
             if peerstate.is_some()
                 && peerstate
                     .as_ref()
@@ -694,16 +691,11 @@ impl Contact {
                     })
                     .await;
                 ret += &p;
-                if self_key.is_none() {
-                    e2ee::ensure_secret_key_exists(context).await?;
-                    self_key = Key::from_self_public(context, &loginparam.addr, &context.sql).await;
-                }
+                let self_key = Key::from(SignedPublicKey::load_self(context).await?);
                 let p = context.stock_str(StockMessage::FingerPrints).await;
                 ret += &format!(" {}:", p);
 
-                let fingerprint_self = self_key
-                    .map(|k| k.formatted_fingerprint())
-                    .unwrap_or_default();
+                let fingerprint_self = self_key.formatted_fingerprint();
                 let fingerprint_other_verified = peerstate
                     .peek_key(PeerstateVerifiedStatus::BidirectVerified)
                     .map(|k| k.formatted_fingerprint())
@@ -1160,10 +1152,10 @@ fn cat_fingerprint(
 impl Context {
     /// determine whether the specified addr maps to the/a self addr
     pub async fn is_self_addr(&self, addr: &str) -> Result<bool> {
-        let self_addr = match self.get_config(Config::ConfiguredAddr).await {
-            Some(s) => s,
-            None => return Err(Error::NotConfigured),
-        };
+        let self_addr = self
+            .get_config(Config::ConfiguredAddr)
+            .await
+            .ok_or_else(|| format_err!("Not configured"))?;
 
         Ok(addr_cmp(self_addr, addr))
     }

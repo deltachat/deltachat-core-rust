@@ -3,8 +3,6 @@
 #![allow(clippy::match_bool)]
 
 #[macro_use]
-extern crate failure_derive;
-#[macro_use]
 extern crate num_derive;
 #[macro_use]
 extern crate smallvec;

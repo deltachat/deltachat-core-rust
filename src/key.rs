@@ -4,38 +4,40 @@ use std::collections::BTreeMap;
 use std::io::Cursor;
 
 use async_std::path::Path;
+use async_trait::async_trait;
+use num_traits::FromPrimitive;
 use pgp::composed::Deserializable;
 use pgp::ser::Serialize;
 use pgp::types::{KeyTrait, SecretKeyTrait};
 
+use crate::config::Config;
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_tools::*;
-use crate::sql::Sql;
+use crate::dc_tools::{dc_write_file, time, EmailAddress, InvalidEmailError};
+use crate::sql;
 
 // Re-export key types
 pub use crate::pgp::KeyPair;
 pub use pgp::composed::{SignedPublicKey, SignedSecretKey};
 
 /// Error type for deltachat key handling.
-#[derive(Fail, Debug)]
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum Error {
-    #[fail(display = "Could not decode base64")]
-    Base64Decode(#[cause] base64::DecodeError, failure::Backtrace),
-    #[fail(display = "rPGP error: {}", _0)]
-    PgpError(#[cause] pgp::errors::Error, failure::Backtrace),
-}
-
-impl From<base64::DecodeError> for Error {
-    fn from(err: base64::DecodeError) -> Error {
-        Error::Base64Decode(err, failure::Backtrace::new())
-    }
-}
-
-impl From<pgp::errors::Error> for Error {
-    fn from(err: pgp::errors::Error) -> Error {
-        Error::PgpError(err, failure::Backtrace::new())
-    }
+    #[error("Could not decode base64")]
+    Base64Decode(#[from] base64::DecodeError),
+    #[error("rPGP error: {}", _0)]
+    Pgp(#[from] pgp::errors::Error),
+    #[error("Failed to generate PGP key: {}", _0)]
+    Keygen(#[from] crate::pgp::PgpKeygenError),
+    #[error("Failed to load key: {}", _0)]
+    LoadKey(#[from] sql::Error),
+    #[error("Failed to save generated key: {}", _0)]
+    StoreKey(#[from] SaveKeyError),
+    #[error("No address configured")]
+    NoConfiguredAddr,
+    #[error("Configured address is invalid: {}", _0)]
+    InvalidConfiguredAddr(#[from] InvalidEmailError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -45,6 +47,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// This trait is implemented for rPGP's [SignedPublicKey] and
 /// [SignedSecretKey] types and makes working with them a little
 /// easier in the deltachat world.
+#[async_trait]
 pub trait DcKey: Serialize + Deserializable {
     type KeyType: Serialize + Deserializable;
 
@@ -63,6 +66,9 @@ pub trait DcKey: Serialize + Deserializable {
         Self::from_slice(&bytes)
     }
 
+    /// Load the users' default key from the database.
+    async fn load_self(context: &Context) -> Result<Self::KeyType>;
+
     /// Serialise the key to a base64 string.
     fn to_base64(&self) -> String {
         // Not using Serialize::to_bytes() to make clear *why* it is
@@ -75,12 +81,108 @@ pub trait DcKey: Serialize + Deserializable {
     }
 }
 
+#[async_trait]
 impl DcKey for SignedPublicKey {
     type KeyType = SignedPublicKey;
+
+    async fn load_self(context: &Context) -> Result<Self::KeyType> {
+        match context
+            .sql
+            .query_row(
+                r#"
+            SELECT public_key
+              FROM keypairs
+             WHERE addr=(SELECT value FROM config WHERE keyname="configured_addr")
+               AND is_default=1;
+            "#,
+                paramsv![],
+                |row| row.get::<_, Vec<u8>>(0),
+            )
+            .await
+        {
+            Ok(bytes) => Self::from_slice(&bytes),
+            Err(sql::Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => {
+                let keypair = generate_keypair(context).await?;
+                Ok(keypair.public)
+            }
+            Err(err) => Err(err.into()),
+        }
+    }
 }
 
+#[async_trait]
 impl DcKey for SignedSecretKey {
     type KeyType = SignedSecretKey;
+
+    async fn load_self(context: &Context) -> Result<Self::KeyType> {
+        match context
+            .sql
+            .query_row(
+                r#"
+            SELECT private_key
+              FROM keypairs
+             WHERE addr=(SELECT value FROM config WHERE keyname="configured_addr")
+               AND is_default=1;
+            "#,
+                paramsv![],
+                |row| row.get::<_, Vec<u8>>(0),
+            )
+            .await
+        {
+            Ok(bytes) => Self::from_slice(&bytes),
+            Err(sql::Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => {
+                let keypair = generate_keypair(context).await?;
+                Ok(keypair.secret)
+            }
+            Err(err) => Err(err.into()),
+        }
+    }
+}
+
+async fn generate_keypair(context: &Context) -> Result<KeyPair> {
+    let addr = context
+        .get_config(Config::ConfiguredAddr)
+        .await
+        .ok_or_else(|| Error::NoConfiguredAddr)?;
+    let addr = EmailAddress::new(&addr)?;
+    let _guard = context.generating_key_mutex.lock().await;
+
+    // Check if the key appeared while we were waiting on the lock.
+    match context
+        .sql
+        .query_row(
+            r#"
+        SELECT public_key, private_key
+          FROM keypairs
+         WHERE addr=?1
+           AND is_default=1;
+        "#,
+            paramsv![addr],
+            |row| Ok((row.get::<_, Vec<u8>>(0)?, row.get::<_, Vec<u8>>(1)?)),
+        )
+        .await
+    {
+        Ok((pub_bytes, sec_bytes)) => Ok(KeyPair {
+            addr,
+            public: SignedPublicKey::from_slice(&pub_bytes)?,
+            secret: SignedSecretKey::from_slice(&sec_bytes)?,
+        }),
+        Err(sql::Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => {
+            let start = std::time::Instant::now();
+            let keytype = KeyGenType::from_i32(context.get_config_int(Config::KeyGenType).await)
+                .unwrap_or_default();
+            info!(context, "Generating keypair with type {}", keytype);
+            let keypair = crate::pgp::create_keypair(addr, keytype)?;
+            store_self_keypair(context, &keypair, KeyPairUse::Default).await?;
+            info!(
+                context,
+                "Keypair generated in {:.3}s.",
+                start.elapsed().as_secs()
+            );
+            Ok(keypair)
+        }
+        Err(err) => Err(err.into()),
+    }
 }
 
 /// Cryptographic key
@@ -197,36 +299,6 @@ impl Key {
         }
     }
 
-    pub async fn from_self_public(
-        context: &Context,
-        self_addr: impl AsRef<str>,
-        sql: &Sql,
-    ) -> Option<Self> {
-        let addr = self_addr.as_ref();
-
-        sql.query_get_value(
-            context,
-            "SELECT public_key FROM keypairs WHERE addr=? AND is_default=1;",
-            paramsv![addr],
-        )
-        .await
-        .and_then(|blob: Vec<u8>| Self::from_slice(&blob, KeyType::Public))
-    }
-
-    pub async fn from_self_private(
-        context: &Context,
-        self_addr: impl AsRef<str>,
-        sql: &Sql,
-    ) -> Option<Self> {
-        sql.query_get_value(
-            context,
-            "SELECT private_key FROM keypairs WHERE addr=? AND is_default=1;",
-            paramsv![self_addr.as_ref()],
-        )
-        .await
-        .and_then(|blob: Vec<u8>| Self::from_slice(&blob, KeyType::Private))
-    }
-
     pub fn to_bytes(&self) -> Vec<u8> {
         match self {
             Key::Public(k) => k.to_bytes().unwrap_or_default(),
@@ -318,21 +390,19 @@ pub enum KeyPairUse {
 }
 
 /// Error saving a keypair to the database.
-#[derive(Fail, Debug)]
-#[fail(display = "SaveKeyError: {}", message)]
+#[derive(Debug, thiserror::Error)]
+#[error("SaveKeyError: {message}")]
 pub struct SaveKeyError {
     message: String,
-    #[cause]
-    cause: failure::Error,
-    backtrace: failure::Backtrace,
+    #[source]
+    cause: anyhow::Error,
 }
 
 impl SaveKeyError {
-    fn new(message: impl Into<String>, cause: impl Into<failure::Error>) -> Self {
+    fn new(message: impl Into<String>, cause: impl Into<anyhow::Error>) -> Self {
         Self {
             message: message.into(),
             cause: cause.into(),
-            backtrace: failure::Backtrace::new(),
         }
     }
 }
@@ -557,6 +627,63 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
             );
             assert!(bad_key.is_none());
         }
+    }
+
+    #[async_std::test]
+    async fn test_load_self_existing() {
+        let alice = alice_keypair();
+        let t = dummy_context().await;
+        configure_alice_keypair(&t.ctx).await;
+        let pubkey = SignedPublicKey::load_self(&t.ctx).await.unwrap();
+        assert_eq!(alice.public, pubkey);
+        let seckey = SignedSecretKey::load_self(&t.ctx).await.unwrap();
+        assert_eq!(alice.secret, seckey);
+    }
+
+    #[async_std::test]
+    #[ignore] // generating keys is expensive
+    async fn test_load_self_generate_public() {
+        let t = dummy_context().await;
+        t.ctx
+            .set_config(Config::ConfiguredAddr, Some("alice@example.com"))
+            .await
+            .unwrap();
+        let key = SignedPublicKey::load_self(&t.ctx).await;
+        assert!(key.is_ok());
+    }
+
+    #[async_std::test]
+    #[ignore] // generating keys is expensive
+    async fn test_load_self_generate_secret() {
+        let t = dummy_context().await;
+        t.ctx
+            .set_config(Config::ConfiguredAddr, Some("alice@example.com"))
+            .await
+            .unwrap();
+        let key = SignedSecretKey::load_self(&t.ctx).await;
+        assert!(key.is_ok());
+    }
+
+    #[async_std::test]
+    #[ignore] // generating keys is expensive
+    async fn test_load_self_generate_concurrent() {
+        use std::thread;
+
+        let t = dummy_context().await;
+        t.ctx
+            .set_config(Config::ConfiguredAddr, Some("alice@example.com"))
+            .await
+            .unwrap();
+        let ctx = t.ctx.clone();
+        let ctx0 = ctx.clone();
+        let thr0 =
+            thread::spawn(move || async_std::task::block_on(SignedPublicKey::load_self(&ctx0)));
+        let ctx1 = ctx.clone();
+        let thr1 =
+            thread::spawn(move || async_std::task::block_on(SignedPublicKey::load_self(&ctx1)));
+        let res0 = thr0.join().unwrap();
+        let res1 = thr1.join().unwrap();
+        assert_eq!(res0.unwrap(), res1.unwrap());
     }
 
     #[test]

@@ -1,4 +1,3 @@
-use failure::Fail;
 use std::ffi::{CStr, CString};
 use std::ptr;
 
@@ -31,13 +30,13 @@ unsafe fn dc_strdup(s: *const libc::c_char) -> *mut libc::c_char {
 }
 
 /// Error type for the [OsStrExt] trait
-#[derive(Debug, Fail, PartialEq)]
+#[derive(Debug, PartialEq, thiserror::Error)]
 pub(crate) enum CStringError {
     /// The string contains an interior null byte
-    #[fail(display = "String contains an interior null byte")]
+    #[error("String contains an interior null byte")]
     InteriorNullByte,
     /// The string is not valid Unicode
-    #[fail(display = "String is not valid unicode")]
+    #[error("String is not valid unicode")]
     NotUnicode,
 }
 

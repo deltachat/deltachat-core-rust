@@ -2,10 +2,6 @@
 high level API reference
 ========================
 
-.. note::
-
-    This API is work in progress and may change in versions prior to 1.0.
-
 - :class:`deltachat.account.Account` (your main entry point, creates the
   other classes)
 - :class:`deltachat.contact.Contact`

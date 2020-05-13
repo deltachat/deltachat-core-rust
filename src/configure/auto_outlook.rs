@@ -1,6 +1,5 @@
 //! Outlook's Autodiscover
 
-use quick_xml;
 use quick_xml::events::BytesEnd;
 
 use crate::constants::*;
@@ -8,33 +7,7 @@ use crate::context::Context;
 use crate::login_param::LoginParam;
 
 use super::read_url::read_url;
-
-#[derive(Debug, Fail)]
-pub enum Error {
-    #[fail(display = "XML error at position {}", position)]
-    InvalidXml {
-        position: usize,
-        #[cause]
-        error: quick_xml::Error,
-    },
-
-    #[fail(display = "Bad or incomplete autoconfig")]
-    IncompleteAutoconfig(LoginParam),
-
-    #[fail(display = "Failed to get URL {}", _0)]
-    ReadUrlError(#[cause] super::read_url::Error),
-
-    #[fail(display = "Number of redirection is exceeded")]
-    RedirectionError,
-}
-
-pub type Result<T> = std::result::Result<T, Error>;
-
-impl From<super::read_url::Error> for Error {
-    fn from(err: super::read_url::Error) -> Error {
-        Error::ReadUrlError(err)
-    }
-}
+use super::Error;
 
 struct OutlookAutodiscover {
     pub out: LoginParam,
@@ -52,7 +25,7 @@ enum ParsingResult {
     RedirectUrl(String),
 }
 
-fn parse_xml(xml_raw: &str) -> Result<ParsingResult> {
+fn parse_xml(xml_raw: &str) -> Result<ParsingResult, Error> {
     let mut outlk_ad = OutlookAutodiscover {
         out: LoginParam::new(),
         out_imap_set: false,
@@ -143,7 +116,7 @@ pub fn outlk_autodiscover(
     context: &Context,
     url: &str,
     _param_in: &LoginParam,
-) -> Result<LoginParam> {
+) -> Result<LoginParam, Error> {
     let mut url = url.to_string();
     /* Follow up to 10 xml-redirects (http-redirects are followed in read_url() */
     for _i in 0..10 {

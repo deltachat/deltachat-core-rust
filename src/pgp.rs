@@ -18,7 +18,7 @@ use rand::{thread_rng, CryptoRng, Rng};
 
 use crate::constants::KeyGenType;
 use crate::dc_tools::EmailAddress;
-use crate::error::Result;
+use crate::error::{bail, ensure, format_err, Result};
 use crate::key::*;
 use crate::keyring::*;
 
@@ -117,21 +117,19 @@ pub fn split_armored_data(buf: &[u8]) -> Result<(BlockType, BTreeMap<String, Str
 ///
 /// Most of these are likely coding errors rather than user errors
 /// since all variability is hardcoded.
-#[derive(Fail, Debug)]
-#[fail(display = "PgpKeygenError: {}", message)]
-pub(crate) struct PgpKeygenError {
+#[derive(Debug, thiserror::Error)]
+#[error("PgpKeygenError: {message}")]
+pub struct PgpKeygenError {
     message: String,
-    #[cause]
-    cause: failure::Error,
-    backtrace: failure::Backtrace,
+    #[source]
+    cause: anyhow::Error,
 }
 
 impl PgpKeygenError {
-    fn new(message: impl Into<String>, cause: impl Into<failure::Error>) -> Self {
+    fn new(message: impl Into<String>, cause: impl Into<anyhow::Error>) -> Self {
         Self {
             message: message.into(),
             cause: cause.into(),
-            backtrace: failure::Backtrace::new(),
         }
     }
 }
@@ -189,7 +187,7 @@ pub(crate) fn create_keypair(
                 .unwrap(),
         )
         .build()
-        .map_err(|err| PgpKeygenError::new("invalid key params", failure::err_msg(err)))?;
+        .map_err(|err| PgpKeygenError::new("invalid key params", format_err!(err)))?;
     let key = key_params
         .generate()
         .map_err(|err| PgpKeygenError::new("invalid params", err))?;

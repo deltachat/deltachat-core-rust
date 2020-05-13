@@ -23,6 +23,7 @@ use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job::{self, Action};
 use crate::login_param::{CertificateChecks, LoginParam};
 use crate::message::{self, update_server_uid};
+use crate::mimeparser;
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::param::Params;
 use crate::stock::StockMessage;
@@ -37,76 +38,46 @@ use session::Session;
 
 type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug, Fail)]
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[fail(display = "IMAP Connect without configured params")]
+    #[error("IMAP Connect without configured params")]
     ConnectWithoutConfigure,
 
-    #[fail(display = "IMAP Connection Failed params: {}", _0)]
+    #[error("IMAP Connection Failed params: {0}")]
     ConnectionFailed(String),
 
-    #[fail(display = "IMAP No Connection established")]
+    #[error("IMAP No Connection established")]
     NoConnection,
 
-    #[fail(display = "IMAP Could not get OAUTH token")]
+    #[error("IMAP Could not get OAUTH token")]
     OauthError,
 
-    #[fail(display = "IMAP Could not login as {}", _0)]
+    #[error("IMAP Could not login as {0}")]
     LoginFailed(String),
 
-    #[fail(display = "IMAP Could not fetch")]
-    FetchFailed(#[cause] async_imap::error::Error),
+    #[error("IMAP Could not fetch")]
+    FetchFailed(#[from] async_imap::error::Error),
 
-    #[fail(display = "IMAP operation attempted while it is torn down")]
+    #[error("IMAP operation attempted while it is torn down")]
     InTeardown,
 
-    #[fail(display = "IMAP operation attempted while it is torn down")]
-    SqlError(#[cause] crate::sql::Error),
+    #[error("IMAP operation attempted while it is torn down")]
+    SqlError(#[from] crate::sql::Error),
 
-    #[fail(display = "IMAP got error from elsewhere")]
-    WrappedError(#[cause] crate::error::Error),
+    #[error("IMAP got error from elsewhere")]
+    WrappedError(#[from] crate::error::Error),
 
-    #[fail(display = "IMAP select folder error")]
-    SelectFolderError(#[cause] select_folder::Error),
+    #[error("IMAP select folder error")]
+    SelectFolderError(#[from] select_folder::Error),
 
-    #[fail(display = "Mail parse error")]
-    MailParseError(#[cause] mailparse::MailParseError),
+    #[error("Mail parse error")]
+    MailParseError(#[from] mailparse::MailParseError),
 
-    #[fail(display = "No mailbox selected, folder: {:?}", _0)]
+    #[error("No mailbox selected, folder: {0}")]
     NoMailbox(String),
 
-    #[fail(display = "IMAP other error: {:?}", _0)]
+    #[error("IMAP other error: {0}")]
     Other(String),
-}
-
-impl From<crate::sql::Error> for Error {
-    fn from(err: crate::sql::Error) -> Error {
-        Error::SqlError(err)
-    }
-}
-
-impl From<crate::error::Error> for Error {
-    fn from(err: crate::error::Error) -> Error {
-        Error::WrappedError(err)
-    }
-}
-
-impl From<Error> for crate::error::Error {
-    fn from(err: Error) -> crate::error::Error {
-        crate::error::Error::Message(err.to_string())
-    }
-}
-
-impl From<select_folder::Error> for Error {
-    fn from(err: select_folder::Error) -> Error {
-        Error::SelectFolderError(err)
-    }
-}
-
-impl From<mailparse::MailParseError> for Error {
-    fn from(err: mailparse::MailParseError) -> Error {
-        Error::MailParseError(err)
-    }
 }
 
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq)]
@@ -308,7 +279,7 @@ impl Imap {
                     context
                         .stock_string_repl_str2(
                             StockMessage::ServerResponse,
-                            format!("{}:{}", imap_server, imap_port),
+                            format!("IMAP {}:{}", imap_server, imap_port),
                             err.to_string(),
                         )
                         .await
@@ -655,8 +626,13 @@ impl Imap {
             read_cnt += 1;
             let headers = get_fetch_headers(&fetch)?;
             let message_id = prefetch_get_message_id(&headers).unwrap_or_default();
-
-            if precheck_imf(context, &message_id, folder.as_ref(), cur_uid).await {
+            if let Ok(true) = precheck_imf(context, &message_id, folder.as_ref(), cur_uid)
+                .await
+                .map_err(|err| {
+                    warn!(context, "precheck_imf error: {}", err);
+                    err
+                })
+            {
                 // we know the message-id already or don't want the message otherwise.
                 info!(
                     context,
@@ -665,6 +641,9 @@ impl Imap {
                     folder.as_ref(),
                 );
             } else {
+                // we do not know the message-id
+                // or the message-id is missing (in this case, we create one in the further process)
+                // or some other error happened
                 let show = prefetch_should_download(context, &headers, show_emails)
                     .await
                     .map_err(|err| {
@@ -792,13 +771,7 @@ impl Imap {
                 if let Err(err) =
                     dc_receive_imf(context, &body, folder.as_ref(), server_uid, is_seen).await
                 {
-                    warn!(
-                        context,
-                        "dc_receive_imf failed for imap-message {}/{}: {:?}",
-                        folder.as_ref(),
-                        server_uid,
-                        err
-                    );
+                    return Err(Error::Other(format!("dc_receive_imf error: {}", err)));
                 }
             }
         } else {
@@ -1324,9 +1297,9 @@ async fn precheck_imf(
     rfc724_mid: &str,
     server_folder: &str,
     server_uid: u32,
-) -> bool {
-    if let Ok((old_server_folder, old_server_uid, msg_id)) =
-        message::rfc724_mid_exists(context, &rfc724_mid).await
+) -> Result<bool> {
+    if let Some((old_server_folder, old_server_uid, msg_id)) =
+        message::rfc724_mid_exists(context, &rfc724_mid).await?
     {
         if old_server_folder.is_empty() && old_server_uid == 0 {
             info!(
@@ -1383,9 +1356,9 @@ async fn precheck_imf(
         if old_server_folder != server_folder || old_server_uid != server_uid {
             update_server_uid(context, &rfc724_mid, server_folder, server_uid).await;
         }
-        true
+        Ok(true)
     } else {
-        false
+        Ok(false)
     }
 }
 
@@ -1438,12 +1411,8 @@ async fn prefetch_should_download(
         .get_header_value(HeaderDef::AutocryptSetupMessage)
         .is_some();
 
-    let from_field = headers
-        .get_header_value(HeaderDef::From_)
-        .unwrap_or_default();
-
     let (_contact_id, blocked_contact, origin) =
-        from_field_to_contact_id(context, &from_field).await?;
+        from_field_to_contact_id(context, &mimeparser::get_from(headers)).await?;
     let accepted_contact = origin.is_known();
 
     let show = is_autocrypt_setup_message

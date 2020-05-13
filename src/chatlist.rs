@@ -5,7 +5,7 @@ use crate::chat::*;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::*;
-use crate::error::Result;
+use crate::error::{bail, ensure, Result};
 use crate::lot::Lot;
 use crate::message::{Message, MessageState, MsgId};
 use crate::stock::StockMessage;
@@ -92,9 +92,14 @@ impl Chatlist {
         query: Option<&str>,
         query_contact_id: Option<u32>,
     ) -> Result<Self> {
+        let flag_archived_only = 0 != listflags & DC_GCL_ARCHIVED_ONLY;
+        let flag_for_forwarding = 0 != listflags & DC_GCL_FOR_FORWARDING;
+        let flag_no_specials = 0 != listflags & DC_GCL_NO_SPECIALS;
+        let flag_add_alldone_hint = 0 != listflags & DC_GCL_ADD_ALLDONE_HINT;
+
         // Note that we do not emit DC_EVENT_MSGS_MODIFIED here even if some
-        // messages get hidden to avoid reloading the same chatlist.
-        if let Err(err) = hide_device_expired_messages(context).await {
+        // messages get deleted to avoid reloading the same chatlist.
+        if let Err(err) = delete_device_expired_messages(context).await {
             warn!(context, "Failed to hide expired messages: {}", err);
         }
 
@@ -111,7 +116,7 @@ impl Chatlist {
                 .map_err(Into::into)
         };
 
-        let skip_id = if 0 != listflags & DC_GCL_FOR_FORWARDING {
+        let skip_id = if flag_for_forwarding {
             chat::lookup_by_contact_id(context, DC_CONTACT_ID_DEVICE)
                 .await
                 .unwrap_or_default()
@@ -156,7 +161,7 @@ impl Chatlist {
                 process_row,
                 process_rows,
             ).await?
-        } else if 0 != listflags & DC_GCL_ARCHIVED_ONLY {
+        } else if flag_archived_only {
             // show archived chats
             // (this includes the archived device-chat; we could skip it,
             // however, then the number of archived chats do not match, which might be even more irritating.
@@ -218,7 +223,7 @@ impl Chatlist {
                 .await?
         } else {
             //  show normal chatlist
-            let sort_id_up = if 0 != listflags & DC_GCL_FOR_FORWARDING {
+            let sort_id_up = if flag_for_forwarding {
                 chat::lookup_by_contact_id(context, DC_CONTACT_ID_SELF)
                     .await
                     .unwrap_or_default()
@@ -245,10 +250,10 @@ impl Chatlist {
                 process_row,
                 process_rows,
             ).await?;
-            if 0 == listflags & DC_GCL_NO_SPECIALS {
+            if !flag_no_specials {
                 if let Some(last_deaddrop_fresh_msg_id) = get_last_deaddrop_fresh_msg(context).await
                 {
-                    if 0 == listflags & DC_GCL_FOR_FORWARDING {
+                    if !flag_for_forwarding {
                         ids.insert(
                             0,
                             (ChatId::new(DC_CHAT_ID_DEADDROP), last_deaddrop_fresh_msg_id),
@@ -261,7 +266,7 @@ impl Chatlist {
         };
 
         if add_archived_link_item && dc_get_archived_cnt(context).await > 0 {
-            if ids.is_empty() && 0 != listflags & DC_GCL_ADD_ALLDONE_HINT {
+            if ids.is_empty() && flag_add_alldone_hint {
                 ids.push((ChatId::new(DC_CHAT_ID_ALLDONE_HINT), MsgId::new(0)));
             }
             ids.push((ChatId::new(DC_CHAT_ID_ARCHIVED_LINK), MsgId::new(0)));
@@ -284,18 +289,20 @@ impl Chatlist {
     ///
     /// To get the message object from the message ID, use dc_get_chat().
     pub fn get_chat_id(&self, index: usize) -> ChatId {
-        if index >= self.ids.len() {
-            return ChatId::new(0);
+        match self.ids.get(index) {
+            Some((chat_id, _msg_id)) => *chat_id,
+            None => ChatId::new(0),
         }
-        self.ids[index].0
     }
 
     /// Get a single message ID of a chatlist.
     ///
     /// To get the message object from the message ID, use dc_get_msg().
     pub fn get_msg_id(&self, index: usize) -> Result<MsgId> {
-        ensure!(index < self.ids.len(), "Chatlist index out of range");
-        Ok(self.ids[index].1)
+        match self.ids.get(index) {
+            Some((_chat_id, msg_id)) => Ok(*msg_id),
+            None => bail!("Chatlist index out of range"),
+        }
     }
 
     /// Get a summary for a chatlist index.
@@ -319,25 +326,27 @@ impl Chatlist {
         // Also, sth. as "No messages" would not work if the summary comes from a message.
         let mut ret = Lot::new();
 
-        if index >= self.ids.len() {
-            ret.text2 = Some("ErrBadChatlistIndex".to_string());
-            return ret;
-        }
+        let (chat_id, lastmsg_id) = match self.ids.get(index) {
+            Some(ids) => ids,
+            None => {
+                ret.text2 = Some("ErrBadChatlistIndex".to_string());
+                return ret;
+            }
+        };
 
         let chat_loaded: Chat;
         let chat = if let Some(chat) = chat {
             chat
-        } else if let Ok(chat) = Chat::load_from_db(context, self.ids[index].0).await {
+        } else if let Ok(chat) = Chat::load_from_db(context, *chat_id).await {
             chat_loaded = chat;
             &chat_loaded
         } else {
             return ret;
         };
 
-        let lastmsg_id = self.ids[index].1;
         let mut lastcontact = None;
 
-        let lastmsg = if let Ok(lastmsg) = Message::load_from_db(context, lastmsg_id).await {
+        let lastmsg = if let Ok(lastmsg) = Message::load_from_db(context, *lastmsg_id).await {
             if lastmsg.from_id != DC_CONTACT_ID_SELF
                 && (chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup)
             {

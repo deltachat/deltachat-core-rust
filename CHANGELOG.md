@@ -1,5 +1,73 @@
 # Changelog 
 
+## 1.32.0
+
+- fix endless loop when trying to download messages with bad RFC Message-ID,
+  also be more reliable on similar errors #1463 #1466 #1462
+
+- fix bug with comma in contact request #1438
+
+- do not refer to hidden messages on replies #1459
+
+- improve error handling #1468 #1465 #1464
+
+
+## 1.31.0
+
+- always describe the context of the displayed error #1451
+
+- do not emit `DC_EVENT_ERROR` when message sending fails;
+  `dc_msg_get_state()` and `dc_get_msg_info()` are sufficient #1451
+
+- new config-option `media_quality` #1449
+
+- try over if writing message to database fails #1447
+
+
+## 1.30.0
+
+- expunge deleted messages #1440
+
+- do not send `DC_EVENT_MSGS_CHANGED|INCOMING_MSG` on hidden messages #1439
+
+
+## 1.29.0
+
+- new config options `delete_device_after` and `delete_server_after`,
+  each taking an amount of seconds after which messages
+  are deleted from the device and/or the server #1310 #1335 #1411 #1417 #1423
+
+- new api `dc_estimate_deletion_cnt()` to estimate the effect
+  of `delete_device_after` and `delete_server_after`
+
+- use Ed25519 keys by default, these keys are much shorter
+  than RSA keys, which results in saving traffic and speed improvements #1362
+
+- improve message ellipsizing #1397 #1430
+
+- emit `DC_EVENT_ERROR_NETWORK` also on smtp-errors #1378
+
+- do not show badly formatted non-delta-messages as empty #1384
+
+- try over SMTP on potentially recoverable error 5.5.0 #1379
+
+- remove device-chat from forward-to-chat-list #1367
+
+- improve group-handling #1368
+
+- `dc_get_info()` returns uptime (how long the context is in use)
+
+- python improvements and adaptions #1408 #1415
+
+- log to the stdout and stderr in tests #1416
+
+- refactoring, code improvements #1363 #1365 #1366 #1370 #1375 #1389 #1390 #1418 #1419
+
+- removed api: `dc_chat_get_subtitle()`, `dc_get_version_str()`, `dc_array_add_id()`
+
+- removed events: `DC_EVENT_MEMBER_ADDED`, `DC_EVENT_MEMBER_REMOVED`
+
+
 ## 1.28.0
 
 - new flag DC_GCL_FOR_FORWARDING for dc_get_chatlist()
