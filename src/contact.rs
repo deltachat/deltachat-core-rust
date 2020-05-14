@@ -1569,6 +1569,11 @@ mod tests {
         assert_eq!(contact.get_name(), "Dave Mueller");
         assert_eq!(contact.get_addr(), "dave@example.org");
 
+        let contact_id = Contact::create(&t.ctx, "name1", "name2 <dave@example.org>").unwrap();
+        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        assert_eq!(contact.get_name(), "name1");
+        assert_eq!(contact.get_addr(), "dave@example.org");
+
         assert!(Contact::create(&t.ctx, "", "<dskjfdslk@sadklj.dk").is_err());
         assert!(Contact::create(&t.ctx, "", "<dskjf>dslk@sadklj.dk>").is_err());
         assert!(Contact::create(&t.ctx, "", "dskjfdslksadklj.dk").is_err());
