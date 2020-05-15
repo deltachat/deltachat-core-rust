@@ -169,7 +169,15 @@ lazy_static::lazy_static! {
             Server { protocol: IMAP, socket: STARTTLS, hostname: "imap.nauta.cu", port: 143, username_pattern: EMAIL },
             Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp.nauta.cu", port: 25, username_pattern: EMAIL },
         ],
-        config_defaults: None,
+        config_defaults: Some(vec![
+            ConfigDefault { key: Config::DeleteServerAfter, value: "1" },
+            ConfigDefault { key: Config::BccSelf, value: "0" },
+            ConfigDefault { key: Config::SentboxWatch, value: "0" },
+            ConfigDefault { key: Config::MvboxWatch, value: "0" },
+            ConfigDefault { key: Config::MvboxMove, value: "0" },
+            ConfigDefault { key: Config::E2eeEnabled, value: "0" },
+            ConfigDefault { key: Config::MediaQuality, value: "1" },
+        ]),
     };
 
     // outlook.com.md: hotmail.com, outlook.com, office365.com, outlook.com.tr, live.com
@@ -213,6 +221,9 @@ lazy_static::lazy_static! {
     // - skipping provider with status OK and no special things to do
 
     // rogers.com.md: rogers.com
+    // - skipping provider with status OK and no special things to do
+
+    // systemli.org.md: systemli.org
     // - skipping provider with status OK and no special things to do
 
     // t-online.md: t-online.de, magenta.de
