@@ -605,11 +605,6 @@ async fn add_parts(
             *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
         }
     }
-    // correct message_timestamp, it should not be used before,
-    // however, we cannot do this earlier as we need from_id to be set
-    let rcvd_timestamp = time();
-    let sort_timestamp = calc_sort_timestamp(context, *sent_timestamp, *chat_id, !seen).await;
-    *sent_timestamp = std::cmp::min(*sent_timestamp, rcvd_timestamp);
 
     // Extract autodelete timer from the message.
     let timer = if let Some(value) = mime_parser.get(HeaderDef::AutodeleteTimer) {
@@ -653,6 +648,12 @@ async fn add_parts(
             }
         }
     }
+
+    // correct message_timestamp, it should not be used before,
+    // however, we cannot do this earlier as we need from_id to be set
+    let rcvd_timestamp = time();
+    let sort_timestamp = calc_sort_timestamp(context, *sent_timestamp, *chat_id, !seen).await;
+    *sent_timestamp = std::cmp::min(*sent_timestamp, rcvd_timestamp);
 
     // unarchive chat
     chat_id.unarchive(context).await?;
