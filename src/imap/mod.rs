@@ -1235,7 +1235,7 @@ impl Imap {
 // CAVE: if possible, take care not to add a name here that is "sent" in one language
 // but sth. different in others - a hard job.
 fn get_folder_meaning_by_name(folder_name: &Name) -> FolderMeaning {
-    let sent_names = vec!["sent", "sent objects", "gesendet"];
+    let sent_names = vec!["sent", "sentmail", "sent objects", "gesendet"];
     let lower = folder_name.name().to_lowercase();
 
     if sent_names.into_iter().any(|s| s == lower) {
