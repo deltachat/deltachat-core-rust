@@ -591,18 +591,6 @@ fn add_parts(
             *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
         }
     }
-    // correct message_timestamp, it should not be used before,
-    // however, we cannot do this earlier as we need from_id to be set
-    calc_timestamps(
-        context,
-        *chat_id,
-        from_id,
-        *sent_timestamp,
-        !seen,
-        &mut sort_timestamp,
-        sent_timestamp,
-        &mut rcvd_timestamp,
-    );
 
     // Extract autodelete timer from the message.
     let timer = if let Some(value) = mime_parser.get(HeaderDef::AutodeleteTimer) {
@@ -644,6 +632,19 @@ fn add_parts(
             }
         }
     }
+
+    // correct message_timestamp, it should not be used before,
+    // however, we cannot do this earlier as we need from_id to be set
+    calc_timestamps(
+        context,
+        *chat_id,
+        from_id,
+        *sent_timestamp,
+        !seen,
+        &mut sort_timestamp,
+        sent_timestamp,
+        &mut rcvd_timestamp,
+    );
 
     // unarchive chat
     chat_id.unarchive(context)?;
