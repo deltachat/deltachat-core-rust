@@ -380,7 +380,8 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    Messages are deleted whether they were seen or not, the UI should clearly point that out.
  *                    See also dc_estimate_deletion_cnt().
  * - `delete_server_after` = 0=do not delete messages from server automatically (default),
- *                    >=1=seconds, after which messages are deleted automatically from the server.
+ *                    1=delete messages directly after receiving from server, mvbox is skipped.
+ *                    >1=seconds, after which messages are deleted automatically from the server, mvbox is used as defined.
  *                    "Saved messages" are deleted from the server as well as
  *                    emails matching the `show_emails` settings above, the UI should clearly point that out.
  *                    See also dc_estimate_deletion_cnt().
