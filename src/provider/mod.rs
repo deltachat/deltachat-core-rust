@@ -2,6 +2,7 @@
 
 mod data;
 
+use crate::config::Config;
 use crate::dc_tools::EmailAddress;
 use crate::provider::data::PROVIDER_DATA;
 
@@ -58,12 +59,19 @@ impl Server {
 }
 
 #[derive(Debug)]
+pub struct ConfigDefault {
+    pub key: Config,
+    pub value: &'static str,
+}
+
+#[derive(Debug)]
 pub struct Provider {
     pub status: Status,
     pub before_login_hint: &'static str,
     pub after_login_hint: &'static str,
     pub overview_page: &'static str,
     pub server: Vec<Server>,
+    pub config_defaults: Option<Vec<ConfigDefault>>,
 }
 
 impl Provider {
