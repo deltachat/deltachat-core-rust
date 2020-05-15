@@ -1265,7 +1265,7 @@ fn get_folder_meaning(folder_name: &Name) -> FolderMeaning {
             }
         }
     }
-    return FolderMeaning::Unknown;
+    FolderMeaning::Unknown
 }
 
 fn precheck_imf(
