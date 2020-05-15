@@ -994,19 +994,23 @@ pub fn job_send_msg(context: &Context, msg_id: MsgId) -> Result<()> {
 }
 
 fn load_imap_deletion_msgid(context: &Context) -> sql::Result<Option<MsgId>> {
-    if let Some(delete_server_after) = context.get_config_delete_server_after() {
-        let threshold_timestamp = time() - delete_server_after;
+    let now = time();
 
-        context.sql.query_row_optional(
-            "SELECT id FROM msgs \
-             WHERE timestamp < ? \
-             AND server_uid != 0",
-            params![threshold_timestamp],
-            |row| row.get::<_, MsgId>(0),
-        )
-    } else {
-        Ok(None)
-    }
+    let threshold_timestamp = match context.get_config_delete_server_after() {
+        None => 0,
+        Some(delete_server_after) => now - delete_server_after,
+    };
+
+    context.sql.query_row_optional(
+        "SELECT id FROM msgs \
+         WHERE ( \
+         timestamp < ? \
+         OR (autodelete_timestamp != 0 AND autodelete_timestamp < ?) \
+         ) \
+         AND server_uid != 0",
+        params![threshold_timestamp, now],
+        |row| row.get::<_, MsgId>(0),
+    )
 }
 
 fn load_imap_deletion_job(context: &Context) -> sql::Result<Option<Job>> {
