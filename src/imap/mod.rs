@@ -1063,13 +1063,21 @@ impl Imap {
                     }
                 };
 
-                let sentbox_folder =
-                    folders
-                        .iter()
-                        .find(|folder| match get_folder_meaning(folder) {
-                            FolderMeaning::SentObjects => true,
-                            _ => false,
-                        });
+                let sentbox_folder = folders
+                    .iter()
+                    .find(|folder| match get_folder_meaning(folder) {
+                        FolderMeaning::SentObjects => true,
+                        _ => false,
+                    })
+                    .or_else(|| {
+                        info!(context, "can't find sentbox by attributes, checking names");
+                        folders
+                            .iter()
+                            .find(|folder| match get_folder_meaning_by_name(folder) {
+                                FolderMeaning::SentObjects => true,
+                                _ => false,
+                            })
+                    });
                 info!(context, "sentbox folder is {:?}", sentbox_folder);
 
                 let mut delimiter = ".";
@@ -1246,27 +1254,18 @@ fn get_folder_meaning_by_name(folder_name: &Name) -> FolderMeaning {
 }
 
 fn get_folder_meaning(folder_name: &Name) -> FolderMeaning {
-    if folder_name.attributes().is_empty() {
-        return FolderMeaning::Unknown;
-    }
-
-    let mut res = FolderMeaning::Unknown;
     let special_names = vec!["\\Spam", "\\Trash", "\\Drafts", "\\Junk"];
 
     for attr in folder_name.attributes() {
         if let NameAttribute::Custom(ref label) = attr {
             if special_names.iter().any(|s| *s == label) {
-                res = FolderMeaning::Other;
+                return FolderMeaning::Other;
             } else if label == "\\Sent" {
-                res = FolderMeaning::SentObjects
+                return FolderMeaning::SentObjects;
             }
         }
     }
-
-    match res {
-        FolderMeaning::Unknown => get_folder_meaning_by_name(folder_name),
-        _ => res,
-    }
+    return FolderMeaning::Unknown;
 }
 
 fn precheck_imf(
