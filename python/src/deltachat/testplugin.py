@@ -5,9 +5,13 @@ import subprocess
 import queue
 import threading
 import fnmatch
+import time
+import weakref
+import tempfile
+
 import pytest
 import requests
-import time
+
 from . import Account, const
 from .tracker import ConfigureTracker
 from .capi import lib
@@ -15,7 +19,7 @@ from .eventlogger import FFIEventLogger, FFIEventTracker
 from _pytest.monkeypatch import MonkeyPatch
 from _pytest._code import Source
 
-import tempfile
+import deltachat
 
 
 def pytest_addoption(parser):
@@ -40,11 +44,55 @@ def pytest_configure(config):
         if cfg:
             config.option.liveconfig = cfg
 
+    # Make sure we don't get garbled output because threads keep running
+    # collect all ever created accounts in a weakref-set (so we don't
+    # keep objects unneccessarily alive) and enable/disable logging
+    # for each pytest test phase # (setup/call/teardown).
+    # Additionally make the acfactory use a logging/no-logging default.
 
-def pytest_runtest_setup(item):
-    if (list(item.iter_markers(name="ignored"))
-            and not item.config.getoption("ignored")):
-        pytest.skip("Ignored tests not requested, use --ignored")
+    class LoggingAspect:
+        def __init__(self):
+            self._accounts = weakref.WeakSet()
+
+        @deltachat.global_hookimpl
+        def dc_account_init(self, account):
+            self._accounts.add(account)
+
+        def disable_logging(self, item):
+            for acc in self._accounts:
+                acc.disable_logging()
+            acfactory = item.funcargs.get("acfactory")
+            if acfactory:
+                acfactory.set_logging_default(False)
+
+        def enable_logging(self, item):
+            for acc in self._accounts:
+                acc.enable_logging()
+            acfactory = item.funcargs.get("acfactory")
+            if acfactory:
+                acfactory.set_logging_default(True)
+
+        @pytest.hookimpl(hookwrapper=True)
+        def pytest_runtest_setup(self, item):
+            self.enable_logging(item)
+            yield
+            self.disable_logging(item)
+
+        @pytest.hookimpl(hookwrapper=True)
+        def pytest_pyfunc_call(self, pyfuncitem):
+            self.enable_logging(pyfuncitem)
+            yield
+            self.disable_logging(pyfuncitem)
+
+        @pytest.hookimpl(hookwrapper=True)
+        def pytest_runtest_teardown(self, item):
+            self.enable_logging(item)
+            yield
+            self.disable_logging(item)
+
+    la = LoggingAspect()
+    config.pluginmanager.register(la)
+    deltachat.register_global_plugin(la)
 
 
 def pytest_report_header(config, startdir):
@@ -164,23 +212,33 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             self.live_count = 0
             self.offline_count = 0
             self._finalizers = []
+            self._accounts = []
             self.init_time = time.time()
             self._generated_keys = ["alice", "bob", "charlie",
                                     "dom", "elena", "fiona"]
+            self.set_logging_default(False)
 
         def finalize(self):
             while self._finalizers:
                 fin = self._finalizers.pop()
                 fin()
 
+            while self._accounts:
+                acc = self._accounts.pop()
+                acc.shutdown()
+                acc.disable_logging()
+
         def make_account(self, path, logid, quiet=False):
-            ac = Account(path)
+            ac = Account(path, logging=self._logging)
             ac._evtracker = ac.add_account_plugin(FFIEventTracker(ac))
             ac._configtracker = ac.add_account_plugin(ConfigureTracker())
             if not quiet:
                 ac.add_account_plugin(FFIEventLogger(ac, logid=logid))
-            self._finalizers.append(ac.shutdown)
+            self._accounts.append(ac)
             return ac
+
+        def set_logging_default(self, logging):
+            self._logging = bool(logging)
 
         def get_unconfigured_account(self):
             self.offline_count += 1
