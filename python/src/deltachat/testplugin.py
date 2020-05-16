@@ -232,6 +232,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             ac = Account(path, logging=self._logging)
             ac._evtracker = ac.add_account_plugin(FFIEventTracker(ac))
             ac._configtracker = ac.add_account_plugin(ConfigureTracker())
+            ac.addr = ac.get_self_contact().addr
             if not quiet:
                 ac.add_account_plugin(FFIEventLogger(ac, logid=logid))
             self._accounts.append(ac)
@@ -319,6 +320,13 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             ac1._configtracker.wait_finish()
             ac2._configtracker.wait_finish()
             return ac1, ac2
+
+        def get_many_online_accounts(self, num, move=True, quiet=True):
+            accounts = [self.get_online_configuring_account(move=move, quiet=quiet)
+                        for i in range(num)]
+            for acc in accounts:
+                acc._configtracker.wait_finish()
+            return accounts
 
         def clone_online_account(self, account, pre_generated_key=True):
             self.live_count += 1
