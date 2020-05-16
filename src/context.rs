@@ -243,7 +243,7 @@ impl Context {
         let journal_mode = self
             .sql
             .query_get_value(self, "PRAGMA journal_mode;", rusqlite::NO_PARAMS)
-            .unwrap_or("unknown".to_string());
+            .unwrap_or_else(|| "unknown".to_string());
         let e2ee_enabled = self.get_config_int(Config::E2eeEnabled);
         let mdns_enabled = self.get_config_int(Config::MdnsEnabled);
         let bcc_self = self.get_config_int(Config::BccSelf);
