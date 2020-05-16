@@ -1,12 +1,28 @@
+import time
+import os
 import random
 from queue import Queue
 
 import deltachat
 
 
-def test_db_busy_error(acfactory):
-    # make a number of accounts and put them in one chat
-    accounts = acfactory.get_many_online_accounts(4)
+def test_db_busy_error(acfactory, tmpdir):
+    starttime = time.time()
+
+    def log(string):
+        print("%3.2f %s" % (time.time() - starttime, string))
+
+    # make a number of accounts
+    accounts = acfactory.get_many_online_accounts(5, quiet=True)
+    log("created %s accounts" % len(accounts))
+
+    # put a bigfile into each account
+    for acc in accounts:
+        acc.bigfile = os.path.join(acc.get_blobdir(), "bigfile")
+        with open(acc.bigfile, "wb") as f:
+            f.write(b"01234567890"*1000_000)
+    log("created %s bigfiles" % len(accounts))
+
     contact_addrs = [acc.get_self_contact().addr for acc in accounts]
     chat = accounts[0].create_group_chat("stress-group")
     for addr in contact_addrs[1:]:
@@ -21,7 +37,7 @@ def test_db_busy_error(acfactory):
     # each replier receives all events and sends report events to receive_queue
     repliers = []
     for acc in accounts:
-        replier = AutoReplier(acc, exit_probability=0.05, report_func=report_func)
+        replier = AutoReplier(acc, big_probability=0.1, exit_probability=0.01, report_func=report_func)
         acc.add_account_plugin(replier)
         repliers.append(replier)
 
@@ -36,14 +52,14 @@ def test_db_busy_error(acfactory):
         assert addr
         if report_type == ReportType.exit:
             alive_count -= 1
-            print("{} EXIT -- remaining: {}".format(addr, alive_count))
+            log("{} EXIT -- remaining: {}".format(addr, alive_count))
             replier.account.shutdown(wait=True)
         elif report_type == ReportType.message_sent:
-            print("{} sent message id={}".format(addr, report_args[0].id))
+            log("{} sent message: {}".format(addr, report_args[0].text))
         elif report_type == ReportType.message_incoming:
-            print("{} incoming message id={}".format(addr, report_args[0].id))
+            log("{} incoming message: {}".format(addr, report_args[0].text))
         elif report_type == ReportType.ffi_error:
-            print("{} ERROR: {}".format(addr, report_args[0].id))
+            log("{} ERROR: {}".format(addr, report_args[0]))
             replier.account.shutdown(wait=True)
             alive_count -= 1
 
@@ -56,11 +72,12 @@ class ReportType:
 
 
 class AutoReplier:
-    def __init__(self, account, exit_probability, report_func):
+    def __init__(self, account, big_probability, exit_probability, report_func):
         assert 0 < exit_probability < 1
         self.account = account
         self.report_func = report_func
         self.exit_probability = exit_probability
+        self.big_probability = big_probability
         self.exiting = False
 
     @deltachat.account_hookimpl
@@ -76,7 +93,12 @@ class AutoReplier:
             return
 
         # we are still alive, let's send a reply
-        msg = message.chat.send_text("hello, got message id {}".format(message.id))
+        if random.random() <= self.big_probability:
+            message.chat.send_text("send big file as reply to: {}".format(message.text))
+            msg = message.chat.send_file(self.account.bigfile)
+        else:
+            msg = message.chat.send_text("got message id {}, small text reply".format(message.id))
+            assert msg.text
         self.report_func(self, ReportType.message_sent, msg)
 
     @deltachat.account_hookimpl
