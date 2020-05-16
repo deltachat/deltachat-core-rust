@@ -904,10 +904,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
     }
 
     if let Some(autodelete_timestamp) = msg.autodelete_timestamp {
-        ret += &format!(
-            "Expires: {}\n",
-            dc_timestamp_to_str(autodelete_timestamp)
-        );
+        ret += &format!("Expires: {}\n", dc_timestamp_to_str(autodelete_timestamp));
     }
 
     if msg.from_id == DC_CONTACT_ID_INFO || msg.to_id == DC_CONTACT_ID_INFO {
