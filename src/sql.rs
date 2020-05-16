@@ -916,7 +916,7 @@ fn open(
             // timer starts when message is read, so we want to have
             // the value stored here until the timer starts.
             sql.execute(
-                "ALTER TABLE msgs ADD COLUMN autodelete_timer INTEGER;",
+                "ALTER TABLE msgs ADD COLUMN autodelete_timer INTEGER DEFAULT 0;",
                 NO_PARAMS,
             )?;
             // Timestamp indicating when the message should be
@@ -924,7 +924,7 @@ fn open(
             // needs this value to display how much time is left until
             // the message is deleted.
             sql.execute(
-                "ALTER TABLE msgs ADD COLUMN autodelete_timestamp INTEGER;",
+                "ALTER TABLE msgs ADD COLUMN autodelete_timestamp INTEGER DEFAULT 0;",
                 NO_PARAMS,
             )?;
             sql.set_raw_config_int(context, "dbversion", 65)?;
