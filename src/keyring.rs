@@ -1,17 +1,47 @@
+//! Keyring to perform rpgp operations with.
+
 use anyhow::Result;
 
-use crate::constants::KeyType;
 use crate::context::Context;
-use crate::key::Key;
+use crate::key::{self, DcKey};
 
-#[derive(Default, Clone, Debug)]
-pub struct Keyring {
-    keys: Vec<Key>,
+/// An in-memory keyring.
+///
+/// Instances are usually constructed just for the rpgp operation and
+/// short-lived.
+#[derive(Clone, Debug, Default)]
+pub struct Keyring<T>
+where
+    T: DcKey,
+{
+    keys: Vec<T>,
 }
 
-impl Keyring {
-    pub fn add(&mut self, key: Key) {
-        self.keys.push(key)
+impl<T> Keyring<T>
+where
+    T: DcKey<KeyType = T>,
+{
+    /// New empty keyring.
+    pub fn new() -> Keyring<T> {
+        Keyring { keys: Vec::new() }
+    }
+
+    /// Create a new keyring with the the user's secret key loaded.
+    pub async fn new_self(context: &Context) -> Result<Keyring<T>, key::Error> {
+        let mut keyring: Keyring<T> = Keyring::new();
+        keyring.load_self(context).await?;
+        Ok(keyring)
+    }
+
+    /// Load the user's key into the keyring.
+    pub async fn load_self(&mut self, context: &Context) -> Result<(), key::Error> {
+        self.add(T::load_self(context).await?);
+        Ok(())
+    }
+
+    /// Add a key to the keyring.
+    pub fn add(&mut self, key: T) {
+        self.keys.push(key);
     }
 
     pub fn len(&self) -> usize {
@@ -22,26 +52,41 @@ impl Keyring {
         self.keys.is_empty()
     }
 
-    pub fn keys(&self) -> &[Key] {
+    /// A vector with reference to all the keys in the keyring.
+    pub fn keys(&self) -> &[T] {
         &self.keys
     }
+}
 
-    pub async fn load_self_private_for_decrypting(
-        context: &Context,
-        self_addr: impl AsRef<str>,
-    ) -> Result<Self> {
-        let blob: Vec<u8> = context
-            .sql
-            .query_get_value_result(
-                "SELECT private_key FROM keypairs ORDER BY addr=? DESC, is_default DESC;",
-                paramsv![self_addr.as_ref().to_string()],
-            )
-            .await?
-            .unwrap_or_default();
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::key::{SignedPublicKey, SignedSecretKey};
+    use crate::test_utils::*;
 
-        let key = async_std::task::spawn_blocking(move || Key::from_slice(&blob, KeyType::Private))
-            .await?;
+    #[test]
+    fn test_keyring_add_keys() {
+        let alice = alice_keypair();
+        let mut pub_ring: Keyring<SignedPublicKey> = Keyring::new();
+        pub_ring.add(alice.public.clone());
+        assert_eq!(pub_ring.keys(), [alice.public]);
 
-        Ok(Self { keys: vec![key] })
+        let mut sec_ring: Keyring<SignedSecretKey> = Keyring::new();
+        sec_ring.add(alice.secret.clone());
+        assert_eq!(sec_ring.keys(), [alice.secret]);
+    }
+
+    #[async_std::test]
+    async fn test_keyring_load_self() {
+        // new_self() implies load_self()
+        let t = dummy_context().await;
+        configure_alice_keypair(&t.ctx).await;
+        let alice = alice_keypair();
+
+        let pub_ring: Keyring<SignedPublicKey> = Keyring::new_self(&t.ctx).await.unwrap();
+        assert_eq!(pub_ring.keys(), [alice.public]);
+
+        let sec_ring: Keyring<SignedSecretKey> = Keyring::new_self(&t.ctx).await.unwrap();
+        assert_eq!(sec_ring.keys(), [alice.secret]);
     }
 }

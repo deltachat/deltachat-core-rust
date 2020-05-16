@@ -15,7 +15,7 @@ use crate::dc_tools::duration_to_str;
 use crate::error::*;
 use crate::events::{Event, EventEmitter, Events};
 use crate::job::{self, Action};
-use crate::key::{DcKey, Key, SignedPublicKey};
+use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;
 use crate::lot::Lot;
 use crate::message::{self, Message, MessengerMessage, MsgId};
@@ -285,7 +285,7 @@ impl Context {
             .query_get_value(self, "SELECT COUNT(*) FROM acpeerstates;", paramsv![])
             .await;
         let fingerprint_str = match SignedPublicKey::load_self(self).await {
-            Ok(key) => Key::from(key).fingerprint(),
+            Ok(key) => key.fingerprint().hex(),
             Err(err) => format!("<key failure: {}>", err),
         };
 

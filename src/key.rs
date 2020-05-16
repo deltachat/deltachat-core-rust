@@ -1,6 +1,7 @@
 //! Cryptographic key module
 
 use std::collections::BTreeMap;
+use std::fmt;
 use std::io::Cursor;
 
 use async_std::path::Path;
@@ -50,8 +51,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// [SignedSecretKey] types and makes working with them a little
 /// easier in the deltachat world.
 #[async_trait]
-pub trait DcKey: Serialize + Deserializable {
-    type KeyType: Serialize + Deserializable;
+pub trait DcKey: Serialize + Deserializable + KeyTrait + Clone {
+    type KeyType: Serialize + Deserializable + KeyTrait + Clone;
 
     /// Create a key from some bytes.
     fn from_slice(bytes: &[u8]) -> Result<Self::KeyType> {
@@ -71,15 +72,25 @@ pub trait DcKey: Serialize + Deserializable {
     /// Load the users' default key from the database.
     async fn load_self(context: &Context) -> Result<Self::KeyType>;
 
-    /// Serialise the key to a base64 string.
-    fn to_base64(&self) -> String {
+    /// Serialise the key as bytes.
+    fn to_bytes(&self) -> Vec<u8> {
         // Not using Serialize::to_bytes() to make clear *why* it is
         // safe to ignore this error.
         // Because we write to a Vec<u8> the io::Write impls never
         // fail and we can hide this error.
         let mut buf = Vec::new();
         self.to_writer(&mut buf).unwrap();
-        base64::encode(&buf)
+        buf
+    }
+
+    /// Serialise the key to a base64 string.
+    fn to_base64(&self) -> String {
+        base64::encode(&DcKey::to_bytes(self))
+    }
+
+    /// The fingerprint for the key.
+    fn fingerprint(&self) -> Fingerprint {
+        Fingerprint::new(KeyTrait::fingerprint(self))
     }
 }
 
@@ -300,8 +311,8 @@ impl Key {
 
     pub fn to_bytes(&self) -> Vec<u8> {
         match self {
-            Key::Public(k) => k.to_bytes().unwrap_or_default(),
-            Key::Secret(k) => k.to_bytes().unwrap_or_default(),
+            Key::Public(k) => Serialize::to_bytes(&k).unwrap_or_default(),
+            Key::Secret(k) => Serialize::to_bytes(&k).unwrap_or_default(),
         }
     }
 
@@ -310,11 +321,6 @@ impl Key {
             Key::Public(k) => k.verify().is_ok(),
             Key::Secret(k) => k.verify().is_ok(),
         }
-    }
-
-    pub fn to_base64(&self) -> String {
-        let buf = self.to_bytes();
-        base64::encode(&buf)
     }
 
     pub fn to_armored_string(
@@ -351,18 +357,6 @@ impl Key {
             error!(context, "Cannot write key to {}", file.as_ref().display());
         }
         res
-    }
-
-    pub fn fingerprint(&self) -> String {
-        match self {
-            Key::Public(k) => hex::encode_upper(k.fingerprint()),
-            Key::Secret(k) => hex::encode_upper(k.fingerprint()),
-        }
-    }
-
-    pub fn formatted_fingerprint(&self) -> String {
-        let rawhex = self.fingerprint();
-        dc_format_fingerprint(&rawhex)
     }
 
     pub fn split_key(&self) -> Option<Key> {
@@ -425,14 +419,8 @@ pub async fn store_self_keypair(
 ) -> std::result::Result<(), SaveKeyError> {
     // Everything should really be one transaction, more refactoring
     // is needed for that.
-    let public_key = keypair
-        .public
-        .to_bytes()
-        .map_err(|err| SaveKeyError::new("failed to serialise public key", err))?;
-    let secret_key = keypair
-        .secret
-        .to_bytes()
-        .map_err(|err| SaveKeyError::new("failed to serialise secret key", err))?;
+    let public_key = DcKey::to_bytes(&keypair.public);
+    let secret_key = DcKey::to_bytes(&keypair.secret);
     context
         .sql
         .execute(
@@ -470,6 +458,62 @@ pub async fn store_self_keypair(
     Ok(())
 }
 
+/// A key fingerprint
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct Fingerprint(Vec<u8>);
+
+impl Fingerprint {
+    pub fn new(v: Vec<u8>) -> Fingerprint {
+        Fingerprint(v)
+    }
+
+    /// Make a hex string from the fingerprint.
+    ///
+    /// Use [std::fmt::Display] or [ToString::to_string] to get a
+    /// human-readable formatted string.
+    pub fn hex(&self) -> String {
+        hex::encode_upper(&self.0)
+    }
+}
+
+/// Make a human-readable fingerprint.
+impl fmt::Display for Fingerprint {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Split key into chunks of 4 with space and newline at 20 chars
+        for (i, c) in self.hex().chars().enumerate() {
+            if i > 0 && i % 20 == 0 {
+                writeln!(f)?;
+            } else if i > 0 && i % 4 == 0 {
+                write!(f, " ")?;
+            }
+            write!(f, "{}", c)?;
+        }
+        Ok(())
+    }
+}
+
+/// Parse a human-readable or otherwise formatted fingerprint.
+impl std::str::FromStr for Fingerprint {
+    type Err = hex::FromHexError;
+
+    fn from_str(input: &str) -> std::result::Result<Self, Self::Err> {
+        let hex_repr: String = input
+            .chars()
+            .filter(|&c| c >= '0' && c <= '9' || c >= 'A' && c <= 'F')
+            .collect();
+        let v: Vec<u8> = hex::decode(hex_repr)?;
+        Ok(Fingerprint(v))
+    }
+}
+
+/// Bring a human-readable or otherwise formatted fingerprint back to the 40-characters-uppercase-hex format.
+pub fn dc_normalize_fingerprint(fp: &str) -> String {
+    fp.to_uppercase()
+        .chars()
+        .filter(|&c| c >= '0' && c <= '9' || c >= 'A' && c <= 'F')
+        .collect()
+}
+
 /// Make a fingerprint human-readable, in hex format.
 pub fn dc_format_fingerprint(fingerprint: &str) -> String {
     // split key into chunks of 4 with space, and 20 newline
@@ -486,14 +530,6 @@ pub fn dc_format_fingerprint(fingerprint: &str) -> String {
     }
 
     res
-}
-
-/// Bring a human-readable or otherwise formatted fingerprint back to the 40-characters-uppercase-hex format.
-pub fn dc_normalize_fingerprint(fp: &str) -> String {
-    fp.to_uppercase()
-        .chars()
-        .filter(|&c| c >= '0' && c <= '9' || c >= 'A' && c <= 'F')
-        .collect()
 }
 
 #[cfg(test)]
@@ -755,4 +791,35 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
     //     )
     //     .unwrap();
     // }
+
+    #[test]
+    fn test_fingerprint_from_str() {
+        let res = Fingerprint::new(vec![1, 2, 4, 8, 16, 32, 64, 128, 255]);
+
+        let fp: Fingerprint = "0102040810204080FF".parse().unwrap();
+        assert_eq!(fp, res);
+
+        let fp: Fingerprint = "zzzz 0102 0408\n1020 4080 FF zzz".parse().unwrap();
+        assert_eq!(fp, res);
+
+        let err = "1".parse::<Fingerprint>().err().unwrap();
+        assert_eq!(err, hex::FromHexError::OddLength);
+    }
+
+    #[test]
+    fn test_fingerprint_hex() {
+        let fp = Fingerprint::new(vec![1, 2, 4, 8, 16, 32, 64, 128, 255]);
+        assert_eq!(fp.hex(), "0102040810204080FF");
+    }
+
+    #[test]
+    fn test_fingerprint_to_string() {
+        let fp = Fingerprint::new(vec![
+            1, 2, 4, 8, 16, 32, 64, 128, 255, 1, 2, 4, 8, 16, 32, 64, 128, 255,
+        ]);
+        assert_eq!(
+            fp.to_string(),
+            "0102 0408 1020 4080 FF01\n0204 0810 2040 80FF"
+        );
+    }
 }

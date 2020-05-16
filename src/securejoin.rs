@@ -14,7 +14,7 @@ use crate::e2ee::*;
 use crate::error::{bail, Error};
 use crate::events::Event;
 use crate::headerdef::HeaderDef;
-use crate::key::{dc_normalize_fingerprint, DcKey, Key, SignedPublicKey};
+use crate::key::{dc_normalize_fingerprint, DcKey, SignedPublicKey};
 use crate::lot::LotState;
 use crate::message::Message;
 use crate::mimeparser::*;
@@ -142,7 +142,7 @@ pub async fn dc_get_securejoin_qr(context: &Context, group_chat_id: ChatId) -> O
 
 async fn get_self_fingerprint(context: &Context) -> Option<String> {
     match SignedPublicKey::load_self(context).await {
-        Ok(key) => Some(Key::from(key).fingerprint()),
+        Ok(key) => Some(key.fingerprint().hex()),
         Err(_) => {
             warn!(context, "get_self_fingerprint(): failed to load key");
             None
