@@ -247,6 +247,8 @@ pub struct Message {
     pub(crate) timestamp_sort: i64,
     pub(crate) timestamp_sent: i64,
     pub(crate) timestamp_rcvd: i64,
+    pub(crate) autodelete_timer: Option<i64>,
+    pub(crate) autodelete_timestamp: Option<i64>,
     pub(crate) text: Option<String>,
     pub(crate) rfc724_mid: String,
     pub(crate) in_reply_to: Option<String>,
@@ -288,6 +290,8 @@ impl Message {
                     "    m.timestamp AS timestamp,",
                     "    m.timestamp_sent AS timestamp_sent,",
                     "    m.timestamp_rcvd AS timestamp_rcvd,",
+                    "    m.autodelete_timer AS autodelete_timer,",
+                    "    m.autodelete_timestamp AS autodelete_timestamp,",
                     "    m.type AS type,",
                     "    m.state AS state,",
                     "    m.msgrmsg AS msgrmsg,",
@@ -315,6 +319,8 @@ impl Message {
                     msg.timestamp_sort = row.get("timestamp")?;
                     msg.timestamp_sent = row.get("timestamp_sent")?;
                     msg.timestamp_rcvd = row.get("timestamp_rcvd")?;
+                    msg.autodelete_timer = row.get("autodelete_timer")?;
+                    msg.autodelete_timestamp = row.get("autodelete_timestamp")?;
                     msg.viewtype = row.get("type")?;
                     msg.state = row.get("state")?;
                     msg.is_dc_message = row.get("msgrmsg")?;
@@ -863,6 +869,19 @@ pub fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
         });
         ret += &format!("Received: {}", &s);
         ret += "\n";
+    }
+
+    if let Some(autodelete_timer) = msg.autodelete_timer {
+        if autodelete_timer != 0 {
+            ret += &format!("Autodelete timer: {}\n", autodelete_timer);
+        }
+    }
+
+    if let Some(autodelete_timestamp) = msg.autodelete_timestamp {
+        ret += &format!(
+            "Expires: {}\n",
+            dc_timestamp_to_str(autodelete_timestamp)
+        );
     }
 
     if msg.from_id == DC_CONTACT_ID_INFO || msg.to_id == DC_CONTACT_ID_INFO {
