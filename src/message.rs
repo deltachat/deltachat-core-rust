@@ -132,6 +132,43 @@ impl MsgId {
         Ok(())
     }
 
+    /// Returns autodelete timer value for the message.
+    pub(crate) async fn autodelete_timer(
+        self,
+        context: &Context,
+    ) -> crate::sql::Result<Option<i64>> {
+        let res = match context
+            .sql
+            .query_get_value_result(
+                "SELECT autodelete_timer FROM msgs WHERE id=?",
+                paramsv![self],
+            )
+            .await?
+        {
+            None | Some(0) => None,
+            Some(timer) => Some(timer),
+        };
+        Ok(res)
+    }
+
+    /// Starts autodelete timer for the message if it is not started yet.
+    pub(crate) async fn start_autodelete_timer(self, context: &Context) -> crate::sql::Result<()> {
+        if let Some(autodelete_timer) = self.autodelete_timer(context).await? {
+            let autodelete_timestamp = time() + autodelete_timer;
+
+            context
+                .sql
+                .execute(
+                    "UPDATE msgs SET autodelete_timestamp = ? \
+                WHERE (autodelete_timestamp == 0 OR autodelete_timestamp > ?) \
+                AND id = ?",
+                    paramsv![autodelete_timestamp, autodelete_timestamp, self],
+                )
+                .await?;
+        }
+        Ok(())
+    }
+
     /// Bad evil escape hatch.
     ///
     /// Avoid using this, eventually types should be cleaned up enough
@@ -1113,6 +1150,14 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
     let mut send_event = false;
 
     for (id, curr_state, curr_blocked) in msgs.into_iter() {
+        if let Err(err) = id.start_autodelete_timer(context).await {
+            warn!(
+                context,
+                "Failed to start autodelete timer for message {}: {}", id, err
+            );
+            continue;
+        }
+
         if curr_blocked == Blocked::Not {
             if curr_state == MessageState::InFresh || curr_state == MessageState::InNoticed {
                 update_msg_state(context, id, MessageState::InSeen).await;
