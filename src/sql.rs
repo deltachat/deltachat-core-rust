@@ -400,7 +400,7 @@ fn open(
     }
     let mgr = r2d2_sqlite::SqliteConnectionManager::file(dbfile.as_ref())
         .with_flags(open_flags)
-        .with_init(|c| c.execute_batch("PRAGMA secure_delete=on;"));
+        .with_init(|c| c.execute_batch("PRAGMA journal_mode=WAL; PRAGMA secure_delete=on;"));
     let pool = r2d2::Pool::builder()
         .min_idle(Some(2))
         .max_size(10)
