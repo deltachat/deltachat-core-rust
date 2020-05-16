@@ -93,7 +93,7 @@ impl EncryptHelper {
         mail_to_encrypt: lettre_email::PartBuilder,
         peerstates: Vec<(Option<Peerstate<'_>>, &str)>,
     ) -> Result<String> {
-        let mut keyring = Keyring::default();
+        let mut keyring: Keyring<SignedPublicKey> = Keyring::new();
 
         for (peerstate, addr) in peerstates
             .into_iter()
@@ -104,8 +104,7 @@ impl EncryptHelper {
             })?;
             keyring.add(key);
         }
-        let public_key = Key::from(self.public_key);
-        keyring.add(public_key);
+        keyring.add(self.public_key.clone());
         let sign_key = Key::from(SignedSecretKey::load_self(context).await?);
 
         let raw_message = mail_to_encrypt.build().as_string().into_bytes();
@@ -151,40 +150,33 @@ pub async fn try_decrypt(
     }
 
     /* possibly perform decryption */
-    let mut public_keyring_for_validate = Keyring::default();
-    let mut out_mail = None;
+    let private_keyring: Keyring<SignedSecretKey> = Keyring::new_self(context).await?;
+    let mut public_keyring_for_validate: Keyring<SignedPublicKey> = Keyring::new();
     let mut signatures = HashSet::default();
-    let self_addr = context.get_config(Config::ConfiguredAddr).await;
 
-    if let Some(self_addr) = self_addr {
-        if let Ok(private_keyring) =
-            Keyring::load_self_private_for_decrypting(context, self_addr).await
-        {
-            if peerstate.as_ref().map(|p| p.last_seen).unwrap_or_else(|| 0) == 0 {
-                peerstate = Peerstate::from_addr(&context, &from).await;
-            }
-            if let Some(peerstate) = peerstate {
-                if peerstate.degrade_event.is_some() {
-                    handle_degrade_event(context, &peerstate).await?;
-                }
-                if let Some(key) = peerstate.gossip_key {
-                    public_keyring_for_validate.add(key);
-                }
-                if let Some(key) = peerstate.public_key {
-                    public_keyring_for_validate.add(key);
-                }
-            }
-
-            out_mail = decrypt_if_autocrypt_message(
-                context,
-                mail,
-                private_keyring,
-                public_keyring_for_validate,
-                &mut signatures,
-            )
-            .await?;
+    if peerstate.as_ref().map(|p| p.last_seen).unwrap_or_else(|| 0) == 0 {
+        peerstate = Peerstate::from_addr(&context, &from).await;
+    }
+    if let Some(peerstate) = peerstate {
+        if peerstate.degrade_event.is_some() {
+            handle_degrade_event(context, &peerstate).await?;
+        }
+        if let Some(key) = peerstate.gossip_key {
+            public_keyring_for_validate.add(key);
+        }
+        if let Some(key) = peerstate.public_key {
+            public_keyring_for_validate.add(key);
         }
     }
+
+    let out_mail = decrypt_if_autocrypt_message(
+        context,
+        mail,
+        private_keyring,
+        public_keyring_for_validate,
+        &mut signatures,
+    )
+    .await?;
     Ok((out_mail, signatures))
 }
 
@@ -218,8 +210,8 @@ fn get_autocrypt_mime<'a, 'b>(mail: &'a ParsedMail<'b>) -> Result<&'a ParsedMail
 async fn decrypt_if_autocrypt_message<'a>(
     context: &Context,
     mail: &ParsedMail<'a>,
-    private_keyring: Keyring,
-    public_keyring_for_validate: Keyring,
+    private_keyring: Keyring<SignedSecretKey>,
+    public_keyring_for_validate: Keyring<SignedPublicKey>,
     ret_valid_signatures: &mut HashSet<String>,
 ) -> Result<Option<Vec<u8>>> {
     //  The returned bool is true if we detected an Autocrypt-encrypted
@@ -250,8 +242,8 @@ async fn decrypt_if_autocrypt_message<'a>(
 /// Returns Ok(None) if nothing encrypted was found.
 async fn decrypt_part(
     mail: &ParsedMail<'_>,
-    private_keyring: Keyring,
-    public_keyring_for_validate: Keyring,
+    private_keyring: Keyring<SignedSecretKey>,
+    public_keyring_for_validate: Keyring<SignedPublicKey>,
     ret_valid_signatures: &mut HashSet<String>,
 ) -> Result<Option<Vec<u8>>> {
     let data = mail.get_body_raw()?;

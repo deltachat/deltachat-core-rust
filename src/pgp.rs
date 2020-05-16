@@ -240,7 +240,7 @@ fn select_pk_for_encryption(key: &SignedPublicKey) -> Option<SignedPublicKeyOrSu
 /// and signs it using `private_key_for_signing`.
 pub async fn pk_encrypt(
     plain: &[u8],
-    public_keys_for_encryption: Keyring,
+    public_keys_for_encryption: Keyring<SignedPublicKey>,
     private_key_for_signing: Option<Key>,
 ) -> Result<String> {
     let lit_msg = Message::new_literal_bytes("", plain);
@@ -249,7 +249,7 @@ pub async fn pk_encrypt(
         let pkeys: Vec<SignedPublicKeyOrSubkey> = public_keys_for_encryption
             .keys()
             .iter()
-            .filter_map(|key| key.try_into().ok().and_then(select_pk_for_encryption))
+            .filter_map(|key| select_pk_for_encryption(key))
             .collect();
         let pkeys_refs: Vec<&SignedPublicKeyOrSubkey> = pkeys.iter().collect();
 
@@ -280,19 +280,15 @@ pub async fn pk_encrypt(
 #[allow(clippy::implicit_hasher)]
 pub async fn pk_decrypt(
     ctext: Vec<u8>,
-    private_keys_for_decryption: Keyring,
-    public_keys_for_validation: Keyring,
+    private_keys_for_decryption: Keyring<SignedSecretKey>,
+    public_keys_for_validation: Keyring<SignedPublicKey>,
     ret_signature_fingerprints: Option<&mut HashSet<String>>,
 ) -> Result<Vec<u8>> {
     let msgs = async_std::task::spawn_blocking(move || {
         let cursor = Cursor::new(ctext);
         let (msg, _) = Message::from_armor_single(cursor)?;
 
-        let skeys: Vec<&SignedSecretKey> = private_keys_for_decryption
-            .keys()
-            .iter()
-            .filter_map(|key| key.try_into().ok())
-            .collect();
+        let skeys: Vec<&SignedSecretKey> = private_keys_for_decryption.keys().iter().collect();
 
         let (decryptor, _) = msg.decrypt(|| "".into(), || "".into(), &skeys[..])?;
         decryptor.collect::<pgp::errors::Result<Vec<_>>>()
@@ -311,15 +307,12 @@ pub async fn pk_decrypt(
             let fingerprints = async_std::task::spawn_blocking(move || {
                 let dec_msg = &msgs[0];
 
-                let pkeys = public_keys_for_validation
-                    .keys()
-                    .iter()
-                    .filter_map(|key| -> Option<&SignedPublicKey> { key.try_into().ok() });
+                let pkeys = public_keys_for_validation.keys();
 
                 let mut fingerprints = Vec::new();
                 for pkey in pkeys {
                     if dec_msg.verify(&pkey.primary_key).is_ok() {
-                        let fp = hex::encode_upper(pkey.fingerprint());
+                        let fp = DcKey::fingerprint(pkey).hex();
                         fingerprints.push(fp);
                     }
                 }
@@ -424,10 +417,10 @@ mod tests {
 
     /// [Key] objects to use in tests.
     struct TestKeys {
-        alice_secret: Key,
-        alice_public: Key,
-        bob_secret: Key,
-        bob_public: Key,
+        alice_secret: SignedSecretKey,
+        alice_public: SignedPublicKey,
+        bob_secret: SignedSecretKey,
+        bob_public: SignedPublicKey,
     }
 
     impl TestKeys {
@@ -435,10 +428,10 @@ mod tests {
             let alice = alice_keypair();
             let bob = bob_keypair();
             TestKeys {
-                alice_secret: Key::from(alice.secret.clone()),
-                alice_public: Key::from(alice.public.clone()),
-                bob_secret: Key::from(bob.secret.clone()),
-                bob_public: Key::from(bob.public.clone()),
+                alice_secret: alice.secret.clone(),
+                alice_public: alice.public.clone(),
+                bob_secret: bob.secret.clone(),
+                bob_public: bob.public.clone(),
             }
         }
     }
@@ -452,15 +445,15 @@ mod tests {
 
         /// A cyphertext encrypted to Alice & Bob, signed by Alice.
         static ref CTEXT_SIGNED: String = {
-            let mut keyring = Keyring::default();
+            let mut keyring = Keyring::new();
             keyring.add(KEYS.alice_public.clone());
             keyring.add(KEYS.bob_public.clone());
-            smol::block_on(pk_encrypt(CLEARTEXT, keyring, Some(KEYS.alice_secret.clone()))).unwrap()
+            smol::block_on(pk_encrypt(CLEARTEXT, keyring, Some(Key::from(KEYS.alice_secret.clone())))).unwrap()
         };
 
         /// A cyphertext encrypted to Alice & Bob, not signed.
         static ref CTEXT_UNSIGNED: String = {
-            let mut keyring = Keyring::default();
+            let mut keyring = Keyring::new();
             keyring.add(KEYS.alice_public.clone());
             keyring.add(KEYS.bob_public.clone());
             smol::block_on(pk_encrypt(CLEARTEXT, keyring, None)).unwrap()
@@ -482,9 +475,9 @@ mod tests {
     #[async_std::test]
     async fn test_decrypt_singed() {
         // Check decrypting as Alice
-        let mut decrypt_keyring = Keyring::default();
+        let mut decrypt_keyring: Keyring<SignedSecretKey> = Keyring::new();
         decrypt_keyring.add(KEYS.alice_secret.clone());
-        let mut sig_check_keyring = Keyring::default();
+        let mut sig_check_keyring: Keyring<SignedPublicKey> = Keyring::new();
         sig_check_keyring.add(KEYS.alice_public.clone());
         let mut valid_signatures: HashSet<String> = Default::default();
         let plain = pk_decrypt(
@@ -500,9 +493,9 @@ mod tests {
         assert_eq!(valid_signatures.len(), 1);
 
         // Check decrypting as Bob
-        let mut decrypt_keyring = Keyring::default();
+        let mut decrypt_keyring = Keyring::new();
         decrypt_keyring.add(KEYS.bob_secret.clone());
-        let mut sig_check_keyring = Keyring::default();
+        let mut sig_check_keyring = Keyring::new();
         sig_check_keyring.add(KEYS.alice_public.clone());
         let mut valid_signatures: HashSet<String> = Default::default();
         let plain = pk_decrypt(
@@ -520,9 +513,9 @@ mod tests {
 
     #[async_std::test]
     async fn test_decrypt_no_sig_check() {
-        let mut keyring = Keyring::default();
+        let mut keyring = Keyring::new();
         keyring.add(KEYS.alice_secret.clone());
-        let empty_keyring = Keyring::default();
+        let empty_keyring = Keyring::new();
         let mut valid_signatures: HashSet<String> = Default::default();
         let plain = pk_decrypt(
             CTEXT_SIGNED.as_bytes().to_vec(),
@@ -539,9 +532,9 @@ mod tests {
     #[async_std::test]
     async fn test_decrypt_signed_no_key() {
         // The validation does not have the public key of the signer.
-        let mut decrypt_keyring = Keyring::default();
+        let mut decrypt_keyring = Keyring::new();
         decrypt_keyring.add(KEYS.bob_secret.clone());
-        let mut sig_check_keyring = Keyring::default();
+        let mut sig_check_keyring = Keyring::new();
         sig_check_keyring.add(KEYS.bob_public.clone());
         let mut valid_signatures: HashSet<String> = Default::default();
         let plain = pk_decrypt(
@@ -558,10 +551,9 @@ mod tests {
 
     #[async_std::test]
     async fn test_decrypt_unsigned() {
-        let mut decrypt_keyring = Keyring::default();
+        let mut decrypt_keyring = Keyring::new();
         decrypt_keyring.add(KEYS.bob_secret.clone());
-        let sig_check_keyring = Keyring::default();
-        decrypt_keyring.add(KEYS.alice_public.clone());
+        let sig_check_keyring = Keyring::new();
         let mut valid_signatures: HashSet<String> = Default::default();
         let plain = pk_decrypt(
             CTEXT_UNSIGNED.as_bytes().to_vec(),
@@ -578,9 +570,9 @@ mod tests {
     #[async_std::test]
     async fn test_decrypt_signed_no_sigret() {
         // Check decrypting signed cyphertext without providing the HashSet for signatures.
-        let mut decrypt_keyring = Keyring::default();
+        let mut decrypt_keyring = Keyring::new();
         decrypt_keyring.add(KEYS.bob_secret.clone());
-        let mut sig_check_keyring = Keyring::default();
+        let mut sig_check_keyring = Keyring::new();
         sig_check_keyring.add(KEYS.alice_public.clone());
         let plain = pk_decrypt(
             CTEXT_SIGNED.as_bytes().to_vec(),

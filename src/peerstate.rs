@@ -6,9 +6,8 @@ use std::fmt;
 use num_traits::FromPrimitive;
 
 use crate::aheader::*;
-use crate::constants::*;
 use crate::context::Context;
-use crate::key::{Key, SignedPublicKey};
+use crate::key::{DcKey, SignedPublicKey};
 use crate::sql::Sql;
 
 #[derive(Debug)]
@@ -32,12 +31,12 @@ pub struct Peerstate<'a> {
     pub last_seen: i64,
     pub last_seen_autocrypt: i64,
     pub prefer_encrypt: EncryptPreference,
-    pub public_key: Option<Key>,
+    pub public_key: Option<SignedPublicKey>,
     pub public_key_fingerprint: Option<String>,
-    pub gossip_key: Option<Key>,
+    pub gossip_key: Option<SignedPublicKey>,
     pub gossip_timestamp: i64,
     pub gossip_key_fingerprint: Option<String>,
-    pub verified_key: Option<Key>,
+    pub verified_key: Option<SignedPublicKey>,
     pub verified_key_fingerprint: Option<String>,
     pub to_save: Option<ToSave>,
     pub degrade_event: Option<DegradeEvent>,
@@ -127,7 +126,7 @@ impl<'a> Peerstate<'a> {
         res.last_seen_autocrypt = message_time;
         res.to_save = Some(ToSave::All);
         res.prefer_encrypt = header.prefer_encrypt;
-        res.public_key = Some(Key::from(header.public_key.clone()));
+        res.public_key = Some(header.public_key.clone());
         res.recalc_fingerprint();
 
         res
@@ -138,7 +137,7 @@ impl<'a> Peerstate<'a> {
 
         res.gossip_timestamp = message_time;
         res.to_save = Some(ToSave::All);
-        res.gossip_key = Some(Key::from(gossip_header.public_key.clone()));
+        res.gossip_key = Some(gossip_header.public_key.clone());
         res.recalc_fingerprint();
 
         res
@@ -220,15 +219,15 @@ impl<'a> Peerstate<'a> {
                 res.public_key = row
                     .get(4)
                     .ok()
-                    .and_then(|blob: Vec<u8>| Key::from_slice(&blob, KeyType::Public).ok());
+                    .and_then(|blob: Vec<u8>| SignedPublicKey::from_slice(&blob).ok());
                 res.gossip_key = row
                     .get(6)
                     .ok()
-                    .and_then(|blob: Vec<u8>| Key::from_slice(&blob, KeyType::Public).ok());
+                    .and_then(|blob: Vec<u8>| SignedPublicKey::from_slice(&blob).ok());
                 res.verified_key = row
                     .get(9)
                     .ok()
-                    .and_then(|blob: Vec<u8>| Key::from_slice(&blob, KeyType::Public).ok());
+                    .and_then(|blob: Vec<u8>| SignedPublicKey::from_slice(&blob).ok());
 
                 Ok(res)
             })
@@ -239,7 +238,7 @@ impl<'a> Peerstate<'a> {
     pub fn recalc_fingerprint(&mut self) {
         if let Some(ref public_key) = self.public_key {
             let old_public_fingerprint = self.public_key_fingerprint.take();
-            self.public_key_fingerprint = Some(public_key.fingerprint());
+            self.public_key_fingerprint = Some(public_key.fingerprint().hex());
 
             if old_public_fingerprint.is_none()
                 || self.public_key_fingerprint.is_none()
@@ -254,7 +253,7 @@ impl<'a> Peerstate<'a> {
 
         if let Some(ref gossip_key) = self.gossip_key {
             let old_gossip_fingerprint = self.gossip_key_fingerprint.take();
-            self.gossip_key_fingerprint = Some(gossip_key.fingerprint());
+            self.gossip_key_fingerprint = Some(gossip_key.fingerprint().hex());
 
             if old_gossip_fingerprint.is_none()
                 || self.gossip_key_fingerprint.is_none()
@@ -300,8 +299,8 @@ impl<'a> Peerstate<'a> {
                 self.to_save = Some(ToSave::All)
             }
 
-            if self.public_key.as_ref() != Some(&Key::from(header.public_key.clone())) {
-                self.public_key = Some(Key::from(header.public_key.clone()));
+            if self.public_key.as_ref() != Some(&header.public_key) {
+                self.public_key = Some(header.public_key.clone());
                 self.recalc_fingerprint();
                 self.to_save = Some(ToSave::All);
             }
@@ -316,9 +315,8 @@ impl<'a> Peerstate<'a> {
         if message_time > self.gossip_timestamp {
             self.gossip_timestamp = message_time;
             self.to_save = Some(ToSave::Timestamps);
-            let hdr_key = Key::from(gossip_header.public_key.clone());
-            if self.gossip_key.as_ref() != Some(&hdr_key) {
-                self.gossip_key = Some(hdr_key);
+            if self.gossip_key.as_ref() != Some(&gossip_header.public_key) {
+                self.gossip_key = Some(gossip_header.public_key.clone());
                 self.recalc_fingerprint();
                 self.to_save = Some(ToSave::All)
             }
@@ -367,7 +365,7 @@ impl<'a> Peerstate<'a> {
         }
     }
 
-    pub fn take_key(mut self, min_verified: PeerstateVerifiedStatus) -> Option<Key> {
+    pub fn take_key(mut self, min_verified: PeerstateVerifiedStatus) -> Option<SignedPublicKey> {
         match min_verified {
             PeerstateVerifiedStatus::BidirectVerified => self.verified_key.take(),
             PeerstateVerifiedStatus::Unverified => {
@@ -376,7 +374,7 @@ impl<'a> Peerstate<'a> {
         }
     }
 
-    pub fn peek_key(&self, min_verified: PeerstateVerifiedStatus) -> Option<&Key> {
+    pub fn peek_key(&self, min_verified: PeerstateVerifiedStatus) -> Option<&SignedPublicKey> {
         match min_verified {
             PeerstateVerifiedStatus::BidirectVerified => self.verified_key.as_ref(),
             PeerstateVerifiedStatus::Unverified => self
@@ -495,7 +493,7 @@ mod tests {
         let ctx = crate::test_utils::dummy_context().await;
         let addr = "hello@mail.com";
 
-        let pub_key = crate::key::Key::from(alice_keypair().public);
+        let pub_key = alice_keypair().public;
 
         let mut peerstate = Peerstate {
             context: &ctx.ctx,
@@ -504,12 +502,12 @@ mod tests {
             last_seen_autocrypt: 11,
             prefer_encrypt: EncryptPreference::Mutual,
             public_key: Some(pub_key.clone()),
-            public_key_fingerprint: Some(pub_key.fingerprint()),
+            public_key_fingerprint: Some(pub_key.fingerprint().hex()),
             gossip_key: Some(pub_key.clone()),
             gossip_timestamp: 12,
-            gossip_key_fingerprint: Some(pub_key.fingerprint()),
+            gossip_key_fingerprint: Some(pub_key.fingerprint().hex()),
             verified_key: Some(pub_key.clone()),
-            verified_key_fingerprint: Some(pub_key.fingerprint()),
+            verified_key_fingerprint: Some(pub_key.fingerprint().hex()),
             to_save: Some(ToSave::All),
             degrade_event: None,
         };
@@ -527,7 +525,7 @@ mod tests {
         peerstate.to_save = None;
         assert_eq!(peerstate, peerstate_new);
         let peerstate_new2 =
-            Peerstate::from_fingerprint(&ctx.ctx, &ctx.ctx.sql, &pub_key.fingerprint())
+            Peerstate::from_fingerprint(&ctx.ctx, &ctx.ctx.sql, &pub_key.fingerprint().hex())
                 .await
                 .expect("failed to load peerstate from db");
         assert_eq!(peerstate, peerstate_new2);
@@ -537,7 +535,7 @@ mod tests {
     async fn test_peerstate_double_create() {
         let ctx = crate::test_utils::dummy_context().await;
         let addr = "hello@mail.com";
-        let pub_key = crate::key::Key::from(alice_keypair().public);
+        let pub_key = alice_keypair().public;
 
         let peerstate = Peerstate {
             context: &ctx.ctx,
@@ -546,7 +544,7 @@ mod tests {
             last_seen_autocrypt: 11,
             prefer_encrypt: EncryptPreference::Mutual,
             public_key: Some(pub_key.clone()),
-            public_key_fingerprint: Some(pub_key.fingerprint()),
+            public_key_fingerprint: Some(pub_key.fingerprint().hex()),
             gossip_key: None,
             gossip_timestamp: 12,
             gossip_key_fingerprint: None,
@@ -571,7 +569,7 @@ mod tests {
         let ctx = crate::test_utils::dummy_context().await;
         let addr = "hello@mail.com";
 
-        let pub_key = crate::key::Key::from(alice_keypair().public);
+        let pub_key = alice_keypair().public;
 
         let mut peerstate = Peerstate {
             context: &ctx.ctx,
@@ -580,7 +578,7 @@ mod tests {
             last_seen_autocrypt: 11,
             prefer_encrypt: EncryptPreference::Mutual,
             public_key: Some(pub_key.clone()),
-            public_key_fingerprint: Some(pub_key.fingerprint()),
+            public_key_fingerprint: Some(pub_key.fingerprint().hex()),
             gossip_key: None,
             gossip_timestamp: 12,
             gossip_key_fingerprint: None,

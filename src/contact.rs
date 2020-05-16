@@ -12,7 +12,7 @@ use crate::context::Context;
 use crate::dc_tools::*;
 use crate::error::{bail, ensure, format_err, Result};
 use crate::events::Event;
-use crate::key::{DcKey, Key, SignedPublicKey};
+use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;
 use crate::message::{MessageState, MsgId};
 use crate::mimeparser::AvatarAction;
@@ -691,18 +691,20 @@ impl Contact {
                     })
                     .await;
                 ret += &p;
-                let self_key = Key::from(SignedPublicKey::load_self(context).await?);
                 let p = context.stock_str(StockMessage::FingerPrints).await;
                 ret += &format!(" {}:", p);
 
-                let fingerprint_self = self_key.formatted_fingerprint();
+                let fingerprint_self = SignedPublicKey::load_self(context)
+                    .await?
+                    .fingerprint()
+                    .to_string();
                 let fingerprint_other_verified = peerstate
                     .peek_key(PeerstateVerifiedStatus::BidirectVerified)
-                    .map(|k| k.formatted_fingerprint())
+                    .map(|k| k.fingerprint().to_string())
                     .unwrap_or_default();
                 let fingerprint_other_unverified = peerstate
                     .peek_key(PeerstateVerifiedStatus::Unverified)
-                    .map(|k| k.formatted_fingerprint())
+                    .map(|k| k.fingerprint().to_string())
                     .unwrap_or_default();
                 if loginparam.addr < peerstate.addr {
                     cat_fingerprint(&mut ret, &loginparam.addr, &fingerprint_self, "");
