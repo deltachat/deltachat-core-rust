@@ -1546,33 +1546,35 @@ class TestOnlineAccount:
         chat1 = ac1.create_chat(ac2)
         chat2 = ac2.create_chat(ac1)
 
+        lp.sec("ac1: set autodelete timer to 60")
         chat1.set_autodelete_timer(60)
 
+        lp.sec("ac1: check that autodelete timer is set for chat")
         assert chat1.get_autodelete_timer() == 60
-        d = chat1.get_summary()
-        assert d["autodelete_timer"] == 60
+        chat1_summary = chat1.get_summary()
+        assert chat1_summary["autodelete_timer"] == 60
 
-        msg_in = ac2._evtracker.wait_next_incoming_message()
+        lp.sec("ac2: receive system message about autodelete timer modification")
+        ac2._evtracker.get_matching("DC_EVENT_CHAT_AUTODELETE_TIMER_MODIFIED")
+        system_message1 = ac2._evtracker.wait_next_incoming_message()
         assert chat2.get_autodelete_timer() == 60
-        assert msg_in.is_system_message()
-        assert "Autodelete timer: 60\n" in msg_in.get_message_info()
-
-        # Reset the timer back to 0
-        chat2.set_autodelete_timer(0)
-        ac1._evtracker.wait_next_incoming_message()
+        assert system_message1.is_system_message()
+        assert "Autodelete timer: 60\n" in system_message1.get_message_info()
 
         lp.sec("ac2: send message to ac1")
         chat2.send_text("message")
         lp.sec("ac1: waiting for message from ac2")
-        msg_in = ac1._evtracker.wait_next_incoming_message()
-        assert msg_in.text == "message"
-        assert msg_in.is_encrypted()
-        assert "Autodelete timer: 60\n" in msg_in.get_message_info()
+        text_message = ac1._evtracker.wait_next_incoming_message()
+        assert text_message.text == "message"
+        assert text_message.is_encrypted()
+        assert "Autodelete timer: 60\n" in text_message.get_message_info()
 
-        # Reset the timer back to 0
+        lp.sec("ac2: set autodelete timer to 0")
         chat2.set_autodelete_timer(0)
-        msg_in = ac1._evtracker.wait_next_incoming_message()
-        assert "Autodelete timer: " not in msg_in.get_message_info()
+
+        lp.sec("ac1: receive system message about autodelete timer modification")
+        system_message2 = ac1._evtracker.wait_next_incoming_message()
+        assert "Autodelete timer: " not in system_message2.get_message_info()
         assert chat1.get_autodelete_timer() == 0
 
 
