@@ -135,7 +135,7 @@ impl async_imap::Authenticator for OAuth2 {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum FolderMeaning {
     Unknown,
     SentObjects,
@@ -1065,18 +1065,12 @@ impl Imap {
 
                 let sentbox_folder = folders
                     .iter()
-                    .find(|folder| match get_folder_meaning(folder) {
-                        FolderMeaning::SentObjects => true,
-                        _ => false,
-                    })
+                    .find(|folder| get_folder_meaning(folder) == FolderMeaning::SentObjects)
                     .or_else(|| {
                         info!(context, "can't find sentbox by attributes, checking names");
-                        folders
-                            .iter()
-                            .find(|folder| match get_folder_meaning_by_name(folder) {
-                                FolderMeaning::SentObjects => true,
-                                _ => false,
-                            })
+                        folders.iter().find(|folder| {
+                            get_folder_meaning_by_name(folder) == FolderMeaning::SentObjects
+                        })
                     });
                 info!(context, "sentbox folder is {:?}", sentbox_folder);
 
