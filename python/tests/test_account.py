@@ -1552,12 +1552,27 @@ class TestOnlineAccount:
         d = chat1.get_summary()
         assert d["autodelete_timer"] == 60
 
-        ac2._evtracker.wait_next_incoming_message()
+        msg_in = ac2._evtracker.wait_next_incoming_message()
         assert chat2.get_autodelete_timer() == 60
+        assert msg_in.is_system_message()
+        assert "Autodelete timer: 60\n" in msg_in.get_message_info()
 
         # Reset the timer back to 0
         chat2.set_autodelete_timer(0)
         ac1._evtracker.wait_next_incoming_message()
+
+        lp.sec("ac2: send message to ac1")
+        chat2.send_text("message")
+        lp.sec("ac1: waiting for message from ac2")
+        msg_in = ac1._evtracker.wait_next_incoming_message()
+        assert msg_in.text == "message"
+        assert msg_in.is_encrypted()
+        assert "Autodelete timer: 60\n" in msg_in.get_message_info()
+
+        # Reset the timer back to 0
+        chat2.set_autodelete_timer(0)
+        msg_in = ac1._evtracker.wait_next_incoming_message()
+        assert "Autodelete timer: " not in msg_in.get_message_info()
         assert chat1.get_autodelete_timer() == 0
 
 
