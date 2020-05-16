@@ -672,8 +672,8 @@ fn add_parts(
         "INSERT INTO msgs \
          (rfc724_mid, server_folder, server_uid, chat_id, from_id, to_id, timestamp, \
          timestamp_sent, timestamp_rcvd, type, state, msgrmsg,  txt, txt_raw, param, \
-         bytes, hidden, mime_headers,  mime_in_reply_to, mime_references) \
-         VALUES (?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?);",
+         bytes, hidden, mime_headers,  mime_in_reply_to, mime_references, autodelete_timer) \
+         VALUES (?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?);",
         |mut stmt, conn| {
             let subject = mime_parser.get_subject().unwrap_or_default();
 
@@ -726,6 +726,7 @@ fn add_parts(
                     },
                     mime_in_reply_to,
                     mime_references,
+                    timer
                 ])?;
 
                 txt_raw = None;
