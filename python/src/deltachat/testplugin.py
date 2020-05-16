@@ -15,7 +15,6 @@ import requests
 from . import Account, const
 from .capi import lib
 from .events import FFIEventLogger, FFIEventTracker
-from _pytest.monkeypatch import MonkeyPatch
 from _pytest._code import Source
 
 import deltachat
@@ -101,17 +100,16 @@ def pytest_report_header(config, startdir):
     summary = []
 
     t = tempfile.mktemp()
-    m = MonkeyPatch()
     try:
         ac = Account(t)
         info = ac.get_info()
         ac.shutdown()
     finally:
-        m.undo()
         os.remove(t)
-    summary.extend(['Deltachat core={} sqlite={}'.format(
+    summary.extend(['Deltachat core={} sqlite={} journal_mode={}'.format(
          info['deltachat_core_version'],
          info['sqlite_version'],
+         info['journal_mode'],
      )])
 
     cfg = config.option.liveconfig
@@ -232,6 +230,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
         def make_account(self, path, logid, quiet=False):
             ac = Account(path, logging=self._logging)
             ac._evtracker = ac.add_account_plugin(FFIEventTracker(ac))
+            ac.addr = ac.get_self_contact().addr
             if not quiet:
                 ac.add_account_plugin(FFIEventLogger(ac, logid=logid))
             self._accounts.append(ac)
@@ -320,6 +319,14 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             ac2.wait_configure_finish()
             ac2.start_io()
             return ac1, ac2
+
+        def get_many_online_accounts(self, num, move=True, quiet=True):
+            accounts = [self.get_online_configuring_account(move=move, quiet=quiet)
+                        for i in range(num)]
+            for acc in accounts:
+                acc._configtracker.wait_finish()
+                acc.start_io()
+            return accounts
 
         def clone_online_account(self, account, pre_generated_key=True):
             self.live_count += 1
