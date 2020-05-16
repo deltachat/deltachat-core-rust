@@ -940,9 +940,12 @@ impl Chat {
             }
 
             // get autodelete timer
-            let autodelete_timer =
-                Some(get_autodelete_timer(context, self.id).await).filter(|&x| x != 0);
-            let autodelete_timestamp = autodelete_timer.map(|x| timestamp + i64::from(x));
+            let autodelete_timer = get_autodelete_timer(context, self.id).await;
+            let autodelete_timestamp = if autodelete_timer == 0 {
+                0
+            } else {
+                timestamp + i64::from(autodelete_timer)
+            };
 
             // add message to the database
 

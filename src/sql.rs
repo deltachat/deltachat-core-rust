@@ -1261,7 +1261,7 @@ async fn open(
             // timer starts when message is read, so we want to have
             // the value stored here until the timer starts.
             sql.execute(
-                "ALTER TABLE msgs ADD COLUMN autodelete_timer INTEGER;",
+                "ALTER TABLE msgs ADD COLUMN autodelete_timer INTEGER DEFAULT 0;",
                 paramsv![],
             )
             .await?;
@@ -1270,7 +1270,7 @@ async fn open(
             // needs this value to display how much time is left until
             // the message is deleted.
             sql.execute(
-                "ALTER TABLE msgs ADD COLUMN autodelete_timestamp INTEGER;",
+                "ALTER TABLE msgs ADD COLUMN autodelete_timestamp INTEGER DEFAULT 0;",
                 paramsv![],
             )
             .await?;

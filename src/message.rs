@@ -246,8 +246,8 @@ pub struct Message {
     pub(crate) timestamp_sort: i64,
     pub(crate) timestamp_sent: i64,
     pub(crate) timestamp_rcvd: i64,
-    pub(crate) autodelete_timer: Option<i64>,
-    pub(crate) autodelete_timestamp: Option<i64>,
+    pub(crate) autodelete_timer: i64,
+    pub(crate) autodelete_timestamp: i64,
     pub(crate) text: Option<String>,
     pub(crate) rfc724_mid: String,
     pub(crate) in_reply_to: Option<String>,
@@ -897,14 +897,15 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
         ret += "\n";
     }
 
-    if let Some(autodelete_timer) = msg.autodelete_timer {
-        if autodelete_timer != 0 {
-            ret += &format!("Autodelete timer: {}\n", autodelete_timer);
-        }
+    if msg.autodelete_timer != 0 {
+        ret += &format!("Autodelete timer: {}\n", msg.autodelete_timer);
     }
 
-    if let Some(autodelete_timestamp) = msg.autodelete_timestamp {
-        ret += &format!("Expires: {}\n", dc_timestamp_to_str(autodelete_timestamp));
+    if msg.autodelete_timestamp != 0 {
+        ret += &format!(
+            "Expires: {}\n",
+            dc_timestamp_to_str(msg.autodelete_timestamp)
+        );
     }
 
     if msg.from_id == DC_CONTACT_ID_INFO || msg.to_id == DC_CONTACT_ID_INFO {
