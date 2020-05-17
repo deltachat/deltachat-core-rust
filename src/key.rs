@@ -4,7 +4,6 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::io::Cursor;
 
-use async_std::path::Path;
 use async_trait::async_trait;
 use num_traits::FromPrimitive;
 use pgp::composed::Deserializable;
@@ -14,7 +13,7 @@ use pgp::types::{KeyTrait, SecretKeyTrait};
 use crate::config::Config;
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_tools::{dc_write_file, time, EmailAddress, InvalidEmailError};
+use crate::dc_tools::{time, EmailAddress, InvalidEmailError};
 use crate::sql;
 
 // Re-export key types
@@ -69,6 +68,15 @@ pub trait DcKey: Serialize + Deserializable + KeyTrait + Clone {
         Self::from_slice(&bytes)
     }
 
+    /// Create a key from an ASCII-armored string.
+    ///
+    /// Returns the key and a map of any headers which might have been set in
+    /// the ASCII-armored representation.
+    fn from_asc(data: &str) -> Result<(Self::KeyType, BTreeMap<String, String>)> {
+        let bytes = data.as_bytes();
+        Self::KeyType::from_armor_single(Cursor::new(bytes)).map_err(Error::Pgp)
+    }
+
     /// Load the users' default key from the database.
     async fn load_self(context: &Context) -> Result<Self::KeyType>;
 
@@ -87,6 +95,14 @@ pub trait DcKey: Serialize + Deserializable + KeyTrait + Clone {
     fn to_base64(&self) -> String {
         base64::encode(&DcKey::to_bytes(self))
     }
+
+    /// Serialise the key to ASCII-armored representation.
+    ///
+    /// Each header line must be terminated by `\r\n`.  Only allows setting one
+    /// header as a simplification since that's the only way it's used so far.
+    // Since .to_armored_string() are actual methods on SignedPublicKey and
+    // SignedSecretKey we can not generically implement this.
+    fn to_asc(&self, header: Option<(&str, &str)>) -> String;
 
     /// The fingerprint for the key.
     fn fingerprint(&self) -> Fingerprint {
@@ -121,6 +137,22 @@ impl DcKey for SignedPublicKey {
             Err(err) => Err(err.into()),
         }
     }
+
+    fn to_asc(&self, header: Option<(&str, &str)>) -> String {
+        // Not using .to_armored_string() to make clear *why* it is
+        // safe to ignore this error.
+        // Because we write to a Vec<u8> the io::Write impls never
+        // fail and we can hide this error.
+        let headers = header.map(|(key, value)| {
+            let mut m = BTreeMap::new();
+            m.insert(key.to_string(), value.to_string());
+            m
+        });
+        let mut buf = Vec::new();
+        self.to_armored_writer(&mut buf, headers.as_ref())
+            .unwrap_or_default();
+        std::string::String::from_utf8(buf).unwrap_or_default()
+    }
 }
 
 #[async_trait]
@@ -149,6 +181,22 @@ impl DcKey for SignedSecretKey {
             }
             Err(err) => Err(err.into()),
         }
+    }
+
+    fn to_asc(&self, header: Option<(&str, &str)>) -> String {
+        // Not using .to_armored_string() to make clear *why* it is
+        // safe to do these unwraps.
+        // Because we write to a Vec<u8> the io::Write impls never
+        // fail and we can hide this error.  The string is always ASCII.
+        let headers = header.map(|(key, value)| {
+            let mut m = BTreeMap::new();
+            m.insert(key.to_string(), value.to_string());
+            m
+        });
+        let mut buf = Vec::new();
+        self.to_armored_writer(&mut buf, headers.as_ref())
+            .unwrap_or_default();
+        std::string::String::from_utf8(buf).unwrap_or_default()
     }
 }
 
@@ -264,99 +312,11 @@ impl<'a> std::convert::TryFrom<&'a Key> for &'a SignedPublicKey {
 }
 
 impl Key {
-    pub fn is_public(&self) -> bool {
-        match self {
-            Key::Public(_) => true,
-            Key::Secret(_) => false,
-        }
-    }
-
-    pub fn is_secret(&self) -> bool {
-        !self.is_public()
-    }
-
-    pub fn from_slice(bytes: &[u8], key_type: KeyType) -> Result<Self> {
-        if bytes.is_empty() {
-            return Err(Error::Empty);
-        }
-
-        let res = match key_type {
-            KeyType::Public => SignedPublicKey::from_bytes(Cursor::new(bytes))?.into(),
-            KeyType::Private => SignedSecretKey::from_bytes(Cursor::new(bytes))?.into(),
-        };
-
-        Ok(res)
-    }
-
-    pub fn from_armored_string(
-        data: &str,
-        key_type: KeyType,
-    ) -> Option<(Self, BTreeMap<String, String>)> {
-        let bytes = data.as_bytes();
-        let res: std::result::Result<(Key, _), _> = match key_type {
-            KeyType::Public => SignedPublicKey::from_armor_single(Cursor::new(bytes))
-                .map(|(k, h)| (Into::into(k), h)),
-            KeyType::Private => SignedSecretKey::from_armor_single(Cursor::new(bytes))
-                .map(|(k, h)| (Into::into(k), h)),
-        };
-
-        match res {
-            Ok(res) => Some(res),
-            Err(err) => {
-                eprintln!("Invalid key bytes: {:?}", err);
-                None
-            }
-        }
-    }
-
-    pub fn to_bytes(&self) -> Vec<u8> {
-        match self {
-            Key::Public(k) => Serialize::to_bytes(&k).unwrap_or_default(),
-            Key::Secret(k) => Serialize::to_bytes(&k).unwrap_or_default(),
-        }
-    }
-
     pub fn verify(&self) -> bool {
         match self {
             Key::Public(k) => k.verify().is_ok(),
             Key::Secret(k) => k.verify().is_ok(),
         }
-    }
-
-    pub fn to_armored_string(
-        &self,
-        headers: Option<&BTreeMap<String, String>>,
-    ) -> pgp::errors::Result<String> {
-        match self {
-            Key::Public(k) => k.to_armored_string(headers),
-            Key::Secret(k) => k.to_armored_string(headers),
-        }
-    }
-
-    /// Each header line must be terminated by `\r\n`
-    pub fn to_asc(&self, header: Option<(&str, &str)>) -> String {
-        let headers = header.map(|(key, value)| {
-            let mut m = BTreeMap::new();
-            m.insert(key.to_string(), value.to_string());
-            m
-        });
-
-        self.to_armored_string(headers.as_ref())
-            .expect("failed to serialize key")
-    }
-
-    pub async fn write_asc_to_file(
-        &self,
-        file: impl AsRef<Path>,
-        context: &Context,
-    ) -> std::io::Result<()> {
-        let file_content = self.to_asc(None).into_bytes();
-
-        let res = dc_write_file(context, &file, &file_content).await;
-        if res.is_err() {
-            error!(context, "Cannot write key to {}", file.as_ref().display());
-        }
-        res
     }
 
     pub fn split_key(&self) -> Option<Key> {
@@ -553,8 +513,18 @@ mod tests {
     }
 
     #[test]
+    fn test_format_fingerprint() {
+        let fingerprint = dc_format_fingerprint("1234567890ABCDABCDEFABCDEF1234567890ABCD");
+
+        assert_eq!(
+            fingerprint,
+            "1234 5678 90AB CDAB CDEF\nABCD EF12 3456 7890 ABCD"
+        );
+    }
+
+    #[test]
     fn test_from_armored_string() {
-        let (private_key, _) = Key::from_armored_string(
+        let (private_key, _) = SignedSecretKey::from_asc(
             "-----BEGIN PGP PRIVATE KEY BLOCK-----
 
 xcLYBF0fgz4BCADnRUV52V4xhSsU56ZaAn3+3oG86MZhXy4X8w14WZZDf0VJGeTh
@@ -612,56 +582,62 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
 7yPJeQ==
 =KZk/
 -----END PGP PRIVATE KEY BLOCK-----",
-            KeyType::Private,
         )
-        .expect("failed to decode"); // NOTE: if you take out the ===GU1/ part, everything passes!
-        let binary = private_key.to_bytes();
-        Key::from_slice(&binary, KeyType::Private).expect("invalid private key");
+        .expect("failed to decode");
+        let binary = DcKey::to_bytes(&private_key);
+        SignedSecretKey::from_slice(&binary).expect("invalid private key");
     }
 
     #[test]
-    fn test_format_fingerprint() {
-        let fingerprint = dc_format_fingerprint("1234567890ABCDABCDEFABCDEF1234567890ABCD");
+    fn test_asc_roundtrip() {
+        let key = KEYPAIR.public.clone();
+        let asc = key.to_asc(Some(("spam", "ham")));
+        let (key2, hdrs) = SignedPublicKey::from_asc(&asc).unwrap();
+        assert_eq!(key, key2);
+        assert_eq!(hdrs.len(), 1);
+        assert_eq!(hdrs.get("spam"), Some(&String::from("ham")));
 
-        assert_eq!(
-            fingerprint,
-            "1234 5678 90AB CDAB CDEF\nABCD EF12 3456 7890 ABCD"
-        );
+        let key = KEYPAIR.secret.clone();
+        let asc = key.to_asc(Some(("spam", "ham")));
+        let (key2, hdrs) = SignedSecretKey::from_asc(&asc).unwrap();
+        assert_eq!(key, key2);
+        assert_eq!(hdrs.len(), 1);
+        assert_eq!(hdrs.get("spam"), Some(&String::from("ham")));
     }
 
     #[test]
     fn test_from_slice_roundtrip() {
-        let public_key = Key::from(KEYPAIR.public.clone());
-        let private_key = Key::from(KEYPAIR.secret.clone());
+        let public_key = KEYPAIR.public.clone();
+        let private_key = KEYPAIR.secret.clone();
 
-        let binary = public_key.to_bytes();
-        let public_key2 = Key::from_slice(&binary, KeyType::Public).expect("invalid public key");
+        let binary = DcKey::to_bytes(&public_key);
+        let public_key2 = SignedPublicKey::from_slice(&binary).expect("invalid public key");
         assert_eq!(public_key, public_key2);
 
-        let binary = private_key.to_bytes();
-        let private_key2 = Key::from_slice(&binary, KeyType::Private).expect("invalid private key");
+        let binary = DcKey::to_bytes(&private_key);
+        let private_key2 = SignedSecretKey::from_slice(&binary).expect("invalid private key");
         assert_eq!(private_key, private_key2);
     }
 
     #[test]
     fn test_from_slice_bad_data() {
         let mut bad_data: [u8; 4096] = [0; 4096];
-
         for i in 0..4096 {
             bad_data[i] = (i & 0xff) as u8;
         }
-
         for j in 0..(4096 / 40) {
-            let bad_key = Key::from_slice(
-                &bad_data[j..j + 4096 / 2 + j],
-                if 0 != j & 1 {
-                    KeyType::Public
-                } else {
-                    KeyType::Private
-                },
-            );
-            assert!(bad_key.is_err());
+            let slice = &bad_data[j..j + 4096 / 2 + j];
+            assert!(SignedPublicKey::from_slice(slice).is_err());
+            assert!(SignedSecretKey::from_slice(slice).is_err());
         }
+    }
+
+    #[test]
+    fn test_base64_roundtrip() {
+        let key = KEYPAIR.public.clone();
+        let base64 = key.to_base64();
+        let key2 = SignedPublicKey::from_base64(&base64).unwrap();
+        assert_eq!(key, key2);
     }
 
     #[async_std::test]
@@ -719,23 +695,6 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
         let res0 = thr0.join().unwrap();
         let res1 = thr1.join().unwrap();
         assert_eq!(res0.unwrap(), res1.unwrap());
-    }
-
-    #[test]
-    fn test_ascii_roundtrip() {
-        let public_key = Key::from(KEYPAIR.public.clone());
-        let private_key = Key::from(KEYPAIR.secret.clone());
-
-        let s = public_key.to_armored_string(None).unwrap();
-        let (public_key2, _) =
-            Key::from_armored_string(&s, KeyType::Public).expect("invalid public key");
-        assert_eq!(public_key, public_key2);
-
-        let s = private_key.to_armored_string(None).unwrap();
-        println!("{}", &s);
-        let (private_key2, _) =
-            Key::from_armored_string(&s, KeyType::Private).expect("invalid private key");
-        assert_eq!(private_key, private_key2);
     }
 
     #[test]
