@@ -448,6 +448,10 @@ fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult, Error
     let arg1 = args.next().unwrap_or_default();
 
     match arg0 {
+        "close" => {
+            let context = ctx.write().unwrap();
+            context.sql.close(&*context);
+        }
         "connect" => {
             start_threads(ctx);
         }
