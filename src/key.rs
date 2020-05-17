@@ -200,6 +200,23 @@ impl DcKey for SignedSecretKey {
     }
 }
 
+/// Deltachat extension trait for secret keys.
+///
+/// Provides some convenience wrappers only applicable to [SignedSecretKey].
+pub trait DcSecretKey {
+    /// Create a public key from a private one.
+    fn split_public_key(&self) -> Result<SignedPublicKey>;
+}
+
+impl DcSecretKey for SignedSecretKey {
+    fn split_public_key(&self) -> Result<SignedPublicKey> {
+        self.verify()?;
+        let unsigned_pubkey = SecretKeyTrait::public_key(self);
+        let signed_pubkey = unsigned_pubkey.sign(self, || "".into())?;
+        Ok(signed_pubkey)
+    }
+}
+
 async fn generate_keypair(context: &Context) -> Result<KeyPair> {
     let addr = context
         .get_config(Config::ConfiguredAddr)
@@ -245,88 +262,6 @@ async fn generate_keypair(context: &Context) -> Result<KeyPair> {
             Ok(keypair)
         }
         Err(err) => Err(err.into()),
-    }
-}
-
-/// Cryptographic key
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum Key {
-    Public(SignedPublicKey),
-    Secret(SignedSecretKey),
-}
-
-impl From<SignedPublicKey> for Key {
-    fn from(key: SignedPublicKey) -> Self {
-        Key::Public(key)
-    }
-}
-
-impl From<SignedSecretKey> for Key {
-    fn from(key: SignedSecretKey) -> Self {
-        Key::Secret(key)
-    }
-}
-
-impl std::convert::TryFrom<Key> for SignedSecretKey {
-    type Error = ();
-
-    fn try_from(value: Key) -> std::result::Result<Self, Self::Error> {
-        match value {
-            Key::Public(_) => Err(()),
-            Key::Secret(key) => Ok(key),
-        }
-    }
-}
-
-impl<'a> std::convert::TryFrom<&'a Key> for &'a SignedSecretKey {
-    type Error = ();
-
-    fn try_from(value: &'a Key) -> std::result::Result<Self, Self::Error> {
-        match value {
-            Key::Public(_) => Err(()),
-            Key::Secret(key) => Ok(key),
-        }
-    }
-}
-
-impl std::convert::TryFrom<Key> for SignedPublicKey {
-    type Error = ();
-
-    fn try_from(value: Key) -> std::result::Result<Self, Self::Error> {
-        match value {
-            Key::Public(key) => Ok(key),
-            Key::Secret(_) => Err(()),
-        }
-    }
-}
-
-impl<'a> std::convert::TryFrom<&'a Key> for &'a SignedPublicKey {
-    type Error = ();
-
-    fn try_from(value: &'a Key) -> std::result::Result<Self, Self::Error> {
-        match value {
-            Key::Public(key) => Ok(key),
-            Key::Secret(_) => Err(()),
-        }
-    }
-}
-
-impl Key {
-    pub fn verify(&self) -> bool {
-        match self {
-            Key::Public(k) => k.verify().is_ok(),
-            Key::Secret(k) => k.verify().is_ok(),
-        }
-    }
-
-    pub fn split_key(&self) -> Option<Key> {
-        match self {
-            Key::Public(_) => None,
-            Key::Secret(k) => {
-                let pub_key = k.public_key();
-                pub_key.sign(k, || "".into()).map(Key::Public).ok()
-            }
-        }
     }
 }
 
@@ -496,7 +431,6 @@ pub fn dc_format_fingerprint(fingerprint: &str) -> String {
 mod tests {
     use super::*;
     use crate::test_utils::*;
-    use std::convert::TryFrom;
 
     use async_std::sync::Arc;
     use lazy_static::lazy_static;
@@ -699,10 +633,8 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
 
     #[test]
     fn test_split_key() {
-        let private_key = Key::from(KEYPAIR.secret.clone());
-        let public_wrapped = private_key.split_key().unwrap();
-        let public = SignedPublicKey::try_from(public_wrapped).unwrap();
-        assert_eq!(public.primary_key, KEYPAIR.public.primary_key);
+        let pubkey = KEYPAIR.secret.split_public_key().unwrap();
+        assert_eq!(pubkey.primary_key, KEYPAIR.public.primary_key);
     }
 
     #[async_std::test]

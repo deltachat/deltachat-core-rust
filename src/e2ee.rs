@@ -11,7 +11,7 @@ use crate::context::Context;
 use crate::error::*;
 use crate::headerdef::HeaderDef;
 use crate::headerdef::HeaderDefMap;
-use crate::key::{DcKey, Key, SignedPublicKey, SignedSecretKey};
+use crate::key::{DcKey, SignedPublicKey, SignedSecretKey};
 use crate::keyring::*;
 use crate::peerstate::*;
 use crate::pgp;
@@ -105,7 +105,7 @@ impl EncryptHelper {
             keyring.add(key);
         }
         keyring.add(self.public_key.clone());
-        let sign_key = Key::from(SignedSecretKey::load_self(context).await?);
+        let sign_key = SignedSecretKey::load_self(context).await?;
 
         let raw_message = mail_to_encrypt.build().as_string().into_bytes();
 

@@ -17,7 +17,7 @@ use crate::dc_tools::*;
 use crate::e2ee;
 use crate::error::*;
 use crate::events::Event;
-use crate::key::{self, DcKey, Key, SignedPublicKey, SignedSecretKey};
+use crate::key::{self, DcKey, DcSecretKey, SignedPublicKey, SignedSecretKey};
 use crate::message::{Message, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::param::*;
@@ -292,14 +292,8 @@ async fn set_self_key(
     prefer_encrypt_required: bool,
 ) -> Result<()> {
     // try hard to only modify key-state
-    let keys = SignedSecretKey::from_asc(armored)
-        .map(|(key, hdrs)| (Key::from(key), hdrs))
-        .ok()
-        .and_then(|(k, h)| if k.verify() { Some((k, h)) } else { None })
-        .and_then(|(k, h)| k.split_key().map(|pub_key| (k, pub_key, h)));
-
-    ensure!(keys.is_some(), "Not a valid private key");
-    let (private_key, public_key, header) = keys.unwrap();
+    let (private_key, header) = SignedSecretKey::from_asc(armored)?;
+    let public_key = private_key.split_public_key()?;
     let preferencrypt = header.get("Autocrypt-Prefer-Encrypt");
     match preferencrypt.map(|s| s.as_str()) {
         Some(headerval) => {
@@ -325,15 +319,10 @@ async fn set_self_key(
     let self_addr = context.get_config(Config::ConfiguredAddr).await;
     ensure!(self_addr.is_some(), "Missing self addr");
     let addr = EmailAddress::new(&self_addr.unwrap_or_default())?;
-
-    let (public, secret) = match (public_key, private_key) {
-        (Key::Public(p), Key::Secret(s)) => (p, s),
-        _ => bail!("wrong keys unpacked"),
-    };
     let keypair = pgp::KeyPair {
         addr,
-        public,
-        secret,
+        public: public_key,
+        secret: private_key,
     };
     key::store_self_keypair(
         context,
