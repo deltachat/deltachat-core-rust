@@ -1,5 +1,6 @@
 //! # Import/export module
 
+use std::any::Any;
 use std::cmp::{max, min};
 
 use async_std::path::{Path, PathBuf};
@@ -16,7 +17,7 @@ use crate::dc_tools::*;
 use crate::e2ee;
 use crate::error::*;
 use crate::events::Event;
-use crate::key::{self, DcKey, Key, SignedSecretKey};
+use crate::key::{self, DcKey, Key, SignedPublicKey, SignedSecretKey};
 use crate::message::{Message, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::param::*;
@@ -181,7 +182,7 @@ pub async fn render_setup_file(context: &Context, passphrase: &str) -> Result<St
         passphrase.len() >= 2,
         "Passphrase must be at least 2 chars long."
     );
-    let private_key = Key::from(SignedSecretKey::load_self(context).await?);
+    let private_key = SignedSecretKey::load_self(context).await?;
     let ac_headers = match context.get_config_bool(Config::E2eeEnabled).await {
         false => None,
         true => Some(("Autocrypt-Prefer-Encrypt", "mutual")),
@@ -291,7 +292,9 @@ async fn set_self_key(
     prefer_encrypt_required: bool,
 ) -> Result<()> {
     // try hard to only modify key-state
-    let keys = Key::from_armored_string(armored, KeyType::Private)
+    let keys = SignedSecretKey::from_asc(armored)
+        .map(|(key, hdrs)| (Key::from(key), hdrs))
+        .ok()
         .and_then(|(k, h)| if k.verify() { Some((k, h)) } else { None })
         .and_then(|(k, h)| k.split_key().map(|pub_key| (k, pub_key, h)));
 
@@ -696,9 +699,9 @@ async fn export_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()
             |row| {
                 let id = row.get(0)?;
                 let public_key_blob: Vec<u8> = row.get(1)?;
-                let public_key = Key::from_slice(&public_key_blob, KeyType::Public);
+                let public_key = SignedPublicKey::from_slice(&public_key_blob);
                 let private_key_blob: Vec<u8> = row.get(2)?;
-                let private_key = Key::from_slice(&private_key_blob, KeyType::Private);
+                let private_key = SignedSecretKey::from_slice(&private_key_blob);
                 let is_default: i32 = row.get(3)?;
 
                 Ok((id, public_key, private_key, is_default))
@@ -741,22 +744,32 @@ async fn export_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()
 /*******************************************************************************
  * Classic key export
  ******************************************************************************/
-async fn export_key_to_asc_file(
+async fn export_key_to_asc_file<T>(
     context: &Context,
     dir: impl AsRef<Path>,
     id: Option<i64>,
-    key: &Key,
-) -> std::io::Result<()> {
+    key: &T,
+) -> std::io::Result<()>
+where
+    T: DcKey + Any,
+{
     let file_name = {
-        let kind = if key.is_public() { "public" } else { "private" };
+        let any_key = key as &dyn Any;
+        let kind = if any_key.downcast_ref::<SignedPublicKey>().is_some() {
+            "public"
+        } else if any_key.downcast_ref::<SignedPublicKey>().is_some() {
+            "private"
+        } else {
+            "unknown"
+        };
         let id = id.map_or("default".into(), |i| i.to_string());
-
         dir.as_ref().join(format!("{}-key-{}.asc", kind, &id))
     };
     info!(context, "Exporting key {}", file_name.display());
     dc_delete_file(context, &file_name).await;
 
-    let res = key.write_asc_to_file(&file_name, context).await;
+    let content = key.to_asc(None).into_bytes();
+    let res = dc_write_file(context, &file_name, &content).await;
     if res.is_err() {
         error!(context, "Cannot write key to {}", file_name.display());
     } else {
@@ -822,7 +835,7 @@ mod tests {
     #[async_std::test]
     async fn test_export_key_to_asc_file() {
         let context = dummy_context().await;
-        let key = Key::from(alice_keypair().public);
+        let key = alice_keypair().public;
         let blobdir = "$BLOBDIR";
         assert!(export_key_to_asc_file(&context.ctx, blobdir, None, &key)
             .await
