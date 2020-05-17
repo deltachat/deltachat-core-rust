@@ -1,7 +1,6 @@
 //! OpenPGP helper module using [rPGP facilities](https://github.com/rpgp/rpgp)
 
 use std::collections::{BTreeMap, HashSet};
-use std::convert::TryInto;
 use std::io;
 use std::io::Cursor;
 
@@ -19,8 +18,8 @@ use rand::{thread_rng, CryptoRng, Rng};
 use crate::constants::KeyGenType;
 use crate::dc_tools::EmailAddress;
 use crate::error::{bail, ensure, format_err, Result};
-use crate::key::*;
-use crate::keyring::*;
+use crate::key::DcKey;
+use crate::keyring::Keyring;
 
 pub const HEADER_AUTOCRYPT: &str = "autocrypt-prefer-encrypt";
 pub const HEADER_SETUPCODE: &str = "passphrase-begin";
@@ -241,7 +240,7 @@ fn select_pk_for_encryption(key: &SignedPublicKey) -> Option<SignedPublicKeyOrSu
 pub async fn pk_encrypt(
     plain: &[u8],
     public_keys_for_encryption: Keyring<SignedPublicKey>,
-    private_key_for_signing: Option<Key>,
+    private_key_for_signing: Option<SignedSecretKey>,
 ) -> Result<String> {
     let lit_msg = Message::new_literal_bytes("", plain);
 
@@ -256,11 +255,7 @@ pub async fn pk_encrypt(
         let mut rng = thread_rng();
 
         // TODO: measure time
-        let encrypted_msg = if let Some(ref private_key) = private_key_for_signing {
-            let skey: &SignedSecretKey = private_key
-                .try_into()
-                .map_err(|_| format_err!("Invalid private key"))?;
-
+        let encrypted_msg = if let Some(ref skey) = private_key_for_signing {
             lit_msg
                 .sign(skey, || "".into(), Default::default())
                 .and_then(|msg| msg.compress(CompressionAlgorithm::ZLIB))
@@ -448,7 +443,7 @@ mod tests {
             let mut keyring = Keyring::new();
             keyring.add(KEYS.alice_public.clone());
             keyring.add(KEYS.bob_public.clone());
-            smol::block_on(pk_encrypt(CLEARTEXT, keyring, Some(Key::from(KEYS.alice_secret.clone())))).unwrap()
+            smol::block_on(pk_encrypt(CLEARTEXT, keyring, Some(KEYS.alice_secret.clone()))).unwrap()
         };
 
         /// A cyphertext encrypted to Alice & Bob, not signed.
