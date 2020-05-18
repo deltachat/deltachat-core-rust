@@ -1,6 +1,5 @@
 import time
 import os
-import random
 from queue import Queue
 
 import deltachat
@@ -13,7 +12,7 @@ def test_db_busy_error(acfactory, tmpdir):
         print("%3.2f %s" % (time.time() - starttime, string))
 
     # make a number of accounts
-    accounts = acfactory.get_many_online_accounts(5, quiet=True)
+    accounts = acfactory.get_many_online_accounts(5, quiet=False)
     log("created %s accounts" % len(accounts))
 
     # put a bigfile into each account
@@ -37,7 +36,7 @@ def test_db_busy_error(acfactory, tmpdir):
     # each replier receives all events and sends report events to receive_queue
     repliers = []
     for acc in accounts:
-        replier = AutoReplier(acc, num_send=1000, big_probability=1.0/300, report_func=report_func)
+        replier = AutoReplier(acc, num_send=1000, num_bigfiles=0, report_func=report_func)
         acc.add_account_plugin(replier)
         repliers.append(replier)
 
@@ -72,31 +71,31 @@ class ReportType:
 
 
 class AutoReplier:
-    def __init__(self, account, report_func, num_send, big_probability):
-        assert 0 < big_probability < 1
+    def __init__(self, account, report_func, num_send, num_bigfiles):
         self.account = account
         self.report_func = report_func
-        self.num_remaining = num_send
-        self.big_probability = big_probability
+        self.num_send = num_send
+        self.num_bigfiles = num_bigfiles
+        self.current_sent = 0
 
     @deltachat.account_hookimpl
     def ac_incoming_message(self, message):
-        if self.num_remaining == 0:
+        if self.current_sent >= self.num_send:
             return
         message.accept_sender_contact()
         message.mark_seen()
         self.report_func(self, ReportType.message_incoming, message)
 
+        self.current_sent += 1
         # we are still alive, let's send a reply
-        if random.random() <= self.big_probability:
+        if self.num_bigfiles and self.current_sent % self.num_bigfiles == 0:
             message.chat.send_text("send big file as reply to: {}".format(message.text))
             msg = message.chat.send_file(self.account.bigfile)
         else:
             msg = message.chat.send_text("got message id {}, small text reply".format(message.id))
             assert msg.text
         self.report_func(self, ReportType.message_sent, msg)
-        self.num_remaining -= 1
-        if self.num_remaining == 0:
+        if self.current_sent >= self.num_send:
             self.report_func(self, ReportType.exit)
             return
 
