@@ -247,10 +247,8 @@ const IMEX_COMMANDS: [&str; 12] = [
     "stop",
 ];
 
-const DB_COMMANDS: [&str; 11] = [
+const DB_COMMANDS: [&str; 9] = [
     "info",
-    "open",
-    "close",
     "set",
     "get",
     "oauth2",
