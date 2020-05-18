@@ -218,6 +218,20 @@ pub fn dc_receive_imf(
         } else {
             // Move message if we don't delete it immediately.
             context.do_heuristics_moves(server_folder.as_ref(), insert_msg_id);
+
+            // BCC-self, mark read
+            let self_sent = from_id == DC_CONTACT_ID_SELF
+                && to_ids.len() == 1
+                && to_ids.contains(&DC_CONTACT_ID_SELF);
+            if self_sent || contains_mdn {
+                job_add(
+                    context,
+                    Action::MarkseenMsgOnImap,
+                    msg_id.to_u32() as i32,
+                    Params::new(),
+                    0,
+                );
+            }
         }
     }
 
@@ -612,6 +626,7 @@ fn add_parts(
     let icnt = mime_parser.parts.len();
 
     let mut txt_raw = None;
+    let mut contains_mdn = false;
 
     context.sql.prepare(
         "INSERT INTO msgs \
@@ -631,6 +646,7 @@ fn add_parts(
 
                 if is_mdn || is_location_kml {
                     *hidden = true;
+                    contains_mdn = true;
                     if state == MessageState::InFresh {
                         state = MessageState::InNoticed;
                     }
