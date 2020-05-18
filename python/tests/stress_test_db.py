@@ -37,7 +37,7 @@ def test_db_busy_error(acfactory, tmpdir):
     # each replier receives all events and sends report events to receive_queue
     repliers = []
     for acc in accounts:
-        replier = AutoReplier(acc, big_probability=0.1, exit_probability=0.01, report_func=report_func)
+        replier = AutoReplier(acc, num_send=1000, big_probability=1.0/300, report_func=report_func)
         acc.add_account_plugin(replier)
         repliers.append(replier)
 
@@ -72,25 +72,20 @@ class ReportType:
 
 
 class AutoReplier:
-    def __init__(self, account, big_probability, exit_probability, report_func):
-        assert 0 < exit_probability < 1
+    def __init__(self, account, report_func, num_send, big_probability):
+        assert 0 < big_probability < 1
         self.account = account
         self.report_func = report_func
-        self.exit_probability = exit_probability
+        self.num_remaining = num_send
         self.big_probability = big_probability
-        self.exiting = False
 
     @deltachat.account_hookimpl
     def ac_incoming_message(self, message):
-        if self.exiting:
+        if self.num_remaining == 0:
             return
         message.accept_sender_contact()
         message.mark_seen()
         self.report_func(self, ReportType.message_incoming, message)
-        if random.random() <= self.exit_probability:
-            self.exiting = True
-            self.report_func(self, ReportType.exit)
-            return
 
         # we are still alive, let's send a reply
         if random.random() <= self.big_probability:
@@ -100,6 +95,10 @@ class AutoReplier:
             msg = message.chat.send_text("got message id {}, small text reply".format(message.id))
             assert msg.text
         self.report_func(self, ReportType.message_sent, msg)
+        self.num_remaining -= 1
+        if self.num_remaining == 0:
+            self.report_func(self, ReportType.exit)
+            return
 
     @deltachat.account_hookimpl
     def ac_process_ffi_event(self, ffi_event):
