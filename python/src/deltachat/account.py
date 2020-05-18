@@ -46,7 +46,6 @@ class Account(object):
             lib.dc_context_new(lib.py_dc_callback, ffi.NULL, as_dc_charpointer(os_name)),
             _destroy_dc_context,
         )
-
         hook = hookspec.Global._get_plugin_manager().hook
 
         self._threads = iothreads.IOThreads(self)
@@ -55,9 +54,9 @@ class Account(object):
         self._shutdown_event = Event()
 
         # open database
-        self.db_path = db_path
         if hasattr(db_path, "encode"):
             db_path = db_path.encode("utf8")
+        self.db_path = db_path
         if not lib.dc_open(self._dc_context, db_path, ffi.NULL):
             raise ValueError("Could not dc_open: {}".format(db_path))
         self._configkeys = self.get_config("sys.config_keys").split()

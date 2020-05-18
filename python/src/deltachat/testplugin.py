@@ -16,7 +16,6 @@ from . import Account, const
 from .tracker import ConfigureTracker
 from .capi import lib
 from .eventlogger import FFIEventLogger, FFIEventTracker
-from _pytest.monkeypatch import MonkeyPatch
 from _pytest._code import Source
 
 import deltachat
@@ -99,14 +98,11 @@ def pytest_report_header(config, startdir):
     summary = []
 
     t = tempfile.mktemp()
-    m = MonkeyPatch()
     try:
-        m.setattr(sys.stdout, "write", lambda x: len(x))
-        ac = Account(t)
+        ac = Account(t, logging=True)
         info = ac.get_info()
-        ac.shutdown()
+        ac.shutdown(False)
     finally:
-        m.undo()
         os.remove(t)
     summary.extend(['Deltachat core={} sqlite={}'.format(
          info['deltachat_core_version'],
