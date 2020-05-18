@@ -422,7 +422,11 @@ fn open(
         // but even if execute() would handle errors more gracefully, we should continue on errors -
         // systems might not be able to handle WAL, in which case the standard-journal is used.
         // that may be not optimal, but better than not working at all :)
-        sql.execute("PRAGMA journal_mode=WAL;", NO_PARAMS).ok();
+
+        // some tests are failing reproducible with journal_mode=WAL but pass with journal_mode=DELETE -
+        // until we have more details on that or the tests pass again, we disable WAL.
+        // as no core was shipped with WAL, there is no need to disable it explicitly.
+        //sql.execute("PRAGMA journal_mode=WAL;", NO_PARAMS).ok();
 
         let mut exists_before_update = false;
         let mut dbversion_before_update = 0;
