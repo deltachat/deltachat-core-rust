@@ -398,9 +398,13 @@ fn open(
         open_flags.insert(OpenFlags::SQLITE_OPEN_READ_WRITE);
         open_flags.insert(OpenFlags::SQLITE_OPEN_CREATE);
     }
+
+    // this actually creates min_idle database handles just now.
+    // therefore, with_init() must not try to modify the database as otherwise
+    // we easily get busy-errors (eg. table-creation, journal_mode etc. should be done on only one handle)
     let mgr = r2d2_sqlite::SqliteConnectionManager::file(dbfile.as_ref())
         .with_flags(open_flags)
-        .with_init(|c| c.execute_batch("PRAGMA journal_mode=WAL; PRAGMA secure_delete=on;"));
+        .with_init(|c| c.execute_batch("PRAGMA secure_delete=on;"));
     let pool = r2d2::Pool::builder()
         .min_idle(Some(2))
         .max_size(10)
@@ -413,6 +417,13 @@ fn open(
     }
 
     if !readonly {
+        // journal_mode is persisted, it is sufficient to change it only for one handle.
+        // (nb: execute() always returns errors for this PRAGMA call, just discard it.
+        // but even if execute() would handle errors more gracefully, we should continue on errors -
+        // systems might not be able to handle WAL, in which case the standard-journal is used.
+        // that may be not optimal, but better than not working at all :)
+        sql.execute("PRAGMA journal_mode=WAL;", NO_PARAMS).ok();
+
         let mut exists_before_update = false;
         let mut dbversion_before_update = 0;
         /* Init tables to dbversion=0 */
