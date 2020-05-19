@@ -17,6 +17,7 @@ from .message import Message, map_system_message
 from .contact import Contact
 from .tracker import ImexTracker
 from . import hookspec, iothreads
+from .eventlogger import FFIEvent
 
 
 class MissingCredentials(ValueError):
@@ -53,7 +54,7 @@ class Account(object):
         self._hook_event_queue = queue.Queue()
         self._in_use_iter_events = False
         self._shutdown_event = Event()
-
+        
         # open database
         self.db_path = db_path
         if hasattr(db_path, "encode"):
@@ -63,6 +64,7 @@ class Account(object):
         self._configkeys = self.get_config("sys.config_keys").split()
         atexit.register(self.shutdown)
         hook.dc_account_init(account=self)
+        self._threads.start()
 
     def disable_logging(self):
         """ disable logging. """
@@ -75,8 +77,7 @@ class Account(object):
     @hookspec.account_hookimpl
     def ac_process_ffi_event(self, ffi_event):
         for name, kwargs in self._map_ffi_event(ffi_event):
-            ev = HookEvent(self, name=name, kwargs=kwargs)
-            self._hook_event_queue.put(ev)
+           yield HookEvent(self, name=name, kwargs=kwargs)
 
     # def __del__(self):
     #    self.shutdown()
@@ -562,7 +563,7 @@ class Account(object):
         """ Stop ongoing securejoin, configuration or other core jobs. """
         lib.dc_stop_ongoing_process(self._dc_context)
 
-    def start(self, callback_thread=True):
+    def start(self):
         """ start this account (activate imap/smtp threads etc.)
         and return immediately.
 
@@ -580,7 +581,6 @@ class Account(object):
             if not self.get_config("addr") or not self.get_config("mail_pw"):
                 raise MissingCredentials("addr or mail_pwd not set in config")
             lib.dc_configure(self._dc_context)
-        self._threads.start(callback_thread=callback_thread)
 
     def wait_shutdown(self):
         """ wait until shutdown of this account has completed. """
@@ -588,7 +588,7 @@ class Account(object):
 
     def shutdown(self, wait=True):
         """ shutdown account, stop threads and close and remove
-        underlying dc_context and callbacks. """
+        underlying dc_context."""
         dc_context = self._dc_context
         if dc_context is None:
             return
@@ -624,10 +624,34 @@ class Account(object):
             raise RuntimeError("can only call iter_events() from one thread")
         self._in_use_iter_events = True
         while 1:
-            event = self._hook_event_queue.get(timeout=timeout)
-            if event is None:
+            event = lib.dc_get_next_event(self._dc_context)
+            if event == ffi.NULL:
                 break
-            yield event
+
+            ctx = self._dc_context
+            evt = lib.dc_event_get_id(event)
+            data1 = lib.dc_event_get_data1(event)
+            data2 = lib.dc_event_get_data2(event)
+            # the following code relates to the deltachat/_build.py's helper
+            # function which provides us signature info of an event call
+            evt_name = deltachat.get_dc_event_name(evt)
+            event_sig_types = lib.dc_get_event_signature_types(evt)
+            if data1 and event_sig_types & 1:
+                data1 = ffi.string(ffi.gc(ffi.cast('char*', data1), lib.dc_str_unref)).decode("utf8")
+            if data2 and event_sig_types & 2:
+                data2 = ffi.string(ffi.gc(ffi.cast('char*', data2), lib.dc_str_unref)).decode("utf8")
+            try:
+                if isinstance(data2, bytes):
+                    data2 = data2.decode("utf8")
+            except UnicodeDecodeError:
+                # XXX ignoring the decode error is not quite correct but for now
+                # i don't want to hunt down encoding problems in the c lib
+                pass
+
+            lib.dc_event_unref(event)
+            ffi_event = FFIEvent(name=evt_name, data1=data1, data2=data2)
+            for event in self._pm.hook.ac_process_ffi_event(account=self, ffi_event=ffi_event):
+                yield event
 
     def _map_ffi_event(self, ffi_event):
         name = ffi_event.name
@@ -660,12 +684,6 @@ class Account(object):
 def _destroy_dc_context(dc_context, dc_context_unref=lib.dc_context_unref):
     # destructor for dc_context
     dc_context_unref(dc_context)
-    try:
-        deltachat.clear_context_callback(dc_context)
-    except (TypeError, AttributeError):
-        # we are deep into Python Interpreter shutdown,
-        # so no need to clear the callback context mapping.
-        pass
 
 
 class ScannedQRCode:

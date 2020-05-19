@@ -2,7 +2,7 @@ from __future__ import print_function
 
 import threading
 import time
-from deltachat import capi, cutil, const, set_context_callback, clear_context_callback
+from deltachat import capi, cutil, const
 from deltachat import register_global_plugin
 from deltachat.hookspec import global_hookimpl
 from deltachat.capi import ffi
@@ -41,13 +41,6 @@ class EventThread(threading.Thread):
 def test_empty_context():
     ctx = capi.lib.dc_context_new(capi.ffi.NULL, capi.ffi.NULL)
     capi.lib.dc_close(ctx)
-
-
-def test_callback_None2int():
-    ctx = capi.lib.dc_context_new(ffi.NULL, ffi.NULL)
-    set_context_callback(ctx, lambda *args: None)
-    capi.lib.dc_close(ctx)
-    clear_context_callback(ctx)
 
 
 def test_dc_close_events(tmpdir, acfactory):

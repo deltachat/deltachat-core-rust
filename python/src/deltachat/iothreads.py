@@ -4,8 +4,9 @@ import time
 
 from contextlib import contextmanager
 
-from .capi import lib
-
+from .capi import ffi, lib
+import deltachat
+from .eventlogger import FFIEvent
 
 class IOThreads:
     def __init__(self, account):
@@ -17,19 +18,10 @@ class IOThreads:
     def is_started(self):
         return len(self._name2thread) > 0
 
-    def start(self, callback_thread):
+    def start(self):
         assert not self.is_started()
-        self._start_one_thread("inbox", self.imap_thread_run)
-        self._start_one_thread("smtp", self.smtp_thread_run)
 
-        if callback_thread:
-            self._start_one_thread("cb", self.cb_thread_run)
-
-        if int(self.account.get_config("mvbox_watch")):
-            self._start_one_thread("mvbox", self.mvbox_thread_run)
-
-        if int(self.account.get_config("sentbox_watch")):
-            self._start_one_thread("sentbox", self.sentbox_thread_run)
+        self._start_one_thread("cb", self.cb_thread_run)
 
     def _start_one_thread(self, name, func):
         self._name2thread[name] = t = threading.Thread(target=func, name=name)
@@ -49,12 +41,6 @@ class IOThreads:
         # not in between checking for quitflag and entering idle.
         time.sleep(0.5)
 
-        lib.dc_interrupt_imap_idle(self._dc_context)
-        lib.dc_interrupt_smtp_idle(self._dc_context)
-        if "mvbox" in self._name2thread:
-            lib.dc_interrupt_mvbox_idle(self._dc_context)
-        if "sentbox" in self._name2thread:
-            lib.dc_interrupt_sentbox_idle(self._dc_context)
         if wait:
             for name, thread in self._name2thread.items():
                 if thread != threading.currentThread():
@@ -68,39 +54,8 @@ class IOThreads:
                     ev = next(it)
                 except StopIteration:
                     break
+                print("{}", ev)
                 self.account.ac_log_line("calling hook name={} kwargs={}".format(ev.name, ev.kwargs))
                 ev.call_hook()
 
-    def imap_thread_run(self):
-        with self.log_execution("INBOX THREAD START"):
-            while not self._thread_quitflag:
-                lib.dc_perform_imap_jobs(self._dc_context)
-                if not self._thread_quitflag:
-                    lib.dc_perform_imap_fetch(self._dc_context)
-                if not self._thread_quitflag:
-                    lib.dc_perform_imap_idle(self._dc_context)
 
-    def mvbox_thread_run(self):
-        with self.log_execution("MVBOX THREAD"):
-            while not self._thread_quitflag:
-                lib.dc_perform_mvbox_jobs(self._dc_context)
-                if not self._thread_quitflag:
-                    lib.dc_perform_mvbox_fetch(self._dc_context)
-                if not self._thread_quitflag:
-                    lib.dc_perform_mvbox_idle(self._dc_context)
-
-    def sentbox_thread_run(self):
-        with self.log_execution("SENTBOX THREAD"):
-            while not self._thread_quitflag:
-                lib.dc_perform_sentbox_jobs(self._dc_context)
-                if not self._thread_quitflag:
-                    lib.dc_perform_sentbox_fetch(self._dc_context)
-                if not self._thread_quitflag:
-                    lib.dc_perform_sentbox_idle(self._dc_context)
-
-    def smtp_thread_run(self):
-        with self.log_execution("SMTP THREAD"):
-            while not self._thread_quitflag:
-                lib.dc_perform_smtp_jobs(self._dc_context)
-                if not self._thread_quitflag:
-                    lib.dc_perform_smtp_idle(self._dc_context)
