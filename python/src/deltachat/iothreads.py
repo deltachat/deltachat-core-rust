@@ -54,7 +54,6 @@ class IOThreads:
                     ev = next(it)
                 except StopIteration:
                     break
-                print("{}", ev)
                 self.account.ac_log_line("calling hook name={} kwargs={}".format(ev.name, ev.kwargs))
                 ev.call_hook()
 

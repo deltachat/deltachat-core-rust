@@ -654,9 +654,7 @@ pub unsafe extern "C" fn dc_context_shutdown(context: *mut dc_context_t) {
     let ffi_context = &*context;
 
     with_inner_async!(ffi_context, ctx, async move {
-        eprintln!("SHUTDOWN");
         ctx.stop().await;
-        eprintln!("SHUTDOWN:DONE")
     })
     .unwrap_or(())
 }

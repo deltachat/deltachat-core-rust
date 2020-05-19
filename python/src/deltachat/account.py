@@ -575,6 +575,7 @@ class Account(object):
             if not self.get_config("addr") or not self.get_config("mail_pw"):
                 raise MissingCredentials("addr or mail_pwd not set in config")
             lib.dc_configure(self._dc_context)
+        lib.dc_context_run(self._dc_context)
 
     def wait_shutdown(self):
         """ wait until shutdown of this account has completed. """
@@ -590,6 +591,7 @@ class Account(object):
         if self._threads.is_started():
             self.stop_ongoing()
             self._threads.stop(wait=False)
+        lib.dc_context_shutdown(dc_context)
         lib.dc_close(dc_context)
         self._threads.stop(wait=wait)  # to wait for threads
         self._dc_context = None
