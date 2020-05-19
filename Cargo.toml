@@ -50,7 +50,7 @@ bitflags = "1.1.0"
 debug_stub_derive = "0.3.0"
 sanitize-filename = "0.2.1"
 stop-token = { version = "0.1.1", features = ["unstable"] }
-mailparse = "0.12.0"
+mailparse = "0.12.1"
 encoded-words = { git = "https://github.com/async-email/encoded-words", branch="master" }
 native-tls = "0.2.3"
 image = { version = "0.22.4", default-features=false, features = ["gif_codec", "jpeg", "ico", "png_codec", "pnm", "webp", "bmp"] }
