@@ -9,6 +9,9 @@ out_all = ""
 out_domains = ""
 domains_dict = {}
 
+def camel(name):
+    words = name.split("_")
+    return "".join(w.capitalize() for i, w in enumerate(words))
 
 def cleanstr(s):
     s = s.strip()
@@ -29,6 +32,18 @@ def file2url(f):
     f = f[f.rindex("/")+1:].replace(".md", "")
     f = f.replace(".", "-")
     return "https://providers.delta.chat/" + f
+
+
+def process_config_defaults(data):
+    if not "config_defaults" in data:
+        return "None"
+    defaults = "Some(vec![\n"
+    config_defaults = data.get("config_defaults", "")
+    for key in config_defaults:
+        value = str(config_defaults[key])
+        defaults += "            ConfigDefault { key: Config::" + camel(key) + ", value: \"" + value + "\" },\n"
+    defaults += "        ])"
+    return defaults
 
 
 def process_data(data, file):
@@ -83,6 +98,8 @@ def process_data(data, file):
             server += ("            Server { protocol: " + protocol + ", socket: " + socket + ", hostname: \""
             + hostname + "\", port: " + str(port) + ", username_pattern: " + username_pattern + " },\n")
 
+    config_defaults = process_config_defaults(data)
+
     provider = ""
     before_login_hint = cleanstr(data.get("before_login_hint", ""))
     after_login_hint = cleanstr(data.get("after_login_hint", ""))
@@ -93,6 +110,7 @@ def process_data(data, file):
         provider += "        after_login_hint: \"" + after_login_hint + "\",\n"
         provider += "        overview_page: \"" + file2url(file) + "\",\n"
         provider += "        server: vec![\n" + server + "        ],\n"
+        provider += "        config_defaults: " + config_defaults + ",\n"
         provider += "    };\n\n"
     else:
         raise TypeError("SMTP and IMAP must be specified together or left out both")
@@ -103,7 +121,7 @@ def process_data(data, file):
     # finally, add the provider
     global out_all, out_domains
     out_all += "    // " + file[file.rindex("/")+1:] + ": " + comment.strip(", ") + "\n"
-    if status == "OK" and before_login_hint == "" and after_login_hint == "" and server == "":
+    if status == "OK" and before_login_hint == "" and after_login_hint == "" and server == "" and config_defaults == "None":
         out_all += "    // - skipping provider with status OK and no special things to do\n\n"
     else:
         out_all += provider

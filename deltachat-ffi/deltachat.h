@@ -381,7 +381,8 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    Messages are deleted whether they were seen or not, the UI should clearly point that out.
  *                    See also dc_estimate_deletion_cnt().
  * - `delete_server_after` = 0=do not delete messages from server automatically (default),
- *                    >=1=seconds, after which messages are deleted automatically from the server.
+ *                    1=delete messages directly after receiving from server, mvbox is skipped.
+ *                    >1=seconds, after which messages are deleted automatically from the server, mvbox is used as defined.
  *                    "Saved messages" are deleted from the server as well as
  *                    emails matching the `show_emails` settings above, the UI should clearly point that out.
  *                    See also dc_estimate_deletion_cnt().
@@ -1350,7 +1351,7 @@ int             dc_set_chat_profile_image    (dc_context_t* context, uint32_t ch
 /**
  * Set mute duration of a chat.
  *
- * This value can be checked by the ui upon receiving a new message to decide whether it should trigger an notification.
+ * The ui can then call dc_chat_is_muted() when receiving a new message to decide whether it should trigger an notification.
  *
  * Sends out #DC_EVENT_CHAT_MODIFIED.
  *
@@ -2687,7 +2688,7 @@ int             dc_chat_is_sending_locations (const dc_chat_t* chat);
 
 
 /**
- * Check whether the chat is currently muted
+ * Check whether the chat is currently muted (can be changed by dc_set_chat_mute_duration()).
  *
  * @memberof dc_chat_t
  * @param chat The chat object.

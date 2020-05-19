@@ -1742,8 +1742,7 @@ pub async fn delete_device_expired_messages(context: &Context) -> Result<bool, E
              WHERE timestamp < ? \
              AND chat_id > ? \
              AND chat_id != ? \
-             AND chat_id != ? \
-             AND NOT hidden",
+             AND chat_id != ?",
                 paramsv![
                     DC_CHAT_ID_TRASH,
                     threshold_timestamp,

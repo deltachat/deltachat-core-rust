@@ -134,7 +134,7 @@ impl async_imap::Authenticator for OAuth2 {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum FolderMeaning {
     Unknown,
     SentObjects,
@@ -1124,7 +1124,8 @@ impl Imap {
 
                 if sentbox_folder.is_none() {
                     if let FolderMeaning::SentObjects = get_folder_meaning(&folder) {
-                        info!(context, "sentbox folder is {:?}", folder);
+                        sentbox_folder = Some(folder);
+                    } else if let FolderMeaning::SentObjects = get_folder_meaning_by_name(&folder) {
                         sentbox_folder = Some(folder);
                     }
                 }
@@ -1133,6 +1134,7 @@ impl Imap {
                     break;
                 }
             }
+            info!(context, "sentbox folder is {:?}", sentbox_folder);
 
             drop(folders);
 
@@ -1258,7 +1260,7 @@ impl Imap {
 // CAVE: if possible, take care not to add a name here that is "sent" in one language
 // but sth. different in others - a hard job.
 fn get_folder_meaning_by_name(folder_name: &Name) -> FolderMeaning {
-    let sent_names = vec!["sent", "sent objects", "gesendet"];
+    let sent_names = vec!["sent", "sentmail", "sent objects", "gesendet"];
     let lower = folder_name.name().to_lowercase();
 
     if sent_names.into_iter().any(|s| s == lower) {
@@ -1269,27 +1271,18 @@ fn get_folder_meaning_by_name(folder_name: &Name) -> FolderMeaning {
 }
 
 fn get_folder_meaning(folder_name: &Name) -> FolderMeaning {
-    if folder_name.attributes().is_empty() {
-        return FolderMeaning::Unknown;
-    }
-
-    let mut res = FolderMeaning::Unknown;
     let special_names = vec!["\\Spam", "\\Trash", "\\Drafts", "\\Junk"];
 
     for attr in folder_name.attributes() {
         if let NameAttribute::Custom(ref label) = attr {
             if special_names.iter().any(|s| *s == label) {
-                res = FolderMeaning::Other;
+                return FolderMeaning::Other;
             } else if label == "\\Sent" {
-                res = FolderMeaning::SentObjects
+                return FolderMeaning::SentObjects;
             }
         }
     }
-
-    match res {
-        FolderMeaning::Unknown => get_folder_meaning_by_name(folder_name),
-        _ => res,
-    }
+    FolderMeaning::Unknown
 }
 
 async fn precheck_imf(

@@ -30,7 +30,7 @@ class Account(object):
     """
     MissingCredentials = MissingCredentials
 
-    def __init__(self, db_path, os_name=None):
+    def __init__(self, db_path, os_name=None, logging=True):
         """ initialize account object.
 
         :param db_path: a path to the account database. The database
@@ -39,6 +39,7 @@ class Account(object):
         """
         # initialize per-account plugin system
         self._pm = hookspec.PerAccount._make_plugin_manager()
+        self._logging = logging
         self.add_account_plugin(self)
 
         self._dc_context = ffi.gc(
@@ -63,6 +64,14 @@ class Account(object):
         atexit.register(self.shutdown)
         hook.dc_account_init(account=self)
 
+    def disable_logging(self):
+        """ disable logging. """
+        self._logging = False
+
+    def enable_logging(self):
+        """ re-enable logging. """
+        self._logging = True
+
     @hookspec.account_hookimpl
     def ac_process_ffi_event(self, ffi_event):
         for name, kwargs in self._map_ffi_event(ffi_event):
@@ -73,7 +82,8 @@ class Account(object):
     #    self.shutdown()
 
     def ac_log_line(self, msg):
-        self._pm.hook.ac_log_line(message=msg)
+        if self._logging:
+            self._pm.hook.ac_log_line(message=msg)
 
     def _check_config_key(self, name):
         if name not in self._configkeys:

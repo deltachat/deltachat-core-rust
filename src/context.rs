@@ -252,7 +252,11 @@ impl Context {
             .get_raw_config_int(self, "dbversion")
             .await
             .unwrap_or_default();
-
+        let journal_mode = self
+            .sql
+            .query_get_value(self, "PRAGMA journal_mode;", paramsv![])
+            .await
+            .unwrap_or_else(|| "unknown".to_string());
         let e2ee_enabled = self.get_config_int(Config::E2eeEnabled).await;
         let mdns_enabled = self.get_config_int(Config::MdnsEnabled).await;
         let bcc_self = self.get_config_int(Config::BccSelf).await;
@@ -299,6 +303,7 @@ impl Context {
         res.insert("number_of_contacts", contacts.to_string());
         res.insert("database_dir", self.get_dbfile().display().to_string());
         res.insert("database_version", dbversion.to_string());
+        res.insert("journal_mode", journal_mode);
         res.insert("blobdir", self.get_blobdir().display().to_string());
         res.insert("display_name", displayname.unwrap_or_else(|| unset.into()));
         res.insert(

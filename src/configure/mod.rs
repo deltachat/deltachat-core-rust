@@ -84,6 +84,7 @@ impl Context {
         let (_s, r) = async_std::sync::channel(1);
         let mut imap = Imap::new(r);
         let mut is_imap_connected = false;
+        let was_configured_before = self.is_configured().await;
 
         while !self.shall_stop_ongoing().await {
             step_counter += 1;
@@ -121,6 +122,15 @@ impl Context {
         }
 
         if let Some(provider) = provider::get_provider_info(&param.addr) {
+            if !was_configured_before {
+                if let Some(config_defaults) = &provider.config_defaults {
+                    for def in config_defaults.iter() {
+                        info!(self, "apply config_defaults {}={}", def.key, def.value);
+                        self.set_config(def.key, Some(def.value)).await?;
+                    }
+                }
+            }
+
             if !provider.after_login_hint.is_empty() {
                 let mut msg = Message::new(Viewtype::Text);
                 msg.text = Some(provider.after_login_hint.to_string());

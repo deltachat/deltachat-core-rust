@@ -18,6 +18,7 @@ lazy_static::lazy_static! {
             Server { protocol: IMAP, socket: STARTTLS, hostname: "newyear.aktivix.org", port: 143, username_pattern: EMAIL },
             Server { protocol: SMTP, socket: STARTTLS, hostname: "newyear.aktivix.org", port: 25, username_pattern: EMAIL },
         ],
+        config_defaults: None,
     };
 
     // aol.md: aol.com
@@ -28,6 +29,7 @@ lazy_static::lazy_static! {
         overview_page: "https://providers.delta.chat/aol",
         server: vec![
         ],
+        config_defaults: None,
     };
 
     // autistici.org.md: autistici.org
@@ -40,6 +42,7 @@ lazy_static::lazy_static! {
             Server { protocol: IMAP, socket: SSL, hostname: "mail.autistici.org", port: 993, username_pattern: EMAIL },
             Server { protocol: SMTP, socket: SSL, hostname: "smtp.autistici.org", port: 465, username_pattern: EMAIL },
         ],
+        config_defaults: None,
     };
 
     // bluewin.ch.md: bluewin.ch
@@ -52,6 +55,7 @@ lazy_static::lazy_static! {
             Server { protocol: IMAP, socket: SSL, hostname: "imaps.bluewin.ch", port: 993, username_pattern: EMAIL },
             Server { protocol: SMTP, socket: SSL, hostname: "smtpauths.bluewin.ch", port: 465, username_pattern: EMAIL },
         ],
+        config_defaults: None,
     };
 
     // comcast.md: xfinity.com, comcast.net
@@ -73,6 +77,7 @@ lazy_static::lazy_static! {
             Server { protocol: IMAP, socket: SSL, hostname: "imap.example.com", port: 1337, username_pattern: EMAIL },
             Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp.example.com", port: 1337, username_pattern: EMAIL },
         ],
+        config_defaults: None,
     };
 
     // fastmail.md: fastmail.com
@@ -83,6 +88,7 @@ lazy_static::lazy_static! {
         overview_page: "https://providers.delta.chat/fastmail",
         server: vec![
         ],
+        config_defaults: None,
     };
 
     // freenet.de.md: freenet.de
@@ -95,6 +101,7 @@ lazy_static::lazy_static! {
             Server { protocol: IMAP, socket: SSL, hostname: "mx.freenet.de", port: 993, username_pattern: EMAIL },
             Server { protocol: SMTP, socket: STARTTLS, hostname: "mx.freenet.de", port: 587, username_pattern: EMAIL },
         ],
+        config_defaults: None,
     };
 
     // gmail.md: gmail.com, googlemail.com
@@ -107,6 +114,7 @@ lazy_static::lazy_static! {
             Server { protocol: IMAP, socket: SSL, hostname: "imap.gmail.com", port: 993, username_pattern: EMAIL },
             Server { protocol: SMTP, socket: SSL, hostname: "smtp.gmail.com", port: 465, username_pattern: EMAIL },
         ],
+        config_defaults: None,
     };
 
     // gmx.net.md: gmx.net, gmx.de, gmx.at, gmx.ch, gmx.org, gmx.eu, gmx.info, gmx.biz, gmx.com
@@ -120,6 +128,7 @@ lazy_static::lazy_static! {
             Server { protocol: SMTP, socket: SSL, hostname: "mail.gmx.net", port: 465, username_pattern: EMAIL },
             Server { protocol: SMTP, socket: STARTTLS, hostname: "mail.gmx.net", port: 587, username_pattern: EMAIL },
         ],
+        config_defaults: None,
     };
 
     // i.ua.md: i.ua
@@ -135,6 +144,7 @@ lazy_static::lazy_static! {
             Server { protocol: IMAP, socket: SSL, hostname: "imap.mail.me.com", port: 993, username_pattern: EMAILLOCALPART },
             Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp.mail.me.com", port: 587, username_pattern: EMAIL },
         ],
+        config_defaults: None,
     };
 
     // kolst.com.md: kolst.com
@@ -159,6 +169,15 @@ lazy_static::lazy_static! {
             Server { protocol: IMAP, socket: STARTTLS, hostname: "imap.nauta.cu", port: 143, username_pattern: EMAIL },
             Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp.nauta.cu", port: 25, username_pattern: EMAIL },
         ],
+        config_defaults: Some(vec![
+            ConfigDefault { key: Config::DeleteServerAfter, value: "1" },
+            ConfigDefault { key: Config::BccSelf, value: "0" },
+            ConfigDefault { key: Config::SentboxWatch, value: "0" },
+            ConfigDefault { key: Config::MvboxWatch, value: "0" },
+            ConfigDefault { key: Config::MvboxMove, value: "0" },
+            ConfigDefault { key: Config::E2eeEnabled, value: "0" },
+            ConfigDefault { key: Config::MediaQuality, value: "1" },
+        ]),
     };
 
     // outlook.com.md: hotmail.com, outlook.com, office365.com, outlook.com.tr, live.com
@@ -171,6 +190,7 @@ lazy_static::lazy_static! {
             Server { protocol: IMAP, socket: SSL, hostname: "imap-mail.outlook.com", port: 993, username_pattern: EMAIL },
             Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp-mail.outlook.com", port: 587, username_pattern: EMAIL },
         ],
+        config_defaults: None,
     };
 
     // posteo.md: posteo.de
@@ -183,6 +203,7 @@ lazy_static::lazy_static! {
             Server { protocol: IMAP, socket: STARTTLS, hostname: "posteo.de", port: 143, username_pattern: EMAIL },
             Server { protocol: SMTP, socket: STARTTLS, hostname: "posteo.de", port: 587, username_pattern: EMAIL },
         ],
+        config_defaults: None,
     };
 
     // protonmail.md: protonmail.com, protonmail.ch
@@ -193,12 +214,16 @@ lazy_static::lazy_static! {
         overview_page: "https://providers.delta.chat/protonmail",
         server: vec![
         ],
+        config_defaults: None,
     };
 
     // riseup.net.md: riseup.net
     // - skipping provider with status OK and no special things to do
 
     // rogers.com.md: rogers.com
+    // - skipping provider with status OK and no special things to do
+
+    // systemli.org.md: systemli.org
     // - skipping provider with status OK and no special things to do
 
     // t-online.md: t-online.de, magenta.de
@@ -209,6 +234,7 @@ lazy_static::lazy_static! {
         overview_page: "https://providers.delta.chat/t-online",
         server: vec![
         ],
+        config_defaults: None,
     };
 
     // testrun.md: testrun.org
@@ -222,6 +248,7 @@ lazy_static::lazy_static! {
             Server { protocol: IMAP, socket: STARTTLS, hostname: "testrun.org", port: 143, username_pattern: EMAIL },
             Server { protocol: SMTP, socket: STARTTLS, hostname: "testrun.org", port: 587, username_pattern: EMAIL },
         ],
+        config_defaults: None,
     };
 
     // tiscali.it.md: tiscali.it
@@ -234,6 +261,7 @@ lazy_static::lazy_static! {
             Server { protocol: IMAP, socket: SSL, hostname: "imap.tiscali.it", port: 993, username_pattern: EMAIL },
             Server { protocol: SMTP, socket: SSL, hostname: "smtp.tiscali.it", port: 465, username_pattern: EMAIL },
         ],
+        config_defaults: None,
     };
 
     // ukr.net.md: ukr.net
@@ -253,6 +281,7 @@ lazy_static::lazy_static! {
             Server { protocol: IMAP, socket: STARTTLS, hostname: "imap.web.de", port: 143, username_pattern: EMAILLOCALPART },
             Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp.web.de", port: 587, username_pattern: EMAILLOCALPART },
         ],
+        config_defaults: None,
     };
 
     // yahoo.md: yahoo.com, yahoo.de, yahoo.it, yahoo.fr, yahoo.es, yahoo.se, yahoo.co.uk, yahoo.co.nz, yahoo.com.au, yahoo.com.ar, yahoo.com.br, yahoo.com.mx, ymail.com, rocketmail.com, yahoodns.net
@@ -265,6 +294,7 @@ lazy_static::lazy_static! {
             Server { protocol: IMAP, socket: SSL, hostname: "imap.mail.yahoo.com", port: 993, username_pattern: EMAIL },
             Server { protocol: SMTP, socket: SSL, hostname: "smtp.mail.yahoo.com", port: 465, username_pattern: EMAIL },
         ],
+        config_defaults: None,
     };
 
     // yandex.ru.md: yandex.ru, yandex.com
@@ -275,6 +305,7 @@ lazy_static::lazy_static! {
         overview_page: "https://providers.delta.chat/yandex-ru",
         server: vec![
         ],
+        config_defaults: None,
     };
 
     // ziggo.nl.md: ziggo.nl
@@ -287,6 +318,7 @@ lazy_static::lazy_static! {
             Server { protocol: IMAP, socket: SSL, hostname: "imap.ziggo.nl", port: 993, username_pattern: EMAIL },
             Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp.ziggo.nl", port: 587, username_pattern: EMAIL },
         ],
+        config_defaults: None,
     };
 
     pub static ref PROVIDER_DATA: HashMap<&'static str, &'static Provider> = [

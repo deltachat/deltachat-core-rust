@@ -5,7 +5,6 @@ use async_std::sync::{Arc, RwLock};
 
 use std::collections::HashSet;
 use std::path::Path;
-use std::time::Duration;
 
 use rusqlite::{Connection, Error as SqlError, OpenFlags};
 use thread_local_object::ThreadLocal;
@@ -703,18 +702,13 @@ async fn open(
         open_flags.insert(OpenFlags::SQLITE_OPEN_READ_WRITE);
         open_flags.insert(OpenFlags::SQLITE_OPEN_CREATE);
     }
+
+    // this actually creates min_idle database handles just now.
+    // therefore, with_init() must not try to modify the database as otherwise
+    // we easily get busy-errors (eg. table-creation, journal_mode etc. should be done on only one handle)
     let mgr = r2d2_sqlite::SqliteConnectionManager::file(dbfile.as_ref())
         .with_flags(open_flags)
         .with_init(|c| {
-            // Only one process can make changes to the database at one time.
-            // busy_timeout defines, that if a second process wants write access,
-            // this second process will wait some milliseconds
-            // and try over until it gets write access or the given timeout is elapsed.
-            // If the second process does not get write access within the given timeout,
-            // sqlite3_step() will return the error SQLITE_BUSY.
-            // (without a busy_timeout, sqlite3_step() would return SQLITE_BUSY _at once_)
-            c.busy_timeout(Duration::from_secs(10))?;
-
             c.execute_batch("PRAGMA secure_delete=on;")?;
             Ok(())
         });
@@ -730,6 +724,15 @@ async fn open(
     }
 
     if !readonly {
+        // journal_mode is persisted, it is sufficient to change it only for one handle.
+        // (nb: execute() always returns errors for this PRAGMA call, just discard it.
+        // but even if execute() would handle errors more gracefully, we should continue on errors -
+        // systems might not be able to handle WAL, in which case the standard-journal is used.
+        // that may be not optimal, but better than not working at all :)
+        sql.execute("PRAGMA journal_mode=WAL;", paramsv![])
+            .await
+            .ok();
+
         let mut exists_before_update = false;
         let mut dbversion_before_update: i32 = 0;
         /* Init tables to dbversion=0 */
