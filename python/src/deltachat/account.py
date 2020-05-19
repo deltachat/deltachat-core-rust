@@ -53,7 +53,7 @@ class Account(object):
         self._threads = iothreads.IOThreads(self)
         self._in_use_iter_events = False
         self._shutdown_event = Event()
-        
+
         # open database
         self.db_path = db_path
         if hasattr(db_path, "encode"):
@@ -72,11 +72,6 @@ class Account(object):
     def enable_logging(self):
         """ re-enable logging. """
         self._logging = True
-
-    @hookspec.account_hookimpl
-    def ac_process_ffi_event(self, ffi_event):
-        for name, kwargs in self._map_ffi_event(ffi_event):
-           yield HookEvent(self, name=name, kwargs=kwargs)
 
     # def __del__(self):
     #    self.shutdown()
@@ -616,7 +611,6 @@ class Account(object):
             if event == ffi.NULL:
                 break
 
-            ctx = self._dc_context
             evt = lib.dc_event_get_id(event)
             data1 = lib.dc_event_get_data1(event)
             data2 = lib.dc_event_get_data2(event)
@@ -638,8 +632,9 @@ class Account(object):
 
             lib.dc_event_unref(event)
             ffi_event = FFIEvent(name=evt_name, data1=data1, data2=data2)
-            for event in self._pm.hook.ac_process_ffi_event(account=self, ffi_event=ffi_event):
-                yield event
+            self._pm.hook.ac_process_ffi_event(account=self, ffi_event=ffi_event)
+            for name, kwargs in self._map_ffi_event(ffi_event):
+                yield HookEvent(self, name=name, kwargs=kwargs)
 
     def _map_ffi_event(self, ffi_event):
         name = ffi_event.name
