@@ -5,6 +5,7 @@ use async_std::sync::{Arc, RwLock};
 
 use std::collections::HashSet;
 use std::path::Path;
+use std::time::Duration;
 
 use rusqlite::{Connection, Error as SqlError, OpenFlags};
 use thread_local_object::ThreadLocal;
@@ -709,13 +710,16 @@ async fn open(
     let mgr = r2d2_sqlite::SqliteConnectionManager::file(dbfile.as_ref())
         .with_flags(open_flags)
         .with_init(|c| {
-            c.execute_batch("PRAGMA secure_delete=on;")?;
+            c.execute_batch(&format!(
+                "PRAGMA secure_delete=on; PRAGMA busy_timeout = {};",
+                Duration::from_secs(10).as_millis()
+            ))?;
             Ok(())
         });
     let pool = r2d2::Pool::builder()
         .min_idle(Some(2))
         .max_size(10)
-        .connection_timeout(std::time::Duration::new(60, 0))
+        .connection_timeout(Duration::from_secs(60))
         .build(mgr)
         .map_err(Error::ConnectionPool)?;
 
