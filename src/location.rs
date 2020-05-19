@@ -524,8 +524,13 @@ pub async fn save(
     let mut newest_location_id = 0;
 
     for location in locations {
-        // TODO: can this clone be avoided?
-        let location = location.clone();
+        let &Location {
+            timestamp,
+            latitude,
+            longitude,
+            accuracy,
+            ..
+        } = location;
         context
             .sql
             .with_conn(move |mut conn| {
@@ -537,29 +542,29 @@ pub async fn save(
              VALUES (?,?,?,?,?,?,?);",
                 )?;
 
-                let exists = stmt_test.exists(paramsv![location.timestamp, contact_id as i32])?;
+                let exists = stmt_test.exists(paramsv![timestamp, contact_id as i32])?;
 
                 if independent || !exists {
                     stmt_insert.execute(paramsv![
-                        location.timestamp,
+                        timestamp,
                         contact_id as i32,
                         chat_id,
-                        location.latitude,
-                        location.longitude,
-                        location.accuracy,
+                        latitude,
+                        longitude,
+                        accuracy,
                         independent,
                     ])?;
 
-                    if location.timestamp > newest_timestamp {
+                    if timestamp > newest_timestamp {
                         // okay to drop, as we use cached prepared statements
                         drop(stmt_test);
                         drop(stmt_insert);
-                        newest_timestamp = location.timestamp;
+                        newest_timestamp = timestamp;
                         newest_location_id = crate::sql::get_rowid2(
                             &mut conn,
                             "locations",
                             "timestamp",
-                            location.timestamp,
+                            timestamp,
                             "from_id",
                             contact_id as i32,
                         )?;
