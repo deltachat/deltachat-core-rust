@@ -20,12 +20,12 @@ smallvec = "1.0.0"
 reqwest = { version = "0.10.0", features = ["blocking", "json"] }
 num-derive = "0.3.0"
 num-traits = "0.2.6"
-async-smtp = "0.2"
+async-smtp = "0.3"
 email = { git = "https://github.com/deltachat/rust-email", branch = "master" }
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
 async-imap = { git = "https://github.com/async-email/async-imap", branch = "feat/send" }
 async-native-tls = "0.3.1"
-async-std = { git = "https://github.com/async-rs/async-std", rev = "3ff9e98f20a193eb63e43fb9d71f9d60c33f6d58", features = ["unstable"] }
+async-std = { git = "https://github.com/async-rs/async-std", features = ["unstable"] }
 base64 = "0.11"
 charset = "0.1"
 percent-encoding = "2.0"
@@ -35,8 +35,8 @@ chrono = "0.4.6"
 indexmap = "1.3.0"
 lazy_static = "1.4.0"
 regex = "1.1.6"
-rusqlite = { version = "0.21", features = ["bundled"] }
-r2d2_sqlite = "0.13.0"
+rusqlite = { version = "0.22", features = ["bundled"] }
+r2d2_sqlite = "0.15.0"
 r2d2 = "0.8.5"
 strum = "0.16.0"
 strum_macros = "0.16.0"
@@ -71,7 +71,7 @@ tempfile = "3.0"
 pretty_assertions = "0.6.1"
 pretty_env_logger = "0.3.0"
 proptest = "0.9.4"
-async-std = { git = "https://github.com/async-rs/async-std", rev = "3ff9e98f20a193eb63e43fb9d71f9d60c33f6d58", features = ["unstable", "attributes"] }
+async-std = { git = "https://github.com/async-rs/async-std", features = ["unstable", "attributes"] }
 
 [workspace]
 members = [
