@@ -422,7 +422,9 @@ fn open(
         // but even if execute() would handle errors more gracefully, we should continue on errors -
         // systems might not be able to handle WAL, in which case the standard-journal is used.
         // that may be not optimal, but better than not working at all :)
-        sql.execute("PRAGMA journal_mode=WAL;", NO_PARAMS).ok();
+        if std::env::var("DCC_WAL").is_ok() {
+            sql.execute("PRAGMA journal_mode=WAL;", NO_PARAMS).ok();
+        }
 
         let mut exists_before_update = false;
         let mut dbversion_before_update = 0;

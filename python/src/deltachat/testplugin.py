@@ -104,9 +104,10 @@ def pytest_report_header(config, startdir):
         ac.shutdown(False)
     finally:
         os.remove(t)
-    summary.extend(['Deltachat core={} sqlite={}'.format(
+    summary.extend(['Deltachat core={} sqlite={} journal_mode={}'.format(
          info['deltachat_core_version'],
          info['sqlite_version'],
+         info['journal_mode'],
      )])
 
     cfg = config.option.liveconfig
