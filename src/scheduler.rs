@@ -65,44 +65,28 @@ async fn inbox_loop(ctx: Context, inbox_handlers: ImapConnectionHandlers) {
             return;
         }
 
+        // track number of continously executed jobs
+        let mut jobs_loaded = 0;
         loop {
             let probe_network = ctx.scheduler.read().await.get_probe_network();
             match job::load_next(&ctx, Thread::Imap, probe_network)
                 .timeout(Duration::from_millis(200))
                 .await
             {
-                Ok(Some(job)) => {
+                Ok(Some(job)) if jobs_loaded <= 20 => {
+                    jobs_loaded += 1;
                     job::perform_job(&ctx, job::Connection::Inbox(&mut connection), job).await;
                     ctx.scheduler.write().await.set_probe_network(false);
                 }
+                Ok(Some(job)) => {
+                    // Let the fetch run, but return back to the job afterwards.
+                    info!(ctx, "postponing imap-job {} to run fetch...", job);
+                    jobs_loaded = 0;
+                    fetch(&ctx, &mut connection).await;
+                }
                 Ok(None) | Err(async_std::future::TimeoutError { .. }) => {
-                    match get_watch_folder(&ctx, "configured_inbox_folder").await {
-                        Some(watch_folder) => {
-                            // fetch
-                            connection
-                                .fetch(&ctx, &watch_folder)
-                                .await
-                                .unwrap_or_else(|err| {
-                                    error!(ctx, "{}", err);
-                                });
-
-                            // idle
-                            if connection.can_idle() {
-                                connection
-                                    .idle(&ctx, Some(watch_folder))
-                                    .await
-                                    .unwrap_or_else(|err| {
-                                        error!(ctx, "{}", err);
-                                    });
-                            } else {
-                                connection.fake_idle(&ctx, Some(watch_folder)).await;
-                            }
-                        }
-                        None => {
-                            warn!(ctx, "Can not watch inbox folder, not set");
-                            connection.fake_idle(&ctx, None).await;
-                        }
-                    }
+                    jobs_loaded = 0;
+                    fetch_idle(&ctx, &mut connection).await;
                 }
             }
         }
@@ -111,6 +95,54 @@ async fn inbox_loop(ctx: Context, inbox_handlers: ImapConnectionHandlers) {
     info!(ctx, "Shutting down inbox loop");
     fut.race(stop_receiver.recv().map(|_| ())).await;
     shutdown_sender.send(()).await;
+}
+
+async fn fetch(ctx: &Context, connection: &mut Imap) {
+    match get_watch_folder(&ctx, "configured_inbox_folder").await {
+        Some(watch_folder) => {
+            // fetch
+            connection
+                .fetch(&ctx, &watch_folder)
+                .await
+                .unwrap_or_else(|err| {
+                    error!(ctx, "{}", err);
+                });
+        }
+        None => {
+            warn!(ctx, "Can not fetch inbox folder, not set");
+            connection.fake_idle(&ctx, None).await;
+        }
+    }
+}
+
+async fn fetch_idle(ctx: &Context, connection: &mut Imap) {
+    match get_watch_folder(&ctx, "configured_inbox_folder").await {
+        Some(watch_folder) => {
+            // fetch
+            connection
+                .fetch(&ctx, &watch_folder)
+                .await
+                .unwrap_or_else(|err| {
+                    error!(ctx, "{}", err);
+                });
+
+            // idle
+            if connection.can_idle() {
+                connection
+                    .idle(&ctx, Some(watch_folder))
+                    .await
+                    .unwrap_or_else(|err| {
+                        error!(ctx, "{}", err);
+                    });
+            } else {
+                connection.fake_idle(&ctx, Some(watch_folder)).await;
+            }
+        }
+        None => {
+            warn!(ctx, "Can not watch inbox folder, not set");
+            connection.fake_idle(&ctx, None).await;
+        }
+    }
 }
 
 async fn simple_imap_loop(
