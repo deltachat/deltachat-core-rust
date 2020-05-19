@@ -51,7 +51,6 @@ class Account(object):
         hook = hookspec.Global._get_plugin_manager().hook
 
         self._threads = iothreads.IOThreads(self)
-        self._hook_event_queue = queue.Queue()
         self._in_use_iter_events = False
         self._shutdown_event = Event()
         
@@ -597,23 +596,12 @@ class Account(object):
             self.stop_ongoing()
             self._threads.stop(wait=False)
         lib.dc_close(dc_context)
-        self._hook_event_queue.put(None)
         self._threads.stop(wait=wait)  # to wait for threads
         self._dc_context = None
         atexit.unregister(self.shutdown)
         self._shutdown_event.set()
         hook = hookspec.Global._get_plugin_manager().hook
         hook.dc_account_after_shutdown(account=self, dc_context=dc_context)
-
-    def _handle_current_events(self):
-        """ handle all currently queued events and then return. """
-        while 1:
-            try:
-                event = self._hook_event_queue.get(block=False)
-            except queue.Empty:
-                break
-            else:
-                event.call_hook()
 
     def iter_events(self, timeout=None):
         """ yield hook events until shutdown.
