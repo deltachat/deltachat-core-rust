@@ -1227,6 +1227,14 @@ impl Imap {
             return;
         }
 
+        if !self
+            .add_flag_finalized_with_set(context, SELECT_ALL, "\\Deleted")
+            .await
+        {
+            error!(context, "Cannot mark messages for deletion {}", folder);
+            return;
+        }
+
         // we now trigger expunge to actually delete messages
         self.config.selected_folder_needs_expunge = true;
         match self.select_folder::<String>(context, None).await {

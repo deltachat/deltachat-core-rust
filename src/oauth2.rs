@@ -75,8 +75,6 @@ pub async fn dc_get_oauth2_url(
     }
 }
 
-// The following function may block due http-requests;
-// must not be called from the main thread or by the ui!
 pub async fn dc_get_oauth2_access_token(
     context: &Context,
     addr: impl AsRef<str>,
@@ -84,9 +82,7 @@ pub async fn dc_get_oauth2_access_token(
     regenerate: bool,
 ) -> Option<String> {
     if let Some(oauth2) = Oauth2::from_address(addr) {
-        // TODO: FIXME
-        // let lock = context.oauth2_critical.clone();
-        // let _l = lock.lock().await;
+        let lock = context.oauth2_mutex.lock().await;
 
         // read generated token
         if !regenerate && !is_expired(context).await {
@@ -242,6 +238,8 @@ pub async fn dc_get_oauth2_access_token(
         } else {
             warn!(context, "Failed to find OAuth2 access token");
         }
+
+        drop(lock);
 
         response.access_token
     } else {

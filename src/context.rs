@@ -52,6 +52,8 @@ pub struct InnerContext {
     pub(crate) running_state: RwLock<RunningState>,
     /// Mutex to avoid generating the key for the user more than once.
     pub(crate) generating_key_mutex: Mutex<()>,
+    /// Mutex to enforce only a single running oauth2 is running.
+    pub(crate) oauth2_mutex: Mutex<()>,
     pub(crate) translated_stockstrings: RwLock<HashMap<usize, String>>,
     pub(crate) logs: (SyncSender<Event>, SyncReceiver<Event>),
 
@@ -117,6 +119,7 @@ impl Context {
             bob: RwLock::new(Default::default()),
             last_smeared_timestamp: RwLock::new(0),
             generating_key_mutex: Mutex::new(()),
+            oauth2_mutex: Mutex::new(()),
             translated_stockstrings: RwLock::new(HashMap::new()),
             logs: unbounded(),
             scheduler: RwLock::new(Scheduler::Stopped),

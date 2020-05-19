@@ -47,6 +47,7 @@ impl Imap {
         }
         self.config.selected_folder = None;
         self.config.selected_folder_needs_expunge = false;
+
         Ok(())
     }
 
@@ -77,26 +78,7 @@ impl Imap {
         // deselect existing folder, if needed (it's also done implicitly by SELECT, however, without EXPUNGE then)
         let needs_expunge = { self.config.selected_folder_needs_expunge };
         if needs_expunge {
-            if let Some(ref folder) = self.config.selected_folder {
-                info!(context, "Expunge messages in \"{}\".", folder);
-
-                // A CLOSE-SELECT is considerably faster than an EXPUNGE-SELECT, see
-                // https://tools.ietf.org/html/rfc3501#section-6.4.2
-                if let Some(ref mut session) = &mut self.session {
-                    match session.close().await {
-                        Ok(_) => {
-                            info!(context, "close/expunge succeeded");
-                        }
-                        Err(err) => {
-                            self.trigger_reconnect();
-                            return Err(Error::CloseExpungeFailed(err));
-                        }
-                    }
-                } else {
-                    return Err(Error::NoSession);
-                }
-            }
-            self.config.selected_folder_needs_expunge = false;
+            self.close_folder(context).await?;
         }
 
         // select new folder

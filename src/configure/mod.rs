@@ -44,11 +44,11 @@ impl Context {
 
         ensure!(
             !self.scheduler.read().await.is_running(),
-            "Can not configure, already running"
+            "cannot configure, already running"
         );
         ensure!(
             self.sql.is_open().await,
-            "Cannot configure, database not opened."
+            "cannot configure, database not opened."
         );
         let cancel_channel = self.alloc_ongoing().await?;
 

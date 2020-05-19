@@ -810,45 +810,6 @@ pub enum Connection<'a> {
     Smtp(&'a mut Smtp),
 }
 
-async fn add_imap_deletion_jobs(context: &Context) -> sql::Result<()> {
-    if let Some(delete_server_after) = context.get_config_delete_server_after().await {
-        let threshold_timestamp = time() - delete_server_after;
-
-        // Select all expired messages which don't have a
-        // corresponding message deletion job yet.
-        let msg_ids = context
-            .sql
-            .query_map(
-                "SELECT id FROM msgs \
-             WHERE timestamp < ? \
-             AND server_uid != 0 \
-             AND NOT EXISTS (SELECT 1 FROM jobs WHERE foreign_id = msgs.id \
-             AND action = ?)",
-                paramsv![threshold_timestamp, Action::DeleteMsgOnImap],
-                |row| row.get::<_, MsgId>(0),
-                |ids| {
-                    ids.collect::<std::result::Result<Vec<_>, _>>()
-                        .map_err(Into::into)
-                },
-            )
-            .await?;
-
-        // Schedule IMAP deletion for expired messages.
-        for msg_id in msg_ids {
-            add(
-                context,
-                Action::DeleteMsgOnImap,
-                msg_id.to_u32() as i32,
-                Params::new(),
-                0,
-            )
-            .await;
-        }
-    }
-
-    Ok(())
-}
-
 async fn load_imap_deletion_msgid(context: &Context) -> sql::Result<Option<MsgId>> {
     if let Some(delete_server_after) = context.get_config_delete_server_after().await {
         let threshold_timestamp = time() - delete_server_after;
