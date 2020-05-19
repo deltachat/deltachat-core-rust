@@ -6,7 +6,7 @@ use deltachat_derive::{FromSql, ToSql};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 
-use crate::chat::{self, Chat, ChatId};
+use crate::chat::{self, update_autodelete_timeout, Chat, ChatId};
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::*;
@@ -157,10 +157,10 @@ impl MsgId {
                 WHERE (autodelete_timestamp == 0 OR autodelete_timestamp > ?) \
                 AND id = ?",
                 params![autodelete_timestamp, autodelete_timestamp, self],
-            )
-        } else {
-            Ok(())
+            )?;
+            update_autodelete_timeout(context);
         }
+        Ok(())
     }
 
     /// Bad evil escape hatch.

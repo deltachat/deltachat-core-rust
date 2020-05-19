@@ -4405,6 +4405,17 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  */
 #define DC_EVENT_MSG_READ                 2015
 
+/**
+ * Time left until the next message deletion has changed.
+ *
+ * The only parameter is the number of seconds left until next message
+ * deletion. It is rounded up. If the timer is 0, it means there are no
+ * messages to be deleted in the future.
+ *
+ * @param data1 (int) Timer in seconds
+ * @param data2 (int) 0
+ */
+#define DC_EVENT_MSG_DELETE_TIMEOUT_CHANGED 2016
 
 /**
  * Chat changed.  The name or the image of a chat group was changed or members were added or removed.

@@ -1,6 +1,6 @@
 //! # Chat module
 
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
@@ -931,6 +931,7 @@ impl Chat {
         } else {
             error!(context, "Cannot send message, not configured.",);
         }
+        update_autodelete_timeout(context);
 
         Ok(MsgId::new(msg_id))
     }
@@ -1600,11 +1601,48 @@ pub fn marknoticed_all_chats(context: &Context) -> Result<(), Error> {
     Ok(())
 }
 
+/// Emits an event to update the time until the next local deletion.
+///
+/// This takes into account only per-chat timeouts, because global device
+/// timeouts are at least one hour long and deletion is triggered often enough
+/// by user actions.
+pub fn update_autodelete_timeout(context: &Context) {
+    let autodelete_timestamp: Option<i64> = match context.sql.query_get_value_result(
+        "SELECT autodelete_timestamp \
+         FROM msgs \
+         WHERE autodelete_timestamp != 0 \
+         ORDER BY autodelete_timestamp ASC \
+         LIMIT 1",
+        rusqlite::NO_PARAMS,
+    ) {
+        Err(err) => {
+            warn!(context, "Can't calculate next autodelete timeout: {}", err);
+            return;
+        }
+        Ok(autodelete_timestamp) => autodelete_timestamp,
+    };
+
+    let timer = if let Some(next_autodelete) = autodelete_timestamp {
+        let now = time();
+        if now > next_autodelete {
+            1
+        } else {
+            (next_autodelete - now)
+                .try_into()
+                .unwrap_or(u32::MAX)
+                .saturating_add(1)
+        }
+    } else {
+        0
+    };
+    emit_event!(context, Event::MsgDeleteTimeoutChanged { timer });
+}
+
 /// Deletes messages which are expired according to "delete_device_after" setting.
 ///
 /// Returns true if any message is deleted, so event can be emitted. If nothing
 /// has been deleted, returns false.
-pub fn delete_device_expired_messages(context: &Context) -> Result<bool, Error> {
+pub(crate) fn delete_device_expired_messages(context: &Context) -> Result<bool, Error> {
     let now = time();
 
     let threshold_timestamp = match context.get_config_delete_device_after() {
@@ -1650,7 +1688,11 @@ pub fn delete_device_expired_messages(context: &Context) -> Result<bool, Error> 
         ],
     )?;
 
-    Ok(rows_modified > 0)
+    let updated = rows_modified > 0;
+    if updated {
+        update_autodelete_timeout(context);
+    }
+    Ok(updated)
 }
 
 pub fn get_chat_media(

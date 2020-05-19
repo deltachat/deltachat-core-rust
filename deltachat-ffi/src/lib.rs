@@ -167,6 +167,9 @@ impl ContextWrapper {
                         msg_id.to_u32() as uintptr_t,
                     );
                 }
+                Event::MsgDeleteTimeoutChanged { timer } => {
+                    ffi_cb(self, event_id, timer as uintptr_t, 0);
+                }
                 Event::ChatModified(chat_id) => {
                     ffi_cb(self, event_id, chat_id.to_u32() as uintptr_t, 0);
                 }
