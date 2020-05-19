@@ -19,7 +19,6 @@ from .tracker import ImexTracker
 from . import hookspec, iothreads
 from .eventlogger import FFIEvent
 
-
 class MissingCredentials(ValueError):
     """ Account is missing `addr` and `mail_pw` config values. """
 
@@ -63,7 +62,6 @@ class Account(object):
         self._configkeys = self.get_config("sys.config_keys").split()
         atexit.register(self.shutdown)
         hook.dc_account_init(account=self)
-        self._threads.start()
 
     def disable_logging(self):
         """ disable logging. """
@@ -576,6 +574,7 @@ class Account(object):
                 raise MissingCredentials("addr or mail_pwd not set in config")
             lib.dc_configure(self._dc_context)
         lib.dc_context_run(self._dc_context)
+        self._threads.start()
 
     def wait_shutdown(self):
         """ wait until shutdown of this account has completed. """
@@ -591,6 +590,7 @@ class Account(object):
         if self._threads.is_started():
             self.stop_ongoing()
             self._threads.stop(wait=False)
+            
         lib.dc_context_shutdown(dc_context)
         lib.dc_close(dc_context)
         self._threads.stop(wait=wait)  # to wait for threads
@@ -608,7 +608,7 @@ class Account(object):
         if self._in_use_iter_events:
             raise RuntimeError("can only call iter_events() from one thread")
         self._in_use_iter_events = True
-        while 1:
+        while lib.dc_is_open(self._dc_context):
             event = lib.dc_get_next_event(self._dc_context)
             if event == ffi.NULL:
                 break
