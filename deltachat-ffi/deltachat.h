@@ -162,7 +162,7 @@ typedef struct _dc_provider dc_provider_t;
  * - Strings in function arguments or return values are usually UTF-8 encoded.
  *
  * - The issue-tracker for the core library is here:
- *   <https://github.com/deltachat/deltachat-core/issues>
+ *   <https://github.com/deltachat/deltachat-core-rust/issues>
  *
  * The following points are important mainly
  * for the authors of the library itself:
