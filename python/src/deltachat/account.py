@@ -15,7 +15,7 @@ from .message import Message
 from .contact import Contact
 from .tracker import ImexTracker, ConfigureTracker
 from . import hookspec
-from .eventlogger import FFIEventLogger, CallbackThread
+from .events import FFIEventLogger, CallbackThread
 
 
 class MissingCredentials(ValueError):

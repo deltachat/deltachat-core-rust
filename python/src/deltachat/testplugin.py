@@ -15,7 +15,7 @@ import requests
 from . import Account, const
 from .tracker import ConfigureTracker
 from .capi import lib
-from .eventlogger import FFIEventLogger, FFIEventTracker
+from .events import FFIEventLogger, FFIEventTracker
 from _pytest.monkeypatch import MonkeyPatch
 from _pytest._code import Source
 

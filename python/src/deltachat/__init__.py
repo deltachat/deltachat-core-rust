@@ -7,7 +7,7 @@ from .message import Message  # noqa
 from .contact import Contact  # noqa
 from .chat import Chat        # noqa
 from .hookspec import account_hookimpl, global_hookimpl  # noqa
-from . import eventlogger
+from . import events
 
 from pkg_resources import get_distribution, DistributionNotFound
 try:
@@ -39,7 +39,7 @@ def unregister_global_plugin(plugin):
     gm.unregister(plugin)
 
 
-register_global_plugin(eventlogger)
+register_global_plugin(events)
 
 
 def run_cmdline(argv=None, account_plugins=None):
@@ -60,7 +60,7 @@ def run_cmdline(argv=None, account_plugins=None):
     ac = Account(args.db)
 
     if args.show_ffi:
-        log = eventlogger.FFIEventLogger(ac, "bot")
+        log = events.FFIEventLogger(ac, "bot")
         ac.add_account_plugin(log)
 
     if not ac.is_configured():
