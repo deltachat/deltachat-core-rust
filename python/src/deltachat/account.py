@@ -15,7 +15,7 @@ from .message import Message
 from .contact import Contact
 from .tracker import ImexTracker, ConfigureTracker
 from . import hookspec
-from .events import FFIEventLogger, CallbackThread
+from .events import FFIEventLogger, EventThread
 
 
 class MissingCredentials(ValueError):
@@ -59,7 +59,7 @@ class Account(object):
             db_path = db_path.encode("utf8")
         if not lib.dc_open(self._dc_context, db_path, ffi.NULL):
             raise ValueError("Could not dc_open: {}".format(db_path))
-        self._cb_thread = CallbackThread(self)
+        self._event_thread = EventThread(self)
         self._configkeys = self.get_config("sys.config_keys").split()
         atexit.register(self.shutdown)
         hook.dc_account_init(account=self)
@@ -462,7 +462,7 @@ class Account(object):
         If sending out was unsuccessful, a RuntimeError is raised.
         """
         self.check_is_configured()
-        if not self._cb_thread.is_alive() or not self.is_started():
+        if not self._event_thread.is_alive() or not self.is_started():
             raise RuntimeError("IO not running, can not send out")
         res = lib.dc_initiate_key_transfer(self._dc_context)
         if res == ffi.NULL:
@@ -557,18 +557,18 @@ class Account(object):
         lib.dc_stop_ongoing_process(self._dc_context)
 
     def start(self):
-        """ start this account (activate imap/smtp threads etc.)
-        and return immediately.
+        """ start this account's IO scheduling (Rust-core async scheduler)
 
-        If this account is not configured, an internal configuration
-        job will be scheduled if config values are sufficiently specified.
+        If this account is not configured but "addr" and "mail_pw" config
+        values are set, dc_configure() will be called.
 
         You may call `wait_shutdown` or `shutdown` after the
-        account is in started mode.
+        account is started.
 
         :raises MissingCredentials: if `addr` and `mail_pw` values are not set.
+        :raises ConfigureFailed: if the account could not be configured.
 
-        :returns: None
+        :returns: None (account is configured and with io-scheduling running)
         """
         if not self.is_configured():
             if not self.get_config("addr") or not self.get_config("mail_pw"):
@@ -579,7 +579,7 @@ class Account(object):
         lib.dc_context_run(self._dc_context)
 
     def is_started(self):
-        return bool(lib.dc_is_running(self._dc_context))
+        return self._event_thread.is_alive() and bool(lib.dc_is_running(self._dc_context))
 
     def wait_shutdown(self):
         """ wait until shutdown of this account has completed. """
@@ -589,21 +589,21 @@ class Account(object):
         """ stop core scheduler if it is running. """
         self.ac_log_line("stop_ongoing")
         self.stop_ongoing()
-        
+
         self.ac_log_line("context_shutdown (stop core scheduler)")
         self.stop_ongoing()
         lib.dc_context_shutdown(self._dc_context)
 
     def shutdown(self, wait=True):
-        """ shutdown account, stop threads and close and remove
+        """ shutdown and destroy account (stop callback thread, close and remove
         underlying dc_context."""
         dc_context = self._dc_context
         if dc_context is None:
             return
 
-        if self._cb_thread.is_alive():
+        if self._event_thread.is_alive():
             self.ac_log_line("stop threads")
-            self._cb_thread.stop(wait=False)
+            self._event_thread.stop(wait=False)
 
         self.stop_scheduler()
 
@@ -611,7 +611,7 @@ class Account(object):
         lib.dc_close(dc_context)
         self.ac_log_line("wait threads for real")
         if wait:
-            self._cb_thread.stop(wait=wait)
+            self._event_thread.stop(wait=wait)
         self._dc_context = None
         atexit.unregister(self.shutdown)
         self._shutdown_event.set()

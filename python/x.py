@@ -21,11 +21,16 @@ acc.start()  # lib.dc_configure + lib.dc_context_run
 assert acc.is_configured()
 acc.stop_scheduler()
 
+run = 0
 while 1:
-    print("starting scheduler")
+    print("****** starting scheduler")
     acc.start()
-    print("stopping scheduler")
+    import time ; time.sleep(0.5)
+    print("******* stopping scheduler")
     acc.stop_scheduler()
+    print("******* waiting", run)
+    import time ; time.sleep(1.0)
+    run += 1
 
 contact = acc.create_contact("holger@deltachat.de")
 chat = acc.create_chat_by_contact(contact)

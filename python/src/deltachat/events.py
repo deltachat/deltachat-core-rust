@@ -124,8 +124,8 @@ class FFIEventTracker:
             return self.account.get_message_by_id(ev.data2)
 
 
-class CallbackThread(threading.Thread):
-    """ Callback Thread for an account.
+class EventThread(threading.Thread):
+    """ Event Thread for an account.
 
     With each Account init this callback thread is started.
     """
@@ -133,7 +133,7 @@ class CallbackThread(threading.Thread):
         self.account = account
         self._dc_context = account._dc_context
         self._thread_quitflag = False
-        super(CallbackThread, self).__init__(name="callback")
+        super(EventThread, self).__init__(name="events")
         self.start()
 
     @contextmanager
@@ -150,17 +150,14 @@ class CallbackThread(threading.Thread):
 
     def run(self):
         """ get and run events until shutdown. """
-        with self.log_execution("CALLBACK THREAD START"):
+        with self.log_execution("EVENT THREAD"):
             self._inner_run()
 
     def _inner_run(self):
         while lib.dc_is_open(self._dc_context) and not self._thread_quitflag:
-            self.account.ac_log_line("waiting for event")
             event = lib.dc_get_next_event(self._dc_context)
             if event == ffi.NULL:
                 break
-            self.account.ac_log_line("got event {}".format(event))
-
             evt = lib.dc_event_get_id(event)
             data1 = lib.dc_event_get_data1(event)
             data2 = lib.dc_event_get_data2(event)
