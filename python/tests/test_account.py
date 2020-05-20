@@ -1211,6 +1211,7 @@ class TestOnlineAccount:
         qr = chat.get_join_qr()
         lp.sec("ac2: start QR-code based join-group protocol")
         ch = ac2.qr_join_chat(qr)
+        lp.sec("ac2: qr_join_chat() returned")
         assert ch.id >= 10
         # check that at least some of the handshake messages are deleted
         ac1._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED")
@@ -1659,26 +1660,27 @@ class TestOnlineConfigureFails:
         ac1, configdict = acfactory.get_online_config()
 
         ac1.update_config(dict(addr=configdict["addr"], mail_pw="123"))
-        ac1.start()
-        wait_configuration_progress(ac1, 500)
+        with ac1.configure() as tracker:
+            tracker.wait_progress(500)
+            tracker.wait_progress(0)
         ev = ac1._evtracker.get_matching("DC_EVENT_ERROR_NETWORK")
         assert "cannot login" in ev.data2.lower()
-        wait_configuration_progress(ac1, 0, 0)
 
     def test_invalid_user(self, acfactory):
         ac1, configdict = acfactory.get_online_config()
         ac1.update_config(dict(addr="x" + configdict["addr"], mail_pw=configdict["mail_pw"]))
-        ac1.start()
-        wait_configuration_progress(ac1, 500)
+        with ac1.configure() as tracker:
+            tracker.wait_progress(500)
+            tracker.wait_progress(0)
         ev = ac1._evtracker.get_matching("DC_EVENT_ERROR_NETWORK")
         assert "cannot login" in ev.data2.lower()
-        wait_configuration_progress(ac1, 0, 0)
 
     def test_invalid_domain(self, acfactory):
         ac1, configdict = acfactory.get_online_config()
         ac1.update_config((dict(addr=configdict["addr"] + "x", mail_pw=configdict["mail_pw"])))
-        ac1.start()
+        with ac1.configure() as tracker:
+            tracker.wait_progress(500)
+            tracker.wait_progress(0)
         wait_configuration_progress(ac1, 500)
         ev = ac1._evtracker.get_matching("DC_EVENT_ERROR_NETWORK")
         assert "could not connect" in ev.data2.lower()
-        wait_configuration_progress(ac1, 0, 0)

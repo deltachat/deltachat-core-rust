@@ -576,6 +576,16 @@ class Account(object):
                 config_tracker.wait_finish()
         lib.dc_context_run(self._dc_context)
 
+    @contextmanager
+    def configure(self):
+        if self.is_configured():
+            return
+        if not self.get_config("addr") or not self.get_config("mail_pw"):
+            raise MissingCredentials("addr or mail_pwd not set in config")
+        with self.temp_plugin(ConfigureTracker()) as config_tracker:
+            lib.dc_configure(self._dc_context)
+            yield config_tracker
+
     def is_started(self):
         return self._event_thread.is_alive() and bool(lib.dc_is_running(self._dc_context))
 

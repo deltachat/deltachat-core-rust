@@ -69,8 +69,11 @@ class ConfigureTracker:
         """ wait until smtp is configured. """
         self._imap_finished.wait()
 
-    def wait_progress(self):
-        return self._progress.get()
+    def wait_progress(self, data1=None):
+        while 1:
+            evdata = self._progress.get()
+            if data1 is None or evdata == data1:
+                break
 
     def wait_finish(self):
         """ wait until configure is completed.
