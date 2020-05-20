@@ -18,12 +18,12 @@ use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::simplify::escape_message_footer_marks;
 use crate::stock::StockMessage;
 
-// attachments of 25 mb brutto should work on the majority of providers
+// Attachments of 25 mb brutto should work on the majority of providers
 // (brutto examples: web.de=50, 1&1=40, t-online.de=32, gmail=25, posteo=50, yahoo=25, all-inkl=100).
-// as an upper limit, we double the size; the core won't send messages larger than this
-// to get the netto sizes, we subtract 1 mb header-overhead and the base64-overhead.
+// As a default upper limit, set by max_attach_size config, we double the size;
+// the core won't send messages larger than this.
+// To get the netto sizes, we subtract 1 mb header-overhead and the base64-overhead.
 pub const RECOMMENDED_FILE_SIZE: u64 = 24 * 1024 * 1024 / 4 * 3;
-const UPPER_LIMIT_FILE_SIZE: u64 = 49 * 1024 * 1024 / 4 * 3;
 
 #[derive(Debug, Clone)]
 pub enum Loaded {
@@ -826,11 +826,20 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
 
         // add attachment part
         if chat::msgtype_has_file(self.msg.viewtype) {
-            if !is_file_size_okay(context, &self.msg) {
-                bail!(
-                    "Message exceeds the recommended {} MB.",
-                    RECOMMENDED_FILE_SIZE / 1_000_000,
-                );
+            let max_file_size = context.get_config_int(Config::MaxAttachSize) as u64;
+            if !is_file_size_okay(context, &self.msg, max_file_size) {
+                    bail!(
+                        "Message exceeds the maximum allowed {} MB.{}",
+                        max_file_size / 1_000_000,
+                        if max_file_size < RECOMMENDED_FILE_SIZE {
+                            "".to_string()
+                        } else {
+                            format!(
+                                " Recommended file size is {} MB.",
+                                RECOMMENDED_FILE_SIZE / 1_000_000,
+                            )
+                        },
+                    );
             } else {
                 let (file_part, _) = build_body_file(context, &self.msg, "")?;
                 parts.push(file_part);
@@ -1083,11 +1092,11 @@ fn recipients_contain_addr(recipients: &[(String, String)], addr: &str) -> bool 
         .any(|(_, cur)| cur.to_lowercase() == addr_lc)
 }
 
-fn is_file_size_okay(context: &Context, msg: &Message) -> bool {
+fn is_file_size_okay(context: &Context, msg: &Message, max_size: u64) -> bool {
     match msg.param.get_path(Param::File, context).unwrap_or(None) {
         Some(path) => {
             let bytes = dc_get_filebytes(context, &path);
-            bytes <= UPPER_LIMIT_FILE_SIZE
+            bytes <= max_size
         }
         None => false,
     }

@@ -71,6 +71,9 @@ pub enum Config {
     #[strum(props(default = "0"))]
     KeyGenType,
 
+    #[strum(props(default = "38535168"))]
+    MaxAttachSize,
+
     /// Timer in seconds after which the message is deleted from the
     /// server.
     ///

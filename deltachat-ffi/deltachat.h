@@ -371,6 +371,11 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    generate RSA 2048 keypair
  *                    DC_KEY_GEN_ED25519 (2)=
  *                    generate Ed25519 keypair
+ * - `max_attach_size` = Maximum size of a sent file
+ *                    Default value is 38535168 = 49*1024*1024*3/4,
+ *                    which corresponds to 50MB total message size.
+ *                    The total message size estimation is attach_size*4/3 + 1MB,
+ *                    where 4/3 factor comes from base64 encoding, 1MB is overhead.
  * - `save_mime_headers` = 1=save mime headers
  *                    and make dc_get_mime_headers() work for subsequent calls,
  *                    0=do not save mime headers (default)
