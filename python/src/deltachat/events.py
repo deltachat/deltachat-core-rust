@@ -38,13 +38,7 @@ class FFIEventLogger:
 
     @account_hookimpl
     def ac_process_ffi_event(self, ffi_event):
-        self._log_event(ffi_event)
-
-    def _log_event(self, ffi_event):
-        # don't show events that are anyway empty impls now
-        if ffi_event.name == "DC_EVENT_GET_STRING":
-            return
-        self.account.ac_log_line(str(ffi_event))
+        self.account.log(str(ffi_event))
 
     @account_hookimpl
     def ac_log_line(self, message):
@@ -97,7 +91,7 @@ class FFIEventTracker:
                 assert not rex.match(ev.name), "event found {}".format(ev)
 
     def get_matching(self, event_name_regex, check_error=True, timeout=None):
-        self.account.ac_log_line("-- waiting for event with regex: {} --".format(event_name_regex))
+        self.account.log("-- waiting for event with regex: {} --".format(event_name_regex))
         rex = re.compile("(?:{}).*".format(event_name_regex))
         while 1:
             ev = self.get(timeout=timeout, check_error=check_error)
@@ -138,9 +132,9 @@ class EventThread(threading.Thread):
 
     @contextmanager
     def log_execution(self, message):
-        self.account.ac_log_line(message + " START")
+        self.account.log(message + " START")
         yield
-        self.account.ac_log_line(message + " FINISHED")
+        self.account.log(message + " FINISHED")
 
     def stop(self, wait=False):
         self._thread_quitflag = True
@@ -181,7 +175,7 @@ class EventThread(threading.Thread):
             ffi_event = FFIEvent(name=evt_name, data1=data1, data2=data2)
             self.account._pm.hook.ac_process_ffi_event(account=self, ffi_event=ffi_event)
             for name, kwargs in self._map_ffi_event(ffi_event):
-                self.account.ac_log_line("calling hook name={} kwargs={}".format(name, kwargs))
+                # self.account.log("calling hook name={} kwargs={}".format(name, kwargs))
                 hook = getattr(self.account._pm.hook, name)
                 try:
                     hook(**kwargs)

@@ -15,7 +15,7 @@ from .message import Message
 from .contact import Contact
 from .tracker import ImexTracker, ConfigureTracker
 from . import hookspec
-from .events import FFIEventLogger, EventThread
+from .events import EventThread
 
 
 class MissingCredentials(ValueError):
@@ -41,8 +41,6 @@ class Account(object):
         self._logging = logging
 
         self.add_account_plugin(self)
-        if logging:
-            self.add_account_plugin(FFIEventLogger(self, logid=str(id(self))[:5]))
 
         self._dc_context = ffi.gc(
             lib.dc_context_new(ffi.NULL, as_dc_charpointer(os_name)),
@@ -75,7 +73,7 @@ class Account(object):
     # def __del__(self):
     #    self.shutdown()
 
-    def ac_log_line(self, msg):
+    def log(self, msg):
         if self._logging:
             self._pm.hook.ac_log_line(message=msg)
 
@@ -587,14 +585,14 @@ class Account(object):
 
     def stop_scheduler(self):
         """ stop core scheduler if it is running. """
-        self.ac_log_line("stop_ongoing")
+        self.log("stop_ongoing")
         self.stop_ongoing()
 
         if self.is_started():
-            self.ac_log_line("context_shutdown (stop core scheduler)")
+            self.log("context_shutdown (stop core scheduler)")
             lib.dc_context_shutdown(self._dc_context)
         else:
-            self.ac_log_line("stop_scheduler called on non-running context")
+            self.log("stop_scheduler called on non-running context")
 
     def shutdown(self, wait=True):
         """ shutdown and destroy account (stop callback thread, close and remove
@@ -604,14 +602,14 @@ class Account(object):
             return
 
         if self._event_thread.is_alive():
-            self.ac_log_line("stop threads")
+            self.log("stop threads")
             self._event_thread.stop(wait=False)
 
         self.stop_scheduler()
 
-        self.ac_log_line("dc_close")
+        self.log("dc_close")
         lib.dc_close(dc_context)
-        self.ac_log_line("wait threads for real")
+        self.log("wait threads for real")
         if wait:
             self._event_thread.stop(wait=wait)
         self._dc_context = None
