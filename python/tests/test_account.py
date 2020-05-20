@@ -521,11 +521,6 @@ class TestOnlineAccount:
             ac2.create_chat_by_contact(ac2.create_contact(email=ac1.get_config("addr")))
         return chat
 
-    def test_double_iter_events(self, acfactory):
-        ac1 = acfactory.get_one_online_account()
-        with pytest.raises(RuntimeError):
-            next(ac1.iter_events())
-
     @pytest.mark.ignored
     def test_configure_generate_key(self, acfactory, lp):
         # A slow test which will generate new keys.

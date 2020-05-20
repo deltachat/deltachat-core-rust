@@ -194,17 +194,18 @@ class EventThread(threading.Thread):
 
     def _map_ffi_event(self, ffi_event):
         name = ffi_event.name
+        account = self.account
         if name == "DC_EVENT_CONFIGURE_PROGRESS":
             data1 = ffi_event.data1
             if data1 == 0 or data1 == 1000:
                 success = data1 == 1000
                 yield "ac_configure_completed", dict(success=success)
         elif name == "DC_EVENT_INCOMING_MSG":
-            msg = self.get_message_by_id(ffi_event.data2)
+            msg = account.get_message_by_id(ffi_event.data2)
             yield map_system_message(msg) or ("ac_incoming_message", dict(message=msg))
         elif name == "DC_EVENT_MSGS_CHANGED":
             if ffi_event.data2 != 0:
-                msg = self.account.get_message_by_id(ffi_event.data2)
+                msg = account.get_message_by_id(ffi_event.data2)
                 if msg.is_outgoing():
                     res = map_system_message(msg)
                     if res and res[0].startswith("ac_member"):
@@ -213,8 +214,8 @@ class EventThread(threading.Thread):
                 elif msg.is_in_fresh():
                     yield map_system_message(msg) or ("ac_incoming_message", dict(message=msg))
         elif name == "DC_EVENT_MSG_DELIVERED":
-            msg = self.account.get_message_by_id(ffi_event.data2)
+            msg = account.get_message_by_id(ffi_event.data2)
             yield "ac_message_delivered", dict(message=msg)
         elif name == "DC_EVENT_CHAT_MODIFIED":
-            chat = self.account.get_chat_by_id(ffi_event.data1)
+            chat = account.get_chat_by_id(ffi_event.data1)
             yield "ac_chat_modified", dict(chat=chat)

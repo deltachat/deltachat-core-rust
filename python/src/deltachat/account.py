@@ -590,9 +590,11 @@ class Account(object):
         self.ac_log_line("stop_ongoing")
         self.stop_ongoing()
 
-        self.ac_log_line("context_shutdown (stop core scheduler)")
-        self.stop_ongoing()
-        lib.dc_context_shutdown(self._dc_context)
+        if self.is_started():
+            self.ac_log_line("context_shutdown (stop core scheduler)")
+            lib.dc_context_shutdown(self._dc_context)
+        else:
+            self.ac_log_line("stop_scheduler called on non-running context")
 
     def shutdown(self, wait=True):
         """ shutdown and destroy account (stop callback thread, close and remove
