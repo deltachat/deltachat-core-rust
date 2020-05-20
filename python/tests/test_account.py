@@ -473,8 +473,17 @@ class TestOfflineChat:
         num_contacts = len(chat.get_contacts())
         assert num_contacts == 11
 
-        # perform plugin hooks
-        ac1._handle_current_events()
+        # let's make sure the events perform plugin hooks
+        def wait_events(cond):
+            now = time.time()
+            while time.time() < now + 5:
+                if cond():
+                    break
+                time.sleep(0.1)
+            else:
+                pytest.fail("failed to get events")
+
+        wait_events(lambda: len(in_list) == 10)
 
         assert len(in_list) == 10
         chat_contacts = chat.get_contacts()
@@ -493,7 +502,7 @@ class TestOfflineChat:
         chat.remove_contact(contacts[3])
         assert len(chat.get_contacts()) == 9
 
-        ac1._handle_current_events()
+        wait_events(lambda: len(in_list) == 2)
         assert len(in_list) == 2
         assert in_list[0][0] == "removed"
         assert in_list[0][1] == chat

@@ -15,7 +15,7 @@ from .cutil import as_dc_charpointer, from_dc_charpointer, iter_array, DCLot
 from .chat import Chat
 from .message import Message, map_system_message
 from .contact import Contact
-from .tracker import ImexTracker
+from .tracker import ImexTracker, ConfigureTracker
 from . import hookspec, iothreads
 from .eventlogger import FFIEvent, FFIEventLogger
 
@@ -169,7 +169,7 @@ class Account(object):
 
         :returns: True if account is configured.
         """
-        return bool(lib.dc_is_configured(self._dc_context))
+        return True if lib.dc_is_configured(self._dc_context) else False
 
     def set_avatar(self, img_path):
         """Set self avatar.
@@ -576,7 +576,9 @@ class Account(object):
         if not self.is_configured():
             if not self.get_config("addr") or not self.get_config("mail_pw"):
                 raise MissingCredentials("addr or mail_pwd not set in config")
-            lib.dc_configure(self._dc_context)
+            with self.temp_plugin(ConfigureTracker()) as config_tracker:
+                lib.dc_configure(self._dc_context)
+                config_tracker.wait_finish()
         lib.dc_context_run(self._dc_context)
 
     def is_started(self):
@@ -586,6 +588,11 @@ class Account(object):
         """ wait until shutdown of this account has completed. """
         self._shutdown_event.wait()
 
+    def stop_scheduler(self):
+        """ stop core scheduler if it is running. """
+        self.ac_log_line("context_shutdown (stop core scheduler)")
+        lib.dc_context_shutdown(self._dc_context)
+
     def shutdown(self, wait=True):
         """ shutdown account, stop threads and close and remove
         underlying dc_context."""
@@ -593,13 +600,13 @@ class Account(object):
         if dc_context is None:
             return
 
+        self.stop_ongoing()
         if self._threads.is_started():
-            self.stop_ongoing()
             self.ac_log_line("stop threads")
             self._threads.stop(wait=False)
 
-        self.ac_log_line("context shutdown")
-        lib.dc_context_shutdown(dc_context)
+        self.stop_scheduler()
+
         self.ac_log_line("dc_close")
         lib.dc_close(dc_context)
         self.ac_log_line("wait threads for real")

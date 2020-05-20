@@ -51,6 +51,14 @@ class IOThreads:
                 except StopIteration:
                     break
                 self.account.ac_log_line("calling hook name={} kwargs={}".format(ev.name, ev.kwargs))
-                ev.call_hook()
+                try:
+                    ev.call_hook()
+                except Exception:
+                    # don't bother logging this error
+                    # because dc_close() was concurrently called
+                    # and core API starts failing after that.
+                    if not self._thread_quitflag:
+                        raise
+
 
 
