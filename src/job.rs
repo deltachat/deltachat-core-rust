@@ -1018,23 +1018,8 @@ pub async fn add(
         return;
     }
 
-    let param_str = param.to_string();
     let job = Job::new(action, foreign_id as u32, param, delay_seconds);
     job.save(context).await;
-    let timestamp = time();
-    let thread: Thread = action.into();
-
-    context.sql.execute(
-        "INSERT INTO jobs (added_timestamp, thread, action, foreign_id, param, desired_timestamp) VALUES (?,?,?,?,?,?);",
-        paramsv![
-            timestamp,
-            thread,
-            action,
-            foreign_id,
-            param_str,
-            (timestamp + delay_seconds as i64)
-        ]
-    ).await.ok();
 
     if delay_seconds == 0 {
         match action {
