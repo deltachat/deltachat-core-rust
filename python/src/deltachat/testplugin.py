@@ -74,6 +74,9 @@ def pytest_configure(config):
 
         @pytest.hookimpl(hookwrapper=True)
         def pytest_runtest_setup(self, item):
+            if item.get_closest_marker("ignored"):
+                if not item.config.getvalue("ignored"):
+                    pytest.skip("use --ignored to run this test")
             self.enable_logging(item)
             yield
             self.disable_logging(item)
