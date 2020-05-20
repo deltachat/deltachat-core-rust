@@ -3,13 +3,10 @@ import pytest
 import os
 import queue
 import time
-from deltachat import const, Account, capi
+from deltachat import const, Account
 from deltachat.message import Message
 from deltachat.hookspec import account_hookimpl
-from deltachat.tracker import ConfigureTracker
 from datetime import datetime, timedelta
-from conftest import (wait_configuration_progress,
-                      wait_securejoin_inviter_progress)
 
 
 @pytest.mark.parametrize("msgtext,res", [
@@ -535,8 +532,8 @@ class TestOnlineAccount:
         )
         # rsa key gen can be slow especially on CI, adjust timeout
         ac1._evtracker.set_timeout(120)
-        wait_configuration_progress(ac1, 1000)
-        wait_configuration_progress(ac2, 1000)
+        ac1.wait_configure_finish()
+        ac2.wait_configure_finish()
         chat = self.get_chat(ac1, ac2, both_created=True)
 
         lp.sec("ac1: send unencrypted message to ac2")
@@ -564,12 +561,13 @@ class TestOnlineAccount:
         assert msg3_in.is_encrypted()
 
     def test_configure_canceled(self, acfactory):
-        ac1 = acfactory.get_online_configuring_account(start=False)
-        with ac1.temp_plugin(ConfigureTracker()) as config_tracker:
-            capi.lib.dc_configure(ac1._dc_context)
-            config_tracker.wait_progress()
-            ac1.stop_ongoing()
-            config_tracker.wait_finish()
+        ac1 = acfactory.get_online_configuring_account()
+        ac1._configtracker.wait_progress()
+        ac1.stop_ongoing()
+        try:
+            ac1.wait_configure_finish()
+        except ac1._configtracker.ConfigureFailed:
+            pass
 
     def test_export_import_self_keys(self, acfactory, tmpdir):
         ac1, ac2 = acfactory.get_two_online_accounts()
@@ -590,9 +588,9 @@ class TestOnlineAccount:
         # are copied to it via BCC.
         ac1_clone = acfactory.clone_online_account(ac1)
 
-        wait_configuration_progress(ac1, 1000)
-        wait_configuration_progress(ac2, 1000)
-        wait_configuration_progress(ac1_clone, 1000)
+        ac1.wait_configure_finish()
+        ac2.wait_configure_finish()
+        ac1_clone.wait_configure_finish()
 
         chat = self.get_chat(ac1, ac2)
 
@@ -696,10 +694,10 @@ class TestOnlineAccount:
         ac2 = acfactory.get_online_configuring_account()
 
         lp.sec("ac2: waiting for configuration")
-        wait_configuration_progress(ac2, 1000)
+        ac2.wait_configure_finish()
 
         lp.sec("ac1: waiting for configuration")
-        wait_configuration_progress(ac1, 1000)
+        ac1.wait_configure_finish()
 
         lp.sec("ac1: send message and wait for ac2 to receive it")
         chat = self.get_chat(ac1, ac2)
@@ -711,8 +709,8 @@ class TestOnlineAccount:
     def test_move_works(self, acfactory):
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.get_online_configuring_account(mvbox=True, move=True)
-        wait_configuration_progress(ac2, 1000)
-        wait_configuration_progress(ac1, 1000)
+        ac2.wait_configure_finish()
+        ac1.wait_configure_finish()
         chat = self.get_chat(ac1, ac2)
         chat.send_text("message1")
         ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
@@ -723,8 +721,8 @@ class TestOnlineAccount:
         ac1 = acfactory.get_online_configuring_account(mvbox=True, move=True)
         ac1.set_config("bcc_self", "1")
         ac2 = acfactory.get_online_configuring_account()
-        wait_configuration_progress(ac2, 1000)
-        wait_configuration_progress(ac1, 1000)
+        ac2.wait_configure_finish()
+        ac1.wait_configure_finish()
         chat = self.get_chat(ac1, ac2)
         chat.send_text("message1")
         chat.send_text("message2")
@@ -1102,8 +1100,7 @@ class TestOnlineAccount:
         assert m == msg_in
 
     def test_import_export_online_all(self, acfactory, tmpdir, lp):
-        ac1 = acfactory.get_online_configuring_account()
-        wait_configuration_progress(ac1, 1000)
+        ac1 = acfactory.get_one_online_account()
 
         lp.sec("create some chat content")
         contact1 = ac1.create_contact("some1@hello.com", name="some1")
@@ -1151,8 +1148,8 @@ class TestOnlineAccount:
         # as of Jul2019
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.clone_online_account(ac1)
-        wait_configuration_progress(ac2, 1000)
-        wait_configuration_progress(ac1, 1000)
+        ac2.wait_configure_finish()
+        ac1.wait_configure_finish()
 
         lp.sec("trigger ac setup message and return setupcode")
         assert ac1.get_info()["fingerprint"] != ac2.get_info()["fingerprint"]
@@ -1175,8 +1172,8 @@ class TestOnlineAccount:
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.clone_online_account(ac1)
         ac2._evtracker.set_timeout(30)
-        wait_configuration_progress(ac2, 1000)
-        wait_configuration_progress(ac1, 1000)
+        ac2.wait_configure_finish()
+        ac1.wait_configure_finish()
 
         lp.sec("trigger ac setup message but ignore")
         assert ac1.get_info()["fingerprint"] != ac2.get_info()["fingerprint"]
@@ -1202,7 +1199,7 @@ class TestOnlineAccount:
         lp.sec("ac2: start QR-code based setup contact protocol")
         ch = ac2.qr_setup_contact(qr)
         assert ch.id >= 10
-        wait_securejoin_inviter_progress(ac1, 1000)
+        ac1._evtracker.wait_securejoin_inviter_progress(1000)
 
     def test_qr_join_chat(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
@@ -1216,7 +1213,7 @@ class TestOnlineAccount:
         # check that at least some of the handshake messages are deleted
         ac1._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED")
         ac2._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED")
-        wait_securejoin_inviter_progress(ac1, 1000)
+        ac1._evtracker.wait_securejoin_inviter_progress(1000)
 
     def test_qr_verified_group_and_chatting(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
@@ -1227,7 +1224,7 @@ class TestOnlineAccount:
         lp.sec("ac2: start QR-code based join-group protocol")
         chat2 = ac2.qr_join_chat(qr)
         assert chat2.id >= 10
-        wait_securejoin_inviter_progress(ac1, 1000)
+        ac1._evtracker.wait_securejoin_inviter_progress(1000)
 
         lp.sec("ac2: read member added message")
         msg = ac2._evtracker.wait_next_incoming_message()
@@ -1487,7 +1484,7 @@ class TestGroupStressTests:
         lp.sec("creating and configuring five accounts")
         accounts = [acfactory.get_online_configuring_account() for i in range(5)]
         for acc in accounts:
-            wait_configuration_progress(acc, 1000)
+            acc.wait_configure_finish()
         ac1 = accounts.pop()
 
         lp.sec("ac1: setting up contacts with 4 other members")
@@ -1591,7 +1588,7 @@ class TestGroupStressTests:
         lp.sec("creating and configuring five accounts")
         accounts = [acfactory.get_online_configuring_account() for i in range(3)]
         for acc in accounts:
-            wait_configuration_progress(acc, 1000)
+            acc.wait_configure_finish()
         ac1 = accounts.pop()
 
         lp.sec("ac1: setting up contacts with 2 other members")
@@ -1660,27 +1657,26 @@ class TestOnlineConfigureFails:
         ac1, configdict = acfactory.get_online_config()
 
         ac1.update_config(dict(addr=configdict["addr"], mail_pw="123"))
-        with ac1.configure() as tracker:
-            tracker.wait_progress(500)
-            tracker.wait_progress(0)
+        ac1.configure()
+        ac1._configtracker.wait_progress(500)
+        ac1._configtracker.wait_progress(0)
         ev = ac1._evtracker.get_matching("DC_EVENT_ERROR_NETWORK")
         assert "cannot login" in ev.data2.lower()
 
     def test_invalid_user(self, acfactory):
         ac1, configdict = acfactory.get_online_config()
         ac1.update_config(dict(addr="x" + configdict["addr"], mail_pw=configdict["mail_pw"]))
-        with ac1.configure() as tracker:
-            tracker.wait_progress(500)
-            tracker.wait_progress(0)
+        ac1.configure()
+        ac1._configtracker.wait_progress(500)
+        ac1._configtracker.wait_progress(0)
         ev = ac1._evtracker.get_matching("DC_EVENT_ERROR_NETWORK")
         assert "cannot login" in ev.data2.lower()
 
     def test_invalid_domain(self, acfactory):
         ac1, configdict = acfactory.get_online_config()
         ac1.update_config((dict(addr=configdict["addr"] + "x", mail_pw=configdict["mail_pw"])))
-        with ac1.configure() as tracker:
-            tracker.wait_progress(500)
-            tracker.wait_progress(0)
-        wait_configuration_progress(ac1, 500)
+        ac1.configure()
+        ac1._configtracker.wait_progress(500)
+        ac1._configtracker.wait_progress(0)
         ev = ac1._evtracker.get_matching("DC_EVENT_ERROR_NETWORK")
         assert "could not connect" in ev.data2.lower()

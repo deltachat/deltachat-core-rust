@@ -13,7 +13,6 @@ import pytest
 import requests
 
 from . import Account, const
-from .tracker import ConfigureTracker
 from .capi import lib
 from .events import FFIEventLogger, FFIEventTracker
 from _pytest.monkeypatch import MonkeyPatch
@@ -234,7 +233,6 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
         def make_account(self, path, logid, quiet=False):
             ac = Account(path, logging=self._logging)
             ac._evtracker = ac.add_account_plugin(FFIEventTracker(ac))
-            ac._configtracker = ac.add_account_plugin(ConfigureTracker())
             if not quiet:
                 ac.add_account_plugin(FFIEventLogger(ac, logid=logid))
             self._accounts.append(ac)
@@ -297,7 +295,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             return ac, dict(configdict)
 
         def get_online_configuring_account(self, mvbox=False, sentbox=False, move=False,
-                                           pre_generated_key=True, quiet=False, config={}, start=True):
+                                           pre_generated_key=True, quiet=False, config={}):
             ac, configdict = self.get_online_config(
                 pre_generated_key=pre_generated_key, quiet=quiet)
             configdict.update(config)
@@ -305,23 +303,20 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             configdict["mvbox_move"] = str(int(move))
             configdict["sentbox_watch"] = str(int(sentbox))
             ac.update_config(configdict)
-            if start:
-                ac.start()
+            ac.configure()
             return ac
 
         def get_one_online_account(self, pre_generated_key=True, mvbox=False, move=False):
             ac1 = self.get_online_configuring_account(
                 pre_generated_key=pre_generated_key, mvbox=mvbox, move=move)
-            ac1._configtracker.wait_imap_connected()
-            ac1._configtracker.wait_smtp_connected()
-            ac1._configtracker.wait_finish()
+            ac1.wait_configure_finish()
             return ac1
 
         def get_two_online_accounts(self, move=False, quiet=False):
             ac1 = self.get_online_configuring_account(move=True, quiet=quiet)
             ac2 = self.get_online_configuring_account(quiet=quiet)
-            ac1._configtracker.wait_finish()
-            ac2._configtracker.wait_finish()
+            ac1.wait_configure_finish()
+            ac2.wait_configure_finish()
             return ac1, ac2
 
         def clone_online_account(self, account, pre_generated_key=True):
@@ -339,7 +334,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
                 mvbox_move=account.get_config("mvbox_move"),
                 sentbox_watch=account.get_config("sentbox_watch"),
             ))
-            ac.start()
+            ac.configure()
             return ac
 
         def run_bot_process(self, module, ffi=True):

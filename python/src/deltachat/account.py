@@ -543,6 +543,10 @@ class Account(object):
         self._pm.check_pending()
         return plugin
 
+    def remove_account_plugin(self, plugin, name=None):
+        """ remove an account plugin. """
+        self._pm.unregister(plugin, name=name)
+
     @contextmanager
     def temp_plugin(self, plugin):
         """ run a with-block with the given plugin temporarily registered. """
@@ -569,22 +573,27 @@ class Account(object):
         :returns: None (account is configured and with io-scheduling running)
         """
         if not self.is_configured():
-            if not self.get_config("addr") or not self.get_config("mail_pw"):
-                raise MissingCredentials("addr or mail_pwd not set in config")
-            with self.temp_plugin(ConfigureTracker()) as config_tracker:
-                lib.dc_configure(self._dc_context)
-                config_tracker.wait_finish()
+            self.configure()
+            self.wait_configure_finish()
         lib.dc_context_run(self._dc_context)
 
-    @contextmanager
     def configure(self):
-        if self.is_configured():
-            return
+        assert not self.is_configured()
+        assert not hasattr(self, "_configtracker")
         if not self.get_config("addr") or not self.get_config("mail_pw"):
             raise MissingCredentials("addr or mail_pwd not set in config")
-        with self.temp_plugin(ConfigureTracker()) as config_tracker:
-            lib.dc_configure(self._dc_context)
-            yield config_tracker
+        if hasattr(self, "_configtracker"):
+            self.remove_account_plugin(self._configtracker)
+        self._configtracker = ConfigureTracker()
+        self.add_account_plugin(self._configtracker)
+        lib.dc_configure(self._dc_context)
+
+    def wait_configure_finish(self):
+        try:
+            self._configtracker.wait_finish()
+        finally:
+            self.remove_account_plugin(self._configtracker)
+            del self._configtracker
 
     def is_started(self):
         return self._event_thread.is_alive() and bool(lib.dc_is_running(self._dc_context))

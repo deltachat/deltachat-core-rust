@@ -90,6 +90,13 @@ class FFIEventTracker:
             else:
                 assert not rex.match(ev.name), "event found {}".format(ev)
 
+    def wait_securejoin_inviter_progress(self, target):
+        while 1:
+            event = self.get_matching("DC_EVENT_SECUREJOIN_INVITER_PROGRESS")
+            if event.data2 >= target:
+                print("** SECUREJOINT-INVITER PROGRESS {}".format(target), self.account)
+                break
+
     def get_matching(self, event_name_regex, check_error=True, timeout=None):
         self.account.log("-- waiting for event with regex: {} --".format(event_name_regex))
         rex = re.compile("(?:{}).*".format(event_name_regex))

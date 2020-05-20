@@ -6,24 +6,24 @@ import shutil
 import pytest
 from filecmp import cmp
 
-from conftest import wait_configuration_progress
 from deltachat import const
 
 
 def wait_msgs_changed(account, chat_id, msg_id=None):
-    ev = account._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
-    assert ev.data1 == chat_id
-    if msg_id is not None:
-        assert ev.data2 == msg_id
-    return ev.data2
+    account.log("waiting for chat_id={} msg_id={}".format(chat_id, msg_id))
+    while 1:
+        ev = account._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
+        if ev.data1 != chat_id:
+            account.log("waiting got mismatched DC_EVENT_MSGS_CHANGED")
+            continue
+        if msg_id is not None:
+            assert ev.data2 == msg_id
+        return ev.data2
 
 
 class TestOnlineInCreation:
     def test_increation_not_blobdir(self, tmpdir, acfactory, lp):
-        ac1 = acfactory.get_online_configuring_account()
-        ac2 = acfactory.get_online_configuring_account()
-        wait_configuration_progress(ac1, 1000)
-        wait_configuration_progress(ac2, 1000)
+        ac1, ac2 = acfactory.get_two_online_accounts()
 
         c2 = ac1.create_contact(email=ac2.get_config("addr"))
         chat = ac1.create_chat_by_contact(c2)
@@ -35,10 +35,7 @@ class TestOnlineInCreation:
             chat.prepare_message_file(src.strpath)
 
     def test_no_increation_copies_to_blobdir(self, tmpdir, acfactory, lp):
-        ac1 = acfactory.get_online_configuring_account()
-        ac2 = acfactory.get_online_configuring_account()
-        wait_configuration_progress(ac1, 1000)
-        wait_configuration_progress(ac2, 1000)
+        ac1, ac2 = acfactory.get_two_online_accounts()
 
         c2 = ac1.create_contact(email=ac2.get_config("addr"))
         chat = ac1.create_chat_by_contact(c2)
@@ -53,10 +50,7 @@ class TestOnlineInCreation:
         assert os.path.exists(blob_src), "file.txt not copied to blobdir"
 
     def test_forward_increation(self, acfactory, data, lp):
-        ac1 = acfactory.get_online_configuring_account()
-        ac2 = acfactory.get_online_configuring_account()
-        wait_configuration_progress(ac1, 1000)
-        wait_configuration_progress(ac2, 1000)
+        ac1, ac2 = acfactory.get_two_online_accounts()
 
         c2 = ac1.create_contact(email=ac2.get_config("addr"))
         chat = ac1.create_chat_by_contact(c2)
