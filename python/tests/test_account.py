@@ -573,8 +573,6 @@ class TestOnlineAccount:
 
     def test_export_import_self_keys(self, acfactory, tmpdir):
         ac1, ac2 = acfactory.get_two_online_accounts()
-        ac1.stop_threads()
-        ac2.stop_threads()
 
         dir = tmpdir.mkdir("exportdir")
         export_files = ac1.export_self_keys(dir.strpath)
