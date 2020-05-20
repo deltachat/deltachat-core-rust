@@ -297,7 +297,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             return ac, dict(configdict)
 
         def get_online_configuring_account(self, mvbox=False, sentbox=False, move=False,
-                                           pre_generated_key=True, quiet=False, config={}):
+                                           pre_generated_key=True, quiet=False, config={}, start=True):
             ac, configdict = self.get_online_config(
                 pre_generated_key=pre_generated_key, quiet=quiet)
             configdict.update(config)
@@ -305,7 +305,8 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             configdict["mvbox_move"] = str(int(move))
             configdict["sentbox_watch"] = str(int(sentbox))
             ac.update_config(configdict)
-            ac.start()
+            if start:
+                ac.start()
             return ac
 
         def get_one_online_account(self, pre_generated_key=True, mvbox=False, move=False):

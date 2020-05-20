@@ -3,9 +3,10 @@ import pytest
 import os
 import queue
 import time
-from deltachat import const, Account
+from deltachat import const, Account, capi
 from deltachat.message import Message
 from deltachat.hookspec import account_hookimpl
+from deltachat.tracker import ConfigureTracker
 from datetime import datetime, timedelta
 from conftest import (wait_configuration_progress,
                       wait_securejoin_inviter_progress)
@@ -563,10 +564,12 @@ class TestOnlineAccount:
         assert msg3_in.is_encrypted()
 
     def test_configure_canceled(self, acfactory):
-        ac1 = acfactory.get_online_configuring_account()
-        wait_configuration_progress(ac1, 200)
-        ac1.stop_ongoing()
-        wait_configuration_progress(ac1, 0, 0)
+        ac1 = acfactory.get_online_configuring_account(start=False)
+        with ac1.temp_plugin(ConfigureTracker()) as config_tracker:
+            capi.lib.dc_configure(ac1._dc_context)
+            config_tracker.wait_progress()
+            ac1.stop_ongoing()
+            config_tracker.wait_finish()
 
     def test_export_import_self_keys(self, acfactory, tmpdir):
         ac1, ac2 = acfactory.get_two_online_accounts()
