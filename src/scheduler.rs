@@ -17,9 +17,13 @@ pub(crate) enum Scheduler {
     Stopped,
     Running {
         inbox: ImapConnectionState,
+        inbox_handle: Option<task::JoinHandle<()>>,
         mvbox: ImapConnectionState,
+        mvbox_handle: Option<task::JoinHandle<()>>,
         sentbox: ImapConnectionState,
+        sentbox_handle: Option<task::JoinHandle<()>>,
         smtp: SmtpConnectionState,
+        smtp_handle: Option<task::JoinHandle<()>>,
         probe_network: bool,
     },
 }
@@ -47,7 +51,7 @@ impl Context {
     }
 }
 
-async fn inbox_loop(ctx: Context, inbox_handlers: ImapConnectionHandlers) {
+async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConnectionHandlers) {
     use futures::future::FutureExt;
 
     info!(ctx, "starting inbox loop");
@@ -59,6 +63,7 @@ async fn inbox_loop(ctx: Context, inbox_handlers: ImapConnectionHandlers) {
 
     let ctx1 = ctx.clone();
     let fut = async move {
+        started.send(()).await;
         let ctx = ctx1;
         if let Err(err) = connection.connect_configured(&ctx).await {
             error!(ctx, "{}", err);
@@ -92,8 +97,13 @@ async fn inbox_loop(ctx: Context, inbox_handlers: ImapConnectionHandlers) {
         }
     };
 
-    info!(ctx, "Shutting down inbox loop");
-    fut.race(stop_receiver.recv().map(|_| ())).await;
+    stop_receiver
+        .recv()
+        .map(|_| {
+            info!(ctx, "shutting down inbox loop");
+        })
+        .race(fut)
+        .await;
     shutdown_sender.send(()).await;
 }
 
@@ -147,6 +157,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap) {
 
 async fn simple_imap_loop(
     ctx: Context,
+    started: Sender<()>,
     inbox_handlers: ImapConnectionHandlers,
     folder: impl AsRef<str>,
 ) {
@@ -159,7 +170,11 @@ async fn simple_imap_loop(
         shutdown_sender,
     } = inbox_handlers;
 
+    let ctx1 = ctx.clone();
+
     let fut = async move {
+        started.send(()).await;
+        let ctx = ctx1;
         if let Err(err) = connection.connect_configured(&ctx).await {
             error!(ctx, "{}", err);
             return;
@@ -200,11 +215,19 @@ async fn simple_imap_loop(
         }
     };
 
-    fut.race(stop_receiver.recv().map(|_| ())).await;
+    stop_receiver
+        .recv()
+        .map(|_| {
+            info!(ctx, "shutting down simple loop");
+        })
+        .race(fut)
+        .await;
     shutdown_sender.send(()).await;
 }
 
-async fn smtp_loop(ctx: Context, smtp_handlers: SmtpConnectionHandlers) {
+async fn smtp_loop(ctx: Context, started: Sender<()>, smtp_handlers: SmtpConnectionHandlers) {
+    use futures::future::FutureExt;
+
     info!(ctx, "starting smtp loop");
     let SmtpConnectionHandlers {
         mut connection,
@@ -213,7 +236,10 @@ async fn smtp_loop(ctx: Context, smtp_handlers: SmtpConnectionHandlers) {
         idle_interrupt_receiver,
     } = smtp_handlers;
 
+    let ctx1 = ctx.clone();
     let fut = async move {
+        started.send(()).await;
+        let ctx = ctx1;
         loop {
             let probe_network = ctx.scheduler.read().await.get_probe_network();
             match job::load_next(&ctx, Thread::Smtp, probe_network)
@@ -225,8 +251,6 @@ async fn smtp_loop(ctx: Context, smtp_handlers: SmtpConnectionHandlers) {
                     ctx.scheduler.write().await.set_probe_network(false);
                 }
                 Ok(None) | Err(async_std::future::TimeoutError { .. }) => {
-                    use futures::future::FutureExt;
-
                     // Fake Idle
                     async_std::task::sleep(Duration::from_millis(500))
                         .race(idle_interrupt_receiver.recv().map(|_| ()))
@@ -236,13 +260,19 @@ async fn smtp_loop(ctx: Context, smtp_handlers: SmtpConnectionHandlers) {
         }
     };
 
-    fut.race(stop_receiver.recv()).await.ok();
+    stop_receiver
+        .recv()
+        .map(|_| {
+            info!(ctx, "shutting down smtp loop");
+        })
+        .race(fut)
+        .await;
     shutdown_sender.send(()).await;
 }
 
 impl Scheduler {
     /// Start the scheduler, panics if it is already running.
-    pub fn run(&mut self, ctx: Context) {
+    pub async fn run(&mut self, ctx: Context) {
         let (mvbox, mvbox_handlers) = ImapConnectionState::new();
         let (sentbox, sentbox_handlers) = ImapConnectionState::new();
         let (smtp, smtp_handlers) = SmtpConnectionState::new();
@@ -254,23 +284,65 @@ impl Scheduler {
             sentbox,
             smtp,
             probe_network: false,
+            inbox_handle: None,
+            mvbox_handle: None,
+            sentbox_handle: None,
+            smtp_handle: None,
         };
 
-        let ctx1 = ctx.clone();
-        task::spawn(async move { inbox_loop(ctx1, inbox_handlers).await });
+        let (inbox_start_send, inbox_start_recv) = channel(1);
+        if let Scheduler::Running { inbox_handle, .. } = self {
+            let ctx1 = ctx.clone();
+            *inbox_handle = Some(task::spawn(async move {
+                inbox_loop(ctx1, inbox_start_send, inbox_handlers).await
+            }));
+        }
 
-        let ctx1 = ctx.clone();
-        task::spawn(async move {
-            simple_imap_loop(ctx1, mvbox_handlers, "configured_mvbox_folder").await
-        });
+        let (mvbox_start_send, mvbox_start_recv) = channel(1);
+        if let Scheduler::Running { mvbox_handle, .. } = self {
+            let ctx1 = ctx.clone();
+            *mvbox_handle = Some(task::spawn(async move {
+                simple_imap_loop(
+                    ctx1,
+                    mvbox_start_send,
+                    mvbox_handlers,
+                    "configured_mvbox_folder",
+                )
+                .await
+            }));
+        }
 
-        let ctx1 = ctx.clone();
-        task::spawn(async move {
-            simple_imap_loop(ctx1, sentbox_handlers, "configured_sentbox_folder").await
-        });
+        let (sentbox_start_send, sentbox_start_recv) = channel(1);
+        if let Scheduler::Running { sentbox_handle, .. } = self {
+            let ctx1 = ctx.clone();
+            *sentbox_handle = Some(task::spawn(async move {
+                simple_imap_loop(
+                    ctx1,
+                    sentbox_start_send,
+                    sentbox_handlers,
+                    "configured_sentbox_folder",
+                )
+                .await
+            }));
+        }
 
-        let ctx1 = ctx.clone();
-        task::spawn(async move { smtp_loop(ctx1, smtp_handlers).await });
+        let (smtp_start_send, smtp_start_recv) = channel(1);
+        if let Scheduler::Running { smtp_handle, .. } = self {
+            let ctx1 = ctx.clone();
+            *smtp_handle = Some(task::spawn(async move {
+                smtp_loop(ctx1, smtp_start_send, smtp_handlers).await
+            }));
+        }
+
+        // wait for all loops to be started
+        inbox_start_recv
+            .recv()
+            .try_join(mvbox_start_recv.recv())
+            .try_join(sentbox_start_recv.recv())
+            .try_join(smtp_start_recv.recv())
+            .await
+            .map(|_| ())
+            .unwrap_or_else(|err| error!(ctx, "failed to start scheduler: {}", err));
 
         info!(ctx, "scheduler is running");
     }
@@ -365,7 +437,18 @@ impl Scheduler {
             Scheduler::Stopped => {
                 panic!("WARN: already stopped");
             }
-            Scheduler::Running { .. } => {
+            Scheduler::Running {
+                inbox_handle,
+                mvbox_handle,
+                sentbox_handle,
+                smtp_handle,
+                ..
+            } => {
+                inbox_handle.take().expect("inbox not started").await;
+                mvbox_handle.take().expect("mvbox not started").await;
+                sentbox_handle.take().expect("sentbox not started").await;
+                smtp_handle.take().expect("smtp not started").await;
+
                 *self = Scheduler::Stopped;
             }
         }

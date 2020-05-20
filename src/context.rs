@@ -138,12 +138,10 @@ impl Context {
     }
 
     pub async fn run(&self) {
-        if self.is_running().await {
-            return;
-        }
+        assert!(!self.is_running().await, "context is already running");
 
         let l = &mut *self.inner.scheduler.write().await;
-        l.run(self.clone());
+        l.run(self.clone()).await;
     }
 
     pub async fn is_running(&self) -> bool {
@@ -153,6 +151,7 @@ impl Context {
     pub async fn stop(&self) {
         info!(self, "stopping context");
         self.inner.stop().await;
+        info!(self, "stopped context");
     }
 
     /// Returns a reference to the underlying SQL instance.
@@ -499,15 +498,14 @@ impl InnerContext {
     }
 
     async fn stop(&self) {
-        if self.is_running().await {
-            let token = {
-                let lock = &*self.scheduler.read().await;
-                lock.pre_stop().await
-            };
-            {
-                let lock = &mut *self.scheduler.write().await;
-                lock.stop(token).await;
-            }
+        assert!(self.is_running().await, "context is already stopped");
+        let token = {
+            let lock = &*self.scheduler.read().await;
+            lock.pre_stop().await
+        };
+        {
+            let lock = &mut *self.scheduler.write().await;
+            lock.stop(token).await;
         }
     }
 }

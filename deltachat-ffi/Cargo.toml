@@ -20,7 +20,7 @@ libc = "0.2"
 human-panic = "1.0.1"
 num-traits = "0.2.6"
 serde_json = "1.0"
-async-std = { git = "https://github.com/async-rs/async-std" }
+async-std = "1.6.0-beta.2"
 anyhow = "1.0.28"
 thiserror = "1.0.14"
 
@@ -28,3 +28,4 @@ thiserror = "1.0.14"
 default = ["vendored", "nightly"]
 vendored = ["deltachat/vendored"]
 nightly = ["deltachat/nightly"]
+

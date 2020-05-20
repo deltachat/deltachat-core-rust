@@ -587,6 +587,9 @@ class Account(object):
 
     def stop_scheduler(self):
         """ stop core scheduler if it is running. """
+        self.ac_log_line("stop_ongoing")
+        self.stop_ongoing()
+        
         self.ac_log_line("context_shutdown (stop core scheduler)")
         self.stop_ongoing()
         lib.dc_context_shutdown(self._dc_context)

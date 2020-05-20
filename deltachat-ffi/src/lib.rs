@@ -1875,7 +1875,6 @@ pub unsafe extern "C" fn dc_imex(
         }
     };
 
-    // TODO: this is now blocking, figure out if that is okay
     let ffi_context = &*context;
 
     let param1 = to_opt_string_lossy(param1);
