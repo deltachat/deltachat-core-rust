@@ -37,10 +37,6 @@ class IOThreads:
     def stop(self, wait=False):
         self._thread_quitflag = True
 
-        # Workaround for a race condition. Make sure that thread is
-        # not in between checking for quitflag and entering idle.
-        time.sleep(0.5)
-
         if wait:
             for name, thread in self._name2thread.items():
                 if thread != threading.currentThread():

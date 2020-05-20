@@ -17,7 +17,7 @@ from .message import Message, map_system_message
 from .contact import Contact
 from .tracker import ImexTracker
 from . import hookspec, iothreads
-from .eventlogger import FFIEvent
+from .eventlogger import FFIEvent, FFIEventLogger
 
 class MissingCredentials(ValueError):
     """ Account is missing `addr` and `mail_pw` config values. """
@@ -40,7 +40,10 @@ class Account(object):
         # initialize per-account plugin system
         self._pm = hookspec.PerAccount._make_plugin_manager()
         self._logging = logging
+
         self.add_account_plugin(self)
+        if logging:
+            self.add_account_plugin(FFIEventLogger(self, logid=str(id(self))[:5]))
 
         self._dc_context = ffi.gc(
             lib.dc_context_new(ffi.NULL, as_dc_charpointer(os_name)),
@@ -59,6 +62,7 @@ class Account(object):
             db_path = db_path.encode("utf8")
         if not lib.dc_open(self._dc_context, db_path, ffi.NULL):
             raise ValueError("Could not dc_open: {}".format(db_path))
+        self._threads.start()
         self._configkeys = self.get_config("sys.config_keys").split()
         atexit.register(self.shutdown)
         hook.dc_account_init(account=self)
@@ -461,7 +465,7 @@ class Account(object):
         If sending out was unsuccessful, a RuntimeError is raised.
         """
         self.check_is_configured()
-        if not self._threads.is_started():
+        if not self._threads.is_started() or not self.is_started():
             raise RuntimeError("threads not running, can not send out")
         res = lib.dc_initiate_key_transfer(self._dc_context)
         if res == ffi.NULL:
@@ -574,7 +578,9 @@ class Account(object):
                 raise MissingCredentials("addr or mail_pwd not set in config")
             lib.dc_configure(self._dc_context)
         lib.dc_context_run(self._dc_context)
-        self._threads.start()
+
+    def is_started(self):
+        return bool(lib.dc_is_running(self._dc_context))
 
     def wait_shutdown(self):
         """ wait until shutdown of this account has completed. """
@@ -589,10 +595,14 @@ class Account(object):
 
         if self._threads.is_started():
             self.stop_ongoing()
+            self.ac_log_line("stop threads")
             self._threads.stop(wait=False)
-            
+
+        self.ac_log_line("context shutdown")
         lib.dc_context_shutdown(dc_context)
+        self.ac_log_line("dc_close")
         lib.dc_close(dc_context)
+        self.ac_log_line("wait threads for real")
         self._threads.stop(wait=wait)  # to wait for threads
         self._dc_context = None
         atexit.unregister(self.shutdown)
@@ -609,9 +619,11 @@ class Account(object):
             raise RuntimeError("can only call iter_events() from one thread")
         self._in_use_iter_events = True
         while lib.dc_is_open(self._dc_context):
+            self.ac_log_line("waiting for event")
             event = lib.dc_get_next_event(self._dc_context)
             if event == ffi.NULL:
                 break
+            self.ac_log_line("got event {}".format(event))
 
             evt = lib.dc_event_get_id(event)
             data1 = lib.dc_event_get_data1(event)
