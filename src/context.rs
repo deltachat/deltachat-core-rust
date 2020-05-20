@@ -151,6 +151,7 @@ impl Context {
     }
 
     pub async fn stop(&self) {
+        info!(self, "stopping context");
         self.inner.stop().await;
     }
 
