@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+
 def wait_configuration_progress(account, min_target, max_target=1001, check_error=True):
     min_target = min(min_target, max_target)
     while 1:

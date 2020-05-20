@@ -4,20 +4,19 @@ from __future__ import print_function
 import atexit
 from contextlib import contextmanager
 from email.utils import parseaddr
-import queue
 from threading import Event
 import os
 from array import array
-import deltachat
 from . import const
 from .capi import ffi, lib
 from .cutil import as_dc_charpointer, from_dc_charpointer, iter_array, DCLot
 from .chat import Chat
-from .message import Message, map_system_message
+from .message import Message
 from .contact import Contact
 from .tracker import ImexTracker, ConfigureTracker
-from . import hookspec, iothreads
-from .eventlogger import FFIEvent, FFIEventLogger
+from . import hookspec
+from .eventlogger import FFIEventLogger, CallbackThread
+
 
 class MissingCredentials(ValueError):
     """ Account is missing `addr` and `mail_pw` config values. """
@@ -52,8 +51,6 @@ class Account(object):
 
         hook = hookspec.Global._get_plugin_manager().hook
 
-        self._threads = iothreads.IOThreads(self)
-        self._in_use_iter_events = False
         self._shutdown_event = Event()
 
         # open database
@@ -62,7 +59,7 @@ class Account(object):
             db_path = db_path.encode("utf8")
         if not lib.dc_open(self._dc_context, db_path, ffi.NULL):
             raise ValueError("Could not dc_open: {}".format(db_path))
-        self._threads.start()
+        self._cb_thread = CallbackThread(self)
         self._configkeys = self.get_config("sys.config_keys").split()
         atexit.register(self.shutdown)
         hook.dc_account_init(account=self)
@@ -465,8 +462,8 @@ class Account(object):
         If sending out was unsuccessful, a RuntimeError is raised.
         """
         self.check_is_configured()
-        if not self._threads.is_started() or not self.is_started():
-            raise RuntimeError("threads not running, can not send out")
+        if not self._cb_thread.is_alive() or not self.is_started():
+            raise RuntimeError("IO not running, can not send out")
         res = lib.dc_initiate_key_transfer(self._dc_context)
         if res == ffi.NULL:
             raise RuntimeError("could not send out autocrypt setup message")
@@ -591,6 +588,7 @@ class Account(object):
     def stop_scheduler(self):
         """ stop core scheduler if it is running. """
         self.ac_log_line("context_shutdown (stop core scheduler)")
+        self.stop_ongoing()
         lib.dc_context_shutdown(self._dc_context)
 
     def shutdown(self, wait=True):
@@ -600,89 +598,22 @@ class Account(object):
         if dc_context is None:
             return
 
-        self.stop_ongoing()
-        if self._threads.is_started():
+        if self._cb_thread.is_alive():
             self.ac_log_line("stop threads")
-            self._threads.stop(wait=False)
+            self._cb_thread.stop(wait=False)
 
         self.stop_scheduler()
 
         self.ac_log_line("dc_close")
         lib.dc_close(dc_context)
         self.ac_log_line("wait threads for real")
-        self._threads.stop(wait=wait)  # to wait for threads
+        if wait:
+            self._cb_thread.stop(wait=wait)
         self._dc_context = None
         atexit.unregister(self.shutdown)
         self._shutdown_event.set()
         hook = hookspec.Global._get_plugin_manager().hook
         hook.dc_account_after_shutdown(account=self, dc_context=dc_context)
-
-    def iter_events(self, timeout=None):
-        """ yield hook events until shutdown.
-
-        It is not allowed to call iter_events() from multiple threads.
-        """
-        if self._in_use_iter_events:
-            raise RuntimeError("can only call iter_events() from one thread")
-        self._in_use_iter_events = True
-        while lib.dc_is_open(self._dc_context):
-            self.ac_log_line("waiting for event")
-            event = lib.dc_get_next_event(self._dc_context)
-            if event == ffi.NULL:
-                break
-            self.ac_log_line("got event {}".format(event))
-
-            evt = lib.dc_event_get_id(event)
-            data1 = lib.dc_event_get_data1(event)
-            data2 = lib.dc_event_get_data2(event)
-            # the following code relates to the deltachat/_build.py's helper
-            # function which provides us signature info of an event call
-            evt_name = deltachat.get_dc_event_name(evt)
-            event_sig_types = lib.dc_get_event_signature_types(evt)
-            if data1 and event_sig_types & 1:
-                data1 = ffi.string(ffi.gc(ffi.cast('char*', data1), lib.dc_str_unref)).decode("utf8")
-            if data2 and event_sig_types & 2:
-                data2 = ffi.string(ffi.gc(ffi.cast('char*', data2), lib.dc_str_unref)).decode("utf8")
-            try:
-                if isinstance(data2, bytes):
-                    data2 = data2.decode("utf8")
-            except UnicodeDecodeError:
-                # XXX ignoring the decode error is not quite correct but for now
-                # i don't want to hunt down encoding problems in the c lib
-                pass
-
-            lib.dc_event_unref(event)
-            ffi_event = FFIEvent(name=evt_name, data1=data1, data2=data2)
-            self._pm.hook.ac_process_ffi_event(account=self, ffi_event=ffi_event)
-            for name, kwargs in self._map_ffi_event(ffi_event):
-                yield HookEvent(self, name=name, kwargs=kwargs)
-
-    def _map_ffi_event(self, ffi_event):
-        name = ffi_event.name
-        if name == "DC_EVENT_CONFIGURE_PROGRESS":
-            data1 = ffi_event.data1
-            if data1 == 0 or data1 == 1000:
-                success = data1 == 1000
-                yield "ac_configure_completed", dict(success=success)
-        elif name == "DC_EVENT_INCOMING_MSG":
-            msg = self.get_message_by_id(ffi_event.data2)
-            yield map_system_message(msg) or ("ac_incoming_message", dict(message=msg))
-        elif name == "DC_EVENT_MSGS_CHANGED":
-            if ffi_event.data2 != 0:
-                msg = self.get_message_by_id(ffi_event.data2)
-                if msg.is_outgoing():
-                    res = map_system_message(msg)
-                    if res and res[0].startswith("ac_member"):
-                        yield res
-                    yield "ac_outgoing_message", dict(message=msg)
-                elif msg.is_in_fresh():
-                    yield map_system_message(msg) or ("ac_incoming_message", dict(message=msg))
-        elif name == "DC_EVENT_MSG_DELIVERED":
-            msg = self.get_message_by_id(ffi_event.data2)
-            yield "ac_message_delivered", dict(message=msg)
-        elif name == "DC_EVENT_CHAT_MODIFIED":
-            chat = self.get_chat_by_id(ffi_event.data1)
-            yield "ac_chat_modified", dict(chat=chat)
 
 
 def _destroy_dc_context(dc_context, dc_context_unref=lib.dc_context_unref):
@@ -703,17 +634,3 @@ class ScannedQRCode:
     @property
     def contact_id(self):
         return self._dc_lot.id()
-
-
-class HookEvent:
-    def __init__(self, account, name, kwargs):
-        assert hasattr(account._pm.hook, name), name
-        self.account = account
-        self.name = name
-        self.kwargs = kwargs
-
-    def call_hook(self):
-        hook = getattr(self.account._pm.hook, self.name, None)
-        if hook is None:
-            raise ValueError("event_name {} unknown".format(self.name))
-        return hook(**self.kwargs)

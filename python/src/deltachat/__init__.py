@@ -1,7 +1,7 @@
 import sys
 
-from . import capi, const, hookspec
-from .capi import ffi
+from . import capi, const, hookspec # noqa
+from .capi import ffi  # noqa
 from .account import Account  # noqa
 from .message import Message  # noqa
 from .contact import Contact  # noqa

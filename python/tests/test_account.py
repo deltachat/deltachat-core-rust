@@ -1686,4 +1686,3 @@ class TestOnlineConfigureFails:
         ev = ac1._evtracker.get_matching("DC_EVENT_ERROR_NETWORK")
         assert "could not connect" in ev.data2.lower()
         wait_configuration_progress(ac1, 0, 0)
-

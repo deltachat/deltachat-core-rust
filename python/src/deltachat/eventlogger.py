@@ -1,18 +1,13 @@
-import deltachat
 import threading
 import time
 import re
 from queue import Queue, Empty
-from .hookspec import account_hookimpl, global_hookimpl
 
-
-# @global_hookimpl
-# def dc_account_init(account):
-    # account._threads.start()
-
-# @global_hookimpl
-# def dc_account_after_shutdown(dc_context):
-
+import deltachat
+from .hookspec import account_hookimpl
+from contextlib import contextmanager
+from .capi import ffi, lib
+from .message import map_system_message
 
 
 class FFIEvent:
@@ -127,3 +122,102 @@ class FFIEventTracker:
         ev = self.get_matching("DC_EVENT_MSGS_CHANGED")
         if ev.data2 > 0:
             return self.account.get_message_by_id(ev.data2)
+
+
+class CallbackThread(threading.Thread):
+    """ Callback Thread for an account.
+
+    With each Account init this callback thread is started.
+    """
+    def __init__(self, account):
+        self.account = account
+        self._dc_context = account._dc_context
+        self._thread_quitflag = False
+        super(CallbackThread, self).__init__(name="callback")
+        self.start()
+
+    @contextmanager
+    def log_execution(self, message):
+        self.account.ac_log_line(message + " START")
+        yield
+        self.account.ac_log_line(message + " FINISHED")
+
+    def stop(self, wait=False):
+        self._thread_quitflag = True
+
+        if wait:
+            self.join()
+
+    def run(self):
+        """ get and run events until shutdown. """
+        with self.log_execution("CALLBACK THREAD START"):
+            self._inner_run()
+
+    def _inner_run(self):
+        while lib.dc_is_open(self._dc_context) and not self._thread_quitflag:
+            self.account.ac_log_line("waiting for event")
+            event = lib.dc_get_next_event(self._dc_context)
+            if event == ffi.NULL:
+                break
+            self.account.ac_log_line("got event {}".format(event))
+
+            evt = lib.dc_event_get_id(event)
+            data1 = lib.dc_event_get_data1(event)
+            data2 = lib.dc_event_get_data2(event)
+            # the following code relates to the deltachat/_build.py's helper
+            # function which provides us signature info of an event call
+            evt_name = deltachat.get_dc_event_name(evt)
+            event_sig_types = lib.dc_get_event_signature_types(evt)
+            if data1 and event_sig_types & 1:
+                data1 = ffi.string(ffi.gc(ffi.cast('char*', data1), lib.dc_str_unref)).decode("utf8")
+            if data2 and event_sig_types & 2:
+                data2 = ffi.string(ffi.gc(ffi.cast('char*', data2), lib.dc_str_unref)).decode("utf8")
+            try:
+                if isinstance(data2, bytes):
+                    data2 = data2.decode("utf8")
+            except UnicodeDecodeError:
+                # XXX ignoring the decode error is not quite correct but for now
+                # i don't want to hunt down encoding problems in the c lib
+                pass
+
+            lib.dc_event_unref(event)
+            ffi_event = FFIEvent(name=evt_name, data1=data1, data2=data2)
+            self.account._pm.hook.ac_process_ffi_event(account=self, ffi_event=ffi_event)
+            for name, kwargs in self._map_ffi_event(ffi_event):
+                self.account.ac_log_line("calling hook name={} kwargs={}".format(name, kwargs))
+                hook = getattr(self.account._pm.hook, name)
+                try:
+                    hook(**kwargs)
+                except Exception:
+                    # don't bother logging this error
+                    # if dc_close() was concurrently called
+                    # (note: core API starts failing after that)
+                    if not self._thread_quitflag:
+                        raise
+
+    def _map_ffi_event(self, ffi_event):
+        name = ffi_event.name
+        if name == "DC_EVENT_CONFIGURE_PROGRESS":
+            data1 = ffi_event.data1
+            if data1 == 0 or data1 == 1000:
+                success = data1 == 1000
+                yield "ac_configure_completed", dict(success=success)
+        elif name == "DC_EVENT_INCOMING_MSG":
+            msg = self.get_message_by_id(ffi_event.data2)
+            yield map_system_message(msg) or ("ac_incoming_message", dict(message=msg))
+        elif name == "DC_EVENT_MSGS_CHANGED":
+            if ffi_event.data2 != 0:
+                msg = self.account.get_message_by_id(ffi_event.data2)
+                if msg.is_outgoing():
+                    res = map_system_message(msg)
+                    if res and res[0].startswith("ac_member"):
+                        yield res
+                    yield "ac_outgoing_message", dict(message=msg)
+                elif msg.is_in_fresh():
+                    yield map_system_message(msg) or ("ac_incoming_message", dict(message=msg))
+        elif name == "DC_EVENT_MSG_DELIVERED":
+            msg = self.account.get_message_by_id(ffi_event.data2)
+            yield "ac_message_delivered", dict(message=msg)
+        elif name == "DC_EVENT_CHAT_MODIFIED":
+            chat = self.account.get_chat_by_id(ffi_event.data1)
+            yield "ac_chat_modified", dict(chat=chat)

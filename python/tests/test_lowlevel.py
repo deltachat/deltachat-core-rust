@@ -1,41 +1,12 @@
 from __future__ import print_function
 
-import threading
-import time
+from queue import Queue
 from deltachat import capi, cutil, const
 from deltachat import register_global_plugin
 from deltachat.hookspec import global_hookimpl
 from deltachat.capi import ffi
 from deltachat.capi import lib
 # from deltachat.account import EventLogger
-
-
-class EventThread(threading.Thread):
-    def __init__(self, dc_context):
-        self.dc_context = dc_context
-        super(EventThread, self).__init__()
-        self.setDaemon(1)
-        self._running = True
-
-    def run(self):
-        lib.dc_context_run(self.dc_context)
-        while self._running:
-            if lib.dc_has_next_event(self.dc_context):
-                event = lib.dc_get_next_event(self.dc_context)
-                if event != ffi.NULL:
-                    py_dc_callback(
-                        self._dc_context,
-                        lib.dc_event_get_id(event),
-                        lib.dc_event_get_data1(event),
-                        lib.dc_event_get_data2(event)
-                    )
-                    lib.dc_event_unref(event)
-                else:
-                    time.sleep(0.05)
-
-    def stop(self):
-        lib.dc_context_shutdown(self.dc_context)
-        self._running = False
 
 
 def test_empty_context():
@@ -47,33 +18,17 @@ def test_dc_close_events(tmpdir, acfactory):
     ac1 = acfactory.get_unconfigured_account()
 
     # register after_shutdown function
-    shutdowns = []
+    shutdowns = Queue()
 
     class ShutdownPlugin:
         @global_hookimpl
         def dc_account_after_shutdown(self, account):
             assert account._dc_context is None
-            shutdowns.append(account)
+            shutdowns.put(account)
     register_global_plugin(ShutdownPlugin())
     assert hasattr(ac1, "_dc_context")
     ac1.shutdown()
-    assert shutdowns == [ac1]
-
-    def find(info_string):
-        evlog = ac1._evtracker
-        while 1:
-            ev = evlog.get_matching("DC_EVENT_INFO", check_error=False)
-            data2 = ev.data2
-            if info_string in data2:
-                return
-            else:
-                print("skipping event", ev)
-
-    find("disconnecting inbox-thread")
-    find("disconnecting sentbox-thread")
-    find("disconnecting mvbox-thread")
-    find("disconnecting SMTP")
-    find("Database closed")
+    shutdowns.get(timeout=2)
 
 
 def test_wrong_db(tmpdir):
