@@ -8,7 +8,7 @@ from imapclient import IMAPClient
 from imapclient.exceptions import IMAPClientError
 import contextlib
 import time
-from persistentdict import PersistentDict
+#from persistentdict import PersistentDict
 
 
 INBOX = "INBOX"
@@ -41,9 +41,12 @@ class ImapConn(object):
         self.event_initial_polling_complete = threading.Event()
         self.pending_imap_jobs = False
 
-        # persistent database state below
-        self.db_folder = self.db.setdefault(foldername, {})
-        self.db_messages = self.db.setdefault(":message-full", {})
+        if not db is None:
+            # persistent database state below
+            self.db_folder = self.db.setdefault(foldername, {})
+            self.db_messages = self.db.setdefault(":message-full", {})
+        else:
+            self.db_messages = {}
 
     last_sync_uid = db_folder_attr("last_sync_uid")
 
@@ -185,7 +188,8 @@ class ImapConn(object):
                 self.last_sync_uid = max(uid, self.last_sync_uid)
 
         self.log("last-sync-uid after fetch:", self.last_sync_uid)
-        self.db.sync()
+        if not self.db is None:
+            self.db.sync()
 
     def resolve_move_status(self, msg):
         """ Return move-state after this message's next move-state is determined (i.e. it is not PENDING)"""
@@ -360,9 +364,10 @@ def main(context, basedir, name, imaphost, login_user, login_password, pendingti
         os.makedirs(basedir)
     if name is None:
         name = login_user
-    dbpath = os.path.join(basedir, name) + ".db"
-    print("Using dbfile:", dbpath)
-    db = PersistentDict(dbpath)
+#    dbpath = os.path.join(basedir, name) + ".db"
+#    print("Using dbfile:", dbpath)
+#    db = PersistentDict(dbpath)
+    db = None
     conn_info = (imaphost, login_user, login_password)
     inbox = ImapConn(db, INBOX, conn_info=conn_info)
     inbox.connect()
