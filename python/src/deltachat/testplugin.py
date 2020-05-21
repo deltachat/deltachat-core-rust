@@ -19,6 +19,9 @@ from .eventlogger import FFIEventLogger, FFIEventTracker
 from _pytest.monkeypatch import MonkeyPatch
 from _pytest._code import Source
 
+import direct_imap
+from direct_imap import ImapConn
+
 import deltachat
 
 
@@ -366,6 +369,13 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             bot = BotProcess(popen, bot_cfg)
             self._finalizers.append(bot.kill)
             return bot
+
+        def make_direct_imap(self, account, folder):
+            conn_info = (account.get_config("configured_mail_server"),
+                         account.get_config("addr"), account.get_config("mail_pw"))
+            imap = ImapConn(None, folder, conn_info=conn_info)
+            imap.connect()
+            return imap
 
     am = AccountMaker()
     request.addfinalizer(am.finalize)
