@@ -3209,11 +3209,11 @@ mod tests {
             .await
             .unwrap()
             .chat_id;
-        std::thread::sleep(std::time::Duration::from_millis(1000));
+        async_std::task::sleep(std::time::Duration::from_millis(1000)).await;
         let chat_id2 = create_by_contact_id(&t.ctx, DC_CONTACT_ID_SELF)
             .await
             .unwrap();
-        std::thread::sleep(std::time::Duration::from_millis(1000));
+        async_std::task::sleep(std::time::Duration::from_millis(1000)).await;
         let chat_id3 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo")
             .await
             .unwrap();

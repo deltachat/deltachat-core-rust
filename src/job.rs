@@ -172,24 +172,24 @@ impl Job {
     }
 
     /// Deletes the job from the database.
-    async fn delete(&self, context: &Context) -> bool {
+    async fn delete(self, context: &Context) -> Result<()> {
         if self.job_id != 0 {
             context
                 .sql
                 .execute("DELETE FROM jobs WHERE id=?;", paramsv![self.job_id as i32])
-                .await
-                .is_ok()
-        } else {
-            // Already deleted.
-            true
+                .await?;
         }
+
+        Ok(())
     }
 
     /// Saves the job to the database, creating a new entry if necessary.
     ///
     /// The Job is consumed by this method.
-    async fn save(self, context: &Context) -> bool {
+    async fn save(self, context: &Context) -> Result<()> {
         let thread: Thread = self.action.into();
+
+        info!(context, "saving job for {}-thread: {:?}", thread, self);
 
         if self.job_id != 0 {
             context
@@ -203,8 +203,7 @@ impl Job {
                         self.job_id as i32,
                     ],
                 )
-                .await
-                .is_ok()
+                .await?;
         } else {
             context.sql.execute(
                 "INSERT INTO jobs (added_timestamp, thread, action, foreign_id, param, desired_timestamp) VALUES (?,?,?,?,?,?);",
@@ -216,8 +215,10 @@ impl Job {
                     self.param.to_string(),
                     self.desired_timestamp
                 ]
-            ).await.is_ok()
+            ).await?;
         }
+
+        Ok(())
     }
 
     async fn smtp_send<F, Fut>(
@@ -896,7 +897,9 @@ pub(crate) async fn perform_job(context: &Context, mut connection: Connection<'_
                     tries,
                     time_offset
                 );
-                job.save(context).await;
+                job.save(context).await.unwrap_or_else(|err| {
+                    error!(context, "failed to save job: {}", err);
+                });
             } else {
                 info!(
                     context,
@@ -905,7 +908,9 @@ pub(crate) async fn perform_job(context: &Context, mut connection: Connection<'_
                     job,
                     JOB_RETRIES
                 );
-                job.delete(context).await;
+                job.delete(context).await.unwrap_or_else(|err| {
+                    error!(context, "failed to delete job: {}", err);
+                });
             }
         }
         Status::Finished(res) => {
@@ -921,7 +926,9 @@ pub(crate) async fn perform_job(context: &Context, mut connection: Connection<'_
                 );
             }
 
-            job.delete(context).await;
+            job.delete(context).await.unwrap_or_else(|err| {
+                error!(context, "failed to delete job: {}", err);
+            });
         }
     }
 }
@@ -1019,7 +1026,9 @@ pub async fn add(
     }
 
     let job = Job::new(action, foreign_id as u32, param, delay_seconds);
-    job.save(context).await;
+    job.save(context).await.unwrap_or_else(|err| {
+        error!(context, "failed to save job: {}", err);
+    });
 
     if delay_seconds == 0 {
         match action {
@@ -1053,76 +1062,79 @@ pub(crate) async fn load_next(
     thread: Thread,
     probe_network: bool,
 ) -> Option<Job> {
+    info!(context, "loading job for {}-thread", thread);
     let query = if !probe_network {
         // processing for first-try and after backoff-timeouts:
         // process jobs in the order they were added.
-        "SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries \
-         FROM jobs WHERE thread=? AND desired_timestamp<=? ORDER BY action DESC, added_timestamp;"
+        r#"
+SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries
+FROM jobs
+WHERE thread=? AND desired_timestamp<=?
+ORDER BY action DESC, added_timestamp
+LIMIT 1;
+"#
     } else {
         // processing after call to dc_maybe_network():
         // process _all_ pending jobs that failed before
         // in the order of their backoff-times.
-        "SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries \
-         FROM jobs WHERE thread=? AND tries>0 ORDER BY desired_timestamp, action DESC;"
+        r#"
+SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries
+FROM jobs
+WHERE thread=? AND tries>0
+ORDER BY desired_timestamp, action DESC
+LIMIT 1;
+"#
     };
 
     let thread_i = thread as i64;
     let t = time();
-    let params_no_probe = paramsv![thread_i, t];
-    let params_probe = paramsv![thread_i];
     let params = if !probe_network {
-        params_no_probe
+        paramsv![thread_i, t]
     } else {
-        params_probe
+        paramsv![thread_i]
     };
 
     let job = context
         .sql
-        .query_map(
-            query,
-            params,
-            |row| {
-                let job = Job {
-                    job_id: row.get(0)?,
-                    action: row.get(1)?,
-                    foreign_id: row.get(2)?,
-                    desired_timestamp: row.get(5)?,
-                    added_timestamp: row.get(4)?,
-                    tries: row.get(6)?,
-                    param: row.get::<_, String>(3)?.parse().unwrap_or_default(),
-                    pending_error: None,
-                };
+        .query_row_optional(query, params, |row| {
+            let job = Job {
+                job_id: row.get(0)?,
+                action: row.get(1)?,
+                foreign_id: row.get(2)?,
+                desired_timestamp: row.get(5)?,
+                added_timestamp: row.get(4)?,
+                tries: row.get(6)?,
+                param: row.get::<_, String>(3)?.parse().unwrap_or_default(),
+                pending_error: None,
+            };
 
-                Ok(job)
-            },
-            |jobs| {
-                for job in jobs {
-                    match job {
-                        Ok(j) => return Ok(Some(j)),
-                        Err(e) => warn!(context, "Bad job from the database: {}", e),
+            Ok(job)
+        })
+        .await;
+
+    match job {
+        Ok(job) => {
+            if thread == Thread::Imap {
+                if let Some(job) = job {
+                    if job.action < Action::DeleteMsgOnImap {
+                        load_imap_deletion_job(context)
+                            .await
+                            .unwrap_or_default()
+                            .or(Some(job))
+                    } else {
+                        Some(job)
                     }
+                } else {
+                    load_imap_deletion_job(context).await.unwrap_or_default()
                 }
-                Ok(None)
-            },
-        )
-        .await
-        .unwrap_or_default();
-
-    if thread == Thread::Imap {
-        if let Some(job) = job {
-            if job.action < Action::DeleteMsgOnImap {
-                load_imap_deletion_job(context)
-                    .await
-                    .unwrap_or_default()
-                    .or(Some(job))
             } else {
-                Some(job)
+                job
             }
-        } else {
-            load_imap_deletion_job(context).await.unwrap_or_default()
         }
-    } else {
-        job
+        Err(err) => {
+            warn!(context, "Bad job from the database: {}", err);
+            None
+        }
     }
 }
 

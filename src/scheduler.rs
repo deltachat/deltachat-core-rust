@@ -252,13 +252,13 @@ async fn smtp_loop(ctx: Context, started: Sender<()>, smtp_handlers: SmtpConnect
                     ctx.scheduler.write().await.set_probe_network(false);
                 }
                 Ok(None) | Err(async_std::future::TimeoutError { .. }) => {
-                    info!(ctx, "smpt fake idle");
+                    info!(ctx, "smtp fake idle");
                     // Fake Idle
-                    async_std::task::sleep(Duration::from_secs(5))
-                        .race(idle_interrupt_receiver.recv().map(|_| {
-                            info!(ctx, "smtp idle interrupt");
-                        }))
-                        .await;
+                    idle_interrupt_receiver
+                        .recv()
+                        .timeout(Duration::from_secs(5))
+                        .await
+                        .ok();
                 }
             }
         }
@@ -384,28 +384,36 @@ impl Scheduler {
 
     async fn interrupt_inbox(&self) {
         match self {
-            Scheduler::Running { ref inbox, .. } => inbox.interrupt().await,
+            Scheduler::Running { ref inbox, .. } => {
+                inbox.interrupt().await.ok();
+            }
             _ => {}
         }
     }
 
     async fn interrupt_mvbox(&self) {
         match self {
-            Scheduler::Running { ref mvbox, .. } => mvbox.interrupt().await,
+            Scheduler::Running { ref mvbox, .. } => {
+                mvbox.interrupt().await.ok();
+            }
             _ => {}
         }
     }
 
     async fn interrupt_sentbox(&self) {
         match self {
-            Scheduler::Running { ref sentbox, .. } => sentbox.interrupt().await,
+            Scheduler::Running { ref sentbox, .. } => {
+                sentbox.interrupt().await.ok();
+            }
             _ => {}
         }
     }
 
     async fn interrupt_smtp(&self) {
         match self {
-            Scheduler::Running { ref smtp, .. } => smtp.interrupt().await,
+            Scheduler::Running { ref smtp, .. } => {
+                smtp.interrupt().await.ok();
+            }
             _ => {}
         }
     }
@@ -487,9 +495,9 @@ impl ConnectionState {
         self.shutdown_receiver.recv().await.ok();
     }
 
-    async fn interrupt(&self) {
+    async fn interrupt(&self) -> Result<(), async_std::sync::TrySendError<()>> {
         // Use try_send to avoid blocking on interrupts.
-        self.idle_interrupt_sender.try_send(()).ok();
+        self.idle_interrupt_sender.try_send(())
     }
 }
 
@@ -523,8 +531,8 @@ impl SmtpConnectionState {
     }
 
     /// Interrupt any form of idle.
-    async fn interrupt(&self) {
-        self.state.interrupt().await;
+    async fn interrupt(&self) -> Result<(), async_std::sync::TrySendError<()>> {
+        self.state.interrupt().await
     }
 
     /// Shutdown this connection completely.
@@ -571,8 +579,8 @@ impl ImapConnectionState {
     }
 
     /// Interrupt any form of idle.
-    async fn interrupt(&self) {
-        self.state.interrupt().await;
+    async fn interrupt(&self) -> Result<(), async_std::sync::TrySendError<()>> {
+        self.state.interrupt().await
     }
 
     /// Shutdown this connection completely.

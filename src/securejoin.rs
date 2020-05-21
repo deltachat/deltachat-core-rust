@@ -258,7 +258,7 @@ async fn securejoin(context: &Context, qr: &str) -> ChatId {
         let own_fingerprint = get_self_fingerprint(context).await.unwrap_or_default();
 
         // Bob -> Alice
-        send_handshake_msg(
+        if let Err(err) = send_handshake_msg(
             context,
             contact_chat_id,
             if join_vg {
@@ -274,12 +274,16 @@ async fn securejoin(context: &Context, qr: &str) -> ChatId {
                 "".to_string()
             },
         )
-        .await;
+        .await
+        {
+            error!(context, "failed to send handshake message: {}", err);
+            return cleanup(&context, contact_chat_id, true, join_vg).await;
+        }
     } else {
         context.bob.write().await.expects = DC_VC_AUTH_REQUIRED;
 
         // Bob -> Alice
-        send_handshake_msg(
+        if let Err(err) = send_handshake_msg(
             context,
             contact_chat_id,
             if join_vg { "vg-request" } else { "vc-request" },
@@ -287,13 +291,17 @@ async fn securejoin(context: &Context, qr: &str) -> ChatId {
             None,
             "",
         )
-        .await;
+        .await
+        {
+            error!(context, "failed to send handshake message: {}", err);
+            return cleanup(&context, contact_chat_id, true, join_vg).await;
+        }
     }
 
     if join_vg {
         // for a group-join, wait until the secure-join is done and the group is created
         while !context.shall_stop_ongoing().await {
-            std::thread::sleep(std::time::Duration::from_millis(200));
+            async_std::task::sleep(std::time::Duration::from_millis(200)).await;
         }
         cleanup(&context, contact_chat_id, true, join_vg).await
     } else {
@@ -311,7 +319,7 @@ async fn send_handshake_msg(
     param2: impl AsRef<str>,
     fingerprint: Option<String>,
     grpid: impl AsRef<str>,
-) {
+) -> Result<(), HandshakeError> {
     let mut msg = Message::default();
     msg.viewtype = Viewtype::Text;
     msg.text = Some(format!("Secure-Join: {}", step));
@@ -339,10 +347,12 @@ async fn send_handshake_msg(
     } else {
         msg.param.set_int(Param::GuaranteeE2ee, 1);
     }
-    // TODO. handle cleanup on error
+
     chat::send_msg(context, contact_chat_id, &mut msg)
         .await
-        .unwrap_or_default();
+        .map_err(|err| HandshakeError::MsgSendFailed(err))?;
+
+    Ok(())
 }
 
 async fn chat_id_2_contact_id(context: &Context, contact_chat_id: ChatId) -> u32 {
@@ -391,6 +401,8 @@ pub(crate) enum HandshakeError {
     ChatNotFound { group: String },
     #[error("No configured self address found")]
     NoSelfAddr,
+    #[error("Failed to send message")]
+    MsgSendFailed(#[source] Error),
 }
 
 /// What to do with a Secure-Join handshake message after it was handled.
@@ -487,7 +499,7 @@ pub(crate) async fn handle_securejoin_handshake(
                 None,
                 "",
             )
-            .await;
+            .await?;
             Ok(HandshakeMessage::Done)
         }
         "vg-auth-required" | "vc-auth-required" => {
@@ -559,7 +571,7 @@ pub(crate) async fn handle_securejoin_handshake(
                     "".to_string()
                 },
             )
-            .await;
+            .await?;
             Ok(HandshakeMessage::Done)
         }
         "vg-request-with-auth" | "vc-request-with-auth" => {
@@ -670,7 +682,8 @@ pub(crate) async fn handle_securejoin_handshake(
                     Some(fingerprint.clone()),
                     "",
                 )
-                .await;
+                .await?;
+
                 inviter_progress!(context, contact_id, 1000);
             }
             Ok(HandshakeMessage::Ignore) // "Done" would delete the message and break multi-device (the key from Autocrypt-header is needed)
@@ -779,7 +792,7 @@ pub(crate) async fn handle_securejoin_handshake(
                 Some(scanned_fingerprint_of_alice),
                 "",
             )
-            .await;
+            .await?;
 
             context.bob.write().await.status = 1;
             context.stop_ongoing().await;
