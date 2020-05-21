@@ -136,11 +136,6 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
         return format_err!("Bad fingerprint length in QR code").into();
     }
 
-    println!(
-        "{:?} {:?} {:?} {:?} {:?} {:?} {:?}",
-        addr, name, invitenumber, auth, grpid, grpname, fingerprint
-    );
-
     let mut lot = Lot::new();
 
     // retrieve known state for this fingerprint

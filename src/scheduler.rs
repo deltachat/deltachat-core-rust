@@ -247,13 +247,17 @@ async fn smtp_loop(ctx: Context, started: Sender<()>, smtp_handlers: SmtpConnect
                 .await
             {
                 Ok(Some(job)) => {
+                    info!(ctx, "executing smtp job");
                     job::perform_job(&ctx, job::Connection::Smtp(&mut connection), job).await;
                     ctx.scheduler.write().await.set_probe_network(false);
                 }
                 Ok(None) | Err(async_std::future::TimeoutError { .. }) => {
+                    info!(ctx, "smpt fake idle");
                     // Fake Idle
-                    async_std::task::sleep(Duration::from_millis(500))
-                        .race(idle_interrupt_receiver.recv().map(|_| ()))
+                    async_std::task::sleep(Duration::from_secs(5))
+                        .race(idle_interrupt_receiver.recv().map(|_| {
+                            info!(ctx, "smtp idle interrupt");
+                        }))
                         .await;
                 }
             }
