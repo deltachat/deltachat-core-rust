@@ -83,7 +83,6 @@ impl Context {
         let mut step_counter: u8 = 0;
         let (_s, r) = async_std::sync::channel(1);
         let mut imap = Imap::new(r);
-        let mut is_imap_connected = false;
         let was_configured_before = self.is_configured().await;
 
         while !self.shall_stop_ongoing().await {
@@ -92,7 +91,6 @@ impl Context {
             match exec_step(
                 self,
                 &mut imap,
-                &mut is_imap_connected,
                 &mut param,
                 &mut param_domain,
                 &mut param_autoconfig,
@@ -117,7 +115,7 @@ impl Context {
             }
         }
 
-        if is_imap_connected {
+        if imap.is_connected() {
             imap.disconnect(self).await;
         }
 
@@ -171,7 +169,6 @@ impl Context {
 async fn exec_step(
     ctx: &Context,
     imap: &mut Imap,
-    is_imap_connected: &mut bool,
     param: &mut LoginParam,
     param_domain: &mut String,
     param_autoconfig: &mut Option<LoginParam>,
@@ -413,8 +410,7 @@ async fn exec_step(
             progress!(ctx, 600);
             /* try to connect to IMAP - if we did not got an autoconfig,
             do some further tries with different settings and username variations */
-            *is_imap_connected =
-                try_imap_connections(ctx, param, param_autoconfig.is_some(), imap).await?;
+            try_imap_connections(ctx, param, param_autoconfig.is_some(), imap).await?;
         }
         15 => {
             progress!(ctx, 800);
