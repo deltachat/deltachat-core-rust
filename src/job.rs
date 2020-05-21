@@ -1094,47 +1094,68 @@ LIMIT 1;
         paramsv![thread_i]
     };
 
-    let job = context
-        .sql
-        .query_row_optional(query, params, |row| {
-            let job = Job {
-                job_id: row.get(0)?,
-                action: row.get(1)?,
-                foreign_id: row.get(2)?,
-                desired_timestamp: row.get(5)?,
-                added_timestamp: row.get(4)?,
-                tries: row.get(6)?,
-                param: row.get::<_, String>(3)?.parse().unwrap_or_default(),
-                pending_error: None,
-            };
+    let job = loop {
+        let job_res = context
+            .sql
+            .query_row_optional(query, params.clone(), |row| {
+                let job = Job {
+                    job_id: row.get(0)?,
+                    action: row.get(1)?,
+                    foreign_id: row.get(2)?,
+                    desired_timestamp: row.get(5)?,
+                    added_timestamp: row.get(4)?,
+                    tries: row.get(6)?,
+                    param: row.get::<_, String>(3)?.parse().unwrap_or_default(),
+                    pending_error: None,
+                };
 
-            Ok(job)
-        })
-        .await;
+                Ok(job)
+            })
+            .await;
 
-    match job {
-        Ok(job) => {
-            if thread == Thread::Imap {
-                if let Some(job) = job {
-                    if job.action < Action::DeleteMsgOnImap {
-                        load_imap_deletion_job(context)
+        dbg!(&job_res);
+        match job_res {
+            Ok(job) => break job,
+            Err(_) => {
+                // Remove invalid job from the DB
+
+                // TODO: improve by only doing a single query
+                match context
+                    .sql
+                    .query_row(query, params.clone(), |row| row.get::<_, i32>(0))
+                    .await
+                {
+                    Ok(id) => {
+                        context
+                            .sql
+                            .execute("DELETE FROM jobs WHERE id=?", paramsv![id])
                             .await
-                            .unwrap_or_default()
-                            .or(Some(job))
-                    } else {
-                        Some(job)
+                            .ok();
                     }
-                } else {
-                    load_imap_deletion_job(context).await.unwrap_or_default()
+                    Err(err) => {
+                        error!(context, "failed to retrieve invalid job from DB: {}", err);
+                        break None;
+                    }
                 }
-            } else {
-                job
             }
         }
-        Err(err) => {
-            warn!(context, "Bad job from the database: {}", err);
-            None
+    };
+
+    if thread == Thread::Imap {
+        if let Some(job) = job {
+            if job.action < Action::DeleteMsgOnImap {
+                load_imap_deletion_job(context)
+                    .await
+                    .unwrap_or_default()
+                    .or(Some(job))
+            } else {
+                Some(job)
+            }
+        } else {
+            load_imap_deletion_job(context).await.unwrap_or_default()
         }
+    } else {
+        job
     }
 }
 
