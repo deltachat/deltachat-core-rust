@@ -1113,7 +1113,6 @@ LIMIT 1;
             })
             .await;
 
-        dbg!(&job_res);
         match job_res {
             Ok(job) => break job,
             Err(_) => {

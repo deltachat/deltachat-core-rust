@@ -1,6 +1,7 @@
 //! Verified contact protocol implementation as [specified by countermitm project](https://countermitm.readthedocs.io/en/stable/new.html#setup-contact-protocol)
 
-use async_std::prelude::*;
+use std::time::Duration;
+
 use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 
 use crate::aheader::EncryptPreference;
@@ -183,18 +184,11 @@ async fn cleanup(
 /// Take a scanned QR-code and do the setup-contact/join-group handshake.
 /// See the ffi-documentation for more details.
 pub async fn dc_join_securejoin(context: &Context, qr: &str) -> ChatId {
-    use futures::future::FutureExt;
+    if let Err(_) = context.alloc_ongoing().await {
+        return cleanup(&context, ChatId::new(0), false, false).await;
+    }
 
-    let cancel = match context.alloc_ongoing().await {
-        Ok(cancel) => cancel,
-        Err(_) => {
-            return cleanup(&context, ChatId::new(0), false, false).await;
-        }
-    };
-
-    securejoin(context, qr)
-        .race(cancel.recv().map(|_| ChatId::new(0)))
-        .await
+    securejoin(context, qr).await
 }
 
 async fn securejoin(context: &Context, qr: &str) -> ChatId {
@@ -301,7 +295,7 @@ async fn securejoin(context: &Context, qr: &str) -> ChatId {
     if join_vg {
         // for a group-join, wait until the secure-join is done and the group is created
         while !context.shall_stop_ongoing().await {
-            async_std::task::sleep(std::time::Duration::from_millis(200)).await;
+            async_std::task::sleep(Duration::from_millis(50)).await;
         }
         cleanup(&context, contact_chat_id, true, join_vg).await
     } else {
