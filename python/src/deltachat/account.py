@@ -607,7 +607,7 @@ class Account(object):
         self.log("stop_ongoing")
         self.stop_ongoing()
 
-        if self.is_started():
+        if bool(lib.dc_is_running(self._dc_context)):
             self.log("context_shutdown (stop core scheduler)")
             lib.dc_context_shutdown(self._dc_context)
         else:
