@@ -19,7 +19,6 @@ from .eventlogger import FFIEventLogger, FFIEventTracker
 from _pytest.monkeypatch import MonkeyPatch
 from _pytest._code import Source
 
-import direct_imap
 from direct_imap import ImapConn
 
 import deltachat
