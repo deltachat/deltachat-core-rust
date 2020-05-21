@@ -3,6 +3,8 @@ import pytest
 import os
 import queue
 import time
+import direct_imap
+from direct_imap import ImapConn
 from deltachat import const, Account
 from deltachat.message import Message
 from deltachat.hookspec import account_hookimpl
@@ -588,6 +590,13 @@ class TestOnlineAccount:
         wait_configuration_progress(ac2, 1000)
         wait_configuration_progress(ac1_clone, 1000)
 
+        inbox = acfactory.make_direct_imap(ac1, direct_imap.INBOX)
+        unseens = inbox.conn.search('UNSEEN')
+        for useen in unseens:
+            inbox.conn.set_flags(useen, ['\\Seen'])
+        allmails = inbox.conn.search()
+        existingmails = len(allmails)
+
         chat = self.get_chat(ac1, ac2)
 
         self_addr = ac1.get_config("addr")
@@ -625,6 +634,31 @@ class TestOnlineAccount:
         # Second client receives only second message, but not the first
         ev_msg = ac1_clone._evtracker.wait_next_messages_changed()
         assert ev_msg.text == msg_out.text
+        assert ev_msg.is_outgoing
+
+        chat_clone = self.get_chat(ac1_clone, ac2)
+        assert chat_clone.count_fresh_messages() == 0
+
+        # We marked all unseens as seen above. The new messages should be seen.
+        unseens = inbox.conn.search('UNSEEN')
+        assert len(unseens) == 0
+        allmails = inbox.conn.search()
+        # We might have existing mails
+        assert len(allmails) == 1 + existingmails
+
+        ac2.set_config("mdns_enabled", "1")
+        msg_on_ac2 = ac2._evtracker.wait_next_messages_changed()
+        for m in ac2.get_fresh_messages():
+            lp.sec("Mark seen: "+str(m))
+            m.mark_seen()
+        ac1._evtracker.wait_next_messages_read()
+
+        # The new messages should be seen.
+        unseens = inbox.conn.search('UNSEEN')
+        assert len(unseens) == 0
+        allmails = inbox.conn.search()
+        # We might have existing mails
+        assert len(allmails) == 1 + existingmails
 
     def test_send_file_twice_unicode_filename_mangling(self, tmpdir, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()

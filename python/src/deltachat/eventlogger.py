@@ -113,9 +113,12 @@ class FFIEventTracker:
         self.account.ac_log_line("-- waiting for event with regex: {} --".format(event_name_regex))
         rex = re.compile("(?:{}).*".format(event_name_regex))
         while 1:
-            ev = self.get(timeout=timeout, check_error=check_error)
-            if rex.match(ev.name):
-                return ev
+            try:
+                ev = self.get(timeout=timeout, check_error=check_error)
+                if rex.match(ev.name):
+                    return ev
+            except Empty:
+                raise TimeoutError
 
     def get_info_matching(self, regex):
         rex = re.compile("(?:{}).*".format(regex))
@@ -133,5 +136,12 @@ class FFIEventTracker:
         """ wait for and return next message-changed message or None
         if the event contains no msgid"""
         ev = self.get_matching("DC_EVENT_MSGS_CHANGED")
+        if ev.data2 > 0:
+            return self.account.get_message_by_id(ev.data2)
+
+    def wait_next_messages_read(self):
+        """ wait for and return next message-read message or None
+        if the event contains no msgid"""
+        ev = self.get_matching("DC_EVENT_MSG_READ")
         if ev.data2 > 0:
             return self.account.get_message_by_id(ev.data2)
