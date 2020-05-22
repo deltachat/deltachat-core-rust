@@ -90,7 +90,7 @@ required-features = ["repl"]
 
 
 [features]
-default = ["nightly"]
+default = []
 internals = []
 repl = ["internals", "rustyline", "log", "pretty_env_logger", "ansi_term"]
 vendored = ["async-native-tls/vendored", "async-smtp/native-tls-vendored"]
