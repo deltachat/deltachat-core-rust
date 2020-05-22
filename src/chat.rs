@@ -1295,8 +1295,8 @@ pub async fn get_by_contact_id(context: &Context, contact_id: u32) -> Result<Cha
     Ok(chat_id)
 }
 
-pub async fn prepare_msg<'a>(
-    context: &'a Context,
+pub async fn prepare_msg(
+    context: &Context,
     chat_id: ChatId,
     msg: &mut Message,
 ) -> Result<MsgId, Error> {

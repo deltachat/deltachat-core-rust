@@ -381,30 +381,26 @@ impl Scheduler {
     }
 
     async fn interrupt_inbox(&self) {
-        match self {
-            Scheduler::Running { ref inbox, .. } => inbox.interrupt().await,
-            _ => {}
+        if let Scheduler::Running { ref inbox, .. } = self {
+            inbox.interrupt().await;
         }
     }
 
     async fn interrupt_mvbox(&self) {
-        match self {
-            Scheduler::Running { ref mvbox, .. } => mvbox.interrupt().await,
-            _ => {}
+        if let Scheduler::Running { ref mvbox, .. } = self {
+            mvbox.interrupt().await;
         }
     }
 
     async fn interrupt_sentbox(&self) {
-        match self {
-            Scheduler::Running { ref sentbox, .. } => sentbox.interrupt().await,
-            _ => {}
+        if let Scheduler::Running { ref sentbox, .. } = self {
+            sentbox.interrupt().await;
         }
     }
 
     async fn interrupt_smtp(&self) {
-        match self {
-            Scheduler::Running { ref smtp, .. } => smtp.interrupt().await,
-            _ => {}
+        if let Scheduler::Running { ref smtp, .. } = self {
+            smtp.interrupt().await;
         }
     }
 

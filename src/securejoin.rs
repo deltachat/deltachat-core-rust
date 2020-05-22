@@ -184,7 +184,7 @@ async fn cleanup(
 /// Take a scanned QR-code and do the setup-contact/join-group handshake.
 /// See the ffi-documentation for more details.
 pub async fn dc_join_securejoin(context: &Context, qr: &str) -> ChatId {
-    if let Err(_) = context.alloc_ongoing().await {
+    if context.alloc_ongoing().await.is_err() {
         return cleanup(&context, ChatId::new(0), false, false).await;
     }
 
@@ -344,7 +344,7 @@ async fn send_handshake_msg(
 
     chat::send_msg(context, contact_chat_id, &mut msg)
         .await
-        .map_err(|err| HandshakeError::MsgSendFailed(err))?;
+        .map_err(HandshakeError::MsgSendFailed)?;
 
     Ok(())
 }

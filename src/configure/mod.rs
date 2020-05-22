@@ -166,6 +166,7 @@ impl Context {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn exec_step(
     ctx: &Context,
     imap: &mut Imap,

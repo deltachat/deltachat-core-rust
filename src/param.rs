@@ -275,6 +275,7 @@ impl Params {
     /// created without copying if the path already referes to a valid
     /// blob.  If so a [BlobObject] will be returned regardless of the
     /// `create` argument.
+    #[allow(clippy::needless_lifetimes)]
     pub async fn get_blob<'a>(
         &self,
         key: Param,
