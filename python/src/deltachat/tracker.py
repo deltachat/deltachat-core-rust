@@ -18,7 +18,7 @@ class ImexTracker:
         if ffi_event.name == "DC_EVENT_IMEX_PROGRESS":
             self._imex_events.put(ffi_event.data1)
         elif ffi_event.name == "DC_EVENT_IMEX_FILE_WRITTEN":
-            self._imex_events.put(ffi_event.data1)
+            self._imex_events.put(ffi_event.data2)
 
     def wait_finish(self, progress_timeout=60):
         """ Return list of written files, raise ValueError if ExportFailed. """

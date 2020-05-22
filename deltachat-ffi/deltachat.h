@@ -4202,8 +4202,8 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
 #define DC_ERROR_SEE_STRING          0    // not used anymore
 #define DC_ERROR_SELF_NOT_IN_GROUP   1    // not used anymore
 #define DC_STR_SELFNOTINGRP          21   // not used anymore
-#define DC_EVENT_DATA1_IS_STRING(e)  ((e)==DC_EVENT_IMEX_FILE_WRITTEN || (e)==DC_EVENT_FILE_COPIED)
-#define DC_EVENT_DATA2_IS_STRING(e)  ((e)>=100 && (e)<=499)
+#define DC_EVENT_DATA1_IS_STRING(e)  0    // not used anymore 
+#define DC_EVENT_DATA2_IS_STRING(e)  ((e)==DC_EVENT_IMEX_FILE_WRITTEN || ((e)>=100 && (e)<=499))
 #define DC_EVENT_RETURNS_INT(e)      ((e)==DC_EVENT_IS_OFFLINE) // not used anymore
 #define DC_EVENT_RETURNS_STRING(e)   ((e)==DC_EVENT_GET_STRING) // not used anymore
 #define dc_archive_chat(a,b,c)  dc_set_chat_visibility((a), (b), (c)? 1 : 0) // not used anymore
