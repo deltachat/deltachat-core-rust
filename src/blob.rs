@@ -63,7 +63,7 @@ impl<'a> BlobObject<'a> {
             blobdir,
             name: format!("$BLOBDIR/{}", name),
         };
-        context.call_cb(Event::NewBlobFile(blob.as_name().to_string()));
+        context.emit_event(Event::NewBlobFile(blob.as_name().to_string()));
         Ok(blob)
     }
 
@@ -151,7 +151,7 @@ impl<'a> BlobObject<'a> {
             blobdir: context.get_blobdir(),
             name: format!("$BLOBDIR/{}", name),
         };
-        context.call_cb(Event::NewBlobFile(blob.as_name().to_string()));
+        context.emit_event(Event::NewBlobFile(blob.as_name().to_string()));
         Ok(blob)
     }
 

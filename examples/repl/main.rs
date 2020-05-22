@@ -275,10 +275,10 @@ async fn start(args: Vec<String>) -> Result<(), Error> {
     }
     let context = Context::new("CLI".into(), Path::new(&args[1]).to_path_buf()).await?;
 
-    let ctx = context.clone();
+    let events = context.get_event_emitter();
     async_std::task::spawn(async move {
         loop {
-            if let Ok(event) = ctx.get_next_event() {
+            if let Some(event) = events.recv().await {
                 receive_event(event);
             }
         }

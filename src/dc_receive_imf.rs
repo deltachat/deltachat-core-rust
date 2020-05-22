@@ -94,7 +94,7 @@ pub async fn dc_receive_imf(
                     CreateEvent::MsgsChanged => Event::MsgsChanged { msg_id, chat_id },
                     CreateEvent::IncomingMsg => Event::IncomingMsg { msg_id, chat_id },
                 };
-                context.call_cb(event);
+                context.emit_event(event);
             }
         }
     };
@@ -197,7 +197,7 @@ pub async fn dc_receive_imf(
     if let Some(avatar_action) = &mime_parser.user_avatar {
         match contact::set_profile_image(&context, from_id, avatar_action).await {
             Ok(()) => {
-                context.call_cb(Event::ChatModified(chat_id));
+                context.emit_event(Event::ChatModified(chat_id));
             }
             Err(err) => {
                 warn!(context, "reveive_imf cannot update profile image: {}", err);
@@ -806,7 +806,7 @@ async fn save_locations(
         }
     }
     if send_event {
-        context.call_cb(Event::LocationChanged(Some(from_id)));
+        context.emit_event(Event::LocationChanged(Some(from_id)));
     }
 }
 
@@ -1120,7 +1120,7 @@ async fn create_or_lookup_group(
                     .await
                     .is_ok()
                 {
-                    context.call_cb(Event::ChatModified(chat_id));
+                    context.emit_event(Event::ChatModified(chat_id));
                 }
             }
         }
@@ -1179,7 +1179,7 @@ async fn create_or_lookup_group(
     }
 
     if send_EVENT_CHAT_MODIFIED {
-        context.call_cb(Event::ChatModified(chat_id));
+        context.emit_event(Event::ChatModified(chat_id));
     }
     Ok((chat_id, chat_id_blocked))
 }
@@ -1300,7 +1300,7 @@ async fn create_or_lookup_adhoc_group(
         chat::add_to_chat_contacts_table(context, new_chat_id, member_id).await;
     }
 
-    context.call_cb(Event::ChatModified(new_chat_id));
+    context.emit_event(Event::ChatModified(new_chat_id));
 
     Ok((new_chat_id, create_blocked))
 }

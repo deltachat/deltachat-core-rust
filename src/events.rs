@@ -1,11 +1,65 @@
 //! # Events specification
 
 use async_std::path::PathBuf;
+use crossbeam_channel::{bounded as channel, Receiver, Sender, TrySendError};
 
 use strum::EnumProperty;
 
 use crate::chat::ChatId;
 use crate::message::MsgId;
+
+#[derive(Debug)]
+pub struct Events {
+    receiver: Receiver<Event>,
+    sender: Sender<Event>,
+}
+
+impl Default for Events {
+    fn default() -> Self {
+        let (sender, receiver) = channel(1_000);
+
+        Self { receiver, sender }
+    }
+}
+
+impl Events {
+    pub fn emit(&self, event: Event) {
+        match self.sender.try_send(event) {
+            Ok(()) => {}
+            Err(TrySendError::Full(event)) => {
+                // when we are full, we pop remove the oldest event and push on the new one
+                let _ = self.receiver.try_recv();
+
+                // try again
+                self.emit(event);
+            }
+            Err(TrySendError::Disconnected(_)) => {
+                unreachable!("unable to emit event, channel disconnected");
+            }
+        }
+    }
+
+    /// Retrieve the event emitter.
+    pub fn get_emitter(&self) -> EventEmitter {
+        EventEmitter(self.receiver.clone())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct EventEmitter(Receiver<Event>);
+
+impl EventEmitter {
+    /// Blocking recv of an event. Return `None` if the `Sender` has been droped.
+    pub fn recv_sync(&self) -> Option<Event> {
+        self.0.recv().ok()
+    }
+
+    /// Blocking async recv of an event. Return `None` if the `Sender` has been droped.
+    pub async fn recv(&self) -> Option<Event> {
+        // TODO: change once we can use async channels internally.
+        self.0.recv().ok()
+    }
+}
 
 impl Event {
     /// Returns the corresponding Event id.

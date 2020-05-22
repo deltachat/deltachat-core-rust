@@ -4,10 +4,8 @@ use std::collections::{BTreeMap, HashMap};
 use std::ffi::OsString;
 use std::ops::Deref;
 
-use anyhow::anyhow;
 use async_std::path::{Path, PathBuf};
 use async_std::sync::{channel, Arc, Mutex, Receiver, RwLock, Sender};
-use crossbeam_channel::{unbounded, Receiver as SyncReceiver, Sender as SyncSender};
 
 use crate::chat::*;
 use crate::config::Config;
@@ -15,7 +13,7 @@ use crate::constants::*;
 use crate::contact::*;
 use crate::dc_tools::duration_to_str;
 use crate::error::*;
-use crate::events::Event;
+use crate::events::{Event, EventEmitter, Events};
 use crate::job::{self, Action};
 use crate::key::{DcKey, Key, SignedPublicKey};
 use crate::login_param::LoginParam;
@@ -55,7 +53,7 @@ pub struct InnerContext {
     /// Mutex to enforce only a single running oauth2 is running.
     pub(crate) oauth2_mutex: Mutex<()>,
     pub(crate) translated_stockstrings: RwLock<HashMap<usize, String>>,
-    pub(crate) logs: (SyncSender<Event>, SyncReceiver<Event>),
+    pub(crate) events: Events,
 
     pub(crate) scheduler: RwLock<Scheduler>,
 
@@ -121,7 +119,7 @@ impl Context {
             generating_key_mutex: Mutex::new(()),
             oauth2_mutex: Mutex::new(()),
             translated_stockstrings: RwLock::new(HashMap::new()),
-            logs: unbounded(),
+            events: Events::default(),
             scheduler: RwLock::new(Scheduler::Stopped),
             creation_time: std::time::SystemTime::now(),
         };
@@ -172,14 +170,14 @@ impl Context {
         self.blobdir.as_path()
     }
 
-    pub fn call_cb(&self, event: Event) {
-        self.logs.0.send(event).expect("failed to send event");
+    /// Emits a single event.
+    pub fn emit_event(&self, event: Event) {
+        self.events.emit(event);
     }
 
-    pub fn get_next_event(&self) -> Result<Event> {
-        let event = self.logs.1.recv().map_err(|err| anyhow!("{}", err))?;
-
-        Ok(event)
+    /// Get the next queued event.
+    pub fn get_event_emitter(&self) -> EventEmitter {
+        self.events.get_emitter()
     }
 
     // Ongoing process allocation/free/check

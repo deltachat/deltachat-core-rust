@@ -227,7 +227,7 @@ pub async fn send_locations_to_chat(context: &Context, chat_id: ChatId, seconds:
                     .await;
                 chat::add_info_msg(context, chat_id, stock_str).await;
             }
-            context.call_cb(Event::ChatModified(chat_id));
+            context.emit_event(Event::ChatModified(chat_id));
             if 0 != seconds {
                 schedule_maybe_send_locations(context, false).await;
                 job::add(
@@ -302,7 +302,7 @@ pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64
             }
         }
         if continue_streaming {
-            context.call_cb(Event::LocationChanged(Some(DC_CONTACT_ID_SELF)));
+            context.emit_event(Event::LocationChanged(Some(DC_CONTACT_ID_SELF)));
         };
         schedule_maybe_send_locations(context, false).await;
     }
@@ -382,7 +382,7 @@ pub async fn delete_all(context: &Context) -> Result<(), Error> {
         .sql
         .execute("DELETE FROM locations;", paramsv![])
         .await?;
-    context.call_cb(Event::LocationChanged(None));
+    context.emit_event(Event::LocationChanged(None));
     Ok(())
 }
 
@@ -714,7 +714,7 @@ pub(crate) async fn job_maybe_send_locations_ended(
                 .stock_system_msg(StockMessage::MsgLocationDisabled, "", "", 0)
                 .await;
             chat::add_info_msg(context, chat_id, stock_str).await;
-            context.call_cb(Event::ChatModified(chat_id));
+            context.emit_event(Event::ChatModified(chat_id));
         }
     }
     job::Status::Finished(Ok(()))

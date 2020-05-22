@@ -852,7 +852,7 @@ impl MimeMessage {
                     message::mdn_from_ext(context, from_id, original_message_id, sent_timestamp)
                         .await
                 {
-                    context.call_cb(Event::MsgRead { chat_id, msg_id });
+                    context.emit_event(Event::MsgRead { chat_id, msg_id });
                 }
             }
         }
