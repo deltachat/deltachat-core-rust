@@ -9,15 +9,29 @@ from filecmp import cmp
 from deltachat import const
 
 
+def wait_msg_delivered(account, msg_list):
+    while msg_list:
+        ev = account._evtracker.get_matching("DC_EVENT_MSG_DELIVERED")
+        msg_list.remove((ev.data1, ev.data2))
+
+
+def get_msgs_changed(account):
+    while 1:
+        ev = account._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
+        yield (ev.data1, ev.data2)
+
+
 def wait_msgs_changed(account, chat_id, msg_id=None):
     account.log("waiting for chat_id={} msg_id={}".format(chat_id, msg_id))
     while 1:
         ev = account._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
         if ev.data1 != chat_id:
             account.log("waiting got mismatched DC_EVENT_MSGS_CHANGED")
+            account.log("expect chat_id={} got data1={}".format(chat_id, ev.data1))
             continue
         if msg_id is not None:
             assert ev.data2 == msg_id
+        account.log("WAIT -> FOUND chat_id={} msg_id={}".format(chat_id, msg_id))
         return ev.data2
 
 
@@ -85,20 +99,24 @@ class TestOnlineInCreation:
         shutil.copyfile(orig, path)
         chat.send_prepared(prepared_original)
         assert prepared_original.is_out_pending() or prepared_original.is_out_delivered()
-        wait_msgs_changed(ac1, chat.id, prepared_original.id)
 
-        lp.sec("expect the forwarded message to be sent now too")
-        wait_msgs_changed(ac1, chat2.id, forwarded_id)
-        fwd_msg = ac1.get_message_by_id(forwarded_id)
-        assert fwd_msg.is_out_pending() or fwd_msg.is_out_delivered()
+        lp.sec("check that both forwarded and original message are proper.")
+        forwarded, original = False, False
+        for chat_id, msg_id in get_msgs_changed(ac1):
+            if chat_id == chat2.id and msg_id == forwarded_id:
+                forwarded = True
+                fwd_msg = ac1.get_message_by_id(forwarded_id)
+                assert fwd_msg.is_out_pending() or fwd_msg.is_out_delivered()
+            elif chat_id == chat.id and msg_id == prepared_original.id:
+                original = True
+            if forwarded and original:
+                break
 
-        lp.sec("wait for the messages to be delivered to SMTP")
-        ev = ac1._evtracker.get_matching("DC_EVENT_MSG_DELIVERED")
-        assert ev.data1 == chat.id
-        assert ev.data2 == prepared_original.id
-        ev = ac1._evtracker.get_matching("DC_EVENT_MSG_DELIVERED")
-        assert ev.data1 == chat2.id
-        assert ev.data2 == forwarded_id
+        lp.sec("wait for both messages to be delivered to SMTP")
+        wait_msg_delivered(ac1, [
+            (chat2.id, forwarded_id),
+            (chat.id, prepared_original.id)
+        ])
 
         lp.sec("wait1 for original or forwarded messages to arrive")
         ev1 = ac2._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
