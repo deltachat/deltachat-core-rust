@@ -20,7 +20,7 @@ typedef struct _dc_contact  dc_contact_t;
 typedef struct _dc_lot      dc_lot_t;
 typedef struct _dc_provider dc_provider_t;
 typedef struct _dc_event    dc_event_t;
-  typedef struct _dc_event_emitter dc_event_emitter_t;
+typedef struct _dc_event_emitter dc_event_emitter_t;
 
 
 /**
@@ -236,8 +236,11 @@ void          dc_event_unref   (dc_event_t* event);
  *     - The callback SHOULD return _fast_, for GUI updates etc. you should
  *       post yourself an asynchronous message to your GUI thread, if needed.
  *     - events do not expect a return value, just always return 0.
- * @param userdata can be used by the client for any purpuse.  He finds it
- *     later in dc_get_userdata().
+ * @param dbfile The file to use to store the database, something like `~/file` won't
+ *     work on all systems, if in doubt, use absolute paths.
+ * @param blobdir A directory to store the blobs in; a trailing slash is not needed.
+ *     If you pass NULL or the empty string, deltachat-core creates a directory
+ *     beside _dbfile_ with the same name and the suffix `-blobs`.
  * @param os_name is only for decorative use
  *     and is shown eg. in the `X-Mailer:` header
  *     in the form "Delta Chat Core <version>/<os_name>".
@@ -249,7 +252,7 @@ void          dc_event_unref   (dc_event_t* event);
  *     The object must be passed to the other context functions
  *     and must be freed using dc_context_unref() after usage.
  */
-dc_context_t*   dc_context_new               (void* userdata, const char* os_name);
+dc_context_t*   dc_context_new               (const char* os_name, const char* dbfile, const char* blobdir);
 
 
 /**
@@ -265,60 +268,6 @@ dc_context_t*   dc_context_new               (void* userdata, const char* os_nam
  * @return None.
  */
 void            dc_context_unref             (dc_context_t* context);
-
-
-/**
- * Get user data associated with a context object.
- *
- * @memberof dc_context_t
- * @param context The context object as created by dc_context_new().
- * @return User data, this is the second parameter given to dc_context_new().
- */
-void*           dc_get_userdata              (dc_context_t* context);
-
-
-/**
- * Open context database.  If the given file does not exist, it is
- * created and can be set up using dc_set_config() afterwards.
- *
- * @memberof dc_context_t
- * @param context The context object as created by dc_context_new().
- * @param dbfile The file to use to store the database, something like `~/file` won't
- *     work on all systems, if in doubt, use absolute paths.
- * @param blobdir A directory to store the blobs in; a trailing slash is not needed.
- *     If you pass NULL or the empty string, deltachat-core creates a directory
- *     beside _dbfile_ with the same name and the suffix `-blobs`.
- * @return 1 on success, 0 on failure
- *     eg. if the file is not writable
- *     or if there is already a database opened for the context.
- */
-int             dc_open                      (dc_context_t* context, const char* dbfile, const char* blobdir);
-
-
-/**
- * Close context database opened by dc_open().
- * Before this, connections to SMTP and IMAP are closed; these connections
- * are started automatically as needed eg. by sending for fetching messages.
- * This function is also implicitly called by dc_context_unref().
- * Multiple calls to this functions are okay, the function takes care not
- * to free objects twice.
- *
- * @memberof dc_context_t
- * @param context The context object as created by dc_context_new().
- * @return None.
- */
-void            dc_close                     (dc_context_t* context);
-
-
-/**
- * Check if the context database is open.
- *
- * @memberof dc_context_t
- * @param context The context object as created by dc_context_new().
- * @return 0=context is not open, 1=context is open.
- */
-int             dc_is_open                   (const dc_context_t* context);
-
 
 /**
  * Get the blob directory.
