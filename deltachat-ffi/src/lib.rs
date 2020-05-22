@@ -15,7 +15,6 @@ extern crate serde_json;
 
 use std::collections::BTreeMap;
 use std::convert::TryInto;
-use std::ffi::CString;
 use std::fmt::Write;
 use std::ptr;
 use std::str::FromStr;
@@ -501,14 +500,8 @@ pub unsafe extern "C" fn dc_is_running(context: *mut dc_context_t) -> libc::c_in
     with_inner_async!(ffi_context, ctx, { ctx.is_running() }).unwrap_or_default() as libc::c_int
 }
 
-pub struct EventWrapper {
-    pub event_id: libc::c_int,
-    pub data1: uintptr_t,
-    pub data2: uintptr_t,
-}
-
 #[no_mangle]
-pub type dc_event_t = EventWrapper;
+pub type dc_event_t = Event;
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_event_unref(a: *mut dc_event_t) {
@@ -528,50 +521,99 @@ pub unsafe extern "C" fn dc_event_get_id(event: *mut dc_event_t) -> libc::c_int 
     }
 
     let event = &*event;
-    event.event_id
+    event.as_id()
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_event_get_data1(event: *mut dc_event_t) -> uintptr_t {
+pub unsafe extern "C" fn dc_event_get_data1(event: *mut dc_event_t) -> libc::c_int {
     if event.is_null() {
         eprintln!("ignoring careless call to dc_event_get_data1()");
         return 0;
     }
 
     let event = &*event;
-    event.data1
+    match event {
+        Event::Info(_)
+        | Event::SmtpConnected(_)
+        | Event::ImapConnected(_)
+        | Event::SmtpMessageSent(_)
+        | Event::ImapMessageDeleted(_)
+        | Event::ImapMessageMoved(_)
+        | Event::ImapFolderEmptied(_)
+        | Event::NewBlobFile(_)
+        | Event::DeletedBlobFile(_)
+        | Event::Warning(_)
+        | Event::Error(_)
+        | Event::ErrorNetwork(_)
+        | Event::ErrorSelfNotInGroup(_) => 0,
+        Event::MsgsChanged { chat_id, .. }
+        | Event::IncomingMsg { chat_id, .. }
+        | Event::MsgDelivered { chat_id, .. }
+        | Event::MsgFailed { chat_id, .. }
+        | Event::MsgRead { chat_id, .. }
+        | Event::ChatModified(chat_id) => chat_id.to_u32() as libc::c_int,
+        Event::ContactsChanged(id) | Event::LocationChanged(id) => {
+            let id = id.unwrap_or_default();
+            id as libc::c_int
+        }
+        Event::ConfigureProgress(progress) | Event::ImexProgress(progress) => {
+            *progress as libc::c_int
+        }
+        Event::ImexFileWritten(_) => 0,
+        Event::SecurejoinInviterProgress { contact_id, .. }
+        | Event::SecurejoinJoinerProgress { contact_id, .. } => *contact_id as libc::c_int,
+    }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_event_get_data2(event: *mut dc_event_t) -> uintptr_t {
+pub unsafe extern "C" fn dc_event_get_data2(event: *mut dc_event_t) -> libc::c_int {
     if event.is_null() {
         eprintln!("ignoring careless call to dc_event_get_data2()");
         return 0;
     }
 
     let event = &*event;
-    event.data2
+
+    match event {
+        Event::Info(_)
+        | Event::SmtpConnected(_)
+        | Event::ImapConnected(_)
+        | Event::SmtpMessageSent(_)
+        | Event::ImapMessageDeleted(_)
+        | Event::ImapMessageMoved(_)
+        | Event::ImapFolderEmptied(_)
+        | Event::NewBlobFile(_)
+        | Event::DeletedBlobFile(_)
+        | Event::Warning(_)
+        | Event::Error(_)
+        | Event::ErrorNetwork(_)
+        | Event::ErrorSelfNotInGroup(_)
+        | Event::ContactsChanged(_)
+        | Event::LocationChanged(_)
+        | Event::ConfigureProgress(_)
+        | Event::ImexProgress(_)
+        | Event::ImexFileWritten(_)
+        | Event::ChatModified(_) => 0,
+        Event::MsgsChanged { msg_id, .. }
+        | Event::IncomingMsg { msg_id, .. }
+        | Event::MsgDelivered { msg_id, .. }
+        | Event::MsgFailed { msg_id, .. }
+        | Event::MsgRead { msg_id, .. } => msg_id.to_u32() as libc::c_int,
+        Event::SecurejoinInviterProgress { progress, .. }
+        | Event::SecurejoinJoinerProgress { progress, .. } => *progress as libc::c_int,
+    }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_get_next_event(context: *mut dc_context_t) -> *mut dc_event_t {
-    if context.is_null() {
+pub unsafe extern "C" fn dc_event_get_data_string(event: *mut dc_event_t) -> *mut libc::c_char {
+    if event.is_null() {
+        eprintln!("ignoring careless call to dc_event_get_data_string()");
         return ptr::null_mut();
     }
-    let ffi_context = &*context;
 
-    ffi_context
-        .with_inner(|ctx| match ctx.get_next_event() {
-            Ok(ev) => translate_event(ev),
-            Err(_) => ptr::null_mut(),
-        })
-        .unwrap_or_else(|_| ptr::null_mut())
-}
+    let event = &*event;
 
-/// Translates the callback from the rust style to the C-style version.
-unsafe fn translate_event(event: Event) -> *mut dc_event_t {
-    let event_id = event.as_id();
-    let wrapper = match event {
+    match event {
         Event::Info(msg)
         | Event::SmtpConnected(msg)
         | Event::ImapConnected(msg)
@@ -585,64 +627,41 @@ unsafe fn translate_event(event: Event) -> *mut dc_event_t {
         | Event::Error(msg)
         | Event::ErrorNetwork(msg)
         | Event::ErrorSelfNotInGroup(msg) => {
-            let data2 = CString::new(msg).unwrap_or_default();
-
-            EventWrapper {
-                event_id,
-                data1: 0,
-                data2: data2.into_raw() as uintptr_t,
-            }
+            let data2 = msg.to_c_string().unwrap_or_default();
+            data2.into_raw()
         }
-        Event::MsgsChanged { chat_id, msg_id }
-        | Event::IncomingMsg { chat_id, msg_id }
-        | Event::MsgDelivered { chat_id, msg_id }
-        | Event::MsgFailed { chat_id, msg_id }
-        | Event::MsgRead { chat_id, msg_id } => EventWrapper {
-            event_id,
-            data1: chat_id.to_u32() as uintptr_t,
-            data2: msg_id.to_u32() as uintptr_t,
-        },
-        Event::ChatModified(chat_id) => EventWrapper {
-            event_id,
-            data1: chat_id.to_u32() as uintptr_t,
-            data2: 0,
-        },
-        Event::ContactsChanged(id) | Event::LocationChanged(id) => {
-            let id = id.unwrap_or_default();
-            EventWrapper {
-                event_id,
-                data1: id as uintptr_t,
-                data2: 0,
-            }
-        }
-        Event::ConfigureProgress(progress) | Event::ImexProgress(progress) => EventWrapper {
-            event_id,
-            data1: progress as uintptr_t,
-            data2: 0,
-        },
+        Event::MsgsChanged { .. }
+        | Event::IncomingMsg { .. }
+        | Event::MsgDelivered { .. }
+        | Event::MsgFailed { .. }
+        | Event::MsgRead { .. }
+        | Event::ChatModified(_)
+        | Event::ContactsChanged(_)
+        | Event::LocationChanged(_)
+        | Event::ConfigureProgress(_)
+        | Event::ImexProgress(_)
+        | Event::SecurejoinInviterProgress { .. }
+        | Event::SecurejoinJoinerProgress { .. } => ptr::null_mut(),
         Event::ImexFileWritten(file) => {
             let data1 = file.to_c_string().unwrap_or_default();
-            EventWrapper {
-                event_id,
-                data1: data1.into_raw() as uintptr_t,
-                data2: 0,
-            }
+            data1.into_raw()
         }
-        Event::SecurejoinInviterProgress {
-            contact_id,
-            progress,
-        }
-        | Event::SecurejoinJoinerProgress {
-            contact_id,
-            progress,
-        } => EventWrapper {
-            event_id,
-            data1: contact_id as uintptr_t,
-            data2: progress as uintptr_t,
-        },
-    };
+    }
+}
 
-    Box::into_raw(Box::new(wrapper))
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_next_event(context: *mut dc_context_t) -> *mut dc_event_t {
+    if context.is_null() {
+        return ptr::null_mut();
+    }
+    let ffi_context = &*context;
+
+    ffi_context
+        .with_inner(|ctx| match ctx.get_next_event() {
+            Ok(ev) => Box::into_raw(Box::new(ev)),
+            Err(_) => ptr::null_mut(),
+        })
+        .unwrap_or_else(|_| ptr::null_mut())
 }
 
 #[no_mangle]

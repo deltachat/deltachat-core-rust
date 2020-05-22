@@ -195,9 +195,10 @@ typedef struct _dc_event    dc_event_t;
  */  
 dc_event_t*   dc_get_next_event(dc_context_t* context);
 
-int          dc_event_get_id   (dc_event_t* event);
-uintptr_t    dc_event_get_data1(dc_event_t* event);
-uintptr_t    dc_event_get_data2(dc_event_t* event);
+int           dc_event_get_id   (dc_event_t* event);
+int           dc_event_get_data1(dc_event_t* event);
+int           dc_event_get_data2(dc_event_t* event);
+char*         dc_event_get_data_string(dc_event_t* event);
 
 /**
  * TODO: document
