@@ -1,14 +1,13 @@
 //! # SQLite wrapper
 
 use async_std::prelude::*;
-use async_std::sync::{Arc, RwLock};
+use async_std::sync::RwLock;
 
 use std::collections::HashSet;
 use std::path::Path;
 use std::time::Duration;
 
 use rusqlite::{Connection, Error as SqlError, OpenFlags};
-use thread_local_object::ThreadLocal;
 
 use crate::chat::{update_device_icon, update_saved_messages_icon};
 use crate::constants::{ShowEmails, DC_CHAT_ID_TRASH};
@@ -53,15 +52,12 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(DebugStub)]
 pub struct Sql {
     pool: RwLock<Option<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>>>,
-    #[debug_stub = "ThreadLocal<String>"]
-    in_use: Arc<ThreadLocal<String>>,
 }
 
 impl Default for Sql {
     fn default() -> Self {
         Self {
             pool: RwLock::new(None),
-            in_use: Arc::new(ThreadLocal::new()),
         }
     }
 }
@@ -77,7 +73,6 @@ impl Sql {
 
     pub async fn close(&self) {
         let _ = self.pool.write().await.take();
-        self.in_use.remove();
         // drop closes the connection
     }
 
@@ -100,13 +95,9 @@ impl Sql {
         sql: S,
         params: Vec<&dyn crate::ToSql>,
     ) -> Result<usize> {
-        self.start_stmt(sql.as_ref());
-
         let res = {
             let conn = self.get_conn().await?;
-            let res = conn.execute(sql.as_ref(), params);
-            self.in_use.remove();
-            res
+            conn.execute(sql.as_ref(), params)
         };
 
         res.map_err(Into::into)
@@ -126,18 +117,12 @@ impl Sql {
         F: FnMut(&rusqlite::Row) -> rusqlite::Result<T>,
         G: FnMut(rusqlite::MappedRows<F>) -> Result<H>,
     {
-        self.start_stmt(sql.as_ref().to_string());
         let sql = sql.as_ref();
 
-        let res = {
-            let conn = self.get_conn().await?;
-            let mut stmt = conn.prepare(sql)?;
-            let res = stmt.query_map(&params, f)?;
-            self.in_use.remove();
-            g(res)
-        };
-
-        res
+        let conn = self.get_conn().await?;
+        let mut stmt = conn.prepare(sql)?;
+        let res = stmt.query_map(&params, f)?;
+        g(res)
     }
 
     pub async fn get_conn(
@@ -161,10 +146,7 @@ impl Sql {
         let pool = lock.as_ref().ok_or_else(|| Error::SqlNoConnection)?;
         let conn = pool.get()?;
 
-        let res = g(conn);
-        self.in_use.remove();
-
-        res
+        g(conn)
     }
 
     pub async fn with_conn_async<G, H, Fut>(&self, mut g: G) -> Result<H>
@@ -175,25 +157,17 @@ impl Sql {
         let lock = self.pool.read().await;
         let pool = lock.as_ref().ok_or_else(|| Error::SqlNoConnection)?;
 
-        let res = {
-            let conn = pool.get()?;
-            let res = g(conn).await;
-            self.in_use.remove();
-            res
-        };
-        res
+        let conn = pool.get()?;
+        g(conn).await
     }
 
     /// Return `true` if a query in the SQL statement it executes returns one or more
     /// rows and false if the SQL returns an empty set.
     pub async fn exists(&self, sql: &str, params: Vec<&dyn crate::ToSql>) -> Result<bool> {
-        self.start_stmt(sql.to_string());
         let res = {
             let conn = self.get_conn().await?;
             let mut stmt = conn.prepare(sql)?;
-            let res = stmt.exists(&params);
-            self.in_use.remove();
-            res
+            stmt.exists(&params)
         };
 
         res.map_err(Into::into)
@@ -209,20 +183,16 @@ impl Sql {
     where
         F: FnOnce(&rusqlite::Row) -> rusqlite::Result<T>,
     {
-        self.start_stmt(sql.as_ref().to_string());
         let sql = sql.as_ref();
         let res = {
             let conn = self.get_conn().await?;
-            let res = conn.query_row(sql, params, f);
-            self.in_use.remove();
-            res
+            conn.query_row(sql, params, f)
         };
 
         res.map_err(Into::into)
     }
 
     pub async fn table_exists(&self, name: impl AsRef<str>) -> Result<bool> {
-        self.start_stmt("table_exists");
         let name = name.as_ref().to_string();
         self.with_conn(move |conn| {
             let mut exists = false;
@@ -317,13 +287,13 @@ impl Sql {
             if exists {
                 self.execute(
                     "UPDATE config SET value=? WHERE keyname=?;",
-                    paramsv![value.to_string(), key.to_string()],
+                    paramsv![(*value).to_string(), key.to_string()],
                 )
                 .await
             } else {
                 self.execute(
                     "INSERT INTO config (keyname, value) VALUES (?, ?);",
-                    paramsv![key.to_string(), value.to_string()],
+                    paramsv![key.to_string(), (*value).to_string()],
                 )
                 .await
             }
@@ -405,20 +375,6 @@ impl Sql {
             .and_then(|r| r.parse().ok())
     }
 
-    pub fn start_stmt(&self, stmt: impl AsRef<str>) {
-        if let Some(query) = self.in_use.get_cloned() {
-            let bt = backtrace::Backtrace::new();
-            eprintln!("old query: {}", query);
-            eprintln!("Connection is already used from this thread: {:?}", bt);
-            panic!(
-                "Connection is already used from this thread: trying to execute {}",
-                stmt.as_ref()
-            );
-        }
-
-        self.in_use.set(stmt.as_ref().to_string());
-    }
-
     /// Alternative to sqlite3_last_insert_rowid() which MUST NOT be used due to race conditions, see comment above.
     /// the ORDER BY ensures, this function always returns the most recent id,
     /// eg. if a Message-ID is split into different messages.
@@ -429,13 +385,9 @@ impl Sql {
         field: impl AsRef<str>,
         value: impl AsRef<str>,
     ) -> Result<u32> {
-        self.start_stmt("get rowid".to_string());
-
         let res = {
             let mut conn = self.get_conn().await?;
-            let res = get_rowid(&mut conn, table, field, value);
-            self.in_use.remove();
-            res
+            get_rowid(&mut conn, table, field, value)
         };
 
         res.map_err(Into::into)
@@ -450,13 +402,9 @@ impl Sql {
         field2: impl AsRef<str>,
         value2: i32,
     ) -> Result<u32> {
-        self.start_stmt("get rowid2".to_string());
-
         let res = {
             let mut conn = self.get_conn().await?;
-            let res = get_rowid2(&mut conn, table, field, value, field2, value2);
-            self.in_use.remove();
-            res
+            get_rowid2(&mut conn, table, field, value, field2, value2)
         };
 
         res.map_err(Into::into)
