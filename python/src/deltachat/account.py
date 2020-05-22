@@ -613,24 +613,23 @@ class Account(object):
         else:
             self.log("stop_scheduler called on non-running context")
 
-    def shutdown(self, wait=True):
+    def shutdown(self):
         """ shutdown and destroy account (stop callback thread, close and remove
-        underlying dc_context."""
+        underlying dc_context)."""
         dc_context = self._dc_context
         if dc_context is None:
             return
 
-        if self._event_thread.is_alive():
-            self.log("stop threads")
-            self._event_thread.stop(wait=False)
-
         self.stop_scheduler()
 
         self.log("dc_close")
+        # the dc_close triggers get_next_event to return ffi.NULL
+        # which in turns makes the event thread finish execution
         lib.dc_close(dc_context)
-        self.log("wait threads for real")
-        if wait:
-            self._event_thread.stop(wait=wait)
+
+        self.log("wait for event thread to finish")
+        self._event_thread.wait()
+
         self._dc_context = None
         atexit.unregister(self.shutdown)
         self._shutdown_event.set()
