@@ -11,12 +11,11 @@ APIs:
     dc_configure                      # note: dc_start_jobs() is NOT allowed to run concurrently
     dc_imex NEVER goes through the job system
     dc_imex import_backup needs to ensure dc_stop_jobs()
-    dc_jobs_are_running()      # tell if we are in start/stop-jobs state
 
-    dc_context_run                 # start async scheduler
-      -> dc_start_jobs
-    dc_context_shutdown       # Stop async scheduler (after return no async-task runs)
-      -> dc_stop_jobs
+    dc_io_start                # start smtp/imap and job handling subsystems
+    dc_io_stop                 # stop smtp/imap and job handling subsystems
+    dc_io_status               # return 1 if smtp/imap/jobs susbystem is running
+
     dc_close                            # FFI only
       -> can be dropped
     dc_context_unref

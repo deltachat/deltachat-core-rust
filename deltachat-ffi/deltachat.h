@@ -583,16 +583,32 @@ int             dc_is_configured   (const dc_context_t* context);
 
 
 /**
- * TODO: Document
+ * Start job and IMAP/SMTP tasks.
+ *
+ * @memberof dc_context_t
+ * @param context The context object as created by dc_context_new().
+ * @return None
  */
-void            dc_context_run     (dc_context_t* context);
-
-int             dc_is_running      (const dc_context_t* context);
+void            dc_io_start     (dc_context_t* context);
 
 /**
- * TODO: Document
+ * Check if IO (SMTP/IMAP/Jobs) has been started.
+ *
+ * @memberof dc_context_t
+ * @param context The context object as created by dc_context_new().
+ * @return 1=IO is running; 
+ *   0=IO is not running.
  */
-void            dc_context_shutdown(dc_context_t* context);
+int             dc_io_status(const dc_context_t* context);
+
+/**
+ * Stop job and IMAP/SMTP tasks and return when they are finished. 
+ *
+ * @memberof dc_context_t
+ * @param context The context object as created by dc_context_new().
+ * @return None
+ */
+void            dc_io_stop(dc_context_t* context);
 
 /**
  * This function can be called whenever there is a hint
