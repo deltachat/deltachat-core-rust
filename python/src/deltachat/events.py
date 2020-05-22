@@ -8,6 +8,7 @@ from .hookspec import account_hookimpl
 from contextlib import contextmanager
 from .capi import ffi, lib
 from .message import map_system_message
+from .cutil import from_dc_charpointer
 
 
 class FFIEvent:
@@ -164,23 +165,14 @@ class EventThread(threading.Thread):
             if event == ffi.NULL:
                 break
             evt = lib.dc_event_get_id(event)
-            data1 = lib.dc_event_get_data1(event)
-            data2 = lib.dc_event_get_data2(event)
+            data1 = lib.dc_event_get_data1_int(event)
             # the following code relates to the deltachat/_build.py's helper
             # function which provides us signature info of an event call
             evt_name = deltachat.get_dc_event_name(evt)
-            event_sig_types = lib.dc_get_event_signature_types(evt)
-            if data1 and event_sig_types & 1:
-                data1 = ffi.string(ffi.gc(ffi.cast('char*', data1), lib.dc_str_unref)).decode("utf8")
-            if data2 and event_sig_types & 2:
-                data2 = ffi.string(ffi.gc(ffi.cast('char*', data2), lib.dc_str_unref)).decode("utf8")
-            try:
-                if isinstance(data2, bytes):
-                    data2 = data2.decode("utf8")
-            except UnicodeDecodeError:
-                # XXX ignoring the decode error is not quite correct but for now
-                # i don't want to hunt down encoding problems in the c lib
-                pass
+            if lib.dc_event_has_string_data(evt):
+                data2 = from_dc_charpointer(lib.dc_event_get_data3_str(event))
+            else:
+                data2 = lib.dc_event_get_data2_int(event)
 
             lib.dc_event_unref(event)
             ffi_event = FFIEvent(name=evt_name, data1=data1, data2=data2)

@@ -58,13 +58,15 @@ def test_event_defines():
 
 
 def test_sig():
-    sig = capi.lib.dc_get_event_signature_types
-    assert sig(const.DC_EVENT_INFO) == 2
-    assert sig(const.DC_EVENT_WARNING) == 2
-    assert sig(const.DC_EVENT_ERROR) == 2
-    assert sig(const.DC_EVENT_SMTP_CONNECTED) == 2
-    assert sig(const.DC_EVENT_IMAP_CONNECTED) == 2
-    assert sig(const.DC_EVENT_SMTP_MESSAGE_SENT) == 2
+    sig = capi.lib.dc_event_has_string_data
+    assert not sig(const.DC_EVENT_MSGS_CHANGED)
+    assert sig(const.DC_EVENT_INFO)
+    assert sig(const.DC_EVENT_WARNING)
+    assert sig(const.DC_EVENT_ERROR)
+    assert sig(const.DC_EVENT_SMTP_CONNECTED)
+    assert sig(const.DC_EVENT_IMAP_CONNECTED)
+    assert sig(const.DC_EVENT_SMTP_MESSAGE_SENT)
+    assert sig(const.DC_EVENT_IMEX_FILE_WRITTEN)
 
 
 def test_markseen_invalid_message_ids(acfactory):

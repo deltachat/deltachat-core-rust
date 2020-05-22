@@ -643,8 +643,8 @@ pub unsafe extern "C" fn dc_event_get_data3_str(event: *mut dc_event_t) -> *mut 
         | Event::SecurejoinInviterProgress { .. }
         | Event::SecurejoinJoinerProgress { .. } => ptr::null_mut(),
         Event::ImexFileWritten(file) => {
-            let data1 = file.to_c_string().unwrap_or_default();
-            data1.into_raw()
+            let data2 = file.to_c_string().unwrap_or_default();
+            data2.into_raw()
         }
     }
 }
