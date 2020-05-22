@@ -565,16 +565,14 @@ class TestOnlineAccount:
         ac1.shutdown()
         ac2.shutdown()
 
-    def xtest_configure_canceled(self, acfactory):
+    def test_configure_canceled(self, acfactory):
         ac1 = acfactory.get_online_configuring_account()
         ac1._configtracker.wait_progress()
         ac1.stop_ongoing()
         try:
             ac1.wait_configure_finish()
-        except ac1._configtracker.ConfigureFailed:
+        except Exception:
             pass
-
-        ac1.shutdown()
 
     def test_export_import_self_keys(self, acfactory, tmpdir):
         ac1, ac2 = acfactory.get_two_online_accounts()
@@ -830,9 +828,6 @@ class TestOnlineAccount:
         assert msg_in.text == "message2"
         assert msg_in.is_forwarded()
 
-        ac1.shutdown()
-        ac2.shutdown()
-
     def test_send_self_message_and_empty_folder(self, acfactory, lp):
         ac1 = acfactory.get_one_online_account(mvbox=True, move=True)
         lp.sec("ac1: create self chat")
@@ -842,10 +837,9 @@ class TestOnlineAccount:
         ac1.empty_server_folders(inbox=True, mvbox=True)
         ev1 = ac1._evtracker.get_matching("DC_EVENT_IMAP_FOLDER_EMPTIED")
         ev2 = ac1._evtracker.get_matching("DC_EVENT_IMAP_FOLDER_EMPTIED")
-        boxes = sorted([ev1.data2, ev2.data2])
-        assert boxes == ["DeltaChat", "INBOX"]
-
-        ac1.shutdown()
+        boxes = [ev1.data2, ev2.data2]
+        boxes.remove("INBOX")
+        assert len(boxes) == 1 and boxes[0].endswith("DeltaChat")
 
     def test_send_and_receive_message_markseen(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
