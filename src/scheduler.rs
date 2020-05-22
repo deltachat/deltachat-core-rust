@@ -276,7 +276,7 @@ async fn smtp_loop(ctx: Context, started: Sender<()>, smtp_handlers: SmtpConnect
 
 impl Scheduler {
     /// Start the scheduler, panics if it is already running.
-    pub async fn run(&mut self, ctx: Context) {
+    pub async fn start(&mut self, ctx: Context) {
         let (mvbox, mvbox_handlers) = ImapConnectionState::new();
         let (sentbox, sentbox_handlers) = ImapConnectionState::new();
         let (smtp, smtp_handlers) = SmtpConnectionState::new();

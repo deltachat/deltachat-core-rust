@@ -277,10 +277,8 @@ async fn start(args: Vec<String>) -> Result<(), Error> {
 
     let events = context.get_event_emitter();
     async_std::task::spawn(async move {
-        loop {
-            if let Some(event) = events.recv().await {
-                receive_event(event);
-            }
+        while let Some(event) = events.recv().await {
+            receive_event(event);
         }
     });
 
@@ -322,7 +320,7 @@ async fn start(args: Vec<String>) -> Result<(), Error> {
             }
             Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => {
                 println!("Exiting...");
-                context.stop().await;
+                context.stop_io().await;
                 break;
             }
             Err(err) => {
@@ -355,10 +353,10 @@ async fn handle_cmd(
 
     match arg0 {
         "connect" => {
-            ctx.run().await;
+            ctx.start_io().await;
         }
         "disconnect" => {
-            ctx.stop().await;
+            ctx.stop_io().await;
         }
         "configure" => {
             ctx.configure().await?;
@@ -381,7 +379,7 @@ async fn handle_cmd(
             print!("\x1b[1;1H\x1b[2J");
         }
         "getqr" | "getbadqr" => {
-            ctx.run().await;
+            ctx.start_io().await;
             if let Some(mut qr) =
                 dc_get_securejoin_qr(&ctx, ChatId::new(arg1.parse().unwrap_or_default())).await
             {
@@ -400,7 +398,7 @@ async fn handle_cmd(
             }
         }
         "joinqr" => {
-            ctx.run().await;
+            ctx.start_io().await;
             if !arg0.is_empty() {
                 dc_join_securejoin(&ctx, arg1).await;
             }

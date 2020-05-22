@@ -39,11 +39,9 @@ async fn main() {
     println!("info: {:#?}", info);
 
     let events = ctx.get_event_emitter();
-    async_std::task::spawn(async move {
-        loop {
-            if let Some(event) = events.recv().await {
-                cb(event);
-            }
+    let events_spawn = async_std::task::spawn(async move {
+        while let Some(event) = events.recv().await {
+            cb(event);
         }
     });
 
@@ -62,7 +60,7 @@ async fn main() {
     ctx.configure().await.unwrap();
 
     println!("------ RUN ------");
-    ctx.clone().run().await;
+    ctx.clone().start_io().await;
     println!("--- SENDING A MESSAGE ---");
 
     let contact_id = Contact::create(&ctx, "dignifiedquire", "dignifiedquire@gmail.com")
@@ -89,6 +87,7 @@ async fn main() {
     async_std::task::sleep(duration).await;
 
     println!("stopping");
-    ctx.stop().await;
+    ctx.stop_io().await;
     println!("closing");
+    events_spawn.await;
 }

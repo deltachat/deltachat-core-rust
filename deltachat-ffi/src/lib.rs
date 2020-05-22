@@ -487,9 +487,8 @@ pub unsafe extern "C" fn dc_start_io(context: *mut dc_context_t) {
     }
     let ffi_context = &*context;
 
-    with_inner_async!(ffi_context, ctx, { ctx.run() }).unwrap_or(())
+    with_inner_async!(ffi_context, ctx, { ctx.start_io() }).unwrap_or(())
 }
-
 #[no_mangle]
 pub unsafe extern "C" fn dc_is_io_running(context: *mut dc_context_t) -> libc::c_int {
     if context.is_null() {
@@ -497,7 +496,7 @@ pub unsafe extern "C" fn dc_is_io_running(context: *mut dc_context_t) -> libc::c
     }
     let ffi_context = &*context;
 
-    with_inner_async!(ffi_context, ctx, { ctx.is_running() }).unwrap_or_default() as libc::c_int
+    with_inner_async!(ffi_context, ctx, { ctx.is_io_running() }).unwrap_or_default() as libc::c_int
 }
 
 #[no_mangle]
@@ -698,7 +697,7 @@ pub unsafe extern "C" fn dc_stop_io(context: *mut dc_context_t) {
     let ffi_context = &*context;
 
     with_inner_async!(ffi_context, ctx, async move {
-        ctx.stop().await;
+        ctx.stop_io().await;
     })
     .unwrap_or(())
 }

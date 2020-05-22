@@ -135,21 +135,24 @@ impl Context {
         Ok(ctx)
     }
 
-    pub async fn run(&self) {
-        assert!(!self.is_running().await, "context is already running");
+    /// Starts the IO scheduler.
+    pub async fn start_io(&self) {
+        info!(self, "starting IO");
+        assert!(!self.is_io_running().await, "context is already running");
 
         let l = &mut *self.inner.scheduler.write().await;
-        l.run(self.clone()).await;
+        l.start(self.clone()).await;
     }
 
-    pub async fn is_running(&self) -> bool {
-        self.inner.is_running().await
+    /// Returns if the IO scheduler is running.
+    pub async fn is_io_running(&self) -> bool {
+        self.inner.is_io_running().await
     }
 
-    pub async fn stop(&self) {
-        info!(self, "stopping context");
-        self.inner.stop().await;
-        info!(self, "stopped context");
+    /// Stops the IO scheduler.
+    pub async fn stop_io(&self) {
+        info!(self, "stopping IO");
+        self.inner.stop_io().await;
     }
 
     /// Returns a reference to the underlying SQL instance.
@@ -491,12 +494,12 @@ impl Context {
 }
 
 impl InnerContext {
-    async fn is_running(&self) -> bool {
+    async fn is_io_running(&self) -> bool {
         self.scheduler.read().await.is_running()
     }
 
-    async fn stop(&self) {
-        assert!(self.is_running().await, "context is already stopped");
+    async fn stop_io(&self) {
+        assert!(self.is_io_running().await, "context is already stopped");
         let token = {
             let lock = &*self.scheduler.read().await;
             lock.pre_stop().await
