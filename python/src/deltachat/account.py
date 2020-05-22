@@ -636,6 +636,7 @@ class Account(object):
         self._shutdown_event.set()
         hook = hookspec.Global._get_plugin_manager().hook
         hook.dc_account_after_shutdown(account=self, dc_context=dc_context)
+        self.log("shutdown finished")
 
 
 def _destroy_dc_context(dc_context, dc_context_unref=lib.dc_context_unref):

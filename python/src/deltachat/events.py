@@ -147,6 +147,10 @@ class EventThread(threading.Thread):
         self._thread_quitflag = True
 
         if wait:
+            if self == threading.current_thread():
+                # we are in the callback thread and thus cannot
+                # wait for the thread-loop to finish.
+                return
             self.join()
 
     def run(self):

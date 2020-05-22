@@ -3,7 +3,7 @@ import pytest
 import py
 import echo_and_quit
 import group_tracking
-from deltachat.eventlogger import FFIEventLogger
+from deltachat.events import FFIEventLogger
 
 
 @pytest.fixture(scope='session')
@@ -17,16 +17,23 @@ def datadir():
         pytest.skip('test-data directory not found')
 
 
-def test_echo_quit_plugin(acfactory):
+def test_echo_quit_plugin(acfactory, lp):
+    lp.sec("creating one echo_and_quit bot")
     botproc = acfactory.run_bot_process(echo_and_quit)
 
+    lp.sec("creating a temp account to contact the bot")
     ac1 = acfactory.get_one_online_account()
+
+    lp.sec("sending a message to the bot")
     bot_contact = ac1.create_contact(botproc.addr)
     ch1 = ac1.create_chat_by_contact(bot_contact)
     ch1.send_text("hello")
+
+    lp.sec("waiting for the bot-reply to arrive")
     reply = ac1._evtracker.wait_next_incoming_message()
     assert "hello" in reply.text
     assert reply.chat == ch1
+    lp.sec("send quit sequence")
     ch1.send_text("/quit")
     botproc.wait()
 
