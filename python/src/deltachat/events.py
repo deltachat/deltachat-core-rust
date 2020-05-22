@@ -160,8 +160,12 @@ class EventThread(threading.Thread):
             self._inner_run()
 
     def _inner_run(self):
-        while lib.dc_is_open(self._dc_context) and not self._thread_quitflag:
-            event = lib.dc_get_next_event(self._dc_context)
+        event_emitter = ffi.gc(
+            lib.dc_get_event_emitter(self._dc_context),
+            lib.dc_event_emitter_unref,
+        )
+        while 1:
+            event = lib.dc_get_next_event(event_emitter)
             if event == ffi.NULL:
                 break
             evt = lib.dc_event_get_id(event)
