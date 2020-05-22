@@ -283,7 +283,7 @@ pub(crate) async fn dc_delete_file(context: &Context, path: impl AsRef<Path>) ->
     let dpath = format!("{}", path.as_ref().to_string_lossy());
     match fs::remove_file(path_abs).await {
         Ok(_) => {
-            context.call_cb(Event::DeletedBlobFile(dpath));
+            context.emit_event(Event::DeletedBlobFile(dpath));
             true
         }
         Err(err) => {

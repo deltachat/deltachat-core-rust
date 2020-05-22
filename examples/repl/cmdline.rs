@@ -86,7 +86,7 @@ async fn reset_tables(context: &Context, bits: i32) {
         println!("(8) Rest but server config reset.");
     }
 
-    context.call_cb(Event::MsgsChanged {
+    context.emit_event(Event::MsgsChanged {
         chat_id: ChatId::new(0),
         msg_id: MsgId::new(0),
     });
@@ -157,7 +157,7 @@ async fn poke_spec(context: &Context, spec: Option<&str>) -> bool {
     }
     println!("Import: {} items read from \"{}\".", read_cnt, &real_spec);
     if read_cnt > 0 {
-        context.call_cb(Event::MsgsChanged {
+        context.emit_event(Event::MsgsChanged {
             chat_id: ChatId::new(0),
             msg_id: MsgId::new(0),
         });
@@ -1030,7 +1030,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         //     ensure!(!arg1.is_empty(), "Argument <id> missing.");
         //     let event = arg1.parse()?;
         //     let event = Event::from_u32(event).ok_or(format_err!("Event::from_u32({})", event))?;
-        //     let r = context.call_cb(event, 0 as libc::uintptr_t, 0 as libc::uintptr_t);
+        //     let r = context.emit_event(event, 0 as libc::uintptr_t, 0 as libc::uintptr_t);
         //     println!(
         //         "Sending event {:?}({}), received value {}.",
         //         event, event as usize, r as libc::c_int,

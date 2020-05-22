@@ -134,7 +134,6 @@ class EventThread(threading.Thread):
     def __init__(self, account):
         self.account = account
         self._dc_context = account._dc_context
-        self._thread_quitflag = False
         super(EventThread, self).__init__(name="events")
         self.start()
 
@@ -144,15 +143,12 @@ class EventThread(threading.Thread):
         yield
         self.account.log(message + " FINISHED")
 
-    def stop(self, wait=False):
-        self._thread_quitflag = True
-
-        if wait:
-            if self == threading.current_thread():
-                # we are in the callback thread and thus cannot
-                # wait for the thread-loop to finish.
-                return
-            self.join()
+    def wait(self):
+        if self == threading.current_thread():
+            # we are in the callback thread and thus cannot
+            # wait for the thread-loop to finish.
+            return
+        self.join()
 
     def run(self):
         """ get and run events until shutdown. """
@@ -160,8 +156,12 @@ class EventThread(threading.Thread):
             self._inner_run()
 
     def _inner_run(self):
-        while lib.dc_is_open(self._dc_context) and not self._thread_quitflag:
-            event = lib.dc_get_next_event(self._dc_context)
+        event_emitter = ffi.gc(
+            lib.dc_get_event_emitter(self._dc_context),
+            lib.dc_event_emitter_unref,
+        )
+        while 1:
+            event = lib.dc_get_next_event(event_emitter)
             if event == ffi.NULL:
                 break
             evt = lib.dc_event_get_id(event)
@@ -180,14 +180,7 @@ class EventThread(threading.Thread):
             for name, kwargs in self._map_ffi_event(ffi_event):
                 # self.account.log("calling hook name={} kwargs={}".format(name, kwargs))
                 hook = getattr(self.account._pm.hook, name)
-                try:
-                    hook(**kwargs)
-                except Exception:
-                    # don't bother logging this error
-                    # if dc_close() was concurrently called
-                    # (note: core API starts failing after that)
-                    if not self._thread_quitflag:
-                        raise
+                hook(**kwargs)
 
     def _map_ffi_event(self, ffi_event):
         name = ffi_event.name

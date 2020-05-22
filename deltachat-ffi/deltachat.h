@@ -20,6 +20,7 @@ typedef struct _dc_contact  dc_contact_t;
 typedef struct _dc_lot      dc_lot_t;
 typedef struct _dc_provider dc_provider_t;
 typedef struct _dc_event    dc_event_t;
+  typedef struct _dc_event_emitter dc_event_emitter_t;
 
 
 /**
@@ -193,7 +194,10 @@ typedef struct _dc_event    dc_event_t;
 /**
  * TODO: document
  */  
-dc_event_t*   dc_get_next_event(dc_context_t* context);
+dc_event_t*   dc_get_next_event(dc_event_emitter_t* emitter);
+
+dc_event_emitter_t* dc_get_event_emitter(dc_context_t* context);
+void  dc_event_emitter_unref(dc_event_emitter_t* emitter);
 
 int           dc_event_get_id   (dc_event_t* event);
 int           dc_event_get_data1_int(dc_event_t* event);

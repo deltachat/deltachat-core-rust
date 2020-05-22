@@ -1030,7 +1030,7 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) {
     }
 
     if !msg_ids.is_empty() {
-        context.call_cb(Event::MsgsChanged {
+        context.emit_event(Event::MsgsChanged {
             chat_id: ChatId::new(0),
             msg_id: MsgId::new(0),
         });
@@ -1112,7 +1112,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
     }
 
     if send_event {
-        context.call_cb(Event::MsgsChanged {
+        context.emit_event(Event::MsgsChanged {
             chat_id: ChatId::new(0),
             msg_id: MsgId::new(0),
         });
@@ -1270,7 +1270,7 @@ pub async fn set_msg_failed(context: &Context, msg_id: MsgId, error: Option<impl
             .await
             .is_ok()
         {
-            context.call_cb(Event::MsgFailed {
+            context.emit_event(Event::MsgFailed {
                 chat_id: msg.chat_id,
                 msg_id,
             });

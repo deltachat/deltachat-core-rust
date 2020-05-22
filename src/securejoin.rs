@@ -32,7 +32,7 @@ macro_rules! joiner_progress {
             $progress >= 0 && $progress <= 1000,
             "value in range 0..1000 expected with: 0=error, 1..999=progress, 1000=success"
         );
-        $context.call_cb($crate::events::Event::SecurejoinJoinerProgress {
+        $context.emit_event($crate::events::Event::SecurejoinJoinerProgress {
             contact_id: $contact_id,
             progress: $progress,
         });
@@ -45,7 +45,7 @@ macro_rules! inviter_progress {
             $progress >= 0 && $progress <= 1000,
             "value in range 0..1000 expected with: 0=error, 1..999=progress, 1000=success"
         );
-        $context.call_cb($crate::events::Event::SecurejoinInviterProgress {
+        $context.emit_event($crate::events::Event::SecurejoinInviterProgress {
             contact_id: $contact_id,
             progress: $progress,
         });

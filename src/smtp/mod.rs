@@ -98,7 +98,7 @@ impl Smtp {
         }
 
         if lp.send_server.is_empty() || lp.send_port == 0 {
-            context.call_cb(Event::ErrorNetwork("SMTP bad parameters.".into()));
+            context.emit_event(Event::ErrorNetwork("SMTP bad parameters.".into()));
             return Err(Error::BadParameters);
         }
 
@@ -183,7 +183,7 @@ impl Smtp {
         self.transport = Some(trans);
         self.last_success = Some(Instant::now());
 
-        context.call_cb(Event::SmtpConnected(format!(
+        context.emit_event(Event::SmtpConnected(format!(
             "SMTP-LOGIN as {} ok",
             lp.send_user,
         )));

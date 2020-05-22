@@ -28,7 +28,7 @@ macro_rules! progress {
             $progress <= 1000,
             "value in range 0..1000 expected with: 0=error, 1..999=progress, 1000=success"
         );
-        $context.call_cb($crate::events::Event::ConfigureProgress($progress));
+        $context.emit_event($crate::events::Event::ConfigureProgress($progress));
     };
 }
 

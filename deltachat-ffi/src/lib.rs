@@ -91,7 +91,7 @@ impl ContextWrapper {
     /// logfile rather than being shown directly to the user.
     unsafe fn warning(&self, msg: &str) {
         self.with_inner(|ctx| {
-            ctx.call_cb(Event::Warning(msg.to_string()));
+            ctx.emit_event(Event::Warning(msg.to_string()));
         })
         .unwrap();
     }
@@ -650,18 +650,43 @@ pub unsafe extern "C" fn dc_event_get_data3_str(event: *mut dc_event_t) -> *mut 
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_get_next_event(context: *mut dc_context_t) -> *mut dc_event_t {
+pub type dc_event_emitter_t = EventEmitter;
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_event_emitter(
+    context: *mut dc_context_t,
+) -> *mut dc_event_emitter_t {
     if context.is_null() {
+        eprintln!("ignoring careless call to dc_get_event_emitter()");
         return ptr::null_mut();
     }
     let ffi_context = &*context;
-
     ffi_context
-        .with_inner(|ctx| match ctx.get_next_event() {
-            Ok(ev) => Box::into_raw(Box::new(ev)),
-            Err(_) => ptr::null_mut(),
-        })
+        .with_inner(|ctx| Box::into_raw(Box::new(ctx.get_event_emitter())))
         .unwrap_or_else(|_| ptr::null_mut())
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_event_emitter_unref(emitter: *mut dc_event_emitter_t) {
+    if emitter.is_null() {
+        eprintln!("ignoring careless call to dc_event_mitter_unref()");
+        return;
+    }
+
+    Box::from_raw(emitter);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_next_event(events: *mut dc_event_emitter_t) -> *mut dc_event_t {
+    if events.is_null() {
+        return ptr::null_mut();
+    }
+    let events = &*events;
+
+    events
+        .recv_sync()
+        .map(|ev| Box::into_raw(Box::new(ev)))
+        .unwrap_or_else(|| ptr::null_mut())
 }
 
 #[no_mangle]

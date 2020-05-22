@@ -174,7 +174,7 @@ impl ChatId {
             )
             .await?;
 
-        context.call_cb(Event::MsgsChanged {
+        context.emit_event(Event::MsgsChanged {
             msg_id: MsgId::new(0),
             chat_id: ChatId::new(0),
         });
@@ -231,7 +231,7 @@ impl ChatId {
             .execute("DELETE FROM chats WHERE id=?;", paramsv![self])
             .await?;
 
-        context.call_cb(Event::MsgsChanged {
+        context.emit_event(Event::MsgsChanged {
             msg_id: MsgId::new(0),
             chat_id: ChatId::new(0),
         });
@@ -256,7 +256,7 @@ impl ChatId {
         };
 
         if changed {
-            context.call_cb(Event::MsgsChanged {
+            context.emit_event(Event::MsgsChanged {
                 chat_id: self,
                 msg_id: MsgId::new(0),
             });
@@ -1098,7 +1098,7 @@ pub async fn create_by_msg_id(context: &Context, msg_id: MsgId) -> Result<ChatId
         chat.id.unblock(context).await;
 
         // Sending with 0s as data since multiple messages may have changed.
-        context.call_cb(Event::MsgsChanged {
+        context.emit_event(Event::MsgsChanged {
             chat_id: ChatId::new(0),
             msg_id: MsgId::new(0),
         });
@@ -1140,7 +1140,7 @@ pub async fn create_by_contact_id(context: &Context, contact_id: u32) -> Result<
         }
     };
 
-    context.call_cb(Event::MsgsChanged {
+    context.emit_event(Event::MsgsChanged {
         chat_id: ChatId::new(0),
         msg_id: MsgId::new(0),
     });
@@ -1307,7 +1307,7 @@ pub async fn prepare_msg(
 
     msg.state = MessageState::OutPreparing;
     let msg_id = prepare_msg_common(context, chat_id, msg).await?;
-    context.call_cb(Event::MsgsChanged {
+    context.emit_event(Event::MsgsChanged {
         chat_id: msg.chat_id,
         msg_id: msg.id,
     });
@@ -1476,13 +1476,13 @@ async fn send_msg_inner(
     }
     job::send_msg(context, msg.id).await?;
 
-    context.call_cb(Event::MsgsChanged {
+    context.emit_event(Event::MsgsChanged {
         chat_id: msg.chat_id,
         msg_id: msg.id,
     });
 
     if msg.param.exists(Param::SetLatitude) {
-        context.call_cb(Event::LocationChanged(Some(DC_CONTACT_ID_SELF)));
+        context.emit_event(Event::LocationChanged(Some(DC_CONTACT_ID_SELF)));
     }
 
     Ok(msg.id)
@@ -1514,7 +1514,7 @@ pub async fn get_chat_msgs(
         Err(err) => warn!(context, "Failed to delete expired messages: {}", err),
         Ok(messages_deleted) => {
             if messages_deleted {
-                context.call_cb(Event::MsgsChanged {
+                context.emit_event(Event::MsgsChanged {
                     msg_id: MsgId::new(0),
                     chat_id: ChatId::new(0),
                 })
@@ -1635,7 +1635,7 @@ pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<(), 
         )
         .await?;
 
-    context.call_cb(Event::MsgsChanged {
+    context.emit_event(Event::MsgsChanged {
         chat_id: ChatId::new(0),
         msg_id: MsgId::new(0),
     });
@@ -1667,7 +1667,7 @@ pub async fn marknoticed_all_chats(context: &Context) -> Result<(), Error> {
         )
         .await?;
 
-    context.call_cb(Event::MsgsChanged {
+    context.emit_event(Event::MsgsChanged {
         msg_id: MsgId::new(0),
         chat_id: ChatId::new(0),
     });
@@ -1884,7 +1884,7 @@ pub async fn create_group_chat(
             chat_id.set_draft_raw(context, &mut draft_msg).await;
         }
 
-        context.call_cb(Event::MsgsChanged {
+        context.emit_event(Event::MsgsChanged {
             msg_id: MsgId::new(0),
             chat_id: ChatId::new(0),
         });
@@ -2043,7 +2043,7 @@ pub(crate) async fn add_contact_to_chat_ex(
         msg.param.set_int(Param::Arg2, from_handshake.into());
         msg.id = send_msg(context, chat_id, &mut msg).await?;
     }
-    context.call_cb(Event::ChatModified(chat_id));
+    context.emit_event(Event::ChatModified(chat_id));
     Ok(true)
 }
 
@@ -2205,7 +2205,7 @@ pub async fn set_muted(
         .await
         .is_ok()
     {
-        context.call_cb(Event::ChatModified(chat_id));
+        context.emit_event(Event::ChatModified(chat_id));
     } else {
         bail!("Failed to set mute duration, chat might not exist -");
     }
@@ -2285,7 +2285,7 @@ pub async fn remove_contact_from_chat(
                 // removed it first, it would complicate the
                 // check/encryption logic.
                 success = remove_from_chat_contacts_table(context, chat_id, contact_id).await;
-                context.call_cb(Event::ChatModified(chat_id));
+                context.emit_event(Event::ChatModified(chat_id));
             }
         }
     }
@@ -2375,12 +2375,12 @@ pub async fn set_chat_name(
                         msg.param.set(Param::Arg, &chat.name);
                     }
                     msg.id = send_msg(context, chat_id, &mut msg).await?;
-                    context.call_cb(Event::MsgsChanged {
+                    context.emit_event(Event::MsgsChanged {
                         chat_id,
                         msg_id: msg.id,
                     });
                 }
-                context.call_cb(Event::ChatModified(chat_id));
+                context.emit_event(Event::ChatModified(chat_id));
                 success = true;
             }
         }
@@ -2540,7 +2540,7 @@ pub async fn forward_msgs(
         }
     }
     for (chat_id, msg_id) in created_chats.iter().zip(created_msgs.iter()) {
-        context.call_cb(Event::MsgsChanged {
+        context.emit_event(Event::MsgsChanged {
             chat_id: *chat_id,
             msg_id: *msg_id,
         });
@@ -2663,7 +2663,7 @@ pub async fn add_device_msg(
     }
 
     if !msg_id.is_unset() {
-        context.call_cb(Event::IncomingMsg { chat_id, msg_id });
+        context.emit_event(Event::IncomingMsg { chat_id, msg_id });
     }
 
     Ok(msg_id)
@@ -2733,7 +2733,7 @@ pub(crate) async fn add_info_msg(context: &Context, chat_id: ChatId, text: impl 
         .get_rowid(context, "msgs", "rfc724_mid", &rfc724_mid)
         .await
         .unwrap_or_default();
-    context.call_cb(Event::MsgsChanged {
+    context.emit_event(Event::MsgsChanged {
         chat_id,
         msg_id: MsgId::new(row_id),
     });

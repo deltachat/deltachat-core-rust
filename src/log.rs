@@ -44,6 +44,6 @@ macro_rules! error {
 #[macro_export]
 macro_rules! emit_event {
     ($ctx:expr, $event:expr) => {
-        $ctx.call_cb($event);
+        $ctx.emit_event($event);
     };
 }

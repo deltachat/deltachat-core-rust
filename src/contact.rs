@@ -241,7 +241,7 @@ impl Contact {
         let (contact_id, sth_modified) =
             Contact::add_or_lookup(context, name, addr, Origin::ManuallyCreated).await?;
         let blocked = Contact::is_blocked_load(context, contact_id).await;
-        context.call_cb(Event::ContactsChanged(
+        context.emit_event(Event::ContactsChanged(
             if sth_modified == Modifier::Created {
                 Some(contact_id)
             } else {
@@ -269,7 +269,7 @@ impl Contact {
             .await
             .is_ok()
         {
-            context.call_cb(Event::MsgsChanged {
+            context.emit_event(Event::MsgsChanged {
                 chat_id: ChatId::new(0),
                 msg_id: MsgId::new(0),
             });
@@ -528,7 +528,7 @@ impl Contact {
             }
         }
         if modify_cnt > 0 {
-            context.call_cb(Event::ContactsChanged(None));
+            context.emit_event(Event::ContactsChanged(None));
         }
 
         Ok(modify_cnt)
@@ -777,7 +777,7 @@ impl Contact {
                 .await
             {
                 Ok(_) => {
-                    context.call_cb(Event::ContactsChanged(None));
+                    context.emit_event(Event::ContactsChanged(None));
                     return Ok(());
                 }
                 Err(err) => {
@@ -1054,7 +1054,7 @@ async fn set_block_contact(context: &Context, contact_id: u32, new_blocking: boo
                     paramsv![new_blocking, 100, contact_id as i32],
                 ).await.is_ok() {
                     Contact::mark_noticed(context, contact_id).await;
-                    context.call_cb(Event::ContactsChanged(None));
+                    context.emit_event(Event::ContactsChanged(None));
                 }
         }
     }
@@ -1080,7 +1080,7 @@ pub(crate) async fn set_profile_image(
     };
     if changed {
         contact.update_param(context).await?;
-        context.call_cb(Event::ContactsChanged(Some(contact_id)));
+        context.emit_event(Event::ContactsChanged(Some(contact_id)));
     }
     Ok(())
 }

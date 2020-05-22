@@ -691,7 +691,7 @@ async fn set_delivered(context: &Context, msg_id: MsgId) {
         )
         .await
         .unwrap_or_default();
-    context.call_cb(Event::MsgDelivered { chat_id, msg_id });
+    context.emit_event(Event::MsgDelivered { chat_id, msg_id });
 }
 
 // special case for DC_JOB_SEND_MSG_TO_SMTP

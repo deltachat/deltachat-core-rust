@@ -225,7 +225,7 @@ impl Context {
             Config::DeleteDeviceAfter => {
                 let ret = self.sql.set_raw_config(self, key, value).await;
                 // Force chatlist reload to delete old messages immediately.
-                self.call_cb(Event::MsgsChanged {
+                self.emit_event(Event::MsgsChanged {
                     msg_id: MsgId::new(0),
                     chat_id: ChatId::new(0),
                 });

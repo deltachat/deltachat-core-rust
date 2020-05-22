@@ -49,7 +49,7 @@ impl Smtp {
         if let Some(ref mut transport) = self.transport {
             transport.send(mail).await.map_err(Error::SendError)?;
 
-            context.call_cb(Event::SmtpMessageSent(format!(
+            context.emit_event(Event::SmtpMessageSent(format!(
                 "Message len={} was smtp-sent to {}",
                 message_len, recipients_display
             )));

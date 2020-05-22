@@ -38,10 +38,10 @@ async fn main() {
     let duration = time::Duration::from_millis(4000);
     println!("info: {:#?}", info);
 
-    let ctx1 = ctx.clone();
+    let events = ctx.get_event_emitter();
     async_std::task::spawn(async move {
         loop {
-            if let Ok(event) = ctx1.get_next_event() {
+            if let Some(event) = events.recv().await {
                 cb(event);
             }
         }
