@@ -2,7 +2,6 @@
 
 use lazy_static::lazy_static;
 use percent_encoding::percent_decode_str;
-use reqwest::Url;
 use serde::Deserialize;
 
 use crate::chat;
@@ -193,7 +192,7 @@ fn decode_account(_context: &Context, qr: &str) -> Lot {
 
     let mut lot = Lot::new();
 
-    if let Ok(url) = Url::parse(payload) {
+    if let Ok(url) = url::Url::parse(payload) {
         if url.scheme() == "https" {
             lot.state = LotState::QrAccount;
             lot.text1 = url.host_str().map(|x| x.to_string());
@@ -221,25 +220,12 @@ struct CreateAccountResponse {
 pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<(), Error> {
     let url_str = &qr[DCACCOUNT_SCHEME.len()..];
 
-    let response = reqwest::blocking::Client::new().post(url_str).send();
+    let response: Result<CreateAccountResponse, surf::Error> =
+        surf::post(url_str).recv_json().await;
     if response.is_err() {
         bail!("Cannot create account, request to {} failed", url_str);
     }
-    let response = response.unwrap();
-    if !response.status().is_success() {
-        bail!("Request to {} unsuccessful: {:?}", url_str, response);
-    }
-
-    let parsed: reqwest::Result<CreateAccountResponse> = response.json();
-    if parsed.is_err() {
-        bail!(
-            "Failed to parse JSON response from {}: error: {:?}",
-            url_str,
-            parsed
-        );
-    }
-    println!("response: {:?}", &parsed);
-    let parsed = parsed.unwrap();
+    let parsed = response.unwrap();
 
     context
         .set_config(Config::Addr, Some(&parsed.email))

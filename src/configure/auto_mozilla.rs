@@ -94,12 +94,12 @@ fn parse_xml(in_emailaddr: &str, xml_raw: &str) -> Result<LoginParam, Error> {
     }
 }
 
-pub fn moz_autoconfigure(
+pub async fn moz_autoconfigure(
     context: &Context,
     url: &str,
     param_in: &LoginParam,
 ) -> Result<LoginParam, Error> {
-    let xml_raw = read_url(context, url)?;
+    let xml_raw = read_url(context, url).await?;
 
     let res = parse_xml(&param_in.addr, &xml_raw);
     if let Err(err) = &res {

@@ -341,12 +341,10 @@ impl Scheduler {
         // wait for all loops to be started
         inbox_start_recv
             .recv()
-            .try_join(mvbox_start_recv.recv())
-            .try_join(sentbox_start_recv.recv())
-            .try_join(smtp_start_recv.recv())
-            .await
-            .map(|_| ())
-            .unwrap_or_else(|err| error!(ctx, "failed to start scheduler: {}", err));
+            .join(mvbox_start_recv.recv())
+            .join(sentbox_start_recv.recv())
+            .join(smtp_start_recv.recv())
+            .await;
 
         info!(ctx, "scheduler is running");
     }
@@ -384,36 +382,28 @@ impl Scheduler {
 
     async fn interrupt_inbox(&self) {
         match self {
-            Scheduler::Running { ref inbox, .. } => {
-                inbox.interrupt().await.ok();
-            }
+            Scheduler::Running { ref inbox, .. } => inbox.interrupt().await,
             _ => {}
         }
     }
 
     async fn interrupt_mvbox(&self) {
         match self {
-            Scheduler::Running { ref mvbox, .. } => {
-                mvbox.interrupt().await.ok();
-            }
+            Scheduler::Running { ref mvbox, .. } => mvbox.interrupt().await,
             _ => {}
         }
     }
 
     async fn interrupt_sentbox(&self) {
         match self {
-            Scheduler::Running { ref sentbox, .. } => {
-                sentbox.interrupt().await.ok();
-            }
+            Scheduler::Running { ref sentbox, .. } => sentbox.interrupt().await,
             _ => {}
         }
     }
 
     async fn interrupt_smtp(&self) {
         match self {
-            Scheduler::Running { ref smtp, .. } => {
-                smtp.interrupt().await.ok();
-            }
+            Scheduler::Running { ref smtp, .. } => smtp.interrupt().await,
             _ => {}
         }
     }
@@ -492,12 +482,14 @@ impl ConnectionState {
         // Trigger shutdown of the run loop.
         self.stop_sender.send(()).await;
         // Wait for a notification that the run loop has been shutdown.
-        self.shutdown_receiver.recv().await.ok();
+        self.shutdown_receiver.recv().await;
     }
 
-    async fn interrupt(&self) -> Result<(), async_std::sync::TrySendError<()>> {
-        // Use try_send to avoid blocking on interrupts.
-        self.idle_interrupt_sender.try_send(())
+    async fn interrupt(&self) {
+        if !self.idle_interrupt_sender.is_full() {
+            // Use try_send to avoid blocking on interrupts.
+            self.idle_interrupt_sender.send(()).await;
+        }
     }
 }
 
@@ -531,8 +523,8 @@ impl SmtpConnectionState {
     }
 
     /// Interrupt any form of idle.
-    async fn interrupt(&self) -> Result<(), async_std::sync::TrySendError<()>> {
-        self.state.interrupt().await
+    async fn interrupt(&self) {
+        self.state.interrupt().await;
     }
 
     /// Shutdown this connection completely.
@@ -579,8 +571,8 @@ impl ImapConnectionState {
     }
 
     /// Interrupt any form of idle.
-    async fn interrupt(&self) -> Result<(), async_std::sync::TrySendError<()>> {
-        self.state.interrupt().await
+    async fn interrupt(&self) {
+        self.state.interrupt().await;
     }
 
     /// Shutdown this connection completely.

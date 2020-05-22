@@ -248,7 +248,7 @@ async fn exec_step(
                     "https://autoconfig.{}/mail/config-v1.1.xml?emailaddress={}",
                     param_domain, param_addr_urlencoded
                 );
-                *param_autoconfig = moz_autoconfigure(ctx, &url, &param).ok();
+                *param_autoconfig = moz_autoconfigure(ctx, &url, &param).await.ok();
             }
         }
         6 => {
@@ -259,7 +259,7 @@ async fn exec_step(
                     "https://{}/.well-known/autoconfig/mail/config-v1.1.xml?emailaddress={}",
                     param_domain, param_addr_urlencoded
                 );
-                *param_autoconfig = moz_autoconfigure(ctx, &url, &param).ok();
+                *param_autoconfig = moz_autoconfigure(ctx, &url, &param).await.ok();
             }
         }
         /* Outlook section start ------------- */
@@ -268,7 +268,7 @@ async fn exec_step(
             progress!(ctx, 310);
             if param_autoconfig.is_none() {
                 let url = format!("https://{}/autodiscover/autodiscover.xml", param_domain);
-                *param_autoconfig = outlk_autodiscover(ctx, &url, &param).ok();
+                *param_autoconfig = outlk_autodiscover(ctx, &url, &param).await.ok();
             }
         }
         8 => {
@@ -278,7 +278,7 @@ async fn exec_step(
                     "https://{}{}/autodiscover/autodiscover.xml",
                     "autodiscover.", param_domain
                 );
-                *param_autoconfig = outlk_autodiscover(ctx, &url, &param).ok();
+                *param_autoconfig = outlk_autodiscover(ctx, &url, &param).await.ok();
             }
         }
         /* ----------- Outlook section end */
@@ -289,7 +289,7 @@ async fn exec_step(
                     "http://autoconfig.{}/mail/config-v1.1.xml?emailaddress={}",
                     param_domain, param_addr_urlencoded
                 );
-                *param_autoconfig = moz_autoconfigure(ctx, &url, &param).ok();
+                *param_autoconfig = moz_autoconfigure(ctx, &url, &param).await.ok();
             }
         }
         10 => {
@@ -300,7 +300,7 @@ async fn exec_step(
                     "http://{}/.well-known/autoconfig/mail/config-v1.1.xml",
                     param_domain
                 );
-                *param_autoconfig = moz_autoconfigure(ctx, &url, &param).ok();
+                *param_autoconfig = moz_autoconfigure(ctx, &url, &param).await.ok();
             }
         }
         /* B.  If we have no configuration yet, search configuration in Thunderbird's centeral database */
@@ -309,7 +309,7 @@ async fn exec_step(
             if param_autoconfig.is_none() {
                 /* always SSL for Thunderbird's database */
                 let url = format!("https://autoconfig.thunderbird.net/v1.1/{}", param_domain);
-                *param_autoconfig = moz_autoconfigure(ctx, &url, &param).ok();
+                *param_autoconfig = moz_autoconfigure(ctx, &url, &param).await.ok();
             }
         }
         /* C.  Do we have any autoconfig result?

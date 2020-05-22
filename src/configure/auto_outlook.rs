@@ -112,7 +112,7 @@ fn parse_xml(xml_raw: &str) -> Result<ParsingResult, Error> {
     Ok(res)
 }
 
-pub fn outlk_autodiscover(
+pub async fn outlk_autodiscover(
     context: &Context,
     url: &str,
     _param_in: &LoginParam,
@@ -120,7 +120,7 @@ pub fn outlk_autodiscover(
     let mut url = url.to_string();
     /* Follow up to 10 xml-redirects (http-redirects are followed in read_url() */
     for _i in 0..10 {
-        let xml_raw = read_url(context, &url)?;
+        let xml_raw = read_url(context, &url).await?;
         let res = parse_xml(&xml_raw);
         if let Err(err) = &res {
             warn!(context, "{}", err);

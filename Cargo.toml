@@ -17,15 +17,15 @@ hex = "0.4.0"
 sha2 = "0.8.0"
 rand = "0.7.0"
 smallvec = "1.0.0"
-reqwest = { version = "0.10.0", features = ["blocking", "json"] }
+surf = { version = "2.0.0-alpha.2", default-features = false, features = ["h1-client"] }
 num-derive = "0.3.0"
 num-traits = "0.2.6"
-async-smtp = { git = "https://github.com/async-email/async-smtp", version = "0.3" }
+async-smtp = { version = "0.3" }
 email = { git = "https://github.com/deltachat/rust-email", branch = "master" }
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
-async-imap = { git = "https://github.com/async-email/async-imap" }
-async-native-tls = { git = "https://github.com/async-email/async-native-tls", version = "0.3.1" }
-async-std = { version = "1.6.0-beta.2", features = ["unstable"] }
+async-imap = { git = "https://github.com/async-email/async-imap", rev = "1e8fdd86dbc99b6d92ab4667b426092060fe8b16" }
+async-native-tls = { version = "0.3.1" }
+async-std = { version = "1.5.0", features = ["unstable"] }
 base64 = "0.11"
 charset = "0.1"
 percent-encoding = "2.0"
@@ -50,7 +50,7 @@ escaper = "0.1.0"
 bitflags = "1.1.0"
 debug_stub_derive = "0.3.0"
 sanitize-filename = "0.2.1"
-stop-token = { git = "https://github.com/dignifiedquire/stop-token", version = "0.1.1", features = ["unstable"] }
+stop-token = { version = "0.1.1", features = ["unstable"] }
 mailparse = "0.12.0"
 encoded-words = { git = "https://github.com/async-email/encoded-words", branch="master" }
 native-tls = "0.2.3"
@@ -65,13 +65,14 @@ rustyline = { version = "4.1.0", optional = true }
 ansi_term = { version = "0.12.1", optional = true }
 async-trait = "0.1.31"
 crossbeam-channel = "0.4.2"
+url = "2.1.1"
 
 [dev-dependencies]
 tempfile = "3.0"
 pretty_assertions = "0.6.1"
 pretty_env_logger = "0.3.0"
 proptest = "0.9.4"
-async-std = { version = "1.6.0-beta.2", features = ["unstable", "attributes"] }
+async-std = { version = "1.5.0", features = ["unstable", "attributes"] }
 
 [workspace]
 members = [
@@ -93,5 +94,5 @@ required-features = ["repl"]
 default = ["nightly"]
 internals = []
 repl = ["internals", "rustyline", "log", "pretty_env_logger", "ansi_term"]
-vendored = ["async-native-tls/vendored", "reqwest/native-tls-vendored", "async-smtp/native-tls-vendored"]
+vendored = ["async-native-tls/vendored", "async-smtp/native-tls-vendored"]
 nightly = ["pgp/nightly"]

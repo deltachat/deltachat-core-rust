@@ -161,10 +161,7 @@ pub async fn dc_get_oauth2_access_token(
         }
 
         // ... and POST
-        let response = reqwest::blocking::Client::new()
-            .post(post_url)
-            .form(&post_param)
-            .send();
+        let response = surf::post(post_url).body_form(&post_param);
         if response.is_err() {
             warn!(
                 context,
@@ -172,19 +169,8 @@ pub async fn dc_get_oauth2_access_token(
             );
             return None;
         }
-        let response = response.unwrap();
-        if !response.status().is_success() {
-            warn!(
-                context,
-                "Unsuccessful response when calling OAuth2 at {}: {:?}",
-                token_url,
-                response.status()
-            );
-            return None;
-        }
 
-        // generate new token: parse returned json
-        let parsed: reqwest::Result<Response> = response.json();
+        let parsed: Result<Response, _> = response.unwrap().recv_json().await;
         if parsed.is_err() {
             warn!(
                 context,
@@ -192,7 +178,6 @@ pub async fn dc_get_oauth2_access_token(
             );
             return None;
         }
-        println!("response: {:?}", &parsed);
 
         // update refresh_token if given, typically on the first round, but we update it later as well.
         let response = parsed.unwrap();
@@ -260,12 +245,12 @@ pub async fn dc_get_oauth2_addr(
     if let Some(access_token) =
         dc_get_oauth2_access_token(context, addr.as_ref(), code.as_ref(), false).await
     {
-        let addr_out = oauth2.get_addr(context, access_token);
+        let addr_out = oauth2.get_addr(context, access_token).await;
         if addr_out.is_none() {
             // regenerate
             if let Some(access_token) = dc_get_oauth2_access_token(context, addr, code, true).await
             {
-                oauth2.get_addr(context, access_token)
+                oauth2.get_addr(context, access_token).await
             } else {
                 None
             }
@@ -295,7 +280,7 @@ impl Oauth2 {
         }
     }
 
-    fn get_addr(&self, context: &Context, access_token: impl AsRef<str>) -> Option<String> {
+    async fn get_addr(&self, context: &Context, access_token: impl AsRef<str>) -> Option<String> {
         let userinfo_url = self.get_userinfo.unwrap_or_else(|| "");
         let userinfo_url = replace_in_uri(&userinfo_url, "$ACCESS_TOKEN", access_token);
 
@@ -306,41 +291,25 @@ impl Oauth2 {
         //   "verified_email": true,
         //   "picture": "https://lh4.googleusercontent.com/-Gj5jh_9R0BY/AAAAAAAAAAI/AAAAAAAAAAA/IAjtjfjtjNA/photo.jpg"
         // }
-        let response = reqwest::blocking::Client::new().get(&userinfo_url).send();
+        let response: Result<HashMap<String, serde_json::Value>, surf::Error> =
+            surf::get(userinfo_url).recv_json().await;
         if response.is_err() {
             warn!(context, "Error getting userinfo: {:?}", response);
             return None;
         }
-        let response = response.unwrap();
-        if !response.status().is_success() {
-            warn!(context, "Error getting userinfo: {:?}", response.status());
-            return None;
-        }
 
-        let parsed: reqwest::Result<HashMap<String, serde_json::Value>> = response.json();
-        if parsed.is_err() {
-            warn!(
-                context,
-                "Failed to parse userinfo JSON response: {:?}", parsed
-            );
-            return None;
-        }
-        if let Ok(response) = parsed {
-            // CAVE: serde_json::Value.as_str() removes the quotes of json-strings
-            // but serde_json::Value.to_string() does not!
-            if let Some(addr) = response.get("email") {
-                if let Some(s) = addr.as_str() {
-                    Some(s.to_string())
-                } else {
-                    warn!(context, "E-mail in userinfo is not a string: {}", addr);
-                    None
-                }
+        let parsed = response.unwrap();
+        // CAVE: serde_json::Value.as_str() removes the quotes of json-strings
+        // but serde_json::Value.to_string() does not!
+        if let Some(addr) = parsed.get("email") {
+            if let Some(s) = addr.as_str() {
+                Some(s.to_string())
             } else {
-                warn!(context, "E-mail missing in userinfo.");
+                warn!(context, "E-mail in userinfo is not a string: {}", addr);
                 None
             }
         } else {
-            warn!(context, "Failed to parse userinfo.");
+            warn!(context, "E-mail missing in userinfo.");
             None
         }
     }
