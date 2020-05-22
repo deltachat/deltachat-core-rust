@@ -23,9 +23,9 @@ num-traits = "0.2.6"
 async-smtp = { version = "0.3" }
 email = { git = "https://github.com/deltachat/rust-email", branch = "master" }
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
-async-imap = { git = "https://github.com/async-email/async-imap", rev = "1e8fdd86dbc99b6d92ab4667b426092060fe8b16" }
-async-native-tls = { version = "0.3.1" }
-async-std = { version = "1.5.0", features = ["unstable"] }
+async-imap = "0.3.0"
+async-native-tls = { version = "0.3.3" }
+async-std = { version = "1.6.0", features = ["unstable"] }
 base64 = "0.11"
 charset = "0.1"
 percent-encoding = "2.0"
@@ -59,7 +59,6 @@ thiserror = "1.0.14"
 anyhow = "1.0.28"
 async-trait = "0.1.31"
 url = "2.1.1"
-crossbeam-channel = "0.4.2"
 
 pretty_env_logger = { version = "0.3.1", optional = true }
 log = {version = "0.4.8", optional = true }
@@ -72,7 +71,7 @@ tempfile = "3.0"
 pretty_assertions = "0.6.1"
 pretty_env_logger = "0.3.0"
 proptest = "0.9.4"
-async-std = { version = "1.5.0", features = ["unstable", "attributes"] }
+async-std = { version = "1.6.0", features = ["unstable", "attributes"] }
 
 [workspace]
 members = [

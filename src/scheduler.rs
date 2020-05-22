@@ -13,6 +13,7 @@ pub(crate) struct StopToken;
 
 /// Job and connection scheduler.
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum Scheduler {
     Stopped,
     Running {
@@ -339,12 +340,15 @@ impl Scheduler {
         }
 
         // wait for all loops to be started
-        inbox_start_recv
+        if let Err(err) = inbox_start_recv
             .recv()
-            .join(mvbox_start_recv.recv())
-            .join(sentbox_start_recv.recv())
-            .join(smtp_start_recv.recv())
-            .await;
+            .try_join(mvbox_start_recv.recv())
+            .try_join(sentbox_start_recv.recv())
+            .try_join(smtp_start_recv.recv())
+            .await
+        {
+            error!(ctx, "failed to start scheduler: {}", err);
+        }
 
         info!(ctx, "scheduler is running");
     }
@@ -478,7 +482,7 @@ impl ConnectionState {
         // Trigger shutdown of the run loop.
         self.stop_sender.send(()).await;
         // Wait for a notification that the run loop has been shutdown.
-        self.shutdown_receiver.recv().await;
+        self.shutdown_receiver.recv().await.ok();
     }
 
     async fn interrupt(&self) {

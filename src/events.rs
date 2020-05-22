@@ -1,8 +1,7 @@
 //! # Events specification
 
 use async_std::path::PathBuf;
-use crossbeam_channel::{bounded as channel, Receiver, Sender, TrySendError};
-
+use async_std::sync::{channel, Receiver, Sender, TrySendError};
 use strum::EnumProperty;
 
 use crate::chat::ChatId;
@@ -51,13 +50,13 @@ pub struct EventEmitter(Receiver<Event>);
 impl EventEmitter {
     /// Blocking recv of an event. Return `None` if the `Sender` has been droped.
     pub fn recv_sync(&self) -> Option<Event> {
-        self.0.recv().ok()
+        async_std::task::block_on(self.recv())
     }
 
     /// Blocking async recv of an event. Return `None` if the `Sender` has been droped.
     pub async fn recv(&self) -> Option<Event> {
         // TODO: change once we can use async channels internally.
-        self.0.recv().ok()
+        self.0.recv().await.ok()
     }
 }
 
