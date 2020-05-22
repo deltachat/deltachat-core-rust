@@ -562,9 +562,6 @@ class TestOnlineAccount:
         assert msg3_in.text == "message3"
         assert msg3_in.is_encrypted()
 
-        ac1.shutdown()
-        ac2.shutdown()
-
     def test_configure_canceled(self, acfactory):
         ac1 = acfactory.get_online_configuring_account()
         ac1._configtracker.wait_progress()
@@ -584,9 +581,6 @@ class TestOnlineAccount:
             assert x.startswith(dir.strpath)
         ac1._evtracker.consume_events()
         ac2.import_self_keys(dir.strpath)
-
-        ac1.shutdown()
-        ac2.shutdown()
 
     def test_one_account_send_bcc_setting(self, acfactory, lp):
         ac1 = acfactory.get_online_configuring_account()
@@ -641,10 +635,6 @@ class TestOnlineAccount:
         ev_msg = ac1_clone._evtracker.wait_next_messages_changed()
         assert ev_msg.text == msg_out.text
 
-        ac1.shutdown()
-        ac2.shutdown()
-        ac1_clone.shutdown()
-
     def test_send_file_twice_unicode_filename_mangling(self, tmpdir, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
         chat = self.get_chat(ac1, ac2)
@@ -677,9 +667,6 @@ class TestOnlineAccount:
         assert msg2.filename.endswith("html.zip")
         assert msg.filename != msg2.filename
 
-        ac1.shutdown()
-        ac2.shutdown()
-
     def test_send_file_html_attachment(self, tmpdir, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
         chat = self.get_chat(ac1, ac2)
@@ -704,9 +691,6 @@ class TestOnlineAccount:
         assert open(msg.filename).read() == content
         assert msg.filename.endswith(basename)
 
-        ac1.shutdown()
-        ac2.shutdown()
-
     def test_mvbox_sentbox_threads(self, acfactory, lp):
         lp.sec("ac1: start with mvbox thread")
         ac1 = acfactory.get_online_configuring_account(mvbox=True, move=True, sentbox=True)
@@ -729,9 +713,6 @@ class TestOnlineAccount:
         assert ev.data2 > const.DC_CHAT_ID_LAST_SPECIAL
         lp.sec("test finished")
 
-        ac1.shutdown()
-        ac2.shutdown()
-
     def test_move_works(self, acfactory):
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.get_online_configuring_account(mvbox=True, move=True)
@@ -744,9 +725,6 @@ class TestOnlineAccount:
         ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
         assert ev.data2 > const.DC_CHAT_ID_LAST_SPECIAL
         ac2._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
-
-        ac1.shutdown()
-        ac2.shutdown()
 
     def test_move_works_on_self_sent(self, acfactory):
         ac1 = acfactory.get_online_configuring_account(mvbox=True, move=True)
@@ -764,9 +742,6 @@ class TestOnlineAccount:
         ac1._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
         ac1._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
         ac1._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
-
-        ac1.shutdown()
-        ac2.shutdown()
 
     def test_forward_messages(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
@@ -800,9 +775,6 @@ class TestOnlineAccount:
         assert msg.is_forwarded()
         ac2.delete_messages(messages)
         assert not chat3.get_messages()
-
-        ac1.shutdown()
-        ac2.shutdown()
 
     def test_forward_own_message(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
@@ -910,9 +882,6 @@ class TestOnlineAccount:
         except queue.Empty:
             pass  # mark_seen_messages() has generated events before it returns
 
-        ac1.shutdown()
-        ac2.shutdown()
-
     def test_mdn_asymetric(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts(move=True)
 
@@ -947,9 +916,6 @@ class TestOnlineAccount:
 
         # MDN is received even though MDNs are already disabled
         assert msg_out.is_out_mdn_received()
-
-        ac1.shutdown()
-        ac2.shutdown()
 
     def test_send_and_receive_will_encrypt_decrypt(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
@@ -1000,9 +966,6 @@ class TestOnlineAccount:
         ev = ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
         assert not msg.is_encrypted()
 
-        ac1.shutdown()
-        ac2.shutdown()
-
     def test_send_first_message_as_long_unicode_with_cr(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
         ac2.set_config("save_mime_headers", "1")
@@ -1028,9 +991,6 @@ class TestOnlineAccount:
         msg_in = ac2._evtracker.wait_next_incoming_message()
         assert msg_in.text == text2
         assert ac1.get_config("addr") in msg_in.chat.get_name()
-
-        ac1.shutdown()
-        ac2.shutdown()
 
     def test_reply_encrypted(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
@@ -1085,9 +1045,6 @@ class TestOnlineAccount:
         assert msg_in.text == "message2 -- should be encrypted"
         assert msg_in.is_encrypted()
 
-        ac1.shutdown()
-        ac2.shutdown()
-
     def test_saved_mime_on_received_message(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
 
@@ -1106,9 +1063,6 @@ class TestOnlineAccount:
         mime = ac2.get_message_by_id(in_id).get_mime_headers()
         assert mime.get_all("From")
         assert mime.get_all("Received")
-
-        ac1.shutdown()
-        ac2.shutdown()
 
     def test_send_and_receive_image(self, acfactory, lp, data):
         ac1, ac2 = acfactory.get_two_online_accounts()
@@ -1158,9 +1112,6 @@ class TestOnlineAccount:
         m = message_queue.get()
         assert m == msg_in
 
-        ac1.shutdown()
-        ac2.shutdown()
-
     def test_import_export_online_all(self, acfactory, tmpdir, lp):
         ac1 = acfactory.get_one_online_account()
 
@@ -1204,9 +1155,6 @@ class TestOnlineAccount:
         assert path2 != path
         assert ac2.get_latest_backupfile(backupdir.strpath) == path2
 
-        ac1.shutdown()
-        ac2.shutdown()
-
     def test_ac_setup_message(self, acfactory, lp):
         # note that the receiving account needs to be configured and running
         # before ther setup message is send. DC does not read old messages
@@ -1235,9 +1183,6 @@ class TestOnlineAccount:
         msg.continue_key_transfer(setup_code)
         assert ac1.get_info()["fingerprint"] == ac2.get_info()["fingerprint"]
 
-        ac1.shutdown()
-        ac2.shutdown()
-
     def test_ac_setup_message_twice(self, acfactory, lp):
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.clone_online_account(ac1)
@@ -1263,9 +1208,6 @@ class TestOnlineAccount:
         msg.continue_key_transfer(setup_code2)
         assert ac1.get_info()["fingerprint"] == ac2.get_info()["fingerprint"]
 
-        ac1.shutdown()
-        ac2.shutdown()
-
     def test_qr_setup_contact(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
         lp.sec("ac1: create QR code and let ac2 scan it, starting the securejoin")
@@ -1275,9 +1217,6 @@ class TestOnlineAccount:
         ch = ac2.qr_setup_contact(qr)
         assert ch.id >= 10
         ac1._evtracker.wait_securejoin_inviter_progress(1000)
-
-        ac1.shutdown()
-        ac2.shutdown()
 
     def test_qr_join_chat(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
@@ -1292,9 +1231,6 @@ class TestOnlineAccount:
         ac1._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED")
         ac2._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED")
         ac1._evtracker.wait_securejoin_inviter_progress(1000)
-
-        ac1.shutdown()
-        ac2.shutdown()
 
     def test_qr_verified_group_and_chatting(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
@@ -1327,9 +1263,6 @@ class TestOnlineAccount:
         msg = ac1._evtracker.wait_next_incoming_message()
         assert msg.text == "world"
         assert msg.is_encrypted()
-
-        ac1.shutdown()
-        ac2.shutdown()
 
     def test_set_get_contact_avatar(self, acfactory, data, lp):
         lp.sec("configuring ac1 and ac2")
@@ -1377,9 +1310,6 @@ class TestOnlineAccount:
         lp.sec("ac2: wait for message along with avatar deletion of ac1")
         msg3 = ac2._evtracker.wait_next_incoming_message()
         assert msg3.get_sender_contact().get_profile_image() is None
-
-        ac1.shutdown()
-        ac2.shutdown()
 
     def test_add_remove_member_remote_events(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
@@ -1455,9 +1385,6 @@ class TestOnlineAccount:
         assert ev.action == "removed"
         assert ev.message.get_sender_contact().addr == ac1_addr
 
-        ac1.shutdown()
-        ac2.shutdown()
-
     def test_set_get_group_image(self, acfactory, data, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
 
@@ -1511,9 +1438,6 @@ class TestOnlineAccount:
         assert chat1b.get_profile_image() is None
         assert chat.get_profile_image() is None
 
-        ac1.shutdown()
-        ac2.shutdown()
-
     def test_accept_sender_contact(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
         ch = ac1.create_chat_by_contact(ac1.create_contact(ac2.get_config("addr")))
@@ -1522,9 +1446,6 @@ class TestOnlineAccount:
         assert msg.chat.is_deaddrop()
         msg.accept_sender_contact()
         assert not msg.chat.is_deaddrop()
-
-        ac1.shutdown()
-        ac2.shutdown()
 
     def test_send_receive_locations(self, acfactory, lp):
         now = datetime.utcnow()
@@ -1573,9 +1494,6 @@ class TestOnlineAccount:
         contact = ac2.create_contact("nonexisting@example.org")
         locations3 = chat2.get_locations(contact=contact)
         assert not locations3
-
-        ac1.shutdown()
-        ac2.shutdown()
 
 
 class TestGroupStressTests:
