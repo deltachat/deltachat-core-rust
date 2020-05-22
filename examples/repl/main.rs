@@ -6,10 +6,6 @@
 
 #[macro_use]
 extern crate deltachat;
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate rusqlite;
 
 use std::borrow::Cow::{self, Borrowed, Owned};
 use std::io::{self, Write};
@@ -282,12 +278,8 @@ async fn start(args: Vec<String>) -> Result<(), Error> {
     let ctx = context.clone();
     async_std::task::spawn(async move {
         loop {
-            if ctx.has_next_event() {
-                if let Ok(event) = ctx.get_next_event() {
-                    receive_event(event);
-                }
-            } else {
-                async_std::task::sleep(std::time::Duration::from_millis(50)).await;
+            if let Ok(event) = ctx.get_next_event() {
+                receive_event(event);
             }
         }
     });

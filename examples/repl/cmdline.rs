@@ -212,7 +212,7 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
     );
 }
 
-async fn log_msglist(context: &Context, msglist: &Vec<MsgId>) -> Result<(), Error> {
+async fn log_msglist(context: &Context, msglist: &[MsgId]) -> Result<(), Error> {
     let mut lines_out = 0;
     for &msg_id in msglist {
         if msg_id.is_daymarker() {
@@ -240,8 +240,8 @@ async fn log_msglist(context: &Context, msglist: &Vec<MsgId>) -> Result<(), Erro
     Ok(())
 }
 
-async fn log_contactlist(context: &Context, contacts: &Vec<u32>) {
-    let mut contacts = contacts.clone();
+async fn log_contactlist(context: &Context, contacts: &[u32]) {
+    let mut contacts = contacts.to_vec();
     if !contacts.contains(&1) {
         contacts.push(1);
     }
@@ -862,7 +862,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                     print!(", {}", data);
                 }
             }
-            print!("\n");
+            println!();
         }
         "archive" | "unarchive" | "pin" | "unpin" => {
             ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
@@ -1049,8 +1049,8 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         "estimatedeletion" => {
             ensure!(!arg1.is_empty(), "Argument <seconds> missing");
             let seconds = arg1.parse()?;
-            let device_cnt = message::estimate_deletion_cnt(context, false, seconds)?;
-            let server_cnt = message::estimate_deletion_cnt(context, true, seconds)?;
+            let device_cnt = message::estimate_deletion_cnt(&context, false, seconds).await?;
+            let server_cnt = message::estimate_deletion_cnt(&context, true, seconds).await?;
             println!(
                 "estimated count of messages older than {} seconds:\non device: {}\non server: {}",
                 seconds, device_cnt, server_cnt
