@@ -42,21 +42,20 @@ class Account(object):
 
         self.add_account_plugin(self)
 
+        self.db_path = db_path
+        if hasattr(db_path, "encode"):
+            db_path = db_path.encode("utf8")
+
         self._dc_context = ffi.gc(
-            lib.dc_context_new(ffi.NULL, as_dc_charpointer(os_name)),
+            lib.dc_context_new(as_dc_charpointer(os_name), db_path, ffi.NULL),
             _destroy_dc_context,
         )
+        if self._dc_context == ffi.NULL:
+            raise ValueError("Could not dc_context_new: {} {}".format(os_name, db_path))
 
         hook = hookspec.Global._get_plugin_manager().hook
 
         self._shutdown_event = Event()
-
-        # open database
-        self.db_path = db_path
-        if hasattr(db_path, "encode"):
-            db_path = db_path.encode("utf8")
-        if not lib.dc_open(self._dc_context, db_path, ffi.NULL):
-            raise ValueError("Could not dc_open: {}".format(db_path))
         self._event_thread = EventThread(self)
         self._configkeys = self.get_config("sys.config_keys").split()
         atexit.register(self.shutdown)
@@ -622,15 +621,14 @@ class Account(object):
 
         self.stop_scheduler()
 
-        self.log("dc_close")
-        # the dc_close triggers get_next_event to return ffi.NULL
+        self.log("remove dc_context")
+        # the dc_context_unref triggers get_next_event to return ffi.NULL
         # which in turns makes the event thread finish execution
-        lib.dc_close(dc_context)
+        self._dc_context = None
 
         self.log("wait for event thread to finish")
         self._event_thread.wait()
 
-        self._dc_context = None
         atexit.unregister(self.shutdown)
         self._shutdown_event.set()
         hook = hookspec.Global._get_plugin_manager().hook
