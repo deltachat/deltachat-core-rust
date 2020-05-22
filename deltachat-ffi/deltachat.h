@@ -589,7 +589,7 @@ int             dc_is_configured   (const dc_context_t* context);
  * @param context The context object as created by dc_context_new().
  * @return None
  */
-void            dc_io_start     (dc_context_t* context);
+void            dc_start_io     (dc_context_t* context);
 
 /**
  * Check if IO (SMTP/IMAP/Jobs) has been started.
@@ -599,7 +599,7 @@ void            dc_io_start     (dc_context_t* context);
  * @return 1=IO is running; 
  *   0=IO is not running.
  */
-int             dc_io_status(const dc_context_t* context);
+int             dc_is_io_running(const dc_context_t* context);
 
 /**
  * Stop job and IMAP/SMTP tasks and return when they are finished. 
@@ -608,7 +608,7 @@ int             dc_io_status(const dc_context_t* context);
  * @param context The context object as created by dc_context_new().
  * @return None
  */
-void            dc_io_stop(dc_context_t* context);
+void            dc_stop_io(dc_context_t* context);
 
 /**
  * This function can be called whenever there is a hint

@@ -460,7 +460,7 @@ class Account(object):
         If sending out was unsuccessful, a RuntimeError is raised.
         """
         self.check_is_configured()
-        if not self._event_thread.is_alive() or not self.is_started():
+        if not self.is_started():
             raise RuntimeError("IO not running, can not send out")
         res = lib.dc_initiate_key_transfer(self._dc_context)
         if res == ffi.NULL:
@@ -575,7 +575,7 @@ class Account(object):
         if not self.is_configured():
             self.configure()
             self.wait_configure_finish()
-        lib.dc_io_start(self._dc_context)
+        lib.dc_start_io(self._dc_context)
 
     def configure(self):
         assert not self.is_configured()
@@ -596,7 +596,7 @@ class Account(object):
             del self._configtracker
 
     def is_started(self):
-        return self._event_thread.is_alive() and bool(lib.dc_io_status(self._dc_context))
+        return self._event_thread.is_alive() and bool(lib.dc_is_io_running(self._dc_context))
 
     def wait_shutdown(self):
         """ wait until shutdown of this account has completed. """
@@ -607,9 +607,9 @@ class Account(object):
         self.log("stop_ongoing")
         self.stop_ongoing()
 
-        if bool(lib.dc_io_status(self._dc_context)):
+        if bool(lib.dc_is_io_running(self._dc_context)):
             self.log("context_shutdown (stop core scheduler)")
-            lib.dc_io_stop(self._dc_context)
+            lib.dc_stop_io(self._dc_context)
         else:
             self.log("stop_scheduler called on non-running context")
 

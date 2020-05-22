@@ -4,4 +4,4 @@ from deltachat.capi import ffi, lib
 
 if __name__ == "__main__":
     ctx = capi.lib.dc_context_new(ffi.NULL, ffi.NULL)
-    lib.dc_io_stop(ctx)
+    lib.dc_stop_io(ctx)

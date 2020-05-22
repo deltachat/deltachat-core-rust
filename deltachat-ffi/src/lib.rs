@@ -481,7 +481,7 @@ pub unsafe extern "C" fn dc_is_configured(context: *mut dc_context_t) -> libc::c
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_io_start(context: *mut dc_context_t) {
+pub unsafe extern "C" fn dc_start_io(context: *mut dc_context_t) {
     if context.is_null() {
         return;
     }
@@ -491,7 +491,7 @@ pub unsafe extern "C" fn dc_io_start(context: *mut dc_context_t) {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_io_status(context: *mut dc_context_t) -> libc::c_int {
+pub unsafe extern "C" fn dc_is_io_running(context: *mut dc_context_t) -> libc::c_int {
     if context.is_null() {
         return 0;
     }
@@ -665,7 +665,7 @@ pub unsafe extern "C" fn dc_get_next_event(context: *mut dc_context_t) -> *mut d
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_io_stop(context: *mut dc_context_t) {
+pub unsafe extern "C" fn dc_stop_io(context: *mut dc_context_t) {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_shutdown()");
         return;
