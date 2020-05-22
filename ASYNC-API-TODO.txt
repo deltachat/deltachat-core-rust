@@ -1,0 +1,55 @@
+
+Delta Chat ASYNC  (friedel, bjoern, floris, friedel)
+
+- smtp fake-idle/load jobs gerade noch alle fuenf sekunden , sollte alle zehn minuten (oder gar nicht)
+
+APIs:
+    dc_context_new                 # opens the database
+    dc_open                             # FFI only
+      -> drop it and move parameters to dc_context_new()
+
+    dc_configure                      # note: dc_start_jobs() is NOT allowed to run concurrently
+    dc_imex NEVER goes through the job system
+    dc_imex import_backup needs to ensure dc_stop_jobs()
+    dc_jobs_are_running()      # tell if we are in start/stop-jobs state
+
+    dc_context_run                 # start async scheduler
+      -> dc_start_jobs
+    dc_context_shutdown       # Stop async scheduler (after return no async-task runs)
+      -> dc_stop_jobs
+    dc_close                            # FFI only
+      -> can be dropped
+    dc_context_unref
+
+    for ios share-extension:
+    Int dc_direct_send()  -> try send out without going through jobs system, but queue a job in db if it needs to be retried on failure
+        0: message was sent
+        1: message failed to go out, is queued as a job to be retried later
+        2: message permanently failed?
+
+EVENT handling:
+    start a callback thread and call get_next_event() which is BLOCKING
+    it's fine to start this callback thread later, it will see all events.
+    Note that the core infinitely fills the internal queue if you never drain it.
+
+    FFI-get_next_event() returns NULL if the context is unrefed already?
+
+   sidenote: how python's callback thread does it currently:
+         CB-thread runs this while loop:
+         while not QUITFLAG:
+             ev = context.get_next_event( )
+             ...
+         So in order to shutdown properly one has to set QUITFLAG
+         before calling dc_stop_jobs() and dc_context_unref
+
+    event API:
+        get_data1_int
+        get_data2_int
+        get_data3_str
+
+
+- userdata likely only used for the callbacks, likely can be dropped, needs verification
+
+
+- iOS needs for the share app to call "try_send_smtp" wihtout a full dc_context_run and without going
+
