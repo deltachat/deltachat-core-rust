@@ -525,9 +525,9 @@ pub unsafe extern "C" fn dc_event_get_id(event: *mut dc_event_t) -> libc::c_int 
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_event_get_data1(event: *mut dc_event_t) -> libc::c_int {
+pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc::c_int {
     if event.is_null() {
-        eprintln!("ignoring careless call to dc_event_get_data1()");
+        eprintln!("ignoring careless call to dc_event_get_data1_int()");
         return 0;
     }
 
@@ -566,9 +566,9 @@ pub unsafe extern "C" fn dc_event_get_data1(event: *mut dc_event_t) -> libc::c_i
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_event_get_data2(event: *mut dc_event_t) -> libc::c_int {
+pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc::c_int {
     if event.is_null() {
-        eprintln!("ignoring careless call to dc_event_get_data2()");
+        eprintln!("ignoring careless call to dc_event_get_data2_int()");
         return 0;
     }
 
@@ -605,9 +605,9 @@ pub unsafe extern "C" fn dc_event_get_data2(event: *mut dc_event_t) -> libc::c_i
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_event_get_data_string(event: *mut dc_event_t) -> *mut libc::c_char {
+pub unsafe extern "C" fn dc_event_get_data3_str(event: *mut dc_event_t) -> *mut libc::c_char {
     if event.is_null() {
-        eprintln!("ignoring careless call to dc_event_get_data_string()");
+        eprintln!("ignoring careless call to dc_event_get_data3_str()");
         return ptr::null_mut();
     }
 
