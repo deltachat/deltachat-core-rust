@@ -758,7 +758,7 @@ class TestOnlineAccount:
         ac2.start()
         ac1.wait_configure_finish()
         ac1.start()
-        
+
         chat = self.get_chat(ac1, ac2)
         chat.send_text("message1")
         chat.send_text("message2")
@@ -918,7 +918,6 @@ class TestOnlineAccount:
 
         ac1.shutdown()
         ac2.shutdown()
-
 
     def test_mdn_asymetric(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts(move=True)
@@ -1213,7 +1212,6 @@ class TestOnlineAccount:
 
         ac1.shutdown()
         ac2.shutdown()
-        
 
     def test_ac_setup_message(self, acfactory, lp):
         # note that the receiving account needs to be configured and running
@@ -1245,7 +1243,6 @@ class TestOnlineAccount:
 
         ac1.shutdown()
         ac2.shutdown()
-
 
     def test_ac_setup_message_twice(self, acfactory, lp):
         ac1 = acfactory.get_online_configuring_account()
@@ -1686,11 +1683,8 @@ class TestGroupStressTests:
         # Message should be encrypted because keys of other members are gossiped
         assert msg.is_encrypted()
 
-        ac1.shutdown()
-        ac2.shutdown()
-        ac3.shutdown()
-        ac4.shutdown()
-        ac5.shutdown()
+        for account in accounts:
+            account.shutdown()
 
     def test_synchronize_member_list_on_group_rejoin(self, acfactory, lp):
         """
@@ -1766,15 +1760,15 @@ class TestGroupStressTests:
         msg = ac2._evtracker.wait_next_incoming_message()
 
         assert len(msg.chat.get_contacts()) == len(chat.get_contacts())
-        
+
         ac1.shutdown()
         ac2.shutdown()
         ac3.shutdown()
 
+
 class TestOnlineConfigureFails:
     def test_invalid_password(self, acfactory):
         ac1, configdict = acfactory.get_online_config()
-
         ac1.update_config(dict(addr=configdict["addr"], mail_pw="123"))
         ac1.configure()
         ac1._configtracker.wait_progress(500)
