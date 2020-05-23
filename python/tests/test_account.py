@@ -1,10 +1,11 @@
 from __future__ import print_function
+from time import sleep
 import pytest
 import os
 import queue
 import time
-import direct_imap
-from direct_imap import ImapConn
+import deltachat.direct_imap as direct_imap
+from deltachat.direct_imap import ImapConn
 from deltachat import const, Account
 from deltachat.message import Message
 from deltachat.hookspec import account_hookimpl
@@ -332,9 +333,9 @@ class TestOfflineChat:
         assert msg.filemime == "image/png"
 
     @pytest.mark.parametrize("typein,typeout", [
-            (None, "application/octet-stream"),
-            ("text/plain", "text/plain"),
-            ("image/png", "image/png"),
+        (None, "application/octet-stream"),
+        ("text/plain", "text/plain"),
+        ("image/png", "image/png"),
     ])
     def test_message_file(self, ac1, chat1, data, lp, typein, typeout):
         lp.sec("sending file")
@@ -597,6 +598,13 @@ class TestOnlineAccount:
         allmails = inbox.conn.search()
         existingmails = len(allmails)
 
+        inbox2 = acfactory.make_direct_imap(ac1, direct_imap.INBOX)
+        unseens = inbox.conn.search('UNSEEN')
+        for useen in unseens:
+            inbox2.conn.set_flags(useen, ['\\Seen'])
+        allmails = inbox.conn.search()
+        existingmails2 = len(allmails)
+
         chat = self.get_chat(ac1, ac2)
 
         self_addr = ac1.get_config("addr")
@@ -647,18 +655,49 @@ class TestOnlineAccount:
         assert len(allmails) == 1 + existingmails
 
         ac2.set_config("mdns_enabled", "1")
-        msg_on_ac2 = ac2._evtracker.wait_next_messages_changed()
+        ac2._evtracker.wait_next_messages_changed()
         for m in ac2.get_fresh_messages():
             lp.sec("Mark seen: "+str(m))
             m.mark_seen()
-        ac1._evtracker.wait_next_messages_read()
+        # ac1._evtracker.wait_next_messages_read()
 
         # The new messages should be seen.
         unseens = inbox.conn.search('UNSEEN')
         assert len(unseens) == 0
         allmails = inbox.conn.search()
-        # We might have existing mails
+        # We might have existing mails, but the one bcc-self should be new
         assert len(allmails) == 1 + existingmails
+
+    def test_mark_read_on_server(self, acfactory, lp):
+        ac1, ac2 = acfactory.get_two_online_accounts()
+
+        inbox2 = acfactory.make_direct_imap(ac2, direct_imap.MVBOX)
+        unseens = inbox2.conn.search('UNSEEN')
+        for useen in unseens:
+            inbox2.conn.set_flags(useen, ['\\Seen'])
+        allmails = inbox2.conn.search()
+        existingmails2 = len(allmails)
+
+        chat = self.get_chat(ac1, ac2)
+        self.get_chat(ac2, ac1)
+
+        chat.send_text("Text message")
+
+        incoming = ac2._evtracker.wait_next_incoming_message()
+        sleep(20)
+
+        unseens = inbox2.conn.search('UNSEEN')
+        assert len(unseens) == 1
+
+        incoming.mark_seen()
+        ac2._evtracker.wait_next_messages_changed()
+
+        # The new messages should be seen.
+        unseens = inbox2.conn.search('UNSEEN')
+        assert len(unseens) == 0
+        allmails = inbox2.conn.search()
+        # We might have existing mails, but the one from ac1 should be new
+        assert len(allmails) == 1 + existingmails2
 
     def test_send_file_twice_unicode_filename_mangling(self, tmpdir, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
