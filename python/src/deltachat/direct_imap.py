@@ -1,13 +1,4 @@
-import os
-import threading
-import click
-import ssl
-import atexit
-import email
-import contextlib
-import time
 import imaplib
-from subprocess import call
 
 INBOX = "Inbox"
 SENT = "Sent"
@@ -24,6 +15,7 @@ def db_folder_attr(name):
     def fset(s, val):
         s.db_folder[name] = val
     return property(fget, fset, None, None)
+
 
 class ImapConn():
     def __init__(self, foldername, conn_info):
@@ -44,13 +36,12 @@ class ImapConn():
         result, data = self.connection.search(None, 'UnSeen')
         try:
             mails_uid = data[0].split()
-            newest_mail = mails_uid[0]
             print("New mails")
 
 #            self.connection.store(data[0].replace(' ',','),'+FLAGS','\Seen')
             for e_id in mails_uid:
-                self.connection.store(e_id, '+FLAGS', '\Seen')
-                print("marked:",e_id)
+                self.connection.store(e_id, '+FLAGS', '\\Seen')
+                print("marked:", e_id)
 
             return True
         except IndexError:

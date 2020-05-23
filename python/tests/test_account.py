@@ -7,6 +7,9 @@ from deltachat import const, Account
 from deltachat.message import Message
 from deltachat.hookspec import account_hookimpl
 from datetime import datetime, timedelta
+from conftest import (wait_configuration_progress,
+                      wait_securejoin_inviter_progress)
+from deltachat import direct_imap
 
 
 @pytest.mark.parametrize("msgtext,res", [
@@ -657,10 +660,10 @@ class TestOnlineAccount:
 
         assert list(ac2.get_fresh_messages())
 
-        for i in range(0,30):
+        for i in range(0, 30):
             if imap2.get_unread_cnt() == 1:
                 break
-            sleep(1) # We might need to wait because Imaplib is slower than DC-Core
+            time.sleep(1)  # We might need to wait because Imaplib is slower than DC-Core
         assert imap2.get_unread_cnt() == 1
 
         incoming_on_ac2.mark_seen()
@@ -670,10 +673,10 @@ class TestOnlineAccount:
         assert not list(ac2.get_fresh_messages())
 
         # The new messages should be seen now.
-        for i in range(0,30):
+        for i in range(0, 30):
             if imap2.get_unread_cnt() == 0:
                 break
-            sleep(1) # We might need to wait because Imaplib is slower than DC-Core
+            time.sleep(1)  # We might need to wait because Imaplib is slower than DC-Core
         assert imap2.get_unread_cnt() == 0
 
     def test_send_file_twice_unicode_filename_mangling(self, tmpdir, acfactory, lp):
