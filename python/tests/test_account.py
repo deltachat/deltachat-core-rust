@@ -635,6 +635,47 @@ class TestOnlineAccount:
         ev_msg = ac1_clone._evtracker.wait_next_messages_changed()
         assert ev_msg.text == msg_out.text
 
+    def test_mark_read_on_server(self, acfactory, lp):
+        ac1 = acfactory.get_online_configuring_account()
+        ac2 = acfactory.get_online_configuring_account()
+        ac2.set_config("mvbox_move", "1")
+
+        wait_configuration_progress(ac1, 1000)
+        wait_configuration_progress(ac2, 1000)
+
+        imap2 = acfactory.make_direct_imap(ac2, direct_imap.MVBOX)
+        imap2.mark_all_read()
+        assert imap2.get_unread_cnt() == 0
+
+        chat = self.get_chat(ac1, ac2)
+        chat_on_ac2 = self.get_chat(ac2, ac1)
+
+        chat.send_text("Text message")
+
+        incoming_on_ac2 = ac2._evtracker.wait_next_incoming_message()
+        lp.sec("Incoming: "+incoming_on_ac2.text)
+
+        assert list(ac2.get_fresh_messages())
+
+        for i in range(0,30):
+            if imap2.get_unread_cnt() == 1:
+                break
+            sleep(1) # We might need to wait because Imaplib is slower than DC-Core
+        assert imap2.get_unread_cnt() == 1
+
+        incoming_on_ac2.mark_seen()
+        chat_on_ac2.mark_noticed()
+        ac2._evtracker.wait_next_messages_changed()
+
+        assert not list(ac2.get_fresh_messages())
+
+        # The new messages should be seen now.
+        for i in range(0,30):
+            if imap2.get_unread_cnt() == 0:
+                break
+            sleep(1) # We might need to wait because Imaplib is slower than DC-Core
+        assert imap2.get_unread_cnt() == 0
+
     def test_send_file_twice_unicode_filename_mangling(self, tmpdir, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
         chat = self.get_chat(ac1, ac2)
