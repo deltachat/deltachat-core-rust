@@ -133,8 +133,8 @@ class EventThread(threading.Thread):
     """
     def __init__(self, account):
         self.account = account
-        self._dc_context = account._dc_context
         super(EventThread, self).__init__(name="events")
+        self.setDaemon(True)
         self.start()
 
     @contextmanager
@@ -157,7 +157,7 @@ class EventThread(threading.Thread):
 
     def _inner_run(self):
         event_emitter = ffi.gc(
-            lib.dc_get_event_emitter(self._dc_context),
+            lib.dc_get_event_emitter(self.account._dc_context),
             lib.dc_event_emitter_unref,
         )
         while 1:
@@ -176,11 +176,15 @@ class EventThread(threading.Thread):
 
             lib.dc_event_unref(event)
             ffi_event = FFIEvent(name=evt_name, data1=data1, data2=data2)
-            self.account._pm.hook.ac_process_ffi_event(account=self, ffi_event=ffi_event)
-            for name, kwargs in self._map_ffi_event(ffi_event):
-                # self.account.log("calling hook name={} kwargs={}".format(name, kwargs))
-                hook = getattr(self.account._pm.hook, name)
-                hook(**kwargs)
+            try:
+                self.account._pm.hook.ac_process_ffi_event(account=self, ffi_event=ffi_event)
+                for name, kwargs in self._map_ffi_event(ffi_event):
+                    self.account.log("calling hook name={} kwargs={}".format(name, kwargs))
+                    hook = getattr(self.account._pm.hook, name)
+                    hook(**kwargs)
+            except Exception:
+                if self.account._dc_context is not None:
+                    raise
 
     def _map_ffi_event(self, ffi_event):
         name = ffi_event.name

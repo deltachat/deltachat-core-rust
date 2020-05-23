@@ -36,13 +36,14 @@ def test_wrong_db(tmpdir):
     # write an invalid database file
     p.write("x123" * 10)
 
-    assert ffi.NULL == lib.dc_context_new(ffi.NULL, ffi.NULL, p.strpath.encode("ascii"), ffi.NULL)
+    assert ffi.NULL == lib.dc_context_new(ffi.NULL, p.strpath.encode("ascii"), ffi.NULL)
+
 
 def test_empty_blobdir(tmpdir):
     db_fname = tmpdir.join("hello.db")
     # Apparently some client code expects this to be the same as passing NULL.
     ctx = ffi.gc(
-        lib.dc_context_new(ffi.NULL, ffi.NULL, db_fname.strpath.encode("ascii"), b""),
+        lib.dc_context_new(ffi.NULL, db_fname.strpath.encode("ascii"), b""),
         lib.dc_context_unref,
     )
     assert ctx != ffi.NULL
@@ -86,26 +87,16 @@ def test_get_special_message_id_returns_empty_message(acfactory):
 
 def test_provider_info_none():
     ctx = ffi.gc(
-        lib.dc_context_new(ffi.NULL, ffi.NULL),
+        lib.dc_context_new(ffi.NULL, ffi.NULL, ffi.NULL),
         lib.dc_context_unref,
     )
     assert lib.dc_provider_new_from_email(ctx, cutil.as_dc_charpointer("email@unexistent.no")) == ffi.NULL
 
 
-def test_get_info_closed():
-    ctx = ffi.gc(
-        lib.dc_context_new(ffi.NULL, ffi.NULL),
-        lib.dc_context_unref,
-    )
-    info = cutil.from_dc_charpointer(lib.dc_get_info(ctx))
-    assert 'deltachat_core_version' in info
-    assert 'database_dir' not in info
-
-
 def test_get_info_open(tmpdir):
     db_fname = tmpdir.join("test.db")
     ctx = ffi.gc(
-        lib.dc_context_new(ffi.NULL, ffi.NULL, db_fname.strpath.encode("ascii"), ffi.NULL),
+        lib.dc_context_new(ffi.NULL, db_fname.strpath.encode("ascii"), ffi.NULL),
         lib.dc_context_unref,
     )
     info = cutil.from_dc_charpointer(lib.dc_get_info(ctx))

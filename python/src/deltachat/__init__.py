@@ -63,6 +63,10 @@ def run_cmdline(argv=None, account_plugins=None):
         log = events.FFIEventLogger(ac, "bot")
         ac.add_account_plugin(log)
 
+    for plugin in account_plugins or []:
+        print("adding plugin", plugin)
+        ac.add_account_plugin(plugin)
+
     if not ac.is_configured():
         assert args.email and args.password, (
             "you must specify --email and --password once to configure this database/account"
@@ -72,12 +76,11 @@ def run_cmdline(argv=None, account_plugins=None):
         ac.set_config("mvbox_move", "0")
         ac.set_config("mvbox_watch", "0")
         ac.set_config("sentbox_watch", "0")
-
-    for plugin in account_plugins or []:
-        ac.add_account_plugin(plugin)
+        ac.configure()
+        ac.wait_configure_finish()
 
     # start IO threads and configure if neccessary
-    ac.start()
+    ac.start_io()
 
     print("{}: waiting for message".format(ac.get_config("addr")))
 

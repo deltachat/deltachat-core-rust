@@ -103,7 +103,6 @@ def pytest_report_header(config, startdir):
     t = tempfile.mktemp()
     m = MonkeyPatch()
     try:
-        m.setattr(sys.stdout, "write", lambda x: len(x))
         ac = Account(t)
         info = ac.get_info()
         ac.shutdown()
@@ -310,16 +309,16 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             ac1 = self.get_online_configuring_account(
                 pre_generated_key=pre_generated_key, mvbox=mvbox, move=move)
             ac1.wait_configure_finish()
-            ac1.start()
+            ac1.start_io()
             return ac1
 
         def get_two_online_accounts(self, move=False, quiet=False):
             ac1 = self.get_online_configuring_account(move=True, quiet=quiet)
             ac2 = self.get_online_configuring_account(quiet=quiet)
             ac1.wait_configure_finish()
-            ac1.start()
+            ac1.start_io()
             ac2.wait_configure_finish()
-            ac2.start()
+            ac2.start_io()
             return ac1, ac2
 
         def clone_online_account(self, account, pre_generated_key=True):
@@ -394,6 +393,7 @@ class BotProcess:
                     break
                 line = line.strip()
                 self.stdout_queue.put(line)
+                print("bot-stdout: ", line)
         finally:
             self.stdout_queue.put(None)
 

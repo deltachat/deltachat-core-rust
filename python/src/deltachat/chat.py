@@ -19,12 +19,11 @@ class Chat(object):
 
     def __init__(self, account, id):
         self.account = account
-        self._dc_context = account._dc_context
         self.id = id
 
     def __eq__(self, other):
         return self.id == getattr(other, "id", None) and \
-               self._dc_context == getattr(other, "_dc_context", None)
+               self.account._dc_context == other.account._dc_context
 
     def __ne__(self, other):
         return not (self == other)
@@ -35,7 +34,7 @@ class Chat(object):
     @property
     def _dc_chat(self):
         return ffi.gc(
-            lib.dc_get_chat(self._dc_context, self.id),
+            lib.dc_get_chat(self.account._dc_context, self.id),
             lib.dc_chat_unref
         )
 
@@ -47,7 +46,7 @@ class Chat(object):
         - does not delete messages on server
         - the chat or contact is not blocked, new message will arrive
         """
-        lib.dc_delete_chat(self._dc_context, self.id)
+        lib.dc_delete_chat(self.account._dc_context, self.id)
 
     # ------  chat status/metadata API ------------------------------
 
@@ -105,7 +104,7 @@ class Chat(object):
         :returns: None
         """
         name = as_dc_charpointer(name)
-        return lib.dc_set_chat_name(self._dc_context, self.id, name)
+        return lib.dc_set_chat_name(self.account._dc_context, self.id, name)
 
     def mute(self, duration=None):
         """ mutes the chat
@@ -117,7 +116,7 @@ class Chat(object):
             mute_duration = -1
         else:
             mute_duration = duration
-        ret = lib.dc_set_chat_mute_duration(self._dc_context, self.id, mute_duration)
+        ret = lib.dc_set_chat_mute_duration(self.account._dc_context, self.id, mute_duration)
         if not bool(ret):
             raise ValueError("Call to dc_set_chat_mute_duration failed")
 
@@ -126,7 +125,7 @@ class Chat(object):
 
         :returns: None
         """
-        ret = lib.dc_set_chat_mute_duration(self._dc_context, self.id, 0)
+        ret = lib.dc_set_chat_mute_duration(self.account._dc_context, self.id, 0)
         if not bool(ret):
             raise ValueError("Failed to unmute chat")
 
@@ -152,7 +151,7 @@ class Chat(object):
         in a second channel (typically used by mobiles with QRcode-show + scan UX)
         where account.join_with_qrcode(qr) needs to be called.
         """
-        res = lib.dc_get_securejoin_qr(self._dc_context, self.id)
+        res = lib.dc_get_securejoin_qr(self.account._dc_context, self.id)
         return from_dc_charpointer(res)
 
     # ------  chat messaging API ------------------------------
@@ -174,7 +173,7 @@ class Chat(object):
             assert msg.id != 0
             # get a fresh copy of dc_msg, the core needs it
             msg = Message.from_db(self.account, msg.id)
-        sent_id = lib.dc_send_msg(self._dc_context, self.id, msg._dc_msg)
+        sent_id = lib.dc_send_msg(self.account._dc_context, self.id, msg._dc_msg)
         if sent_id == 0:
             raise ValueError("message could not be sent")
         # modify message in place to avoid bad state for the caller
@@ -189,7 +188,7 @@ class Chat(object):
         :returns: the resulting :class:`deltachat.message.Message` instance
         """
         msg = as_dc_charpointer(text)
-        msg_id = lib.dc_send_text_msg(self._dc_context, self.id, msg)
+        msg_id = lib.dc_send_text_msg(self.account._dc_context, self.id, msg)
         if msg_id == 0:
             raise ValueError("message could not be send, does chat exist?")
         return Message.from_db(self.account, msg_id)
@@ -204,7 +203,7 @@ class Chat(object):
         """
         msg = Message.new_empty(self.account, view_type="file")
         msg.set_file(path, mime_type)
-        sent_id = lib.dc_send_msg(self._dc_context, self.id, msg._dc_msg)
+        sent_id = lib.dc_send_msg(self.account._dc_context, self.id, msg._dc_msg)
         if sent_id == 0:
             raise ValueError("message could not be sent")
         return Message.from_db(self.account, sent_id)
@@ -219,7 +218,7 @@ class Chat(object):
         mime_type = mimetypes.guess_type(path)[0]
         msg = Message.new_empty(self.account, view_type="image")
         msg.set_file(path, mime_type)
-        sent_id = lib.dc_send_msg(self._dc_context, self.id, msg._dc_msg)
+        sent_id = lib.dc_send_msg(self.account._dc_context, self.id, msg._dc_msg)
         if sent_id == 0:
             raise ValueError("message could not be sent")
         return Message.from_db(self.account, sent_id)
@@ -230,7 +229,7 @@ class Chat(object):
         :param msg: the message to be prepared.
         :returns: :class:`deltachat.message.Message` instance.
         """
-        msg_id = lib.dc_prepare_msg(self._dc_context, self.id, msg._dc_msg)
+        msg_id = lib.dc_prepare_msg(self.account._dc_context, self.id, msg._dc_msg)
         if msg_id == 0:
             raise ValueError("message could not be prepared")
         # invalidate passed in message which is not safe to use anymore
@@ -266,7 +265,7 @@ class Chat(object):
         msg = Message.from_db(self.account, message.id)
 
         # pass 0 as chat-id because core-docs say it's ok when out-preparing
-        sent_id = lib.dc_send_msg(self._dc_context, 0, msg._dc_msg)
+        sent_id = lib.dc_send_msg(self.account._dc_context, 0, msg._dc_msg)
         if sent_id == 0:
             raise ValueError("message could not be sent")
         assert sent_id == msg.id
@@ -280,9 +279,9 @@ class Chat(object):
         :returns: None
         """
         if message is None:
-            lib.dc_set_draft(self._dc_context, self.id, ffi.NULL)
+            lib.dc_set_draft(self.account._dc_context, self.id, ffi.NULL)
         else:
-            lib.dc_set_draft(self._dc_context, self.id, message._dc_msg)
+            lib.dc_set_draft(self.account._dc_context, self.id, message._dc_msg)
 
     def get_draft(self):
         """ get draft message for this chat.
@@ -290,7 +289,7 @@ class Chat(object):
         :param message: a :class:`Message` instance
         :returns: Message object or None (if no draft available)
         """
-        x = lib.dc_get_draft(self._dc_context, self.id)
+        x = lib.dc_get_draft(self.account._dc_context, self.id)
         if x == ffi.NULL:
             return None
         dc_msg = ffi.gc(x, lib.dc_msg_unref)
@@ -302,7 +301,7 @@ class Chat(object):
         :returns: list of :class:`deltachat.message.Message` objects for this chat.
         """
         dc_array = ffi.gc(
-            lib.dc_get_chat_msgs(self._dc_context, self.id, 0, 0),
+            lib.dc_get_chat_msgs(self.account._dc_context, self.id, 0, 0),
             lib.dc_array_unref
         )
         return list(iter_array(dc_array, lambda x: Message.from_db(self.account, x)))
@@ -312,18 +311,18 @@ class Chat(object):
 
         :returns: number of fresh messages
         """
-        return lib.dc_get_fresh_msg_cnt(self._dc_context, self.id)
+        return lib.dc_get_fresh_msg_cnt(self.account._dc_context, self.id)
 
     def mark_noticed(self):
         """ mark all messages in this chat as noticed.
 
         Noticed messages are no longer fresh.
         """
-        return lib.dc_marknoticed_chat(self._dc_context, self.id)
+        return lib.dc_marknoticed_chat(self.account._dc_context, self.id)
 
     def get_summary(self):
         """ return dictionary with summary information. """
-        dc_res = lib.dc_chat_get_info_json(self._dc_context, self.id)
+        dc_res = lib.dc_chat_get_info_json(self.account._dc_context, self.id)
         s = from_dc_charpointer(dc_res)
         return json.loads(s)
 
@@ -336,7 +335,7 @@ class Chat(object):
         :raises ValueError: if contact could not be added
         :returns: None
         """
-        ret = lib.dc_add_contact_to_chat(self._dc_context, self.id, contact.id)
+        ret = lib.dc_add_contact_to_chat(self.account._dc_context, self.id, contact.id)
         if ret != 1:
             raise ValueError("could not add contact {!r} to chat".format(contact))
 
@@ -347,7 +346,7 @@ class Chat(object):
         :raises ValueError: if contact could not be removed
         :returns: None
         """
-        ret = lib.dc_remove_contact_from_chat(self._dc_context, self.id, contact.id)
+        ret = lib.dc_remove_contact_from_chat(self.account._dc_context, self.id, contact.id)
         if ret != 1:
             raise ValueError("could not remove contact {!r} from chat".format(contact))
 
@@ -359,7 +358,7 @@ class Chat(object):
         """
         from .contact import Contact
         dc_array = ffi.gc(
-            lib.dc_get_chat_contacts(self._dc_context, self.id),
+            lib.dc_get_chat_contacts(self.account._dc_context, self.id),
             lib.dc_array_unref
         )
         return list(iter_array(
@@ -378,7 +377,7 @@ class Chat(object):
         """
         assert os.path.exists(img_path), img_path
         p = as_dc_charpointer(img_path)
-        res = lib.dc_set_chat_profile_image(self._dc_context, self.id, p)
+        res = lib.dc_set_chat_profile_image(self.account._dc_context, self.id, p)
         if res != 1:
             raise ValueError("Setting Profile Image {!r} failed".format(p))
 
@@ -391,7 +390,7 @@ class Chat(object):
         :raises ValueError: if profile image could not be reset
         :returns: None
         """
-        res = lib.dc_set_chat_profile_image(self._dc_context, self.id, ffi.NULL)
+        res = lib.dc_set_chat_profile_image(self.account._dc_context, self.id, ffi.NULL)
         if res != 1:
             raise ValueError("Removing Profile Image failed")
 
@@ -421,7 +420,7 @@ class Chat(object):
         """return True if this chat has location-sending enabled currently.
         :returns: True if location sending is enabled.
         """
-        return lib.dc_is_sending_locations_to_chat(self._dc_context, self.id)
+        return lib.dc_is_sending_locations_to_chat(self.account._dc_context, self.id)
 
     def is_archived(self):
         """return True if this chat is archived.
@@ -434,7 +433,7 @@ class Chat(object):
 
         all subsequent messages will carry a location with them.
         """
-        lib.dc_send_locations_to_chat(self._dc_context, self.id, seconds)
+        lib.dc_send_locations_to_chat(self.account._dc_context, self.id, seconds)
 
     def get_locations(self, contact=None, timestamp_from=None, timestamp_to=None):
         """return list of locations for the given contact in the given timespan.
@@ -458,7 +457,7 @@ class Chat(object):
         else:
             contact_id = contact.id
 
-        dc_array = lib.dc_get_locations(self._dc_context, self.id, contact_id, time_from, time_to)
+        dc_array = lib.dc_get_locations(self.account._dc_context, self.id, contact_id, time_from, time_to)
         return [
             Location(
                 latitude=lib.dc_array_get_latitude(dc_array, i),

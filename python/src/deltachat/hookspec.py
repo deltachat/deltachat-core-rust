@@ -89,5 +89,5 @@ class Global:
         """ called when `Account::__init__()` function starts executing. """
 
     @global_hookspec
-    def dc_account_after_shutdown(self, account, dc_context):
+    def dc_account_after_shutdown(self, account):
         """ Called after the account has been shutdown. """

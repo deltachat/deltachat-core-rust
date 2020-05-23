@@ -533,9 +533,9 @@ class TestOnlineAccount:
         # rsa key gen can be slow especially on CI, adjust timeout
         ac1._evtracker.set_timeout(120)
         ac1.wait_configure_finish()
-        ac1.start()
+        ac1.start_io()
         ac2.wait_configure_finish()
-        ac2.start()
+        ac2.start_io()
         chat = self.get_chat(ac1, ac2, both_created=True)
 
         lp.sec("ac1: send unencrypted message to ac2")
@@ -591,11 +591,11 @@ class TestOnlineAccount:
         ac1_clone = acfactory.clone_online_account(ac1)
 
         ac1.wait_configure_finish()
-        ac1.start()
+        ac1.start_io()
         ac2.wait_configure_finish()
-        ac2.start()
+        ac2.start_io()
         ac1_clone.wait_configure_finish()
-        ac1_clone.start()
+        ac1_clone.start_io()
 
         chat = self.get_chat(ac1, ac2)
 
@@ -700,11 +700,11 @@ class TestOnlineAccount:
 
         lp.sec("ac2: waiting for configuration")
         ac2.wait_configure_finish()
-        ac2.start()
+        ac2.start_io()
 
         lp.sec("ac1: waiting for configuration")
         ac1.wait_configure_finish()
-        ac1.start()
+        ac1.start_io()
 
         lp.sec("ac1: send message and wait for ac2 to receive it")
         chat = self.get_chat(ac1, ac2)
@@ -717,9 +717,9 @@ class TestOnlineAccount:
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.get_online_configuring_account(mvbox=True, move=True)
         ac2.wait_configure_finish()
-        ac2.start()
+        ac2.start_io()
         ac1.wait_configure_finish()
-        ac1.start()
+        ac1.start_io()
         chat = self.get_chat(ac1, ac2)
         chat.send_text("message1")
         ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
@@ -731,9 +731,9 @@ class TestOnlineAccount:
         ac1.set_config("bcc_self", "1")
         ac2 = acfactory.get_online_configuring_account()
         ac2.wait_configure_finish()
-        ac2.start()
+        ac2.start_io()
         ac1.wait_configure_finish()
-        ac1.start()
+        ac1.start_io()
 
         chat = self.get_chat(ac1, ac2)
         chat.send_text("message1")
@@ -1162,9 +1162,9 @@ class TestOnlineAccount:
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.clone_online_account(ac1)
         ac2.wait_configure_finish()
-        ac2.start()
+        ac2.start_io()
         ac1.wait_configure_finish()
-        ac1.start()
+        ac1.start_io()
 
         lp.sec("trigger ac setup message and return setupcode")
         assert ac1.get_info()["fingerprint"] != ac2.get_info()["fingerprint"]
@@ -1188,9 +1188,9 @@ class TestOnlineAccount:
         ac2 = acfactory.clone_online_account(ac1)
         ac2._evtracker.set_timeout(30)
         ac2.wait_configure_finish()
-        ac2.start()
+        ac2.start_io()
         ac1.wait_configure_finish()
-        ac1.start()
+        ac1.start_io()
 
         lp.sec("trigger ac setup message but ignore")
         assert ac1.get_info()["fingerprint"] != ac2.get_info()["fingerprint"]
@@ -1502,7 +1502,7 @@ class TestGroupStressTests:
         accounts = [acfactory.get_online_configuring_account() for i in range(5)]
         for acc in accounts:
             acc.wait_configure_finish()
-            acc.start()
+            acc.start_io()
         ac1 = accounts.pop()
 
         lp.sec("ac1: setting up contacts with 4 other members")
@@ -1610,7 +1610,7 @@ class TestGroupStressTests:
         accounts = [acfactory.get_online_configuring_account() for i in range(3)]
         for acc in accounts:
             acc.wait_configure_finish()
-            acc.start()
+            acc.start_io()
         ac1 = accounts.pop()
 
         lp.sec("ac1: setting up contacts with 2 other members")

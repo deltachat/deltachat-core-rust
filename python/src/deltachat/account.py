@@ -1,7 +1,6 @@
 """ Account class implementation. """
 
 from __future__ import print_function
-import atexit
 from contextlib import contextmanager
 from email.utils import parseaddr
 from threading import Event
@@ -48,7 +47,7 @@ class Account(object):
 
         self._dc_context = ffi.gc(
             lib.dc_context_new(as_dc_charpointer(os_name), db_path, ffi.NULL),
-            _destroy_dc_context,
+            lib.dc_context_unref,
         )
         if self._dc_context == ffi.NULL:
             raise ValueError("Could not dc_context_new: {} {}".format(os_name, db_path))
@@ -58,7 +57,6 @@ class Account(object):
         self._shutdown_event = Event()
         self._event_thread = EventThread(self)
         self._configkeys = self.get_config("sys.config_keys").split()
-        atexit.register(self.shutdown)
         hook.dc_account_init(account=self)
 
     def disable_logging(self):
@@ -69,8 +67,8 @@ class Account(object):
         """ re-enable logging. """
         self._logging = True
 
-    # def __del__(self):
-    #    self.shutdown()
+    def __del__(self):
+        self.shutdown()
 
     def log(self, msg):
         if self._logging:
@@ -241,7 +239,7 @@ class Account(object):
         :returns: True if deletion succeeded (contact was deleted)
         """
         contact_id = contact.id
-        assert contact._dc_context == self._dc_context
+        assert contact.account == self
         assert contact_id > const.DC_CHAT_ID_LAST_SPECIAL
         return bool(lib.dc_delete_contact(self._dc_context, contact_id))
 
@@ -289,7 +287,7 @@ class Account(object):
         :returns: a :class:`deltachat.chat.Chat` object.
         """
         if hasattr(contact, "id"):
-            if contact._dc_context != self._dc_context:
+            if contact.account != self:
                 raise ValueError("Contact belongs to a different Account")
             contact_id = contact.id
         else:
@@ -309,7 +307,7 @@ class Account(object):
         :returns: a :class:`deltachat.chat.Chat` object.
         """
         if hasattr(message, "id"):
-            if self._dc_context != message._dc_context:
+            if message.account != self:
                 raise ValueError("Message belongs to a different Account")
             msg_id = message.id
         else:
@@ -557,13 +555,14 @@ class Account(object):
         """ Stop ongoing securejoin, configuration or other core jobs. """
         lib.dc_stop_ongoing_process(self._dc_context)
 
-    def start(self):
+    def start_io(self):
         """ start this account's IO scheduling (Rust-core async scheduler)
 
-        If this account is not configured but "addr" and "mail_pw" config
-        values are set, dc_configure() will be called.
+        If this account is not configured an Exception is raised.
+        You need to call account.configure() and account.wait_configure_finish()
+        before.
 
-        You may call `wait_shutdown` or `shutdown` after the
+        You may call `stop_scheduler`, `wait_shutdown` or `shutdown` after the
         account is started.
 
         :raises MissingCredentials: if `addr` and `mail_pw` values are not set.
@@ -572,8 +571,7 @@ class Account(object):
         :returns: None (account is configured and with io-scheduling running)
         """
         if not self.is_configured():
-            self.configure()
-            self.wait_configure_finish()
+            raise ValueError("account not configured, cannot start io")
         lib.dc_start_io(self._dc_context)
 
     def configure(self):
@@ -601,13 +599,13 @@ class Account(object):
         """ wait until shutdown of this account has completed. """
         self._shutdown_event.wait()
 
-    def stop_scheduler(self):
-        """ stop core scheduler if it is running. """
+    def stop_io(self):
+        """ stop core IO scheduler if it is running. """
         self.log("stop_ongoing")
         self.stop_ongoing()
 
         if bool(lib.dc_is_io_running(self._dc_context)):
-            self.log("context_shutdown (stop core scheduler)")
+            self.log("dc_stop_io (stop core IO scheduler)")
             lib.dc_stop_io(self._dc_context)
         else:
             self.log("stop_scheduler called on non-running context")
@@ -615,13 +613,12 @@ class Account(object):
     def shutdown(self):
         """ shutdown and destroy account (stop callback thread, close and remove
         underlying dc_context)."""
-        dc_context = self._dc_context
-        if dc_context is None:
+        if self._dc_context is None:
             return
 
-        self.stop_scheduler()
+        self.stop_io()
 
-        self.log("remove dc_context")
+        self.log("remove dc_context references")
         # the dc_context_unref triggers get_next_event to return ffi.NULL
         # which in turns makes the event thread finish execution
         self._dc_context = None
@@ -629,16 +626,11 @@ class Account(object):
         self.log("wait for event thread to finish")
         self._event_thread.wait()
 
-        atexit.unregister(self.shutdown)
         self._shutdown_event.set()
+
         hook = hookspec.Global._get_plugin_manager().hook
-        hook.dc_account_after_shutdown(account=self, dc_context=dc_context)
+        hook.dc_account_after_shutdown(account=self)
         self.log("shutdown finished")
-
-
-def _destroy_dc_context(dc_context, dc_context_unref=lib.dc_context_unref):
-    # destructor for dc_context
-    dc_context_unref(dc_context)
 
 
 class ScannedQRCode:
