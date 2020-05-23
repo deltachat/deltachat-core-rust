@@ -1064,6 +1064,38 @@ class TestOnlineAccount:
         assert mime.get_all("From")
         assert mime.get_all("Received")
 
+    @pytest.mark.xfail(reason="core emits wrong DC_EVENT_INCOMING_MSG event")
+    def test_send_mark_seen_clean_incoming_events(self, acfactory, lp, data):
+        ac1, ac2 = acfactory.get_two_online_accounts()
+        chat = self.get_chat(ac1, ac2, both_created=True)
+
+        message_queue = queue.Queue()
+
+        class InPlugin:
+            @account_hookimpl
+            def ac_incoming_message(self, message):
+                message_queue.put(message)
+
+        ac1.add_account_plugin(InPlugin())
+
+        lp.sec("sending one message from ac1 to ac2")
+        chat.send_text("hello")
+
+        lp.sec("ac2: waiting to receive")
+        msg = ac2._evtracker.wait_next_incoming_message()
+        assert msg.text == "hello"
+
+        lp.sec("ac2: mark seen {}".format(msg))
+        msg.mark_seen()
+
+        lp.sec("ac2: send echo message")
+        msg.chat.send_text("world")
+
+        lp.sec("ac1: waiting for echo message")
+        incoming = message_queue.get(timeout=10)
+        assert incoming.text == "world"
+        assert msg.is_in_seen()
+
     def test_send_and_receive_image(self, acfactory, lp, data):
         ac1, ac2 = acfactory.get_two_online_accounts()
         chat = self.get_chat(ac1, ac2)

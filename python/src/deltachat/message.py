@@ -28,8 +28,10 @@ class Message(object):
 
     def __repr__(self):
         c = self.get_sender_contact()
-        return "<Message id={} sender={}/{} outgoing={} chat={}/{}>".format(
-            self.id, c.id, c.addr, self.is_outgoing(), self.chat.id, self.chat.get_name())
+        typ = "outgoing" if self.is_outgoing() else "incoming"
+        return "<Message {} sys={} {} id={} sender={}/{} chat={}/{}>".format(
+            typ, self.is_system_message(), repr(self.text[:10]),
+            self.id, c.id, c.addr, self.chat.id, self.chat.get_name())
 
     @classmethod
     def from_db(cls, account, id):
@@ -94,7 +96,7 @@ class Message(object):
 
     def is_system_message(self):
         """ return True if this message is a system/info message. """
-        return lib.dc_msg_is_info(self._dc_msg)
+        return bool(lib.dc_msg_is_info(self._dc_msg))
 
     def is_setup_message(self):
         """ return True if this message is a setup message. """

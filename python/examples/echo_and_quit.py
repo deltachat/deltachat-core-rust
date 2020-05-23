@@ -14,8 +14,11 @@ class EchoPlugin:
             # unconditionally accept the chat
             message.accept_sender_contact()
             addr = message.get_sender_contact().addr
-            text = message.text
-            message.chat.send_text("echoing from {}:\n{}".format(addr, text))
+            if message.is_system_message():
+                message.chat.send_text("echoing system message from {}:\n{}".format(addr, message))
+            else:
+                text = message.text
+                message.chat.send_text("echoing from {}:\n{}".format(addr, text))
 
     @account_hookimpl
     def ac_message_delivered(self, message):
