@@ -21,7 +21,8 @@ export DCC_RS_DEV=$(pwd)
 export PATH=$PATH:/opt/python/cp35-cp35m/bin
 export PYTHONDONTWRITEBYTECODE=1
 pushd /bin
-ln -s /opt/python/cp27-cp27m/bin/python2.7
+rm -f python3.5
+ln -s /opt/python/cp35-cp35m/bin/python3.5
 ln -s /opt/python/cp36-cp36m/bin/python3.6
 ln -s /opt/python/cp37-cp37m/bin/python3.7
 ln -s /opt/python/cp38-cp38/bin/python3.8
