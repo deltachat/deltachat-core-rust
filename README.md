@@ -132,4 +132,5 @@ or its language bindings:
 - [iOS](https://github.com/deltachat/deltachat-ios)
 - [Desktop](https://github.com/deltachat/deltachat-desktop)
 - [Pidgin](https://code.ur.gs/lupine/purple-plugin-delta/)
+- [Telepathy](https://code.ur.gs/lupine/telepathy-padfoot/)
 - several **Bots**
