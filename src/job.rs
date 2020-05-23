@@ -519,11 +519,7 @@ impl Job {
                 ImapActionResult::RetryLater => Status::RetryLater,
                 ImapActionResult::Success => {
                     // XXX Rust-Imap provides no target uid on mv, so just set it to 0
-<<<<<<< HEAD
-                    message::update_server_uid(context, &msg.rfc724_mid, &dest_folder, 0).await;
-=======
-                    message::update_server_uid(context, &msg.rfc724_mid, &dest_folder, 0); // The server_uid is set to 0 and then the email can't be found in MarkseenMsgOnImap() -> set_seen() -> prepare_imap_operation_on_msg().
->>>>>>> 52196f64... Add hint where the error comes from
+                    message::update_server_uid(context, &msg.rfc724_mid, &dest_folder, 0).await; // The server_uid is set to 0 and then the email can't be found in MarkseenMsgOnImap() -> set_seen() -> prepare_imap_operation_on_msg().
                     Status::Finished(Ok(()))
                 }
                 ImapActionResult::Failed => {
