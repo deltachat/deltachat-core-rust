@@ -1611,9 +1611,10 @@ pub fn update_autodelete_timeout(context: &Context) {
         "SELECT autodelete_timestamp \
          FROM msgs \
          WHERE autodelete_timestamp != 0 \
+           AND chat_id != ? \
          ORDER BY autodelete_timestamp ASC \
          LIMIT 1",
-        rusqlite::NO_PARAMS,
+        params![DC_CHAT_ID_TRASH],
     ) {
         Err(err) => {
             warn!(context, "Can't calculate next autodelete timeout: {}", err);
