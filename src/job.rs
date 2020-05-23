@@ -28,7 +28,7 @@ use crate::location;
 use crate::login_param::LoginParam;
 use crate::message::MsgId;
 use crate::message::{self, Message, MessageState};
-use crate::mimefactory::{MimeFactory, RenderedEmail};
+use crate::mimefactory::MimeFactory;
 use crate::param::*;
 use crate::smtp::Smtp;
 use crate::sql;
@@ -156,7 +156,7 @@ impl fmt::Display for Job {
 }
 
 impl Job {
-    fn new(action: Action, foreign_id: u32, param: Params, delay_seconds: i64) -> Self {
+    pub fn new(action: Action, foreign_id: u32, param: Params, delay_seconds: i64) -> Self {
         let timestamp = time();
 
         Self {
@@ -169,6 +169,10 @@ impl Job {
             param,
             pending_error: None,
         }
+    }
+
+    pub fn delay_seconds(&self) -> i64 {
+        self.desired_timestamp - self.added_timestamp
     }
 
     /// Deletes the job from the database.
@@ -186,7 +190,7 @@ impl Job {
     /// Saves the job to the database, creating a new entry if necessary.
     ///
     /// The Job is consumed by this method.
-    async fn save(self, context: &Context) -> Result<()> {
+    pub async fn save(self, context: &Context) -> Result<()> {
         let thread: Thread = self.action.into();
 
         info!(context, "saving job for {}-thread: {:?}", thread, self);
@@ -325,7 +329,7 @@ impl Job {
         }
     }
 
-    async fn send_msg_to_smtp(&mut self, context: &Context, smtp: &mut Smtp) -> Status {
+    pub async fn send_msg_to_smtp(&mut self, context: &Context, smtp: &mut Smtp) -> Status {
         //  SMTP server, if not yet done
         if !smtp.is_connected().await {
             let loginparam = LoginParam::from_database(context, "configured_").await;
@@ -694,8 +698,12 @@ async fn set_delivered(context: &Context, msg_id: MsgId) {
     context.emit_event(Event::MsgDelivered { chat_id, msg_id });
 }
 
-// special case for DC_JOB_SEND_MSG_TO_SMTP
-pub async fn send_msg(context: &Context, msg_id: MsgId) -> Result<()> {
+/// Constructs a job for sending a message.
+///
+/// Returns `None` if no messages need to be sent out.
+///
+/// In order to be processed, must be `add`ded.
+pub async fn send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<Job>> {
     let mut msg = Message::load_from_db(context, msg_id).await?;
     msg.try_calc_and_set_dimensions(context).await.ok();
 
@@ -738,7 +746,7 @@ pub async fn send_msg(context: &Context, msg_id: MsgId) -> Result<()> {
             "message {} has no recipient, skipping smtp-send", msg_id
         );
         set_delivered(context, msg_id).await;
-        return Ok(());
+        return Ok(None);
     }
 
     let rendered_msg = match mimefactory.render().await {
@@ -793,16 +801,18 @@ pub async fn send_msg(context: &Context, msg_id: MsgId) -> Result<()> {
         msg.save_param_to_disk(context).await;
     }
 
-    add_smtp_job(
-        context,
-        Action::SendMsgToSmtp,
-        msg.id,
-        recipients,
-        &rendered_msg,
-    )
-    .await?;
+    ensure!(!recipients.is_empty(), "no recipients for smtp job set");
+    let mut param = Params::new();
+    let bytes = &rendered_msg.message;
+    let blob = BlobObject::create(context, &rendered_msg.rfc724_mid, bytes).await?;
 
-    Ok(())
+    let recipients = recipients.join("\x1e");
+    param.set(Param::File, blob.as_name());
+    param.set(Param::Recipients, &recipients);
+
+    let job = create(Action::SendMsgToSmtp, msg_id.to_u32() as i32, param, 0)?;
+
+    Ok(Some(job))
 }
 
 #[derive(Debug)]
@@ -986,46 +996,25 @@ async fn send_mdn(context: &Context, msg: &Message) -> Result<()> {
     let mut param = Params::new();
     param.set(Param::MsgId, msg.id.to_u32().to_string());
 
-    add(context, Action::SendMdn, msg.from_id as i32, param, 0).await;
+    add(context, Job::new(Action::SendMdn, msg.from_id, param, 0)).await;
 
     Ok(())
 }
 
-async fn add_smtp_job(
-    context: &Context,
-    action: Action,
-    msg_id: MsgId,
-    recipients: Vec<String>,
-    rendered_msg: &RenderedEmail,
-) -> Result<()> {
-    ensure!(!recipients.is_empty(), "no recipients for smtp job set");
-    let mut param = Params::new();
-    let bytes = &rendered_msg.message;
-    let blob = BlobObject::create(context, &rendered_msg.rfc724_mid, bytes).await?;
+/// Creates a job.
+pub fn create(action: Action, foreign_id: i32, param: Params, delay_seconds: i64) -> Result<Job> {
+    ensure!(
+        action != Action::Unknown,
+        "Invalid action passed to job_add"
+    );
 
-    let recipients = recipients.join("\x1e");
-    param.set(Param::File, blob.as_name());
-    param.set(Param::Recipients, &recipients);
-
-    add(context, action, msg_id.to_u32() as i32, param, 0).await;
-
-    Ok(())
+    Ok(Job::new(action, foreign_id as u32, param, delay_seconds))
 }
 
-/// Adds a job to the database, scheduling it `delay_seconds` after the current time.
-pub async fn add(
-    context: &Context,
-    action: Action,
-    foreign_id: i32,
-    param: Params,
-    delay_seconds: i64,
-) {
-    if action == Action::Unknown {
-        error!(context, "Invalid action passed to job_add");
-        return;
-    }
-
-    let job = Job::new(action, foreign_id as u32, param, delay_seconds);
+/// Adds a job to the database, scheduling it.
+pub async fn add(context: &Context, job: Job) {
+    let action = job.action;
+    let delay_seconds = job.delay_seconds();
     job.save(context).await.unwrap_or_else(|err| {
         error!(context, "failed to save job: {}", err);
     });

@@ -671,6 +671,27 @@ pub unsafe extern "C" fn dc_send_msg(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_send_msg_sync(
+    context: *mut dc_context_t,
+    chat_id: u32,
+    msg: *mut dc_msg_t,
+) -> u32 {
+    if context.is_null() || msg.is_null() {
+        eprintln!("ignoring careless call to dc_send_msg_sync()");
+        return 0;
+    }
+    let ctx = &mut *context;
+    let ffi_msg = &mut *msg;
+
+    block_on(async move {
+        chat::send_msg_sync(&ctx, ChatId::new(chat_id), &mut ffi_msg.message)
+            .await
+            .unwrap_or_log_default(&ctx, "Failed to send message")
+    })
+    .to_u32()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_send_text_msg(
     context: *mut dc_context_t,
     chat_id: u32,

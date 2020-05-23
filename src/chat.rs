@@ -237,7 +237,8 @@ impl ChatId {
         });
 
         job::kill_action(context, Action::Housekeeping).await;
-        job::add(context, Action::Housekeeping, 0, Params::new(), 10).await;
+        let j = job::Job::new(Action::Housekeeping, 0, Params::new(), 10);
+        job::add(context, j).await;
 
         Ok(())
     }
@@ -1454,11 +1455,73 @@ pub async fn send_msg(
     send_msg_inner(context, chat_id, msg).await
 }
 
+/// Tries to send a message synchronously.
+///
+/// Directly  opens an smtp
+/// connection and sends the message, bypassing the job system. If this fails, it writes a send job to
+/// the database.
+pub async fn send_msg_sync(
+    context: &Context,
+    chat_id: ChatId,
+    msg: &mut Message,
+) -> Result<MsgId, Error> {
+    if context.is_io_running().await {
+        return send_msg(context, chat_id, msg).await;
+    }
+
+    if let Some(mut job) = prepare_send_msg(context, chat_id, msg).await? {
+        let mut smtp = crate::smtp::Smtp::new();
+
+        let status = job.send_msg_to_smtp(context, &mut smtp).await;
+
+        match status {
+            job::Status::Finished(Ok(_)) => {
+                context.emit_event(Event::MsgsChanged {
+                    chat_id: msg.chat_id,
+                    msg_id: msg.id,
+                });
+
+                Ok(msg.id)
+            }
+            _ => {
+                job.save(context).await?;
+                Err(format_err!(
+                    "failed to send message, queued for later sending"
+                ))
+            }
+        }
+    } else {
+        // Nothing to do
+        Ok(msg.id)
+    }
+}
+
 async fn send_msg_inner(
     context: &Context,
     chat_id: ChatId,
     msg: &mut Message,
 ) -> Result<MsgId, Error> {
+    if let Some(send_job) = prepare_send_msg(context, chat_id, msg).await? {
+        job::add(context, send_job).await;
+
+        context.emit_event(Event::MsgsChanged {
+            chat_id: msg.chat_id,
+            msg_id: msg.id,
+        });
+
+        if msg.param.exists(Param::SetLatitude) {
+            context.emit_event(Event::LocationChanged(Some(DC_CONTACT_ID_SELF)));
+        }
+    }
+
+    Ok(msg.id)
+}
+
+async fn prepare_send_msg(
+    context: &Context,
+    chat_id: ChatId,
+    msg: &mut Message,
+) -> Result<Option<crate::job::Job>, Error> {
     // dc_prepare_msg() leaves the message state to OutPreparing, we
     // only have to change the state to OutPending in this case.
     // Otherwise we still have to prepare the message, which will set
@@ -1474,18 +1537,9 @@ async fn send_msg_inner(
         );
         message::update_msg_state(context, msg.id, MessageState::OutPending).await;
     }
-    job::send_msg(context, msg.id).await?;
+    let job = job::send_msg_job(context, msg.id).await?;
 
-    context.emit_event(Event::MsgsChanged {
-        chat_id: msg.chat_id,
-        msg_id: msg.id,
-    });
-
-    if msg.param.exists(Param::SetLatitude) {
-        context.emit_event(Event::LocationChanged(Some(DC_CONTACT_ID_SELF)));
-    }
-
-    Ok(msg.id)
+    Ok(job)
 }
 
 pub async fn send_text_msg(
@@ -2533,7 +2587,9 @@ pub async fn forward_msgs(
                 let fresh10 = curr_timestamp;
                 curr_timestamp += 1;
                 new_msg_id = chat.prepare_msg_raw(context, &mut msg, fresh10).await?;
-                job::send_msg(context, new_msg_id).await?;
+                if let Some(send_job) = job::send_msg_job(context, new_msg_id).await? {
+                    job::add(context, send_job).await;
+                }
             }
             created_chats.push(chat_id);
             created_msgs.push(new_msg_id);

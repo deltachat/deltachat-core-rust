@@ -481,10 +481,7 @@ impl Context {
                 MessengerMessage::Yes | MessengerMessage::Reply => {
                     job::add(
                         self,
-                        Action::MoveMsg,
-                        msg.id.to_u32() as i32,
-                        Params::new(),
-                        0,
+                        job::Job::new(Action::MoveMsg, msg.id.to_u32(), Params::new(), 0),
                     )
                     .await;
                 }

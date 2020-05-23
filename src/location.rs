@@ -232,10 +232,12 @@ pub async fn send_locations_to_chat(context: &Context, chat_id: ChatId, seconds:
                 schedule_maybe_send_locations(context, false).await;
                 job::add(
                     context,
-                    job::Action::MaybeSendLocationsEnded,
-                    chat_id.to_u32() as i32,
-                    Params::new(),
-                    seconds + 1,
+                    job::Job::new(
+                        job::Action::MaybeSendLocationsEnded,
+                        chat_id.to_u32(),
+                        Params::new(),
+                        seconds + 1,
+                    ),
                 )
                 .await;
             }
@@ -247,10 +249,7 @@ async fn schedule_maybe_send_locations(context: &Context, force_schedule: bool) 
     if force_schedule || !job::action_exists(context, job::Action::MaybeSendLocations).await {
         job::add(
             context,
-            job::Action::MaybeSendLocations,
-            0,
-            Params::new(),
-            60,
+            job::Job::new(job::Action::MaybeSendLocations, 0, Params::new(), 60),
         )
         .await;
     };

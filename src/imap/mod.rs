@@ -1316,10 +1316,7 @@ async fn precheck_imf(
                     .await;
                 job::add(
                     context,
-                    Action::MarkseenMsgOnImap,
-                    msg_id.to_u32() as i32,
-                    Params::new(),
-                    0,
+                    job::Job::new(Action::MarkseenMsgOnImap, msg_id.to_u32(), Params::new(), 0),
                 )
                 .await;
             }

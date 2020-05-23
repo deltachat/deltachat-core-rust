@@ -213,10 +213,12 @@ pub async fn dc_receive_imf(
             for db_entry in &created_db_entries {
                 job::add(
                     context,
-                    Action::DeleteMsgOnImap,
-                    db_entry.1.to_u32() as i32,
-                    Params::new(),
-                    0,
+                    job::Job::new(
+                        Action::DeleteMsgOnImap,
+                        db_entry.1.to_u32(),
+                        Params::new(),
+                        0,
+                    ),
                 )
                 .await;
             }

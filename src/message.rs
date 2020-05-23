@@ -1021,10 +1021,7 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) {
         }
         job::add(
             context,
-            Action::DeleteMsgOnImap,
-            msg_id.to_u32() as i32,
-            Params::new(),
-            0,
+            job::Job::new(Action::DeleteMsgOnImap, msg_id.to_u32(), Params::new(), 0),
         )
         .await;
     }
@@ -1035,7 +1032,11 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) {
             msg_id: MsgId::new(0),
         });
         job::kill_action(context, Action::Housekeeping).await;
-        job::add(context, Action::Housekeeping, 0, Params::new(), 10).await;
+        job::add(
+            context,
+            job::Job::new(Action::Housekeeping, 0, Params::new(), 10),
+        )
+        .await;
     }
 }
 
@@ -1097,10 +1098,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
 
                 job::add(
                     context,
-                    Action::MarkseenMsgOnImap,
-                    id.to_u32() as i32,
-                    Params::new(),
-                    0,
+                    job::Job::new(Action::MarkseenMsgOnImap, id.to_u32(), Params::new(), 0),
                 )
                 .await;
                 send_event = true;
@@ -1550,7 +1548,11 @@ pub async fn update_server_uid(
 #[allow(dead_code)]
 pub async fn dc_empty_server(context: &Context, flags: u32) {
     job::kill_action(context, Action::EmptyServer).await;
-    job::add(context, Action::EmptyServer, flags as i32, Params::new(), 0).await;
+    job::add(
+        context,
+        job::Job::new(Action::EmptyServer, flags, Params::new(), 0),
+    )
+    .await;
 }
 
 #[cfg(test)]
