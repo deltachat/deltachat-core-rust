@@ -380,8 +380,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
         def make_direct_imap(self, account, folder):
             conn_info = (account.get_config("configured_mail_server"),
                          account.get_config("addr"), account.get_config("mail_pw"))
-            imap = ImapConn(None, folder, conn_info=conn_info)
-            imap.connect()
+            imap = ImapConn(folder, conn_info=conn_info)
             return imap
 
     am = AccountMaker()
