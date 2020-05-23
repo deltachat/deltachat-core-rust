@@ -19,7 +19,7 @@ from .eventlogger import FFIEventLogger, FFIEventTracker
 from _pytest.monkeypatch import MonkeyPatch
 from _pytest._code import Source
 
-from direct_imap import ImapConn
+from .direct_imap import ImapConn
 
 import deltachat
 
@@ -111,9 +111,9 @@ def pytest_report_header(config, startdir):
         m.undo()
         os.remove(t)
     summary.extend(['Deltachat core={} sqlite={}'.format(
-         info['deltachat_core_version'],
-         info['sqlite_version'],
-     )])
+        info['deltachat_core_version'],
+        info['sqlite_version'],
+    )])
 
     cfg = config.option.liveconfig
     if cfg:
