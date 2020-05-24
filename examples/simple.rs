@@ -1,6 +1,3 @@
-extern crate deltachat;
-
-use std::time;
 use tempfile::tempdir;
 
 use deltachat::chat;
@@ -11,32 +8,38 @@ use deltachat::context::*;
 use deltachat::Event;
 
 fn cb(event: Event) {
-    print!("[{:?}]", event);
-
     match event {
         Event::ConfigureProgress(progress) => {
-            println!("  progress: {}", progress);
+            log::info!("progress: {}", progress);
         }
-        Event::Info(msg) | Event::Warning(msg) | Event::Error(msg) | Event::ErrorNetwork(msg) => {
-            println!("  {}", msg);
+        Event::Info(msg) => {
+            log::info!("{}", msg);
         }
-        _ => {
-            println!();
+        Event::Warning(msg) => {
+            log::warn!("{}", msg);
+        }
+        Event::Error(msg) | Event::ErrorNetwork(msg) => {
+            log::error!("{}", msg);
+        }
+        event => {
+            log::info!("{:?}", event);
         }
     }
 }
 
+/// Run with `RUST_LOG=simple=info cargo run --release --example simple --features repl -- email pw`.
 #[async_std::main]
 async fn main() {
+    pretty_env_logger::try_init_timed().ok();
+
     let dir = tempdir().unwrap();
     let dbfile = dir.path().join("db.sqlite");
-    println!("creating database {:?}", dbfile);
+    log::info!("creating database {:?}", dbfile);
     let ctx = Context::new("FakeOs".into(), dbfile.into())
         .await
         .expect("Failed to create context");
     let info = ctx.get_info().await;
-    let duration = time::Duration::from_millis(4000);
-    println!("info: {:#?}", info);
+    log::info!("info: {:#?}", info);
 
     let events = ctx.get_event_emitter();
     let events_spawn = async_std::task::spawn(async move {
@@ -45,7 +48,7 @@ async fn main() {
         }
     });
 
-    println!("configuring");
+    log::info!("configuring");
     let args = std::env::args().collect::<Vec<String>>();
     assert_eq!(args.len(), 3, "requires email password");
     let email = args[1].clone();
@@ -59,9 +62,9 @@ async fn main() {
 
     ctx.configure().await.unwrap();
 
-    println!("------ RUN ------");
-    ctx.clone().start_io().await;
-    println!("--- SENDING A MESSAGE ---");
+    log::info!("------ RUN ------");
+    ctx.start_io().await;
+    log::info!("--- SENDING A MESSAGE ---");
 
     let contact_id = Contact::create(&ctx, "dignifiedquire", "dignifiedquire@gmail.com")
         .await
@@ -74,20 +77,19 @@ async fn main() {
             .unwrap();
     }
 
-    println!("fetching chats..");
+    log::info!("fetching chats..");
     let chats = Chatlist::try_load(&ctx, 0, None, None).await.unwrap();
 
     for i in 0..chats.len() {
         let summary = chats.get_summary(&ctx, 0, None).await;
         let text1 = summary.get_text1();
         let text2 = summary.get_text2();
-        println!("chat: {} - {:?} - {:?}", i, text1, text2,);
+        log::info!("chat: {} - {:?} - {:?}", i, text1, text2,);
     }
 
-    async_std::task::sleep(duration).await;
-
-    println!("stopping");
+    log::info!("stopping");
     ctx.stop_io().await;
-    println!("closing");
+    log::info!("closing");
+    drop(ctx);
     events_spawn.await;
 }

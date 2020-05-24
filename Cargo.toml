@@ -82,6 +82,7 @@ members = [
 [[example]]
 name = "simple"
 path = "examples/simple.rs"
+required-features = ["repl"]
 
 [[example]]
 name = "repl"
