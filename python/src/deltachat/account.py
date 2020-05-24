@@ -50,13 +50,12 @@ class Account(object):
             lib.dc_context_unref,
         )
         if self._dc_context == ffi.NULL:
-            raise ValueError("Could not dc_context_new: {} {}".format(os_name, db_path))
-
-        hook = hookspec.Global._get_plugin_manager().hook
+            raise ValueError("FAILED dc_context_new: {} {}".format(os_name, db_path))
 
         self._shutdown_event = Event()
         self._event_thread = EventThread(self)
         self._configkeys = self.get_config("sys.config_keys").split()
+        hook = hookspec.Global._get_plugin_manager().hook
         hook.dc_account_init(account=self)
 
     def disable_logging(self):
