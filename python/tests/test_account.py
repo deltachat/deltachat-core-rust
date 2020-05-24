@@ -1087,13 +1087,11 @@ class TestOnlineAccount:
         lp.sec("ac2: mark seen {}".format(msg))
         msg.mark_seen()
 
-        lp.sec("ac2: send echo message")
-        msg.chat.send_text("world")
-
-        lp.sec("ac1: waiting for echo message")
-        incoming = message_queue.get(timeout=10)
-        assert incoming.text == "world"
-        assert msg.is_in_seen()
+        for ev in ac1._evtracker.yield_matching(""):
+            if ev.name == "DC_EVENT_INCOMING_MSG":
+                pytest.fail("MDN arrived as regular incoming message")
+            elif ev.name == "DC_EVENT_MSG_READ":
+                break
 
     def test_send_and_receive_image(self, acfactory, lp, data):
         ac1, ac2 = acfactory.get_two_online_accounts()

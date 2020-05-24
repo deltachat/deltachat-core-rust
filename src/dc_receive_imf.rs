@@ -656,10 +656,10 @@ async fn add_parts(
         .sql
         .with_conn(move |mut conn| {
             let mut ids = Vec::with_capacity(parts.len());
+            let mut is_hidden = is_hidden;
+
             for part in &mut parts {
                 let mut txt_raw = "".to_string();
-                let mut is_hidden = is_hidden;
-
                 let mut stmt = conn.prepare_cached(
                     "INSERT INTO msgs \
          (rfc724_mid, server_folder, server_uid, chat_id, from_id, to_id, timestamp, \

@@ -99,12 +99,16 @@ class FFIEventTracker:
                 break
 
     def get_matching(self, event_name_regex, check_error=True, timeout=None):
+        for ev in self.yield_matching(event_name_regex, check_error, timeout):
+            return ev
+
+    def yield_matching(self, event_name_regex, check_error=True, timeout=None):
         self.account.log("-- waiting for event with regex: {} --".format(event_name_regex))
         rex = re.compile("(?:{}).*".format(event_name_regex))
         while 1:
             ev = self.get(timeout=timeout, check_error=check_error)
             if rex.match(ev.name):
-                return ev
+                yield ev
 
     def get_info_matching(self, regex):
         rex = re.compile("(?:{}).*".format(regex))
