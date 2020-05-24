@@ -784,6 +784,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "smallvec",
+ "smol",
  "stop-token",
  "strum",
  "strum_macros",

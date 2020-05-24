@@ -238,124 +238,140 @@ fn select_pk_for_encryption(key: &SignedPublicKey) -> Option<SignedPublicKeyOrSu
 
 /// Encrypts `plain` text using `public_keys_for_encryption`
 /// and signs it using `private_key_for_signing`.
-pub fn pk_encrypt(
+pub async fn pk_encrypt(
     plain: &[u8],
-    public_keys_for_encryption: &Keyring,
-    private_key_for_signing: Option<&Key>,
+    public_keys_for_encryption: Keyring,
+    private_key_for_signing: Option<Key>,
 ) -> Result<String> {
     let lit_msg = Message::new_literal_bytes("", plain);
-    let pkeys: Vec<SignedPublicKeyOrSubkey> = public_keys_for_encryption
-        .keys()
-        .iter()
-        .filter_map(|key| {
-            key.as_ref()
+
+    async_std::task::spawn_blocking(move || {
+        let pkeys: Vec<SignedPublicKeyOrSubkey> = public_keys_for_encryption
+            .keys()
+            .iter()
+            .filter_map(|key| key.try_into().ok().and_then(select_pk_for_encryption))
+            .collect();
+        let pkeys_refs: Vec<&SignedPublicKeyOrSubkey> = pkeys.iter().collect();
+
+        let mut rng = thread_rng();
+
+        // TODO: measure time
+        let encrypted_msg = if let Some(ref private_key) = private_key_for_signing {
+            let skey: &SignedSecretKey = private_key
                 .try_into()
-                .ok()
-                .and_then(select_pk_for_encryption)
-        })
-        .collect();
-    let pkeys_refs: Vec<&SignedPublicKeyOrSubkey> = pkeys.iter().collect();
+                .map_err(|_| format_err!("Invalid private key"))?;
 
-    let mut rng = thread_rng();
+            lit_msg
+                .sign(skey, || "".into(), Default::default())
+                .and_then(|msg| msg.compress(CompressionAlgorithm::ZLIB))
+                .and_then(|msg| msg.encrypt_to_keys(&mut rng, Default::default(), &pkeys_refs))
+        } else {
+            lit_msg.encrypt_to_keys(&mut rng, Default::default(), &pkeys_refs)
+        };
 
-    // TODO: measure time
-    let encrypted_msg = if let Some(private_key) = private_key_for_signing {
-        let skey: &SignedSecretKey = private_key
-            .try_into()
-            .map_err(|_| format_err!("Invalid private key"))?;
+        let msg = encrypted_msg?;
+        let encoded_msg = msg.to_armored_string(None)?;
 
-        lit_msg
-            .sign(skey, || "".into(), Default::default())
-            .and_then(|msg| msg.compress(CompressionAlgorithm::ZLIB))
-            .and_then(|msg| msg.encrypt_to_keys(&mut rng, Default::default(), &pkeys_refs))
-    } else {
-        lit_msg.encrypt_to_keys(&mut rng, Default::default(), &pkeys_refs)
-    };
-
-    let msg = encrypted_msg?;
-    let encoded_msg = msg.to_armored_string(None)?;
-
-    Ok(encoded_msg)
+        Ok(encoded_msg)
+    })
+    .await
 }
 
 #[allow(clippy::implicit_hasher)]
-pub fn pk_decrypt(
-    ctext: &[u8],
-    private_keys_for_decryption: &Keyring,
-    public_keys_for_validation: &Keyring,
+pub async fn pk_decrypt(
+    ctext: Vec<u8>,
+    private_keys_for_decryption: Keyring,
+    public_keys_for_validation: Keyring,
     ret_signature_fingerprints: Option<&mut HashSet<String>>,
 ) -> Result<Vec<u8>> {
-    let (msg, _) = Message::from_armor_single(Cursor::new(ctext))?;
-    let skeys: Vec<&SignedSecretKey> = private_keys_for_decryption
-        .keys()
-        .iter()
-        .filter_map(|key| {
-            let k: &Key = &key;
-            k.try_into().ok()
-        })
-        .collect();
+    let msgs = async_std::task::spawn_blocking(move || {
+        let cursor = Cursor::new(ctext);
+        let (msg, _) = Message::from_armor_single(cursor)?;
 
-    let (decryptor, _) = msg.decrypt(|| "".into(), || "".into(), &skeys[..])?;
-    let msgs = decryptor.collect::<pgp::errors::Result<Vec<_>>>()?;
+        let skeys: Vec<&SignedSecretKey> = private_keys_for_decryption
+            .keys()
+            .iter()
+            .filter_map(|key| key.try_into().ok())
+            .collect();
+
+        let (decryptor, _) = msg.decrypt(|| "".into(), || "".into(), &skeys[..])?;
+        decryptor.collect::<pgp::errors::Result<Vec<_>>>()
+    })
+    .await?;
+
     ensure!(!msgs.is_empty(), "No valid messages found");
 
-    let dec_msg = &msgs[0];
+    let content = match msgs[0].get_content()? {
+        Some(content) => content,
+        None => bail!("Decrypted message is empty"),
+    };
 
     if let Some(ret_signature_fingerprints) = ret_signature_fingerprints {
-        if !public_keys_for_validation.keys().is_empty() {
-            let pkeys: Vec<&SignedPublicKey> = public_keys_for_validation
-                .keys()
-                .iter()
-                .filter_map(|key| {
-                    let k: &Key = &key;
-                    k.try_into().ok()
-                })
-                .collect();
+        if !public_keys_for_validation.is_empty() {
+            let fingerprints = async_std::task::spawn_blocking(move || {
+                let dec_msg = &msgs[0];
 
-            for pkey in &pkeys {
-                if dec_msg.verify(&pkey.primary_key).is_ok() {
-                    let fp = hex::encode_upper(pkey.fingerprint());
-                    ret_signature_fingerprints.insert(fp);
+                let pkeys = public_keys_for_validation
+                    .keys()
+                    .iter()
+                    .filter_map(|key| -> Option<&SignedPublicKey> { key.try_into().ok() });
+
+                let mut fingerprints = Vec::new();
+                for pkey in pkeys {
+                    if dec_msg.verify(&pkey.primary_key).is_ok() {
+                        let fp = hex::encode_upper(pkey.fingerprint());
+                        fingerprints.push(fp);
+                    }
                 }
-            }
+                fingerprints
+            })
+            .await;
+
+            ret_signature_fingerprints.extend(fingerprints);
         }
     }
 
-    match dec_msg.get_content()? {
-        Some(content) => Ok(content),
-        None => bail!("Decrypted message is empty"),
-    }
+    Ok(content)
 }
 
 /// Symmetric encryption.
-pub fn symm_encrypt(passphrase: &str, plain: &[u8]) -> Result<String> {
-    let mut rng = thread_rng();
+pub async fn symm_encrypt(passphrase: &str, plain: &[u8]) -> Result<String> {
     let lit_msg = Message::new_literal_bytes("", plain);
+    let passphrase = passphrase.to_string();
 
-    let s2k = StringToKey::new_default(&mut rng);
-    let msg =
-        lit_msg.encrypt_with_password(&mut rng, s2k, Default::default(), || passphrase.into())?;
+    async_std::task::spawn_blocking(move || {
+        let mut rng = thread_rng();
+        let s2k = StringToKey::new_default(&mut rng);
+        let msg =
+            lit_msg.encrypt_with_password(&mut rng, s2k, Default::default(), || passphrase)?;
 
-    let encoded_msg = msg.to_armored_string(None)?;
+        let encoded_msg = msg.to_armored_string(None)?;
 
-    Ok(encoded_msg)
+        Ok(encoded_msg)
+    })
+    .await
 }
 
 /// Symmetric decryption.
-pub fn symm_decrypt<T: std::io::Read + std::io::Seek>(
+pub async fn symm_decrypt<T: std::io::Read + std::io::Seek>(
     passphrase: &str,
     ctext: T,
 ) -> Result<Vec<u8>> {
     let (enc_msg, _) = Message::from_armor_single(ctext)?;
-    let decryptor = enc_msg.decrypt_with_password(|| passphrase.into())?;
 
-    let msgs = decryptor.collect::<pgp::errors::Result<Vec<_>>>()?;
-    ensure!(!msgs.is_empty(), "No valid messages found");
+    let passphrase = passphrase.to_string();
+    async_std::task::spawn_blocking(move || {
+        let decryptor = enc_msg.decrypt_with_password(|| passphrase)?;
 
-    match msgs[0].get_content()? {
-        Some(content) => Ok(content),
-        None => bail!("Decrypted message is empty"),
-    }
+        let msgs = decryptor.collect::<pgp::errors::Result<Vec<_>>>()?;
+        ensure!(!msgs.is_empty(), "No valid messages found");
+
+        match msgs[0].get_content()? {
+            Some(content) => Ok(content),
+            None => bail!("Decrypted message is empty"),
+        }
+    })
+    .await
 }
 
 #[cfg(test)]
@@ -437,17 +453,17 @@ mod tests {
         /// A cyphertext encrypted to Alice & Bob, signed by Alice.
         static ref CTEXT_SIGNED: String = {
             let mut keyring = Keyring::default();
-            keyring.add_owned(KEYS.alice_public.clone());
-            keyring.add_ref(&KEYS.bob_public);
-            pk_encrypt(CLEARTEXT, &keyring, Some(&KEYS.alice_secret)).unwrap()
+            keyring.add(KEYS.alice_public.clone());
+            keyring.add(KEYS.bob_public.clone());
+            smol::block_on(pk_encrypt(CLEARTEXT, keyring, Some(KEYS.alice_secret.clone()))).unwrap()
         };
 
         /// A cyphertext encrypted to Alice & Bob, not signed.
         static ref CTEXT_UNSIGNED: String = {
             let mut keyring = Keyring::default();
-            keyring.add_owned(KEYS.alice_public.clone());
-            keyring.add_ref(&KEYS.bob_public);
-            pk_encrypt(CLEARTEXT, &keyring, None).unwrap()
+            keyring.add(KEYS.alice_public.clone());
+            keyring.add(KEYS.bob_public.clone());
+            smol::block_on(pk_encrypt(CLEARTEXT, keyring, None)).unwrap()
         };
     }
 
@@ -463,20 +479,21 @@ mod tests {
         assert!(CTEXT_UNSIGNED.starts_with("-----BEGIN PGP MESSAGE-----"));
     }
 
-    #[test]
-    fn test_decrypt_singed() {
+    #[async_std::test]
+    async fn test_decrypt_singed() {
         // Check decrypting as Alice
         let mut decrypt_keyring = Keyring::default();
-        decrypt_keyring.add_ref(&KEYS.alice_secret);
+        decrypt_keyring.add(KEYS.alice_secret.clone());
         let mut sig_check_keyring = Keyring::default();
-        sig_check_keyring.add_ref(&KEYS.alice_public);
+        sig_check_keyring.add(KEYS.alice_public.clone());
         let mut valid_signatures: HashSet<String> = Default::default();
         let plain = pk_decrypt(
-            CTEXT_SIGNED.as_bytes(),
-            &decrypt_keyring,
-            &sig_check_keyring,
+            CTEXT_SIGNED.as_bytes().to_vec(),
+            decrypt_keyring,
+            sig_check_keyring,
             Some(&mut valid_signatures),
         )
+        .await
         .map_err(|err| println!("{:?}", err))
         .unwrap();
         assert_eq!(plain, CLEARTEXT);
@@ -484,89 +501,94 @@ mod tests {
 
         // Check decrypting as Bob
         let mut decrypt_keyring = Keyring::default();
-        decrypt_keyring.add_ref(&KEYS.bob_secret);
+        decrypt_keyring.add(KEYS.bob_secret.clone());
         let mut sig_check_keyring = Keyring::default();
-        sig_check_keyring.add_ref(&KEYS.alice_public);
+        sig_check_keyring.add(KEYS.alice_public.clone());
         let mut valid_signatures: HashSet<String> = Default::default();
         let plain = pk_decrypt(
-            CTEXT_SIGNED.as_bytes(),
-            &decrypt_keyring,
-            &sig_check_keyring,
+            CTEXT_SIGNED.as_bytes().to_vec(),
+            decrypt_keyring,
+            sig_check_keyring,
             Some(&mut valid_signatures),
         )
+        .await
         .map_err(|err| println!("{:?}", err))
         .unwrap();
         assert_eq!(plain, CLEARTEXT);
         assert_eq!(valid_signatures.len(), 1);
     }
 
-    #[test]
-    fn test_decrypt_no_sig_check() {
+    #[async_std::test]
+    async fn test_decrypt_no_sig_check() {
         let mut keyring = Keyring::default();
-        keyring.add_ref(&KEYS.alice_secret);
+        keyring.add(KEYS.alice_secret.clone());
         let empty_keyring = Keyring::default();
         let mut valid_signatures: HashSet<String> = Default::default();
         let plain = pk_decrypt(
-            CTEXT_SIGNED.as_bytes(),
-            &keyring,
-            &empty_keyring,
+            CTEXT_SIGNED.as_bytes().to_vec(),
+            keyring,
+            empty_keyring,
             Some(&mut valid_signatures),
         )
+        .await
         .unwrap();
         assert_eq!(plain, CLEARTEXT);
         assert_eq!(valid_signatures.len(), 0);
     }
 
-    #[test]
-    fn test_decrypt_signed_no_key() {
+    #[async_std::test]
+    async fn test_decrypt_signed_no_key() {
         // The validation does not have the public key of the signer.
         let mut decrypt_keyring = Keyring::default();
-        decrypt_keyring.add_ref(&KEYS.bob_secret);
+        decrypt_keyring.add(KEYS.bob_secret.clone());
         let mut sig_check_keyring = Keyring::default();
-        sig_check_keyring.add_ref(&KEYS.bob_public);
+        sig_check_keyring.add(KEYS.bob_public.clone());
         let mut valid_signatures: HashSet<String> = Default::default();
         let plain = pk_decrypt(
-            CTEXT_SIGNED.as_bytes(),
-            &decrypt_keyring,
-            &sig_check_keyring,
+            CTEXT_SIGNED.as_bytes().to_vec(),
+            decrypt_keyring,
+            sig_check_keyring,
             Some(&mut valid_signatures),
         )
+        .await
         .unwrap();
         assert_eq!(plain, CLEARTEXT);
         assert_eq!(valid_signatures.len(), 0);
     }
 
-    #[test]
-    fn test_decrypt_unsigned() {
+    #[async_std::test]
+    async fn test_decrypt_unsigned() {
         let mut decrypt_keyring = Keyring::default();
-        decrypt_keyring.add_ref(&KEYS.bob_secret);
+        decrypt_keyring.add(KEYS.bob_secret.clone());
         let sig_check_keyring = Keyring::default();
-        decrypt_keyring.add_ref(&KEYS.alice_public);
+        decrypt_keyring.add(KEYS.alice_public.clone());
         let mut valid_signatures: HashSet<String> = Default::default();
         let plain = pk_decrypt(
-            CTEXT_UNSIGNED.as_bytes(),
-            &decrypt_keyring,
-            &sig_check_keyring,
+            CTEXT_UNSIGNED.as_bytes().to_vec(),
+            decrypt_keyring,
+            sig_check_keyring,
             Some(&mut valid_signatures),
         )
+        .await
         .unwrap();
         assert_eq!(plain, CLEARTEXT);
         assert_eq!(valid_signatures.len(), 0);
     }
 
-    #[test]
-    fn test_decrypt_signed_no_sigret() {
+    #[async_std::test]
+    async fn test_decrypt_signed_no_sigret() {
         // Check decrypting signed cyphertext without providing the HashSet for signatures.
         let mut decrypt_keyring = Keyring::default();
-        decrypt_keyring.add_ref(&KEYS.bob_secret);
+        decrypt_keyring.add(KEYS.bob_secret.clone());
         let mut sig_check_keyring = Keyring::default();
-        sig_check_keyring.add_ref(&KEYS.alice_public);
+        sig_check_keyring.add(KEYS.alice_public.clone());
         let plain = pk_decrypt(
-            CTEXT_SIGNED.as_bytes(),
-            &decrypt_keyring,
-            &sig_check_keyring,
+            CTEXT_SIGNED.as_bytes().to_vec(),
+            decrypt_keyring,
+            sig_check_keyring,
             None,
         )
+        .await
         .unwrap();
         assert_eq!(plain, CLEARTEXT);
     }

@@ -220,15 +220,15 @@ impl<'a> Peerstate<'a> {
                 res.public_key = row
                     .get(4)
                     .ok()
-                    .and_then(|blob: Vec<u8>| Key::from_slice(&blob, KeyType::Public));
+                    .and_then(|blob: Vec<u8>| Key::from_slice(&blob, KeyType::Public).ok());
                 res.gossip_key = row
                     .get(6)
                     .ok()
-                    .and_then(|blob: Vec<u8>| Key::from_slice(&blob, KeyType::Public));
+                    .and_then(|blob: Vec<u8>| Key::from_slice(&blob, KeyType::Public).ok());
                 res.verified_key = row
                     .get(9)
                     .ok()
-                    .and_then(|blob: Vec<u8>| Key::from_slice(&blob, KeyType::Public));
+                    .and_then(|blob: Vec<u8>| Key::from_slice(&blob, KeyType::Public).ok());
 
                 Ok(res)
             })
@@ -364,6 +364,15 @@ impl<'a> Peerstate<'a> {
             Some(header.to_string())
         } else {
             None
+        }
+    }
+
+    pub fn take_key(mut self, min_verified: PeerstateVerifiedStatus) -> Option<Key> {
+        match min_verified {
+            PeerstateVerifiedStatus::BidirectVerified => self.verified_key.take(),
+            PeerstateVerifiedStatus::Unverified => {
+                self.public_key.take().or_else(|| self.gossip_key.take())
+            }
         }
     }
 

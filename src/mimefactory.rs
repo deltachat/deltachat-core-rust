@@ -463,7 +463,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let force_plaintext = self.should_force_plaintext();
         let subject_str = self.subject_str().await;
         let e2ee_guaranteed = self.is_e2ee_guaranteed();
-        let mut encrypt_helper = EncryptHelper::new(self.context).await?;
+        let encrypt_helper = EncryptHelper::new(self.context).await?;
 
         let subject = encode_words(&subject_str);
 
@@ -560,7 +560,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             }
 
             let encrypted = encrypt_helper
-                .encrypt(self.context, min_verified, message, &peerstates)
+                .encrypt(self.context, min_verified, message, peerstates)
                 .await?;
 
             outer_message = outer_message

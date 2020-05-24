@@ -38,6 +38,8 @@ pub enum Error {
     NoConfiguredAddr,
     #[error("Configured address is invalid: {}", _0)]
     InvalidConfiguredAddr(#[from] InvalidEmailError),
+    #[error("no data provided")]
+    Empty,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -260,22 +262,17 @@ impl Key {
         !self.is_public()
     }
 
-    pub fn from_slice(bytes: &[u8], key_type: KeyType) -> Option<Self> {
+    pub fn from_slice(bytes: &[u8], key_type: KeyType) -> Result<Self> {
         if bytes.is_empty() {
-            return None;
+            return Err(Error::Empty);
         }
-        let res: std::result::Result<Key, _> = match key_type {
-            KeyType::Public => SignedPublicKey::from_bytes(Cursor::new(bytes)).map(Into::into),
-            KeyType::Private => SignedSecretKey::from_bytes(Cursor::new(bytes)).map(Into::into),
+
+        let res = match key_type {
+            KeyType::Public => SignedPublicKey::from_bytes(Cursor::new(bytes))?.into(),
+            KeyType::Private => SignedSecretKey::from_bytes(Cursor::new(bytes))?.into(),
         };
 
-        match res {
-            Ok(key) => Some(key),
-            Err(err) => {
-                eprintln!("Invalid key bytes: {:?}", err);
-                None
-            }
-        }
+        Ok(res)
     }
 
     pub fn from_armored_string(
@@ -625,7 +622,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
                     KeyType::Private
                 },
             );
-            assert!(bad_key.is_none());
+            assert!(bad_key.is_err());
         }
     }
 

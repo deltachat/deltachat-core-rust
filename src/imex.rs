@@ -187,7 +187,7 @@ pub async fn render_setup_file(context: &Context, passphrase: &str) -> Result<St
         true => Some(("Autocrypt-Prefer-Encrypt", "mutual")),
     };
     let private_key_asc = private_key.to_asc(ac_headers);
-    let encr = pgp::symm_encrypt(&passphrase, private_key_asc.as_bytes())?;
+    let encr = pgp::symm_encrypt(&passphrase, private_key_asc.as_bytes()).await?;
 
     let replacement = format!(
         concat!(
@@ -274,7 +274,7 @@ pub async fn continue_key_transfer(
     if let Some(filename) = msg.get_file(context) {
         let file = dc_open_file_std(context, filename)?;
         let sc = normalize_setup_code(setup_code);
-        let armored_key = decrypt_setup_file(context, &sc, file)?;
+        let armored_key = decrypt_setup_file(&sc, file).await?;
         set_self_key(context, &armored_key, true, true).await?;
         maybe_add_bcc_self_device_msg(context).await?;
 
@@ -345,12 +345,11 @@ async fn set_self_key(
     Ok(())
 }
 
-fn decrypt_setup_file<T: std::io::Read + std::io::Seek>(
-    _context: &Context,
+async fn decrypt_setup_file<T: std::io::Read + std::io::Seek>(
     passphrase: &str,
     file: T,
 ) -> Result<String> {
-    let plain_bytes = pgp::symm_decrypt(passphrase, file)?;
+    let plain_bytes = pgp::symm_decrypt(passphrase, file).await?;
     let plain_text = std::string::String::from_utf8(plain_bytes)?;
 
     Ok(plain_text)
@@ -713,7 +712,7 @@ async fn export_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()
 
     for (id, public_key, private_key, is_default) in keys {
         let id = Some(id).filter(|_| is_default != 0);
-        if let Some(key) = public_key {
+        if let Ok(key) = public_key {
             if export_key_to_asc_file(context, &dir, id, &key)
                 .await
                 .is_err()
@@ -723,7 +722,7 @@ async fn export_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()
         } else {
             export_errors += 1;
         }
-        if let Some(key) = private_key {
+        if let Ok(key) = private_key {
             if export_key_to_asc_file(context, &dir, id, &key)
                 .await
                 .is_err()
@@ -852,9 +851,6 @@ mod tests {
 
     #[async_std::test]
     async fn test_split_and_decrypt() {
-        let ctx = dummy_context().await;
-        let context = &ctx.ctx;
-
         let buf_1 = S_EM_SETUPFILE.as_bytes().to_vec();
         let (typ, headers, base64) = split_armored_data(&buf_1).unwrap();
         assert_eq!(typ, BlockType::Message);
@@ -864,12 +860,10 @@ mod tests {
         assert!(!base64.is_empty());
 
         let setup_file = S_EM_SETUPFILE.to_string();
-        let decrypted = decrypt_setup_file(
-            context,
-            S_EM_SETUPCODE,
-            std::io::Cursor::new(setup_file.as_bytes()),
-        )
-        .unwrap();
+        let decrypted =
+            decrypt_setup_file(S_EM_SETUPCODE, std::io::Cursor::new(setup_file.as_bytes()))
+                .await
+                .unwrap();
 
         let (typ, headers, _base64) = split_armored_data(decrypted.as_bytes()).unwrap();
 
