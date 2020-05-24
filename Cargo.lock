@@ -136,9 +136,9 @@ dependencies = [
 
 [[package]]
 name = "async-imap"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7dacff85e0a4ef94b196344a715bfb655d1ec806693d7a566569154b5ea74284"
+checksum = "8113a1ae7ed80ce764f7474f4323b66f945367c2195d046cfa5efdde30fca04c"
 dependencies = [
  "async-native-tls",
  "async-std",
@@ -1758,19 +1758,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "nix"
-version = "0.17.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "50e4785f2c3b7589a0d0c1dd60285e1188adac4006e8abd6dd578e1567027363"
-dependencies = [
- "bitflags",
- "cc",
- "cfg-if",
- "libc",
- "void",
-]
-
-[[package]]
 name = "nodrop"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2579,7 +2566,7 @@ dependencies = [
  "libc",
  "log",
  "memchr",
- "nix 0.13.1",
+ "nix",
  "unicode-segmentation",
  "unicode-width",
  "utf8parse",
@@ -2804,13 +2791,13 @@ checksum = "c7cb5678e1615754284ec264d9bb5b4c27d2018577fd90ac0ceb578591ed5ee4"
 [[package]]
 name = "smol"
 version = "0.1.10"
-source = "git+https://github.com/dignifiedquire/smol?branch=isolate-nix#09727d70f2349a3991162abd90e751838e1617b5"
+source = "git+https://github.com/dignifiedquire/smol-1?branch=isolate-nix#8b35e961d82e4543feadec86828500092b5e1938"
 dependencies = [
  "async-task",
  "crossbeam",
  "futures-io",
  "futures-util",
- "nix 0.17.0",
+ "libc",
  "once_cell",
  "piper",
  "scoped-tls-hkt",
