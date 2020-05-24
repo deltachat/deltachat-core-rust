@@ -591,6 +591,8 @@ impl Imap {
         // fetch messages with larger UID than the last one seen
         // `(UID FETCH lastseenuid+1:*)`, see RFC 4549
         let set = format!("{}:*", last_seen_uid + 1);
+
+        info!(context, "fetch_new_messages {:?}", set);
         let mut list = match session.uid_fetch(set, PREFETCH_FLAGS).await {
             Ok(list) => list,
             Err(err) => {
