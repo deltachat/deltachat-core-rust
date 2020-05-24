@@ -1087,7 +1087,7 @@ class TestOnlineAccount:
         lp.sec("ac2: mark seen {}".format(msg))
         msg.mark_seen()
 
-        for ev in ac1._evtracker.yield_matching(""):
+        for ev in ac1._evtracker.iter_events():
             if ev.name == "DC_EVENT_INCOMING_MSG":
                 pytest.fail("MDN arrived as regular incoming message")
             elif ev.name == "DC_EVENT_MSG_READ":

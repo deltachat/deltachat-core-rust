@@ -67,8 +67,8 @@ class Account(object):
         """ re-enable logging. """
         self._logging = True
 
-    def __del__(self):
-        self.shutdown()
+    # def __del__(self):
+    #    self.shutdown()
 
     def log(self, msg):
         if self._logging:

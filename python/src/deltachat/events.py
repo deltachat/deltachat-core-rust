@@ -77,8 +77,25 @@ class FFIEventTracker:
         timeout = timeout if timeout is not None else self._timeout
         ev = self._event_queue.get(timeout=timeout)
         if check_error and ev.name == "DC_EVENT_ERROR":
-            raise ValueError(str(ev))
+            raise ValueError("unexpected event: {}".format(ev))
         return ev
+
+    def iter_events(self, timeout=None, check_error=True):
+        while 1:
+            yield self.get(timeout=timeout, check_error=check_error)
+
+    def get_matching(self, event_name_regex, check_error=True, timeout=None):
+        rex = re.compile("(?:{}).*".format(event_name_regex))
+        for ev in self.iter_events(timeout=timeout, check_error=check_error):
+            if rex.match(ev.name):
+                return ev
+
+    def get_info_matching(self, regex):
+        rex = re.compile("(?:{}).*".format(regex))
+        while 1:
+            ev = self.get_matching("DC_EVENT_INFO")
+            if rex.match(ev.data2):
+                return ev
 
     def ensure_event_not_queued(self, event_name_regex):
         __tracebackhide__ = True
@@ -97,25 +114,6 @@ class FFIEventTracker:
             if event.data2 >= target:
                 print("** SECUREJOINT-INVITER PROGRESS {}".format(target), self.account)
                 break
-
-    def get_matching(self, event_name_regex, check_error=True, timeout=None):
-        for ev in self.yield_matching(event_name_regex, check_error, timeout):
-            return ev
-
-    def yield_matching(self, event_name_regex, check_error=True, timeout=None):
-        self.account.log("-- waiting for event with regex: {} --".format(event_name_regex))
-        rex = re.compile("(?:{}).*".format(event_name_regex))
-        while 1:
-            ev = self.get(timeout=timeout, check_error=check_error)
-            if rex.match(ev.name):
-                yield ev
-
-    def get_info_matching(self, regex):
-        rex = re.compile("(?:{}).*".format(regex))
-        while 1:
-            ev = self.get_matching("DC_EVENT_INFO")
-            if rex.match(ev.data2):
-                return ev
 
     def wait_next_incoming_message(self):
         """ wait for and return next incoming message. """
