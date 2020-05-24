@@ -1064,7 +1064,6 @@ class TestOnlineAccount:
         assert mime.get_all("From")
         assert mime.get_all("Received")
 
-    @pytest.mark.xfail(reason="core emits wrong DC_EVENT_INCOMING_MSG event")
     def test_send_mark_seen_clean_incoming_events(self, acfactory, lp, data):
         ac1, ac2 = acfactory.get_two_online_accounts()
         chat = self.get_chat(ac1, ac2, both_created=True)
