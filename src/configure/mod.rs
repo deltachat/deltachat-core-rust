@@ -4,7 +4,7 @@ mod auto_mozilla;
 mod auto_outlook;
 mod read_url;
 
-use anyhow::{bail, ensure, Result};
+use anyhow::{bail, ensure, format_err, Result};
 use async_std::prelude::*;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
@@ -119,6 +119,23 @@ impl Context {
             imap.disconnect(self).await;
         }
 
+        // remember the entered parameters on success
+        // and restore to last-entered on failure.
+        // this way, the parameters visible to the ui are always in-sync with the current configuration.
+        if success {
+            LoginParam::from_database(self, "")
+                .await
+                .save_to_database(self, "configured_raw_")
+                .await
+                .ok();
+        } else {
+            LoginParam::from_database(self, "configured_raw_")
+                .await
+                .save_to_database(self, "")
+                .await
+                .ok();
+        }
+
         if let Some(provider) = provider::get_provider_info(&param.addr) {
             if !was_configured_before {
                 if let Some(config_defaults) = &provider.config_defaults {
@@ -141,27 +158,12 @@ impl Context {
             }
         }
 
-        // remember the entered parameters on success
-        // and restore to last-entered on failure.
-        // this way, the parameters visible to the ui are always in-sync with the current configuration.
         if success {
-            LoginParam::from_database(self, "")
-                .await
-                .save_to_database(self, "configured_raw_")
-                .await
-                .ok();
-
             progress!(self, 1000);
             Ok(())
         } else {
-            LoginParam::from_database(self, "configured_raw_")
-                .await
-                .save_to_database(self, "")
-                .await
-                .ok();
-
             progress!(self, 0);
-            bail!("Configure failed")
+            Err(format_err!("Configure failed"))
         }
     }
 }
