@@ -589,12 +589,14 @@ impl Imap {
         let set = format!("{}:*", last_seen_uid + 1);
 
         info!(context, "fetch_new_messages {:?}", set);
-        let mut list = match session.uid_fetch(set, PREFETCH_FLAGS).await {
+        let mut list = match session.uid_fetch(&set, PREFETCH_FLAGS).await {
             Ok(list) => list,
             Err(err) => {
+                warn!(context, "ERROR: fetch_new_messages {:?} -> {:?}", &set, err);
                 return Err(Error::FetchFailed(err));
             }
         };
+        info!(context, "fetch_new_messages {:?} RETURNED", &set);
 
         let mut msgs = Vec::new();
         while let Some(fetch) = list.next().await {
@@ -602,6 +604,7 @@ impl Imap {
             msgs.push(fetch);
         }
         drop(list);
+        info!(context, "fetch_new_messages got {:?} messsages", msgs.len());
 
         msgs.sort_unstable_by_key(|msg| msg.uid.unwrap_or_default());
         let msgs: Vec<_> = msgs
@@ -693,6 +696,11 @@ impl Imap {
             }
         }
 
+        info!(
+            context,
+            "fetch_many_msgs fetching {} messages in batch",
+            uids.len()
+        );
         // check passed, go fetch the emails
         let (new_last_seen_uid_processed, error_cnt) =
             self.fetch_many_msgs(context, &folder, &uids).await;
