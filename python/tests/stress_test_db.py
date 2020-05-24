@@ -57,9 +57,9 @@ def test_db_busy_error(acfactory, tmpdir):
             log("timeout waiting for next event")
             pytest.fail("timeout exceeded")
         if report_type == ReportType.exit:
-            replier.log("EXIT".format(alive_count))
+            replier.log("EXIT")
         elif report_type == ReportType.ffi_error:
-            replier.log("ERROR: {}".format(addr, report_args[0]))
+            replier.log("ERROR: {}".format(report_args[0]))
         elif report_type == ReportType.message_echo:
             continue
         else:
