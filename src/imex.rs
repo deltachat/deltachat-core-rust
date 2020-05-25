@@ -96,21 +96,21 @@ pub async fn has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result
             let name = name.to_string_lossy();
             if name.starts_with("delta-chat") && name.ends_with(".bak") {
                 let sql = Sql::new();
-                if sql.open(context, &path, true).await {
-                    let curr_backup_time = sql
-                        .get_raw_config_int(context, "backup_time")
-                        .await
-                        .unwrap_or_default();
-                    if curr_backup_time > newest_backup_time {
-                        newest_backup_path = Some(path);
-                        newest_backup_time = curr_backup_time;
-                    }
-                    info!(context, "backup_time of {} is {}", name, curr_backup_time);
-                    sql.close().await;
+                sql.open(context, &path, true).await?;
+                let curr_backup_time = sql
+                    .get_raw_config_int(context, "backup_time")
+                    .await
+                    .unwrap_or_default();
+                if curr_backup_time > newest_backup_time {
+                    newest_backup_path = Some(path);
+                    newest_backup_time = curr_backup_time;
                 }
+                info!(context, "backup_time of {} is {}", name, curr_backup_time);
+                sql.close().await;
             }
         }
     }
+
     match newest_backup_path {
         Some(path) => Ok(path.to_string_lossy().into_owned()),
         None => bail!("no backup found in {}", dir_name.display()),
@@ -428,13 +428,10 @@ async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) ->
     );
     /* error already logged */
     /* re-open copied database file */
-    ensure!(
-        context
-            .sql
-            .open(&context, &context.get_dbfile(), false)
-            .await,
-        "could not re-open db"
-    );
+    context
+        .sql
+        .open(&context, &context.get_dbfile(), false)
+        .await?;
 
     delete_and_reset_all_device_msgs(&context).await?;
 
@@ -531,7 +528,7 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     context
         .sql
         .open(&context, &context.get_dbfile(), false)
-        .await;
+        .await?;
 
     if !copied {
         bail!(
@@ -541,11 +538,8 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
         );
     }
     let dest_sql = Sql::new();
-    ensure!(
-        dest_sql.open(context, &dest_path_filename, false).await,
-        "could not open exported database {}",
-        dest_path_string
-    );
+    dest_sql.open(context, &dest_path_filename, false).await?;
+
     let res = match add_files_to_export(context, &dest_sql).await {
         Err(err) => {
             dc_delete_file(context, &dest_path_filename).await;

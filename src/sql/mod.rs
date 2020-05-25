@@ -10,7 +10,7 @@ use std::time::Duration;
 use rusqlite::{Connection, Error as SqlError, OpenFlags};
 
 use crate::chat::{update_device_icon, update_saved_messages_icon};
-use crate::constants::{ShowEmails, DC_CHAT_ID_TRASH};
+use crate::constants::DC_CHAT_ID_TRASH;
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::param::*;
@@ -25,6 +25,8 @@ macro_rules! paramsv {
         vec![$(&$param as &dyn $crate::ToSql),+]
     };
 }
+
+mod migrations;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -44,6 +46,8 @@ pub enum Error {
     BlobError(#[from] crate::blob::BlobError),
     #[error("{0}")]
     Other(#[from] crate::error::Error),
+    #[error("{0}")]
+    Sqlx(#[from] sqlx::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -52,12 +56,14 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug)]
 pub struct Sql {
     pool: RwLock<Option<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>>>,
+    xpool: RwLock<Option<sqlx::SqlitePool>>,
 }
 
 impl Default for Sql {
     fn default() -> Self {
         Self {
             pool: RwLock::new(None),
+            xpool: RwLock::new(None),
         }
     }
 }
@@ -68,26 +74,32 @@ impl Sql {
     }
 
     pub async fn is_open(&self) -> bool {
-        self.pool.read().await.is_some()
+        self.pool.read().await.is_some() && self.xpool.read().await.is_some()
     }
 
     pub async fn close(&self) {
         let _ = self.pool.write().await.take();
+        let _ = self.xpool.write().await.take();
         // drop closes the connection
     }
 
-    // return true on success, false on failure
-    pub async fn open<T: AsRef<Path>>(&self, context: &Context, dbfile: T, readonly: bool) -> bool {
-        match open(context, self, dbfile, readonly).await {
-            Ok(_) => true,
-            Err(err) => match err.downcast_ref::<Error>() {
-                Some(Error::SqlAlreadyOpen) => false,
+    pub async fn open<T: AsRef<Path>>(
+        &self,
+        context: &Context,
+        dbfile: T,
+        readonly: bool,
+    ) -> crate::error::Result<()> {
+        if let Err(err) = open(context, self, dbfile, readonly).await {
+            return match err.downcast_ref::<Error>() {
+                Some(Error::SqlAlreadyOpen) => Err(err),
                 _ => {
                     self.close().await;
-                    false
+                    Err(err)
                 }
-            },
+            };
         }
+
+        Ok(())
     }
 
     pub async fn execute<S: AsRef<str>>(
@@ -103,6 +115,40 @@ impl Sql {
         res.map_err(Into::into)
     }
 
+    pub async fn xexecute<S: AsRef<str>>(
+        &self,
+        statement: S,
+        params: sqlx::sqlite::SqliteArguments,
+    ) -> Result<()> {
+        let lock = self.xpool.read().await;
+        let xpool = lock.as_ref().ok_or_else(|| Error::SqlNoConnection)?;
+
+        sqlx::query(statement.as_ref())
+            .bind_all(params)
+            .execute(xpool)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Execute a list of statements, without any bindings
+    pub async fn xexecute_batch<S: AsRef<str>>(&self, statement: S) -> Result<()> {
+        let lock = self.xpool.read().await;
+        let xpool = lock.as_ref().ok_or_else(|| Error::SqlNoConnection)?;
+
+        sqlx::query(statement.as_ref()).execute(xpool).await?;
+
+        Ok(())
+    }
+
+    pub async fn execute_batch<S: AsRef<str>>(&self, sql: S) -> Result<()> {
+        let res = {
+            let conn = self.get_conn().await?;
+            conn.execute_batch(sql.as_ref())
+        };
+
+        res.map_err(Into::into)
+    }
     /// Prepares and executes the statement and maps a function over the resulting rows.
     /// Then executes the second function over the returned iterator and returns the
     /// result of that function.
@@ -675,6 +721,16 @@ async fn open(
         *sql.pool.write().await = Some(pool);
     }
 
+    let xpool = sqlx::SqlitePool::builder()
+        .min_size(1)
+        .max_size(1)
+        .build(&format!("sqlite://{}", dbfile.as_ref().to_string_lossy()))
+        .await?;
+
+    {
+        *sql.xpool.write().await = Some(xpool)
+    }
+
     if !readonly {
         // journal_mode is persisted, it is sufficient to change it only for one handle.
         // (nb: execute() always returns errors for this PRAGMA call, just discard it.
@@ -686,157 +742,9 @@ async fn open(
             .ok();
 
         let mut exists_before_update = false;
-        let mut dbversion_before_update: i32 = 0;
-        /* Init tables to dbversion=0 */
-        if !sql.table_exists("config").await? {
-            info!(
-                context,
-                "First time init: creating tables in {:?}.",
-                dbfile.as_ref(),
-            );
-            sql.execute(
-                "CREATE TABLE config (id INTEGER PRIMARY KEY, keyname TEXT, value TEXT);",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "CREATE INDEX config_index1 ON config (keyname);",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "CREATE TABLE contacts (\
-                 id INTEGER PRIMARY KEY AUTOINCREMENT, \
-                 name TEXT DEFAULT '', \
-                 addr TEXT DEFAULT '' COLLATE NOCASE, \
-                 origin INTEGER DEFAULT 0, \
-                 blocked INTEGER DEFAULT 0, \
-                 last_seen INTEGER DEFAULT 0, \
-                 param TEXT DEFAULT '');",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "CREATE INDEX contacts_index1 ON contacts (name COLLATE NOCASE);",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "CREATE INDEX contacts_index2 ON contacts (addr COLLATE NOCASE);",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "INSERT INTO contacts (id,name,origin) VALUES \
-                 (1,'self',262144), (2,'info',262144), (3,'rsvd',262144), \
-                 (4,'rsvd',262144), (5,'device',262144), (6,'rsvd',262144), \
-                 (7,'rsvd',262144), (8,'rsvd',262144), (9,'rsvd',262144);",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "CREATE TABLE chats (\
-                 id INTEGER PRIMARY KEY AUTOINCREMENT,  \
-                 type INTEGER DEFAULT 0, \
-                 name TEXT DEFAULT '', \
-                 draft_timestamp INTEGER DEFAULT 0, \
-                 draft_txt TEXT DEFAULT '', \
-                 blocked INTEGER DEFAULT 0, \
-                 grpid TEXT DEFAULT '', \
-                 param TEXT DEFAULT '');",
-                paramsv![],
-            )
-            .await?;
-            sql.execute("CREATE INDEX chats_index1 ON chats (grpid);", paramsv![])
-                .await?;
-            sql.execute(
-                "CREATE TABLE chats_contacts (chat_id INTEGER, contact_id INTEGER);",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "CREATE INDEX chats_contacts_index1 ON chats_contacts (chat_id);",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "INSERT INTO chats (id,type,name) VALUES \
-                 (1,120,'deaddrop'), (2,120,'rsvd'), (3,120,'trash'), \
-                 (4,120,'msgs_in_creation'), (5,120,'starred'), (6,120,'archivedlink'), \
-                 (7,100,'rsvd'), (8,100,'rsvd'), (9,100,'rsvd');",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "CREATE TABLE msgs (\
-                 id INTEGER PRIMARY KEY AUTOINCREMENT, \
-                 rfc724_mid TEXT DEFAULT '', \
-                 server_folder TEXT DEFAULT '', \
-                 server_uid INTEGER DEFAULT 0, \
-                 chat_id INTEGER DEFAULT 0, \
-                 from_id INTEGER DEFAULT 0, \
-                 to_id INTEGER DEFAULT 0, \
-                 timestamp INTEGER DEFAULT 0, \
-                 type INTEGER DEFAULT 0, \
-                 state INTEGER DEFAULT 0, \
-                 msgrmsg INTEGER DEFAULT 1, \
-                 bytes INTEGER DEFAULT 0, \
-                 txt TEXT DEFAULT '', \
-                 txt_raw TEXT DEFAULT '', \
-                 param TEXT DEFAULT '');",
-                paramsv![],
-            )
-            .await?;
-            sql.execute("CREATE INDEX msgs_index1 ON msgs (rfc724_mid);", paramsv![])
-                .await?;
-            sql.execute("CREATE INDEX msgs_index2 ON msgs (chat_id);", paramsv![])
-                .await?;
-            sql.execute("CREATE INDEX msgs_index3 ON msgs (timestamp);", paramsv![])
-                .await?;
-            sql.execute("CREATE INDEX msgs_index4 ON msgs (state);", paramsv![])
-                .await?;
-            sql.execute(
-                "INSERT INTO msgs (id,msgrmsg,txt) VALUES \
-                 (1,0,'marker1'), (2,0,'rsvd'), (3,0,'rsvd'), \
-                 (4,0,'rsvd'), (5,0,'rsvd'), (6,0,'rsvd'), (7,0,'rsvd'), \
-                 (8,0,'rsvd'), (9,0,'daymarker');",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "CREATE TABLE jobs (\
-                 id INTEGER PRIMARY KEY AUTOINCREMENT, \
-                 added_timestamp INTEGER, \
-                 desired_timestamp INTEGER DEFAULT 0, \
-                 action INTEGER, \
-                 foreign_id INTEGER, \
-                 param TEXT DEFAULT '');",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "CREATE INDEX jobs_index1 ON jobs (desired_timestamp);",
-                paramsv![],
-            )
-            .await?;
-            if !sql.table_exists("config").await?
-                || !sql.table_exists("contacts").await?
-                || !sql.table_exists("chats").await?
-                || !sql.table_exists("chats_contacts").await?
-                || !sql.table_exists("msgs").await?
-                || !sql.table_exists("jobs").await?
-            {
-                error!(
-                    context,
-                    "Cannot create tables in new database \"{:?}\".",
-                    dbfile.as_ref(),
-                );
-                // cannot create the tables - maybe we cannot write?
-                return Err(Error::SqlFailedToOpen.into());
-            } else {
-                sql.set_raw_config_int(context, "dbversion", 0).await?;
-            }
-        } else {
+        let mut dbversion_before_update: i32 = -1;
+
+        if sql.table_exists("config").await? {
             exists_before_update = true;
             dbversion_before_update = sql
                 .get_raw_config_int(context, "dbversion")
@@ -849,411 +757,22 @@ async fn open(
         // rely themselves on the low-level structure.
         // --------------------------------------------------------------------
 
-        let mut dbversion = dbversion_before_update;
-        let mut recalc_fingerprints = false;
-        let mut update_icons = false;
+        migrations::run(context, &sql, dbversion_before_update, exists_before_update).await?;
 
-        if dbversion < 1 {
-            info!(context, "[migration] v1");
-            sql.execute(
-                "CREATE TABLE leftgrps ( id INTEGER PRIMARY KEY, grpid TEXT DEFAULT '');",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "CREATE INDEX leftgrps_index1 ON leftgrps (grpid);",
-                paramsv![],
-            )
-            .await?;
-            dbversion = 1;
-            sql.set_raw_config_int(context, "dbversion", 1).await?;
-        }
-        if dbversion < 2 {
-            info!(context, "[migration] v2");
-            sql.execute(
-                "ALTER TABLE contacts ADD COLUMN authname TEXT DEFAULT '';",
-                paramsv![],
-            )
-            .await?;
-            dbversion = 2;
-            sql.set_raw_config_int(context, "dbversion", 2).await?;
-        }
-        if dbversion < 7 {
-            info!(context, "[migration] v7");
-            sql.execute(
-                "CREATE TABLE keypairs (\
-                 id INTEGER PRIMARY KEY, \
-                 addr TEXT DEFAULT '' COLLATE NOCASE, \
-                 is_default INTEGER DEFAULT 0, \
-                 private_key, \
-                 public_key, \
-                 created INTEGER DEFAULT 0);",
-                paramsv![],
-            )
-            .await?;
-            dbversion = 7;
-            sql.set_raw_config_int(context, "dbversion", 7).await?;
-        }
-        if dbversion < 10 {
-            info!(context, "[migration] v10");
-            sql.execute(
-                "CREATE TABLE acpeerstates (\
-                 id INTEGER PRIMARY KEY, \
-                 addr TEXT DEFAULT '' COLLATE NOCASE, \
-                 last_seen INTEGER DEFAULT 0, \
-                 last_seen_autocrypt INTEGER DEFAULT 0, \
-                 public_key, \
-                 prefer_encrypted INTEGER DEFAULT 0);",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "CREATE INDEX acpeerstates_index1 ON acpeerstates (addr);",
-                paramsv![],
-            )
-            .await?;
-            dbversion = 10;
-            sql.set_raw_config_int(context, "dbversion", 10).await?;
-        }
-        if dbversion < 12 {
-            info!(context, "[migration] v12");
-            sql.execute(
-                "CREATE TABLE msgs_mdns ( msg_id INTEGER,  contact_id INTEGER);",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "CREATE INDEX msgs_mdns_index1 ON msgs_mdns (msg_id);",
-                paramsv![],
-            )
-            .await?;
-            dbversion = 12;
-            sql.set_raw_config_int(context, "dbversion", 12).await?;
-        }
-        if dbversion < 17 {
-            info!(context, "[migration] v17");
-            sql.execute(
-                "ALTER TABLE chats ADD COLUMN archived INTEGER DEFAULT 0;",
-                paramsv![],
-            )
-            .await?;
-            sql.execute("CREATE INDEX chats_index2 ON chats (archived);", paramsv![])
-                .await?;
-            sql.execute(
-                "ALTER TABLE msgs ADD COLUMN starred INTEGER DEFAULT 0;",
-                paramsv![],
-            )
-            .await?;
-            sql.execute("CREATE INDEX msgs_index5 ON msgs (starred);", paramsv![])
-                .await?;
-            dbversion = 17;
-            sql.set_raw_config_int(context, "dbversion", 17).await?;
-        }
-        if dbversion < 18 {
-            info!(context, "[migration] v18");
-            sql.execute(
-                "ALTER TABLE acpeerstates ADD COLUMN gossip_timestamp INTEGER DEFAULT 0;",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "ALTER TABLE acpeerstates ADD COLUMN gossip_key;",
-                paramsv![],
-            )
-            .await?;
-            dbversion = 18;
-            sql.set_raw_config_int(context, "dbversion", 18).await?;
-        }
-        if dbversion < 27 {
-            info!(context, "[migration] v27");
-            // chat.id=1 and chat.id=2 are the old deaddrops,
-            // the current ones are defined by chats.blocked=2
-            sql.execute("DELETE FROM msgs WHERE chat_id=1 OR chat_id=2;", paramsv![])
-                .await?;
-            sql.execute(
-                "CREATE INDEX chats_contacts_index2 ON chats_contacts (contact_id);",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "ALTER TABLE msgs ADD COLUMN timestamp_sent INTEGER DEFAULT 0;",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "ALTER TABLE msgs ADD COLUMN timestamp_rcvd INTEGER DEFAULT 0;",
-                paramsv![],
-            )
-            .await?;
-            dbversion = 27;
-            sql.set_raw_config_int(context, "dbversion", 27).await?;
-        }
-        if dbversion < 34 {
-            info!(context, "[migration] v34");
-            sql.execute(
-                "ALTER TABLE msgs ADD COLUMN hidden INTEGER DEFAULT 0;",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "ALTER TABLE msgs_mdns ADD COLUMN timestamp_sent INTEGER DEFAULT 0;",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "ALTER TABLE acpeerstates ADD COLUMN public_key_fingerprint TEXT DEFAULT '';",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "ALTER TABLE acpeerstates ADD COLUMN gossip_key_fingerprint TEXT DEFAULT '';",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "CREATE INDEX acpeerstates_index3 ON acpeerstates (public_key_fingerprint);",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "CREATE INDEX acpeerstates_index4 ON acpeerstates (gossip_key_fingerprint);",
-                paramsv![],
-            )
-            .await?;
-            recalc_fingerprints = true;
-            dbversion = 34;
-            sql.set_raw_config_int(context, "dbversion", 34).await?;
-        }
-        if dbversion < 39 {
-            info!(context, "[migration] v39");
-            sql.execute(
-                "CREATE TABLE tokens ( id INTEGER PRIMARY KEY, namespc INTEGER DEFAULT 0, foreign_id INTEGER DEFAULT 0, token TEXT DEFAULT '', timestamp INTEGER DEFAULT 0);",
-                paramsv![]
-            ).await?;
-            sql.execute(
-                "ALTER TABLE acpeerstates ADD COLUMN verified_key;",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "ALTER TABLE acpeerstates ADD COLUMN verified_key_fingerprint TEXT DEFAULT '';",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "CREATE INDEX acpeerstates_index5 ON acpeerstates (verified_key_fingerprint);",
-                paramsv![],
-            )
-            .await?;
-            dbversion = 39;
-            sql.set_raw_config_int(context, "dbversion", 39).await?;
-        }
-        if dbversion < 40 {
-            info!(context, "[migration] v40");
-            sql.execute(
-                "ALTER TABLE jobs ADD COLUMN thread INTEGER DEFAULT 0;",
-                paramsv![],
-            )
-            .await?;
-            dbversion = 40;
-            sql.set_raw_config_int(context, "dbversion", 40).await?;
-        }
-        if dbversion < 44 {
-            info!(context, "[migration] v44");
-            sql.execute("ALTER TABLE msgs ADD COLUMN mime_headers TEXT;", paramsv![])
-                .await?;
-            dbversion = 44;
-            sql.set_raw_config_int(context, "dbversion", 44).await?;
-        }
-        if dbversion < 46 {
-            info!(context, "[migration] v46");
-            sql.execute(
-                "ALTER TABLE msgs ADD COLUMN mime_in_reply_to TEXT;",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "ALTER TABLE msgs ADD COLUMN mime_references TEXT;",
-                paramsv![],
-            )
-            .await?;
-            dbversion = 46;
-            sql.set_raw_config_int(context, "dbversion", 46).await?;
-        }
-        if dbversion < 47 {
-            info!(context, "[migration] v47");
-            sql.execute(
-                "ALTER TABLE jobs ADD COLUMN tries INTEGER DEFAULT 0;",
-                paramsv![],
-            )
-            .await?;
-            dbversion = 47;
-            sql.set_raw_config_int(context, "dbversion", 47).await?;
-        }
-        if dbversion < 48 {
-            info!(context, "[migration] v48");
-            // NOTE: move_state is not used anymore
-            sql.execute(
-                "ALTER TABLE msgs ADD COLUMN move_state INTEGER DEFAULT 1;",
-                paramsv![],
-            )
-            .await?;
-
-            dbversion = 48;
-            sql.set_raw_config_int(context, "dbversion", 48).await?;
-        }
-        if dbversion < 49 {
-            info!(context, "[migration] v49");
-            sql.execute(
-                "ALTER TABLE chats ADD COLUMN gossiped_timestamp INTEGER DEFAULT 0;",
-                paramsv![],
-            )
-            .await?;
-            dbversion = 49;
-            sql.set_raw_config_int(context, "dbversion", 49).await?;
-        }
-        if dbversion < 50 {
-            info!(context, "[migration] v50");
-            // installations <= 0.100.1 used DC_SHOW_EMAILS_ALL implicitly;
-            // keep this default and use DC_SHOW_EMAILS_NO
-            // only for new installations
-            if exists_before_update {
-                sql.set_raw_config_int(context, "show_emails", ShowEmails::All as i32)
-                    .await?;
-            }
-            dbversion = 50;
-            sql.set_raw_config_int(context, "dbversion", 50).await?;
-        }
-        if dbversion < 53 {
-            info!(context, "[migration] v53");
-            // the messages containing _only_ locations
-            // are also added to the database as _hidden_.
-            sql.execute(
-                "CREATE TABLE locations ( id INTEGER PRIMARY KEY AUTOINCREMENT, latitude REAL DEFAULT 0.0, longitude REAL DEFAULT 0.0, accuracy REAL DEFAULT 0.0, timestamp INTEGER DEFAULT 0, chat_id INTEGER DEFAULT 0, from_id INTEGER DEFAULT 0);",
-                paramsv![]
-            ).await?;
-            sql.execute(
-                "CREATE INDEX locations_index1 ON locations (from_id);",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "CREATE INDEX locations_index2 ON locations (timestamp);",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "ALTER TABLE chats ADD COLUMN locations_send_begin INTEGER DEFAULT 0;",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "ALTER TABLE chats ADD COLUMN locations_send_until INTEGER DEFAULT 0;",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "ALTER TABLE chats ADD COLUMN locations_last_sent INTEGER DEFAULT 0;",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "CREATE INDEX chats_index3 ON chats (locations_send_until);",
-                paramsv![],
-            )
-            .await?;
-            dbversion = 53;
-            sql.set_raw_config_int(context, "dbversion", 53).await?;
-        }
-        if dbversion < 54 {
-            info!(context, "[migration] v54");
-            sql.execute(
-                "ALTER TABLE msgs ADD COLUMN location_id INTEGER DEFAULT 0;",
-                paramsv![],
-            )
-            .await?;
-            sql.execute(
-                "CREATE INDEX msgs_index6 ON msgs (location_id);",
-                paramsv![],
-            )
-            .await?;
-            dbversion = 54;
-            sql.set_raw_config_int(context, "dbversion", 54).await?;
-        }
-        if dbversion < 55 {
-            info!(context, "[migration] v55");
-            sql.execute(
-                "ALTER TABLE locations ADD COLUMN independent INTEGER DEFAULT 0;",
-                paramsv![],
-            )
-            .await?;
-            sql.set_raw_config_int(context, "dbversion", 55).await?;
-        }
-        if dbversion < 59 {
-            info!(context, "[migration] v59");
-            // records in the devmsglabels are kept when the message is deleted.
-            // so, msg_id may or may not exist.
-            sql.execute(
-                "CREATE TABLE devmsglabels (id INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT, msg_id INTEGER DEFAULT 0);",
-                paramsv![],
-            ).await?;
-            sql.execute(
-                "CREATE INDEX devmsglabels_index1 ON devmsglabels (label);",
-                paramsv![],
-            )
-            .await?;
-            if exists_before_update && sql.get_raw_config_int(context, "bcc_self").await.is_none() {
-                sql.set_raw_config_int(context, "bcc_self", 1).await?;
-            }
-            sql.set_raw_config_int(context, "dbversion", 59).await?;
-        }
-        if dbversion < 60 {
-            info!(context, "[migration] v60");
-            sql.execute(
-                "ALTER TABLE chats ADD COLUMN created_timestamp INTEGER DEFAULT 0;",
-                paramsv![],
-            )
-            .await?;
-            sql.set_raw_config_int(context, "dbversion", 60).await?;
-        }
-        if dbversion < 61 {
-            info!(context, "[migration] v61");
-            sql.execute(
-                "ALTER TABLE contacts ADD COLUMN selfavatar_sent INTEGER DEFAULT 0;",
-                paramsv![],
-            )
-            .await?;
-            update_icons = true;
-            sql.set_raw_config_int(context, "dbversion", 61).await?;
-        }
-        if dbversion < 62 {
-            info!(context, "[migration] v62");
-            sql.execute(
-                "ALTER TABLE chats ADD COLUMN muted_until INTEGER DEFAULT 0;",
-                paramsv![],
-            )
-            .await?;
-            sql.set_raw_config_int(context, "dbversion", 62).await?;
-        }
-        if dbversion < 63 {
-            info!(context, "[migration] v63");
-            sql.execute("UPDATE chats SET grpid='' WHERE type=100", paramsv![])
-                .await?;
-            sql.set_raw_config_int(context, "dbversion", 63).await?;
-        }
-        if dbversion < 64 {
-            info!(context, "[migration] v64");
-            sql.execute(
-                "ALTER TABLE msgs ADD COLUMN error TEXT DEFAULT '';",
-                paramsv![],
-            )
-            .await?;
-            sql.set_raw_config_int(context, "dbversion", 64).await?;
-        }
-
+        // general updates
         // (2) updates that require high-level objects
         // (the structure is complete now and all objects are usable)
         // --------------------------------------------------------------------
+        let mut recalc_fingerprints = false;
+        let mut update_icons = false;
+
+        if dbversion_before_update < 34 {
+            recalc_fingerprints = true;
+        }
+
+        if dbversion_before_update < 61 {
+            update_icons = true;
+        }
 
         if recalc_fingerprints {
             info!(context, "[migration] recalc fingerprints");

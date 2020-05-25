@@ -127,10 +127,8 @@ impl Context {
         let ctx = Context {
             inner: Arc::new(inner),
         };
-        ensure!(
-            ctx.sql.open(&ctx, &ctx.dbfile, false).await,
-            "Failed opening sqlite database"
-        );
+
+        ctx.sql.open(&ctx, &ctx.dbfile, false).await?;
 
         Ok(ctx)
     }
