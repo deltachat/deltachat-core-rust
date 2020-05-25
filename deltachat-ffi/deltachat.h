@@ -46,10 +46,9 @@ typedef struct _dc_event_emitter dc_event_emitter_t;
  * so, in many situations you will do this in a thread:
  *
  * ~~~
- * dc_event_emitter_t* emitter = dc_get_event_emitter(context);
- *
- * void* event_handler(void* emitter)
+ * void* event_handler(void* context)
  * {
+ *     dc_event_emitter_t* emitter = dc_get_event_emitter(context);
  *     dc_event_t* event;
  *     while ((event = dc_get_next_event(emitter)) != NULL) {
  *         // use the event as needed, eg. dc_event_get_id() returns the type.
@@ -60,7 +59,7 @@ typedef struct _dc_event_emitter dc_event_emitter_t;
  * }
  *
  * static pthread_t event_thread;
- * pthread_create(&event_thread, NULL, event_handler, emitter);
+ * pthread_create(&event_thread, NULL, event_handler, context);
  * ~~~
  *
  * The example above uses "pthreads",
@@ -103,11 +102,11 @@ typedef struct _dc_event_emitter dc_event_emitter_t;
  * ~~~
  *
  * dc_send_text_msg() returns immediately;
- * the sending itself is done by a job in the smtp-thread you've defined above.
+ * the sending itself is done in the background.
  * If you check the testing address (bob)
  * and you should have received a normal email.
  * Answer this email in any email program with "Got it!"
- * and the imap-thread you've create above will **receive the message**.
+ * and the IO you started above will **receive the message**.
  *
  * You can then **list all messages** of a chat as follow:
  *
@@ -431,9 +430,7 @@ char*           dc_get_oauth2_url            (dc_context_t* context, const char*
 
 /**
  * Configure a context.
- * For this purpose, the function creates a job
- * that is executed in the IMAP-thread then;
- * this requires to call dc_perform_imap_jobs() regularly.
+ * While configuration IO must not be started, if needed stop IO using dc_stop_io() first.
  * If the context is already configured,
  * this function will try to change the configuration.
  *
@@ -500,6 +497,8 @@ int             dc_is_configured   (const dc_context_t* context);
 
 /**
  * Start job and IMAP/SMTP tasks.
+ * You must not call dc_start_io() if IO is already started,
+ * please check the current state using dc_is_io_running() first.
  *
  * @memberof dc_context_t
  * @param context The context object as created by dc_context_new().
@@ -1637,9 +1636,6 @@ dc_contact_t*   dc_get_contact               (dc_context_t* context, uint32_t co
 
 /**
  * Import/export things.
- * For this purpose, the function creates a job that is executed in the IMAP-thread then;
- * this requires to call dc_perform_imap_jobs() regularly.
- *
  * What to do is defined by the _what_ parameter which may be one of the following:
  *
  * - **DC_IMEX_EXPORT_BACKUP** (11) - Export a backup to the directory given as `param1`.
