@@ -6,13 +6,15 @@ use std::collections::BTreeMap;
 use std::str::FromStr;
 use std::{fmt, str};
 
+use deltachat_derive::*;
+
 use crate::contact::*;
 use crate::context::Context;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::key::{DcKey, SignedPublicKey};
 
 /// Possible values for encryption preference
-#[derive(PartialEq, Eq, Debug, Clone, Copy, FromPrimitive, ToPrimitive)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy, FromPrimitive, ToPrimitive, Sqlx)]
 #[repr(u8)]
 pub enum EncryptPreference {
     NoPreference = 0,

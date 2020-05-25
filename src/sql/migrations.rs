@@ -13,7 +13,7 @@ pub async fn run(
         if dbversion < version {
             info!(context, "[migration] v{}", version);
 
-            sql.xexecute_batch(stmt).await?;
+            sql.execute_batch(stmt).await?;
             sql.set_raw_config_int(context, "dbversion", version)
                 .await?;
         }
@@ -329,10 +329,9 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);
 
     // records in the devmsglabels are kept when the message is deleted.
     // so, msg_id may or may not exist.
-    if dbversion < 59 {
-        if exists_before_update && sql.get_raw_config_int(context, "bcc_self").await.is_none() {
-            sql.set_raw_config_int(context, "bcc_self", 1).await?;
-        }
+    if dbversion < 59 && exists_before_update && sql.get_raw_config_int("bcc_self").await.is_none()
+    {
+        sql.set_raw_config_int(context, "bcc_self", 1).await?;
     }
 
     migrate(
@@ -369,7 +368,7 @@ UPDATE chats SET grpid='' WHERE type=100;
 
     migrate(
         64,
-        r"
+        r#"
 ALTER TABLE msgs ADD COLUMN error TEXT DEFAULT '';
 "#,
     ).await?;

@@ -1,8 +1,8 @@
 //! # [Autocrypt Peer State](https://autocrypt.org/level1.html#peer-state-management) module
-use std::collections::HashSet;
-use std::fmt;
 
-use num_traits::FromPrimitive;
+use std::collections::HashSet;
+
+use anyhow::Result;
 
 use crate::aheader::*;
 use crate::context::Context;
@@ -24,8 +24,8 @@ pub enum PeerstateVerifiedStatus {
 }
 
 /// Peerstate represents the state of an Autocrypt peer.
-pub struct Peerstate<'a> {
-    pub context: &'a Context,
+#[derive(Debug, PartialEq, Eq)]
+pub struct Peerstate {
     pub addr: String,
     pub last_seen: i64,
     pub last_seen_autocrypt: i64,
@@ -41,43 +41,49 @@ pub struct Peerstate<'a> {
     pub degrade_event: Option<DegradeEvent>,
 }
 
-impl<'a> PartialEq for Peerstate<'a> {
-    fn eq(&self, other: &Peerstate) -> bool {
-        self.addr == other.addr
-            && self.last_seen == other.last_seen
-            && self.last_seen_autocrypt == other.last_seen_autocrypt
-            && self.prefer_encrypt == other.prefer_encrypt
-            && self.public_key == other.public_key
-            && self.public_key_fingerprint == other.public_key_fingerprint
-            && self.gossip_key == other.gossip_key
-            && self.gossip_timestamp == other.gossip_timestamp
-            && self.gossip_key_fingerprint == other.gossip_key_fingerprint
-            && self.verified_key == other.verified_key
-            && self.verified_key_fingerprint == other.verified_key_fingerprint
-            && self.to_save == other.to_save
-            && self.degrade_event == other.degrade_event
-    }
-}
+impl<'a> sqlx::FromRow<'a, sqlx::sqlite::SqliteRow> for Peerstate {
+    fn from_row(row: &sqlx::sqlite::SqliteRow) -> Result<Self, sqlx::Error> {
+        use sqlx::Row;
 
-impl<'a> Eq for Peerstate<'a> {}
+        let mut res = Self::new(row.try_get("addr")?);
 
-impl<'a> fmt::Debug for Peerstate<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Peerstate")
-            .field("addr", &self.addr)
-            .field("last_seen", &self.last_seen)
-            .field("last_seen_autocrypt", &self.last_seen_autocrypt)
-            .field("prefer_encrypt", &self.prefer_encrypt)
-            .field("public_key", &self.public_key)
-            .field("public_key_fingerprint", &self.public_key_fingerprint)
-            .field("gossip_key", &self.gossip_key)
-            .field("gossip_timestamp", &self.gossip_timestamp)
-            .field("gossip_key_fingerprint", &self.gossip_key_fingerprint)
-            .field("verified_key", &self.verified_key)
-            .field("verified_key_fingerprint", &self.verified_key_fingerprint)
-            .field("to_save", &self.to_save)
-            .field("degrade_event", &self.degrade_event)
-            .finish()
+        res.last_seen = row.try_get("last_seen")?;
+        res.last_seen_autocrypt = row.try_get("last_seen_autocrypt")?;
+        res.prefer_encrypt = row.try_get("prefer_encrypted")?;
+        res.gossip_timestamp = row.try_get("gossip_timestamp")?;
+
+        res.public_key_fingerprint = row
+            .try_get::<Option<String>, _>("public_key_fingerprint")?
+            .map(|fp| fp.parse::<Fingerprint>())
+            .transpose()
+            .map_err(|err| sqlx::Error::Decode(Box::new(err)))?;
+        res.gossip_key_fingerprint = row
+            .try_get::<Option<String>, _>("gossip_key_fingerprint")?
+            .map(|fp| fp.parse::<Fingerprint>())
+            .transpose()
+            .map_err(|err| sqlx::Error::Decode(Box::new(err)))?;
+        res.verified_key_fingerprint = row
+            .try_get::<Option<String>, _>("verified_key_fingerprint")?
+            .map(|fp| fp.parse::<Fingerprint>())
+            .transpose()
+            .map_err(|err| sqlx::Error::Decode(Box::new(err)))?;
+        res.public_key = row
+            .try_get::<Option<&[u8]>, _>("public_key")?
+            .map(|blob| SignedPublicKey::from_slice(blob))
+            .transpose()
+            .map_err(|err| sqlx::Error::Decode(Box::new(err)))?;
+        res.gossip_key = row
+            .try_get::<Option<&[u8]>, _>("gossip_key")?
+            .map(|blob| SignedPublicKey::from_slice(blob))
+            .transpose()
+            .map_err(|err| sqlx::Error::Decode(Box::new(err)))?;
+        res.verified_key = row
+            .try_get::<Option<&[u8]>, _>("verified_key")?
+            .map(|blob| SignedPublicKey::from_slice(blob))
+            .transpose()
+            .map_err(|err| sqlx::Error::Decode(Box::new(err)))?;
+
+        Ok(res)
     }
 }
 
@@ -98,10 +104,9 @@ pub enum DegradeEvent {
     FingerprintChanged = 0x02,
 }
 
-impl<'a> Peerstate<'a> {
-    pub fn new(context: &'a Context, addr: String) -> Self {
+impl Peerstate {
+    pub fn new(addr: String) -> Self {
         Peerstate {
-            context,
             addr,
             last_seen: 0,
             last_seen_autocrypt: 0,
@@ -118,8 +123,8 @@ impl<'a> Peerstate<'a> {
         }
     }
 
-    pub fn from_header(context: &'a Context, header: &Aheader, message_time: i64) -> Self {
-        let mut res = Self::new(context, header.addr.clone());
+    pub fn from_header(header: &Aheader, message_time: i64) -> Self {
+        let mut res = Self::new(header.addr.clone());
 
         res.last_seen = message_time;
         res.last_seen_autocrypt = message_time;
@@ -131,8 +136,8 @@ impl<'a> Peerstate<'a> {
         res
     }
 
-    pub fn from_gossip(context: &'a Context, gossip_header: &Aheader, message_time: i64) -> Self {
-        let mut res = Self::new(context, gossip_header.addr.clone());
+    pub fn from_gossip(gossip_header: &Aheader, message_time: i64) -> Self {
+        let mut res = Self::new(gossip_header.addr.clone());
 
         res.gossip_timestamp = message_time;
         res.to_save = Some(ToSave::All);
@@ -142,76 +147,53 @@ impl<'a> Peerstate<'a> {
         res
     }
 
-    pub async fn from_addr(context: &'a Context, addr: &str) -> Option<Peerstate<'a>> {
-        let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, verified_key, verified_key_fingerprint FROM acpeerstates  WHERE addr=? COLLATE NOCASE;";
-        Self::from_stmt(context, query, paramsv![addr]).await
+    pub async fn from_addr(context: &Context, addr: &str) -> Result<Peerstate> {
+        let query = r#"
+SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, 
+       gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, 
+       verified_key, verified_key_fingerprint 
+  FROM acpeerstates  
+  WHERE addr=? COLLATE NOCASE;
+"#;
+        Self::from_stmt(context, query, paramsx![addr]).await
     }
 
     pub async fn from_fingerprint(
-        context: &'a Context,
-        _sql: &Sql,
+        context: &Context,
         fingerprint: &Fingerprint,
-    ) -> Option<Peerstate<'a>> {
-        let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, \
-                     gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
-                     verified_key, verified_key_fingerprint \
-                     FROM acpeerstates  \
-                     WHERE public_key_fingerprint=? COLLATE NOCASE \
-                     OR gossip_key_fingerprint=? COLLATE NOCASE  \
-                     ORDER BY public_key_fingerprint=? DESC;";
-        let fp = fingerprint.hex();
-        Self::from_stmt(context, query, paramsv![fp, fp, fp]).await
+    ) -> Result<Peerstate> {
+        let query = r#"
+SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key,
+       gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint,
+       verified_key, verified_key_fingerprint
+  FROM acpeerstates
+  WHERE public_key_fingerprint=? COLLATE NOCASE
+    OR gossip_key_fingerprint=? COLLATE NOCASE
+  ORDER BY public_key_fingerprint=? DESC;
+"#;
+
+        let fingerprint = fingerprint.hex();
+        Self::from_stmt(
+            context,
+            query,
+            paramsx![&fingerprint, &fingerprint, &fingerprint],
+        )
+        .await
     }
 
-    async fn from_stmt(
-        context: &'a Context,
-        query: &str,
-        params: Vec<&dyn crate::ToSql>,
-    ) -> Option<Peerstate<'a>> {
-        context
-            .sql
-            .query_row(query, params, |row| {
-                /* all the above queries start with this: SELECT
-                addr, last_seen, last_seen_autocrypt, prefer_encrypted,
-                public_key, gossip_timestamp, gossip_key, public_key_fingerprint,
-                gossip_key_fingerprint, verified_key, verified_key_fingerprint
-                */
-                let mut res = Self::new(context, row.get(0)?);
+    async fn from_stmt<'a, P: sqlx::IntoArguments<'a, sqlx::sqlite::Sqlite> + 'a>(
+        context: &Context,
+        query: &'a str,
+        params: P,
+    ) -> Result<Peerstate> {
+        /* all the above queries start with this: SELECT
+        addr, last_seen, last_seen_autocrypt, prefer_encrypted,
+        public_key, gossip_timestamp, gossip_key, public_key_fingerprint,
+        gossip_key_fingerprint, verified_key, verified_key_fingerprint
+        */
+        let peerstate = context.sql.query_row(query, params).await?;
 
-                res.last_seen = row.get(1)?;
-                res.last_seen_autocrypt = row.get(2)?;
-                res.prefer_encrypt = EncryptPreference::from_i32(row.get(3)?).unwrap_or_default();
-                res.gossip_timestamp = row.get(5)?;
-
-                res.public_key_fingerprint = row
-                    .get::<_, Option<String>>(7)?
-                    .map(|s| s.parse::<Fingerprint>())
-                    .transpose()?;
-                res.gossip_key_fingerprint = row
-                    .get::<_, Option<String>>(8)?
-                    .map(|s| s.parse::<Fingerprint>())
-                    .transpose()?;
-                res.verified_key_fingerprint = row
-                    .get::<_, Option<String>>(10)?
-                    .map(|s| s.parse::<Fingerprint>())
-                    .transpose()?;
-                res.public_key = row
-                    .get(4)
-                    .ok()
-                    .and_then(|blob: Vec<u8>| SignedPublicKey::from_slice(&blob).ok());
-                res.gossip_key = row
-                    .get(6)
-                    .ok()
-                    .and_then(|blob: Vec<u8>| SignedPublicKey::from_slice(&blob).ok());
-                res.verified_key = row
-                    .get(9)
-                    .ok()
-                    .and_then(|blob: Vec<u8>| SignedPublicKey::from_slice(&blob).ok());
-
-                Ok(res)
-            })
-            .await
-            .ok()
+        Ok(peerstate)
     }
 
     pub fn recalc_fingerprint(&mut self) {
@@ -403,19 +385,21 @@ impl<'a> Peerstate<'a> {
         if create {
             sql.execute(
                 "INSERT INTO acpeerstates (addr) VALUES(?);",
-                paramsv![self.addr],
+                paramsx![&self.addr],
             )
             .await?;
         }
 
         if self.to_save == Some(ToSave::All) || create {
             sql.execute(
-                "UPDATE acpeerstates \
-                 SET last_seen=?, last_seen_autocrypt=?, prefer_encrypted=?, \
-                 public_key=?, gossip_timestamp=?, gossip_key=?, public_key_fingerprint=?, gossip_key_fingerprint=?, \
-                 verified_key=?, verified_key_fingerprint=? \
-                 WHERE addr=?;",
-                paramsv![
+                r#"
+UPDATE acpeerstates 
+  SET last_seen=?, last_seen_autocrypt=?, prefer_encrypted=?,
+      public_key=?, gossip_timestamp=?, gossip_key=?, public_key_fingerprint=?, gossip_key_fingerprint=?,
+      verified_key=?, verified_key_fingerprint=?
+  WHERE addr=?;
+"#,
+                paramsx![
                     self.last_seen,
                     self.last_seen_autocrypt,
                     self.prefer_encrypt as i64,
@@ -426,18 +410,17 @@ impl<'a> Peerstate<'a> {
                     self.gossip_key_fingerprint.as_ref().map(|fp| fp.hex()),
                     self.verified_key.as_ref().map(|k| k.to_bytes()),
                     self.verified_key_fingerprint.as_ref().map(|fp| fp.hex()),
-                    self.addr,
+                    &self.addr
                 ],
             ).await?;
         } else if self.to_save == Some(ToSave::Timestamps) {
             sql.execute(
-                "UPDATE acpeerstates SET last_seen=?, last_seen_autocrypt=?, gossip_timestamp=? \
-                 WHERE addr=?;",
-                paramsv![
+                "UPDATE acpeerstates SET last_seen=?, last_seen_autocrypt=?, gossip_timestamp=? WHERE addr=?;",
+                paramsx![
                     self.last_seen,
                     self.last_seen_autocrypt,
                     self.gossip_timestamp,
-                    self.addr
+                    &self.addr
                 ],
             )
             .await?;
@@ -455,18 +438,11 @@ impl<'a> Peerstate<'a> {
     }
 }
 
-impl From<crate::key::FingerprintError> for rusqlite::Error {
-    fn from(_source: crate::key::FingerprintError) -> Self {
-        Self::InvalidColumnType(0, "Invalid fingerprint".into(), rusqlite::types::Type::Text)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::test_utils::*;
     use pretty_assertions::assert_eq;
-    use tempfile::TempDir;
 
     #[async_std::test]
     async fn test_peerstate_save_to_db() {
@@ -476,7 +452,6 @@ mod tests {
         let pub_key = alice_keypair().public;
 
         let mut peerstate = Peerstate {
-            context: &ctx.ctx,
             addr: addr.into(),
             last_seen: 10,
             last_seen_autocrypt: 11,
@@ -504,10 +479,9 @@ mod tests {
         // clear to_save, as that is not persissted
         peerstate.to_save = None;
         assert_eq!(peerstate, peerstate_new);
-        let peerstate_new2 =
-            Peerstate::from_fingerprint(&ctx.ctx, &ctx.ctx.sql, &pub_key.fingerprint())
-                .await
-                .expect("failed to load peerstate from db");
+        let peerstate_new2 = Peerstate::from_fingerprint(&ctx.ctx, &pub_key.fingerprint())
+            .await
+            .expect("failed to load peerstate from db");
         assert_eq!(peerstate, peerstate_new2);
     }
 
@@ -518,7 +492,6 @@ mod tests {
         let pub_key = alice_keypair().public;
 
         let peerstate = Peerstate {
-            context: &ctx.ctx,
             addr: addr.into(),
             last_seen: 10,
             last_seen_autocrypt: 11,
@@ -552,7 +525,6 @@ mod tests {
         let pub_key = alice_keypair().public;
 
         let mut peerstate = Peerstate {
-            context: &ctx.ctx,
             addr: addr.into(),
             last_seen: 10,
             last_seen_autocrypt: 11,
@@ -580,12 +552,5 @@ mod tests {
         // clear to_save, as that is not persissted
         peerstate.to_save = None;
         assert_eq!(peerstate, peerstate_new);
-    }
-
-    // TODO: don't copy this from stress.rs
-    #[allow(dead_code)]
-    struct TestContext {
-        ctx: Context,
-        dir: TempDir,
     }
 }

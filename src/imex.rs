@@ -98,7 +98,7 @@ pub async fn has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result
                 let sql = Sql::new();
                 sql.open(context, &path, true).await?;
                 let curr_backup_time = sql
-                    .get_raw_config_int(context, "backup_time")
+                    .get_raw_config_int("backup_time")
                     .await
                     .unwrap_or_default();
                 if curr_backup_time > newest_backup_time {
@@ -245,7 +245,7 @@ pub fn create_setup_code(_context: &Context) -> String {
 }
 
 async fn maybe_add_bcc_self_device_msg(context: &Context) -> Result<()> {
-    if !context.sql.get_raw_config_bool(context, "bcc_self").await {
+    if !context.sql.get_raw_config_bool("bcc_self").await {
         let mut msg = Message::new(Viewtype::Text);
         // TODO: define this as a stockstring once the wording is settled.
         msg.text = Some(
@@ -396,6 +396,7 @@ async fn imex_inner(
             Ok(())
         }
         Err(err) => {
+            error!(context, "IMEX FAILED: {}", err);
             context.emit_event(Event::ImexProgress(0));
             bail!("IMEX FAILED to complete: {}", err);
         }
@@ -435,41 +436,28 @@ async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) ->
 
     delete_and_reset_all_device_msgs(&context).await?;
 
-    let total_files_cnt = context
+    let total_files_cnt: i32 = context
         .sql
-        .query_get_value::<isize>(context, "SELECT COUNT(*) FROM backup_blobs;", paramsv![])
+        .query_value("SELECT COUNT(*) FROM backup_blobs;", paramsx![])
         .await
-        .unwrap_or_default() as usize;
+        .unwrap_or_default();
+    let total_files_cnt = total_files_cnt as usize;
     info!(
         context,
         "***IMPORT-in-progress: total_files_cnt={:?}", total_files_cnt,
     );
 
-    let files = context
-        .sql
-        .query_map(
-            "SELECT file_name, file_content FROM backup_blobs ORDER BY id;",
-            paramsv![],
-            |row| {
-                let name: String = row.get(0)?;
-                let blob: Vec<u8> = row.get(1)?;
+    let pool = context.sql.get_pool().await?;
+    let mut files = sqlx::query_as("SELECT file_name, file_content FROM backup_blobs ORDER BY id;")
+        .fetch(&pool);
 
-                Ok((name, blob))
-            },
-            |files| {
-                files
-                    .collect::<std::result::Result<Vec<_>, _>>()
-                    .map_err(Into::into)
-            },
-        )
-        .await?;
-
-    let mut all_files_extracted = true;
-    for (processed_files_cnt, (file_name, file_blob)) in files.into_iter().enumerate() {
+    let mut processed_files_cnt = 0;
+    while let Some(files_result) = files.next().await {
+        let (file_name, file_blob): (String, Vec<u8>) = files_result?;
         if context.shall_stop_ongoing().await {
-            all_files_extracted = false;
             break;
         }
+
         let mut permille = processed_files_cnt * 1000 / total_files_cnt;
         if permille < 10 {
             permille = 10
@@ -484,19 +472,22 @@ async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) ->
 
         let path_filename = context.get_blobdir().join(file_name);
         dc_write_file(context, &path_filename, &file_blob).await?;
+
+        processed_files_cnt += 1;
     }
 
-    if all_files_extracted {
-        // only delete backup_blobs if all files were successfully extracted
-        context
-            .sql
-            .execute("DROP TABLE backup_blobs;", paramsv![])
-            .await?;
-        context.sql.execute("VACUUM;", paramsv![]).await.ok();
-        Ok(())
-    } else {
-        bail!("received stop signal");
-    }
+    ensure!(
+        processed_files_cnt == total_files_cnt,
+        "received stop signal"
+    );
+
+    context
+        .sql
+        .execute("DROP TABLE backup_blobs;", paramsx![])
+        .await?;
+    context.sql.execute("VACUUM;", paramsx![]).await?;
+
+    Ok(())
 }
 
 /*******************************************************************************
@@ -512,9 +503,9 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     let dest_path_filename = dc_get_next_backup_path(dir, now).await?;
     let dest_path_string = dest_path_filename.to_string_lossy().to_string();
 
-    sql::housekeeping(context).await;
+    sql::housekeeping(context).await?;
 
-    context.sql.execute("VACUUM;", paramsv![]).await.ok();
+    context.sql.execute("VACUUM;", paramsx![]).await.ok();
 
     // we close the database during the copy of the dbfile
     context.sql.close().await;
@@ -541,17 +532,17 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     dest_sql.open(context, &dest_path_filename, false).await?;
 
     let res = match add_files_to_export(context, &dest_sql).await {
-        Err(err) => {
-            dc_delete_file(context, &dest_path_filename).await;
-            error!(context, "backup failed: {}", err);
-            Err(err)
-        }
         Ok(()) => {
             dest_sql
                 .set_raw_config_int(context, "backup_time", now as i32)
                 .await?;
             context.emit_event(Event::ImexFileWritten(dest_path_filename));
             Ok(())
+        }
+        Err(err) => {
+            dc_delete_file(context, &dest_path_filename).await;
+            error!(context, "backup failed: {}", err);
+            Err(err)
         }
     };
     dest_sql.close().await;
@@ -565,7 +556,7 @@ async fn add_files_to_export(context: &Context, sql: &Sql) -> Result<()> {
     if !sql.table_exists("backup_blobs").await? {
         sql.execute(
             "CREATE TABLE backup_blobs (id INTEGER PRIMARY KEY, file_name, file_content);",
-            paramsv![],
+            paramsx![],
         )
         .await?;
     }
@@ -577,41 +568,38 @@ async fn add_files_to_export(context: &Context, sql: &Sql) -> Result<()> {
 
     info!(context, "EXPORT: total_files_cnt={}", total_files_cnt);
 
-    sql.with_conn_async(|conn| async move {
-        // scan directory, pass 2: copy files
-        let mut dir_handle = async_std::fs::read_dir(&dir).await?;
+    // scan directory, pass 2: copy files
+    let mut dir_handle = async_std::fs::read_dir(&dir).await?;
 
-        let mut processed_files_cnt = 0;
-        while let Some(entry) = dir_handle.next().await {
-            let entry = entry?;
-            if context.shall_stop_ongoing().await {
-                return Ok(());
-            }
-            processed_files_cnt += 1;
-            let permille = max(min(processed_files_cnt * 1000 / total_files_cnt, 990), 10);
-            context.emit_event(Event::ImexProgress(permille));
+    let mut processed_files_cnt = 0;
+    while let Some(entry) = dir_handle.next().await {
+        let entry = entry?;
+        if context.shall_stop_ongoing().await {
+            return Ok(());
+        }
+        processed_files_cnt += 1;
+        let permille = max(min(processed_files_cnt * 1000 / total_files_cnt, 990), 10);
+        context.emit_event(Event::ImexProgress(permille));
 
-            let name_f = entry.file_name();
-            let name = name_f.to_string_lossy();
-            if name.starts_with("delta-chat") && name.ends_with(".bak") {
+        let name_f = entry.file_name();
+        let name = name_f.to_string_lossy();
+        if name.starts_with("delta-chat") && name.ends_with(".bak") {
+            continue;
+        }
+        info!(context, "EXPORT: copying filename={}", name);
+        let curr_path_filename = context.get_blobdir().join(entry.file_name());
+        if let Ok(buf) = dc_read_file(context, &curr_path_filename).await {
+            if buf.is_empty() {
                 continue;
             }
-            info!(context, "EXPORT: copying filename={}", name);
-            let curr_path_filename = context.get_blobdir().join(entry.file_name());
-            if let Ok(buf) = dc_read_file(context, &curr_path_filename).await {
-                if buf.is_empty() {
-                    continue;
-                }
-                // bail out if we can't insert
-                let mut stmt = conn.prepare_cached(
-                    "INSERT INTO backup_blobs (file_name, file_content) VALUES (?, ?);",
-                )?;
-                stmt.execute(paramsv![name, buf])?;
-            }
+            // bail out if we can't insert
+            sql.execute(
+                "INSERT INTO backup_blobs (file_name, file_content) VALUES (?, ?);",
+                paramsx![name.as_ref(), buf],
+            )
+            .await?;
         }
-        Ok(())
-    })
-    .await?;
+    }
 
     Ok(())
 }
@@ -674,30 +662,19 @@ async fn import_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()
 async fn export_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     let mut export_errors = 0;
 
-    let keys = context
-        .sql
-        .query_map(
-            "SELECT id, public_key, private_key, is_default FROM keypairs;",
-            paramsv![],
-            |row| {
-                let id = row.get(0)?;
-                let public_key_blob: Vec<u8> = row.get(1)?;
-                let public_key = SignedPublicKey::from_slice(&public_key_blob);
-                let private_key_blob: Vec<u8> = row.get(2)?;
-                let private_key = SignedSecretKey::from_slice(&private_key_blob);
-                let is_default: i32 = row.get(3)?;
+    let pool = context.sql.get_pool().await?;
 
-                Ok((id, public_key, private_key, is_default))
-            },
-            |keys| {
-                keys.collect::<std::result::Result<Vec<_>, _>>()
-                    .map_err(Into::into)
-            },
-        )
-        .await?;
+    let mut keys = sqlx::query_as("SELECT id, public_key, private_key, is_default FROM keypairs;")
+        .fetch(&pool);
 
-    for (id, public_key, private_key, is_default) in keys {
+    while let Some(keys_result) = keys.next().await {
+        let (id, public_key_blob, private_key_blob, is_default): (i64, Vec<u8>, Vec<u8>, i32) =
+            keys_result?;
+        let public_key = SignedPublicKey::from_slice(&public_key_blob);
+        let private_key = SignedSecretKey::from_slice(&private_key_blob);
+
         let id = Some(id).filter(|_| is_default != 0);
+
         if let Ok(key) = public_key {
             if export_key_to_asc_file(context, &dir, id, &key)
                 .await
@@ -721,6 +698,7 @@ async fn export_self_keys(context: &Context, dir: impl AsRef<Path>) -> Result<()
     }
 
     ensure!(export_errors == 0, "errors while exporting keys");
+
     Ok(())
 }
 

@@ -360,7 +360,7 @@ impl Context {
 
         // create saved-messages chat;
         // we do this only once, if the user has deleted the chat, he can recreate it manually.
-        if !self.sql.get_raw_config_bool(&self, "self-chat-added").await {
+        if !self.sql.get_raw_config_bool("self-chat-added").await {
             self.sql
                 .set_raw_config_bool(&self, "self-chat-added", true)
                 .await?;

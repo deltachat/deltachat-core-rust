@@ -28,7 +28,7 @@ async fn reset_tables(context: &Context, bits: i32) {
     if 0 != bits & 1 {
         context
             .sql()
-            .execute("DELETE FROM jobs;", paramsv![])
+            .execute("DELETE FROM jobs;", paramsx![])
             .await
             .unwrap();
         println!("(1) Jobs reset.");
@@ -36,7 +36,7 @@ async fn reset_tables(context: &Context, bits: i32) {
     if 0 != bits & 2 {
         context
             .sql()
-            .execute("DELETE FROM acpeerstates;", paramsv![])
+            .execute("DELETE FROM acpeerstates;", paramsx![])
             .await
             .unwrap();
         println!("(2) Peerstates reset.");
@@ -44,7 +44,7 @@ async fn reset_tables(context: &Context, bits: i32) {
     if 0 != bits & 4 {
         context
             .sql()
-            .execute("DELETE FROM keypairs;", paramsv![])
+            .execute("DELETE FROM keypairs;", paramsx![])
             .await
             .unwrap();
         println!("(4) Private keypairs reset.");
@@ -52,35 +52,35 @@ async fn reset_tables(context: &Context, bits: i32) {
     if 0 != bits & 8 {
         context
             .sql()
-            .execute("DELETE FROM contacts WHERE id>9;", paramsv![])
+            .execute("DELETE FROM contacts WHERE id>9;", paramsx![])
             .await
             .unwrap();
         context
             .sql()
-            .execute("DELETE FROM chats WHERE id>9;", paramsv![])
+            .execute("DELETE FROM chats WHERE id>9;", paramsx![])
             .await
             .unwrap();
         context
             .sql()
-            .execute("DELETE FROM chats_contacts;", paramsv![])
+            .execute("DELETE FROM chats_contacts;", paramsx![])
             .await
             .unwrap();
         context
             .sql()
-            .execute("DELETE FROM msgs WHERE id>9;", paramsv![])
+            .execute("DELETE FROM msgs WHERE id>9;", paramsx![])
             .await
             .unwrap();
         context
             .sql()
             .execute(
                 "DELETE FROM config WHERE keyname LIKE 'imap.%' OR keyname LIKE 'configured%';",
-                paramsv![],
+                paramsx![],
             )
             .await
             .unwrap();
         context
             .sql()
-            .execute("DELETE FROM leftgrps;", paramsv![])
+            .execute("DELETE FROM leftgrps;", paramsx![])
             .await
             .unwrap();
         println!("(8) Rest but server config reset.");
@@ -118,7 +118,7 @@ async fn poke_spec(context: &Context, spec: Option<&str>) -> bool {
             .await
             .unwrap();
     } else {
-        let rs = context.sql().get_raw_config(context, "import_spec").await;
+        let rs = context.sql().get_raw_config("import_spec").await;
         if rs.is_none() {
             error!(context, "Import: No file or folder given.");
             return false;
@@ -276,7 +276,7 @@ async fn log_contactlist(context: &Context, contacts: &[u32]) {
                 }
             );
             let peerstate = Peerstate::from_addr(context, &addr).await;
-            if peerstate.is_some() && contact_id != 1 as libc::c_uint {
+            if peerstate.is_ok() && contact_id != 1 as libc::c_uint {
                 line2 = format!(
                     ", prefer-encrypt={}",
                     peerstate.as_ref().unwrap().prefer_encrypt
@@ -484,7 +484,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             context.maybe_network().await;
         }
         "housekeeping" => {
-            sql::housekeeping(&context).await;
+            sql::housekeeping(&context).await?;
         }
         "listchats" | "listarchived" | "chats" => {
             let listflags = if arg0 == "listarchived" { 0x01 } else { 0 };
@@ -573,8 +573,8 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             ensure!(sel_chat.is_some(), "Failed to select chat");
             let sel_chat = sel_chat.as_ref().unwrap();
 
-            let msglist = chat::get_chat_msgs(&context, sel_chat.get_id(), 0x1, None).await;
-            let members = chat::get_chat_contacts(&context, sel_chat.id).await;
+            let msglist = chat::get_chat_msgs(&context, sel_chat.get_id(), 0x1, None).await?;
+            let members = chat::get_chat_contacts(&context, sel_chat.id).await?;
             let subtitle = if sel_chat.is_device_talk() {
                 "device-talk".to_string()
             } else if sel_chat.get_type() == Chattype::Single && !members.is_empty() {
@@ -594,7 +594,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 } else {
                     ""
                 },
-                match sel_chat.get_profile_image(&context).await {
+                match sel_chat.get_profile_image(&context).await? {
                     Some(icon) => match icon.to_str() {
                         Some(icon) => format!(" Icon: {}", icon),
                         _ => " Icon: Err".to_string(),
@@ -691,7 +691,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             ensure!(sel_chat.is_some(), "No chat selected.");
 
             let contacts =
-                chat::get_chat_contacts(&context, sel_chat.as_ref().unwrap().get_id()).await;
+                chat::get_chat_contacts(&context, sel_chat.as_ref().unwrap().get_id()).await?;
             println!("Memberlist:");
 
             log_contactlist(&context, &contacts).await;
@@ -762,7 +762,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             let latitude = arg1.parse()?;
             let longitude = arg2.parse()?;
 
-            let continue_streaming = location::set(&context, latitude, longitude, 0.).await;
+            let continue_streaming = location::set(&context, latitude, longitude, 0.).await?;
             if continue_streaming {
                 println!("Success, streaming should be continued.");
             } else {
@@ -858,7 +858,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 Viewtype::Gif,
                 Viewtype::Video,
             )
-            .await;
+            .await?;
             println!("{} images or videos: ", images.len());
             for (i, data) in images.iter().enumerate() {
                 if 0 == i {
@@ -892,7 +892,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         "msginfo" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
             let id = MsgId::new(arg1.parse()?);
-            let res = message::get_msg_info(&context, id).await;
+            let res = message::get_msg_info(&context, id).await?;
             println!("{}", res);
         }
         "listfresh" => {

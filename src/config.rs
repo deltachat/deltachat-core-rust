@@ -121,20 +121,20 @@ pub enum Config {
 
 impl Context {
     pub async fn config_exists(&self, key: Config) -> bool {
-        self.sql.get_raw_config(self, key).await.is_some()
+        self.sql.get_raw_config(key).await.is_some()
     }
 
     /// Get a configuration key. Returns `None` if no value is set, and no default value found.
     pub async fn get_config(&self, key: Config) -> Option<String> {
         let value = match key {
             Config::Selfavatar => {
-                let rel_path = self.sql.get_raw_config(self, key).await;
+                let rel_path = self.sql.get_raw_config(key).await;
                 rel_path.map(|p| dc_get_abs_path(self, &p).to_string_lossy().into_owned())
             }
             Config::SysVersion => Some((&*DC_VERSION_STR).clone()),
             Config::SysMsgsizeMaxRecommended => Some(format!("{}", RECOMMENDED_FILE_SIZE)),
             Config::SysConfigKeys => Some(get_config_keys_string()),
-            _ => self.sql.get_raw_config(self, key).await,
+            _ => self.sql.get_raw_config(key).await,
         };
 
         if value.is_some() {
@@ -189,7 +189,7 @@ impl Context {
         match key {
             Config::Selfavatar => {
                 self.sql
-                    .execute("UPDATE contacts SET selfavatar_sent=0;", paramsv![])
+                    .execute("UPDATE contacts SET selfavatar_sent=0;", paramsx![])
                     .await?;
                 self.sql
                     .set_raw_config_bool(self, "attach_selfavatar", true)

@@ -76,7 +76,11 @@ pub struct RunningState {
 pub fn get_info() -> BTreeMap<&'static str, String> {
     let mut res = BTreeMap::new();
     res.insert("deltachat_core_version", format!("v{}", &*DC_VERSION_STR));
-    res.insert("sqlite_version", rusqlite::version().to_string());
+
+    let version =
+        String::from_utf8(libsqlite3_sys::SQLITE_VERSION.to_vec()).expect("invalid version");
+    res.insert("sqlite_version", version);
+
     res.insert("arch", (std::mem::size_of::<usize>() * 8).to_string());
     res.insert("level", "awesome".into());
     res
@@ -85,8 +89,6 @@ pub fn get_info() -> BTreeMap<&'static str, String> {
 impl Context {
     /// Creates new context.
     pub async fn new(os_name: String, dbfile: PathBuf) -> Result<Context> {
-        // pretty_env_logger::try_init_timed().ok();
-
         let mut blob_fname = OsString::new();
         blob_fname.push(dbfile.file_name().unwrap_or_default());
         blob_fname.push("-blobs");
@@ -261,27 +263,29 @@ impl Context {
         let is_configured = self.get_config_int(Config::Configured).await;
         let dbversion = self
             .sql
-            .get_raw_config_int(self, "dbversion")
+            .get_raw_config_int("dbversion")
             .await
             .unwrap_or_default();
         let journal_mode = self
             .sql
-            .query_get_value(self, "PRAGMA journal_mode;", paramsv![])
+            .query_value("PRAGMA journal_mode;", paramsx![])
             .await
-            .unwrap_or_else(|| "unknown".to_string());
+            .unwrap_or_else(|_| "unknown".to_string());
         let e2ee_enabled = self.get_config_int(Config::E2eeEnabled).await;
         let mdns_enabled = self.get_config_int(Config::MdnsEnabled).await;
         let bcc_self = self.get_config_int(Config::BccSelf).await;
 
-        let prv_key_cnt: Option<isize> = self
+        let prv_key_cnt: Option<i32> = self
             .sql
-            .query_get_value(self, "SELECT COUNT(*) FROM keypairs;", paramsv![])
-            .await;
+            .query_value("SELECT COUNT(*) FROM keypairs;", paramsx![])
+            .await
+            .ok();
 
-        let pub_key_cnt: Option<isize> = self
+        let pub_key_cnt: Option<i32> = self
             .sql
-            .query_get_value(self, "SELECT COUNT(*) FROM acpeerstates;", paramsv![])
-            .await;
+            .query_value("SELECT COUNT(*) FROM acpeerstates;", paramsx![])
+            .await
+            .ok();
         let fingerprint_str = match SignedPublicKey::load_self(self).await {
             Ok(key) => key.fingerprint().hex(),
             Err(err) => format!("<key failure: {}>", err),
@@ -293,7 +297,7 @@ impl Context {
         let mvbox_move = self.get_config_int(Config::MvboxMove).await;
         let folders_configured = self
             .sql
-            .get_raw_config_int(self, "folders_configured")
+            .get_raw_config_int("folders_configured")
             .await
             .unwrap_or_default();
 
@@ -354,30 +358,22 @@ impl Context {
     pub async fn get_fresh_msgs(&self) -> Vec<MsgId> {
         let show_deaddrop: i32 = 0;
         self.sql
-            .query_map(
-                concat!(
-                    "SELECT m.id",
-                    " FROM msgs m",
-                    " LEFT JOIN contacts ct",
-                    "        ON m.from_id=ct.id",
-                    " LEFT JOIN chats c",
-                    "        ON m.chat_id=c.id",
-                    " WHERE m.state=?",
-                    "   AND m.hidden=0",
-                    "   AND m.chat_id>?",
-                    "   AND ct.blocked=0",
-                    "   AND (c.blocked=0 OR c.blocked=?)",
-                    " ORDER BY m.timestamp DESC,m.id DESC;"
-                ),
-                paramsv![10, 9, if 0 != show_deaddrop { 2 } else { 0 }],
-                |row| row.get::<_, MsgId>(0),
-                |rows| {
-                    let mut ret = Vec::new();
-                    for row in rows {
-                        ret.push(row?);
-                    }
-                    Ok(ret)
-                },
+            .query_values(
+                r#"
+SELECT m.id
+ FROM msgs m
+ LEFT JOIN contacts ct
+        ON m.from_id=ct.id
+ LEFT JOIN chats c
+        ON m.chat_id=c.id
+ WHERE m.state=?
+   AND m.hidden=0
+   AND m.chat_id>?
+   AND ct.blocked=0
+   AND (c.blocked=0 OR c.blocked=?)
+ ORDER BY m.timestamp DESC,m.id DESC;
+"#,
+                paramsx![10, 9, if 0 != show_deaddrop { 2 } else { 0 }],
             )
             .await
             .unwrap_or_default()
@@ -393,47 +389,36 @@ impl Context {
         let strLikeBeg = format!("{}%", real_query);
 
         let query = if !chat_id.is_unset() {
-            concat!(
-                "SELECT m.id AS id, m.timestamp AS timestamp",
-                " FROM msgs m",
-                " LEFT JOIN contacts ct",
-                "        ON m.from_id=ct.id",
-                " WHERE m.chat_id=?",
-                "   AND m.hidden=0",
-                "   AND ct.blocked=0",
-                "   AND (txt LIKE ? OR ct.name LIKE ?)",
-                " ORDER BY m.timestamp,m.id;"
-            )
+            r#"
+SELECT m.id
+ FROM msgs 
+ LEFT JOIN contacts ct
+        ON m.from_id=ct.id
+ WHERE m.chat_id=?
+   AND m.hidden=0
+   AND ct.blocked=0
+   AND (txt LIKE ? OR ct.name LIKE ?)
+ ORDER BY m.timestamp,m.id;
+"#
         } else {
-            concat!(
-                "SELECT m.id AS id, m.timestamp AS timestamp",
-                " FROM msgs m",
-                " LEFT JOIN contacts ct",
-                "        ON m.from_id=ct.id",
-                " LEFT JOIN chats c",
-                "        ON m.chat_id=c.id",
-                " WHERE m.chat_id>9",
-                "   AND m.hidden=0",
-                "   AND (c.blocked=0 OR c.blocked=?)",
-                "   AND ct.blocked=0",
-                "   AND (m.txt LIKE ? OR ct.name LIKE ?)",
-                " ORDER BY m.timestamp DESC,m.id DESC;"
-            )
+            r#"
+SELECT m.id
+ FROM msgs m
+ LEFT JOIN contacts ct
+        ON m.from_id=ct.id
+ LEFT JOIN chats c
+        ON m.chat_id=c.id
+ WHERE m.chat_id>9
+   AND m.hidden=0
+   AND (c.blocked=0 OR c.blocked=?)
+   AND ct.blocked=0
+   AND (m.txt LIKE ? OR ct.name LIKE ?)
+ ORDER BY m.timestamp DESC,m.id DESC;
+"#
         };
 
         self.sql
-            .query_map(
-                query,
-                paramsv![chat_id, strLikeInText, strLikeBeg],
-                |row| row.get::<_, MsgId>("id"),
-                |rows| {
-                    let mut ret = Vec::new();
-                    for id in rows {
-                        ret.push(id?);
-                    }
-                    Ok(ret)
-                },
-            )
+            .query_values(query, paramsx![chat_id, strLikeInText, strLikeBeg])
             .await
             .unwrap_or_default()
     }

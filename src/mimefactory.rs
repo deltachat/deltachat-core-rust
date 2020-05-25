@@ -1,3 +1,4 @@
+use async_std::prelude::*;
 use chrono::TimeZone;
 use lettre_email::{mime, Address, Header, MimeMultipartType, PartBuilder};
 
@@ -87,30 +88,26 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         if chat.is_self_talk() {
             recipients.push((from_displayname.to_string(), from_addr.to_string()));
         } else {
-            context
-                .sql
-                .query_map(
-                    "SELECT c.authname, c.addr  \
-                 FROM chats_contacts cc  \
-                 LEFT JOIN contacts c ON cc.contact_id=c.id  \
-                 WHERE cc.chat_id=? AND cc.contact_id>9;",
-                    paramsv![msg.chat_id],
-                    |row| {
-                        let authname: String = row.get(0)?;
-                        let addr: String = row.get(1)?;
-                        Ok((authname, addr))
-                    },
-                    |rows| {
-                        for row in rows {
-                            let (authname, addr) = row?;
-                            if !recipients_contain_addr(&recipients, &addr) {
-                                recipients.push((authname, addr));
-                            }
-                        }
-                        Ok(())
-                    },
-                )
-                .await?;
+            let pool = context.sql.get_pool().await?;
+
+            let mut rows = sqlx::query_as(
+                r#"
+SELECT c.authname, c.addr
+  FROM chats_contacts cc
+  LEFT JOIN contacts c ON cc.contact_id=c.id
+    WHERE cc.chat_id=? AND cc.contact_id>9;
+"#,
+            )
+            .bind(msg.chat_id)
+            .fetch(&pool);
+
+            while let Some(row) = rows.next().await {
+                let (authname, addr): (String, String) = row?;
+
+                if !recipients_contain_addr(&recipients, &addr) {
+                    recipients.push((authname, addr));
+                }
+            }
 
             let command = msg.param.get_cmd();
 
@@ -125,18 +122,15 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             .sql
             .query_row(
                 "SELECT mime_in_reply_to, mime_references FROM msgs WHERE id=?",
-                paramsv![msg.id],
-                |row| {
-                    let in_reply_to: String = row.get(0)?;
-                    let references: String = row.get(1)?;
-
-                    Ok((
-                        render_rfc724_mid_list(&in_reply_to),
-                        render_rfc724_mid_list(&references),
-                    ))
-                },
+                paramsx![msg.id],
             )
-            .await?;
+            .await
+            .map(|(in_reply_to, references): (String, String)| {
+                (
+                    render_rfc724_mid_list(&in_reply_to),
+                    render_rfc724_mid_list(&references),
+                )
+            })?;
 
         let default_str = context
             .stock_str(StockMessage::StatusLine)
@@ -211,7 +205,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         Ok(res)
     }
 
-    async fn peerstates_for_recipients(&self) -> Result<Vec<(Option<Peerstate<'_>>, &str)>, Error> {
+    async fn peerstates_for_recipients(&self) -> Result<Vec<(Option<Peerstate>, &str)>, Error> {
         let self_addr = self
             .context
             .get_config(Config::ConfiguredAddr)
@@ -225,7 +219,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             .filter(|(_, addr)| addr != &self_addr)
         {
             res.push((
-                Peerstate::from_addr(self.context, addr).await,
+                Peerstate::from_addr(self.context, addr).await.ok(),
                 addr.as_str(),
             ));
         }

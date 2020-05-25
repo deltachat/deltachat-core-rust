@@ -11,7 +11,7 @@ use crate::context::Context;
 use crate::dc_tools::*;
 
 /// Token namespace
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, Sqlx)]
 #[repr(i32)]
 pub enum Namespace {
     Unknown = 0,
@@ -34,7 +34,7 @@ pub async fn save(context: &Context, namespace: Namespace, foreign_id: ChatId) -
         .sql
         .execute(
             "INSERT INTO tokens (namespc, foreign_id, token, timestamp) VALUES (?, ?, ?, ?);",
-            paramsv![namespace, foreign_id, token, time()],
+            paramsx![namespace, foreign_id, &token, time()],
         )
         .await
         .ok();
@@ -44,12 +44,12 @@ pub async fn save(context: &Context, namespace: Namespace, foreign_id: ChatId) -
 pub async fn lookup(context: &Context, namespace: Namespace, foreign_id: ChatId) -> Option<String> {
     context
         .sql
-        .query_get_value::<String>(
-            context,
+        .query_value(
             "SELECT token FROM tokens WHERE namespc=? AND foreign_id=?;",
-            paramsv![namespace, foreign_id],
+            paramsx![namespace, foreign_id],
         )
         .await
+        .ok()
 }
 
 pub async fn lookup_or_new(context: &Context, namespace: Namespace, foreign_id: ChatId) -> String {
@@ -65,7 +65,7 @@ pub async fn exists(context: &Context, namespace: Namespace, token: &str) -> boo
         .sql
         .exists(
             "SELECT id FROM tokens WHERE namespc=? AND token=?;",
-            paramsv![namespace, token],
+            paramsx![namespace, token],
         )
         .await
         .unwrap_or_default()

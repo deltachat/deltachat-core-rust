@@ -27,10 +27,20 @@ impl TestContext {
     ///
     /// [Context]: crate::context::Context
     pub async fn new() -> Self {
+        pretty_env_logger::try_init_timed().ok();
+
         let dir = tempdir().unwrap();
         let dbfile = dir.path().join("db.sqlite");
         let ctx = Context::new("FakeOS".into(), dbfile.into()).await.unwrap();
-        Self { ctx, dir }
+        let events = ctx.get_event_emitter();
+
+        async_std::task::spawn(async move {
+            while let Some(event) = events.recv().await {
+                log::info!("{:?}", event);
+            }
+        });
+
+        TestContext { ctx, dir }
     }
 
     /// Create a new configured [TestContext].

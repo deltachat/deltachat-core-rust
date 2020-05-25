@@ -91,7 +91,7 @@ impl EncryptHelper {
         context: &Context,
         min_verified: PeerstateVerifiedStatus,
         mail_to_encrypt: lettre_email::PartBuilder,
-        peerstates: Vec<(Option<Peerstate<'_>>, &str)>,
+        peerstates: Vec<(Option<Peerstate>, &str)>,
     ) -> Result<String> {
         let mut keyring: Keyring<SignedPublicKey> = Keyring::new();
 
@@ -132,7 +132,7 @@ pub async fn try_decrypt(
     let autocryptheader = Aheader::from_headers(context, &from, &mail.headers);
 
     if message_time > 0 {
-        peerstate = Peerstate::from_addr(context, &from).await;
+        peerstate = Peerstate::from_addr(context, &from).await.ok();
 
         if let Some(ref mut peerstate) = peerstate {
             if let Some(ref header) = autocryptheader {
@@ -143,7 +143,7 @@ pub async fn try_decrypt(
                 peerstate.save_to_db(&context.sql, false).await?;
             }
         } else if let Some(ref header) = autocryptheader {
-            let p = Peerstate::from_header(context, header, message_time);
+            let p = Peerstate::from_header(header, message_time);
             p.save_to_db(&context.sql, true).await?;
             peerstate = Some(p);
         }
@@ -155,7 +155,7 @@ pub async fn try_decrypt(
     let mut signatures = HashSet::default();
 
     if peerstate.as_ref().map(|p| p.last_seen).unwrap_or_else(|| 0) == 0 {
-        peerstate = Peerstate::from_addr(&context, &from).await;
+        peerstate = Peerstate::from_addr(&context, &from).await.ok();
     }
     if let Some(peerstate) = peerstate {
         if peerstate.degrade_event.is_some() {

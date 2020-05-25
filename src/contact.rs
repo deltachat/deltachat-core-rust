@@ -3,7 +3,7 @@
 #![forbid(clippy::indexing_slicing)]
 
 use async_std::path::PathBuf;
-use deltachat_derive::*;
+use async_std::prelude::*;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -72,7 +72,7 @@ pub struct Contact {
 
 /// Possible origins of a contact.
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, FromPrimitive, ToPrimitive, FromSql, ToSql,
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, FromPrimitive, ToPrimitive, sqlx::Type,
 )]
 #[repr(i32)]
 pub enum Origin {
@@ -133,6 +133,32 @@ impl Default for Origin {
         Origin::Unknown
     }
 }
+impl<'a> sqlx::FromRow<'a, sqlx::sqlite::SqliteRow> for Contact {
+    fn from_row(row: &sqlx::sqlite::SqliteRow) -> Result<Self, sqlx::Error> {
+        use sqlx::Row;
+
+        let contact = Self {
+            id: row.try_get::<i64, _>("id")? as u32,
+            name: row
+                .try_get::<Option<String>, _>("name")?
+                .unwrap_or_default(),
+            authname: row
+                .try_get::<Option<String>, _>("authname")?
+                .unwrap_or_default(),
+            addr: row.try_get::<String, _>("addr")?,
+            blocked: row
+                .try_get::<Option<i32>, _>("blocked")?
+                .unwrap_or_default()
+                != 0,
+            origin: row.try_get("origin")?,
+            param: row
+                .try_get::<String, _>("param")?
+                .parse()
+                .unwrap_or_default(),
+        };
+        Ok(contact)
+    }
+}
 
 impl Origin {
     /// Contacts that are known, i. e. they came in via accepted contacts or
@@ -163,27 +189,18 @@ pub enum VerifiedStatus {
 
 impl Contact {
     pub async fn load_from_db(context: &Context, contact_id: u32) -> crate::sql::Result<Self> {
-        let mut res = context
+        let mut res: Contact = context
             .sql
             .query_row(
-                "SELECT c.name, c.addr, c.origin, c.blocked, c.authname, c.param
-               FROM contacts c
-              WHERE c.id=?;",
-                paramsv![contact_id as i32],
-                |row| {
-                    let contact = Self {
-                        id: contact_id,
-                        name: row.get::<_, String>(0)?,
-                        authname: row.get::<_, String>(4)?,
-                        addr: row.get::<_, String>(1)?,
-                        blocked: row.get::<_, Option<i32>>(3)?.unwrap_or_default() != 0,
-                        origin: row.get(2)?,
-                        param: row.get::<_, String>(5)?.parse().unwrap_or_default(),
-                    };
-                    Ok(contact)
-                },
+                r#"
+SELECT id, name, addr, origin, blocked, authname, param
+  FROM contacts
+  WHERE id=?;
+"#,
+                paramsx![contact_id as i32],
             )
             .await?;
+
         if contact_id == DC_CONTACT_ID_SELF {
             res.name = context.stock_str(StockMessage::SelfMsg).await.to_string();
             res.addr = context
@@ -269,8 +286,11 @@ impl Contact {
         if context
             .sql
             .execute(
-                "UPDATE msgs SET state=? WHERE from_id=? AND state=?;",
-                paramsv![MessageState::InNoticed, id as i32, MessageState::InFresh],
+                r#"
+UPDATE msgs SET state=? 
+WHERE from_id=? AND state=?;
+"#,
+                paramsx![MessageState::InNoticed, id as i32, MessageState::InFresh],
             )
             .await
             .is_ok()
@@ -305,15 +325,15 @@ impl Contact {
         if addr_cmp(addr_normalized, addr_self) {
             return DC_CONTACT_ID_SELF;
         }
-        context.sql.query_get_value(
-            context,
-            "SELECT id FROM contacts WHERE addr=?1 COLLATE NOCASE AND id>?2 AND origin>=?3 AND blocked=0;",
-            paramsv![
+        let v: i32 = context.sql.query_value(
+            "SELECT id FROM contacts WHERE addr=? COLLATE NOCASE AND id>? AND origin>=? AND blocked=0;",
+            paramsx![
                 addr_normalized,
                 DC_CONTACT_ID_LAST_SPECIAL as i32,
-                min_origin as u32,
+                min_origin as i32
             ],
-        ).await.unwrap_or_default()
+        ).await.unwrap_or_default();
+        v as u32
     }
 
     /// Lookup a contact and create it if it does not exist yet.
@@ -384,39 +404,32 @@ impl Contact {
         let mut update_authname = false;
         let mut row_id = 0;
 
-        if let Ok((id, row_name, row_addr, row_origin, row_authname)) = context.sql.query_row(
+        let res: Result<(i32, String, String, Origin, String), _> = context.sql.query_row(
             "SELECT id, name, addr, origin, authname FROM contacts WHERE addr=? COLLATE NOCASE;",
-            paramsv![addr.to_string()],
-            |row| {
-                let row_id = row.get(0)?;
-                let row_name: String = row.get(1)?;
-                let row_addr: String = row.get(2)?;
-                let row_origin: Origin = row.get(3)?;
-                let row_authname: String = row.get(4)?;
+            paramsx![addr.to_string()],
+        )
+        .await;
 
-                if !name.as_ref().is_empty() {
-                    if !row_name.is_empty() {
-                        if (origin >= row_origin || row_name == row_authname)
-                            && name.as_ref() != row_name
-                        {
-                            update_name = true;
-                        }
-                    } else {
+        if let Ok((id, row_name, row_addr, row_origin, row_authname)) = res {
+            if !name.as_ref().is_empty() {
+                if !row_name.is_empty() {
+                    if (origin >= row_origin || row_name == row_authname)
+                        && name.as_ref() != row_name
+                    {
                         update_name = true;
                     }
-                    if origin == Origin::IncomingUnknownFrom && name.as_ref() != row_authname {
-                        update_authname = true;
-                    }
-                } else if origin == Origin::ManuallyCreated && !row_authname.is_empty() {
-                    // no name given on manual edit, this will update the name to the authname
+                } else {
                     update_name = true;
                 }
+                if origin == Origin::IncomingUnknownFrom && name.as_ref() != row_authname {
+                    update_authname = true;
+                }
+            } else if origin == Origin::ManuallyCreated && !row_authname.is_empty() {
+                // no name given on manual edit, this will update the name to the authname
+                update_name = true;
+            }
 
-                Ok((row_id, row_name, row_addr, row_origin, row_authname))
-            },
-        )
-        .await {
-            row_id = id;
+            row_id = id as u32;
             if origin as i32 >= row_origin as i32 && addr != row_addr {
                 update_addr = true;
             }
@@ -435,9 +448,13 @@ impl Contact {
                     .sql
                     .execute(
                         "UPDATE contacts SET name=?, addr=?, origin=?, authname=? WHERE id=?;",
-                        paramsv![
-                            new_name,
-                            if update_addr { addr.to_string() } else { row_addr },
+                        paramsx![
+                            &new_name,
+                            if update_addr {
+                                addr.to_string()
+                            } else {
+                                row_addr
+                            },
                             if origin > row_origin {
                                 origin
                             } else {
@@ -448,7 +465,7 @@ impl Contact {
                             } else {
                                 row_authname
                             },
-                            row_id
+                            row_id as i32
                         ],
                     )
                     .await
@@ -459,7 +476,7 @@ impl Contact {
                     // This is one of the few duplicated data, however, getting the chat list is easier this way.
                     context.sql.execute(
                     "UPDATE chats SET name=? WHERE type=? AND id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?);",
-                    paramsv![new_name, Chattype::Single, row_id]
+                    paramsx![&new_name, Chattype::Single, row_id as i32]
                 ).await.ok();
                 }
                 sth_modified = Modifier::Modified;
@@ -473,20 +490,17 @@ impl Contact {
                 .sql
                 .execute(
                     "INSERT INTO contacts (name, addr, origin, authname) VALUES(?, ?, ?, ?);",
-                    paramsv![
-                        name.as_ref().to_string(),
-                        addr,
+                    paramsx![
+                        name.as_ref(),
+                        &addr,
                         origin,
-                        if update_authname { name.as_ref().to_string() } else { "".to_string() }
+                        if update_authname { name.as_ref() } else { "" }
                     ],
                 )
                 .await
                 .is_ok()
             {
-                row_id = context
-                    .sql
-                    .get_rowid(context, "contacts", "addr", &addr)
-                    .await?;
+                row_id = context.sql.get_rowid("contacts", "addr", &addr).await?;
                 sth_modified = Modifier::Created;
                 info!(context, "added contact id={} addr={}", row_id, &addr);
             } else {
@@ -573,35 +587,32 @@ impl Contact {
                     .map(|s| s.as_ref().to_string())
                     .unwrap_or_default()
             );
-            context
-                .sql
-                .query_map(
-                    "SELECT c.id FROM contacts c \
-                 LEFT JOIN acpeerstates ps ON c.addr=ps.addr  \
-                 WHERE c.addr!=?1 \
-                 AND c.id>?2 \
-                 AND c.origin>=?3 \
-                 AND c.blocked=0 \
-                 AND (c.name LIKE ?4 OR c.addr LIKE ?5) \
-                 AND (1=?6 OR LENGTH(ps.verified_key_fingerprint)!=0)  \
-                 ORDER BY LOWER(c.name||c.addr),c.id;",
-                    paramsv![
-                        self_addr,
-                        DC_CONTACT_ID_LAST_SPECIAL as i32,
-                        Origin::IncomingReplyTo,
-                        s3str_like_cmd,
-                        s3str_like_cmd,
-                        if flag_verified_only { 0i32 } else { 1i32 },
-                    ],
-                    |row| row.get::<_, i32>(0),
-                    |ids| {
-                        for id in ids {
-                            ret.push(id? as u32);
-                        }
-                        Ok(())
-                    },
-                )
-                .await?;
+            let pool = context.sql.get_pool().await?;
+            let mut rows = sqlx::query_as(
+                r#"
+SELECT c.id FROM contacts c
+  LEFT JOIN acpeerstates ps ON c.addr=ps.addr
+  WHERE c.addr!=?
+    AND c.id>?
+    AND c.origin>=?
+    AND c.blocked=0
+    AND (c.name LIKE ? OR c.addr LIKE ?)
+    AND (1=? OR LENGTH(ps.verified_key_fingerprint)!=0)
+  ORDER BY LOWER(c.name||c.addr),c.id
+"#,
+            )
+            .bind(&self_addr)
+            .bind(DC_CONTACT_ID_LAST_SPECIAL as i32)
+            .bind(Origin::IncomingReplyTo)
+            .bind(&s3str_like_cmd)
+            .bind(&s3str_like_cmd)
+            .bind(if flag_verified_only { 0i32 } else { 1i32 })
+            .fetch(&pool);
+
+            while let Some(id) = rows.next().await {
+                let (id,): (i32,) = id?;
+                ret.push(id as u32);
+            }
 
             let self_name = context
                 .get_config(Config::Displayname)
@@ -622,17 +633,15 @@ impl Contact {
         } else {
             add_self = true;
 
-            context.sql.query_map(
-                "SELECT id FROM contacts WHERE addr!=?1 AND id>?2 AND origin>=?3 AND blocked=0 ORDER BY LOWER(name||addr),id;",
-                paramsv![self_addr, DC_CONTACT_ID_LAST_SPECIAL as i32, 0x100],
-                |row| row.get::<_, i32>(0),
-                |ids| {
-                    for id in ids {
-                        ret.push(id? as u32);
-                    }
-                    Ok(())
-                }
-            ).await?;
+            let pool = context.sql.get_pool().await?;
+            let mut rows = sqlx::query_as(
+                "SELECT id FROM contacts WHERE addr!=? AND id>? AND origin>=? AND blocked=0 ORDER BY LOWER(name || addr), id;"
+            ).bind(self_addr).bind(DC_CONTACT_ID_LAST_SPECIAL as i32).bind(0x100).fetch(&pool);
+
+            while let Some(id) = rows.next().await {
+                let (id,): (i32,) = id?;
+                ret.push(id as u32);
+            }
         }
 
         if flag_add_self && add_self {
@@ -643,32 +652,30 @@ impl Contact {
     }
 
     pub async fn get_blocked_cnt(context: &Context) -> usize {
-        context
+        let v: i32 = context
             .sql
-            .query_get_value::<isize>(
-                context,
+            .query_value(
                 "SELECT COUNT(*) FROM contacts WHERE id>? AND blocked!=0",
-                paramsv![DC_CONTACT_ID_LAST_SPECIAL as i32],
+                paramsx![DC_CONTACT_ID_LAST_SPECIAL as i32],
             )
             .await
-            .unwrap_or_default() as usize
+            .unwrap_or_default();
+        v as usize
     }
 
     /// Get blocked contacts.
     pub async fn get_all_blocked(context: &Context) -> Vec<u32> {
         context
             .sql
-            .query_map(
+            .query_values(
                 "SELECT id FROM contacts WHERE id>? AND blocked!=0 ORDER BY LOWER(name||addr),id;",
-                paramsv![DC_CONTACT_ID_LAST_SPECIAL as i32],
-                |row| row.get::<_, u32>(0),
-                |ids| {
-                    ids.collect::<std::result::Result<Vec<_>, _>>()
-                        .map_err(Into::into)
-                },
+                paramsx![DC_CONTACT_ID_LAST_SPECIAL as i32],
             )
             .await
             .unwrap_or_default()
+            .into_iter()
+            .map(|id: i64| id as u32)
+            .collect()
     }
 
     /// Returns a textual summary of the encryption state for the contact.
@@ -683,9 +690,10 @@ impl Contact {
             let peerstate = Peerstate::from_addr(context, &contact.addr).await;
             let loginparam = LoginParam::from_database(context, "configured_").await;
 
-            if peerstate.is_some()
+            if peerstate.is_ok()
                 && peerstate
                     .as_ref()
+                    .ok()
                     .and_then(|p| p.peek_key(PeerstateVerifiedStatus::Unverified))
                     .is_some()
             {
@@ -754,10 +762,9 @@ impl Contact {
 
         let count_contacts: i32 = context
             .sql
-            .query_get_value(
-                context,
+            .query_value(
                 "SELECT COUNT(*) FROM chats_contacts WHERE contact_id=?;",
-                paramsv![contact_id as i32],
+                paramsx![contact_id as i32],
             )
             .await
             .unwrap_or_default();
@@ -765,10 +772,9 @@ impl Contact {
         let count_msgs: i32 = if count_contacts > 0 {
             context
                 .sql
-                .query_get_value(
-                    context,
+                .query_value(
                     "SELECT COUNT(*) FROM msgs WHERE from_id=? OR to_id=?;",
-                    paramsv![contact_id as i32, contact_id as i32],
+                    paramsx![contact_id as i32, contact_id as i32],
                 )
                 .await
                 .unwrap_or_default()
@@ -781,7 +787,7 @@ impl Contact {
                 .sql
                 .execute(
                     "DELETE FROM contacts WHERE id=?;",
-                    paramsv![contact_id as i32],
+                    paramsx![contact_id as i32],
                 )
                 .await
             {
@@ -819,7 +825,7 @@ impl Contact {
             .sql
             .execute(
                 "UPDATE contacts SET param=? WHERE id=?",
-                paramsv![self.param.to_string(), self.id as i32],
+                paramsx![self.param.to_string(), self.id as i32],
             )
             .await?;
         Ok(())
@@ -927,7 +933,7 @@ impl Contact {
     pub async fn is_verified_ex(
         &self,
         context: &Context,
-        peerstate: Option<&Peerstate<'_>>,
+        peerstate: Option<&Peerstate>,
     ) -> VerifiedStatus {
         // We're always sort of secured-verified as we could verify the key on this device any time with the key
         // on this device
@@ -942,7 +948,7 @@ impl Contact {
         }
 
         let peerstate = Peerstate::from_addr(context, &self.addr).await;
-        if let Some(ps) = peerstate {
+        if let Ok(ps) = peerstate {
             if ps.verified_key.is_some() {
                 return VerifiedStatus::BidirectVerified;
             }
@@ -977,15 +983,15 @@ impl Contact {
             return 0;
         }
 
-        context
+        let v: i32 = context
             .sql
-            .query_get_value::<isize>(
-                context,
+            .query_value(
                 "SELECT COUNT(*) FROM contacts WHERE id>?;",
-                paramsv![DC_CONTACT_ID_LAST_SPECIAL as i32],
+                paramsx![DC_CONTACT_ID_LAST_SPECIAL as i32],
             )
             .await
-            .unwrap_or_default() as usize
+            .unwrap_or_default();
+        v as usize
     }
 
     pub async fn real_exists_by_id(context: &Context, contact_id: u32) -> bool {
@@ -997,7 +1003,7 @@ impl Contact {
             .sql
             .exists(
                 "SELECT id FROM contacts WHERE id=?;",
-                paramsv![contact_id as i32],
+                paramsx![contact_id as i32],
             )
             .await
             .unwrap_or_default()
@@ -1008,7 +1014,7 @@ impl Contact {
             .sql
             .execute(
                 "UPDATE contacts SET origin=? WHERE id=? AND origin<?;",
-                paramsv![origin, contact_id as i32, origin],
+                paramsx![origin, contact_id as i32, origin],
             )
             .await
             .is_ok()
@@ -1070,7 +1076,7 @@ async fn set_block_contact(context: &Context, contact_id: u32, new_blocking: boo
                 .sql
                 .execute(
                     "UPDATE contacts SET blocked=? WHERE id=?;",
-                    paramsv![new_blocking as i32, contact_id as i32],
+                    paramsx![new_blocking as i32, contact_id as i32],
                 )
                 .await
                 .is_ok()
@@ -1080,13 +1086,23 @@ async fn set_block_contact(context: &Context, contact_id: u32, new_blocking: boo
             // (Maybe, beside normal chats (type=100) we should also block group chats with only this user.
             // However, I'm not sure about this point; it may be confusing if the user wants to add other people;
             // this would result in recreating the same group...)
-            if context.sql.execute(
-                    "UPDATE chats SET blocked=? WHERE type=? AND id IN (SELECT chat_id FROM chats_contacts WHERE contact_id=?);",
-                    paramsv![new_blocking, 100, contact_id as i32],
-                ).await.is_ok() {
-                    Contact::mark_noticed(context, contact_id).await;
-                    context.emit_event(Event::ContactsChanged(None));
-                }
+            if context
+                .sql
+                .execute(
+                    r#"
+UPDATE chats 
+  SET blocked=? 
+  WHERE type=? AND id 
+  IN (SELECT chat_id FROM chats_contacts WHERE contact_id=?);
+"#,
+                    paramsx![new_blocking, 100i32, contact_id as i32],
+                )
+                .await
+                .is_ok()
+            {
+                Contact::mark_noticed(context, contact_id).await;
+                context.emit_event(Event::ContactsChanged(None));
+            }
         }
     }
 }

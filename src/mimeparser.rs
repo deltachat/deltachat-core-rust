@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::pin::Pin;
 
-use deltachat_derive::{FromSql, ToSql};
+use deltachat_derive::*;
 use lazy_static::lazy_static;
 use lettre_email::mime::{self, Mime};
 use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
@@ -64,7 +64,7 @@ pub(crate) enum AvatarAction {
     Change(String),
 }
 
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, Sqlx)]
 #[repr(i32)]
 pub enum SystemMessage {
     Unknown = 0,
@@ -989,12 +989,12 @@ async fn update_gossip_peerstates(
                 .iter()
                 .any(|info| info.addr == header.addr.to_lowercase())
             {
-                let mut peerstate = Peerstate::from_addr(context, &header.addr).await;
+                let mut peerstate = Peerstate::from_addr(context, &header.addr).await.ok();
                 if let Some(ref mut peerstate) = peerstate {
                     peerstate.apply_gossip(header, message_time);
                     peerstate.save_to_db(&context.sql, false).await?;
                 } else {
-                    let p = Peerstate::from_gossip(context, header, message_time);
+                    let p = Peerstate::from_gossip(header, message_time);
                     p.save_to_db(&context.sql, true).await?;
                     peerstate = Some(p);
                 }
