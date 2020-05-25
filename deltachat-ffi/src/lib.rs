@@ -403,9 +403,9 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_event_get_data3_str(event: *mut dc_event_t) -> *mut libc::c_char {
+pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut libc::c_char {
     if event.is_null() {
-        eprintln!("ignoring careless call to dc_event_get_data3_str()");
+        eprintln!("ignoring careless call to dc_event_get_data2_str()");
         return ptr::null_mut();
     }
 

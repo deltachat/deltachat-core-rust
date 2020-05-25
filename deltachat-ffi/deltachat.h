@@ -3863,7 +3863,7 @@ void  dc_event_emitter_unref(dc_event_emitter_t* emitter);
  * Get the event-id from an event object.
  * The event-id is one of the @ref DC_EVENT constants.
  * There may be additional data belonging to an event,
- * to get them, use dc_event_get_data1_int(), dc_event_get_data2_int() and dc_event_get_data3_str().
+ * to get them, use dc_event_get_data1_int(), dc_event_get_data2_int() and dc_event_get_data2_str().
  *
  * @memberof dc_event_t
  * @param event Event object as returned from dc_get_next_event().
@@ -3877,7 +3877,7 @@ int dc_event_get_id(dc_event_t* event);
  * Get a data associated with an event object.
  * The meaning of the data depends on the event-id
  * returned as @ref DC_EVENT constants by dc_event_get_id().
- * See also dc_event_get_data2_int() and dc_event_get_data3_str().
+ * See also dc_event_get_data2_int() and dc_event_get_data2_str().
  *
  * @memberof dc_event_t
  * @param event Event object as returned from dc_get_next_event().
@@ -3891,7 +3891,7 @@ int dc_event_get_data1_int(dc_event_t* event);
  * Get a data associated with an event object.
  * The meaning of the data depends on the event-id
  * returned as @ref DC_EVENT constants by dc_event_get_id().
- * See also dc_event_get_data2_int() and dc_event_get_data3_str().
+ * See also dc_event_get_data2_int() and dc_event_get_data2_str().
  *
  * @memberof dc_event_t
  * @param event Event object as returned from dc_get_next_event().
@@ -3909,11 +3909,11 @@ int dc_event_get_data2_int(dc_event_t* event);
  *
  * @memberof dc_event_t
  * @param event Event object as returned from dc_get_next_event().
- * @return "data3" as a string,
+ * @return "data2" as a string,
  *     the meaning depends on the event type associated with this event.
  *     Once you're done with the string, you have to unref it using dc_unref_str().
  */
-char* dc_event_get_data3_str(dc_event_t* event);
+char* dc_event_get_data2_str(dc_event_t* event);
 
 
 /**
@@ -3934,7 +3934,7 @@ void dc_event_unref(dc_event_t* event);
  * in events returned by dc_get_next_event().
  *
  * Events typically come with some additional data,
- * use dc_event_get_data1_int(), dc_event_get_data2_int() and dc_event_get_data3_str() to read this data.
+ * use dc_event_get_data1_int(), dc_event_get_data2_int() and dc_event_get_data2_str() to read this data.
  * The meaning of the data depends on the event.
  *
  * @addtogroup DC_EVENT
