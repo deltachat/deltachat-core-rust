@@ -32,62 +32,40 @@ typedef struct _dc_event_emitter dc_event_emitter_t;
  *
  * Let's start.
  *
- * First of all, you have to **define an event-handler-function**
- * that is called by the library on specific events
- * (eg. when the configuration is done or when fresh messages arrive).
- * With this function you can create a Delta Chat context then:
+ * First of all, you have to **create a context object**
+ * bound to a database.
+ * The database is a normal sqlite-file and is created as needed:
  *
  * ~~~
- * #include <deltachat.h>
+ * dc_context_t* context = dc_context_new(NULL, "example.db", NULL);
+ * ~~~
  *
- * uintptr_t event_handler_func(dc_context_t* context, int event,
- *                              uintptr_t data1, uintptr_t data2)
+ * After that, make sure, you can **receive events from the context**.
+ * For that purpose, create an event emitter you can ask for events.
+ * If there are no event, the emitter will wait until there is one,
+ * so, in many situations you will do this in a thread:
+ *
+ * ~~~
+ * dc_event_emitter_t* emitter = dc_get_event_emitter(context);
+ *
+ * void* event_handler(void* emitter)
  * {
- *     return 0;
- * }
- *
- * dc_context_t* context = dc_context_new(event_handler_func, NULL, NULL);
- * ~~~
- *
- * After that, you should make sure,
- * sending and receiving jobs are processed as needed.
- * For this purpose, you have to **create two threads:**
- *
- * ~~~
- * #include <pthread.h>
- *
- * void* imap_thread_func(void* context)
- * {
- *     while (true) {
- *         dc_perform_imap_jobs(context);
- *         dc_perform_imap_fetch(context);
- *         dc_perform_imap_idle(context);
+ *     dc_event_t* event;
+ *     while ((event = dc_get_next_event(emitter)) != NULL) {
+ *         // use the event as needed, eg. dc_event_get_id() returns the type.
+ *         // once you're done, unref the event to avoid memory leakage:
+ *         dc_event_unref(event);
  *     }
+ *     dc_event_emitter_unref(emitter);
  * }
  *
- * void* smtp_thread_func(void* context)
- * {
- *     while (true) {
- *         dc_perform_smtp_jobs(context);
- *         dc_perform_smtp_idle(context);
- *     }
- * }
- *
- * static pthread_t imap_thread, smtp_thread;
- * pthread_create(&imap_thread, NULL, imap_thread_func, context);
- * pthread_create(&smtp_thread, NULL, smtp_thread_func, context);
+ * static pthread_t event_thread;
+ * pthread_create(&event_thread, NULL, event_handler, emitter);
  * ~~~
  *
  * The example above uses "pthreads",
  * however, you can also use anything else for thread handling.
  * All deltachat-core-functions, unless stated otherwise, are thread-safe.
- *
- * After that you can  **define and open a database.**
- * The database is a normal sqlite-file and is created as needed:
- *
- * ~~~
- * dc_open(context, "example.db", NULL);
- * ~~~
  *
  * Now you can **configure the context:**
  *
@@ -98,14 +76,21 @@ typedef struct _dc_event_emitter dc_event_emitter_t;
  * dc_configure(context);
  * ~~~
  *
- * dc_configure() returns immediately, the configuration itself may take a while
- * and is done by a job in the imap-thread you've defined above.
+ * dc_configure() returns immediately,
+ * the configuration itself runs in background and may take a while.
  * Once done, the #DC_EVENT_CONFIGURE_PROGRESS reports success
- * to the event_handler_func() that is also defined above.
+ * to the event_handler() you've defined above.
  *
  * The configuration result is saved in the database,
  * on subsequent starts it is not needed to call dc_configure()
  * (you can check this using dc_is_configured()).
+ *
+ * On a successfully configured context,
+ * you can finally **connect to the servers:**
+ *
+ * ~~~
+ * dc_start_io(context);
+ * ~~~
  *
  * Now you can **send the first message:**
  *
@@ -166,19 +151,6 @@ typedef struct _dc_event_emitter dc_event_emitter_t;
  * - The issue-tracker for the core library is here:
  *   <https://github.com/deltachat/deltachat-core-rust/issues>
  *
- * The following points are important mainly
- * for the authors of the library itself:
- *
- * - For indentation, use tabs.
- *   Alignments that are not placed at the beginning of a line
- *   should be done with spaces.
- *
- * - For padding between functions,
- *   classes etc. use 2 empty lines
- *
- * - Source files are encoded as UTF-8 with Unix line endings
- *   (a simple `LF`, `0x0A` or `\n`)
- *
  * If you need further assistance,
  * please do not hesitate to contact us
  * through the channels shown at https://delta.chat/en/contribute
@@ -190,24 +162,6 @@ typedef struct _dc_event_emitter dc_event_emitter_t;
  * See you.
  */
 
-
-/**
- * TODO: document
- */  
-dc_event_t*   dc_get_next_event(dc_event_emitter_t* emitter);
-
-dc_event_emitter_t* dc_get_event_emitter(dc_context_t* context);
-void  dc_event_emitter_unref(dc_event_emitter_t* emitter);
-
-int           dc_event_get_id   (dc_event_t* event);
-int           dc_event_get_data1_int(dc_event_t* event);
-int           dc_event_get_data2_int(dc_event_t* event);
-char*         dc_event_get_data3_str(dc_event_t* event);
-
-/**
- * TODO: document
- */
-void          dc_event_unref   (dc_event_t* event);
 
 /**
  * @class dc_context_t
@@ -226,21 +180,6 @@ void          dc_event_unref   (dc_event_t* event);
  * opened, connected and mails are fetched.
  *
  * @memberof dc_context_t
- * @param cb a callback function that is called for events (update,
- *     state changes etc.) and to get some information from the client (eg. translation
- *     for a given string).
- *     See @ref DC_EVENT for a list of possible events that may be passed to the callback.
- *     - The callback MAY be called from _any_ thread, not only the main/GUI thread!
- *     - The callback MUST NOT call any dc_* and related functions unless stated
- *       otherwise!
- *     - The callback SHOULD return _fast_, for GUI updates etc. you should
- *       post yourself an asynchronous message to your GUI thread, if needed.
- *     - events do not expect a return value, just always return 0.
- * @param dbfile The file to use to store the database, something like `~/file` won't
- *     work on all systems, if in doubt, use absolute paths.
- * @param blobdir A directory to store the blobs in; a trailing slash is not needed.
- *     If you pass NULL or the empty string, deltachat-core creates a directory
- *     beside _dbfile_ with the same name and the suffix `-blobs`.
  * @param os_name is only for decorative use
  *     and is shown eg. in the `X-Mailer:` header
  *     in the form "Delta Chat Core <version>/<os_name>".
@@ -248,6 +187,11 @@ void          dc_event_unref   (dc_event_t* event);
  *     the used environment and/or the version here.
  *     It is okay to give NULL, in this case `X-Mailer:` header
  *     is set to "Delta Chat Core <version>".
+ * @param dbfile The file to use to store the database,
+ *     something like `~/file` won't work, use absolute paths.
+ * @param blobdir A directory to store the blobs in; a trailing slash is not needed.
+ *     If you pass NULL or the empty string, deltachat-core creates a directory
+ *     beside _dbfile_ with the same name and the suffix `-blobs`.
  * @return A context object with some public members.
  *     The object must be passed to the other context functions
  *     and must be freed using dc_context_unref() after usage.
@@ -268,6 +212,25 @@ dc_context_t*   dc_context_new               (const char* os_name, const char* d
  * @return None.
  */
 void            dc_context_unref             (dc_context_t* context);
+
+
+/**
+ * Create the event emitter that is used to receive events.
+ * The library will emit various @ref DC_EVENT events as "new message", "message read" etc.
+ * To get these events, you have to create an event emitter using this function
+ * and call dc_get_next_event() on the emitter.
+ *
+ * @memberof dc_context_t
+ * @param context The context object as created by dc_context_new().
+ * @return Returns the event emitter, NULL on errors.
+ *     Must be freed using dc_event_emitter_unref() after usage.
+ *
+ * Note: Use only one event emitter per context.
+ * Having more than one event emitter running at the same time on the same context
+ * will result in events randomly delivered to the one or to the other.
+ */
+dc_event_emitter_t* dc_get_event_emitter(dc_context_t* context);
+
 
 /**
  * Get the blob directory.
@@ -3858,10 +3821,121 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
 
 
 /**
+ * @class dc_event_emitter_t
+ *
+ * Opaque object that is used to get events.
+ * You can get an event emitter from a context using dc_get_event_emitter().
+ */
+
+/**
+ * Get the next event from an event emitter object.
+ *
+ * @memberof dc_event_emitter_t
+ * @param emitter Event emitter object as returned from dc_get_event_emitter().
+ * @return An event as an dc_event_t object.
+ *     You can query the event for information using dc_event_get_id(), dc_event_get_data1_int() and so on;
+ *     if you are done with the event, you have to free the event using dc_event_unref().
+ *     If NULL is returned, the context belonging to the event emitter is unref'd and the no more events will come;
+ *     in this case, free the event emitter using dc_event_emitter_unref().
+ */
+dc_event_t* dc_get_next_event(dc_event_emitter_t* emitter);
+
+
+/**
+ * Free an event emitter object.
+ *
+ * @memberof dc_event_emitter_t
+ * @param emitter Event emitter object as returned from dc_get_event_emitter().
+ *     If NULL is given, nothing is done and an error is logged.
+ * @return None.
+ */
+void  dc_event_emitter_unref(dc_event_emitter_t* emitter);
+
+
+/**
+ * @class dc_event_t
+ *
+ * Opaque object describing a single event.
+ * To get events, call dc_get_next_event() on an event emitter created by dc_get_event_emitter().
+ */
+
+/**
+ * Get the event-id from an event object.
+ * The event-id is one of the @ref DC_EVENT constants.
+ * There may be additional data belonging to an event,
+ * to get them, use dc_event_get_data1_int(), dc_event_get_data2_int() and dc_event_get_data2_str().
+ *
+ * @memberof dc_event_t
+ * @param event Event object as returned from dc_get_next_event().
+ * @return once of the @ref DC_EVENT constants.
+ *     0 on errors.
+ */
+int dc_event_get_id(dc_event_t* event);
+
+
+/**
+ * Get a data associated with an event object.
+ * The meaning of the data depends on the event-id
+ * returned as @ref DC_EVENT constants by dc_event_get_id().
+ * See also dc_event_get_data2_int() and dc_event_get_data2_str().
+ *
+ * @memberof dc_event_t
+ * @param event Event object as returned from dc_get_next_event().
+ * @return "data1" as a signed integer, at least 32bit,
+ *     the meaning depends on the event type associated with this event.
+ */
+int dc_event_get_data1_int(dc_event_t* event);
+
+
+/**
+ * Get a data associated with an event object.
+ * The meaning of the data depends on the event-id
+ * returned as @ref DC_EVENT constants by dc_event_get_id().
+ * See also dc_event_get_data2_int() and dc_event_get_data2_str().
+ *
+ * @memberof dc_event_t
+ * @param event Event object as returned from dc_get_next_event().
+ * @return "data2" as a signed integer, at least 32bit,
+ *     the meaning depends on the event type associated with this event.
+ */
+int dc_event_get_data2_int(dc_event_t* event);
+
+
+/**
+ * Get a data associated with an event object.
+ * The meaning of the data depends on the event-id
+ * returned as @ref DC_EVENT constants by dc_event_get_id().
+ * See also dc_event_get_data1_int() and dc_event_get_data2_int().
+ *
+ * @memberof dc_event_t
+ * @param event Event object as returned from dc_get_next_event().
+ * @return "data2" as a string,
+ *     the meaning depends on the event type associated with this event.
+ *     Once you're done with the string, you have to unref it using dc_unref_str().
+ */
+char* dc_event_get_data2_str(dc_event_t* event);
+
+
+/**
+ * Free memory used by an event object.
+ * If you forget to do this for an event, this will result in memory leakage.
+ *
+ * @memberof dc_event_t
+ * @param event Event object as returned from dc_get_next_event().
+ * @return None.
+ */
+void dc_event_unref(dc_event_t* event);
+
+
+/**
  * @defgroup DC_EVENT DC_EVENT
  *
- * These constants are used as events
- * reported to the callback given to dc_context_new().
+ * These constants are used as event-id
+ * in events returned by dc_get_next_event().
+ *
+ * Events typically come with some additional data,
+ * use dc_event_get_data1_int(), dc_event_get_data2_int() and dc_event_get_data2_str() to read this data.
+ * The meaning of the data depends on the event.
  *
  * @addtogroup DC_EVENT
  * @{
@@ -3869,13 +3943,11 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
 
 /**
  * The library-user may write an informational string to the log.
- * Passed to the callback given to dc_context_new().
  *
  * This event should not be reported to the end-user using a popup or something like that.
  *
  * @param data1 0
- * @param data2 (const char*) Info string in english language.
- *     Must not be unref'd or modified and is valid only until the callback returns.
+ * @param data2 (char*) Info string in english language.
  */
 #define DC_EVENT_INFO                     100
 
@@ -3884,8 +3956,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * Emitted when SMTP connection is established and login was successful.
  *
  * @param data1 0
- * @param data2 (const char*) Info string in english language.
- *     Must not be unref'd or modified and is valid only until the callback returns.
+ * @param data2 (char*) Info string in english language.
  */
 #define DC_EVENT_SMTP_CONNECTED           101
 
@@ -3894,8 +3965,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * Emitted when IMAP connection is established and login was successful.
  *
  * @param data1 0
- * @param data2 (const char*) Info string in english language.
- *     Must not be unref'd or modified and is valid only until the callback returns.
+ * @param data2 (char*) Info string in english language.
  */
 #define DC_EVENT_IMAP_CONNECTED           102
 
@@ -3903,8 +3973,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * Emitted when a message was successfully sent to the SMTP server.
  *
  * @param data1 0
- * @param data2 (const char*) Info string in english language.
- *     Must not be unref'd or modified and is valid only until the callback returns.
+ * @param data2 (char*) Info string in english language.
  */
 #define DC_EVENT_SMTP_MESSAGE_SENT        103
 
@@ -3912,8 +3981,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * Emitted when a message was successfully marked as deleted on the IMAP server.
  *
  * @param data1 0
- * @param data2 (const char*) Info string in english language.
- *     Must not be unref'd or modified and is valid only until the callback returns.
+ * @param data2 (char*) Info string in english language.
  */
 #define DC_EVENT_IMAP_MESSAGE_DELETED   104
 
@@ -3921,8 +3989,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * Emitted when a message was successfully moved on IMAP.
  *
  * @param data1 0
- * @param data2 (const char*) Info string in english language.
- *     Must not be unref'd or modified and is valid only until the callback returns.
+ * @param data2 (char*) Info string in english language.
  */
 #define DC_EVENT_IMAP_MESSAGE_MOVED   105
 
@@ -3930,8 +3997,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * Emitted when an IMAP folder was emptied.
  *
  * @param data1 0
- * @param data2 (const char*) folder name.
- *     Must not be unref'd or modified and is valid only until the callback returns.
+ * @param data2 (char*) Folder name.
  */
 #define DC_EVENT_IMAP_FOLDER_EMPTIED  106
 
@@ -3939,8 +4005,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * Emitted when a new blob file was successfully written
  *
  * @param data1 0
- * @param data2 (const char*) path name
- *     Must not be unref'd or modified and is valid only until the callback returns.
+ * @param data2 (char*) Path name
  */
 #define DC_EVENT_NEW_BLOB_FILE 150
 
@@ -3948,27 +4013,23 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * Emitted when a blob file was successfully deleted
  *
  * @param data1 0
- * @param data2 (const char*) path name
- *     Must not be unref'd or modified and is valid only until the callback returns.
+ * @param data2 (char*) Path name
  */
 #define DC_EVENT_DELETED_BLOB_FILE 151
 
 /**
  * The library-user should write a warning string to the log.
- * Passed to the callback given to dc_context_new().
  *
  * This event should not be reported to the end-user using a popup or something like that.
  *
  * @param data1 0
- * @param data2 (const char*) Warning string in english language.
- *     Must not be unref'd or modified and is valid only until the callback returns.
+ * @param data2 (char*) Warning string in english language.
  */
 #define DC_EVENT_WARNING                  300
 
 
 /**
  * The library-user should report an error to the end-user.
- * Passed to the callback given to dc_context_new().
  *
  * As most things are asynchronous, things may go wrong at any time and the user
  * should not be disturbed by a dialog or so.  Instead, use a bubble or so.
@@ -3980,10 +4041,9 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * in a messasge box then.
  *
  * @param data1 0
- * @param data2 (const char*) Error string, always set, never NULL.
+ * @param data2 (char*) Error string, always set, never NULL.
  *     Some error strings are taken from dc_set_stock_translation(),
  *     however, most error strings will be in english language.
- *     Must not be unref'd or modified and is valid only until the callback returns.
  */
 #define DC_EVENT_ERROR                    400
 
@@ -4005,8 +4065,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  *
  * @param data1 (int) 1=first/new network error, should be reported the user;
  *     0=subsequent network error, should be logged only
- * @param data2 (const char*) Error string, always set, never NULL.
- *     Must not be unref'd or modified and is valid only until the callback returns.
+ * @param data2 (char*) Error string, always set, never NULL.
  */
 #define DC_EVENT_ERROR_NETWORK            401
 
@@ -4019,9 +4078,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * dc_send_text_msg() or another sending function.
  *
  * @param data1 0
- * @param data2 (const char*) Info string in english language.
- *     Must not be unref'd or modified
- *     and is valid only until the callback returns.
+ * @param data2 (char*) Info string in english language.
  */
 #define DC_EVENT_ERROR_SELF_NOT_IN_GROUP  410
 
@@ -4139,9 +4196,8 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * A typical purpose for a handler of this event may be to make the file public to some system
  * services.
  *
- * @param data1 (const char*) Path and file name.
- *     Must not be unref'd or modified and is valid only until the callback returns.
- * @param data2 0
+ * @param data1 0
+ * @param data2 (char*) Path and file name.
  */
 #define DC_EVENT_IMEX_FILE_WRITTEN        2052
 

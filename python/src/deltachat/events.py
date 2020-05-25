@@ -172,7 +172,7 @@ class EventThread(threading.Thread):
             # function which provides us signature info of an event call
             evt_name = deltachat.get_dc_event_name(evt)
             if lib.dc_event_has_string_data(evt):
-                data2 = from_dc_charpointer(lib.dc_event_get_data3_str(event))
+                data2 = from_dc_charpointer(lib.dc_event_get_data2_str(event))
             else:
                 data2 = lib.dc_event_get_data2_int(event)
 
