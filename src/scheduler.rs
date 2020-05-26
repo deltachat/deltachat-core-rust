@@ -255,11 +255,7 @@ async fn smtp_loop(ctx: Context, started: Sender<()>, smtp_handlers: SmtpConnect
                 Ok(None) | Err(async_std::future::TimeoutError { .. }) => {
                     info!(ctx, "smtp fake idle");
                     // Fake Idle
-                    idle_interrupt_receiver
-                        .recv()
-                        .timeout(Duration::from_secs(5))
-                        .await
-                        .ok();
+                    idle_interrupt_receiver.recv().await.ok();
                 }
             }
         }
