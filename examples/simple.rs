@@ -5,6 +5,7 @@ use deltachat::chatlist::*;
 use deltachat::config;
 use deltachat::contact::*;
 use deltachat::context::*;
+use deltachat::message::Message;
 use deltachat::Event;
 
 fn cb(event: Event) {
@@ -71,20 +72,24 @@ async fn main() {
         .unwrap();
     let chat_id = chat::create_by_contact_id(&ctx, contact_id).await.unwrap();
 
-    for i in 0..2 {
+    for i in 0..1 {
+        log::info!("sending message {}", i);
         chat::send_text_msg(&ctx, chat_id, format!("Hi, here is my {}nth message!", i))
             .await
             .unwrap();
     }
 
+    // wait for the message to be sent out
+    async_std::task::sleep(std::time::Duration::from_secs(1)).await;
+
     log::info!("fetching chats..");
     let chats = Chatlist::try_load(&ctx, 0, None, None).await.unwrap();
 
     for i in 0..chats.len() {
-        let summary = chats.get_summary(&ctx, 0, None).await;
-        let text1 = summary.get_text1();
-        let text2 = summary.get_text2();
-        log::info!("chat: {} - {:?} - {:?}", i, text1, text2,);
+        let msg = Message::load_from_db(&ctx, chats.get_msg_id(i).unwrap())
+            .await
+            .unwrap();
+        log::info!("[{}] msg: {:?}", i, msg);
     }
 
     log::info!("stopping");
