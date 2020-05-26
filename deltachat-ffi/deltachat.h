@@ -497,8 +497,8 @@ int             dc_is_configured   (const dc_context_t* context);
 
 /**
  * Start job and IMAP/SMTP tasks.
- * You must not call dc_start_io() if IO is already started,
- * please check the current state using dc_is_io_running() first.
+ * If IO is already running, nothing happens.
+ * To check the current IO state, use dc_is_io_running().
  *
  * @memberof dc_context_t
  * @param context The context object as created by dc_context_new().
@@ -518,6 +518,8 @@ int             dc_is_io_running(const dc_context_t* context);
 
 /**
  * Stop job and IMAP/SMTP tasks and return when they are finished. 
+ * If IO is not running, nothing happens.
+ * To check the current IO state, use dc_is_io_running().
  *
  * @memberof dc_context_t
  * @param context The context object as created by dc_context_new().
