@@ -15,6 +15,11 @@ use crate::context::Context;
 use crate::error::{bail, Error};
 use crate::events::Event;
 
+const CHAT_PREFIX: &'static str = "Mr.";
+const GROUP_PREFIX: &'static str = "Gr.";
+
+const COI_GROUP_PREFIX: &'static str = "chat$group.";
+
 pub(crate) fn dc_exactly_one_bit_set(v: i32) -> bool {
     0 != v && 0 == v & (v - 1)
 }
@@ -199,10 +204,15 @@ pub(crate) fn dc_create_outgoing_rfc724_mid(grpid: Option<&str>, from_addr: &str
         .find('@')
         .map(|k| &from_addr[k..])
         .unwrap_or("@nohost");
-    match grpid {
-        Some(grpid) => format!("Gr.{}.{}{}", grpid, dc_create_id(), hostname),
-        None => format!("Mr.{}.{}{}", dc_create_id(), dc_create_id(), hostname),
-    }
+    let id_tmp: String;
+    let (prefix, id) = match grpid {
+        Some(grpid) => (GROUP_PREFIX, grpid),
+        None => {
+            id_tmp = dc_create_id();
+            (CHAT_PREFIX, id_tmp.as_ref())
+        }
+    };
+    format!("{}{}.{}{}", prefix, id, dc_create_id(), hostname)
 }
 
 /// Extract the group id (grpid) from a message id (mid)
@@ -214,11 +224,20 @@ pub(crate) fn dc_create_outgoing_rfc724_mid(grpid: Option<&str>, from_addr: &str
 pub(crate) fn dc_extract_grpid_from_rfc724_mid(mid: &str) -> Option<&str> {
     let mid = mid.trim_start_matches('<').trim_end_matches('>');
 
-    if mid.len() < 9 || !mid.starts_with("Gr.") {
+    let prefix_len;
+    if mid.starts_with(GROUP_PREFIX) {
+        prefix_len = GROUP_PREFIX.len();
+    } else if mid.starts_with(COI_GROUP_PREFIX) {
+        prefix_len = COI_GROUP_PREFIX.len();
+    } else {
         return None;
     }
 
-    if let Some(mid_without_offset) = mid.get(3..) {
+    if mid.len() < prefix_len + 11 {
+        return None;
+    }
+
+    if let Some(mid_without_offset) = mid.get(prefix_len..) {
         if let Some(grpid_len) = mid_without_offset.find('.') {
             /* strict length comparison, the 'Gr.' magic is weak enough */
             if grpid_len == 11 || grpid_len == 16 {
@@ -691,6 +710,7 @@ mod tests {
         // create a normal message-id
         let mid = dc_create_outgoing_rfc724_mid(None, "foo@bar.de");
         assert!(mid.starts_with("Mr."));
+        assert!(mid.starts_with(CHAT_PREFIX));
         assert!(mid.ends_with("bar.de"));
         assert!(dc_extract_grpid_from_rfc724_mid(mid.as_str()).is_none());
 
@@ -698,6 +718,7 @@ mod tests {
         let grpid = dc_create_id();
         let mid = dc_create_outgoing_rfc724_mid(Some(&grpid), "foo@bar.de");
         assert!(mid.starts_with("Gr."));
+        assert!(mid.starts_with(GROUP_PREFIX));
         assert!(mid.ends_with("bar.de"));
         assert_eq!(
             dc_extract_grpid_from_rfc724_mid(mid.as_str()),
