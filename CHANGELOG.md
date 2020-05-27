@@ -1,5 +1,21 @@
 # Changelog 
 
+## 2.0.0
+
+- new api for io, thread and event handling #1356,
+  see the example atop of `deltachat.h` to get an overview
+
+- LOTS of speed improvements due to async processing #1356
+
+- enable WAL mode for sqlite #1492
+
+- process incoming messages in bulk #1527
+
+- improve finding out the sent-folder #1488
+
+- several bug fixes
+
+
 ## 1.33.0
 
 - let `dc_set_muted()` also mute one-to-one chats #1470
