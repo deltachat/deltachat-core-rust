@@ -290,48 +290,59 @@ async fn start(args: Vec<String>) -> Result<(), Error> {
         .edit_mode(EditMode::Emacs)
         .output_stream(OutputStreamType::Stdout)
         .build();
-    let h = DcHelper {
-        completer: FilenameCompleter::new(),
-        highlighter: MatchingBracketHighlighter::new(),
-        hinter: HistoryHinter {},
-    };
-    let mut rl = Editor::with_config(config);
-    rl.set_helper(Some(h));
-    rl.bind_sequence(KeyPress::Meta('N'), Cmd::HistorySearchForward);
-    rl.bind_sequence(KeyPress::Meta('P'), Cmd::HistorySearchBackward);
-    if rl.load_history(".dc-history.txt").is_err() {
-        println!("No previous history.");
-    }
-
     let mut selected_chat = ChatId::default();
+    let (reader_s, reader_r) = async_std::sync::channel(100);
+    let input_loop = async_std::task::spawn_blocking(move || {
+        let h = DcHelper {
+            completer: FilenameCompleter::new(),
+            highlighter: MatchingBracketHighlighter::new(),
+            hinter: HistoryHinter {},
+        };
+        let mut rl = Editor::with_config(config);
+        rl.set_helper(Some(h));
+        rl.bind_sequence(KeyPress::Meta('N'), Cmd::HistorySearchForward);
+        rl.bind_sequence(KeyPress::Meta('P'), Cmd::HistorySearchBackward);
+        if rl.load_history(".dc-history.txt").is_err() {
+            println!("No previous history.");
+        }
 
-    loop {
-        let p = "> ";
-        let readline = rl.readline(&p);
-        match readline {
-            Ok(line) => {
-                // TODO: ignore "set mail_pw"
-                rl.add_history_entry(line.as_str());
-                match handle_cmd(line.trim(), context.clone(), &mut selected_chat).await {
-                    Ok(ExitResult::Continue) => {}
-                    Ok(ExitResult::Exit) => break,
-                    Err(err) => println!("Error: {}", err),
+        loop {
+            let p = "> ";
+            let readline = rl.readline(&p);
+
+            match readline {
+                Ok(line) => {
+                    // TODO: ignore "set mail_pw"
+                    rl.add_history_entry(line.as_str());
+                    async_std::task::block_on(reader_s.send(line));
+                }
+                Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => {
+                    println!("Exiting...");
+                    drop(reader_s);
+                    break;
+                }
+                Err(err) => {
+                    println!("Error: {}", err);
+                    drop(reader_s);
+                    break;
                 }
             }
-            Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => {
-                println!("Exiting...");
-                context.stop_io().await;
-                break;
-            }
-            Err(err) => {
-                println!("Error: {}", err);
-                break;
-            }
+        }
+
+        rl.save_history(".dc-history.txt")?;
+        println!("history saved");
+        Ok::<_, Error>(())
+    });
+
+    while let Ok(line) = reader_r.recv().await {
+        match handle_cmd(line.trim(), context.clone(), &mut selected_chat).await {
+            Ok(ExitResult::Continue) => {}
+            Ok(ExitResult::Exit) => break,
+            Err(err) => println!("Error: {}", err),
         }
     }
-
-    rl.save_history(".dc-history.txt")?;
-    println!("history saved");
+    context.stop_io().await;
+    input_loop.await?;
 
     Ok(())
 }
