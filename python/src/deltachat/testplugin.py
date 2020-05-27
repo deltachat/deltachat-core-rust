@@ -13,10 +13,8 @@ import pytest
 import requests
 
 from . import Account, const
-from .tracker import ConfigureTracker
 from .capi import lib
-from .eventlogger import FFIEventLogger, FFIEventTracker
-from _pytest.monkeypatch import MonkeyPatch
+from .events import FFIEventLogger, FFIEventTracker
 from _pytest._code import Source
 
 import deltachat
@@ -74,6 +72,9 @@ def pytest_configure(config):
 
         @pytest.hookimpl(hookwrapper=True)
         def pytest_runtest_setup(self, item):
+            if item.get_closest_marker("ignored"):
+                if not item.config.getvalue("ignored"):
+                    pytest.skip("use --ignored to run this test")
             self.enable_logging(item)
             yield
             self.disable_logging(item)
@@ -99,18 +100,16 @@ def pytest_report_header(config, startdir):
     summary = []
 
     t = tempfile.mktemp()
-    m = MonkeyPatch()
     try:
-        m.setattr(sys.stdout, "write", lambda x: len(x))
         ac = Account(t)
         info = ac.get_info()
         ac.shutdown()
     finally:
-        m.undo()
         os.remove(t)
-    summary.extend(['Deltachat core={} sqlite={}'.format(
+    summary.extend(['Deltachat core={} sqlite={} journal_mode={}'.format(
          info['deltachat_core_version'],
          info['sqlite_version'],
+         info['journal_mode'],
      )])
 
     cfg = config.option.liveconfig
@@ -231,7 +230,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
         def make_account(self, path, logid, quiet=False):
             ac = Account(path, logging=self._logging)
             ac._evtracker = ac.add_account_plugin(FFIEventTracker(ac))
-            ac._configtracker = ac.add_account_plugin(ConfigureTracker())
+            ac.addr = ac.get_self_contact().addr
             if not quiet:
                 ac.add_account_plugin(FFIEventLogger(ac, logid=logid))
             self._accounts.append(ac)
@@ -302,23 +301,32 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             configdict["mvbox_move"] = str(int(move))
             configdict["sentbox_watch"] = str(int(sentbox))
             ac.update_config(configdict)
-            ac.start()
+            ac.configure()
             return ac
 
         def get_one_online_account(self, pre_generated_key=True, mvbox=False, move=False):
             ac1 = self.get_online_configuring_account(
                 pre_generated_key=pre_generated_key, mvbox=mvbox, move=move)
-            ac1._configtracker.wait_imap_connected()
-            ac1._configtracker.wait_smtp_connected()
-            ac1._configtracker.wait_finish()
+            ac1.wait_configure_finish()
+            ac1.start_io()
             return ac1
 
         def get_two_online_accounts(self, move=False, quiet=False):
             ac1 = self.get_online_configuring_account(move=True, quiet=quiet)
             ac2 = self.get_online_configuring_account(quiet=quiet)
-            ac1._configtracker.wait_finish()
-            ac2._configtracker.wait_finish()
+            ac1.wait_configure_finish()
+            ac1.start_io()
+            ac2.wait_configure_finish()
+            ac2.start_io()
             return ac1, ac2
+
+        def get_many_online_accounts(self, num, move=True, quiet=True):
+            accounts = [self.get_online_configuring_account(move=move, quiet=quiet)
+                        for i in range(num)]
+            for acc in accounts:
+                acc._configtracker.wait_finish()
+                acc.start_io()
+            return accounts
 
         def clone_online_account(self, account, pre_generated_key=True):
             self.live_count += 1
@@ -335,7 +343,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
                 mvbox_move=account.get_config("mvbox_move"),
                 sentbox_watch=account.get_config("sentbox_watch"),
             ))
-            ac.start()
+            ac.configure()
             return ac
 
         def run_bot_process(self, module, ffi=True):
@@ -392,6 +400,7 @@ class BotProcess:
                     break
                 line = line.strip()
                 self.stdout_queue.put(line)
+                print("bot-stdout: ", line)
         finally:
             self.stdout_queue.put(None)
 

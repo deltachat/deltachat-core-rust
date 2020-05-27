@@ -25,18 +25,18 @@ pub struct EncryptHelper {
 }
 
 impl EncryptHelper {
-    pub fn new(context: &Context) -> Result<EncryptHelper> {
+    pub async fn new(context: &Context) -> Result<EncryptHelper> {
         let prefer_encrypt =
-            EncryptPreference::from_i32(context.get_config_int(Config::E2eeEnabled))
+            EncryptPreference::from_i32(context.get_config_int(Config::E2eeEnabled).await)
                 .unwrap_or_default();
-        let addr = match context.get_config(Config::ConfiguredAddr) {
+        let addr = match context.get_config(Config::ConfiguredAddr).await {
             None => {
                 bail!("addr not configured!");
             }
             Some(addr) => addr,
         };
 
-        let public_key = SignedPublicKey::load_self(context)?;
+        let public_key = SignedPublicKey::load_self(context).await?;
 
         Ok(EncryptHelper {
             prefer_encrypt,
@@ -86,37 +86,37 @@ impl EncryptHelper {
     }
 
     /// Tries to encrypt the passed in `mail`.
-    pub fn encrypt(
-        &mut self,
+    pub async fn encrypt(
+        self,
         context: &Context,
         min_verified: PeerstateVerifiedStatus,
         mail_to_encrypt: lettre_email::PartBuilder,
-        peerstates: &[(Option<Peerstate>, &str)],
+        peerstates: Vec<(Option<Peerstate<'_>>, &str)>,
     ) -> Result<String> {
         let mut keyring = Keyring::default();
 
         for (peerstate, addr) in peerstates
-            .iter()
-            .filter_map(|(state, addr)| state.as_ref().map(|s| (s, addr)))
+            .into_iter()
+            .filter_map(|(state, addr)| state.map(|s| (s, addr)))
         {
-            let key = peerstate.peek_key(min_verified).ok_or_else(|| {
+            let key = peerstate.take_key(min_verified).ok_or_else(|| {
                 format_err!("proper enc-key for {} missing, cannot encrypt", addr)
             })?;
-            keyring.add_ref(key);
+            keyring.add(key);
         }
-        let public_key = Key::from(self.public_key.clone());
-        keyring.add_ref(&public_key);
-        let sign_key = Key::from(SignedSecretKey::load_self(context)?);
+        let public_key = Key::from(self.public_key);
+        keyring.add(public_key);
+        let sign_key = Key::from(SignedSecretKey::load_self(context).await?);
 
         let raw_message = mail_to_encrypt.build().as_string().into_bytes();
 
-        let ctext = pgp::pk_encrypt(&raw_message, &keyring, Some(&sign_key))?;
+        let ctext = pgp::pk_encrypt(&raw_message, keyring, Some(sign_key)).await?;
 
         Ok(ctext)
     }
 }
 
-pub fn try_decrypt(
+pub async fn try_decrypt(
     context: &Context,
     mail: &ParsedMail<'_>,
     message_time: i64,
@@ -133,54 +133,56 @@ pub fn try_decrypt(
     let autocryptheader = Aheader::from_headers(context, &from, &mail.headers);
 
     if message_time > 0 {
-        peerstate = Peerstate::from_addr(context, &context.sql, &from);
+        peerstate = Peerstate::from_addr(context, &from).await;
 
         if let Some(ref mut peerstate) = peerstate {
             if let Some(ref header) = autocryptheader {
                 peerstate.apply_header(&header, message_time);
-                peerstate.save_to_db(&context.sql, false)?;
+                peerstate.save_to_db(&context.sql, false).await?;
             } else if message_time > peerstate.last_seen_autocrypt && !contains_report(mail) {
                 peerstate.degrade_encryption(message_time);
-                peerstate.save_to_db(&context.sql, false)?;
+                peerstate.save_to_db(&context.sql, false).await?;
             }
         } else if let Some(ref header) = autocryptheader {
             let p = Peerstate::from_header(context, header, message_time);
-            p.save_to_db(&context.sql, true)?;
+            p.save_to_db(&context.sql, true).await?;
             peerstate = Some(p);
         }
     }
 
     /* possibly perform decryption */
-    let mut private_keyring = Keyring::default();
     let mut public_keyring_for_validate = Keyring::default();
     let mut out_mail = None;
     let mut signatures = HashSet::default();
-    let self_addr = context.get_config(Config::ConfiguredAddr);
+    let self_addr = context.get_config(Config::ConfiguredAddr).await;
 
     if let Some(self_addr) = self_addr {
-        if private_keyring.load_self_private_for_decrypting(context, self_addr, &context.sql) {
+        if let Ok(private_keyring) =
+            Keyring::load_self_private_for_decrypting(context, self_addr).await
+        {
             if peerstate.as_ref().map(|p| p.last_seen).unwrap_or_else(|| 0) == 0 {
-                peerstate = Peerstate::from_addr(&context, &context.sql, &from);
+                peerstate = Peerstate::from_addr(&context, &from).await;
             }
-            if let Some(ref peerstate) = peerstate {
+            if let Some(peerstate) = peerstate {
                 if peerstate.degrade_event.is_some() {
-                    handle_degrade_event(context, &peerstate)?;
+                    handle_degrade_event(context, &peerstate).await?;
                 }
-                if let Some(ref key) = peerstate.gossip_key {
-                    public_keyring_for_validate.add_ref(key);
+                if let Some(key) = peerstate.gossip_key {
+                    public_keyring_for_validate.add(key);
                 }
-                if let Some(ref key) = peerstate.public_key {
-                    public_keyring_for_validate.add_ref(key);
+                if let Some(key) = peerstate.public_key {
+                    public_keyring_for_validate.add(key);
                 }
             }
 
             out_mail = decrypt_if_autocrypt_message(
                 context,
                 mail,
-                &private_keyring,
-                &public_keyring_for_validate,
+                private_keyring,
+                public_keyring_for_validate,
                 &mut signatures,
-            )?;
+            )
+            .await?;
         }
     }
     Ok((out_mail, signatures))
@@ -213,11 +215,11 @@ fn get_autocrypt_mime<'a, 'b>(mail: &'a ParsedMail<'b>) -> Result<&'a ParsedMail
     Ok(&mail.subparts[1])
 }
 
-fn decrypt_if_autocrypt_message<'a>(
+async fn decrypt_if_autocrypt_message<'a>(
     context: &Context,
     mail: &ParsedMail<'a>,
-    private_keyring: &Keyring,
-    public_keyring_for_validate: &Keyring,
+    private_keyring: Keyring,
+    public_keyring_for_validate: Keyring,
     ret_valid_signatures: &mut HashSet<String>,
 ) -> Result<Option<Vec<u8>>> {
     //  The returned bool is true if we detected an Autocrypt-encrypted
@@ -237,20 +239,19 @@ fn decrypt_if_autocrypt_message<'a>(
     info!(context, "Detected Autocrypt-mime message");
 
     decrypt_part(
-        context,
         encrypted_data_part,
         private_keyring,
         public_keyring_for_validate,
         ret_valid_signatures,
     )
+    .await
 }
 
 /// Returns Ok(None) if nothing encrypted was found.
-fn decrypt_part(
-    _context: &Context,
+async fn decrypt_part(
     mail: &ParsedMail<'_>,
-    private_keyring: &Keyring,
-    public_keyring_for_validate: &Keyring,
+    private_keyring: Keyring,
+    public_keyring_for_validate: Keyring,
     ret_valid_signatures: &mut HashSet<String>,
 ) -> Result<Option<Vec<u8>>> {
     let data = mail.get_body_raw()?;
@@ -260,11 +261,12 @@ fn decrypt_part(
         ensure!(ret_valid_signatures.is_empty(), "corrupt signatures");
 
         let plain = pgp::pk_decrypt(
-            &data,
-            &private_keyring,
-            &public_keyring_for_validate,
+            data,
+            private_keyring,
+            public_keyring_for_validate,
             Some(ret_valid_signatures),
-        )?;
+        )
+        .await?;
 
         ensure!(!ret_valid_signatures.is_empty(), "no valid signatures");
         return Ok(Some(plain));
@@ -308,14 +310,17 @@ fn contains_report(mail: &ParsedMail<'_>) -> bool {
 /// If this succeeds you are also guaranteed that the
 /// [Config::ConfiguredAddr] is configured, this address is returned.
 // TODO, remove this once deltachat::key::Key no longer exists.
-pub fn ensure_secret_key_exists(context: &Context) -> Result<String> {
-    let self_addr = context.get_config(Config::ConfiguredAddr).ok_or_else(|| {
-        format_err!(concat!(
-            "Failed to get self address, ",
-            "cannot ensure secret key if not configured."
-        ))
-    })?;
-    SignedPublicKey::load_self(context)?;
+pub async fn ensure_secret_key_exists(context: &Context) -> Result<String> {
+    let self_addr = context
+        .get_config(Config::ConfiguredAddr)
+        .await
+        .ok_or_else(|| {
+            format_err!(concat!(
+                "Failed to get self address, ",
+                "cannot ensure secret key if not configured."
+            ))
+        })?;
+    SignedPublicKey::load_self(context).await?;
     Ok(self_addr)
 }
 
@@ -328,17 +333,17 @@ mod tests {
     mod ensure_secret_key_exists {
         use super::*;
 
-        #[test]
-        fn test_prexisting() {
-            let t = dummy_context();
-            let test_addr = configure_alice_keypair(&t.ctx);
-            assert_eq!(ensure_secret_key_exists(&t.ctx).unwrap(), test_addr);
+        #[async_std::test]
+        async fn test_prexisting() {
+            let t = dummy_context().await;
+            let test_addr = configure_alice_keypair(&t.ctx).await;
+            assert_eq!(ensure_secret_key_exists(&t.ctx).await.unwrap(), test_addr);
         }
 
-        #[test]
-        fn test_not_configured() {
-            let t = dummy_context();
-            assert!(ensure_secret_key_exists(&t.ctx).is_err());
+        #[async_std::test]
+        async fn test_not_configured() {
+            let t = dummy_context().await;
+            assert!(ensure_secret_key_exists(&t.ctx).await.is_err());
         }
     }
 

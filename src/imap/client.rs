@@ -1,20 +1,80 @@
+use std::ops::{Deref, DerefMut};
+
 use async_imap::{
     error::{Error as ImapError, Result as ImapResult},
     Client as ImapClient,
 };
-use async_native_tls::TlsStream;
 use async_std::net::{self, TcpStream};
 
 use super::session::Session;
 use crate::login_param::{dc_build_tls, CertificateChecks};
 
+use super::session::SessionStream;
+
 #[derive(Debug)]
-pub(crate) enum Client {
-    Secure(ImapClient<TlsStream<TcpStream>>),
-    Insecure(ImapClient<TcpStream>),
+pub(crate) struct Client {
+    is_secure: bool,
+    inner: ImapClient<Box<dyn SessionStream>>,
+}
+
+impl Deref for Client {
+    type Target = ImapClient<Box<dyn SessionStream>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl DerefMut for Client {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
+    }
 }
 
 impl Client {
+    pub async fn login<U: AsRef<str>, P: AsRef<str>>(
+        self,
+        username: U,
+        password: P,
+    ) -> std::result::Result<Session, (ImapError, Self)> {
+        let Client { inner, is_secure } = self;
+        let session = inner
+            .login(username, password)
+            .await
+            .map_err(|(err, client)| {
+                (
+                    err,
+                    Client {
+                        is_secure,
+                        inner: client,
+                    },
+                )
+            })?;
+        Ok(Session { inner: session })
+    }
+
+    pub async fn authenticate<A: async_imap::Authenticator, S: AsRef<str>>(
+        self,
+        auth_type: S,
+        authenticator: &A,
+    ) -> std::result::Result<Session, (ImapError, Self)> {
+        let Client { inner, is_secure } = self;
+        let session =
+            inner
+                .authenticate(auth_type, authenticator)
+                .await
+                .map_err(|(err, client)| {
+                    (
+                        err,
+                        Client {
+                            is_secure,
+                            inner: client,
+                        },
+                    )
+                })?;
+        Ok(Session { inner: session })
+    }
+
     pub async fn connect_secure<A: net::ToSocketAddrs, S: AsRef<str>>(
         addr: A,
         domain: S,
@@ -22,7 +82,8 @@ impl Client {
     ) -> ImapResult<Self> {
         let stream = TcpStream::connect(addr).await?;
         let tls = dc_build_tls(certificate_checks);
-        let tls_stream = tls.connect(domain.as_ref(), stream).await?;
+        let tls_stream: Box<dyn SessionStream> =
+            Box::new(tls.connect(domain.as_ref(), stream).await?);
         let mut client = ImapClient::new(tls_stream);
         if std::env::var(crate::DCC_IMAP_DEBUG).is_ok() {
             client.debug = true;
@@ -33,11 +94,14 @@ impl Client {
             .await
             .ok_or_else(|| ImapError::Bad("failed to read greeting".to_string()))?;
 
-        Ok(Client::Secure(client))
+        Ok(Client {
+            is_secure: true,
+            inner: client,
+        })
     }
 
     pub async fn connect_insecure<A: net::ToSocketAddrs>(addr: A) -> ImapResult<Self> {
-        let stream = TcpStream::connect(addr).await?;
+        let stream: Box<dyn SessionStream> = Box::new(TcpStream::connect(addr).await?);
 
         let mut client = ImapClient::new(stream);
         if std::env::var(crate::DCC_IMAP_DEBUG).is_ok() {
@@ -48,7 +112,10 @@ impl Client {
             .await
             .ok_or_else(|| ImapError::Bad("failed to read greeting".to_string()))?;
 
-        Ok(Client::Insecure(client))
+        Ok(Client {
+            is_secure: false,
+            inner: client,
+        })
     }
 
     pub async fn secure<S: AsRef<str>>(
@@ -56,49 +123,21 @@ impl Client {
         domain: S,
         certificate_checks: CertificateChecks,
     ) -> ImapResult<Client> {
-        match self {
-            Client::Insecure(client) => {
-                let tls = dc_build_tls(certificate_checks);
-                let client_sec = client.secure(domain, tls).await?;
+        if self.is_secure {
+            Ok(self)
+        } else {
+            let Client { mut inner, .. } = self;
+            let tls = dc_build_tls(certificate_checks);
+            inner.run_command_and_check_ok("STARTTLS", None).await?;
 
-                Ok(Client::Secure(client_sec))
-            }
-            // Nothing to do
-            Client::Secure(_) => Ok(self),
-        }
-    }
+            let stream = inner.into_inner();
+            let ssl_stream = tls.connect(domain.as_ref(), stream).await?;
+            let boxed: Box<dyn SessionStream> = Box::new(ssl_stream);
 
-    pub async fn authenticate<A: async_imap::Authenticator, S: AsRef<str>>(
-        self,
-        auth_type: S,
-        authenticator: &A,
-    ) -> Result<Session, (ImapError, Client)> {
-        match self {
-            Client::Secure(i) => match i.authenticate(auth_type, authenticator).await {
-                Ok(session) => Ok(Session::Secure(session)),
-                Err((err, c)) => Err((err, Client::Secure(c))),
-            },
-            Client::Insecure(i) => match i.authenticate(auth_type, authenticator).await {
-                Ok(session) => Ok(Session::Insecure(session)),
-                Err((err, c)) => Err((err, Client::Insecure(c))),
-            },
-        }
-    }
-
-    pub async fn login<U: AsRef<str>, P: AsRef<str>>(
-        self,
-        username: U,
-        password: P,
-    ) -> Result<Session, (ImapError, Client)> {
-        match self {
-            Client::Secure(i) => match i.login(username, password).await {
-                Ok(session) => Ok(Session::Secure(session)),
-                Err((err, c)) => Err((err, Client::Secure(c))),
-            },
-            Client::Insecure(i) => match i.login(username, password).await {
-                Ok(session) => Ok(Session::Insecure(session)),
-                Err((err, c)) => Err((err, Client::Insecure(c))),
-            },
+            Ok(Client {
+                is_secure: true,
+                inner: ImapClient::new(boxed),
+            })
         }
     }
 }

@@ -15,8 +15,9 @@ global_hookimpl = pluggy.HookimplMarker(global_spec_name)
 class PerAccount:
     """ per-Account-instance hook specifications.
 
-    Except for ac_process_ffi_event all hooks are executed
-    in the thread which calls Account.wait_shutdown().
+    All hooks are executed in a dedicated Event thread.
+    Hooks are not allowed to block/last long as this
+    blocks overall event processing on the python side.
     """
     @classmethod
     def _make_plugin_manager(cls):
@@ -88,5 +89,5 @@ class Global:
         """ called when `Account::__init__()` function starts executing. """
 
     @global_hookspec
-    def dc_account_after_shutdown(self, account, dc_context):
+    def dc_account_after_shutdown(self, account):
         """ Called after the account has been shutdown. """

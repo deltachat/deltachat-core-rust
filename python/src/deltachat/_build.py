@@ -45,22 +45,9 @@ def ffibuilder():
         'deltachat.capi',
         """
             #include <deltachat.h>
-            const char * dupstring_helper(const char* string)
+            int dc_event_has_string_data(int e)
             {
-                return strdup(string);
-            }
-            int dc_get_event_signature_types(int e)
-            {
-                int result = 0;
-                if (DC_EVENT_DATA1_IS_STRING(e))
-                    result |= 1;
-                if (DC_EVENT_DATA2_IS_STRING(e))
-                    result |= 2;
-                if (DC_EVENT_RETURNS_STRING(e))
-                    result |= 4;
-                if (DC_EVENT_RETURNS_INT(e))
-                    result |= 8;
-                return result;
+                return DC_EVENT_DATA2_IS_STRING(e);
             }
         """,
         include_dirs=incs,
@@ -71,8 +58,7 @@ def ffibuilder():
     builder.cdef("""
         typedef int... time_t;
         void free(void *ptr);
-        extern const char * dupstring_helper(const char* string);
-        extern int dc_get_event_signature_types(int);
+        extern int dc_event_has_string_data(int);
     """)
     distutils.log.set_verbosity(distutils.log.INFO)
     cc = distutils.ccompiler.new_compiler(force=True)
@@ -92,13 +78,6 @@ def ffibuilder():
     finally:
         shutil.rmtree(tmpdir)
 
-    builder.cdef("""
-        extern "Python" uintptr_t py_dc_callback(
-            dc_context_t* context,
-            int event,
-            uintptr_t data1,
-            uintptr_t data2);
-    """)
     return builder
 
 

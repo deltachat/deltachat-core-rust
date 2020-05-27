@@ -1,7 +1,3 @@
-extern crate deltachat;
-
-use std::sync::{Arc, RwLock};
-use std::{thread, time};
 use tempfile::tempdir;
 
 use deltachat::chat;
@@ -9,103 +5,96 @@ use deltachat::chatlist::*;
 use deltachat::config;
 use deltachat::contact::*;
 use deltachat::context::*;
-use deltachat::job::{
-    perform_inbox_fetch, perform_inbox_idle, perform_inbox_jobs, perform_smtp_idle,
-    perform_smtp_jobs,
-};
+use deltachat::message::Message;
 use deltachat::Event;
 
-fn cb(_ctx: &Context, event: Event) {
-    print!("[{:?}]", event);
-
+fn cb(event: Event) {
     match event {
         Event::ConfigureProgress(progress) => {
-            println!("  progress: {}", progress);
+            log::info!("progress: {}", progress);
         }
-        Event::Info(msg) | Event::Warning(msg) | Event::Error(msg) | Event::ErrorNetwork(msg) => {
-            println!("  {}", msg);
+        Event::Info(msg) => {
+            log::info!("{}", msg);
         }
-        _ => {
-            println!();
+        Event::Warning(msg) => {
+            log::warn!("{}", msg);
+        }
+        Event::Error(msg) | Event::ErrorNetwork(msg) => {
+            log::error!("{}", msg);
+        }
+        event => {
+            log::info!("{:?}", event);
         }
     }
 }
 
-fn main() {
+/// Run with `RUST_LOG=simple=info cargo run --release --example simple --features repl -- email pw`.
+#[async_std::main]
+async fn main() {
+    pretty_env_logger::try_init_timed().ok();
+
     let dir = tempdir().unwrap();
     let dbfile = dir.path().join("db.sqlite");
-    println!("creating database {:?}", dbfile);
-    let ctx =
-        Context::new(Box::new(cb), "FakeOs".into(), dbfile).expect("Failed to create context");
-    let running = Arc::new(RwLock::new(true));
-    let info = ctx.get_info();
-    let duration = time::Duration::from_millis(4000);
-    println!("info: {:#?}", info);
+    log::info!("creating database {:?}", dbfile);
+    let ctx = Context::new("FakeOs".into(), dbfile.into())
+        .await
+        .expect("Failed to create context");
+    let info = ctx.get_info().await;
+    log::info!("info: {:#?}", info);
 
-    let ctx = Arc::new(ctx);
-    let ctx1 = ctx.clone();
-    let r1 = running.clone();
-    let t1 = thread::spawn(move || {
-        while *r1.read().unwrap() {
-            perform_inbox_jobs(&ctx1);
-            if *r1.read().unwrap() {
-                perform_inbox_fetch(&ctx1);
-
-                if *r1.read().unwrap() {
-                    perform_inbox_idle(&ctx1);
-                }
-            }
+    let events = ctx.get_event_emitter();
+    let events_spawn = async_std::task::spawn(async move {
+        while let Some(event) = events.recv().await {
+            cb(event);
         }
     });
 
-    let ctx1 = ctx.clone();
-    let r1 = running.clone();
-    let t2 = thread::spawn(move || {
-        while *r1.read().unwrap() {
-            perform_smtp_jobs(&ctx1);
-            if *r1.read().unwrap() {
-                perform_smtp_idle(&ctx1);
-            }
-        }
-    });
-
-    println!("configuring");
+    log::info!("configuring");
     let args = std::env::args().collect::<Vec<String>>();
-    assert_eq!(args.len(), 2, "missing password");
-    let pw = args[1].clone();
-    ctx.set_config(config::Config::Addr, Some("d@testrun.org"))
+    assert_eq!(args.len(), 3, "requires email password");
+    let email = args[1].clone();
+    let pw = args[2].clone();
+    ctx.set_config(config::Config::Addr, Some(&email))
+        .await
         .unwrap();
-    ctx.set_config(config::Config::MailPw, Some(&pw)).unwrap();
-    ctx.configure();
+    ctx.set_config(config::Config::MailPw, Some(&pw))
+        .await
+        .unwrap();
 
-    thread::sleep(duration);
+    ctx.configure().await.unwrap();
 
-    println!("sending a message");
-    let contact_id = Contact::create(&ctx, "dignifiedquire", "dignifiedquire@gmail.com").unwrap();
-    let chat_id = chat::create_by_contact_id(&ctx, contact_id).unwrap();
-    chat::send_text_msg(&ctx, chat_id, "Hi, here is my first message!".into()).unwrap();
+    log::info!("------ RUN ------");
+    ctx.start_io().await;
+    log::info!("--- SENDING A MESSAGE ---");
 
-    println!("fetching chats..");
-    let chats = Chatlist::try_load(&ctx, 0, None, None).unwrap();
+    let contact_id = Contact::create(&ctx, "dignifiedquire", "dignifiedquire@gmail.com")
+        .await
+        .unwrap();
+    let chat_id = chat::create_by_contact_id(&ctx, contact_id).await.unwrap();
 
-    for i in 0..chats.len() {
-        let summary = chats.get_summary(&ctx, 0, None);
-        let text1 = summary.get_text1();
-        let text2 = summary.get_text2();
-        println!("chat: {} - {:?} - {:?}", i, text1, text2,);
+    for i in 0..1 {
+        log::info!("sending message {}", i);
+        chat::send_text_msg(&ctx, chat_id, format!("Hi, here is my {}nth message!", i))
+            .await
+            .unwrap();
     }
 
-    thread::sleep(duration);
+    // wait for the message to be sent out
+    async_std::task::sleep(std::time::Duration::from_secs(1)).await;
 
-    println!("stopping threads");
+    log::info!("fetching chats..");
+    let chats = Chatlist::try_load(&ctx, 0, None, None).await.unwrap();
 
-    *running.write().unwrap() = false;
-    deltachat::job::interrupt_inbox_idle(&ctx);
-    deltachat::job::interrupt_smtp_idle(&ctx);
+    for i in 0..chats.len() {
+        let msg = Message::load_from_db(&ctx, chats.get_msg_id(i).unwrap())
+            .await
+            .unwrap();
+        log::info!("[{}] msg: {:?}", i, msg);
+    }
 
-    println!("joining");
-    t1.join().unwrap();
-    t2.join().unwrap();
-
-    println!("closing");
+    log::info!("stopping");
+    ctx.stop_io().await;
+    log::info!("closing");
+    drop(ctx);
+    events_spawn.await;
 }

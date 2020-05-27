@@ -6,26 +6,21 @@
 
 #[macro_use]
 extern crate deltachat;
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate rusqlite;
 
 use std::borrow::Cow::{self, Borrowed, Owned};
 use std::io::{self, Write};
-use std::path::Path;
 use std::process::Command;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, RwLock};
 
+use ansi_term::Color;
 use anyhow::{bail, Error};
+use async_std::path::Path;
 use deltachat::chat::ChatId;
 use deltachat::config;
 use deltachat::context::*;
-use deltachat::job::*;
 use deltachat::oauth2::*;
 use deltachat::securejoin::*;
 use deltachat::Event;
+use log::{error, info, warn};
 use rustyline::completion::{Completer, FilenameCompleter, Pair};
 use rustyline::config::OutputStreamType;
 use rustyline::error::ReadlineError;
@@ -38,176 +33,80 @@ use rustyline::{
 mod cmdline;
 use self::cmdline::*;
 
-// Event Handler
-
-fn receive_event(_context: &Context, event: Event) {
+/// Event Handler
+fn receive_event(event: Event) {
+    let yellow = Color::Yellow.normal();
     match event {
         Event::Info(msg) => {
             /* do not show the event as this would fill the screen */
-            println!("{}", msg);
+            info!("{}", msg);
         }
         Event::SmtpConnected(msg) => {
-            println!("[DC_EVENT_SMTP_CONNECTED] {}", msg);
+            info!("[SMTP_CONNECTED] {}", msg);
         }
         Event::ImapConnected(msg) => {
-            println!("[DC_EVENT_IMAP_CONNECTED] {}", msg);
+            info!("[IMAP_CONNECTED] {}", msg);
         }
         Event::SmtpMessageSent(msg) => {
-            println!("[DC_EVENT_SMTP_MESSAGE_SENT] {}", msg);
+            info!("[SMTP_MESSAGE_SENT] {}", msg);
         }
         Event::Warning(msg) => {
-            println!("[Warning] {}", msg);
+            warn!("{}", msg);
         }
         Event::Error(msg) => {
-            println!("\x1b[31m[DC_EVENT_ERROR] {}\x1b[0m", msg);
+            error!("{}", msg);
         }
         Event::ErrorNetwork(msg) => {
-            println!("\x1b[31m[DC_EVENT_ERROR_NETWORK] msg={}\x1b[0m", msg);
+            error!("[NETWORK] msg={}", msg);
         }
         Event::ErrorSelfNotInGroup(msg) => {
-            println!("\x1b[31m[DC_EVENT_ERROR_SELF_NOT_IN_GROUP] {}\x1b[0m", msg);
+            error!("[SELF_NOT_IN_GROUP] {}", msg);
         }
         Event::MsgsChanged { chat_id, msg_id } => {
-            print!(
-                "\x1b[33m{{Received DC_EVENT_MSGS_CHANGED(chat_id={}, msg_id={})}}\n\x1b[0m",
-                chat_id, msg_id,
+            info!(
+                "{}",
+                yellow.paint(format!(
+                    "Received MSGS_CHANGED(chat_id={}, msg_id={})",
+                    chat_id, msg_id,
+                ))
             );
         }
         Event::ContactsChanged(_) => {
-            print!("\x1b[33m{{Received DC_EVENT_CONTACTS_CHANGED()}}\n\x1b[0m");
+            info!("{}", yellow.paint("Received CONTACTS_CHANGED()"));
         }
         Event::LocationChanged(contact) => {
-            print!(
-                "\x1b[33m{{Received DC_EVENT_LOCATION_CHANGED(contact={:?})}}\n\x1b[0m",
-                contact,
+            info!(
+                "{}",
+                yellow.paint(format!("Received LOCATION_CHANGED(contact={:?})", contact))
             );
         }
         Event::ConfigureProgress(progress) => {
-            print!(
-                "\x1b[33m{{Received DC_EVENT_CONFIGURE_PROGRESS({} ‰)}}\n\x1b[0m",
-                progress,
+            info!(
+                "{}",
+                yellow.paint(format!("Received CONFIGURE_PROGRESS({} ‰)", progress))
             );
         }
         Event::ImexProgress(progress) => {
-            print!(
-                "\x1b[33m{{Received DC_EVENT_IMEX_PROGRESS({} ‰)}}\n\x1b[0m",
-                progress,
+            info!(
+                "{}",
+                yellow.paint(format!("Received IMEX_PROGRESS({} ‰)", progress))
             );
         }
         Event::ImexFileWritten(file) => {
-            print!(
-                "\x1b[33m{{Received DC_EVENT_IMEX_FILE_WRITTEN({})}}\n\x1b[0m",
-                file.display()
+            info!(
+                "{}",
+                yellow.paint(format!("Received IMEX_FILE_WRITTEN({})", file.display()))
             );
         }
         Event::ChatModified(chat) => {
-            print!(
-                "\x1b[33m{{Received DC_EVENT_CHAT_MODIFIED({})}}\n\x1b[0m",
-                chat
+            info!(
+                "{}",
+                yellow.paint(format!("Received CHAT_MODIFIED({})", chat))
             );
         }
         _ => {
-            print!("\x1b[33m{{Received {:?}}}\n\x1b[0m", event);
+            info!("Received {:?}", event);
         }
-    }
-}
-
-// Threads for waiting for messages and for jobs
-
-lazy_static! {
-    static ref HANDLE: Arc<Mutex<Option<Handle>>> = Arc::new(Mutex::new(None));
-    static ref IS_RUNNING: AtomicBool = AtomicBool::new(true);
-}
-
-struct Handle {
-    handle_imap: Option<std::thread::JoinHandle<()>>,
-    handle_mvbox: Option<std::thread::JoinHandle<()>>,
-    handle_sentbox: Option<std::thread::JoinHandle<()>>,
-    handle_smtp: Option<std::thread::JoinHandle<()>>,
-}
-
-macro_rules! while_running {
-    ($code:block) => {
-        if IS_RUNNING.load(Ordering::Relaxed) {
-            $code
-        } else {
-            break;
-        }
-    };
-}
-
-fn start_threads(c: Arc<RwLock<Context>>) {
-    if HANDLE.clone().lock().unwrap().is_some() {
-        return;
-    }
-
-    println!("Starting threads");
-    IS_RUNNING.store(true, Ordering::Relaxed);
-
-    let ctx = c.clone();
-    let handle_imap = std::thread::spawn(move || loop {
-        while_running!({
-            perform_inbox_jobs(&ctx.read().unwrap());
-            perform_inbox_fetch(&ctx.read().unwrap());
-            while_running!({
-                let context = ctx.read().unwrap();
-                perform_inbox_idle(&context);
-            });
-        });
-    });
-
-    let ctx = c.clone();
-    let handle_mvbox = std::thread::spawn(move || loop {
-        while_running!({
-            perform_mvbox_fetch(&ctx.read().unwrap());
-            while_running!({
-                perform_mvbox_idle(&ctx.read().unwrap());
-            });
-        });
-    });
-
-    let ctx = c.clone();
-    let handle_sentbox = std::thread::spawn(move || loop {
-        while_running!({
-            perform_sentbox_fetch(&ctx.read().unwrap());
-            while_running!({
-                perform_sentbox_idle(&ctx.read().unwrap());
-            });
-        });
-    });
-
-    let ctx = c;
-    let handle_smtp = std::thread::spawn(move || loop {
-        while_running!({
-            perform_smtp_jobs(&ctx.read().unwrap());
-            while_running!({
-                perform_smtp_idle(&ctx.read().unwrap());
-            });
-        });
-    });
-
-    *HANDLE.clone().lock().unwrap() = Some(Handle {
-        handle_imap: Some(handle_imap),
-        handle_mvbox: Some(handle_mvbox),
-        handle_sentbox: Some(handle_sentbox),
-        handle_smtp: Some(handle_smtp),
-    });
-}
-
-fn stop_threads(context: &Context) {
-    if let Some(ref mut handle) = *HANDLE.clone().lock().unwrap() {
-        println!("Stopping threads");
-        IS_RUNNING.store(false, Ordering::Relaxed);
-
-        interrupt_inbox_idle(context);
-        interrupt_mvbox_idle(context);
-        interrupt_sentbox_idle(context);
-        interrupt_smtp_idle(context);
-
-        handle.handle_imap.take().unwrap().join().unwrap();
-        handle.handle_mvbox.take().unwrap().join().unwrap();
-        handle.handle_sentbox.take().unwrap().join().unwrap();
-        handle.handle_smtp.take().unwrap().join().unwrap();
     }
 }
 
@@ -367,20 +266,21 @@ impl Highlighter for DcHelper {
 
 impl Helper for DcHelper {}
 
-fn main_0(args: Vec<String>) -> Result<(), Error> {
+async fn start(args: Vec<String>) -> Result<(), Error> {
     if args.len() < 2 {
         println!("Error: Bad arguments, expected [db-name].");
         bail!("No db-name specified");
     }
-    let context = Context::new(
-        Box::new(receive_event),
-        "CLI".into(),
-        Path::new(&args[1]).to_path_buf(),
-    )?;
+    let context = Context::new("CLI".into(), Path::new(&args[1]).to_path_buf()).await?;
+
+    let events = context.get_event_emitter();
+    async_std::task::spawn(async move {
+        while let Some(event) = events.recv().await {
+            receive_event(event);
+        }
+    });
 
     println!("Delta Chat Core is awaiting your commands.");
-
-    let ctx = Arc::new(RwLock::new(context));
 
     let config = Config::builder()
         .history_ignore_space(true)
@@ -388,48 +288,59 @@ fn main_0(args: Vec<String>) -> Result<(), Error> {
         .edit_mode(EditMode::Emacs)
         .output_stream(OutputStreamType::Stdout)
         .build();
-    let h = DcHelper {
-        completer: FilenameCompleter::new(),
-        highlighter: MatchingBracketHighlighter::new(),
-        hinter: HistoryHinter {},
-    };
-    let mut rl = Editor::with_config(config);
-    rl.set_helper(Some(h));
-    rl.bind_sequence(KeyPress::Meta('N'), Cmd::HistorySearchForward);
-    rl.bind_sequence(KeyPress::Meta('P'), Cmd::HistorySearchBackward);
-    if rl.load_history(".dc-history.txt").is_err() {
-        println!("No previous history.");
-    }
+    let mut selected_chat = ChatId::default();
+    let (reader_s, reader_r) = async_std::sync::channel(100);
+    let input_loop = async_std::task::spawn_blocking(move || {
+        let h = DcHelper {
+            completer: FilenameCompleter::new(),
+            highlighter: MatchingBracketHighlighter::new(),
+            hinter: HistoryHinter {},
+        };
+        let mut rl = Editor::with_config(config);
+        rl.set_helper(Some(h));
+        rl.bind_sequence(KeyPress::Meta('N'), Cmd::HistorySearchForward);
+        rl.bind_sequence(KeyPress::Meta('P'), Cmd::HistorySearchBackward);
+        if rl.load_history(".dc-history.txt").is_err() {
+            println!("No previous history.");
+        }
 
-    loop {
-        let p = "> ";
-        let readline = rl.readline(&p);
-        match readline {
-            Ok(line) => {
-                // TODO: ignore "set mail_pw"
-                rl.add_history_entry(line.as_str());
-                let ctx = ctx.clone();
-                match handle_cmd(line.trim(), ctx) {
-                    Ok(ExitResult::Continue) => {}
-                    Ok(ExitResult::Exit) => break,
-                    Err(err) => println!("Error: {}", err),
+        loop {
+            let p = "> ";
+            let readline = rl.readline(&p);
+
+            match readline {
+                Ok(line) => {
+                    // TODO: ignore "set mail_pw"
+                    rl.add_history_entry(line.as_str());
+                    async_std::task::block_on(reader_s.send(line));
+                }
+                Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => {
+                    println!("Exiting...");
+                    drop(reader_s);
+                    break;
+                }
+                Err(err) => {
+                    println!("Error: {}", err);
+                    drop(reader_s);
+                    break;
                 }
             }
-            Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => {
-                println!("Exiting...");
-                break;
-            }
-            Err(err) => {
-                println!("Error: {}", err);
-                break;
-            }
+        }
+
+        rl.save_history(".dc-history.txt")?;
+        println!("history saved");
+        Ok::<_, Error>(())
+    });
+
+    while let Ok(line) = reader_r.recv().await {
+        match handle_cmd(line.trim(), context.clone(), &mut selected_chat).await {
+            Ok(ExitResult::Continue) => {}
+            Ok(ExitResult::Exit) => break,
+            Err(err) => println!("Error: {}", err),
         }
     }
-    rl.save_history(".dc-history.txt")?;
-    println!("history saved");
-    {
-        stop_threads(&ctx.read().unwrap());
-    }
+    context.stop_io().await;
+    input_loop.await?;
 
     Ok(())
 }
@@ -440,43 +351,29 @@ enum ExitResult {
     Exit,
 }
 
-fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult, Error> {
+async fn handle_cmd(
+    line: &str,
+    ctx: Context,
+    selected_chat: &mut ChatId,
+) -> Result<ExitResult, Error> {
     let mut args = line.splitn(2, ' ');
     let arg0 = args.next().unwrap_or_default();
     let arg1 = args.next().unwrap_or_default();
 
     match arg0 {
         "connect" => {
-            start_threads(ctx);
+            ctx.start_io().await;
         }
         "disconnect" => {
-            stop_threads(&ctx.read().unwrap());
-        }
-        "smtp-jobs" => {
-            if HANDLE.clone().lock().unwrap().is_some() {
-                println!("smtp-jobs are already running in a thread.",);
-            } else {
-                perform_smtp_jobs(&ctx.read().unwrap());
-            }
-        }
-        "imap-jobs" => {
-            if HANDLE.clone().lock().unwrap().is_some() {
-                println!("inbox-jobs are already running in a thread.");
-            } else {
-                perform_inbox_jobs(&ctx.read().unwrap());
-            }
+            ctx.stop_io().await;
         }
         "configure" => {
-            start_threads(ctx.clone());
-            ctx.read().unwrap().configure();
+            ctx.configure().await?;
         }
         "oauth2" => {
-            if let Some(addr) = ctx.read().unwrap().get_config(config::Config::Addr) {
-                let oauth2_url = dc_get_oauth2_url(
-                    &ctx.read().unwrap(),
-                    &addr,
-                    "chat.delta:/com.b44t.messenger",
-                );
+            if let Some(addr) = ctx.get_config(config::Config::Addr).await {
+                let oauth2_url =
+                    dc_get_oauth2_url(&ctx, &addr, "chat.delta:/com.b44t.messenger").await;
                 if oauth2_url.is_none() {
                     println!("OAuth2 not available for {}.", &addr);
                 } else {
@@ -491,11 +388,10 @@ fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult, Error
             print!("\x1b[1;1H\x1b[2J");
         }
         "getqr" | "getbadqr" => {
-            start_threads(ctx.clone());
-            if let Some(mut qr) = dc_get_securejoin_qr(
-                &ctx.read().unwrap(),
-                ChatId::new(arg1.parse().unwrap_or_default()),
-            ) {
+            ctx.start_io().await;
+            if let Some(mut qr) =
+                dc_get_securejoin_qr(&ctx, ChatId::new(arg1.parse().unwrap_or_default())).await
+            {
                 if !qr.is_empty() {
                     if arg0 == "getbadqr" && qr.len() > 40 {
                         qr.replace_range(12..22, "0000000000")
@@ -511,23 +407,23 @@ fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult, Error
             }
         }
         "joinqr" => {
-            start_threads(ctx.clone());
+            ctx.start_io().await;
             if !arg0.is_empty() {
-                dc_join_securejoin(&ctx.read().unwrap(), arg1);
+                dc_join_securejoin(&ctx, arg1).await;
             }
         }
         "exit" | "quit" => return Ok(ExitResult::Exit),
-        _ => dc_cmdline(&ctx.read().unwrap(), line)?,
+        _ => cmdline(ctx.clone(), line, selected_chat).await?,
     }
 
     Ok(ExitResult::Continue)
 }
 
-pub fn main() -> Result<(), Error> {
+fn main() -> Result<(), Error> {
     let _ = pretty_env_logger::try_init();
 
-    let args: Vec<String> = std::env::args().collect();
-    main_0(args)?;
+    let args = std::env::args().collect();
+    async_std::task::block_on(async move { start(args).await })?;
 
     Ok(())
 }

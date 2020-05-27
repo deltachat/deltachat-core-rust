@@ -12,22 +12,21 @@ class Contact(object):
     """
     def __init__(self, account, id):
         self.account = account
-        self._dc_context = account._dc_context
         self.id = id
 
     def __eq__(self, other):
-        return self._dc_context == other._dc_context and self.id == other.id
+        return self.account._dc_context == other.account._dc_context and self.id == other.id
 
     def __ne__(self, other):
         return not (self == other)
 
     def __repr__(self):
-        return "<Contact id={} addr={} dc_context={}>".format(self.id, self.addr, self._dc_context)
+        return "<Contact id={} addr={} dc_context={}>".format(self.id, self.addr, self.account._dc_context)
 
     @property
     def _dc_contact(self):
         return ffi.gc(
-            lib.dc_get_contact(self._dc_context, self.id),
+            lib.dc_get_contact(self.account._dc_context, self.id),
             lib.dc_contact_unref
         )
 

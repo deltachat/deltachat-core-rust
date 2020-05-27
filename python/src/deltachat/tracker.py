@@ -18,7 +18,7 @@ class ImexTracker:
         if ffi_event.name == "DC_EVENT_IMEX_PROGRESS":
             self._imex_events.put(ffi_event.data1)
         elif ffi_event.name == "DC_EVENT_IMEX_FILE_WRITTEN":
-            self._imex_events.put(ffi_event.data1)
+            self._imex_events.put(ffi_event.data2)
 
     def wait_finish(self, progress_timeout=60):
         """ Return list of written files, raise ValueError if ExportFailed. """
@@ -45,6 +45,7 @@ class ConfigureTracker:
         self._smtp_finished = Event()
         self._imap_finished = Event()
         self._ffi_events = []
+        self._progress = Queue()
 
     @account_hookimpl
     def ac_process_ffi_event(self, ffi_event):
@@ -53,6 +54,8 @@ class ConfigureTracker:
             self._smtp_finished.set()
         elif ffi_event.name == "DC_EVENT_IMAP_CONNECTED":
             self._imap_finished.set()
+        elif ffi_event.name == "DC_EVENT_CONFIGURE_PROGRESS":
+            self._progress.put(ffi_event.data1)
 
     @account_hookimpl
     def ac_configure_completed(self, success):
@@ -65,6 +68,12 @@ class ConfigureTracker:
     def wait_imap_connected(self):
         """ wait until smtp is configured. """
         self._imap_finished.wait()
+
+    def wait_progress(self, data1=None):
+        while 1:
+            evdata = self._progress.get()
+            if data1 is None or evdata == data1:
+                break
 
     def wait_finish(self):
         """ wait until configure is completed.

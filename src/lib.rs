@@ -14,10 +14,21 @@ extern crate strum_macros;
 #[macro_use]
 extern crate debug_stub_derive;
 
+pub trait ToSql: rusqlite::ToSql + Send + Sync {}
+
+impl<T: rusqlite::ToSql + Send + Sync> ToSql for T {}
+
 #[macro_use]
 pub mod log;
 #[macro_use]
 pub mod error;
+
+#[cfg(feature = "internals")]
+#[macro_use]
+pub mod sql;
+#[cfg(not(feature = "internals"))]
+#[macro_use]
+mod sql;
 
 pub mod headerdef;
 
@@ -36,9 +47,9 @@ pub mod context;
 mod e2ee;
 mod imap;
 pub mod imex;
+mod scheduler;
 #[macro_use]
 pub mod job;
-mod job_thread;
 pub mod key;
 mod keyring;
 pub mod location;
@@ -56,7 +67,6 @@ pub mod qr;
 pub mod securejoin;
 mod simplify;
 mod smtp;
-pub mod sql;
 pub mod stock;
 mod token;
 #[macro_use]

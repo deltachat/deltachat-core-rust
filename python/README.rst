@@ -113,10 +113,10 @@ You may look at `examples <https://py.delta.chat/examples.html>`_.
 .. _`deltachat-core`: https://github.com/deltachat/deltachat-core-rust
 
 
-Building manylinux1 based wheels
-================================
+Building manylinux based wheels
+====================================
 
-Building portable manylinux1 wheels which come with libdeltachat.so
+Building portable manylinux wheels which come with libdeltachat.so
 can be done with docker-tooling.
 
 using docker pull / premade images

@@ -7,9 +7,7 @@ macro_rules! info {
     };
     ($ctx:expr, $msg:expr, $($args:expr),* $(,)?) => {{
         let formatted = format!($msg, $($args),*);
-        let thread = ::std::thread::current();
-        let full = format!("{thid:?} {file}:{line}: {msg}",
-                           thid = thread.id(),
+        let full = format!("{file}:{line}: {msg}",
                            file = file!(),
                            line = line!(),
                            msg = &formatted);
@@ -24,9 +22,7 @@ macro_rules! warn {
     };
     ($ctx:expr, $msg:expr, $($args:expr),* $(,)?) => {{
         let formatted = format!($msg, $($args),*);
-        let thread = ::std::thread::current();
-        let full = format!("{thid:?} {file}:{line}: {msg}",
-                           thid = thread.id(),
+        let full = format!("{file}:{line}: {msg}",
                            file = file!(),
                            line = line!(),
                            msg = &formatted);
@@ -48,6 +44,6 @@ macro_rules! error {
 #[macro_export]
 macro_rules! emit_event {
     ($ctx:expr, $event:expr) => {
-        $ctx.call_cb($event);
+        $ctx.emit_event($event);
     };
 }

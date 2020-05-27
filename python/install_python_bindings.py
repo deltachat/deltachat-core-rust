@@ -19,6 +19,7 @@ if __name__ == "__main__":
     cmd = ["cargo", "build", "-p", "deltachat_ffi"]
     if target == 'release':
         cmd.append("--release")
+    print("running:", " ".join(cmd))
     subprocess.check_call(cmd)
     subprocess.check_call("rm -rf build/ src/deltachat/*.so" , shell=True)
 

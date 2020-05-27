@@ -16,8 +16,7 @@ class Message(object):
     """
     def __init__(self, account, dc_msg):
         self.account = account
-        self._dc_context = account._dc_context
-        assert isinstance(self._dc_context, ffi.CData)
+        assert isinstance(self.account._dc_context, ffi.CData)
         assert isinstance(dc_msg, ffi.CData)
         assert dc_msg != ffi.NULL
         self._dc_msg = dc_msg
@@ -29,8 +28,10 @@ class Message(object):
 
     def __repr__(self):
         c = self.get_sender_contact()
-        return "<Message id={} sender={}/{} outgoing={} chat={}/{}>".format(
-            self.id, c.id, c.addr, self.is_outgoing(), self.chat.id, self.chat.get_name())
+        typ = "outgoing" if self.is_outgoing() else "incoming"
+        return "<Message {} sys={} {} id={} sender={}/{} chat={}/{}>".format(
+            typ, self.is_system_message(), repr(self.text[:10]),
+            self.id, c.id, c.addr, self.chat.id, self.chat.get_name())
 
     @classmethod
     def from_db(cls, account, id):
@@ -58,7 +59,7 @@ class Message(object):
         """
         self.account.create_chat_by_message(self)
         self._dc_msg = ffi.gc(
-                lib.dc_get_msg(self._dc_context, self.id),
+                lib.dc_get_msg(self.account._dc_context, self.id),
                 lib.dc_msg_unref
         )
 
@@ -95,7 +96,7 @@ class Message(object):
 
     def is_system_message(self):
         """ return True if this message is a system/info message. """
-        return lib.dc_msg_is_info(self._dc_msg)
+        return bool(lib.dc_msg_is_info(self._dc_msg))
 
     def is_setup_message(self):
         """ return True if this message is a setup message. """
@@ -118,12 +119,12 @@ class Message(object):
 
         The text is multiline and may contain eg. the raw text of the message.
         """
-        return from_dc_charpointer(lib.dc_get_msg_info(self._dc_context, self.id))
+        return from_dc_charpointer(lib.dc_get_msg_info(self.account._dc_context, self.id))
 
     def continue_key_transfer(self, setup_code):
         """ extract key and use it as primary key for this account. """
         res = lib.dc_continue_key_transfer(
-                self._dc_context,
+                self.account._dc_context,
                 self.id,
                 as_dc_charpointer(setup_code)
         )
@@ -158,7 +159,7 @@ class Message(object):
         :returns: email-mime message object (with headers only, no body).
         """
         import email.parser
-        mime_headers = lib.dc_get_mime_headers(self._dc_context, self.id)
+        mime_headers = lib.dc_get_mime_headers(self.account._dc_context, self.id)
         if mime_headers:
             s = ffi.string(ffi.gc(mime_headers, lib.dc_str_unref))
             if isinstance(s, bytes):
@@ -201,7 +202,7 @@ class Message(object):
         else:
             # load message from db to get a fresh/current state
             dc_msg = ffi.gc(
-                lib.dc_get_msg(self._dc_context, self.id),
+                lib.dc_get_msg(self.account._dc_context, self.id),
                 lib.dc_msg_unref
             )
         return lib.dc_msg_get_state(dc_msg)

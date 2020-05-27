@@ -9,7 +9,7 @@
 To download and install the official compiler for the Rust programming language, and the Cargo package manager, run the command in your user environment:
 
 ```
-curl https://sh.rustup.rs -sSf | sh
+$ curl https://sh.rustup.rs -sSf | sh
 ```
 
 ## Using the CLI client
@@ -17,7 +17,7 @@ curl https://sh.rustup.rs -sSf | sh
 Compile and run Delta Chat Core command line utility, using `cargo`:
 
 ```
-cargo run --example repl -- ~/deltachat-db
+$ RUST_LOG=info cargo run --example repl --features repl -- ~/deltachat-db
 ```
 where ~/deltachat-db is the database file. Delta Chat will create it if it does not exist.
 

@@ -197,7 +197,7 @@ impl StockMessage {
 impl Context {
     /// Set the stock string for the [StockMessage].
     ///
-    pub fn set_stock_translation(
+    pub async fn set_stock_translation(
         &self,
         id: StockMessage,
         stockstring: String,
@@ -218,7 +218,7 @@ impl Context {
         }
         self.translated_stockstrings
             .write()
-            .unwrap()
+            .await
             .insert(id as usize, stockstring);
         Ok(())
     }
@@ -227,11 +227,11 @@ impl Context {
     ///
     /// Return a translation (if it was set with set_stock_translation before)
     /// or a default (English) string.
-    pub fn stock_str(&self, id: StockMessage) -> Cow<str> {
+    pub async fn stock_str(&self, id: StockMessage) -> Cow<'_, str> {
         match self
             .translated_stockstrings
             .read()
-            .unwrap()
+            .await
             .get(&(id as usize))
         {
             Some(ref x) => Cow::Owned((*x).to_string()),
@@ -244,8 +244,9 @@ impl Context {
     /// This replaces both the *first* `%1$s`, `%1$d` and `%1$@`
     /// placeholders with the provided string.
     /// (the `%1$@` variant is used on iOS, the other are used on Android and Desktop)
-    pub fn stock_string_repl_str(&self, id: StockMessage, insert: impl AsRef<str>) -> String {
+    pub async fn stock_string_repl_str(&self, id: StockMessage, insert: impl AsRef<str>) -> String {
         self.stock_str(id)
+            .await
             .replacen("%1$s", insert.as_ref(), 1)
             .replacen("%1$d", insert.as_ref(), 1)
             .replacen("%1$@", insert.as_ref(), 1)
@@ -255,8 +256,9 @@ impl Context {
     ///
     /// Like [Context::stock_string_repl_str] but substitute the placeholders
     /// with an integer.
-    pub fn stock_string_repl_int(&self, id: StockMessage, insert: i32) -> String {
+    pub async fn stock_string_repl_int(&self, id: StockMessage, insert: i32) -> String {
         self.stock_string_repl_str(id, format!("{}", insert).as_str())
+            .await
     }
 
     /// Return stock string, replacing 2 placeholders with provided string.
@@ -265,13 +267,14 @@ impl Context {
     /// placeholders with the string in `insert` and does the same for
     /// `%2$s`, `%2$d` and `%2$@` for `insert2`.
     /// (the `%1$@` variant is used on iOS, the other are used on Android and Desktop)
-    pub fn stock_string_repl_str2(
+    pub async fn stock_string_repl_str2(
         &self,
         id: StockMessage,
         insert: impl AsRef<str>,
         insert2: impl AsRef<str>,
     ) -> String {
         self.stock_str(id)
+            .await
             .replacen("%1$s", insert.as_ref(), 1)
             .replacen("%1$d", insert.as_ref(), 1)
             .replacen("%1$@", insert.as_ref(), 1)
@@ -297,7 +300,7 @@ impl Context {
     /// used as the second parameter to [StockMessage::MsgActionByUser] with
     /// again the original stock string being used as the first parameter,
     /// resulting in a string like "Member Alice added by Bob.".
-    pub fn stock_system_msg(
+    pub async fn stock_system_msg(
         &self,
         id: StockMessage,
         param1: impl AsRef<str>,
@@ -305,9 +308,11 @@ impl Context {
         from_id: u32,
     ) -> String {
         let insert1 = if id == StockMessage::MsgAddMember || id == StockMessage::MsgDelMember {
-            let contact_id = Contact::lookup_id_by_addr(self, param1.as_ref(), Origin::Unknown);
+            let contact_id =
+                Contact::lookup_id_by_addr(self, param1.as_ref(), Origin::Unknown).await;
             if contact_id != 0 {
                 Contact::get_by_id(self, contact_id)
+                    .await
                     .map(|contact| contact.get_name_n_addr())
                     .unwrap_or_default()
             } else {
@@ -317,52 +322,60 @@ impl Context {
             param1.as_ref().to_string()
         };
 
-        let action = self.stock_string_repl_str2(id, insert1, param2.as_ref().to_string());
+        let action = self
+            .stock_string_repl_str2(id, insert1, param2.as_ref().to_string())
+            .await;
         let action1 = action.trim_end_matches('.');
         match from_id {
             0 => action,
-            1 => self.stock_string_repl_str(StockMessage::MsgActionByMe, action1), // DC_CONTACT_ID_SELF
+            1 => {
+                self.stock_string_repl_str(StockMessage::MsgActionByMe, action1)
+                    .await
+            } // DC_CONTACT_ID_SELF
             _ => {
                 let displayname = Contact::get_by_id(self, from_id)
+                    .await
                     .map(|contact| contact.get_name_n_addr())
                     .unwrap_or_default();
 
                 self.stock_string_repl_str2(StockMessage::MsgActionByUser, action1, &displayname)
+                    .await
             }
         }
     }
 
-    pub fn update_device_chats(&self) -> Result<(), Error> {
+    pub async fn update_device_chats(&self) -> Result<(), Error> {
         // check for the LAST added device message - if it is present, we can skip message creation.
         // this is worthwhile as this function is typically called
         // by the ui on every probram start or even on every opening of the chatlist.
-        if chat::was_device_msg_ever_added(&self, "core-welcome")? {
+        if chat::was_device_msg_ever_added(&self, "core-welcome").await? {
             return Ok(());
         }
 
         // create saved-messages chat;
         // we do this only once, if the user has deleted the chat, he can recreate it manually.
-        if !self.sql.get_raw_config_bool(&self, "self-chat-added") {
+        if !self.sql.get_raw_config_bool(&self, "self-chat-added").await {
             self.sql
-                .set_raw_config_bool(&self, "self-chat-added", true)?;
-            chat::create_by_contact_id(&self, DC_CONTACT_ID_SELF)?;
+                .set_raw_config_bool(&self, "self-chat-added", true)
+                .await?;
+            chat::create_by_contact_id(&self, DC_CONTACT_ID_SELF).await?;
         }
 
         // add welcome-messages. by the label, this is done only once,
         // if the user has deleted the message or the chat, it is not added again.
         let mut msg = Message::new(Viewtype::Text);
-        msg.text = Some(self.stock_str(DeviceMessagesHint).to_string());
-        chat::add_device_msg(&self, Some("core-about-device-chat"), Some(&mut msg))?;
+        msg.text = Some(self.stock_str(DeviceMessagesHint).await.to_string());
+        chat::add_device_msg(&self, Some("core-about-device-chat"), Some(&mut msg)).await?;
 
         let image = include_bytes!("../assets/welcome-image.jpg");
-        let blob = BlobObject::create(&self, "welcome-image.jpg".to_string(), image)?;
+        let blob = BlobObject::create(&self, "welcome-image.jpg".to_string(), image).await?;
         let mut msg = Message::new(Viewtype::Image);
         msg.param.set(Param::File, blob.as_name());
-        chat::add_device_msg(&self, Some("core-welcome-image"), Some(&mut msg))?;
+        chat::add_device_msg(&self, Some("core-welcome-image"), Some(&mut msg)).await?;
 
         let mut msg = Message::new(Viewtype::Text);
-        msg.text = Some(self.stock_str(WelcomeMessage).to_string());
-        chat::add_device_msg(&self, Some("core-welcome"), Some(&mut msg))?;
+        msg.text = Some(self.stock_str(WelcomeMessage).await.to_string());
+        chat::add_device_msg(&self, Some("core-welcome"), Some(&mut msg)).await?;
         Ok(())
     }
 }
@@ -388,165 +401,191 @@ mod tests {
         assert_eq!(StockMessage::NoMessages.fallback(), "No messages.");
     }
 
-    #[test]
-    fn test_set_stock_translation() {
-        let t = dummy_context();
+    #[async_std::test]
+    async fn test_set_stock_translation() {
+        let t = dummy_context().await;
         t.ctx
             .set_stock_translation(StockMessage::NoMessages, "xyz".to_string())
+            .await
             .unwrap();
-        assert_eq!(t.ctx.stock_str(StockMessage::NoMessages), "xyz")
+        assert_eq!(t.ctx.stock_str(StockMessage::NoMessages).await, "xyz")
     }
 
-    #[test]
-    fn test_set_stock_translation_wrong_replacements() {
-        let t = dummy_context();
+    #[async_std::test]
+    async fn test_set_stock_translation_wrong_replacements() {
+        let t = dummy_context().await;
         assert!(t
             .ctx
             .set_stock_translation(StockMessage::NoMessages, "xyz %1$s ".to_string())
+            .await
             .is_err());
         assert!(t
             .ctx
             .set_stock_translation(StockMessage::NoMessages, "xyz %2$s ".to_string())
+            .await
             .is_err());
     }
 
-    #[test]
-    fn test_stock_str() {
-        let t = dummy_context();
-        assert_eq!(t.ctx.stock_str(StockMessage::NoMessages), "No messages.");
+    #[async_std::test]
+    async fn test_stock_str() {
+        let t = dummy_context().await;
+        assert_eq!(
+            t.ctx.stock_str(StockMessage::NoMessages).await,
+            "No messages."
+        );
     }
 
-    #[test]
-    fn test_stock_string_repl_str() {
-        let t = dummy_context();
+    #[async_std::test]
+    async fn test_stock_string_repl_str() {
+        let t = dummy_context().await;
         // uses %1$s substitution
         assert_eq!(
             t.ctx
-                .stock_string_repl_str(StockMessage::MsgAddMember, "Foo"),
+                .stock_string_repl_str(StockMessage::MsgAddMember, "Foo")
+                .await,
             "Member Foo added."
         );
         // We have no string using %1$d to test...
     }
 
-    #[test]
-    fn test_stock_string_repl_int() {
-        let t = dummy_context();
+    #[async_std::test]
+    async fn test_stock_string_repl_int() {
+        let t = dummy_context().await;
         assert_eq!(
-            t.ctx.stock_string_repl_int(StockMessage::MsgAddMember, 42),
+            t.ctx
+                .stock_string_repl_int(StockMessage::MsgAddMember, 42)
+                .await,
             "Member 42 added."
         );
     }
 
-    #[test]
-    fn test_stock_string_repl_str2() {
-        let t = dummy_context();
+    #[async_std::test]
+    async fn test_stock_string_repl_str2() {
+        let t = dummy_context().await;
         assert_eq!(
             t.ctx
-                .stock_string_repl_str2(StockMessage::ServerResponse, "foo", "bar"),
+                .stock_string_repl_str2(StockMessage::ServerResponse, "foo", "bar")
+                .await,
             "Could not connect to foo: bar"
         );
     }
 
-    #[test]
-    fn test_stock_system_msg_simple() {
-        let t = dummy_context();
+    #[async_std::test]
+    async fn test_stock_system_msg_simple() {
+        let t = dummy_context().await;
         assert_eq!(
             t.ctx
-                .stock_system_msg(StockMessage::MsgLocationEnabled, "", "", 0),
+                .stock_system_msg(StockMessage::MsgLocationEnabled, "", "", 0)
+                .await,
             "Location streaming enabled."
         )
     }
 
-    #[test]
-    fn test_stock_system_msg_add_member_by_me() {
-        let t = dummy_context();
+    #[async_std::test]
+    async fn test_stock_system_msg_add_member_by_me() {
+        let t = dummy_context().await;
         assert_eq!(
-            t.ctx.stock_system_msg(
-                StockMessage::MsgAddMember,
-                "alice@example.com",
-                "",
-                DC_CONTACT_ID_SELF
-            ),
+            t.ctx
+                .stock_system_msg(
+                    StockMessage::MsgAddMember,
+                    "alice@example.com",
+                    "",
+                    DC_CONTACT_ID_SELF
+                )
+                .await,
             "Member alice@example.com added by me."
         )
     }
 
-    #[test]
-    fn test_stock_system_msg_add_member_by_me_with_displayname() {
-        let t = dummy_context();
-        Contact::create(&t.ctx, "Alice", "alice@example.com").expect("failed to create contact");
+    #[async_std::test]
+    async fn test_stock_system_msg_add_member_by_me_with_displayname() {
+        let t = dummy_context().await;
+        Contact::create(&t.ctx, "Alice", "alice@example.com")
+            .await
+            .expect("failed to create contact");
         assert_eq!(
-            t.ctx.stock_system_msg(
-                StockMessage::MsgAddMember,
-                "alice@example.com",
-                "",
-                DC_CONTACT_ID_SELF
-            ),
+            t.ctx
+                .stock_system_msg(
+                    StockMessage::MsgAddMember,
+                    "alice@example.com",
+                    "",
+                    DC_CONTACT_ID_SELF
+                )
+                .await,
             "Member Alice (alice@example.com) added by me."
         );
     }
 
-    #[test]
-    fn test_stock_system_msg_add_member_by_other_with_displayname() {
-        let t = dummy_context();
+    #[async_std::test]
+    async fn test_stock_system_msg_add_member_by_other_with_displayname() {
+        let t = dummy_context().await;
         let contact_id = {
             Contact::create(&t.ctx, "Alice", "alice@example.com")
+                .await
                 .expect("Failed to create contact Alice");
-            Contact::create(&t.ctx, "Bob", "bob@example.com").expect("failed to create bob")
+            Contact::create(&t.ctx, "Bob", "bob@example.com")
+                .await
+                .expect("failed to create bob")
         };
         assert_eq!(
-            t.ctx.stock_system_msg(
-                StockMessage::MsgAddMember,
-                "alice@example.com",
-                "",
-                contact_id,
-            ),
+            t.ctx
+                .stock_system_msg(
+                    StockMessage::MsgAddMember,
+                    "alice@example.com",
+                    "",
+                    contact_id,
+                )
+                .await,
             "Member Alice (alice@example.com) added by Bob (bob@example.com)."
         );
     }
 
-    #[test]
-    fn test_stock_system_msg_grp_name() {
-        let t = dummy_context();
+    #[async_std::test]
+    async fn test_stock_system_msg_grp_name() {
+        let t = dummy_context().await;
         assert_eq!(
-            t.ctx.stock_system_msg(
-                StockMessage::MsgGrpName,
-                "Some chat",
-                "Other chat",
-                DC_CONTACT_ID_SELF
-            ),
+            t.ctx
+                .stock_system_msg(
+                    StockMessage::MsgGrpName,
+                    "Some chat",
+                    "Other chat",
+                    DC_CONTACT_ID_SELF
+                )
+                .await,
             "Group name changed from \"Some chat\" to \"Other chat\" by me."
         )
     }
 
-    #[test]
-    fn test_stock_system_msg_grp_name_other() {
-        let t = dummy_context();
+    #[async_std::test]
+    async fn test_stock_system_msg_grp_name_other() {
+        let t = dummy_context().await;
         let id = Contact::create(&t.ctx, "Alice", "alice@example.com")
+            .await
             .expect("failed to create contact");
 
         assert_eq!(
             t.ctx
-                .stock_system_msg(StockMessage::MsgGrpName, "Some chat", "Other chat", id,),
+                .stock_system_msg(StockMessage::MsgGrpName, "Some chat", "Other chat", id)
+                .await,
             "Group name changed from \"Some chat\" to \"Other chat\" by Alice (alice@example.com)."
         )
     }
 
-    #[test]
-    fn test_update_device_chats() {
-        let t = dummy_context();
-        t.ctx.update_device_chats().ok();
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+    #[async_std::test]
+    async fn test_update_device_chats() {
+        let t = dummy_context().await;
+        t.ctx.update_device_chats().await.ok();
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 2);
 
-        chats.get_chat_id(0).delete(&t.ctx).ok();
-        chats.get_chat_id(1).delete(&t.ctx).ok();
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        chats.get_chat_id(0).delete(&t.ctx).await.ok();
+        chats.get_chat_id(1).delete(&t.ctx).await.ok();
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0);
 
         // a subsequent call to update_device_chats() must not re-add manally deleted messages or chats
-        t.ctx.update_device_chats().ok();
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        t.ctx.update_device_chats().await.ok();
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0);
     }
 }

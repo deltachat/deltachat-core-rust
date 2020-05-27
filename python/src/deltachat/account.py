@@ -1,22 +1,20 @@
 """ Account class implementation. """
 
 from __future__ import print_function
-import atexit
 from contextlib import contextmanager
 from email.utils import parseaddr
-import queue
 from threading import Event
 import os
 from array import array
-import deltachat
 from . import const
 from .capi import ffi, lib
 from .cutil import as_dc_charpointer, from_dc_charpointer, iter_array, DCLot
 from .chat import Chat
-from .message import Message, map_system_message
+from .message import Message
 from .contact import Contact
-from .tracker import ImexTracker
-from . import hookspec, iothreads
+from .tracker import ImexTracker, ConfigureTracker
+from . import hookspec
+from .events import EventThread
 
 
 class MissingCredentials(ValueError):
@@ -40,28 +38,24 @@ class Account(object):
         # initialize per-account plugin system
         self._pm = hookspec.PerAccount._make_plugin_manager()
         self._logging = logging
+
         self.add_account_plugin(self)
 
-        self._dc_context = ffi.gc(
-            lib.dc_context_new(lib.py_dc_callback, ffi.NULL, as_dc_charpointer(os_name)),
-            _destroy_dc_context,
-        )
-
-        hook = hookspec.Global._get_plugin_manager().hook
-
-        self._threads = iothreads.IOThreads(self)
-        self._hook_event_queue = queue.Queue()
-        self._in_use_iter_events = False
-        self._shutdown_event = Event()
-
-        # open database
         self.db_path = db_path
         if hasattr(db_path, "encode"):
             db_path = db_path.encode("utf8")
-        if not lib.dc_open(self._dc_context, db_path, ffi.NULL):
-            raise ValueError("Could not dc_open: {}".format(db_path))
+
+        self._dc_context = ffi.gc(
+            lib.dc_context_new(as_dc_charpointer(os_name), db_path, ffi.NULL),
+            lib.dc_context_unref,
+        )
+        if self._dc_context == ffi.NULL:
+            raise ValueError("Could not dc_context_new: {} {}".format(os_name, db_path))
+
+        self._shutdown_event = Event()
+        self._event_thread = EventThread(self)
         self._configkeys = self.get_config("sys.config_keys").split()
-        atexit.register(self.shutdown)
+        hook = hookspec.Global._get_plugin_manager().hook
         hook.dc_account_init(account=self)
 
     def disable_logging(self):
@@ -72,16 +66,10 @@ class Account(object):
         """ re-enable logging. """
         self._logging = True
 
-    @hookspec.account_hookimpl
-    def ac_process_ffi_event(self, ffi_event):
-        for name, kwargs in self._map_ffi_event(ffi_event):
-            ev = HookEvent(self, name=name, kwargs=kwargs)
-            self._hook_event_queue.put(ev)
-
     # def __del__(self):
     #    self.shutdown()
 
-    def ac_log_line(self, msg):
+    def log(self, msg):
         if self._logging:
             self._pm.hook.ac_log_line(message=msg)
 
@@ -172,7 +160,7 @@ class Account(object):
 
         :returns: True if account is configured.
         """
-        return bool(lib.dc_is_configured(self._dc_context))
+        return True if lib.dc_is_configured(self._dc_context) else False
 
     def set_avatar(self, img_path):
         """Set self avatar.
@@ -250,7 +238,7 @@ class Account(object):
         :returns: True if deletion succeeded (contact was deleted)
         """
         contact_id = contact.id
-        assert contact._dc_context == self._dc_context
+        assert contact.account == self
         assert contact_id > const.DC_CHAT_ID_LAST_SPECIAL
         return bool(lib.dc_delete_contact(self._dc_context, contact_id))
 
@@ -298,7 +286,7 @@ class Account(object):
         :returns: a :class:`deltachat.chat.Chat` object.
         """
         if hasattr(contact, "id"):
-            if contact._dc_context != self._dc_context:
+            if contact.account != self:
                 raise ValueError("Contact belongs to a different Account")
             contact_id = contact.id
         else:
@@ -318,7 +306,7 @@ class Account(object):
         :returns: a :class:`deltachat.chat.Chat` object.
         """
         if hasattr(message, "id"):
-            if self._dc_context != message._dc_context:
+            if message.account != self:
                 raise ValueError("Message belongs to a different Account")
             msg_id = message.id
         else:
@@ -438,8 +426,6 @@ class Account(object):
     def _export(self, path, imex_cmd):
         with self.temp_plugin(ImexTracker()) as imex_tracker:
             lib.dc_imex(self._dc_context, imex_cmd, as_dc_charpointer(path), ffi.NULL)
-            if not self._threads.is_started():
-                lib.dc_perform_imap_jobs(self._dc_context)
             return imex_tracker.wait_finish()
 
     def import_self_keys(self, path):
@@ -462,8 +448,6 @@ class Account(object):
     def _import(self, path, imex_cmd):
         with self.temp_plugin(ImexTracker()) as imex_tracker:
             lib.dc_imex(self._dc_context, imex_cmd, as_dc_charpointer(path), ffi.NULL)
-            if not self._threads.is_started():
-                lib.dc_perform_imap_jobs(self._dc_context)
             imex_tracker.wait_finish()
 
     def initiate_key_transfer(self):
@@ -472,8 +456,8 @@ class Account(object):
         If sending out was unsuccessful, a RuntimeError is raised.
         """
         self.check_is_configured()
-        if not self._threads.is_started():
-            raise RuntimeError("threads not running, can not send out")
+        if not self.is_started():
+            raise RuntimeError("IO not running, can not send out")
         res = lib.dc_initiate_key_transfer(self._dc_context)
         if res == ffi.NULL:
             raise RuntimeError("could not send out autocrypt setup message")
@@ -555,6 +539,10 @@ class Account(object):
         self._pm.check_pending()
         return plugin
 
+    def remove_account_plugin(self, plugin, name=None):
+        """ remove an account plugin. """
+        self._pm.unregister(plugin, name=name)
+
     @contextmanager
     def temp_plugin(self, plugin):
         """ run a with-block with the given plugin temporarily registered. """
@@ -566,110 +554,82 @@ class Account(object):
         """ Stop ongoing securejoin, configuration or other core jobs. """
         lib.dc_stop_ongoing_process(self._dc_context)
 
-    def start(self, callback_thread=True):
-        """ start this account (activate imap/smtp threads etc.)
-        and return immediately.
+    def start_io(self):
+        """ start this account's IO scheduling (Rust-core async scheduler)
 
-        If this account is not configured, an internal configuration
-        job will be scheduled if config values are sufficiently specified.
+        If this account is not configured an Exception is raised.
+        You need to call account.configure() and account.wait_configure_finish()
+        before.
 
-        You may call `wait_shutdown` or `shutdown` after the
-        account is in started mode.
+        You may call `stop_scheduler`, `wait_shutdown` or `shutdown` after the
+        account is started.
 
         :raises MissingCredentials: if `addr` and `mail_pw` values are not set.
+        :raises ConfigureFailed: if the account could not be configured.
 
-        :returns: None
+        :returns: None (account is configured and with io-scheduling running)
         """
         if not self.is_configured():
-            if not self.get_config("addr") or not self.get_config("mail_pw"):
-                raise MissingCredentials("addr or mail_pwd not set in config")
-            lib.dc_configure(self._dc_context)
-        self._threads.start(callback_thread=callback_thread)
+            raise ValueError("account not configured, cannot start io")
+        lib.dc_start_io(self._dc_context)
+
+    def configure(self):
+        assert not self.is_configured()
+        assert not hasattr(self, "_configtracker")
+        if not self.get_config("addr") or not self.get_config("mail_pw"):
+            raise MissingCredentials("addr or mail_pwd not set in config")
+        if hasattr(self, "_configtracker"):
+            self.remove_account_plugin(self._configtracker)
+        self._configtracker = ConfigureTracker()
+        self.add_account_plugin(self._configtracker)
+        lib.dc_configure(self._dc_context)
+
+    def wait_configure_finish(self):
+        try:
+            self._configtracker.wait_finish()
+        finally:
+            self.remove_account_plugin(self._configtracker)
+            del self._configtracker
+
+    def is_started(self):
+        return self._event_thread.is_alive() and bool(lib.dc_is_io_running(self._dc_context))
 
     def wait_shutdown(self):
         """ wait until shutdown of this account has completed. """
         self._shutdown_event.wait()
 
-    def shutdown(self, wait=True):
-        """ shutdown account, stop threads and close and remove
-        underlying dc_context and callbacks. """
-        dc_context = self._dc_context
-        if dc_context is None:
+    def stop_io(self):
+        """ stop core IO scheduler if it is running. """
+        self.log("stop_ongoing")
+        self.stop_ongoing()
+
+        if bool(lib.dc_is_io_running(self._dc_context)):
+            self.log("dc_stop_io (stop core IO scheduler)")
+            lib.dc_stop_io(self._dc_context)
+        else:
+            self.log("stop_scheduler called on non-running context")
+
+    def shutdown(self):
+        """ shutdown and destroy account (stop callback thread, close and remove
+        underlying dc_context)."""
+        if self._dc_context is None:
             return
 
-        if self._threads.is_started():
-            self.stop_ongoing()
-            self._threads.stop(wait=False)
-        lib.dc_close(dc_context)
-        self._hook_event_queue.put(None)
-        self._threads.stop(wait=wait)  # to wait for threads
+        self.stop_io()
+
+        self.log("remove dc_context references")
+        # the dc_context_unref triggers get_next_event to return ffi.NULL
+        # which in turns makes the event thread finish execution
         self._dc_context = None
-        atexit.unregister(self.shutdown)
+
+        self.log("wait for event thread to finish")
+        self._event_thread.wait()
+
         self._shutdown_event.set()
+
         hook = hookspec.Global._get_plugin_manager().hook
-        hook.dc_account_after_shutdown(account=self, dc_context=dc_context)
-
-    def _handle_current_events(self):
-        """ handle all currently queued events and then return. """
-        while 1:
-            try:
-                event = self._hook_event_queue.get(block=False)
-            except queue.Empty:
-                break
-            else:
-                event.call_hook()
-
-    def iter_events(self, timeout=None):
-        """ yield hook events until shutdown.
-
-        It is not allowed to call iter_events() from multiple threads.
-        """
-        if self._in_use_iter_events:
-            raise RuntimeError("can only call iter_events() from one thread")
-        self._in_use_iter_events = True
-        while 1:
-            event = self._hook_event_queue.get(timeout=timeout)
-            if event is None:
-                break
-            yield event
-
-    def _map_ffi_event(self, ffi_event):
-        name = ffi_event.name
-        if name == "DC_EVENT_CONFIGURE_PROGRESS":
-            data1 = ffi_event.data1
-            if data1 == 0 or data1 == 1000:
-                success = data1 == 1000
-                yield "ac_configure_completed", dict(success=success)
-        elif name == "DC_EVENT_INCOMING_MSG":
-            msg = self.get_message_by_id(ffi_event.data2)
-            yield map_system_message(msg) or ("ac_incoming_message", dict(message=msg))
-        elif name == "DC_EVENT_MSGS_CHANGED":
-            if ffi_event.data2 != 0:
-                msg = self.get_message_by_id(ffi_event.data2)
-                if msg.is_outgoing():
-                    res = map_system_message(msg)
-                    if res and res[0].startswith("ac_member"):
-                        yield res
-                    yield "ac_outgoing_message", dict(message=msg)
-                elif msg.is_in_fresh():
-                    yield map_system_message(msg) or ("ac_incoming_message", dict(message=msg))
-        elif name == "DC_EVENT_MSG_DELIVERED":
-            msg = self.get_message_by_id(ffi_event.data2)
-            yield "ac_message_delivered", dict(message=msg)
-        elif name == "DC_EVENT_CHAT_MODIFIED":
-            chat = self.get_chat_by_id(ffi_event.data1)
-            yield "ac_chat_modified", dict(chat=chat)
-
-
-def _destroy_dc_context(dc_context, dc_context_unref=lib.dc_context_unref):
-    # destructor for dc_context
-    dc_context_unref(dc_context)
-    try:
-        deltachat.clear_context_callback(dc_context)
-    except (TypeError, AttributeError):
-        # we are deep into Python Interpreter shutdown,
-        # so no need to clear the callback context mapping.
-        pass
+        hook.dc_account_after_shutdown(account=self)
+        self.log("shutdown finished")
 
 
 class ScannedQRCode:
@@ -685,17 +645,3 @@ class ScannedQRCode:
     @property
     def contact_id(self):
         return self._dc_lot.id()
-
-
-class HookEvent:
-    def __init__(self, account, name, kwargs):
-        assert hasattr(account._pm.hook, name), name
-        self.account = account
-        self.name = name
-        self.kwargs = kwargs
-
-    def call_hook(self):
-        hook = getattr(self.account._pm.hook, self.name, None)
-        if hook is None:
-            raise ValueError("event_name {} unknown".format(self.name))
-        return hook(**self.kwargs)

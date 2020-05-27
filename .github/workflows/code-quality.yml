@@ -10,7 +10,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: nightly-2020-03-12
+          toolchain: nightly-2020-03-19
           override: true
       - uses: actions-rs/cargo@v1
         with:
@@ -25,7 +25,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: nightly-2020-03-12
+          toolchain: nightly-2020-03-19
           override: true
       - run: rustup component add rustfmt
       - uses: actions-rs/cargo@v1
@@ -39,7 +39,7 @@ jobs:
       - uses: actions/checkout@v1
       - uses: actions-rs/toolchain@v1
         with:
-            toolchain: nightly-2020-03-12
+            toolchain: nightly-2020-03-19
             components: clippy
             override: true
       - uses: actions-rs/clippy-check@v1

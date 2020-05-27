@@ -5,9 +5,8 @@
 use tempfile::{tempdir, TempDir};
 
 use crate::config::Config;
-use crate::context::{Context, ContextCallback};
+use crate::context::Context;
 use crate::dc_tools::EmailAddress;
-use crate::events::Event;
 use crate::key::{self, DcKey};
 
 /// A Context and temporary directory.
@@ -25,14 +24,10 @@ pub(crate) struct TestContext {
 /// "db.sqlite" in the [TestContext.dir] directory.
 ///
 /// [Context]: crate::context::Context
-pub(crate) fn test_context(callback: Option<Box<ContextCallback>>) -> TestContext {
+pub(crate) async fn test_context() -> TestContext {
     let dir = tempdir().unwrap();
     let dbfile = dir.path().join("db.sqlite");
-    let cb: Box<ContextCallback> = match callback {
-        Some(cb) => cb,
-        None => Box::new(|_, _| ()),
-    };
-    let ctx = Context::new(cb, "FakeOs".into(), dbfile).unwrap();
+    let ctx = Context::new("FakeOs".into(), dbfile.into()).await.unwrap();
     TestContext { ctx, dir }
 }
 
@@ -41,17 +36,8 @@ pub(crate) fn test_context(callback: Option<Box<ContextCallback>>) -> TestContex
 /// The context will be opened and use the SQLite database as
 /// specified in [test_context] but there is no callback hooked up,
 /// i.e. [Context::call_cb] will always return `0`.
-pub(crate) fn dummy_context() -> TestContext {
-    test_context(Some(Box::new(logging_cb)))
-}
-
-pub(crate) fn logging_cb(_ctx: &Context, evt: Event) {
-    match evt {
-        Event::Info(msg) => println!("I: {}", msg),
-        Event::Warning(msg) => eprintln!("=== WARNING ===\n{}\n===============", msg),
-        Event::Error(msg) => eprintln!("\n===================== ERROR =====================\n{}\n=================================================\n", msg),
-        _ => (),
-    }
+pub(crate) async fn dummy_context() -> TestContext {
+    test_context().await
 }
 
 /// Load a pre-generated keypair for alice@example.com from disk.
@@ -77,11 +63,13 @@ pub(crate) fn alice_keypair() -> key::KeyPair {
 /// Creates Alice with a pre-generated keypair.
 ///
 /// Returns the address of the keypair created (alice@example.com).
-pub(crate) fn configure_alice_keypair(ctx: &Context) -> String {
+pub(crate) async fn configure_alice_keypair(ctx: &Context) -> String {
     let keypair = alice_keypair();
     ctx.set_config(Config::ConfiguredAddr, Some(&keypair.addr.to_string()))
+        .await
         .unwrap();
     key::store_self_keypair(&ctx, &keypair, key::KeyPairUse::Default)
+        .await
         .expect("Failed to save Alice's key");
     keypair.addr.to_string()
 }
