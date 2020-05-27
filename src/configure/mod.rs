@@ -4,7 +4,7 @@ mod auto_mozilla;
 mod auto_outlook;
 mod read_url;
 
-use anyhow::{bail, ensure, Context as _, Result};
+use anyhow::{bail, ensure, format_err, Context as _, Result};
 use async_std::prelude::*;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
@@ -441,19 +441,32 @@ fn get_offline_autoconfig(context: &Context, param: &LoginParam) -> Option<Login
 
 async fn try_imap_connections(
     context: &Context,
-    mut param: &mut LoginParam,
+    param: &mut LoginParam,
     was_autoconfig: bool,
     imap: &mut Imap,
-) -> Result<bool> {
-    // progress 650 and 660
-    if let Ok(val) = try_imap_connection(context, &mut param, was_autoconfig, 0, imap).await {
-        return Ok(val);
-    }
-    progress!(context, 670);
-    param.server_flags &= !(DC_LP_IMAP_SOCKET_FLAGS);
-    param.server_flags |= DC_LP_IMAP_SOCKET_SSL;
-    param.mail_port = 993;
+) -> Result<()> {
+    // manually_set_param is used to check whether a particular setting was set manually by the user.
+    // If yes, we do not want to change it to avoid confusing error messages
+    // (you set port 443, but the app tells you it couldn't connect on port 993).
+    let manually_set_param = LoginParam::from_database(context, "").await;
 
+    // progress 650 and 660
+    if try_imap_connection(context, param, &manually_set_param, was_autoconfig, 0, imap)
+        .await
+        .is_ok()
+    {
+        return Ok(()); // we directly return here if it was autoconfig or the connection succeeded
+    }
+
+    progress!(context, 670);
+    // try_imap_connection() changed the flags and port. Change them back:
+    if manually_set_param.server_flags & DC_LP_IMAP_SOCKET_FLAGS == 0 {
+        param.server_flags &= !(DC_LP_IMAP_SOCKET_FLAGS);
+        param.server_flags |= DC_LP_IMAP_SOCKET_SSL;
+    }
+    if manually_set_param.mail_port == 0 {
+        param.mail_port = 993;
+    }
     if let Some(at) = param.mail_user.find('@') {
         param.mail_user = param.mail_user.split_at(at).0.to_string();
     }
@@ -461,35 +474,43 @@ async fn try_imap_connections(
         param.send_user = param.send_user.split_at(at).0.to_string();
     }
     // progress 680 and 690
-    try_imap_connection(context, &mut param, was_autoconfig, 1, imap).await
+    try_imap_connection(context, param, &manually_set_param, was_autoconfig, 1, imap).await
 }
 
 async fn try_imap_connection(
     context: &Context,
     param: &mut LoginParam,
+    manually_set_param: &LoginParam,
     was_autoconfig: bool,
     variation: usize,
     imap: &mut Imap,
-) -> Result<bool> {
-    if try_imap_one_param(context, &param, imap).await.is_ok() {
-        return Ok(true);
+) -> Result<()> {
+    if try_imap_one_param(context, param, imap).await.is_ok() {
+        return Ok(());
     }
     if was_autoconfig {
-        return Ok(false);
+        return Ok(());
     }
+
     progress!(context, 650 + variation * 30);
-    param.server_flags &= !(DC_LP_IMAP_SOCKET_FLAGS);
-    param.server_flags |= DC_LP_IMAP_SOCKET_STARTTLS;
-    if try_imap_one_param(context, &param, imap).await.is_ok() {
-        return Ok(true);
+
+    if manually_set_param.server_flags & DC_LP_IMAP_SOCKET_FLAGS == 0 {
+        param.server_flags &= !(DC_LP_IMAP_SOCKET_FLAGS);
+        param.server_flags |= DC_LP_IMAP_SOCKET_STARTTLS;
+
+        if try_imap_one_param(context, &param, imap).await.is_ok() {
+            return Ok(());
+        }
     }
 
     progress!(context, 660 + variation * 30);
-    param.mail_port = 143;
 
-    try_imap_one_param(context, &param, imap).await?;
-
-    Ok(true)
+    if manually_set_param.mail_port == 0 {
+        param.mail_port = 143;
+        try_imap_one_param(context, param, imap).await
+    } else {
+        Err(format_err!("no more possible configs"))
+    }
 }
 
 async fn try_imap_one_param(context: &Context, param: &LoginParam, imap: &mut Imap) -> Result<()> {
@@ -516,31 +537,43 @@ async fn try_smtp_connections(
     param: &mut LoginParam,
     was_autoconfig: bool,
 ) -> Result<()> {
+    // manually_set_param is used to check whether a particular setting was set manually by the user.
+    // If yes, we do not want to change it to avoid confusing error messages
+    // (you set port 443, but the app tells you it couldn't connect on port 993).
+    let manually_set_param = LoginParam::from_database(context, "").await;
+
     let mut smtp = Smtp::new();
     // try to connect to SMTP - if we did not got an autoconfig, the first try was SSL-465 and we do
     // a second try with STARTTLS-587
-    if try_smtp_one_param(context, &param, &mut smtp).await.is_ok() {
+    if try_smtp_one_param(context, param, &mut smtp).await.is_ok() {
         return Ok(());
     }
     if was_autoconfig {
         return Ok(());
     }
     progress!(context, 850);
-    param.server_flags &= !(DC_LP_SMTP_SOCKET_FLAGS as i32);
-    param.server_flags |= DC_LP_SMTP_SOCKET_STARTTLS as i32;
-    param.send_port = 587;
 
-    if try_smtp_one_param(context, &param, &mut smtp).await.is_ok() {
+    if manually_set_param.server_flags & (DC_LP_SMTP_SOCKET_FLAGS as i32) == 0 {
+        param.server_flags &= !(DC_LP_SMTP_SOCKET_FLAGS as i32);
+        param.server_flags |= DC_LP_SMTP_SOCKET_STARTTLS as i32;
+    }
+    if manually_set_param.send_port == 0 {
+        param.send_port = 587;
+    }
+
+    if try_smtp_one_param(context, param, &mut smtp).await.is_ok() {
         return Ok(());
     }
     progress!(context, 860);
 
-    param.server_flags &= !(DC_LP_SMTP_SOCKET_FLAGS as i32);
-    param.server_flags |= DC_LP_SMTP_SOCKET_STARTTLS as i32;
-    param.send_port = 25;
-    try_smtp_one_param(context, &param, &mut smtp).await?;
-
-    Ok(())
+    if manually_set_param.server_flags & (DC_LP_SMTP_SOCKET_FLAGS as i32) == 0 {
+        param.server_flags &= !(DC_LP_SMTP_SOCKET_FLAGS as i32);
+        param.server_flags |= DC_LP_SMTP_SOCKET_STARTTLS as i32;
+    }
+    if manually_set_param.send_port == 0 {
+        param.send_port = 25;
+    }
+    try_smtp_one_param(context, param, &mut smtp).await
 }
 
 async fn try_smtp_one_param(context: &Context, param: &LoginParam, smtp: &mut Smtp) -> Result<()> {
