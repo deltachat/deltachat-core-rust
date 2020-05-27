@@ -140,8 +140,10 @@ impl Context {
         info!(self, "starting IO");
         assert!(!self.is_io_running().await, "context is already running");
 
-        let l = &mut *self.inner.scheduler.write().await;
-        l.start(self.clone()).await;
+        {
+            let l = &mut *self.inner.scheduler.write().await;
+            l.start(self.clone()).await;
+        }
     }
 
     /// Returns if the IO scheduler is running.

@@ -109,7 +109,7 @@ const SELECT_ALL: &str = "1:*";
 
 #[derive(Debug)]
 pub struct Imap {
-    idle_interrupt: Receiver<()>,
+    idle_interrupt: Receiver<bool>,
     config: ImapConfig,
     session: Option<Session>,
     connected: bool,
@@ -181,7 +181,7 @@ impl Default for ImapConfig {
 }
 
 impl Imap {
-    pub fn new(idle_interrupt: Receiver<()>) -> Self {
+    pub fn new(idle_interrupt: Receiver<bool>) -> Self {
         Imap {
             idle_interrupt,
             config: Default::default(),

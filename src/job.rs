@@ -1028,13 +1028,15 @@ pub async fn add(context: &Context, job: Job) {
             | Action::DeleteMsgOnImap
             | Action::MarkseenMsgOnImap
             | Action::MoveMsg => {
-                context.interrupt_inbox().await;
+                info!(context, "interrupt: imap");
+                context.interrupt_inbox(false).await;
             }
             Action::MaybeSendLocations
             | Action::MaybeSendLocationsEnded
             | Action::SendMdn
             | Action::SendMsgToSmtp => {
-                context.interrupt_smtp().await;
+                info!(context, "interrupt: smtp");
+                context.interrupt_smtp(false).await;
             }
         }
     }
@@ -1088,13 +1090,13 @@ LIMIT 1;
             .sql
             .query_row_optional(query, params.clone(), |row| {
                 let job = Job {
-                    job_id: row.get(0)?,
-                    action: row.get(1)?,
-                    foreign_id: row.get(2)?,
-                    desired_timestamp: row.get(5)?,
-                    added_timestamp: row.get(4)?,
-                    tries: row.get(6)?,
-                    param: row.get::<_, String>(3)?.parse().unwrap_or_default(),
+                    job_id: row.get("id")?,
+                    action: row.get("action")?,
+                    foreign_id: row.get("foreign_id")?,
+                    desired_timestamp: row.get("desired_timestamp")?,
+                    added_timestamp: row.get("added_timestamp")?,
+                    tries: row.get("tries")?,
+                    param: row.get::<_, String>("param")?.parse().unwrap_or_default(),
                     pending_error: None,
                 };
 
@@ -1104,8 +1106,9 @@ LIMIT 1;
 
         match job_res {
             Ok(job) => break job,
-            Err(_) => {
+            Err(err) => {
                 // Remove invalid job from the DB
+                info!(context, "cleaning up job, because of {}", err);
 
                 // TODO: improve by only doing a single query
                 match context
@@ -1116,7 +1119,7 @@ LIMIT 1;
                     Ok(id) => {
                         context
                             .sql
-                            .execute("DELETE FROM jobs WHERE id=?", paramsv![id])
+                            .execute("DELETE FROM jobs WHERE id=?;", paramsv![id])
                             .await
                             .ok();
                     }
@@ -1129,21 +1132,26 @@ LIMIT 1;
         }
     };
 
-    if thread == Thread::Imap {
-        if let Some(job) = job {
-            if job.action < Action::DeleteMsgOnImap {
-                load_imap_deletion_job(context)
-                    .await
-                    .unwrap_or_default()
-                    .or(Some(job))
-            } else {
-                Some(job)
-            }
-        } else {
-            load_imap_deletion_job(context).await.unwrap_or_default()
+    match thread {
+        Thread::Unknown => {
+            error!(context, "unknown thread for job");
+            None
         }
-    } else {
-        job
+        Thread::Imap => {
+            if let Some(job) = job {
+                if job.action < Action::DeleteMsgOnImap {
+                    load_imap_deletion_job(context)
+                        .await
+                        .unwrap_or_default()
+                        .or(Some(job))
+                } else {
+                    Some(job)
+                }
+            } else {
+                load_imap_deletion_job(context).await.unwrap_or_default()
+            }
+        }
+        Thread::Smtp => job,
     }
 }
 
@@ -1175,7 +1183,7 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_load_next_job() {
+    async fn test_load_next_job_two() {
         // We want to ensure that loading jobs skips over jobs which
         // fails to load from the database instead of failing to load
         // all jobs.
@@ -1185,6 +1193,16 @@ mod tests {
         assert!(jobs.is_none());
 
         insert_job(&t.ctx, 1).await;
+        let jobs = load_next(&t.ctx, Thread::from(Action::MoveMsg), false).await;
+        assert!(jobs.is_some());
+    }
+
+    #[async_std::test]
+    async fn test_load_next_job_one() {
+        let t = dummy_context().await;
+
+        insert_job(&t.ctx, 1).await;
+
         let jobs = load_next(&t.ctx, Thread::from(Action::MoveMsg), false).await;
         assert!(jobs.is_some());
     }

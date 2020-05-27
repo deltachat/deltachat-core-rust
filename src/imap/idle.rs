@@ -34,7 +34,7 @@ impl Imap {
         self.config.can_idle
     }
 
-    pub async fn idle(&mut self, context: &Context, watch_folder: Option<String>) -> Result<()> {
+    pub async fn idle(&mut self, context: &Context, watch_folder: Option<String>) -> Result<bool> {
         use futures::future::FutureExt;
 
         if !self.can_idle() {
@@ -46,6 +46,7 @@ impl Imap {
 
         let session = self.session.take();
         let timeout = Duration::from_secs(23 * 60);
+        let mut probe_network = false;
 
         if let Some(session) = session {
             let mut handle = session.idle();
@@ -54,6 +55,11 @@ impl Imap {
             }
 
             let (idle_wait, interrupt) = handle.wait_with_timeout(timeout);
+
+            enum Event {
+                IdleResponse(IdleResponse),
+                Interrupt(bool),
+            }
 
             if self.skip_next_idle_wait {
                 // interrupt_idle has happened before we
@@ -65,23 +71,27 @@ impl Imap {
                 info!(context, "Idle wait was skipped");
             } else {
                 info!(context, "Idle entering wait-on-remote state");
-                let fut = idle_wait.race(
-                    self.idle_interrupt
-                        .recv()
-                        .map(|_| Ok(IdleResponse::ManualInterrupt)),
+                let fut = idle_wait.map(|ev| ev.map(Event::IdleResponse)).race(
+                    self.idle_interrupt.recv().map(|probe_network| {
+                        Ok(Event::Interrupt(probe_network.unwrap_or_default()))
+                    }),
                 );
 
                 match fut.await {
-                    Ok(IdleResponse::NewData(_)) => {
+                    Ok(Event::IdleResponse(IdleResponse::NewData(_))) => {
                         info!(context, "Idle has NewData");
                     }
                     // TODO: idle_wait does not distinguish manual interrupts
                     // from Timeouts if we would know it's a Timeout we could bail
                     // directly and reconnect .
-                    Ok(IdleResponse::Timeout) => {
+                    Ok(Event::IdleResponse(IdleResponse::Timeout)) => {
                         info!(context, "Idle-wait timeout or interruption");
                     }
-                    Ok(IdleResponse::ManualInterrupt) => {
+                    Ok(Event::IdleResponse(IdleResponse::ManualInterrupt)) => {
+                        info!(context, "Idle wait was interrupted");
+                    }
+                    Ok(Event::Interrupt(probe)) => {
+                        probe_network = probe;
                         info!(context, "Idle wait was interrupted");
                     }
                     Err(err) => {
@@ -115,16 +125,26 @@ impl Imap {
             }
         }
 
-        Ok(())
+        Ok(probe_network)
     }
 
-    pub(crate) async fn fake_idle(&mut self, context: &Context, watch_folder: Option<String>) {
+    pub(crate) async fn fake_idle(
+        &mut self,
+        context: &Context,
+        watch_folder: Option<String>,
+    ) -> bool {
         // Idle using polling. This is also needed if we're not yet configured -
         // in this case, we're waiting for a configure job (and an interrupt).
 
         let fake_idle_start_time = SystemTime::now();
         info!(context, "IMAP-fake-IDLEing...");
 
+        // Do not poll, just wait for an interrupt when no folder is passed in.
+        if watch_folder.is_none() {
+            return self.idle_interrupt.recv().await.unwrap_or_default();
+        }
+
+        let mut probe_network = false;
         if self.skip_next_idle_wait {
             // interrupt_idle has happened before we
             // provided self.interrupt
@@ -135,53 +155,61 @@ impl Imap {
             // TODO: grow sleep durations / make them more flexible
             let mut interval = async_std::stream::interval(Duration::from_secs(60));
 
+            enum Event {
+                Tick,
+                Interrupt(bool),
+            }
             // loop until we are interrupted or if we fetched something
-            loop {
-                use futures::future::FutureExt;
-                match interval
-                    .next()
-                    .race(self.idle_interrupt.recv().map(|_| None))
-                    .await
-                {
-                    Some(_) => {
-                        // try to connect with proper login params
-                        // (setup_handle_if_needed might not know about them if we
-                        // never successfully connected)
-                        if let Err(err) = self.connect_configured(context).await {
-                            warn!(context, "fake_idle: could not connect: {}", err);
-                            continue;
-                        }
-                        if self.config.can_idle {
-                            // we only fake-idled because network was gone during IDLE, probably
-                            break;
-                        }
-                        info!(context, "fake_idle is connected");
-                        // we are connected, let's see if fetching messages results
-                        // in anything.  If so, we behave as if IDLE had data but
-                        // will have already fetched the messages so perform_*_fetch
-                        // will not find any new.
+            probe_network =
+                loop {
+                    use futures::future::FutureExt;
+                    match interval
+                        .next()
+                        .map(|_| Event::Tick)
+                        .race(self.idle_interrupt.recv().map(|probe_network| {
+                            Event::Interrupt(probe_network.unwrap_or_default())
+                        }))
+                        .await
+                    {
+                        Event::Tick => {
+                            // try to connect with proper login params
+                            // (setup_handle_if_needed might not know about them if we
+                            // never successfully connected)
+                            if let Err(err) = self.connect_configured(context).await {
+                                warn!(context, "fake_idle: could not connect: {}", err);
+                                continue;
+                            }
+                            if self.config.can_idle {
+                                // we only fake-idled because network was gone during IDLE, probably
+                                break false;
+                            }
+                            info!(context, "fake_idle is connected");
+                            // we are connected, let's see if fetching messages results
+                            // in anything.  If so, we behave as if IDLE had data but
+                            // will have already fetched the messages so perform_*_fetch
+                            // will not find any new.
 
-                        if let Some(ref watch_folder) = watch_folder {
-                            match self.fetch_new_messages(context, watch_folder).await {
-                                Ok(res) => {
-                                    info!(context, "fetch_new_messages returned {:?}", res);
-                                    if res {
-                                        break;
+                            if let Some(ref watch_folder) = watch_folder {
+                                match self.fetch_new_messages(context, watch_folder).await {
+                                    Ok(res) => {
+                                        info!(context, "fetch_new_messages returned {:?}", res);
+                                        if res {
+                                            break false;
+                                        }
                                     }
-                                }
-                                Err(err) => {
-                                    error!(context, "could not fetch from folder: {}", err);
-                                    self.trigger_reconnect()
+                                    Err(err) => {
+                                        error!(context, "could not fetch from folder: {}", err);
+                                        self.trigger_reconnect()
+                                    }
                                 }
                             }
                         }
+                        Event::Interrupt(probe_network) => {
+                            // Interrupt
+                            break probe_network;
+                        }
                     }
-                    None => {
-                        // Interrupt
-                        break;
-                    }
-                }
-            }
+                };
         }
 
         info!(
@@ -193,5 +221,7 @@ impl Imap {
                 .as_millis() as f64
                 / 1000.,
         );
+
+        probe_network
     }
 }

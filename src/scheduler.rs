@@ -2,8 +2,6 @@ use async_std::prelude::*;
 use async_std::sync::{channel, Receiver, Sender};
 use async_std::task;
 
-use std::time::Duration;
-
 use crate::context::Context;
 use crate::imap::Imap;
 use crate::job::{self, Thread};
@@ -25,30 +23,45 @@ pub(crate) enum Scheduler {
         sentbox_handle: Option<task::JoinHandle<()>>,
         smtp: SmtpConnectionState,
         smtp_handle: Option<task::JoinHandle<()>>,
-        probe_network: bool,
     },
 }
 
 impl Context {
     /// Indicate that the network likely has come back.
     pub async fn maybe_network(&self) {
-        self.scheduler.write().await.maybe_network().await;
+        self.scheduler.read().await.maybe_network().await;
     }
 
-    pub(crate) async fn interrupt_inbox(&self) {
-        self.scheduler.read().await.interrupt_inbox().await;
+    pub(crate) async fn interrupt_inbox(&self, probe_network: bool) {
+        self.scheduler
+            .read()
+            .await
+            .interrupt_inbox(probe_network)
+            .await;
     }
 
-    pub(crate) async fn interrupt_sentbox(&self) {
-        self.scheduler.read().await.interrupt_sentbox().await;
+    pub(crate) async fn interrupt_sentbox(&self, probe_network: bool) {
+        self.scheduler
+            .read()
+            .await
+            .interrupt_sentbox(probe_network)
+            .await;
     }
 
-    pub(crate) async fn interrupt_mvbox(&self) {
-        self.scheduler.read().await.interrupt_mvbox().await;
+    pub(crate) async fn interrupt_mvbox(&self, probe_network: bool) {
+        self.scheduler
+            .read()
+            .await
+            .interrupt_mvbox(probe_network)
+            .await;
     }
 
-    pub(crate) async fn interrupt_smtp(&self) {
-        self.scheduler.read().await.interrupt_smtp().await;
+    pub(crate) async fn interrupt_smtp(&self, probe_network: bool) {
+        self.scheduler
+            .read()
+            .await
+            .interrupt_smtp(probe_network)
+            .await;
     }
 }
 
@@ -73,26 +86,23 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
 
         // track number of continously executed jobs
         let mut jobs_loaded = 0;
+        let mut probe_network = false;
         loop {
-            let probe_network = ctx.scheduler.read().await.get_probe_network();
-            match job::load_next(&ctx, Thread::Imap, probe_network)
-                .timeout(Duration::from_millis(200))
-                .await
-            {
-                Ok(Some(job)) if jobs_loaded <= 20 => {
+            match job::load_next(&ctx, Thread::Imap, probe_network).await {
+                Some(job) if jobs_loaded <= 20 => {
                     jobs_loaded += 1;
                     job::perform_job(&ctx, job::Connection::Inbox(&mut connection), job).await;
-                    ctx.scheduler.write().await.set_probe_network(false);
+                    probe_network = false;
                 }
-                Ok(Some(job)) => {
+                Some(job) => {
                     // Let the fetch run, but return back to the job afterwards.
                     info!(ctx, "postponing imap-job {} to run fetch...", job);
                     jobs_loaded = 0;
                     fetch(&ctx, &mut connection).await;
                 }
-                Ok(None) | Err(async_std::future::TimeoutError { .. }) => {
+                None => {
                     jobs_loaded = 0;
-                    fetch_idle(&ctx, &mut connection).await;
+                    probe_network = fetch_idle(&ctx, &mut connection).await;
                 }
             }
         }
@@ -126,7 +136,7 @@ async fn fetch(ctx: &Context, connection: &mut Imap) {
     }
 }
 
-async fn fetch_idle(ctx: &Context, connection: &mut Imap) {
+async fn fetch_idle(ctx: &Context, connection: &mut Imap) -> bool {
     match get_watch_folder(&ctx, "configured_inbox_folder").await {
         Some(watch_folder) => {
             // fetch
@@ -144,14 +154,15 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap) {
                     .await
                     .unwrap_or_else(|err| {
                         error!(ctx, "{}", err);
-                    });
+                        false
+                    })
             } else {
-                connection.fake_idle(&ctx, Some(watch_folder)).await;
+                connection.fake_idle(&ctx, Some(watch_folder)).await
             }
         }
         None => {
             warn!(ctx, "Can not watch inbox folder, not set");
-            connection.fake_idle(&ctx, None).await;
+            connection.fake_idle(&ctx, None).await
         }
     }
 }
@@ -199,6 +210,7 @@ async fn simple_imap_loop(
                             .await
                             .unwrap_or_else(|err| {
                                 error!(ctx, "{}", err);
+                                false
                             });
                     } else {
                         connection.fake_idle(&ctx, Some(watch_folder)).await;
@@ -210,7 +222,7 @@ async fn simple_imap_loop(
                         "No watch folder found for {}, skipping",
                         folder.as_ref()
                     );
-                    connection.fake_idle(&ctx, None).await
+                    connection.fake_idle(&ctx, None).await;
                 }
             }
         }
@@ -241,21 +253,20 @@ async fn smtp_loop(ctx: Context, started: Sender<()>, smtp_handlers: SmtpConnect
     let fut = async move {
         started.send(()).await;
         let ctx = ctx1;
+
+        let mut probe_network = false;
         loop {
-            let probe_network = ctx.scheduler.read().await.get_probe_network();
-            match job::load_next(&ctx, Thread::Smtp, probe_network)
-                .timeout(Duration::from_millis(200))
-                .await
-            {
-                Ok(Some(job)) => {
+            match job::load_next(&ctx, Thread::Smtp, probe_network).await {
+                Some(job) => {
                     info!(ctx, "executing smtp job");
                     job::perform_job(&ctx, job::Connection::Smtp(&mut connection), job).await;
-                    ctx.scheduler.write().await.set_probe_network(false);
+                    probe_network = false;
                 }
-                Ok(None) | Err(async_std::future::TimeoutError { .. }) => {
-                    info!(ctx, "smtp fake idle");
+                None => {
                     // Fake Idle
-                    idle_interrupt_receiver.recv().await.ok();
+                    info!(ctx, "smtp fake idle - started");
+                    probe_network = idle_interrupt_receiver.recv().await.unwrap_or_default();
+                    info!(ctx, "smtp fake idle - interrupted")
                 }
             }
         }
@@ -284,7 +295,6 @@ impl Scheduler {
             mvbox,
             sentbox,
             smtp,
-            probe_network: false,
             inbox_handle: None,
             mvbox_handle: None,
             sentbox_handle: None,
@@ -349,58 +359,39 @@ impl Scheduler {
         info!(ctx, "scheduler is running");
     }
 
-    fn set_probe_network(&mut self, val: bool) {
-        match self {
-            Scheduler::Running {
-                ref mut probe_network,
-                ..
-            } => {
-                *probe_network = val;
-            }
-            _ => panic!("set_probe_network can only be called when running"),
-        }
-    }
-
-    fn get_probe_network(&self) -> bool {
-        match self {
-            Scheduler::Running { probe_network, .. } => *probe_network,
-            _ => panic!("get_probe_network can only be called when running"),
-        }
-    }
-
-    async fn maybe_network(&mut self) {
+    async fn maybe_network(&self) {
         if !self.is_running() {
             return;
         }
-        self.set_probe_network(true);
-        self.interrupt_inbox()
-            .join(self.interrupt_mvbox())
-            .join(self.interrupt_sentbox())
-            .join(self.interrupt_smtp())
+
+        self.interrupt_inbox(true)
+            .join(self.interrupt_mvbox(true))
+            .join(self.interrupt_sentbox(true))
+            .join(self.interrupt_smtp(true))
             .await;
     }
 
-    async fn interrupt_inbox(&self) {
+    async fn interrupt_inbox(&self, probe_network: bool) {
         if let Scheduler::Running { ref inbox, .. } = self {
-            inbox.interrupt().await;
+            inbox.interrupt(probe_network).await;
         }
     }
 
-    async fn interrupt_mvbox(&self) {
+    async fn interrupt_mvbox(&self, probe_network: bool) {
         if let Scheduler::Running { ref mvbox, .. } = self {
-            mvbox.interrupt().await;
+            mvbox.interrupt(probe_network).await;
         }
     }
 
-    async fn interrupt_sentbox(&self) {
+    async fn interrupt_sentbox(&self, probe_network: bool) {
         if let Scheduler::Running { ref sentbox, .. } = self {
-            sentbox.interrupt().await;
+            sentbox.interrupt(probe_network).await;
         }
     }
 
-    async fn interrupt_smtp(&self) {
+    async fn interrupt_smtp(&self, probe_network: bool) {
         if let Scheduler::Running { ref smtp, .. } = self {
-            smtp.interrupt().await;
+            smtp.interrupt(probe_network).await;
         }
     }
 
@@ -469,7 +460,7 @@ struct ConnectionState {
     /// Channel to interrupt the whole connection.
     stop_sender: Sender<()>,
     /// Channel to interrupt idle.
-    idle_interrupt_sender: Sender<()>,
+    idle_interrupt_sender: Sender<bool>,
 }
 
 impl ConnectionState {
@@ -481,11 +472,9 @@ impl ConnectionState {
         self.shutdown_receiver.recv().await.ok();
     }
 
-    async fn interrupt(&self) {
-        if !self.idle_interrupt_sender.is_full() {
-            // Use try_send to avoid blocking on interrupts.
-            self.idle_interrupt_sender.send(()).await;
-        }
+    async fn interrupt(&self, probe_network: bool) {
+        // Use try_send to avoid blocking on interrupts.
+        self.idle_interrupt_sender.try_send(probe_network).ok();
     }
 }
 
@@ -519,8 +508,8 @@ impl SmtpConnectionState {
     }
 
     /// Interrupt any form of idle.
-    async fn interrupt(&self) {
-        self.state.interrupt().await;
+    async fn interrupt(&self, probe_network: bool) {
+        self.state.interrupt(probe_network).await;
     }
 
     /// Shutdown this connection completely.
@@ -534,7 +523,7 @@ struct SmtpConnectionHandlers {
     connection: Smtp,
     stop_receiver: Receiver<()>,
     shutdown_sender: Sender<()>,
-    idle_interrupt_receiver: Receiver<()>,
+    idle_interrupt_receiver: Receiver<bool>,
 }
 
 #[derive(Debug)]
@@ -546,8 +535,8 @@ impl ImapConnectionState {
     /// Construct a new connection.
     fn new() -> (Self, ImapConnectionHandlers) {
         let (stop_sender, stop_receiver) = channel(1);
-        let (idle_interrupt_sender, idle_interrupt_receiver) = channel(1);
         let (shutdown_sender, shutdown_receiver) = channel(1);
+        let (idle_interrupt_sender, idle_interrupt_receiver) = channel(1);
 
         let handlers = ImapConnectionHandlers {
             connection: Imap::new(idle_interrupt_receiver),
@@ -567,8 +556,8 @@ impl ImapConnectionState {
     }
 
     /// Interrupt any form of idle.
-    async fn interrupt(&self) {
-        self.state.interrupt().await;
+    async fn interrupt(&self, probe_network: bool) {
+        self.state.interrupt(probe_network).await;
     }
 
     /// Shutdown this connection completely.
