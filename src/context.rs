@@ -138,7 +138,10 @@ impl Context {
     /// Starts the IO scheduler.
     pub async fn start_io(&self) {
         info!(self, "starting IO");
-        assert!(!self.is_io_running().await, "context is already running");
+        if self.is_io_running().await {
+            info!(self, "IO is already running");
+            return;
+        }
 
         {
             let l = &mut *self.inner.scheduler.write().await;
@@ -154,6 +157,11 @@ impl Context {
     /// Stops the IO scheduler.
     pub async fn stop_io(&self) {
         info!(self, "stopping IO");
+        if !self.is_io_running().await {
+            info!(self, "IO is not running");
+            return;
+        }
+
         self.inner.stop_io().await;
     }
 
