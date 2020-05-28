@@ -630,7 +630,7 @@ class Account(object):
         hook = hookspec.Global._get_plugin_manager().hook
         hook.dc_account_after_shutdown(account=self)
         self.log("shutdown finished")
-
+    
 
 class ScannedQRCode:
     def __init__(self, dc_lot):

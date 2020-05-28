@@ -8,6 +8,7 @@ from deltachat.message import Message
 from deltachat.hookspec import account_hookimpl
 from datetime import datetime, timedelta
 from deltachat import direct_imap
+from deltachat.direct_imap import make_direct_imap
 
 
 @pytest.mark.parametrize("msgtext,res", [
@@ -638,15 +639,14 @@ class TestOnlineAccount:
 
     def test_mark_read_on_server(self, acfactory, lp):
         ac1 = acfactory.get_online_configuring_account()
-        ac2 = acfactory.get_online_configuring_account()
-        ac2.set_config("mvbox_move", "1")
+        ac2 = acfactory.get_online_configuring_account(mvbox=True, move=True)
 
         ac1.wait_configure_finish()
         ac1.start_io()
         ac2.wait_configure_finish()
         ac2.start_io()
 
-        imap2 = acfactory.make_direct_imap(ac2, direct_imap.MVBOX)
+        imap2 = make_direct_imap(ac2, direct_imap.MVBOX)
         imap2.mark_all_read()
         assert imap2.get_unread_cnt() == 0
 

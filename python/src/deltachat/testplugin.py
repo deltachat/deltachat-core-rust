@@ -377,12 +377,6 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             self._finalizers.append(bot.kill)
             return bot
 
-        def make_direct_imap(self, account, folder):
-            conn_info = (account.get_config("configured_mail_server"),
-                         account.get_config("addr"), account.get_config("mail_pw"))
-            imap = ImapConn(folder, conn_info=conn_info)
-            return imap
-
     am = AccountMaker()
     request.addfinalizer(am.finalize)
     return am
