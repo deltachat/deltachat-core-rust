@@ -4423,7 +4423,11 @@ void dc_event_unref(dc_event_t* event);
 #define DC_STR_LOCATION                   66
 #define DC_STR_STICKER                    67
 #define DC_STR_DEVICE_MESSAGES            68
-#define DC_STR_COUNT                      68
+#define DC_STR_SAVED_MESSAGES             69
+#define DC_STR_DEVICE_MESSAGES_HINT       70
+#define DC_STR_WELCOME_MESSAGE            71
+#define DC_STR_UNKNOWN_SENDER_FOR_CHAT    72
+#define DC_STR_COUNT                      72
 
 /*
  * @}
