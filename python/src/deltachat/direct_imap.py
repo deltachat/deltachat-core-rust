@@ -28,7 +28,8 @@ class ImapConn():
         self.connection.login(user, pw)
         messages = self.reselect_folder()
         try:
-            self.original_msg_count = messages[0]
+            self.original_msg_count = int(messages[0])
+            print("dbg", str(messages))          
         except IndexError:
             self.original_msg_count = 0
 
@@ -64,7 +65,7 @@ class ImapConn():
     def get_new_email_cnt(self):
         messages = self.reselect_folder()
         try:
-            return messages[0] - self.original_msg_count
+            return int(messages[0]) - self.original_msg_count
         except IndexError:
             return 0
 
@@ -77,8 +78,15 @@ class ImapConn():
         return messages
 
     def __del__(self):
-#        self.connection.close()
-        self.connection.logout()
+        try:
+            self.connection.close()
+        except:
+            pass
+        try:
+            self.connection.logout()
+        except:
+            pass
+        
 
 def make_direct_imap(account, folder):
     conn_info = (account.get_config("configured_mail_server"),

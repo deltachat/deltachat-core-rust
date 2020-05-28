@@ -647,7 +647,7 @@ class TestOnlineAccount:
         ac2.start_io()
 
         imap2 = make_direct_imap(ac2, direct_imap.MVBOX)
-        imap2.mark_all_read()
+        #imap2.mark_all_read()
         assert imap2.get_unread_cnt() == 0
 
         chat = self.get_chat(ac1, ac2)
@@ -660,24 +660,61 @@ class TestOnlineAccount:
 
         assert list(ac2.get_fresh_messages())
 
-        for i in range(0, 30):
+        for i in range(0, 20):
             if imap2.get_unread_cnt() == 1:
                 break
             time.sleep(1)  # We might need to wait because Imaplib is slower than DC-Core
         assert imap2.get_unread_cnt() == 1
 
-        incoming_on_ac2.mark_seen()
         chat_on_ac2.mark_noticed()
+        incoming_on_ac2.mark_seen()
         ac2._evtracker.wait_next_messages_changed()
 
         assert not list(ac2.get_fresh_messages())
 
         # The new messages should be seen now.
-        for i in range(0, 30):
+        for i in range(0, 20):
             if imap2.get_unread_cnt() == 0:
                 break
             time.sleep(1)  # We might need to wait because Imaplib is slower than DC-Core
         assert imap2.get_unread_cnt() == 0
+
+        #print_imap_structure(ac1.db_path)
+
+    def test_mark_bcc_read_on_server(self, acfactory, lp):
+        ac1 = acfactory.get_online_configuring_account(mvbox=True, move=True)
+        ac2 = acfactory.get_online_configuring_account()
+
+        ac1.wait_configure_finish()
+        ac1.start_io()
+        ac2.wait_configure_finish()
+        ac2.start_io()
+
+        imap1 = make_direct_imap(ac1, direct_imap.MVBOX)
+        #imap1.mark_all_read()
+        assert imap1.get_unread_cnt() == 0
+
+        chat = self.get_chat(ac1, ac2)
+
+        ac1.set_config("bcc_self", "1")
+        chat.send_text("Text message")
+
+        ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
+
+        for i in range(0, 20):
+            if imap1.get_new_email_cnt() == 1:
+                break
+            time.sleep(1)  # We might need to wait because Imaplib is slower than DC-Core
+        assert imap1.get_new_email_cnt() == 1
+
+        for i in range(0, 20):
+            if imap1.get_unread_cnt() == 0:
+                break
+            time.sleep(1)  # We might need to wait because Imaplib is slower than DC-Core
+
+        #print_imap_structure(ac1.db_path)
+
+        assert imap1.get_unread_cnt() == 0
 
     def test_send_file_twice_unicode_filename_mangling(self, tmpdir, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
