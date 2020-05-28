@@ -1381,6 +1381,7 @@ async fn precheck_imf(
                 server_folder,
                 server_uid
             );
+            update_server_uid(context, rfc724_mid, server_folder, server_uid).await;
         } else if old_server_uid != server_uid {
             warn!(
                 context,
@@ -1390,6 +1391,7 @@ async fn precheck_imf(
                 old_server_uid,
                 server_uid
             );
+            update_server_uid(context, rfc724_mid, server_folder, server_uid).await;
         }
 
         if old_server_folder != server_folder || old_server_uid != server_uid {
