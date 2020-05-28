@@ -68,50 +68,17 @@ impl Context {
     async fn inner_configure(&self) -> Result<()> {
         info!(self, "Configure ...");
 
-        let mut param_autoconfig: Option<LoginParam> = None;
-
-        // Variables that are shared between steps:
-        let mut param = LoginParam::from_database(self, "").await;
-        // need all vars here to be mutable because rust thinks the same step could be called
-        // multiple times and also initialize, because otherwise rust thinks it's used while
-        // unitialized, even if thats not the case as the loop goes only forward
-        let mut param_domain = "undefined.undefined".to_owned();
-        let mut param_addr_urlencoded: String =
-            "Internal Error: this value should never be used".to_owned();
-        let mut keep_flags = 0;
+        let was_configured_before = self.is_configured().await;
 
         let (_s, r) = async_std::sync::channel(1);
         let mut imap = Imap::new(r);
-        let was_configured_before = self.is_configured().await;
+        let mut param = LoginParam::from_database(self, "").await;
 
-        let success = exec(
-            self,
-            &mut imap,
-            &mut param,
-            &mut param_domain,
-            &mut param_autoconfig,
-            &mut param_addr_urlencoded,
-            &mut keep_flags,
-        )
-        .await;
+        let success = configure(self, &mut imap, &mut param).await;
 
         if imap.is_connected() {
             imap.disconnect(self).await;
-        }
-
-        // remember the entered parameters on success
-        // and restore to last-entered on failure.
-        // this way, the parameters visible to the ui are always in-sync with the current configuration.
-        if success.is_ok() {
-            LoginParam::from_database(self, "")
-                .await
-                .save_to_database(self, "configured_raw_")
-                .await?;
-        } else {
-            LoginParam::from_database(self, "configured_raw_")
-                .await
-                .save_to_database(self, "")
-                .await?;
+            drop(imap);
         }
 
         if let Some(provider) = provider::get_provider_info(&param.addr) {
@@ -151,17 +118,10 @@ impl Context {
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn exec(
-    ctx: &Context,
-    imap: &mut Imap,
-    param: &mut LoginParam,
-    param_domain: &mut String,
-    param_autoconfig: &mut Option<LoginParam>,
-    param_addr_urlencoded: &mut String,
-    keep_flags: &mut i32,
-) -> Result<()> {
+async fn configure(ctx: &Context, imap: &mut Imap, param: &mut LoginParam) -> Result<()> {
+    let mut param_autoconfig: Option<LoginParam> = None;
+    let mut keep_flags = 0;
     let mut use_autoconfig = true;
-    let mut have_autoconfig = false;
 
     // Read login parameters from the database
     progress!(ctx, 1);
@@ -189,45 +149,37 @@ async fn exec(
     // no oauth? - just continue it's no error
 
     let parsed: EmailAddress = param.addr.parse().context("Bad email-address")?;
-    *param_domain = parsed.domain;
-    *param_addr_urlencoded = utf8_percent_encode(&param.addr, NON_ALPHANUMERIC).to_string();
+    let param_domain = parsed.domain;
+    let param_addr_urlencoded = utf8_percent_encode(&param.addr, NON_ALPHANUMERIC).to_string();
 
     // Step 2: Autoconfig
     progress!(ctx, 200);
 
+    // param.mail_user.is_empty() -- the user can enter a loginname which is used by autoconfig then
+    // param.send_pw.is_empty() -- the password cannot be auto-configured and is no criterion for autoconfig or not
     if param.mail_server.is_empty()
-                && param.mail_port == 0
-            /* && param.mail_user.is_empty() -- the user can enter a loginname which is used by autoconfig then */
-                && param.send_server.is_empty()
-                && param.send_port == 0
-                && param.send_user.is_empty()
-            /* && param.send_pw.is_empty() -- the password cannot be auto-configured and is no criterion for autoconfig or not */
-                && (param.server_flags & !DC_LP_AUTH_OAUTH2) == 0
+        && param.mail_port == 0
+        && param.send_server.is_empty()
+        && param.send_port == 0
+        && param.send_user.is_empty()
+        && (param.server_flags & !DC_LP_AUTH_OAUTH2) == 0
     {
         // no advanced parameters entered by the user: query provider-database or do Autoconfig
-        *keep_flags = param.server_flags & DC_LP_AUTH_OAUTH2;
+        keep_flags = param.server_flags & DC_LP_AUTH_OAUTH2;
         if let Some(new_param) = get_offline_autoconfig(ctx, &param) {
             // got parameters from our provider-database, skip Autoconfig, preserve the OAuth2 setting
-            *param_autoconfig = Some(new_param);
-            have_autoconfig = true;
+            param_autoconfig = Some(new_param);
         }
     } else {
         // advanced parameters entered by the user: skip Autoconfig
         use_autoconfig = false;
     }
 
-    if !have_autoconfig {
-        get_autoconfig(
-            ctx,
-            param,
-            param_domain,
-            param_autoconfig,
-            param_addr_urlencoded,
-        )
-        .await?;
+    if param_autoconfig.is_none() {
+        param_autoconfig = get_autoconfig(ctx, param, &param_domain, &param_addr_urlencoded).await;
     }
 
-    /* C.  Do we have any autoconfig result? */
+    // C.  Do we have any autoconfig result?
     progress!(ctx, 500);
     if use_autoconfig {
         if let Some(ref cfg) = param_autoconfig {
@@ -235,16 +187,17 @@ async fn exec(
             if !cfg.mail_user.is_empty() {
                 param.mail_user = cfg.mail_user.clone();
             }
-            param.mail_server = cfg.mail_server.clone(); /* all other values are always NULL when entering autoconfig */
+            // all other values are always NULL when entering autoconfig
+            param.mail_server = cfg.mail_server.clone();
             param.mail_port = cfg.mail_port;
             param.send_server = cfg.send_server.clone();
             param.send_port = cfg.send_port;
             param.send_user = cfg.send_user.clone();
             param.server_flags = cfg.server_flags;
-            /* although param_autoconfig's data are no longer needed from,
-            it is used to later to prevent trying variations of port/server/logins */
+            // although param_autoconfig's data are no longer needed from,
+            // it is used to later to prevent trying variations of port/server/logins
         }
-        param.server_flags |= *keep_flags;
+        param.server_flags |= keep_flags;
     }
 
     // Step 3: Fill missing fields with defaults
@@ -304,7 +257,8 @@ async fn exec(
             DC_LP_SMTP_SOCKET_SSL as i32
         }
     }
-    /* do we have a complete configuration? */
+
+    // do we have a complete configuration?
     if param.mail_server.is_empty()
         || param.mail_port == 0
         || param.mail_user.is_empty()
@@ -319,8 +273,8 @@ async fn exec(
     }
 
     progress!(ctx, 600);
-    /* try to connect to IMAP - if we did not got an autoconfig,
-    do some further tries with different settings and username variations */
+    // try to connect to IMAP - if we did not got an autoconfig,
+    // do some further tries with different settings and username variations
     try_imap_connections(ctx, param, param_autoconfig.is_some(), imap).await?;
 
     progress!(ctx, 800);
@@ -358,75 +312,103 @@ async fn exec(
     Ok(())
 }
 
+#[derive(Debug, PartialEq, Eq)]
+enum AutoconfigProvider {
+    Mozilla,
+    Outlook,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct AutconfigSource {
+    provider: AutoconfigProvider,
+    url: String,
+}
+
+impl AutconfigSource {
+    async fn fetch(&self, ctx: &Context, param: &LoginParam) -> Result<LoginParam> {
+        let params = match self.provider {
+            AutoconfigProvider::Mozilla => moz_autoconfigure(ctx, &self.url, &param).await?,
+            AutoconfigProvider::Outlook => outlk_autodiscover(ctx, &self.url, &param).await?,
+        };
+
+        Ok(params)
+    }
+}
+
+/// Retrieve available autoconfigurations.
+///
+/// A Search configurations from the domain used in the email-address, prefer encrypted
+/// B. If we have no configuration yet, search configuration in Thunderbird's centeral database
 async fn get_autoconfig(
     ctx: &Context,
-    param: &mut LoginParam,
-    param_domain: &mut String,
-    param_autoconfig: &mut Option<LoginParam>,
-    param_addr_urlencoded: &mut String,
-) -> Result<()> {
-    /* A.  Search configurations from the domain used in the email-address, prefer encrypted */
-    if param_autoconfig.is_none() {
-        let url = format!(
-            "https://autoconfig.{}/mail/config-v1.1.xml?emailaddress={}",
-            param_domain, param_addr_urlencoded
-        );
-        *param_autoconfig = moz_autoconfigure(ctx, &url, &param).await.ok();
-    }
-    progress!(ctx, 300);
-    if param_autoconfig.is_none() {
+    param: &LoginParam,
+    param_domain: &str,
+    param_addr_urlencoded: &str,
+) -> Option<LoginParam> {
+    let mut param_autoconfig = None;
+
+    let urls = [
+        AutconfigSource {
+            provider: AutoconfigProvider::Mozilla,
+            url: format!(
+                "https://autoconfig.{}/mail/config-v1.1.xml?emailaddress={}",
+                param_domain, param_addr_urlencoded
+            ),
+        },
         // the doc does not mention `emailaddress=`, however, Thunderbird adds it, see https://releases.mozilla.org/pub/thunderbird/ ,  which makes some sense
-        let url = format!(
-            "https://{}/.well-known/autoconfig/mail/config-v1.1.xml?emailaddress={}",
-            param_domain, param_addr_urlencoded
-        );
-        *param_autoconfig = moz_autoconfigure(ctx, &url, &param).await.ok();
-    }
-    /* Outlook section start ------------- */
-    /* Outlook uses always SSL but different domains (this comment describes the next two steps) */
+        AutconfigSource {
+            provider: AutoconfigProvider::Mozilla,
+            url: format!(
+                "https://{}/.well-known/autoconfig/mail/config-v1.1.xml?emailaddress={}",
+                param_domain, param_addr_urlencoded
+            ),
+        },
+        AutconfigSource {
+            provider: AutoconfigProvider::Outlook,
+            url: format!("https://{}/autodiscover/autodiscover.xml", param_domain),
+        },
+        // Outlook uses always SSL but different domains (this comment describes the next two steps)
+        AutconfigSource {
+            provider: AutoconfigProvider::Outlook,
+            url: format!(
+                "https://{}{}/autodiscover/autodiscover.xml",
+                "autodiscover.", param_domain
+            ),
+        },
+        AutconfigSource {
+            provider: AutoconfigProvider::Mozilla,
+            url: format!(
+                "http://autoconfig.{}/mail/config-v1.1.xml?emailaddress={}",
+                param_domain, param_addr_urlencoded
+            ),
+        }, // do not transfer the email-address unencrypted
+        AutconfigSource {
+            provider: AutoconfigProvider::Mozilla,
+            url: format!(
+                "http://{}/.well-known/autoconfig/mail/config-v1.1.xml",
+                param_domain
+            ),
+        },
+        // always SSL for Thunderbird's database
+        AutconfigSource {
+            provider: AutoconfigProvider::Mozilla,
+            url: format!("https://autoconfig.thunderbird.net/v1.1/{}", param_domain),
+        },
+    ];
 
-    progress!(ctx, 310);
-    if param_autoconfig.is_none() {
-        let url = format!("https://{}/autodiscover/autodiscover.xml", param_domain);
-        *param_autoconfig = outlk_autodiscover(ctx, &url, &param).await.ok();
-    }
-    progress!(ctx, 320);
-    if param_autoconfig.is_none() {
-        let url = format!(
-            "https://{}{}/autodiscover/autodiscover.xml",
-            "autodiscover.", param_domain
-        );
-        *param_autoconfig = outlk_autodiscover(ctx, &url, &param).await.ok();
-    }
-    /* ----------- Outlook section end */
+    let mut progress = 300;
+    for source in &urls {
+        let result = source.fetch(ctx, param).await;
+        progress!(ctx, progress);
+        progress += 10;
 
-    progress!(ctx, 330);
-    if param_autoconfig.is_none() {
-        let url = format!(
-            "http://autoconfig.{}/mail/config-v1.1.xml?emailaddress={}",
-            param_domain, param_addr_urlencoded
-        );
-        *param_autoconfig = moz_autoconfigure(ctx, &url, &param).await.ok();
+        if let Ok(config) = result {
+            param_autoconfig = Some(config);
+            break;
+        }
     }
 
-    progress!(ctx, 340);
-    if param_autoconfig.is_none() {
-        // do not transfer the email-address unencrypted
-        let url = format!(
-            "http://{}/.well-known/autoconfig/mail/config-v1.1.xml",
-            param_domain
-        );
-        *param_autoconfig = moz_autoconfigure(ctx, &url, &param).await.ok();
-    }
-    /* B.  If we have no configuration yet, search configuration in Thunderbird's centeral database */
-    progress!(ctx, 350);
-    if param_autoconfig.is_none() {
-        /* always SSL for Thunderbird's database */
-        let url = format!("https://autoconfig.thunderbird.net/v1.1/{}", param_domain);
-        *param_autoconfig = moz_autoconfigure(ctx, &url, &param).await.ok();
-    }
-
-    Ok(())
+    param_autoconfig
 }
 
 #[allow(clippy::unnecessary_unwrap)]
@@ -569,7 +551,8 @@ async fn try_smtp_connections(
     was_autoconfig: bool,
 ) -> Result<()> {
     let mut smtp = Smtp::new();
-    /* try to connect to SMTP - if we did not got an autoconfig, the first try was SSL-465 and we do a second try with STARTTLS-587 */
+    // try to connect to SMTP - if we did not got an autoconfig, the first try was SSL-465 and we do
+    // a second try with STARTTLS-587
     if try_smtp_one_param(context, &param, &mut smtp).await.is_ok() {
         return Ok(());
     }
