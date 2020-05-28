@@ -7,8 +7,6 @@ from deltachat import const, Account
 from deltachat.message import Message
 from deltachat.hookspec import account_hookimpl
 from datetime import datetime, timedelta
-from conftest import (wait_configuration_progress,
-                      wait_securejoin_inviter_progress)
 from deltachat import direct_imap
 
 
@@ -643,8 +641,10 @@ class TestOnlineAccount:
         ac2 = acfactory.get_online_configuring_account()
         ac2.set_config("mvbox_move", "1")
 
-        wait_configuration_progress(ac1, 1000)
-        wait_configuration_progress(ac2, 1000)
+        ac1.wait_configure_finish()
+        ac1.start_io()
+        ac2.wait_configure_finish()
+        ac2.start_io()
 
         imap2 = acfactory.make_direct_imap(ac2, direct_imap.MVBOX)
         imap2.mark_all_read()
