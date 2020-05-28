@@ -95,8 +95,9 @@ def make_direct_imap(account, folder):
     return imap
 
 def print_imap_structure(database):
-    ac = Account(database)
-    ac.disable_logging()
+    print_imap_structure_ac(Account(database))
+
+def print_imap_structure_ac(ac):
     print("================= ACCOUNT", ac.get_config("addr"), "=================")
     print("----------------- CONFIG: -----------------")
     print(ac.get_info())
