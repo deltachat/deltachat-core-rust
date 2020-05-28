@@ -28,7 +28,7 @@ class Account(object):
     """
     MissingCredentials = MissingCredentials
 
-    def __init__(self, db_path, os_name=None, logging=True):
+    def __init__(self, db_path, os_name=None, logging=True, logid=None):
         """ initialize account object.
 
         :param db_path: a path to the account database. The database
@@ -38,6 +38,7 @@ class Account(object):
         # initialize per-account plugin system
         self._pm = hookspec.PerAccount._make_plugin_manager()
         self._logging = logging
+        self.logid=logid
 
         self.add_account_plugin(self)
 

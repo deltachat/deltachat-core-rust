@@ -230,7 +230,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
                 acc.disable_logging()
 
         def make_account(self, path, logid, quiet=False):
-            ac = Account(path, logging=self._logging)
+            ac = Account(path, logging=self._logging, logid=logid)
             ac._evtracker = ac.add_account_plugin(FFIEventTracker(ac))
             ac.addr = ac.get_self_contact().addr
             if not quiet:
@@ -382,7 +382,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
     yield am
     if request.node.rep_call.failed:
         for ac in am._accounts:
-            direct_imap.print_imap_structure_ac(ac)
+            direct_imap.print_imap_structure_ac(ac, tmpdir)
 
 
 class BotProcess:

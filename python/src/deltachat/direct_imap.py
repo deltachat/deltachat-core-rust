@@ -94,18 +94,19 @@ def make_direct_imap(account, folder):
     imap = ImapConn(folder, conn_info=conn_info)
     return imap
 
-def print_imap_structure(database):
-    print_imap_structure_ac(Account(database))
+def print_imap_structure(database, dir="."):
+    print_imap_structure_ac(Account(database), dir)
 
-def print_imap_structure_ac(ac):
-    print("================= ACCOUNT", ac.get_config("addr"), "=================")
+def print_imap_structure_ac(ac, dir="."):
+    acinfo = ac.logid + "-" + ac.get_config("addr")
+    print("================= ACCOUNT", acinfo, "=================")
     print("----------------- CONFIG: -----------------")
     print(ac.get_info())
 
-    for folder in [INBOX, MVBOX, SENT]:
+    for imapfolder in [INBOX, MVBOX, SENT]:
         try:
-            print("-----------------", folder, "-----------------")
-            imap = make_direct_imap(ac, folder)
+            print("-----------------", imapfolder, "-----------------")
+            imap = make_direct_imap(ac, imapfolder)
             c = imap.connection
             typ, data = c.search(None, 'ALL')
             c._get_tagged_response
@@ -116,10 +117,10 @@ def print_imap_structure_ac(ac):
                 typ, data = c.fetch(num, '(UID FLAGS)')
                 info = data[0]
 
-                path = pathlib.Path("./IMAP-MESSAGES-" + ac.get_config("addr") + "~/" + folder)
+                path = pathlib.Path(dir).joinpath("IMAP-MESSAGES", acinfo, imapfolder)
                 path.mkdir(parents=True, exist_ok=True)
                 file = path.joinpath(str(info).replace("b'", "").replace("'", "").replace("\\", ""))
                 file.write_bytes(body)
                 print("Message", info, "saved as", file)
         except ConnectionError:
-            print("Seems like there is no", folder, "folder")
+            print("Seems like there is no", imapfolder, "folder")
