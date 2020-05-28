@@ -38,7 +38,7 @@ class Account(object):
         # initialize per-account plugin system
         self._pm = hookspec.PerAccount._make_plugin_manager()
         self._logging = logging
-        self.logid=logid
+        self.logid = logid
 
         self.add_account_plugin(self)
 
@@ -631,7 +631,7 @@ class Account(object):
         hook = hookspec.Global._get_plugin_manager().hook
         hook.dc_account_after_shutdown(account=self)
         self.log("shutdown finished")
-    
+
 
 class ScannedQRCode:
     def __init__(self, dc_lot):

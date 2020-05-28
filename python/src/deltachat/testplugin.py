@@ -17,8 +17,6 @@ from .capi import lib
 from .events import FFIEventLogger, FFIEventTracker
 from _pytest._code import Source
 
-from .direct_imap import ImapConn
-
 import deltachat
 
 

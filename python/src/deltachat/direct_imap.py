@@ -29,7 +29,7 @@ class ImapConn():
         messages = self.reselect_folder()
         try:
             self.original_msg_count = int(messages[0])
-            print("dbg", str(messages))          
+            print("dbg", str(messages))
         except IndexError:
             self.original_msg_count = 0
 
@@ -80,13 +80,13 @@ class ImapConn():
     def __del__(self):
         try:
             self.connection.close()
-        except:
-            pass
+        except Exception:
+            print("Could not close direct_imap conn")
         try:
             self.connection.logout()
-        except:
-            pass
-        
+        except Exception:
+            print("Could not logout direct_imap conn")
+
 
 def make_direct_imap(account, folder):
     conn_info = (account.get_config("configured_mail_server"),
@@ -94,8 +94,10 @@ def make_direct_imap(account, folder):
     imap = ImapConn(folder, conn_info=conn_info)
     return imap
 
+
 def print_imap_structure(database, dir="."):
     print_imap_structure_ac(Account(database), dir)
+
 
 def print_imap_structure_ac(ac, dir="."):
     acinfo = ac.logid + "-" + ac.get_config("addr")
