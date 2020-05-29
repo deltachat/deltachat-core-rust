@@ -179,6 +179,9 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "Unknown Sender for this chat. See 'info' for more details."))]
     UnknownSenderForChat = 72,
+
+    #[strum(props(fallback = "Message from %1$s"))]
+    SubjectForNewContact = 73,
 }
 
 /*
