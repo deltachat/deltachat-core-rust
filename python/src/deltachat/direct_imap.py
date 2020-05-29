@@ -29,7 +29,6 @@ class ImapConn():
         messages = self.reselect_folder()
         try:
             self.original_msg_count = int(messages[0])
-            print("dbg", str(messages))
         except IndexError:
             self.original_msg_count = 0
 
@@ -65,7 +64,6 @@ class ImapConn():
     def get_new_email_cnt(self):
         messages = self.reselect_folder()
         try:
-            print("get_new_email_cnt, messages:", messages, "original:", self.original_msg_count)
             return int(messages[0]) - self.original_msg_count
         except IndexError:
             return 0
