@@ -1555,31 +1555,49 @@ mod tests {
         assert!(addr_cmp(" mailto:AA@AA.ORG", "Aa@Aa.orG"));
     }
 
-    #[test]
-    fn test_name_in_address() {
-        let t = dummy_context();
+    #[async_std::test]
+    async fn test_name_in_address() {
+        let t = dummy_context().await;
 
-        let contact_id = Contact::create(&t.ctx, "", "<dave@example.org>").unwrap();
-        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        let contact_id = Contact::create(&t.ctx, "", "<dave@example.org>")
+            .await
+            .unwrap();
+        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
         assert_eq!(contact.get_name(), "");
         assert_eq!(contact.get_addr(), "dave@example.org");
 
-        let contact_id = Contact::create(&t.ctx, "", "Mueller, Dave <dave@example.org>").unwrap();
-        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        let contact_id = Contact::create(&t.ctx, "", "Mueller, Dave <dave@example.org>")
+            .await
+            .unwrap();
+        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
         assert_eq!(contact.get_name(), "Dave Mueller");
         assert_eq!(contact.get_addr(), "dave@example.org");
 
-        let contact_id = Contact::create(&t.ctx, "name1", "name2 <dave@example.org>").unwrap();
-        let contact = Contact::load_from_db(&t.ctx, contact_id).unwrap();
+        let contact_id = Contact::create(&t.ctx, "name1", "name2 <dave@example.org>")
+            .await
+            .unwrap();
+        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
         assert_eq!(contact.get_name(), "name1");
         assert_eq!(contact.get_addr(), "dave@example.org");
 
-        assert!(Contact::create(&t.ctx, "", "<dskjfdslk@sadklj.dk").is_err());
-        assert!(Contact::create(&t.ctx, "", "<dskjf>dslk@sadklj.dk>").is_err());
-        assert!(Contact::create(&t.ctx, "", "dskjfdslksadklj.dk").is_err());
-        assert!(Contact::create(&t.ctx, "", "dskjfdslk@sadklj.dk>").is_err());
-        assert!(Contact::create(&t.ctx, "", "dskjf@dslk@sadkljdk").is_err());
-        assert!(Contact::create(&t.ctx, "", "dskjf dslk@d.e").is_err());
-        assert!(Contact::create(&t.ctx, "", "<dskjf dslk@sadklj.dk").is_err());
+        assert!(Contact::create(&t.ctx, "", "<dskjfdslk@sadklj.dk")
+            .await
+            .is_err());
+        assert!(Contact::create(&t.ctx, "", "<dskjf>dslk@sadklj.dk>")
+            .await
+            .is_err());
+        assert!(Contact::create(&t.ctx, "", "dskjfdslksadklj.dk")
+            .await
+            .is_err());
+        assert!(Contact::create(&t.ctx, "", "dskjfdslk@sadklj.dk>")
+            .await
+            .is_err());
+        assert!(Contact::create(&t.ctx, "", "dskjf@dslk@sadkljdk")
+            .await
+            .is_err());
+        assert!(Contact::create(&t.ctx, "", "dskjf dslk@d.e").await.is_err());
+        assert!(Contact::create(&t.ctx, "", "<dskjf dslk@sadklj.dk")
+            .await
+            .is_err());
     }
 }
