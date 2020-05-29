@@ -121,7 +121,6 @@ impl Context {
 async fn configure(ctx: &Context, imap: &mut Imap, param: &mut LoginParam) -> Result<()> {
     let mut param_autoconfig: Option<LoginParam> = None;
     let mut keep_flags = 0;
-    let mut use_autoconfig = true;
 
     // Read login parameters from the database
     progress!(ctx, 1);
@@ -170,35 +169,31 @@ async fn configure(ctx: &Context, imap: &mut Imap, param: &mut LoginParam) -> Re
             // got parameters from our provider-database, skip Autoconfig, preserve the OAuth2 setting
             param_autoconfig = Some(new_param);
         }
-    } else {
-        // advanced parameters entered by the user: skip Autoconfig
-        use_autoconfig = false;
-    }
 
-    if param_autoconfig.is_none() {
-        param_autoconfig = get_autoconfig(ctx, param, &param_domain, &param_addr_urlencoded).await;
+        if param_autoconfig.is_none() {
+            param_autoconfig =
+                get_autoconfig(ctx, param, &param_domain, &param_addr_urlencoded).await;
+        }
     }
 
     // C.  Do we have any autoconfig result?
     progress!(ctx, 500);
-    if use_autoconfig {
-        if let Some(ref cfg) = param_autoconfig {
-            info!(ctx, "Got autoconfig: {}", &cfg);
-            if !cfg.mail_user.is_empty() {
-                param.mail_user = cfg.mail_user.clone();
-            }
-            // all other values are always NULL when entering autoconfig
-            param.mail_server = cfg.mail_server.clone();
-            param.mail_port = cfg.mail_port;
-            param.send_server = cfg.send_server.clone();
-            param.send_port = cfg.send_port;
-            param.send_user = cfg.send_user.clone();
-            param.server_flags = cfg.server_flags;
-            // although param_autoconfig's data are no longer needed from,
-            // it is used to later to prevent trying variations of port/server/logins
+    if let Some(ref cfg) = param_autoconfig {
+        info!(ctx, "Got autoconfig: {}", &cfg);
+        if !cfg.mail_user.is_empty() {
+            param.mail_user = cfg.mail_user.clone();
         }
-        param.server_flags |= keep_flags;
+        // all other values are always NULL when entering autoconfig
+        param.mail_server = cfg.mail_server.clone();
+        param.mail_port = cfg.mail_port;
+        param.send_server = cfg.send_server.clone();
+        param.send_port = cfg.send_port;
+        param.send_user = cfg.send_user.clone();
+        param.server_flags = cfg.server_flags;
+        // although param_autoconfig's data are no longer needed from,
+        // it is used to later to prevent trying variations of port/server/logins
     }
+    param.server_flags |= keep_flags;
 
     // Step 3: Fill missing fields with defaults
     if param.mail_server.is_empty() {
