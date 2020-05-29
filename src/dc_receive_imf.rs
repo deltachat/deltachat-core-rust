@@ -749,24 +749,30 @@ async fn add_parts(
         }
     }
 
-    || -> Result<()> {
-        let mut chat = Chat::load_from_db(context, *chat_id)?;
+    async fn update_last_subject(
+        context: &Context,
+        chat_id: ChatId,
+        mime_parser: &MimeMessage,
+    ) -> Result<()> {
+        let mut chat = Chat::load_from_db(context, chat_id).await?;
         chat.param.set(
             Param::LastSubject,
             mime_parser
                 .get_subject()
                 .ok_or_else(|| format_err!("No subject in email"))?,
         );
-        chat.update_param(context)?;
+        chat.update_param(context).await?;
         Ok(())
-    }()
-    .unwrap_or_else(|e| {
-        warn!(
-            context,
-            "Could not update LastSubject of chat: {}",
-            e.to_string()
-        )
-    });
+    }
+    update_last_subject(context, chat_id, mime_parser)
+        .await
+        .unwrap_or_else(|e| {
+            warn!(
+                context,
+                "Could not update LastSubject of chat: {}",
+                e.to_string()
+            )
+        });
 
     Ok(())
 }

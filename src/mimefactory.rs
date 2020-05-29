@@ -374,16 +374,19 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                             )
                         }
                         None => {
-                            let raw = message::get_summarytext_by_raw(
-                                self.msg.viewtype,
-                                Some(""),
-                                &self.msg.param,
-                                32,
-                                self.context,
-                            )
-                            .await;
-                            let raw_subject = raw.lines().next().unwrap_or_default();
-                            format!("Chat: {}", raw_subject)
+                            let self_name =
+                                match self.context.get_config(Config::Displayname).await {
+                                    Some(name) => Some(name),
+                                    None => self.context.get_config(Config::Displayname).await,
+                                }
+                                .unwrap_or_else(|| "Delta Chat".to_string());
+
+                            self.context
+                                .stock_string_repl_str(
+                                    StockMessage::SubjectForNewContact,
+                                    self_name,
+                                )
+                                .await
                         }
                     }
                 }
@@ -1262,20 +1265,25 @@ mod tests {
 
     use crate::test_utils::{dummy_context, TestContext};
 
-    fn configured_offline_context() -> TestContext {
-        let t = dummy_context();
+    async fn configured_offline_context() -> TestContext {
+        let t = dummy_context().await;
         t.ctx
             .set_config(Config::Addr, Some("alice@example.org"))
+            .await
             .unwrap();
         t.ctx
             .set_config(Config::ConfiguredAddr, Some("alice@example.org"))
+            .await
             .unwrap();
-        t.ctx.set_config(Config::Configured, Some("1")).unwrap();
+        t.ctx
+            .set_config(Config::Configured, Some("1"))
+            .await
+            .unwrap();
         t
     }
 
-    #[test]
-    fn test_subject() {
+    #[async_std::test]
+    async fn test_subject() {
         // 1.: Receive a mail from an MUA or Delta Chat
         assert_eq!(
             msg_to_subject_str(
@@ -1286,7 +1294,8 @@ mod tests {
                 Date: Sun, 22 Mar 2020 22:37:56 +0000\n\
                 \n\
                 hello\n"
-            ),
+            )
+            .await,
             "Re: Chat: hello"
         );
 
@@ -1301,28 +1310,39 @@ mod tests {
                 Date: Sun, 22 Mar 2020 22:37:56 +0000\n\
                 \n\
                 hello\n"
-            ),
+            )
+            .await,
             "Re: Chat: hello"
         );
 
         // 3. Send the first message to a new contact
-        let t = configured_offline_context();
-        t.ctx.set_config(Config::ShowEmails, Some("2")).unwrap();
+        let t = configured_offline_context().await;
+        t.ctx
+            .set_config(Config::ShowEmails, Some("2"))
+            .await
+            .unwrap();
 
         let contact_id =
             Contact::add_or_lookup(&t.ctx, "Dave", "dave@example.org", Origin::ManuallyCreated)
+                .await
                 .unwrap()
                 .0;
 
-        let chat_id = chat::create_by_contact_id(&t.ctx, contact_id).unwrap();
+        let chat_id = chat::create_by_contact_id(&t.ctx, contact_id)
+            .await
+            .unwrap();
 
         let mut new_msg = Message::new(Viewtype::Text);
         new_msg.set_text(Some("Hi".to_string()));
         new_msg.chat_id = chat_id;
-        chat::prepare_msg(&t.ctx, chat_id, &mut new_msg).unwrap();
+        chat::prepare_msg(&t.ctx, chat_id, &mut new_msg)
+            .await
+            .unwrap();
 
-        let mf = MimeFactory::from_msg(&t.ctx, &new_msg, false).unwrap();
-        assert_eq!(mf.subject_str(), "Chat: ");
+        let mf = MimeFactory::from_msg(&t.ctx, &new_msg, false)
+            .await
+            .unwrap();
+        assert_eq!(mf.subject_str().await, "Chat: ");
 
         // 4. Receive messages with unicode characters and make sure that we do not panic (we do not care about the result)
         msg_to_subject_str(
@@ -1335,7 +1355,8 @@ mod tests {
             \n\
             hello\n"
                 .as_bytes(),
-        );
+        )
+        .await;
 
         msg_to_subject_str(
             "From: Charlie <charlie@example.org>\n\
@@ -1347,28 +1368,40 @@ mod tests {
             \n\
             hello\n"
                 .as_bytes(),
-        );
+        )
+        .await;
     }
 
-    fn msg_to_subject_str(imf_raw: &[u8]) -> String {
+    async fn msg_to_subject_str(imf_raw: &[u8]) -> String {
         use crate::chatlist::Chatlist;
         use crate::dc_receive_imf::dc_receive_imf;
 
-        let t = configured_offline_context();
-        t.ctx.set_config(Config::ShowEmails, Some("2")).unwrap();
+        let t = configured_offline_context().await;
+        t.ctx
+            .set_config(Config::ShowEmails, Some("2"))
+            .await
+            .unwrap();
 
-        dc_receive_imf(&t.ctx, imf_raw, "INBOX", 1, false).unwrap();
+        dc_receive_imf(&t.ctx, imf_raw, "INBOX", 1, false)
+            .await
+            .unwrap();
 
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).unwrap();
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
 
-        let chat_id = chat::create_by_msg_id(&t.ctx, chats.get_msg_id(0).unwrap()).unwrap();
+        let chat_id = chat::create_by_msg_id(&t.ctx, chats.get_msg_id(0).unwrap())
+            .await
+            .unwrap();
 
         let mut new_msg = Message::new(Viewtype::Text);
         new_msg.set_text(Some("Hi".to_string()));
         new_msg.chat_id = chat_id;
-        chat::prepare_msg(&t.ctx, chat_id, &mut new_msg).unwrap();
+        chat::prepare_msg(&t.ctx, chat_id, &mut new_msg)
+            .await
+            .unwrap();
 
-        let mf = MimeFactory::from_msg(&t.ctx, &new_msg, false).unwrap();
-        mf.subject_str()
+        let mf = MimeFactory::from_msg(&t.ctx, &new_msg, false)
+            .await
+            .unwrap();
+        mf.subject_str().await
     }
 }
