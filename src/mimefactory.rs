@@ -379,7 +379,9 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                                     Some(name) => Some(name),
                                     None => self.context.get_config(Config::Displayname).await,
                                 }
-                                .unwrap_or_else(|| "Delta Chat".to_string());
+                                .unwrap_or_else(|| {
+                                    self.context.stock_str(StockMessage::MessengerName)
+                                });
 
                             self.context
                                 .stock_string_repl_str(
