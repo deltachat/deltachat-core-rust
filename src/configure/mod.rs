@@ -69,17 +69,8 @@ impl Context {
         info!(self, "Configure ...");
 
         let was_configured_before = self.is_configured().await;
-
-        let (_s, r) = async_std::sync::channel(1);
-        let mut imap = Imap::new(r);
         let mut param = LoginParam::from_database(self, "").await;
-
-        let success = configure(self, &mut imap, &mut param).await;
-
-        if imap.is_connected() {
-            imap.disconnect(self).await;
-            drop(imap);
-        }
+        let success = configure(self, &mut param).await;
 
         if let Some(provider) = provider::get_provider_info(&param.addr) {
             if !was_configured_before {
@@ -117,8 +108,7 @@ impl Context {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-async fn configure(ctx: &Context, imap: &mut Imap, param: &mut LoginParam) -> Result<()> {
+async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     let mut param_autoconfig: Option<LoginParam> = None;
     let mut keep_flags = 0;
 
@@ -130,8 +120,7 @@ async fn configure(ctx: &Context, imap: &mut Imap, param: &mut LoginParam) -> Re
 
     if 0 != param.server_flags & DC_LP_AUTH_OAUTH2 {
         // the used oauth2 addr may differ, check this.
-        // if dc_get_oauth2_addr() is not available in the oauth2 implementation,
-        // just use the given one.
+        // if dc_get_oauth2_addr() is not available in the oauth2 implementation, just use the given one.
         progress!(ctx, 10);
         if let Some(oauth2_addr) = dc_get_oauth2_addr(ctx, &param.addr, &param.mail_pw)
             .await
@@ -155,7 +144,8 @@ async fn configure(ctx: &Context, imap: &mut Imap, param: &mut LoginParam) -> Re
     progress!(ctx, 200);
 
     // param.mail_user.is_empty() -- the user can enter a loginname which is used by autoconfig then
-    // param.send_pw.is_empty() -- the password cannot be auto-configured and is no criterion for autoconfig or not
+    // param.send_pw.is_empty()   -- the password cannot be auto-configured and is no criterion for
+    //                               autoconfig or not
     if param.mail_server.is_empty()
         && param.mail_port == 0
         && param.send_server.is_empty()
@@ -254,39 +244,43 @@ async fn configure(ctx: &Context, imap: &mut Imap, param: &mut LoginParam) -> Re
     }
 
     // do we have a complete configuration?
-    if param.mail_server.is_empty()
-        || param.mail_port == 0
-        || param.mail_user.is_empty()
-        || param.mail_pw.is_empty()
-        || param.send_server.is_empty()
-        || param.send_port == 0
-        || param.send_user.is_empty()
-        || param.send_pw.is_empty()
-        || param.server_flags == 0
-    {
-        bail!("Account settings incomplete.");
-    }
+    ensure!(
+        !param.mail_server.is_empty()
+            && param.mail_port != 0
+            && !param.mail_user.is_empty()
+            && !param.mail_pw.is_empty()
+            && !param.send_server.is_empty()
+            && param.send_port != 0
+            && !param.send_user.is_empty()
+            && !param.send_pw.is_empty()
+            && param.server_flags != 0,
+        "Account settings incomplete."
+    );
 
     progress!(ctx, 600);
     // try to connect to IMAP - if we did not got an autoconfig,
     // do some further tries with different settings and username variations
-    try_imap_connections(ctx, param, param_autoconfig.is_some(), imap).await?;
+    let (_s, r) = async_std::sync::channel(1);
+    let mut imap = Imap::new(r);
 
+    try_imap_connections(ctx, param, param_autoconfig.is_some(), &mut imap).await?;
     progress!(ctx, 800);
-    try_smtp_connections(ctx, param, param_autoconfig.is_some()).await?;
 
+    try_smtp_connections(ctx, param, param_autoconfig.is_some()).await?;
     progress!(ctx, 900);
 
     let create_mvbox = ctx.get_config_bool(Config::MvboxWatch).await
         || ctx.get_config_bool(Config::MvboxMove).await;
 
-    if let Err(err) = imap.configure_folders(ctx, create_mvbox).await {
-        bail!("configuring folders failed: {:?}", err);
-    }
+    imap.configure_folders(ctx, create_mvbox)
+        .await
+        .context("configuring folders failed")?;
 
-    if let Err(err) = imap.select_with_uidvalidity(ctx, "INBOX").await {
-        bail!("could not read INBOX status: {:?}", err);
-    }
+    imap.select_with_uidvalidity(ctx, "INBOX")
+        .await
+        .context("could not read INBOX status")?;
+
+    drop(imap);
 
     progress!(ctx, 910);
     // configuration success - write back the configured parameters with the
@@ -296,9 +290,7 @@ async fn configure(ctx: &Context, imap: &mut Imap, param: &mut LoginParam) -> Re
     ctx.sql.set_raw_config_bool(ctx, "configured", true).await?;
 
     progress!(ctx, 920);
-    // we generate the keypair just now - we could also postpone this until the first message is sent, however,
-    // this may result in a unexpected and annoying delay when the user sends his very first message
-    // (~30 seconds on a Moto G4 play) and might looks as if message sending is always that slow.
+
     e2ee::ensure_secret_key_exists(ctx).await?;
     info!(ctx, "key generation completed");
 
@@ -314,12 +306,49 @@ enum AutoconfigProvider {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-struct AutconfigSource {
+struct AutoconfigSource {
     provider: AutoconfigProvider,
     url: String,
 }
 
-impl AutconfigSource {
+impl AutoconfigSource {
+    fn all(domain: &str, addr: &str) -> [Self; 5] {
+        [
+            AutoconfigSource {
+                provider: AutoconfigProvider::Mozilla,
+                url: format!(
+                    "https://autoconfig.{}/mail/config-v1.1.xml?emailaddress={}",
+                    domain, addr,
+                ),
+            },
+            // the doc does not mention `emailaddress=`, however, Thunderbird adds it, see https://releases.mozilla.org/pub/thunderbird/ ,  which makes some sense
+            AutoconfigSource {
+                provider: AutoconfigProvider::Mozilla,
+                url: format!(
+                    "https://{}/.well-known/autoconfig/mail/config-v1.1.xml?emailaddress={}",
+                    domain, addr
+                ),
+            },
+            AutoconfigSource {
+                provider: AutoconfigProvider::Outlook,
+                url: format!("https://{}/autodiscover/autodiscover.xml", domain),
+            },
+            // Outlook uses always SSL but different domains (this comment describes the next two steps)
+            AutoconfigSource {
+                provider: AutoconfigProvider::Outlook,
+                url: format!(
+                    "https://{}{}/autodiscover/autodiscover.xml",
+                    "autodiscover.", domain
+                ),
+            },
+            // always SSL for Thunderbird's database
+            AutoconfigSource {
+                provider: AutoconfigProvider::Mozilla,
+                url: format!("https://autoconfig.thunderbird.net/v1.1/{}", domain),
+            },
+        ]
+    }
+
     async fn fetch(&self, ctx: &Context, param: &LoginParam) -> Result<LoginParam> {
         let params = match self.provider {
             AutoconfigProvider::Mozilla => moz_autoconfigure(ctx, &self.url, &param).await?,
@@ -340,73 +369,21 @@ async fn get_autoconfig(
     param_domain: &str,
     param_addr_urlencoded: &str,
 ) -> Option<LoginParam> {
-    let mut param_autoconfig = None;
-
-    let urls = [
-        AutconfigSource {
-            provider: AutoconfigProvider::Mozilla,
-            url: format!(
-                "https://autoconfig.{}/mail/config-v1.1.xml?emailaddress={}",
-                param_domain, param_addr_urlencoded
-            ),
-        },
-        // the doc does not mention `emailaddress=`, however, Thunderbird adds it, see https://releases.mozilla.org/pub/thunderbird/ ,  which makes some sense
-        AutconfigSource {
-            provider: AutoconfigProvider::Mozilla,
-            url: format!(
-                "https://{}/.well-known/autoconfig/mail/config-v1.1.xml?emailaddress={}",
-                param_domain, param_addr_urlencoded
-            ),
-        },
-        AutconfigSource {
-            provider: AutoconfigProvider::Outlook,
-            url: format!("https://{}/autodiscover/autodiscover.xml", param_domain),
-        },
-        // Outlook uses always SSL but different domains (this comment describes the next two steps)
-        AutconfigSource {
-            provider: AutoconfigProvider::Outlook,
-            url: format!(
-                "https://{}{}/autodiscover/autodiscover.xml",
-                "autodiscover.", param_domain
-            ),
-        },
-        AutconfigSource {
-            provider: AutoconfigProvider::Mozilla,
-            url: format!(
-                "http://autoconfig.{}/mail/config-v1.1.xml?emailaddress={}",
-                param_domain, param_addr_urlencoded
-            ),
-        }, // do not transfer the email-address unencrypted
-        AutconfigSource {
-            provider: AutoconfigProvider::Mozilla,
-            url: format!(
-                "http://{}/.well-known/autoconfig/mail/config-v1.1.xml",
-                param_domain
-            ),
-        },
-        // always SSL for Thunderbird's database
-        AutconfigSource {
-            provider: AutoconfigProvider::Mozilla,
-            url: format!("https://autoconfig.thunderbird.net/v1.1/{}", param_domain),
-        },
-    ];
+    let sources = AutoconfigSource::all(param_domain, param_addr_urlencoded);
 
     let mut progress = 300;
-    for source in &urls {
-        let result = source.fetch(ctx, param).await;
+    for source in &sources {
+        let res = source.fetch(ctx, param).await;
         progress!(ctx, progress);
         progress += 10;
-
-        if let Ok(config) = result {
-            param_autoconfig = Some(config);
-            break;
+        if let Ok(res) = res {
+            return Some(res);
         }
     }
 
-    param_autoconfig
+    None
 }
 
-#[allow(clippy::unnecessary_unwrap)]
 fn get_offline_autoconfig(context: &Context, param: &LoginParam) -> Option<LoginParam> {
     info!(
         context,
@@ -422,37 +399,35 @@ fn get_offline_autoconfig(context: &Context, param: &LoginParam) -> Option<Login
                 // however, rewriting the code to "if let" would make things less obvious,
                 // esp. if we allow more combinations of servers (pop, jmap).
                 // therefore, #[allow(clippy::unnecessary_unwrap)] is added above.
-                if imap.is_some() && smtp.is_some() {
-                    let imap = imap.unwrap();
-                    let smtp = smtp.unwrap();
+                if let Some(imap) = imap {
+                    if let Some(smtp) = smtp {
+                        let mut p = LoginParam::new();
+                        p.addr = param.addr.clone();
 
-                    let mut p = LoginParam::new();
-                    p.addr = param.addr.clone();
+                        p.mail_server = imap.hostname.to_string();
+                        p.mail_user = imap.apply_username_pattern(param.addr.clone());
+                        p.mail_port = imap.port as i32;
+                        p.imap_certificate_checks = CertificateChecks::AcceptInvalidCertificates;
+                        p.server_flags |= match imap.socket {
+                            provider::Socket::STARTTLS => DC_LP_IMAP_SOCKET_STARTTLS,
+                            provider::Socket::SSL => DC_LP_IMAP_SOCKET_SSL,
+                        };
 
-                    p.mail_server = imap.hostname.to_string();
-                    p.mail_user = imap.apply_username_pattern(param.addr.clone());
-                    p.mail_port = imap.port as i32;
-                    p.imap_certificate_checks = CertificateChecks::AcceptInvalidCertificates;
-                    p.server_flags |= match imap.socket {
-                        provider::Socket::STARTTLS => DC_LP_IMAP_SOCKET_STARTTLS,
-                        provider::Socket::SSL => DC_LP_IMAP_SOCKET_SSL,
-                    };
+                        p.send_server = smtp.hostname.to_string();
+                        p.send_user = smtp.apply_username_pattern(param.addr.clone());
+                        p.send_port = smtp.port as i32;
+                        p.smtp_certificate_checks = CertificateChecks::AcceptInvalidCertificates;
+                        p.server_flags |= match smtp.socket {
+                            provider::Socket::STARTTLS => DC_LP_SMTP_SOCKET_STARTTLS as i32,
+                            provider::Socket::SSL => DC_LP_SMTP_SOCKET_SSL as i32,
+                        };
 
-                    p.send_server = smtp.hostname.to_string();
-                    p.send_user = smtp.apply_username_pattern(param.addr.clone());
-                    p.send_port = smtp.port as i32;
-                    p.smtp_certificate_checks = CertificateChecks::AcceptInvalidCertificates;
-                    p.server_flags |= match smtp.socket {
-                        provider::Socket::STARTTLS => DC_LP_SMTP_SOCKET_STARTTLS as i32,
-                        provider::Socket::SSL => DC_LP_SMTP_SOCKET_SSL as i32,
-                    };
-
-                    info!(context, "offline autoconfig found: {}", p);
-                    return Some(p);
-                } else {
-                    info!(context, "offline autoconfig found, but no servers defined");
-                    return None;
+                        info!(context, "offline autoconfig found: {}", p);
+                        return Some(p);
+                    }
                 }
+                info!(context, "offline autoconfig found, but no servers defined");
+                return None;
             }
             provider::Status::BROKEN => {
                 info!(context, "offline autoconfig found, provider is broken");
@@ -533,16 +508,12 @@ async fn try_imap_one_param(context: &Context, param: &LoginParam, imap: &mut Im
         return Ok(());
     }
 
-    if context.shall_stop_ongoing().await {
-        bail!("Interrupted");
-    }
-
     bail!("Could not connect: {}", inf);
 }
 
 async fn try_smtp_connections(
     context: &Context,
-    mut param: &mut LoginParam,
+    param: &mut LoginParam,
     was_autoconfig: bool,
 ) -> Result<()> {
     let mut smtp = Smtp::new();
@@ -563,6 +534,7 @@ async fn try_smtp_connections(
         return Ok(());
     }
     progress!(context, 860);
+
     param.server_flags &= !(DC_LP_SMTP_SOCKET_FLAGS as i32);
     param.server_flags |= DC_LP_SMTP_SOCKET_STARTTLS as i32;
     param.send_port = 25;
