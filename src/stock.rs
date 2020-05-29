@@ -182,6 +182,9 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "Message from %1$s"))]
     SubjectForNewContact = 73,
+
+    #[strum(props(fallback = "Delta Chat"))]
+    MessengerName = 74,
 }
 
 /*
