@@ -3,6 +3,8 @@
 use async_std::path::PathBuf;
 use deltachat_derive::*;
 use itertools::Itertools;
+use lazy_static::lazy_static;
+use regex::Regex;
 
 use crate::aheader::EncryptPreference;
 use crate::chat::ChatId;
@@ -237,6 +239,8 @@ impl Contact {
             !addr.as_ref().is_empty(),
             "Cannot create contact with empty address"
         );
+
+        let (name, addr) = sanitize_name_and_addr(name, addr);
 
         let (contact_id, sth_modified) =
             Contact::add_or_lookup(context, name, addr, Origin::ManuallyCreated).await?;
@@ -1030,6 +1034,24 @@ pub fn addr_normalize(addr: &str) -> &str {
     norm
 }
 
+fn sanitize_name_and_addr(name: impl AsRef<str>, addr: impl AsRef<str>) -> (String, String) {
+    lazy_static! {
+        static ref ADDR_WITH_NAME_REGEX: Regex = Regex::new("(.*)<(.*)>").unwrap();
+    }
+    if let Some(captures) = ADDR_WITH_NAME_REGEX.captures(addr.as_ref()) {
+        (
+            if name.as_ref().is_empty() {
+                normalize_name(&captures[1])
+            } else {
+                name.as_ref().to_string()
+            },
+            captures[2].to_string(),
+        )
+    } else {
+        (name.as_ref().to_string(), addr.as_ref().to_string())
+    }
+}
+
 async fn set_block_contact(context: &Context, contact_id: u32, new_blocking: bool) {
     if contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
         return;
@@ -1204,6 +1226,10 @@ mod tests {
         assert_eq!(may_be_valid_addr("u@d.tt"), true);
         assert_eq!(may_be_valid_addr("u@.tt"), false);
         assert_eq!(may_be_valid_addr("@d.tt"), false);
+        assert_eq!(may_be_valid_addr("<da@d.tt"), false);
+        assert_eq!(may_be_valid_addr("sk <@d.tt>"), false);
+        assert_eq!(may_be_valid_addr("as@sd.de>"), false);
+        assert_eq!(may_be_valid_addr("ask dkl@dd.tt"), false);
     }
 
     #[test]
@@ -1529,5 +1555,51 @@ mod tests {
         assert!(addr_cmp("AA@AA.ORG", "aa@aa.ORG"));
         assert!(addr_cmp(" aa@aa.ORG ", "AA@AA.ORG"));
         assert!(addr_cmp(" mailto:AA@AA.ORG", "Aa@Aa.orG"));
+    }
+
+    #[async_std::test]
+    async fn test_name_in_address() {
+        let t = dummy_context().await;
+
+        let contact_id = Contact::create(&t.ctx, "", "<dave@example.org>")
+            .await
+            .unwrap();
+        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
+        assert_eq!(contact.get_name(), "");
+        assert_eq!(contact.get_addr(), "dave@example.org");
+
+        let contact_id = Contact::create(&t.ctx, "", "Mueller, Dave <dave@example.org>")
+            .await
+            .unwrap();
+        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
+        assert_eq!(contact.get_name(), "Dave Mueller");
+        assert_eq!(contact.get_addr(), "dave@example.org");
+
+        let contact_id = Contact::create(&t.ctx, "name1", "name2 <dave@example.org>")
+            .await
+            .unwrap();
+        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
+        assert_eq!(contact.get_name(), "name1");
+        assert_eq!(contact.get_addr(), "dave@example.org");
+
+        assert!(Contact::create(&t.ctx, "", "<dskjfdslk@sadklj.dk")
+            .await
+            .is_err());
+        assert!(Contact::create(&t.ctx, "", "<dskjf>dslk@sadklj.dk>")
+            .await
+            .is_err());
+        assert!(Contact::create(&t.ctx, "", "dskjfdslksadklj.dk")
+            .await
+            .is_err());
+        assert!(Contact::create(&t.ctx, "", "dskjfdslk@sadklj.dk>")
+            .await
+            .is_err());
+        assert!(Contact::create(&t.ctx, "", "dskjf@dslk@sadkljdk")
+            .await
+            .is_err());
+        assert!(Contact::create(&t.ctx, "", "dskjf dslk@d.e").await.is_err());
+        assert!(Contact::create(&t.ctx, "", "<dskjf dslk@sadklj.dk")
+            .await
+            .is_err());
     }
 }
