@@ -374,14 +374,18 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                             )
                         }
                         None => {
-                            let self_name =
-                                match self.context.get_config(Config::Displayname).await {
-                                    Some(name) => Some(name),
-                                    None => self.context.get_config(Config::Displayname).await,
-                                }
-                                .unwrap_or_else(|| {
-                                    self.context.stock_str(StockMessage::MessengerName)
-                                });
+                            let self_name = match self.context.get_config(Config::Displayname).await
+                            {
+                                Some(name) => name,
+                                None => match self.context.get_config(Config::Addr).await {
+                                    Some(name) => name,
+                                    None => self
+                                        .context
+                                        .stock_str(StockMessage::MessengerName)
+                                        .await
+                                        .to_string(),
+                                },
+                            };
 
                             self.context
                                 .stock_string_repl_str(
@@ -1344,7 +1348,7 @@ mod tests {
         let mf = MimeFactory::from_msg(&t.ctx, &new_msg, false)
             .await
             .unwrap();
-        assert_eq!(mf.subject_str().await, "Chat: ");
+        assert_eq!(mf.subject_str().await, "Message from alice@example.org");
 
         // 4. Receive messages with unicode characters and make sure that we do not panic (we do not care about the result)
         msg_to_subject_str(
