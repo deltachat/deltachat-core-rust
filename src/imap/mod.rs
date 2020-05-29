@@ -974,7 +974,7 @@ impl Imap {
         uid: u32,
     ) -> Option<ImapActionResult> {
         if uid == 0 {
-            return Some(ImapActionResult::Failed);
+            return Some(ImapActionResult::RetryLater);
         }
         if !self.is_connected() {
             // currently jobs are only performed on the INBOX thread
@@ -1382,6 +1382,7 @@ async fn precheck_imf(
                 server_uid
             );
             update_server_uid(context, rfc724_mid, server_folder, server_uid).await;
+            context.interrupt_inbox(false).await;
         } else if old_server_uid != server_uid {
             warn!(
                 context,
@@ -1392,6 +1393,7 @@ async fn precheck_imf(
                 server_uid
             );
             update_server_uid(context, rfc724_mid, server_folder, server_uid).await;
+            context.interrupt_inbox(false).await;
         }
 
         if old_server_folder != server_folder || old_server_uid != server_uid {
