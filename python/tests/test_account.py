@@ -679,7 +679,8 @@ class TestOnlineAccount:
             time.sleep(1)  # We might need to wait because Imaplib is slower than DC-Core
         assert imap2.get_unread_cnt() == 0
 
-    def test_mark_bcc_read_on_server(self, acfactory, lp):
+    @pytest.mark.parametrize('i', range(30))
+    def test_mark_bcc_read_on_server(self, acfactory, lp, i):
         ac1 = acfactory.get_online_configuring_account(mvbox=True, move=True)
         ac2 = acfactory.get_online_configuring_account()
 
@@ -689,7 +690,7 @@ class TestOnlineAccount:
         ac2.start_io()
 
         imap1 = make_direct_imap(ac1, direct_imap.MVBOX)
-        # imap1.mark_all_read()
+        imap1.mark_all_read()
         assert imap1.get_unread_cnt() == 0
 
         chat = self.get_chat(ac1, ac2)

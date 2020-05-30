@@ -300,13 +300,11 @@ impl Context {
             .unwrap_or_default();
 
         let configured_sentbox_folder = self
-            .sql
-            .get_raw_config(self, "configured_sentbox_folder")
+            .get_config(Config::ConfiguredSentboxFolder)
             .await
             .unwrap_or_else(|| "<unset>".to_string());
         let configured_mvbox_folder = self
-            .sql
-            .get_raw_config(self, "configured_mvbox_folder")
+            .get_config(Config::ConfiguredMvboxFolder)
             .await
             .unwrap_or_else(|| "<unset>".to_string());
 
@@ -442,33 +440,19 @@ impl Context {
             .unwrap_or_default()
     }
 
-    pub fn is_inbox(&self, folder_name: impl AsRef<str>) -> bool {
-        folder_name.as_ref() == "INBOX"
+    pub async fn is_inbox(&self, folder_name: impl AsRef<str>) -> bool {
+        self.get_config(Config::ConfiguredInboxFolder).await
+            == Some(folder_name.as_ref().to_string())
     }
 
     pub async fn is_sentbox(&self, folder_name: impl AsRef<str>) -> bool {
-        let sentbox_name = self
-            .sql
-            .get_raw_config(self, "configured_sentbox_folder")
-            .await;
-        if let Some(name) = sentbox_name {
-            name == folder_name.as_ref()
-        } else {
-            false
-        }
+        self.get_config(Config::ConfiguredSentboxFolder).await
+            == Some(folder_name.as_ref().to_string())
     }
 
     pub async fn is_mvbox(&self, folder_name: impl AsRef<str>) -> bool {
-        let mvbox_name = self
-            .sql
-            .get_raw_config(self, "configured_mvbox_folder")
-            .await;
-
-        if let Some(name) = mvbox_name {
-            name == folder_name.as_ref()
-        } else {
-            false
-        }
+        self.get_config(Config::ConfiguredMvboxFolder).await
+            == Some(folder_name.as_ref().to_string())
     }
 
     pub async fn do_heuristics_moves(&self, folder: &str, msg_id: MsgId) {

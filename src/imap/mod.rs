@@ -1223,19 +1223,16 @@ impl Imap {
                 }
             }
             context
-                .sql
-                .set_raw_config(context, "configured_inbox_folder", Some("INBOX"))
+                .set_config(Config::ConfiguredInboxFolder, Some("INBOX"))
                 .await?;
             if let Some(ref mvbox_folder) = mvbox_folder {
                 context
-                    .sql
-                    .set_raw_config(context, "configured_mvbox_folder", Some(mvbox_folder))
+                    .set_config(Config::ConfiguredMvboxFolder, Some(mvbox_folder))
                     .await?;
             }
             if let Some(ref sentbox_folder) = sentbox_folder {
                 context
-                    .sql
-                    .set_raw_config(context, "configured_sentbox_folder", Some(sentbox_folder))
+                    .set_config(Config::ConfiguredSentboxFolder, Some(sentbox_folder))
                     .await?;
             }
             context
@@ -1381,8 +1378,6 @@ async fn precheck_imf(
                 server_folder,
                 server_uid
             );
-            update_server_uid(context, rfc724_mid, server_folder, server_uid).await;
-            context.interrupt_inbox(false).await;
         } else if old_server_uid != server_uid {
             warn!(
                 context,
@@ -1392,12 +1387,10 @@ async fn precheck_imf(
                 old_server_uid,
                 server_uid
             );
-            update_server_uid(context, rfc724_mid, server_folder, server_uid).await;
-            context.interrupt_inbox(false).await;
         }
 
         if old_server_folder != server_folder || old_server_uid != server_uid {
-            update_server_uid(context, &rfc724_mid, server_folder, server_uid).await;
+            update_server_uid(context, rfc724_mid, server_folder, server_uid).await;
         }
         Ok(true)
     } else {

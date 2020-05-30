@@ -5,6 +5,7 @@ from . import Account
 INBOX = "Inbox"
 SENT = "Sent"
 MVBOX = "DeltaChat"
+MVBOX_FALLBBACK = "INBOX/DeltaChat"
 DC_CONSTANT_MSG_MOVESTATE_PENDING = 1
 DC_CONSTANT_MSG_MOVESTATE_STAY = 2
 DC_CONSTANT_MSG_MOVESTATE_MOVING = 3
@@ -80,7 +81,7 @@ class ImapConn():
         try:
             self.connection.close()
         except Exception:
-            print("Could not close direct_imap conn")
+            pass
         try:
             self.connection.logout()
         except Exception:
@@ -90,8 +91,21 @@ class ImapConn():
 def make_direct_imap(account, folder):
     conn_info = (account.get_config("configured_mail_server"),
                  account.get_config("addr"), account.get_config("mail_pw"))
-    imap = ImapConn(folder, conn_info=conn_info)
-    return imap
+    # try:
+    #     return ImapConn(folder, conn_info=conn_info)
+    # except ConnectionError as e:
+    #     if folder == MVBOX:
+    #         account.log("Selecting " + MVBOX_FALLBBACK + " not " + MVBOX + " because connecting to the latter failed")
+    #         return ImapConn(MVBOX_FALLBBACK, conn_info=conn_info)
+    #     else:
+    #         raise e
+    if folder == MVBOX:
+        new_folder = account.get_config("configured_mvbox_folder")
+    else:
+        new_folder = folder
+    if new_folder != folder:
+        account.log("Making connection with " + new_folder + " not " + folder)
+    return ImapConn(new_folder, conn_info=conn_info)
 
 
 def print_imap_structure(database, dir="."):
@@ -104,13 +118,13 @@ def print_imap_structure_ac(ac, dir="."):
     print("----------------- CONFIG: -----------------")
     print(ac.get_info())
 
-    for imapfolder in [INBOX, MVBOX, SENT]:
+    for imapfolder in [INBOX, MVBOX, SENT, MVBOX_FALLBBACK]:
         try:
-            print("-----------------", imapfolder, "-----------------")
             imap = make_direct_imap(ac, imapfolder)
             c = imap.connection
             typ, data = c.search(None, 'ALL')
             c._get_tagged_response
+            print("-----------------", imapfolder, "-----------------")
             for num in data[0].split():
                 typ, data = c.fetch(num, '(RFC822)')
                 body = data[0][1]
@@ -123,5 +137,5 @@ def print_imap_structure_ac(ac, dir="."):
                 file = path.joinpath(str(info).replace("b'", "").replace("'", "").replace("\\", ""))
                 file.write_bytes(body)
                 print("Message", info, "saved as", file)
-        except ConnectionError:
-            print("Seems like there is no", imapfolder, "folder")
+        except Exception:
+            pass

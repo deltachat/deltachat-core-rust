@@ -5,7 +5,7 @@ use async_std::task;
 use crate::context::Context;
 use crate::imap::Imap;
 use crate::job::{self, Thread};
-use crate::smtp::Smtp;
+use crate::{config::Config, smtp::Smtp};
 
 pub(crate) struct StopToken;
 
@@ -104,7 +104,7 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
                 None => {
                     jobs_loaded = 0;
                     probe_network =
-                        fetch_idle(&ctx, &mut connection, "configured_inbox_folder").await;
+                        fetch_idle(&ctx, &mut connection, Config::ConfiguredInboxFolder).await;
                 }
             }
         }
@@ -121,7 +121,7 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
 }
 
 async fn fetch(ctx: &Context, connection: &mut Imap) {
-    match get_watch_folder(&ctx, "configured_inbox_folder").await {
+    match ctx.get_config(Config::ConfiguredInboxFolder).await {
         Some(watch_folder) => {
             // fetch
             if let Err(err) = connection.fetch(&ctx, &watch_folder).await {
@@ -136,8 +136,8 @@ async fn fetch(ctx: &Context, connection: &mut Imap) {
     }
 }
 
-async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: &str) -> bool {
-    match get_watch_folder(&ctx, folder).await {
+async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> bool {
+    match ctx.get_config(folder).await {
         Some(watch_folder) => {
             // fetch
             if let Err(err) = connection.fetch(&ctx, &watch_folder).await {
@@ -170,7 +170,7 @@ async fn simple_imap_loop(
     ctx: Context,
     started: Sender<()>,
     inbox_handlers: ImapConnectionHandlers,
-    folder: impl AsRef<str>,
+    folder: Config,
 ) {
     use futures::future::FutureExt;
 
@@ -193,7 +193,7 @@ async fn simple_imap_loop(
         started.send(()).await;
 
         loop {
-            fetch_idle(&ctx, &mut connection, folder.as_ref()).await;
+            fetch_idle(&ctx, &mut connection, folder).await;
         }
     };
 
@@ -286,7 +286,7 @@ impl Scheduler {
                     ctx1,
                     mvbox_start_send,
                     mvbox_handlers,
-                    "configured_mvbox_folder",
+                    Config::ConfiguredMvboxFolder,
                 )
                 .await
             }));
@@ -300,7 +300,7 @@ impl Scheduler {
                     ctx1,
                     sentbox_start_send,
                     sentbox_handlers,
-                    "configured_sentbox_folder",
+                    Config::ConfiguredSentboxFolder,
                 )
                 .await
             }));
@@ -540,22 +540,4 @@ struct ImapConnectionHandlers {
     connection: Imap,
     stop_receiver: Receiver<()>,
     shutdown_sender: Sender<()>,
-}
-
-async fn get_watch_folder(context: &Context, config_name: impl AsRef<str>) -> Option<String> {
-    match context
-        .sql
-        .get_raw_config(context, config_name.as_ref())
-        .await
-    {
-        Some(name) => Some(name),
-        None => {
-            if config_name.as_ref() == "configured_inbox_folder" {
-                // initialized with old version, so has not set configured_inbox_folder
-                Some("INBOX".to_string())
-            } else {
-                None
-            }
-        }
-    }
 }

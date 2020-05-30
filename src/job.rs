@@ -504,10 +504,7 @@ impl Job {
             warn!(context, "could not configure folders: {:?}", err);
             return Status::RetryLater;
         }
-        let dest_folder = context
-            .sql
-            .get_raw_config(context, "configured_mvbox_folder")
-            .await;
+        let dest_folder = context.get_config(Config::ConfiguredMvboxFolder).await;
 
         if let Some(dest_folder) = dest_folder {
             let server_folder = msg.server_folder.as_ref().unwrap();
@@ -612,11 +609,7 @@ impl Job {
 
     async fn empty_server(&mut self, context: &Context, imap: &mut Imap) -> Status {
         if self.foreign_id & DC_EMPTY_MVBOX > 0 {
-            if let Some(mvbox_folder) = context
-                .sql
-                .get_raw_config(context, "configured_mvbox_folder")
-                .await
-            {
+            if let Some(mvbox_folder) = &context.get_config(Config::ConfiguredMvboxFolder).await {
                 imap.empty_folder(context, &mvbox_folder).await;
             }
         }

@@ -104,6 +104,9 @@ pub enum Config {
     ConfiguredServerFlags,
     ConfiguredSendSecurity,
     ConfiguredE2EEEnabled,
+    ConfiguredInboxFolder,
+    ConfiguredMvboxFolder,
+    ConfiguredSentboxFolder,
     Configured,
 
     #[strum(serialize = "sys.version")]
@@ -137,6 +140,7 @@ impl Context {
         // Default values
         match key {
             Config::Selfstatus => Some(self.stock_str(StockMessage::StatusLine).await.into_owned()),
+            Config::ConfiguredInboxFolder => Some("INBOX".to_owned()),
             _ => key.get_str("default").map(|s| s.to_string()),
         }
     }
