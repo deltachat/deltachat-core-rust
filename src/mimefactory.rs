@@ -1302,6 +1302,20 @@ mod tests {
             "Re: Chat: hello"
         );
 
+        assert_eq!(
+            msg_to_subject_str(
+                b"From: Bob <bob@example.org>\n\
+                To: alice@example.org\n\
+                Subject: Infos: 42\n\
+                Message-ID: <2222@example.org>\n\
+                Date: Sun, 22 Mar 2020 22:37:56 +0000\n\
+                \n\
+                hello\n"
+            )
+            .await,
+            "Re: Infos: 42"
+        );
+
         // 2. Receive a message from Delta Chat when we did not send any messages before
         assert_eq!(
             msg_to_subject_str(
@@ -1320,32 +1334,14 @@ mod tests {
 
         // 3. Send the first message to a new contact
         let t = configured_offline_context().await;
+        assert_eq!(first_subject_str(t).await, "Message from alice@example.org");
+
+        let t = configured_offline_context().await;
         t.ctx
-            .set_config(Config::ShowEmails, Some("2"))
+            .set_config(Config::Displayname, Some("Alice"))
             .await
             .unwrap();
-
-        let contact_id =
-            Contact::add_or_lookup(&t.ctx, "Dave", "dave@example.org", Origin::ManuallyCreated)
-                .await
-                .unwrap()
-                .0;
-
-        let chat_id = chat::create_by_contact_id(&t.ctx, contact_id)
-            .await
-            .unwrap();
-
-        let mut new_msg = Message::new(Viewtype::Text);
-        new_msg.set_text(Some("Hi".to_string()));
-        new_msg.chat_id = chat_id;
-        chat::prepare_msg(&t.ctx, chat_id, &mut new_msg)
-            .await
-            .unwrap();
-
-        let mf = MimeFactory::from_msg(&t.ctx, &new_msg, false)
-            .await
-            .unwrap();
-        assert_eq!(mf.subject_str().await, "Message from alice@example.org");
+        assert_eq!(first_subject_str(t).await, "Message from Alice");
 
         // 4. Receive messages with unicode characters and make sure that we do not panic (we do not care about the result)
         msg_to_subject_str(
@@ -1373,6 +1369,31 @@ mod tests {
                 .as_bytes(),
         )
         .await;
+    }
+
+    async fn first_subject_str(t: TestContext) -> String {
+        let contact_id =
+            Contact::add_or_lookup(&t.ctx, "Dave", "dave@example.org", Origin::ManuallyCreated)
+                .await
+                .unwrap()
+                .0;
+
+        let chat_id = chat::create_by_contact_id(&t.ctx, contact_id)
+            .await
+            .unwrap();
+
+        let mut new_msg = Message::new(Viewtype::Text);
+        new_msg.set_text(Some("Hi".to_string()));
+        new_msg.chat_id = chat_id;
+        chat::prepare_msg(&t.ctx, chat_id, &mut new_msg)
+            .await
+            .unwrap();
+
+        let mf = MimeFactory::from_msg(&t.ctx, &new_msg, false)
+            .await
+            .unwrap();
+
+        mf.subject_str().await
     }
 
     async fn msg_to_subject_str(imf_raw: &[u8]) -> String {
