@@ -377,14 +377,11 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                             let self_name = match self.context.get_config(Config::Displayname).await
                             {
                                 Some(name) => name,
-                                None => match self.context.get_config(Config::Addr).await {
-                                    Some(name) => name,
-                                    None => self
-                                        .context
-                                        .stock_str(StockMessage::MessengerName)
-                                        .await
-                                        .to_string(),
-                                },
+                                None => self
+                                    .context
+                                    .get_config(Config::Addr)
+                                    .await
+                                    .unwrap_or_default(),
                             };
 
                             self.context
