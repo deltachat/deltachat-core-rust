@@ -18,7 +18,7 @@ use rand::{thread_rng, CryptoRng, Rng};
 use crate::constants::KeyGenType;
 use crate::dc_tools::EmailAddress;
 use crate::error::{bail, ensure, format_err, Result};
-use crate::key::DcKey;
+use crate::key::{DcKey, Fingerprint};
 use crate::keyring::Keyring;
 
 pub const HEADER_AUTOCRYPT: &str = "autocrypt-prefer-encrypt";
@@ -277,7 +277,7 @@ pub async fn pk_decrypt(
     ctext: Vec<u8>,
     private_keys_for_decryption: Keyring<SignedSecretKey>,
     public_keys_for_validation: Keyring<SignedPublicKey>,
-    ret_signature_fingerprints: Option<&mut HashSet<String>>,
+    ret_signature_fingerprints: Option<&mut HashSet<Fingerprint>>,
 ) -> Result<Vec<u8>> {
     let msgs = async_std::task::spawn_blocking(move || {
         let cursor = Cursor::new(ctext);
@@ -304,10 +304,10 @@ pub async fn pk_decrypt(
 
                 let pkeys = public_keys_for_validation.keys();
 
-                let mut fingerprints = Vec::new();
+                let mut fingerprints: Vec<Fingerprint> = Vec::new();
                 for pkey in pkeys {
                     if dec_msg.verify(&pkey.primary_key).is_ok() {
-                        let fp = DcKey::fingerprint(pkey).hex();
+                        let fp = DcKey::fingerprint(pkey);
                         fingerprints.push(fp);
                     }
                 }
@@ -474,7 +474,7 @@ mod tests {
         decrypt_keyring.add(KEYS.alice_secret.clone());
         let mut sig_check_keyring: Keyring<SignedPublicKey> = Keyring::new();
         sig_check_keyring.add(KEYS.alice_public.clone());
-        let mut valid_signatures: HashSet<String> = Default::default();
+        let mut valid_signatures: HashSet<Fingerprint> = Default::default();
         let plain = pk_decrypt(
             CTEXT_SIGNED.as_bytes().to_vec(),
             decrypt_keyring,
@@ -492,7 +492,7 @@ mod tests {
         decrypt_keyring.add(KEYS.bob_secret.clone());
         let mut sig_check_keyring = Keyring::new();
         sig_check_keyring.add(KEYS.alice_public.clone());
-        let mut valid_signatures: HashSet<String> = Default::default();
+        let mut valid_signatures: HashSet<Fingerprint> = Default::default();
         let plain = pk_decrypt(
             CTEXT_SIGNED.as_bytes().to_vec(),
             decrypt_keyring,
@@ -511,7 +511,7 @@ mod tests {
         let mut keyring = Keyring::new();
         keyring.add(KEYS.alice_secret.clone());
         let empty_keyring = Keyring::new();
-        let mut valid_signatures: HashSet<String> = Default::default();
+        let mut valid_signatures: HashSet<Fingerprint> = Default::default();
         let plain = pk_decrypt(
             CTEXT_SIGNED.as_bytes().to_vec(),
             keyring,
@@ -531,7 +531,7 @@ mod tests {
         decrypt_keyring.add(KEYS.bob_secret.clone());
         let mut sig_check_keyring = Keyring::new();
         sig_check_keyring.add(KEYS.bob_public.clone());
-        let mut valid_signatures: HashSet<String> = Default::default();
+        let mut valid_signatures: HashSet<Fingerprint> = Default::default();
         let plain = pk_decrypt(
             CTEXT_SIGNED.as_bytes().to_vec(),
             decrypt_keyring,
@@ -549,7 +549,7 @@ mod tests {
         let mut decrypt_keyring = Keyring::new();
         decrypt_keyring.add(KEYS.bob_secret.clone());
         let sig_check_keyring = Keyring::new();
-        let mut valid_signatures: HashSet<String> = Default::default();
+        let mut valid_signatures: HashSet<Fingerprint> = Default::default();
         let plain = pk_decrypt(
             CTEXT_UNSIGNED.as_bytes().to_vec(),
             decrypt_keyring,

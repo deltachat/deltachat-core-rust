@@ -10,8 +10,7 @@ use crate::constants::Blocked;
 use crate::contact::*;
 use crate::context::Context;
 use crate::error::{bail, ensure, format_err, Error};
-use crate::key::dc_format_fingerprint;
-use crate::key::dc_normalize_fingerprint;
+use crate::key::Fingerprint;
 use crate::lot::{Lot, LotState};
 use crate::param::*;
 use crate::peerstate::*;
@@ -80,6 +79,14 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
         Some(pair) => pair,
         None => (payload, ""),
     };
+    let fingerprint: Fingerprint = match fingerprint.parse() {
+        Ok(fp) => fp,
+        Err(err) => {
+            return Error::new(err)
+                .context("Failed to parse fingerprint in QR code")
+                .into()
+        }
+    };
 
     // replace & with \n to match expected param format
     let fragment = fragment.replace('&', "\n");
@@ -128,13 +135,6 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
         None
     };
 
-    let fingerprint = dc_normalize_fingerprint(fingerprint);
-
-    // ensure valid fingerprint
-    if fingerprint.len() != 40 {
-        return format_err!("Bad fingerprint length in QR code").into();
-    }
-
     let mut lot = Lot::new();
 
     // retrieve known state for this fingerprint
@@ -161,7 +161,7 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
             chat::add_info_msg(context, id, format!("{} verified.", peerstate.addr)).await;
         } else {
             lot.state = LotState::QrFprWithoutAddr;
-            lot.text1 = Some(dc_format_fingerprint(&fingerprint));
+            lot.text1 = Some(fingerprint.to_string());
         }
     } else if let Some(addr) = addr {
         if grpid.is_some() && grpname.is_some() {

@@ -9,6 +9,7 @@ use num_traits::FromPrimitive;
 use pgp::composed::Deserializable;
 use pgp::ser::Serialize;
 use pgp::types::{KeyTrait, SecretKeyTrait};
+use thiserror::Error;
 
 use crate::config::Config;
 use crate::constants::*;
@@ -106,7 +107,7 @@ pub trait DcKey: Serialize + Deserializable + KeyTrait + Clone {
 
     /// The fingerprint for the key.
     fn fingerprint(&self) -> Fingerprint {
-        Fingerprint::new(KeyTrait::fingerprint(self))
+        Fingerprint::new(KeyTrait::fingerprint(self)).expect("Invalid fingerprint from rpgp")
     }
 }
 
@@ -354,12 +355,15 @@ pub async fn store_self_keypair(
 }
 
 /// A key fingerprint
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Fingerprint(Vec<u8>);
 
 impl Fingerprint {
-    pub fn new(v: Vec<u8>) -> Fingerprint {
-        Fingerprint(v)
+    pub fn new(v: Vec<u8>) -> std::result::Result<Fingerprint, FingerprintError> {
+        match v.len() {
+            20 => Ok(Fingerprint(v)),
+            _ => Err(FingerprintError::WrongLength),
+        }
     }
 
     /// Make a hex string from the fingerprint.
@@ -389,42 +393,26 @@ impl fmt::Display for Fingerprint {
 
 /// Parse a human-readable or otherwise formatted fingerprint.
 impl std::str::FromStr for Fingerprint {
-    type Err = hex::FromHexError;
+    type Err = FingerprintError;
 
     fn from_str(input: &str) -> std::result::Result<Self, Self::Err> {
         let hex_repr: String = input
+            .to_uppercase()
             .chars()
             .filter(|&c| c >= '0' && c <= '9' || c >= 'A' && c <= 'F')
             .collect();
         let v: Vec<u8> = hex::decode(hex_repr)?;
-        Ok(Fingerprint(v))
+        let fp = Fingerprint::new(v)?;
+        Ok(fp)
     }
 }
 
-/// Bring a human-readable or otherwise formatted fingerprint back to the 40-characters-uppercase-hex format.
-pub fn dc_normalize_fingerprint(fp: &str) -> String {
-    fp.to_uppercase()
-        .chars()
-        .filter(|&c| c >= '0' && c <= '9' || c >= 'A' && c <= 'F')
-        .collect()
-}
-
-/// Make a fingerprint human-readable, in hex format.
-pub fn dc_format_fingerprint(fingerprint: &str) -> String {
-    // split key into chunks of 4 with space, and 20 newline
-    let mut res = String::new();
-
-    for (i, c) in fingerprint.chars().enumerate() {
-        if i > 0 && i % 20 == 0 {
-            res += "\n";
-        } else if i > 0 && i % 4 == 0 {
-            res += " ";
-        }
-
-        res += &c.to_string();
-    }
-
-    res
+#[derive(Debug, Error)]
+pub enum FingerprintError {
+    #[error("Invalid hex characters")]
+    NotHex(#[from] hex::FromHexError),
+    #[error("Incorrect fingerprint lengths")]
+    WrongLength,
 }
 
 #[cfg(test)]
@@ -432,28 +420,13 @@ mod tests {
     use super::*;
     use crate::test_utils::*;
 
+    use std::error::Error;
+
     use async_std::sync::Arc;
     use lazy_static::lazy_static;
 
     lazy_static! {
         static ref KEYPAIR: KeyPair = alice_keypair();
-    }
-
-    #[test]
-    fn test_normalize_fingerprint() {
-        let fingerprint = dc_normalize_fingerprint(" 1234  567890 \n AbcD abcdef ABCDEF ");
-
-        assert_eq!(fingerprint, "1234567890ABCDABCDEFABCDEF");
-    }
-
-    #[test]
-    fn test_format_fingerprint() {
-        let fingerprint = dc_format_fingerprint("1234567890ABCDABCDEFABCDEF1234567890ABCD");
-
-        assert_eq!(
-            fingerprint,
-            "1234 5678 90AB CDAB CDEF\nABCD EF12 3456 7890 ABCD"
-        );
     }
 
     #[test]
@@ -586,7 +559,6 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
     }
 
     #[async_std::test]
-    #[ignore] // generating keys is expensive
     async fn test_load_self_generate_public() {
         let t = dummy_context().await;
         t.ctx
@@ -598,7 +570,6 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
     }
 
     #[async_std::test]
-    #[ignore] // generating keys is expensive
     async fn test_load_self_generate_secret() {
         let t = dummy_context().await;
         t.ctx
@@ -610,7 +581,6 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
     }
 
     #[async_std::test]
-    #[ignore] // generating keys is expensive
     async fn test_load_self_generate_concurrent() {
         use std::thread;
 
@@ -685,32 +655,46 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
 
     #[test]
     fn test_fingerprint_from_str() {
-        let res = Fingerprint::new(vec![1, 2, 4, 8, 16, 32, 64, 128, 255]);
+        let res = Fingerprint::new(vec![
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+        ])
+        .unwrap();
 
-        let fp: Fingerprint = "0102040810204080FF".parse().unwrap();
+        let fp: Fingerprint = "0102030405060708090A0B0c0d0e0F1011121314".parse().unwrap();
         assert_eq!(fp, res);
 
-        let fp: Fingerprint = "zzzz 0102 0408\n1020 4080 FF zzz".parse().unwrap();
+        let fp: Fingerprint = "zzzz 0102 0304 0506\n0708090a0b0c0D0E0F1011121314 yyy"
+            .parse()
+            .unwrap();
         assert_eq!(fp, res);
 
         let err = "1".parse::<Fingerprint>().err().unwrap();
-        assert_eq!(err, hex::FromHexError::OddLength);
+        match err {
+            FingerprintError::NotHex(_) => (),
+            _ => panic!("Wrong error"),
+        }
+        let src_err = err.source().unwrap().downcast_ref::<hex::FromHexError>();
+        assert_eq!(src_err, Some(&hex::FromHexError::OddLength));
     }
 
     #[test]
     fn test_fingerprint_hex() {
-        let fp = Fingerprint::new(vec![1, 2, 4, 8, 16, 32, 64, 128, 255]);
-        assert_eq!(fp.hex(), "0102040810204080FF");
+        let fp = Fingerprint::new(vec![
+            1, 2, 4, 8, 16, 32, 64, 128, 255, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+        ])
+        .unwrap();
+        assert_eq!(fp.hex(), "0102040810204080FF0A0B0C0D0E0F1011121314");
     }
 
     #[test]
     fn test_fingerprint_to_string() {
         let fp = Fingerprint::new(vec![
-            1, 2, 4, 8, 16, 32, 64, 128, 255, 1, 2, 4, 8, 16, 32, 64, 128, 255,
-        ]);
+            1, 2, 4, 8, 16, 32, 64, 128, 255, 1, 2, 4, 8, 16, 32, 64, 128, 255, 19, 20,
+        ])
+        .unwrap();
         assert_eq!(
             fp.to_string(),
-            "0102 0408 1020 4080 FF01\n0204 0810 2040 80FF"
+            "0102 0408 1020 4080 FF01\n0204 0810 2040 80FF 1314"
         );
     }
 }

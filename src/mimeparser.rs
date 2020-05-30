@@ -17,6 +17,7 @@ use crate::e2ee;
 use crate::error::{bail, Result};
 use crate::events::Event;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
+use crate::key::Fingerprint;
 use crate::location;
 use crate::message;
 use crate::param::*;
@@ -44,7 +45,7 @@ pub struct MimeMessage {
     pub from: Vec<SingleInfo>,
     pub chat_disposition_notification_to: Option<SingleInfo>,
     pub decrypting_failed: bool,
-    pub signatures: HashSet<String>,
+    pub signatures: HashSet<Fingerprint>,
     pub gossipped_addr: HashSet<String>,
     pub is_forwarded: bool,
     pub is_system_message: SystemMessage,
