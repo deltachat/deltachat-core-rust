@@ -14,7 +14,7 @@ use crate::e2ee::*;
 use crate::error::{bail, Error};
 use crate::events::Event;
 use crate::headerdef::HeaderDef;
-use crate::key::{dc_normalize_fingerprint, DcKey, SignedPublicKey};
+use crate::key::{DcKey, Fingerprint, SignedPublicKey};
 use crate::lot::LotState;
 use crate::message::Message;
 use crate::mimeparser::*;
@@ -73,8 +73,6 @@ pub async fn dc_get_securejoin_qr(context: &Context, group_chat_id: ChatId) -> O
     ====   Step 1 in "Setup verified contact" protocol   ====
     =======================================================*/
 
-    let fingerprint: String;
-
     ensure_secret_key_exists(context).await.ok();
 
     // invitenumber will be used to allow starting the handshake,
@@ -95,7 +93,7 @@ pub async fn dc_get_securejoin_qr(context: &Context, group_chat_id: ChatId) -> O
         .await
         .unwrap_or_default();
 
-    fingerprint = match get_self_fingerprint(context).await {
+    let fingerprint: Fingerprint = match get_self_fingerprint(context).await {
         Some(fp) => fp,
         None => {
             return None;
@@ -140,9 +138,9 @@ pub async fn dc_get_securejoin_qr(context: &Context, group_chat_id: ChatId) -> O
     qr
 }
 
-async fn get_self_fingerprint(context: &Context) -> Option<String> {
+async fn get_self_fingerprint(context: &Context) -> Option<Fingerprint> {
     match SignedPublicKey::load_self(context).await {
-        Ok(key) => Some(key.fingerprint().hex()),
+        Ok(key) => Some(key.fingerprint()),
         Err(_) => {
             warn!(context, "get_self_fingerprint(): failed to load key");
             None
@@ -249,7 +247,7 @@ async fn securejoin(context: &Context, qr: &str) -> ChatId {
             chat_id_2_contact_id(context, contact_chat_id).await,
             400
         );
-        let own_fingerprint = get_self_fingerprint(context).await.unwrap_or_default();
+        let own_fingerprint = get_self_fingerprint(context).await;
 
         // Bob -> Alice
         if let Err(err) = send_handshake_msg(
@@ -261,7 +259,7 @@ async fn securejoin(context: &Context, qr: &str) -> ChatId {
                 "vc-request-with-auth"
             },
             get_qr_attr!(context, auth).to_string(),
-            Some(own_fingerprint),
+            own_fingerprint,
             if join_vg {
                 get_qr_attr!(context, text2).to_string()
             } else {
@@ -311,7 +309,7 @@ async fn send_handshake_msg(
     contact_chat_id: ChatId,
     step: &str,
     param2: impl AsRef<str>,
-    fingerprint: Option<String>,
+    fingerprint: Option<Fingerprint>,
     grpid: impl AsRef<str>,
 ) -> Result<(), HandshakeError> {
     let mut msg = Message::default();
@@ -328,7 +326,7 @@ async fn send_handshake_msg(
         msg.param.set(Param::Arg2, param2);
     }
     if let Some(fp) = fingerprint {
-        msg.param.set(Param::Arg3, fp);
+        msg.param.set(Param::Arg3, fp.hex());
     }
     if !grpid.as_ref().is_empty() {
         msg.param.set(Param::Arg4, grpid.as_ref());
@@ -360,7 +358,7 @@ async fn chat_id_2_contact_id(context: &Context, contact_chat_id: ChatId) -> u32
 
 async fn fingerprint_equals_sender(
     context: &Context,
-    fingerprint: impl AsRef<str>,
+    fingerprint: &Fingerprint,
     contact_chat_id: ChatId,
 ) -> bool {
     let contacts = chat::get_chat_contacts(context, contact_chat_id).await;
@@ -368,9 +366,8 @@ async fn fingerprint_equals_sender(
     if contacts.len() == 1 {
         if let Ok(contact) = Contact::load_from_db(context, contacts[0]).await {
             if let Some(peerstate) = Peerstate::from_addr(context, contact.get_addr()).await {
-                let fingerprint_normalized = dc_normalize_fingerprint(fingerprint.as_ref());
                 if peerstate.public_key_fingerprint.is_some()
-                    && &fingerprint_normalized == peerstate.public_key_fingerprint.as_ref().unwrap()
+                    && fingerprint == peerstate.public_key_fingerprint.as_ref().unwrap()
                 {
                     return true;
                 }
@@ -397,6 +394,8 @@ pub(crate) enum HandshakeError {
     NoSelfAddr,
     #[error("Failed to send message")]
     MsgSendFailed(#[source] Error),
+    #[error("Failed to parse fingerprint")]
+    BadFingerprint(#[from] crate::key::FingerprintError),
 }
 
 /// What to do with a Secure-Join handshake message after it was handled.
@@ -516,10 +515,11 @@ pub(crate) async fn handle_securejoin_handshake(
                 // no error, just aborted somehow or a mail from another handshake
                 return Ok(HandshakeMessage::Ignore);
             }
-            let scanned_fingerprint_of_alice = get_qr_attr!(context, fingerprint).to_string();
+            let scanned_fingerprint_of_alice: Fingerprint =
+                get_qr_attr!(context, fingerprint).clone();
             let auth = get_qr_attr!(context, auth).to_string();
 
-            if !encrypted_and_signed(context, mime_message, &scanned_fingerprint_of_alice) {
+            if !encrypted_and_signed(context, mime_message, Some(&scanned_fingerprint_of_alice)) {
                 could_not_establish_secure_connection(
                     context,
                     contact_chat_id,
@@ -576,8 +576,9 @@ pub(crate) async fn handle_securejoin_handshake(
             ==========================================================*/
 
             // verify that Secure-Join-Fingerprint:-header matches the fingerprint of Bob
-            let fingerprint = match mime_message.get(HeaderDef::SecureJoinFingerprint) {
-                Some(fp) => fp,
+            let fingerprint: Fingerprint = match mime_message.get(HeaderDef::SecureJoinFingerprint)
+            {
+                Some(fp) => fp.parse()?,
                 None => {
                     could_not_establish_secure_connection(
                         context,
@@ -588,7 +589,7 @@ pub(crate) async fn handle_securejoin_handshake(
                     return Ok(HandshakeMessage::Ignore);
                 }
             };
-            if !encrypted_and_signed(context, mime_message, &fingerprint) {
+            if !encrypted_and_signed(context, mime_message, Some(&fingerprint)) {
                 could_not_establish_secure_connection(
                     context,
                     contact_chat_id,
@@ -625,7 +626,7 @@ pub(crate) async fn handle_securejoin_handshake(
                     .await;
                 return Ok(HandshakeMessage::Ignore);
             }
-            if mark_peer_as_verified(context, fingerprint).await.is_err() {
+            if mark_peer_as_verified(context, &fingerprint).await.is_err() {
                 could_not_establish_secure_connection(
                     context,
                     contact_chat_id,
@@ -673,7 +674,7 @@ pub(crate) async fn handle_securejoin_handshake(
                     contact_chat_id,
                     "vc-contact-confirm",
                     "",
-                    Some(fingerprint.clone()),
+                    Some(fingerprint),
                     "",
                 )
                 .await?;
@@ -709,7 +710,8 @@ pub(crate) async fn handle_securejoin_handshake(
                 );
                 return Ok(abort_retval);
             }
-            let scanned_fingerprint_of_alice = get_qr_attr!(context, fingerprint).to_string();
+            let scanned_fingerprint_of_alice: Fingerprint =
+                get_qr_attr!(context, fingerprint).clone();
 
             let vg_expect_encrypted = if join_vg {
                 let group_id = get_qr_attr!(context, text2).to_string();
@@ -731,7 +733,7 @@ pub(crate) async fn handle_securejoin_handshake(
                 true
             };
             if vg_expect_encrypted
-                && !encrypted_and_signed(context, mime_message, &scanned_fingerprint_of_alice)
+                && !encrypted_and_signed(context, mime_message, Some(&scanned_fingerprint_of_alice))
             {
                 could_not_establish_secure_connection(
                     context,
@@ -888,7 +890,7 @@ pub(crate) async fn observe_securejoin_on_other_device(
             if !encrypted_and_signed(
                 context,
                 mime_message,
-                get_self_fingerprint(context).await.unwrap_or_default(),
+                get_self_fingerprint(context).await.as_ref(),
             ) {
                 could_not_establish_secure_connection(
                     context,
@@ -898,8 +900,9 @@ pub(crate) async fn observe_securejoin_on_other_device(
                 .await;
                 return Ok(HandshakeMessage::Ignore);
             }
-            let fingerprint = match mime_message.get(HeaderDef::SecureJoinFingerprint) {
-                Some(fp) => fp,
+            let fingerprint: Fingerprint = match mime_message.get(HeaderDef::SecureJoinFingerprint)
+            {
+                Some(fp) => fp.parse()?,
                 None => {
                     could_not_establish_secure_connection(
                         context,
@@ -910,7 +913,7 @@ pub(crate) async fn observe_securejoin_on_other_device(
                     return Ok(HandshakeMessage::Ignore);
                 }
             };
-            if mark_peer_as_verified(context, fingerprint).await.is_err() {
+            if mark_peer_as_verified(context, &fingerprint).await.is_err() {
                 could_not_establish_secure_connection(
                     context,
                     contact_chat_id,
@@ -967,16 +970,13 @@ async fn could_not_establish_secure_connection(
     error!(context, "{} ({})", &msg, details);
 }
 
-async fn mark_peer_as_verified(
-    context: &Context,
-    fingerprint: impl AsRef<str>,
-) -> Result<(), Error> {
+async fn mark_peer_as_verified(context: &Context, fingerprint: &Fingerprint) -> Result<(), Error> {
     if let Some(ref mut peerstate) =
-        Peerstate::from_fingerprint(context, &context.sql, fingerprint.as_ref()).await
+        Peerstate::from_fingerprint(context, &context.sql, fingerprint).await
     {
         if peerstate.set_verified(
             PeerstateKeyType::PublicKey,
-            fingerprint.as_ref(),
+            fingerprint,
             PeerstateVerifiedStatus::BidirectVerified,
         ) {
             peerstate.prefer_encrypt = EncryptPreference::Mutual;
@@ -990,7 +990,7 @@ async fn mark_peer_as_verified(
     }
     bail!(
         "could not mark peer as verified for fingerprint {}",
-        fingerprint.as_ref()
+        fingerprint.hex()
     );
 }
 
@@ -1001,7 +1001,7 @@ async fn mark_peer_as_verified(
 fn encrypted_and_signed(
     context: &Context,
     mimeparser: &MimeMessage,
-    expected_fingerprint: impl AsRef<str>,
+    expected_fingerprint: Option<&Fingerprint>,
 ) -> bool {
     if !mimeparser.was_encrypted() {
         warn!(context, "Message not encrypted.",);
@@ -1009,17 +1009,17 @@ fn encrypted_and_signed(
     } else if mimeparser.signatures.is_empty() {
         warn!(context, "Message not signed.",);
         false
-    } else if expected_fingerprint.as_ref().is_empty() {
-        warn!(context, "Fingerprint for comparison missing.",);
+    } else if expected_fingerprint.is_none() {
+        warn!(context, "Fingerprint for comparison missing.");
         false
     } else if !mimeparser
         .signatures
-        .contains(expected_fingerprint.as_ref())
+        .contains(expected_fingerprint.unwrap())
     {
         warn!(
             context,
             "Message does not match expected fingerprint {}.",
-            expected_fingerprint.as_ref(),
+            expected_fingerprint.unwrap(),
         );
         false
     } else {

@@ -11,7 +11,7 @@ use crate::context::Context;
 use crate::error::*;
 use crate::headerdef::HeaderDef;
 use crate::headerdef::HeaderDefMap;
-use crate::key::{DcKey, SignedPublicKey, SignedSecretKey};
+use crate::key::{DcKey, Fingerprint, SignedPublicKey, SignedSecretKey};
 use crate::keyring::*;
 use crate::peerstate::*;
 use crate::pgp;
@@ -119,7 +119,7 @@ pub async fn try_decrypt(
     context: &Context,
     mail: &ParsedMail<'_>,
     message_time: i64,
-) -> Result<(Option<Vec<u8>>, HashSet<String>)> {
+) -> Result<(Option<Vec<u8>>, HashSet<Fingerprint>)> {
     let from = mail
         .headers
         .get_header(HeaderDef::From_)
@@ -212,7 +212,7 @@ async fn decrypt_if_autocrypt_message<'a>(
     mail: &ParsedMail<'a>,
     private_keyring: Keyring<SignedSecretKey>,
     public_keyring_for_validate: Keyring<SignedPublicKey>,
-    ret_valid_signatures: &mut HashSet<String>,
+    ret_valid_signatures: &mut HashSet<Fingerprint>,
 ) -> Result<Option<Vec<u8>>> {
     //  The returned bool is true if we detected an Autocrypt-encrypted
     // message and successfully decrypted it. Decryption then modifies the
@@ -244,7 +244,7 @@ async fn decrypt_part(
     mail: &ParsedMail<'_>,
     private_keyring: Keyring<SignedSecretKey>,
     public_keyring_for_validate: Keyring<SignedPublicKey>,
-    ret_valid_signatures: &mut HashSet<String>,
+    ret_valid_signatures: &mut HashSet<Fingerprint>,
 ) -> Result<Option<Vec<u8>>> {
     let data = mail.get_body_raw()?;
 

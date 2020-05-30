@@ -7,7 +7,7 @@ use num_traits::FromPrimitive;
 
 use crate::aheader::*;
 use crate::context::Context;
-use crate::key::{DcKey, SignedPublicKey};
+use crate::key::{DcKey, Fingerprint, SignedPublicKey};
 use crate::sql::Sql;
 
 #[derive(Debug)]
@@ -32,12 +32,12 @@ pub struct Peerstate<'a> {
     pub last_seen_autocrypt: i64,
     pub prefer_encrypt: EncryptPreference,
     pub public_key: Option<SignedPublicKey>,
-    pub public_key_fingerprint: Option<String>,
+    pub public_key_fingerprint: Option<Fingerprint>,
     pub gossip_key: Option<SignedPublicKey>,
     pub gossip_timestamp: i64,
-    pub gossip_key_fingerprint: Option<String>,
+    pub gossip_key_fingerprint: Option<Fingerprint>,
     pub verified_key: Option<SignedPublicKey>,
-    pub verified_key_fingerprint: Option<String>,
+    pub verified_key_fingerprint: Option<Fingerprint>,
     pub to_save: Option<ToSave>,
     pub degrade_event: Option<DegradeEvent>,
 }
@@ -151,7 +151,7 @@ impl<'a> Peerstate<'a> {
     pub async fn from_fingerprint(
         context: &'a Context,
         _sql: &Sql,
-        fingerprint: &str,
+        fingerprint: &Fingerprint,
     ) -> Option<Peerstate<'a>> {
         let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, \
                      gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
@@ -160,13 +160,8 @@ impl<'a> Peerstate<'a> {
                      WHERE public_key_fingerprint=? COLLATE NOCASE \
                      OR gossip_key_fingerprint=? COLLATE NOCASE  \
                      ORDER BY public_key_fingerprint=? DESC;";
-
-        Self::from_stmt(
-            context,
-            query,
-            paramsv![fingerprint, fingerprint, fingerprint],
-        )
-        .await
+        let fp = fingerprint.hex();
+        Self::from_stmt(context, query, paramsv![fp, fp, fp]).await
     }
 
     async fn from_stmt(
@@ -189,33 +184,18 @@ impl<'a> Peerstate<'a> {
                 res.prefer_encrypt = EncryptPreference::from_i32(row.get(3)?).unwrap_or_default();
                 res.gossip_timestamp = row.get(5)?;
 
-                res.public_key_fingerprint = row.get(7)?;
-                if res
-                    .public_key_fingerprint
-                    .as_ref()
-                    .map(|s| s.is_empty())
-                    .unwrap_or_default()
-                {
-                    res.public_key_fingerprint = None;
-                }
-                res.gossip_key_fingerprint = row.get(8)?;
-                if res
-                    .gossip_key_fingerprint
-                    .as_ref()
-                    .map(|s| s.is_empty())
-                    .unwrap_or_default()
-                {
-                    res.gossip_key_fingerprint = None;
-                }
-                res.verified_key_fingerprint = row.get(10)?;
-                if res
-                    .verified_key_fingerprint
-                    .as_ref()
-                    .map(|s| s.is_empty())
-                    .unwrap_or_default()
-                {
-                    res.verified_key_fingerprint = None;
-                }
+                res.public_key_fingerprint = row
+                    .get::<_, Option<String>>(7)?
+                    .map(|s| s.parse::<Fingerprint>())
+                    .transpose()?;
+                res.gossip_key_fingerprint = row
+                    .get::<_, Option<String>>(8)?
+                    .map(|s| s.parse::<Fingerprint>())
+                    .transpose()?;
+                res.verified_key_fingerprint = row
+                    .get::<_, Option<String>>(10)?
+                    .map(|s| s.parse::<Fingerprint>())
+                    .transpose()?;
                 res.public_key = row
                     .get(4)
                     .ok()
@@ -238,7 +218,7 @@ impl<'a> Peerstate<'a> {
     pub fn recalc_fingerprint(&mut self) {
         if let Some(ref public_key) = self.public_key {
             let old_public_fingerprint = self.public_key_fingerprint.take();
-            self.public_key_fingerprint = Some(public_key.fingerprint().hex());
+            self.public_key_fingerprint = Some(public_key.fingerprint());
 
             if old_public_fingerprint.is_none()
                 || self.public_key_fingerprint.is_none()
@@ -253,7 +233,7 @@ impl<'a> Peerstate<'a> {
 
         if let Some(ref gossip_key) = self.gossip_key {
             let old_gossip_fingerprint = self.gossip_key_fingerprint.take();
-            self.gossip_key_fingerprint = Some(gossip_key.fingerprint().hex());
+            self.gossip_key_fingerprint = Some(gossip_key.fingerprint());
 
             if old_gossip_fingerprint.is_none()
                 || self.gossip_key_fingerprint.is_none()
@@ -387,7 +367,7 @@ impl<'a> Peerstate<'a> {
     pub fn set_verified(
         &mut self,
         which_key: PeerstateKeyType,
-        fingerprint: &str,
+        fingerprint: &Fingerprint,
         verified: PeerstateVerifiedStatus,
     ) -> bool {
         if verified == PeerstateVerifiedStatus::BidirectVerified {
@@ -445,10 +425,10 @@ impl<'a> Peerstate<'a> {
                     self.public_key.as_ref().map(|k| k.to_bytes()),
                     self.gossip_timestamp,
                     self.gossip_key.as_ref().map(|k| k.to_bytes()),
-                    self.public_key_fingerprint,
-                    self.gossip_key_fingerprint,
+                    self.public_key_fingerprint.as_ref().map(|fp| fp.hex()),
+                    self.gossip_key_fingerprint.as_ref().map(|fp| fp.hex()),
                     self.verified_key.as_ref().map(|k| k.to_bytes()),
-                    self.verified_key_fingerprint,
+                    self.verified_key_fingerprint.as_ref().map(|fp| fp.hex()),
                     self.addr,
                 ],
             ).await?;
@@ -469,7 +449,7 @@ impl<'a> Peerstate<'a> {
         Ok(())
     }
 
-    pub fn has_verified_key(&self, fingerprints: &HashSet<String>) -> bool {
+    pub fn has_verified_key(&self, fingerprints: &HashSet<Fingerprint>) -> bool {
         if self.verified_key.is_some() && self.verified_key_fingerprint.is_some() {
             let vkc = self.verified_key_fingerprint.as_ref().unwrap();
             if fingerprints.contains(vkc) {
@@ -478,6 +458,12 @@ impl<'a> Peerstate<'a> {
         }
 
         false
+    }
+}
+
+impl From<crate::key::FingerprintError> for rusqlite::Error {
+    fn from(_source: crate::key::FingerprintError) -> Self {
+        Self::InvalidColumnType(0, "Invalid fingerprint".into(), rusqlite::types::Type::Text)
     }
 }
 
@@ -502,12 +488,12 @@ mod tests {
             last_seen_autocrypt: 11,
             prefer_encrypt: EncryptPreference::Mutual,
             public_key: Some(pub_key.clone()),
-            public_key_fingerprint: Some(pub_key.fingerprint().hex()),
+            public_key_fingerprint: Some(pub_key.fingerprint()),
             gossip_key: Some(pub_key.clone()),
             gossip_timestamp: 12,
-            gossip_key_fingerprint: Some(pub_key.fingerprint().hex()),
+            gossip_key_fingerprint: Some(pub_key.fingerprint()),
             verified_key: Some(pub_key.clone()),
-            verified_key_fingerprint: Some(pub_key.fingerprint().hex()),
+            verified_key_fingerprint: Some(pub_key.fingerprint()),
             to_save: Some(ToSave::All),
             degrade_event: None,
         };
@@ -525,7 +511,7 @@ mod tests {
         peerstate.to_save = None;
         assert_eq!(peerstate, peerstate_new);
         let peerstate_new2 =
-            Peerstate::from_fingerprint(&ctx.ctx, &ctx.ctx.sql, &pub_key.fingerprint().hex())
+            Peerstate::from_fingerprint(&ctx.ctx, &ctx.ctx.sql, &pub_key.fingerprint())
                 .await
                 .expect("failed to load peerstate from db");
         assert_eq!(peerstate, peerstate_new2);
@@ -544,7 +530,7 @@ mod tests {
             last_seen_autocrypt: 11,
             prefer_encrypt: EncryptPreference::Mutual,
             public_key: Some(pub_key.clone()),
-            public_key_fingerprint: Some(pub_key.fingerprint().hex()),
+            public_key_fingerprint: Some(pub_key.fingerprint()),
             gossip_key: None,
             gossip_timestamp: 12,
             gossip_key_fingerprint: None,
@@ -578,7 +564,7 @@ mod tests {
             last_seen_autocrypt: 11,
             prefer_encrypt: EncryptPreference::Mutual,
             public_key: Some(pub_key.clone()),
-            public_key_fingerprint: Some(pub_key.fingerprint().hex()),
+            public_key_fingerprint: Some(pub_key.fingerprint()),
             gossip_key: None,
             gossip_timestamp: 12,
             gossip_key_fingerprint: None,
