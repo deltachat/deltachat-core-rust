@@ -516,8 +516,9 @@ impl Contact {
         let mut modify_cnt = 0;
 
         for (name, addr) in split_address_book(addr_book.as_ref()).into_iter() {
+            let (name, addr) = sanitize_name_and_addr(name, addr);
             let name = normalize_name(name);
-            match Contact::add_or_lookup(context, name, addr, Origin::AddressBook).await {
+            match Contact::add_or_lookup(context, name, &addr, Origin::AddressBook).await {
                 Err(err) => {
                     warn!(
                         context,
@@ -1312,9 +1313,10 @@ mod tests {
             "Name two\ntwo@deux.net\n",
             "Invalid\n+1234567890\n", // invalid, should be ignored
             "\nthree@drei.sam\n",
-            "Name two\ntwo@deux.net\n" // should not be added again
+            "Name two\ntwo@deux.net\n", // should not be added again
+            "\nWonderland, Alice <alice@w.de>\n",
         );
-        assert_eq!(Contact::add_address_book(&t.ctx, book).await.unwrap(), 3);
+        assert_eq!(Contact::add_address_book(&t.ctx, book).await.unwrap(), 4);
 
         // check first added contact, this does not modify because of lower origin
         let (contact_id, sth_modified) =
@@ -1389,6 +1391,19 @@ mod tests {
         assert_eq!(contact.get_authname(), "m. serious");
         assert_eq!(contact.get_name_n_addr(), "schnucki (three@drei.sam)");
         assert!(!contact.is_blocked());
+
+        // Fourth contact:
+        let (contact_id, sth_modified) =
+            Contact::add_or_lookup(&t.ctx, "", "alice@w.de", Origin::IncomingUnknownTo)
+                .await
+                .unwrap();
+        assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
+        assert_eq!(sth_modified, Modifier::None);
+        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
+        assert_eq!(contact.get_name(), "Alice Wonderland");
+        assert_eq!(contact.get_display_name(), "Alice Wonderland");
+        assert_eq!(contact.get_addr(), "alice@w.de");
+        assert_eq!(contact.get_name_n_addr(), "Alice Wonderland (alice@w.de)");
 
         // check SELF
         let contact = Contact::load_from_db(&t.ctx, DC_CONTACT_ID_SELF)
