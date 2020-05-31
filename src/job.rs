@@ -31,7 +31,7 @@ use crate::message::{self, Message, MessageState};
 use crate::mimefactory::MimeFactory;
 use crate::param::*;
 use crate::smtp::Smtp;
-use crate::sql;
+use crate::{scheduler::InterruptInfo, sql};
 
 // results in ~3 weeks for the last backoff timespan
 const JOB_RETRIES: u32 = 17;
@@ -1022,14 +1022,18 @@ pub async fn add(context: &Context, job: Job) {
             | Action::MarkseenMsgOnImap
             | Action::MoveMsg => {
                 info!(context, "interrupt: imap");
-                context.interrupt_inbox(false).await;
+                context
+                    .interrupt_inbox(InterruptInfo::new(false, None))
+                    .await;
             }
             Action::MaybeSendLocations
             | Action::MaybeSendLocationsEnded
             | Action::SendMdn
             | Action::SendMsgToSmtp => {
                 info!(context, "interrupt: smtp");
-                context.interrupt_smtp(false).await;
+                context
+                    .interrupt_smtp(InterruptInfo::new(false, None))
+                    .await;
             }
         }
     }
@@ -1044,38 +1048,49 @@ pub async fn add(context: &Context, job: Job) {
 pub(crate) async fn load_next(
     context: &Context,
     thread: Thread,
-    probe_network: bool,
+    info: &InterruptInfo,
 ) -> Option<Job> {
     info!(context, "loading job for {}-thread", thread);
-    let query = if !probe_network {
+
+    let query;
+    let params;
+    let t = time();
+    let m;
+    let thread_i = thread as i64;
+
+    if let Some(msg_id) = info.msg_id {
+        query = r#"
+SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries
+FROM jobs
+WHERE foreign_id=?
+ORDER BY action DESC, added_timestamp
+LIMIT 1;
+"#;
+        m = msg_id;
+        params = paramsv![m];
+    } else if !info.probe_network {
         // processing for first-try and after backoff-timeouts:
         // process jobs in the order they were added.
-        r#"
+        query = r#"
 SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries
 FROM jobs
 WHERE thread=? AND desired_timestamp<=?
 ORDER BY action DESC, added_timestamp
 LIMIT 1;
-"#
+"#;
+        params = paramsv![thread_i, t];
     } else {
         // processing after call to dc_maybe_network():
         // process _all_ pending jobs that failed before
         // in the order of their backoff-times.
-        r#"
+        query = r#"
 SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries
 FROM jobs
 WHERE thread=? AND tries>0
 ORDER BY desired_timestamp, action DESC
 LIMIT 1;
-"#
-    };
-
-    let thread_i = thread as i64;
-    let t = time();
-    let params = if !probe_network {
-        paramsv![thread_i, t]
-    } else {
-        paramsv![thread_i]
+"#;
+        params = paramsv![thread_i];
     };
 
     let job = loop {
@@ -1182,11 +1197,21 @@ mod tests {
         // all jobs.
         let t = dummy_context().await;
         insert_job(&t.ctx, -1).await; // This can not be loaded into Job struct.
-        let jobs = load_next(&t.ctx, Thread::from(Action::MoveMsg), false).await;
+        let jobs = load_next(
+            &t.ctx,
+            Thread::from(Action::MoveMsg),
+            &InterruptInfo::new(false, None),
+        )
+        .await;
         assert!(jobs.is_none());
 
         insert_job(&t.ctx, 1).await;
-        let jobs = load_next(&t.ctx, Thread::from(Action::MoveMsg), false).await;
+        let jobs = load_next(
+            &t.ctx,
+            Thread::from(Action::MoveMsg),
+            &InterruptInfo::new(false, None),
+        )
+        .await;
         assert!(jobs.is_some());
     }
 
@@ -1196,7 +1221,12 @@ mod tests {
 
         insert_job(&t.ctx, 1).await;
 
-        let jobs = load_next(&t.ctx, Thread::from(Action::MoveMsg), false).await;
+        let jobs = load_next(
+            &t.ctx,
+            Thread::from(Action::MoveMsg),
+            &InterruptInfo::new(false, None),
+        )
+        .await;
         assert!(jobs.is_some());
     }
 }
