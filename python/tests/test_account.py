@@ -637,7 +637,8 @@ class TestOnlineAccount:
         ev_msg = ac1_clone._evtracker.wait_next_messages_changed()
         assert ev_msg.text == msg_out.text
 
-    def test_mark_read_on_server(self, acfactory, lp):
+    @pytest.mark.parametrize('i', range(30))
+    def test_mark_read_on_server(self, acfactory, lp, i):
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.get_online_configuring_account(mvbox=True, move=True)
 

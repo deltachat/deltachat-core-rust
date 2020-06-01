@@ -1062,12 +1062,12 @@ pub(crate) async fn load_next(
         query = r#"
 SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries
 FROM jobs
-WHERE foreign_id=?
+WHERE thread=? AND foreign_id=?
 ORDER BY action DESC, added_timestamp
 LIMIT 1;
 "#;
         m = msg_id;
-        params = paramsv![m];
+        params = paramsv![thread_i, m];
     } else if !info.probe_network {
         // processing for first-try and after backoff-timeouts:
         // process jobs in the order they were added.
