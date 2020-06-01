@@ -20,7 +20,6 @@ use deltachat::context::*;
 use deltachat::oauth2::*;
 use deltachat::securejoin::*;
 use deltachat::Event;
-use log::{error, info, warn};
 use rustyline::completion::{Completer, FilenameCompleter, Pair};
 use rustyline::config::OutputStreamType;
 use rustyline::error::ReadlineError;
@@ -36,34 +35,34 @@ use self::cmdline::*;
 /// Event Handler
 fn receive_event(event: Event) {
     let yellow = Color::Yellow.normal();
+    let red = Color::Red.normal();
     match event {
         Event::Info(msg) => {
-            /* do not show the event as this would fill the screen */
-            info!("{}", msg);
+            println!("[INFO] {}", msg);
         }
         Event::SmtpConnected(msg) => {
-            info!("[SMTP_CONNECTED] {}", msg);
+            println!("[INFO SMTP_CONNECTED] {}", msg);
         }
         Event::ImapConnected(msg) => {
-            info!("[IMAP_CONNECTED] {}", msg);
+            println!("[INFO IMAP_CONNECTED] {}", msg);
         }
         Event::SmtpMessageSent(msg) => {
-            info!("[SMTP_MESSAGE_SENT] {}", msg);
+            println!("[INFO SMTP_MESSAGE_SENT] {}", msg);
         }
         Event::Warning(msg) => {
-            warn!("{}", msg);
+            println!("[WARNING] {}", msg);
         }
         Event::Error(msg) => {
-            error!("{}", msg);
+            println!("[ERROR] {}", red.paint(msg));
         }
         Event::ErrorNetwork(msg) => {
-            error!("[NETWORK] msg={}", msg);
+            println!("[ERROR NETWORK] msg={}", red.paint(msg));
         }
         Event::ErrorSelfNotInGroup(msg) => {
-            error!("[SELF_NOT_IN_GROUP] {}", msg);
+            println!("[ERROR SELF_NOT_IN_GROUP] {}", red.paint(msg));
         }
         Event::MsgsChanged { chat_id, msg_id } => {
-            info!(
+            println!(
                 "{}",
                 yellow.paint(format!(
                     "Received MSGS_CHANGED(chat_id={}, msg_id={})",
@@ -72,40 +71,40 @@ fn receive_event(event: Event) {
             );
         }
         Event::ContactsChanged(_) => {
-            info!("{}", yellow.paint("Received CONTACTS_CHANGED()"));
+            println!("{}", yellow.paint("Received CONTACTS_CHANGED()"));
         }
         Event::LocationChanged(contact) => {
-            info!(
+            println!(
                 "{}",
                 yellow.paint(format!("Received LOCATION_CHANGED(contact={:?})", contact))
             );
         }
         Event::ConfigureProgress(progress) => {
-            info!(
+            println!(
                 "{}",
                 yellow.paint(format!("Received CONFIGURE_PROGRESS({} ‰)", progress))
             );
         }
         Event::ImexProgress(progress) => {
-            info!(
+            println!(
                 "{}",
                 yellow.paint(format!("Received IMEX_PROGRESS({} ‰)", progress))
             );
         }
         Event::ImexFileWritten(file) => {
-            info!(
+            println!(
                 "{}",
                 yellow.paint(format!("Received IMEX_FILE_WRITTEN({})", file.display()))
             );
         }
         Event::ChatModified(chat) => {
-            info!(
+            println!(
                 "{}",
                 yellow.paint(format!("Received CHAT_MODIFIED({})", chat))
             );
         }
         _ => {
-            info!("Received {:?}", event);
+            println!("Received {}", yellow.paint(format!("{:?}", event)));
         }
     }
 }
