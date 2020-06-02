@@ -4,8 +4,10 @@ mod auto_mozilla;
 mod auto_outlook;
 mod read_url;
 
-use anyhow::{bail, ensure, format_err, Context as _, Result};
+use anyhow::{ensure, format_err, Context as _, Result};
 use async_std::prelude::*;
+use futures::select;
+use futures::stream::{FuturesUnordered, StreamExt};
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use crate::config::Config;
@@ -14,7 +16,8 @@ use crate::context::Context;
 use crate::dc_tools::*;
 use crate::imap::Imap;
 use crate::login_param::{
-    AuthScheme, CertificateChecks, LoginParam, ServerParam, ServerSecurity, IDX_IMAP, IDX_SMTP,
+    AuthScheme, CertificateChecks, LoginParam, ServerParam, ServerSecurity, Service, IDX_IMAP,
+    IDX_SMTP,
 };
 use crate::message::Message;
 use crate::oauth2::*;
@@ -32,6 +35,91 @@ macro_rules! progress {
         );
         $context.emit_event($crate::events::Event::ConfigureProgress($progress));
     };
+}
+
+//ports [plain_socket, ssl, starttls]
+static IMAP_DEFAULT_PORTS: [i32; 3] = [143, 993, 143];
+static SMTP_DEFAULT_PORTS: [i32; 3] = [25, 465, 587];
+
+macro_rules! server_options {
+    ($def_ports:expr) => {
+        vec![
+            ServerOption {
+                security: ServerSecurity::PlainSocket,
+                port: $def_ports[0],
+            },
+            ServerOption {
+                security: ServerSecurity::Ssl,
+                port: $def_ports[1],
+            },
+            ServerOption {
+                security: ServerSecurity::Starttls,
+                port: $def_ports[2],
+            },
+        ]
+    };
+    ($security:expr, $port:expr) => {
+        vec![ServerOption {
+            security: $security,
+            port: $port,
+        }]
+    };
+}
+
+fn port2opt(port: i32, service: Service) -> Vec<ServerOption> {
+    let def_ports = match service {
+        Service::Imap => IMAP_DEFAULT_PORTS,
+        Service::Smtp => SMTP_DEFAULT_PORTS,
+    };
+
+    let mut res = vec![];
+    for sec in [
+        ServerSecurity::PlainSocket,
+        ServerSecurity::Starttls,
+        ServerSecurity::Ssl,
+    ].iter() {
+        if port == def_ports[*sec as usize] {
+            res.push(ServerOption {security: *sec, port: port});
+        }
+    }
+    if res.is_empty() {
+        return server_options!([port, port, port]);
+    }
+    res
+}
+
+fn select_server_options(
+    port: i32,
+    security: Option<ServerSecurity>,
+    service: Service,
+) -> Vec<ServerOption> {
+    let def_ports = match service {
+        Service::Imap => IMAP_DEFAULT_PORTS,
+        Service::Smtp => SMTP_DEFAULT_PORTS,
+    };
+    if port == 0 && security.is_none() {
+        // Nothing is specified, try all default options.
+        let res = server_options!(def_ports);
+        res
+    } else if security.is_none() {
+        // Only port is specified, select security options.
+        port2opt(port, service)
+    } else if 0 == port {
+        let sec = security.unwrap();
+        server_options!(sec, def_ports[sec as usize])
+    } else {
+        server_options!(security.unwrap(), port)
+    }
+}
+
+pub(crate) struct ServerOption {
+    pub security: ServerSecurity,
+    pub port: i32,
+}
+
+enum TryResult {
+    Success(ServerParam),
+    Failure(ServerParam),
 }
 
 impl Context {
@@ -144,6 +232,10 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     progress!(ctx, 1);
     ensure!(!param.addr.is_empty(), "Please enter an email address.");
 
+    let mut user_options: Vec<String> = Vec::new();
+    let imap_options: Vec<ServerOption>;
+    let smtp_options: Vec<ServerOption>;
+
     // Step 1: Load the parameters and check email-address and password
 
     if param.auth_scheme.is_oauth2() {
@@ -208,11 +300,9 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         param.srv_params[IDX_IMAP].security = cfg.srv_params[IDX_IMAP].security;
         param.srv_params[IDX_SMTP].hostname = cfg.srv_params[IDX_SMTP].hostname.clone();
         param.srv_params[IDX_SMTP].port = cfg.srv_params[IDX_SMTP].port;
-        param.srv_params[IDX_SMTP].security = cfg.srv_params[IDX_SMTP].security;
         param.srv_params[IDX_SMTP].user = cfg.srv_params[IDX_SMTP].user.clone();
+        param.srv_params[IDX_SMTP].security = cfg.srv_params[IDX_SMTP].security;
         param.auth_scheme = cfg.auth_scheme;
-        // although param_autoconfig's data are no longer needed from,
-        // it is used to later to prevent trying variations of port/server/logins
     }
     if keep_oauth2 {
         param.auth_scheme = AuthScheme::Oauth2;
@@ -223,11 +313,18 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         param.srv_params[IDX_IMAP].hostname = format!("imap.{}", param_domain,)
     }
 
-    if param.srv_params[IDX_IMAP].user.is_empty() {
-        param.srv_params[IDX_IMAP].user = param.addr.clone();
-    }
-    choose_starting_port_socket_security(&mut param.srv_params[IDX_IMAP], 993, 143, 143);
+    imap_options = select_server_options(
+        param.srv_params[IDX_IMAP].port,
+        param.srv_params[IDX_IMAP].security,
+        Service::Imap,
+    );
+    if param.srv_params[IDX_IMAP].user.is_empty() || param.srv_params[IDX_SMTP].user.is_empty() {
+        user_options.push(param.addr.clone());
 
+        if let Some(at) = param.addr.find('@') {
+            user_options.push(param.addr.split_at(at).0.to_string());
+        }
+    }
     if param.srv_params[IDX_SMTP].hostname.is_empty()
         && !param.srv_params[IDX_IMAP].hostname.is_empty()
     {
@@ -238,10 +335,11 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
                 .replacen("imap", "smtp", 1);
         }
     }
-
-    if param.srv_params[IDX_SMTP].user.is_empty() && !param.srv_params[IDX_IMAP].user.is_empty() {
-        param.srv_params[IDX_SMTP].user = param.srv_params[IDX_IMAP].user.clone();
-    }
+    smtp_options = select_server_options(
+        param.srv_params[IDX_SMTP].port,
+        param.srv_params[IDX_SMTP].security,
+        Service::Smtp,
+    );
     if param.srv_params[IDX_SMTP].pw.is_empty() && !param.srv_params[IDX_IMAP].pw.is_empty() {
         param.srv_params[IDX_SMTP].pw = param.srv_params[IDX_IMAP].pw.clone()
     }
@@ -250,40 +348,41 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     // do we have a complete configuration?
     ensure!(
         !param.srv_params[IDX_IMAP].hostname.is_empty()
-            && param.srv_params[IDX_IMAP].port != 0
-            && !param.srv_params[IDX_IMAP].user.is_empty()
+            && !imap_options.is_empty()
+            && !(param.srv_params[IDX_IMAP].user.is_empty() && user_options.is_empty())
             && !param.srv_params[IDX_IMAP].pw.is_empty()
-            && param.srv_params[IDX_IMAP].security.is_some()
             && !param.srv_params[IDX_SMTP].hostname.is_empty()
-            && param.srv_params[IDX_SMTP].port != 0
-            && !param.srv_params[IDX_SMTP].user.is_empty()
-            && !param.srv_params[IDX_SMTP].pw.is_empty()
-            && param.srv_params[IDX_SMTP].security.is_some(),
+            && !smtp_options.is_empty()
+            && !(param.srv_params[IDX_SMTP].user.is_empty() && user_options.is_empty())
+            && !param.srv_params[IDX_SMTP].pw.is_empty(),
         "Account settings incomplete."
     );
 
     progress!(ctx, 600);
-    // try to connect to IMAP - if we did not got an autoconfig,
-    // do some further tries with different settings and username variations
-    let (_s, r) = async_std::sync::channel(1);
-    let mut imap = Imap::new(r);
-
-    try_imap_connections(ctx, param, param_autoconfig.is_some(), &mut imap).await?;
+    // try to connect to IMAP with selected options.
+    try_connections(ctx, param, Service::Imap, &imap_options, &user_options).await?;
     progress!(ctx, 800);
 
-    try_smtp_connections(ctx, param, param_autoconfig.is_some()).await?;
+    // try to connect to SMTP with selected options.
+    try_connections(ctx, param, Service::Smtp, &smtp_options, &user_options).await?;
     progress!(ctx, 900);
 
     let create_mvbox = ctx.get_config_bool(Config::MvboxWatch).await
         || ctx.get_config_bool(Config::MvboxMove).await;
 
-    imap.configure_folders(ctx, create_mvbox)
-        .await
-        .context("configuring folders failed")?;
+    let (_s, r) = async_std::sync::channel(1);
+    let mut imap = Imap::new(r);
+    if imap.connect(ctx, &param).await {
+        imap.configure_folders(ctx, create_mvbox)
+            .await
+            .context("configuring folders failed")?;
 
-    imap.select_with_uidvalidity(ctx, "INBOX")
-        .await
-        .context("could not read INBOX status")?;
+        imap.select_with_uidvalidity(ctx, "INBOX")
+            .await
+            .context("could not read INBOX status")?;
+    } else {
+        return Err(format_err!("imap connection for folder config failed."));
+    }
 
     drop(imap);
 
@@ -448,160 +547,83 @@ fn get_offline_autoconfig(context: &Context, param: &LoginParam) -> Option<Login
     None
 }
 
-async fn try_imap_connections(
-    context: &Context,
-    param: &mut LoginParam,
-    was_autoconfig: bool,
-    imap: &mut Imap,
-) -> Result<()> {
-    // manually_set_param is used to check whether a particular setting was set manually by the user.
-    // If yes, we do not want to change it to avoid confusing error messages
-    // (you set port 443, but the app tells you it couldn't connect on port 993).
-    let manually_set_param = LoginParam::from_database(context, "").await;
-
-    // progress 650 and 660
-    if try_imap_connection(context, param, &manually_set_param, was_autoconfig, 0, imap)
-        .await
-        .is_ok()
-    {
-        return Ok(()); // we directly return here if it was autoconfig or the connection succeeded
+async fn try_connect(context: &Context, lp: LoginParam, service: Service) -> TryResult {
+    let inf = format!(
+        "{}: {}",
+        service.as_ref(),
+        lp.srv_params[service as usize],
+    );
+    info!(context, "Trying: {}", inf);
+    let res = match service {
+        Service::Imap => {
+            let (_s, r) = async_std::sync::channel(1);
+            let mut imap = Imap::new(r);
+            imap.connect(context, &lp.clone()).await
+        }
+        Service::Smtp => {
+            let mut smtp = Smtp::new();
+            smtp.try_connect(context, &lp.clone()).await
+        }
+    };
+    if res {
+        info!(context, "Success: {}", inf);
+        return TryResult::Success(lp.srv_params[service as usize].clone());
     }
-
-    progress!(context, 670);
-    // try_imap_connection() changed the flags and port. Change them back:
-    if manually_set_param.srv_params[IDX_IMAP].security.is_none() {
-        param.srv_params[IDX_IMAP].security = Some(ServerSecurity::Ssl);
-    }
-    if manually_set_param.srv_params[IDX_IMAP].port == 0 {
-        param.srv_params[IDX_IMAP].port = 993;
-    }
-    if let Some(at) = param.srv_params[IDX_IMAP].user.find('@') {
-        param.srv_params[IDX_IMAP].user =
-            param.srv_params[IDX_IMAP].user.split_at(at).0.to_string();
-    }
-    if let Some(at) = param.srv_params[IDX_SMTP].user.find('@') {
-        param.srv_params[IDX_SMTP].user =
-            param.srv_params[IDX_SMTP].user.split_at(at).0.to_string();
-    }
-    // progress 680 and 690
-    try_imap_connection(context, param, &manually_set_param, was_autoconfig, 1, imap).await
+    TryResult::Failure(lp.srv_params[service as usize].clone())
 }
 
-async fn try_imap_connection(
+async fn try_connections(
     context: &Context,
     param: &mut LoginParam,
-    manually_set_param: &LoginParam,
-    was_autoconfig: bool,
-    variation: usize,
-    imap: &mut Imap,
+    service: Service,
+    srv_options: &Vec<ServerOption>,
+    user_options: &Vec<String>,
 ) -> Result<()> {
-    if try_imap_one_param(context, param, imap).await.is_ok() {
-        return Ok(());
-    }
-    if was_autoconfig {
-        return Ok(());
-    }
-
-    progress!(context, 650 + variation * 30);
-
-    if manually_set_param.srv_params[IDX_IMAP].security.is_none() {
-        param.srv_params[IDX_IMAP].security = Some(ServerSecurity::Ssl);
-
-        if try_imap_one_param(context, &param, imap).await.is_ok() {
-            return Ok(());
+    let mut res = Err(format_err!("{} config not found", service));
+    let mut secure_opt_count: u32 = 0;
+    let mut all_tries = FuturesUnordered::new();
+    let user_options = if !param.srv_params[IDX_SMTP].user.is_empty() {
+        vec![param.srv_params[IDX_SMTP].user.clone()]
+    } else {
+        user_options.clone()
+    };
+    for u in user_options {
+        for s in srv_options {
+            if s.security != ServerSecurity::PlainSocket {
+                secure_opt_count += 1;
+            }
+            let mut p = param.clone();
+            p.srv_params[service as usize].user = u.to_string();
+            p.srv_params[service as usize].port = s.port;
+            p.srv_params[service as usize].security = Some(s.security);
+            all_tries.push(try_connect(context, p, service));
         }
     }
-
-    progress!(context, 660 + variation * 30);
-
-    if manually_set_param.srv_params[IDX_IMAP].port == 0 {
-        param.srv_params[IDX_IMAP].port = 143;
-        try_imap_one_param(context, param, imap).await
-    } else {
-        Err(format_err!("no more possible configs"))
+    loop {
+        select! {
+            try_res = all_tries.select_next_some() => {
+                match try_res {
+                    TryResult::Success(sp) => {
+                        param.srv_params[service as usize].user = sp.user;
+                        param.srv_params[service as usize].port = sp.port;
+                        param.srv_params[service as usize].security = sp.security;
+                        res = Ok(());
+                        // Prioritise secure connections, so if security option is no, still wait for more secure options to complete
+                        if sp.security.unwrap() != ServerSecurity::PlainSocket || secure_opt_count == 0 {
+                            return res;
+                        }
+                    },
+                    TryResult::Failure(sp) => {
+                        if sp.security.unwrap() != ServerSecurity::PlainSocket {
+                            assert!(secure_opt_count > 0);
+                            secure_opt_count-=1;
+                        }
+                    }
+                }
+            },
+            complete => {return res;},
+        }
     }
-}
-
-async fn try_imap_one_param(context: &Context, param: &LoginParam, imap: &mut Imap) -> Result<()> {
-    let inf = format!(
-        "imap: {}@{}:{} security={} auth={} certificate_checks={}",
-        param.srv_params[IDX_IMAP].user,
-        param.srv_params[IDX_IMAP].hostname,
-        param.srv_params[IDX_IMAP].port,
-        param.srv_params[IDX_IMAP].security.unwrap(),
-        param.auth_scheme,
-        param.srv_params[IDX_IMAP].certificate_checks
-    );
-    info!(context, "Trying: {}", inf);
-
-    if imap.connect(context, &param).await {
-        info!(context, "success: {}", inf);
-        return Ok(());
-    }
-
-    bail!("Could not connect: {}", inf);
-}
-
-async fn try_smtp_connections(
-    context: &Context,
-    param: &mut LoginParam,
-    was_autoconfig: bool,
-) -> Result<()> {
-    // manually_set_param is used to check whether a particular setting was set manually by the user.
-    // If yes, we do not want to change it to avoid confusing error messages
-    // (you set port 443, but the app tells you it couldn't connect on port 993).
-    let manually_set_param = LoginParam::from_database(context, "").await;
-
-    let mut smtp = Smtp::new();
-    // try to connect to SMTP - if we did not got an autoconfig, the first try was SSL-465 and we do
-    // a second try with STARTTLS-587
-    if try_smtp_one_param(context, param, &mut smtp).await.is_ok() {
-        return Ok(());
-    }
-    if was_autoconfig {
-        return Ok(());
-    }
-    progress!(context, 850);
-
-    if manually_set_param.srv_params[IDX_SMTP].security.is_none() {
-        param.srv_params[IDX_SMTP].security = Some(ServerSecurity::Starttls);
-    }
-    if manually_set_param.srv_params[IDX_SMTP].port == 0 {
-        param.srv_params[IDX_SMTP].port = 587;
-    }
-
-    if try_smtp_one_param(context, param, &mut smtp).await.is_ok() {
-        return Ok(());
-    }
-    progress!(context, 860);
-
-    if manually_set_param.srv_params[IDX_SMTP].security.is_none() {
-        param.srv_params[IDX_SMTP].security = Some(ServerSecurity::Starttls);
-    }
-    if manually_set_param.srv_params[IDX_SMTP].port == 0 {
-        param.srv_params[IDX_SMTP].port = 25;
-    }
-    try_smtp_one_param(context, param, &mut smtp).await
-}
-
-async fn try_smtp_one_param(context: &Context, param: &LoginParam, smtp: &mut Smtp) -> Result<()> {
-    let inf = format!(
-        "smtp: {}@{}:{} security={} auth={}",
-        param.srv_params[IDX_SMTP].user,
-        param.srv_params[IDX_SMTP].hostname,
-        param.srv_params[IDX_SMTP].port,
-        param.srv_params[IDX_SMTP].security.unwrap(),
-        param.auth_scheme
-    );
-    info!(context, "Trying: {}", inf);
-
-    if let Err(err) = smtp.connect(context, &param).await {
-        bail!("could not connect: {}", err);
-    }
-
-    info!(context, "success: {}", inf);
-    smtp.disconnect().await;
-    Ok(())
 }
 
 #[derive(Debug, thiserror::Error)]

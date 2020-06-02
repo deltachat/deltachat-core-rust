@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 #![deny(clippy::correctness, missing_debug_implementations, clippy::all)]
 #![allow(clippy::match_bool)]
+#![recursion_limit = "256"]
 
 #[macro_use]
 extern crate num_derive;
