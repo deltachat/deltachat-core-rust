@@ -2,7 +2,16 @@
 
 use std::borrow::Cow;
 use std::fmt;
+use std::str::FromStr;
+use std::string::ToString;
+use strum_macros::{AsRefStr, Display, EnumString};
 
+use crate::constants::{
+    DC_LP_AUTH_FLAGS, DC_LP_AUTH_NORMAL, DC_LP_AUTH_OAUTH2, DC_LP_IMAP_SOCKET_FLAGS,
+    DC_LP_IMAP_SOCKET_PLAIN, DC_LP_IMAP_SOCKET_SSL, DC_LP_IMAP_SOCKET_STARTTLS,
+    DC_LP_SMTP_SOCKET_FLAGS, DC_LP_SMTP_SOCKET_PLAIN, DC_LP_SMTP_SOCKET_SSL,
+    DC_LP_SMTP_SOCKET_STARTTLS,
+};
 use crate::context::Context;
 
 #[derive(Copy, Clone, Debug, Display, FromPrimitive)]
@@ -25,28 +34,228 @@ impl Default for CertificateChecks {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(
+    Debug, Display, Clone, Copy, PartialEq, Eq, EnumString, AsRefStr, EnumIter, EnumProperty,
+)]
+#[strum(serialize_all = "snake_case")]
+pub enum AuthScheme {
+    Plain,
+    Oauth2,
+}
+
+impl AuthScheme {
+    pub fn is_oauth2(&self) -> bool {
+        match self {
+            Self::Plain => false,
+            Self::Oauth2 => true,
+        }
+    }
+}
+
+impl Default for AuthScheme {
+    fn default() -> Self {
+        Self::Plain
+    }
+}
+
+#[derive(
+    Debug, Display, Clone, Copy, PartialEq, Eq, EnumString, AsRefStr, EnumIter, EnumProperty,
+)]
+#[strum(serialize_all = "snake_case")]
+pub enum ServerSecurity {
+    PlainSocket,
+    Ssl,
+    Starttls,
+}
+
+impl ServerSecurity {
+    /// Create as Option from string
+    pub fn from_str_opt(s: &str) -> Option<ServerSecurity> {
+        match ServerSecurity::from_str(s) {
+            Ok(sec) => Some(sec),
+            _ => None,
+        }
+    }
+}
+
+#[derive(
+    Debug, Display, Clone, Copy, PartialEq, Eq, EnumString, AsRefStr, EnumIter, EnumProperty,
+)]
+#[strum(serialize_all = "snake_case")]
+pub enum Service {
+    Imap,
+    Smtp,
+}
+
+pub static IDX_IMAP: usize = Service::Imap as usize;
+pub static IDX_SMTP: usize = Service::Smtp as usize;
+
+impl Service {
+    fn prefixes(&self) -> (&'static str, &'static str) {
+        match self {
+            Self::Imap => ("mail_", "imap_"),
+            Self::Smtp => ("send_", "smtp_"),
+        }
+    }
+}
+
+#[derive(Clone, Default, Debug)]
+pub struct ServerParam {
+    pub hostname: String,
+    pub user: String,
+    pub pw: String,
+    pub port: i32,
+    /// TLS options: whether to allow invalid certificates and/or invalid hostnames
+    pub certificate_checks: CertificateChecks,
+    /// security option Plain TCP, SSL or SARTTLS.
+    pub security: Option<ServerSecurity>,
+}
+#[derive(Clone, Default, Debug)]
 pub struct LoginParam {
     pub addr: String,
-    pub mail_server: String,
-    pub mail_user: String,
-    pub mail_pw: String,
-    pub mail_port: i32,
-    /// IMAP TLS options: whether to allow invalid certificates and/or invalid hostnames
-    pub imap_certificate_checks: CertificateChecks,
-    pub send_server: String,
-    pub send_user: String,
-    pub send_pw: String,
-    pub send_port: i32,
-    /// SMTP TLS options: whether to allow invalid certificates and/or invalid hostnames
-    pub smtp_certificate_checks: CertificateChecks,
-    pub server_flags: i32,
+    /// Auth option OAUTH2 or plain password
+    pub auth_scheme: AuthScheme,
+    pub srv_params: [ServerParam; 2],
+}
+
+impl ServerParam {
+    pub async fn from_database(
+        context: &Context,
+        prefix: impl AsRef<str>,
+        service: Service,
+    ) -> Self {
+        let prefix = prefix.as_ref();
+        let sql = &context.sql;
+        let (prefix1, prefix2) = service.prefixes();
+
+        let key = format!("{}{}server", prefix, prefix1);
+        let hostname = sql.get_raw_config(context, key).await.unwrap_or_default();
+
+        let key = format!("{}{}port", prefix, prefix1);
+        let port = sql
+            .get_raw_config_int(context, key)
+            .await
+            .unwrap_or_default();
+
+        let key = format!("{}{}user", prefix, prefix1);
+        let user = sql.get_raw_config(context, key).await.unwrap_or_default();
+
+        let key = format!("{}{}pw", prefix, prefix1);
+        let pw = sql.get_raw_config(context, key).await.unwrap_or_default();
+
+        let key = format!("{}{}certificate_checks", prefix, prefix2);
+        let certificate_checks =
+            if let Some(certificate_checks) = sql.get_raw_config_int(context, key).await {
+                num_traits::FromPrimitive::from_i32(certificate_checks).unwrap()
+            } else {
+                Default::default()
+            };
+
+        Self {
+            hostname,
+            user,
+            pw,
+            port,
+            certificate_checks,
+            security: None,
+        }
+    }
+
+    pub async fn save_to_database(
+        &self,
+        context: &Context,
+        prefix: impl AsRef<str>,
+        service: Service,
+    ) -> crate::sql::Result<()> {
+        let prefix = prefix.as_ref();
+        let sql = &context.sql;
+        let (prefix1, prefix2) = service.prefixes();
+
+        let key = format!("{}{}server", prefix, prefix1);
+        sql.set_raw_config(context, key, Some(&self.hostname))
+            .await?;
+
+        let key = format!("{}{}port", prefix, prefix1);
+        sql.set_raw_config_int(context, key, self.port).await?;
+
+        let key = format!("{}{}user", prefix, prefix1);
+        sql.set_raw_config(context, key, Some(&self.user)).await?;
+
+        let key = format!("{}{}pw", prefix, prefix1);
+        sql.set_raw_config(context, key, Some(&self.pw)).await?;
+
+        let key = format!("{}{}certificate_checks", prefix, prefix2);
+        sql.set_raw_config_int(context, key, self.certificate_checks as i32)
+            .await?;
+        Ok(())
+    }
 }
 
 impl LoginParam {
     /// Create a new `LoginParam` with default values.
     pub fn new() -> Self {
         Default::default()
+    }
+
+    fn set_server_flags(&mut self, flags: i32) {
+        match flags & DC_LP_AUTH_FLAGS {
+            DC_LP_AUTH_OAUTH2 => {
+                self.auth_scheme = AuthScheme::Oauth2;
+            }
+            _ => {
+                self.auth_scheme = AuthScheme::Plain;
+            }
+        }
+        match flags & DC_LP_IMAP_SOCKET_FLAGS {
+            DC_LP_IMAP_SOCKET_SSL => {
+                self.srv_params[IDX_IMAP].security = Some(ServerSecurity::Ssl);
+            }
+            DC_LP_IMAP_SOCKET_STARTTLS => {
+                self.srv_params[IDX_IMAP].security = Some(ServerSecurity::Starttls);
+            }
+            DC_LP_IMAP_SOCKET_PLAIN => {
+                self.srv_params[IDX_IMAP].security = Some(ServerSecurity::PlainSocket);
+            }
+            _ => {
+                // completely unset or multiple flags.
+                self.srv_params[IDX_IMAP].security = None;
+            }
+        }
+        match flags as usize & DC_LP_SMTP_SOCKET_FLAGS {
+            DC_LP_SMTP_SOCKET_SSL => {
+                self.srv_params[IDX_SMTP].security = Some(ServerSecurity::Ssl);
+            }
+            DC_LP_SMTP_SOCKET_STARTTLS => {
+                self.srv_params[IDX_SMTP].security = Some(ServerSecurity::Starttls);
+            }
+            DC_LP_SMTP_SOCKET_PLAIN => {
+                self.srv_params[IDX_SMTP].security = Some(ServerSecurity::PlainSocket);
+            }
+            _ => {
+                // completely unset or multiple flags.
+                self.srv_params[IDX_SMTP].security = None;
+            }
+        }
+    }
+
+    fn get_server_flags(&self) -> i32 {
+        let auth_flags = match self.auth_scheme {
+            AuthScheme::Oauth2 => DC_LP_AUTH_OAUTH2 as i32,
+            AuthScheme::Plain => DC_LP_AUTH_NORMAL as i32,
+        };
+        let imap_flags = match self.srv_params[IDX_IMAP].security {
+            Some(ServerSecurity::PlainSocket) => DC_LP_IMAP_SOCKET_PLAIN as i32,
+            Some(ServerSecurity::Ssl) => DC_LP_IMAP_SOCKET_SSL as i32,
+            Some(ServerSecurity::Starttls) => DC_LP_IMAP_SOCKET_STARTTLS as i32,
+            _ => 0 as i32,
+        };
+        let smtp_flags = match self.srv_params[IDX_SMTP].security {
+            Some(ServerSecurity::PlainSocket) => DC_LP_SMTP_SOCKET_PLAIN as i32,
+            Some(ServerSecurity::Ssl) => DC_LP_SMTP_SOCKET_SSL as i32,
+            Some(ServerSecurity::Starttls) => DC_LP_SMTP_SOCKET_STARTTLS as i32,
+            _ => 0 as i32,
+        };
+        auth_flags | imap_flags | smtp_flags
     }
 
     /// Read the login parameters from the database.
@@ -62,72 +271,22 @@ impl LoginParam {
             .trim()
             .to_string();
 
-        let key = format!("{}mail_server", prefix);
-        let mail_server = sql.get_raw_config(context, key).await.unwrap_or_default();
-
-        let key = format!("{}mail_port", prefix);
-        let mail_port = sql
-            .get_raw_config_int(context, key)
-            .await
-            .unwrap_or_default();
-
-        let key = format!("{}mail_user", prefix);
-        let mail_user = sql.get_raw_config(context, key).await.unwrap_or_default();
-
-        let key = format!("{}mail_pw", prefix);
-        let mail_pw = sql.get_raw_config(context, key).await.unwrap_or_default();
-
-        let key = format!("{}imap_certificate_checks", prefix);
-        let imap_certificate_checks =
-            if let Some(certificate_checks) = sql.get_raw_config_int(context, key).await {
-                num_traits::FromPrimitive::from_i32(certificate_checks).unwrap()
-            } else {
-                Default::default()
-            };
-
-        let key = format!("{}send_server", prefix);
-        let send_server = sql.get_raw_config(context, key).await.unwrap_or_default();
-
-        let key = format!("{}send_port", prefix);
-        let send_port = sql
-            .get_raw_config_int(context, key)
-            .await
-            .unwrap_or_default();
-
-        let key = format!("{}send_user", prefix);
-        let send_user = sql.get_raw_config(context, key).await.unwrap_or_default();
-
-        let key = format!("{}send_pw", prefix);
-        let send_pw = sql.get_raw_config(context, key).await.unwrap_or_default();
-
-        let key = format!("{}smtp_certificate_checks", prefix);
-        let smtp_certificate_checks =
-            if let Some(certificate_checks) = sql.get_raw_config_int(context, key).await {
-                num_traits::FromPrimitive::from_i32(certificate_checks).unwrap()
-            } else {
-                Default::default()
-            };
-
         let key = format!("{}server_flags", prefix);
         let server_flags = sql
             .get_raw_config_int(context, key)
             .await
             .unwrap_or_default();
 
-        LoginParam {
+        let mut lp = LoginParam {
             addr,
-            mail_server,
-            mail_user,
-            mail_pw,
-            mail_port,
-            imap_certificate_checks,
-            send_server,
-            send_user,
-            send_pw,
-            send_port,
-            smtp_certificate_checks,
-            server_flags,
-        }
+            auth_scheme: AuthScheme::Plain,
+            srv_params: [
+                ServerParam::from_database(context, prefix, Service::Imap).await,
+                ServerParam::from_database(context, prefix, Service::Smtp).await,
+            ],
+        };
+        lp.set_server_flags(server_flags);
+        lp
     }
 
     pub fn addr_str(&self) -> &str {
@@ -146,74 +305,47 @@ impl LoginParam {
         let key = format!("{}addr", prefix);
         sql.set_raw_config(context, key, Some(&self.addr)).await?;
 
-        let key = format!("{}mail_server", prefix);
-        sql.set_raw_config(context, key, Some(&self.mail_server))
-            .await?;
-
-        let key = format!("{}mail_port", prefix);
-        sql.set_raw_config_int(context, key, self.mail_port).await?;
-
-        let key = format!("{}mail_user", prefix);
-        sql.set_raw_config(context, key, Some(&self.mail_user))
-            .await?;
-
-        let key = format!("{}mail_pw", prefix);
-        sql.set_raw_config(context, key, Some(&self.mail_pw))
-            .await?;
-
-        let key = format!("{}imap_certificate_checks", prefix);
-        sql.set_raw_config_int(context, key, self.imap_certificate_checks as i32)
-            .await?;
-
-        let key = format!("{}send_server", prefix);
-        sql.set_raw_config(context, key, Some(&self.send_server))
-            .await?;
-
-        let key = format!("{}send_port", prefix);
-        sql.set_raw_config_int(context, key, self.send_port).await?;
-
-        let key = format!("{}send_user", prefix);
-        sql.set_raw_config(context, key, Some(&self.send_user))
-            .await?;
-
-        let key = format!("{}send_pw", prefix);
-        sql.set_raw_config(context, key, Some(&self.send_pw))
-            .await?;
-
-        let key = format!("{}smtp_certificate_checks", prefix);
-        sql.set_raw_config_int(context, key, self.smtp_certificate_checks as i32)
-            .await?;
+        for service in vec![Service::Imap, Service::Smtp] {
+            self.srv_params[service as usize]
+                .save_to_database(context, prefix, service)
+                .await?;
+        }
 
         let key = format!("{}server_flags", prefix);
-        sql.set_raw_config_int(context, key, self.server_flags)
+        sql.set_raw_config_int(context, key, self.get_server_flags())
             .await?;
 
         Ok(())
     }
 }
 
-impl fmt::Display for LoginParam {
+impl fmt::Display for ServerParam {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let unset = "0";
         let pw = "***";
 
-        let flags_readable = get_readable_flags(self.server_flags);
-
         write!(
             f,
-            "{} imap:{}:{}:{}:{}:cert_{} smtp:{}:{}:{}:{}:cert_{} {}",
+            "<usr:{},pw:{},host:{},port:{},cert:{},security:{:?}>",
+            unset_empty(&self.user),
+            if !self.pw.is_empty() { pw } else { unset },
+            unset_empty(&self.hostname),
+            self.port,
+            self.certificate_checks,
+            self.security,
+        )
+    }
+}
+
+impl fmt::Display for LoginParam {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} imap:{} smtp:{} auth:{}",
             unset_empty(&self.addr),
-            unset_empty(&self.mail_user),
-            if !self.mail_pw.is_empty() { pw } else { unset },
-            unset_empty(&self.mail_server),
-            self.mail_port,
-            self.imap_certificate_checks,
-            unset_empty(&self.send_user),
-            if !self.send_pw.is_empty() { pw } else { unset },
-            unset_empty(&self.send_server),
-            self.send_port,
-            self.smtp_certificate_checks,
-            flags_readable,
+            self.srv_params[IDX_IMAP],
+            self.srv_params[IDX_SMTP],
+            self.auth_scheme,
         )
     }
 }
@@ -225,56 +357,6 @@ fn unset_empty(s: &String) -> Cow<String> {
     } else {
         Cow::Borrowed(s)
     }
-}
-
-#[allow(clippy::useless_let_if_seq)]
-fn get_readable_flags(flags: i32) -> String {
-    let mut res = String::new();
-    for bit in 0..31 {
-        if 0 != flags & 1 << bit {
-            let mut flag_added = false;
-            if 1 << bit == 0x2 {
-                res += "OAUTH2 ";
-                flag_added = true;
-            }
-            if 1 << bit == 0x4 {
-                res += "AUTH_NORMAL ";
-                flag_added = true;
-            }
-            if 1 << bit == 0x100 {
-                res += "IMAP_STARTTLS ";
-                flag_added = true;
-            }
-            if 1 << bit == 0x200 {
-                res += "IMAP_SSL ";
-                flag_added = true;
-            }
-            if 1 << bit == 0x400 {
-                res += "IMAP_PLAIN ";
-                flag_added = true;
-            }
-            if 1 << bit == 0x10000 {
-                res += "SMTP_STARTTLS ";
-                flag_added = true;
-            }
-            if 1 << bit == 0x20000 {
-                res += "SMTP_SSL ";
-                flag_added = true;
-            }
-            if 1 << bit == 0x40000 {
-                res += "SMTP_PLAIN ";
-                flag_added = true;
-            }
-            if flag_added {
-                res += &format!("{:#0x}", 1 << bit);
-            }
-        }
-    }
-    if res.is_empty() {
-        res += "0";
-    }
-
-    res
 }
 
 pub fn dc_build_tls(certificate_checks: CertificateChecks) -> async_native_tls::TlsConnector {

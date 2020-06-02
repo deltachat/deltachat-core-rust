@@ -13,7 +13,9 @@ use crate::constants::*;
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::imap::Imap;
-use crate::login_param::{CertificateChecks, LoginParam};
+use crate::login_param::{
+    AuthScheme, CertificateChecks, LoginParam, ServerParam, ServerSecurity, IDX_IMAP, IDX_SMTP,
+};
 use crate::message::Message;
 use crate::oauth2::*;
 use crate::smtp::Smtp;
@@ -108,9 +110,35 @@ impl Context {
     }
 }
 
+fn choose_starting_port_socket_security(
+    param: &mut ServerParam,
+    port_ssl: i32,
+    port_starttls: i32,
+    port_plain: i32,
+) {
+    if param.security.is_none() {
+        if param.port == 0 {
+            param.port = port_ssl;
+        }
+        if param.port == port_starttls {
+            param.security = Some(ServerSecurity::Starttls);
+        } else if param.port == port_plain {
+            param.security = Some(ServerSecurity::PlainSocket);
+        } else {
+            param.security = Some(ServerSecurity::Ssl);
+        }
+    } else if param.port == 0 {
+        param.port = match param.security.unwrap() {
+            ServerSecurity::PlainSocket => port_plain,
+            ServerSecurity::Ssl => port_ssl,
+            ServerSecurity::Starttls => port_starttls,
+        };
+    }
+}
+
 async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     let mut param_autoconfig: Option<LoginParam> = None;
-    let mut keep_flags = 0;
+    let mut keep_oauth2 = false;
 
     // Read login parameters from the database
     progress!(ctx, 1);
@@ -118,13 +146,14 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     // Step 1: Load the parameters and check email-address and password
 
-    if 0 != param.server_flags & DC_LP_AUTH_OAUTH2 {
+    if param.auth_scheme.is_oauth2() {
         // the used oauth2 addr may differ, check this.
         // if dc_get_oauth2_addr() is not available in the oauth2 implementation, just use the given one.
         progress!(ctx, 10);
-        if let Some(oauth2_addr) = dc_get_oauth2_addr(ctx, &param.addr, &param.mail_pw)
-            .await
-            .and_then(|e| e.parse().ok())
+        if let Some(oauth2_addr) =
+            dc_get_oauth2_addr(ctx, &param.addr, &param.srv_params[IDX_IMAP].pw)
+                .await
+                .and_then(|e| e.parse().ok())
         {
             info!(ctx, "Authorized address is {}", oauth2_addr);
             param.addr = oauth2_addr;
@@ -143,18 +172,18 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     // Step 2: Autoconfig
     progress!(ctx, 200);
 
-    // param.mail_user.is_empty() -- the user can enter a loginname which is used by autoconfig then
-    // param.send_pw.is_empty()   -- the password cannot be auto-configured and is no criterion for
+    // param.srv_params[IDX_IMAP].user.is_empty() -- the user can enter a loginname which is used by autoconfig then
+    // param.srv_params[IDX_SMTP].pw.is_empty()   -- the password cannot be auto-configured and is no criterion for
     //                               autoconfig or not
-    if param.mail_server.is_empty()
-        && param.mail_port == 0
-        && param.send_server.is_empty()
-        && param.send_port == 0
-        && param.send_user.is_empty()
-        && (param.server_flags & !DC_LP_AUTH_OAUTH2) == 0
+    if param.srv_params[IDX_IMAP].hostname.is_empty()
+        && param.srv_params[IDX_IMAP].port == 0
+        && param.srv_params[IDX_SMTP].hostname.is_empty()
+        && param.srv_params[IDX_SMTP].port == 0
+        && param.srv_params[IDX_SMTP].user.is_empty()
+        && param.auth_scheme.is_oauth2()
     {
         // no advanced parameters entered by the user: query provider-database or do Autoconfig
-        keep_flags = param.server_flags & DC_LP_AUTH_OAUTH2;
+        keep_oauth2 = param.auth_scheme.is_oauth2();
         if let Some(new_param) = get_offline_autoconfig(ctx, &param) {
             // got parameters from our provider-database, skip Autoconfig, preserve the OAuth2 setting
             param_autoconfig = Some(new_param);
@@ -170,90 +199,66 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     progress!(ctx, 500);
     if let Some(ref cfg) = param_autoconfig {
         info!(ctx, "Got autoconfig: {}", &cfg);
-        if !cfg.mail_user.is_empty() {
-            param.mail_user = cfg.mail_user.clone();
+        if !cfg.srv_params[IDX_IMAP].user.is_empty() {
+            param.srv_params[IDX_IMAP].user = cfg.srv_params[IDX_IMAP].user.clone();
         }
         // all other values are always NULL when entering autoconfig
-        param.mail_server = cfg.mail_server.clone();
-        param.mail_port = cfg.mail_port;
-        param.send_server = cfg.send_server.clone();
-        param.send_port = cfg.send_port;
-        param.send_user = cfg.send_user.clone();
-        param.server_flags = cfg.server_flags;
+        param.srv_params[IDX_IMAP].hostname = cfg.srv_params[IDX_IMAP].hostname.clone();
+        param.srv_params[IDX_IMAP].port = cfg.srv_params[IDX_IMAP].port;
+        param.srv_params[IDX_IMAP].security = cfg.srv_params[IDX_IMAP].security;
+        param.srv_params[IDX_SMTP].hostname = cfg.srv_params[IDX_SMTP].hostname.clone();
+        param.srv_params[IDX_SMTP].port = cfg.srv_params[IDX_SMTP].port;
+        param.srv_params[IDX_SMTP].security = cfg.srv_params[IDX_SMTP].security;
+        param.srv_params[IDX_SMTP].user = cfg.srv_params[IDX_SMTP].user.clone();
+        param.auth_scheme = cfg.auth_scheme;
         // although param_autoconfig's data are no longer needed from,
         // it is used to later to prevent trying variations of port/server/logins
     }
-    param.server_flags |= keep_flags;
+    if keep_oauth2 {
+        param.auth_scheme = AuthScheme::Oauth2;
+    }
 
     // Step 3: Fill missing fields with defaults
-    if param.mail_server.is_empty() {
-        param.mail_server = format!("imap.{}", param_domain,)
+    if param.srv_params[IDX_IMAP].hostname.is_empty() {
+        param.srv_params[IDX_IMAP].hostname = format!("imap.{}", param_domain,)
     }
-    if param.mail_port == 0 {
-        param.mail_port = if 0 != param.server_flags & (0x100 | 0x400) {
-            143
-        } else {
-            993
+
+    if param.srv_params[IDX_IMAP].user.is_empty() {
+        param.srv_params[IDX_IMAP].user = param.addr.clone();
+    }
+    choose_starting_port_socket_security(&mut param.srv_params[IDX_IMAP], 993, 143, 143);
+
+    if param.srv_params[IDX_SMTP].hostname.is_empty()
+        && !param.srv_params[IDX_IMAP].hostname.is_empty()
+    {
+        param.srv_params[IDX_SMTP].hostname = param.srv_params[IDX_IMAP].hostname.clone();
+        if param.srv_params[IDX_SMTP].hostname.starts_with("imap.") {
+            param.srv_params[IDX_SMTP].hostname = param.srv_params[IDX_SMTP]
+                .hostname
+                .replacen("imap", "smtp", 1);
         }
     }
-    if param.mail_user.is_empty() {
-        param.mail_user = param.addr.clone();
+
+    if param.srv_params[IDX_SMTP].user.is_empty() && !param.srv_params[IDX_IMAP].user.is_empty() {
+        param.srv_params[IDX_SMTP].user = param.srv_params[IDX_IMAP].user.clone();
     }
-    if param.send_server.is_empty() && !param.mail_server.is_empty() {
-        param.send_server = param.mail_server.clone();
-        if param.send_server.starts_with("imap.") {
-            param.send_server = param.send_server.replacen("imap", "smtp", 1);
-        }
+    if param.srv_params[IDX_SMTP].pw.is_empty() && !param.srv_params[IDX_IMAP].pw.is_empty() {
+        param.srv_params[IDX_SMTP].pw = param.srv_params[IDX_IMAP].pw.clone()
     }
-    if param.send_port == 0 {
-        param.send_port = if 0 != param.server_flags & DC_LP_SMTP_SOCKET_STARTTLS as i32 {
-            587
-        } else if 0 != param.server_flags & DC_LP_SMTP_SOCKET_PLAIN as i32 {
-            25
-        } else {
-            465
-        }
-    }
-    if param.send_user.is_empty() && !param.mail_user.is_empty() {
-        param.send_user = param.mail_user.clone();
-    }
-    if param.send_pw.is_empty() && !param.mail_pw.is_empty() {
-        param.send_pw = param.mail_pw.clone()
-    }
-    if !dc_exactly_one_bit_set(param.server_flags & DC_LP_AUTH_FLAGS as i32) {
-        param.server_flags &= !(DC_LP_AUTH_FLAGS as i32);
-        param.server_flags |= DC_LP_AUTH_NORMAL as i32
-    }
-    if !dc_exactly_one_bit_set(param.server_flags & DC_LP_IMAP_SOCKET_FLAGS as i32) {
-        param.server_flags &= !(DC_LP_IMAP_SOCKET_FLAGS as i32);
-        param.server_flags |= if param.send_port == 143 {
-            DC_LP_IMAP_SOCKET_STARTTLS as i32
-        } else {
-            DC_LP_IMAP_SOCKET_SSL as i32
-        }
-    }
-    if !dc_exactly_one_bit_set(param.server_flags & (DC_LP_SMTP_SOCKET_FLAGS as i32)) {
-        param.server_flags &= !(DC_LP_SMTP_SOCKET_FLAGS as i32);
-        param.server_flags |= if param.send_port == 587 {
-            DC_LP_SMTP_SOCKET_STARTTLS as i32
-        } else if param.send_port == 25 {
-            DC_LP_SMTP_SOCKET_PLAIN as i32
-        } else {
-            DC_LP_SMTP_SOCKET_SSL as i32
-        }
-    }
+    choose_starting_port_socket_security(&mut param.srv_params[IDX_SMTP], 465, 587, 25);
 
     // do we have a complete configuration?
     ensure!(
-        !param.mail_server.is_empty()
-            && param.mail_port != 0
-            && !param.mail_user.is_empty()
-            && !param.mail_pw.is_empty()
-            && !param.send_server.is_empty()
-            && param.send_port != 0
-            && !param.send_user.is_empty()
-            && !param.send_pw.is_empty()
-            && param.server_flags != 0,
+        !param.srv_params[IDX_IMAP].hostname.is_empty()
+            && param.srv_params[IDX_IMAP].port != 0
+            && !param.srv_params[IDX_IMAP].user.is_empty()
+            && !param.srv_params[IDX_IMAP].pw.is_empty()
+            && param.srv_params[IDX_IMAP].security.is_some()
+            && !param.srv_params[IDX_SMTP].hostname.is_empty()
+            && param.srv_params[IDX_SMTP].port != 0
+            && !param.srv_params[IDX_SMTP].user.is_empty()
+            && !param.srv_params[IDX_SMTP].pw.is_empty()
+            && param.srv_params[IDX_SMTP].security.is_some(),
         "Account settings incomplete."
     );
 
@@ -404,22 +409,26 @@ fn get_offline_autoconfig(context: &Context, param: &LoginParam) -> Option<Login
                         let mut p = LoginParam::new();
                         p.addr = param.addr.clone();
 
-                        p.mail_server = imap.hostname.to_string();
-                        p.mail_user = imap.apply_username_pattern(param.addr.clone());
-                        p.mail_port = imap.port as i32;
-                        p.imap_certificate_checks = CertificateChecks::AcceptInvalidCertificates;
-                        p.server_flags |= match imap.socket {
-                            provider::Socket::STARTTLS => DC_LP_IMAP_SOCKET_STARTTLS,
-                            provider::Socket::SSL => DC_LP_IMAP_SOCKET_SSL,
+                        p.srv_params[IDX_IMAP].hostname = imap.hostname.to_string();
+                        p.srv_params[IDX_IMAP].user =
+                            imap.apply_username_pattern(param.addr.clone());
+                        p.srv_params[IDX_IMAP].port = imap.port as i32;
+                        p.srv_params[IDX_IMAP].certificate_checks =
+                            CertificateChecks::AcceptInvalidCertificates;
+                        p.srv_params[IDX_IMAP].security = match imap.socket {
+                            provider::Socket::STARTTLS => Some(ServerSecurity::Starttls),
+                            provider::Socket::SSL => Some(ServerSecurity::Ssl),
                         };
 
-                        p.send_server = smtp.hostname.to_string();
-                        p.send_user = smtp.apply_username_pattern(param.addr.clone());
-                        p.send_port = smtp.port as i32;
-                        p.smtp_certificate_checks = CertificateChecks::AcceptInvalidCertificates;
-                        p.server_flags |= match smtp.socket {
-                            provider::Socket::STARTTLS => DC_LP_SMTP_SOCKET_STARTTLS as i32,
-                            provider::Socket::SSL => DC_LP_SMTP_SOCKET_SSL as i32,
+                        p.srv_params[IDX_SMTP].hostname = smtp.hostname.to_string();
+                        p.srv_params[IDX_SMTP].user =
+                            smtp.apply_username_pattern(param.addr.clone());
+                        p.srv_params[IDX_SMTP].port = smtp.port as i32;
+                        p.srv_params[IDX_SMTP].certificate_checks =
+                            CertificateChecks::AcceptInvalidCertificates;
+                        p.srv_params[IDX_SMTP].security = match smtp.socket {
+                            provider::Socket::STARTTLS => Some(ServerSecurity::Starttls),
+                            provider::Socket::SSL => Some(ServerSecurity::Ssl),
                         };
 
                         info!(context, "offline autoconfig found: {}", p);
@@ -460,18 +469,19 @@ async fn try_imap_connections(
 
     progress!(context, 670);
     // try_imap_connection() changed the flags and port. Change them back:
-    if manually_set_param.server_flags & DC_LP_IMAP_SOCKET_FLAGS == 0 {
-        param.server_flags &= !(DC_LP_IMAP_SOCKET_FLAGS);
-        param.server_flags |= DC_LP_IMAP_SOCKET_SSL;
+    if manually_set_param.srv_params[IDX_IMAP].security.is_none() {
+        param.srv_params[IDX_IMAP].security = Some(ServerSecurity::Ssl);
     }
-    if manually_set_param.mail_port == 0 {
-        param.mail_port = 993;
+    if manually_set_param.srv_params[IDX_IMAP].port == 0 {
+        param.srv_params[IDX_IMAP].port = 993;
     }
-    if let Some(at) = param.mail_user.find('@') {
-        param.mail_user = param.mail_user.split_at(at).0.to_string();
+    if let Some(at) = param.srv_params[IDX_IMAP].user.find('@') {
+        param.srv_params[IDX_IMAP].user =
+            param.srv_params[IDX_IMAP].user.split_at(at).0.to_string();
     }
-    if let Some(at) = param.send_user.find('@') {
-        param.send_user = param.send_user.split_at(at).0.to_string();
+    if let Some(at) = param.srv_params[IDX_SMTP].user.find('@') {
+        param.srv_params[IDX_SMTP].user =
+            param.srv_params[IDX_SMTP].user.split_at(at).0.to_string();
     }
     // progress 680 and 690
     try_imap_connection(context, param, &manually_set_param, was_autoconfig, 1, imap).await
@@ -494,9 +504,8 @@ async fn try_imap_connection(
 
     progress!(context, 650 + variation * 30);
 
-    if manually_set_param.server_flags & DC_LP_IMAP_SOCKET_FLAGS == 0 {
-        param.server_flags &= !(DC_LP_IMAP_SOCKET_FLAGS);
-        param.server_flags |= DC_LP_IMAP_SOCKET_STARTTLS;
+    if manually_set_param.srv_params[IDX_IMAP].security.is_none() {
+        param.srv_params[IDX_IMAP].security = Some(ServerSecurity::Ssl);
 
         if try_imap_one_param(context, &param, imap).await.is_ok() {
             return Ok(());
@@ -505,8 +514,8 @@ async fn try_imap_connection(
 
     progress!(context, 660 + variation * 30);
 
-    if manually_set_param.mail_port == 0 {
-        param.mail_port = 143;
+    if manually_set_param.srv_params[IDX_IMAP].port == 0 {
+        param.srv_params[IDX_IMAP].port = 143;
         try_imap_one_param(context, param, imap).await
     } else {
         Err(format_err!("no more possible configs"))
@@ -515,12 +524,13 @@ async fn try_imap_connection(
 
 async fn try_imap_one_param(context: &Context, param: &LoginParam, imap: &mut Imap) -> Result<()> {
     let inf = format!(
-        "imap: {}@{}:{} flags=0x{:x} certificate_checks={}",
-        param.mail_user,
-        param.mail_server,
-        param.mail_port,
-        param.server_flags,
-        param.imap_certificate_checks
+        "imap: {}@{}:{} security={} auth={} certificate_checks={}",
+        param.srv_params[IDX_IMAP].user,
+        param.srv_params[IDX_IMAP].hostname,
+        param.srv_params[IDX_IMAP].port,
+        param.srv_params[IDX_IMAP].security.unwrap(),
+        param.auth_scheme,
+        param.srv_params[IDX_IMAP].certificate_checks
     );
     info!(context, "Trying: {}", inf);
 
@@ -553,12 +563,11 @@ async fn try_smtp_connections(
     }
     progress!(context, 850);
 
-    if manually_set_param.server_flags & (DC_LP_SMTP_SOCKET_FLAGS as i32) == 0 {
-        param.server_flags &= !(DC_LP_SMTP_SOCKET_FLAGS as i32);
-        param.server_flags |= DC_LP_SMTP_SOCKET_STARTTLS as i32;
+    if manually_set_param.srv_params[IDX_SMTP].security.is_none() {
+        param.srv_params[IDX_SMTP].security = Some(ServerSecurity::Starttls);
     }
-    if manually_set_param.send_port == 0 {
-        param.send_port = 587;
+    if manually_set_param.srv_params[IDX_SMTP].port == 0 {
+        param.srv_params[IDX_SMTP].port = 587;
     }
 
     if try_smtp_one_param(context, param, &mut smtp).await.is_ok() {
@@ -566,20 +575,23 @@ async fn try_smtp_connections(
     }
     progress!(context, 860);
 
-    if manually_set_param.server_flags & (DC_LP_SMTP_SOCKET_FLAGS as i32) == 0 {
-        param.server_flags &= !(DC_LP_SMTP_SOCKET_FLAGS as i32);
-        param.server_flags |= DC_LP_SMTP_SOCKET_STARTTLS as i32;
+    if manually_set_param.srv_params[IDX_SMTP].security.is_none() {
+        param.srv_params[IDX_SMTP].security = Some(ServerSecurity::Starttls);
     }
-    if manually_set_param.send_port == 0 {
-        param.send_port = 25;
+    if manually_set_param.srv_params[IDX_SMTP].port == 0 {
+        param.srv_params[IDX_SMTP].port = 25;
     }
     try_smtp_one_param(context, param, &mut smtp).await
 }
 
 async fn try_smtp_one_param(context: &Context, param: &LoginParam, smtp: &mut Smtp) -> Result<()> {
     let inf = format!(
-        "smtp: {}@{}:{} flags: 0x{:x}",
-        param.send_user, param.send_server, param.send_port, param.server_flags
+        "smtp: {}@{}:{} security={} auth={}",
+        param.srv_params[IDX_SMTP].user,
+        param.srv_params[IDX_SMTP].hostname,
+        param.srv_params[IDX_SMTP].port,
+        param.srv_params[IDX_SMTP].security.unwrap(),
+        param.auth_scheme
     );
     info!(context, "Trying: {}", inf);
 
@@ -646,7 +658,13 @@ mod tests {
         let mut params = LoginParam::new();
         params.addr = "someone123@nauta.cu".to_string();
         let found_params = get_offline_autoconfig(&context, &params).unwrap();
-        assert_eq!(found_params.mail_server, "imap.nauta.cu".to_string());
-        assert_eq!(found_params.send_server, "smtp.nauta.cu".to_string());
+        assert_eq!(
+            found_params.srv_params[IDX_IMAP].hostname,
+            "imap.nauta.cu".to_string()
+        );
+        assert_eq!(
+            found_params.srv_params[IDX_SMTP].hostname,
+            "smtp.nauta.cu".to_string()
+        );
     }
 }

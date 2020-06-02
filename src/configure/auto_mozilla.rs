@@ -3,9 +3,8 @@
 //! Documentation: https://developer.mozilla.org/en-US/docs/Mozilla/Thunderbird/Autoconfiguration */
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
-use crate::constants::*;
 use crate::context::Context;
-use crate::login_param::LoginParam;
+use crate::login_param::{LoginParam, ServerSecurity, IDX_IMAP, IDX_SMTP};
 
 use super::read_url::read_url;
 use super::Error;
@@ -83,10 +82,10 @@ fn parse_xml(in_emailaddr: &str, xml_raw: &str) -> Result<LoginParam, Error> {
         buf.clear();
     }
 
-    if moz_ac.out.mail_server.is_empty()
-        || moz_ac.out.mail_port == 0
-        || moz_ac.out.send_server.is_empty()
-        || moz_ac.out.send_port == 0
+    if moz_ac.out.srv_params[IDX_IMAP].hostname.is_empty()
+        || moz_ac.out.srv_params[IDX_IMAP].port == 0
+        || moz_ac.out.srv_params[IDX_SMTP].hostname.is_empty()
+        || moz_ac.out.srv_params[IDX_SMTP].port == 0
     {
         Err(Error::IncompleteAutoconfig(moz_ac.out))
     } else {
@@ -130,38 +129,26 @@ fn moz_autoconfigure_text_cb<B: std::io::BufRead>(
 
     match moz_ac.tag_server {
         MozServer::Imap => match moz_ac.tag_config {
-            MozConfigTag::Hostname => moz_ac.out.mail_server = val,
-            MozConfigTag::Port => moz_ac.out.mail_port = val.parse().unwrap_or_default(),
-            MozConfigTag::Username => moz_ac.out.mail_user = val,
+            MozConfigTag::Hostname => moz_ac.out.srv_params[IDX_IMAP].hostname = val,
+            MozConfigTag::Port => {
+                moz_ac.out.srv_params[IDX_IMAP].port = val.parse().unwrap_or_default()
+            }
+            MozConfigTag::Username => moz_ac.out.srv_params[IDX_IMAP].user = val,
             MozConfigTag::Sockettype => {
-                let val_lower = val.to_lowercase();
-                if val_lower == "ssl" {
-                    moz_ac.out.server_flags |= DC_LP_IMAP_SOCKET_SSL as i32
-                }
-                if val_lower == "starttls" {
-                    moz_ac.out.server_flags |= DC_LP_IMAP_SOCKET_STARTTLS as i32
-                }
-                if val_lower == "plain" {
-                    moz_ac.out.server_flags |= DC_LP_IMAP_SOCKET_PLAIN as i32
-                }
+                moz_ac.out.srv_params[IDX_IMAP].security =
+                    ServerSecurity::from_str_opt(val.to_lowercase().as_str())
             }
             _ => {}
         },
         MozServer::Smtp => match moz_ac.tag_config {
-            MozConfigTag::Hostname => moz_ac.out.send_server = val,
-            MozConfigTag::Port => moz_ac.out.send_port = val.parse().unwrap_or_default(),
-            MozConfigTag::Username => moz_ac.out.send_user = val,
+            MozConfigTag::Hostname => moz_ac.out.srv_params[IDX_SMTP].hostname = val,
+            MozConfigTag::Port => {
+                moz_ac.out.srv_params[IDX_SMTP].port = val.parse().unwrap_or_default()
+            }
+            MozConfigTag::Username => moz_ac.out.srv_params[IDX_SMTP].user = val,
             MozConfigTag::Sockettype => {
-                let val_lower = val.to_lowercase();
-                if val_lower == "ssl" {
-                    moz_ac.out.server_flags |= DC_LP_SMTP_SOCKET_SSL as i32
-                }
-                if val_lower == "starttls" {
-                    moz_ac.out.server_flags |= DC_LP_SMTP_SOCKET_STARTTLS as i32
-                }
-                if val_lower == "plain" {
-                    moz_ac.out.server_flags |= DC_LP_SMTP_SOCKET_PLAIN as i32
-                }
+                moz_ac.out.srv_params[IDX_SMTP].security =
+                    ServerSecurity::from_str_opt(val.to_lowercase().as_str())
             }
             _ => {}
         },
@@ -314,9 +301,9 @@ mod tests {
   </webMail>
 </clientConfig>";
         let res = parse_xml("example@outlook.com", xml_raw).expect("XML parsing failed");
-        assert_eq!(res.mail_server, "outlook.office365.com");
-        assert_eq!(res.mail_port, 993);
-        assert_eq!(res.send_server, "smtp.office365.com");
-        assert_eq!(res.send_port, 587);
+        assert_eq!(res.srv_params[IDX_IMAP].hostname, "outlook.office365.com");
+        assert_eq!(res.srv_params[IDX_IMAP].port, 993);
+        assert_eq!(res.srv_params[IDX_SMTP].hostname, "smtp.office365.com");
+        assert_eq!(res.srv_params[IDX_SMTP].port, 587);
     }
 }

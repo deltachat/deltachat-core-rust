@@ -15,7 +15,7 @@ use crate::dc_tools::*;
 use crate::error::{bail, ensure, format_err, Result};
 use crate::events::Event;
 use crate::key::{DcKey, SignedPublicKey};
-use crate::login_param::LoginParam;
+use crate::login_param::{LoginParam, ServerSecurity, IDX_IMAP, IDX_SMTP};
 use crate::message::{MessageState, MsgId};
 use crate::mimeparser::AvatarAction;
 use crate::param::*;
@@ -728,12 +728,18 @@ impl Contact {
                     );
                     cat_fingerprint(&mut ret, &loginparam.addr, &fingerprint_self, "");
                 }
-            } else if 0 == loginparam.server_flags & DC_LP_IMAP_SOCKET_PLAIN as i32
-                && 0 == loginparam.server_flags & DC_LP_SMTP_SOCKET_PLAIN as i32
+            } else if loginparam.srv_params[IDX_IMAP]
+                .security
+                .unwrap_or(ServerSecurity::PlainSocket)
+                == ServerSecurity::PlainSocket
+                && loginparam.srv_params[IDX_SMTP]
+                    .security
+                    .unwrap_or(ServerSecurity::PlainSocket)
+                    == ServerSecurity::PlainSocket
             {
-                ret += &context.stock_str(StockMessage::EncrTransp).await;
-            } else {
                 ret += &context.stock_str(StockMessage::EncrNone).await;
+            } else {
+                ret += &context.stock_str(StockMessage::EncrTransp).await;
             }
         }
 
