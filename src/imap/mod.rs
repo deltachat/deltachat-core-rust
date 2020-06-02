@@ -1140,46 +1140,47 @@ impl Imap {
                 }
             };
 
+            let mut delimiter = ".".to_string();
+            let mut delimiter_is_default = true;
             let mut sentbox_folder = None;
             let mut mvbox_folder = None;
-
-            let mut delimiter = ".".to_string();
-            if let Some(folder) = folders.next().await {
-                let folder = folder.map_err(|err| Error::Other(err.to_string()))?;
-                if let Some(d) = folder.delimiter() {
-                    if !d.is_empty() {
-                        delimiter = d.to_string();
-                    }
-                }
-            }
-            info!(context, "Using \"{}\" as folder-delimiter.", delimiter);
-            let fallback_folder = format!("INBOX{}DeltaChat", delimiter);
+            let mut fallback_folder = get_fallback_folder(&delimiter);
 
             while let Some(folder) = folders.next().await {
                 let folder = folder.map_err(|err| Error::Other(err.to_string()))?;
                 info!(context, "Scanning folder: {:?}", folder);
 
-                if mvbox_folder.is_none()
-                    && (folder.name() == "DeltaChat" || folder.name() == fallback_folder)
-                {
-                    mvbox_folder = Some(folder.name().to_string());
-                }
-
-                if sentbox_folder.is_none() {
-                    if let FolderMeaning::SentObjects = get_folder_meaning(&folder) {
-                        sentbox_folder = Some(folder);
-                    } else if let FolderMeaning::SentObjects = get_folder_meaning_by_name(&folder) {
-                        sentbox_folder = Some(folder);
+                // Update the delimiter iff there is a different one, but only once.
+                if let Some(d) = folder.delimiter() {
+                    if delimiter_is_default && !d.is_empty() && delimiter != d {
+                        delimiter = d.to_string();
+                        fallback_folder = get_fallback_folder(&delimiter);
+                        delimiter_is_default = false;
                     }
                 }
 
-                if mvbox_folder.is_some() && sentbox_folder.is_some() {
-                    break;
+                if folder.name() == "DeltaChat" {
+                    // Always takes precendent
+                    mvbox_folder = Some(folder.name().to_string());
+                } else if folder.name() == fallback_folder {
+                    // only set iff none has been already set
+                    if mvbox_folder.is_none() {
+                        mvbox_folder = Some(folder.name().to_string());
+                    }
+                } else if let FolderMeaning::SentObjects = get_folder_meaning(&folder) {
+                    // Always takes precedent
+                    sentbox_folder = Some(folder.name().to_string());
+                } else if let FolderMeaning::SentObjects = get_folder_meaning_by_name(&folder) {
+                    // only set iff none has been already set
+                    if sentbox_folder.is_none() {
+                        sentbox_folder = Some(folder.name().to_string());
+                    }
                 }
             }
-            info!(context, "sentbox folder is {:?}", sentbox_folder);
-
             drop(folders);
+
+            info!(context, "Using \"{}\" as folder-delimiter.", delimiter);
+            info!(context, "sentbox folder is {:?}", sentbox_folder);
 
             if mvbox_folder.is_none() && create_mvbox {
                 info!(context, "Creating MVBOX-folder \"DeltaChat\"...",);
@@ -1187,7 +1188,6 @@ impl Imap {
                 match session.create("DeltaChat").await {
                     Ok(_) => {
                         mvbox_folder = Some("DeltaChat".into());
-
                         info!(context, "MVBOX-folder created.",);
                     }
                     Err(err) => {
@@ -1233,11 +1233,7 @@ impl Imap {
             if let Some(ref sentbox_folder) = sentbox_folder {
                 context
                     .sql
-                    .set_raw_config(
-                        context,
-                        "configured_sentbox_folder",
-                        Some(sentbox_folder.name()),
-                    )
+                    .set_raw_config(context, "configured_sentbox_folder", Some(sentbox_folder))
                     .await?;
             }
             context
@@ -1513,4 +1509,8 @@ async fn message_needs_processing(
     }
 
     true
+}
+
+fn get_fallback_folder(delimiter: &str) -> String {
+    format!("INBOX{}DeltaChat", delimiter)
 }
