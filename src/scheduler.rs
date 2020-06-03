@@ -77,12 +77,13 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
 
     let ctx1 = ctx.clone();
     let fut = async move {
-        started.send(()).await;
         let ctx = ctx1;
         if let Err(err) = connection.connect_configured(&ctx).await {
             error!(ctx, "{}", err);
             return;
         }
+
+        started.send(()).await;
 
         // track number of continously executed jobs
         let mut jobs_loaded = 0;
@@ -102,7 +103,8 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
                 }
                 None => {
                     jobs_loaded = 0;
-                    probe_network = fetch_idle(&ctx, &mut connection).await;
+                    probe_network =
+                        fetch_idle(&ctx, &mut connection, "configured_inbox_folder").await;
                 }
             }
         }
@@ -122,12 +124,10 @@ async fn fetch(ctx: &Context, connection: &mut Imap) {
     match get_watch_folder(&ctx, "configured_inbox_folder").await {
         Some(watch_folder) => {
             // fetch
-            connection
-                .fetch(&ctx, &watch_folder)
-                .await
-                .unwrap_or_else(|err| {
-                    error!(ctx, "{}", err);
-                });
+            if let Err(err) = connection.fetch(&ctx, &watch_folder).await {
+                connection.trigger_reconnect();
+                error!(ctx, "{}", err);
+            }
         }
         None => {
             warn!(ctx, "Can not fetch inbox folder, not set");
@@ -136,16 +136,14 @@ async fn fetch(ctx: &Context, connection: &mut Imap) {
     }
 }
 
-async fn fetch_idle(ctx: &Context, connection: &mut Imap) -> bool {
-    match get_watch_folder(&ctx, "configured_inbox_folder").await {
+async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: &str) -> bool {
+    match get_watch_folder(&ctx, folder).await {
         Some(watch_folder) => {
             // fetch
-            connection
-                .fetch(&ctx, &watch_folder)
-                .await
-                .unwrap_or_else(|err| {
-                    error!(ctx, "{}", err);
-                });
+            if let Err(err) = connection.fetch(&ctx, &watch_folder).await {
+                connection.trigger_reconnect();
+                error!(ctx, "{}", err);
+            }
 
             // idle
             if connection.can_idle() {
@@ -153,6 +151,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap) -> bool {
                     .idle(&ctx, Some(watch_folder))
                     .await
                     .unwrap_or_else(|err| {
+                        connection.trigger_reconnect();
                         error!(ctx, "{}", err);
                         false
                     })
@@ -185,46 +184,16 @@ async fn simple_imap_loop(
     let ctx1 = ctx.clone();
 
     let fut = async move {
-        started.send(()).await;
         let ctx = ctx1;
         if let Err(err) = connection.connect_configured(&ctx).await {
             error!(ctx, "{}", err);
             return;
         }
 
-        loop {
-            match get_watch_folder(&ctx, folder.as_ref()).await {
-                Some(watch_folder) => {
-                    // fetch
-                    connection
-                        .fetch(&ctx, &watch_folder)
-                        .await
-                        .unwrap_or_else(|err| {
-                            error!(ctx, "{}", err);
-                        });
+        started.send(()).await;
 
-                    // idle
-                    if connection.can_idle() {
-                        connection
-                            .idle(&ctx, Some(watch_folder))
-                            .await
-                            .unwrap_or_else(|err| {
-                                error!(ctx, "{}", err);
-                                false
-                            });
-                    } else {
-                        connection.fake_idle(&ctx, Some(watch_folder)).await;
-                    }
-                }
-                None => {
-                    warn!(
-                        &ctx,
-                        "No watch folder found for {}, skipping",
-                        folder.as_ref()
-                    );
-                    connection.fake_idle(&ctx, None).await;
-                }
-            }
+        loop {
+            fetch_idle(&ctx, &mut connection, folder.as_ref()).await;
         }
     };
 
