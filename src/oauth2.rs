@@ -1,7 +1,9 @@
 //! OAuth 2 module
 
+use regex::Regex;
 use std::collections::HashMap;
 
+use async_std_resolver::{config, resolver};
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use serde::Deserialize;
 
@@ -15,6 +17,7 @@ const OAUTH2_GMAIL: Oauth2 = Oauth2 {
     init_token: "https://accounts.google.com/o/oauth2/token?client_id=$CLIENT_ID&redirect_uri=$REDIRECT_URI&code=$CODE&grant_type=authorization_code",
     refresh_token: "https://accounts.google.com/o/oauth2/token?client_id=$CLIENT_ID&redirect_uri=$REDIRECT_URI&refresh_token=$REFRESH_TOKEN&grant_type=refresh_token",
     get_userinfo: Some("https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token=$ACCESS_TOKEN"),
+    mx_pattern: Some(r"^aspmx\.l\.google\.com\.$"),
 };
 
 const OAUTH2_YANDEX: Oauth2 = Oauth2 {
@@ -24,7 +27,10 @@ const OAUTH2_YANDEX: Oauth2 = Oauth2 {
     init_token: "https://oauth.yandex.com/token?grant_type=authorization_code&code=$CODE&client_id=$CLIENT_ID&client_secret=58b8c6e94cf44fbe952da8511955dacf",
     refresh_token: "https://oauth.yandex.com/token?grant_type=refresh_token&refresh_token=$REFRESH_TOKEN&client_id=$CLIENT_ID&client_secret=58b8c6e94cf44fbe952da8511955dacf",
     get_userinfo: None,
+    mx_pattern: None,
 };
+
+const OAUTH2_PROVIDERS: [Oauth2; 1] = [OAUTH2_GMAIL];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Oauth2 {
@@ -33,6 +39,7 @@ struct Oauth2 {
     init_token: &'static str,
     refresh_token: &'static str,
     get_userinfo: Option<&'static str>,
+    mx_pattern: Option<&'static str>,
 }
 
 /// OAuth 2 Access Token Response
@@ -53,7 +60,7 @@ pub async fn dc_get_oauth2_url(
     addr: impl AsRef<str>,
     redirect_uri: impl AsRef<str>,
 ) -> Option<String> {
-    if let Some(oauth2) = Oauth2::from_address(addr) {
+    if let Some(oauth2) = Oauth2::from_address(addr).await {
         if context
             .sql
             .set_raw_config(
@@ -81,7 +88,7 @@ pub async fn dc_get_oauth2_access_token(
     code: impl AsRef<str>,
     regenerate: bool,
 ) -> Option<String> {
-    if let Some(oauth2) = Oauth2::from_address(addr) {
+    if let Some(oauth2) = Oauth2::from_address(addr).await {
         let lock = context.oauth2_mutex.lock().await;
 
         // read generated token
@@ -239,7 +246,7 @@ pub async fn dc_get_oauth2_addr(
     addr: impl AsRef<str>,
     code: impl AsRef<str>,
 ) -> Option<String> {
-    let oauth2 = Oauth2::from_address(addr.as_ref())?;
+    let oauth2 = Oauth2::from_address(addr.as_ref()).await?;
     oauth2.get_userinfo?;
 
     if let Some(access_token) =
@@ -263,21 +270,60 @@ pub async fn dc_get_oauth2_addr(
 }
 
 impl Oauth2 {
-    fn from_address(addr: impl AsRef<str>) -> Option<Self> {
+    async fn from_address(addr: impl AsRef<str>) -> Option<Self> {
         let addr_normalized = normalize_addr(addr.as_ref());
         if let Some(domain) = addr_normalized
             .find('@')
             .map(|index| addr_normalized.split_at(index + 1).1)
         {
-            match domain {
-                "gmail.com" | "googlemail.com" => Some(OAUTH2_GMAIL),
-                "yandex.com" | "yandex.by" | "yandex.kz" | "yandex.ru" | "yandex.ua" | "ya.ru"
-                | "narod.ru" => Some(OAUTH2_YANDEX),
-                _ => None,
+            if let Some(provider) = Oauth2::lookup_whitelist(domain) {
+                Some(provider)
+            } else {
+                Oauth2::lookup_mx(domain).await
             }
         } else {
             None
         }
+    }
+
+    fn lookup_whitelist(domain: impl AsRef<str>) -> Option<Self> {
+        let domain = domain.as_ref();
+        match domain {
+            "gmail.com" | "googlemail.com" => Some(OAUTH2_GMAIL),
+            "yandex.com" | "yandex.by" | "yandex.kz" | "yandex.ru" | "yandex.ua" | "ya.ru"
+            | "narod.ru" => Some(OAUTH2_YANDEX),
+            _ => None,
+        }
+    }
+
+    async fn lookup_mx(domain: impl AsRef<str>) -> Option<Self> {
+        if let Ok(resolver) = resolver(
+            config::ResolverConfig::default(),
+            config::ResolverOpts::default(),
+        )
+        .await
+        {
+            for provider in OAUTH2_PROVIDERS.iter() {
+                if let Some(pattern) = provider.mx_pattern {
+                    let re = Regex::new(pattern).unwrap();
+
+                    let mut fqdn: String = String::from(domain.as_ref());
+                    if !fqdn.ends_with('.') {
+                        fqdn.push_str(".");
+                    }
+
+                    if let Ok(res) = resolver.mx_lookup(fqdn).await {
+                        for rr in res.iter() {
+                            if re.is_match(&rr.exchange().to_lowercase().to_utf8()) {
+                                return Some(provider.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        None
     }
 
     async fn get_addr(&self, context: &Context, access_token: impl AsRef<str>) -> Option<String> {
@@ -362,20 +408,34 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_oauth_from_address() {
-        assert_eq!(Oauth2::from_address("hello@gmail.com"), Some(OAUTH2_GMAIL));
+    #[async_std::test]
+    async fn test_oauth_from_address() {
         assert_eq!(
-            Oauth2::from_address("hello@googlemail.com"),
+            Oauth2::from_address("hello@gmail.com").await,
             Some(OAUTH2_GMAIL)
         );
         assert_eq!(
-            Oauth2::from_address("hello@yandex.com"),
+            Oauth2::from_address("hello@googlemail.com").await,
+            Some(OAUTH2_GMAIL)
+        );
+        assert_eq!(
+            Oauth2::from_address("hello@yandex.com").await,
             Some(OAUTH2_YANDEX)
         );
-        assert_eq!(Oauth2::from_address("hello@yandex.ru"), Some(OAUTH2_YANDEX));
+        assert_eq!(
+            Oauth2::from_address("hello@yandex.ru").await,
+            Some(OAUTH2_YANDEX)
+        );
 
-        assert_eq!(Oauth2::from_address("hello@web.de"), None);
+        assert_eq!(Oauth2::from_address("hello@web.de").await, None);
+    }
+
+    #[async_std::test]
+    async fn test_oauth_from_mx() {
+        assert_eq!(
+            Oauth2::from_address("hello@google.com").await,
+            Some(OAUTH2_GMAIL)
+        );
     }
 
     #[async_std::test]
