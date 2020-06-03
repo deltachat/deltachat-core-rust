@@ -295,6 +295,8 @@ impl Imap {
 
         match login_res {
             Ok(session) => {
+                // needs to be set here to ensure it is set on reconnects.
+                self.connected = true;
                 self.session = Some(session);
                 Ok(())
             }
