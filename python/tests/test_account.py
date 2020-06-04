@@ -1584,6 +1584,7 @@ class TestOnlineAccount:
         chat2.set_autodelete_timer(0)
 
         lp.sec("ac1: receive system message about autodelete timer modification")
+        ac1._evtracker.get_matching("DC_EVENT_CHAT_AUTODELETE_TIMER_MODIFIED")
         system_message2 = ac1._evtracker.wait_next_incoming_message()
         assert "Autodelete timer: " not in system_message2.get_message_info()
         assert chat1.get_autodelete_timer() == 0
