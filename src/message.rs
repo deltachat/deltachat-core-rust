@@ -1384,6 +1384,28 @@ pub async fn mdn_from_ext(
     None
 }
 
+pub async fn ndn_from_ext(
+    context: &Context,
+    from_id: u32,
+    rfc724_mid: &str,
+    error: impl AsRef<str>,
+) {
+    if from_id <= DC_MSG_ID_LAST_SPECIAL || rfc724_mid.is_empty() {
+        return;
+    }
+
+    match rfc724_mid_exists(context, rfc724_mid).await {
+        Ok(Some((_, _, msg_id))) => {
+            set_msg_failed(context, msg_id, Some(error)).await;
+        }
+        Ok(None) => info!(
+            context,
+            "Failed to select NDN, could not find failed msg {}", rfc724_mid
+        ),
+        Err(e) => info!(context, "Failed to select NDN {:?}", e),
+    }
+}
+
 /// The number of messages assigned to real chat (!=deaddrop, !=trash)
 pub async fn get_real_msg_cnt(context: &Context) -> i32 {
     match context

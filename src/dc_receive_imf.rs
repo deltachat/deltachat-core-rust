@@ -2324,4 +2324,52 @@ mod tests {
             "Carl"
         );
     }
+
+    #[async_std::test]
+    async fn test_parse_ndn() {
+        let t = dummy_context().await;
+        t.ctx
+            .set_config(Config::Addr, Some("alice@example.org"))
+            .await
+            .unwrap();
+        t.ctx
+            .set_config(Config::ConfiguredAddr, Some("alice@example.org"))
+            .await
+            .unwrap();
+        t.ctx
+            .set_config(Config::Configured, Some("1"))
+            .await
+            .unwrap();
+
+        dc_receive_imf(
+            &t.ctx,
+            b"From: alice@example.org\n\
+                To: assidhfaaspocwaeofi@gmail.com\n\
+                Subject: foo\n\
+                Message-ID: <CABXKi8zruXJc_6e4Dr087H5wE7sLp+u250o0N2q5DdjF_r-8wg@mail.gmail.com>\n\
+                Chat-Version: 1.0\n\
+                Chat-Disposition-Notification-To: alice@example.org\n\
+                Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                \n\
+                hello\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .await
+        .unwrap();
+
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let msg_id = chats.get_msg_id(0).unwrap();
+
+        let raw = include_bytes!("../test-data/message/gmail_ndn.eml");
+        dc_receive_imf(&t.ctx, raw, "INBOX", 1, false)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            Message::load_from_db(&t.ctx, msg_id).await.unwrap().state,
+            MessageState::OutFailed
+        );
+    }
 }

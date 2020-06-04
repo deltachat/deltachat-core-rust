@@ -54,6 +54,7 @@ pub struct MimeMessage {
     pub(crate) user_avatar: Option<AvatarAction>,
     pub(crate) group_avatar: Option<AvatarAction>,
     pub(crate) reports: Vec<Report>,
+    pub(crate) failed_msg: Option<String>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -182,6 +183,7 @@ impl MimeMessage {
             message_kml: None,
             user_avatar: None,
             group_avatar: None,
+            failed_msg: None,
         };
         parser.parse_mime_recursive(context, &mail).await?;
         parser.parse_headers(context)?;
@@ -550,8 +552,8 @@ impl MimeMessage {
             (mime::MULTIPART, "report") => {
                 /* RFC 6522: the first part is for humans, the second for machines */
                 if mail.subparts.len() >= 2 {
-                    if let Some(report_type) = mail.ctype.params.get("report-type") {
-                        if report_type == "disposition-notification" {
+                    match mail.ctype.params.get("report-type").map(|s| s as &str) {
+                        Some("disposition-notification") => {
                             if let Some(report) = self.process_report(context, mail)? {
                                 self.reports.push(report);
                             }
@@ -565,13 +567,24 @@ impl MimeMessage {
                             self.parts.push(part);
 
                             any_part_added = true;
-                        } else {
-                            /* eg. `report-type=delivery-status`;
-                            maybe we should show them as a little error icon */
+                        }
+                        Some("delivery-status") => {
+                            if let Some(report) = self.process_delivery_status(context, mail)? {
+                                self.failed_msg = Some(report);
+                            }
+
+                            let mut part = Part::default();
+                            part.typ = Viewtype::Unknown;
+                            self.parts.push(part);
+
+                            any_part_added = true;
+                        }
+                        Some(_) => {
                             if let Some(first) = mail.subparts.iter().next() {
                                 any_part_added = self.parse_mime_recursive(context, first).await?;
                             }
                         }
+                        None => {}
                     }
                 }
             }
@@ -842,10 +855,6 @@ impl MimeMessage {
 
     /// Handle reports (only MDNs for now)
     pub async fn handle_reports(&self, context: &Context, from_id: u32, sent_timestamp: i64) {
-        if self.reports.is_empty() {
-            return;
-        }
-
         for report in &self.reports {
             for original_message_id in
                 std::iter::once(&report.original_message_id).chain(&report.additional_message_ids)
@@ -858,6 +867,41 @@ impl MimeMessage {
                 }
             }
         }
+
+        if let Some(original_message_id) = &self.failed_msg {
+            message::ndn_from_ext(context, from_id, original_message_id, "TODO error message").await
+        }
+    }
+
+    fn process_delivery_status(
+        &self,
+        context: &Context,
+        report: &mailparse::ParsedMail<'_>,
+    ) -> Result<Option<String>> {
+        // parse as mailheaders
+        if let Some(original_msg) = report
+            .subparts
+            .iter()
+            .find(|p| p.ctype.mimetype == "message/rfc822")
+        {
+            let report_body = original_msg.get_body_raw()?;
+            let (report_fields, _) = mailparse::parse_headers(&report_body)?;
+
+            if let Some(original_message_id) = report_fields
+                .get_header_value(HeaderDef::MessageId)
+                .and_then(|v| parse_message_id(&v).ok())
+            {
+                return Ok(Some(original_message_id));
+            }
+
+            warn!(
+                context,
+                "ignoring unknown ndn-notification, Message-Id: {:?}",
+                report_fields.get_header_value(HeaderDef::MessageId)
+            );
+        }
+
+        Ok(None)
     }
 }
 
