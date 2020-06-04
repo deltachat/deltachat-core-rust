@@ -361,7 +361,6 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         Event::ImexFileWritten(_) => 0,
         Event::SecurejoinInviterProgress { contact_id, .. }
         | Event::SecurejoinJoinerProgress { contact_id, .. } => *contact_id as libc::c_int,
-        Event::MsgDeleteTimeoutChanged { timer } => *timer as libc::c_int,
     }
 }
 
@@ -393,8 +392,7 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | Event::ConfigureProgress(_)
         | Event::ImexProgress(_)
         | Event::ImexFileWritten(_)
-        | Event::ChatModified(_)
-        | Event::MsgDeleteTimeoutChanged { .. } => 0,
+        | Event::ChatModified(_) => 0,
         Event::MsgsChanged { msg_id, .. }
         | Event::IncomingMsg { msg_id, .. }
         | Event::MsgDelivered { msg_id, .. }
@@ -444,7 +442,6 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         | Event::ImexProgress(_)
         | Event::SecurejoinInviterProgress { .. }
         | Event::SecurejoinJoinerProgress { .. }
-        | Event::MsgDeleteTimeoutChanged { .. }
         | Event::ChatAutodeleteTimerModified { .. } => ptr::null_mut(),
         Event::ImexFileWritten(file) => {
             let data2 = file.to_c_string().unwrap_or_default();

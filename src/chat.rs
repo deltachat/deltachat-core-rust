@@ -4,6 +4,7 @@ use std::convert::{TryFrom, TryInto};
 use std::time::{Duration, SystemTime};
 
 use async_std::path::{Path, PathBuf};
+use async_std::task;
 use itertools::Itertools;
 use num_traits::FromPrimitive;
 use serde::{Deserialize, Serialize};
@@ -1799,7 +1800,22 @@ pub async fn update_autodelete_timeout(context: &Context) {
     } else {
         0
     };
-    emit_event!(context, Event::MsgDeleteTimeoutChanged { timer });
+
+    if let Some(autodelete_task) = context.autodelete_task.write().await.take() {
+        autodelete_task.cancel().await;
+    }
+    let context1 = context.clone();
+    let autodelete_task = task::spawn(async move {
+        async_std::task::sleep(Duration::from_secs(timer.into())).await;
+        emit_event!(
+            context1,
+            Event::MsgsChanged {
+                chat_id: ChatId::new(0),
+                msg_id: MsgId::new(0)
+            }
+        );
+    });
+    *context.autodelete_task.write().await = Some(autodelete_task);
 }
 
 /// Deletes messages which are expired according to "delete_device_after" setting.

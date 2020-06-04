@@ -185,14 +185,6 @@ pub enum Event {
     #[strum(props(id = "2015"))]
     MsgRead { chat_id: ChatId, msg_id: MsgId },
 
-    /// Time left until the next message deletion has changed.
-    ///
-    /// The only parameter is the number of seconds left until next message
-    /// deletion. It is rounded up. If the timer is 0, it means there are no
-    /// messages to be deleted in the future.
-    #[strum(props(id = "2016"))]
-    MsgDeleteTimeoutChanged { timer: u32 },
-
     /// Chat changed.  The name or the image of a chat group was changed or members were added or removed.
     /// Or the verify state of a chat has changed.
     /// See dc_set_chat_name(), dc_set_chat_profile_image(), dc_add_contact_to_chat()

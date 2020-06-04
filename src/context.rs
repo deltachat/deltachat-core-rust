@@ -6,6 +6,7 @@ use std::ops::Deref;
 
 use async_std::path::{Path, PathBuf};
 use async_std::sync::{channel, Arc, Mutex, Receiver, RwLock, Sender};
+use async_std::task;
 
 use crate::chat::*;
 use crate::config::Config;
@@ -56,6 +57,7 @@ pub struct InnerContext {
     pub(crate) events: Events,
 
     pub(crate) scheduler: RwLock<Scheduler>,
+    pub(crate) autodelete_task: RwLock<Option<task::JoinHandle<()>>>,
 
     creation_time: SystemTime,
 }
@@ -121,6 +123,7 @@ impl Context {
             translated_stockstrings: RwLock::new(HashMap::new()),
             events: Events::default(),
             scheduler: RwLock::new(Scheduler::Stopped),
+            autodelete_task: RwLock::new(None),
             creation_time: std::time::SystemTime::now(),
         };
 
