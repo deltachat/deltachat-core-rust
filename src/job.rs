@@ -515,8 +515,8 @@ impl Job {
             {
                 ImapActionResult::RetryLater => Status::RetryLater,
                 ImapActionResult::Success => {
-                    // XXX Rust-Imap provides no target uid on mv, so just set it to 0
-                    message::update_server_uid(context, &msg.rfc724_mid, &dest_folder, 0).await; // The server_uid is set to 0 and then the email can't be found in MarkseenMsgOnImap() -> set_seen() -> prepare_imap_operation_on_msg().
+                    // Rust-Imap provides no target uid on mv, so just set it to 0, update again when precheck_imf() is called for the moved message
+                    message::update_server_uid(context, &msg.rfc724_mid, &dest_folder, 0).await;
                     Status::Finished(Ok(()))
                 }
                 ImapActionResult::Failed => {
