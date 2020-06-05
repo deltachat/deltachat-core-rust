@@ -389,11 +389,12 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
     am = AccountMaker()
     request.addfinalizer(am.finalize)
     yield am
-    if request.node.rep_call.failed:
+    if hasattr(request.node, "rep_call") and request.node.rep_call.failed:
         file = io.StringIO()
         am.dump_imap_structures(file=file)
         s = file.getvalue()
-        request.node.add_report_section("call", "imap-server-state", s)
+        print(s)
+        # request.node.add_report_section("call", "imap-server-state", s)
 
 
 class BotProcess:
@@ -461,6 +462,7 @@ def lp():
 
         def step(self, msg):
             print("-" * 5, "step " + msg, "-" * 5)
+
     return Printer()
 
 

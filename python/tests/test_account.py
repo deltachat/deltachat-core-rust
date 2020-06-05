@@ -2,6 +2,7 @@ from __future__ import print_function
 import pytest
 import io
 import os
+import sys
 import queue
 import time
 from deltachat import const, Account
@@ -1434,11 +1435,12 @@ class TestOnlineAccount:
         # otherwise
         chat.send_text("ac1: initial message to promote chat (workaround)")
         assert chat.is_promoted()
+        assert chat.get_profile_image()
 
-        lp.sec("ac2: add ac1 to a chat so the message does not land in DEADDROP")
+        lp.sec("ac2: check that initial message arrived")
         c1 = ac2.create_contact(email=ac1.get_config("addr"))
         ac2.create_chat_by_contact(c1)
-        ev = ac2._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
+        ac2._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
 
         lp.sec("ac1: add ac2 to promoted group chat")
         c2 = ac1.create_contact(email=ac2.get_config("addr"))
@@ -1449,24 +1451,22 @@ class TestOnlineAccount:
         assert chat.is_promoted()
 
         lp.sec("ac2: wait for receiving message from ac1")
-        ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")
-        msg_in = ac2.get_message_by_id(ev.data2)
+        msg_in = ac2._evtracker.wait_next_incoming_message()
         assert not msg_in.chat.is_deaddrop()
+        msg_in.text == "hi"
 
-        lp.sec("ac2: create chat and read profile image")
-        chat2 = ac2.create_chat_by_message(msg_in)
-        p2 = chat2.get_profile_image()
+        lp.sec("ac2: see if chat now has got the profile image")
+        ac2_chat = ac2.create_chat_by_message(msg_in)
+        p2 = ac2_chat.get_profile_image()
         assert p2 is not None
         assert open(p2, "rb").read() == open(p, "rb").read()
 
         ac2._evtracker.consume_events()
         ac1._evtracker.consume_events()
         lp.sec("ac2: delete profile image from chat")
-        chat2.remove_profile_image()
-        ev = ac1._evtracker.get_matching("DC_EVENT_INCOMING_MSG")
-        assert ev.data1 == chat.id
-        chat1b = ac1.create_chat_by_message(ev.data2)
-        assert chat1b.get_profile_image() is None
+        msg_in.chat.remove_profile_image()
+        msg_back = ac1._evtracker.wait_next_incoming_message()
+        assert msg_back.chat == chat
         assert chat.get_profile_image() is None
 
     def test_accept_sender_contact(self, acfactory, lp):
@@ -1504,11 +1504,11 @@ class TestOnlineAccount:
         ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
 
         lp.sec("ac2: wait for incoming location message")
-        ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")  # "enabled-location streaming"
+        # ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")  # "enabled-location streaming"
 
         # currently core emits location changed before event_incoming message
         ac2._evtracker.get_matching("DC_EVENT_LOCATION_CHANGED")
-        ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")  # text message with location
+        # ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")  # text message with location
 
         locations = chat2.get_locations()
         assert len(locations) == 1
@@ -1626,13 +1626,9 @@ class TestGroupStressTests:
         # Message should be encrypted because keys of other members are gossiped
         assert msg.is_encrypted()
 
-        for account in accounts:
-            account.shutdown()
-
     def test_synchronize_member_list_on_group_rejoin(self, acfactory, lp):
         """
         Test that user recreates group member list when it joins the group again.
-
         ac1 creates a group with two other accounts: ac2 and ac3
         Then it removes ac2, removes ac3 and adds ac2 back.
         ac2 did not see that ac3 is removed, so it should rebuild member list from scratch.
@@ -1704,10 +1700,7 @@ class TestGroupStressTests:
 
         assert len(msg.chat.get_contacts()) == len(chat.get_contacts())
 
-        ac1.shutdown()
-        ac2.shutdown()
-        ac3.shutdown()
-        assert 0
+        acfactory.dump_imap_structures(sys.stdout)
 
 
 class TestOnlineConfigureFails:
@@ -1762,6 +1755,7 @@ class TestDirectImap:
         ac2.start_io()
 
         imap2 = acfactory.new_imap_conn(ac2, config_folder="mvbox")
+        imap2.mark_all_read()
         assert imap2.get_unread_cnt() == 0
 
         chat = get_chat(ac1, ac2)
