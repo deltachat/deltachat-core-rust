@@ -140,8 +140,8 @@ class ImapConn:
                 typ, data = c.fetch(num, '(UID FLAGS)')
                 info = data[0]
 
-                path = pathlib.Path(dir).joinpath("IMAP-MESSAGES", acinfo, imapfolder)
+                path = pathlib.Path(dir.strpath).joinpath("IMAP-MESSAGES", acinfo, imapfolder)
                 path.mkdir(parents=True, exist_ok=True)
-                file = path.joinpath(str(info).replace("b'", "").replace("'", "").replace("\\", ""))
-                file.write_bytes(body)
-                log("Message", info, "saved as", file)
+                fn = path.joinpath(str(info).replace("b'", "").replace("'", "").replace("\\", ""))
+                fn.write_bytes(body)
+                log("Message", info, "saved as", fn)

@@ -1707,6 +1707,7 @@ class TestGroupStressTests:
         ac1.shutdown()
         ac2.shutdown()
         ac3.shutdown()
+        assert 0
 
 
 class TestOnlineConfigureFails:
