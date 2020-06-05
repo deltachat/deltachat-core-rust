@@ -1751,9 +1751,7 @@ class TestDirectImap:
         out = file.getvalue().lower()
         assert "arch" in out
 
-    @pytest.mark.ignored
-    @pytest.mark.parametrize('i', range(30))
-    def test_mark_read_on_server(self, acfactory, lp, i):
+    def test_mark_read_on_server(self, acfactory, lp):
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.get_online_configuring_account(mvbox=True, move=True)
 
@@ -1763,8 +1761,6 @@ class TestDirectImap:
         ac2.start_io()
 
         imap2 = acfactory.new_imap_conn(ac2, config_folder="mvbox")
-
-        # imap2.mark_all_read()
         assert imap2.get_unread_cnt() == 0
 
         chat = get_chat(ac1, ac2)
@@ -1796,9 +1792,7 @@ class TestDirectImap:
             time.sleep(1)  # We might need to wait because Imaplib is slower than DC-Core
         assert imap2.get_unread_cnt() == 0
 
-    @pytest.mark.ignored
-    @pytest.mark.parametrize('i', range(30))
-    def test_mark_bcc_read_on_server(self, acfactory, lp, i):
+    def test_mark_bcc_read_on_server(self, acfactory, lp):
         ac1 = acfactory.get_online_configuring_account(mvbox=True, move=True)
         ac2 = acfactory.get_online_configuring_account()
 
