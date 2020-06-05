@@ -14,11 +14,9 @@ def db_folder_attr(name):
 class ImapConn:
     def __init__(self, account):
         self.account = account
-        imap_conn_info = (
-            account.get_config("configured_mail_server"),
-            account.get_config("addr"),
-            account.get_config("mail_pw"))
-        host, user, pw = imap_conn_info
+        host = account.get_config("configured_mail_server"),
+        user = account.get_config("addr"),
+        pw = account.get_config("mail_pw"))
         self.connection = imaplib.IMAP4_SSL(host)
         self.connection.login(user, pw)
         self._original_msg_count = {}
