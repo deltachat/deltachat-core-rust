@@ -9,19 +9,21 @@ use crate::context::Context;
 #[repr(i32)]
 #[strum(serialize_all = "snake_case")]
 pub enum CertificateChecks {
-    Automatic = 0,
+    AcceptInvalidCertificates = 0,
     Strict = 1,
 
     /// Same as AcceptInvalidCertificates
     /// Previously known as AcceptInvalidHostnames, now deprecated.
     AcceptInvalidCertificates2 = 2,
 
-    AcceptInvalidCertificates = 3,
+    /// Same as AcceptInvalidCertificates
+    /// Deprecated.
+    AcceptInvalidCertificates3 = 3,
 }
 
 impl Default for CertificateChecks {
     fn default() -> Self {
-        Self::Automatic
+        Self::Strict
     }
 }
 
@@ -280,16 +282,8 @@ fn get_readable_flags(flags: i32) -> String {
 pub fn dc_build_tls(certificate_checks: CertificateChecks) -> async_native_tls::TlsConnector {
     let tls_builder = async_native_tls::TlsConnector::new();
     match certificate_checks {
-        CertificateChecks::Automatic => {
-            // Same as AcceptInvalidCertificates for now.
-            // TODO: use provider database when it becomes available
-            tls_builder
-                .danger_accept_invalid_hostnames(true)
-                .danger_accept_invalid_certs(true)
-        }
         CertificateChecks::Strict => tls_builder,
-        CertificateChecks::AcceptInvalidCertificates
-        | CertificateChecks::AcceptInvalidCertificates2 => tls_builder
+        _ => tls_builder
             .danger_accept_invalid_hostnames(true)
             .danger_accept_invalid_certs(true),
     }
@@ -302,6 +296,8 @@ mod tests {
     #[test]
     fn test_certificate_checks_display() {
         use std::string::ToString;
+
+        assert_eq!("strict".to_string(), CertificateChecks::Strict.to_string());
 
         assert_eq!(
             "accept_invalid_certificates".to_string(),
