@@ -14,9 +14,9 @@ def db_folder_attr(name):
 class ImapConn:
     def __init__(self, account):
         self.account = account
-        host = account.get_config("configured_mail_server"),
-        user = account.get_config("addr"),
-        pw = account.get_config("mail_pw"))
+        host = account.get_config("configured_mail_server")
+        user = account.get_config("addr")
+        pw = account.get_config("mail_pw")
         self.connection = imaplib.IMAP4_SSL(host)
         self.connection.login(user, pw)
         self._original_msg_count = {}
@@ -24,13 +24,13 @@ class ImapConn:
 
     def shutdown(self):
         try:
-            self.connection.logout()
-        except Exception:
-            print("Could not logout direct_imap conn")
-        try:
             self.connection.close()
         except Exception:
             pass
+        try:
+            self.connection.logout()
+        except Exception:
+            print("Could not logout direct_imap conn")
 
     def select_folder(self, foldername):
         status, messages = self.connection.select(foldername)
