@@ -7,8 +7,6 @@ from deltachat import const, Account
 from deltachat.message import Message
 from deltachat.hookspec import account_hookimpl
 from datetime import datetime, timedelta
-from deltachat import direct_imap
-from deltachat.direct_imap import make_direct_imap
 
 
 def get_chat(ac1, ac2, both_created=False):
@@ -1751,7 +1749,8 @@ class TestDirectImap:
         ac2.wait_configure_finish()
         ac2.start_io()
 
-        imap2 = make_direct_imap(ac2, direct_imap.MVBOX)
+        imap2 = acfactory.new_imap_conn(ac2, config_folder="mvbox")
+
         # imap2.mark_all_read()
         assert imap2.get_unread_cnt() == 0
 
@@ -1795,7 +1794,7 @@ class TestDirectImap:
         ac2.wait_configure_finish()
         ac2.start_io()
 
-        imap1 = make_direct_imap(ac1, direct_imap.MVBOX)
+        imap1 = acfactory.new_imap_conn(ac1, config_folder="mvbox")
         imap1.mark_all_read()
         assert imap1.get_unread_cnt() == 0
 
