@@ -33,9 +33,6 @@ def pytest_addoption(parser):
 
 
 def pytest_configure(config):
-    config.addinivalue_line(
-        "markers", "ignored: Mark test as bing slow, skipped unless --ignored is used."
-    )
     cfg = config.getoption('--liveconfig')
     if not cfg:
         cfg = os.getenv('DCC_NEW_TMP_EMAIL')
