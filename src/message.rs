@@ -1388,21 +1388,56 @@ pub async fn ndn_from_ext(
     context: &Context,
     from_id: u32,
     rfc724_mid: &str,
-    error: impl AsRef<str>,
+    error: Option<impl AsRef<str>>,
 ) {
     if from_id <= DC_MSG_ID_LAST_SPECIAL || rfc724_mid.is_empty() {
         return;
     }
 
-    match rfc724_mid_exists(context, rfc724_mid).await {
-        Ok(Some((_, _, msg_id))) => {
-            set_msg_failed(context, msg_id, Some(error)).await;
+    let res = context
+        .sql
+        .query_row(
+            concat!(
+                "SELECT",
+                "    m.id AS msg_id,",
+                "    c.id AS chat_id,",
+                "    c.type AS type,",
+                "    m.to_id AS to_id",
+                " FROM msgs m LEFT JOIN chats c ON m.chat_id=c.id",
+                " WHERE rfc724_mid=? AND from_id=1",
+            ),
+            paramsv![rfc724_mid],
+            |row| {
+                Ok((
+                    row.get::<_, MsgId>("msg_id")?,
+                    row.get::<_, ChatId>("chat_id")?,
+                    row.get::<_, Chattype>("type")?,
+                    row.get::<_, u32>("to_id")?,
+                ))
+            },
+        )
+        .await;
+    if let Err(ref err) = res {
+        info!(context, "Failed to select NDN {:?}", err);
+    }
+
+    if let Ok((msg_id, chat_id, chat_type, contact_id)) = res {
+        set_msg_failed(context, msg_id, error).await;
+
+        if chat_type == Chattype::Group || chat_type == Chattype::VerifiedGroup {
+            let contact = Contact::load_from_db(context, contact_id).await.unwrap();
+            chat::add_info_msg(
+                context,
+                chat_id,
+                context
+                    .stock_string_repl_str(
+                        StockMessage::FailedSendingTo,
+                        contact.get_display_name(),
+                    )
+                    .await,
+            )
+            .await;
         }
-        Ok(None) => info!(
-            context,
-            "Failed to select NDN, could not find failed msg {}", rfc724_mid
-        ),
-        Err(e) => info!(context, "Failed to select NDN {:?}", e),
     }
 }
 

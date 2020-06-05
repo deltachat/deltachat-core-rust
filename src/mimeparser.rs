@@ -572,7 +572,6 @@ impl MimeMessage {
                             if let Some(report) = self.process_delivery_status(context, mail)? {
                                 self.failed_msg = Some(report);
                             }
-
                             let mut part = Part::default();
                             part.typ = Viewtype::Unknown;
                             self.parts.push(part);
@@ -854,7 +853,13 @@ impl MimeMessage {
     }
 
     /// Handle reports (only MDNs for now)
-    pub async fn handle_reports(&self, context: &Context, from_id: u32, sent_timestamp: i64) {
+    pub async fn handle_reports(
+        &self,
+        context: &Context,
+        from_id: u32,
+        sent_timestamp: i64,
+        parts: &Vec<Part>,
+    ) {
         for report in &self.reports {
             for original_message_id in
                 std::iter::once(&report.original_message_id).chain(&report.additional_message_ids)
@@ -869,7 +874,12 @@ impl MimeMessage {
         }
 
         if let Some(original_message_id) = &self.failed_msg {
-            message::ndn_from_ext(context, from_id, original_message_id, "TODO error message").await
+            let error = parts
+                .iter()
+                .find(|p| p.typ == Viewtype::Text)
+                .map(|p| &p.msg);
+            info!(context, "msg_failed {:?}", error);
+            message::ndn_from_ext(context, from_id, original_message_id, error).await
         }
     }
 

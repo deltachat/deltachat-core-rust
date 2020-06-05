@@ -238,7 +238,7 @@ pub async fn dc_receive_imf(
     cleanup(context, &create_event_to_send, created_db_entries);
 
     mime_parser
-        .handle_reports(context, from_id, sent_timestamp)
+        .handle_reports(context, from_id, sent_timestamp, &mime_parser.parts)
         .await;
 
     Ok(())
@@ -2367,9 +2367,22 @@ mod tests {
             .await
             .unwrap();
 
+        let msg = Message::load_from_db(&t.ctx, msg_id).await.unwrap();
+        assert_eq!(msg.state, MessageState::OutFailed);
         assert_eq!(
-            Message::load_from_db(&t.ctx, msg_id).await.unwrap().state,
-            MessageState::OutFailed
-        );
+            msg.param.get(Param::Error),
+            Some(
+                r"** Die Adresse wurde nicht gefunden **
+
+Ihre Nachricht wurde nicht an assidhfaaspocwaeofi@gmail.com zugestellt, weil die Adresse nicht gefunden wurde oder keine E-Mails empfangen kann.
+
+Hier erfahren Sie mehr: https://support.google.com/mail/?p=NoSuchUser
+
+Antwort:
+
+550 5.1.1 The email account that you tried to reach does not exist. Please try double-checking the recipient's email address for typos or unnecessary spaces. Learn more at https://support.google.com/mail/?p=NoSuchUser i18sor6261697wrs.38 - gsmtp
+"
+            )
+        )
     }
 }
