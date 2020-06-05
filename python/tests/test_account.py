@@ -1,5 +1,6 @@
 from __future__ import print_function
 import pytest
+import io
 import os
 import queue
 import time
@@ -1738,6 +1739,18 @@ class TestOnlineConfigureFails:
 
 
 class TestDirectImap:
+    def test_basic_imap(self, acfactory):
+        ac1, ac2 = acfactory.get_two_online_accounts()
+        imap1 = acfactory.new_imap_conn(ac1)
+        res = imap1.list_folders()
+        for folder_name in res:
+            imap1.select_folder(folder_name)
+
+        file = io.StringIO()
+        acfactory.dump_imap_structures(file=file)
+        out = file.getvalue().lower()
+        assert "arch" in out
+
     @pytest.mark.ignored
     @pytest.mark.parametrize('i', range(30))
     def test_mark_read_on_server(self, acfactory, lp, i):
