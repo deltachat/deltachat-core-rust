@@ -1,4 +1,3 @@
-import sys
 import imaplib
 import pathlib
 
@@ -15,11 +14,11 @@ def db_folder_attr(name):
 class ImapConn:
     def __init__(self, account):
         self.account = account
-        self.conn_info = (account.get_config("configured_mail_server"),
-                          account.get_config("addr"),
-                          account.get_config("mail_pw"))
-
-        host, user, pw = self.conn_info
+        imap_conn_info = (
+            account.get_config("configured_mail_server"),
+            account.get_config("addr"),
+            account.get_config("mail_pw"))
+        host, user, pw = imap_conn_info
         self.connection = imaplib.IMAP4_SSL(host)
         self.connection.login(user, pw)
         self._original_msg_count = {}
@@ -104,11 +103,9 @@ class ImapConn:
         try:
             return int(messages[0]) - self._original_msg_count[self.foldername]
         except IndexError:
-            return 0
+            return int(messages[0])
 
-    def dump_imap_structures(self, dir, file=None):
-        if file is None:
-            file = sys.stdout
+    def dump_imap_structures(self, dir, file):
         ac = self.account
         acinfo = ac.logid + "-" + ac.get_config("addr")
 
@@ -138,10 +135,11 @@ class ImapConn:
                 body = data[0][1]
 
                 typ, data = c.fetch(num, '(UID FLAGS)')
-                info = data[0]
+                info = data[0].decode()
 
                 path = pathlib.Path(dir.strpath).joinpath("IMAP-MESSAGES", acinfo, imapfolder)
                 path.mkdir(parents=True, exist_ok=True)
-                fn = path.joinpath(str(info).replace("b'", "").replace("'", "").replace("\\", ""))
+                num = info.split()[0]
+                fn = path.joinpath(num)
                 fn.write_bytes(body)
                 log("Message", info, "saved as", fn)
