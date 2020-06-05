@@ -1,6 +1,6 @@
+import sys
 import imaplib
 import pathlib
-from . import Account
 
 
 def db_folder_attr(name):
@@ -40,7 +40,6 @@ class ImapConn:
         if status != "OK":
             raise ConnectionError("Could not select {}: status={} message={}".format(
                                   foldername, status, messages))
-        print("selected", foldername, messages)
         self.foldername = foldername
         try:
             msg_count = int(messages[0])
@@ -57,14 +56,30 @@ class ImapConn:
         foldername = self.account.get_config(config_name)
         return self.select_folder(foldername)
 
+    def list_folders(self):
+        res = self.connection.list()
+        # XXX this parsing is hairy, maybe use imapclient library
+        # instead of imaplib?
+        if res[0] != "OK":
+            raise ConnectionError(str(res))
+
+        folders = []
+        for entry in res[1]:
+            entry = entry.decode()
+            i = entry.find('"')
+            assert entry[i + 2] == '"'
+            folder_name = entry[i + 3:].strip()
+            folders.append(folder_name)
+        return folders
+
     def mark_all_read(self):
-#        result, data = self.connection.uid('search', None, "(UNSEEN)")
+        # result, data = self.connection.uid('search', None, "(UNSEEN)")
         result, data = self.connection.search(None, 'UnSeen')
         try:
             mails_uid = data[0].split()
             print("New mails")
 
-#            self.connection.store(data[0].replace(' ',','),'+FLAGS','\Seen')
+            # self.connection.store(data[0].replace(' ',','),'+FLAGS','\Seen')
             for e_id in mails_uid:
                 self.connection.store(e_id, '+FLAGS', '\\Seen')
                 print("marked:", e_id)
@@ -75,7 +90,7 @@ class ImapConn:
             return False
 
     def get_unread_cnt(self):
-#        result, data = self.connection.uid('search', None, "(UNSEEN)")
+        # result, data = self.connection.uid('search', None, "(UNSEEN)")
         result, data = self.connection.search(None, 'UnSeen')
         try:
             mails_uid = data[0].split()
@@ -91,24 +106,33 @@ class ImapConn:
         except IndexError:
             return 0
 
+    def dump_imap_structures(self, dir, file=None):
+        if file is None:
+            file = sys.stdout
+        ac = self.account
+        acinfo = ac.logid + "-" + ac.get_config("addr")
 
-def print_imap_structure(database, dir="."):
-    print_imap_structure_ac(Account(database), dir)
+        def log(*args, **kwargs):
+            kwargs["file"] = file
+            print(*args, **kwargs)
 
+        log("================= ACCOUNT", acinfo, "=================")
+        cursor = 0
+        for name, val in ac.get_info().items():
+            entry = "{}={}".format(name.upper(), val)
+            if cursor + len(entry) > 80:
+                log("")
+                cursor = 0
+            log(entry, end=" ")
+            cursor += len(entry) + 1
+        log("")
 
-def print_imap_structure_ac(ac, dir="."):
-    acinfo = ac.logid + "-" + ac.get_config("addr")
-    print("================= ACCOUNT", acinfo, "=================")
-    print("----------------- CONFIG: -----------------")
-    print(ac.get_info())
-
-    for imapfolder in [INBOX, MVBOX, SENT, MVBOX_FALLBBACK]:
-        try:
-            imap = make_direct_imap(ac, imapfolder)
-            c = imap.connection
+        for imapfolder in self.list_folders():
+            self.select_folder(imapfolder)
+            c = self.connection
             typ, data = c.search(None, 'ALL')
             c._get_tagged_response
-            print("-----------------", imapfolder, "-----------------")
+            log("-----------------", imapfolder, "-----------------")
             for num in data[0].split():
                 typ, data = c.fetch(num, '(RFC822)')
                 body = data[0][1]
@@ -120,6 +144,4 @@ def print_imap_structure_ac(ac, dir="."):
                 path.mkdir(parents=True, exist_ok=True)
                 file = path.joinpath(str(info).replace("b'", "").replace("'", "").replace("\\", ""))
                 file.write_bytes(body)
-                print("Message", info, "saved as", file)
-        except Exception:
-            pass
+                log("Message", info, "saved as", file)

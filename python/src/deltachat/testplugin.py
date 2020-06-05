@@ -1,6 +1,7 @@
 from __future__ import print_function
 import os
 import sys
+import io
 import subprocess
 import queue
 import threading
@@ -12,7 +13,7 @@ import tempfile
 import pytest
 import requests
 
-from . import Account, const, direct_imap
+from . import Account, const
 from .capi import lib
 from .events import FFIEventLogger, FFIEventTracker
 from _pytest._code import Source
@@ -380,12 +381,19 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             self._finalizers.append(bot.kill)
             return bot
 
+        def dump_imap_structures(self, file):
+            for ac in self._accounts:
+                conn = self.new_imap_conn(ac)
+                conn.dump_imap_structures(tmpdir, file=file)
+
     am = AccountMaker()
     request.addfinalizer(am.finalize)
     yield am
     if request.node.rep_call.failed:
-        for ac in am._accounts:
-            direct_imap.print_imap_structure_ac(ac, tmpdir)
+        file = io.StringIO()
+        am.dump_imap_structures(file=file)
+        s = file.getvalue()
+        request.node.add_report_section("call", "imap-server-state", s)
 
 
 class BotProcess:
