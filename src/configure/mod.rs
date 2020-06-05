@@ -562,7 +562,13 @@ async fn try_connect(context: &Context, lp: LoginParam, service: Service) -> Try
         }
         Service::Smtp => {
             let mut smtp = Smtp::new();
-            smtp.try_connect(context, &lp.clone()).await
+            match smtp.connect(context, &lp.clone()).await {
+                Ok(()) => true,
+                Err(err) => {
+                    warn!(context, "SMTP connection error: {}", err);
+                    false
+                }
+            }
         }
     };
     if res {

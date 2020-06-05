@@ -186,14 +186,4 @@ impl Smtp {
 
         Ok(())
     }
-
-    pub(crate) async fn try_connect(&mut self, context: &Context, lp: &LoginParam) -> bool {
-        match self.connect(context, lp).await {
-            Ok(()) => true,
-            Err(err) => {
-                warn!(context, "SMTP connection error: {}", err);
-                false
-            }
-        }
-    }
 }
