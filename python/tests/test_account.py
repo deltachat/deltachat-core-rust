@@ -1505,11 +1505,9 @@ class TestOnlineAccount:
         ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
 
         lp.sec("ac2: wait for incoming location message")
-        # ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")  # "enabled-location streaming"
 
         # currently core emits location changed before event_incoming message
         ac2._evtracker.get_matching("DC_EVENT_LOCATION_CHANGED")
-        # ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")  # text message with location
 
         locations = chat2.get_locations()
         assert len(locations) == 1
