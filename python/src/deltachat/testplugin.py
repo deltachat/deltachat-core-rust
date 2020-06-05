@@ -16,6 +16,7 @@ from . import Account, const, direct_imap
 from .capi import lib
 from .events import FFIEventLogger, FFIEventTracker
 from _pytest._code import Source
+from deltachat.direct_imap import ImapConn
 
 import deltachat
 
@@ -223,6 +224,13 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
                 acc = self._accounts.pop()
                 acc.shutdown()
                 acc.disable_logging()
+
+        def new_imap_conn(self, account, config_folder=None):
+            imap_conn = ImapConn(account)
+            self._finalizers.append(imap_conn.shutdown)
+            if config_folder is not None:
+                imap_conn.select_config_folder(config_folder)
+            return imap_conn
 
         def make_account(self, path, logid, quiet=False):
             ac = Account(path, logging=self._logging, logid=logid)
