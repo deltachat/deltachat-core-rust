@@ -12,7 +12,7 @@ import tempfile
 import pytest
 import requests
 
-from . import Account, const
+from . import Account, const, direct_imap
 from .capi import lib
 from .events import FFIEventLogger, FFIEventTracker
 from _pytest._code import Source
@@ -228,7 +228,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
                 acc.disable_logging()
 
         def make_account(self, path, logid, quiet=False):
-            ac = Account(path, logging=self._logging)
+            ac = Account(path, logging=self._logging, logid=logid)
             ac._evtracker = ac.add_account_plugin(FFIEventTracker(ac))
             ac.addr = ac.get_self_contact().addr
             if not quiet:
@@ -377,7 +377,10 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
 
     am = AccountMaker()
     request.addfinalizer(am.finalize)
-    return am
+    yield am
+    if request.node.rep_call.failed:
+        for ac in am._accounts:
+            direct_imap.print_imap_structure_ac(ac, tmpdir)
 
 
 class BotProcess:
@@ -446,3 +449,15 @@ def lp():
         def step(self, msg):
             print("-" * 5, "step " + msg, "-" * 5)
     return Printer()
+
+
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    # execute all other hooks to obtain the report object
+    outcome = yield
+    rep = outcome.get_result()
+
+    # set a report attribute for each phase of a call, which can
+    # be "setup", "call", "teardown"
+
+    setattr(item, "rep_" + rep.when, rep)

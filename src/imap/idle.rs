@@ -4,7 +4,7 @@ use async_imap::extensions::idle::IdleResponse;
 use async_std::prelude::*;
 use std::time::{Duration, SystemTime};
 
-use crate::context::Context;
+use crate::{context::Context, scheduler::InterruptInfo};
 
 use super::select_folder;
 use super::session::Session;
@@ -34,7 +34,11 @@ impl Imap {
         self.config.can_idle
     }
 
-    pub async fn idle(&mut self, context: &Context, watch_folder: Option<String>) -> Result<bool> {
+    pub async fn idle(
+        &mut self,
+        context: &Context,
+        watch_folder: Option<String>,
+    ) -> Result<InterruptInfo> {
         use futures::future::FutureExt;
 
         if !self.can_idle() {
@@ -46,7 +50,7 @@ impl Imap {
 
         let session = self.session.take();
         let timeout = Duration::from_secs(23 * 60);
-        let mut probe_network = false;
+        let mut info = Default::default();
 
         if let Some(session) = session {
             let mut handle = session.idle();
@@ -58,7 +62,7 @@ impl Imap {
 
             enum Event {
                 IdleResponse(IdleResponse),
-                Interrupt(bool),
+                Interrupt(InterruptInfo),
             }
 
             if self.skip_next_idle_wait {
@@ -90,8 +94,8 @@ impl Imap {
                     Ok(Event::IdleResponse(IdleResponse::ManualInterrupt)) => {
                         info!(context, "Idle wait was interrupted");
                     }
-                    Ok(Event::Interrupt(probe)) => {
-                        probe_network = probe;
+                    Ok(Event::Interrupt(i)) => {
+                        info = i;
                         info!(context, "Idle wait was interrupted");
                     }
                     Err(err) => {
@@ -125,14 +129,14 @@ impl Imap {
             }
         }
 
-        Ok(probe_network)
+        Ok(info)
     }
 
     pub(crate) async fn fake_idle(
         &mut self,
         context: &Context,
         watch_folder: Option<String>,
-    ) -> bool {
+    ) -> InterruptInfo {
         // Idle using polling. This is also needed if we're not yet configured -
         // in this case, we're waiting for a configure job (and an interrupt).
 
@@ -144,7 +148,7 @@ impl Imap {
             return self.idle_interrupt.recv().await.unwrap_or_default();
         }
 
-        let mut probe_network = false;
+        let mut info: InterruptInfo = Default::default();
         if self.skip_next_idle_wait {
             // interrupt_idle has happened before we
             // provided self.interrupt
@@ -157,10 +161,10 @@ impl Imap {
 
             enum Event {
                 Tick,
-                Interrupt(bool),
+                Interrupt(InterruptInfo),
             }
             // loop until we are interrupted or if we fetched something
-            probe_network =
+            info =
                 loop {
                     use futures::future::FutureExt;
                     match interval
@@ -181,7 +185,7 @@ impl Imap {
                             }
                             if self.config.can_idle {
                                 // we only fake-idled because network was gone during IDLE, probably
-                                break false;
+                                break InterruptInfo::new(false, None);
                             }
                             info!(context, "fake_idle is connected");
                             // we are connected, let's see if fetching messages results
@@ -194,7 +198,7 @@ impl Imap {
                                     Ok(res) => {
                                         info!(context, "fetch_new_messages returned {:?}", res);
                                         if res {
-                                            break false;
+                                            break InterruptInfo::new(false, None);
                                         }
                                     }
                                     Err(err) => {
@@ -204,9 +208,9 @@ impl Imap {
                                 }
                             }
                         }
-                        Event::Interrupt(probe_network) => {
+                        Event::Interrupt(info) => {
                             // Interrupt
-                            break probe_network;
+                            break info;
                         }
                     }
                 };
@@ -222,6 +226,6 @@ impl Imap {
                 / 1000.,
         );
 
-        probe_network
+        info
     }
 }

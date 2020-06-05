@@ -27,7 +27,7 @@ use crate::message::{self, update_server_uid};
 use crate::mimeparser;
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::param::Params;
-use crate::stock::StockMessage;
+use crate::{scheduler::InterruptInfo, stock::StockMessage};
 
 mod client;
 mod idle;
@@ -109,7 +109,7 @@ const SELECT_ALL: &str = "1:*";
 
 #[derive(Debug)]
 pub struct Imap {
-    idle_interrupt: Receiver<bool>,
+    idle_interrupt: Receiver<InterruptInfo>,
     config: ImapConfig,
     session: Option<Session>,
     connected: bool,
@@ -181,7 +181,7 @@ impl Default for ImapConfig {
 }
 
 impl Imap {
-    pub fn new(idle_interrupt: Receiver<bool>) -> Self {
+    pub fn new(idle_interrupt: Receiver<InterruptInfo>) -> Self {
         Imap {
             idle_interrupt,
             config: Default::default(),
@@ -974,7 +974,7 @@ impl Imap {
         uid: u32,
     ) -> Option<ImapActionResult> {
         if uid == 0 {
-            return Some(ImapActionResult::Failed);
+            return Some(ImapActionResult::RetryLater);
         }
         if !self.is_connected() {
             // currently jobs are only performed on the INBOX thread
@@ -1223,19 +1223,16 @@ impl Imap {
                 }
             }
             context
-                .sql
-                .set_raw_config(context, "configured_inbox_folder", Some("INBOX"))
+                .set_config(Config::ConfiguredInboxFolder, Some("INBOX"))
                 .await?;
             if let Some(ref mvbox_folder) = mvbox_folder {
                 context
-                    .sql
-                    .set_raw_config(context, "configured_mvbox_folder", Some(mvbox_folder))
+                    .set_config(Config::ConfiguredMvboxFolder, Some(mvbox_folder))
                     .await?;
             }
             if let Some(ref sentbox_folder) = sentbox_folder {
                 context
-                    .sql
-                    .set_raw_config(context, "configured_sentbox_folder", Some(sentbox_folder))
+                    .set_config(Config::ConfiguredSentboxFolder, Some(sentbox_folder))
                     .await?;
             }
             context
@@ -1393,7 +1390,11 @@ async fn precheck_imf(
         }
 
         if old_server_folder != server_folder || old_server_uid != server_uid {
-            update_server_uid(context, &rfc724_mid, server_folder, server_uid).await;
+            update_server_uid(context, rfc724_mid, server_folder, server_uid).await;
+            context
+                .interrupt_inbox(InterruptInfo::new(false, Some(msg_id)))
+                .await;
+            info!(context, "Updating server_uid and interrupting")
         }
         Ok(true)
     } else {
