@@ -637,6 +637,7 @@ class TestOnlineAccount:
         ev_msg = ac1_clone._evtracker.wait_next_messages_changed()
         assert ev_msg.text == msg_out.text
 
+    @pytest.mark.ignored
     @pytest.mark.parametrize('i', range(30))
     def test_mark_read_on_server(self, acfactory, lp, i):
         ac1 = acfactory.get_online_configuring_account()
@@ -680,6 +681,7 @@ class TestOnlineAccount:
             time.sleep(1)  # We might need to wait because Imaplib is slower than DC-Core
         assert imap2.get_unread_cnt() == 0
 
+    @pytest.mark.ignored
     @pytest.mark.parametrize('i', range(30))
     def test_mark_bcc_read_on_server(self, acfactory, lp, i):
         ac1 = acfactory.get_online_configuring_account(mvbox=True, move=True)
