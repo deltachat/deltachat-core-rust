@@ -1333,10 +1333,8 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<(), Er
                 format_err!("Attachment missing for message of type #{}", msg.viewtype)
             })?;
 
-        if msg.viewtype == Viewtype::Image {
-            if blob.recode_to_image_size(context).await.is_err() {
-                warn!(context, "Cannot recode image, using original data");
-            }
+        if msg.viewtype == Viewtype::Image && blob.recode_to_image_size(context).await.is_err() {
+            warn!(context, "Cannot recode image, using original data");
         }
         msg.param.set(Param::File, blob.as_name());
 

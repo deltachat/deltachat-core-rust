@@ -15,6 +15,7 @@ use crate::config::Config;
 use crate::constants::*;
 use crate::context::Context;
 use crate::events::Event;
+use crate::message;
 
 /// Represents a file in the blob directory.
 ///
@@ -382,6 +383,15 @@ impl<'a> BlobObject<'a> {
 
     pub async fn recode_to_image_size(&self, context: &Context) -> Result<(), BlobError> {
         let blob_abs = self.to_abs_path();
+        match message::guess_msgtype_from_suffix(Path::new(&blob_abs)) {
+            None => return Ok(()),
+            Some(imgtype) => {
+                if imgtype.1 != "image/jpeg" {
+                    return Ok(());
+                }
+            }
+        }
+
         let img = image::open(&blob_abs).map_err(|err| BlobError::RecodeFailure {
             blobdir: context.get_blobdir().to_path_buf(),
             blobname: blob_abs.to_str().unwrap_or_default().to_string(),
