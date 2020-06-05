@@ -1444,27 +1444,28 @@ class TestOnlineAccount:
 
         lp.sec("ac1: add ac2 to promoted group chat")
         c2 = ac1.create_contact(email=ac2.get_config("addr"))
-        chat.add_contact(c2)
+        chat.add_contact(c2)  # sends one message
 
         lp.sec("ac1: send a first message to ac2")
-        chat.send_text("hi")
+        chat.send_text("hi")  # sends another message
         assert chat.is_promoted()
 
         lp.sec("ac2: wait for receiving message from ac1")
-        msg_in = ac2._evtracker.wait_next_incoming_message()
-        assert not msg_in.chat.is_deaddrop()
-        msg_in.text == "hi"
+        msg1 = ac2._evtracker.wait_next_incoming_message()
+        msg2 = ac2._evtracker.wait_next_incoming_message()
+        assert msg1.text == "hi" or msg2.text == "hi"
+        assert msg1.chat.id == msg2.chat.id
 
         lp.sec("ac2: see if chat now has got the profile image")
-        ac2_chat = ac2.create_chat_by_message(msg_in)
-        p2 = ac2_chat.get_profile_image()
+        p2 = msg1.chat.get_profile_image()
         assert p2 is not None
         assert open(p2, "rb").read() == open(p, "rb").read()
 
         ac2._evtracker.consume_events()
         ac1._evtracker.consume_events()
+
         lp.sec("ac2: delete profile image from chat")
-        msg_in.chat.remove_profile_image()
+        msg1.chat.remove_profile_image()
         msg_back = ac1._evtracker.wait_next_incoming_message()
         assert msg_back.chat == chat
         assert chat.get_profile_image() is None
