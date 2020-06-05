@@ -26,13 +26,13 @@ class ImapConn:
 
     def shutdown(self):
         try:
-            self.connection.close()
-        except Exception:
-            pass
-        try:
             self.connection.logout()
         except Exception:
             print("Could not logout direct_imap conn")
+        try:
+            self.connection.close()
+        except Exception:
+            pass
 
     def select_folder(self, foldername):
         status, messages = self.connection.select(foldername)
