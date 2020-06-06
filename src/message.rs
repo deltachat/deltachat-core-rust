@@ -766,9 +766,10 @@ impl From<MessageState> for LotState {
 impl MessageState {
     pub fn can_fail(self) -> bool {
         match self {
-            MessageState::OutPreparing | MessageState::OutPending | MessageState::OutDelivered => {
-                true
-            }
+            MessageState::OutPreparing
+            | MessageState::OutPending
+            | MessageState::OutDelivered
+            | MessageState::OutMdnRcvd => true,
             _ => false,
         }
     }
@@ -1327,10 +1328,7 @@ pub async fn mdn_from_ext(
     if let Ok((msg_id, chat_id, chat_type, msg_state)) = res {
         let mut read_by_all = false;
 
-        // if already marked as MDNS_RCVD msgstate_can_fail() returns false.
-        // however, it is important, that ret_msg_id is set above as this
-        // will allow the caller eg. to move the message away
-        if msg_state.can_fail() {
+        if msg_state != MessageState::OutMdnRcvd && msg_state != MessageState::OutFailed {
             let mdn_already_in_table = context
                 .sql
                 .exists(
