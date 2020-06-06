@@ -3793,16 +3793,21 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  */
 
 /**
- * Accept invalid certificates, including self-signed ones
- * or having incorrect hostname.
+ * Configure certificate checks automatically.
  */
-#define DC_CERTCK_ACCEPT_INVALID_CERTIFICATES 0
+#define DC_CERTCK_AUTO 0
 
 /**
  * Strictly check TLS certificates;
  * require that both the certificate and hostname are valid.
  */
 #define DC_CERTCK_STRICT 1
+
+/**
+ * Accept invalid certificates, including self-signed ones
+ * or having incorrect hostname.
+ */
+#define DC_CERTCK_ACCEPT_INVALID_CERTIFICATES 3
 
 /**
  * @}

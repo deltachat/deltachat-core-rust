@@ -177,8 +177,6 @@ lazy_static::lazy_static! {
             ConfigDefault { key: Config::MvboxMove, value: "0" },
             ConfigDefault { key: Config::E2eeEnabled, value: "0" },
             ConfigDefault { key: Config::MediaQuality, value: "1" },
-            ConfigDefault { key: Config::ImapCertificateChecks, value: "0" },
-            ConfigDefault { key: Config::SmtpCertificateChecks, value: "0" },
         ]),
     };
 
