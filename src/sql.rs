@@ -779,6 +779,7 @@ async fn open(
                  timestamp INTEGER DEFAULT 0, \
                  type INTEGER DEFAULT 0, \
                  state INTEGER DEFAULT 0, \
+                 error TEXT DEFAULT '', \
                  msgrmsg INTEGER DEFAULT 1, \
                  bytes INTEGER DEFAULT 0, \
                  txt TEXT DEFAULT '', \
@@ -1240,6 +1241,15 @@ async fn open(
             sql.execute("UPDATE chats SET grpid='' WHERE type=100", paramsv![])
                 .await?;
             sql.set_raw_config_int(context, "dbversion", 63).await?;
+        }
+        if dbversion < 64 {
+            info!(context, "[migration] v63");
+            sql.execute(
+                "ALTER TABLE chats ADD COLUMN error TEXT DEFAULT '';",
+                paramsv![],
+            )
+            .await?;
+            sql.set_raw_config_int(context, "dbversion", 64).await?;
         }
 
         // (2) updates that require high-level objects

@@ -255,6 +255,7 @@ pub struct Message {
     pub(crate) starred: bool,
     pub(crate) chat_blocked: Blocked,
     pub(crate) location_id: u32,
+    pub(crate) error: Option<String>,
     pub(crate) param: Params,
 }
 
@@ -289,6 +290,7 @@ impl Message {
                     "    m.timestamp_rcvd AS timestamp_rcvd,",
                     "    m.type AS type,",
                     "    m.state AS state,",
+                    "    m.error AS error,",
                     "    m.msgrmsg AS msgrmsg,",
                     "    m.txt AS txt,",
                     "    m.param AS param,",
@@ -316,6 +318,7 @@ impl Message {
                     msg.timestamp_rcvd = row.get("timestamp_rcvd")?;
                     msg.viewtype = row.get("type")?;
                     msg.state = row.get("state")?;
+                    msg.error = row.get("error")?;
                     msg.is_dc_message = row.get("msgrmsg")?;
 
                     let text;
@@ -937,7 +940,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
     }
 
     ret += "\n";
-    if let Some(err) = msg.param.get(Param::Error) {
+    if let Some(err) = &msg.error {
         ret += &format!("Error: {}", err)
     }
 
@@ -1251,27 +1254,33 @@ pub async fn exists(context: &Context, msg_id: MsgId) -> bool {
 
 pub async fn set_msg_failed(context: &Context, msg_id: MsgId, error: Option<impl AsRef<str>>) {
     if let Ok(mut msg) = Message::load_from_db(context, msg_id).await {
+        let error = error.map(|e| e.as_ref().to_string()).unwrap_or_default();
         if msg.state.can_fail() {
             msg.state = MessageState::OutFailed;
-        }
-        if let Some(error) = error {
-            msg.param.set(Param::Error, error.as_ref());
-            warn!(context, "{} failed: {}", msg_id, error.as_ref());
+            warn!(context, "{} failed: {}", msg_id, error);
+        } else {
+            warn!(
+                context,
+                "{} seems to have failed ({}), but state is {}", msg_id, error, msg.state
+            )
         }
 
-        if context
+        match context
             .sql
             .execute(
-                "UPDATE msgs SET state=?, param=? WHERE id=?;",
-                paramsv![msg.state, msg.param.to_string(), msg_id],
+                "UPDATE msgs SET state=?, error=? WHERE id=?;",
+                paramsv![msg.state, error, msg_id],
             )
             .await
-            .is_ok()
         {
-            context.emit_event(Event::MsgFailed {
+            Ok(_) => context.emit_event(Event::MsgFailed {
                 chat_id: msg.chat_id,
                 msg_id,
-            });
+            }),
+            Err(e) => {
+                error!(context, "{:?}", e);
+                println!("{:?}", e)
+            }
         }
     }
 }

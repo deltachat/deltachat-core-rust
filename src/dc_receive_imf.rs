@@ -2328,6 +2328,7 @@ mod tests {
     #[async_std::test]
     async fn test_parse_ndn() {
         use std::io::Write;
+        use std::{thread, time};
 
         let t = dummy_context().await;
         t.ctx
@@ -2369,25 +2370,17 @@ mod tests {
             .await
             .unwrap();
 
+        thread::sleep(time::Duration::from_millis(1000));
+
         println!("Loading msg {}…", msg_id);
         let msg = Message::load_from_db(&t.ctx, msg_id).await.unwrap();
         std::io::stdout().flush().unwrap();
+        thread::sleep(time::Duration::from_millis(1000));
 
         assert_eq!(msg.state, MessageState::OutFailed);
         assert_eq!(
-            msg.param.get(Param::Error),
-            Some(
-                r"** Die Adresse wurde nicht gefunden **
-
-Ihre Nachricht wurde nicht an assidhfaaspocwaeofi@gmail.com zugestellt, weil die Adresse nicht gefunden wurde oder keine E-Mails empfangen kann.
-
-Hier erfahren Sie mehr: https://support.google.com/mail/?p=NoSuchUser
-
-Antwort:
-
-550 5.1.1 The email account that you tried to reach does not exist. Please try double-checking the recipient's email address for typos or unnecessary spaces. Learn more at https://support.google.com/mail/?p=NoSuchUser i18sor6261697wrs.38 - gsmtp
-"
-            )
+            msg.error.as_ref().map(|s| s.as_str()),
+            Some("Delivery Status Notification (Failure) – ** Die Adresse wurde nicht gefunden **\n\nIhre Nachricht wurde nicht an assidhfaaspocwaeofi@gmail.com zugestellt, weil die Adresse nicht gefunden wurde oder keine E-Mails empfangen kann.\n\nHier erfahren Sie mehr: https://support.google.com/mail/?p=NoSuchUser\n\nAntwort:\n\n550 5.1.1 The email account that you tried to reach does not exist. Please try double-checking the recipient\'s email address for typos or unnecessary spaces. Learn more at https://support.google.com/mail/?p=NoSuchUser i18sor6261697wrs.38 - gsmtp")
         )
     }
 }
