@@ -1464,7 +1464,7 @@ pub async fn send_msg(
                 }
             }
             msg.param.remove(Param::PrepForwards);
-            msg.save_param_to_disk(context).await;
+            msg.update_param(context).await;
         }
         return send_msg_inner(context, chat_id, msg).await;
     }
@@ -2596,7 +2596,7 @@ pub async fn forward_msgs(
                         .set(Param::PrepForwards, new_msg_id.to_u32().to_string());
                 }
 
-                msg.save_param_to_disk(context).await;
+                msg.update_param(context).await;
                 msg.param = save_param;
             } else {
                 msg.state = MessageState::OutPending;

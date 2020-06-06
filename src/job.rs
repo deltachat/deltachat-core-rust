@@ -806,7 +806,7 @@ pub async fn send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<Job
 
     if rendered_msg.is_encrypted && !needs_encryption {
         msg.param.set_int(Param::GuaranteeE2ee, 1);
-        msg.save_param_to_disk(context).await;
+        msg.update_param(context).await;
     }
 
     ensure!(!recipients.is_empty(), "no recipients for smtp job set");

@@ -572,11 +572,14 @@ impl MimeMessage {
                             if let Some(report) = self.process_delivery_status(context, mail)? {
                                 self.failed_msg = Some(report);
                             }
-                            let mut part = Part::default();
-                            part.typ = Viewtype::Unknown;
-                            self.parts.push(part);
 
-                            any_part_added = true;
+                            // Add all parts (in fact, AddSinglePartIfKnown() later check if
+                            // the parts are really supported)
+                            for cur_data in mail.subparts.iter() {
+                                if self.parse_mime_recursive(context, cur_data).await? {
+                                    any_part_added = true;
+                                }
+                            }
                         }
                         Some(_) => {
                             if let Some(first) = mail.subparts.iter().next() {
@@ -878,7 +881,6 @@ impl MimeMessage {
                 .iter()
                 .find(|p| p.typ == Viewtype::Text)
                 .map(|p| &p.msg);
-            info!(context, "msg_failed {:?}", error);
             message::ndn_from_ext(context, from_id, original_message_id, error).await
         }
     }

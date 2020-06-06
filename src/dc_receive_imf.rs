@@ -2327,6 +2327,8 @@ mod tests {
 
     #[async_std::test]
     async fn test_parse_ndn() {
+        use std::io::Write;
+
         let t = dummy_context().await;
         t.ctx
             .set_config(Config::Addr, Some("alice@example.org"))
@@ -2367,7 +2369,10 @@ mod tests {
             .await
             .unwrap();
 
+        println!("Loading msg {}…", msg_id);
         let msg = Message::load_from_db(&t.ctx, msg_id).await.unwrap();
+        std::io::stdout().flush().unwrap();
+
         assert_eq!(msg.state, MessageState::OutFailed);
         assert_eq!(
             msg.param.get(Param::Error),

@@ -390,7 +390,7 @@ impl Message {
                     }
 
                     if !self.id.is_unset() {
-                        self.save_param_to_disk(context).await;
+                        self.update_param(context).await;
                     }
                 }
             }
@@ -643,10 +643,10 @@ impl Message {
         if duration > 0 {
             self.param.set_int(Param::Duration, duration);
         }
-        self.save_param_to_disk(context).await;
+        self.update_param(context).await;
     }
 
-    pub async fn save_param_to_disk(&mut self, context: &Context) -> bool {
+    pub async fn update_param(&mut self, context: &Context) -> bool {
         context
             .sql
             .execute(
@@ -1256,7 +1256,7 @@ pub async fn set_msg_failed(context: &Context, msg_id: MsgId, error: Option<impl
         }
         if let Some(error) = error {
             msg.param.set(Param::Error, error.as_ref());
-            warn!(context, "Message failed: {}", error.as_ref());
+            warn!(context, "{} failed: {}", msg_id, error.as_ref());
         }
 
         if context
