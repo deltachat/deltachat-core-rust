@@ -405,6 +405,17 @@ async fn add_parts(
                 .await
                 .unwrap_or_default();
 
+        if chat_id.is_unset() {
+            // check if the message belongs to a mailing list
+            if mime_parser.failed_msg.is_some() {
+                *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
+                info!(
+                    context,
+                    "Message belongs to an NDN list and is not shown in a chat.",
+                );
+            }
+        }
+
         // get the chat_id - a chat_id here is no indicator that the chat is displayed in the normal list,
         // it might also be blocked and displayed in the deaddrop as a result
         if chat_id.is_unset() {
@@ -2327,7 +2338,6 @@ mod tests {
 
     #[async_std::test]
     async fn test_parse_ndn() {
-        use std::io::Write;
         use std::{thread, time};
 
         let t = dummy_context().await;
@@ -2374,8 +2384,6 @@ mod tests {
 
         println!("Loading msg {}…", msg_id);
         let msg = Message::load_from_db(&t.ctx, msg_id).await.unwrap();
-        std::io::stdout().flush().unwrap();
-        thread::sleep(time::Duration::from_millis(1000));
 
         assert_eq!(msg.state, MessageState::OutFailed);
         assert_eq!(
