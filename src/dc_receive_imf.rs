@@ -1001,7 +1001,7 @@ async fn create_or_lookup_group(
     let (mut chat_id, chat_id_verified, _blocked) = chat::get_chat_id_by_grpid(context, &grpid)
         .await
         .unwrap_or((ChatId::new(0), false, Blocked::Not));
-    if !chat_id.is_error() {
+    if !chat_id.is_unset() {
         if chat_id_verified {
             if let Err(err) =
                 check_verified_properties(context, mime_parser, from_id as u32, to_ids).await
@@ -1032,7 +1032,7 @@ async fn create_or_lookup_group(
         .await
         .unwrap_or_default();
 
-    if chat_id.is_error()
+    if chat_id.is_unset()
             && !mime_parser.is_mailinglist_message()
             && !grpid.is_empty()
             && grpname.is_some()
