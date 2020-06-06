@@ -1,10 +1,12 @@
-# Chat-over-Email specification
+# chat-mail specification
 
-Version 0.31.0
+Version: 0.32.0
+Status:  In-progress 
+Format:  [Semantic Line Breaks](https://sembr.org/)
 
-This document describes how emails can be used
-to implement typical messenger functions
-while staying compatible to existing MUAs.
+This document roughly describes how chat-mail 
+apps use the standard e-mail system 
+to implement typical messenger functions.
 
 - [Encryption](#encryption)
 - [Outgoing messages](#outgoing-messages)
@@ -30,9 +32,7 @@ Messages SHOULD be encrypted by the
 `prefer-encrypt=mutual` MAY be set by default.
 
 Meta data (at least the subject and all chat-headers) SHOULD be encrypted
-by the [Memoryhole](https://github.com/autocrypt/memoryhole) standard.
-If Memoryhole is not used,
-the subject of encrypted messages SHOULD be replaced by the string `...`.
+by the [Protected Headers](https://www.ietf.org/id/draft-autocrypt-lamps-protected-headers-02.html) standard.
 
 
 # Outgoing messages
