@@ -39,18 +39,9 @@ impl ChatId {
         ChatId(id)
     }
 
-    /// A ChatID which indicates an error.
-    ///
-    /// This is transitional and should not be used in new code.  Do
-    /// not represent errors in a ChatId.
-    pub fn is_error(self) -> bool {
-        self.0 == 0
-    }
-
     /// An unset ChatId
     ///
-    /// Like [ChatId::is_error], from which it is indistinguishable, this is
-    /// transitional and should not be used in new code.
+    /// This is transitional and should not be used in new code.
     pub fn is_unset(self) -> bool {
         self.0 == 0
     }
@@ -1930,19 +1921,18 @@ pub async fn create_group_chat(
         .sql
         .get_rowid(context, "chats", "grpid", grpid)
         .await?;
-    let chat_id = ChatId::new(row_id);
-    if !chat_id.is_error() {
-        if add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await {
-            let mut draft_msg = Message::new(Viewtype::Text);
-            draft_msg.set_text(Some(draft_txt));
-            chat_id.set_draft_raw(context, &mut draft_msg).await;
-        }
 
-        context.emit_event(Event::MsgsChanged {
-            msg_id: MsgId::new(0),
-            chat_id: ChatId::new(0),
-        });
+    let chat_id = ChatId::new(row_id);
+    if add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF).await {
+        let mut draft_msg = Message::new(Viewtype::Text);
+        draft_msg.set_text(Some(draft_txt));
+        chat_id.set_draft_raw(context, &mut draft_msg).await;
     }
+
+    context.emit_event(Event::MsgsChanged {
+        msg_id: MsgId::new(0),
+        chat_id: ChatId::new(0),
+    });
 
     Ok(chat_id)
 }
