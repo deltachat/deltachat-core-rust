@@ -1,6 +1,6 @@
 # Chat-over-Email specification
 
-Version 0.30.0
+Version 0.31.0
 
 This document describes how emails can be used
 to implement typical messenger functions
@@ -39,8 +39,7 @@ the subject of encrypted messages SHOULD be replaced by the string `...`.
 
 Messengers MUST add a `Chat-Version: 1.0` header to outgoing messages.
 For filtering and smart appearance of the messages in normal MUAs,
-the `Subject` header SHOULD start with the characters `Chat:`
-and SHOULD be an excerpt of the message.
+the `Subject` header SHOULD be `Message from <sender name>`.
 Replies to messages MAY follow the typical `Re:`-format.
 
 The body MAY contain text which MUST have the content type `text/plain`
@@ -58,7 +57,7 @@ Full quotes, footers or sth. like that MUST NOT go to the user-text-part.
     To: rcpt@domain
     Chat-Version: 1.0
     Content-Type: text/plain
-    Subject: Chat: Hello ...
+    Subject: Message from sender@domain
 
     Hello world!
 
