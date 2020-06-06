@@ -1514,6 +1514,75 @@ class TestOnlineAccount:
         locations3 = chat2.get_locations(contact=contact)
         assert not locations3
 
+    def test_undecipherable_group(self, acfactory, lp):
+        """Test how group messages that cannot be decrypted are
+        handled.
+
+        Group name is encrypted and plaintext subject is set to "..." in
+        this case, so we should assign the messages to existing chat
+        instead of creating a new one. Since there is no existing group
+        chat, the messages should be assigned to 1-1 chat with the sender
+        of the message.
+        """
+
+        lp.sec("creating and configuring three accounts")
+        ac1, ac2, ac3 = acfactory.get_many_online_accounts(3, quiet=False)
+
+        _chat12, chat21 = acfactory.get_chats(ac1, ac2)
+        _chat13, chat31 = acfactory.get_chats(ac1, ac3)
+
+        contact2 = ac1.create_contact(ac2.get_config("addr"))
+        contact3 = ac1.create_contact(ac3.get_config("addr"))
+
+        lp.sec("sending keys to ac1")
+        chat21.send_text("hi 1")
+        msg = ac1._evtracker.wait_next_incoming_message()
+        assert msg.text == "hi 1"
+
+        chat31.send_text("hi 2")
+        msg = ac1._evtracker.wait_next_incoming_message()
+        assert msg.text == "hi 2"
+
+        lp.sec("ac3 stops")
+        ac3.stop_io()
+
+        lp.sec("ac3 reinstalls DC and generates a new key")
+        ac4 = acfactory.clone_online_account(ac3, pre_generated_key=False)
+        ac4.wait_configure_finish()
+        # Create contacts to make sure incoming messages are not treated as contact requests
+        chat41 = acfactory.get_chat(ac4, ac1)
+        chat42 = acfactory.get_chat(ac4, ac2)
+        ac4.start_io()
+
+        lp.sec("ac1: creating group chat with 2 other members")
+        chat = ac1.create_group_chat("title")
+        chat.add_contact(contact2)
+        chat.add_contact(contact3)
+
+        lp.sec("ac1: send message to new group chat")
+        msg = chat.send_text("hello")
+
+        lp.sec("ac2: checking that the chat arrived correctly")
+        msg = ac2._evtracker.wait_next_incoming_message()
+        assert msg.text == "hello"
+        assert msg.is_encrypted(), "Message is not encrypted"
+
+        # ac4 cannot decrypt the message.
+        # Error message should be assigned to the chat with ac1.
+        lp.sec("ac4: checking that message is assigned to the sender chat")
+        error_msg = ac4._evtracker.wait_next_incoming_message()
+        assert error_msg.chat == chat41
+
+        lp.sec("ac2: sending a reply to the chat")
+        msg.chat.send_text("reply")
+        reply = ac1._evtracker.wait_next_incoming_message()
+        assert reply.text == "reply"
+        assert reply.is_encrypted(), "Reply is not encrypted"
+
+        lp.sec("ac4: checking that reply is assigned to ac2 chat")
+        error_reply = ac4._evtracker.wait_next_incoming_message()
+        assert error_reply.chat == chat42
+
 
 class TestGroupStressTests:
     def test_group_many_members_add_leave_remove(self, acfactory, lp):
