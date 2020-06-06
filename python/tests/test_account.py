@@ -1563,7 +1563,7 @@ class TestGroupStressTests:
             chat.add_contact(contact)
         assert not chat.is_promoted()
 
-        lp.sec("ac1: send mesage to new group chat")
+        lp.sec("ac1: send message to new group chat")
         msg = chat.send_text("hello")
         assert chat.is_promoted()
         assert msg.is_encrypted()
@@ -1665,7 +1665,7 @@ class TestGroupStressTests:
             chat.add_contact(contact)
         assert not chat.is_promoted()
 
-        lp.sec("ac1: send mesage to new group chat")
+        lp.sec("ac1: send message to new group chat")
         msg = chat.send_text("hello")
         assert chat.is_promoted()
         assert msg.is_encrypted()
