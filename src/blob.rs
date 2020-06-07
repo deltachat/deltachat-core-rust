@@ -383,13 +383,10 @@ impl<'a> BlobObject<'a> {
 
     pub async fn recode_to_image_size(&self, context: &Context) -> Result<(), BlobError> {
         let blob_abs = self.to_abs_path();
-        match message::guess_msgtype_from_suffix(Path::new(&blob_abs)) {
-            None => return Ok(()),
-            Some(imgtype) => {
-                if imgtype.1 != "image/jpeg" {
-                    return Ok(());
-                }
-            }
+        if message::guess_msgtype_from_suffix(Path::new(&blob_abs))
+            != Some((Viewtype::Image, "image/jpeg"))
+        {
+            return Ok(());
         }
 
         let img = image::open(&blob_abs).map_err(|err| BlobError::RecodeFailure {
