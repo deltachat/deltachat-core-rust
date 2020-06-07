@@ -1245,7 +1245,7 @@ async fn open(
         if dbversion < 64 {
             info!(context, "[migration] v63");
             sql.execute(
-                "ALTER TABLE chats ADD COLUMN error TEXT DEFAULT '';",
+                "ALTER TABLE msgs ADD COLUMN error TEXT DEFAULT '';",
                 paramsv![],
             )
             .await?;
