@@ -440,6 +440,8 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             to.push(from.clone());
         }
 
+        unprotected_headers.push(Header::new("MIME-Version".into(), "1.0".into()));
+
         if !self.references.is_empty() {
             unprotected_headers.push(Header::new("References".into(), self.references.clone()));
         }
