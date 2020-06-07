@@ -229,9 +229,7 @@ pub const AVATAR_SIZE: u32 = 192;
 
 // max. width/height of images
 pub const BALANCED_IMAGE_SIZE: u32 = 1280;
-pub const BALANCED_IMAGE_QUALITY: u32 = 85;
 pub const WORSE_IMAGE_SIZE: u32 = 640;
-pub const WORSE_IMAGE_QUALITY: u32 = 75;
 
 // this value can be increased if the folder configuration is changed and must be redone on next program start
 pub const DC_FOLDERS_CONFIGURED_VERSION: i32 = 3;
