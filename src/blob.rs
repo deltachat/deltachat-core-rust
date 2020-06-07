@@ -398,15 +398,14 @@ impl<'a> BlobObject<'a> {
             cause: err,
         })?;
 
-        let (img_wh, _quality) =
-            if MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await)
-                .unwrap_or_default()
-                == MediaQuality::Balanced
-            {
-                (BALANCED_IMAGE_SIZE, BALANCED_IMAGE_QUALITY)
-            } else {
-                (WORSE_IMAGE_SIZE, WORSE_IMAGE_QUALITY)
-            };
+        let img_wh = if MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await)
+            .unwrap_or_default()
+            == MediaQuality::Balanced
+        {
+            BALANCED_IMAGE_SIZE
+        } else {
+            WORSE_IMAGE_SIZE
+        };
 
         if img.width() <= img_wh && img.height() <= img_wh {
             return Ok(());
