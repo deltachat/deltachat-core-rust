@@ -1,5 +1,5 @@
-import time
 import sys
+import time
 
 
 def test_basic_message_seen(acfactory, tmpdir):
@@ -7,11 +7,10 @@ def test_basic_message_seen(acfactory, tmpdir):
     chat12 = acfactory.get_chat(ac1, ac2)
 
     chat12.send_text("hello")
-    msg = ac2._evtracker.wait_next_incoming_message()
-
-    # imap2.dump_imap_structures(tmpdir, logfile=sys.stdout)
+    ac2._evtracker.wait_next_incoming_message()
 
     imap2 = acfactory.new_imap_conn(ac2)
+    imap2.dump_imap_structures(tmpdir, logfile=sys.stdout)
     assert imap2.get_unread_cnt() == 1
     imap2.mark_all_read()
     assert imap2.get_unread_cnt() == 0
