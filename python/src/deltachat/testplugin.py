@@ -381,19 +381,31 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             self._finalizers.append(bot.kill)
             return bot
 
-        def dump_imap_structures(self, file):
+        def dump_imap_summary(self, logfile):
             for ac in self._accounts:
-                conn = self.new_imap_conn(ac)
-                conn.dump_imap_structures(tmpdir, file=file)
+                imap = self.new_imap_conn(ac)
+                imap.dump_account_info(logfile=logfile)
+                imap.dump_imap_structures(tmpdir, logfile=logfile)
+                imap.shutdown()
+
+        def get_chat(self, ac1, ac2):
+            chat12, chat21 = self.get_chats(ac1, ac2)
+            return chat12
+
+        def get_chats(self, ac1, ac2):
+            chat12 = ac1.create_chat_by_contact(
+                ac1.create_contact(email=ac2.get_config("addr")))
+            chat21 = ac2.create_chat_by_contact(
+                ac2.create_contact(email=ac1.get_config("addr")))
+            return chat12, chat21
 
     am = AccountMaker()
     request.addfinalizer(am.finalize)
     yield am
     if hasattr(request.node, "rep_call") and request.node.rep_call.failed:
-        file = io.StringIO()
-        am.dump_imap_structures(file=file)
-        s = file.getvalue()
-        print(s)
+        logfile = io.StringIO()
+        am.dump_imap_summary(logfile=logfile)
+        print(logfile.getvalue())
         # request.node.add_report_section("call", "imap-server-state", s)
 
 

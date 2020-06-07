@@ -11,15 +11,6 @@ from deltachat.hookspec import account_hookimpl
 from datetime import datetime, timedelta
 
 
-def get_chat(ac1, ac2, both_created=False):
-    c2 = ac1.create_contact(email=ac2.get_config("addr"))
-    chat = ac1.create_chat_by_contact(c2)
-    assert chat.id > const.DC_CHAT_ID_LAST_SPECIAL
-    if both_created:
-        ac2.create_chat_by_contact(ac2.create_contact(email=ac1.get_config("addr")))
-    return chat
-
-
 @pytest.mark.parametrize("msgtext,res", [
     ("Member Me (tmp1@x.org) removed by tmp2@x.org.", ("removed", "tmp1@x.org")),
     ("Member tmp1@x.org added by tmp2@x.org.", ("added", "tmp1@x.org")),
@@ -539,7 +530,7 @@ class TestOnlineAccount:
         ac1.start_io()
         ac2.wait_configure_finish()
         ac2.start_io()
-        chat = get_chat(ac1, ac2, both_created=True)
+        chat = acfactory.get_chat(ac1, ac2, both_created=True)
 
         lp.sec("ac1: send unencrypted message to ac2")
         chat.send_text("message1")
@@ -600,7 +591,7 @@ class TestOnlineAccount:
         ac1_clone.wait_configure_finish()
         ac1_clone.start_io()
 
-        chat = get_chat(ac1, ac2)
+        chat = acfactory.get_chat(ac1, ac2)
 
         self_addr = ac1.get_config("addr")
         other_addr = ac2.get_config("addr")
@@ -640,7 +631,7 @@ class TestOnlineAccount:
 
     def test_send_file_twice_unicode_filename_mangling(self, tmpdir, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
-        chat = get_chat(ac1, ac2)
+        chat = acfactory.get_chat(ac1, ac2)
 
         basename = "somedäüta.html.zip"
         p = os.path.join(tmpdir.strpath, basename)
@@ -672,7 +663,7 @@ class TestOnlineAccount:
 
     def test_send_file_html_attachment(self, tmpdir, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
-        chat = get_chat(ac1, ac2)
+        chat = acfactory.get_chat(ac1, ac2)
 
         basename = "test.html"
         content = "<html><body>text</body>data"
@@ -710,7 +701,7 @@ class TestOnlineAccount:
         ac1.start_io()
 
         lp.sec("ac1: send message and wait for ac2 to receive it")
-        chat = get_chat(ac1, ac2)
+        chat = acfactory.get_chat(ac1, ac2)
         chat.send_text("message1")
         ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
         assert ev.data2 > const.DC_CHAT_ID_LAST_SPECIAL
@@ -723,7 +714,7 @@ class TestOnlineAccount:
         ac2.start_io()
         ac1.wait_configure_finish()
         ac1.start_io()
-        chat = get_chat(ac1, ac2)
+        chat, _ = get_chat(ac1, ac2)
         chat.send_text("message1")
         ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
         assert ev.data2 > const.DC_CHAT_ID_LAST_SPECIAL
@@ -738,7 +729,7 @@ class TestOnlineAccount:
         ac1.wait_configure_finish()
         ac1.start_io()
 
-        chat = get_chat(ac1, ac2)
+        chat, _ = get_chat(ac1, ac2)
         chat.send_text("message1")
         chat.send_text("message2")
         chat.send_text("message3")
@@ -748,7 +739,7 @@ class TestOnlineAccount:
 
     def test_forward_messages(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
-        chat = get_chat(ac1, ac2)
+        chat, _ = get_chat(ac1, ac2)
 
         lp.sec("ac1: send message to ac2")
         msg_out = chat.send_text("message2")
@@ -781,7 +772,7 @@ class TestOnlineAccount:
 
     def test_forward_own_message(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
-        chat = get_chat(ac1, ac2, both_created=True)
+        chat = acfactory.get_chat(ac1, ac2, both_created=True)
 
         lp.sec("sending message")
         msg_out = chat.send_text("message2")
@@ -823,7 +814,7 @@ class TestOnlineAccount:
         ac1.set_config("displayname", "ä name")
 
         lp.sec("ac1: create chat with ac2")
-        chat = get_chat(ac1, ac2)
+        chat = acfactory.get_chat(ac1, ac2)
 
         lp.sec("sending text message from ac1 to ac2")
         msg_out = chat.send_text("message1")
@@ -889,7 +880,7 @@ class TestOnlineAccount:
         ac1, ac2 = acfactory.get_two_online_accounts(move=True)
 
         lp.sec("ac1: create chat with ac2")
-        chat = get_chat(ac1, ac2, both_created=True)
+        chat = acfactory.get_chat(ac1, ac2, both_created=True)
 
         # make sure mdns are enabled (usually enabled by default already)
         ac1.set_config("mdns_enabled", "1")
@@ -924,7 +915,7 @@ class TestOnlineAccount:
         ac1, ac2 = acfactory.get_two_online_accounts()
 
         lp.sec("ac1: create chat with ac2")
-        chat = get_chat(ac1, ac2)
+        chat = acfactory.get_chat(ac1, ac2)
 
         lp.sec("sending text message from ac1 to ac2")
         msg_out = chat.send_text("message1")
@@ -974,7 +965,7 @@ class TestOnlineAccount:
         ac2.set_config("save_mime_headers", "1")
 
         lp.sec("ac1: create chat with ac2")
-        chat = get_chat(ac1, ac2, both_created=True)
+        chat = acfactory.get_chat(ac1, ac2, both_created=True)
 
         lp.sec("sending multi-line non-unicode message from ac1 to ac2")
         text1 = "hello\nworld"
@@ -999,7 +990,7 @@ class TestOnlineAccount:
         ac1, ac2 = acfactory.get_two_online_accounts()
 
         lp.sec("ac1: create chat with ac2")
-        chat = get_chat(ac1, ac2)
+        chat = acfactory.get_chat(ac1, ac2)
 
         lp.sec("sending text message from ac1 to ac2")
         msg_out = chat.send_text("message1")
@@ -1053,7 +1044,7 @@ class TestOnlineAccount:
 
         lp.sec("configure ac2 to save mime headers, create ac1/ac2 chat")
         ac2.set_config("save_mime_headers", "1")
-        chat = get_chat(ac1, ac2)
+        chat = acfactory.get_chat(ac1, ac2)
 
         lp.sec("sending text message from ac1 to ac2")
         msg_out = chat.send_text("message1")
@@ -1069,7 +1060,7 @@ class TestOnlineAccount:
 
     def test_send_mark_seen_clean_incoming_events(self, acfactory, lp, data):
         ac1, ac2 = acfactory.get_two_online_accounts()
-        chat = get_chat(ac1, ac2, both_created=True)
+        chat = acfactory.get_chat(ac1, ac2, both_created=True)
 
         message_queue = queue.Queue()
 
@@ -1098,7 +1089,7 @@ class TestOnlineAccount:
 
     def test_send_and_receive_image(self, acfactory, lp, data):
         ac1, ac2 = acfactory.get_two_online_accounts()
-        chat = get_chat(ac1, ac2)
+        chat = acfactory.get_chat(ac1, ac2)
 
         message_queue = queue.Queue()
 
@@ -1305,7 +1296,7 @@ class TestOnlineAccount:
         ac1.set_avatar(p)
 
         lp.sec("ac1: create 1:1 chat with ac2")
-        chat = get_chat(ac1, ac2, both_created=True)
+        chat = acfactory.get_chat(ac1, ac2, both_created=True)
 
         msg = chat.send_text("hi -- do you see my brand new avatar?")
         assert not msg.is_encrypted()
@@ -1484,8 +1475,7 @@ class TestOnlineAccount:
         ac1, ac2 = acfactory.get_two_online_accounts()
 
         lp.sec("ac1: create chat with ac2")
-        chat1 = get_chat(ac1, ac2)
-        chat2 = get_chat(ac2, ac1)
+        chat1, chat2 = get_chat(ac1, ac2)
 
         assert not chat1.is_sending_locations()
         with pytest.raises(ValueError):
@@ -1729,92 +1719,3 @@ class TestOnlineConfigureFails:
         ac1._configtracker.wait_progress(0)
         ev = ac1._evtracker.get_matching("DC_EVENT_ERROR_NETWORK")
         assert "could not connect" in ev.data2.lower()
-
-
-class TestDirectImap:
-    def test_basic_imap(self, acfactory):
-        ac1, ac2 = acfactory.get_two_online_accounts()
-        imap1 = acfactory.new_imap_conn(ac1)
-        res = imap1.list_folders()
-        for folder_name in res:
-            imap1.select_folder(folder_name)
-
-        file = io.StringIO()
-        acfactory.dump_imap_structures(file=file)
-        out = file.getvalue().lower()
-        assert "arch" in out
-
-    def test_mark_read_on_server(self, acfactory, lp):
-        ac1 = acfactory.get_online_configuring_account()
-        ac2 = acfactory.get_online_configuring_account(mvbox=True, move=True)
-
-        ac1.wait_configure_finish()
-        ac1.start_io()
-        ac2.wait_configure_finish()
-        ac2.start_io()
-
-        imap2 = acfactory.new_imap_conn(ac2, config_folder="mvbox")
-        imap2.mark_all_read()
-        assert imap2.get_unread_cnt() == 0
-
-        chat = get_chat(ac1, ac2)
-        chat_on_ac2 = get_chat(ac2, ac1)
-
-        chat.send_text("Text message")
-
-        incoming_on_ac2 = ac2._evtracker.wait_next_incoming_message()
-        lp.sec("Incoming: "+incoming_on_ac2.text)
-
-        assert list(ac2.get_fresh_messages())
-
-        for i in range(0, 20):
-            if imap2.get_unread_cnt() == 1:
-                break
-            time.sleep(1)  # We might need to wait because Imaplib is slower than DC-Core
-        assert imap2.get_unread_cnt() == 1
-
-        chat_on_ac2.mark_noticed()
-        incoming_on_ac2.mark_seen()
-        ac2._evtracker.wait_next_messages_changed()
-
-        assert not list(ac2.get_fresh_messages())
-
-        # The new messages should be seen now.
-        for i in range(0, 20):
-            if imap2.get_unread_cnt() == 0:
-                break
-            time.sleep(1)  # We might need to wait because Imaplib is slower than DC-Core
-        assert imap2.get_unread_cnt() == 0
-
-    def test_mark_bcc_read_on_server(self, acfactory, lp):
-        ac1 = acfactory.get_online_configuring_account(mvbox=True, move=True)
-        ac2 = acfactory.get_online_configuring_account()
-
-        ac1.wait_configure_finish()
-        ac1.start_io()
-        ac2.wait_configure_finish()
-        ac2.start_io()
-
-        imap1 = acfactory.new_imap_conn(ac1, config_folder="mvbox")
-        imap1.mark_all_read()
-        assert imap1.get_unread_cnt() == 0
-
-        chat = get_chat(ac1, ac2)
-
-        ac1.set_config("bcc_self", "1")
-        chat.send_text("Text message")
-
-        ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
-
-        for i in range(0, 20):
-            if imap1.get_new_email_cnt() == 1:
-                break
-            time.sleep(1)  # We might need to wait because Imaplib is slower than DC-Core
-        assert imap1.get_new_email_cnt() == 1
-
-        for i in range(0, 20):
-            if imap1.get_unread_cnt() == 0:
-                break
-            time.sleep(1)  # We might need to wait because Imaplib is slower than DC-Core
-
-        assert imap1.get_unread_cnt() == 0
