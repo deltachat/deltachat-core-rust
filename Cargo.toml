@@ -98,5 +98,3 @@ repl = ["internals", "rustyline", "log", "pretty_env_logger", "ansi_term"]
 vendored = ["async-native-tls/vendored", "async-smtp/native-tls-vendored"]
 nightly = ["pgp/nightly"]
 
-[patch.crates-io]
-smol = { git = "https://github.com/dignifiedquire/smol-1", branch = "isolate-nix" }
