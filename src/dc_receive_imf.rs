@@ -914,32 +914,29 @@ async fn create_or_lookup_group(
     }
 
     if grpid.is_empty() {
-        if let Some(value) = mime_parser.get(HeaderDef::MessageId) {
-            if let Some(extracted_grpid) = dc_extract_grpid_from_rfc724_mid(&value) {
-                grpid = extracted_grpid.to_string();
-            }
-        }
-        if grpid.is_empty() {
-            if let Some(extracted_grpid) = extract_grpid(mime_parser, HeaderDef::InReplyTo) {
-                grpid = extracted_grpid.to_string();
-            } else if let Some(extracted_grpid) = extract_grpid(mime_parser, HeaderDef::References)
-            {
-                grpid = extracted_grpid.to_string();
-            } else {
-                return create_or_lookup_adhoc_group(
-                    context,
-                    mime_parser,
-                    allow_creation,
-                    create_blocked,
-                    from_id,
-                    to_ids,
-                )
-                .await
-                .map_err(|err| {
-                    info!(context, "could not create adhoc-group: {:?}", err);
-                    err
-                });
-            }
+        if let Some(extracted_grpid) = mime_parser
+            .get(HeaderDef::MessageId)
+            .and_then(|value| dc_extract_grpid_from_rfc724_mid(&value))
+        {
+            grpid = extracted_grpid.to_string();
+        } else if let Some(extracted_grpid) = extract_grpid(mime_parser, HeaderDef::InReplyTo) {
+            grpid = extracted_grpid.to_string();
+        } else if let Some(extracted_grpid) = extract_grpid(mime_parser, HeaderDef::References) {
+            grpid = extracted_grpid.to_string();
+        } else {
+            return create_or_lookup_adhoc_group(
+                context,
+                mime_parser,
+                allow_creation,
+                create_blocked,
+                from_id,
+                to_ids,
+            )
+            .await
+            .map_err(|err| {
+                info!(context, "could not create adhoc-group: {:?}", err);
+                err
+            });
         }
     }
     // now we have a grpid that is non-empty
