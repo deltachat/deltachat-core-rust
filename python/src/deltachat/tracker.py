@@ -2,7 +2,7 @@
 from queue import Queue
 from threading import Event
 
-from .hookspec import account_hookimpl
+from .hookspec import account_hookimpl, Global
 
 
 class ImexFailed(RuntimeError):
@@ -40,12 +40,14 @@ class ConfigureFailed(RuntimeError):
 class ConfigureTracker:
     ConfigureFailed = ConfigureFailed
 
-    def __init__(self):
+    def __init__(self, account):
+        self.account = account
         self._configure_events = Queue()
         self._smtp_finished = Event()
         self._imap_finished = Event()
         self._ffi_events = []
         self._progress = Queue()
+        self._gm = Global._get_plugin_manager()
 
     @account_hookimpl
     def ac_process_ffi_event(self, ffi_event):
@@ -59,6 +61,8 @@ class ConfigureTracker:
 
     @account_hookimpl
     def ac_configure_completed(self, success):
+        if success:
+            self._gm.hook.dc_account_extra_configure(account=self.account)
         self._configure_events.put(success)
 
     def wait_smtp_connected(self):
