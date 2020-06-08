@@ -218,20 +218,36 @@ class Account(object):
         with that e-mail address, it is unblocked and its display
         name is updated.
 
-        :param addr: email-address (text type) or Contact (from other account).
+        :param addr: email-address, Account or Contact instance.
         :param name: display name for this contact (optional)
         :returns: :class:`deltachat.contact.Contact` instance.
         """
-        if isinstance(addr, Contact):
-            # might come from another account
-            name = addr.name
-            addr = addr.addr
+        if not isinstance(addr, (Account, Contact, str)):
+            raise TypeError(str(addr))
+        return self.as_contact(addr, name=name)
+
+    def as_contact(self, obj, name=None):
+        """ Create a contact from an Account, Contact or e-mail address. """
+        if isinstance(obj, Account):
+            if not obj.is_configured():
+                raise ValueError("can only add addresses from configured accounts")
+            addr, displayname = obj.get_config("addr"), obj.get_config("displayname")
+        elif isinstance(obj, Contact):
+            if obj.account != self:
+                raise ValueError("account mismatch {}".format(obj))
+            addr, displayname = obj.addr, obj.name
+        elif isinstance(obj, str):
+            displayname, addr = parseaddr(obj)
         else:
-            parse_name, addr = parseaddr(addr)
-            if not name and parse_name:
-                name = parse_name
-        name = as_dc_charpointer(name)
+            raise TypeError("don't know how to create chat for %r" % (obj, ))
+
+        if name is None and displayname:
+            name = displayname
+        return self._create_contact(addr, name)
+
+    def _create_contact(self, addr, name):
         addr = as_dc_charpointer(addr)
+        name = as_dc_charpointer(name)
         contact_id = lib.dc_create_contact(self._dc_context, name, addr)
         assert contact_id > const.DC_CHAT_ID_LAST_SPECIAL, contact_id
         return Contact(self, contact_id)
@@ -261,12 +277,6 @@ class Account(object):
         :returns: None or :class:`deltachat.contact.Contact` instance.
         """
         return Contact(self, contact_id)
-
-    def _port_contact(self, contact):
-        assert isinstance(contact, Contact)
-        if self != contact.account:
-            return self.create_contact(addr=contact.addr, name=contact.name)
-        return contact
 
     def get_contacts(self, query=None, with_self=False, only_verified=False):
         """ get a (filtered) list of contacts.
@@ -298,35 +308,28 @@ class Account(object):
         yield from iter_array(dc_array, lambda x: Message.from_db(self, x))
 
     def create_chat(self, obj):
-        """ Create a 1:1 chat with Account or e-mail addresse. """
-        if isinstance(obj, Account):
-            if not obj.is_configured():
-                raise ValueError("can only add addresses from a configured account")
-            addr, name = obj.get_config("addr"), obj.get_config("displayname")
-            contact = self.create_contact(addr, name)
-        elif isinstance(obj, Contact):
-            contact = self._port_contact(obj)
-        elif isinstance(obj, str):
-            name, addr = parseaddr(obj)
-            contact = self.create_contact(addr, name)
-        else:
-            raise TypeError("don't know how to create chat for %r" % (obj, ))
-        return contact.create_chat()
+        """ Create a 1:1 chat with Account, Contact or e-mail address. """
+        return self.as_contact(obj).create_chat()
 
     def _create_chat_by_message_id(self, msg_id):
         return Chat(self, lib.dc_create_chat_by_msg_id(self._dc_context, msg_id))
 
-    def create_group_chat(self, name, verified=False):
+    def create_group_chat(self, name, contacts=None, verified=False):
         """ create a new group chat object.
 
         Chats are unpromoted until the first message is sent.
 
+        :param contacts: list of contacts to add
         :param verified: if true only verified contacts can be added.
         :returns: a :class:`deltachat.chat.Chat` object.
         """
         bytes_name = name.encode("utf8")
         chat_id = lib.dc_create_group_chat(self._dc_context, int(verified), bytes_name)
-        return Chat(self, chat_id)
+        chat = Chat(self, chat_id)
+        if contacts is not None:
+            for contact in contacts:
+                chat.add_contact(contact)
+        return chat
 
     def get_chats(self):
         """ return list of chats.

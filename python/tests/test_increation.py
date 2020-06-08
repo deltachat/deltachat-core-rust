@@ -74,7 +74,7 @@ class TestOnlineInCreation:
 
         lp.sec("forward the message while still in creation")
         chat2 = ac1.create_group_chat("newgroup")
-        chat2.add_contact(ac2.get_self_contact())
+        chat2.add_contact(ac2)
         wait_msgs_changed(ac1, [(0, 0)])  # why not chat id?
         ac1.forward_messages([prepared_original], chat2)
         # XXX there might be two EVENT_MSGS_CHANGED and only one of them

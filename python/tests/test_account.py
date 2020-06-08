@@ -143,10 +143,8 @@ class TestOfflineContact:
         ac1 = acfactory.get_configured_offline_account()
         ac2 = acfactory.get_configured_offline_account()
         chat1 = ac1.create_chat(ac2)
-        contact = ac1.create_contact(ac2.get_self_contact())
-        chat2 = ac1.create_chat(contact)
-        chat3 = ac1.create_chat(ac2.get_self_contact().addr)
-        assert chat1 == chat2 and chat2 == chat3
+        chat2 = ac1.create_chat(ac2.get_self_contact().addr)
+        assert chat1 == chat2
         ac3 = acfactory.get_unconfigured_account()
         with pytest.raises(ValueError):
             ac1.create_chat(ac3)
@@ -192,10 +190,13 @@ class TestOfflineChat:
         ac1 = acfactory.get_configured_offline_account()
         ac2 = acfactory.get_configured_offline_account()
         chat = ac1.create_group_chat(name="title1")
-        ac2_contact = ac2.get_self_contact()
-        contact = chat.add_contact(ac2_contact)
-        assert contact != ac2_contact
+        with pytest.raises(ValueError):
+            chat.add_contact(ac2.get_self_contact())
+        contact = chat.add_contact(ac2)
+        assert contact.addr == ac2.get_config("addr")
+        assert contact.name == ac2.get_config("displayname")
         assert contact.account == ac1
+        chat.remove_contact(ac2)
 
     def test_group_chat_creation(self, ac1):
         contact1 = ac1.create_contact("some1@hello.com", name="some1")
@@ -966,7 +967,7 @@ class TestOnlineAccount:
 
         lp.sec("create group chat with two members, one of which has no encrypt state")
         chat = ac1.create_group_chat("encryption test")
-        chat.add_contact(ac2.get_self_contact())
+        chat.add_contact(ac2)
         chat.add_contact(ac1.create_contact("notexisting@testrun.org"))
         msg = chat.send_text("test not encrypt")
         assert not msg.is_encrypted()
@@ -1146,6 +1147,7 @@ class TestOnlineAccount:
         lp.sec("create some chat content")
         contact1 = ac1.create_contact("some1@hello.com", name="some1")
         contact1.create_chat().send_text("msg1")
+        assert len(ac1.get_contacts(query="some1")) == 1
         backupdir = tmpdir.mkdir("backup")
 
         lp.sec("export all to {}".format(backupdir))
@@ -1596,41 +1598,16 @@ class TestOnlineAccount:
 
 class TestGroupStressTests:
     def test_group_many_members_add_leave_remove(self, acfactory, lp):
-        lp.sec("creating and configuring five accounts")
         accounts = acfactory.get_many_online_accounts(5)
-        ac1 = accounts.pop()
-
-        lp.sec("ac1: setting up contacts with 4 other members")
-        contacts = []
-        for acc, name in zip(accounts, list("äöüsr")):
-            contact = ac1.create_contact(acc.get_config("addr"), name=name)
-            contacts.append(contact)
-
-            # make sure we accept the "hi" message
-            contact.create_chat()
-
-            # make sure the other side accepts our messages
-            acc.create_chat(ac1).send_text("hi")
-
-            # send a message to get the contact key via autocrypt header
-            msg = ac1._evtracker.wait_next_incoming_message()
-            assert msg.text == "hi"
-
-        # Save fifth account for later
-        ac5 = accounts.pop()
-        contact5 = contacts.pop()
+        acfactory.accept_each_other(accounts, sending=True)
+        ac1, ac5 = accounts.pop(), accounts.pop()
 
         lp.sec("ac1: creating group chat with 3 other members")
-        chat = ac1.create_group_chat("title1")
-        for contact in contacts:
-            chat.add_contact(contact)
-        assert not chat.is_promoted()
+        chat = ac1.create_group_chat("title1", contacts=accounts)
 
         lp.sec("ac1: send message to new group chat")
-        msg = chat.send_text("hello")
-        assert chat.is_promoted()
-        assert msg.is_encrypted()
-
+        msg1 = chat.send_text("hello")
+        assert msg1.is_encrypted()
         gossiped_timestamp = chat.get_summary()["gossiped_timestamp"]
         assert gossiped_timestamp > 0
 
@@ -1639,24 +1616,23 @@ class TestGroupStressTests:
 
         lp.sec("ac2: checking that the chat arrived correctly")
         ac2 = accounts[0]
-        msg = ac2._evtracker.wait_next_incoming_message()
-        assert msg.text == "hello"
-        print("chat is", msg.chat)
-        assert len(msg.chat.get_contacts()) == 4
+        msg2 = ac2._evtracker.wait_next_incoming_message()
+        assert msg2.text == "hello"
+        print("chat is", msg2.chat)
+        assert len(msg2.chat.get_contacts()) == 4
 
         lp.sec("ac3: checking that 'ac4' is a known contact")
         ac3 = accounts[1]
         msg3 = ac3._evtracker.wait_next_incoming_message()
         assert msg3.text == "hello"
         ac3_contacts = ac3.get_contacts()
-        assert len(ac3_contacts) == 3
+        assert len(ac3_contacts) == 4
         ac4_contacts = ac3.get_contacts(query=accounts[2].get_config("addr"))
         assert len(ac4_contacts) == 1
 
         lp.sec("ac2: removing one contact")
-        to_remove = contacts[-1]
-
-        msg.chat.remove_contact(to_remove)
+        to_remove = ac2.create_contact(accounts[-1])
+        msg2.chat.remove_contact(to_remove)
 
         lp.sec("ac1: receiving system message about contact removal")
         sysmsg = ac1._evtracker.wait_next_incoming_message()
@@ -1673,13 +1649,13 @@ class TestGroupStressTests:
         assert chat.get_summary()["gossiped_timestamp"] == gossiped_timestamp
 
         lp.sec("ac1: adding fifth member to the chat")
-        chat.add_contact(contact5)
-        # Additng contact to chat resets gossiped_timestamp
+        chat.add_contact(ac5)
+        # Adding contact to chat resets gossiped_timestamp
         assert chat.get_summary()["gossiped_timestamp"] >= gossiped_timestamp
 
         lp.sec("ac2: receiving system message about contact addition")
         sysmsg = ac2._evtracker.wait_next_incoming_message()
-        assert contact5.addr in sysmsg.text
+        assert ac5.addr in sysmsg.text
         assert len(sysmsg.chat.get_contacts()) == 4
 
         lp.sec("ac5: waiting for message about addition to the chat")
