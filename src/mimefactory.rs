@@ -1207,6 +1207,11 @@ pub fn needs_encoding(to_check: impl AsRef<str>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chatlist::Chatlist;
+    use crate::dc_receive_imf::dc_receive_imf;
+    use crate::mimeparser::*;
+    use crate::test_utils::configured_offline_context;
+    use crate::test_utils::TestContext;
 
     #[test]
     fn test_render_email_address() {
@@ -1243,8 +1248,10 @@ mod tests {
             Address::new_mailbox_with_name(display_name.to_string(), addr.to_string())
         );
 
+        // Addresses should not be unnecessarily be encoded, see https://github.com/deltachat/deltachat-core-rust/issues/1575:
         assert_eq!(s, "a space <x@y.org>");
     }
+
     #[test]
     fn test_render_rfc724_mid() {
         assert_eq!(
@@ -1286,25 +1293,6 @@ mod tests {
         assert!(!needs_encoding("foobar"));
         assert!(needs_encoding(" "));
         assert!(needs_encoding("foo bar"));
-    }
-
-    use crate::test_utils::{dummy_context, TestContext};
-
-    async fn configured_offline_context() -> TestContext {
-        let t = dummy_context().await;
-        t.ctx
-            .set_config(Config::Addr, Some("alice@example.org"))
-            .await
-            .unwrap();
-        t.ctx
-            .set_config(Config::ConfiguredAddr, Some("alice@example.org"))
-            .await
-            .unwrap();
-        t.ctx
-            .set_config(Config::Configured, Some("1"))
-            .await
-            .unwrap();
-        t
     }
 
     #[async_std::test]
@@ -1419,35 +1407,79 @@ mod tests {
     }
 
     async fn msg_to_subject_str(imf_raw: &[u8]) -> String {
-        use crate::chatlist::Chatlist;
-        use crate::dc_receive_imf::dc_receive_imf;
-
         let t = configured_offline_context().await;
-        t.ctx
+        let new_msg = incoming_msg_to_reply_msg(imf_raw, &t.ctx).await;
+        let mf = MimeFactory::from_msg(&t.ctx, &new_msg, false)
+            .await
+            .unwrap();
+        mf.subject_str().await
+    }
+
+    // Creates a mimefactory for a message that replies "Hi" to the incoming message in `imf_raw`.
+    async fn incoming_msg_to_reply_msg(imf_raw: &[u8], context: &Context) -> Message {
+        context
             .set_config(Config::ShowEmails, Some("2"))
             .await
             .unwrap();
 
-        dc_receive_imf(&t.ctx, imf_raw, "INBOX", 1, false)
+        dc_receive_imf(context, imf_raw, "INBOX", 1, false)
             .await
             .unwrap();
 
-        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let chats = Chatlist::try_load(context, 0, None, None).await.unwrap();
 
-        let chat_id = chat::create_by_msg_id(&t.ctx, chats.get_msg_id(0).unwrap())
+        let chat_id = chat::create_by_msg_id(context, chats.get_msg_id(0).unwrap())
             .await
             .unwrap();
 
         let mut new_msg = Message::new(Viewtype::Text);
         new_msg.set_text(Some("Hi".to_string()));
         new_msg.chat_id = chat_id;
-        chat::prepare_msg(&t.ctx, chat_id, &mut new_msg)
+        chat::prepare_msg(context, chat_id, &mut new_msg)
             .await
             .unwrap();
 
-        let mf = MimeFactory::from_msg(&t.ctx, &new_msg, false)
+        new_msg
+    }
+
+    #[async_std::test]
+    // This test could still be extended
+    async fn test_render_reply() {
+        let t = configured_offline_context().await;
+        let context = &t.ctx;
+
+        let msg = incoming_msg_to_reply_msg(
+            b"From: Charlie <charlie@example.org>\n\
+                To: alice@example.org\n\
+                Subject: Chat: hello\n\
+                Chat-Version: 1.0\n\
+                Message-ID: <2223@example.org>\n\
+                Date: Sun, 22 Mar 2020 22:37:56 +0000\n\
+                \n\
+                hello\n",
+            context,
+        )
+        .await;
+
+        let mimefactory = MimeFactory::from_msg(&t.ctx, &msg, false).await.unwrap();
+
+        let recipients = mimefactory.recipients();
+        assert_eq!(recipients, vec!["charlie@example.org"]);
+
+        let rendered_msg = mimefactory.render().await.unwrap();
+
+        let mail = mailparse::parse_mail(&rendered_msg.message).unwrap();
+        assert_eq!(
+            mail.headers
+                .iter()
+                .find(|h| h.get_key() == "MIME-Version")
+                .unwrap()
+                .get_value(),
+            "1.0"
+        );
+
+        let _mime_msg = MimeMessage::from_bytes(context, &rendered_msg.message)
             .await
             .unwrap();
-        mf.subject_str().await
     }
 }
