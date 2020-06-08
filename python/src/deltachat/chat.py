@@ -330,39 +330,34 @@ class Chat(object):
 
     # ------  group management API ------------------------------
 
-    def add_contact(self, contact):
+    def add_contact(self, obj):
         """ add a contact to this chat.
 
-        If the contact is from another account create a new
-        contact and add it to the group.
-
-        :params: contact object.
+        :params obj: Contact, Account or e-mail address.
         :raises ValueError: if contact could not be added
         :returns: None
         """
-        contact = self.account._port_contact(contact)
+        contact = self.account.as_contact(obj)
         ret = lib.dc_add_contact_to_chat(self.account._dc_context, self.id, contact.id)
         if ret != 1:
             raise ValueError("could not add contact {!r} to chat".format(contact))
         return contact
 
-    def remove_contact(self, contact):
+    def remove_contact(self, obj):
         """ remove a contact from this chat.
 
-        :params: contact object.
+        :params obj: Contact, Account or e-mail address.
         :raises ValueError: if contact could not be removed
         :returns: None
         """
-        contact = self.account._port_contact(contact)
+        contact = self.account.as_contact(obj)
         ret = lib.dc_remove_contact_from_chat(self.account._dc_context, self.id, contact.id)
         if ret != 1:
             raise ValueError("could not remove contact {!r} from chat".format(contact))
 
     def get_contacts(self):
         """ get all contacts for this chat.
-        :params: contact object.
         :returns: list of :class:`deltachat.contact.Contact` objects for this chat
-
         """
         from .contact import Contact
         dc_array = ffi.gc(
