@@ -1528,8 +1528,8 @@ class TestOnlineAccount:
         lp.sec("creating and configuring three accounts")
         ac1, ac2, ac3 = acfactory.get_many_online_accounts(3, quiet=False)
 
-        _chat12, chat21 = acfactory.get_chats(ac1, ac2)
-        _chat13, chat31 = acfactory.get_chats(ac1, ac3)
+        chat12, chat21 = acfactory.get_chats(ac1, ac2)
+        chat13, chat31 = acfactory.get_chats(ac1, ac3)
 
         contact2 = ac1.create_contact(ac2.get_config("addr"))
         contact3 = ac1.create_contact(ac3.get_config("addr"))
@@ -1582,6 +1582,26 @@ class TestOnlineAccount:
         lp.sec("ac4: checking that reply is assigned to ac2 chat")
         error_reply = ac4._evtracker.wait_next_incoming_message()
         assert error_reply.chat == chat42
+
+        # Test that ac4 replies to error messages don't appear in the
+        # group chat on ac1 and ac2.
+        lp.sec("ac4: replying to ac1 and ac2")
+
+        # Otherwise reply becomes a contact request.
+        chat24 = acfactory.get_chat(ac2, ac4)
+
+        chat41.send_text("I can't decrypt your message, ac1!")
+        chat42.send_text("I can't decrypt your message, ac2!")
+
+        msg = ac1._evtracker.wait_next_incoming_message()
+        assert msg.text == "I can't decrypt your message, ac1!"
+        assert msg.is_encrypted(), "Message is not encrypted"
+        assert msg.chat == chat13
+
+        msg = ac2._evtracker.wait_next_incoming_message()
+        assert msg.text == "I can't decrypt your message, ac2!"
+        assert msg.is_encrypted(), "Message is not encrypted"
+        assert msg.chat == chat24
 
 
 class TestGroupStressTests:
