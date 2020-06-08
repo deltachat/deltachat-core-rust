@@ -4434,6 +4434,13 @@ void dc_event_unref(dc_event_t* event);
  * @}
  */
 
+#ifdef PY_CFFI_INC
+/* Helper utility to locate the header file when building python bindings. */
+char* _dc_header_file_location(void) {
+    return __FILE__;
+}
+#endif
+
 
 #ifdef __cplusplus
 }
