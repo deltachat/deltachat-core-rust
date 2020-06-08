@@ -511,6 +511,25 @@ class TestOfflineChat:
         assert in_list[1][2] == contacts[3]
 
 
+def test_basic_imap_api(acfactory, tmpdir):
+    ac1, ac2 = acfactory.get_two_online_accounts()
+    chat12 = acfactory.get_chat(ac1, ac2)
+
+    imap2 = ac2.direct_imap
+
+    ac2.direct_imap.idle_start()
+    chat12.send_text("hello")
+    ac2._evtracker.wait_next_incoming_message()
+
+    imap2.idle_check(terminate=True)
+    assert imap2.get_unread_cnt() == 1
+    imap2.mark_all_read()
+    assert imap2.get_unread_cnt() == 0
+
+    imap2.dump_imap_structures(tmpdir, logfile=sys.stdout)
+    imap2.shutdown()
+
+
 class TestOnlineAccount:
     @pytest.mark.ignored
     def test_configure_generate_key(self, acfactory, lp):
@@ -852,7 +871,9 @@ class TestOnlineAccount:
         msg4 = ac2._evtracker.wait_next_incoming_message()
 
         lp.sec("mark messages as seen on ac2, wait for changes on ac1")
+        ac2.direct_imap.idle_start()
         ac2.mark_seen_messages([msg2, msg4])
+        ac2.direct_imap.idle_check(terminate=True)
         lp.step("1")
         for i in range(2):
             ev = ac1._evtracker.get_matching("DC_EVENT_MSG_READ")
