@@ -303,7 +303,8 @@ class Account(object):
         if isinstance(obj, Account):
             if not obj.is_configured():
                 raise ValueError("can only add addresses from a configured account")
-            contact = self.create_contact(obj.get_self_contact().addr)
+            addr, name = obj.get_config("addr"), obj.get_config("displayname")
+            contact = self.create_contact(addr, name)
         elif isinstance(obj, Contact):
             contact = self._port_contact(obj)
         elif isinstance(obj, str):
@@ -313,25 +314,8 @@ class Account(object):
             raise TypeError("don't know how to create chat for %r" % (obj, ))
         return contact.create_chat()
 
-    def create_chat_by_message(self, message):
-        """ create or get an existing chat object for the
-        the specified message.
-
-        If this message is in the deaddrop chat then
-        the sender will become an accepted contact.
-
-        :param message: messsage id or message instance.
-        :returns: a :class:`deltachat.chat.Chat` object.
-        """
-        if hasattr(message, "id"):
-            if message.account != self:
-                raise ValueError("Message belongs to a different Account")
-            msg_id = message.id
-        else:
-            assert isinstance(message, int)
-            msg_id = message
-        chat_id = lib.dc_create_chat_by_msg_id(self._dc_context, msg_id)
-        return Chat(self, chat_id)
+    def _create_chat_by_message_id(self, msg_id):
+        return Chat(self, lib.dc_create_chat_by_msg_id(self._dc_context, msg_id))
 
     def create_group_chat(self, name, verified=False):
         """ create a new group chat object.
