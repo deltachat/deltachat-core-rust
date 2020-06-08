@@ -21,8 +21,8 @@ surf = { version = "2.0.0-alpha.2", default-features = false, features = ["h1-cl
 num-derive = "0.3.0"
 num-traits = "0.2.6"
 async-smtp = { version = "0.3" }
-email = { git = "https://github.com/deltachat/rust-email", branch = "master" }
-lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
+email = { git = "https://github.com/Hocuri/rust-email", branch = "master" }
+lettre_email = { git = "https://github.com/Hocuri/lettre", branch = "master" }
 async-imap = "0.3.1"
 async-native-tls = { version = "0.3.3" }
 async-std = { version = "1.6.0", features = ["unstable"] }
