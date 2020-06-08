@@ -36,9 +36,12 @@ class Contact(object):
         return from_dc_charpointer(lib.dc_contact_get_addr(self._dc_contact))
 
     @props.with_doc
-    def display_name(self):
+    def name(self):
         """ display name for this contact. """
         return from_dc_charpointer(lib.dc_contact_get_display_name(self._dc_contact))
+
+    # deprecated alias
+    display_name = name
 
     def is_blocked(self):
         """ Return True if the contact is blocked. """
