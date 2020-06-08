@@ -60,7 +60,8 @@ def run_cmdline(argv=None, account_plugins=None):
     ac = Account(args.db)
 
     if args.show_ffi:
-        log = events.FFIEventLogger(ac, "bot")
+        ac.set_config("displayname", "bot")
+        log = events.FFIEventLogger(ac)
         ac.add_account_plugin(log)
 
     for plugin in account_plugins or []:

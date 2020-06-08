@@ -26,15 +26,15 @@ def test_echo_quit_plugin(acfactory, lp):
 
     lp.sec("sending a message to the bot")
     bot_contact = ac1.create_contact(botproc.addr)
-    ch1 = bot_contact.create_chat()
-    ch1.send_text("hello")
+    bot_chat = bot_contact.create_chat()
+    bot_chat.send_text("hello")
 
-    lp.sec("waiting for the bot-reply to arrive")
+    lp.sec("waiting for the reply message from the bot to arrive")
     reply = ac1._evtracker.wait_next_incoming_message()
+    assert reply.chat == bot_chat
     assert "hello" in reply.text
-    assert reply.chat == ch1
     lp.sec("send quit sequence")
-    ch1.send_text("/quit")
+    bot_chat.send_text("/quit")
     botproc.wait()
 
 
@@ -47,8 +47,8 @@ def test_group_tracking_plugin(acfactory, lp):
     botproc.fnmatch_lines("""
         *ac_configure_completed*
     """)
-    ac1.add_account_plugin(FFIEventLogger(ac1, "ac1"))
-    ac2.add_account_plugin(FFIEventLogger(ac2, "ac2"))
+    ac1.add_account_plugin(FFIEventLogger(ac1))
+    ac2.add_account_plugin(FFIEventLogger(ac2))
 
     lp.sec("creating bot test group with bot")
     bot_contact = ac1.create_contact(botproc.addr)

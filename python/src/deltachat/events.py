@@ -28,13 +28,9 @@ class FFIEventLogger:
     # to prevent garbled logging
     _loglock = threading.RLock()
 
-    def __init__(self, account, logid):
-        """
-        :param logid: an optional logging prefix that should be used with
-                      the default internal logging.
-        """
+    def __init__(self, account):
         self.account = account
-        self.logid = logid
+        self.logid = self.account.get_config("displayname")
         self.init_time = time.time()
 
     @account_hookimpl

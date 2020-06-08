@@ -24,7 +24,7 @@ def dc_account_extra_configure(account):
     """ Reset the account (we reuse accounts across tests)
     and make 'account.direct_imap' available for direct IMAP ops.
     """
-    imap = DirectImap(account, account.logid)
+    imap = DirectImap(account)
     if imap.select_config_folder("mvbox"):
         imap.delete(ALL, expunge=True)
     assert imap.select_config_folder("inbox")
@@ -42,9 +42,9 @@ def dc_account_after_shutdown(account):
 
 
 class DirectImap:
-    def __init__(self, account, logid):
+    def __init__(self, account):
         self.account = account
-        self.logid = logid
+        self.logid = account.get_config("displayname") or id(account)
         self._idling = False
         self.connect()
 
