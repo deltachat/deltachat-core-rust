@@ -1214,6 +1214,9 @@ mod tests {
         let addr = "x@y.org";
 
         assert!(!display_name.is_ascii());
+        assert!(!display_name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == ' '));
 
         let s = format!(
             "{}",
@@ -1225,6 +1228,23 @@ mod tests {
         assert_eq!(s, "=?utf-8?q?=C3=A4_space?= <x@y.org>");
     }
 
+    #[test]
+    fn test_render_email_address_noescape() {
+        let display_name = "a space";
+        let addr = "x@y.org";
+
+        assert!(display_name.is_ascii());
+        assert!(display_name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == ' '));
+
+        let s = format!(
+            "{}",
+            Address::new_mailbox_with_name(display_name.to_string(), addr.to_string())
+        );
+
+        assert_eq!(s, "a space <x@y.org>");
+    }
     #[test]
     fn test_render_rfc724_mid() {
         assert_eq!(
