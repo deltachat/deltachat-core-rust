@@ -229,11 +229,12 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             deltachat.unregister_global_plugin(direct_imap)
 
         def make_account(self, path, logid, quiet=False):
-            ac = Account(path, logging=self._logging, logid=logid)
+            ac = Account(path, logging=self._logging)
             ac._evtracker = ac.add_account_plugin(FFIEventTracker(ac))
             ac.addr = ac.get_self_contact().addr
+            ac.set_config("displayname", logid)
             if not quiet:
-                ac.add_account_plugin(FFIEventLogger(ac, logid=logid))
+                ac.add_account_plugin(FFIEventLogger(ac))
             self._accounts.append(ac)
             return ac
 
@@ -321,12 +322,16 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             ac2.start_io()
             return ac1, ac2
 
-        def get_many_online_accounts(self, num, move=True, quiet=True):
-            accounts = [self.get_online_configuring_account(move=move, quiet=quiet)
+        def get_many_online_accounts(self, num, move=True):
+            accounts = [self.get_online_configuring_account(move=move, quiet=True)
                         for i in range(num)]
             for acc in accounts:
                 acc._configtracker.wait_finish()
                 acc.start_io()
+                print("{}: {} account was successfully setup".format(
+                    acc.get_config("displayname"), acc.get_config("addr")))
+            for acc in accounts:
+                acc.add_account_plugin(FFIEventLogger(acc))
             return accounts
 
         def clone_online_account(self, account, pre_generated_key=True):
