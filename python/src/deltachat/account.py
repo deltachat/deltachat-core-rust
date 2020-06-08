@@ -214,27 +214,27 @@ class Account(object):
         """
         return Contact(self, const.DC_CONTACT_ID_SELF)
 
-    def create_contact(self, email, name=None):
+    def create_contact(self, addr, name=None):
         """ create a (new) Contact. If there already is a Contact
         with that e-mail address, it is unblocked and its display
         name is updated.
 
-        :param email: email-address (text type) or Contact (from other account).
+        :param addr: email-address (text type) or Contact (from other account).
         :param name: display name for this contact (optional)
         :returns: :class:`deltachat.contact.Contact` instance.
         """
-        if isinstance(email, Contact):
+        if isinstance(addr, Contact):
             # might come from another account
-            name = email.name
-            addr = email.addr
+            name = addr.name
+            addr = addr.addr
         else:
-            realname, addr = parseaddr(email)
-            if not name and realname:
-                name = realname
+            parse_name, addr = parseaddr(addr)
+            if not name and parse_name:
+                name = parse_name
         name = as_dc_charpointer(name)
         addr = as_dc_charpointer(addr)
         contact_id = lib.dc_create_contact(self._dc_context, name, addr)
-        assert contact_id > const.DC_CHAT_ID_LAST_SPECIAL
+        assert contact_id > const.DC_CHAT_ID_LAST_SPECIAL, contact_id
         return Contact(self, contact_id)
 
     def delete_contact(self, contact):
@@ -255,6 +255,19 @@ class Account(object):
         contact_id = lib.dc_lookup_contact_id_by_addr(self._dc_context, addr)
         if contact_id:
             return self.get_contact_by_id(contact_id)
+
+    def get_contact_by_id(self, contact_id):
+        """ return Contact instance or None.
+        :param contact_id: integer id of this contact.
+        :returns: None or :class:`deltachat.contact.Contact` instance.
+        """
+        return Contact(self, contact_id)
+
+    def _port_contact(self, contact):
+        assert isinstance(contact, Contact)
+        if self != contact.account:
+            return self.create_contact(addr=contact.addr, name=contact.name)
+        return contact
 
     def get_contacts(self, query=None, with_self=False, only_verified=False):
         """ get a (filtered) list of contacts.
@@ -286,36 +299,19 @@ class Account(object):
         yield from iter_array(dc_array, lambda x: Message.from_db(self, x))
 
     def create_chat(self, obj):
-        """ Create a 1:1 chat with Account/Contact/e-mail addresses. """
+        """ Create a 1:1 chat with Account or e-mail addresse. """
         if isinstance(obj, Account):
             if not obj.is_configured():
                 raise ValueError("can only add addresses from a configured account")
-            other = obj.get_self_contact()
-            contact = self.create_contact(other.addr, other.name)
+            contact = self.create_contact(obj.get_self_contact().addr)
         elif isinstance(obj, Contact):
-            contact = obj
+            contact = self._port_contact(obj)
         elif isinstance(obj, str):
-            realname, addr = parseaddr(obj)
-            contact = self.create_contact(addr, realname)
+            name, addr = parseaddr(obj)
+            contact = self.create_contact(addr, name)
         else:
             raise TypeError("don't know how to create chat for %r" % (obj, ))
-        return contact.get_chat()
-
-    def create_chat_by_contact(self, contact):
-        """ create or get an existing 1:1 chat object for the specified contact or contact id.
-
-        :param contact: chat_id (int) or contact object.
-        :returns: a :class:`deltachat.chat.Chat` object.
-        """
-        if hasattr(contact, "id"):
-            if contact.account != self:
-                raise ValueError("Contact belongs to a different Account")
-            contact_id = contact.id
-        else:
-            assert isinstance(contact, int)
-            contact_id = contact
-        chat_id = lib.dc_create_chat_by_contact_id(self._dc_context, contact_id)
-        return Chat(self, chat_id)
+        return contact.create_chat()
 
     def create_chat_by_message(self, message):
         """ create or get an existing chat object for the
@@ -375,13 +371,6 @@ class Account(object):
         :returns: :class:`deltachat.message.Message` instance.
         """
         return Message.from_db(self, msg_id)
-
-    def get_contact_by_id(self, contact_id):
-        """ return Contact instance or None.
-        :param contact_id: integer id of this contact.
-        :returns: None or :class:`deltachat.contact.Contact` instance.
-        """
-        return Contact(self, contact_id)
 
     def get_chat_by_id(self, chat_id):
         """ return Chat instance.

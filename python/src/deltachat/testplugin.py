@@ -387,14 +387,9 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
                     imap.dump_account_info(logfile=logfile)
                     imap.dump_imap_structures(tmpdir, logfile=logfile)
 
-        def get_chats(self, ac1, ac2, both=True):
-            chat12 = ac1.create_chat_by_contact(
-                ac1.create_contact(email=ac2.get_config("addr")))
-            chat21 = None
-            if both:
-                chat21 = ac2.create_chat_by_contact(
-                    ac2.create_contact(email=ac1.get_config("addr")))
-            return chat12, chat21
+        def get_accepted_chat(self, ac1, ac2):
+            ac2.create_chat(ac1)
+            return ac1.create_chat(ac2)
 
     am = AccountMaker()
     request.addfinalizer(am.finalize)

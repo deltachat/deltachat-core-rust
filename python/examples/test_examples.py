@@ -26,7 +26,7 @@ def test_echo_quit_plugin(acfactory, lp):
 
     lp.sec("sending a message to the bot")
     bot_contact = ac1.create_contact(botproc.addr)
-    ch1 = ac1.create_chat_by_contact(bot_contact)
+    ch1 = bot_contact.create_chat()
     ch1.send_text("hello")
 
     lp.sec("waiting for the bot-reply to arrive")

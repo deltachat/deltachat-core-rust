@@ -18,6 +18,8 @@ class Chat(object):
     """
 
     def __init__(self, account, id):
+        from .account import Account
+        assert isinstance(account, Account), repr(account)
         self.account = account
         self.id = id
 
@@ -328,11 +330,6 @@ class Chat(object):
 
     # ------  group management API ------------------------------
 
-    def _port_contact(self, contact):
-        if contact.account != self.account:
-            contact = self.account.create_contact(contact.addr, contact.display_name)
-        return contact
-
     def add_contact(self, contact):
         """ add a contact to this chat.
 
@@ -343,7 +340,7 @@ class Chat(object):
         :raises ValueError: if contact could not be added
         :returns: None
         """
-        contact = self._port_contact(contact)
+        contact = self.account._port_contact(contact)
         ret = lib.dc_add_contact_to_chat(self.account._dc_context, self.id, contact.id)
         if ret != 1:
             raise ValueError("could not add contact {!r} to chat".format(contact))
@@ -356,7 +353,7 @@ class Chat(object):
         :raises ValueError: if contact could not be removed
         :returns: None
         """
-        contact = self._port_contact(contact)
+        contact = self.account._port_contact(contact)
         ret = lib.dc_remove_contact_from_chat(self.account._dc_context, self.id, contact.id)
         if ret != 1:
             raise ValueError("could not remove contact {!r} from chat".format(contact))

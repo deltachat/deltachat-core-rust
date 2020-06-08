@@ -3,6 +3,8 @@
 from . import props
 from .cutil import from_dc_charpointer
 from .capi import lib, ffi
+from .chat import Chat
+from . import const
 
 
 class Contact(object):
@@ -11,6 +13,8 @@ class Contact(object):
     You obtain instances of it through :class:`deltachat.account.Account`.
     """
     def __init__(self, account, id):
+        from .account import Account
+        assert isinstance(account, Account), repr(account)
         self.account = account
         self.id = id
 
@@ -61,6 +65,16 @@ class Contact(object):
             return None
         return from_dc_charpointer(dc_res)
 
-    def get_chat(self):
-        """return 1:1 chat for this contact. """
-        return self.account.create_chat_by_contact(self)
+    def create_chat(self):
+        """ create or get an existing 1:1 chat object for the specified contact or contact id.
+
+        :param contact: chat_id (int) or contact object.
+        :returns: a :class:`deltachat.chat.Chat` object.
+        """
+        dc_context = self.account._dc_context
+        chat_id = lib.dc_create_chat_by_contact_id(dc_context, self.id)
+        assert chat_id > const.DC_CHAT_ID_LAST_SPECIAL, chat_id
+        return Chat(self.account, chat_id)
+
+    # deprecated name
+    get_chat = create_chat

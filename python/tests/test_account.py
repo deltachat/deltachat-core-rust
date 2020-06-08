@@ -105,8 +105,8 @@ class TestOfflineAccountBasic:
 class TestOfflineContact:
     def test_contact_attr(self, acfactory):
         ac1 = acfactory.get_configured_offline_account()
-        contact1 = ac1.create_contact(email="some1@hello.com", name="some1")
-        contact2 = ac1.create_contact(email="some1@hello.com", name="some1")
+        contact1 = ac1.create_contact(addr="some1@hello.com", name="some1")
+        contact2 = ac1.create_contact(addr="some1@hello.com", name="some1")
         str(contact1)
         repr(contact1)
         assert contact1 == contact2
@@ -118,7 +118,7 @@ class TestOfflineContact:
 
     def test_get_contacts_and_delete(self, acfactory):
         ac1 = acfactory.get_configured_offline_account()
-        contact1 = ac1.create_contact(email="some1@hello.com", name="some1")
+        contact1 = ac1.create_contact(addr="some1@hello.com", name="some1")
         contacts = ac1.get_contacts()
         assert len(contacts) == 1
         assert contact1 in contacts
@@ -134,9 +134,8 @@ class TestOfflineContact:
 
     def test_get_contacts_and_delete_fails(self, acfactory):
         ac1 = acfactory.get_configured_offline_account()
-        contact1 = ac1.create_contact(email="some1@example.com", name="some1")
-        chat = ac1.create_chat_by_contact(contact1)
-        msg = chat.send_text("one message")
+        contact1 = ac1.create_contact(addr="some1@example.com", name="some1")
+        msg = contact1.create_chat().send_text("one message")
         assert not ac1.delete_contact(contact1)
         assert not msg.filemime
 
@@ -160,10 +159,7 @@ class TestOfflineChat:
 
     @pytest.fixture
     def chat1(self, ac1):
-        contact1 = ac1.create_contact("some1@hello.com", name="some1")
-        chat = ac1.create_chat_by_contact(contact1)
-        assert chat.id > const.DC_CHAT_ID_LAST_SPECIAL, chat.id
-        return chat
+        return ac1.create_contact("some1@hello.com", name="some1").create_chat()
 
     def test_display(self, chat1):
         str(chat1)
@@ -180,7 +176,7 @@ class TestOfflineChat:
 
     def test_chat_idempotent(self, chat1, ac1):
         contact1 = chat1.get_contacts()[0]
-        chat2 = ac1.create_chat_by_contact(contact1.id)
+        chat2 = contact1.create_chat()
         assert chat2.id == chat1.id
         assert chat2.get_name() == chat1.get_name()
         assert chat1 == chat2
@@ -379,13 +375,11 @@ class TestOfflineChat:
         contact2 = ac1.create_contact("display1 <x@example.org>", "real")
         assert contact2.display_name == "real"
 
-    def test_create_chat_mismatch(self, acfactory):
+    def test_create_chat_and_mismatch(self, acfactory):
         ac1 = acfactory.get_configured_offline_account()
         ac2 = acfactory.get_configured_offline_account()
         contact1 = ac1.create_contact("some1@hello.com", name="some1")
-        with pytest.raises(ValueError):
-            ac2.create_chat_by_contact(contact1)
-        chat1 = ac1.create_chat_by_contact(contact1)
+        chat1 = contact1.create_chat()
         msg = chat1.send_text("hello")
         with pytest.raises(ValueError):
             ac2.create_chat_by_message(msg)
@@ -409,8 +403,7 @@ class TestOfflineChat:
     def test_import_export_one_contact(self, acfactory, tmpdir):
         backupdir = tmpdir.mkdir("backup")
         ac1 = acfactory.get_configured_offline_account()
-        contact1 = ac1.create_contact("some1@hello.com", name="some1")
-        chat = ac1.create_chat_by_contact(contact1)
+        chat = ac1.create_contact("some1 <some1@hello.com>").create_chat()
         # send a text message
         msg = chat.send_text("msg1")
         # send a binary file
@@ -429,7 +422,7 @@ class TestOfflineChat:
         assert len(contacts) == 1
         contact2 = contacts[0]
         assert contact2.addr == "some1@hello.com"
-        chat2 = ac2.create_chat_by_contact(contact2)
+        chat2 = contact2.create_chat()
         messages = chat2.get_messages()
         assert len(messages) == 2
         assert messages[0].text == "msg1"
@@ -534,7 +527,7 @@ class TestOfflineChat:
 
 def test_basic_imap_api(acfactory, tmpdir):
     ac1, ac2 = acfactory.get_two_online_accounts()
-    chat12, _ = acfactory.get_chats(ac1, ac2)
+    chat12 = acfactory.get_accepted_chat(ac1, ac2)
 
     imap2 = ac2.direct_imap
 
@@ -569,7 +562,7 @@ class TestOnlineAccount:
         ac1.start_io()
         ac2.wait_configure_finish()
         ac2.start_io()
-        chat, _ = acfactory.get_chats(ac1, ac2)
+        chat = acfactory.get_accepted_chat(ac1, ac2)
 
         lp.sec("ac1: send unencrypted message to ac2")
         chat.send_text("message1")
@@ -630,7 +623,7 @@ class TestOnlineAccount:
         ac1_clone.wait_configure_finish()
         ac1_clone.start_io()
 
-        chat, _ = acfactory.get_chats(ac1, ac2)
+        chat = acfactory.get_accepted_chat(ac1, ac2)
 
         self_addr = ac1.get_config("addr")
         other_addr = ac2.get_config("addr")
@@ -672,7 +665,7 @@ class TestOnlineAccount:
 
     def test_send_file_twice_unicode_filename_mangling(self, tmpdir, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
-        chat, _ = acfactory.get_chats(ac1, ac2)
+        chat = acfactory.get_accepted_chat(ac1, ac2)
 
         basename = "somedäüta.html.zip"
         p = os.path.join(tmpdir.strpath, basename)
@@ -704,7 +697,7 @@ class TestOnlineAccount:
 
     def test_send_file_html_attachment(self, tmpdir, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
-        chat, _ = acfactory.get_chats(ac1, ac2)
+        chat = acfactory.get_accepted_chat(ac1, ac2)
 
         basename = "test.html"
         content = "<html><body>text</body>data"
@@ -742,7 +735,7 @@ class TestOnlineAccount:
         ac1.start_io()
 
         lp.sec("ac1: send message and wait for ac2 to receive it")
-        chat, _ = acfactory.get_chats(ac1, ac2)
+        chat = acfactory.get_accepted_chat(ac1, ac2)
         chat.send_text("message1")
         ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")
         assert ev.data2 > const.DC_CHAT_ID_LAST_SPECIAL
@@ -755,7 +748,7 @@ class TestOnlineAccount:
         ac2.start_io()
         ac1.wait_configure_finish()
         ac1.start_io()
-        chat, _ = acfactory.get_chats(ac1, ac2)
+        chat = acfactory.get_accepted_chat(ac1, ac2)
         chat.send_text("message1")
         ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")
         assert ev.data2 > const.DC_CHAT_ID_LAST_SPECIAL
@@ -770,7 +763,7 @@ class TestOnlineAccount:
         ac1.wait_configure_finish()
         ac1.start_io()
 
-        chat, _ = acfactory.get_chats(ac1, ac2)
+        chat = acfactory.get_accepted_chat(ac1, ac2)
         chat.send_text("message1")
         chat.send_text("message2")
         chat.send_text("message3")
@@ -813,7 +806,7 @@ class TestOnlineAccount:
 
     def test_forward_own_message(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
-        chat, _ = acfactory.get_chats(ac1, ac2)
+        chat = acfactory.get_accepted_chat(ac1, ac2)
 
         lp.sec("sending message")
         msg_out = chat.send_text("message2")
@@ -838,7 +831,7 @@ class TestOnlineAccount:
     def test_send_self_message_and_empty_folder(self, acfactory, lp):
         ac1 = acfactory.get_one_online_account(mvbox=True, move=True)
         lp.sec("ac1: create self chat")
-        chat = ac1.create_chat_by_contact(ac1.get_self_contact())
+        chat = ac1.get_self_contact().create_chat()
         chat.send_text("hello")
         ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
         ac1.empty_server_folders(inbox=True, mvbox=True)
@@ -1002,7 +995,7 @@ class TestOnlineAccount:
         ac2.set_config("save_mime_headers", "1")
 
         lp.sec("ac1: create chat with ac2")
-        chat, _ = acfactory.get_chats(ac1, ac2)
+        chat = acfactory.get_accepted_chat(ac1, ac2)
 
         lp.sec("sending multi-line non-unicode message from ac1 to ac2")
         text1 = "hello\nworld"
@@ -1021,7 +1014,7 @@ class TestOnlineAccount:
         lp.sec("wait for ac2 to receive multi-line unicode message")
         msg_in = ac2._evtracker.wait_next_incoming_message()
         assert msg_in.text == text2
-        assert ac1.get_config("addr") in msg_in.chat.get_name()
+        assert ac1.get_config("addr") in [x.addr for x in msg_in.chat.get_contacts()]
 
     def test_reply_encrypted(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
@@ -1097,7 +1090,7 @@ class TestOnlineAccount:
 
     def test_send_mark_seen_clean_incoming_events(self, acfactory, lp, data):
         ac1, ac2 = acfactory.get_two_online_accounts()
-        chat, _ = acfactory.get_chats(ac1, ac2)
+        chat = acfactory.get_accepted_chat(ac1, ac2)
 
         message_queue = queue.Queue()
 
@@ -1174,8 +1167,7 @@ class TestOnlineAccount:
 
         lp.sec("create some chat content")
         contact1 = ac1.create_contact("some1@hello.com", name="some1")
-        chat = ac1.create_chat_by_contact(contact1)
-        chat.send_text("msg1")
+        contact1.create_chat().send_text("msg1")
         backupdir = tmpdir.mkdir("backup")
 
         lp.sec("export all to {}".format(backupdir))
@@ -1196,7 +1188,7 @@ class TestOnlineAccount:
         assert len(contacts) == 1
         contact2 = contacts[0]
         assert contact2.addr == "some1@hello.com"
-        chat2 = ac2.create_chat_by_contact(contact2)
+        chat2 = contact2.create_chat()
         messages = chat2.get_messages()
         assert len(messages) == 1
         assert messages[0].text == "msg1"
@@ -1331,9 +1323,7 @@ class TestOnlineAccount:
         ac2.set_avatar(p)
 
         lp.sec("ac1: send message to ac2")
-        chat = ac1.create_chat(ac2)
-
-        msg1 = chat.send_text("hi -- do you see my brand new avatar?")
+        msg1 = ac1.create_chat(ac2).send_text("with avatar!")
         assert not msg1.is_encrypted()
 
         lp.sec("ac2: wait for receiving message and avatar from ac1")
@@ -1357,7 +1347,7 @@ class TestOnlineAccount:
 
         lp.sec("ac1: delete profile image from chat, and send message to ac2")
         ac1.set_avatar(None)
-        msg5 = chat.send_text("i don't like my avatar anymore and removed it")
+        msg5 = ac1.create_chat(ac2).send_text("removing my avatar")
         assert msg5.is_encrypted()
 
         lp.sec("ac2: wait for message along with avatar deletion of ac1")
@@ -1398,7 +1388,7 @@ class TestOnlineAccount:
 
         lp.sec("ac1: create group chat with ac2")
         chat = ac1.create_group_chat("hello")
-        contact = ac1.create_contact(email=ac2_addr)
+        contact = ac1.create_contact(ac2_addr)
         chat.add_contact(contact)
 
         lp.sec("ac1: send a message to group chat to promote the group")
@@ -1412,7 +1402,7 @@ class TestOnlineAccount:
         lp.sec("ac1: add address2")
         # note that if the above create_chat() would not
         # happen we would not receive a proper member_added event
-        contact2 = ac1.create_contact(email="notexistingaccountihope@testrun.org")
+        contact2 = ac1.create_contact(addr="notexistingaccountihope@testrun.org")
         chat.add_contact(contact2)
         ev = in_list.get(timeout=10)
         assert ev.action == "chat-modified"
@@ -1459,12 +1449,12 @@ class TestOnlineAccount:
         assert chat.get_profile_image()
 
         lp.sec("ac2: check that initial message arrived")
-        c1 = ac2.create_contact(email=ac1.get_config("addr"))
-        ac2.create_chat_by_contact(c1)
+        c1 = ac2.create_contact(addr=ac1.get_config("addr"))
+        c1.create_chat()
         ac2._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
 
         lp.sec("ac1: add ac2 to promoted group chat")
-        c2 = ac1.create_contact(email=ac2.get_config("addr"))
+        c2 = ac1.create_contact(addr=ac2.get_config("addr"))
         chat.add_contact(c2)  # sends one message
 
         lp.sec("ac1: send a first message to ac2")
@@ -1496,7 +1486,8 @@ class TestOnlineAccount:
         ac1, ac2 = acfactory.get_two_online_accounts()
 
         lp.sec("ac1: create chat with ac2")
-        chat1, chat2 = acfactory.get_chats(ac1, ac2)
+        chat1 = ac1.create_chat(ac2)
+        chat2 = ac2.create_chat(ac1)
 
         assert not chat1.is_sending_locations()
         with pytest.raises(ValueError):
@@ -1642,14 +1633,12 @@ class TestGroupStressTests:
             contacts.append(contact)
 
             # make sure we accept the "hi" message
-            ac1.create_chat_by_contact(contact)
+            contact.create_chat()
 
             # make sure the other side accepts our messages
-            c1 = acc.create_contact(ac1.get_config("addr"), "ä member")
-            chat1 = acc.create_chat_by_contact(c1)
+            acc.create_chat(ac1).send_text("hi")
 
             # send a message to get the contact key via autocrypt header
-            chat1.send_text("hi")
             msg = ac1._evtracker.wait_next_incoming_message()
             assert msg.text == "hi"
 
@@ -1746,11 +1735,10 @@ class TestGroupStressTests:
             contacts.append(contact)
 
             # make sure we accept the "hi" message
-            ac1.create_chat_by_contact(contact)
+            contact.create_chat()
 
             # make sure the other side accepts our messages
-            c1 = acc.create_contact(ac1.get_config("addr"), "a member")
-            chat1 = acc.create_chat_by_contact(c1)
+            chat1 = acc.create_chat(ac1)
 
             # send a message to get the contact key via autocrypt header
             chat1.send_text("hi")

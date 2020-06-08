@@ -36,9 +36,7 @@ def wait_msgs_changed(account, msgs_list):
 class TestOnlineInCreation:
     def test_increation_not_blobdir(self, tmpdir, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
-
-        c2 = ac1.create_contact(email=ac2.get_config("addr"))
-        chat = ac1.create_chat_by_contact(c2)
+        chat = ac1.create_chat(ac2)
 
         lp.sec("Creating in-creation file outside of blobdir")
         assert tmpdir.strpath != ac1.get_blobdir()
@@ -48,9 +46,7 @@ class TestOnlineInCreation:
 
     def test_no_increation_copies_to_blobdir(self, tmpdir, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
-
-        c2 = ac1.create_contact(email=ac2.get_config("addr"))
-        chat = ac1.create_chat_by_contact(c2)
+        chat = ac1.create_chat(ac2)
 
         lp.sec("Creating file outside of blobdir")
         assert tmpdir.strpath != ac1.get_blobdir()
@@ -64,9 +60,7 @@ class TestOnlineInCreation:
     def test_forward_increation(self, acfactory, data, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
 
-        c2 = ac1.create_contact(email=ac2.get_config("addr"))
-        chat = ac1.create_chat_by_contact(c2)
-        assert chat.id >= const.DC_CHAT_ID_LAST_SPECIAL
+        chat = ac1.create_chat(ac2)
         wait_msgs_changed(ac1, [(0, 0)])  # why no chat id?
 
         lp.sec("create a message with a file in creation")
@@ -80,7 +74,7 @@ class TestOnlineInCreation:
 
         lp.sec("forward the message while still in creation")
         chat2 = ac1.create_group_chat("newgroup")
-        chat2.add_contact(c2)
+        chat2.add_contact(ac2.get_self_contact())
         wait_msgs_changed(ac1, [(0, 0)])  # why not chat id?
         ac1.forward_messages([prepared_original], chat2)
         # XXX there might be two EVENT_MSGS_CHANGED and only one of them
