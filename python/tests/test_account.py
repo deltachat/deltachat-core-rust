@@ -513,7 +513,7 @@ class TestOfflineChat:
 
 def test_basic_imap_api(acfactory, tmpdir):
     ac1, ac2 = acfactory.get_two_online_accounts()
-    chat12 = acfactory.get_chat(ac1, ac2)
+    chat12, _ = acfactory.get_chats(ac1, ac2)
 
     imap2 = ac2.direct_imap
 
@@ -548,7 +548,7 @@ class TestOnlineAccount:
         ac1.start_io()
         ac2.wait_configure_finish()
         ac2.start_io()
-        chat = acfactory.get_chat(ac1, ac2)
+        chat, _ = acfactory.get_chats(ac1, ac2)
 
         lp.sec("ac1: send unencrypted message to ac2")
         chat.send_text("message1")
@@ -609,7 +609,7 @@ class TestOnlineAccount:
         ac1_clone.wait_configure_finish()
         ac1_clone.start_io()
 
-        chat = acfactory.get_chat(ac1, ac2)
+        chat, _ = acfactory.get_chats(ac1, ac2)
 
         self_addr = ac1.get_config("addr")
         other_addr = ac2.get_config("addr")
@@ -651,7 +651,7 @@ class TestOnlineAccount:
 
     def test_send_file_twice_unicode_filename_mangling(self, tmpdir, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
-        chat = acfactory.get_chat(ac1, ac2)
+        chat, _ = acfactory.get_chats(ac1, ac2)
 
         basename = "somedäüta.html.zip"
         p = os.path.join(tmpdir.strpath, basename)
@@ -683,7 +683,7 @@ class TestOnlineAccount:
 
     def test_send_file_html_attachment(self, tmpdir, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
-        chat = acfactory.get_chat(ac1, ac2)
+        chat, _ = acfactory.get_chats(ac1, ac2)
 
         basename = "test.html"
         content = "<html><body>text</body>data"
@@ -721,7 +721,7 @@ class TestOnlineAccount:
         ac1.start_io()
 
         lp.sec("ac1: send message and wait for ac2 to receive it")
-        chat = acfactory.get_chat(ac1, ac2)
+        chat, _ = acfactory.get_chats(ac1, ac2)
         chat.send_text("message1")
         ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")
         assert ev.data2 > const.DC_CHAT_ID_LAST_SPECIAL
@@ -734,7 +734,7 @@ class TestOnlineAccount:
         ac2.start_io()
         ac1.wait_configure_finish()
         ac1.start_io()
-        chat = acfactory.get_chat(ac1, ac2)
+        chat, _ = acfactory.get_chats(ac1, ac2)
         chat.send_text("message1")
         ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")
         assert ev.data2 > const.DC_CHAT_ID_LAST_SPECIAL
@@ -749,7 +749,7 @@ class TestOnlineAccount:
         ac1.wait_configure_finish()
         ac1.start_io()
 
-        chat = acfactory.get_chat(ac1, ac2)
+        chat, _ = acfactory.get_chats(ac1, ac2)
         chat.send_text("message1")
         chat.send_text("message2")
         chat.send_text("message3")
@@ -759,7 +759,7 @@ class TestOnlineAccount:
 
     def test_forward_messages(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
-        chat = acfactory.get_chat(ac1, ac2, both=False)
+        chat = acfactory.get_chat(ac1, ac2)
 
         lp.sec("ac1: send message to ac2")
         msg_out = chat.send_text("message2")
@@ -792,7 +792,7 @@ class TestOnlineAccount:
 
     def test_forward_own_message(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
-        chat = acfactory.get_chat(ac1, ac2)
+        chat, _ = acfactory.get_chats(ac1, ac2)
 
         lp.sec("sending message")
         msg_out = chat.send_text("message2")
@@ -834,7 +834,7 @@ class TestOnlineAccount:
         ac1.set_config("displayname", "ä name")
 
         lp.sec("ac1: create chat with ac2")
-        chat = acfactory.get_chat(ac1, ac2, both=False)
+        chat = acfactory.get_chat(ac1, ac2)
 
         lp.sec("sending text message from ac1 to ac2")
         msg1 = chat.send_text("message1")
@@ -895,7 +895,7 @@ class TestOnlineAccount:
         ac1, ac2 = acfactory.get_two_online_accounts(move=True)
 
         lp.sec("ac1: create chat with ac2")
-        chat = acfactory.get_chat(ac1, ac2)
+        chat, _ = acfactory.get_chats(ac1, ac2)
 
         # make sure mdns are enabled (usually enabled by default already)
         ac1.set_config("mdns_enabled", "1")
@@ -930,7 +930,7 @@ class TestOnlineAccount:
         ac1, ac2 = acfactory.get_two_online_accounts()
 
         lp.sec("ac1: create chat with ac2")
-        chat = acfactory.get_chat(ac1, ac2, both=False)
+        chat = acfactory.get_chat(ac1, ac2)
 
         lp.sec("sending text message from ac1 to ac2")
         msg_out = chat.send_text("message1")
@@ -980,7 +980,7 @@ class TestOnlineAccount:
         ac2.set_config("save_mime_headers", "1")
 
         lp.sec("ac1: create chat with ac2")
-        chat = acfactory.get_chat(ac1, ac2)
+        chat, _ = acfactory.get_chats(ac1, ac2)
 
         lp.sec("sending multi-line non-unicode message from ac1 to ac2")
         text1 = "hello\nworld"
@@ -1005,7 +1005,7 @@ class TestOnlineAccount:
         ac1, ac2 = acfactory.get_two_online_accounts()
 
         lp.sec("ac1: create chat with ac2")
-        chat = acfactory.get_chat(ac1, ac2, both=False)
+        chat = acfactory.get_chat(ac1, ac2)
 
         lp.sec("sending text message from ac1 to ac2")
         msg_out = chat.send_text("message1")
@@ -1059,7 +1059,7 @@ class TestOnlineAccount:
 
         lp.sec("configure ac2 to save mime headers, create ac1/ac2 chat")
         ac2.set_config("save_mime_headers", "1")
-        chat = acfactory.get_chat(ac1, ac2, both=False)
+        chat = acfactory.get_chat(ac1, ac2)
 
         lp.sec("sending text message from ac1 to ac2")
         msg_out = chat.send_text("message1")
@@ -1075,7 +1075,7 @@ class TestOnlineAccount:
 
     def test_send_mark_seen_clean_incoming_events(self, acfactory, lp, data):
         ac1, ac2 = acfactory.get_two_online_accounts()
-        chat = acfactory.get_chat(ac1, ac2)
+        chat, _ = acfactory.get_chats(ac1, ac2)
 
         message_queue = queue.Queue()
 
@@ -1104,7 +1104,7 @@ class TestOnlineAccount:
 
     def test_send_and_receive_image(self, acfactory, lp, data):
         ac1, ac2 = acfactory.get_two_online_accounts()
-        chat = acfactory.get_chat(ac1, ac2, both=False)
+        chat = acfactory.get_chat(ac1, ac2)
 
         message_queue = queue.Queue()
 
@@ -1303,48 +1303,44 @@ class TestOnlineAccount:
         lp.sec("configuring ac1 and ac2")
         ac1, ac2 = acfactory.get_two_online_accounts()
 
-        lp.sec("ac1: set own profile image")
+        lp.sec("set ac1 and ac2 profile images")
         p = data.get_path("d.png")
         ac1.set_avatar(p)
-
-        lp.sec("ac1: create 1:1 chat with ac2")
-        chat = acfactory.get_chat(ac1, ac2)
-
-        msg = chat.send_text("hi -- do you see my brand new avatar?")
-        assert not msg.is_encrypted()
-
-        lp.sec("ac2: wait for receiving message and avatar from ac1")
-        msg1 = ac2._evtracker.wait_next_incoming_message()
-        assert not msg1.chat.is_deaddrop()
-        received_path = msg1.get_sender_contact().get_profile_image()
-        assert open(received_path, "rb").read() == open(p, "rb").read()
-
-        lp.sec("ac2: set own profile image")
-        p = data.get_path("d.png")
         ac2.set_avatar(p)
 
+        lp.sec("ac1: send message to ac2")
+        chat = acfactory.get_chat(ac1, ac2)
+
+        msg1 = chat.send_text("hi -- do you see my brand new avatar?")
+        assert not msg1.is_encrypted()
+
+        lp.sec("ac2: wait for receiving message and avatar from ac1")
+        msg2 = ac2._evtracker.wait_next_messages_changed()
+        assert msg2.chat.is_deaddrop()
+        received_path = msg2.get_sender_contact().get_profile_image()
+        assert open(received_path, "rb").read() == open(p, "rb").read()
+
         lp.sec("ac2: send back message")
-        m = msg1.chat.send_text("yes, i received your avatar -- how do you like mine?")
-        assert m.is_encrypted()
+        msg3 = msg2.create_chat().send_text("yes, i received your avatar -- how do you like mine?")
+        assert msg3.is_encrypted()
 
         lp.sec("ac1: wait for receiving message and avatar from ac2")
-        msg2 = ac1._evtracker.wait_next_incoming_message()
-        received_path = msg2.get_sender_contact().get_profile_image()
+        msg4 = ac1._evtracker.wait_next_incoming_message()
+        received_path = msg4.get_sender_contact().get_profile_image()
         assert received_path is not None, "did not get avatar through encrypted message"
         assert open(received_path, "rb").read() == open(p, "rb").read()
 
         ac2._evtracker.consume_events()
         ac1._evtracker.consume_events()
 
-        # XXX not sure if the following is correct / possible. you may remove it
         lp.sec("ac1: delete profile image from chat, and send message to ac2")
         ac1.set_avatar(None)
-        m = msg2.chat.send_text("i don't like my avatar anymore and removed it")
-        assert m.is_encrypted()
+        msg5 = chat.send_text("i don't like my avatar anymore and removed it")
+        assert msg5.is_encrypted()
 
         lp.sec("ac2: wait for message along with avatar deletion of ac1")
-        msg3 = ac2._evtracker.wait_next_incoming_message()
-        assert msg3.get_sender_contact().get_profile_image() is None
+        msg6 = ac2._evtracker.wait_next_incoming_message()
+        assert msg6.get_sender_contact().get_profile_image() is None
 
     def test_add_remove_member_remote_events(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()

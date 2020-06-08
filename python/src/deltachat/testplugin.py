@@ -387,8 +387,8 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
                     imap.dump_account_info(logfile=logfile)
                     imap.dump_imap_structures(tmpdir, logfile=logfile)
 
-        def get_chat(self, ac1, ac2, both=True):
-            chat12, chat21 = self.get_chats(ac1, ac2, both=both)
+        def get_chat(self, ac1, ac2):
+            chat12, chat21 = self.get_chats(ac1, ac2, both=False)
             return chat12
 
         def get_chats(self, ac1, ac2, both=True):
