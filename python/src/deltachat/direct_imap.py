@@ -6,9 +6,15 @@ from imapclient import IMAPClient
 from imapclient.exceptions import IMAPClientError
 
 
+SEEN = b'\\Seen'
+FLAGS = b'FLAGS'
+FETCH = b'FETCH'
+
+
 class ImapConn:
     def __init__(self, account):
         self.account = account
+        self._idling = False
         self.connect()
 
     def connect(self):
@@ -26,22 +32,21 @@ class ImapConn:
         self.conn = IMAPClient(host, ssl_context=ssl_context)
         self.conn.login(user, pw)
 
-        self._original_msg_count = {}
         self.select_folder("INBOX")
 
     def shutdown(self):
+        try:
+            self.conn.idle_done()
+        except (OSError, IMAPClientError):
+            pass
         try:
             self.conn.logout()
         except (OSError, IMAPClientError):
             print("Could not logout direct_imap conn")
 
     def select_folder(self, foldername):
-        res = self.conn.select_folder(foldername)
-        self.foldername = foldername
-        msg_count = res[b'UIDNEXT'] - 1
-        # memorize initial message count on first select
-        self._original_msg_count.setdefault(foldername, msg_count)
-        return res
+        assert not self._idling
+        return self.conn.select_folder(foldername)
 
     def select_config_folder(self, config_name):
         if "_" not in config_name:
@@ -50,25 +55,30 @@ class ImapConn:
         return self.select_folder(foldername)
 
     def list_folders(self):
+        assert not self._idling
         folders = []
         for meta, sep, foldername in self.conn.list_folders():
             folders.append(foldername)
         return folders
 
+    def get_all_messages(self):
+        assert not self._idling
+        return self.conn.fetch("1:*", [FLAGS])
+
     def get_unread_messages(self):
-        return self.conn.search("UNSEEN")
+        assert not self._idling
+        res = self.conn.fetch("1:*", [FLAGS])
+        return [uid for uid in res
+                if SEEN not in res[uid][FLAGS]]
 
     def mark_all_read(self):
         messages = self.get_unread_messages()
         if messages:
-            res = self.conn.set_flags(messages, ['\\SEEN'])
+            res = self.conn.set_flags(messages, [SEEN])
             print("marked seen:", messages, res)
 
     def get_unread_cnt(self):
         return len(self.get_unread_messages())
-
-    def get_new_email_cnt(self):
-        return self.get_unread_cnt() - self._original_msg_count[self.foldername]
 
     def dump_account_info(self, logfile):
         def log(*args, **kwargs):
@@ -86,6 +96,7 @@ class ImapConn:
         log("")
 
     def dump_imap_structures(self, dir, logfile):
+        assert not self._idling
         stream = io.StringIO()
 
         def log(*args, **kwargs):
@@ -97,20 +108,22 @@ class ImapConn:
         empty_folders = []
         for imapfolder in self.list_folders():
             self.select_folder(imapfolder)
-            messages = self.conn.search('ALL')
+            messages = list(self.get_all_messages())
             if not messages:
                 empty_folders.append(imapfolder)
                 continue
 
             log("---------", imapfolder, len(messages), "messages ---------")
-            for uid, data in self.conn.fetch(messages, [b'RFC822', b'FLAGS']).items():
-                body_bytes = data[b'RFC822']
-                flags = data[b'FLAGS']
+            # request message content without auto-marking it as seen
+            requested = [b'BODY.PEEK[HEADER]', FLAGS]
+            for uid, data in self.conn.fetch(messages, requested).items():
+                body_bytes = data[b'BODY[HEADER]']
+                flags = data[FLAGS]
                 path = pathlib.Path(str(dir)).joinpath("IMAP", acinfo, imapfolder)
                 path.mkdir(parents=True, exist_ok=True)
                 fn = path.joinpath(str(uid))
                 fn.write_bytes(body_bytes)
-                log("Message", uid, "saved as", fn)
+                log("Message", uid, fn)
                 email_message = email.message_from_bytes(body_bytes)
                 log("Message", uid, flags, "Message-Id:", email_message.get("Message-Id"))
 
@@ -118,3 +131,23 @@ class ImapConn:
             log("--------- EMPTY FOLDERS:", empty_folders)
 
         print(stream.getvalue(), file=logfile)
+
+    def idle(self):
+        assert not self._idling
+        res = self.conn.idle()
+        self._idling = True
+        return res
+
+    def idle_check(self, terminate=False):
+        assert self._idling
+        self.account.log("imap-direct: calling idle_check")
+        res = self.conn.idle_check()
+        if terminate:
+            self.idle_done()
+        return res
+
+    def idle_done(self):
+        if self._idling:
+            res = self.conn.idle_done()
+            self._idling = False
+            return res
