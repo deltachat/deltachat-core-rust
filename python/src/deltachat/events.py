@@ -127,6 +127,12 @@ class FFIEventTracker:
         if ev.data2 > 0:
             return self.account.get_message_by_id(ev.data2)
 
+    def wait_msg_delivered(self, msg):
+        ev = self.get_matching("DC_EVENT_MSG_DELIVERED")
+        assert ev.data1 == msg.chat.id
+        assert ev.data2 == msg.id
+        assert msg.is_out_delivered()
+
 
 class EventThread(threading.Thread):
     """ Event Thread for an account.
