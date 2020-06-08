@@ -216,19 +216,24 @@ class Account(object):
 
     def create_contact(self, email, name=None):
         """ create a (new) Contact. If there already is a Contact
-        with that e-mail address, it is unblocked and its name is
-        updated.
+        with that e-mail address, it is unblocked and its display
+        name is updated.
 
-        :param email: email-address (text type)
+        :param email: email-address (text type) or Contact (from other account).
         :param name: display name for this contact (optional)
         :returns: :class:`deltachat.contact.Contact` instance.
         """
-        realname, addr = parseaddr(email)
-        if name:
-            realname = name
-        realname = as_dc_charpointer(realname)
+        if isinstance(email, Contact):
+            # might come from another account
+            name = email.name
+            addr = email.addr
+        else:
+            realname, addr = parseaddr(email)
+            if not name and realname:
+                name = realname
+        name = as_dc_charpointer(name)
         addr = as_dc_charpointer(addr)
-        contact_id = lib.dc_create_contact(self._dc_context, realname, addr)
+        contact_id = lib.dc_create_contact(self._dc_context, name, addr)
         assert contact_id > const.DC_CHAT_ID_LAST_SPECIAL
         return Contact(self, contact_id)
 
@@ -279,6 +284,22 @@ class Account(object):
             lib.dc_array_unref
         )
         yield from iter_array(dc_array, lambda x: Message.from_db(self, x))
+
+    def create_chat(self, obj):
+        """ Create a 1:1 chat with Account/Contact/e-mail addresses. """
+        if isinstance(obj, Account):
+            if not obj.is_configured():
+                raise ValueError("can only add addresses from a configured account")
+            other = obj.get_self_contact()
+            contact = self.create_contact(other.addr, other.name)
+        elif isinstance(obj, Contact):
+            contact = obj
+        elif isinstance(obj, str):
+            realname, addr = parseaddr(obj)
+            contact = self.create_contact(addr, realname)
+        else:
+            raise TypeError("don't know how to create chat for %r" % (obj, ))
+        return contact.get_chat()
 
     def create_chat_by_contact(self, contact):
         """ create or get an existing 1:1 chat object for the specified contact or contact id.

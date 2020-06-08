@@ -140,6 +140,18 @@ class TestOfflineContact:
         assert not ac1.delete_contact(contact1)
         assert not msg.filemime
 
+    def test_create_chat_flexibility(self, acfactory):
+        ac1 = acfactory.get_configured_offline_account()
+        ac2 = acfactory.get_configured_offline_account()
+        chat1 = ac1.create_chat(ac2)
+        contact = ac1.create_contact(ac2.get_self_contact())
+        chat2 = ac1.create_chat(contact)
+        chat3 = ac1.create_chat(ac2.get_self_contact().addr)
+        assert chat1 == chat2 and chat2 == chat3
+        ac3 = acfactory.get_unconfigured_account()
+        with pytest.raises(ValueError):
+            ac1.create_chat(ac3)
+
 
 class TestOfflineChat:
     @pytest.fixture
@@ -179,6 +191,15 @@ class TestOfflineChat:
                 break
         else:
             pytest.fail("could not find chat")
+
+    def test_group_chat_add_second_account(self, acfactory):
+        ac1 = acfactory.get_configured_offline_account()
+        ac2 = acfactory.get_configured_offline_account()
+        chat = ac1.create_group_chat(name="title1")
+        ac2_contact = ac2.get_self_contact()
+        contact = chat.add_contact(ac2_contact)
+        assert contact != ac2_contact
+        assert contact.account == ac1
 
     def test_group_chat_creation(self, ac1):
         contact1 = ac1.create_contact("some1@hello.com", name="some1")
@@ -759,7 +780,7 @@ class TestOnlineAccount:
 
     def test_forward_messages(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
-        chat = acfactory.get_chat(ac1, ac2)
+        chat = ac1.create_chat(ac2)
 
         lp.sec("ac1: send message to ac2")
         msg_out = chat.send_text("message2")
@@ -834,7 +855,7 @@ class TestOnlineAccount:
         ac1.set_config("displayname", "ä name")
 
         lp.sec("ac1: create chat with ac2")
-        chat = acfactory.get_chat(ac1, ac2)
+        chat = ac1.create_chat(ac2)
 
         lp.sec("sending text message from ac1 to ac2")
         msg1 = chat.send_text("message1")
@@ -895,7 +916,8 @@ class TestOnlineAccount:
         ac1, ac2 = acfactory.get_two_online_accounts(move=True)
 
         lp.sec("ac1: create chat with ac2")
-        chat, _ = acfactory.get_chats(ac1, ac2)
+        chat = ac1.create_chat(ac2)
+        ac2.create_chat(ac1)
 
         # make sure mdns are enabled (usually enabled by default already)
         ac1.set_config("mdns_enabled", "1")
@@ -930,7 +952,7 @@ class TestOnlineAccount:
         ac1, ac2 = acfactory.get_two_online_accounts()
 
         lp.sec("ac1: create chat with ac2")
-        chat = acfactory.get_chat(ac1, ac2)
+        chat = ac1.create_chat(ac2)
 
         lp.sec("sending text message from ac1 to ac2")
         msg_out = chat.send_text("message1")
@@ -1005,7 +1027,7 @@ class TestOnlineAccount:
         ac1, ac2 = acfactory.get_two_online_accounts()
 
         lp.sec("ac1: create chat with ac2")
-        chat = acfactory.get_chat(ac1, ac2)
+        chat = ac1.create_chat(ac2)
 
         lp.sec("sending text message from ac1 to ac2")
         msg_out = chat.send_text("message1")
@@ -1059,7 +1081,7 @@ class TestOnlineAccount:
 
         lp.sec("configure ac2 to save mime headers, create ac1/ac2 chat")
         ac2.set_config("save_mime_headers", "1")
-        chat = acfactory.get_chat(ac1, ac2)
+        chat = ac1.create_chat(ac2)
 
         lp.sec("sending text message from ac1 to ac2")
         msg_out = chat.send_text("message1")
@@ -1104,7 +1126,7 @@ class TestOnlineAccount:
 
     def test_send_and_receive_image(self, acfactory, lp, data):
         ac1, ac2 = acfactory.get_two_online_accounts()
-        chat = acfactory.get_chat(ac1, ac2)
+        chat = ac1.create_chat(ac2)
 
         message_queue = queue.Queue()
 
@@ -1309,7 +1331,7 @@ class TestOnlineAccount:
         ac2.set_avatar(p)
 
         lp.sec("ac1: send message to ac2")
-        chat = acfactory.get_chat(ac1, ac2)
+        chat = ac1.create_chat(ac2)
 
         msg1 = chat.send_text("hi -- do you see my brand new avatar?")
         assert not msg1.is_encrypted()
