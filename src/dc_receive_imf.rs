@@ -1293,6 +1293,24 @@ async fn create_or_lookup_adhoc_group(
         return Ok((ChatId::new(0), Blocked::Not));
     }
 
+    if mime_parser.decrypting_failed {
+        // Do not create a new ad-hoc group if the message cannot be
+        // decrypted.
+        //
+        // The subject may be encrypted and contain a placeholder such
+        // as "...". Besides that, it is possible that the message was
+        // sent to a valid, yet unknown group, which was rejected
+        // because Chat-Group-Name, which is in the encrypted part,
+        // was not found. Generating a new ID in this case would
+        // result in creation of a twin group with a different group
+        // ID.
+        warn!(
+            context,
+            "not creating ad-hoc group for message that cannot be decrypted"
+        );
+        return Ok((ChatId::new(0), Blocked::Not));
+    }
+
     // we do not check if the message is a reply to another group, this may result in
     // chats with unclear member list. instead we create a new group in the following lines ...
 
