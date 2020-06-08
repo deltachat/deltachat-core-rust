@@ -110,7 +110,7 @@ class AutoReplier:
         if self.current_sent >= self.num_send:
             self.report_func(self, ReportType.exit)
             return
-        message.accept_sender_contact()
+        message.create_chat()
         message.mark_seen()
         self.log("incoming message: {}".format(message))
 

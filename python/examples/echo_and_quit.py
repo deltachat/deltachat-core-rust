@@ -12,7 +12,7 @@ class EchoPlugin:
             message.account.shutdown()
         else:
             # unconditionally accept the chat
-            message.accept_sender_contact()
+            message.create_chat()
             addr = message.get_sender_contact().addr
             if message.is_system_message():
                 message.chat.send_text("echoing system message from {}:\n{}".format(addr, message))

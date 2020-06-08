@@ -53,15 +53,15 @@ class Message(object):
             lib.dc_msg_unref
         ))
 
-    def accept_sender_contact(self):
-        """ ensure that the sender is an accepted contact
-        and that the message has a non-deaddrop chat object.
+    def create_chat(self):
+        """ create a chat from a message (eg Contact-Request message).
         """
-        self.account.create_chat_by_message(self)
+        chat = self.account.create_chat_by_message(self)
         self._dc_msg = ffi.gc(
                 lib.dc_get_msg(self.account._dc_context, self.id),
                 lib.dc_msg_unref
         )
+        return chat
 
     @props.with_doc
     def text(self):

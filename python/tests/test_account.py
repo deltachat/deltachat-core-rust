@@ -818,29 +818,24 @@ class TestOnlineAccount:
         chat = acfactory.get_chat(ac1, ac2, both=False)
 
         lp.sec("sending text message from ac1 to ac2")
-        msg_out = chat.send_text("message1")
-        ev = ac1._evtracker.get_matching("DC_EVENT_MSG_DELIVERED")
-        assert ev.data1 == chat.id
-        assert ev.data2 == msg_out.id
-        assert msg_out.is_out_delivered()
+        msg1 = chat.send_text("message1")
+        ac1._evtracker.wait_msg_delivered(msg1)
 
         lp.sec("wait for ac2 to receive message")
-        ev = ac2._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
-        assert ev.data2 == msg_out.id
-        msg_in = ac2.get_message_by_id(msg_out.id)
-        assert msg_in.text == "message1"
-        assert not msg_in.is_forwarded()
-        assert msg_in.get_sender_contact().display_name == ac1.get_config("displayname")
+        msg2 = ac2._evtracker.wait_next_messages_changed()
+        assert msg2.text == "message1"
+        assert not msg2.is_forwarded()
+        assert msg2.get_sender_contact().display_name == ac1.get_config("displayname")
 
         lp.sec("check the message arrived in contact-requests/deaddrop")
-        chat2 = msg_in.chat
-        assert msg_in in chat2.get_messages()
+        chat2 = msg2.chat
+        assert msg2 in chat2.get_messages()
         assert chat2.is_deaddrop()
         assert chat2.count_fresh_messages() == 0
-        assert msg_in.time_received >= msg_out.time_sent
+        assert msg2.time_received >= msg1.time_sent
 
         lp.sec("create new chat with contact and verify it's proper")
-        chat2b = ac2.create_chat_by_message(msg_in)
+        chat2b = msg2.create_chat()
         assert not chat2b.is_deaddrop()
         assert chat2b.count_fresh_messages() == 1
 
@@ -851,27 +846,25 @@ class TestOnlineAccount:
         ac2._evtracker.consume_events()
 
         lp.sec("sending a second message from ac1 to ac2")
-        msg_out2 = chat.send_text("message2")
+        msg3 = chat.send_text("message2")
 
         lp.sec("wait for ac2 to receive second message")
-        ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")
-        assert ev.data2 == msg_out2.id
-        msg_in2 = ac2.get_message_by_id(msg_out2.id)
+        msg4 = ac2._evtracker.wait_next_incoming_message()
 
         lp.sec("mark messages as seen on ac2, wait for changes on ac1")
-        ac2.mark_seen_messages([msg_in, msg_in2])
+        ac2.mark_seen_messages([msg2, msg4])
         lp.step("1")
         for i in range(2):
             ev = ac1._evtracker.get_matching("DC_EVENT_MSG_READ")
             assert ev.data1 > const.DC_CHAT_ID_LAST_SPECIAL
             assert ev.data2 > const.DC_MSG_ID_LAST_SPECIAL
         lp.step("2")
-        assert msg_out.is_out_mdn_received()
-        assert msg_out2.is_out_mdn_received()
+        assert msg1.is_out_mdn_received()
+        assert msg3.is_out_mdn_received()
 
-        lp.sec("check that a second call to mark_seen does not create change or smtp job")
+        lp.sec("try check that a second call to mark_seen doesn't happen")
         ac2._evtracker.consume_events()
-        msg_in.mark_seen()
+        msg2.mark_seen()
         try:
             ac2._evtracker.get_matching("DC_EVENT_MSG_READ", timeout=0.01)
         except queue.Empty:
@@ -1049,7 +1042,7 @@ class TestOnlineAccount:
 
         lp.sec("sending text message from ac1 to ac2")
         msg_out = chat.send_text("message1")
-        ac1._evtracker.get_matching("DC_EVENT_MSG_DELIVERED")
+        ac1._evtracker.wait_msg_delivered(msg_out)
         assert msg_out.get_mime_headers() is None
 
         lp.sec("wait for ac2 to receive message")
@@ -1117,10 +1110,7 @@ class TestOnlineAccount:
         lp.sec("sending image message from ac1 to ac2")
         path = data.get_path("d.png")
         msg_out = chat.send_image(path)
-        ev = ac1._evtracker.get_matching("DC_EVENT_MSG_DELIVERED")
-        assert ev.data1 == chat.id
-        assert ev.data2 == msg_out.id
-        assert msg_out.is_out_delivered()
+        ac1._evtracker.wait_msg_delivered(msg_out)
         m = out.get()
         assert m == msg_out
         m = delivered.get()
@@ -1351,7 +1341,7 @@ class TestOnlineAccount:
             def ac_incoming_message(self, message):
                 # we immediately accept the sender because
                 # otherwise we won't see member_added contacts
-                message.accept_sender_contact()
+                message.create_chat()
 
             @account_hookimpl
             def ac_chat_modified(self, chat):
@@ -1381,7 +1371,7 @@ class TestOnlineAccount:
             sorted(x.addr for x in ev.chat.get_contacts())
 
         lp.sec("ac1: add address2")
-        # note that if the above accept_sender_contact() would not
+        # note that if the above create_chat() would not
         # happen we would not receive a proper member_added event
         contact2 = ac1.create_contact(email="notexistingaccountihope@testrun.org")
         chat.add_contact(contact2)
@@ -1461,15 +1451,6 @@ class TestOnlineAccount:
         msg_back = ac1._evtracker.wait_next_incoming_message()
         assert msg_back.chat == chat
         assert chat.get_profile_image() is None
-
-    def test_accept_sender_contact(self, acfactory, lp):
-        ac1, ac2 = acfactory.get_two_online_accounts()
-        ch = ac1.create_chat_by_contact(ac1.create_contact(ac2.get_config("addr")))
-        ch.send_text("hello")
-        msg = ac2._evtracker.wait_next_messages_changed()
-        assert msg.chat.is_deaddrop()
-        msg.accept_sender_contact()
-        assert not msg.chat.is_deaddrop()
 
     def test_send_receive_locations(self, acfactory, lp):
         now = datetime.utcnow()
