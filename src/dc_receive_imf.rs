@@ -1780,7 +1780,7 @@ mod tests {
     use crate::chat::ChatVisibility;
     use crate::chatlist::Chatlist;
     use crate::message::Message;
-    use crate::test_utils::{dummy_context, TestContext};
+    use crate::test_utils::{configured_offline_context, dummy_context};
 
     #[test]
     fn test_hex_hash() {
@@ -1874,23 +1874,6 @@ mod tests {
         assert!(is_msgrmsg_rfc724_mid(&t.ctx, format!("<{}>", msg.rfc724_mid).as_str()).await);
         assert!(is_msgrmsg_rfc724_mid(&t.ctx, &msg.rfc724_mid).await);
         assert!(!is_msgrmsg_rfc724_mid(&t.ctx, "nonexistant@message.id").await);
-    }
-
-    async fn configured_offline_context() -> TestContext {
-        let t = dummy_context().await;
-        t.ctx
-            .set_config(Config::Addr, Some("alice@example.org"))
-            .await
-            .unwrap();
-        t.ctx
-            .set_config(Config::ConfiguredAddr, Some("alice@example.org"))
-            .await
-            .unwrap();
-        t.ctx
-            .set_config(Config::Configured, Some("1"))
-            .await
-            .unwrap();
-        t
     }
 
     static MSGRMSG: &[u8] = b"From: Bob <bob@example.org>\n\

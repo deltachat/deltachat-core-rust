@@ -40,6 +40,23 @@ pub(crate) async fn dummy_context() -> TestContext {
     test_context().await
 }
 
+pub(crate) async fn configured_offline_context() -> TestContext {
+    let t = dummy_context().await;
+    t.ctx
+        .set_config(Config::Addr, Some("alice@example.org"))
+        .await
+        .unwrap();
+    t.ctx
+        .set_config(Config::ConfiguredAddr, Some("alice@example.org"))
+        .await
+        .unwrap();
+    t.ctx
+        .set_config(Config::Configured, Some("1"))
+        .await
+        .unwrap();
+    t
+}
+
 /// Load a pre-generated keypair for alice@example.com from disk.
 ///
 /// This saves CPU cycles by avoiding having to generate a key.
