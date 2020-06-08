@@ -176,7 +176,7 @@ class DirectImap:
 
         print(stream.getvalue(), file=logfile)
 
-    def idle(self):
+    def idle_start(self):
         """ switch this connection to idle mode. non-blocking. """
         assert not self._idling
         res = self.conn.idle()
@@ -191,6 +191,17 @@ class DirectImap:
         if terminate:
             self.idle_done()
         return res
+
+    def idle_wait_for_seen(self):
+        """ Return first message with SEEN flag
+        from a running idle-stream REtiurn.
+        """
+        while 1:
+            for item in self.idle_check():
+                if item[1] == FETCH:
+                    if item[2][0] == FLAGS:
+                        if SEEN in item[2][1]:
+                            return item[0]
 
     def idle_done(self):
         """ send idle-done to server if we are currently in idle mode. """

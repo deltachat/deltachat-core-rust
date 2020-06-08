@@ -9,7 +9,7 @@ def test_basic_imap_api(acfactory, tmpdir):
 
     imap2 = ac2.direct_imap
 
-    ac2.direct_imap.idle()
+    ac2.direct_imap.idle_start()
     chat12.send_text("hello")
     ac2._evtracker.wait_next_incoming_message()
 
@@ -29,7 +29,7 @@ class TestDirectImap:
         chat12, chat21 = acfactory.get_chats(ac1, ac2)
 
         # send a message and check IMAP read flag
-        ac1.direct_imap.idle()
+        ac1.direct_imap.idle_start()
         chat21.send_text("Text message")
 
         msg_in = ac1._evtracker.wait_next_incoming_message()
@@ -39,20 +39,3 @@ class TestDirectImap:
         msg_in.mark_seen()
         ac1.direct_imap.idle_check(terminate=True)
         assert ac1.direct_imap.get_unread_cnt() == 0
-
-    def test_mark_bcc_read_on_server(self, acfactory, lp):
-        ac1, ac2 = acfactory.get_two_online_accounts(move=True)
-        chat = acfactory.get_chat(ac1, ac2)
-        ac1.set_config("bcc_self", "1")
-        # wait for seen/read message to appear in mvbox
-        ac1.direct_imap.select_config_folder("mvbox")
-        ac1.direct_imap.idle()
-        chat.send_text("Text message")
-        ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
-
-        while 1:
-            res = ac1.direct_imap.idle_check()
-            for item in res:
-                if item[1] == FETCH:
-                    if item[2][0] == FLAGS and SEEN in item[2][1]:
-                        return
