@@ -8,11 +8,14 @@ use async_std::prelude::*;
 use async_std::{fs, io};
 
 use image::GenericImageView;
+use num_traits::FromPrimitive;
 use thiserror::Error;
 
-use crate::constants::AVATAR_SIZE;
+use crate::config::Config;
+use crate::constants::*;
 use crate::context::Context;
 use crate::events::Event;
+use crate::message;
 
 /// Represents a file in the blob directory.
 ///
@@ -368,6 +371,44 @@ impl<'a> BlobObject<'a> {
         }
 
         let img = img.thumbnail(AVATAR_SIZE, AVATAR_SIZE);
+
+        img.save(&blob_abs).map_err(|err| BlobError::WriteFailure {
+            blobdir: context.get_blobdir().to_path_buf(),
+            blobname: blob_abs.to_str().unwrap_or_default().to_string(),
+            cause: err,
+        })?;
+
+        Ok(())
+    }
+
+    pub async fn recode_to_image_size(&self, context: &Context) -> Result<(), BlobError> {
+        let blob_abs = self.to_abs_path();
+        if message::guess_msgtype_from_suffix(Path::new(&blob_abs))
+            != Some((Viewtype::Image, "image/jpeg"))
+        {
+            return Ok(());
+        }
+
+        let img = image::open(&blob_abs).map_err(|err| BlobError::RecodeFailure {
+            blobdir: context.get_blobdir().to_path_buf(),
+            blobname: blob_abs.to_str().unwrap_or_default().to_string(),
+            cause: err,
+        })?;
+
+        let img_wh = if MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await)
+            .unwrap_or_default()
+            == MediaQuality::Balanced
+        {
+            BALANCED_IMAGE_SIZE
+        } else {
+            WORSE_IMAGE_SIZE
+        };
+
+        if img.width() <= img_wh && img.height() <= img_wh {
+            return Ok(());
+        }
+
+        let img = img.thumbnail(img_wh, img_wh);
 
         img.save(&blob_abs).map_err(|err| BlobError::WriteFailure {
             blobdir: context.get_blobdir().to_path_buf(),
