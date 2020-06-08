@@ -613,6 +613,7 @@ class TestOnlineAccount:
         ac1.set_config("bcc_self", "1")
 
         lp.sec("send out message with bcc to ourselves")
+        ac1.direct_imap.idle_start()
         msg_out = chat.send_text("message2")
 
         # wait for send out (BCC)
@@ -623,6 +624,7 @@ class TestOnlineAccount:
         assert self_addr in ev.data2
         assert other_addr in ev.data2
         ev = ac1._evtracker.get_matching("DC_EVENT_DELETED_BLOB_FILE")
+        assert ac1.direct_imap.idle_wait_for_seen()
 
         # Second client receives only second message, but not the first
         ev_msg = ac1_clone._evtracker.wait_next_messages_changed()
