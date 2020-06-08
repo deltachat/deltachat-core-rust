@@ -1230,10 +1230,6 @@ async fn create_or_lookup_adhoc_group(
     from_id: u32,
     to_ids: &ContactIds,
 ) -> Result<(ChatId, Blocked)> {
-    // if we're here, no grpid was found, check if there is an existing
-    // ad-hoc group matching the to-list or if we should and can create one
-    // (we do not want to heuristically look at the likely mangled Subject)
-
     if mime_parser.is_mailinglist_message() {
         // XXX we could parse List-* headers and actually create and
         // manage a mailing list group, eventually
@@ -1243,6 +1239,10 @@ async fn create_or_lookup_adhoc_group(
         );
         return Ok((ChatId::new(0), Blocked::Not));
     }
+
+    // if we're here, no grpid was found, check if there is an existing
+    // ad-hoc group matching the to-list or if we should and can create one
+    // (we do not want to heuristically look at the likely mangled Subject)
 
     let mut member_ids: Vec<u32> = to_ids.iter().copied().collect();
     if !member_ids.contains(&from_id) {
