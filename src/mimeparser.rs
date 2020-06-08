@@ -527,6 +527,7 @@ impl MimeMessage {
                 part.typ = Viewtype::Text;
                 part.msg_raw = Some(txt.clone());
                 part.msg = txt;
+                part.param.set(Param::Error, "Decryption failed");
 
                 self.parts.push(part);
 
