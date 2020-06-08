@@ -43,7 +43,7 @@ class PerAccount:
 
     @account_hookspec
     def ac_configure_completed(self, success):
-        """ Called when a configure process completed. """
+        """ Called after a configure process completed. """
 
     @account_hookspec
     def ac_incoming_message(self, message):
@@ -87,6 +87,14 @@ class Global:
     @global_hookspec
     def dc_account_init(self, account):
         """ called when `Account::__init__()` function starts executing. """
+
+    @global_hookspec
+    def dc_account_extra_configure(self, account):
+        """ Called when account configuration successfully finished.
+
+        This hook can be used to perform extra work before
+        ac_configure_completed is called.
+        """
 
     @global_hookspec
     def dc_account_after_shutdown(self, account):

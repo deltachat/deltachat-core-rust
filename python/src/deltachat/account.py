@@ -581,7 +581,7 @@ class Account(object):
             raise MissingCredentials("addr or mail_pwd not set in config")
         if hasattr(self, "_configtracker"):
             self.remove_account_plugin(self._configtracker)
-        self._configtracker = ConfigureTracker()
+        self._configtracker = ConfigureTracker(self)
         self.add_account_plugin(self._configtracker)
         lib.dc_configure(self._dc_context)
 

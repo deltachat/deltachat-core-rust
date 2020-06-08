@@ -17,7 +17,7 @@ from . import Account, const
 from .capi import lib
 from .events import FFIEventLogger, FFIEventTracker
 from _pytest._code import Source
-from deltachat.direct_imap import ImapConn
+from deltachat import direct_imap
 
 import deltachat
 
@@ -215,6 +215,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             self._generated_keys = ["alice", "bob", "charlie",
                                     "dom", "elena", "fiona"]
             self.set_logging_default(False)
+            deltachat.register_global_plugin(direct_imap)
 
         def finalize(self):
             while self._finalizers:
@@ -225,13 +226,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
                 acc = self._accounts.pop()
                 acc.shutdown()
                 acc.disable_logging()
-
-        def new_imap_conn(self, account, config_folder=None):
-            imap_conn = ImapConn(account)
-            self._finalizers.append(imap_conn.shutdown)
-            if config_folder is not None:
-                imap_conn.select_config_folder(config_folder)
-            return imap_conn
+            deltachat.unregister_global_plugin(direct_imap)
 
         def make_account(self, path, logid, quiet=False):
             ac = Account(path, logging=self._logging, logid=logid)
@@ -383,10 +378,14 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
 
         def dump_imap_summary(self, logfile):
             for ac in self._accounts:
-                imap = self.new_imap_conn(ac)
-                imap.dump_account_info(logfile=logfile)
-                imap.dump_imap_structures(tmpdir, logfile=logfile)
-                imap.shutdown()
+                imap = getattr(ac, "direct_imap", None)
+                if imap is not None:
+                    try:
+                        imap.idle_done()
+                    except Exception:
+                        pass
+                    imap.dump_account_info(logfile=logfile)
+                    imap.dump_imap_structures(tmpdir, logfile=logfile)
 
         def get_chat(self, ac1, ac2, both=True):
             chat12, chat21 = self.get_chats(ac1, ac2, both=both)

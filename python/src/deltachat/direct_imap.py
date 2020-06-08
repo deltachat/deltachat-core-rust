@@ -1,19 +1,50 @@
+"""
+Internal Python-level IMAP handling used by the testplugin
+and for cleaning up inbox/mvbox for each test function run.
+"""
+
 import io
 import email
 import ssl
 import pathlib
 from imapclient import IMAPClient
 from imapclient.exceptions import IMAPClientError
+import deltachat
 
 
 SEEN = b'\\Seen'
+DELETED = b'\\Deleted'
 FLAGS = b'FLAGS'
 FETCH = b'FETCH'
+ALL = "1:*"
 
 
-class ImapConn:
-    def __init__(self, account):
+@deltachat.global_hookimpl
+def dc_account_extra_configure(account):
+    """ Reset the account (we reuse accounts across tests)
+    and make 'account.direct_imap' available for direct IMAP ops.
+    """
+    imap = DirectImap(account, account.logid)
+    if imap.select_config_folder("mvbox"):
+        imap.delete(ALL, expunge=True)
+    assert imap.select_config_folder("inbox")
+    imap.delete(ALL, expunge=True)
+    setattr(account, "direct_imap", imap)
+
+
+@deltachat.global_hookimpl
+def dc_account_after_shutdown(account):
+    """ shutdown the imap connection if there is one. """
+    imap = getattr(account, "direct_imap", None)
+    if imap is not None:
+        imap.shutdown()
+        del account.direct_imap
+
+
+class DirectImap:
+    def __init__(self, account, logid):
         self.account = account
+        self.logid = logid
         self._idling = False
         self.connect()
 
@@ -49,25 +80,39 @@ class ImapConn:
         return self.conn.select_folder(foldername)
 
     def select_config_folder(self, config_name):
+        """ Return info about selected folder if it is
+        configured, otherwise None. """
         if "_" not in config_name:
             config_name = "configured_{}_folder".format(config_name)
         foldername = self.account.get_config(config_name)
-        return self.select_folder(foldername)
+        if foldername:
+            return self.select_folder(foldername)
 
     def list_folders(self):
+        """ return list of all existing folder names"""
         assert not self._idling
         folders = []
         for meta, sep, foldername in self.conn.list_folders():
             folders.append(foldername)
         return folders
 
+    def delete(self, range, expunge=True):
+        """ delete a range of messages (imap-syntax).
+        If expunge is true, perform the expunge-operation
+        to make sure the messages are really gone and not
+        just flagged as deleted.
+        """
+        self.conn.set_flags(range, [DELETED])
+        if expunge:
+            self.conn.expunge()
+
     def get_all_messages(self):
         assert not self._idling
-        return self.conn.fetch("1:*", [FLAGS])
+        return self.conn.fetch(ALL, [FLAGS])
 
     def get_unread_messages(self):
         assert not self._idling
-        res = self.conn.fetch("1:*", [FLAGS])
+        res = self.conn.fetch(ALL, [FLAGS])
         return [uid for uid in res
                 if SEEN not in res[uid][FLAGS]]
 
@@ -103,8 +148,6 @@ class ImapConn:
             kwargs["file"] = stream
             print(*args, **kwargs)
 
-        acinfo = self.account.logid + "-" + self.account.get_config("addr")
-
         empty_folders = []
         for imapfolder in self.list_folders():
             self.select_folder(imapfolder)
@@ -114,12 +157,13 @@ class ImapConn:
                 continue
 
             log("---------", imapfolder, len(messages), "messages ---------")
-            # request message content without auto-marking it as seen
+            # get message content without auto-marking it as seen
+            # fetching 'RFC822' would mark it as seen.
             requested = [b'BODY.PEEK[HEADER]', FLAGS]
             for uid, data in self.conn.fetch(messages, requested).items():
                 body_bytes = data[b'BODY[HEADER]']
                 flags = data[FLAGS]
-                path = pathlib.Path(str(dir)).joinpath("IMAP", acinfo, imapfolder)
+                path = pathlib.Path(str(dir)).joinpath("IMAP", self.logid, imapfolder)
                 path.mkdir(parents=True, exist_ok=True)
                 fn = path.joinpath(str(uid))
                 fn.write_bytes(body_bytes)
@@ -133,12 +177,14 @@ class ImapConn:
         print(stream.getvalue(), file=logfile)
 
     def idle(self):
+        """ switch this connection to idle mode. non-blocking. """
         assert not self._idling
         res = self.conn.idle()
         self._idling = True
         return res
 
     def idle_check(self, terminate=False):
+        """ (blocking) wait for next idle message from server. """
         assert self._idling
         self.account.log("imap-direct: calling idle_check")
         res = self.conn.idle_check()
@@ -147,6 +193,7 @@ class ImapConn:
         return res
 
     def idle_done(self):
+        """ send idle-done to server if we are currently in idle mode. """
         if self._idling:
             res = self.conn.idle_done()
             self._idling = False
