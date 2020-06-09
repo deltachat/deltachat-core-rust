@@ -932,7 +932,7 @@ checksum = "bb1f6b1ce1c140482ea30ddd3335fc0024ac7ee112895426e0a629a6c20adfe3"
 [[package]]
 name = "email"
 version = "0.0.21"
-source = "git+https://github.com/Hocuri/rust-email#6c903a5b1dd91acb191af2987ca29c28bb733c56"
+source = "git+https://github.com/deltachat/rust-email#ace12ee6f8e054dd890589f588d0311604fc25f0"
 dependencies = [
  "base64 0.11.0",
  "chrono",
@@ -1602,7 +1602,7 @@ dependencies = [
 [[package]]
 name = "lettre"
 version = "0.9.2"
-source = "git+https://github.com/Hocuri/lettre#05a94e82269e3d85b7b7b5b88e779daf4f6343db"
+source = "git+https://github.com/deltachat/lettre#12e4f22d8d691fb5d1606e4c9034f5d4d9ba635b"
 dependencies = [
  "fast_chemail",
  "log",
@@ -1611,7 +1611,7 @@ dependencies = [
 [[package]]
 name = "lettre_email"
 version = "0.9.2"
-source = "git+https://github.com/Hocuri/lettre#05a94e82269e3d85b7b7b5b88e779daf4f6343db"
+source = "git+https://github.com/deltachat/lettre#12e4f22d8d691fb5d1606e4c9034f5d4d9ba635b"
 dependencies = [
  "base64 0.11.0",
  "email",
