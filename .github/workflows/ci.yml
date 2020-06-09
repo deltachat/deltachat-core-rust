@@ -41,7 +41,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macOS-latest]
-        rust: [nightly, stable]
+        rust: [nightly, 1.43.1]
 
     steps:
     - uses: actions/checkout@master
@@ -74,7 +74,7 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command:  check
-        args: --workspacke --all --bins --examples --tests
+        args: --workspace --all --bins --examples --tests
 
     - name: tests
       uses: actions-rs/cargo@v1
