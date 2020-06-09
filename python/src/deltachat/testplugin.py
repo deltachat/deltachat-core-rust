@@ -303,33 +303,25 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             configdict["mvbox_move"] = str(int(move))
             configdict["sentbox_watch"] = str(int(sentbox))
             ac.update_config(configdict)
-            ac.configure()
+            ac._configtracker = ac.configure()
             return ac
 
         def get_one_online_account(self, pre_generated_key=True, mvbox=False, move=False):
             ac1 = self.get_online_configuring_account(
                 pre_generated_key=pre_generated_key, mvbox=mvbox, move=move)
-            ac1.wait_configure_finish()
-            ac1.start_io()
+            self.wait_configure_and_start_io()
             return ac1
 
         def get_two_online_accounts(self, move=False, quiet=False):
             ac1 = self.get_online_configuring_account(move=move, quiet=quiet)
             ac2 = self.get_online_configuring_account(quiet=quiet)
-            ac1.wait_configure_finish()
-            ac1.start_io()
-            ac2.wait_configure_finish()
-            ac2.start_io()
+            self.wait_configure_and_start_io()
             return ac1, ac2
 
         def get_many_online_accounts(self, num, move=True):
             accounts = [self.get_online_configuring_account(move=move, quiet=True)
                         for i in range(num)]
-            for acc in accounts:
-                acc._configtracker.wait_finish()
-                acc.start_io()
-                print("{}: {} account was successfully setup".format(
-                    acc.get_config("displayname"), acc.get_config("addr")))
+            self.wait_configure_and_start_io()
             for acc in accounts:
                 acc.add_account_plugin(FFIEventLogger(acc))
             return accounts
@@ -349,8 +341,18 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
                 mvbox_move=account.get_config("mvbox_move"),
                 sentbox_watch=account.get_config("sentbox_watch"),
             ))
-            ac.configure()
+            ac._configtracker = ac.configure()
             return ac
+
+        def wait_configure_and_start_io(self):
+            for acc in self._accounts:
+                if hasattr(acc, "_configtracker"):
+                    acc._configtracker.wait_finish()
+                    del acc._configtracker
+                if acc.is_configured() and not acc.is_started():
+                    acc.start_io()
+                print("{}: {} account was successfully setup".format(
+                    acc.get_config("displayname"), acc.get_config("addr")))
 
         def run_bot_process(self, module, ffi=True):
             fn = module.__file__

@@ -77,8 +77,8 @@ def run_cmdline(argv=None, account_plugins=None):
         ac.set_config("mvbox_move", "0")
         ac.set_config("mvbox_watch", "0")
         ac.set_config("sentbox_watch", "0")
-        ac.configure()
-        ac.wait_configure_finish()
+        configtracker = ac.configure()
+        configtracker.wait_finish()
 
     # start IO threads and configure if neccessary
     ac.start_io()

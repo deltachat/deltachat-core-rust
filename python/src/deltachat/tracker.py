@@ -64,6 +64,7 @@ class ConfigureTracker:
         if success:
             self._gm.hook.dc_account_extra_configure(account=self.account)
         self._configure_events.put(success)
+        self.account.remove_account_plugin(self)
 
     def wait_smtp_connected(self):
         """ wait until smtp is configured. """

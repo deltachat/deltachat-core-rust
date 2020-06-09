@@ -561,29 +561,24 @@ class Account(object):
         :raises MissingCredentials: if `addr` and `mail_pw` values are not set.
         :raises ConfigureFailed: if the account could not be configured.
 
-        :returns: None (account is configured and with io-scheduling running)
+        :returns: None
         """
         if not self.is_configured():
             raise ValueError("account not configured, cannot start io")
         lib.dc_start_io(self._dc_context)
 
     def configure(self):
+        """ Start configuration process and return a Configtracker instance
+        on which you can block with wait_finish() to get a True/False success
+        value for the configuration process.
+        """
         assert not self.is_configured()
-        assert not hasattr(self, "_configtracker")
         if not self.get_config("addr") or not self.get_config("mail_pw"):
             raise MissingCredentials("addr or mail_pwd not set in config")
-        if hasattr(self, "_configtracker"):
-            self.remove_account_plugin(self._configtracker)
-        self._configtracker = ConfigureTracker(self)
-        self.add_account_plugin(self._configtracker)
+        configtracker = ConfigureTracker(self)
+        self.add_account_plugin(configtracker)
         lib.dc_configure(self._dc_context)
-
-    def wait_configure_finish(self):
-        try:
-            self._configtracker.wait_finish()
-        finally:
-            self.remove_account_plugin(self._configtracker)
-            del self._configtracker
+        return configtracker
 
     def is_started(self):
         return self._event_thread.is_alive() and bool(lib.dc_is_io_running(self._dc_context))
