@@ -19,6 +19,7 @@ lazy_static::lazy_static! {
             Server { protocol: SMTP, socket: STARTTLS, hostname: "newyear.aktivix.org", port: 25, username_pattern: EMAIL },
         ],
         config_defaults: None,
+        strict_tls: false,
     };
 
     // aol.md: aol.com
@@ -30,6 +31,7 @@ lazy_static::lazy_static! {
         server: vec![
         ],
         config_defaults: None,
+        strict_tls: false,
     };
 
     // autistici.org.md: autistici.org
@@ -43,6 +45,7 @@ lazy_static::lazy_static! {
             Server { protocol: SMTP, socket: SSL, hostname: "smtp.autistici.org", port: 465, username_pattern: EMAIL },
         ],
         config_defaults: None,
+        strict_tls: false,
     };
 
     // bluewin.ch.md: bluewin.ch
@@ -56,6 +59,21 @@ lazy_static::lazy_static! {
             Server { protocol: SMTP, socket: SSL, hostname: "smtpauths.bluewin.ch", port: 465, username_pattern: EMAIL },
         ],
         config_defaults: None,
+        strict_tls: false,
+    };
+
+    // chello.at.md: chello.at
+    static ref P_CHELLO_AT: Provider = Provider {
+        status: Status::OK,
+        before_login_hint: "",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/chello-at",
+        server: vec![
+            Server { protocol: IMAP, socket: SSL, hostname: "mail.mymagenta.at", port: 993, username_pattern: EMAIL },
+            Server { protocol: SMTP, socket: SSL, hostname: "mail.mymagenta.at", port: 465, username_pattern: EMAIL },
+        ],
+        config_defaults: None,
+        strict_tls: false,
     };
 
     // comcast.md: xfinity.com, comcast.net
@@ -65,7 +83,16 @@ lazy_static::lazy_static! {
     // - skipping provider with status OK and no special things to do
 
     // disroot.md: disroot.org
-    // - skipping provider with status OK and no special things to do
+    static ref P_DISROOT: Provider = Provider {
+        status: Status::OK,
+        before_login_hint: "",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/disroot",
+        server: vec![
+        ],
+        config_defaults: None,
+        strict_tls: true,
+    };
 
     // example.com.md: example.com, example.org
     static ref P_EXAMPLE_COM: Provider = Provider {
@@ -78,6 +105,7 @@ lazy_static::lazy_static! {
             Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp.example.com", port: 1337, username_pattern: EMAIL },
         ],
         config_defaults: None,
+        strict_tls: false,
     };
 
     // fastmail.md: fastmail.com
@@ -89,6 +117,19 @@ lazy_static::lazy_static! {
         server: vec![
         ],
         config_defaults: None,
+        strict_tls: false,
+    };
+
+    // five.chat.md: five.chat
+    static ref P_FIVE_CHAT: Provider = Provider {
+        status: Status::OK,
+        before_login_hint: "",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/five-chat",
+        server: vec![
+        ],
+        config_defaults: None,
+        strict_tls: true,
     };
 
     // freenet.de.md: freenet.de
@@ -102,6 +143,7 @@ lazy_static::lazy_static! {
             Server { protocol: SMTP, socket: STARTTLS, hostname: "mx.freenet.de", port: 587, username_pattern: EMAIL },
         ],
         config_defaults: None,
+        strict_tls: false,
     };
 
     // gmail.md: gmail.com, googlemail.com
@@ -115,6 +157,7 @@ lazy_static::lazy_static! {
             Server { protocol: SMTP, socket: SSL, hostname: "smtp.gmail.com", port: 465, username_pattern: EMAIL },
         ],
         config_defaults: None,
+        strict_tls: true,
     };
 
     // gmx.net.md: gmx.net, gmx.de, gmx.at, gmx.ch, gmx.org, gmx.eu, gmx.info, gmx.biz, gmx.com
@@ -129,6 +172,7 @@ lazy_static::lazy_static! {
             Server { protocol: SMTP, socket: STARTTLS, hostname: "mail.gmx.net", port: 587, username_pattern: EMAIL },
         ],
         config_defaults: None,
+        strict_tls: false,
     };
 
     // i.ua.md: i.ua
@@ -145,6 +189,7 @@ lazy_static::lazy_static! {
             Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp.mail.me.com", port: 587, username_pattern: EMAIL },
         ],
         config_defaults: None,
+        strict_tls: false,
     };
 
     // kolst.com.md: kolst.com
@@ -157,7 +202,16 @@ lazy_static::lazy_static! {
     // - skipping provider with status OK and no special things to do
 
     // mailbox.org.md: mailbox.org, secure.mailbox.org
-    // - skipping provider with status OK and no special things to do
+    static ref P_MAILBOX_ORG: Provider = Provider {
+        status: Status::OK,
+        before_login_hint: "",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/mailbox-org",
+        server: vec![
+        ],
+        config_defaults: None,
+        strict_tls: true,
+    };
 
     // nauta.cu.md: nauta.cu
     static ref P_NAUTA_CU: Provider = Provider {
@@ -178,6 +232,7 @@ lazy_static::lazy_static! {
             ConfigDefault { key: Config::E2eeEnabled, value: "0" },
             ConfigDefault { key: Config::MediaQuality, value: "1" },
         ]),
+        strict_tls: false,
     };
 
     // outlook.com.md: hotmail.com, outlook.com, office365.com, outlook.com.tr, live.com
@@ -191,9 +246,10 @@ lazy_static::lazy_static! {
             Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp-mail.outlook.com", port: 587, username_pattern: EMAIL },
         ],
         config_defaults: None,
+        strict_tls: false,
     };
 
-    // posteo.md: posteo.de
+    // posteo.md: posteo.de, posteo.af, posteo.at, posteo.be, posteo.ch, posteo.cl, posteo.co, posteo.co.uk, posteo.com.br, posteo.cr, posteo.cz, posteo.dk, posteo.ee, posteo.es, posteo.eu, posteo.fi, posteo.gl, posteo.gr, posteo.hn, posteo.hr, posteo.hu, posteo.ie, posteo.in, posteo.is, posteo.jp, posteo.la, posteo.li, posteo.lt, posteo.lu, posteo.me, posteo.mx, posteo.my, posteo.net, posteo.nl, posteo.no, posteo.nz, posteo.org, posteo.pe, posteo.pl, posteo.pm, posteo.pt, posteo.ro, posteo.ru, posteo.se, posteo.sg, posteo.si, posteo.tn, posteo.uk, posteo.us
     static ref P_POSTEO: Provider = Provider {
         status: Status::OK,
         before_login_hint: "",
@@ -204,6 +260,7 @@ lazy_static::lazy_static! {
             Server { protocol: SMTP, socket: STARTTLS, hostname: "posteo.de", port: 587, username_pattern: EMAIL },
         ],
         config_defaults: None,
+        strict_tls: true,
     };
 
     // protonmail.md: protonmail.com, protonmail.ch
@@ -215,16 +272,35 @@ lazy_static::lazy_static! {
         server: vec![
         ],
         config_defaults: None,
+        strict_tls: false,
     };
 
     // riseup.net.md: riseup.net
-    // - skipping provider with status OK and no special things to do
+    static ref P_RISEUP_NET: Provider = Provider {
+        status: Status::OK,
+        before_login_hint: "",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/riseup-net",
+        server: vec![
+        ],
+        config_defaults: None,
+        strict_tls: true,
+    };
 
     // rogers.com.md: rogers.com
     // - skipping provider with status OK and no special things to do
 
     // systemli.org.md: systemli.org
-    // - skipping provider with status OK and no special things to do
+    static ref P_SYSTEMLI_ORG: Provider = Provider {
+        status: Status::OK,
+        before_login_hint: "",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/systemli-org",
+        server: vec![
+        ],
+        config_defaults: None,
+        strict_tls: true,
+    };
 
     // t-online.md: t-online.de, magenta.de
     static ref P_T_ONLINE: Provider = Provider {
@@ -235,6 +311,7 @@ lazy_static::lazy_static! {
         server: vec![
         ],
         config_defaults: None,
+        strict_tls: false,
     };
 
     // testrun.md: testrun.org
@@ -249,6 +326,7 @@ lazy_static::lazy_static! {
             Server { protocol: SMTP, socket: STARTTLS, hostname: "testrun.org", port: 587, username_pattern: EMAIL },
         ],
         config_defaults: None,
+        strict_tls: true,
     };
 
     // tiscali.it.md: tiscali.it
@@ -262,6 +340,7 @@ lazy_static::lazy_static! {
             Server { protocol: SMTP, socket: SSL, hostname: "smtp.tiscali.it", port: 465, username_pattern: EMAIL },
         ],
         config_defaults: None,
+        strict_tls: false,
     };
 
     // ukr.net.md: ukr.net
@@ -282,12 +361,13 @@ lazy_static::lazy_static! {
             Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp.web.de", port: 587, username_pattern: EMAILLOCALPART },
         ],
         config_defaults: None,
+        strict_tls: false,
     };
 
     // yahoo.md: yahoo.com, yahoo.de, yahoo.it, yahoo.fr, yahoo.es, yahoo.se, yahoo.co.uk, yahoo.co.nz, yahoo.com.au, yahoo.com.ar, yahoo.com.br, yahoo.com.mx, ymail.com, rocketmail.com, yahoodns.net
     static ref P_YAHOO: Provider = Provider {
         status: Status::PREPARATION,
-        before_login_hint: "To use Delta Chat with your Yahoo email address you have to allow \"less secure apps\" in the Yahoo webinterface.",
+        before_login_hint: "To use Delta Chat with your Yahoo email address you have to create an \"App-Password\" in the account security screen.",
         after_login_hint: "",
         overview_page: "https://providers.delta.chat/yahoo",
         server: vec![
@@ -295,6 +375,7 @@ lazy_static::lazy_static! {
             Server { protocol: SMTP, socket: SSL, hostname: "smtp.mail.yahoo.com", port: 465, username_pattern: EMAIL },
         ],
         config_defaults: None,
+        strict_tls: false,
     };
 
     // yandex.ru.md: yandex.ru, yandex.com
@@ -306,6 +387,7 @@ lazy_static::lazy_static! {
         server: vec![
         ],
         config_defaults: None,
+        strict_tls: true,
     };
 
     // ziggo.nl.md: ziggo.nl
@@ -319,6 +401,7 @@ lazy_static::lazy_static! {
             Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp.ziggo.nl", port: 587, username_pattern: EMAIL },
         ],
         config_defaults: None,
+        strict_tls: false,
     };
 
     pub static ref PROVIDER_DATA: HashMap<&'static str, &'static Provider> = [
@@ -326,9 +409,12 @@ lazy_static::lazy_static! {
         ("aol.com", &*P_AOL),
         ("autistici.org", &*P_AUTISTICI_ORG),
         ("bluewin.ch", &*P_BLUEWIN_CH),
+        ("chello.at", &*P_CHELLO_AT),
+        ("disroot.org", &*P_DISROOT),
         ("example.com", &*P_EXAMPLE_COM),
         ("example.org", &*P_EXAMPLE_COM),
         ("fastmail.com", &*P_FASTMAIL),
+        ("five.chat", &*P_FIVE_CHAT),
         ("freenet.de", &*P_FREENET_DE),
         ("gmail.com", &*P_GMAIL),
         ("googlemail.com", &*P_GMAIL),
@@ -344,6 +430,8 @@ lazy_static::lazy_static! {
         ("icloud.com", &*P_ICLOUD),
         ("me.com", &*P_ICLOUD),
         ("mac.com", &*P_ICLOUD),
+        ("mailbox.org", &*P_MAILBOX_ORG),
+        ("secure.mailbox.org", &*P_MAILBOX_ORG),
         ("nauta.cu", &*P_NAUTA_CU),
         ("hotmail.com", &*P_OUTLOOK_COM),
         ("outlook.com", &*P_OUTLOOK_COM),
@@ -351,8 +439,58 @@ lazy_static::lazy_static! {
         ("outlook.com.tr", &*P_OUTLOOK_COM),
         ("live.com", &*P_OUTLOOK_COM),
         ("posteo.de", &*P_POSTEO),
+        ("posteo.af", &*P_POSTEO),
+        ("posteo.at", &*P_POSTEO),
+        ("posteo.be", &*P_POSTEO),
+        ("posteo.ch", &*P_POSTEO),
+        ("posteo.cl", &*P_POSTEO),
+        ("posteo.co", &*P_POSTEO),
+        ("posteo.co.uk", &*P_POSTEO),
+        ("posteo.com.br", &*P_POSTEO),
+        ("posteo.cr", &*P_POSTEO),
+        ("posteo.cz", &*P_POSTEO),
+        ("posteo.dk", &*P_POSTEO),
+        ("posteo.ee", &*P_POSTEO),
+        ("posteo.es", &*P_POSTEO),
+        ("posteo.eu", &*P_POSTEO),
+        ("posteo.fi", &*P_POSTEO),
+        ("posteo.gl", &*P_POSTEO),
+        ("posteo.gr", &*P_POSTEO),
+        ("posteo.hn", &*P_POSTEO),
+        ("posteo.hr", &*P_POSTEO),
+        ("posteo.hu", &*P_POSTEO),
+        ("posteo.ie", &*P_POSTEO),
+        ("posteo.in", &*P_POSTEO),
+        ("posteo.is", &*P_POSTEO),
+        ("posteo.jp", &*P_POSTEO),
+        ("posteo.la", &*P_POSTEO),
+        ("posteo.li", &*P_POSTEO),
+        ("posteo.lt", &*P_POSTEO),
+        ("posteo.lu", &*P_POSTEO),
+        ("posteo.me", &*P_POSTEO),
+        ("posteo.mx", &*P_POSTEO),
+        ("posteo.my", &*P_POSTEO),
+        ("posteo.net", &*P_POSTEO),
+        ("posteo.nl", &*P_POSTEO),
+        ("posteo.no", &*P_POSTEO),
+        ("posteo.nz", &*P_POSTEO),
+        ("posteo.org", &*P_POSTEO),
+        ("posteo.pe", &*P_POSTEO),
+        ("posteo.pl", &*P_POSTEO),
+        ("posteo.pm", &*P_POSTEO),
+        ("posteo.pt", &*P_POSTEO),
+        ("posteo.ro", &*P_POSTEO),
+        ("posteo.ru", &*P_POSTEO),
+        ("posteo.se", &*P_POSTEO),
+        ("posteo.sg", &*P_POSTEO),
+        ("posteo.si", &*P_POSTEO),
+        ("posteo.tn", &*P_POSTEO),
+        ("posteo.uk", &*P_POSTEO),
+        ("posteo.us", &*P_POSTEO),
         ("protonmail.com", &*P_PROTONMAIL),
         ("protonmail.ch", &*P_PROTONMAIL),
+        ("riseup.net", &*P_RISEUP_NET),
+        ("systemli.org", &*P_SYSTEMLI_ORG),
         ("t-online.de", &*P_T_ONLINE),
         ("magenta.de", &*P_T_ONLINE),
         ("testrun.org", &*P_TESTRUN),

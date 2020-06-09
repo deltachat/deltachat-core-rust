@@ -7,7 +7,7 @@ use async_imap::{
 use async_std::net::{self, TcpStream};
 
 use super::session::Session;
-use crate::login_param::{dc_build_tls, CertificateChecks};
+use crate::login_param::dc_build_tls;
 
 use super::session::SessionStream;
 
@@ -78,10 +78,10 @@ impl Client {
     pub async fn connect_secure<A: net::ToSocketAddrs, S: AsRef<str>>(
         addr: A,
         domain: S,
-        certificate_checks: CertificateChecks,
+        strict_tls: bool,
     ) -> ImapResult<Self> {
         let stream = TcpStream::connect(addr).await?;
-        let tls = dc_build_tls(certificate_checks);
+        let tls = dc_build_tls(strict_tls);
         let tls_stream: Box<dyn SessionStream> =
             Box::new(tls.connect(domain.as_ref(), stream).await?);
         let mut client = ImapClient::new(tls_stream);
@@ -118,16 +118,12 @@ impl Client {
         })
     }
 
-    pub async fn secure<S: AsRef<str>>(
-        self,
-        domain: S,
-        certificate_checks: CertificateChecks,
-    ) -> ImapResult<Client> {
+    pub async fn secure<S: AsRef<str>>(self, domain: S, strict_tls: bool) -> ImapResult<Client> {
         if self.is_secure {
             Ok(self)
         } else {
             let Client { mut inner, .. } = self;
-            let tls = dc_build_tls(certificate_checks);
+            let tls = dc_build_tls(strict_tls);
             inner.run_command_and_check_ok("STARTTLS", None).await?;
 
             let stream = inner.into_inner();

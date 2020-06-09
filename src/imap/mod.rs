@@ -27,6 +27,7 @@ use crate::message::{self, update_server_uid};
 use crate::mimeparser;
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::param::Params;
+use crate::provider::get_provider_info;
 use crate::{scheduler::InterruptInfo, stock::StockMessage};
 
 mod client;
@@ -149,7 +150,7 @@ struct ImapConfig {
     pub imap_port: u16,
     pub imap_user: String,
     pub imap_pw: String,
-    pub certificate_checks: CertificateChecks,
+    pub strict_tls: bool,
     pub server_flags: usize,
     pub selected_folder: Option<String>,
     pub selected_mailbox: Option<Mailbox>,
@@ -169,7 +170,7 @@ impl Default for ImapConfig {
             imap_port: 0,
             imap_user: "".into(),
             imap_pw: "".into(),
-            certificate_checks: Default::default(),
+            strict_tls: false,
             server_flags: 0,
             selected_folder: None,
             selected_mailbox: None,
@@ -228,7 +229,7 @@ impl Imap {
                 match Client::connect_insecure((imap_server, imap_port)).await {
                     Ok(client) => {
                         if (server_flags & DC_LP_IMAP_SOCKET_STARTTLS) != 0 {
-                            client.secure(imap_server, config.certificate_checks).await
+                            client.secure(imap_server, config.strict_tls).await
                         } else {
                             Ok(client)
                         }
@@ -240,12 +241,8 @@ impl Imap {
                 let imap_server: &str = config.imap_server.as_ref();
                 let imap_port = config.imap_port;
 
-                Client::connect_secure(
-                    (imap_server, imap_port),
-                    imap_server,
-                    config.certificate_checks,
-                )
-                .await
+                Client::connect_secure((imap_server, imap_port), imap_server, config.strict_tls)
+                    .await
             };
 
         let login_res = match connection_res {
@@ -379,7 +376,15 @@ impl Imap {
             config.imap_port = imap_port;
             config.imap_user = imap_user.to_string();
             config.imap_pw = imap_pw.to_string();
-            config.certificate_checks = lp.imap_certificate_checks;
+            let provider = get_provider_info(&lp.addr);
+            config.strict_tls = match lp.imap_certificate_checks {
+                CertificateChecks::Automatic => {
+                    provider.map_or(false, |provider| provider.strict_tls)
+                }
+                CertificateChecks::Strict => true,
+                CertificateChecks::AcceptInvalidCertificates
+                | CertificateChecks::AcceptInvalidCertificates2 => false,
+            };
             config.server_flags = server_flags;
         }
 

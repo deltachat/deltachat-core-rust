@@ -277,21 +277,15 @@ fn get_readable_flags(flags: i32) -> String {
     res
 }
 
-pub fn dc_build_tls(certificate_checks: CertificateChecks) -> async_native_tls::TlsConnector {
+pub fn dc_build_tls(strict_tls: bool) -> async_native_tls::TlsConnector {
     let tls_builder = async_native_tls::TlsConnector::new();
-    match certificate_checks {
-        CertificateChecks::Automatic => {
-            // Same as AcceptInvalidCertificates for now.
-            // TODO: use provider database when it becomes available
-            tls_builder
-                .danger_accept_invalid_hostnames(true)
-                .danger_accept_invalid_certs(true)
-        }
-        CertificateChecks::Strict => tls_builder,
-        CertificateChecks::AcceptInvalidCertificates
-        | CertificateChecks::AcceptInvalidCertificates2 => tls_builder
+
+    if strict_tls {
+        tls_builder
+    } else {
+        tls_builder
             .danger_accept_invalid_hostnames(true)
-            .danger_accept_invalid_certs(true),
+            .danger_accept_invalid_certs(true)
     }
 }
 

@@ -100,6 +100,9 @@ def process_data(data, file):
 
     config_defaults = process_config_defaults(data)
 
+    strict_tls = data.get("strict_tls", False)
+    strict_tls = "true" if strict_tls else "false"
+
     provider = ""
     before_login_hint = cleanstr(data.get("before_login_hint", ""))
     after_login_hint = cleanstr(data.get("after_login_hint", ""))
@@ -111,6 +114,7 @@ def process_data(data, file):
         provider += "        overview_page: \"" + file2url(file) + "\",\n"
         provider += "        server: vec![\n" + server + "        ],\n"
         provider += "        config_defaults: " + config_defaults + ",\n"
+        provider += "        strict_tls: " + strict_tls + ",\n"
         provider += "    };\n\n"
     else:
         raise TypeError("SMTP and IMAP must be specified together or left out both")
@@ -121,7 +125,7 @@ def process_data(data, file):
     # finally, add the provider
     global out_all, out_domains
     out_all += "    // " + file[file.rindex("/")+1:] + ": " + comment.strip(", ") + "\n"
-    if status == "OK" and before_login_hint == "" and after_login_hint == "" and server == "" and config_defaults == "None":
+    if status == "OK" and before_login_hint == "" and after_login_hint == "" and server == "" and config_defaults == "None" and strict_tls == "false":
         out_all += "    // - skipping provider with status OK and no special things to do\n\n"
     else:
         out_all += provider

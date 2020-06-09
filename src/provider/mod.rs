@@ -72,6 +72,7 @@ pub struct Provider {
     pub overview_page: &'static str,
     pub server: Vec<Server>,
     pub config_defaults: Option<Vec<ConfigDefault>>,
+    pub strict_tls: bool,
 }
 
 impl Provider {
