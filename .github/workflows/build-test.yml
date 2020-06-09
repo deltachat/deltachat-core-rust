@@ -1,4 +1,7 @@
-on: push
+on:
+  pull_request:
+  push:
+
 name: Build and Test
 jobs:
 

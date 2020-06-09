@@ -1,4 +1,7 @@
-on: push
+on:
+  pull_request:
+  push:
+
 name: Code Quality
 jobs:
 
@@ -16,7 +19,7 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: fmt
-          args: --workspace -- --check
+          args: --all -- --check
 
   run_clippy:
     runs-on: ubuntu-latest
