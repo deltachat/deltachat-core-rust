@@ -1,8 +1,9 @@
+name: Rust CI
+
 on:
   pull_request:
   push:
 
-name: Code Quality
 jobs:
 
   fmt:
