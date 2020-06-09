@@ -665,8 +665,8 @@ async fn add_parts(
                     "INSERT INTO msgs \
          (rfc724_mid, server_folder, server_uid, chat_id, from_id, to_id, timestamp, \
          timestamp_sent, timestamp_rcvd, type, state, msgrmsg,  txt, txt_raw, param, \
-         bytes, hidden, mime_headers,  mime_in_reply_to, mime_references) \
-         VALUES (?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?);",
+         bytes, hidden, mime_headers,  mime_in_reply_to, mime_references, error) \
+         VALUES (?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?, ?);",
                 )?;
 
                 let is_location_kml = location_kml_is
@@ -710,6 +710,7 @@ async fn add_parts(
                     mime_headers,
                     mime_in_reply_to,
                     mime_references,
+                    part.error,
                 ])?;
 
                 drop(stmt);
@@ -2337,20 +2338,52 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn test_parse_ndn() {
-        let t = configured_offline_context().await;
+    async fn test_parse_ndn_gmail() {
+        test_parse_ndn(
+            "alice@gmail.com",
+            "assidhfaaspocwaeofi@gmail.com",
+            "CABXKi8zruXJc_6e4Dr087H5wE7sLp+u250o0N2q5DdjF_r-8wg@mail.gmail.com",
+            include_bytes!("../test-data/message/gmail_ndn.eml"),
+            "Delivery Status Notification (Failure) – ** Die Adresse wurde nicht gefunden **\n\nIhre Nachricht wurde nicht an assidhfaaspocwaeofi@gmail.com zugestellt, weil die Adresse nicht gefunden wurde oder keine E-Mails empfangen kann.\n\nHier erfahren Sie mehr: https://support.google.com/mail/?p=NoSuchUser\n\nAntwort:\n\n550 5.1.1 The email account that you tried to reach does not exist. Please try double-checking the recipient\'s email address for typos or unnecessary spaces. Learn more at https://support.google.com/mail/?p=NoSuchUser i18sor6261697wrs.38 - gsmtp",
+        )
+        .await;
+    }
+
+    async fn test_parse_ndn(
+        self_addr: &str,
+        foreign_addr: &str,
+        rfc724_mid_outgoing: &str,
+        raw_ndn: &[u8],
+        error_msg: &str,
+    ) {
+        let t = dummy_context().await;
+        t.ctx
+            .set_config(Config::Addr, Some(self_addr))
+            .await
+            .unwrap();
+        t.ctx
+            .set_config(Config::ConfiguredAddr, Some(self_addr))
+            .await
+            .unwrap();
+        t.ctx
+            .set_config(Config::Configured, Some("1"))
+            .await
+            .unwrap();
 
         dc_receive_imf(
             &t.ctx,
-            b"From: alice@example.org\n\
-                To: assidhfaaspocwaeofi@gmail.com\n\
+            format!(
+                "From: {}\n\
+                To: {}\n\
                 Subject: foo\n\
-                Message-ID: <CABXKi8zruXJc_6e4Dr087H5wE7sLp+u250o0N2q5DdjF_r-8wg@mail.gmail.com>\n\
+                Message-ID: <{}>\n\
                 Chat-Version: 1.0\n\
-                Chat-Disposition-Notification-To: alice@example.org\n\
                 Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
                 \n\
                 hello\n",
+                self_addr, foreign_addr, rfc724_mid_outgoing
+            )
+            .as_bytes(),
             "INBOX",
             1,
             false,
@@ -2361,18 +2394,13 @@ mod tests {
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         let msg_id = chats.get_msg_id(0).unwrap();
 
-        let raw = include_bytes!("../test-data/message/gmail_ndn.eml");
-        dc_receive_imf(&t.ctx, raw, "INBOX", 1, false)
+        dc_receive_imf(&t.ctx, raw_ndn, "INBOX", 1, false)
             .await
             .unwrap();
-        println!("Loading msg {}…", msg_id);
         let msg = Message::load_from_db(&t.ctx, msg_id).await.unwrap();
 
         assert_eq!(msg.state, MessageState::OutFailed);
-        assert_eq!(
-            msg.error.as_ref().map(|s| s.as_str()),
-            Some("Delivery Status Notification (Failure) – ** Die Adresse wurde nicht gefunden **\n\nIhre Nachricht wurde nicht an assidhfaaspocwaeofi@gmail.com zugestellt, weil die Adresse nicht gefunden wurde oder keine E-Mails empfangen kann.\n\nHier erfahren Sie mehr: https://support.google.com/mail/?p=NoSuchUser\n\nAntwort:\n\n550 5.1.1 The email account that you tried to reach does not exist. Please try double-checking the recipient\'s email address for typos or unnecessary spaces. Learn more at https://support.google.com/mail/?p=NoSuchUser i18sor6261697wrs.38 - gsmtp")
-        )
+        assert_eq!(msg.error, error_msg);
     }
 
     #[async_std::test]

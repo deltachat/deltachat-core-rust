@@ -424,7 +424,7 @@ impl ChatId {
     async fn get_parent_mime_headers(self, context: &Context) -> Option<(String, String, String)> {
         let collect =
             |row: &rusqlite::Row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?));
-        let (packed, rfc724_mid, mime_in_reply_to, mime_references): (
+        let (rfc724_mid, mime_in_reply_to, mime_references, error): (
             String,
             String,
             String,
@@ -432,15 +432,14 @@ impl ChatId {
         ) = self
             .parent_query(
                 context,
-                "param, rfc724_mid, mime_in_reply_to, mime_references",
+                "rfc724_mid, mime_in_reply_to, mime_references, error",
                 collect,
             )
             .await
             .ok()
             .flatten()?;
 
-        let param = packed.parse::<Params>().ok()?;
-        if param.exists(Param::Error) {
+        if !error.is_empty() {
             // Do not reply to error messages.
             //
             // An error message could be a group chat message that we failed to decrypt and
@@ -454,12 +453,13 @@ impl ChatId {
     }
 
     async fn parent_is_encrypted(self, context: &Context) -> Result<bool, Error> {
-        let collect = |row: &rusqlite::Row| Ok(row.get(0)?);
-        let packed: Option<String> = self.parent_query(context, "param", collect).await?;
+        let collect = |row: &rusqlite::Row| Ok((row.get(0)?, row.get(1)?));
+        let res: Option<(String, String)> =
+            self.parent_query(context, "param, error", collect).await?;
 
-        if let Some(ref packed) = packed {
+        if let Some((ref packed, ref error)) = res {
             let param = packed.parse::<Params>()?;
-            Ok(!param.exists(Param::Error) && param.exists(Param::GuaranteeE2ee))
+            Ok(error.is_empty() && param.exists(Param::GuaranteeE2ee))
         } else {
             // No messages
             Ok(false)

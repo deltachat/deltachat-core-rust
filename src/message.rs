@@ -255,7 +255,7 @@ pub struct Message {
     pub(crate) starred: bool,
     pub(crate) chat_blocked: Blocked,
     pub(crate) location_id: u32,
-    pub(crate) error: Option<String>,
+    pub(crate) error: String,
     pub(crate) param: Params,
 }
 
@@ -941,10 +941,9 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
     }
 
     ret += "\n";
-    if let Some(err) = &msg.error {
-        if !err.is_empty() {
-            ret += &format!("Error: {}", err)
-        }
+
+    if !msg.error.is_empty() {
+        ret += &format!("Error: {}", msg.error);
     }
 
     if let Some(path) = msg.get_file(context) {
@@ -1432,8 +1431,10 @@ pub async fn ndn_from_ext(
 
     if let Ok((msg_id, chat_id, chat_type, contact_id)) = res {
         set_msg_failed(context, msg_id, error).await;
+        info!(context, "cht {} {} {}", chat_id, chat_type, contact_id);
 
         if chat_type == Chattype::Group || chat_type == Chattype::VerifiedGroup {
+            info!(context, "Adding info msg to chat {}", chat_id);
             let contact = Contact::load_from_db(context, contact_id).await.unwrap();
             chat::add_info_msg(
                 context,
@@ -1446,6 +1447,7 @@ pub async fn ndn_from_ext(
                     .await,
             )
             .await;
+            context.emit_event(Event::ChatModified(chat_id));
         }
     }
 }

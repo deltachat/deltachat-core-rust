@@ -529,7 +529,7 @@ impl MimeMessage {
                 part.typ = Viewtype::Text;
                 part.msg_raw = Some(txt.clone());
                 part.msg = txt;
-                part.param.set(Param::Error, "Decryption failed");
+                part.error = "Decryption failed".to_string();
 
                 self.parts.push(part);
 
@@ -1013,6 +1013,7 @@ pub struct Part {
     pub bytes: usize,
     pub param: Params,
     org_filename: Option<String>,
+    pub error: String,
 }
 
 /// return mimetype and viewtype for a parsed mail
