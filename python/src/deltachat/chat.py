@@ -337,7 +337,7 @@ class Chat(object):
         :raises ValueError: if contact could not be added
         :returns: None
         """
-        contact = self.account.as_contact(obj)
+        contact = self.account.create_contact(obj)
         ret = lib.dc_add_contact_to_chat(self.account._dc_context, self.id, contact.id)
         if ret != 1:
             raise ValueError("could not add contact {!r} to chat".format(contact))
@@ -350,7 +350,7 @@ class Chat(object):
         :raises ValueError: if contact could not be removed
         :returns: None
         """
-        contact = self.account.as_contact(obj)
+        contact = self.account.create_contact(obj)
         ret = lib.dc_remove_contact_from_chat(self.account._dc_context, self.id, contact.id)
         if ret != 1:
             raise ValueError("could not remove contact {!r} from chat".format(contact))
