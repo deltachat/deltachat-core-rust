@@ -2441,23 +2441,22 @@ mod tests {
         assert_eq!(msg.state, MessageState::OutFailed);
 
         let msgs = chat::get_chat_msgs(&t.ctx, msg.chat_id, 0, None).await;
-        let mut found = false;
-        for id in msgs.iter() {
-            let m = Message::load_from_db(&t.ctx, *id).await.unwrap();
-            if m.from_id == DC_CONTACT_ID_INFO
-                && m.text
-                    == Some(
-                        t.ctx
-                            .stock_string_repl_str(
-                                StockMessage::FailedSendingTo,
-                                "assidhfaaspocwaeofi@gmail.com",
-                            )
-                            .await,
+        println!("Loading {}…", msg.chat_id);
+        let last_msg = Message::load_from_db(&t.ctx, *msgs.last().unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(last_msg.from_id, DC_CONTACT_ID_INFO);
+        assert_eq!(
+            last_msg.text,
+            Some(
+                t.ctx
+                    .stock_string_repl_str(
+                        StockMessage::FailedSendingTo,
+                        "assidhfaaspocwaeofi@gmail.com",
                     )
-            {
-                found = true;
-            }
-        }
-        assert!(found);
+                    .await,
+            )
+        );
     }
 }

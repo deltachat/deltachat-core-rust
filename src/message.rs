@@ -14,7 +14,7 @@ use crate::error::{ensure, Error};
 use crate::events::Event;
 use crate::job::{self, Action};
 use crate::lot::{Lot, LotState, Meaning};
-use crate::mimeparser::SystemMessage;
+use crate::mimeparser::{FailedMsg, SystemMessage};
 use crate::param::*;
 use crate::pgp::*;
 use crate::stock::StockMessage;
@@ -1392,13 +1392,12 @@ pub async fn mdn_from_ext(
     None
 }
 
-pub async fn ndn_from_ext(
+pub(crate) async fn ndn_from_ext(
     context: &Context,
-    from_id: u32,
-    rfc724_mid: &str,
+    failed: &FailedMsg,
     error: Option<impl AsRef<str>>,
 ) {
-    if from_id <= DC_MSG_ID_LAST_SPECIAL || rfc724_mid.is_empty() {
+    if failed.rfc724_mid.is_empty() {
         return;
     }
 
@@ -1410,17 +1409,15 @@ pub async fn ndn_from_ext(
                 "    m.id AS msg_id,",
                 "    c.id AS chat_id,",
                 "    c.type AS type,",
-                "    m.to_id AS to_id",
                 " FROM msgs m LEFT JOIN chats c ON m.chat_id=c.id",
                 " WHERE rfc724_mid=? AND from_id=1",
             ),
-            paramsv![rfc724_mid],
+            paramsv![failed.rfc724_mid],
             |row| {
                 Ok((
                     row.get::<_, MsgId>("msg_id")?,
                     row.get::<_, ChatId>("chat_id")?,
                     row.get::<_, Chattype>("type")?,
-                    row.get::<_, u32>("to_id")?,
                 ))
             },
         )
@@ -1429,25 +1426,29 @@ pub async fn ndn_from_ext(
         info!(context, "Failed to select NDN {:?}", err);
     }
 
-    if let Ok((msg_id, chat_id, chat_type, contact_id)) = res {
+    if let Ok((msg_id, chat_id, chat_type)) = res {
         set_msg_failed(context, msg_id, error).await;
-        info!(context, "cht {} {} {}", chat_id, chat_type, contact_id);
 
         if chat_type == Chattype::Group || chat_type == Chattype::VerifiedGroup {
-            info!(context, "Adding info msg to chat {}", chat_id);
-            let contact = Contact::load_from_db(context, contact_id).await.unwrap();
-            chat::add_info_msg(
-                context,
-                chat_id,
-                context
-                    .stock_string_repl_str(
-                        StockMessage::FailedSendingTo,
-                        contact.get_display_name(),
+            if let Some(failed_recipient) = &failed.failed_recipient {
+                let contact_id =
+                    Contact::lookup_id_by_addr(context, failed_recipient, Origin::Unknown).await;
+                if let Ok(contact) = Contact::load_from_db(context, contact_id).await {
+                    // Tell the user which of the recipients failed if we know that (because in a group, this might otherwise be unclear)
+                    chat::add_info_msg(
+                        context,
+                        chat_id,
+                        context
+                            .stock_string_repl_str(
+                                StockMessage::FailedSendingTo,
+                                contact.get_display_name(),
+                            )
+                            .await,
                     )
-                    .await,
-            )
-            .await;
-            context.emit_event(Event::ChatModified(chat_id));
+                    .await;
+                    context.emit_event(Event::ChatModified(chat_id));
+                }
+            }
         }
     }
 }

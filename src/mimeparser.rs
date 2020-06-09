@@ -54,7 +54,7 @@ pub struct MimeMessage {
     pub(crate) user_avatar: Option<AvatarAction>,
     pub(crate) group_avatar: Option<AvatarAction>,
     pub(crate) reports: Vec<Report>,
-    pub(crate) failed_msg: Option<String>,
+    pub(crate) failed_msg: Option<FailedMsg>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -881,7 +881,7 @@ impl MimeMessage {
                 .iter()
                 .find(|p| p.typ == Viewtype::Text)
                 .map(|p| &p.msg);
-            message::ndn_from_ext(context, from_id, original_message_id, error).await
+            message::ndn_from_ext(context, original_message_id, error).await
         }
     }
 
@@ -889,7 +889,7 @@ impl MimeMessage {
         &self,
         context: &Context,
         report: &mailparse::ParsedMail<'_>,
-    ) -> Result<Option<String>> {
+    ) -> Result<Option<FailedMsg>> {
         // parse as mailheaders
         if let Some(original_msg) = report
             .subparts
@@ -903,7 +903,17 @@ impl MimeMessage {
                 .get_header_value(HeaderDef::MessageId)
                 .and_then(|v| parse_message_id(&v).ok())
             {
-                return Ok(Some(original_message_id));
+                let mut to_list = get_recipients(&report_fields);
+                let to = if to_list.len() == 1 {
+                    Some(to_list.pop().unwrap())
+                } else {
+                    None // We do not know which recipient failed
+                };
+
+                return Ok(Some(FailedMsg {
+                    rfc724_mid: original_message_id,
+                    failed_recipient: to.map(|s| s.addr),
+                }));
             }
 
             warn!(
@@ -968,6 +978,12 @@ pub(crate) struct Report {
     original_message_id: String,
     /// Additional-Message-IDs
     additional_message_ids: Vec<String>,
+}
+
+#[derive(Debug)]
+pub(crate) struct FailedMsg {
+    pub rfc724_mid: String,
+    pub failed_recipient: Option<String>,
 }
 
 pub(crate) fn parse_message_ids(ids: &str) -> Result<Vec<String>> {

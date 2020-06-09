@@ -2784,7 +2784,7 @@ pub(crate) async fn delete_and_reset_all_device_msgs(context: &Context) -> Resul
 pub(crate) async fn add_info_msg(context: &Context, chat_id: ChatId, text: impl AsRef<str>) {
     let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
 
-    if context.sql.execute(
+    if let Err(e) = context.sql.execute(
         "INSERT INTO msgs (chat_id,from_id,to_id, timestamp,type,state, txt,rfc724_mid) VALUES (?,?,?, ?,?,?, ?,?);",
         paramsv![
             chat_id,
@@ -2796,7 +2796,8 @@ pub(crate) async fn add_info_msg(context: &Context, chat_id: ChatId, text: impl 
             text.as_ref().to_string(),
             rfc724_mid,
         ]
-    ).await.is_err() {
+    ).await {
+        error!(context, "Could not add info msg: {}", e);
         return;
     }
 
