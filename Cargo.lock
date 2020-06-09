@@ -3322,6 +3322,7 @@ name = "version_check"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "914b1a6776c4c929a602fafd8bc742e06365d4bcbe48c30f9cca5824f70dc9dd"
+
 [[package]]
 name = "version_check"
 version = "0.9.2"
@@ -3526,8 +3527,3 @@ dependencies = [
  "syn 1.0.30",
  "synstructure",
 ]
-
-[[patch.unused]]
-name = "smol"
-version = "0.1.10"
-source = "git+https://github.com/dignifiedquire/smol-1?branch=isolate-nix#1ba84935e4e48be927c7f8f4a9cb5c05614135c3"
