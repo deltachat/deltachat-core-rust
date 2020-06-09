@@ -779,7 +779,6 @@ async fn open(
                  timestamp INTEGER DEFAULT 0, \
                  type INTEGER DEFAULT 0, \
                  state INTEGER DEFAULT 0, \
-                 error TEXT DEFAULT '', \
                  msgrmsg INTEGER DEFAULT 1, \
                  bytes INTEGER DEFAULT 0, \
                  txt TEXT DEFAULT '', \
