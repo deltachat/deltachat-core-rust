@@ -61,17 +61,12 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
 
     let ctx1 = ctx.clone();
     let fut = async move {
-        let ctx = ctx1;
-        if let Err(err) = connection.connect_configured(&ctx).await {
-            error!(ctx, "{}", err);
-            return;
-        }
-
         started.send(()).await;
+        let ctx = ctx1;
 
         // track number of continously executed jobs
-        let mut jobs_loaded: i32 = 0;
-        let mut info: InterruptInfo = Default::default();
+        let mut jobs_loaded = 0;
+        let mut info = InterruptInfo::default();
         loop {
             match job::load_next(&ctx, Thread::Imap, &info).await {
                 Some(job) if jobs_loaded <= 20 => {
@@ -106,6 +101,11 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
 async fn fetch(ctx: &Context, connection: &mut Imap) {
     match ctx.get_config(Config::ConfiguredInboxFolder).await {
         Some(watch_folder) => {
+            if let Err(err) = connection.connect_configured(&ctx).await {
+                error!(ctx, "{}", err);
+                return;
+            }
+
             // fetch
             if let Err(err) = connection.fetch(&ctx, &watch_folder).await {
                 connection.trigger_reconnect();
@@ -122,6 +122,12 @@ async fn fetch(ctx: &Context, connection: &mut Imap) {
 async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> InterruptInfo {
     match ctx.get_config(folder).await {
         Some(watch_folder) => {
+            // connect and fake idle if unable to connect
+            if let Err(err) = connection.connect_configured(&ctx).await {
+                error!(ctx, "imap connection failed: {}", err);
+                return connection.fake_idle(&ctx, None).await;
+            }
+
             // fetch
             if let Err(err) = connection.fetch(&ctx, &watch_folder).await {
                 connection.trigger_reconnect();
@@ -167,13 +173,8 @@ async fn simple_imap_loop(
     let ctx1 = ctx.clone();
 
     let fut = async move {
-        let ctx = ctx1;
-        if let Err(err) = connection.connect_configured(&ctx).await {
-            error!(ctx, "{}", err);
-            return;
-        }
-
         started.send(()).await;
+        let ctx = ctx1;
 
         loop {
             fetch_idle(&ctx, &mut connection, folder).await;

@@ -498,12 +498,12 @@ impl Job {
     }
 
     async fn move_msg(&mut self, context: &Context, imap: &mut Imap) -> Status {
-        let msg = job_try!(Message::load_from_db(context, MsgId::new(self.foreign_id)).await);
-
-        if let Err(err) = imap.ensure_configured_folders(context, true).await {
-            warn!(context, "could not configure folders: {:?}", err);
+        if let Err(err) = imap.connect_configured(context).await {
+            warn!(context, "could not connect: {:?}", err);
             return Status::RetryLater;
         }
+
+        let msg = job_try!(Message::load_from_db(context, MsgId::new(self.foreign_id)).await);
         let dest_folder = context.get_config(Config::ConfiguredMvboxFolder).await;
 
         if let Some(dest_folder) = dest_folder {
@@ -538,6 +538,11 @@ impl Job {
     /// records pointing to the same message on the server, the job
     /// also removes the message on the server.
     async fn delete_msg_on_imap(&mut self, context: &Context, imap: &mut Imap) -> Status {
+        if let Err(err) = imap.connect_configured(context).await {
+            warn!(context, "could not connect: {:?}", err);
+            return Status::RetryLater;
+        }
+
         let msg = job_try!(Message::load_from_db(context, MsgId::new(self.foreign_id)).await);
 
         if !msg.rfc724_mid.is_empty() {
@@ -608,6 +613,11 @@ impl Job {
     }
 
     async fn empty_server(&mut self, context: &Context, imap: &mut Imap) -> Status {
+        if let Err(err) = imap.connect_configured(context).await {
+            warn!(context, "could not connect: {:?}", err);
+            return Status::RetryLater;
+        }
+
         if self.foreign_id & DC_EMPTY_MVBOX > 0 {
             if let Some(mvbox_folder) = &context.get_config(Config::ConfiguredMvboxFolder).await {
                 imap.empty_folder(context, &mvbox_folder).await;
@@ -620,6 +630,11 @@ impl Job {
     }
 
     async fn markseen_msg_on_imap(&mut self, context: &Context, imap: &mut Imap) -> Status {
+        if let Err(err) = imap.connect_configured(context).await {
+            warn!(context, "could not connect: {:?}", err);
+            return Status::RetryLater;
+        }
+
         let msg = job_try!(Message::load_from_db(context, MsgId::new(self.foreign_id)).await);
 
         let folder = msg.server_folder.as_ref().unwrap();
