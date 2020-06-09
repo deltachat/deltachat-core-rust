@@ -105,20 +105,20 @@ class TestOfflineAccountBasic:
 class TestOfflineContact:
     def test_contact_attr(self, acfactory):
         ac1 = acfactory.get_configured_offline_account()
-        contact1 = ac1.create_contact("some1@hello.com", name="some1")
-        contact2 = ac1.create_contact("some1@hello.com", name="some1")
+        contact1 = ac1.create_contact("some1@example.org", name="some1")
+        contact2 = ac1.create_contact("some1@example.org", name="some1")
         str(contact1)
         repr(contact1)
         assert contact1 == contact2
         assert contact1.id
-        assert contact1.addr == "some1@hello.com"
+        assert contact1.addr == "some1@example.org"
         assert contact1.display_name == "some1"
         assert not contact1.is_blocked()
         assert not contact1.is_verified()
 
     def test_get_contacts_and_delete(self, acfactory):
         ac1 = acfactory.get_configured_offline_account()
-        contact1 = ac1.create_contact("some1@hello.com", name="some1")
+        contact1 = ac1.create_contact("some1@example.org", name="some1")
         contacts = ac1.get_contacts()
         assert len(contacts) == 1
         assert contact1 in contacts
@@ -156,7 +156,7 @@ class TestOfflineChat:
 
     @pytest.fixture
     def chat1(self, ac1):
-        return ac1.create_contact("some1@hello.com", name="some1").create_chat()
+        return ac1.create_contact("some1@example.org", name="some1").create_chat()
 
     def test_display(self, chat1):
         str(chat1)
@@ -198,8 +198,8 @@ class TestOfflineChat:
         chat.remove_contact(ac2)
 
     def test_group_chat_creation(self, ac1):
-        contact1 = ac1.create_contact("some1@hello.com", name="some1")
-        contact2 = ac1.create_contact("some2@hello.com", name="some2")
+        contact1 = ac1.create_contact("some1@example.org", name="some1")
+        contact2 = ac1.create_contact("some2@example.org", name="some2")
         chat = ac1.create_group_chat(name="title1", contacts=[contact1, contact2])
         assert chat.get_name() == "title1"
         assert contact1 in chat.get_contacts()
@@ -228,8 +228,8 @@ class TestOfflineChat:
         with pytest.raises(ValueError):
             ac1.set_stock_translation(500, "xyz %1$s")
         ac1._evtracker.get_matching("DC_EVENT_WARNING")
-        contact1 = ac1.create_contact("some1@hello.com", name="some1")
-        contact2 = ac1.create_contact("some2@hello.com", name="some2")
+        contact1 = ac1.create_contact("some1@example.org", name="some1")
+        contact2 = ac1.create_contact("some2@example.org", name="some2")
         chat = ac1.create_group_chat(name="title1", contacts=[contact1, contact2])
         assert chat.get_name() == "title1"
         assert contact1 in chat.get_contacts()
@@ -368,7 +368,7 @@ class TestOfflineChat:
 
     def test_create_chat_simple(self, acfactory):
         ac1 = acfactory.get_configured_offline_account()
-        contact1 = ac1.create_contact("some1@hello.com", name="some1")
+        contact1 = ac1.create_contact("some1@example.org", name="some1")
         contact1.create_chat().send_text("hello")
 
     def test_chat_message_distinctions(self, ac1, chat1):
@@ -390,7 +390,7 @@ class TestOfflineChat:
     def test_import_export_one_contact(self, acfactory, tmpdir):
         backupdir = tmpdir.mkdir("backup")
         ac1 = acfactory.get_configured_offline_account()
-        chat = ac1.create_contact("some1 <some1@hello.com>").create_chat()
+        chat = ac1.create_contact("some1 <some1@example.org>").create_chat()
         # send a text message
         msg = chat.send_text("msg1")
         # send a binary file
@@ -408,7 +408,7 @@ class TestOfflineChat:
         contacts = ac2.get_contacts(query="some1")
         assert len(contacts) == 1
         contact2 = contacts[0]
-        assert contact2.addr == "some1@hello.com"
+        assert contact2.addr == "some1@example.org"
         chat2 = contact2.create_chat()
         messages = chat2.get_messages()
         assert len(messages) == 2
@@ -1139,7 +1139,7 @@ class TestOnlineAccount:
         ac1 = acfactory.get_one_online_account()
 
         lp.sec("create some chat content")
-        contact1 = ac1.create_contact("some1@hello.com", name="some1")
+        contact1 = ac1.create_contact("some1@example.org", name="some1")
         contact1.create_chat().send_text("msg1")
         assert len(ac1.get_contacts(query="some1")) == 1
         backupdir = tmpdir.mkdir("backup")
@@ -1161,7 +1161,7 @@ class TestOnlineAccount:
         contacts = ac2.get_contacts(query="some1")
         assert len(contacts) == 1
         contact2 = contacts[0]
-        assert contact2.addr == "some1@hello.com"
+        assert contact2.addr == "some1@example.org"
         chat2 = contact2.create_chat()
         messages = chat2.get_messages()
         assert len(messages) == 1
