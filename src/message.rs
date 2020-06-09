@@ -942,7 +942,9 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
 
     ret += "\n";
     if let Some(err) = &msg.error {
-        ret += &format!("Error: {}", err)
+        if !err.is_empty() {
+            ret += &format!("Error: {}", err)
+        }
     }
 
     if let Some(path) = msg.get_file(context) {
