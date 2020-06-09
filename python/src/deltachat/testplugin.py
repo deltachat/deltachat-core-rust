@@ -396,15 +396,18 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             ac2.create_chat(ac1)
             return ac1.create_chat(ac2)
 
-        def accept_each_other(self, accounts, sending=False):
+        def introduce_each_other(self, accounts, sending=True):
+            to_wait = []
             for i, acc in enumerate(accounts):
                 for acc2 in accounts[i + 1:]:
                     chat = self.get_accepted_chat(acc, acc2)
                     if sending:
                         chat.send_text("hi")
-                        acc2._evtracker.wait_next_incoming_message()
+                        to_wait.append(acc2)
                         acc2.create_chat(acc).send_text("hi back")
-                        acc._evtracker.wait_next_incoming_message()
+                        to_wait.append(acc)
+            for acc in to_wait:
+                acc._evtracker.wait_next_incoming_message()
 
     am = AccountMaker()
     request.addfinalizer(am.finalize)
