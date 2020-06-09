@@ -3,6 +3,7 @@
 //! This module implements a job queue maintained in the SQLite database
 //! and job types.
 
+use std::env;
 use std::fmt;
 use std::future::Future;
 
@@ -31,6 +32,7 @@ use crate::message::{self, Message, MessageState};
 use crate::mimefactory::MimeFactory;
 use crate::param::*;
 use crate::smtp::Smtp;
+use crate::upload::upload_file;
 use crate::{scheduler::InterruptInfo, sql};
 
 // results in ~3 weeks for the last backoff timespan
@@ -726,7 +728,25 @@ pub async fn send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<Job
         }
     };
 
-    let mimefactory = MimeFactory::from_msg(context, &msg, attach_selfavatar).await?;
+    // Upload file if DCC_UPLOAD_URL is set.
+    // See upload-server folder for an example.
+    // TODO: Move into send_msg_to_smtp job.
+    let mut did_upload_file = false;
+    if let Some(file) = msg.get_file(context) {
+        if let Ok(endpoint) = env::var("DCC_UPLOAD_URL") {
+            info!(context, "Upload file attachement to {}", endpoint);
+            let file_url = upload_file(context, endpoint, file).await?;
+            let text = msg.text.clone().unwrap_or("".into());
+            let suffix = format!("\n\nFile attachement: {}", file_url);
+            msg.set_text(Some(format!("{}{}", text, suffix)));
+            did_upload_file = true;
+        }
+    }
+
+    let mut mimefactory = MimeFactory::from_msg(context, &msg, attach_selfavatar).await?;
+    if did_upload_file {
+        mimefactory.set_include_file(false);
+    }
 
     let mut recipients = mimefactory.recipients();
 
