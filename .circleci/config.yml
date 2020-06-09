@@ -180,7 +180,6 @@ workflows:
       - remote_python_packaging:
           requires: 
              - remote_tests_python
-             - remote_tests_rust 
           filters:
             tags:
               only: /.*/
