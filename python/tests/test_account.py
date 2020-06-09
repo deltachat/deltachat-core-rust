@@ -1508,7 +1508,7 @@ class TestOnlineAccount:
         lp.sec("creating and configuring three accounts")
         ac1, ac2, ac3 = acfactory.get_many_online_accounts(3)
 
-        acfactory.accept_each_other([ac1, ac2, ac3], sending=True)
+        acfactory.introduce_each_other([ac1, ac2, ac3])
 
         lp.sec("ac3 reinstalls DC and generates a new key")
         ac3.stop_io()
@@ -1568,7 +1568,7 @@ class TestOnlineAccount:
 class TestGroupStressTests:
     def test_group_many_members_add_leave_remove(self, acfactory, lp):
         accounts = acfactory.get_many_online_accounts(5)
-        acfactory.accept_each_other(accounts, sending=True)
+        acfactory.introduce_each_other(accounts)
         ac1, ac5 = accounts.pop(), accounts.pop()
 
         lp.sec("ac1: creating group chat with 3 other members")
@@ -1641,7 +1641,7 @@ class TestGroupStressTests:
         """
         lp.sec("setting up accounts, accepted with each other")
         accounts = acfactory.get_many_online_accounts(3)
-        acfactory.accept_each_other(accounts, sending=True)
+        acfactory.introduce_each_other(accounts)
         ac1, ac2, ac3 = accounts
 
         lp.sec("ac1: creating group chat with 2 other members")
