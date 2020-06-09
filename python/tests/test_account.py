@@ -544,10 +544,7 @@ class TestOnlineAccount:
         )
         # rsa key gen can be slow especially on CI, adjust timeout
         ac1._evtracker.set_timeout(120)
-        ac1.wait_configure_finish()
-        ac1.start_io()
-        ac2.wait_configure_finish()
-        ac2.start_io()
+        acfactory.wait_configure_and_start_io()
         chat = acfactory.get_accepted_chat(ac1, ac2)
 
         lp.sec("ac1: send unencrypted message to ac2")
@@ -579,7 +576,7 @@ class TestOnlineAccount:
         ac1._configtracker.wait_progress()
         ac1.stop_ongoing()
         try:
-            ac1.wait_configure_finish()
+            ac1._configtracker.wait_finish()
         except Exception:
             pass
 
@@ -602,12 +599,7 @@ class TestOnlineAccount:
         # are copied to it via BCC.
         ac1_clone = acfactory.clone_online_account(ac1)
 
-        ac1.wait_configure_finish()
-        ac1.start_io()
-        ac2.wait_configure_finish()
-        ac2.start_io()
-        ac1_clone.wait_configure_finish()
-        ac1_clone.start_io()
+        acfactory.wait_configure_and_start_io()
 
         chat = acfactory.get_accepted_chat(ac1, ac2)
 
@@ -712,13 +704,8 @@ class TestOnlineAccount:
         lp.sec("ac2: start without mvbox/sentbox threads")
         ac2 = acfactory.get_online_configuring_account()
 
-        lp.sec("ac2: waiting for configuration")
-        ac2.wait_configure_finish()
-        ac2.start_io()
-
-        lp.sec("ac1: waiting for configuration")
-        ac1.wait_configure_finish()
-        ac1.start_io()
+        lp.sec("ac2 and ac1: waiting for configuration")
+        acfactory.wait_configure_and_start_io()
 
         lp.sec("ac1: send message and wait for ac2 to receive it")
         acfactory.get_accepted_chat(ac1, ac2).send_text("message1")
@@ -727,10 +714,7 @@ class TestOnlineAccount:
     def test_move_works(self, acfactory):
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.get_online_configuring_account(mvbox=True, move=True)
-        ac2.wait_configure_finish()
-        ac2.start_io()
-        ac1.wait_configure_finish()
-        ac1.start_io()
+        acfactory.wait_configure_and_start_io()
         chat = acfactory.get_accepted_chat(ac1, ac2)
         chat.send_text("message1")
         ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")
@@ -741,10 +725,7 @@ class TestOnlineAccount:
         ac1 = acfactory.get_online_configuring_account(mvbox=True, move=True)
         ac1.set_config("bcc_self", "1")
         ac2 = acfactory.get_online_configuring_account()
-        ac2.wait_configure_finish()
-        ac2.start_io()
-        ac1.wait_configure_finish()
-        ac1.start_io()
+        acfactory.wait_configure_and_start_io()
 
         chat = acfactory.get_accepted_chat(ac1, ac2)
         chat.send_text("message1")
@@ -1184,10 +1165,7 @@ class TestOnlineAccount:
         # as of Jul2019
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.clone_online_account(ac1)
-        ac2.wait_configure_finish()
-        ac2.start_io()
-        ac1.wait_configure_finish()
-        ac1.start_io()
+        acfactory.wait_configure_and_start_io()
 
         lp.sec("trigger ac setup message and return setupcode")
         assert ac1.get_info()["fingerprint"] != ac2.get_info()["fingerprint"]
@@ -1210,10 +1188,7 @@ class TestOnlineAccount:
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.clone_online_account(ac1)
         ac2._evtracker.set_timeout(30)
-        ac2.wait_configure_finish()
-        ac2.start_io()
-        ac1.wait_configure_finish()
-        ac1.start_io()
+        acfactory.wait_configure_and_start_io()
 
         lp.sec("trigger ac setup message but ignore")
         assert ac1.get_info()["fingerprint"] != ac2.get_info()["fingerprint"]
@@ -1513,7 +1488,7 @@ class TestOnlineAccount:
         lp.sec("ac3 reinstalls DC and generates a new key")
         ac3.stop_io()
         ac4 = acfactory.clone_online_account(ac3, pre_generated_key=False)
-        ac4.wait_configure_finish()
+        ac4._configtracker.wait_finish()
         # Create contacts to make sure incoming messages are not treated as contact requests
         chat41 = ac4.create_chat(ac1)
         chat42 = ac4.create_chat(ac2)
@@ -1686,26 +1661,26 @@ class TestOnlineConfigureFails:
     def test_invalid_password(self, acfactory):
         ac1, configdict = acfactory.get_online_config()
         ac1.update_config(dict(addr=configdict["addr"], mail_pw="123"))
-        ac1.configure()
-        ac1._configtracker.wait_progress(500)
-        ac1._configtracker.wait_progress(0)
+        configtracker = ac1.configure()
+        configtracker.wait_progress(500)
+        configtracker.wait_progress(0)
         ev = ac1._evtracker.get_matching("DC_EVENT_ERROR_NETWORK")
         assert "cannot login" in ev.data2.lower()
 
     def test_invalid_user(self, acfactory):
         ac1, configdict = acfactory.get_online_config()
         ac1.update_config(dict(addr="x" + configdict["addr"], mail_pw=configdict["mail_pw"]))
-        ac1.configure()
-        ac1._configtracker.wait_progress(500)
-        ac1._configtracker.wait_progress(0)
+        configtracker = ac1.configure()
+        configtracker.wait_progress(500)
+        configtracker.wait_progress(0)
         ev = ac1._evtracker.get_matching("DC_EVENT_ERROR_NETWORK")
         assert "cannot login" in ev.data2.lower()
 
     def test_invalid_domain(self, acfactory):
         ac1, configdict = acfactory.get_online_config()
         ac1.update_config((dict(addr=configdict["addr"] + "x", mail_pw=configdict["mail_pw"])))
-        ac1.configure()
-        ac1._configtracker.wait_progress(500)
-        ac1._configtracker.wait_progress(0)
+        configtracker = ac1.configure()
+        configtracker.wait_progress(500)
+        configtracker.wait_progress(0)
         ev = ac1._evtracker.get_matching("DC_EVENT_ERROR_NETWORK")
         assert "could not connect" in ev.data2.lower()
