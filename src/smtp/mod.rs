@@ -10,8 +10,9 @@ use async_smtp::*;
 use crate::constants::*;
 use crate::context::Context;
 use crate::events::Event;
-use crate::login_param::{dc_build_tls, LoginParam};
+use crate::login_param::{dc_build_tls, CertificateChecks, LoginParam};
 use crate::oauth2::*;
+use crate::provider::get_provider_info;
 use crate::stock::StockMessage;
 
 /// SMTP write and read timeout in seconds.
@@ -113,7 +114,14 @@ impl Smtp {
         let domain = &lp.send_server;
         let port = lp.send_port as u16;
 
-        let tls_config = dc_build_tls(lp.smtp_certificate_checks);
+        let provider = get_provider_info(&lp.addr);
+        let strict_tls = match lp.smtp_certificate_checks {
+            CertificateChecks::Automatic => provider.map_or(false, |provider| provider.strict_tls),
+            CertificateChecks::Strict => true,
+            CertificateChecks::AcceptInvalidCertificates
+            | CertificateChecks::AcceptInvalidCertificates2 => false,
+        };
+        let tls_config = dc_build_tls(strict_tls);
         let tls_parameters = ClientTlsParameters::new(domain.to_string(), tls_config);
 
         let (creds, mechanism) = if 0 != lp.server_flags & (DC_LP_AUTH_OAUTH2 as i32) {
