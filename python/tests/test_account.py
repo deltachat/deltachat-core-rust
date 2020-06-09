@@ -126,8 +126,7 @@ class TestOfflineContact:
         assert not ac1.get_contacts(query="some2")
         assert ac1.get_contacts(query="some1")
         assert not ac1.get_contacts(only_verified=True)
-        contacts = ac1.get_contacts(with_self=True)
-        assert len(contacts) == 2
+        assert len(ac1.get_contacts(with_self=True)) == 2
 
         assert ac1.delete_contact(contact1)
         assert contact1 not in ac1.get_contacts()
@@ -471,8 +470,7 @@ class TestOfflineChat:
             lp.sec("add contact")
             chat.add_contact(contact)
 
-        num_contacts = len(chat.get_contacts())
-        assert num_contacts == 11
+        assert chat.num_contacts() == 11
 
         # let's make sure the events perform plugin hooks
         def wait_events(cond):
@@ -501,7 +499,7 @@ class TestOfflineChat:
         lp.sec("ac1: removing two contacts and checking things are right")
         chat.remove_contact(contacts[9])
         chat.remove_contact(contacts[3])
-        assert len(chat.get_contacts()) == 9
+        assert chat.num_contacts() == 9
 
         wait_events(lambda: len(in_list) == 2)
         assert len(in_list) == 2
@@ -1582,15 +1580,14 @@ class TestGroupStressTests:
         gossiped_timestamp = chat.get_summary()["gossiped_timestamp"]
         assert gossiped_timestamp > 0
 
-        num_contacts = len(chat.get_contacts())
-        assert num_contacts == 3 + 1
+        assert chat.num_contacts() == 3 + 1
 
         lp.sec("ac2: checking that the chat arrived correctly")
         ac2 = accounts[0]
         msg2 = ac2._evtracker.wait_next_incoming_message()
         assert msg2.text == "hello"
         print("chat is", msg2.chat)
-        assert len(msg2.chat.get_contacts()) == 4
+        assert msg2.chat.num_contacts() == 4
 
         lp.sec("ac3: checking that 'ac4' is a known contact")
         ac3 = accounts[1]
@@ -1608,7 +1605,7 @@ class TestGroupStressTests:
         lp.sec("ac1: receiving system message about contact removal")
         sysmsg = ac1._evtracker.wait_next_incoming_message()
         assert to_remove.addr in sysmsg.text
-        assert len(sysmsg.chat.get_contacts()) == 3
+        assert sysmsg.chat.num_contacts() == 3
 
         # Receiving message about removed contact does not reset gossip
         assert chat.get_summary()["gossiped_timestamp"] == gossiped_timestamp
@@ -1627,7 +1624,7 @@ class TestGroupStressTests:
         lp.sec("ac2: receiving system message about contact addition")
         sysmsg = ac2._evtracker.wait_next_incoming_message()
         assert ac5.addr in sysmsg.text
-        assert len(sysmsg.chat.get_contacts()) == 4
+        assert sysmsg.chat.num_contacts() == 4
 
         lp.sec("ac5: waiting for message about addition to the chat")
         sysmsg = ac5._evtracker.wait_next_incoming_message()
@@ -1655,15 +1652,14 @@ class TestGroupStressTests:
         msg = chat.send_text("hello")
         assert chat.is_promoted() and msg.is_encrypted()
 
-        num_contacts = len(chat.get_contacts())
-        assert num_contacts == 3
+        assert chat.num_contacts() == 3
 
         lp.sec("checking that the chat arrived correctly")
         for ac in accounts[1:]:
             msg = ac._evtracker.wait_next_incoming_message()
             assert msg.text == "hello"
             print("chat is", msg.chat)
-            assert len(msg.chat.get_contacts()) == 3
+            assert msg.chat.num_contacts() == 3
 
         lp.sec("ac1: removing ac2")
         chat.remove_contact(ac2)
@@ -1682,7 +1678,7 @@ class TestGroupStressTests:
         lp.sec("ac2: check that ac3 is removed")
         msg = ac2._evtracker.wait_next_incoming_message()
 
-        assert len(msg.chat.get_contacts()) == len(chat.get_contacts())
+        assert msg.chat.num_contacts() == chat.num_contacts()
         acfactory.dump_imap_summary(sys.stdout)
 
 
