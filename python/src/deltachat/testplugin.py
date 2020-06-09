@@ -403,6 +403,8 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
                     if sending:
                         chat.send_text("hi")
                         acc2._evtracker.wait_next_incoming_message()
+                        acc2.create_chat(acc).send_text("hi back")
+                        acc._evtracker.wait_next_incoming_message()
 
     am = AccountMaker()
     request.addfinalizer(am.finalize)

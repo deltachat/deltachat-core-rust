@@ -201,9 +201,7 @@ class TestOfflineChat:
     def test_group_chat_creation(self, ac1):
         contact1 = ac1.create_contact("some1@hello.com", name="some1")
         contact2 = ac1.create_contact("some2@hello.com", name="some2")
-        chat = ac1.create_group_chat(name="title1")
-        chat.add_contact(contact1)
-        chat.add_contact(contact2)
+        chat = ac1.create_group_chat(name="title1", contacts=[contact1, contact2])
         assert chat.get_name() == "title1"
         assert contact1 in chat.get_contacts()
         assert contact2 in chat.get_contacts()
@@ -233,9 +231,7 @@ class TestOfflineChat:
         ac1._evtracker.get_matching("DC_EVENT_WARNING")
         contact1 = ac1.create_contact("some1@hello.com", name="some1")
         contact2 = ac1.create_contact("some2@hello.com", name="some2")
-        chat = ac1.create_group_chat(name="title1")
-        chat.add_contact(contact1)
-        chat.add_contact(contact2)
+        chat = ac1.create_group_chat(name="title1", contacts=[contact1, contact2])
         assert chat.get_name() == "title1"
         assert contact1 in chat.get_contacts()
         assert contact2 in chat.get_contacts()
@@ -1336,7 +1332,6 @@ class TestOnlineAccount:
     def test_add_remove_member_remote_events(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
         ac1_addr = ac1.get_config("addr")
-        ac2_addr = ac2.get_config("addr")
         # activate local plugin for ac2
         in_list = queue.Queue()
 
@@ -1366,9 +1361,7 @@ class TestOnlineAccount:
         ac2.add_account_plugin(InPlugin())
 
         lp.sec("ac1: create group chat with ac2")
-        chat = ac1.create_group_chat("hello")
-        contact = ac1.create_contact(ac2_addr)
-        chat.add_contact(contact)
+        chat = ac1.create_group_chat("hello", contacts=[ac2])
 
         lp.sec("ac1: send a message to group chat to promote the group")
         chat.send_text("afterwards promoted")
@@ -1381,14 +1374,13 @@ class TestOnlineAccount:
         lp.sec("ac1: add address2")
         # note that if the above create_chat() would not
         # happen we would not receive a proper member_added event
-        contact2 = ac1.create_contact(addr="notexistingaccountihope@testrun.org")
-        chat.add_contact(contact2)
+        contact2 = chat.add_contact("devnull@testrun.org")
         ev = in_list.get(timeout=10)
         assert ev.action == "chat-modified"
         ev = in_list.get(timeout=10)
         assert ev.action == "added"
         assert ev.message.get_sender_contact().addr == ac1_addr
-        assert ev.contact.addr == "notexistingaccountihope@testrun.org"
+        assert ev.contact.addr == "devnull@testrun.org"
 
         lp.sec("ac1: remove address2")
         chat.remove_contact(contact2)
@@ -1400,7 +1392,7 @@ class TestOnlineAccount:
         assert ev.message.get_sender_contact().addr == ac1_addr
 
         lp.sec("ac1: remove ac2 contact from chat")
-        chat.remove_contact(contact)
+        chat.remove_contact(ac2)
         ev = in_list.get(timeout=10)
         assert ev.action == "chat-modified"
         ev = in_list.get(timeout=10)
@@ -1428,13 +1420,11 @@ class TestOnlineAccount:
         assert chat.get_profile_image()
 
         lp.sec("ac2: check that initial message arrived")
-        c1 = ac2.create_contact(addr=ac1.get_config("addr"))
-        c1.create_chat()
+        ac2.create_contact(ac1).create_chat()
         ac2._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
 
         lp.sec("ac1: add ac2 to promoted group chat")
-        c2 = ac1.create_contact(addr=ac2.get_config("addr"))
-        chat.add_contact(c2)  # sends one message
+        chat.add_contact(ac2)  # sends one message
 
         lp.sec("ac1: send a first message to ac2")
         chat.send_text("hi")  # sends another message
@@ -1518,38 +1508,21 @@ class TestOnlineAccount:
         """
 
         lp.sec("creating and configuring three accounts")
-        ac1, ac2, ac3 = acfactory.get_many_online_accounts(3, quiet=False)
+        ac1, ac2, ac3 = acfactory.get_many_online_accounts(3)
 
-        chat12, chat21 = acfactory.get_chats(ac1, ac2)
-        chat13, chat31 = acfactory.get_chats(ac1, ac3)
-
-        contact2 = ac1.create_contact(ac2.get_config("addr"))
-        contact3 = ac1.create_contact(ac3.get_config("addr"))
-
-        lp.sec("sending keys to ac1")
-        chat21.send_text("hi 1")
-        msg = ac1._evtracker.wait_next_incoming_message()
-        assert msg.text == "hi 1"
-
-        chat31.send_text("hi 2")
-        msg = ac1._evtracker.wait_next_incoming_message()
-        assert msg.text == "hi 2"
-
-        lp.sec("ac3 stops")
-        ac3.stop_io()
+        acfactory.accept_each_other([ac1, ac2, ac3], sending=True)
 
         lp.sec("ac3 reinstalls DC and generates a new key")
+        ac3.stop_io()
         ac4 = acfactory.clone_online_account(ac3, pre_generated_key=False)
         ac4.wait_configure_finish()
         # Create contacts to make sure incoming messages are not treated as contact requests
-        chat41 = acfactory.get_chat(ac4, ac1)
-        chat42 = acfactory.get_chat(ac4, ac2)
+        chat41 = ac4.create_chat(ac1)
+        chat42 = ac4.create_chat(ac2)
         ac4.start_io()
 
         lp.sec("ac1: creating group chat with 2 other members")
-        chat = ac1.create_group_chat("title")
-        chat.add_contact(contact2)
-        chat.add_contact(contact3)
+        chat = ac1.create_group_chat("title", contacts=[ac2, ac3])
 
         lp.sec("ac1: send message to new group chat")
         msg = chat.send_text("hello")
@@ -1580,20 +1553,18 @@ class TestOnlineAccount:
         lp.sec("ac4: replying to ac1 and ac2")
 
         # Otherwise reply becomes a contact request.
-        chat24 = acfactory.get_chat(ac2, ac4)
-
         chat41.send_text("I can't decrypt your message, ac1!")
         chat42.send_text("I can't decrypt your message, ac2!")
 
         msg = ac1._evtracker.wait_next_incoming_message()
         assert msg.text == "I can't decrypt your message, ac1!"
         assert msg.is_encrypted(), "Message is not encrypted"
-        assert msg.chat == chat13
+        assert msg.chat == ac1.create_chat(ac3)
 
         msg = ac2._evtracker.wait_next_incoming_message()
         assert msg.text == "I can't decrypt your message, ac2!"
         assert msg.is_encrypted(), "Message is not encrypted"
-        assert msg.chat == chat24
+        assert msg.chat == ac2.create_chat(ac4)
 
 
 class TestGroupStressTests:
@@ -1671,66 +1642,42 @@ class TestGroupStressTests:
         Then it removes ac2, removes ac3 and adds ac2 back.
         ac2 did not see that ac3 is removed, so it should rebuild member list from scratch.
         """
-        lp.sec("creating and configuring five accounts")
-        accounts = [acfactory.get_online_configuring_account() for i in range(3)]
-        for acc in accounts:
-            acc.wait_configure_finish()
-            acc.start_io()
-        ac1 = accounts.pop()
-
-        lp.sec("ac1: setting up contacts with 2 other members")
-        contacts = []
-        for acc, name in zip(accounts, ["ac2", "ac3"]):
-            contact = ac1.create_contact(acc.get_config("addr"), name=name)
-            contacts.append(contact)
-
-            # make sure we accept the "hi" message
-            contact.create_chat()
-
-            # make sure the other side accepts our messages
-            chat1 = acc.create_chat(ac1)
-
-            # send a message to get the contact key via autocrypt header
-            chat1.send_text("hi")
-            msg = ac1._evtracker.wait_next_incoming_message()
-            assert msg.text == "hi"
-
-        ac2, ac3 = accounts
+        lp.sec("setting up accounts, accepted with each other")
+        accounts = acfactory.get_many_online_accounts(3)
+        acfactory.accept_each_other(accounts, sending=True)
+        ac1, ac2, ac3 = accounts
 
         lp.sec("ac1: creating group chat with 2 other members")
-        chat = ac1.create_group_chat("title1")
-        for contact in contacts:
-            chat.add_contact(contact)
+        chat = ac1.create_group_chat("title1", contacts=[ac2, ac3])
         assert not chat.is_promoted()
 
         lp.sec("ac1: send message to new group chat")
         msg = chat.send_text("hello")
-        assert chat.is_promoted()
-        assert msg.is_encrypted()
+        assert chat.is_promoted() and msg.is_encrypted()
 
         num_contacts = len(chat.get_contacts())
         assert num_contacts == 3
 
         lp.sec("checking that the chat arrived correctly")
-        for ac in accounts:
+        for ac in accounts[1:]:
             msg = ac._evtracker.wait_next_incoming_message()
             assert msg.text == "hello"
             print("chat is", msg.chat)
             assert len(msg.chat.get_contacts()) == 3
 
         lp.sec("ac1: removing ac2")
-        chat.remove_contact(contacts[0])
+        chat.remove_contact(ac2)
 
         lp.sec("ac2: wait for a message about removal from the chat")
         msg = ac2._evtracker.wait_next_incoming_message()
 
         lp.sec("ac1: removing ac3")
-        chat.remove_contact(contacts[1])
+        chat.remove_contact(ac3)
 
         lp.sec("ac1: adding ac2 back")
         # Group is promoted, message is sent automatically
         assert chat.is_promoted()
-        chat.add_contact(contacts[0])
+        chat.add_contact(ac2)
 
         lp.sec("ac2: check that ac3 is removed")
         msg = ac2._evtracker.wait_next_incoming_message()
