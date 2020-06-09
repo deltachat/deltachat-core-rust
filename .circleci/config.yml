@@ -193,6 +193,8 @@ workflows:
              - remote_tests_python
              - remote_tests_rust 
           filters:
+            branches:
+              only: master
             tags:
               only: /.*/
 
@@ -201,6 +203,8 @@ workflows:
              - remote_python_packaging
              - build_doxygen
           filters:
+            branches:
+              only: master
             tags:
               only: /.*/
       # - rustfmt:
@@ -212,6 +216,8 @@ workflows:
 
       - build_doxygen:
           filters:
+            branches:
+              only: master
             tags:
               only: /.*/
 
