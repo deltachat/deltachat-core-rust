@@ -368,6 +368,14 @@ class Chat(object):
             dc_array, lambda id: Contact(self.account, id))
         )
 
+    def num_contacts(self):
+        """ return number of contacts in this chat. """
+        dc_array = ffi.gc(
+            lib.dc_get_chat_contacts(self.account._dc_context, self.id),
+            lib.dc_array_unref
+        )
+        return lib.dc_array_get_cnt(dc_array)
+
     def set_profile_image(self, img_path):
         """Set group profile image.
 
