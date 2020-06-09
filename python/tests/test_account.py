@@ -105,8 +105,8 @@ class TestOfflineAccountBasic:
 class TestOfflineContact:
     def test_contact_attr(self, acfactory):
         ac1 = acfactory.get_configured_offline_account()
-        contact1 = ac1.create_contact(addr="some1@hello.com", name="some1")
-        contact2 = ac1.create_contact(addr="some1@hello.com", name="some1")
+        contact1 = ac1.create_contact("some1@hello.com", name="some1")
+        contact2 = ac1.create_contact("some1@hello.com", name="some1")
         str(contact1)
         repr(contact1)
         assert contact1 == contact2
@@ -118,7 +118,7 @@ class TestOfflineContact:
 
     def test_get_contacts_and_delete(self, acfactory):
         ac1 = acfactory.get_configured_offline_account()
-        contact1 = ac1.create_contact(addr="some1@hello.com", name="some1")
+        contact1 = ac1.create_contact("some1@hello.com", name="some1")
         contacts = ac1.get_contacts()
         assert len(contacts) == 1
         assert contact1 in contacts
@@ -133,7 +133,7 @@ class TestOfflineContact:
 
     def test_get_contacts_and_delete_fails(self, acfactory):
         ac1 = acfactory.get_configured_offline_account()
-        contact1 = ac1.create_contact(addr="some1@example.com", name="some1")
+        contact1 = ac1.create_contact("some1@example.com", name="some1")
         msg = contact1.create_chat().send_text("one message")
         assert not ac1.delete_contact(contact1)
         assert not msg.filemime
@@ -802,7 +802,7 @@ class TestOnlineAccount:
 
         lp.sec("ac1: creating group chat, and forward own message")
         group = ac1.create_group_chat("newgroup2")
-        group.add_contact(ac1.create_contact(ac2.get_config("addr")))
+        group.add_contact(ac2)
         ac1.forward_messages([msg_out], group)
 
         # wait for other account to receive
@@ -1485,7 +1485,7 @@ class TestOnlineAccount:
         assert locations[0].accuracy == 0.5
         assert locations[0].timestamp > now
 
-        contact = ac2.create_contact(ac1.get_config("addr"))
+        contact = ac2.create_contact(ac1)
         locations2 = chat2.get_locations(contact=contact)
         assert len(locations2) == 1
         assert locations2 == locations

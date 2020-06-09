@@ -213,21 +213,18 @@ class Account(object):
         """
         return Contact(self, const.DC_CONTACT_ID_SELF)
 
-    def create_contact(self, addr, name=None):
-        """ create a (new) Contact. If there already is a Contact
-        with that e-mail address, it is unblocked and its display
-        name is updated.
+    def create_contact(self, obj, name=None):
+        """ create a (new) Contact or return an existing one.
 
-        :param addr: email-address, Account or Contact instance.
-        :param name: display name for this contact (optional)
+        Calling this method will always resulut in the same
+        underlying contact id.  If there already is a Contact
+        with that e-mail address, it is unblocked and its display
+        `name` is updated if specified.
+
+        :param obj: email-address, Account or Contact instance.
+        :param name: (optional) display name for this contact
         :returns: :class:`deltachat.contact.Contact` instance.
         """
-        if not isinstance(addr, (Account, Contact, str)):
-            raise TypeError(str(addr))
-        return self.as_contact(addr, name=name)
-
-    def as_contact(self, obj, name=None):
-        """ Create a contact from an Account, Contact or e-mail address. """
         if isinstance(obj, Account):
             if not obj.is_configured():
                 raise ValueError("can only add addresses from configured accounts")
@@ -309,7 +306,7 @@ class Account(object):
 
     def create_chat(self, obj):
         """ Create a 1:1 chat with Account, Contact or e-mail address. """
-        return self.as_contact(obj).create_chat()
+        return self.create_contact(obj).create_chat()
 
     def _create_chat_by_message_id(self, msg_id):
         return Chat(self, lib.dc_create_chat_by_msg_id(self._dc_context, msg_id))
