@@ -50,6 +50,7 @@ pub struct MimeFactory<'a, 'b> {
     context: &'a Context,
     last_added_location_id: u32,
     attach_selfavatar: bool,
+    include_file: bool,
 }
 
 /// Result of rendering a message, ready to be submitted to a send job.
@@ -159,6 +160,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             last_added_location_id: 0,
             attach_selfavatar,
             context,
+            include_file: true,
         };
         Ok(factory)
     }
@@ -206,6 +208,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             req_mdn: false,
             last_added_location_id: 0,
             attach_selfavatar: false,
+            include_file: true,
         };
 
         Ok(res)
@@ -407,6 +410,10 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             .iter()
             .map(|(_, addr)| addr.clone())
             .collect()
+    }
+
+    pub fn set_include_file(&mut self, include_file: bool) {
+        self.include_file = include_file
     }
 
     pub async fn render(mut self) -> Result<RenderedEmail, Error> {
@@ -898,7 +905,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let mut parts = Vec::new();
 
         // add attachment part
-        if chat::msgtype_has_file(self.msg.viewtype) {
+        if chat::msgtype_has_file(self.msg.viewtype) && self.include_file {
             if !is_file_size_okay(context, &self.msg).await {
                 bail!(
                     "Message exceeds the recommended {} MB.",

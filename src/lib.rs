@@ -69,6 +69,7 @@ mod simplify;
 mod smtp;
 pub mod stock;
 mod token;
+pub(crate) mod upload;
 #[macro_use]
 mod dehtml;
 
