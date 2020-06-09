@@ -2338,21 +2338,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_parse_ndn() {
-        use std::{thread, time};
-
-        let t = dummy_context().await;
-        t.ctx
-            .set_config(Config::Addr, Some("alice@example.org"))
-            .await
-            .unwrap();
-        t.ctx
-            .set_config(Config::ConfiguredAddr, Some("alice@example.org"))
-            .await
-            .unwrap();
-        t.ctx
-            .set_config(Config::Configured, Some("1"))
-            .await
-            .unwrap();
+        let t = configured_offline_context().await;
 
         dc_receive_imf(
             &t.ctx,
@@ -2379,9 +2365,6 @@ mod tests {
         dc_receive_imf(&t.ctx, raw, "INBOX", 1, false)
             .await
             .unwrap();
-
-        thread::sleep(time::Duration::from_millis(1000));
-
         println!("Loading msg {}…", msg_id);
         let msg = Message::load_from_db(&t.ctx, msg_id).await.unwrap();
 
@@ -2390,5 +2373,63 @@ mod tests {
             msg.error.as_ref().map(|s| s.as_str()),
             Some("Delivery Status Notification (Failure) – ** Die Adresse wurde nicht gefunden **\n\nIhre Nachricht wurde nicht an assidhfaaspocwaeofi@gmail.com zugestellt, weil die Adresse nicht gefunden wurde oder keine E-Mails empfangen kann.\n\nHier erfahren Sie mehr: https://support.google.com/mail/?p=NoSuchUser\n\nAntwort:\n\n550 5.1.1 The email account that you tried to reach does not exist. Please try double-checking the recipient\'s email address for typos or unnecessary spaces. Learn more at https://support.google.com/mail/?p=NoSuchUser i18sor6261697wrs.38 - gsmtp")
         )
+    }
+
+    #[async_std::test]
+    async fn test_parse_ndn_group_msg() {
+        let t = configured_offline_context().await;
+
+        dc_receive_imf(
+            &t.ctx,
+            b"From: alice@example.org\n\
+                 To: bob@example.org, assidhfaaspocwaeofi@gmail.com\n\
+                 Subject: foo\n\
+                 Message-ID: <CABXKi8zruXJc_6e4Dr087H5wE7sLp+u250o0N2q5DdjF_r-8wg@mail.gmail.com>\n\
+                 Chat-Version: 1.0\n\
+                 Chat-Group-ID: abcde\n\
+                 Chat-Group-Name: foo\n\
+                 Chat-Disposition-Notification-To: alice@example.org\n\
+                 Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                 \n\
+                 hello\n",
+            "INBOX",
+            1,
+            false,
+        )
+        .await
+        .unwrap();
+
+        let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
+        let msg_id = chats.get_msg_id(0).unwrap();
+
+        let raw = include_bytes!("../test-data/message/gmail_ndn.eml");
+        dc_receive_imf(&t.ctx, raw, "INBOX", 1, false)
+            .await
+            .unwrap();
+
+        println!("Loading msg {}…", msg_id);
+        let msg = Message::load_from_db(&t.ctx, msg_id).await.unwrap();
+
+        assert_eq!(msg.state, MessageState::OutFailed);
+
+        let msgs = chat::get_chat_msgs(&t.ctx, msg.chat_id, 0, None).await;
+        let mut found = false;
+        for id in msgs.iter() {
+            let m = Message::load_from_db(&t.ctx, *id).await.unwrap();
+            if m.from_id == DC_CONTACT_ID_INFO
+                && m.text
+                    == Some(
+                        t.ctx
+                            .stock_string_repl_str(
+                                StockMessage::FailedSendingTo,
+                                "assidhfaaspocwaeofi@gmail.com",
+                            )
+                            .await,
+                    )
+            {
+                found = true;
+            }
+        }
+        assert!(found);
     }
 }
