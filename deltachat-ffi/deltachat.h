@@ -3905,7 +3905,7 @@ int dc_msg_has_html (dc_msg_t* msg);
 
 /**
  * Check if the message is completely downloaded.
- * The UI should render the message as usual,
+ * If not, the UI should render the message as usual,
  * using all the information available by the dc_msg_get_*() and related functions.
  * In addition to that, there should be a download button indicating
  * that the message is not yet downloaded and offering download.
