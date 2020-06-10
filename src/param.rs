@@ -120,6 +120,12 @@ pub enum Param {
 
     /// For MDN-sending job
     MsgId = b'I',
+
+    /// For messages that have a HTTP file upload instead of attachement
+    UploadUrl = b'y',
+
+    /// For messages that have a HTTP file upload instead of attachement: Path to local file
+    UploadPath = b'Y',
 }
 
 /// Possible values for `Param::ForcePlaintext`.
@@ -315,6 +321,23 @@ impl Params {
             ParamsFile::Blob(blob) => blob.to_abs_path(),
         };
         Ok(Some(path))
+    }
+
+    pub fn get_upload_url(&self) -> Option<&str> {
+        self.get(Param::UploadUrl)
+    }
+
+    pub fn get_upload_path(&self, context: &Context) -> Result<Option<PathBuf>, BlobError> {
+        self.get_path(Param::UploadPath, context)
+    }
+
+    pub fn set_upload_path(&mut self, path: PathBuf) {
+        // TODO: Remove unwrap? May panic for invalid UTF8 in path.
+        self.set(Param::UploadPath, path.to_str().unwrap());
+    }
+
+    pub fn set_upload_url(&mut self, url: impl AsRef<str>) {
+        self.set(Param::UploadUrl, url);
     }
 
     pub fn get_msg_id(&self) -> Option<MsgId> {
