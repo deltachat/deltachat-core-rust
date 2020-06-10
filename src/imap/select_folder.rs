@@ -27,7 +27,7 @@ impl Imap {
     ///
     /// CLOSE is considerably faster than an EXPUNGE, see
     /// https://tools.ietf.org/html/rfc3501#section-6.4.2
-    async fn close_folder(&mut self, context: &Context) -> Result<()> {
+    pub(super) async fn close_folder(&mut self, context: &Context) -> Result<()> {
         if let Some(ref folder) = self.config.selected_folder {
             info!(context, "Expunge messages in \"{}\".", folder);
 
