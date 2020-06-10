@@ -149,9 +149,9 @@ def extract_defines(flags):
                 | DC_PROVIDER
                 | DC_KEY_GEN
             )         # End of prefix matching
-            _[A-Z_]+  # Match the suffix, e.g. _TEXT in DC_MSG_TEXT
+            _[\w_]+   # Match the suffix, e.g. _RSA2048 in DC_KEY_GEN_RSA2048
         )             # Close the capturing group, this contains
-                      #    the entire name e.g. DC_MSG_TEXT.
+                      # the entire name e.g. DC_MSG_TEXT.
         \s+\S+        # Ensure there is whitespace followed by a value.
     """, re.VERBOSE)
     defines = []
