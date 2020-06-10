@@ -333,14 +333,11 @@ impl Job {
 
     pub async fn send_msg_to_smtp(&mut self, context: &Context, smtp: &mut Smtp) -> Status {
         // Upload file to HTTP if set in params.
-        match (
+        if let (Some(upload_url), Ok(Some(upload_path))) = (
             self.param.get_upload_url(),
             self.param.get_upload_path(context),
         ) {
-            (Some(upload_url), Ok(Some(upload_path))) => {
-                job_try!(upload_file(context, upload_url.to_string(), upload_path).await);
-            }
-            _ => {}
+            job_try!(upload_file(context, upload_url.to_string(), upload_path).await);
         }
 
         //  SMTP server, if not yet done
