@@ -2338,6 +2338,18 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_parse_ndn_yahoo() {
+        test_parse_ndn(
+            "alice@yahoo.com",
+            "haeclirth.sinoenrat@yahoo.com",
+            "1680295672.3657931.1591783872936@mail.yahoo.com",
+            include_bytes!("../test-data/message/yahoo_ndn.eml"),
+            "Failure Notice – Sorry, we were unable to deliver your message to the following address.\n\n<haeclirth.sinoenrat@yahoo.com>:\n554: delivery error: dd Not a valid recipient - atlas117.free.mail.ne1.yahoo.com"
+        )
+        .await;
+    }
+
+    #[async_std::test]
     async fn test_parse_ndn_gmail() {
         test_parse_ndn(
             "alice@gmail.com",
