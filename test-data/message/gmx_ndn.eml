@@ -1,12 +1,12 @@
 Return-Path: <>
 Received: from mout-bounce.gmx.net ([212.227.15.44]) by mx-ha.gmx.net
  (mxgmx101 [212.227.17.5]) with ESMTPS (Nemesis) id 1Mr97m-1jC6Y01o86-00oEqk
- for <hocuri@gmx.de>; Tue, 09 Jun 2020 14:35:30 +0200
+ for <alice@gmx.de>; Tue, 09 Jun 2020 14:35:30 +0200
 Received: from localhost by mout-bounce.gmx.net id 0LhiZF-1jDTj11ZoH-00msO3
     Tue, 09 Jun 2020 14:35:30 +0200
 Date: Tue, 09 Jun 2020 14:35:30 +0200
 From: "GMX Mailer Daemon" <mailer-daemon@gmx.de>
-To: hocuri@gmx.de
+To: alice@gmx.de
 Subject: Mail delivery failed: returning message to sender
 Auto-Submitted: auto-replied
 MIME-Version: 1.0
@@ -14,7 +14,7 @@ Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit
 X-UI-Out-Filterresults: unknown:0;V03:K0:O8yx6kuPaGQ=:0wIDPNXEr0wX2oNsLnXaWA
  ==
-Envelope-To: <hocuri@gmx.de>
+Envelope-To: <alice@gmx.de>
 X-GMX-Antispam: 0 (Mail was not recognized as spam); Detail=V3;
 X-Spam-Flag: NO
 X-UI-Filterresults: notjunk:1;V03:K0:QcE43EBhMmU=:IC5vvzi9jhPS/698Wuubzw1Q4N
@@ -74,7 +74,7 @@ Received: from [192.168.178.30] ([84.57.126.154]) by mail.gmx.com (mrgmx005
  [212.227.17.190]) with ESMTPSA (Nemesis) id 1MKbkM-1jNoq60HKm-00KyL2 for
  <snaerituhaeirns@gmail.com>; Tue, 09 Jun 2020 14:35:30 +0200
 To: snaerituhaeirns@gmail.com
-From: Hocuri <hocuri@gmx.de>
+From: Alice <alice@gmx.de>
 Subject: test
 Message-ID: <9c9c2a32-056b-3592-c372-d7e8f0bd4bc2@gmx.de>
 Date: Tue, 9 Jun 2020 14:36:10 +0200

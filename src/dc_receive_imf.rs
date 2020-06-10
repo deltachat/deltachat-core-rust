@@ -2349,6 +2349,30 @@ mod tests {
         .await;
     }
 
+    #[async_std::test]
+    async fn test_parse_ndn_gmx() {
+        test_parse_ndn(
+            "alice@gmx.com",
+            "snaerituhaeirns@gmail.com",
+            "9c9c2a32-056b-3592-c372-d7e8f0bd4bc2@gmx.de",
+            include_bytes!("../test-data/message/gmx_ndn.eml"),
+            "Delivery Status Notification (Failure) – ** Die Adresse wurde nicht gefunden **\n\nIhre Nachricht wurde nicht an assidhfaaspocwaeofi@gmail.com zugestellt, weil die Adresse nicht gefunden wurde oder keine E-Mails empfangen kann.\n\nHier erfahren Sie mehr: https://support.google.com/mail/?p=NoSuchUser\n\nAntwort:\n\n550 5.1.1 The email account that you tried to reach does not exist. Please try double-checking the recipient\'s email address for typos or unnecessary spaces. Learn more at https://support.google.com/mail/?p=NoSuchUser i18sor6261697wrs.38 - gsmtp",
+        )
+        .await;
+    }
+
+    #[async_std::test]
+    async fn test_parse_ndn_posteo() {
+        test_parse_ndn(
+            "alice@posteo.org",
+            "hanerthaertidiuea@gmx.de",
+            "04422840-f884-3e37-5778-8192fe22d8e1@posteo.de",
+            include_bytes!("../test-data/message/posteo_ndn.eml"),
+            "Delivery Status Notification (Failure) – ** Die Adresse wurde nicht gefunden **\n\nIhre Nachricht wurde nicht an assidhfaaspocwaeofi@gmail.com zugestellt, weil die Adresse nicht gefunden wurde oder keine E-Mails empfangen kann.\n\nHier erfahren Sie mehr: https://support.google.com/mail/?p=NoSuchUser\n\nAntwort:\n\n550 5.1.1 The email account that you tried to reach does not exist. Please try double-checking the recipient\'s email address for typos or unnecessary spaces. Learn more at https://support.google.com/mail/?p=NoSuchUser i18sor6261697wrs.38 - gsmtp",
+        )
+        .await;
+    }
+
     async fn test_parse_ndn(
         self_addr: &str,
         foreign_addr: &str,
@@ -2405,11 +2429,23 @@ mod tests {
 
     #[async_std::test]
     async fn test_parse_ndn_group_msg() {
-        let t = configured_offline_context().await;
+        let t = dummy_context().await;
+        t.ctx
+            .set_config(Config::Addr, Some("alice@gmail.com"))
+            .await
+            .unwrap();
+        t.ctx
+            .set_config(Config::ConfiguredAddr, Some("alice@gmail.com"))
+            .await
+            .unwrap();
+        t.ctx
+            .set_config(Config::Configured, Some("1"))
+            .await
+            .unwrap();
 
         dc_receive_imf(
             &t.ctx,
-            b"From: alice@example.org\n\
+            b"From: alice@gmail.com\n\
                  To: bob@example.org, assidhfaaspocwaeofi@gmail.com\n\
                  Subject: foo\n\
                  Message-ID: <CABXKi8zruXJc_6e4Dr087H5wE7sLp+u250o0N2q5DdjF_r-8wg@mail.gmail.com>\n\
