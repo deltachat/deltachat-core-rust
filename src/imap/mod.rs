@@ -314,9 +314,15 @@ impl Imap {
     }
 
     async fn unsetup_handle(&mut self, context: &Context) {
+        // Close folder if messages should be expunged
+        if let Err(err) = self.close_folder(context).await {
+            warn!(context, "failed to close folder: {:?}", err);
+        }
+
+        // Logout from the server
         if let Some(mut session) = self.session.take() {
-            if let Err(err) = session.close().await {
-                warn!(context, "failed to close connection: {:?}", err);
+            if let Err(err) = session.logout().await {
+                warn!(context, "failed to logout: {:?}", err);
             }
         }
         self.connected = false;
