@@ -1,5 +1,28 @@
 # Changelog 
 
+## 1.35.0
+
+- enable strict-tls from a new provider-db setting #1587
+
+- new subject 'Message from USER' for one-to-one chats #1395
+
+- recode images #1563
+
+- improve reconnect handling #1549 #1580
+
+- improve importing addresses #1544
+
+- improve configure and folder detection #1539 #1548
+
+- improve test suite #1559 #1564 #1580 #1581 #1582 #1584 #1588:
+
+- fix ad-hoc groups #1566
+
+- preventions against being marked as spam #1575
+
+- refactorings #1542 #1569
+
+
 ## 1.34.0
 
 - new api for io, thread and event handling #1356,
