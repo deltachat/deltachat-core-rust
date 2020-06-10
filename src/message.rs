@@ -1408,7 +1408,7 @@ pub(crate) async fn ndn_from_ext(
                 "SELECT",
                 "    m.id AS msg_id,",
                 "    c.id AS chat_id,",
-                "    c.type AS type,",
+                "    c.type AS type",
                 " FROM msgs m LEFT JOIN chats c ON m.chat_id=c.id",
                 " WHERE rfc724_mid=? AND from_id=1",
             ),
