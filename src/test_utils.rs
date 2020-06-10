@@ -41,13 +41,14 @@ pub(crate) async fn dummy_context() -> TestContext {
 }
 
 pub(crate) async fn configured_offline_context() -> TestContext {
+    configured_offline_context_with_addr("alice@example.org").await
+}
+
+pub(crate) async fn configured_offline_context_with_addr(addr: &str) -> TestContext {
     let t = dummy_context().await;
+    t.ctx.set_config(Config::Addr, Some(addr)).await.unwrap();
     t.ctx
-        .set_config(Config::Addr, Some("alice@example.org"))
-        .await
-        .unwrap();
-    t.ctx
-        .set_config(Config::ConfiguredAddr, Some("alice@example.org"))
+        .set_config(Config::ConfiguredAddr, Some(addr))
         .await
         .unwrap();
     t.ctx

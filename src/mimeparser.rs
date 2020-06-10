@@ -876,7 +876,7 @@ impl MimeMessage {
                 .and_then(|v| parse_message_id(&v).ok())
             {
                 let mut to_list = get_all_addresses_from_header(&report.headers, |header_key| {
-                    header_key == "X-Failed-Recipients"
+                    header_key == "x-failed-recipients"
                 });
                 let to = if to_list.len() == 1 {
                     Some(to_list.pop().unwrap())

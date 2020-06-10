@@ -1779,7 +1779,7 @@ mod tests {
     use crate::chat::ChatVisibility;
     use crate::chatlist::Chatlist;
     use crate::message::Message;
-    use crate::test_utils::{configured_offline_context, dummy_context};
+    use crate::test_utils::*;
 
     #[test]
     fn test_hex_hash() {
@@ -2380,19 +2380,7 @@ mod tests {
         raw_ndn: &[u8],
         error_msg: &str,
     ) {
-        let t = dummy_context().await;
-        t.ctx
-            .set_config(Config::Addr, Some(self_addr))
-            .await
-            .unwrap();
-        t.ctx
-            .set_config(Config::ConfiguredAddr, Some(self_addr))
-            .await
-            .unwrap();
-        t.ctx
-            .set_config(Config::Configured, Some("1"))
-            .await
-            .unwrap();
+        let t = configured_offline_context_with_addr(self_addr).await;
 
         dc_receive_imf(
             &t.ctx,
@@ -2429,26 +2417,14 @@ mod tests {
 
     #[async_std::test]
     async fn test_parse_ndn_group_msg() {
-        let t = dummy_context().await;
-        t.ctx
-            .set_config(Config::Addr, Some("alice@gmail.com"))
-            .await
-            .unwrap();
-        t.ctx
-            .set_config(Config::ConfiguredAddr, Some("alice@gmail.com"))
-            .await
-            .unwrap();
-        t.ctx
-            .set_config(Config::Configured, Some("1"))
-            .await
-            .unwrap();
+        let t = configured_offline_context_with_addr("alice@gmail.com").await;
 
         dc_receive_imf(
             &t.ctx,
             b"From: alice@gmail.com\n\
                  To: bob@example.org, assidhfaaspocwaeofi@gmail.com\n\
                  Subject: foo\n\
-                 Message-ID: <CABXKi8zruXJc_6e4Dr087H5wE7sLp+u250o0N2q5DdjF_r-8wg@mail.gmail.com>\n\
+                 Message-ID: <CADWx9Cs32Wa7Gy-gM0bvbq54P_FEHe7UcsAV=yW7sVVW=fiMYQ@mail.gmail.com>\n\
                  Chat-Version: 1.0\n\
                  Chat-Group-ID: abcde\n\
                  Chat-Group-Name: foo\n\
@@ -2477,12 +2453,10 @@ mod tests {
         assert_eq!(msg.state, MessageState::OutFailed);
 
         let msgs = chat::get_chat_msgs(&t.ctx, msg.chat_id, 0, None).await;
-        println!("Loading {}…", msg.chat_id);
         let last_msg = Message::load_from_db(&t.ctx, *msgs.last().unwrap())
             .await
             .unwrap();
 
-        assert_eq!(last_msg.from_id, DC_CONTACT_ID_INFO);
         assert_eq!(
             last_msg.text,
             Some(
@@ -2494,5 +2468,6 @@ mod tests {
                     .await,
             )
         );
+        assert_eq!(last_msg.from_id, DC_CONTACT_ID_INFO);
     }
 }
