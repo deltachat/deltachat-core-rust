@@ -3,6 +3,7 @@ use std::future::Future;
 use std::pin::Pin;
 
 use deltachat_derive::{FromSql, ToSql};
+use lazy_static::lazy_static;
 use lettre_email::mime::{self, Mime};
 use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
 
@@ -186,6 +187,7 @@ impl MimeMessage {
             failed_msg: None,
         };
         parser.parse_mime_recursive(context, &mail).await?;
+        parser.heuristically_parse_ndn().await;
         parser.parse_headers(context)?;
 
         Ok(parser)
@@ -855,6 +857,82 @@ impl MimeMessage {
         Ok(None)
     }
 
+    fn process_delivery_status(
+        &self,
+        context: &Context,
+        report: &mailparse::ParsedMail<'_>,
+    ) -> Result<Option<FailedMsg>> {
+        // parse as mailheaders
+        if let Some(original_msg) = report
+            .subparts
+            .iter()
+            .find(|p| p.ctype.mimetype.contains("rfc822"))
+        {
+            let report_body = original_msg.get_body_raw()?;
+            let (report_fields, _) = mailparse::parse_headers(&report_body)?;
+
+            if let Some(original_message_id) = report_fields
+                .get_header_value(HeaderDef::MessageId)
+                .and_then(|v| parse_message_id(&v).ok())
+            {
+                let mut to_list = get_all_addresses_from_header(&report.headers, |header_key| {
+                    header_key == "X-Failed-Recipients"
+                });
+                let to = if to_list.len() == 1 {
+                    Some(to_list.pop().unwrap())
+                } else {
+                    None // We do not know which recipient failed
+                };
+
+                return Ok(Some(FailedMsg {
+                    rfc724_mid: original_message_id,
+                    failed_recipient: to.map(|s| s.addr),
+                }));
+            }
+
+            warn!(
+                context,
+                "ignoring unknown ndn-notification, Message-Id: {:?}",
+                report_fields.get_header_value(HeaderDef::MessageId)
+            );
+        }
+
+        Ok(None)
+    }
+
+    async fn heuristically_parse_ndn(&mut self) -> Option<()> {
+        if self
+            .get(HeaderDef::Subject)?
+            .to_ascii_lowercase()
+            .contains("fail")
+            && self
+                .get(HeaderDef::From_)?
+                .to_ascii_lowercase()
+                .contains("daemon")
+            && self.failed_msg.is_none()
+        {
+            for line in self
+                .parts
+                .iter()
+                .filter_map(|p| p.msg_raw.as_ref())
+                .flat_map(|p| p.lines())
+            {
+                lazy_static! {
+                    static ref RE: regex::Regex = regex::Regex::new(r"Message-ID:(.*)").unwrap();
+                }
+                if let Some(c) = RE.captures(line) {
+                    if let Ok(original_message_id) = parse_message_id(&c[1]) {
+                        self.failed_msg = Some(FailedMsg {
+                            rfc724_mid: original_message_id,
+                            failed_recipient: None,
+                        })
+                    }
+                }
+            }
+        }
+        None
+    }
+
     /// Handle reports (only MDNs for now)
     pub async fn handle_reports(
         &self,
@@ -877,53 +955,16 @@ impl MimeMessage {
         }
 
         if let Some(original_message_id) = &self.failed_msg {
-            let error = parts
-                .iter()
-                .find(|p| p.typ == Viewtype::Text)
-                .map(|p| &p.msg);
+            let error = parts.iter().find(|p| p.typ == Viewtype::Text).map(|p| {
+                let msg = &p.msg;
+                match msg.find("\n--- ") {
+                    Some(footer_start) => &msg[..footer_start],
+                    None => msg,
+                }
+                .trim()
+            });
             message::ndn_from_ext(context, original_message_id, error).await
         }
-    }
-
-    fn process_delivery_status(
-        &self,
-        context: &Context,
-        report: &mailparse::ParsedMail<'_>,
-    ) -> Result<Option<FailedMsg>> {
-        // parse as mailheaders
-        if let Some(original_msg) = report
-            .subparts
-            .iter()
-            .find(|p| p.ctype.mimetype.contains("rfc822"))
-        {
-            let report_body = original_msg.get_body_raw()?;
-            let (report_fields, _) = mailparse::parse_headers(&report_body)?;
-
-            if let Some(original_message_id) = report_fields
-                .get_header_value(HeaderDef::MessageId)
-                .and_then(|v| parse_message_id(&v).ok())
-            {
-                let mut to_list = get_recipients(&report_fields);
-                let to = if to_list.len() == 1 {
-                    Some(to_list.pop().unwrap())
-                } else {
-                    None // We do not know which recipient failed
-                };
-
-                return Ok(Some(FailedMsg {
-                    rfc724_mid: original_message_id,
-                    failed_recipient: to.map(|s| s.addr),
-                }));
-            }
-
-            warn!(
-                context,
-                "ignoring unknown ndn-notification, Message-Id: {:?}",
-                report_fields.get_header_value(HeaderDef::MessageId)
-            );
-        }
-
-        Ok(None)
     }
 }
 

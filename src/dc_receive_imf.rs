@@ -2356,7 +2356,7 @@ mod tests {
             "snaerituhaeirns@gmail.com",
             "9c9c2a32-056b-3592-c372-d7e8f0bd4bc2@gmx.de",
             include_bytes!("../test-data/message/gmx_ndn.eml"),
-            "Delivery Status Notification (Failure) – ** Die Adresse wurde nicht gefunden **\n\nIhre Nachricht wurde nicht an assidhfaaspocwaeofi@gmail.com zugestellt, weil die Adresse nicht gefunden wurde oder keine E-Mails empfangen kann.\n\nHier erfahren Sie mehr: https://support.google.com/mail/?p=NoSuchUser\n\nAntwort:\n\n550 5.1.1 The email account that you tried to reach does not exist. Please try double-checking the recipient\'s email address for typos or unnecessary spaces. Learn more at https://support.google.com/mail/?p=NoSuchUser i18sor6261697wrs.38 - gsmtp",
+            "Mail delivery failed: returning message to sender – This message was created automatically by mail delivery software.\n\nA message that you sent could not be delivered to one or more of\nits recipients. This is a permanent error. The following address(es)\nfailed:\n\nsnaerituhaeirns@gmail.com:\nSMTP error from remote server for RCPT TO command, host: gmail-smtp-in.l.google.com (66.102.1.27) reason: 550-5.1.1 The email account that you tried to reach does not exist. Please\n try\n550-5.1.1 double-checking the recipient\'s email address for typos or\n550-5.1.1 unnecessary spaces. Learn more at\n550 5.1.1  https://support.google.com/mail/?p=NoSuchUser f6si2517766wmc.21\n9 - gsmtp"
         )
         .await;
     }
@@ -2466,7 +2466,7 @@ mod tests {
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         let msg_id = chats.get_msg_id(0).unwrap();
 
-        let raw = include_bytes!("../test-data/message/gmail_ndn.eml");
+        let raw = include_bytes!("../test-data/message/gmail_ndn_group.eml");
         dc_receive_imf(&t.ctx, raw, "INBOX", 1, false)
             .await
             .unwrap();
