@@ -3164,77 +3164,51 @@ char*           dc_msg_get_setupcodebegin     (const dc_msg_t* msg);
 
 
 /**
- * Check if the message is completely downloaded.
- * If not, the UI should render the message as usual,
- * using all the information available by the dc_msg_get_*() and related functions.
- * In addition to that, there should be a download button indicating
- * that the message is not yet downloaded and offering download.
+ * Check if the message is completely downloaded
+ * or if some further action is needed.
  *
- * Once the button is clicked,
- * the UI can call dc_download_msg() to start the download in the core
- * or do the download on its own using dc_msg_get_download_url().
+ * The function returns one of:
+ * - @ref DC_DOWNLOAD_NOT_NEEDED  - The message does not need any further download action
+ *                                  and should be rendered as usual.
+ * - @ref DC_DOWNLOAD_AVAILABLE   - There is additional content to download.
+ *                                  Tn addition to the usual message rendering,
+ *                                  the UI shall show a download button that starts dc_schedule_download()
+ * - @ref DC_DOWNLOAD_IN_PROGRESS - Download was started with dc_schedule_download() and is still in progress.
+ *                                  On progress changes and if the download fails or succeeds,
+ *                                  the event @ref DC_EVENT_DOWNLOAD_PROGRESS will be emitted.
+ * - @ref DC_DOWNLOAD_DONE        - Download finished successfully
+ * - @ref DC_DOWNLOAD_FAILURE     - Download error, the user may start over calling dc_schedule_download() again.
  *
  * @memberof dc_msg_t
  * @param msg The message object.
- * @return 0=Message is completely downloaded, no special action required.
- *     1=Message is not completely downloaded, download button needed.
+ * @return One of the @ref DC_DOWNLOAD values
  */
-int dc_msg_needs_download(const dc_msg_t* msg);
+int dc_msg_download_status(const dc_msg_t* msg);
 
 
 /**
  * Advices the core to start downloading a message.
- * This function should only be called when the user hit the "Download" button
- * that is shown by the UI in case dc_msg_needs_download() indicates a message is incomplete.
- * During the download, the progress, errors and success are reported using @ref DC_EVENT_DOWNLOAD_PROGRESS.
+ * This function is typically called when the user hits the "Download" button
+ * that is shown by the UI in case dc_msg_download_status()
+ * returns @ref DC_DOWNLOAD_AVAILABLE or @ref DC_DOWNLOAD_FAILURE.
  *
- * As an alternative, in some cases, also the UI can try to download the file,
- * see dc_msg_get_download_url() and dc_set_download().
+ * The UI may want to show a file selector and let the user chose a download location.
+ * The file name in the file selector may be prefilled using dc_msg_get_filename().
+ *
+ * During the download, the progress, errors and success
+ * are reported using @ref DC_EVENT_DOWNLOAD_PROGRESS.
+ *
+ * Once the @ref DC_EVENT_DOWNLOAD_PROGRESS reports success,
+ * The file can be accessed as usual using dc_msg_get_file().
  *
  * @memberof dc_context_t
  * @param context The context object.
+ * @param path Path to the destination file.
+ *     You can specify NULL here to download
+ *     to a reasonable file name in the internal blob-directory.
  * @param msg_id Message-ID to download the content for.
  */
-void dc_download_msg(dc_context_t* context, int msg_id);
-
-
-/**
- * Alternative approach to download messages.
- * Get the URL that is needed to download the message.
- * This function should only be called when the user hit the "Download" button
- * that is shown by the UI in case dc_msg_needs_download() indicates a message is incomplete.
- * Once the download is complete,
- * the UI should call dc_set_download().
- *
- * Instead of dc_msg_get_download_url() and a later dc_set_download(),
- * calling dc_download_msg() might be easier, however, not all operating system support long lasting
- * background tasks. With dc_msg_get_download_url(), it might be possible to delegate the work.
- *
- * @memberof dc_msg_t
- * @param msg The message object.
- * @return A URL that should downloaded, the result has to be passed to dc_set_download().
- *     If the download is not possible by a simple URL or on errors, NULL is returned.
- *     In these cases, download using dc_download_msg() might be tried.
- *     The returned string must be released using dc_str_unref().
- */
-char* dc_msg_get_download_url(const dc_msg_t* msg);
-
-
-/**
- * Tell the core about a successfully completely download
- * of the URL returned by dc_msg_get_download_url().
- * After this function is called, dc_msg_needs_download() will typically stop reporting the need of download.
- *
- * @memberof dc_context_t
- * @param context The context object.
- * @param msg_id Message-ID to set the download for.
- * @param file_with_data File with the raw, complete download. If this file is already in the blob-directory,
- *     the core takes ownership of the file, otherwise, it is copied as needed.
- *     Please do not mix that with dc_msg_get_file() -
- *     the download may or may not be the file reported to the user later.
- * @return 1=success, 0=error
- */
-int dc_set_download(dc_context_t* context, int msg_id, const char* file_with_data);
+void dc_schedule_download(dc_context_t* context, int msg_id, const char* path);
 
 
 /**
@@ -4307,7 +4281,7 @@ void dc_event_unref(dc_event_t* event);
 
 
 /**
- * Inform about the progress of a download started by dc_download_msg().
+ * Inform about the progress of a download started by dc_schedule_download().
  *
  * @param data1 (int) Message-ID the progress is reported for.
  * @param data2 (int) 0=error, 1-999=progress in permille, 1000=success and done
@@ -4452,6 +4426,29 @@ void dc_event_unref(dc_event_t* event);
 /**
  * @}
  */
+
+
+/**
+ * @defgroup DC_DOWNLOAD DC_DOWNLOAD
+ *
+ * These constants describe the download state of a message.
+ * The download state can be retrieved using dc_msg_download_status()
+ * and usually changes after calling dc_schedule_download().
+ *
+ * @addtogroup DC_DOWNLOAD
+ * @{
+ */
+
+#define DC_DOWNLOAD_NOT_NEEDED  10 ///< Download not needed, see dc_msg_download_status() for details.
+#define DC_DOWNLOAD_AVAILABLE   20 ///< Download available, see dc_msg_download_status() for details.
+#define DC_DOWNLOAD_IN_PROGRESS 30 ///< Download in progress, see dc_msg_download_status() for details.
+#define DC_DOWNLOAD_DONE        40 ///< Download done, see dc_msg_download_status() for details.
+#define DC_DOWNLOAD_FAILURE     50 ///< Download failed, see dc_msg_download_status() for details.
+
+/**
+ * @}
+ */
+
 
 
 /*
