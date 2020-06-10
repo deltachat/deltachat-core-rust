@@ -3164,6 +3164,80 @@ char*           dc_msg_get_setupcodebegin     (const dc_msg_t* msg);
 
 
 /**
+ * Check if the message is completely downloaded.
+ * The UI should render the message as usual,
+ * using all the information available by the dc_msg_get_*() and related functions.
+ * In addition to that, there should be a download button indicating
+ * that the message is not yet downloaded and offering download.
+ *
+ * Once the button is clicked,
+ * the UI can call dc_download_msg() to start the download in the core
+ * or do the download on its own using dc_msg_get_download_url().
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return 0=Message is completely downloaded, no special action required.
+ *     1=Message is not completely downloaded, download button needed.
+ */
+int dc_msg_needs_download(const dc_msg_t* msg);
+
+
+/**
+ * Advices the core to start downloading a message.
+ * This function should only be called when the user hit the "Download" button
+ * that is shown by the UI in case dc_msg_needs_download() indicates a message is incomplete.
+ * During the download, the progress, errors and success are reported using @ref DC_EVENT_DOWNLOAD_PROGRESS.
+ *
+ * As an alternative, in some cases, also the UI can try to download the file,
+ * see dc_msg_get_download_url() and dc_set_download().
+ *
+ * @memberof dc_context_t
+ * @param context The context object.
+ * @param msg_id Message-ID to download the content for.
+ */
+void dc_download_msg(dc_context_t* context, int msg_id);
+
+
+/**
+ * Alternative approach to download messages.
+ * Get the URL that is needed to download the message.
+ * This function should only be called when the user hit the "Download" button
+ * that is shown by the UI in case dc_msg_needs_download() indicates a message is incomplete.
+ * Once the download is complete,
+ * the UI should call dc_set_download().
+ *
+ * Instead of dc_msg_get_download_url() and a later dc_set_download(),
+ * calling dc_download_msg() might be easier, however, not all operating system support long lasting
+ * background tasks. With dc_msg_get_download_url(), it might be possible to delegate the work.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return A URL that should downloaded, the result has to be passed to dc_set_download().
+ *     If the download is not possible by a simple URL or on errors, NULL is returned.
+ *     In these cases, download using dc_download_msg() might be tried.
+ *     The returned string must be released using dc_str_unref().
+ */
+char* dc_msg_get_download_url(const dc_msg_t* msg);
+
+
+/**
+ * Tell the core about a successfully completely download
+ * of the URL returned by dc_msg_get_download_url().
+ * After this function is called, dc_msg_needs_download() will typically stop reporting the need of download.
+ *
+ * @memberof dc_context_t
+ * @param context The context object.
+ * @param msg_id Message-ID to set the download for.
+ * @param file_with_data File with the raw, complete download. If this file is already in the blob-directory,
+ *     the core takes ownership of the file, otherwise, it is copied as needed.
+ *     Please do not mix that with dc_msg_get_file() -
+ *     the download may or may not be the file reported to the user later.
+ * @return 1=success, 0=error
+ */
+int dc_set_download(dc_context_t* context, int msg_id, const char* file_with_data);
+
+
+/**
  * Set the text of a message object.
  * This does not alter any information in the database; this may be done by dc_send_msg() later.
  *
@@ -4230,6 +4304,16 @@ void dc_event_unref(dc_event_t* event);
  *     (Bob has verified alice and waits until Alice does the same for him)
  */
 #define DC_EVENT_SECUREJOIN_JOINER_PROGRESS       2061
+
+
+/**
+ * Inform about the progress of a download started by dc_download_msg().
+ *
+ * @param data1 (int) Message-ID the progress is reported for.
+ * @param data2 (int) 0=error, 1-999=progress in permille, 1000=success and done
+ */
+#define DC_EVENT_DOWNLOAD_PROGRESS       2070
+
 
 /**
  * @}
