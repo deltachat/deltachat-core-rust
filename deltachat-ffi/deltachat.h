@@ -3168,7 +3168,7 @@ char*           dc_msg_get_setupcodebegin     (const dc_msg_t* msg);
  * or if some further action is needed.
  *
  * The function returns one of:
- * - @ref DC_DOWNLOAD_NOT_NEEDED  - The message does not need any further download action
+ * - @ref DC_DOWNLOAD_NO_URL      - The message does not need any further download action
  *                                  and should be rendered as usual.
  * - @ref DC_DOWNLOAD_AVAILABLE   - There is additional content to download.
  *                                  Tn addition to the usual message rendering,
@@ -4439,7 +4439,7 @@ void dc_event_unref(dc_event_t* event);
  * @{
  */
 
-#define DC_DOWNLOAD_NOT_NEEDED  10 ///< Download not needed, see dc_msg_download_status() for details.
+#define DC_DOWNLOAD_NO_URL      10 ///< Download not needed, see dc_msg_download_status() for details.
 #define DC_DOWNLOAD_AVAILABLE   20 ///< Download available, see dc_msg_download_status() for details.
 #define DC_DOWNLOAD_IN_PROGRESS 30 ///< Download in progress, see dc_msg_download_status() for details.
 #define DC_DOWNLOAD_DONE        40 ///< Download done, see dc_msg_download_status() for details.
