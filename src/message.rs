@@ -1280,7 +1280,7 @@ pub async fn set_msg_failed(context: &Context, msg_id: MsgId, error: Option<impl
                 msg_id,
             }),
             Err(e) => {
-                error!(context, "{:?}", e);
+                warn!(context, "{:?}", e);
             }
         }
     }
