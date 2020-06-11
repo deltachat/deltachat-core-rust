@@ -4429,6 +4429,7 @@ void dc_event_unref(dc_event_t* event);
 #define DC_STR_UNKNOWN_SENDER_FOR_CHAT    72
 #define DC_STR_SUBJECT_FOR_NEW_CONTACT    73
 #define DC_STR_COUNT                      73
+#define FAILED_SENDING_TO                 74
 
 /*
  * @}
