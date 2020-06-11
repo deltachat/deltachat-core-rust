@@ -149,7 +149,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
             }
         }
         None => {
-            warn!(ctx, "Can not watch inbox folder, not set");
+            warn!(ctx, "Can not watch {} folder, not set", folder);
             connection.fake_idle(&ctx, None).await
         }
     }
