@@ -45,9 +45,8 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Default, DebugStub)]
-pub struct Smtp {
-    #[debug_stub(some = "SmtpTransport")]
+#[derive(Default)]
+pub(crate) struct Smtp {
     transport: Option<smtp::SmtpTransport>,
 
     /// Email address we are sending from.

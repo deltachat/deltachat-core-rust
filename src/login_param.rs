@@ -130,10 +130,6 @@ impl LoginParam {
         }
     }
 
-    pub fn addr_str(&self) -> &str {
-        self.addr.as_str()
-    }
-
     /// Save this loginparam to the database.
     pub async fn save_to_database(
         &self,

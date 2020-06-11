@@ -11,8 +11,6 @@ extern crate rusqlite;
 extern crate strum;
 #[macro_use]
 extern crate strum_macros;
-#[macro_use]
-extern crate debug_stub_derive;
 
 pub trait ToSql: rusqlite::ToSql + Send + Sync {}
 
