@@ -49,7 +49,7 @@ pub enum Error {
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// A wrapper around the underlying Sqlite3 object.
-#[derive(DebugStub)]
+#[derive(Debug)]
 pub struct Sql {
     pool: RwLock<Option<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>>>,
 }

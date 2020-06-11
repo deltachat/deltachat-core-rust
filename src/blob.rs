@@ -60,7 +60,7 @@ impl<'a> BlobObject<'a> {
             .map_err(|err| BlobError::WriteFailure {
                 blobdir: blobdir.to_path_buf(),
                 blobname: name.clone(),
-                cause: err,
+                cause: err.into(),
             })?;
         let blob = BlobObject {
             blobdir,
@@ -375,7 +375,7 @@ impl<'a> BlobObject<'a> {
         img.save(&blob_abs).map_err(|err| BlobError::WriteFailure {
             blobdir: context.get_blobdir().to_path_buf(),
             blobname: blob_abs.to_str().unwrap_or_default().to_string(),
-            cause: err,
+            cause: err.into(),
         })?;
 
         Ok(())
@@ -413,7 +413,7 @@ impl<'a> BlobObject<'a> {
         img.save(&blob_abs).map_err(|err| BlobError::WriteFailure {
             blobdir: context.get_blobdir().to_path_buf(),
             blobname: blob_abs.to_str().unwrap_or_default().to_string(),
-            cause: err,
+            cause: err.into(),
         })?;
 
         Ok(())
@@ -441,7 +441,7 @@ pub enum BlobError {
         blobdir: PathBuf,
         blobname: String,
         #[source]
-        cause: std::io::Error,
+        cause: anyhow::Error,
     },
     #[error("Failed to copy data from {} to blob {blobname} in {}", .src.display(), .blobdir.display())]
     CopyFailure {

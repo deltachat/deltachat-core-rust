@@ -471,7 +471,6 @@ impl SmtpConnectionState {
     }
 }
 
-#[derive(Debug)]
 struct SmtpConnectionHandlers {
     connection: Smtp,
     stop_receiver: Receiver<()>,

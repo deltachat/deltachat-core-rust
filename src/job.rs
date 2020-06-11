@@ -190,7 +190,7 @@ impl Job {
     /// Saves the job to the database, creating a new entry if necessary.
     ///
     /// The Job is consumed by this method.
-    pub async fn save(self, context: &Context) -> Result<()> {
+    pub(crate) async fn save(self, context: &Context) -> Result<()> {
         let thread: Thread = self.action.into();
 
         info!(context, "saving job for {}-thread: {:?}", thread, self);
@@ -329,7 +329,7 @@ impl Job {
         }
     }
 
-    pub async fn send_msg_to_smtp(&mut self, context: &Context, smtp: &mut Smtp) -> Status {
+    pub(crate) async fn send_msg_to_smtp(&mut self, context: &Context, smtp: &mut Smtp) -> Status {
         //  SMTP server, if not yet done
         if !smtp.is_connected().await {
             let loginparam = LoginParam::from_database(context, "configured_").await;
@@ -823,8 +823,7 @@ pub async fn send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<Job
     Ok(Some(job))
 }
 
-#[derive(Debug)]
-pub enum Connection<'a> {
+pub(crate) enum Connection<'a> {
     Inbox(&'a mut Imap),
     Smtp(&'a mut Smtp),
 }
