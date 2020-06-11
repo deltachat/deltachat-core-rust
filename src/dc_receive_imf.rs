@@ -83,6 +83,7 @@ pub async fn dc_receive_imf(
     let mut sent_timestamp = 0;
     let mut created_db_entries = Vec::new();
     let mut create_event_to_send = Some(CreateEvent::MsgsChanged);
+    let mut is_dc_message: MessengerMessage = Default::default();
 
     // helper method to handle early exit and memory cleanup
     let cleanup = |context: &Context,
@@ -168,6 +169,7 @@ pub async fn dc_receive_imf(
             &mut insert_msg_id,
             &mut created_db_entries,
             &mut create_event_to_send,
+            &mut is_dc_message,
         )
         .await
         {
@@ -227,6 +229,19 @@ pub async fn dc_receive_imf(
             context
                 .do_heuristics_moves(server_folder.as_ref(), insert_msg_id)
                 .await;
+            if !mime_parser.mdn_reports.is_empty() && is_dc_message != MessengerMessage::No {
+                // This is an MDN to a dc-message. Mark as read.
+                job::add(
+                    context,
+                    job::Job::new(
+                        Action::MarkseenMsgOnImap,
+                        insert_msg_id.to_u32(),
+                        Params::new(),
+                        0,
+                    ),
+                )
+                .await;
+            }
         }
     }
 
@@ -310,6 +325,7 @@ async fn add_parts(
     insert_msg_id: &mut MsgId,
     created_db_entries: &mut Vec<(ChatId, MsgId)>,
     create_event_to_send: &mut Option<CreateEvent>,
+    is_dc_message: &mut MessengerMessage,
 ) -> Result<()> {
     let mut state: MessageState;
     let mut chat_id_blocked = Blocked::Not;
@@ -332,7 +348,7 @@ async fn add_parts(
         return Ok(());
     }
 
-    let mut msgrmsg = if mime_parser.has_chat_version() {
+    *is_dc_message = if mime_parser.has_chat_version() {
         MessengerMessage::Yes
     } else if is_reply_to_messenger_message(context, mime_parser).await {
         MessengerMessage::Reply
@@ -344,7 +360,7 @@ async fn add_parts(
     let show_emails =
         ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await).unwrap_or_default();
     if mime_parser.is_system_message != SystemMessage::AutocryptSetupMessage
-        && msgrmsg == MessengerMessage::No
+        && *is_dc_message == MessengerMessage::No
     {
         // this message is a classic email not a chat-message nor a reply to one
         match show_emails {
@@ -373,7 +389,7 @@ async fn add_parts(
 
         // handshake may mark contacts as verified and must be processed before chats are created
         if mime_parser.get(HeaderDef::SecureJoin).is_some() {
-            msgrmsg = MessengerMessage::Yes; // avoid discarding by show_emails setting
+            *is_dc_message = MessengerMessage::Yes; // avoid discarding by show_emails setting
             *chat_id = ChatId::new(0);
             allow_creation = true;
             match handle_securejoin_handshake(context, mime_parser, from_id).await {
@@ -506,7 +522,7 @@ async fn add_parts(
         if Blocked::Not != chat_id_blocked
             && state == MessageState::InFresh
             && !incoming_origin.is_known()
-            && msgrmsg == MessengerMessage::No
+            && *is_dc_message == MessengerMessage::No
             && show_emails != ShowEmails::All
         {
             state = MessageState::InNoticed;
@@ -521,7 +537,7 @@ async fn add_parts(
 
         // handshake may mark contacts as verified and must be processed before chats are created
         if mime_parser.get(HeaderDef::SecureJoin).is_some() {
-            msgrmsg = MessengerMessage::Yes; // avoid discarding by show_emails setting
+            *is_dc_message = MessengerMessage::Yes; // avoid discarding by show_emails setting
             *chat_id = ChatId::new(0);
             allow_creation = true;
             match observe_securejoin_on_other_device(context, mime_parser, to_id).await {
@@ -560,7 +576,7 @@ async fn add_parts(
                 }
             }
             if chat_id.is_unset() && allow_creation {
-                let create_blocked = if MessengerMessage::No != msgrmsg
+                let create_blocked = if MessengerMessage::No != *is_dc_message
                     && !Contact::is_blocked_load(context, to_id).await
                 {
                     Blocked::Not
@@ -645,6 +661,7 @@ async fn add_parts(
     let sent_timestamp = *sent_timestamp;
     let is_hidden = *hidden;
     let chat_id = *chat_id;
+    let is_dc_message = *is_dc_message;
     let is_mdn = !mime_parser.mdn_reports.is_empty();
 
     // TODO: can this clone be avoided?
@@ -697,7 +714,7 @@ async fn add_parts(
                     rcvd_timestamp,
                     part.typ,
                     state,
-                    msgrmsg,
+                    is_dc_message,
                     part.msg,
                     // txt_raw might contain invalid utf8
                     txt_raw,
