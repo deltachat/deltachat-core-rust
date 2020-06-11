@@ -406,12 +406,12 @@ async fn add_parts(
                 .unwrap_or_default();
 
         if chat_id.is_unset() {
-            // check if the message belongs to a mailing list
+            // check if the message belongs to an NDN
             if mime_parser.failed_msg.is_some() {
                 *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
                 info!(
                     context,
-                    "Message belongs to an NDN list and is not shown in a chat.",
+                    "Message belongs to an NDN and is not shown in a chat.",
                 );
             }
         }
