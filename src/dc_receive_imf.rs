@@ -313,8 +313,6 @@ async fn add_parts(
 ) -> Result<()> {
     let mut state: MessageState;
     let mut chat_id_blocked = Blocked::Not;
-    let mut sort_timestamp = 0;
-    let mut rcvd_timestamp = 0;
     let mut mime_in_reply_to = String::new();
     let mut mime_references = String::new();
     let mut incoming_origin = incoming_origin;
@@ -601,17 +599,9 @@ async fn add_parts(
     }
     // correct message_timestamp, it should not be used before,
     // however, we cannot do this earlier as we need from_id to be set
-    calc_timestamps(
-        context,
-        *chat_id,
-        from_id,
-        *sent_timestamp,
-        !seen,
-        &mut sort_timestamp,
-        sent_timestamp,
-        &mut rcvd_timestamp,
-    )
-    .await;
+    let (sort_timestamp, new_sent_timestamp, rcvd_timestamp) =
+        calc_timestamps(context, *sent_timestamp, *chat_id, !seen).await;
+    *sent_timestamp = new_sent_timestamp;
 
     // unarchive chat
     chat_id.unarchive(context).await?;
@@ -837,41 +827,43 @@ async fn save_locations(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 async fn calc_timestamps(
     context: &Context,
-    chat_id: ChatId,
-    from_id: u32,
     message_timestamp: i64,
+    chat_id: ChatId,
     is_fresh_msg: bool,
-    sort_timestamp: &mut i64,
-    sent_timestamp: &mut i64,
-    rcvd_timestamp: &mut i64,
-) {
-    *rcvd_timestamp = time();
-    *sent_timestamp = message_timestamp;
-    if *sent_timestamp > *rcvd_timestamp {
-        *sent_timestamp = *rcvd_timestamp
+) -> (i64, i64, i64) {
+    let rcvd_timestamp = time();
+    let mut sent_timestamp = message_timestamp;
+    if sent_timestamp > rcvd_timestamp {
+        sent_timestamp = rcvd_timestamp
     }
-    *sort_timestamp = message_timestamp;
+    let mut sort_timestamp = message_timestamp;
+
+    // get newest non fresh message for this chat
+    // update sort_timestamp if less than that
     if is_fresh_msg {
         let last_msg_time: Option<i64> = context
             .sql
             .query_get_value(
                 context,
-                "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? and from_id!=? AND timestamp>=?",
-                paramsv![chat_id, from_id as i32, *sort_timestamp],
+                "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? AND state>?",
+                paramsv![chat_id, MessageState::InFresh],
             )
             .await;
+
         if let Some(last_msg_time) = last_msg_time {
-            if last_msg_time > 0 && *sort_timestamp <= last_msg_time {
-                *sort_timestamp = last_msg_time + 1;
+            if last_msg_time > sort_timestamp {
+                sort_timestamp = last_msg_time;
             }
         }
     }
-    if *sort_timestamp >= dc_smeared_time(context).await {
-        *sort_timestamp = dc_create_smeared_timestamp(context).await;
+
+    if sort_timestamp >= dc_smeared_time(context).await {
+        sort_timestamp = dc_create_smeared_timestamp(context).await;
     }
+
+    (sort_timestamp, sent_timestamp, rcvd_timestamp)
 }
 
 /// This function tries extracts the group-id from the message and returns the
