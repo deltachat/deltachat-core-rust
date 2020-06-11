@@ -600,7 +600,7 @@ async fn add_parts(
     // correct message_timestamp, it should not be used before,
     // however, we cannot do this earlier as we need from_id to be set
     let (sort_timestamp, new_sent_timestamp, rcvd_timestamp) =
-        calc_timestamps(context, *sent_timestamp).await;
+        calc_timestamps(context, *sent_timestamp, *chat_id, !seen).await;
     *sent_timestamp = new_sent_timestamp;
 
     // unarchive chat
@@ -827,13 +827,38 @@ async fn save_locations(
     }
 }
 
-async fn calc_timestamps(context: &Context, message_timestamp: i64) -> (i64, i64, i64) {
+async fn calc_timestamps(
+    context: &Context,
+    message_timestamp: i64,
+    chat_id: ChatId,
+    is_fresh_msg: bool,
+) -> (i64, i64, i64) {
     let rcvd_timestamp = time();
     let mut sent_timestamp = message_timestamp;
     if sent_timestamp > rcvd_timestamp {
         sent_timestamp = rcvd_timestamp
     }
     let mut sort_timestamp = message_timestamp;
+
+    // get newest non fresh message for this chat
+    // update sort_timestamp if less than that
+    if is_fresh_msg {
+        let last_msg_time: Option<i64> = context
+            .sql
+            .query_get_value(
+                context,
+                "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? AND state>?",
+                paramsv![chat_id, MessageState::InFresh],
+            )
+            .await;
+
+        if let Some(last_msg_time) = last_msg_time {
+            if last_msg_time > sort_timestamp {
+                sort_timestamp = last_msg_time;
+            }
+        }
+    }
+
     if sort_timestamp >= dc_smeared_time(context).await {
         sort_timestamp = dc_create_smeared_timestamp(context).await;
     }
