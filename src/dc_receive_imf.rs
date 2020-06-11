@@ -2459,7 +2459,6 @@ mod tests {
             .await
             .unwrap();
 
-        println!("Loading msg {}…", msg_id);
         let msg = Message::load_from_db(&t.ctx, msg_id).await.unwrap();
 
         assert_eq!(msg.state, MessageState::OutFailed);

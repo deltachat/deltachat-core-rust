@@ -1281,7 +1281,6 @@ pub async fn set_msg_failed(context: &Context, msg_id: MsgId, error: Option<impl
             }),
             Err(e) => {
                 error!(context, "{:?}", e);
-                println!("{:?}", e)
             }
         }
     }
