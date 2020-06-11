@@ -939,7 +939,7 @@ impl MimeMessage {
         context: &Context,
         from_id: u32,
         sent_timestamp: i64,
-        parts: &Vec<Part>,
+        parts: &[Part],
     ) {
         for report in &self.reports {
             for original_message_id in
