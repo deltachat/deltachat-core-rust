@@ -2797,7 +2797,7 @@ pub(crate) async fn add_info_msg(context: &Context, chat_id: ChatId, text: impl 
             rfc724_mid,
         ]
     ).await {
-        error!(context, "Could not add info msg: {}", e);
+        warn!(context, "Could not add info msg: {}", e);
         return;
     }
 
