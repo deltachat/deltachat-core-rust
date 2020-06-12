@@ -850,6 +850,7 @@ class TestOnlineAccount:
 
         lp.sec("mark messages as seen on ac2, wait for changes on ac1")
         ac2.direct_imap.idle_start()
+        ac1.direct_imap.idle_start()
         ac2.mark_seen_messages([msg2, msg4])
         ac2.direct_imap.idle_check(terminate=True)
         lp.step("1")
@@ -858,6 +859,8 @@ class TestOnlineAccount:
             assert ev.data1 > const.DC_CHAT_ID_LAST_SPECIAL
             assert ev.data2 > const.DC_MSG_ID_LAST_SPECIAL
         lp.step("2")
+        ac1.direct_imap.idle_wait_for_seen()  # Check that ac1 marks the read receipt as read
+
         assert msg1.is_out_mdn_received()
         assert msg3.is_out_mdn_received()
 
