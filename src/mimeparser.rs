@@ -900,6 +900,7 @@ impl MimeMessage {
         Ok(None)
     }
 
+    /// Some providers like GMX and Yahoo do not send standard NDNs (Non Delivery notifications)
     async fn heuristically_parse_ndn(&mut self, context: &Context) -> Option<()> {
         if self
             .get(HeaderDef::Subject)?
@@ -951,8 +952,7 @@ impl MimeMessage {
                 std::iter::once(&report.original_message_id).chain(&report.additional_message_ids)
             {
                 if let Some((chat_id, msg_id)) =
-                    message::mdn_from_ext(context, from_id, original_message_id, sent_timestamp)
-                        .await
+                    message::handle_mdn(context, from_id, original_message_id, sent_timestamp).await
                 {
                     context.emit_event(Event::MsgRead { chat_id, msg_id });
                 }
@@ -968,7 +968,7 @@ impl MimeMessage {
                 }
                 .trim()
             });
-            message::ndn_from_ext(context, failure_report, error).await
+            message::handle_ndn(context, failure_report, error).await
         }
     }
 }

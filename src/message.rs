@@ -1287,7 +1287,7 @@ pub async fn set_msg_failed(context: &Context, msg_id: MsgId, error: Option<impl
 }
 
 /// returns Some if an event should be send
-pub async fn mdn_from_ext(
+pub async fn handle_mdn(
     context: &Context,
     from_id: u32,
     rfc724_mid: &str,
@@ -1396,7 +1396,7 @@ pub async fn mdn_from_ext(
 
 /// Marks a message as failed after an ndn (non-delivery-notification) arrived.
 /// Where appropriate, also adds an info message telling the user which of the recipients of a group message failed.
-pub(crate) async fn ndn_from_ext(
+pub(crate) async fn handle_ndn(
     context: &Context,
     failed: &FailureReport,
     error: Option<impl AsRef<str>>,
