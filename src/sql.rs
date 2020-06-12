@@ -1242,7 +1242,7 @@ async fn open(
             sql.set_raw_config_int(context, "dbversion", 63).await?;
         }
         if dbversion < 64 {
-            info!(context, "[migration] v63");
+            info!(context, "[migration] v64");
             sql.execute(
                 "ALTER TABLE msgs ADD COLUMN error TEXT DEFAULT '';",
                 paramsv![],

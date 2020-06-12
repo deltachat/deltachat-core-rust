@@ -769,7 +769,7 @@ impl MessageState {
             MessageState::OutPreparing
             | MessageState::OutPending
             | MessageState::OutDelivered
-            | MessageState::OutMdnRcvd => true,
+            | MessageState::OutMdnRcvd => true, // OutMdnRcvd can still fail because it could be a group message and only some recipients failed.
             _ => false,
         }
     }
@@ -1328,7 +1328,10 @@ pub async fn mdn_from_ext(
     if let Ok((msg_id, chat_id, chat_type, msg_state)) = res {
         let mut read_by_all = false;
 
-        if msg_state != MessageState::OutMdnRcvd && msg_state != MessageState::OutFailed {
+        if msg_state == MessageState::OutPreparing
+            || msg_state == MessageState::OutPending
+            || msg_state == MessageState::OutDelivered
+        {
             let mdn_already_in_table = context
                 .sql
                 .exists(
@@ -1391,6 +1394,8 @@ pub async fn mdn_from_ext(
     None
 }
 
+/// Marks a message as failed after an ndn (non-delivery-notification) arrived.
+/// Where appropriate, also adds an info message telling the user which of the recipients of a group message failed.
 pub(crate) async fn ndn_from_ext(
     context: &Context,
     failed: &FailedMsg,

@@ -933,7 +933,9 @@ impl MimeMessage {
         None
     }
 
-    /// Handle reports (only MDNs for now)
+    /// Handle reports
+    /// (MDNs = Message Disposition Notification, the message was read
+    /// and NDNs = Non delivery notification, the message could not be delivered)
     pub async fn handle_reports(
         &self,
         context: &Context,
