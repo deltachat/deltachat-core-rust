@@ -1029,8 +1029,8 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         "export-chat" => {
             ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
             let chat_id = ChatId::new(arg1.parse()?);
-            let res = export_chat(context, chat_id);
-            println!("{:?}", res);
+            let res = export_chat(&context, chat_id).await;
+            // println!("{:?}", res);
             let timestamp = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
@@ -1041,8 +1041,11 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 timestamp
             ));
             let destination = destination_raw.to_str().unwrap();
-            let pack_res = pack_exported_chat(context, res, destination);
-            println!("{:?} - destination: {}", pack_res, destination);
+            let pack_res = pack_exported_chat(&context, res, destination);
+            match &pack_res {
+                Ok(()) => println!("Exported chat successfully to {}", destination),
+                Err(err) => println!("Error {:?}", err),
+            };
         }
         "msginfo" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");

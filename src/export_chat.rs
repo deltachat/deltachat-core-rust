@@ -1,9 +1,9 @@
 // use crate::dc_tools::*;
 use crate::chat::*;
-use crate::constants::{Viewtype, DC_CONTACT_ID_SELF};
+use crate::constants::Viewtype;
 use crate::contact::*;
 use crate::context::Context;
-use crate::error::Error;
+// use crate::error::Error;
 use crate::message::*;
 use std::collections::HashMap;
 use std::fs::File;
@@ -11,6 +11,8 @@ use std::io::prelude::*;
 use std::path::Path;
 use zip::write::FileOptions;
 
+use crate::location::Location;
+use futures::future::join_all;
 use serde::Serialize;
 
 #[derive(Debug)]
@@ -55,6 +57,7 @@ pub fn pack_exported_chat(
 
 #[derive(Serialize)]
 struct ChatJSON {
+    chat_json_version: u8,
     name: String,
     color: String,
     profile_img: Option<String>,
@@ -73,39 +76,74 @@ struct ContactJSON {
 #[derive(Serialize)]
 struct FileReference {
     name: String,
-    filesize: String, /* todo human readable file size*/
-    extension: String,
+    filesize: u64,
+    mime: String,
+    path: String,
 }
 
 #[derive(Serialize)]
-enum MessageJSON {
-    Message {
-        id: u32,
-        author_id: u32, // from_id
-        viewType: Viewtype,
-        timestamp_sort: i64,
-        timestamp_sent: i64,
-        timestamp_rcvd: i64,
-        text: Option<String>,
-        attachment: Option<FileReference>,
-        // location
-    }, // Info Message?
+struct MessageJSON {
+    id: u32,
+    author_id: u32, // from_id
+    view_type: Viewtype,
+    timestamp_sort: i64,
+    timestamp_sent: i64,
+    timestamp_rcvd: i64,
+    text: Option<String>,
+    attachment: Option<FileReference>,
+    location: Option<Location>,
+    is_info_message: bool,
+    show_padlock: bool,
 }
 
 impl MessageJSON {
-    pub fn from_message(message: Message, context: &Context) -> MessageJSON {}
+    pub async fn from_message(message: &Message, context: &Context) -> MessageJSON {
+        let msg_id = message.get_id();
+        MessageJSON {
+            id: msg_id.to_u32(),
+            author_id: message.get_from_id(), // from_id
+            view_type: message.get_viewtype(),
+            timestamp_sort: message.timestamp_sort,
+            timestamp_sent: message.timestamp_sent,
+            timestamp_rcvd: message.timestamp_rcvd,
+            text: message.get_text(),
+            attachment: match message.get_file(context) {
+                Some(file) => Some(FileReference {
+                    name: message.get_filename().unwrap_or_else(|| "".to_owned()),
+                    filesize: message.get_filebytes(context).await,
+                    mime: message.get_filemime().unwrap_or_else(|| "".to_owned()),
+                    path: format!(
+                        "blobs/{}",
+                        file.file_name()
+                            .unwrap_or_else(|| std::ffi::OsStr::new(""))
+                            .to_str()
+                            .unwrap()
+                    ),
+                }),
+                None => None,
+            },
+            location: match message.has_location() {
+                true => None, // todo, location needs a function to get a single location from the db by id first
+                false => None,
+            },
+            is_info_message: message.is_info(),
+            show_padlock: message.get_showpadlock(),
+        }
+    }
 }
 
 pub async fn export_chat(context: &Context, chat_id: ChatId) -> ExportChatResult {
     let mut blobs = Vec::new();
     let mut chat_author_ids = Vec::new();
     // get all messages
-    let messages: Vec<std::result::Result<Message, Error>> =
-        get_chat_msgs(context, chat_id, 0, None)
-            .await
-            .into_iter()
-            .map(async move |msg_id| Message::load_from_db(context, msg_id).await)
-            .collect();
+
+    let message_futures = get_chat_msgs(context, chat_id, 0, None)
+        .await
+        .into_iter()
+        .map(|msg_id| Message::load_from_db(context, msg_id))
+        .collect::<Vec<_>>();
+    let messages: Vec<std::result::Result<Message, anyhow::Error>> =
+        join_all(message_futures).await;
     // push all referenced blobs and populate contactid list
     for message in &messages {
         if let Ok(msg) = &message {
@@ -177,12 +215,22 @@ pub async fn export_chat(context: &Context, chat_id: ChatId) -> ExportChatResult
         None => None,
     };
 
+    let mut message_json: Vec<MessageJSON> = Vec::new();
+
+    for message in &messages {
+        if let Ok(msg) = &message {
+            let msg_json: MessageJSON = MessageJSON::from_message(msg, &context).await;
+            message_json.push(msg_json)
+        }
+    }
+
     let chat_json = ChatJSON {
-        name: chat.get_name(),
-        color: format!("{:#}", chat.get_color()),
+        chat_json_version: 1,
+        name: chat.get_name().to_owned(),
+        color: format!("{:#}", chat.get_color(&context).await),
         profile_img: chat_avatar,
         contacts: chat_authors,
-        messages: vec![], //todo
+        messages: message_json,
     };
 
     blobs.dedup();
@@ -191,147 +239,3 @@ pub async fn export_chat(context: &Context, chat_id: ChatId) -> ExportChatResult
         referenced_blobs: blobs,
     }
 }
-
-// fn message_to_html(
-//     author_cache: &HashMap<u32, ContactInfo>,
-//     message: Message,
-//     context: &Context,
-// ) -> String {
-//     let author: &ContactInfo = {
-//         if let Some(c) = author_cache.get(&message.get_from_id()) {
-//             c
-//         } else {
-//             author_cache.get(&0).unwrap()
-//         }
-//     };
-
-//     let avatar: String = {
-//         if let Some(profile_img) = &author.profile_img {
-//             format!(
-//                 "<div class=\"author-avatar\">\
-//                  <img \
-//                  alt=\"{author_name}\"\
-//                  src=\"blobs/{author_avatar_src}\"\
-//                  />\
-//                  </div>",
-//                 author_name = author.name,
-//                 author_avatar_src = profile_img
-//             )
-//         } else {
-//             format!(
-//                 "<div class=\"author-avatar default\" alt=\"{name}\">\
-//                  <div class=\"label\" style=\"background-color: {color}\">\
-//                  {initial}\
-//                  </div>\
-//                  </div>",
-//                 name = author.name,
-//                 initial = author.initial,
-//                 color = author.color
-//             )
-//         }
-//     };
-
-//     // save and refernce message source code somehow?
-
-//     let has_text = message.get_text().is_some() && !message.get_text().unwrap().is_empty();
-
-//     let attachment = match message.get_file(context) {
-//         None => "".to_owned(),
-//         Some(file) => {
-//             let modifier_class = if has_text { "content-below" } else { "" };
-//             let filename = file
-//                 .file_name()
-//                 .unwrap_or_else(|| std::ffi::OsStr::new(""))
-//                 .to_str()
-//                 .unwrap()
-//                 .to_owned();
-//             match message.get_viewtype() {
-//                 Viewtype::Audio => {
-//                     format!("<audio \
-//                     controls \
-//                     class=\"message-attachment-audio {}\"> \
-//                     <source src=\"blobs/{}\" /> \
-//                   </audio>", modifier_class ,filename)
-//                 },
-//                 Viewtype::Gif | Viewtype::Image | Viewtype::Sticker => {
-//                     format!("<a \
-//                         href=\"blobs/{filename}\" \
-//                         role=\"button\" \
-//                         class=\"message-attachment-media {modifier_class}\"> \
-//                         <img className='attachment-content' src=\"blobs/{filename}\" /> \
-//                     </a>", modifier_class=modifier_class, filename=filename)
-//                 },
-//                 Viewtype::Video => {
-//                     format!("<a \
-//                     href=\"blobs/{filename}\" \
-//                     role=\"button\" \
-//                     class=\"message-attachment-media {modifier_class}\"> \
-//                     <video className='attachment-content' src=\"blobs/{filename}\" controls=\"true\" /> \
-//                 </a>", modifier_class=modifier_class, filename=filename)
-//                 },
-//                 _ => {
-//                     format!("<div class=\"message-attachment-generic {modifier_class}\">\
-//                         <div class=\"file-icon\">\
-//                             <div class=\"file-extension\">\
-//                             {extension} \
-//                             </div>\
-//                         </div>\
-//                         <div className=\"text-part\">\
-//                         <a href=\"blobs/{filename}\" className=\"name\">{filename}</a>\
-//                         <div className=\"size\">{filesize}</div>\
-//                         </div>\
-//                     </div>",
-//                     modifier_class=modifier_class,
-//                     filename=filename,
-//                     filesize=message.get_filebytes(&context) /* todo human readable file size*/,
-//                     extension=file.extension().unwrap_or_else(|| std::ffi::OsStr::new("")).to_str().unwrap().to_owned())
-//                 }
-//             }
-//         }
-//     };
-
-//     format!(
-//         "<li>\
-//          <div class=\"message {direction}\">\
-//          {avatar}\
-//          <div class=\"msg-container\">\
-//          <span class=\"author\" style=\"color: {author_color};\">{author_name}</span>\
-//          <div class=\"msg-body\">\
-//          {attachment}
-//          <div dir=\"auto\" class=\"text\">\
-//          {content}\
-//          </div>\
-//          <div class=\"metadata {with_image_no_caption}\">\
-//          {encryption}\
-//          <span class=\"date date--{direction}\" title=\"{full_time}\">{relative_time}</span>\
-//          <span class=\"spacer\"></span>\
-//          </div>\
-//          </div>\
-//          </div>\
-//          <div>\
-//          </li>",
-//         direction = match message.from_id == DC_CONTACT_ID_SELF {
-//             true => "outgoing",
-//             false => "incoming",
-//         },
-//         avatar = avatar,
-//         author_name = author.name,
-//         author_color = author.color,
-//         attachment = attachment,
-//         content = message.get_text().unwrap_or_else(|| "".to_owned()),
-//         with_image_no_caption = if !has_text && message.get_viewtype() == Viewtype::Image {
-//             "with-image-no-caption"
-//         } else {
-//             ""
-//         },
-//         encryption = match message.get_showpadlock() {
-//             true => r#"<div aria-label="Encryption padlock" class="padlock-icon"></div>"#,
-//             false => "",
-//         },
-//         full_time = "Tue, Feb 25, 2020 3:49 PM", // message.get_timestamp() ? // todo
-//         relative_time = "Tue 3:49 PM"            // todo
-//     )
-
-//     // todo link to raw message data
-//     // todo link to message info
-// }
