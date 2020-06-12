@@ -245,6 +245,7 @@ pub async fn export_chat(context: &Context, chat_id: ChatId) -> ExportChatResult
         messages: message_json,
     };
 
+    blobs.sort();
     blobs.dedup();
     ExportChatResult {
         chat_json: serde_json::to_string(&chat_json).unwrap(),
