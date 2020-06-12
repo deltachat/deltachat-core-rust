@@ -911,25 +911,24 @@ impl MimeMessage {
                 .contains("daemon")
             && self.failure_report.is_none()
         {
-            for line in self
+            lazy_static! {
+                static ref RE: regex::Regex = regex::Regex::new(r"Message-ID:(.*)").unwrap();
+            }
+            for captures in self
                 .parts
                 .iter()
-                .filter_map(|p| p.msg_raw.as_ref())
-                .flat_map(|p| p.lines())
+                .filter_map(|part| part.msg_raw.as_ref())
+                .flat_map(|part| part.lines())
+                .filter_map(|line| RE.captures(line))
             {
-                lazy_static! {
-                    static ref RE: regex::Regex = regex::Regex::new(r"Message-ID:(.*)").unwrap();
-                }
-                if let Some(c) = RE.captures(line) {
-                    if let Ok(original_message_id) = parse_message_id(&c[1]) {
-                        if let Ok(Some(_)) =
-                            message::rfc724_mid_exists(context, &original_message_id).await
-                        {
-                            self.failure_report = Some(FailureReport {
-                                rfc724_mid: original_message_id,
-                                failed_recipient: None,
-                            })
-                        }
+                if let Ok(original_message_id) = parse_message_id(&captures[1]) {
+                    if let Ok(Some(_)) =
+                        message::rfc724_mid_exists(context, &original_message_id).await
+                    {
+                        self.failure_report = Some(FailureReport {
+                            rfc724_mid: original_message_id,
+                            failed_recipient: None,
+                        })
                     }
                 }
             }
