@@ -407,7 +407,7 @@ async fn add_parts(
 
         if chat_id.is_unset() {
             // check if the message belongs to an NDN
-            if mime_parser.failed_msg.is_some() {
+            if mime_parser.failure_report.is_some() {
                 *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
                 info!(
                     context,
@@ -648,7 +648,7 @@ async fn add_parts(
     let sent_timestamp = *sent_timestamp;
     let is_hidden = *hidden;
     let chat_id = *chat_id;
-    let is_mdn = !mime_parser.reports.is_empty();
+    let is_mdn = !mime_parser.mdn_reports.is_empty();
 
     // TODO: can this clone be avoided?
     let rfc724_mid = rfc724_mid.to_string();

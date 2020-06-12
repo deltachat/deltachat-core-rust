@@ -14,7 +14,7 @@ use crate::error::{ensure, Error};
 use crate::events::Event;
 use crate::job::{self, Action};
 use crate::lot::{Lot, LotState, Meaning};
-use crate::mimeparser::{FailedMsg, SystemMessage};
+use crate::mimeparser::{FailureReport, SystemMessage};
 use crate::param::*;
 use crate::pgp::*;
 use crate::stock::StockMessage;
@@ -1398,7 +1398,7 @@ pub async fn mdn_from_ext(
 /// Where appropriate, also adds an info message telling the user which of the recipients of a group message failed.
 pub(crate) async fn ndn_from_ext(
     context: &Context,
-    failed: &FailedMsg,
+    failed: &FailureReport,
     error: Option<impl AsRef<str>>,
 ) {
     if failed.rfc724_mid.is_empty() {

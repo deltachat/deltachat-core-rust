@@ -54,8 +54,8 @@ pub struct MimeMessage {
     pub message_kml: Option<location::Kml>,
     pub(crate) user_avatar: Option<AvatarAction>,
     pub(crate) group_avatar: Option<AvatarAction>,
-    pub(crate) reports: Vec<Report>,
-    pub(crate) failed_msg: Option<FailedMsg>,
+    pub(crate) mdn_reports: Vec<Report>,
+    pub(crate) failure_report: Option<FailureReport>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -178,13 +178,13 @@ impl MimeMessage {
             signatures,
             gossipped_addr,
             is_forwarded: false,
-            reports: Vec::new(),
+            mdn_reports: Vec::new(),
             is_system_message: SystemMessage::Unknown,
             location_kml: None,
             message_kml: None,
             user_avatar: None,
             group_avatar: None,
-            failed_msg: None,
+            failure_report: None,
         };
         parser.parse_mime_recursive(context, &mail).await?;
         parser.heuristically_parse_ndn().await;
@@ -357,7 +357,7 @@ impl MimeMessage {
         // just have send a message in the subject with an empty body.
         // Besides, we want to show something in case our incoming-processing
         // failed to properly handle an incoming message.
-        if self.parts.is_empty() && self.reports.is_empty() {
+        if self.parts.is_empty() && self.mdn_reports.is_empty() {
             let mut part = Part::default();
             part.typ = Viewtype::Text;
 
@@ -557,7 +557,7 @@ impl MimeMessage {
                     match mail.ctype.params.get("report-type").map(|s| s as &str) {
                         Some("disposition-notification") => {
                             if let Some(report) = self.process_report(context, mail)? {
-                                self.reports.push(report);
+                                self.mdn_reports.push(report);
                             }
 
                             // Add MDN part so we can track it, avoid
@@ -572,7 +572,7 @@ impl MimeMessage {
                         }
                         Some("delivery-status") => {
                             if let Some(report) = self.process_delivery_status(context, mail)? {
-                                self.failed_msg = Some(report);
+                                self.failure_report = Some(report);
                             }
 
                             // Add all parts (in fact, AddSinglePartIfKnown() later check if
@@ -861,7 +861,7 @@ impl MimeMessage {
         &self,
         context: &Context,
         report: &mailparse::ParsedMail<'_>,
-    ) -> Result<Option<FailedMsg>> {
+    ) -> Result<Option<FailureReport>> {
         // parse as mailheaders
         if let Some(original_msg) = report
             .subparts
@@ -884,7 +884,7 @@ impl MimeMessage {
                     None // We do not know which recipient failed
                 };
 
-                return Ok(Some(FailedMsg {
+                return Ok(Some(FailureReport {
                     rfc724_mid: original_message_id,
                     failed_recipient: to.map(|s| s.addr),
                 }));
@@ -909,7 +909,7 @@ impl MimeMessage {
                 .get(HeaderDef::From_)?
                 .to_ascii_lowercase()
                 .contains("daemon")
-            && self.failed_msg.is_none()
+            && self.failure_report.is_none()
         {
             for line in self
                 .parts
@@ -922,7 +922,7 @@ impl MimeMessage {
                 }
                 if let Some(c) = RE.captures(line) {
                     if let Ok(original_message_id) = parse_message_id(&c[1]) {
-                        self.failed_msg = Some(FailedMsg {
+                        self.failure_report = Some(FailureReport {
                             rfc724_mid: original_message_id,
                             failed_recipient: None,
                         })
@@ -943,7 +943,7 @@ impl MimeMessage {
         sent_timestamp: i64,
         parts: &[Part],
     ) {
-        for report in &self.reports {
+        for report in &self.mdn_reports {
             for original_message_id in
                 std::iter::once(&report.original_message_id).chain(&report.additional_message_ids)
             {
@@ -956,7 +956,7 @@ impl MimeMessage {
             }
         }
 
-        if let Some(original_message_id) = &self.failed_msg {
+        if let Some(original_message_id) = &self.failure_report {
             let error = parts.iter().find(|p| p.typ == Viewtype::Text).map(|p| {
                 let msg = &p.msg;
                 match msg.find("\n--- ") {
@@ -1024,7 +1024,7 @@ pub(crate) struct Report {
 }
 
 #[derive(Debug)]
-pub(crate) struct FailedMsg {
+pub(crate) struct FailureReport {
     pub rfc724_mid: String,
     pub failed_recipient: Option<String>,
 }
@@ -1519,7 +1519,7 @@ Disposition: manual-action/MDN-sent-automatically; displayed\n\
         );
 
         assert_eq!(message.parts.len(), 1);
-        assert_eq!(message.reports.len(), 1);
+        assert_eq!(message.mdn_reports.len(), 1);
     }
 
     /// Test parsing multiple MDNs combined in a single message.
@@ -1599,7 +1599,7 @@ Disposition: manual-action/MDN-sent-automatically; displayed\n\
         );
 
         assert_eq!(message.parts.len(), 2);
-        assert_eq!(message.reports.len(), 2);
+        assert_eq!(message.mdn_reports.len(), 2);
     }
 
     #[async_std::test]
@@ -1646,10 +1646,13 @@ Additional-Message-IDs: <foo@example.com> <foo@example.net>\n\
         );
 
         assert_eq!(message.parts.len(), 1);
-        assert_eq!(message.reports.len(), 1);
-        assert_eq!(message.reports[0].original_message_id, "foo@example.org");
+        assert_eq!(message.mdn_reports.len(), 1);
         assert_eq!(
-            &message.reports[0].additional_message_ids,
+            message.mdn_reports[0].original_message_id,
+            "foo@example.org"
+        );
+        assert_eq!(
+            &message.mdn_reports[0].additional_message_ids,
             &["foo@example.com", "foo@example.net"]
         );
     }
