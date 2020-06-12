@@ -187,7 +187,9 @@ class DirectImap:
         """ (blocking) wait for next idle message from server. """
         assert self._idling
         self.account.log("imap-direct: calling idle_check")
-        res = self.conn.idle_check()
+        res = self.conn.idle_check(timeout=30)
+        if len(res) == 0:
+            raise TimeoutError
         if terminate:
             self.idle_done()
         return res
