@@ -359,6 +359,10 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
 
             bot_ac, bot_cfg = self.get_online_config()
 
+            # Avoid starting ac so we don't interfere with the bot operating on
+            # the same database.
+            self._accounts.remove(bot_ac)
+
             args = [
                 sys.executable,
                 "-u",
