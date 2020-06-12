@@ -19,6 +19,7 @@ use serde::Serialize;
 pub struct ExportChatResult {
     chat_json: String,
     // locations_geo_json: String,
+    message_info: Vec<(u32, String)>,
     referenced_blobs: Vec<String>,
 }
 
@@ -49,6 +50,12 @@ pub fn pack_exported_chat(
         f.read_to_end(&mut buffer)?;
         zip.write_all(&*buffer)?;
         buffer.clear();
+    }
+
+    zip.add_directory("msg_info/", Default::default())?;
+    for msg_info in artifact.message_info {
+        zip.start_file_from_path(Path::new(&format!("msg_info/{}.txt", msg_info.0)), options)?;
+        zip.write_all((msg_info.1).as_bytes())?;
     }
 
     zip.finish()?;
@@ -215,12 +222,17 @@ pub async fn export_chat(context: &Context, chat_id: ChatId) -> ExportChatResult
         None => None,
     };
 
+    let mut message_info: Vec<(u32, String)> = Vec::new();
     let mut message_json: Vec<MessageJSON> = Vec::new();
 
     for message in &messages {
         if let Ok(msg) = &message {
             let msg_json: MessageJSON = MessageJSON::from_message(msg, &context).await;
-            message_json.push(msg_json)
+            message_json.push(msg_json);
+
+            message_info.push((msg.id.to_u32(), get_msg_info(&context, msg.id).await))
+        } else {
+            // todo
         }
     }
 
@@ -236,6 +248,7 @@ pub async fn export_chat(context: &Context, chat_id: ChatId) -> ExportChatResult
     blobs.dedup();
     ExportChatResult {
         chat_json: serde_json::to_string(&chat_json).unwrap(),
+        message_info: message_info,
         referenced_blobs: blobs,
     }
 }
