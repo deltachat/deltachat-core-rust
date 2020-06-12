@@ -406,7 +406,6 @@ async fn add_parts(
                 .unwrap_or_default();
 
         if chat_id.is_unset() {
-            // check if the message belongs to an NDN
             if mime_parser.failure_report.is_some() {
                 *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
                 info!(

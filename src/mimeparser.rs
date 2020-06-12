@@ -187,7 +187,7 @@ impl MimeMessage {
             failure_report: None,
         };
         parser.parse_mime_recursive(context, &mail).await?;
-        parser.heuristically_parse_ndn().await;
+        parser.heuristically_parse_ndn(context).await;
         parser.parse_headers(context)?;
 
         Ok(parser)
@@ -900,7 +900,7 @@ impl MimeMessage {
         Ok(None)
     }
 
-    async fn heuristically_parse_ndn(&mut self) -> Option<()> {
+    async fn heuristically_parse_ndn(&mut self, context: &Context) -> Option<()> {
         if self
             .get(HeaderDef::Subject)?
             .to_ascii_lowercase()
@@ -922,15 +922,19 @@ impl MimeMessage {
                 }
                 if let Some(c) = RE.captures(line) {
                     if let Ok(original_message_id) = parse_message_id(&c[1]) {
-                        self.failure_report = Some(FailureReport {
-                            rfc724_mid: original_message_id,
-                            failed_recipient: None,
-                        })
+                        if let Ok(Some(_)) =
+                            message::rfc724_mid_exists(context, &original_message_id).await
+                        {
+                            self.failure_report = Some(FailureReport {
+                                rfc724_mid: original_message_id,
+                                failed_recipient: None,
+                            })
+                        }
                     }
                 }
             }
         }
-        None
+        None // Always return None, we just return anything so that we can use the '?' operator.
     }
 
     /// Handle reports
@@ -956,7 +960,7 @@ impl MimeMessage {
             }
         }
 
-        if let Some(original_message_id) = &self.failure_report {
+        if let Some(failure_report) = &self.failure_report {
             let error = parts.iter().find(|p| p.typ == Viewtype::Text).map(|p| {
                 let msg = &p.msg;
                 match msg.find("\n--- ") {
@@ -965,7 +969,7 @@ impl MimeMessage {
                 }
                 .trim()
             });
-            message::ndn_from_ext(context, original_message_id, error).await
+            message::ndn_from_ext(context, failure_report, error).await
         }
     }
 }
