@@ -3,6 +3,7 @@ use std::future::Future;
 use std::pin::Pin;
 
 use deltachat_derive::{FromSql, ToSql};
+use lazy_static::lazy_static;
 use lettre_email::mime::{self, Mime};
 use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
 
@@ -53,7 +54,8 @@ pub struct MimeMessage {
     pub message_kml: Option<location::Kml>,
     pub(crate) user_avatar: Option<AvatarAction>,
     pub(crate) group_avatar: Option<AvatarAction>,
-    pub(crate) reports: Vec<Report>,
+    pub(crate) mdn_reports: Vec<Report>,
+    pub(crate) failure_report: Option<FailureReport>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -176,14 +178,16 @@ impl MimeMessage {
             signatures,
             gossipped_addr,
             is_forwarded: false,
-            reports: Vec::new(),
+            mdn_reports: Vec::new(),
             is_system_message: SystemMessage::Unknown,
             location_kml: None,
             message_kml: None,
             user_avatar: None,
             group_avatar: None,
+            failure_report: None,
         };
         parser.parse_mime_recursive(context, &mail).await?;
+        parser.heuristically_parse_ndn(context).await;
         parser.parse_headers(context)?;
 
         Ok(parser)
@@ -353,7 +357,7 @@ impl MimeMessage {
         // just have send a message in the subject with an empty body.
         // Besides, we want to show something in case our incoming-processing
         // failed to properly handle an incoming message.
-        if self.parts.is_empty() && self.reports.is_empty() {
+        if self.parts.is_empty() && self.mdn_reports.is_empty() {
             let mut part = Part::default();
             part.typ = Viewtype::Text;
 
@@ -527,7 +531,7 @@ impl MimeMessage {
                 part.typ = Viewtype::Text;
                 part.msg_raw = Some(txt.clone());
                 part.msg = txt;
-                part.param.set(Param::Error, "Decryption failed");
+                part.error = "Decryption failed".to_string();
 
                 self.parts.push(part);
 
@@ -550,10 +554,10 @@ impl MimeMessage {
             (mime::MULTIPART, "report") => {
                 /* RFC 6522: the first part is for humans, the second for machines */
                 if mail.subparts.len() >= 2 {
-                    if let Some(report_type) = mail.ctype.params.get("report-type") {
-                        if report_type == "disposition-notification" {
+                    match mail.ctype.params.get("report-type").map(|s| s as &str) {
+                        Some("disposition-notification") => {
                             if let Some(report) = self.process_report(context, mail)? {
-                                self.reports.push(report);
+                                self.mdn_reports.push(report);
                             }
 
                             // Add MDN part so we can track it, avoid
@@ -565,13 +569,26 @@ impl MimeMessage {
                             self.parts.push(part);
 
                             any_part_added = true;
-                        } else {
-                            /* eg. `report-type=delivery-status`;
-                            maybe we should show them as a little error icon */
+                        }
+                        Some("delivery-status") => {
+                            if let Some(report) = self.process_delivery_status(context, mail)? {
+                                self.failure_report = Some(report);
+                            }
+
+                            // Add all parts (in fact, AddSinglePartIfKnown() later check if
+                            // the parts are really supported)
+                            for cur_data in mail.subparts.iter() {
+                                if self.parse_mime_recursive(context, cur_data).await? {
+                                    any_part_added = true;
+                                }
+                            }
+                        }
+                        Some(_) => {
                             if let Some(first) = mail.subparts.iter().next() {
                                 any_part_added = self.parse_mime_recursive(context, first).await?;
                             }
                         }
+                        None => {}
                     }
                 }
             }
@@ -840,23 +857,120 @@ impl MimeMessage {
         Ok(None)
     }
 
-    /// Handle reports (only MDNs for now)
-    pub async fn handle_reports(&self, context: &Context, from_id: u32, sent_timestamp: i64) {
-        if self.reports.is_empty() {
-            return;
+    fn process_delivery_status(
+        &self,
+        context: &Context,
+        report: &mailparse::ParsedMail<'_>,
+    ) -> Result<Option<FailureReport>> {
+        // parse as mailheaders
+        if let Some(original_msg) = report
+            .subparts
+            .iter()
+            .find(|p| p.ctype.mimetype.contains("rfc822"))
+        {
+            let report_body = original_msg.get_body_raw()?;
+            let (report_fields, _) = mailparse::parse_headers(&report_body)?;
+
+            if let Some(original_message_id) = report_fields
+                .get_header_value(HeaderDef::MessageId)
+                .and_then(|v| parse_message_id(&v).ok())
+            {
+                let mut to_list = get_all_addresses_from_header(&report.headers, |header_key| {
+                    header_key == "x-failed-recipients"
+                });
+                let to = if to_list.len() == 1 {
+                    Some(to_list.pop().unwrap())
+                } else {
+                    None // We do not know which recipient failed
+                };
+
+                return Ok(Some(FailureReport {
+                    rfc724_mid: original_message_id,
+                    failed_recipient: to.map(|s| s.addr),
+                }));
+            }
+
+            warn!(
+                context,
+                "ignoring unknown ndn-notification, Message-Id: {:?}",
+                report_fields.get_header_value(HeaderDef::MessageId)
+            );
         }
 
-        for report in &self.reports {
+        Ok(None)
+    }
+
+    /// Some providers like GMX and Yahoo do not send standard NDNs (Non Delivery notifications).
+    /// If you improve heuristics here you might also have to change prefetch_should_download() in imap/mod.rs.
+    /// Also you should add a test in dc_receive_imf.rs (there already are lots of test_parse_ndn_* tests).
+    async fn heuristically_parse_ndn(&mut self, context: &Context) -> Option<()> {
+        if self
+            .get(HeaderDef::Subject)?
+            .to_ascii_lowercase()
+            .contains("fail")
+            && self
+                .get(HeaderDef::From_)?
+                .to_ascii_lowercase()
+                .contains("mailer-daemon")
+            && self.failure_report.is_none()
+        {
+            lazy_static! {
+                static ref RE: regex::Regex = regex::Regex::new(r"Message-ID:(.*)").unwrap();
+            }
+            for captures in self
+                .parts
+                .iter()
+                .filter_map(|part| part.msg_raw.as_ref())
+                .flat_map(|part| part.lines())
+                .filter_map(|line| RE.captures(line))
+            {
+                if let Ok(original_message_id) = parse_message_id(&captures[1]) {
+                    if let Ok(Some(_)) =
+                        message::rfc724_mid_exists(context, &original_message_id).await
+                    {
+                        self.failure_report = Some(FailureReport {
+                            rfc724_mid: original_message_id,
+                            failed_recipient: None,
+                        })
+                    }
+                }
+            }
+        }
+        None // Always return None, we just return anything so that we can use the '?' operator.
+    }
+
+    /// Handle reports
+    /// (MDNs = Message Disposition Notification, the message was read
+    /// and NDNs = Non delivery notification, the message could not be delivered)
+    pub async fn handle_reports(
+        &self,
+        context: &Context,
+        from_id: u32,
+        sent_timestamp: i64,
+        parts: &[Part],
+    ) {
+        for report in &self.mdn_reports {
             for original_message_id in
                 std::iter::once(&report.original_message_id).chain(&report.additional_message_ids)
             {
                 if let Some((chat_id, msg_id)) =
-                    message::mdn_from_ext(context, from_id, original_message_id, sent_timestamp)
-                        .await
+                    message::handle_mdn(context, from_id, original_message_id, sent_timestamp).await
                 {
                     context.emit_event(Event::MsgRead { chat_id, msg_id });
                 }
             }
+        }
+
+        if let Some(failure_report) = &self.failure_report {
+            let error = parts.iter().find(|p| p.typ == Viewtype::Text).map(|p| {
+                let msg = &p.msg;
+                match msg.find("\n--- ") {
+                    Some(footer_start) => &msg[..footer_start],
+                    None => msg,
+                }
+                .trim()
+            });
+            message::handle_ndn(context, failure_report, error).await
         }
     }
 }
@@ -914,6 +1028,12 @@ pub(crate) struct Report {
     additional_message_ids: Vec<String>,
 }
 
+#[derive(Debug)]
+pub(crate) struct FailureReport {
+    pub rfc724_mid: String,
+    pub failed_recipient: Option<String>,
+}
+
 pub(crate) fn parse_message_ids(ids: &str) -> Result<Vec<String>> {
     // take care with mailparse::msgidparse() that is pretty untolerant eg. wrt missing `<` or `>`
     let mut msgids = Vec::new();
@@ -957,6 +1077,7 @@ pub struct Part {
     pub bytes: usize,
     pub param: Params,
     org_filename: Option<String>,
+    pub error: String,
 }
 
 /// return mimetype and viewtype for a parsed mail
@@ -1403,7 +1524,7 @@ Disposition: manual-action/MDN-sent-automatically; displayed\n\
         );
 
         assert_eq!(message.parts.len(), 1);
-        assert_eq!(message.reports.len(), 1);
+        assert_eq!(message.mdn_reports.len(), 1);
     }
 
     /// Test parsing multiple MDNs combined in a single message.
@@ -1483,7 +1604,7 @@ Disposition: manual-action/MDN-sent-automatically; displayed\n\
         );
 
         assert_eq!(message.parts.len(), 2);
-        assert_eq!(message.reports.len(), 2);
+        assert_eq!(message.mdn_reports.len(), 2);
     }
 
     #[async_std::test]
@@ -1530,10 +1651,13 @@ Additional-Message-IDs: <foo@example.com> <foo@example.net>\n\
         );
 
         assert_eq!(message.parts.len(), 1);
-        assert_eq!(message.reports.len(), 1);
-        assert_eq!(message.reports[0].original_message_id, "foo@example.org");
+        assert_eq!(message.mdn_reports.len(), 1);
         assert_eq!(
-            &message.reports[0].additional_message_ids,
+            message.mdn_reports[0].original_message_id,
+            "foo@example.org"
+        );
+        assert_eq!(
+            &message.mdn_reports[0].additional_message_ids,
             &["foo@example.com", "foo@example.net"]
         );
     }

@@ -14,7 +14,7 @@ use crate::error::{ensure, Error};
 use crate::events::Event;
 use crate::job::{self, Action};
 use crate::lot::{Lot, LotState, Meaning};
-use crate::mimeparser::SystemMessage;
+use crate::mimeparser::{FailureReport, SystemMessage};
 use crate::param::*;
 use crate::pgp::*;
 use crate::stock::StockMessage;
@@ -255,6 +255,7 @@ pub struct Message {
     pub(crate) starred: bool,
     pub(crate) chat_blocked: Blocked,
     pub(crate) location_id: u32,
+    pub(crate) error: String,
     pub(crate) param: Params,
 }
 
@@ -289,6 +290,7 @@ impl Message {
                     "    m.timestamp_rcvd AS timestamp_rcvd,",
                     "    m.type AS type,",
                     "    m.state AS state,",
+                    "    m.error AS error,",
                     "    m.msgrmsg AS msgrmsg,",
                     "    m.txt AS txt,",
                     "    m.param AS param,",
@@ -316,6 +318,7 @@ impl Message {
                     msg.timestamp_rcvd = row.get("timestamp_rcvd")?;
                     msg.viewtype = row.get("type")?;
                     msg.state = row.get("state")?;
+                    msg.error = row.get("error")?;
                     msg.is_dc_message = row.get("msgrmsg")?;
 
                     let text;
@@ -390,7 +393,7 @@ impl Message {
                     }
 
                     if !self.id.is_unset() {
-                        self.save_param_to_disk(context).await;
+                        self.update_param(context).await;
                     }
                 }
             }
@@ -643,10 +646,10 @@ impl Message {
         if duration > 0 {
             self.param.set_int(Param::Duration, duration);
         }
-        self.save_param_to_disk(context).await;
+        self.update_param(context).await;
     }
 
-    pub async fn save_param_to_disk(&mut self, context: &Context) -> bool {
+    pub async fn update_param(&mut self, context: &Context) -> bool {
         context
             .sql
             .execute(
@@ -763,9 +766,10 @@ impl From<MessageState> for LotState {
 impl MessageState {
     pub fn can_fail(self) -> bool {
         match self {
-            MessageState::OutPreparing | MessageState::OutPending | MessageState::OutDelivered => {
-                true
-            }
+            MessageState::OutPreparing
+            | MessageState::OutPending
+            | MessageState::OutDelivered
+            | MessageState::OutMdnRcvd => true, // OutMdnRcvd can still fail because it could be a group message and only some recipients failed.
             _ => false,
         }
     }
@@ -937,8 +941,9 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
     }
 
     ret += "\n";
-    if let Some(err) = msg.param.get(Param::Error) {
-        ret += &format!("Error: {}", err)
+
+    if !msg.error.is_empty() {
+        ret += &format!("Error: {}", msg.error);
     }
 
     if let Some(path) = msg.get_file(context) {
@@ -1251,33 +1256,38 @@ pub async fn exists(context: &Context, msg_id: MsgId) -> bool {
 
 pub async fn set_msg_failed(context: &Context, msg_id: MsgId, error: Option<impl AsRef<str>>) {
     if let Ok(mut msg) = Message::load_from_db(context, msg_id).await {
+        let error = error.map(|e| e.as_ref().to_string()).unwrap_or_default();
         if msg.state.can_fail() {
             msg.state = MessageState::OutFailed;
-        }
-        if let Some(error) = error {
-            msg.param.set(Param::Error, error.as_ref());
-            warn!(context, "Message failed: {}", error.as_ref());
+            warn!(context, "{} failed: {}", msg_id, error);
+        } else {
+            warn!(
+                context,
+                "{} seems to have failed ({}), but state is {}", msg_id, error, msg.state
+            )
         }
 
-        if context
+        match context
             .sql
             .execute(
-                "UPDATE msgs SET state=?, param=? WHERE id=?;",
-                paramsv![msg.state, msg.param.to_string(), msg_id],
+                "UPDATE msgs SET state=?, error=? WHERE id=?;",
+                paramsv![msg.state, error, msg_id],
             )
             .await
-            .is_ok()
         {
-            context.emit_event(Event::MsgFailed {
+            Ok(_) => context.emit_event(Event::MsgFailed {
                 chat_id: msg.chat_id,
                 msg_id,
-            });
+            }),
+            Err(e) => {
+                warn!(context, "{:?}", e);
+            }
         }
     }
 }
 
 /// returns Some if an event should be send
-pub async fn mdn_from_ext(
+pub async fn handle_mdn(
     context: &Context,
     from_id: u32,
     rfc724_mid: &str,
@@ -1318,10 +1328,10 @@ pub async fn mdn_from_ext(
     if let Ok((msg_id, chat_id, chat_type, msg_state)) = res {
         let mut read_by_all = false;
 
-        // if already marked as MDNS_RCVD msgstate_can_fail() returns false.
-        // however, it is important, that ret_msg_id is set above as this
-        // will allow the caller eg. to move the message away
-        if msg_state.can_fail() {
+        if msg_state == MessageState::OutPreparing
+            || msg_state == MessageState::OutPending
+            || msg_state == MessageState::OutDelivered
+        {
             let mdn_already_in_table = context
                 .sql
                 .exists(
@@ -1382,6 +1392,69 @@ pub async fn mdn_from_ext(
         };
     }
     None
+}
+
+/// Marks a message as failed after an ndn (non-delivery-notification) arrived.
+/// Where appropriate, also adds an info message telling the user which of the recipients of a group message failed.
+pub(crate) async fn handle_ndn(
+    context: &Context,
+    failed: &FailureReport,
+    error: Option<impl AsRef<str>>,
+) {
+    if failed.rfc724_mid.is_empty() {
+        return;
+    }
+
+    let res = context
+        .sql
+        .query_row(
+            concat!(
+                "SELECT",
+                "    m.id AS msg_id,",
+                "    c.id AS chat_id,",
+                "    c.type AS type",
+                " FROM msgs m LEFT JOIN chats c ON m.chat_id=c.id",
+                " WHERE rfc724_mid=? AND from_id=1",
+            ),
+            paramsv![failed.rfc724_mid],
+            |row| {
+                Ok((
+                    row.get::<_, MsgId>("msg_id")?,
+                    row.get::<_, ChatId>("chat_id")?,
+                    row.get::<_, Chattype>("type")?,
+                ))
+            },
+        )
+        .await;
+    if let Err(ref err) = res {
+        info!(context, "Failed to select NDN {:?}", err);
+    }
+
+    if let Ok((msg_id, chat_id, chat_type)) = res {
+        set_msg_failed(context, msg_id, error).await;
+
+        if chat_type == Chattype::Group || chat_type == Chattype::VerifiedGroup {
+            if let Some(failed_recipient) = &failed.failed_recipient {
+                let contact_id =
+                    Contact::lookup_id_by_addr(context, failed_recipient, Origin::Unknown).await;
+                if let Ok(contact) = Contact::load_from_db(context, contact_id).await {
+                    // Tell the user which of the recipients failed if we know that (because in a group, this might otherwise be unclear)
+                    chat::add_info_msg(
+                        context,
+                        chat_id,
+                        context
+                            .stock_string_repl_str(
+                                StockMessage::FailedSendingTo,
+                                contact.get_display_name(),
+                            )
+                            .await,
+                    )
+                    .await;
+                    context.emit_event(Event::ChatModified(chat_id));
+                }
+            }
+        }
+    }
 }
 
 /// The number of messages assigned to real chat (!=deaddrop, !=trash)

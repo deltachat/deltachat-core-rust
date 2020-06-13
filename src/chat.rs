@@ -424,7 +424,7 @@ impl ChatId {
     async fn get_parent_mime_headers(self, context: &Context) -> Option<(String, String, String)> {
         let collect =
             |row: &rusqlite::Row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?));
-        let (packed, rfc724_mid, mime_in_reply_to, mime_references): (
+        let (rfc724_mid, mime_in_reply_to, mime_references, error): (
             String,
             String,
             String,
@@ -432,15 +432,14 @@ impl ChatId {
         ) = self
             .parent_query(
                 context,
-                "param, rfc724_mid, mime_in_reply_to, mime_references",
+                "rfc724_mid, mime_in_reply_to, mime_references, error",
                 collect,
             )
             .await
             .ok()
             .flatten()?;
 
-        let param = packed.parse::<Params>().ok()?;
-        if param.exists(Param::Error) {
+        if !error.is_empty() {
             // Do not reply to error messages.
             //
             // An error message could be a group chat message that we failed to decrypt and
@@ -454,12 +453,13 @@ impl ChatId {
     }
 
     async fn parent_is_encrypted(self, context: &Context) -> Result<bool, Error> {
-        let collect = |row: &rusqlite::Row| Ok(row.get(0)?);
-        let packed: Option<String> = self.parent_query(context, "param", collect).await?;
+        let collect = |row: &rusqlite::Row| Ok((row.get(0)?, row.get(1)?));
+        let res: Option<(String, String)> =
+            self.parent_query(context, "param, error", collect).await?;
 
-        if let Some(ref packed) = packed {
+        if let Some((ref packed, ref error)) = res {
             let param = packed.parse::<Params>()?;
-            Ok(!param.exists(Param::Error) && param.exists(Param::GuaranteeE2ee))
+            Ok(error.is_empty() && param.exists(Param::GuaranteeE2ee))
         } else {
             // No messages
             Ok(false)
@@ -1464,7 +1464,7 @@ pub async fn send_msg(
                 }
             }
             msg.param.remove(Param::PrepForwards);
-            msg.save_param_to_disk(context).await;
+            msg.update_param(context).await;
         }
         return send_msg_inner(context, chat_id, msg).await;
     }
@@ -2596,7 +2596,7 @@ pub async fn forward_msgs(
                         .set(Param::PrepForwards, new_msg_id.to_u32().to_string());
                 }
 
-                msg.save_param_to_disk(context).await;
+                msg.update_param(context).await;
                 msg.param = save_param;
             } else {
                 msg.state = MessageState::OutPending;
@@ -2784,7 +2784,7 @@ pub(crate) async fn delete_and_reset_all_device_msgs(context: &Context) -> Resul
 pub(crate) async fn add_info_msg(context: &Context, chat_id: ChatId, text: impl AsRef<str>) {
     let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
 
-    if context.sql.execute(
+    if let Err(e) = context.sql.execute(
         "INSERT INTO msgs (chat_id,from_id,to_id, timestamp,type,state, txt,rfc724_mid) VALUES (?,?,?, ?,?,?, ?,?);",
         paramsv![
             chat_id,
@@ -2796,7 +2796,8 @@ pub(crate) async fn add_info_msg(context: &Context, chat_id: ChatId, text: impl 
             text.as_ref().to_string(),
             rfc724_mid,
         ]
-    ).await.is_err() {
+    ).await {
+        warn!(context, "Could not add info msg: {}", e);
         return;
     }
 

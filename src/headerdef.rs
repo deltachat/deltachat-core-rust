@@ -21,6 +21,7 @@ pub enum HeaderDef {
     References,
     InReplyTo,
     Precedence,
+    ContentType,
     ChatVersion,
     ChatGroupId,
     ChatGroupName,

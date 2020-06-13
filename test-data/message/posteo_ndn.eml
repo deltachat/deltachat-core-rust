@@ -1,0 +1,113 @@
+Return-Path: <>
+Delivered-To: alice@posteo.org
+Received: from proxy02.posteo.name ([127.0.0.1])
+	by dovecot03.posteo.local (Dovecot) with LMTP id zvCFJRzX317LGQIA+3EWog
+	for <alice@posteo.org>; Tue, 09 Jun 2020 20:44:24 +0200
+Received: from proxy02.posteo.de ([127.0.0.1])
+	by proxy02.posteo.name (Dovecot) with LMTP id mhNkNAnR316xBQMAGFAyLg
+	; Tue, 09 Jun 2020 20:44:23 +0200
+Received: from mailin06.posteo.de (unknown [10.0.1.6])
+	by proxy02.posteo.de (Postfix) with ESMTPS id 49hJtv3RRcz11m7
+	for <alice@posteo.org>; Tue,  9 Jun 2020 20:44:23 +0200 (CEST)
+Received: from mx04.posteo.de (mailin06.posteo.de [127.0.0.1])
+	by mailin06.posteo.de (Postfix) with ESMTPS id 6935920DD2
+	for <alice@posteo.org>; Tue,  9 Jun 2020 20:44:23 +0200 (CEST)
+X-Virus-Scanned: amavisd-new at posteo.de
+X-Spam-Flag: NO
+X-Spam-Score: -1
+X-Spam-Level: 
+X-Spam-Status: No, score=-1 tagged_above=-1000 required=8
+	tests=[ALL_TRUSTED=-1] autolearn=disabled
+Received: from mout01.posteo.de (mout01.posteo.de [185.67.36.65])
+	by mx04.posteo.de (Postfix) with ESMTPS id 49hJtv001Vz10kT
+	for <alice@posteo.org>; Tue,  9 Jun 2020 20:44:22 +0200 (CEST)
+Authentication-Results: mx04.posteo.de; dmarc=none (p=none dis=none) header.from=mout01.posteo.de
+Received: by mout01.posteo.de (Postfix)
+	id DCB6B1200DD; Tue,  9 Jun 2020 20:44:22 +0200 (CEST)
+Date: Tue,  9 Jun 2020 20:44:22 +0200 (CEST)
+From: MAILER-DAEMON@mout01.posteo.de (Mail Delivery System)
+Subject: Undelivered Mail Returned to Sender
+To: alice@posteo.org
+Auto-Submitted: auto-replied
+MIME-Version: 1.0
+Content-Type: multipart/report; report-type=delivery-status;
+	boundary="B39111200B9.1591728262/mout01.posteo.de"
+Content-Transfer-Encoding: 7bit
+Message-Id: <20200609184422.DCB6B1200DD@mout01.posteo.de>
+
+This is a MIME-encapsulated message.
+
+--B39111200B9.1591728262/mout01.posteo.de
+Content-Description: Notification
+Content-Type: text/plain; charset=us-ascii
+
+This is the mail system at host mout01.posteo.de.
+
+I'm sorry to have to inform you that your message could not
+be delivered to one or more recipients. It's attached below.
+
+For further assistance, please send mail to postmaster.
+
+If you do so, please include this problem report. You can
+delete your own text from the attached returned message.
+
+                   The mail system
+
+<hanerthaertidiuea@gmx.de>: host mx01.emig.gmx.net[212.227.17.5] said: 550
+    Requested action not taken: mailbox unavailable (in reply to RCPT TO
+    command)
+
+--B39111200B9.1591728262/mout01.posteo.de
+Content-Description: Delivery report
+Content-Type: message/delivery-status
+
+Reporting-MTA: dns; mout01.posteo.de
+X-Postfix-Queue-ID: B39111200B9
+X-Postfix-Sender: rfc822; alice@posteo.org
+Arrival-Date: Tue,  9 Jun 2020 20:44:22 +0200 (CEST)
+
+Final-Recipient: rfc822; hanerthaertidiuea@gmx.de
+Original-Recipient: rfc822;hanerthaertidiuea@gmx.de
+Action: failed
+Status: 5.0.0
+Remote-MTA: dns; mx01.emig.gmx.net
+Diagnostic-Code: smtp; 550 Requested action not taken: mailbox unavailable
+
+--B39111200B9.1591728262/mout01.posteo.de
+Content-Description: Undelivered Message Headers
+Content-Type: text/rfc822-headers
+
+Return-Path: <alice@posteo.org>
+Received: from mout01.posteo.de (unknown [10.0.0.65])
+	by mout01.posteo.de (Postfix) with ESMTPS id B39111200B9
+	for <hanerthaertidiuea@gmx.de>; Tue,  9 Jun 2020 20:44:22 +0200 (CEST)
+Received: from submission-encrypt01.posteo.de (unknown [10.0.0.75])
+	by mout01.posteo.de (Postfix) with ESMTPS id 8A684160060
+	for <hanerthaertidiuea@gmx.de>; Tue,  9 Jun 2020 20:44:22 +0200 (CEST)
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/simple; d=posteo.de; s=2017;
+	t=1591728262; bh=g3zLYH4xKxcPrHOD18z9YfpQcnk/GaJedfustWU5uGs=;
+	h=To:From:Subject:Date:From;
+	b=brJnt4PLAX3Tda1RHCo91aB1kMAL/Ku9dmO7D2DD41Zu5ShNsyqqyDkyxb1DsDn3O
+	 6KuBZe3/8gemBuCJ/mxzwd9v8sBnlrV+5afIk0Ye9VvthZsc4HoG79+FiVOi9F38o0
+	 DtJJFYFw/X7mAc5Xyt0B0JvtiTPpBdRAkluUQm+QW6cW6GGlwicVW19qvebzq+sHyP
+	 X2bZ8wpo78yVgvjPBK3DLaXa+pKFMBjLdDUcIE2bZnY6u6F1x8SXGKGBoxVwdJipJx
+	 v14so5IejNsf4LYJjH3Qb8xgK1aAi6e6nQn4YXV0INL6ahzgALiT9N6vwunNKYVJNi
+	 fPPKvBWDfUS4Q==
+Received: from customer (localhost [127.0.0.1])
+	by submission (posteo.de) with ESMTPSA id 49hJtt1WPbz6tmV
+	for <hanerthaertidiuea@gmx.de>; Tue,  9 Jun 2020 20:44:22 +0200 (CEST)
+To: hanerthaertidiuea@gmx.de
+From: deltachat <alice@posteo.org>
+Subject: test
+Message-ID: <04422840-f884-3e37-5778-8192fe22d8e1@posteo.de>
+Date: Tue, 9 Jun 2020 20:45:02 +0200
+User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:68.0) Gecko/20100101
+ Thunderbird/68.8.1
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 7bit
+Content-Language: de-DE
+Posteo-User: alice@posteo.org
+Posteo-Dkim: ok
+
+--B39111200B9.1591728262/mout01.posteo.de--

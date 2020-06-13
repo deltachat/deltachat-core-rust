@@ -1449,13 +1449,19 @@ async fn prefetch_is_reply_to_chat_message(
     false
 }
 
-async fn prefetch_should_download(
+pub(crate) async fn prefetch_should_download(
     context: &Context,
     headers: &[mailparse::MailHeader<'_>],
     show_emails: ShowEmails,
 ) -> Result<bool> {
     let is_chat_message = headers.get_header_value(HeaderDef::ChatVersion).is_some();
     let is_reply_to_chat_message = prefetch_is_reply_to_chat_message(context, &headers).await;
+
+    let maybe_ndn = if let Some(from) = headers.get_header_value(HeaderDef::From_) {
+        from.to_ascii_lowercase().contains("mailer-daemon")
+    } else {
+        false
+    };
 
     // Autocrypt Setup Message should be shown even if it is from non-chat client.
     let is_autocrypt_setup_message = headers
@@ -1467,6 +1473,7 @@ async fn prefetch_should_download(
     let accepted_contact = origin.is_known();
 
     let show = is_autocrypt_setup_message
+        || maybe_ndn
         || match show_emails {
             ShowEmails::Off => is_chat_message || is_reply_to_chat_message,
             ShowEmails::AcceptedContacts => {

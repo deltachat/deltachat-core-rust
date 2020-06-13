@@ -1241,6 +1241,15 @@ async fn open(
                 .await?;
             sql.set_raw_config_int(context, "dbversion", 63).await?;
         }
+        if dbversion < 64 {
+            info!(context, "[migration] v64");
+            sql.execute(
+                "ALTER TABLE msgs ADD COLUMN error TEXT DEFAULT '';",
+                paramsv![],
+            )
+            .await?;
+            sql.set_raw_config_int(context, "dbversion", 64).await?;
+        }
 
         // (2) updates that require high-level objects
         // (the structure is complete now and all objects are usable)

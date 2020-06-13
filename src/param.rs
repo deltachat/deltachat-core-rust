@@ -66,9 +66,6 @@ pub enum Param {
     Arg4 = b'H',
 
     /// For Messages
-    Error = b'L',
-
-    /// For Messages
     AttachGroupImage = b'A',
 
     /// For Messages: space-separated list of messaged IDs of forwarded copies.
