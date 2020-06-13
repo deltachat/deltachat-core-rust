@@ -1,3 +1,25 @@
+//! Export chats module
+//!
+//! ## Export Format
+//! The format of an exported chat is a zip file with the following structure:
+//! ```text
+//! ├── blobs/          # all files that are referenced by the chat
+//! ├── msg_info/
+//! │   └── [msg_id].txt # message info
+//! ├── msg_source/
+//! │   └── [msg_id].eml # email sourcecode of messages if availible¹
+//! └── chat.json        # chat info, messages and message authors
+//! ```
+//! ##### ¹ Saving Mime header
+//! To save the mime header you need to have the config option [`SaveMimeHeaders`] enabled.
+//! This option saves the mime headers on future messages. Normaly the original email source code is discarded to save space.
+//! You can use the repl tool to do this job:
+//! ```sh
+//! $ cargo run --example repl --features=repl /path/to/account/db.sqlite
+//! > set save_mime_headers 1
+//! ```
+//! [`SaveMimeHeaders`]: ../config/enum.Config.html#variant.SaveMimeHeaders
+
 // use crate::dc_tools::*;
 use crate::chat::*;
 use crate::constants::Viewtype;
