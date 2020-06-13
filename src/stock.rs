@@ -183,7 +183,7 @@ pub enum StockMessage {
     #[strum(props(fallback = "Message from %1$s"))]
     SubjectForNewContact = 73,
 
-    #[strum(props(fallback = "Failed to send message to %1$s. See 'info' for more details."))]
+    #[strum(props(fallback = "Failed to send message to %1$s."))]
     FailedSendingTo = 74,
 }
 
