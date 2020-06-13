@@ -405,14 +405,12 @@ async fn add_parts(
                 .await
                 .unwrap_or_default();
 
-        if chat_id.is_unset() {
-            if mime_parser.failure_report.is_some() {
-                *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
-                info!(
-                    context,
-                    "Message belongs to an NDN and is not shown in a chat.",
-                );
-            }
+        if chat_id.is_unset() && mime_parser.failure_report.is_some() {
+            *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
+            info!(
+                context,
+                "Message belongs to an NDN and is not shown in a chat.",
+            );
         }
 
         // get the chat_id - a chat_id here is no indicator that the chat is displayed in the normal list,
