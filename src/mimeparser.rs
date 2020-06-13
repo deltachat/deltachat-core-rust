@@ -334,6 +334,13 @@ impl MimeMessage {
             }
         }
 
+        let upload_url = self.get(HeaderDef::ChatUploadUrl).map(|v| v.to_string());
+        if let Some(upload_url) = upload_url {
+            for part in self.parts.iter_mut() {
+                part.param.set_upload_url(upload_url.clone());
+            }
+        }
+
         self.parse_attachments();
 
         // See if an MDN is requested from the other side

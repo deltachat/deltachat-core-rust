@@ -352,16 +352,28 @@ async fn symm_encrypt_to_message(passphrase: &str, plain: &[u8]) -> Result<Messa
     .await
 }
 
-/// Symmetric decryption.
+/// Symmetric decryption from armored text.
 pub async fn symm_decrypt<T: std::io::Read + std::io::Seek>(
     passphrase: &str,
     ctext: T,
 ) -> Result<Vec<u8>> {
     let (enc_msg, _) = Message::from_armor_single(ctext)?;
+    symm_decrypt_from_message(enc_msg, passphrase).await
+}
 
+/// Symmetric decryption from bytes.
+pub async fn symm_decrypt_bytes<T: std::io::Read + std::io::Seek>(
+    passphrase: &str,
+    cbytes: T,
+) -> Result<Vec<u8>> {
+    let enc_msg = Message::from_bytes(cbytes)?;
+    symm_decrypt_from_message(enc_msg, passphrase).await
+}
+
+async fn symm_decrypt_from_message(message: Message, passphrase: &str) -> Result<Vec<u8>> {
     let passphrase = passphrase.to_string();
     async_std::task::spawn_blocking(move || {
-        let decryptor = enc_msg.decrypt_with_password(|| passphrase)?;
+        let decryptor = message.decrypt_with_password(|| passphrase)?;
 
         let msgs = decryptor.collect::<pgp::errors::Result<Vec<_>>>()?;
         ensure!(!msgs.is_empty(), "No valid messages found");

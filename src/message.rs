@@ -1545,6 +1545,33 @@ pub async fn update_server_uid(
     }
 }
 
+/// Schedule attachement download for a message.
+pub async fn schedule_download(
+    context: &Context,
+    msg_id: MsgId,
+    path: Option<PathBuf>,
+) -> Result<(), Error> {
+    let msg = Message::load_from_db(context, msg_id).await?;
+    if let Some(_upload_url) = msg.param.get_upload_url() {
+        // TODO: Check if message was already downloaded.
+        let mut params = Params::new();
+        if let Some(path) = path {
+            params.set_upload_path(path);
+        }
+        job::add(
+            context,
+            job::Job::new(Action::DownloadMessageFile, msg_id.to_u32(), params, 0),
+        )
+        .await;
+    } else {
+        warn!(
+            context,
+            "Tried to schedule download for message {} which has no uploads", msg_id
+        );
+    }
+    Ok(())
+}
+
 #[allow(dead_code)]
 pub async fn dc_empty_server(context: &Context, flags: u32) {
     job::kill_action(context, Action::EmptyServer).await;

@@ -371,6 +371,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  listmsgs <query>\n\
                  msginfo <msg-id>\n\
                  openfile <msg-id>\n\
+                 download <msg-id>\n\
                  listfresh\n\
                  forward <msg-id> <chat-id>\n\
                  markseen <msg-id>\n\
@@ -899,6 +900,16 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             ensure!(filepath.is_some(), "Message has no file.");
             let filepath = filepath.unwrap();
             open::that(filepath)?;
+        }
+        "download" => {
+            ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
+            let id = MsgId::new(arg1.parse()?);
+            let path = if !arg2.is_empty() {
+                Some(arg2.into())
+            } else {
+                None
+            };
+            message::schedule_download(&context, id, path).await?;
         }
         "listfresh" => {
             let msglist = context.get_fresh_msgs().await;

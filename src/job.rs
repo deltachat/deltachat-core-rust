@@ -32,7 +32,7 @@ use crate::message::{self, Message, MessageState};
 use crate::mimefactory::MimeFactory;
 use crate::param::*;
 use crate::smtp::Smtp;
-use crate::upload::{generate_upload_url, upload_file};
+use crate::upload::{download_message_file, generate_upload_url, upload_file};
 use crate::{scheduler::InterruptInfo, sql};
 
 // results in ~3 weeks for the last backoff timespan
@@ -109,6 +109,8 @@ pub enum Action {
     MaybeSendLocationsEnded = 5007,
     SendMdn = 5010,
     SendMsgToSmtp = 5901, // ... high priority
+
+    DownloadMessageFile = 7000,
 }
 
 impl Default for Action {
@@ -135,6 +137,9 @@ impl From<Action> for Thread {
             MaybeSendLocationsEnded => Thread::Smtp,
             SendMdn => Thread::Smtp,
             SendMsgToSmtp => Thread::Smtp,
+
+            // TODO: Where does downloading fit in the thread architecture?
+            DownloadMessageFile => Thread::Imap,
         }
     }
 }
@@ -668,6 +673,13 @@ impl Job {
             }
         }
     }
+
+    pub(crate) async fn download_message_file(&mut self, context: &Context) -> Status {
+        let msg_id = MsgId::new(self.foreign_id);
+        let download_path = job_try!(self.param.get_upload_path(context));
+        job_try!(download_message_file(context, msg_id, download_path).await);
+        Status::Finished(Ok(()))
+    }
 }
 
 /// Delete all pending jobs with the given action.
@@ -1009,6 +1021,7 @@ async fn perform_job_action(
             sql::housekeeping(context).await;
             Status::Finished(Ok(()))
         }
+        Action::DownloadMessageFile => job.download_message_file(context).await,
     };
 
     info!(
@@ -1065,7 +1078,8 @@ pub async fn add(context: &Context, job: Job) {
             | Action::OldDeleteMsgOnImap
             | Action::DeleteMsgOnImap
             | Action::MarkseenMsgOnImap
-            | Action::MoveMsg => {
+            | Action::MoveMsg
+            | Action::DownloadMessageFile => {
                 info!(context, "interrupt: imap");
                 context
                     .interrupt_inbox(InterruptInfo::new(false, None))

@@ -1,6 +1,9 @@
+use crate::blob::BlobObject;
+// use crate::constants::Viewtype;
 use crate::context::Context;
-use crate::error::{bail, Result};
-use crate::pgp::{symm_decrypt, symm_encrypt_bytes};
+use crate::error::{bail, format_err, Result};
+use crate::message::{Message, MsgId};
+use crate::pgp::{symm_decrypt_bytes, symm_encrypt_bytes};
 use async_std::fs;
 use async_std::path::PathBuf;
 use rand::Rng;
@@ -31,18 +34,68 @@ pub async fn upload_file(
     }
 }
 
+pub async fn download_message_file(
+    context: &Context,
+    msg_id: MsgId,
+    download_path: Option<PathBuf>,
+) -> Result<()> {
+    let mut message = Message::load_from_db(context, msg_id).await?;
+    let upload_url = message
+        .param
+        .get_upload_url()
+        .ok_or_else(|| format_err!("Message has no upload URL"))?;
+
+    let (passphrase, url) = parse_upload_url(upload_url)?;
+
+    let filename: String = url
+        .path_segments()
+        .ok_or_else(|| format_err!("Invalid upload URL"))?
+        .last()
+        .ok_or_else(|| format_err!("Invalid upload URL"))?
+        .to_string();
+
+    let data = download_file(context, url, passphrase).await?;
+    let saved_path = if let Some(download_path) = download_path {
+        fs::write(&download_path, data).await?;
+        download_path.to_string_lossy().to_string()
+    } else {
+        let blob = BlobObject::create(context, filename.clone(), &data)
+            .await
+            .map_err(|err| {
+                format_err!(
+                    "Could not add blob for file download {}, error {}",
+                    filename,
+                    err
+                )
+            })?;
+        blob.as_name().to_string()
+    };
+    info!(context, "saved download to: {:?}", saved_path);
+
+    // TODO: Support getting the mime type.
+    let filemime = None;
+
+    message.set_file(saved_path, filemime);
+    message.save_param_to_disk(context).await;
+
+    Ok(())
+}
+
 /// Download and decrypt a file from a HTTP endpoint.
-/// TODO: Use this.
-#[allow(dead_code)]
-pub async fn download_file(context: &Context, url: String) -> Result<Vec<u8>> {
-    let (passphrase, url) = parse_upload_url(url)?;
-    info!(context, "downloading file from {}", &url);
+pub async fn download_file(
+    context: &Context,
+    url: impl AsRef<str>,
+    passphrase: String,
+) -> Result<Vec<u8>> {
+    info!(context, "downloading file from {}", &url.as_ref());
     let response = surf::get(url).recv_bytes().await;
     if let Err(err) = response {
         bail!("Download failed: {}", err);
     }
-    let reader = Cursor::new(response.unwrap());
-    let decrypted = symm_decrypt(&passphrase, reader).await?;
+    let bytes = response.unwrap();
+    info!(context, "download complete, len: {}", bytes.len());
+    let reader = Cursor::new(bytes);
+    let decrypted = symm_decrypt_bytes(&passphrase, reader).await?;
     Ok(decrypted)
 }
 
@@ -65,7 +118,7 @@ pub fn generate_upload_url(_context: &Context, mut endpoint: String) -> String {
     // equals at least 32 random bytes.
     const PASSPHRASE_LEN: usize = 52;
 
-    if endpoint.chars().last() == Some('/') {
+    if endpoint.ends_with('/') {
         endpoint.pop();
     }
     let passphrase = generate_token_string(PASSPHRASE_LEN);
