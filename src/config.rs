@@ -119,7 +119,9 @@ pub enum Config {
     SysConfigKeys,
 
     #[strum(props(default = "0"))]
-    WarnedAboutWrongPw,
+    /// Whether we send a warning if the password is wrong (set to false when we send a warning
+    /// because we do not want to send a second warning)
+    NotifyAboutWrongPw,
 }
 
 impl Context {

@@ -72,6 +72,7 @@ impl Context {
 
         let mut param = LoginParam::from_database(self, "").await;
         let success = configure(self, &mut param).await;
+        self.set_config(Config::NotifyAboutWrongPw, None).await?;
 
         if let Some(provider) = provider::get_provider_info(&param.addr) {
             if let Some(config_defaults) = &provider.config_defaults {
@@ -102,7 +103,8 @@ impl Context {
 
         match success {
             Ok(_) => {
-                self.set_config(Config::WarnedAboutWrongPw, None).await?;
+                self.set_config(Config::NotifyAboutWrongPw, Some("1"))
+                    .await?;
                 progress!(self, 1000);
                 Ok(())
             }

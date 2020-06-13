@@ -2670,6 +2670,7 @@ pub(crate) async fn get_chat_id_by_grpid(
 /// Adds a message to device chat.
 ///
 /// Optional `label` can be provided to ensure that message is added only once.
+/// If `important` is true, a notification will be sent.
 pub async fn add_device_msg_with_importance(
     context: &Context,
     label: Option<&str>,
