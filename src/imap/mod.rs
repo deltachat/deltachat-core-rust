@@ -308,17 +308,29 @@ impl Imap {
                     .stock_string_repl_str(StockMessage::CannotLogin, &imap_user)
                     .await;
 
+                warn!(context, "{} ({})", message, err);
                 error!(context, "{}", message);
+
+                let lock = context.wrong_pw_warning_mutex.lock().await;
                 if self.login_failed_once
-                    && self.fetch
                     && !context.get_config_bool(Config::WarnedAboutWrongPw).await
                 {
-                    context
+                    if let Err(e) = context
                         .set_config(Config::WarnedAboutWrongPw, Some("1"))
-                        .await;
+                        .await
+                    {
+                        warn!(context, "{}", e);
+                    }
+                    drop(lock);
+
                     let mut msg = Message::new(Viewtype::Text);
                     msg.text = Some(message);
-                    chat::add_device_msg_with_importance(context, None, Some(&mut msg), true).await;
+                    if let Err(e) =
+                        chat::add_device_msg_with_importance(context, None, Some(&mut msg), true)
+                            .await
+                    {
+                        warn!(context, "{}", e);
+                    }
                 } else {
                     self.login_failed_once = true;
                 }

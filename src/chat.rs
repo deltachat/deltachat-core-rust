@@ -2698,14 +2698,7 @@ pub async fn add_device_msg_with_importance(
         let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
         msg.try_calc_and_set_dimensions(context).await.ok();
         prepare_msg_blob(context, msg).await?;
-
         chat_id.unarchive(context).await?;
-        let muted = if important {
-            MuteDuration::NotMuted
-        } else {
-            MuteDuration::Forever
-        };
-        set_muted(context, chat_id, muted).await?;
 
         context.sql.execute(
             "INSERT INTO msgs (chat_id,from_id,to_id, timestamp,type,state, txt,param,rfc724_mid) \
@@ -2741,7 +2734,11 @@ pub async fn add_device_msg_with_importance(
     }
 
     if !msg_id.is_unset() {
-        context.emit_event(Event::IncomingMsg { chat_id, msg_id });
+        if important {
+            context.emit_event(Event::IncomingMsg { chat_id, msg_id });
+        } else {
+            context.emit_event(Event::MsgsChanged { chat_id, msg_id });
+        }
     }
 
     Ok(msg_id)
