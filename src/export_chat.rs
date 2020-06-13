@@ -38,20 +38,29 @@ use futures::future::join_all;
 use serde::Serialize;
 
 #[derive(Debug)]
-pub struct ExportChatResult {
+struct ExportChatResult {
     chat_json: String,
     // locations_geo_json: String,
     message_info: Vec<(u32, String, Option<String>)>,
     referenced_blobs: Vec<String>,
 }
 
-pub fn pack_exported_chat(
+pub async fn export_chat_to_zip(context: &Context, chat_id: ChatId, filename: &str) -> () {
+    let res = export_chat_data(&context, chat_id).await;
+    let destination = std::path::Path::new(filename);
+    let pack_res = pack_exported_chat(&context, res, destination);
+    match &pack_res {
+        Ok(()) => println!("Exported chat successfully to {}", filename),
+        Err(err) => println!("Error {:?}", err),
+    };
+}
+
+fn pack_exported_chat(
     context: &Context,
     artifact: ExportChatResult,
-    filename: &str,
+    destination: &Path,
 ) -> zip::result::ZipResult<()> {
-    let path = std::path::Path::new(filename);
-    let file = std::fs::File::create(&path).unwrap();
+    let file = std::fs::File::create(&destination).unwrap();
 
     let mut zip = zip::ZipWriter::new(file);
 
@@ -87,6 +96,8 @@ pub fn pack_exported_chat(
             zip.write_all((mime_headers).as_bytes())?;
         }
     }
+
+    // todo maybe memory optimisation -> load message source here and pack it directly into zip
 
     zip.finish()?;
     Ok(())
@@ -169,7 +180,7 @@ impl MessageJSON {
     }
 }
 
-pub async fn export_chat(context: &Context, chat_id: ChatId) -> ExportChatResult {
+async fn export_chat_data(context: &Context, chat_id: ChatId) -> ExportChatResult {
     let mut blobs = Vec::new();
     let mut chat_author_ids = Vec::new();
     // get all messages
