@@ -303,10 +303,8 @@ impl Imap {
                     .stock_string_repl_str(StockMessage::CannotLogin, &imap_user)
                     .await;
 
-                emit_event!(
-                    context,
-                    Event::ErrorNetwork(format!("{} ({})", message, err))
-                );
+                error!(context, "{}", message);
+
                 self.trigger_reconnect();
                 Err(Error::LoginFailed(format!("cannot login as {}", imap_user)))
             }
