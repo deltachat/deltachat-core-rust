@@ -309,7 +309,7 @@ impl Imap {
                     .await;
 
                 warn!(context, "{} ({})", message, err);
-                error!(context, "{}", message);
+                emit_event!(context, Event::ErrorNetwork(message.clone()));
 
                 let lock = context.wrong_pw_warning_mutex.lock().await;
                 if self.login_failed_once
