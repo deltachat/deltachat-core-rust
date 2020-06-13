@@ -370,6 +370,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  ===========================Message commands==\n\
                  listmsgs <query>\n\
                  msginfo <msg-id>\n\
+                 openfile <msg-id>\n\
                  listfresh\n\
                  forward <msg-id> <chat-id>\n\
                  markseen <msg-id>\n\
@@ -889,6 +890,15 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             let id = MsgId::new(arg1.parse()?);
             let res = message::get_msg_info(&context, id).await;
             println!("{}", res);
+        }
+        "openfile" => {
+            ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
+            let id = MsgId::new(arg1.parse()?);
+            let msg = Message::load_from_db(&context, id).await?;
+            let filepath = msg.get_file(&context);
+            ensure!(filepath.is_some(), "Message has no file.");
+            let filepath = filepath.unwrap();
+            open::that(filepath)?;
         }
         "listfresh" => {
             let msglist = context.get_fresh_msgs().await;
