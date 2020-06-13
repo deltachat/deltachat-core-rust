@@ -1457,12 +1457,8 @@ pub(crate) async fn prefetch_should_download(
     let is_chat_message = headers.get_header_value(HeaderDef::ChatVersion).is_some();
     let is_reply_to_chat_message = prefetch_is_reply_to_chat_message(context, &headers).await;
 
-    let maybe_ndn = if let Some(subject) = headers.get_header_value(HeaderDef::Subject) {
-        subject.to_ascii_lowercase().contains("fail")
-    } else {
-        false
-    } || if let Some(ctype) = headers.get_header_value(HeaderDef::ContentType) {
-        ctype.starts_with("multipart/report")
+    let maybe_ndn = if let Some(from) = headers.get_header_value(HeaderDef::From_) {
+        from.to_ascii_lowercase().contains("daemon")
     } else {
         false
     };
