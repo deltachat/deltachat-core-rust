@@ -33,7 +33,7 @@ pub fn pack_exported_chat(
 
     let mut zip = zip::ZipWriter::new(file);
 
-    zip.start_file("index.json", Default::default())?;
+    zip.start_file("chat.json", Default::default())?;
     zip.write_all(artifact.chat_json.as_bytes())?;
 
     zip.add_directory("blobs/", Default::default())?;
@@ -53,11 +53,15 @@ pub fn pack_exported_chat(
     }
 
     zip.add_directory("msg_info/", Default::default())?;
+    zip.add_directory("msg_source/", Default::default())?;
     for msg_info in artifact.message_info {
         zip.start_file_from_path(Path::new(&format!("msg_info/{}.txt", msg_info.0)), options)?;
         zip.write_all((msg_info.1).as_bytes())?;
         if let Some(mime_headers) = msg_info.2 {
-            zip.start_file_from_path(Path::new(&format!("msg_info/{}.eml", msg_info.0)), options)?;
+            zip.start_file_from_path(
+                Path::new(&format!("msg_source/{}.eml", msg_info.0)),
+                options,
+            )?;
             zip.write_all((mime_headers).as_bytes())?;
         }
     }
