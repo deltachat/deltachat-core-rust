@@ -911,7 +911,7 @@ impl MimeMessage {
             && self
                 .get(HeaderDef::From_)?
                 .to_ascii_lowercase()
-                .contains("daemon")
+                .contains("mailer-daemon")
             && self.failure_report.is_none()
         {
             lazy_static! {
