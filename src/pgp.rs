@@ -10,6 +10,7 @@ use pgp::composed::{
     SignedPublicSubKey, SignedSecretKey, SubkeyParamsBuilder,
 };
 use pgp::crypto::{HashAlgorithm, SymmetricKeyAlgorithm};
+use pgp::ser::Serialize;
 use pgp::types::{
     CompressionAlgorithm, KeyTrait, Mpi, PublicKeyTrait, SecretKeyTrait, StringToKey,
 };
@@ -322,8 +323,22 @@ pub async fn pk_decrypt(
     Ok(content)
 }
 
-/// Symmetric encryption.
+/// Symmetric encryption with armored base64 text output.
 pub async fn symm_encrypt(passphrase: &str, plain: &[u8]) -> Result<String> {
+    let message = symm_encrypt_to_message(passphrase, plain).await?;
+    let encoded_msg = message.to_armored_string(None)?;
+    Ok(encoded_msg)
+}
+
+/// Symmetric encryption with binary output.
+pub async fn symm_encrypt_bytes(passphrase: &str, plain: &[u8]) -> Result<Vec<u8>> {
+    let message = symm_encrypt_to_message(passphrase, plain).await?;
+    let mut buf = Vec::new();
+    message.to_writer(&mut buf)?;
+    Ok(buf)
+}
+
+async fn symm_encrypt_to_message(passphrase: &str, plain: &[u8]) -> Result<Message> {
     let lit_msg = Message::new_literal_bytes("", plain);
     let passphrase = passphrase.to_string();
 
@@ -332,10 +347,7 @@ pub async fn symm_encrypt(passphrase: &str, plain: &[u8]) -> Result<String> {
         let s2k = StringToKey::new_default(&mut rng);
         let msg =
             lit_msg.encrypt_with_password(&mut rng, s2k, Default::default(), || passphrase)?;
-
-        let encoded_msg = msg.to_armored_string(None)?;
-
-        Ok(encoded_msg)
+        Ok(msg)
     })
     .await
 }
