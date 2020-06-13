@@ -117,6 +117,9 @@ pub enum Config {
 
     #[strum(serialize = "sys.config_keys")]
     SysConfigKeys,
+
+    #[strum(props(default = "0"))]
+    WarnedAboutWrongPw,
 }
 
 impl Context {

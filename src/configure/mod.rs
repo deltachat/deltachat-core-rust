@@ -102,6 +102,7 @@ impl Context {
 
         match success {
             Ok(_) => {
+                self.set_config(Config::WarnedAboutWrongPw, None).await?;
                 progress!(self, 1000);
                 Ok(())
             }

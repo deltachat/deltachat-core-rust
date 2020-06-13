@@ -2670,10 +2670,11 @@ pub(crate) async fn get_chat_id_by_grpid(
 /// Adds a message to device chat.
 ///
 /// Optional `label` can be provided to ensure that message is added only once.
-pub async fn add_device_msg(
+pub async fn add_device_msg_with_importance(
     context: &Context,
     label: Option<&str>,
     msg: Option<&mut Message>,
+    important: bool,
 ) -> Result<MsgId, Error> {
     ensure!(
         label.is_some() || msg.is_some(),
@@ -2697,7 +2698,14 @@ pub async fn add_device_msg(
         let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
         msg.try_calc_and_set_dimensions(context).await.ok();
         prepare_msg_blob(context, msg).await?;
+
         chat_id.unarchive(context).await?;
+        let muted = if important {
+            MuteDuration::NotMuted
+        } else {
+            MuteDuration::Forever
+        };
+        set_muted(context, chat_id, muted).await?;
 
         context.sql.execute(
             "INSERT INTO msgs (chat_id,from_id,to_id, timestamp,type,state, txt,param,rfc724_mid) \
@@ -2737,6 +2745,14 @@ pub async fn add_device_msg(
     }
 
     Ok(msg_id)
+}
+
+pub async fn add_device_msg(
+    context: &Context,
+    label: Option<&str>,
+    msg: Option<&mut Message>,
+) -> Result<MsgId, Error> {
+    add_device_msg_with_importance(context, label, msg, false).await
 }
 
 pub async fn was_device_msg_ever_added(context: &Context, label: &str) -> Result<bool, Error> {

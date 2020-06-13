@@ -30,7 +30,7 @@ use crate::mimeparser;
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::param::Params;
 use crate::provider::get_provider_info;
-use crate::{scheduler::InterruptInfo, stock::StockMessage};
+use crate::{chat, scheduler::InterruptInfo, stock::StockMessage};
 
 mod client;
 mod idle;
@@ -38,6 +38,7 @@ pub mod select_folder;
 mod session;
 
 use client::Client;
+use message::Message;
 use session::Session;
 
 type Result<T> = std::result::Result<T, Error>;
@@ -118,6 +119,7 @@ pub struct Imap {
     connected: bool,
     interrupt: Option<stop_token::StopSource>,
     should_reconnect: bool,
+    login_failed_once: bool,
 }
 
 #[derive(Debug)]
@@ -191,6 +193,7 @@ impl Imap {
             connected: Default::default(),
             interrupt: Default::default(),
             should_reconnect: Default::default(),
+            login_failed_once: Default::default(),
         }
     }
 
@@ -295,8 +298,10 @@ impl Imap {
                 // needs to be set here to ensure it is set on reconnects.
                 self.connected = true;
                 self.session = Some(session);
+                self.login_failed_once = false;
                 Ok(())
             }
+
             Err((err, _)) => {
                 let imap_user = self.config.imap_user.to_owned();
                 let message = context
@@ -304,6 +309,19 @@ impl Imap {
                     .await;
 
                 error!(context, "{}", message);
+                if self.login_failed_once
+                    && self.fetch
+                    && !context.get_config_bool(Config::WarnedAboutWrongPw).await
+                {
+                    context
+                        .set_config(Config::WarnedAboutWrongPw, Some("1"))
+                        .await;
+                    let mut msg = Message::new(Viewtype::Text);
+                    msg.text = Some(message);
+                    chat::add_device_msg_with_importance(context, None, Some(&mut msg), true).await;
+                } else {
+                    self.login_failed_once = true;
+                }
 
                 self.trigger_reconnect();
                 Err(Error::LoginFailed(format!("cannot login as {}", imap_user)))
