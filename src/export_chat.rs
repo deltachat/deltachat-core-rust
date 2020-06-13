@@ -57,10 +57,7 @@ pub fn pack_exported_chat(
         zip.start_file_from_path(Path::new(&format!("msg_info/{}.txt", msg_info.0)), options)?;
         zip.write_all((msg_info.1).as_bytes())?;
         if let Some(mime_headers) = msg_info.2 {
-            zip.start_file_from_path(
-                Path::new(&format!("msg_info/{}.mimeheaders.txt", msg_info.0)),
-                options,
-            )?;
+            zip.start_file_from_path(Path::new(&format!("msg_info/{}.eml", msg_info.0)), options)?;
             zip.write_all((mime_headers).as_bytes())?;
         }
     }
