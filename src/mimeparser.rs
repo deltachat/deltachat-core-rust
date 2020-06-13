@@ -900,7 +900,9 @@ impl MimeMessage {
         Ok(None)
     }
 
-    /// Some providers like GMX and Yahoo do not send standard NDNs (Non Delivery notifications)
+    /// Some providers like GMX and Yahoo do not send standard NDNs (Non Delivery notifications).
+    /// If you improve heuristics here you might also have to change prefetch_should_download() in imap/mod.rs.
+    /// Also you should add a test in dc_receive_imf.rs (there already are lots of test_parse_ndn_* tests).
     async fn heuristically_parse_ndn(&mut self, context: &Context) -> Option<()> {
         if self
             .get(HeaderDef::Subject)?

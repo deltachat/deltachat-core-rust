@@ -2382,6 +2382,7 @@ mod tests {
         .await;
     }
 
+    // ndn = Non Delivery Notification
     async fn test_parse_ndn(
         self_addr: &str,
         foreign_addr: &str,
@@ -2414,6 +2415,14 @@ mod tests {
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         let msg_id = chats.get_msg_id(0).unwrap();
+
+        // Check that the ndn would be downloaded:
+        let headers = mailparse::parse_mail(raw_ndn).unwrap().headers;
+        assert!(
+            crate::imap::prefetch_should_download(&t.ctx, &headers, ShowEmails::Off)
+                .await
+                .unwrap()
+        );
 
         dc_receive_imf(&t.ctx, raw_ndn, "INBOX", 1, false)
             .await
