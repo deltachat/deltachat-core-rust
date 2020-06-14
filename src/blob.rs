@@ -427,6 +427,18 @@ impl<'a> BlobObject<'a> {
     }
 
     pub fn get_exif_orientation(&self) -> Result<i32, Error> {
+        let file = std::fs::File::open(self.to_abs_path())?;
+        let mut bufreader = std::io::BufReader::new(&file);
+        let exifreader = exif::Reader::new();
+        let exif = exifreader.read_from_container(&mut bufreader)?;
+        if let Some(orientation) = exif.get_field(exif::Tag::Orientation, exif::In::PRIMARY) {
+            match orientation.value.get_uint(0) {
+                Some(3) => return Ok(180),
+                Some(6) => return Ok(90),
+                Some(8) => return Ok(270),
+                _ => {}
+            }
+        }
         Ok(0)
     }
 }
