@@ -450,14 +450,11 @@ impl<'a> Peerstate<'a> {
     }
 
     pub fn has_verified_key(&self, fingerprints: &HashSet<Fingerprint>) -> bool {
-        if self.verified_key.is_some() && self.verified_key_fingerprint.is_some() {
-            let vkc = self.verified_key_fingerprint.as_ref().unwrap();
-            if fingerprints.contains(vkc) {
-                return true;
-            }
+        if let Some(vkc) = &self.verified_key_fingerprint {
+            fingerprints.contains(vkc) && self.verified_key.is_some()
+        } else {
+            false
         }
-
-        false
     }
 }
 
