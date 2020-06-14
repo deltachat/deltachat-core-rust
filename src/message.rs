@@ -1152,7 +1152,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
 
     for (id, curr_state, curr_blocked) in msgs.into_iter() {
         if let Err(err) = id.start_autodelete_timer(context).await {
-            warn!(
+            error!(
                 context,
                 "Failed to start autodelete timer for message {}: {}", id, err
             );
