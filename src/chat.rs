@@ -1779,7 +1779,7 @@ pub async fn schedule_autodelete_task(context: &Context) {
            AND chat_id != ? \
          ORDER BY autodelete_timestamp ASC \
          LIMIT 1",
-            paramsv![DC_CHAT_ID_TRASH],
+            paramsv![DC_CHAT_ID_TRASH], // Trash contains already deleted messages, skip them
         )
         .await
     {
