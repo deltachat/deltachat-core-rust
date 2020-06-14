@@ -1563,7 +1563,6 @@ class TestOnlineAccount:
 
         lp.sec("ac2: send message to ac1")
         sent_message = chat2.send_text("message")
-        assert sent_message.is_encrypted()
         assert "Autodelete timer: 60\n" in sent_message.get_message_info()
 
         # Timer is started immediately for sent messages
@@ -1572,7 +1571,6 @@ class TestOnlineAccount:
         lp.sec("ac1: waiting for message from ac2")
         text_message = ac1._evtracker.wait_next_incoming_message()
         assert text_message.text == "message"
-        assert text_message.is_encrypted()
         assert "Autodelete timer: 60\n" in text_message.get_message_info()
 
         # Timer should not start until message is displayed
