@@ -986,7 +986,7 @@ impl Chat {
         } else {
             error!(context, "Cannot send message, not configured.",);
         }
-        update_autodelete_timeout(context).await;
+        schedule_autodelete_task(context).await;
 
         Ok(MsgId::new(msg_id))
     }
@@ -1086,7 +1086,6 @@ pub struct ChatInfo {
 
     /// Automatic message deletion timer.
     pub autodelete_timer: u32,
-
     // ToDo:
     // - [ ] deaddrop,
     // - [ ] summary,
@@ -1763,12 +1762,14 @@ pub async fn marknoticed_all_chats(context: &Context) -> Result<(), Error> {
     Ok(())
 }
 
-/// Emits an event to update the time until the next local deletion.
+/// Schedule a task to emit MsgsChanged event when the next local
+/// deletion happens. Existing task is cancelled to make sure at most
+/// one such task is scheduled at a time.
 ///
 /// This takes into account only per-chat timeouts, because global device
 /// timeouts are at least one hour long and deletion is triggered often enough
 /// by user actions.
-pub async fn update_autodelete_timeout(context: &Context) {
+pub async fn schedule_autodelete_task(context: &Context) {
     let autodelete_timestamp: Option<i64> = match context
         .sql
         .query_get_value_result(
@@ -1877,7 +1878,7 @@ pub(crate) async fn delete_device_expired_messages(context: &Context) -> Result<
 
     let updated = rows_modified > 0;
     if updated {
-        update_autodelete_timeout(context).await;
+        schedule_autodelete_task(context).await;
     }
     Ok(updated)
 }

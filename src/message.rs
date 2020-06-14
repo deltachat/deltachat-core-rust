@@ -5,7 +5,7 @@ use deltachat_derive::{FromSql, ToSql};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 
-use crate::chat::{self, update_autodelete_timeout, Chat, ChatId};
+use crate::chat::{self, schedule_autodelete_task, Chat, ChatId};
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::*;
@@ -165,7 +165,7 @@ impl MsgId {
                     paramsv![autodelete_timestamp, autodelete_timestamp, self],
                 )
                 .await?;
-            update_autodelete_timeout(context).await;
+            schedule_autodelete_task(context).await;
         }
         Ok(())
     }
