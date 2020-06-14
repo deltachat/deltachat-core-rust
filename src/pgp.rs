@@ -272,6 +272,14 @@ pub async fn pk_encrypt(
     .await
 }
 
+/// Decrypts the message with keys from the private key keyring.
+///
+/// Receiver private keys are provided in
+/// `private_keys_for_decryption`.
+///
+/// If `ret_signature_fingerprints` is not `None`, stores fingerprints
+/// of all keys from the `public_keys_for_validation` keyring that
+/// have valid signatures there.
 #[allow(clippy::implicit_hasher)]
 pub async fn pk_decrypt(
     ctext: Vec<u8>,
@@ -290,36 +298,41 @@ pub async fn pk_decrypt(
     })
     .await?;
 
-    ensure!(!msgs.is_empty(), "No valid messages found");
+    if let Some(msg) = msgs.into_iter().next() {
+        // get_content() will decompress the message if needed,
+        // but this avoids decompressing it again to check signatures
+        let msg = msg.decompress()?;
 
-    let content = match msgs[0].get_content()? {
-        Some(content) => content,
-        None => bail!("Decrypted message is empty"),
-    };
+        let content = match msg.get_content()? {
+            Some(content) => content,
+            None => bail!("The decrypted message is empty"),
+        };
 
-    if let Some(ret_signature_fingerprints) = ret_signature_fingerprints {
-        if !public_keys_for_validation.is_empty() {
-            let fingerprints = async_std::task::spawn_blocking(move || {
-                let dec_msg = &msgs[0];
+        if let Some(ret_signature_fingerprints) = ret_signature_fingerprints {
+            if !public_keys_for_validation.is_empty() {
+                let fingerprints = async_std::task::spawn_blocking(move || {
+                    let pkeys = public_keys_for_validation.keys();
 
-                let pkeys = public_keys_for_validation.keys();
-
-                let mut fingerprints: Vec<Fingerprint> = Vec::new();
-                for pkey in pkeys {
-                    if dec_msg.verify(&pkey.primary_key).is_ok() {
-                        let fp = DcKey::fingerprint(pkey);
-                        fingerprints.push(fp);
+                    let mut fingerprints: Vec<Fingerprint> = Vec::new();
+                    if let signed_msg @ pgp::composed::Message::Signed { .. } = msg {
+                        for pkey in pkeys {
+                            if signed_msg.verify(&pkey.primary_key).is_ok() {
+                                let fp = DcKey::fingerprint(pkey);
+                                fingerprints.push(fp);
+                            }
+                        }
                     }
-                }
-                fingerprints
-            })
-            .await;
+                    fingerprints
+                })
+                .await;
 
-            ret_signature_fingerprints.extend(fingerprints);
+                ret_signature_fingerprints.extend(fingerprints);
+            }
         }
+        Ok(content)
+    } else {
+        bail!("No valid messages found");
     }
-
-    Ok(content)
 }
 
 /// Symmetric encryption.
