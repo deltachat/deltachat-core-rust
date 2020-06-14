@@ -844,7 +844,8 @@ async fn load_imap_deletion_msgid(context: &Context) -> sql::Result<Option<MsgId
          timestamp < ? \
          OR (autodelete_timestamp != 0 AND autodelete_timestamp < ?) \
          ) \
-         AND server_uid != 0",
+         AND server_uid != 0 \
+         LIMIT 1",
             paramsv![threshold_timestamp, now],
             |row| row.get::<_, MsgId>(0),
         )
