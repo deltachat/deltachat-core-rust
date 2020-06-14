@@ -14,6 +14,7 @@ use thiserror::Error;
 use crate::config::Config;
 use crate::constants::*;
 use crate::context::Context;
+use crate::error::Error;
 use crate::events::Event;
 use crate::message;
 
@@ -408,7 +409,13 @@ impl<'a> BlobObject<'a> {
             return Ok(());
         }
 
-        let img = img.thumbnail(img_wh, img_wh);
+        let mut img = img.thumbnail(img_wh, img_wh);
+        match self.get_exif_orientation() {
+            Ok(90) => img = img.rotate90(),
+            Ok(180) => img = img.rotate180(),
+            Ok(270) => img = img.rotate270(),
+            _ => {}
+        }
 
         img.save(&blob_abs).map_err(|err| BlobError::WriteFailure {
             blobdir: context.get_blobdir().to_path_buf(),
@@ -417,6 +424,10 @@ impl<'a> BlobObject<'a> {
         })?;
 
         Ok(())
+    }
+
+    pub fn get_exif_orientation(&self) -> Result<i32, Error> {
+        Ok(0)
     }
 }
 
