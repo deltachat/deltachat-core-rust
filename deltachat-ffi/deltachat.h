@@ -1308,6 +1308,10 @@ int             dc_set_chat_name             (dc_context_t* context, uint32_t ch
 /**
  * Set the chat's autodelete message timer.
  *
+ * This timer is applied to all messages in a chat and starts when the
+ * message is read. The setting is synchronized to all clients
+ * participating in a chat.
+ *
  * @memberof dc_context_t
  * @param context The context as created by dc_context_new().
  * @param chat_id The chat ID to set the autodelete message timer for.
