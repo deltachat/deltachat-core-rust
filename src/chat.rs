@@ -1083,14 +1083,16 @@ pub struct ChatInfo {
     ///
     /// The exact time its muted can be found out via the `chat.mute_duration` property
     pub is_muted: bool,
+
+    /// Automatic message deletion timer.
+    pub autodelete_timer: u32,
+
     // ToDo:
     // - [ ] deaddrop,
     // - [ ] summary,
     // - [ ] lastUpdated,
     // - [ ] freshMessageCounter,
     // - [ ] email
-    /// Automatic message deletion timer.
-    pub autodelete_timer: u32,
 }
 
 /// Create a chat from a message ID.
