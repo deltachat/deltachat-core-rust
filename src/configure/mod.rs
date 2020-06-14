@@ -109,7 +109,6 @@ impl Context {
                 Ok(())
             }
             Err(err) => {
-                error!(self, "Configure Failed: {}", err);
                 progress!(self, 0);
                 Err(err)
             }
