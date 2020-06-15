@@ -766,7 +766,7 @@ uint32_t        dc_prepare_msg               (dc_context_t* context, uint32_t ch
  * ~~~
  *
  * If you send images with the DC_MSG_IMAGE type,
- * the will be recoded to a reasonable size before sending, if possible
+ * they will be recoded to a reasonable size before sending, if possible
  * (cmp the dc_set_config()-option `media_quality`).
  * If that fails, is not possible, or the image is already small enough, the image is sent as original.
  * If you want images to be always sent as the original file, use the DC_MSG_FILE type.
