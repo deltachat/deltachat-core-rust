@@ -410,7 +410,7 @@ impl<'a> BlobObject<'a> {
         }
 
         let mut img = img.thumbnail(img_wh, img_wh);
-        match self.get_exif_orientation() {
+        match self.get_exif_orientation(context) {
             Ok(90) => img = img.rotate90(),
             Ok(180) => img = img.rotate180(),
             Ok(270) => img = img.rotate270(),
@@ -426,17 +426,19 @@ impl<'a> BlobObject<'a> {
         Ok(())
     }
 
-    pub fn get_exif_orientation(&self) -> Result<i32, Error> {
+    pub fn get_exif_orientation(&self, context: &Context) -> Result<i32, Error> {
         let file = std::fs::File::open(self.to_abs_path())?;
         let mut bufreader = std::io::BufReader::new(&file);
         let exifreader = exif::Reader::new();
         let exif = exifreader.read_from_container(&mut bufreader)?;
         if let Some(orientation) = exif.get_field(exif::Tag::Orientation, exif::In::PRIMARY) {
+            // possible orientation values are described at http://sylvana.net/jpegcrop/exif_orientation.html
+            // we only use rotation, in practise, flipping is not used.
             match orientation.value.get_uint(0) {
                 Some(3) => return Ok(180),
                 Some(6) => return Ok(90),
                 Some(8) => return Ok(270),
-                _ => {}
+                other => warn!(context, "exif orientation value ignored: {:?}", other),
             }
         }
         Ok(0)
