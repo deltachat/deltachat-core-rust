@@ -2335,6 +2335,18 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_parse_ndn_testrun() {
+        test_parse_ndn(
+            "alice@testrun.org",
+            "hcksocnsofoejx@five.chat",
+            "Mr.A7pTA5IgrUA.q4bP41vAJOp@testrun.org",
+            include_bytes!("../test-data/message/testrun_ndn.eml"),
+            "Undelivered Mail Returned to Sender – This is the mail system at host hq5.merlinux.eu.\n\nI\'m sorry to have to inform you that your message could not\nbe delivered to one or more recipients. It\'s attached below.\n\nFor further assistance, please send mail to postmaster.\n\nIf you do so, please include this problem report. You can\ndelete your own text from the attached returned message.\n\n                   The mail system\n\n<hcksocnsofoejx@five.chat>: host mail.five.chat[195.62.125.103] said: 550 5.1.1\n    <hcksocnsofoejx@five.chat>: Recipient address rejected: User unknown in\n    virtual mailbox table (in reply to RCPT TO command)"
+        )
+        .await;
+    }
+
+    #[async_std::test]
     async fn test_parse_ndn_yahoo() {
         test_parse_ndn(
             "alice@yahoo.com",
