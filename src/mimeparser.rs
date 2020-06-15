@@ -866,7 +866,7 @@ impl MimeMessage {
         if let Some(original_msg) = report
             .subparts
             .iter()
-            .find(|p| p.ctype.mimetype.contains("rfc822"))
+            .find(|p| p.ctype.mimetype.contains("rfc822") || p.ctype.mimetype == "message/global")
         {
             let report_body = original_msg.get_body_raw()?;
             let (report_fields, _) = mailparse::parse_headers(&report_body)?;
