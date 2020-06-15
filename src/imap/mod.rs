@@ -1402,10 +1402,7 @@ async fn precheck_imf(
 
         if old_server_folder != server_folder || old_server_uid != server_uid {
             update_server_uid(context, rfc724_mid, server_folder, server_uid).await;
-            context
-                .interrupt_inbox(InterruptInfo::new(false, Some(msg_id)))
-                .await;
-            info!(context, "Updating server_uid and interrupting")
+            info!(context, "Updating server_uid")
         }
         Ok(true)
     } else {
