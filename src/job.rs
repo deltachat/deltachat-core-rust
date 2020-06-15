@@ -886,7 +886,12 @@ impl<'a> Connection<'a> {
     }
 }
 
-pub(crate) async fn perform_job(context: &Context, mut connection: Connection<'_>, mut job: Job) {
+pub(crate) async fn perform_job(
+    context: &Context,
+    mut connection: Connection<'_>,
+    mut job: Job,
+    interrupt_info: &InterruptInfo,
+) {
     info!(context, "{}-job {} started...", &connection, &job);
 
     let try_res = match perform_job_action(context, &mut job, &mut connection, 0).await {
@@ -899,19 +904,29 @@ pub(crate) async fn perform_job(context: &Context, mut connection: Connection<'_
             let tries = job.tries + 1;
 
             if tries < JOB_RETRIES {
-                info!(
-                    context,
-                    "{} thread increases job {} tries to {}", &connection, job, tries
-                );
-                job.tries = tries;
-                let time_offset = get_backoff_time_offset(tries);
+                if !interrupt_info.probe_network {
+                    info!(
+                        context,
+                        "{} thread increases job {} tries to {}", &connection, job, tries
+                    );
+                    job.tries = tries;
+                } else {
+                    // We just try to execute all jobs when maybe_network() is called (i.e. probe_network is true) and if we do not have
+                    // network all will fail. This means that we must not increase job.tries here, otherwise after JOB_RETRIES
+                    // calls to maybe_network() without network all jobs would be deleted.
+                    info!(
+                        context,
+                        "{} thread does not increase job {} tries", &connection, job
+                    )
+                }
+                let time_offset = get_backoff_time_offset(job.tries);
                 job.desired_timestamp = time() + time_offset;
                 info!(
                     context,
                     "{}-job #{} not succeeded on try #{}, retry in {} seconds.",
                     &connection,
                     job.job_id as u32,
-                    tries,
+                    job.tries,
                     time_offset
                 );
                 job.save(context).await.unwrap_or_else(|err| {
