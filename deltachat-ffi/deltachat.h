@@ -307,9 +307,9 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    DC_MEDIA_QUALITY_WORSE (1)
  *                    allow worse images/videos/voice quality to gain smaller sizes,
  *                    suitable for providers or areas known to have a bad connection.
- *                    In contrast to other options, the implementation of this option is currently up to the UIs;
- *                    this may change in future, however,
- *                    having the option in the core allows provider-specific-defaults already today.
+ *                    The library uses the `media_quality` setting to use different defaults
+ *                    for recoding images sent with type DC_MSG_IMAGE.
+ *                    If needed, recoding other file types is up to the UI.
  *
  * If you want to retrieve a value, use dc_get_config().
  *
@@ -528,9 +528,20 @@ int             dc_is_io_running(const dc_context_t* context);
 void            dc_stop_io(dc_context_t* context);
 
 /**
- * This function can be called whenever there is a hint
- * that the network is available again.
- * The library will try to send pending messages out.
+ * This function should be called when there is a hint
+ * that the network is available again,
+ * eg. as a response to system event reporting network availability.
+ * The library will try to send pending messages out immediately.
+ *
+ * Moreover, to have a reliable state
+ * when the app comes to foreground with network available,
+ * it may be reasonable to call the function also at that moment.
+ *
+ * It is okay to call the function unconditionally when there is
+ * network available, however, calling the function
+ * _without_ having network may interfere with the backoff algorithm
+ * and will led to let the jobs fail faster, with fewer retries
+ * and may avoid messages being sent out.
  *
  * @memberof dc_context_t
  * @param context The context as created by dc_context_new().
@@ -753,6 +764,15 @@ uint32_t        dc_prepare_msg               (dc_context_t* context, uint32_t ch
  *
  * dc_msg_unref(msg);
  * ~~~
+ *
+ * If you send images with the DC_MSG_IMAGE type,
+ * they will be recoded to a reasonable size before sending, if possible
+ * (cmp the dc_set_config()-option `media_quality`).
+ * If that fails, is not possible, or the image is already small enough, the image is sent as original.
+ * If you want images to be always sent as the original file, use the DC_MSG_FILE type.
+ *
+ * Videos and other file types are currently not recoded by the library,
+ * with dc_prepare_msg(), however, you can do that from the UI.
  *
  * @memberof dc_context_t
  * @param context The context object as returned from dc_context_new().
@@ -2782,6 +2802,9 @@ int             dc_msg_get_viewtype           (const dc_msg_t* msg);
  *   If a sent message changes to this state, you'll receive the event #DC_EVENT_MSG_DELIVERED.
  * - DC_STATE_OUT_MDN_RCVD (28) - Outgoing message read by the recipient (two checkmarks; this requires goodwill on the receiver's side)
  *   If a sent message changes to this state, you'll receive the event #DC_EVENT_MSG_READ.
+ *   Also messages already read by some recipients
+ *   may get into the state DC_STATE_OUT_FAILED at a later point,
+ *   eg. when in a group, delivery fails for some recipients.
  *
  * If you just want to check if a message is sent or not, please use dc_msg_is_sent() which regards all states accordingly.
  *
@@ -4117,8 +4140,9 @@ void dc_event_unref(dc_event_t* event);
 
 
 /**
- * A single message could not be sent. State changed from DC_STATE_OUT_PENDING or DC_STATE_OUT_DELIVERED to
- * DC_STATE_OUT_FAILED, see dc_msg_get_state().
+ * A single message could not be sent.
+ * State changed from DC_STATE_OUT_PENDING, DC_STATE_OUT_DELIVERED or DC_STATE_OUT_MDN_RCVD
+ * to DC_STATE_OUT_FAILED, see dc_msg_get_state().
  *
  * @param data1 (int) chat_id
  * @param data2 (int) msg_id
