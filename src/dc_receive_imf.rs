@@ -2335,6 +2335,18 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_parse_ndn_tiscali() {
+        test_parse_ndn(
+            "alice@tiscali.it",
+            "shenauithz@testrun.org",
+            "Mr.un2NYERi1RM.lbQ5F9q-QyJ@tiscali.it",
+            include_bytes!("../test-data/message/tiscali_ndn.eml"),
+            "",
+        )
+        .await;
+    }
+
+    #[async_std::test]
     async fn test_parse_ndn_testrun() {
         test_parse_ndn(
             "alice@testrun.org",

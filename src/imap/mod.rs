@@ -1458,7 +1458,8 @@ pub(crate) async fn prefetch_should_download(
     let is_reply_to_chat_message = prefetch_is_reply_to_chat_message(context, &headers).await;
 
     let maybe_ndn = if let Some(from) = headers.get_header_value(HeaderDef::From_) {
-        from.to_ascii_lowercase().contains("mailer-daemon")
+        let from = from.to_ascii_lowercase();
+        from.contains("mailer-daemon") || from.contains("mail-daemon")
     } else {
         false
     };
