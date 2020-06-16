@@ -1,7 +1,7 @@
 //! # Chat module
 
 use std::convert::{TryFrom, TryInto};
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use async_std::path::{Path, PathBuf};
 use async_std::task;
@@ -1770,6 +1770,11 @@ pub async fn marknoticed_all_chats(context: &Context) -> Result<(), Error> {
 /// timeouts are at least one hour long and deletion is triggered often enough
 /// by user actions.
 pub async fn schedule_autodelete_task(context: &Context) {
+    // Cancel existing task, if any
+    if let Some(autodelete_task) = context.autodelete_task.write().await.take() {
+        autodelete_task.cancel().await;
+    }
+
     let autodelete_timestamp: Option<i64> = match context
         .sql
         .query_get_value_result(
@@ -1790,35 +1795,36 @@ pub async fn schedule_autodelete_task(context: &Context) {
         Ok(autodelete_timestamp) => autodelete_timestamp,
     };
 
-    let timer = if let Some(next_autodelete) = autodelete_timestamp {
-        let now = time();
-        if now > next_autodelete {
-            1
-        } else {
-            (next_autodelete - now)
-                .try_into()
-                .unwrap_or(u32::MAX)
-                .saturating_add(1)
-        }
-    } else {
-        0
-    };
+    if let Some(autodelete_timestamp) = autodelete_timestamp {
+        let now = SystemTime::now();
+        let until =
+            UNIX_EPOCH + Duration::from_secs(autodelete_timestamp.try_into().unwrap_or(u64::MAX));
 
-    if let Some(autodelete_task) = context.autodelete_task.write().await.take() {
-        autodelete_task.cancel().await;
+        if let Ok(duration) = until.duration_since(now) {
+            // Schedule a task, autodelete_timestamp is in the future
+            let context1 = context.clone();
+            let autodelete_task = task::spawn(async move {
+                async_std::task::sleep(duration).await;
+                emit_event!(
+                    context1,
+                    Event::MsgsChanged {
+                        chat_id: ChatId::new(0),
+                        msg_id: MsgId::new(0)
+                    }
+                );
+            });
+            *context.autodelete_task.write().await = Some(autodelete_task);
+        } else {
+            // Emit event immediately
+            emit_event!(
+                context,
+                Event::MsgsChanged {
+                    chat_id: ChatId::new(0),
+                    msg_id: MsgId::new(0)
+                }
+            );
+        }
     }
-    let context1 = context.clone();
-    let autodelete_task = task::spawn(async move {
-        async_std::task::sleep(Duration::from_secs(timer.into())).await;
-        emit_event!(
-            context1,
-            Event::MsgsChanged {
-                chat_id: ChatId::new(0),
-                msg_id: MsgId::new(0)
-            }
-        );
-    });
-    *context.autodelete_task.write().await = Some(autodelete_task);
 }
 
 /// Deletes messages which are expired according to "delete_device_after" setting.
