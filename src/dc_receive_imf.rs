@@ -83,7 +83,6 @@ pub async fn dc_receive_imf(
     let mut sent_timestamp = 0;
     let mut created_db_entries = Vec::new();
     let mut create_event_to_send = Some(CreateEvent::MsgsChanged);
-    let mut is_dc_message: MessengerMessage = Default::default();
 
     // helper method to handle early exit and memory cleanup
     let cleanup = |context: &Context,
