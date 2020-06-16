@@ -570,13 +570,13 @@ impl MimeMessage {
 
                             any_part_added = true;
                         }
-                        Some("delivery-status") => {
+                        // Some providers, e.g. Tiscali, forget to set the report-type. So, if it's None, assume that it might be delivery-status
+                        Some("delivery-status") | None => {
                             if let Some(report) = self.process_delivery_status(context, mail)? {
                                 self.failure_report = Some(report);
                             }
 
-                            // Add all parts (in fact, AddSinglePartIfKnown() later check if
-                            // the parts are really supported)
+                            // Add all parts (we need another part, preferrably text/plain, to show as an error message)
                             for cur_data in mail.subparts.iter() {
                                 if self.parse_mime_recursive(context, cur_data).await? {
                                     any_part_added = true;
@@ -588,7 +588,6 @@ impl MimeMessage {
                                 any_part_added = self.parse_mime_recursive(context, first).await?;
                             }
                         }
-                        None => {}
                     }
                 }
             }
