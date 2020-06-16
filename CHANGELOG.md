@@ -1,5 +1,27 @@
 # Changelog 
 
+## 1.36.0
+
+- parse ndn (network delivery notification) reports
+  and report faild messages as such #1552 #1622 #1630
+
+- read image orientation from exif before recoding #1619
+
+- improve logging #1593 #1598
+
+- improve python and bot bindings #1583 #1609
+
+- improve imap logout #1595
+
+- fix sorting #1600 #1604
+
+- fix qr code generation #1631
+
+- update rustcrypto releases #1603
+
+- refactorings #1617
+
+
 ## 1.35.0
 
 - enable strict-tls from a new provider-db setting #1587
