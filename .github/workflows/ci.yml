@@ -5,8 +5,6 @@ on:
   push:
     branches:
       - master
-      - staging
-      - trying
 
 jobs:
 
@@ -20,7 +18,7 @@ jobs:
           profile: minimal
           toolchain: 1.43.1
           override: true
-      - run: rustup component add rustfmt clippy
+      - run: rustup component add rustfmt 
       - uses: actions-rs/cargo@v1
         with:
           command: fmt
