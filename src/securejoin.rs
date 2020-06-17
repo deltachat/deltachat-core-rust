@@ -114,7 +114,7 @@ pub async fn dc_get_securejoin_qr(context: &Context, group_chat_id: ChatId) -> O
 
             Some(format!(
                 "OPENPGP4FPR:{}#a={}&g={}&x={}&i={}&s={}",
-                fingerprint,
+                fingerprint.hex(),
                 self_addr_urlencoded,
                 &group_name_urlencoded,
                 &chat.grpid,
@@ -129,7 +129,11 @@ pub async fn dc_get_securejoin_qr(context: &Context, group_chat_id: ChatId) -> O
         // parameters used: a=n=i=s=
         Some(format!(
             "OPENPGP4FPR:{}#a={}&n={}&i={}&s={}",
-            fingerprint, self_addr_urlencoded, self_name_urlencoded, &invitenumber, &auth,
+            fingerprint.hex(),
+            self_addr_urlencoded,
+            self_name_urlencoded,
+            &invitenumber,
+            &auth,
         ))
     };
 
