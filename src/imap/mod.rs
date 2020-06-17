@@ -811,7 +811,6 @@ impl Imap {
                     Ok(_) => Some(server_uid),
                     Err(err) => {
                         warn!(context, "dc_receive_imf error: {}", err);
-                        read_errors += 1;
                         None
                     }
                 }

@@ -257,7 +257,8 @@ impl MimeMessage {
                 self.parts[0].msg = "".to_string();
 
                 // swap new with old
-                std::mem::replace(&mut self.parts[0], filepart);
+                self.parts.push(filepart); // push to the end
+                let _ = self.parts.swap_remove(0); // drops first element, replacing it with the last one in O(1)
             }
         }
     }

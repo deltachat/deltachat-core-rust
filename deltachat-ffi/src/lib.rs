@@ -285,7 +285,7 @@ pub unsafe extern "C" fn dc_start_io(context: *mut dc_context_t) {
     }
     let ctx = &*context;
 
-    block_on({ ctx.start_io() })
+    block_on(ctx.start_io())
 }
 
 #[no_mangle]
@@ -295,7 +295,7 @@ pub unsafe extern "C" fn dc_is_io_running(context: *mut dc_context_t) -> libc::c
     }
     let ctx = &*context;
 
-    block_on({ ctx.is_io_running() }) as libc::c_int
+    block_on(ctx.is_io_running()) as libc::c_int
 }
 
 #[no_mangle]
@@ -1829,7 +1829,11 @@ pub unsafe extern "C" fn dc_send_locations_to_chat(
     }
     let ctx = &*context;
 
-    block_on({ location::send_locations_to_chat(&ctx, ChatId::new(chat_id), seconds as i64) });
+    block_on(location::send_locations_to_chat(
+        &ctx,
+        ChatId::new(chat_id),
+        seconds as i64,
+    ));
 }
 
 #[no_mangle]
