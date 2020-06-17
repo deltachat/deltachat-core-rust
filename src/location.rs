@@ -530,7 +530,7 @@ pub async fn save(
             accuracy,
             ..
         } = location;
-        context
+        let (loc_id, ts) = context
             .sql
             .with_conn(move |mut conn| {
                 let mut stmt_test = conn
@@ -569,9 +569,11 @@ pub async fn save(
                         )?;
                     }
                 }
-                Ok(())
+                Ok((newest_location_id, newest_timestamp))
             })
             .await?;
+        newest_timestamp = ts;
+        newest_location_id = loc_id;
     }
 
     Ok(newest_location_id)
