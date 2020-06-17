@@ -903,16 +903,13 @@ impl MimeMessage {
     /// If you improve heuristics here you might also have to change prefetch_should_download() in imap/mod.rs.
     /// Also you should add a test in dc_receive_imf.rs (there already are lots of test_parse_ndn_* tests).
     async fn heuristically_parse_ndn(&mut self, context: &Context) -> Option<()> {
-        if self
-            .get(HeaderDef::Subject)?
-            .to_ascii_lowercase()
-            .contains("fail")
-            && self
-                .get(HeaderDef::From_)?
-                .to_ascii_lowercase()
-                .contains("mailer-daemon")
-            && self.failure_report.is_none()
-        {
+        let maybe_ndn = if let Some(from) = self.get(HeaderDef::From_) {
+            let from = from.to_ascii_lowercase();
+            from.contains("mailer-daemon") || from.contains("mail-daemon")
+        } else {
+            false
+        };
+        if maybe_ndn && self.failure_report.is_none() {
             lazy_static! {
                 static ref RE: regex::Regex = regex::Regex::new(r"Message-ID:(.*)").unwrap();
             }
