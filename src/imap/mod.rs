@@ -3,6 +3,8 @@
 //! uses [async-email/async-imap](https://github.com/async-email/async-imap)
 //! to implement connect, fetch, delete functionality with standard IMAP servers.
 
+#![forbid(clippy::indexing_slicing)]
+
 use std::collections::BTreeMap;
 
 use async_imap::{
@@ -732,9 +734,17 @@ impl Imap {
         folder: S,
         server_uids: &[u32],
     ) -> (Option<u32>, usize) {
-        if server_uids.is_empty() {
-            return (None, 0);
-        }
+        let set = match server_uids {
+            [] => return (None, 0),
+            [server_uid] => server_uid.to_string(),
+            [first_uid, .., last_uid] => {
+                // XXX: it is assumed that UIDs are sorted and
+                // contiguous. If UIDs are not contiguous, more
+                // messages than needed will be downloaded.
+                debug_assert!(first_uid < last_uid, "uids must be sorted");
+                format!("{}:{}", first_uid, last_uid)
+            }
+        };
 
         if !self.is_connected() {
             warn!(context, "Not connected");
@@ -749,15 +759,6 @@ impl Imap {
         }
 
         let session = self.session.as_mut().unwrap();
-
-        let set = if server_uids.len() == 1 {
-            server_uids[0].to_string()
-        } else {
-            let first_uid = server_uids[0];
-            let last_uid = server_uids[server_uids.len() - 1];
-            assert!(first_uid < last_uid, "uids must be sorted");
-            format!("{}:{}", first_uid, last_uid)
-        };
 
         let mut msgs = match session.uid_fetch(&set, BODY_FLAGS).await {
             Ok(msgs) => msgs,
