@@ -1858,17 +1858,7 @@ pub(crate) async fn delete_device_expired_messages(context: &Context) -> Result<
             "UPDATE msgs \
              SET txt = 'DELETED', chat_id = ? \
              WHERE \
-             ( \
-               ( \
-                 timestamp < ? \
-                 AND chat_id != ? \
-               ) \
-               OR \
-               ( \
-                 autodelete_timestamp != 0 \
-                 AND autodelete_timestamp < ? \
-               ) \
-             ) \
+             timestamp < ? \
              AND chat_id > ? \
              AND chat_id != ?",
             paramsv![
@@ -1883,6 +1873,78 @@ pub(crate) async fn delete_device_expired_messages(context: &Context) -> Result<
         .await?;
 
     let updated = rows_modified > 0;
+
+    // Remove autodelete messages which are no system messages
+    let rows_modified = context
+        .sql
+        .execute(
+            "UPDATE msgs \
+             SET txt = 'DELETED', chat_id = ? \
+             WHERE \
+             param NOT LIKE '%S=10%'
+             autodelete_timestamp != 0 \
+             AND autodelete_timestamp < ? \
+             AND chat_id > ? \
+             AND chat_id != ?",
+            paramsv![
+                DC_CHAT_ID_TRASH,
+                threshold_timestamp,
+                self_chat_id,
+                now,
+                DC_CHAT_ID_LAST_SPECIAL,
+                device_chat_id
+            ],
+        )
+        .await?;
+
+    let updated = updated || rows_modified > 0;
+
+    // Remove autodelete system messages where the autodelete timer got disabled (set to 0)
+    // and no message with an autodelete timer is before this
+    let rows_modified = context
+        .sql
+        .execute(
+            "UPDATE msgs \
+             SET txt = 'DELETED', chat_id = ? \
+             WHERE \
+             param LIKE '%S=10%'
+             AND autodelete_timer = 0
+             AND chat_id > ? \
+             AND chat_id != ?
+             AND (0 = (SELECT COUNT(id) FROM msgs as msgs2 WHERE autodelete_timer > 0 AND msgs2.id < msgs.id AND msgs2.chat_id = msgs.chat_id LIMIT 1))",
+            paramsv![
+                DC_CHAT_ID_TRASH,
+                DC_CHAT_ID_LAST_SPECIAL,
+                device_chat_id
+            ],
+        )
+        .await?;
+
+    let updated = updated || rows_modified > 0;
+    //
+    // Remove autodelete system messages where the autodelete timer got enabled (set to >0)
+    // and no message with an autodelete timer is after this
+    let rows_modified = context
+        .sql
+        .execute(
+            "UPDATE msgs \
+             SET txt = 'DELETED', chat_id = ? \
+             WHERE \
+             param LIKE '%S=10%'
+             AND autodelete_timer > 0
+             AND chat_id > ? \
+             AND chat_id != ?
+             AND (0 = (SELECT COUNT(id) FROM msgs as msgs2 WHERE autodelete_timer > 0 AND msgs2.id > msgs.id AND msgs2.chat_id = msgs.chat_id LIMIT 1))",
+            paramsv![
+                DC_CHAT_ID_TRASH,
+                DC_CHAT_ID_LAST_SPECIAL,
+                device_chat_id
+            ],
+        )
+        .await?;
+
+    let updated = updated || rows_modified > 0;
+
     if updated {
         schedule_autodelete_task(context).await;
     }
