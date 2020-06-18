@@ -3,7 +3,7 @@
 ## 1.36.0
 
 - parse ndn (network delivery notification) reports
-  and report faild messages as such #1552 #1622 #1630
+  and report failed messages as such #1552 #1622 #1630
 
 - read image orientation from exif before recoding #1619
 
