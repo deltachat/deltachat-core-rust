@@ -1113,7 +1113,6 @@ pub(crate) async fn set_profile_image(
 /// Normalize a name.
 ///
 /// - Remove quotes (come from some bad MUA implementations)
-/// - Convert names as "Petersen, Björn" to "Björn Petersen"
 /// - Trims the resulting string
 ///
 /// Typically, this function is not needed as it is called implicitly by `Contact::add_address_book`.
@@ -1133,15 +1132,6 @@ pub fn normalize_name(full_name: impl AsRef<str>) -> String {
         {
             full_name = &full_name[1..len - 1];
         }
-    }
-
-    if let Some(p1) = full_name.find(',') {
-        let (last_name, first_name) = full_name.split_at(p1);
-
-        let last_name = last_name.trim();
-        let first_name = (&first_name[1..]).trim();
-
-        return format!("{} {}", first_name, last_name);
     }
 
     full_name.trim().into()
@@ -1235,7 +1225,6 @@ mod tests {
 
     #[test]
     fn test_normalize_name() {
-        assert_eq!(&normalize_name("Doe, John"), "John Doe");
         assert_eq!(&normalize_name(" hello world   "), "hello world");
         assert_eq!(&normalize_name("<"), "<");
         assert_eq!(&normalize_name(">"), ">");
@@ -1400,10 +1389,10 @@ mod tests {
         assert!(contact_id > DC_CONTACT_ID_LAST_SPECIAL);
         assert_eq!(sth_modified, Modifier::None);
         let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
-        assert_eq!(contact.get_name(), "Alice Wonderland");
-        assert_eq!(contact.get_display_name(), "Alice Wonderland");
+        assert_eq!(contact.get_name(), "Wonderland, Alice");
+        assert_eq!(contact.get_display_name(), "Wonderland, Alice");
         assert_eq!(contact.get_addr(), "alice@w.de");
-        assert_eq!(contact.get_name_n_addr(), "Alice Wonderland (alice@w.de)");
+        assert_eq!(contact.get_name_n_addr(), "Wonderland, Alice (alice@w.de)");
 
         // check SELF
         let contact = Contact::load_from_db(&t.ctx, DC_CONTACT_ID_SELF)
@@ -1587,7 +1576,7 @@ mod tests {
             .await
             .unwrap();
         let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
-        assert_eq!(contact.get_name(), "Dave Mueller");
+        assert_eq!(contact.get_name(), "Mueller, Dave");
         assert_eq!(contact.get_addr(), "dave@example.org");
 
         let contact_id = Contact::create(&t.ctx, "name1", "name2 <dave@example.org>")

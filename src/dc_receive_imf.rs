@@ -2242,7 +2242,7 @@ mod tests {
                 .await
                 .unwrap()
                 .get_authname(),
-            "Фамилия Имя", // The name was "Имя, Фамилия" and ("lastname, firstname") and should be swapped to "firstname, lastname"
+            "Имя, Фамилия",
         );
         let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await;
         assert_eq!(msgs.len(), 1);
