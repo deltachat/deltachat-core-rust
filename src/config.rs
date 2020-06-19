@@ -286,7 +286,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_selfavatar_outside_blobdir() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let avatar_src = t.dir.path().join("avatar.jpg");
         let avatar_bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
         File::create(&avatar_src)
@@ -315,7 +315,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_selfavatar_in_blobdir() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let avatar_src = t.ctx.get_blobdir().join("avatar.png");
         let avatar_bytes = include_bytes!("../test-data/image/avatar900x900.png");
         File::create(&avatar_src)
@@ -341,7 +341,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_selfavatar_copy_without_recode() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let avatar_src = t.dir.path().join("avatar.png");
         let avatar_bytes = include_bytes!("../test-data/image/avatar64x64.png");
         File::create(&avatar_src)
@@ -365,7 +365,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_media_quality_config_option() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let media_quality = t.ctx.get_config_int(Config::MediaQuality).await;
         assert_eq!(media_quality, 0);
         let media_quality = constants::MediaQuality::from_i32(media_quality).unwrap_or_default();

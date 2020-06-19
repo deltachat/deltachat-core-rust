@@ -1645,7 +1645,7 @@ mod tests {
     async fn test_prepare_message_and_send() {
         use crate::config::Config;
 
-        let d = test::dummy_context().await;
+        let d = test::TestContext::new().await;
         let ctx = &d.ctx;
 
         let contact = Contact::create(ctx, "", "dest@example.com")
@@ -1669,7 +1669,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_get_summarytext_by_raw() {
-        let d = test::dummy_context().await;
+        let d = test::TestContext::new().await;
         let ctx = &d.ctx;
 
         let some_text = Some("bla bla".to_string());

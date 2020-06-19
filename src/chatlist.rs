@@ -424,7 +424,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_try_load() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let chat_id1 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "a chat")
             .await
             .unwrap();
@@ -472,7 +472,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_sort_self_talk_up_on_forward() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         t.ctx.update_device_chats().await.unwrap();
         create_group_chat(&t.ctx, VerifiedStatus::Unverified, "a chat")
             .await
@@ -497,7 +497,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_search_special_chat_names() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         t.ctx.update_device_chats().await.unwrap();
 
         let chats = Chatlist::try_load(&t.ctx, 0, Some("t-1234-s"), None)
@@ -530,7 +530,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_get_summary_unwrap() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let chat_id1 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "a chat")
             .await
             .unwrap();

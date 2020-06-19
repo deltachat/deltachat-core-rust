@@ -540,7 +540,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_get_fresh_msgs() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let fresh = t.ctx.get_fresh_msgs().await;
         assert!(fresh.is_empty())
     }
@@ -595,13 +595,13 @@ mod tests {
 
     #[async_std::test]
     async fn no_crashes_on_context_deref() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         std::mem::drop(t.ctx);
     }
 
     #[async_std::test]
     async fn test_get_info() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
 
         let info = t.ctx.get_info().await;
         assert!(info.get("database_dir").is_some());

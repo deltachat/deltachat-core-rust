@@ -497,7 +497,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_create() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let blob = BlobObject::create(&t.ctx, "foo", b"hello").await.unwrap();
         let fname = t.ctx.get_blobdir().join("foo");
         let data = fs::read(fname).await.unwrap();
@@ -508,7 +508,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_lowercase_ext() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let blob = BlobObject::create(&t.ctx, "foo.TXT", b"hello")
             .await
             .unwrap();
@@ -517,7 +517,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_as_file_name() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let blob = BlobObject::create(&t.ctx, "foo.txt", b"hello")
             .await
             .unwrap();
@@ -526,7 +526,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_as_rel_path() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let blob = BlobObject::create(&t.ctx, "foo.txt", b"hello")
             .await
             .unwrap();
@@ -535,7 +535,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_suffix() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let blob = BlobObject::create(&t.ctx, "foo.txt", b"hello")
             .await
             .unwrap();
@@ -546,7 +546,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_create_dup() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         BlobObject::create(&t.ctx, "foo.txt", b"hello")
             .await
             .unwrap();
@@ -570,7 +570,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_double_ext_preserved() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         BlobObject::create(&t.ctx, "foo.tar.gz", b"hello")
             .await
             .unwrap();
@@ -595,7 +595,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_create_long_names() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let s = "1".repeat(150);
         let blob = BlobObject::create(&t.ctx, &s, b"data").await.unwrap();
         let blobname = blob.as_name().split('/').last().unwrap();
@@ -604,7 +604,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_create_and_copy() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let src = t.dir.path().join("src");
         fs::write(&src, b"boo").await.unwrap();
         let blob = BlobObject::create_and_copy(&t.ctx, &src).await.unwrap();
@@ -620,7 +620,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_create_from_path() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
 
         let src_ext = t.dir.path().join("external");
         fs::write(&src_ext, b"boo").await.unwrap();
@@ -638,7 +638,7 @@ mod tests {
     }
     #[async_std::test]
     async fn test_create_from_name_long() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let src_ext = t.dir.path().join("autocrypt-setup-message-4137848473.html");
         fs::write(&src_ext, b"boo").await.unwrap();
         let blob = BlobObject::new_from_path(&t.ctx, &src_ext).await.unwrap();

@@ -776,9 +776,9 @@ mod tests {
 
     #[async_std::test]
     async fn test_render_setup_file() {
-        let t = test_context().await;
+        let t = TestContext::new().await;
 
-        configure_alice_keypair(&t.ctx).await;
+        t.configure_alice().await;
         let msg = render_setup_file(&t.ctx, "hello").await.unwrap();
         println!("{}", &msg);
         // Check some substrings, indicating things got substituted.
@@ -795,12 +795,12 @@ mod tests {
 
     #[async_std::test]
     async fn test_render_setup_file_newline_replace() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         t.ctx
             .set_stock_translation(StockMessage::AcSetupMsgBody, "hello\r\nthere".to_string())
             .await
             .unwrap();
-        configure_alice_keypair(&t.ctx).await;
+        t.configure_alice().await;
         let msg = render_setup_file(&t.ctx, "pw").await.unwrap();
         println!("{}", &msg);
         assert!(msg.contains("<p>hello<br>there</p>"));
@@ -808,7 +808,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_create_setup_code() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let setupcode = create_setup_code(&t.ctx);
         assert_eq!(setupcode.len(), 44);
         assert_eq!(setupcode.chars().nth(4).unwrap(), '-');
@@ -823,7 +823,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_export_key_to_asc_file() {
-        let context = dummy_context().await;
+        let context = TestContext::new().await;
         let key = alice_keypair().public;
         let blobdir = "$BLOBDIR";
         assert!(export_key_to_asc_file(&context.ctx, blobdir, None, &key)

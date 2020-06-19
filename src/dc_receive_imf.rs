@@ -1801,7 +1801,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_grpid_simple() {
-        let context = dummy_context().await;
+        let context = TestContext::new().await;
         let raw = b"From: hello\n\
                     Subject: outer-subject\n\
                     In-Reply-To: <lqkjwelq123@123123>\n\
@@ -1818,7 +1818,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_grpid_from_multiple() {
-        let context = dummy_context().await;
+        let context = TestContext::new().await;
         let raw = b"From: hello\n\
                     Subject: outer-subject\n\
                     In-Reply-To: <Gr.HcxyMARjyJy.9-qweqwe@asd.net>\n\
@@ -1855,7 +1855,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_is_known_rfc724_mid() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some("first message".to_string());
         let msg_id = chat::add_device_msg(&t.ctx, None, Some(&mut msg))
@@ -1871,7 +1871,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_is_msgrmsg_rfc724_mid() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some("first message".to_string());
         let msg_id = chat::add_device_msg(&t.ctx, None, Some(&mut msg))
@@ -1885,34 +1885,34 @@ mod tests {
         assert!(!is_msgrmsg_rfc724_mid(&t.ctx, "nonexistant@message.id").await);
     }
 
-    static MSGRMSG: &[u8] = b"From: Bob <bob@example.org>\n\
-                    To: alice@example.org\n\
+    static MSGRMSG: &[u8] = b"From: Bob <bob@example.com>\n\
+                    To: alice@example.com\n\
                     Chat-Version: 1.0\n\
                     Subject: Chat: hello\n\
-                    Message-ID: <Mr.1111@example.org>\n\
+                    Message-ID: <Mr.1111@example.com>\n\
                     Date: Sun, 22 Mar 2020 22:37:55 +0000\n\
                     \n\
                     hello\n";
 
-    static ONETOONE_NOREPLY_MAIL: &[u8] = b"From: Bob <bob@example.org>\n\
-                    To: alice@example.org\n\
+    static ONETOONE_NOREPLY_MAIL: &[u8] = b"From: Bob <bob@example.com>\n\
+                    To: alice@example.com\n\
                     Subject: Chat: hello\n\
-                    Message-ID: <2222@example.org>\n\
+                    Message-ID: <2222@example.com>\n\
                     Date: Sun, 22 Mar 2020 22:37:56 +0000\n\
                     \n\
                     hello\n";
 
-    static GRP_MAIL: &[u8] = b"From: bob@example.org\n\
-                    To: alice@example.org, claire@example.org\n\
+    static GRP_MAIL: &[u8] = b"From: bob@example.com\n\
+                    To: alice@example.com, claire@example.com\n\
                     Subject: group with Alice, Bob and Claire\n\
-                    Message-ID: <3333@example.org>\n\
+                    Message-ID: <3333@example.com>\n\
                     Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
                     \n\
                     hello\n";
 
     #[async_std::test]
     async fn test_adhoc_group_show_chats_only() {
-        let t = configured_offline_context().await;
+        let t = TestContext::new_alice().await;
         assert_eq!(t.ctx.get_config_int(Config::ShowEmails).await, 0);
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
@@ -1939,7 +1939,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_adhoc_group_show_accepted_contact_unknown() {
-        let t = configured_offline_context().await;
+        let t = TestContext::new_alice().await;
         t.ctx
             .set_config(Config::ShowEmails, Some("1"))
             .await
@@ -1955,12 +1955,12 @@ mod tests {
 
     #[async_std::test]
     async fn test_adhoc_group_show_accepted_contact_known() {
-        let t = configured_offline_context().await;
+        let t = TestContext::new_alice().await;
         t.ctx
             .set_config(Config::ShowEmails, Some("1"))
             .await
             .unwrap();
-        Contact::create(&t.ctx, "Bob", "bob@example.org")
+        Contact::create(&t.ctx, "Bob", "bob@example.com")
             .await
             .unwrap();
         dc_receive_imf(&t.ctx, GRP_MAIL, "INBOX", 1, false)
@@ -1975,7 +1975,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_adhoc_group_show_accepted_contact_accepted() {
-        let t = configured_offline_context().await;
+        let t = TestContext::new_alice().await;
         t.ctx
             .set_config(Config::ShowEmails, Some("1"))
             .await
@@ -2021,7 +2021,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_adhoc_group_show_all() {
-        let t = configured_offline_context().await;
+        let t = TestContext::new_alice().await;
         t.ctx
             .set_config(Config::ShowEmails, Some("2"))
             .await
@@ -2046,7 +2046,7 @@ mod tests {
     #[async_std::test]
     async fn test_read_receipt_and_unarchive() {
         // create alice's account
-        let t = configured_offline_context().await;
+        let t = TestContext::new_alice().await;
 
         // create one-to-one with bob, archive one-to-one
         let bob_id = Contact::create(&t.ctx, "bob", "bob@exampel.org")
@@ -2089,14 +2089,14 @@ mod tests {
         dc_receive_imf(
             &t.ctx,
             format!(
-                "From: alice@example.org\n\
-                 To: bob@example.org\n\
+                "From: alice@example.com\n\
+                 To: bob@example.com\n\
                  Subject: foo\n\
-                 Message-ID: <Gr.{}.12345678901@example.org>\n\
+                 Message-ID: <Gr.{}.12345678901@example.com>\n\
                  Chat-Version: 1.0\n\
                  Chat-Group-ID: {}\n\
                  Chat-Group-Name: foo\n\
-                 Chat-Disposition-Notification-To: alice@example.org\n\
+                 Chat-Disposition-Notification-To: alice@example.com\n\
                  Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
                  \n\
                  hello\n",
@@ -2125,12 +2125,12 @@ mod tests {
         dc_receive_imf(
             &t.ctx,
             format!(
-                "From: bob@example.org\n\
-                 To: alice@example.org\n\
+                "From: bob@example.com\n\
+                 To: alice@example.com\n\
                  Subject: message opened\n\
                  Date: Sun, 22 Mar 2020 23:37:57 +0000\n\
                  Chat-Version: 1.0\n\
-                 Message-ID: <Mr.12345678902@example.org>\n\
+                 Message-ID: <Mr.12345678902@example.com>\n\
                  Content-Type: multipart/report; report-type=disposition-notification; boundary=\"SNIPP\"\n\
                  \n\
                  \n\
@@ -2144,9 +2144,9 @@ mod tests {
                  Content-Type: message/disposition-notification\n\
                  \n\
                  Reporting-UA: Delta Chat 1.28.0\n\
-                 Original-Recipient: rfc822;bob@example.org\n\
-                 Final-Recipient: rfc822;bob@example.org\n\
-                 Original-Message-ID: <Gr.{}.12345678901@example.org>\n\
+                 Original-Recipient: rfc822;bob@example.com\n\
+                 Final-Recipient: rfc822;bob@example.com\n\
+                 Original-Message-ID: <Gr.{}.12345678901@example.com>\n\
                  Disposition: manual-action/MDN-sent-automatically; displayed\n\
                  \n\
                  \n\
@@ -2186,7 +2186,7 @@ mod tests {
         // are very rare, however, we have to add them to the database (they go to the
         // "deaddrop" chat) to avoid a re-download from the server. See also [**]
 
-        let t = configured_offline_context().await;
+        let t = TestContext::new_alice().await;
         let context = &t.ctx;
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
@@ -2194,9 +2194,9 @@ mod tests {
 
         dc_receive_imf(
             context,
-            b"To: bob@example.org\n\
+            b"To: bob@example.com\n\
                  Subject: foo\n\
-                 Message-ID: <3924@example.org>\n\
+                 Message-ID: <3924@example.com>\n\
                  Chat-Version: 1.0\n\
                  Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
                  \n\
@@ -2215,7 +2215,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_escaped_from() {
-        let t = configured_offline_context().await;
+        let t = TestContext::new_alice().await;
         let contact_id = Contact::create(&t.ctx, "foobar", "foobar@example.com")
             .await
             .unwrap();
@@ -2225,9 +2225,9 @@ mod tests {
         dc_receive_imf(
             &t.ctx,
             b"From: =?UTF-8?B?0JjQvNGPLCDQpNCw0LzQuNC70LjRjw==?= <foobar@example.com>\n\
-                 To: alice@example.org\n\
+                 To: alice@example.com\n\
                  Subject: foo\n\
-                 Message-ID: <asdklfjjaweofi@example.org>\n\
+                 Message-ID: <asdklfjjaweofi@example.com>\n\
                  Chat-Version: 1.0\n\
                  Chat-Disposition-Notification-To: =?UTF-8?B?0JjQvNGPLCDQpNCw0LzQuNC70LjRjw==?= <foobar@example.com>\n\
                  Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
@@ -2257,7 +2257,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_escaped_recipients() {
-        let t = configured_offline_context().await;
+        let t = TestContext::new_alice().await;
         Contact::create(&t.ctx, "foobar", "foobar@example.com")
             .await
             .unwrap();
@@ -2271,10 +2271,10 @@ mod tests {
         dc_receive_imf(
             &t.ctx,
             b"From: Foobar <foobar@example.com>\n\
-                 To: =?UTF-8?B?0JjQvNGPLCDQpNCw0LzQuNC70LjRjw==?= alice@example.org\n\
+                 To: =?UTF-8?B?0JjQvNGPLCDQpNCw0LzQuNC70LjRjw==?= alice@example.com\n\
                  Cc: =?utf-8?q?=3Ch2=3E?= <carl@host.tld>\n\
                  Subject: foo\n\
-                 Message-ID: <asdklfjjaweofi@example.org>\n\
+                 Message-ID: <asdklfjjaweofi@example.com>\n\
                  Chat-Version: 1.0\n\
                  Chat-Disposition-Notification-To: <foobar@example.com>\n\
                  Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
@@ -2305,7 +2305,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_cc_to_contact() {
-        let t = configured_offline_context().await;
+        let t = TestContext::new_alice().await;
         Contact::create(&t.ctx, "foobar", "foobar@example.com")
             .await
             .unwrap();
@@ -2323,10 +2323,10 @@ mod tests {
         dc_receive_imf(
             &t.ctx,
             b"From: Foobar <foobar@example.com>\n\
-                 To: alice@example.org\n\
+                 To: alice@example.com\n\
                  Cc: Carl <carl@host.tld>\n\
                  Subject: foo\n\
-                 Message-ID: <asdklfjjaweofi@example.org>\n\
+                 Message-ID: <asdklfjjaweofi@example.com>\n\
                  Chat-Version: 1.0\n\
                  Chat-Disposition-Notification-To: <foobar@example.com>\n\
                  Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
@@ -2427,7 +2427,8 @@ mod tests {
         raw_ndn: &[u8],
         error_msg: &str,
     ) {
-        let t = configured_offline_context_with_addr(self_addr).await;
+        let t = TestContext::new().await;
+        t.configure_addr(self_addr).await;
 
         dc_receive_imf(
             &t.ctx,
@@ -2472,18 +2473,19 @@ mod tests {
 
     #[async_std::test]
     async fn test_parse_ndn_group_msg() {
-        let t = configured_offline_context_with_addr("alice@gmail.com").await;
+        let t = TestContext::new().await;
+        t.configure_addr("alice@gmail.com").await;
 
         dc_receive_imf(
             &t.ctx,
             b"From: alice@gmail.com\n\
-                 To: bob@example.org, assidhfaaspocwaeofi@gmail.com\n\
+                 To: bob@example.com, assidhfaaspocwaeofi@gmail.com\n\
                  Subject: foo\n\
                  Message-ID: <CADWx9Cs32Wa7Gy-gM0bvbq54P_FEHe7UcsAV=yW7sVVW=fiMYQ@mail.gmail.com>\n\
                  Chat-Version: 1.0\n\
                  Chat-Group-ID: abcde\n\
                  Chat-Group-Name: foo\n\
-                 Chat-Disposition-Notification-To: alice@example.org\n\
+                 Chat-Disposition-Notification-To: alice@example.com\n\
                  Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
                  \n\
                  hello\n",

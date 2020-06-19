@@ -774,7 +774,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_file_handling() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let context = &t.ctx;
         macro_rules! dc_file_exist {
             ($ctx:expr, $fname:expr) => {
@@ -853,7 +853,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_create_smeared_timestamp() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         assert_ne!(
             dc_create_smeared_timestamp(&t.ctx).await,
             dc_create_smeared_timestamp(&t.ctx).await
@@ -869,7 +869,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_create_smeared_timestamps() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let count = MAX_SECONDS_TO_LEND_FROM_FUTURE - 1;
         let start = dc_create_smeared_timestamps(&t.ctx, count as usize).await;
         let next = dc_smeared_time(&t.ctx).await;

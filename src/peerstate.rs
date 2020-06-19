@@ -473,7 +473,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_peerstate_save_to_db() {
-        let ctx = crate::test_utils::dummy_context().await;
+        let ctx = crate::test_utils::TestContext::new().await;
         let addr = "hello@mail.com";
 
         let pub_key = alice_keypair().public;
@@ -516,7 +516,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_peerstate_double_create() {
-        let ctx = crate::test_utils::dummy_context().await;
+        let ctx = crate::test_utils::TestContext::new().await;
         let addr = "hello@mail.com";
         let pub_key = alice_keypair().public;
 
@@ -549,7 +549,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_peerstate_with_empty_gossip_key_save_to_db() {
-        let ctx = crate::test_utils::dummy_context().await;
+        let ctx = crate::test_utils::TestContext::new().await;
         let addr = "hello@mail.com";
 
         let pub_key = alice_keypair().public;

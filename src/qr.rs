@@ -383,11 +383,11 @@ fn normalize_address(addr: &str) -> Result<String, Error> {
 mod tests {
     use super::*;
 
-    use crate::test_utils::dummy_context;
+    use crate::test_utils::TestContext;
 
     #[async_std::test]
     async fn test_decode_http() {
-        let ctx = dummy_context().await;
+        let ctx = TestContext::new().await;
 
         let res = check_qr(&ctx.ctx, "http://www.hello.com").await;
 
@@ -399,7 +399,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_decode_https() {
-        let ctx = dummy_context().await;
+        let ctx = TestContext::new().await;
 
         let res = check_qr(&ctx.ctx, "https://www.hello.com").await;
 
@@ -411,7 +411,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_decode_text() {
-        let ctx = dummy_context().await;
+        let ctx = TestContext::new().await;
 
         let res = check_qr(&ctx.ctx, "I am so cool").await;
 
@@ -423,7 +423,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_decode_vcard() {
-        let ctx = dummy_context().await;
+        let ctx = TestContext::new().await;
 
         let res = check_qr(
             &ctx.ctx,
@@ -441,7 +441,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_decode_matmsg() {
-        let ctx = dummy_context().await;
+        let ctx = TestContext::new().await;
 
         let res = check_qr(
             &ctx.ctx,
@@ -459,7 +459,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_decode_mailto() {
-        let ctx = dummy_context().await;
+        let ctx = TestContext::new().await;
 
         let res = check_qr(
             &ctx.ctx,
@@ -485,7 +485,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_decode_smtp() {
-        let ctx = dummy_context().await;
+        let ctx = TestContext::new().await;
 
         let res = check_qr(&ctx.ctx, "SMTP:stress@test.local:subjecthello:bodyworld").await;
 
@@ -499,7 +499,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_decode_openpgp_group() {
-        let ctx = dummy_context().await;
+        let ctx = TestContext::new().await;
 
         let res = check_qr(
             &ctx.ctx,
@@ -528,7 +528,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_decode_openpgp_secure_join() {
-        let ctx = dummy_context().await;
+        let ctx = TestContext::new().await;
 
         let res = check_qr(
             &ctx.ctx,
@@ -556,7 +556,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_decode_openpgp_without_addr() {
-        let ctx = dummy_context().await;
+        let ctx = TestContext::new().await;
 
         let res = check_qr(
             &ctx.ctx,
@@ -591,7 +591,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_decode_account() {
-        let ctx = dummy_context().await;
+        let ctx = TestContext::new().await;
 
         let res = check_qr(
             &ctx.ctx,
@@ -613,7 +613,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_decode_account_bad_scheme() {
-        let ctx = dummy_context().await;
+        let ctx = TestContext::new().await;
         let res = check_qr(
             &ctx.ctx,
             "DCACCOUNT:http://example.org/new_email?t=1w_7wDjgjelxeX884x96v3",

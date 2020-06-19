@@ -440,7 +440,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_dc_get_oauth2_addr() {
-        let ctx = dummy_context().await;
+        let ctx = TestContext::new().await;
         let addr = "dignifiedquire@gmail.com";
         let code = "fail";
         let res = dc_get_oauth2_addr(&ctx.ctx, addr, code).await;
@@ -450,7 +450,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_dc_get_oauth2_url() {
-        let ctx = dummy_context().await;
+        let ctx = TestContext::new().await;
         let addr = "dignifiedquire@gmail.com";
         let redirect_uri = "chat.delta:/com.b44t.messenger";
         let res = dc_get_oauth2_url(&ctx.ctx, addr, redirect_uri).await;
@@ -460,7 +460,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_dc_get_oauth2_token() {
-        let ctx = dummy_context().await;
+        let ctx = TestContext::new().await;
         let addr = "dignifiedquire@gmail.com";
         let code = "fail";
         let res = dc_get_oauth2_access_token(&ctx.ctx, addr, code, false).await;

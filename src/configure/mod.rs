@@ -621,7 +621,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_no_panic_on_bad_credentials() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         t.ctx
             .set_config(Config::Addr, Some("probably@unexistant.addr"))
             .await
@@ -635,7 +635,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_get_offline_autoconfig() {
-        let context = dummy_context().await.ctx;
+        let context = TestContext::new().await.ctx;
 
         let mut params = LoginParam::new();
         params.addr = "someone123@example.org".to_string();

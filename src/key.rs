@@ -550,8 +550,8 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
     #[async_std::test]
     async fn test_load_self_existing() {
         let alice = alice_keypair();
-        let t = dummy_context().await;
-        configure_alice_keypair(&t.ctx).await;
+        let t = TestContext::new().await;
+        t.configure_alice().await;
         let pubkey = SignedPublicKey::load_self(&t.ctx).await.unwrap();
         assert_eq!(alice.public, pubkey);
         let seckey = SignedSecretKey::load_self(&t.ctx).await.unwrap();
@@ -560,7 +560,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
 
     #[async_std::test]
     async fn test_load_self_generate_public() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         t.ctx
             .set_config(Config::ConfiguredAddr, Some("alice@example.com"))
             .await
@@ -571,7 +571,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
 
     #[async_std::test]
     async fn test_load_self_generate_secret() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         t.ctx
             .set_config(Config::ConfiguredAddr, Some("alice@example.com"))
             .await
@@ -584,7 +584,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
     async fn test_load_self_generate_concurrent() {
         use std::thread;
 
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         t.ctx
             .set_config(Config::ConfiguredAddr, Some("alice@example.com"))
             .await
@@ -611,7 +611,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
     async fn test_save_self_key_twice() {
         // Saving the same key twice should result in only one row in
         // the keypairs table.
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let ctx = Arc::new(t.ctx);
 
         let ctx1 = ctx.clone();
