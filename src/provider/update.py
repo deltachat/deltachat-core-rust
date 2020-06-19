@@ -103,6 +103,9 @@ def process_data(data, file):
     strict_tls = data.get("strict_tls", False)
     strict_tls = "true" if strict_tls else "false"
 
+    oauth2 = data.get("oauth2", "")
+    oauth2 = "Some(Oauth2Authorizer::" + camel(oauth2) + ")" if oauth2 != "" else "None"
+
     provider = ""
     before_login_hint = cleanstr(data.get("before_login_hint", ""))
     after_login_hint = cleanstr(data.get("after_login_hint", ""))
@@ -115,6 +118,7 @@ def process_data(data, file):
         provider += "        server: vec![\n" + server + "        ],\n"
         provider += "        config_defaults: " + config_defaults + ",\n"
         provider += "        strict_tls: " + strict_tls + ",\n"
+        provider += "        oauth2_authorizer: " + oauth2 + ",\n"
         provider += "    };\n\n"
     else:
         raise TypeError("SMTP and IMAP must be specified together or left out both")
@@ -125,11 +129,11 @@ def process_data(data, file):
     # finally, add the provider
     global out_all, out_domains
     out_all += "    // " + file[file.rindex("/")+1:] + ": " + comment.strip(", ") + "\n"
-    if status == "OK" and before_login_hint == "" and after_login_hint == "" and server == "" and config_defaults == "None" and strict_tls == "false":
-        out_all += "    // - skipping provider with status OK and no special things to do\n\n"
-    else:
-        out_all += provider
-        out_domains += domains
+
+    # also add provider with no special things to do -
+    # eg. _not_ supporting oauth2 is also an information and we can skip the mx-lookup in this case
+    out_all += provider
+    out_domains += domains
 
 
 def process_file(file):
