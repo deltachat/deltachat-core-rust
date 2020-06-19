@@ -409,7 +409,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_set_stock_translation() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         t.ctx
             .set_stock_translation(StockMessage::NoMessages, "xyz".to_string())
             .await
@@ -419,7 +419,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_set_stock_translation_wrong_replacements() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         assert!(t
             .ctx
             .set_stock_translation(StockMessage::NoMessages, "xyz %1$s ".to_string())
@@ -434,7 +434,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_stock_str() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         assert_eq!(
             t.ctx.stock_str(StockMessage::NoMessages).await,
             "No messages."
@@ -443,7 +443,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_stock_string_repl_str() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         // uses %1$s substitution
         assert_eq!(
             t.ctx
@@ -456,7 +456,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_stock_string_repl_int() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         assert_eq!(
             t.ctx
                 .stock_string_repl_int(StockMessage::MsgAddMember, 42)
@@ -467,7 +467,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_stock_string_repl_str2() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         assert_eq!(
             t.ctx
                 .stock_string_repl_str2(StockMessage::ServerResponse, "foo", "bar")
@@ -478,7 +478,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_stock_system_msg_simple() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         assert_eq!(
             t.ctx
                 .stock_system_msg(StockMessage::MsgLocationEnabled, "", "", 0)
@@ -489,7 +489,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_stock_system_msg_add_member_by_me() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         assert_eq!(
             t.ctx
                 .stock_system_msg(
@@ -505,7 +505,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_stock_system_msg_add_member_by_me_with_displayname() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         Contact::create(&t.ctx, "Alice", "alice@example.com")
             .await
             .expect("failed to create contact");
@@ -524,7 +524,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_stock_system_msg_add_member_by_other_with_displayname() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let contact_id = {
             Contact::create(&t.ctx, "Alice", "alice@example.com")
                 .await
@@ -548,7 +548,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_stock_system_msg_grp_name() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         assert_eq!(
             t.ctx
                 .stock_system_msg(
@@ -564,7 +564,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_stock_system_msg_grp_name_other() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let id = Contact::create(&t.ctx, "Alice", "alice@example.com")
             .await
             .expect("failed to create contact");
@@ -579,7 +579,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_update_device_chats() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         t.ctx.update_device_chats().await.ok();
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 2);

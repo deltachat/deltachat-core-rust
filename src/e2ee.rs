@@ -327,14 +327,14 @@ mod tests {
 
         #[async_std::test]
         async fn test_prexisting() {
-            let t = dummy_context().await;
-            let test_addr = configure_alice_keypair(&t.ctx).await;
+            let t = TestContext::new().await;
+            let test_addr = t.configure_alice().await;
             assert_eq!(ensure_secret_key_exists(&t.ctx).await.unwrap(), test_addr);
         }
 
         #[async_std::test]
         async fn test_not_configured() {
-            let t = dummy_context().await;
+            let t = TestContext::new().await;
             assert!(ensure_secret_key_exists(&t.ctx).await.is_err());
         }
     }

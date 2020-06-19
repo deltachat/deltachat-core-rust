@@ -1209,7 +1209,7 @@ mod tests {
         // We want to ensure that loading jobs skips over jobs which
         // fails to load from the database instead of failing to load
         // all jobs.
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         insert_job(&t.ctx, -1).await; // This can not be loaded into Job struct.
         let jobs = load_next(
             &t.ctx,
@@ -1231,7 +1231,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_load_next_job_one() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
 
         insert_job(&t.ctx, 1).await;
 

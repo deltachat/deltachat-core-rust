@@ -1258,7 +1258,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_get_contacts() {
-        let context = dummy_context().await;
+        let context = TestContext::new().await;
         let contacts = Contact::get_all(&context.ctx, 0, Some("some2"))
             .await
             .unwrap();
@@ -1282,10 +1282,10 @@ mod tests {
 
     #[async_std::test]
     async fn test_is_self_addr() -> Result<()> {
-        let t = test_context().await;
+        let t = TestContext::new().await;
         assert!(t.ctx.is_self_addr("me@me.org").await.is_err());
 
-        let addr = configure_alice_keypair(&t.ctx).await;
+        let addr = t.configure_alice().await;
         assert_eq!(t.ctx.is_self_addr("me@me.org").await?, false);
         assert_eq!(t.ctx.is_self_addr(&addr).await?, true);
 
@@ -1295,7 +1295,7 @@ mod tests {
     #[async_std::test]
     async fn test_add_or_lookup() {
         // add some contacts, this also tests add_address_book()
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let book = concat!(
             "  Name one  \n one@eins.org \n",
             "Name two\ntwo@deux.net\n",
@@ -1408,7 +1408,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_remote_authnames() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
 
         // incoming mail `From: bob1 <bob@example.org>` - this should init authname and name
         let (contact_id, sth_modified) = Contact::add_or_lookup(
@@ -1471,7 +1471,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_remote_authnames_create_empty() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
 
         // manually create "claire@example.org" without a given name
         let contact_id = Contact::create(&t.ctx, "", "claire@example.org")
@@ -1518,7 +1518,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_remote_authnames_edit_empty() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
 
         // manually create "dave@example.org"
         let contact_id = Contact::create(&t.ctx, "dave1", "dave@example.org")
@@ -1562,7 +1562,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_name_in_address() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
 
         let contact_id = Contact::create(&t.ctx, "", "<dave@example.org>")
             .await

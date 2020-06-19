@@ -724,11 +724,11 @@ pub(crate) async fn job_maybe_send_locations_ended(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::dummy_context;
+    use crate::test_utils::TestContext;
 
     #[async_std::test]
     async fn test_kml_parse() {
-        let context = dummy_context().await;
+        let context = TestContext::new().await;
 
         let xml =
             b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n<Document addr=\"user@example.org\">\n<Placemark><Timestamp><when>2019-03-06T21:09:57Z</when></Timestamp><Point><coordinates accuracy=\"32.000000\">9.423110,53.790302</coordinates></Point></Placemark>\n<PlaceMARK>\n<Timestamp><WHEN > \n\t2018-12-13T22:11:12Z\t</WHEN></Timestamp><Point><coordinates aCCuracy=\"2.500000\"> 19.423110 \t , \n 63.790302\n </coordinates></Point></PlaceMARK>\n</Document>\n</kml>";

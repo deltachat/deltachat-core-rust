@@ -1237,7 +1237,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_dc_mimeparser_crash() {
-        let context = dummy_context().await;
+        let context = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/issue_523.txt");
         let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
             .await
@@ -1249,7 +1249,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_get_rfc724_mid_exists() {
-        let context = dummy_context().await;
+        let context = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/mail_with_message_id.txt");
         let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
             .await
@@ -1263,7 +1263,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_get_rfc724_mid_not_exists() {
-        let context = dummy_context().await;
+        let context = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/issue_523.txt");
         let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
             .await
@@ -1321,7 +1321,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_parse_first_addr() {
-        let context = dummy_context().await;
+        let context = TestContext::new().await;
         let raw = b"From: hello@one.org, world@two.org\n\
                     Chat-Disposition-Notification-To: wrong\n\
                     Content-Type: text/plain\n\
@@ -1342,7 +1342,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_mimeparser_with_context() {
-        let context = dummy_context().await;
+        let context = TestContext::new().await;
         let raw = b"From: hello\n\
                     Content-Type: multipart/mixed; boundary=\"==break==\";\n\
                     Subject: outer-subject\n\
@@ -1392,7 +1392,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_mimeparser_with_avatars() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
 
         let raw = include_bytes!("../test-data/message/mail_attach_txt.eml");
         let mimeparser = MimeMessage::from_bytes(&t.ctx, &raw[..]).await.unwrap();
@@ -1435,7 +1435,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_mimeparser_message_kml() {
-        let context = dummy_context().await;
+        let context = TestContext::new().await;
         let raw = b"Chat-Version: 1.0\n\
 From: foo <foo@example.org>\n\
 To: bar <bar@example.org>\n\
@@ -1480,7 +1480,7 @@ Content-Disposition: attachment; filename=\"message.kml\"\n\
 
     #[async_std::test]
     async fn test_parse_mdn() {
-        let context = dummy_context().await;
+        let context = TestContext::new().await;
         let raw = b"Subject: =?utf-8?q?Chat=3A_Message_opened?=\n\
 Date: Mon, 10 Jan 2020 00:00:00 +0000\n\
 Chat-Version: 1.0\n\
@@ -1530,7 +1530,7 @@ Disposition: manual-action/MDN-sent-automatically; displayed\n\
     /// multipart MIME messages.
     #[async_std::test]
     async fn test_parse_multiple_mdns() {
-        let context = dummy_context().await;
+        let context = TestContext::new().await;
         let raw = b"Subject: =?utf-8?q?Chat=3A_Message_opened?=\n\
 Date: Mon, 10 Jan 2020 00:00:00 +0000\n\
 Chat-Version: 1.0\n\
@@ -1606,7 +1606,7 @@ Disposition: manual-action/MDN-sent-automatically; displayed\n\
 
     #[async_std::test]
     async fn test_parse_mdn_with_additional_message_ids() {
-        let context = dummy_context().await;
+        let context = TestContext::new().await;
         let raw = b"Subject: =?utf-8?q?Chat=3A_Message_opened?=\n\
 Date: Mon, 10 Jan 2020 00:00:00 +0000\n\
 Chat-Version: 1.0\n\
@@ -1661,7 +1661,7 @@ Additional-Message-IDs: <foo@example.com> <foo@example.net>\n\
 
     #[async_std::test]
     async fn test_parse_inline_attachment() {
-        let context = dummy_context().await;
+        let context = TestContext::new().await;
         let raw = br#"Date: Thu, 13 Feb 2020 22:41:20 +0000 (UTC)
 From: sender@example.com
 To: receiver@example.com
@@ -1701,7 +1701,7 @@ MDYyMDYxNTE1RTlDOEE4Cj4+CnN0YXJ0eHJlZgo4Mjc4CiUlRU9GCg==
 
     #[async_std::test]
     async fn parse_inline_image() {
-        let context = dummy_context().await;
+        let context = TestContext::new().await;
         let raw = br#"Message-ID: <foobar@example.org>
 From: foo <foo@example.org>
 Subject: example
@@ -1747,7 +1747,7 @@ CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
 
     #[async_std::test]
     async fn parse_thunderbird_html_embedded_image() {
-        let context = dummy_context().await;
+        let context = TestContext::new().await;
         let raw = br#"To: Alice <alice@example.org>
 From: Bob <bob@example.org>
 Subject: Test subject
@@ -1820,7 +1820,7 @@ CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
     // Outlook specifies filename in the "name" attribute of Content-Type
     #[async_std::test]
     async fn parse_outlook_html_embedded_image() {
-        let context = dummy_context().await;
+        let context = TestContext::new().await;
         let raw = br##"From: Anonymous <anonymous@example.org>
 To: Anonymous <anonymous@example.org>
 Subject: Delta Chat is great stuff!

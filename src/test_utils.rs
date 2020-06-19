@@ -18,44 +18,59 @@ pub(crate) struct TestContext {
     pub dir: TempDir,
 }
 
-/// Create a new, opened [TestContext] using given callback.
-///
-/// The [Context] will be opened with the SQLite database named
-/// "db.sqlite" in the [TestContext.dir] directory.
-///
-/// [Context]: crate::context::Context
-pub(crate) async fn test_context() -> TestContext {
-    let dir = tempdir().unwrap();
-    let dbfile = dir.path().join("db.sqlite");
-    let ctx = Context::new("FakeOs".into(), dbfile.into()).await.unwrap();
-    TestContext { ctx, dir }
-}
+impl TestContext {
+    /// Create a new [TestContext].
+    ///
+    /// The [Context] will be created and have an SQLite database named "db.sqlite" in the
+    /// [TestContext.dir] directory.  This directory is cleaned up when the [TestContext] is
+    /// dropped.
+    ///
+    /// [Context]: crate::context::Context
+    pub async fn new() -> Self {
+        let dir = tempdir().unwrap();
+        let dbfile = dir.path().join("db.sqlite");
+        let ctx = Context::new("FakeOS".into(), dbfile.into()).await.unwrap();
+        Self { ctx, dir }
+    }
 
-/// Return a dummy [TestContext].
-///
-/// The context will be opened and use the SQLite database as
-/// specified in [test_context] but there is no callback hooked up,
-/// i.e. [Context::call_cb] will always return `0`.
-pub(crate) async fn dummy_context() -> TestContext {
-    test_context().await
-}
+    /// Create a new configured [TestContext].
+    ///
+    /// This is a shortcut which automatically calls [TestContext::configure_alice] after
+    /// creating the context.
+    pub async fn new_alice() -> Self {
+        let t = Self::new().await;
+        t.configure_alice().await;
+        t
+    }
 
-pub(crate) async fn configured_offline_context() -> TestContext {
-    configured_offline_context_with_addr("alice@example.org").await
-}
+    /// Configure with alice@example.com.
+    ///
+    /// The context will be fake-configured as the alice user, with a pre-generated secret
+    /// key.  The email address of the user is returned as a string.
+    pub async fn configure_alice(&self) -> String {
+        let keypair = alice_keypair();
+        self.configure_addr(&keypair.addr.to_string()).await;
+        key::store_self_keypair(&self.ctx, &keypair, key::KeyPairUse::Default)
+            .await
+            .expect("Failed to save Alice's key");
+        keypair.addr.to_string()
+    }
 
-pub(crate) async fn configured_offline_context_with_addr(addr: &str) -> TestContext {
-    let t = dummy_context().await;
-    t.ctx.set_config(Config::Addr, Some(addr)).await.unwrap();
-    t.ctx
-        .set_config(Config::ConfiguredAddr, Some(addr))
-        .await
-        .unwrap();
-    t.ctx
-        .set_config(Config::Configured, Some("1"))
-        .await
-        .unwrap();
-    t
+    /// Configure as a given email address.
+    ///
+    /// The context will be configured but the key will not be pre-generated so if a key is
+    /// used the fingerprint will be different every time.
+    pub async fn configure_addr(&self, addr: &str) {
+        self.ctx.set_config(Config::Addr, Some(addr)).await.unwrap();
+        self.ctx
+            .set_config(Config::ConfiguredAddr, Some(addr))
+            .await
+            .unwrap();
+        self.ctx
+            .set_config(Config::Configured, Some("1"))
+            .await
+            .unwrap();
+    }
 }
 
 /// Load a pre-generated keypair for alice@example.com from disk.
@@ -76,20 +91,6 @@ pub(crate) fn alice_keypair() -> key::KeyPair {
         public,
         secret,
     }
-}
-
-/// Creates Alice with a pre-generated keypair.
-///
-/// Returns the address of the keypair created (alice@example.com).
-pub(crate) async fn configure_alice_keypair(ctx: &Context) -> String {
-    let keypair = alice_keypair();
-    ctx.set_config(Config::ConfiguredAddr, Some(&keypair.addr.to_string()))
-        .await
-        .unwrap();
-    key::store_self_keypair(&ctx, &keypair, key::KeyPairUse::Default)
-        .await
-        .expect("Failed to save Alice's key");
-    keypair.addr.to_string()
 }
 
 /// Load a pre-generated keypair for bob@example.net from disk.

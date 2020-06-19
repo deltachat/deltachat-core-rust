@@ -2821,7 +2821,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_chat_info() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let bob = Contact::create(&t.ctx, "bob", "bob@example.com")
             .await
             .unwrap();
@@ -2855,7 +2855,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_get_draft_no_draft() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let chat_id = create_by_contact_id(&t.ctx, DC_CONTACT_ID_SELF)
             .await
             .unwrap();
@@ -2865,7 +2865,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_get_draft_special_chat_id() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let draft = ChatId::new(DC_CHAT_ID_LAST_SPECIAL)
             .get_draft(&t.ctx)
             .await
@@ -2877,14 +2877,14 @@ mod tests {
     async fn test_get_draft_no_chat() {
         // This is a weird case, maybe this should be an error but we
         // do not get this info from the database currently.
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let draft = ChatId::new(42).get_draft(&t.ctx).await.unwrap();
         assert!(draft.is_none());
     }
 
     #[async_std::test]
     async fn test_get_draft() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let chat_id = create_by_contact_id(&t.ctx, DC_CONTACT_ID_SELF)
             .await
             .unwrap();
@@ -2900,7 +2900,7 @@ mod tests {
     #[async_std::test]
     async fn test_add_contact_to_chat_ex_add_self() {
         // Adding self to a contact should succeed, even though it's pointless.
-        let t = test_context().await;
+        let t = TestContext::new().await;
         let chat_id = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo")
             .await
             .unwrap();
@@ -2912,7 +2912,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_self_talk() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let chat_id = create_by_contact_id(&t.ctx, DC_CONTACT_ID_SELF)
             .await
             .unwrap();
@@ -2933,7 +2933,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_deaddrop_chat() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let chat = Chat::load_from_db(&t.ctx, ChatId::new(DC_CHAT_ID_DEADDROP))
             .await
             .unwrap();
@@ -2948,7 +2948,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_add_device_msg_unlabelled() {
-        let t = test_context().await;
+        let t = TestContext::new().await;
 
         // add two device-messages
         let mut msg1 = Message::new(Viewtype::Text);
@@ -2983,7 +2983,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_add_device_msg_labelled() {
-        let t = test_context().await;
+        let t = TestContext::new().await;
 
         // add two device-messages with the same label (second attempt is not added)
         let mut msg1 = Message::new(Viewtype::Text);
@@ -3037,7 +3037,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_add_device_msg_label_only() {
-        let t = test_context().await;
+        let t = TestContext::new().await;
         let res = add_device_msg(&t.ctx, Some(""), None).await;
         assert!(res.is_err());
         let res = add_device_msg(&t.ctx, Some("some-label"), None).await;
@@ -3057,7 +3057,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_was_device_msg_ever_added() {
-        let t = test_context().await;
+        let t = TestContext::new().await;
         add_device_msg(&t.ctx, Some("some-label"), None).await.ok();
         assert!(was_device_msg_ever_added(&t.ctx, "some-label")
             .await
@@ -3081,7 +3081,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_delete_device_chat() {
-        let t = test_context().await;
+        let t = TestContext::new().await;
 
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some("message text".to_string());
@@ -3101,7 +3101,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_device_chat_cannot_sent() {
-        let t = test_context().await;
+        let t = TestContext::new().await;
         t.ctx.update_device_chats().await.unwrap();
         let (device_chat_id, _) =
             create_or_lookup_by_contact_id(&t.ctx, DC_CONTACT_ID_DEVICE, Blocked::Not)
@@ -3121,7 +3121,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_delete_and_reset_all_device_msgs() {
-        let t = test_context().await;
+        let t = TestContext::new().await;
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some("message text".to_string());
         let msg_id1 = add_device_msg(&t.ctx, Some("some-label"), Some(&mut msg))
@@ -3158,7 +3158,7 @@ mod tests {
     #[async_std::test]
     async fn test_archive() {
         // create two chats
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some("foo".to_string());
         let msg_id = add_device_msg(&t.ctx, None, Some(&mut msg)).await.unwrap();
@@ -3272,7 +3272,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_pinned() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
 
         // create 3 chats, wait 1 second in between to get a reliable order (we order by time)
         let mut msg = Message::new(Viewtype::Text);
@@ -3331,7 +3331,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_set_chat_name() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let chat_id = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo")
             .await
             .unwrap();
@@ -3355,7 +3355,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_create_same_chat_twice() {
-        let context = dummy_context().await;
+        let context = TestContext::new().await;
         let contact1 = Contact::create(&context.ctx, "bob", "bob@mail.de")
             .await
             .unwrap();
@@ -3374,7 +3374,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_shall_attach_selfavatar() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let chat_id = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo")
             .await
             .unwrap();
@@ -3398,7 +3398,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_set_mute_duration() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let chat_id = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo")
             .await
             .unwrap();
@@ -3466,7 +3466,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_parent_is_encrypted() {
-        let t = dummy_context().await;
+        let t = TestContext::new().await;
         let chat_id = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "foo")
             .await
             .unwrap();

@@ -1210,7 +1210,6 @@ mod tests {
     use crate::chatlist::Chatlist;
     use crate::dc_receive_imf::dc_receive_imf;
     use crate::mimeparser::*;
-    use crate::test_utils::configured_offline_context;
     use crate::test_utils::TestContext;
 
     #[test]
@@ -1300,10 +1299,10 @@ mod tests {
         // 1.: Receive a mail from an MUA or Delta Chat
         assert_eq!(
             msg_to_subject_str(
-                b"From: Bob <bob@example.org>\n\
-                To: alice@example.org\n\
+                b"From: Bob <bob@example.com>\n\
+                To: alice@example.com\n\
                 Subject: Antw: Chat: hello\n\
-                Message-ID: <2222@example.org>\n\
+                Message-ID: <2222@example.com>\n\
                 Date: Sun, 22 Mar 2020 22:37:56 +0000\n\
                 \n\
                 hello\n"
@@ -1314,10 +1313,10 @@ mod tests {
 
         assert_eq!(
             msg_to_subject_str(
-                b"From: Bob <bob@example.org>\n\
-                To: alice@example.org\n\
+                b"From: Bob <bob@example.com>\n\
+                To: alice@example.com\n\
                 Subject: Infos: 42\n\
-                Message-ID: <2222@example.org>\n\
+                Message-ID: <2222@example.com>\n\
                 Date: Sun, 22 Mar 2020 22:37:56 +0000\n\
                 \n\
                 hello\n"
@@ -1329,11 +1328,11 @@ mod tests {
         // 2. Receive a message from Delta Chat when we did not send any messages before
         assert_eq!(
             msg_to_subject_str(
-                b"From: Charlie <charlie@example.org>\n\
-                To: alice@example.org\n\
+                b"From: Charlie <charlie@example.com>\n\
+                To: alice@example.com\n\
                 Subject: Chat: hello\n\
                 Chat-Version: 1.0\n\
-                Message-ID: <2223@example.org>\n\
+                Message-ID: <2223@example.com>\n\
                 Date: Sun, 22 Mar 2020 22:37:56 +0000\n\
                 \n\
                 hello\n"
@@ -1343,10 +1342,11 @@ mod tests {
         );
 
         // 3. Send the first message to a new contact
-        let t = configured_offline_context().await;
-        assert_eq!(first_subject_str(t).await, "Message from alice@example.org");
+        let t = TestContext::new_alice().await;
 
-        let t = configured_offline_context().await;
+        assert_eq!(first_subject_str(t).await, "Message from alice@example.com");
+
+        let t = TestContext::new_alice().await;
         t.ctx
             .set_config(Config::Displayname, Some("Alice"))
             .await
@@ -1355,11 +1355,11 @@ mod tests {
 
         // 4. Receive messages with unicode characters and make sure that we do not panic (we do not care about the result)
         msg_to_subject_str(
-            "From: Charlie <charlie@example.org>\n\
-            To: alice@example.org\n\
+            "From: Charlie <charlie@example.com>\n\
+            To: alice@example.com\n\
             Subject: äääää\n\
             Chat-Version: 1.0\n\
-            Message-ID: <2893@example.org>\n\
+            Message-ID: <2893@example.com>\n\
             Date: Sun, 22 Mar 2020 22:37:56 +0000\n\
             \n\
             hello\n"
@@ -1368,11 +1368,11 @@ mod tests {
         .await;
 
         msg_to_subject_str(
-            "From: Charlie <charlie@example.org>\n\
-            To: alice@example.org\n\
+            "From: Charlie <charlie@example.com>\n\
+            To: alice@example.com\n\
             Subject: aäääää\n\
             Chat-Version: 1.0\n\
-            Message-ID: <2893@example.org>\n\
+            Message-ID: <2893@example.com>\n\
             Date: Sun, 22 Mar 2020 22:37:56 +0000\n\
             \n\
             hello\n"
@@ -1383,7 +1383,7 @@ mod tests {
 
     async fn first_subject_str(t: TestContext) -> String {
         let contact_id =
-            Contact::add_or_lookup(&t.ctx, "Dave", "dave@example.org", Origin::ManuallyCreated)
+            Contact::add_or_lookup(&t.ctx, "Dave", "dave@example.com", Origin::ManuallyCreated)
                 .await
                 .unwrap()
                 .0;
@@ -1407,7 +1407,7 @@ mod tests {
     }
 
     async fn msg_to_subject_str(imf_raw: &[u8]) -> String {
-        let t = configured_offline_context().await;
+        let t = TestContext::new_alice().await;
         let new_msg = incoming_msg_to_reply_msg(imf_raw, &t.ctx).await;
         let mf = MimeFactory::from_msg(&t.ctx, &new_msg, false)
             .await
@@ -1445,15 +1445,15 @@ mod tests {
     #[async_std::test]
     // This test could still be extended
     async fn test_render_reply() {
-        let t = configured_offline_context().await;
+        let t = TestContext::new_alice().await;
         let context = &t.ctx;
 
         let msg = incoming_msg_to_reply_msg(
-            b"From: Charlie <charlie@example.org>\n\
-                To: alice@example.org\n\
+            b"From: Charlie <charlie@example.com>\n\
+                To: alice@example.com\n\
                 Subject: Chat: hello\n\
                 Chat-Version: 1.0\n\
-                Message-ID: <2223@example.org>\n\
+                Message-ID: <2223@example.com>\n\
                 Date: Sun, 22 Mar 2020 22:37:56 +0000\n\
                 \n\
                 hello\n",
@@ -1464,7 +1464,7 @@ mod tests {
         let mimefactory = MimeFactory::from_msg(&t.ctx, &msg, false).await.unwrap();
 
         let recipients = mimefactory.recipients();
-        assert_eq!(recipients, vec!["charlie@example.org"]);
+        assert_eq!(recipients, vec!["charlie@example.com"]);
 
         let rendered_msg = mimefactory.render().await.unwrap();
 
