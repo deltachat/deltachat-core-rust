@@ -35,6 +35,13 @@ pub enum UsernamePattern {
     EMAILLOCALPART = 2,
 }
 
+#[derive(Debug, PartialEq)]
+#[repr(u8)]
+pub enum Oauth2Authorizer {
+    Yandex = 1,
+    Gmail = 2,
+}
+
 #[derive(Debug)]
 pub struct Server {
     pub protocol: Protocol,
@@ -73,6 +80,7 @@ pub struct Provider {
     pub server: Vec<Server>,
     pub config_defaults: Option<Vec<ConfigDefault>>,
     pub strict_tls: bool,
+    pub oauth2_authorizer: Option<Oauth2Authorizer>,
 }
 
 impl Provider {
