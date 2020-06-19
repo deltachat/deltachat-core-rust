@@ -147,11 +147,12 @@ impl Chatlist {
                  FROM chats c
                  LEFT JOIN msgs m
                         ON c.id=m.chat_id
-                       AND m.timestamp=(
-                               SELECT MAX(timestamp)
+                       AND m.id=(
+                               SELECT id
                                  FROM msgs
                                 WHERE chat_id=c.id
-                                  AND (hidden=0 OR state=?1))
+                                  AND (hidden=0 OR state=?1)
+                                  ORDER BY timestamp DESC, id DESC LIMIT 1)
                  WHERE c.id>9
                    AND c.blocked=0
                    AND c.id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?2)
@@ -173,11 +174,12 @@ impl Chatlist {
                  FROM chats c
                  LEFT JOIN msgs m
                         ON c.id=m.chat_id
-                       AND m.timestamp=(
-                               SELECT MAX(timestamp)
+                       AND m.id=(
+                               SELECT id
                                  FROM msgs
                                 WHERE chat_id=c.id
-                                  AND (hidden=0 OR state=?))
+                                  AND (hidden=0 OR state=?)
+                                  ORDER BY timestamp DESC, id DESC LIMIT 1)
                  WHERE c.id>9
                    AND c.blocked=0
                    AND c.archived=1
@@ -206,11 +208,12 @@ impl Chatlist {
                  FROM chats c
                  LEFT JOIN msgs m
                         ON c.id=m.chat_id
-                       AND m.timestamp=(
-                               SELECT MAX(timestamp)
+                       AND m.id=(
+                               SELECT id
                                  FROM msgs
                                 WHERE chat_id=c.id
-                                  AND (hidden=0 OR state=?1))
+                                  AND (hidden=0 OR state=?1)
+                                  ORDER BY timestamp DESC, id DESC LIMIT 1)
                  WHERE c.id>9 AND c.id!=?2
                    AND c.blocked=0
                    AND c.name LIKE ?3
@@ -236,11 +239,12 @@ impl Chatlist {
                  FROM chats c
                  LEFT JOIN msgs m
                         ON c.id=m.chat_id
-                       AND m.timestamp=(
-                               SELECT MAX(timestamp)
+                       AND m.id=(
+                               SELECT id
                                  FROM msgs
                                 WHERE chat_id=c.id
-                                  AND (hidden=0 OR state=?1))
+                                  AND (hidden=0 OR state=?1)
+                                  ORDER BY timestamp DESC, id DESC LIMIT 1)
                  WHERE c.id>9 AND c.id!=?2
                    AND c.blocked=0
                    AND NOT c.archived=?3
