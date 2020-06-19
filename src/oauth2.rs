@@ -9,6 +9,8 @@ use serde::Deserialize;
 
 use crate::context::Context;
 use crate::dc_tools::*;
+use crate::provider;
+use crate::provider::Oauth2Authorizer;
 
 const OAUTH2_GMAIL: Oauth2 = Oauth2 {
     // see https://developers.google.com/identity/protocols/OAuth2InstalledApp
@@ -276,23 +278,17 @@ impl Oauth2 {
             .find('@')
             .map(|index| addr_normalized.split_at(index + 1).1)
         {
-            if let Some(provider) = Oauth2::lookup_whitelist(domain) {
-                Some(provider)
+            if let Some(provider) = provider::get_provider_info(&addr_normalized) {
+                match &provider.oauth2_authorizer {
+                    Some(Oauth2Authorizer::Gmail) => Some(OAUTH2_GMAIL),
+                    Some(Oauth2Authorizer::Yandex) => Some(OAUTH2_YANDEX),
+                    None => None, // provider known to not support oauth2, no mx-lookup required
+                }
             } else {
                 Oauth2::lookup_mx(domain).await
             }
         } else {
             None
-        }
-    }
-
-    fn lookup_whitelist(domain: impl AsRef<str>) -> Option<Self> {
-        let domain = domain.as_ref();
-        match domain {
-            "gmail.com" | "googlemail.com" => Some(OAUTH2_GMAIL),
-            "yandex.com" | "yandex.by" | "yandex.kz" | "yandex.ru" | "yandex.ua" | "ya.ru"
-            | "narod.ru" => Some(OAUTH2_YANDEX),
-            _ => None,
         }
     }
 
