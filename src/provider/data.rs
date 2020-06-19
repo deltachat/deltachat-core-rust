@@ -20,6 +20,7 @@ lazy_static::lazy_static! {
         ],
         config_defaults: None,
         strict_tls: false,
+        oauth2_authorizer: None,
     };
 
     // aol.md: aol.com
@@ -32,6 +33,22 @@ lazy_static::lazy_static! {
         ],
         config_defaults: None,
         strict_tls: false,
+        oauth2_authorizer: None,
+    };
+
+    // arcor.de.md: arcor.de
+    static ref P_ARCOR_DE: Provider = Provider {
+        status: Status::OK,
+        before_login_hint: "",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/arcor-de",
+        server: vec![
+            Server { protocol: IMAP, socket: SSL, hostname: "imap.arcor.de", port: 993, username_pattern: EMAIL },
+            Server { protocol: SMTP, socket: SSL, hostname: "mail.arcor.de", port: 465, username_pattern: EMAIL },
+        ],
+        config_defaults: None,
+        strict_tls: false,
+        oauth2_authorizer: None,
     };
 
     // autistici.org.md: autistici.org
@@ -46,6 +63,7 @@ lazy_static::lazy_static! {
         ],
         config_defaults: None,
         strict_tls: false,
+        oauth2_authorizer: None,
     };
 
     // bluewin.ch.md: bluewin.ch
@@ -60,6 +78,7 @@ lazy_static::lazy_static! {
         ],
         config_defaults: None,
         strict_tls: false,
+        oauth2_authorizer: None,
     };
 
     // chello.at.md: chello.at
@@ -74,13 +93,34 @@ lazy_static::lazy_static! {
         ],
         config_defaults: None,
         strict_tls: false,
+        oauth2_authorizer: None,
     };
 
     // comcast.md: xfinity.com, comcast.net
-    // - skipping provider with status OK and no special things to do
+    static ref P_COMCAST: Provider = Provider {
+        status: Status::OK,
+        before_login_hint: "",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/comcast",
+        server: vec![
+        ],
+        config_defaults: None,
+        strict_tls: false,
+        oauth2_authorizer: None,
+    };
 
     // dismail.de.md: dismail.de
-    // - skipping provider with status OK and no special things to do
+    static ref P_DISMAIL_DE: Provider = Provider {
+        status: Status::OK,
+        before_login_hint: "",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/dismail-de",
+        server: vec![
+        ],
+        config_defaults: None,
+        strict_tls: false,
+        oauth2_authorizer: None,
+    };
 
     // disroot.md: disroot.org
     static ref P_DISROOT: Provider = Provider {
@@ -92,6 +132,7 @@ lazy_static::lazy_static! {
         ],
         config_defaults: None,
         strict_tls: true,
+        oauth2_authorizer: None,
     };
 
     // example.com.md: example.com, example.org
@@ -106,6 +147,7 @@ lazy_static::lazy_static! {
         ],
         config_defaults: None,
         strict_tls: false,
+        oauth2_authorizer: None,
     };
 
     // fastmail.md: fastmail.com
@@ -118,6 +160,7 @@ lazy_static::lazy_static! {
         ],
         config_defaults: None,
         strict_tls: false,
+        oauth2_authorizer: None,
     };
 
     // five.chat.md: five.chat
@@ -130,6 +173,7 @@ lazy_static::lazy_static! {
         ],
         config_defaults: None,
         strict_tls: true,
+        oauth2_authorizer: None,
     };
 
     // freenet.de.md: freenet.de
@@ -144,6 +188,7 @@ lazy_static::lazy_static! {
         ],
         config_defaults: None,
         strict_tls: false,
+        oauth2_authorizer: None,
     };
 
     // gmail.md: gmail.com, googlemail.com
@@ -158,6 +203,7 @@ lazy_static::lazy_static! {
         ],
         config_defaults: None,
         strict_tls: true,
+        oauth2_authorizer: Some(Oauth2Authorizer::Gmail),
     };
 
     // gmx.net.md: gmx.net, gmx.de, gmx.at, gmx.ch, gmx.org, gmx.eu, gmx.info, gmx.biz, gmx.com
@@ -173,10 +219,21 @@ lazy_static::lazy_static! {
         ],
         config_defaults: None,
         strict_tls: false,
+        oauth2_authorizer: None,
     };
 
     // i.ua.md: i.ua
-    // - skipping provider with status OK and no special things to do
+    static ref P_I_UA: Provider = Provider {
+        status: Status::OK,
+        before_login_hint: "",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/i-ua",
+        server: vec![
+        ],
+        config_defaults: None,
+        strict_tls: false,
+        oauth2_authorizer: None,
+    };
 
     // icloud.md: icloud.com, me.com, mac.com
     static ref P_ICLOUD: Provider = Provider {
@@ -190,16 +247,47 @@ lazy_static::lazy_static! {
         ],
         config_defaults: None,
         strict_tls: false,
+        oauth2_authorizer: None,
     };
 
     // kolst.com.md: kolst.com
-    // - skipping provider with status OK and no special things to do
+    static ref P_KOLST_COM: Provider = Provider {
+        status: Status::OK,
+        before_login_hint: "",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/kolst-com",
+        server: vec![
+        ],
+        config_defaults: None,
+        strict_tls: false,
+        oauth2_authorizer: None,
+    };
 
     // kontent.com.md: kontent.com
-    // - skipping provider with status OK and no special things to do
+    static ref P_KONTENT_COM: Provider = Provider {
+        status: Status::OK,
+        before_login_hint: "",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/kontent-com",
+        server: vec![
+        ],
+        config_defaults: None,
+        strict_tls: false,
+        oauth2_authorizer: None,
+    };
 
     // mail.ru.md: mail.ru, inbox.ru, bk.ru, list.ru
-    // - skipping provider with status OK and no special things to do
+    static ref P_MAIL_RU: Provider = Provider {
+        status: Status::OK,
+        before_login_hint: "",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/mail-ru",
+        server: vec![
+        ],
+        config_defaults: None,
+        strict_tls: false,
+        oauth2_authorizer: None,
+    };
 
     // mailbox.org.md: mailbox.org, secure.mailbox.org
     static ref P_MAILBOX_ORG: Provider = Provider {
@@ -211,6 +299,7 @@ lazy_static::lazy_static! {
         ],
         config_defaults: None,
         strict_tls: true,
+        oauth2_authorizer: None,
     };
 
     // nauta.cu.md: nauta.cu
@@ -233,6 +322,7 @@ lazy_static::lazy_static! {
             ConfigDefault { key: Config::MediaQuality, value: "1" },
         ]),
         strict_tls: false,
+        oauth2_authorizer: None,
     };
 
     // outlook.com.md: hotmail.com, outlook.com, office365.com, outlook.com.tr, live.com
@@ -247,6 +337,7 @@ lazy_static::lazy_static! {
         ],
         config_defaults: None,
         strict_tls: false,
+        oauth2_authorizer: None,
     };
 
     // posteo.md: posteo.de, posteo.af, posteo.at, posteo.be, posteo.ch, posteo.cl, posteo.co, posteo.co.uk, posteo.com.br, posteo.cr, posteo.cz, posteo.dk, posteo.ee, posteo.es, posteo.eu, posteo.fi, posteo.gl, posteo.gr, posteo.hn, posteo.hr, posteo.hu, posteo.ie, posteo.in, posteo.is, posteo.jp, posteo.la, posteo.li, posteo.lt, posteo.lu, posteo.me, posteo.mx, posteo.my, posteo.net, posteo.nl, posteo.no, posteo.nz, posteo.org, posteo.pe, posteo.pl, posteo.pm, posteo.pt, posteo.ro, posteo.ru, posteo.se, posteo.sg, posteo.si, posteo.tn, posteo.uk, posteo.us
@@ -261,6 +352,7 @@ lazy_static::lazy_static! {
         ],
         config_defaults: None,
         strict_tls: true,
+        oauth2_authorizer: None,
     };
 
     // protonmail.md: protonmail.com, protonmail.ch
@@ -273,6 +365,7 @@ lazy_static::lazy_static! {
         ],
         config_defaults: None,
         strict_tls: false,
+        oauth2_authorizer: None,
     };
 
     // riseup.net.md: riseup.net
@@ -285,10 +378,21 @@ lazy_static::lazy_static! {
         ],
         config_defaults: None,
         strict_tls: true,
+        oauth2_authorizer: None,
     };
 
     // rogers.com.md: rogers.com
-    // - skipping provider with status OK and no special things to do
+    static ref P_ROGERS_COM: Provider = Provider {
+        status: Status::OK,
+        before_login_hint: "",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/rogers-com",
+        server: vec![
+        ],
+        config_defaults: None,
+        strict_tls: false,
+        oauth2_authorizer: None,
+    };
 
     // systemli.org.md: systemli.org
     static ref P_SYSTEMLI_ORG: Provider = Provider {
@@ -300,6 +404,7 @@ lazy_static::lazy_static! {
         ],
         config_defaults: None,
         strict_tls: true,
+        oauth2_authorizer: None,
     };
 
     // t-online.md: t-online.de, magenta.de
@@ -312,6 +417,7 @@ lazy_static::lazy_static! {
         ],
         config_defaults: None,
         strict_tls: false,
+        oauth2_authorizer: None,
     };
 
     // testrun.md: testrun.org
@@ -327,6 +433,7 @@ lazy_static::lazy_static! {
         ],
         config_defaults: None,
         strict_tls: true,
+        oauth2_authorizer: None,
     };
 
     // tiscali.it.md: tiscali.it
@@ -341,13 +448,34 @@ lazy_static::lazy_static! {
         ],
         config_defaults: None,
         strict_tls: false,
+        oauth2_authorizer: None,
     };
 
     // ukr.net.md: ukr.net
-    // - skipping provider with status OK and no special things to do
+    static ref P_UKR_NET: Provider = Provider {
+        status: Status::OK,
+        before_login_hint: "",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/ukr-net",
+        server: vec![
+        ],
+        config_defaults: None,
+        strict_tls: false,
+        oauth2_authorizer: None,
+    };
 
     // vfemail.md: vfemail.net
-    // - skipping provider with status OK and no special things to do
+    static ref P_VFEMAIL: Provider = Provider {
+        status: Status::OK,
+        before_login_hint: "",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/vfemail",
+        server: vec![
+        ],
+        config_defaults: None,
+        strict_tls: false,
+        oauth2_authorizer: None,
+    };
 
     // web.de.md: web.de, email.de, flirt.ms, hallo.ms, kuss.ms, love.ms, magic.ms, singles.ms, cool.ms, kanzler.ms, okay.ms, party.ms, pop.ms, stars.ms, techno.ms, clever.ms, deutschland.ms, genial.ms, ich.ms, online.ms, smart.ms, wichtig.ms, action.ms, fussball.ms, joker.ms, planet.ms, power.ms
     static ref P_WEB_DE: Provider = Provider {
@@ -362,6 +490,7 @@ lazy_static::lazy_static! {
         ],
         config_defaults: None,
         strict_tls: false,
+        oauth2_authorizer: None,
     };
 
     // yahoo.md: yahoo.com, yahoo.de, yahoo.it, yahoo.fr, yahoo.es, yahoo.se, yahoo.co.uk, yahoo.co.nz, yahoo.com.au, yahoo.com.ar, yahoo.com.br, yahoo.com.mx, ymail.com, rocketmail.com, yahoodns.net
@@ -376,9 +505,10 @@ lazy_static::lazy_static! {
         ],
         config_defaults: None,
         strict_tls: false,
+        oauth2_authorizer: None,
     };
 
-    // yandex.ru.md: yandex.ru, yandex.com
+    // yandex.ru.md: yandex.com, yandex.by, yandex.kz, yandex.ru, yandex.ua, ya.ru, narod.ru
     static ref P_YANDEX_RU: Provider = Provider {
         status: Status::PREPARATION,
         before_login_hint: "For Yandex accounts, you have to set IMAP protocol option turned on.",
@@ -388,6 +518,7 @@ lazy_static::lazy_static! {
         ],
         config_defaults: None,
         strict_tls: true,
+        oauth2_authorizer: Some(Oauth2Authorizer::Yandex),
     };
 
     // ziggo.nl.md: ziggo.nl
@@ -402,14 +533,19 @@ lazy_static::lazy_static! {
         ],
         config_defaults: None,
         strict_tls: false,
+        oauth2_authorizer: None,
     };
 
     pub static ref PROVIDER_DATA: HashMap<&'static str, &'static Provider> = [
         ("aktivix.org", &*P_AKTIVIX_ORG),
         ("aol.com", &*P_AOL),
+        ("arcor.de", &*P_ARCOR_DE),
         ("autistici.org", &*P_AUTISTICI_ORG),
         ("bluewin.ch", &*P_BLUEWIN_CH),
         ("chello.at", &*P_CHELLO_AT),
+        ("xfinity.com", &*P_COMCAST),
+        ("comcast.net", &*P_COMCAST),
+        ("dismail.de", &*P_DISMAIL_DE),
         ("disroot.org", &*P_DISROOT),
         ("example.com", &*P_EXAMPLE_COM),
         ("example.org", &*P_EXAMPLE_COM),
@@ -427,9 +563,16 @@ lazy_static::lazy_static! {
         ("gmx.info", &*P_GMX_NET),
         ("gmx.biz", &*P_GMX_NET),
         ("gmx.com", &*P_GMX_NET),
+        ("i.ua", &*P_I_UA),
         ("icloud.com", &*P_ICLOUD),
         ("me.com", &*P_ICLOUD),
         ("mac.com", &*P_ICLOUD),
+        ("kolst.com", &*P_KOLST_COM),
+        ("kontent.com", &*P_KONTENT_COM),
+        ("mail.ru", &*P_MAIL_RU),
+        ("inbox.ru", &*P_MAIL_RU),
+        ("bk.ru", &*P_MAIL_RU),
+        ("list.ru", &*P_MAIL_RU),
         ("mailbox.org", &*P_MAILBOX_ORG),
         ("secure.mailbox.org", &*P_MAILBOX_ORG),
         ("nauta.cu", &*P_NAUTA_CU),
@@ -490,11 +633,14 @@ lazy_static::lazy_static! {
         ("protonmail.com", &*P_PROTONMAIL),
         ("protonmail.ch", &*P_PROTONMAIL),
         ("riseup.net", &*P_RISEUP_NET),
+        ("rogers.com", &*P_ROGERS_COM),
         ("systemli.org", &*P_SYSTEMLI_ORG),
         ("t-online.de", &*P_T_ONLINE),
         ("magenta.de", &*P_T_ONLINE),
         ("testrun.org", &*P_TESTRUN),
         ("tiscali.it", &*P_TISCALI_IT),
+        ("ukr.net", &*P_UKR_NET),
+        ("vfemail.net", &*P_VFEMAIL),
         ("web.de", &*P_WEB_DE),
         ("email.de", &*P_WEB_DE),
         ("flirt.ms", &*P_WEB_DE),
@@ -537,8 +683,13 @@ lazy_static::lazy_static! {
         ("ymail.com", &*P_YAHOO),
         ("rocketmail.com", &*P_YAHOO),
         ("yahoodns.net", &*P_YAHOO),
-        ("yandex.ru", &*P_YANDEX_RU),
         ("yandex.com", &*P_YANDEX_RU),
+        ("yandex.by", &*P_YANDEX_RU),
+        ("yandex.kz", &*P_YANDEX_RU),
+        ("yandex.ru", &*P_YANDEX_RU),
+        ("yandex.ua", &*P_YANDEX_RU),
+        ("ya.ru", &*P_YANDEX_RU),
+        ("narod.ru", &*P_YANDEX_RU),
         ("ziggo.nl", &*P_ZIGGO_NL),
     ].iter().copied().collect();
 }
