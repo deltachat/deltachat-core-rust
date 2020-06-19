@@ -1,5 +1,16 @@
 # Changelog 
 
+## 1.37.0
+
+- improve ndn heuristics #1630
+
+- get oauth2 authorizer from provider-db #1641
+
+- removed linebreaks and spaces from generated qr-code #1631
+
+- more fixes #1633 #1635 #1636 #1637
+
+
 ## 1.36.0
 
 - parse ndn (network delivery notification) reports
