@@ -1,5 +1,7 @@
 //! Email accounts autoconfiguration process module
 
+#![forbid(clippy::indexing_slicing)]
+
 mod auto_mozilla;
 mod auto_outlook;
 mod read_url;
