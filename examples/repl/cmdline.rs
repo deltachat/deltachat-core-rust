@@ -488,6 +488,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         }
         "listchats" | "listarchived" | "chats" => {
             let listflags = if arg0 == "listarchived" { 0x01 } else { 0 };
+            let time_start = std::time::SystemTime::now();
             let chatlist = Chatlist::try_load(
                 &context,
                 listflags,
@@ -495,6 +496,9 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 None,
             )
             .await?;
+            let time_needed = std::time::SystemTime::now()
+                .duration_since(time_start)
+                .unwrap_or_default();
 
             let cnt = chatlist.len();
             if cnt > 0 {
@@ -553,6 +557,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 println!("Location streaming enabled.");
             }
             println!("{} chats", cnt);
+            println!("{:?} to create this list", time_needed);
         }
         "chat" => {
             if sel_chat.is_none() && arg1.is_empty() {
