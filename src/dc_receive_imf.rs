@@ -45,13 +45,14 @@ pub async fn dc_receive_imf(
 ) -> Result<()> {
     info!(
         context,
-        "Receiving message {}/{}...",
+        "Receiving message {}/{}, seen={}...",
         if !server_folder.as_ref().is_empty() {
             server_folder.as_ref()
         } else {
             "?"
         },
         server_uid,
+        seen
     );
 
     if std::env::var(crate::DCC_MIME_DEBUG).unwrap_or_default() == "2" {
@@ -621,7 +622,13 @@ async fn add_parts(
     // correct message_timestamp, it should not be used before,
     // however, we cannot do this earlier as we need from_id to be set
     let rcvd_timestamp = time();
-    let sort_timestamp = calc_sort_timestamp(context, *sent_timestamp, *chat_id, !seen).await;
+    let sort_timestamp = calc_sort_timestamp(
+        context,
+        *sent_timestamp,
+        *chat_id,
+        state == MessageState::InFresh,
+    )
+    .await;
     *sent_timestamp = std::cmp::min(*sent_timestamp, rcvd_timestamp);
 
     // unarchive chat
