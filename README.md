@@ -123,6 +123,7 @@ Language bindings are available for:
 - [Node.js](https://www.npmjs.com/package/deltachat-node)
 - [Python](https://py.delta.chat)
 - [Go](https://github.com/hugot/go-deltachat/)
+- [Free Pascal](https://github.com/deltachat/deltachat-fp/)
 - **Java** and **Swift** (contained in the Android/iOS repos)
 
 The following "frontend" projects make use of the Rust-library
