@@ -593,7 +593,7 @@ fn is_file_in_use(files_in_use: &HashSet<String>, namespc_opt: Option<&str>, nam
 }
 
 fn maybe_add_file(files_in_use: &mut HashSet<String>, file: impl AsRef<str>) {
-    if !file.as_ref().starts_with("$BLOBDIR") {
+    if !file.as_ref().starts_with("$BLOBDIR/") {
         return;
     }
 
@@ -1312,10 +1312,12 @@ mod test {
         maybe_add_file(&mut files, "$BLOBDIR/hello");
         maybe_add_file(&mut files, "$BLOBDIR/world.txt");
         maybe_add_file(&mut files, "world2.txt");
+        maybe_add_file(&mut files, "$BLOBDIR");
 
         assert!(files.contains("hello"));
         assert!(files.contains("world.txt"));
         assert!(!files.contains("world2.txt"));
+        assert!(!files.contains("$BLOBDIR"));
     }
 
     #[test]
