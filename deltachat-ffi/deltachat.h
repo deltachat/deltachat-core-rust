@@ -4307,7 +4307,7 @@ void dc_event_unref(dc_event_t* event);
  */
 
 /**
- * Prover works out-of-the-box.
+ * Provider works out-of-the-box.
  * This provider status is returned for provider where the login
  * works by just entering the name or the email-address.
  *
