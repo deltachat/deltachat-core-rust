@@ -760,7 +760,8 @@ async fn add_parts(
                 )?;
 
                 let is_location_kml = location_kml_is
-                    && icnt == 1
+                    && icnt == 1  // always 1 in the teeth of other attachements
+                    && part.typ == Viewtype::Text
                     && (part.msg == "-location-" || part.msg.is_empty());
 
                 if is_mdn || is_location_kml {
@@ -836,7 +837,7 @@ async fn add_parts(
 
     info!(
         context,
-        "Message has {} parts and is assigned to chat #{}.", icnt, chat_id,
+        "Message has {} parts and is assigned to chat #{}, is_hidden={}.", icnt, chat_id, is_hidden
     );
 
     // check event to send
