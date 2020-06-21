@@ -586,6 +586,7 @@ pub async fn housekeeping(context: &Context) {
     info!(context, "Housekeeping done.",);
 }
 
+#[allow(clippy::indexing_slicing)]
 fn is_file_in_use(files_in_use: &HashSet<String>, namespc_opt: Option<&str>, name: &str) -> bool {
     let name_to_check = if let Some(namespc) = namespc_opt {
         let name_len = name.len();
@@ -600,6 +601,7 @@ fn is_file_in_use(files_in_use: &HashSet<String>, namespc_opt: Option<&str>, nam
     files_in_use.contains(name_to_check)
 }
 
+#[allow(clippy::indexing_slicing)] // TODO: use str.strip_prefix once it is released in stable
 fn maybe_add_file(files_in_use: &mut HashSet<String>, file: impl AsRef<str>) {
     if !file.as_ref().starts_with("$BLOBDIR/") {
         return;

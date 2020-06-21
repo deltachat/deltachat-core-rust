@@ -1,5 +1,3 @@
-#![warn(clippy::indexing_slicing)]
-
 use async_std::prelude::*;
 use async_std::sync::{channel, Receiver, Sender};
 use async_std::task;

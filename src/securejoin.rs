@@ -352,9 +352,8 @@ async fn send_handshake_msg(
 }
 
 async fn chat_id_2_contact_id(context: &Context, contact_chat_id: ChatId) -> u32 {
-    let contacts = chat::get_chat_contacts(context, contact_chat_id).await;
-    if contacts.len() == 1 {
-        contacts[0]
+    if let [contact_id] = chat::get_chat_contacts(context, contact_chat_id).await[..] {
+        contact_id
     } else {
         0
     }
@@ -365,10 +364,8 @@ async fn fingerprint_equals_sender(
     fingerprint: &Fingerprint,
     contact_chat_id: ChatId,
 ) -> bool {
-    let contacts = chat::get_chat_contacts(context, contact_chat_id).await;
-
-    if contacts.len() == 1 {
-        if let Ok(contact) = Contact::load_from_db(context, contacts[0]).await {
+    if let [contact_id] = chat::get_chat_contacts(context, contact_chat_id).await[..] {
+        if let Ok(contact) = Contact::load_from_db(context, contact_id).await {
             if let Some(peerstate) = Peerstate::from_addr(context, contact.get_addr()).await {
                 if peerstate.public_key_fingerprint.is_some()
                     && fingerprint == peerstate.public_key_fingerprint.as_ref().unwrap()
@@ -426,6 +423,7 @@ pub(crate) enum HandshakeMessage {
 /// When handle_securejoin_handshake() is called,
 /// the message is not yet filed in the database;
 /// this is done by receive_imf() later on as needed.
+#[allow(clippy::indexing_slicing)]
 pub(crate) async fn handle_securejoin_handshake(
     context: &Context,
     mime_message: &MimeMessage,

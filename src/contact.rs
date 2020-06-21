@@ -1,7 +1,5 @@
 //! Contacts module
 
-#![forbid(clippy::indexing_slicing)]
-
 use async_std::path::PathBuf;
 use deltachat_derive::*;
 use itertools::Itertools;

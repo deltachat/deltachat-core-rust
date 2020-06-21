@@ -239,6 +239,7 @@ impl MimeMessage {
     ///
     /// Delta Chat sends attachments, such as images, in two-part messages, with the first message
     /// containing an explanation. If such a message is detected, first part can be safely dropped.
+    #[allow(clippy::indexing_slicing)]
     fn squash_attachment_parts(&mut self) {
         if let [textpart, filepart] = &self.parts[..] {
             let need_drop = {
@@ -272,34 +273,34 @@ impl MimeMessage {
     fn parse_attachments(&mut self) {
         // Attachment messages should be squashed into a single part
         // before calling this function.
-        if self.parts.len() == 1 {
-            if self.parts[0].typ == Viewtype::Audio
-                && self.get(HeaderDef::ChatVoiceMessage).is_some()
-            {
-                let part_mut = &mut self.parts[0];
+        if self.parts.len() != 1 {
+            return;
+        }
+
+        if let Some(mut part_mut) = self.parts.pop() {
+            if part_mut.typ == Viewtype::Audio && self.get(HeaderDef::ChatVoiceMessage).is_some() {
                 part_mut.typ = Viewtype::Voice;
             }
-            if self.parts[0].typ == Viewtype::Image {
+            if part_mut.typ == Viewtype::Image {
                 if let Some(value) = self.get(HeaderDef::ChatContent) {
                     if value == "sticker" {
-                        let part_mut = &mut self.parts[0];
                         part_mut.typ = Viewtype::Sticker;
                     }
                 }
             }
-            let part = &self.parts[0];
-            if part.typ == Viewtype::Audio
-                || part.typ == Viewtype::Voice
-                || part.typ == Viewtype::Video
+            if part_mut.typ == Viewtype::Audio
+                || part_mut.typ == Viewtype::Voice
+                || part_mut.typ == Viewtype::Video
             {
                 if let Some(field_0) = self.get(HeaderDef::ChatDuration) {
                     let duration_ms = field_0.parse().unwrap_or_default();
                     if duration_ms > 0 && duration_ms < 24 * 60 * 60 * 1000 {
-                        let part_mut = &mut self.parts[0];
                         part_mut.param.set_int(Param::Duration, duration_ms);
                     }
                 }
             }
+
+            self.parts.push(part_mut);
         }
     }
 
@@ -321,12 +322,11 @@ impl MimeMessage {
                 }
             }
             if prepend_subject {
-                let subj = if let Some(n) = subject.find('[') {
-                    &subject[0..n]
-                } else {
-                    subject
-                }
-                .trim();
+                let subj = subject
+                    .find('[')
+                    .and_then(|n| subject.get(..n))
+                    .unwrap_or(subject)
+                    .trim();
 
                 if !subj.is_empty() {
                     for part in self.parts.iter_mut() {
@@ -384,8 +384,7 @@ impl MimeMessage {
             Some(AvatarAction::Delete)
         } else {
             let mut i = 0;
-            while i != self.parts.len() {
-                let part = &mut self.parts[i];
+            while let Some(part) = self.parts.get_mut(i) {
                 if let Some(part_filename) = &part.org_filename {
                     if part_filename == &header_value {
                         if let Some(blob) = part.param.get(Param::File) {
@@ -770,16 +769,11 @@ impl MimeMessage {
     }
 
     pub fn repl_msg_by_error(&mut self, error_msg: impl AsRef<str>) {
-        if self.parts.is_empty() {
-            return;
+        if let Some(part) = self.parts.first_mut() {
+            part.typ = Viewtype::Text;
+            part.msg = format!("[{}]", error_msg.as_ref());
+            self.parts.truncate(1);
         }
-
-        let part = &mut self.parts[0];
-        part.typ = Viewtype::Text;
-        part.msg = format!("[{}]", error_msg.as_ref());
-        self.parts.truncate(1);
-
-        assert_eq!(self.parts.len(), 1);
     }
 
     pub fn get_rfc724_mid(&self) -> Option<String> {
@@ -830,7 +824,11 @@ impl MimeMessage {
         report: &mailparse::ParsedMail<'_>,
     ) -> Result<Option<Report>> {
         // parse as mailheaders
-        let report_body = report.subparts[1].get_body_raw()?;
+        let report_body = if let Some(subpart) = report.subparts.get(1) {
+            subpart.get_body_raw()?
+        } else {
+            bail!("Report does not have second MIME part");
+        };
         let (report_fields, _) = mailparse::parse_headers(&report_body)?;
 
         // must be present
@@ -908,6 +906,7 @@ impl MimeMessage {
     /// Some providers like GMX and Yahoo do not send standard NDNs (Non Delivery notifications).
     /// If you improve heuristics here you might also have to change prefetch_should_download() in imap/mod.rs.
     /// Also you should add a test in dc_receive_imf.rs (there already are lots of test_parse_ndn_* tests).
+    #[allow(clippy::indexing_slicing)]
     async fn heuristically_parse_ndn(&mut self, context: &Context) -> Option<()> {
         let maybe_ndn = if let Some(from) = self.get(HeaderDef::From_) {
             let from = from.to_ascii_lowercase();
@@ -966,11 +965,10 @@ impl MimeMessage {
         if let Some(failure_report) = &self.failure_report {
             let error = parts.iter().find(|p| p.typ == Viewtype::Text).map(|p| {
                 let msg = &p.msg;
-                match msg.find("\n--- ") {
-                    Some(footer_start) => &msg[..footer_start],
-                    None => msg,
-                }
-                .trim()
+                msg.find("\n--- ")
+                    .and_then(|footer_start| msg.get(..footer_start))
+                    .unwrap_or(msg)
+                    .trim()
             });
             message::handle_ndn(context, failure_report, error).await
         }
@@ -1036,6 +1034,7 @@ pub(crate) struct FailureReport {
     pub failed_recipient: Option<String>,
 }
 
+#[allow(clippy::indexing_slicing)]
 pub(crate) fn parse_message_ids(ids: &str) -> Result<Vec<String>> {
     // take care with mailparse::msgidparse() that is pretty untolerant eg. wrt missing `<` or `>`
     let mut msgids = Vec::new();

@@ -365,11 +365,13 @@ pub async fn symm_decrypt<T: std::io::Read + std::io::Seek>(
         let decryptor = enc_msg.decrypt_with_password(|| passphrase)?;
 
         let msgs = decryptor.collect::<pgp::errors::Result<Vec<_>>>()?;
-        ensure!(!msgs.is_empty(), "No valid messages found");
-
-        match msgs[0].get_content()? {
-            Some(content) => Ok(content),
-            None => bail!("Decrypted message is empty"),
+        if let Some(msg) = msgs.first() {
+            match msg.get_content()? {
+                Some(content) => Ok(content),
+                None => bail!("Decrypted message is empty"),
+            }
+        } else {
+            bail!("No valid messages found")
         }
     })
     .await

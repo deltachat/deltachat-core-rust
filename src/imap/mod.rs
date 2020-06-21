@@ -3,8 +3,6 @@
 //! uses [async-email/async-imap](https://github.com/async-email/async-imap)
 //! to implement connect, fetch, delete functionality with standard IMAP servers.
 
-#![forbid(clippy::indexing_slicing)]
-
 use std::collections::BTreeMap;
 
 use async_imap::{

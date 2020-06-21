@@ -178,10 +178,11 @@ async fn do_initiate_key_transfer(context: &Context) -> Result<String> {
 ///
 /// The `passphrase` must be at least 2 characters long.
 pub async fn render_setup_file(context: &Context, passphrase: &str) -> Result<String> {
-    ensure!(
-        passphrase.len() >= 2,
-        "Passphrase must be at least 2 chars long."
-    );
+    let passphrase_begin = if let Some(passphrase_begin) = passphrase.get(..2) {
+        passphrase_begin
+    } else {
+        bail!("Passphrase must be at least 2 chars long.");
+    };
     let private_key = SignedSecretKey::load_self(context).await?;
     let ac_headers = match context.get_config_bool(Config::E2eeEnabled).await {
         false => None,
@@ -196,7 +197,7 @@ pub async fn render_setup_file(context: &Context, passphrase: &str) -> Result<St
             "Passphrase-Format: numeric9x4\r\n",
             "Passphrase-Begin: {}"
         ),
-        &passphrase[..2]
+        passphrase_begin
     );
     let pgp_msg = encr.replace("-----BEGIN PGP MESSAGE-----", &replacement);
 
