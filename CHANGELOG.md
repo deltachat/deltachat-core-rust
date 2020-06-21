@@ -1,5 +1,10 @@
 # Changelog 
 
+## 1.38.0
+
+- fix sorting, esp. for multi-device
+
+
 ## 1.37.0
 
 - improve ndn heuristics #1630
