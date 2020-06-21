@@ -126,7 +126,7 @@ pub unsafe extern "C" fn dc_set_config(
         // When ctx.set_config() fails it already logged the error.
         // TODO: Context::set_config() should not log this
         Ok(key) => block_on(async move {
-            ctx.set_config(key, to_opt_string_lossy(value).as_ref().map(|x| x.as_str()))
+            ctx.set_config(key, to_opt_string_lossy(value).as_deref())
                 .await
                 .is_ok() as libc::c_int
         }),
@@ -554,14 +554,7 @@ pub unsafe extern "C" fn dc_get_chatlist(
     let qi = if query_id == 0 { None } else { Some(query_id) };
 
     block_on(async move {
-        match chatlist::Chatlist::try_load(
-            &ctx,
-            flags as usize,
-            qs.as_ref().map(|x| x.as_str()),
-            qi,
-        )
-        .await
-        {
+        match chatlist::Chatlist::try_load(&ctx, flags as usize, qs.as_deref(), qi).await {
             Ok(list) => {
                 let ffi_list = ChatlistWrapper { context, list };
                 Box::into_raw(Box::new(ffi_list))
@@ -752,13 +745,9 @@ pub unsafe extern "C" fn dc_add_device_msg(
     };
 
     block_on(async move {
-        chat::add_device_msg(
-            &ctx,
-            to_opt_string_lossy(label).as_ref().map(|x| x.as_str()),
-            msg,
-        )
-        .await
-        .unwrap_or_log_default(&ctx, "Failed to add device message")
+        chat::add_device_msg(&ctx, to_opt_string_lossy(label).as_deref(), msg)
+            .await
+            .unwrap_or_log_default(&ctx, "Failed to add device message")
     })
     .to_u32()
 }
@@ -2816,7 +2805,7 @@ pub unsafe extern "C" fn dc_msg_set_file(
     let ffi_msg = &mut *msg;
     ffi_msg.message.set_file(
         to_string_lossy(file),
-        to_opt_string_lossy(filemime).as_ref().map(|x| x.as_str()),
+        to_opt_string_lossy(filemime).as_deref(),
     )
 }
 
