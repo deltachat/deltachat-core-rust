@@ -907,11 +907,10 @@ impl Chat {
 
                     // the whole list of messages referenced may be huge;
                     // only use the oldest and and the parent message
-                    let parent_references = if let Some(n) = parent_references.find(' ') {
-                        &parent_references[0..n]
-                    } else {
-                        &parent_references
-                    };
+                    let parent_references = parent_references
+                        .find(' ')
+                        .and_then(|n| parent_references.get(..n))
+                        .unwrap_or(&parent_references);
 
                     if !parent_references.is_empty() && !parent_rfc724_mid.is_empty() {
                         // angle brackets are added by the mimefactory later

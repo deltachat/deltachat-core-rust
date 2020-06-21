@@ -171,7 +171,7 @@ impl str::FromStr for Params {
             let key = key.unwrap_or_default().trim();
             let value = value.unwrap_or_default().trim();
 
-            if let Some(key) = Param::from_u8(key.as_bytes()[0]) {
+            if let Some(key) = key.as_bytes().first().and_then(|key| Param::from_u8(*key)) {
                 inner.insert(key, value.to_string());
             } else {
                 bail!("Unknown key: {}", key);

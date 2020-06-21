@@ -1,7 +1,5 @@
 //! # SMTP transport module
 
-#![forbid(clippy::indexing_slicing)]
-
 pub mod send;
 
 use std::time::{Duration, Instant};

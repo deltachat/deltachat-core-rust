@@ -1512,6 +1512,7 @@ async fn create_adhoc_grp_id(context: &Context, member_ids: &[u32]) -> String {
     hex_hash(&members)
 }
 
+#[allow(clippy::indexing_slicing)]
 fn hex_hash(s: impl AsRef<str>) -> String {
     let bytes = s.as_ref().as_bytes();
     let result = Sha256::digest(bytes);
@@ -1564,7 +1565,7 @@ async fn search_chat_ids_by_contact_ids(
                             matches = 0;
                             mismatches = 0;
                         }
-                        if matches < contact_ids.len() && contact_id == contact_ids[matches] {
+                        if contact_ids.get(matches) == Some(&contact_id) {
                             matches += 1;
                         } else {
                             mismatches += 1;
@@ -1692,10 +1693,11 @@ async fn check_verified_properties(
 
 fn set_better_msg(mime_parser: &mut MimeMessage, better_msg: impl AsRef<str>) {
     let msg = better_msg.as_ref();
-    if !msg.is_empty() && !mime_parser.parts.is_empty() {
-        let part = &mut mime_parser.parts[0];
-        if part.typ == Viewtype::Text {
-            part.msg = msg.to_string();
+    if !msg.is_empty() {
+        if let Some(part) = mime_parser.parts.get_mut(0) {
+            if part.typ == Viewtype::Text {
+                part.msg = msg.to_string();
+            }
         }
     }
 }

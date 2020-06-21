@@ -6,6 +6,7 @@
 // this escapes a bit more than actually needed by delta (eg. also lines as "-- footer"),
 // but for non-delta-compatibility, that seems to be better.
 // (to be only compatible with delta, only "[\r\n|\n]-- {0,2}[\r\n|\n]" needs to be replaced)
+#[allow(clippy::indexing_slicing)]
 pub fn escape_message_footer_marks(text: &str) -> String {
     if text.starts_with("--") {
         "-\u{200B}-".to_string() + &text[2..].replace("\n--", "\n-\u{200B}-")
@@ -15,6 +16,7 @@ pub fn escape_message_footer_marks(text: &str) -> String {
 }
 
 /// Remove standard (RFC 3676, §4.3) footer if it is found.
+#[allow(clippy::indexing_slicing)]
 fn remove_message_footer<'a>(lines: &'a [&str]) -> &'a [&'a str] {
     let mut nearly_standard_footer = None;
     for (ix, &line) in lines.iter().enumerate() {
@@ -41,6 +43,7 @@ fn remove_message_footer<'a>(lines: &'a [&str]) -> &'a [&'a str] {
 
 /// Remove nonstandard footer and a boolean indicating whether such
 /// footer was removed.
+#[allow(clippy::indexing_slicing)]
 fn remove_nonstandard_footer<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
     for (ix, &line) in lines.iter().enumerate() {
         if line == "--"
@@ -107,6 +110,7 @@ fn skip_forward_header<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
     }
 }
 
+#[allow(clippy::indexing_slicing)]
 fn remove_bottom_quote<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
     let mut last_quoted_line = None;
     for (l, line) in lines.iter().enumerate().rev() {
@@ -132,6 +136,7 @@ fn remove_bottom_quote<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
     }
 }
 
+#[allow(clippy::indexing_slicing)]
 fn remove_top_quote<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
     let mut last_quoted_line = None;
     let mut has_quoted_headline = false;

@@ -22,6 +22,7 @@ pub(crate) fn dc_exactly_one_bit_set(v: i32) -> bool {
 
 /// Shortens a string to a specified length and adds "[...]" to the
 /// end of the shortened string.
+#[allow(clippy::indexing_slicing)]
 pub(crate) fn dc_truncate(buf: &str, approx_chars: usize) -> Cow<str> {
     let ellipse = "[...]";
 
@@ -54,6 +55,7 @@ const COLORS: [u32; 16] = [
     0xf2_30_30, 0x39_b2_49, 0xbb_24_3b, 0x96_40_78, 0x66_87_4f, 0x30_8a_b9, 0x12_7e_d0, 0xbe_45_0c,
 ];
 
+#[allow(clippy::indexing_slicing)]
 pub(crate) fn dc_str_to_color(s: impl AsRef<str>) -> u32 {
     let str_lower = s.as_ref().to_lowercase();
     let mut checksum = 0;
@@ -198,7 +200,7 @@ fn encode_66bits_as_base64(v1: u32, v2: u32, fill: u32) -> String {
 pub(crate) fn dc_create_outgoing_rfc724_mid(grpid: Option<&str>, from_addr: &str) -> String {
     let hostname = from_addr
         .find('@')
-        .map(|k| &from_addr[k..])
+        .and_then(|k| from_addr.get(k..))
         .unwrap_or("@nohost");
     match grpid {
         Some(grpid) => format!("Gr.{}.{}{}", grpid, dc_create_id(), hostname),

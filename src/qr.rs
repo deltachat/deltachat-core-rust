@@ -68,6 +68,7 @@ pub async fn check_qr(context: &Context, qr: impl AsRef<str>) -> Lot {
 
 /// scheme: `OPENPGP4FPR:FINGERPRINT#a=ADDR&n=NAME&i=INVITENUMBER&s=AUTH`
 ///     or: `OPENPGP4FPR:FINGERPRINT#a=ADDR&g=GROUPNAME&x=GROUPID&i=INVITENUMBER&s=AUTH`
+#[allow(clippy::indexing_slicing)]
 async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
     let payload = &qr[OPENPGP4FPR_SCHEME.len()..];
 
@@ -187,6 +188,7 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
 }
 
 /// scheme: `DCACCOUNT:https://example.org/new_email?t=1w_7wDjgjelxeX884x96v3`
+#[allow(clippy::indexing_slicing)]
 fn decode_account(_context: &Context, qr: &str) -> Lot {
     let payload = &qr[DCACCOUNT_SCHEME.len()..];
 
@@ -217,6 +219,7 @@ struct CreateAccountResponse {
 /// take a qr of the type DC_QR_ACCOUNT, parse it's parameters,
 /// download additional information from the contained url and set the parameters.
 /// on success, a configure::configure() should be able to log in to the account
+#[allow(clippy::indexing_slicing)]
 pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<(), Error> {
     let url_str = &qr[DCACCOUNT_SCHEME.len()..];
 
@@ -240,6 +243,7 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<(), Error
 /// Extract address for the mailto scheme.
 ///
 /// Scheme: `mailto:addr...?subject=...&body=..`
+#[allow(clippy::indexing_slicing)]
 async fn decode_mailto(context: &Context, qr: &str) -> Lot {
     let payload = &qr[MAILTO_SCHEME.len()..];
 
@@ -261,6 +265,7 @@ async fn decode_mailto(context: &Context, qr: &str) -> Lot {
 /// Extract address for the smtp scheme.
 ///
 /// Scheme: `SMTP:addr...:subject...:body...`
+#[allow(clippy::indexing_slicing)]
 async fn decode_smtp(context: &Context, qr: &str) -> Lot {
     let payload = &qr[SMTP_SCHEME.len()..];
 
@@ -283,6 +288,7 @@ async fn decode_smtp(context: &Context, qr: &str) -> Lot {
 /// Scheme: `MATMSG:TO:addr...;SUB:subject...;BODY:body...;`
 ///
 /// There may or may not be linebreaks after the fields.
+#[allow(clippy::indexing_slicing)]
 async fn decode_matmsg(context: &Context, qr: &str) -> Lot {
     // Does not work when the text `TO:` is used in subject/body _and_ TO: is not the first field.
     // we ignore this case.
@@ -316,14 +322,15 @@ lazy_static! {
 /// Extract address for the matmsg scheme.
 ///
 /// Scheme: `VCARD:BEGIN\nN:last name;first name;...;\nEMAIL;<type>:addr...;
+#[allow(clippy::indexing_slicing)]
 async fn decode_vcard(context: &Context, qr: &str) -> Lot {
     let name = VCARD_NAME_RE
         .captures(qr)
-        .map(|caps| {
-            let last_name = &caps[1];
-            let first_name = &caps[2];
+        .and_then(|caps| {
+            let last_name = caps.get(1)?.as_str().trim();
+            let first_name = caps.get(2)?.as_str().trim();
 
-            format!("{} {}", first_name.trim(), last_name.trim())
+            Some(format!("{} {}", first_name, last_name))
         })
         .unwrap_or_default();
 

@@ -1,5 +1,10 @@
 #![forbid(unsafe_code)]
-#![deny(clippy::correctness, missing_debug_implementations, clippy::all)]
+#![deny(
+    clippy::correctness,
+    missing_debug_implementations,
+    clippy::all,
+    clippy::indexing_slicing
+)]
 #![allow(clippy::match_bool)]
 
 #[macro_use]

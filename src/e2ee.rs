@@ -187,24 +187,23 @@ fn get_autocrypt_mime<'a, 'b>(mail: &'a ParsedMail<'b>) -> Result<&'a ParsedMail
         "Not a multipart/encrypted message: {}",
         mail.ctype.mimetype
     );
-    ensure!(
-        mail.subparts.len() == 2,
-        "Invalid Autocrypt Level 1 Mime Parts"
-    );
+    if let [first_part, second_part] = &mail.subparts[..] {
+        ensure!(
+            first_part.ctype.mimetype == "application/pgp-encrypted",
+            "Invalid Autocrypt Level 1 version part: {:?}",
+            first_part.ctype,
+        );
 
-    ensure!(
-        mail.subparts[0].ctype.mimetype == "application/pgp-encrypted",
-        "Invalid Autocrypt Level 1 version part: {:?}",
-        mail.subparts[0].ctype,
-    );
+        ensure!(
+            second_part.ctype.mimetype == "application/octet-stream",
+            "Invalid Autocrypt Level 1 encrypted part: {:?}",
+            second_part.ctype
+        );
 
-    ensure!(
-        mail.subparts[1].ctype.mimetype == "application/octet-stream",
-        "Invalid Autocrypt Level 1 encrypted part: {:?}",
-        mail.subparts[1].ctype
-    );
-
-    Ok(&mail.subparts[1])
+        Ok(second_part)
+    } else {
+        bail!("Invalid Autocrypt Level 1 Mime Parts")
+    }
 }
 
 async fn decrypt_if_autocrypt_message<'a>(
@@ -267,6 +266,7 @@ async fn decrypt_part(
     Ok(None)
 }
 
+#[allow(clippy::indexing_slicing)]
 fn has_decrypted_pgp_armor(input: &[u8]) -> bool {
     if let Some(index) = input.iter().position(|b| *b > b' ') {
         if input.len() - index > 26 {
