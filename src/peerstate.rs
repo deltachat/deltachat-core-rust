@@ -1,6 +1,5 @@
 //! # [Autocrypt Peer State](https://autocrypt.org/level1.html#peer-state-management) module
 use std::collections::HashSet;
-use std::convert::TryFrom;
 use std::fmt;
 
 use num_traits::FromPrimitive;
@@ -324,11 +323,9 @@ impl<'a> Peerstate<'a> {
 
     pub fn render_gossip_header(&self, min_verified: PeerstateVerifiedStatus) -> Option<String> {
         if let Some(key) = self.peek_key(min_verified) {
-            // TODO: avoid cloning
-            let public_key = SignedPublicKey::try_from(key.clone()).ok()?;
             let header = Aheader::new(
                 self.addr.clone(),
-                public_key,
+                key.clone(), // TODO: avoid cloning
                 // Autocrypt 1.1.0 specification says that
                 // `prefer-encrypt` attribute SHOULD NOT be included,
                 // but we include it anyway to propagate encryption
