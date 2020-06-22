@@ -70,16 +70,20 @@ impl Context {
     async fn inner_configure(&self) -> Result<()> {
         info!(self, "Configure ...");
 
-        let was_configured_before = self.is_configured().await;
         let mut param = LoginParam::from_database(self, "").await;
         let success = configure(self, &mut param).await;
 
         if let Some(provider) = provider::get_provider_info(&param.addr) {
-            if !was_configured_before {
-                if let Some(config_defaults) = &provider.config_defaults {
-                    for def in config_defaults.iter() {
+            if let Some(config_defaults) = &provider.config_defaults {
+                for def in config_defaults.iter() {
+                    if !self.config_exists(def.key).await {
                         info!(self, "apply config_defaults {}={}", def.key, def.value);
                         self.set_config(def.key, Some(def.value)).await?;
+                    } else {
+                        info!(
+                            self,
+                            "skip already set config_defaults {}={}", def.key, def.value
+                        );
                     }
                 }
             }
