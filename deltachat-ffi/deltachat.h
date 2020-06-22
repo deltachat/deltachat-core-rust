@@ -268,6 +268,10 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  * - `e2ee_enabled` = 0=no end-to-end-encryption, 1=prefer end-to-end-encryption (default)
  * - `mdns_enabled` = 0=do not send or request read receipts,
  *                    1=send and request read receipts (default)
+ * - `bcc_self`     = 0=do not send a copy of outgoing messages to self (default),
+ *                    1=send a copy of outgoing messages to self.
+ *                    Sending messages to self is needed for a proper multi-account setup,
+ *                    however, on the other hand, may lead to unwanted notifications in non-delta clients.
  * - `inbox_watch`  = 1=watch `INBOX`-folder for changes (default),
  *                    0=do not watch the `INBOX`-folder,
  *                    changes require restarting IO by calling dc_stop_io() and then dc_start_io().
