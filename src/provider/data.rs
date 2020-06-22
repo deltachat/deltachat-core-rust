@@ -135,6 +135,24 @@ lazy_static::lazy_static! {
         oauth2_authorizer: None,
     };
 
+    // dubby.org.md: dubby.org
+    static ref P_DUBBY_ORG: Provider = Provider {
+        status: Status::OK,
+        before_login_hint: "",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/dubby-org",
+        server: vec![
+        ],
+        config_defaults: Some(vec![
+            ConfigDefault { key: Config::BccSelf, value: "1" },
+            ConfigDefault { key: Config::SentboxWatch, value: "0" },
+            ConfigDefault { key: Config::MvboxWatch, value: "0" },
+            ConfigDefault { key: Config::MvboxMove, value: "0" },
+        ]),
+        strict_tls: true,
+        oauth2_authorizer: None,
+    };
+
     // example.com.md: example.com, example.org
     static ref P_EXAMPLE_COM: Provider = Provider {
         status: Status::BROKEN,
@@ -171,7 +189,12 @@ lazy_static::lazy_static! {
         overview_page: "https://providers.delta.chat/five-chat",
         server: vec![
         ],
-        config_defaults: None,
+        config_defaults: Some(vec![
+            ConfigDefault { key: Config::BccSelf, value: "1" },
+            ConfigDefault { key: Config::SentboxWatch, value: "0" },
+            ConfigDefault { key: Config::MvboxWatch, value: "0" },
+            ConfigDefault { key: Config::MvboxMove, value: "0" },
+        ]),
         strict_tls: true,
         oauth2_authorizer: None,
     };
@@ -216,6 +239,19 @@ lazy_static::lazy_static! {
             Server { protocol: IMAP, socket: SSL, hostname: "imap.gmx.net", port: 993, username_pattern: EMAIL },
             Server { protocol: SMTP, socket: SSL, hostname: "mail.gmx.net", port: 465, username_pattern: EMAIL },
             Server { protocol: SMTP, socket: STARTTLS, hostname: "mail.gmx.net", port: 587, username_pattern: EMAIL },
+        ],
+        config_defaults: None,
+        strict_tls: false,
+        oauth2_authorizer: None,
+    };
+
+    // hey.com.md: hey.com
+    static ref P_HEY_COM: Provider = Provider {
+        status: Status::BROKEN,
+        before_login_hint: "hey.com does not offer the standard IMAP e-mail protocol, so you cannot log in with Delta Chat to hey.com.",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/hey-com",
+        server: vec![
         ],
         config_defaults: None,
         strict_tls: false,
@@ -431,7 +467,12 @@ lazy_static::lazy_static! {
             Server { protocol: IMAP, socket: STARTTLS, hostname: "testrun.org", port: 143, username_pattern: EMAIL },
             Server { protocol: SMTP, socket: STARTTLS, hostname: "testrun.org", port: 587, username_pattern: EMAIL },
         ],
-        config_defaults: None,
+        config_defaults: Some(vec![
+            ConfigDefault { key: Config::BccSelf, value: "1" },
+            ConfigDefault { key: Config::SentboxWatch, value: "0" },
+            ConfigDefault { key: Config::MvboxWatch, value: "0" },
+            ConfigDefault { key: Config::MvboxMove, value: "0" },
+        ]),
         strict_tls: true,
         oauth2_authorizer: None,
     };
@@ -547,6 +588,7 @@ lazy_static::lazy_static! {
         ("comcast.net", &*P_COMCAST),
         ("dismail.de", &*P_DISMAIL_DE),
         ("disroot.org", &*P_DISROOT),
+        ("dubby.org", &*P_DUBBY_ORG),
         ("example.com", &*P_EXAMPLE_COM),
         ("example.org", &*P_EXAMPLE_COM),
         ("fastmail.com", &*P_FASTMAIL),
@@ -563,6 +605,7 @@ lazy_static::lazy_static! {
         ("gmx.info", &*P_GMX_NET),
         ("gmx.biz", &*P_GMX_NET),
         ("gmx.com", &*P_GMX_NET),
+        ("hey.com", &*P_HEY_COM),
         ("i.ua", &*P_I_UA),
         ("icloud.com", &*P_ICLOUD),
         ("me.com", &*P_ICLOUD),
