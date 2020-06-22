@@ -84,7 +84,11 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
                 }
                 None => {
                     jobs_loaded = 0;
-                    info = fetch_idle(&ctx, &mut connection, Config::ConfiguredInboxFolder).await;
+                    info = if ctx.get_config_bool(Config::InboxWatch).await {
+                        fetch_idle(&ctx, &mut connection, Config::ConfiguredInboxFolder).await
+                    } else {
+                        connection.fake_idle(&ctx, None).await
+                    };
                 }
             }
         }
@@ -246,21 +250,16 @@ impl Scheduler {
         let (inbox, inbox_handlers) = ImapConnectionState::new();
 
         let (inbox_start_send, inbox_start_recv) = channel(1);
-        let mut inbox_handle = None;
         let (mvbox_start_send, mvbox_start_recv) = channel(1);
         let mut mvbox_handle = None;
         let (sentbox_start_send, sentbox_start_recv) = channel(1);
         let mut sentbox_handle = None;
         let (smtp_start_send, smtp_start_recv) = channel(1);
 
-        if ctx.get_config_bool(Config::InboxWatch).await {
-            let ctx1 = ctx.clone();
-            inbox_handle = Some(task::spawn(async move {
-                inbox_loop(ctx1, inbox_start_send, inbox_handlers).await
-            }));
-        } else {
-            inbox_start_send.send(()).await;
-        }
+        let ctx1 = ctx.clone();
+        let inbox_handle = Some(task::spawn(async move {
+            inbox_loop(ctx1, inbox_start_send, inbox_handlers).await
+        }));
 
         if ctx.get_config_bool(Config::MvboxWatch).await {
             let ctx1 = ctx.clone();
