@@ -84,7 +84,11 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
                 }
                 None => {
                     jobs_loaded = 0;
-                    info = fetch_idle(&ctx, &mut connection, Config::ConfiguredInboxFolder).await;
+                    info = if ctx.get_config_bool(Config::InboxWatch).await {
+                        fetch_idle(&ctx, &mut connection, Config::ConfiguredInboxFolder).await
+                    } else {
+                        connection.fake_idle(&ctx, None).await
+                    };
                 }
             }
         }
@@ -245,29 +249,21 @@ impl Scheduler {
         let (smtp, smtp_handlers) = SmtpConnectionState::new();
         let (inbox, inbox_handlers) = ImapConnectionState::new();
 
-        *self = Scheduler::Running {
-            inbox,
-            mvbox,
-            sentbox,
-            smtp,
-            inbox_handle: None,
-            mvbox_handle: None,
-            sentbox_handle: None,
-            smtp_handle: None,
-        };
-
         let (inbox_start_send, inbox_start_recv) = channel(1);
-        if let Scheduler::Running { inbox_handle, .. } = self {
-            let ctx1 = ctx.clone();
-            *inbox_handle = Some(task::spawn(async move {
-                inbox_loop(ctx1, inbox_start_send, inbox_handlers).await
-            }));
-        }
-
         let (mvbox_start_send, mvbox_start_recv) = channel(1);
-        if let Scheduler::Running { mvbox_handle, .. } = self {
+        let mut mvbox_handle = None;
+        let (sentbox_start_send, sentbox_start_recv) = channel(1);
+        let mut sentbox_handle = None;
+        let (smtp_start_send, smtp_start_recv) = channel(1);
+
+        let ctx1 = ctx.clone();
+        let inbox_handle = Some(task::spawn(async move {
+            inbox_loop(ctx1, inbox_start_send, inbox_handlers).await
+        }));
+
+        if ctx.get_config_bool(Config::MvboxWatch).await {
             let ctx1 = ctx.clone();
-            *mvbox_handle = Some(task::spawn(async move {
+            mvbox_handle = Some(task::spawn(async move {
                 simple_imap_loop(
                     ctx1,
                     mvbox_start_send,
@@ -276,12 +272,13 @@ impl Scheduler {
                 )
                 .await
             }));
+        } else {
+            mvbox_start_send.send(()).await;
         }
 
-        let (sentbox_start_send, sentbox_start_recv) = channel(1);
-        if let Scheduler::Running { sentbox_handle, .. } = self {
+        if ctx.get_config_bool(Config::SentboxWatch).await {
             let ctx1 = ctx.clone();
-            *sentbox_handle = Some(task::spawn(async move {
+            sentbox_handle = Some(task::spawn(async move {
                 simple_imap_loop(
                     ctx1,
                     sentbox_start_send,
@@ -290,15 +287,25 @@ impl Scheduler {
                 )
                 .await
             }));
+        } else {
+            sentbox_start_send.send(()).await;
         }
 
-        let (smtp_start_send, smtp_start_recv) = channel(1);
-        if let Scheduler::Running { smtp_handle, .. } = self {
-            let ctx1 = ctx.clone();
-            *smtp_handle = Some(task::spawn(async move {
-                smtp_loop(ctx1, smtp_start_send, smtp_handlers).await
-            }));
-        }
+        let ctx1 = ctx.clone();
+        let smtp_handle = Some(task::spawn(async move {
+            smtp_loop(ctx1, smtp_start_send, smtp_handlers).await
+        }));
+
+        *self = Scheduler::Running {
+            inbox,
+            mvbox,
+            sentbox,
+            smtp,
+            inbox_handle,
+            mvbox_handle,
+            sentbox_handle,
+            smtp_handle,
+        };
 
         // wait for all loops to be started
         if let Err(err) = inbox_start_recv
@@ -388,10 +395,18 @@ impl Scheduler {
                 smtp_handle,
                 ..
             } => {
-                inbox_handle.take().expect("inbox not started").await;
-                mvbox_handle.take().expect("mvbox not started").await;
-                sentbox_handle.take().expect("sentbox not started").await;
-                smtp_handle.take().expect("smtp not started").await;
+                if let Some(handle) = inbox_handle.take() {
+                    handle.await;
+                }
+                if let Some(handle) = mvbox_handle.take() {
+                    handle.await;
+                }
+                if let Some(handle) = sentbox_handle.take() {
+                    handle.await;
+                }
+                if let Some(handle) = smtp_handle.take() {
+                    handle.await;
+                }
 
                 *self = Scheduler::Stopped;
             }
