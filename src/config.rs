@@ -11,7 +11,7 @@ use crate::dc_tools::*;
 use crate::events::Event;
 use crate::message::MsgId;
 use crate::mimefactory::RECOMMENDED_FILE_SIZE;
-use crate::{scheduler::InterruptInfo, stock::StockMessage};
+use crate::stock::StockMessage;
 
 /// The available configuration keys.
 #[derive(
@@ -200,22 +200,6 @@ impl Context {
                     }
                     None => self.sql.set_raw_config(self, key, None).await,
                 }
-            }
-            Config::InboxWatch => {
-                let ret = self.sql.set_raw_config(self, key, value).await;
-                self.interrupt_inbox(InterruptInfo::new(false, None)).await;
-                ret
-            }
-            Config::SentboxWatch => {
-                let ret = self.sql.set_raw_config(self, key, value).await;
-                self.interrupt_sentbox(InterruptInfo::new(false, None))
-                    .await;
-                ret
-            }
-            Config::MvboxWatch => {
-                let ret = self.sql.set_raw_config(self, key, value).await;
-                self.interrupt_mvbox(InterruptInfo::new(false, None)).await;
-                ret
             }
             Config::Selfstatus => {
                 let def = self.stock_str(StockMessage::StatusLine).await;

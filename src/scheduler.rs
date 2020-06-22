@@ -38,14 +38,6 @@ impl Context {
         self.scheduler.read().await.interrupt_inbox(info).await;
     }
 
-    pub(crate) async fn interrupt_sentbox(&self, info: InterruptInfo) {
-        self.scheduler.read().await.interrupt_sentbox(info).await;
-    }
-
-    pub(crate) async fn interrupt_mvbox(&self, info: InterruptInfo) {
-        self.scheduler.read().await.interrupt_mvbox(info).await;
-    }
-
     pub(crate) async fn interrupt_smtp(&self, info: InterruptInfo) {
         self.scheduler.read().await.interrupt_smtp(info).await;
     }
