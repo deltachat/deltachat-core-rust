@@ -320,13 +320,8 @@ impl<'a> BlobObject<'a> {
                 break;
             }
         }
-        let opts = sanitize_filename::Options {
-            truncate: true,
-            windows: true,
-            replacement: "",
-        };
 
-        let clean = sanitize_filename::sanitize_with_options(name, opts);
+        let clean = sanitize_filename_reader_friendly::sanitize(&name);
         let mut iter = clean.splitn(2, '.');
         let stem: String = iter.next().unwrap_or_default().chars().take(64).collect();
         let ext: String = iter.next().unwrap_or_default().chars().take(32).collect();
