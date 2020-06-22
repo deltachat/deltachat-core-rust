@@ -120,6 +120,10 @@ pub enum Config {
 }
 
 impl Context {
+    pub async fn config_exists(&self, key: Config) -> bool {
+        self.sql.get_raw_config(self, key).await.is_some()
+    }
+
     /// Get a configuration key. Returns `None` if no value is set, and no default value found.
     pub async fn get_config(&self, key: Config) -> Option<String> {
         let value = match key {
