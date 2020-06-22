@@ -1001,13 +1001,13 @@ impl rusqlite::types::ToSql for ChatVisibility {
 
 impl rusqlite::types::FromSql for ChatVisibility {
     fn column_result(value: rusqlite::types::ValueRef) -> rusqlite::types::FromSqlResult<Self> {
-        i64::column_result(value).and_then(|val| {
+        i64::column_result(value).map(|val| {
             match val {
-                2 => Ok(ChatVisibility::Pinned),
-                1 => Ok(ChatVisibility::Archived),
-                0 => Ok(ChatVisibility::Normal),
+                2 => ChatVisibility::Pinned,
+                1 => ChatVisibility::Archived,
+                0 => ChatVisibility::Normal,
                 // fallback to to Normal for unknown values, may happen eg. on imports created by a newer version.
-                _ => Ok(ChatVisibility::Normal),
+                _ => ChatVisibility::Normal,
             }
         })
     }
