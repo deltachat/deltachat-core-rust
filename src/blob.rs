@@ -655,8 +655,22 @@ mod tests {
 
     #[test]
     fn test_sanitise_name() {
-        let (_, ext) =
+        let (stem, ext) =
             BlobObject::sanitise_name("Я ЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯ.txt");
         assert_eq!(ext, ".txt");
+        assert!(!stem.is_empty());
+
+        let (stem, ext) =
+            BlobObject::sanitise_name("path/ignored\\this: is* forbidden?.c");
+        assert_eq!(ext, ".c");
+        assert!(!stem.contains("path"));
+        assert!(!stem.contains("ignored"));
+        assert!(stem.contains("this"));
+        assert!(stem.contains("forbidden"));
+        assert!(!stem.contains("/"));
+        assert!(!stem.contains("\\"));
+        assert!(!stem.contains(":"));
+        assert!(!stem.contains("*"));
+        assert!(!stem.contains("?"));
     }
 }
