@@ -48,7 +48,7 @@ image-meta = "0.1.0"
 quick-xml = "0.18.1"
 escaper = "0.1.0"
 bitflags = "1.1.0"
-sanitize-filename-reader-friendly = "0.9.2"
+sanitize-filename = "0.2.1"
 stop-token = { version = "0.1.1", features = ["unstable"] }
 mailparse = "0.12.1"
 encoded-words = { git = "https://github.com/async-email/encoded-words", branch="master" }
