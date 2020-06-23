@@ -660,8 +660,40 @@ mod tests {
 
     #[test]
     fn test_sanitise_name() {
-        let (_, ext) =
+        let (stem, ext) =
             BlobObject::sanitise_name("Я ЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯ.txt");
         assert_eq!(ext, ".txt");
+        assert!(!stem.is_empty());
+
+        // the extensions are kept together as between stem and extension a number may be added -
+        // and `foo.tar.gz` should become `foo-1234.tar.gz` and not `foo.tar-1234.gz`
+        let (stem, ext) = BlobObject::sanitise_name("wot.tar.gz");
+        assert_eq!(stem, "wot");
+        assert_eq!(ext, ".tar.gz");
+
+        let (stem, ext) = BlobObject::sanitise_name(".foo.bar");
+        assert_eq!(stem, "");
+        assert_eq!(ext, ".foo.bar");
+
+        let (stem, ext) = BlobObject::sanitise_name("foo?.bar");
+        assert!(stem.contains("foo"));
+        assert!(!stem.contains("?"));
+        assert_eq!(ext, ".bar");
+
+        let (stem, ext) = BlobObject::sanitise_name("no-extension");
+        assert_eq!(stem, "no-extension");
+        assert_eq!(ext, "");
+
+        let (stem, ext) = BlobObject::sanitise_name("path/ignored\\this: is* forbidden?.c");
+        assert_eq!(ext, ".c");
+        assert!(!stem.contains("path"));
+        assert!(!stem.contains("ignored"));
+        assert!(stem.contains("this"));
+        assert!(stem.contains("forbidden"));
+        assert!(!stem.contains("/"));
+        assert!(!stem.contains("\\"));
+        assert!(!stem.contains(":"));
+        assert!(!stem.contains("*"));
+        assert!(!stem.contains("?"));
     }
 }
