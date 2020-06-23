@@ -660,8 +660,19 @@ mod tests {
         assert_eq!(ext, ".txt");
         assert!(!stem.is_empty());
 
-        let (stem, ext) =
-            BlobObject::sanitise_name("path/ignored\\this: is* forbidden?.c");
+        let (stem, ext) = BlobObject::sanitise_name("wot.tar.gz");
+        assert_eq!(stem, "wot");
+        assert_eq!(ext, ".tar.gz");
+
+        let (stem, ext) = BlobObject::sanitise_name(".foo.bar");
+        assert_eq!(stem, "");
+        assert_eq!(ext, ".foo.bar");
+
+        let (stem, ext) = BlobObject::sanitise_name("no-extension");
+        assert_eq!(stem, "no-extension");
+        assert_eq!(ext, "");
+
+        let (stem, ext) = BlobObject::sanitise_name("path/ignored\\this: is* forbidden?.c");
         assert_eq!(ext, ".c");
         assert!(!stem.contains("path"));
         assert!(!stem.contains("ignored"));
