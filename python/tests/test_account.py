@@ -723,9 +723,9 @@ class TestOnlineAccount:
 
     def test_move_works_on_self_sent(self, acfactory):
         ac1 = acfactory.get_online_configuring_account(mvbox=True, move=True)
-        ac1.set_config("bcc_self", "1")
         ac2 = acfactory.get_online_configuring_account()
         acfactory.wait_configure_and_start_io()
+        ac1.set_config("bcc_self", "1")
 
         chat = acfactory.get_accepted_chat(ac1, ac2)
         chat.send_text("message1")
