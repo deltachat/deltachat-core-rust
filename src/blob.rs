@@ -321,10 +321,13 @@ impl<'a> BlobObject<'a> {
             }
         }
 
-        let clean = sanitize_filename_reader_friendly::sanitize(&name);
-        let mut iter = clean.splitn(2, '.');
+        let mut iter = name.splitn(2, '.');
         let stem: String = iter.next().unwrap_or_default().chars().take(64).collect();
         let ext: String = iter.next().unwrap_or_default().chars().take(32).collect();
+
+        let stem: String = sanitize_filename_reader_friendly::sanitize(&stem);
+        let ext: String = sanitize_filename_reader_friendly::sanitize(&ext);
+
         if ext.is_empty() {
             (stem, "".to_string())
         } else {
