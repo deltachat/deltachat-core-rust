@@ -1,5 +1,12 @@
 # Changelog 
 
+## 1.39.0
+
+- fix handling of `mvbox_watch`, `sentbox_watch`, `inbox_watch` #1654 #1658
+
+- fix potential panics, update dependencies #1650 #1655
+
+
 ## 1.38.0
 
 - fix sorting, esp. for multi-device
@@ -20,6 +27,8 @@
 
 - parse ndn (network delivery notification) reports
   and report failed messages as such #1552 #1622 #1630
+
+- add oauth2 support for gsuite domains #1626
 
 - read image orientation from exif before recoding #1619
 
