@@ -364,14 +364,15 @@ ALTER TABLE chats ADD COLUMN muted_until INTEGER DEFAULT 0;
 UPDATE chats SET grpid='' WHERE type=100;
 "#,
     )
-        .await?;
+    .await?;
 
     migrate(
         64,
         r#"
 ALTER TABLE msgs ADD COLUMN error TEXT DEFAULT '';
 "#,
-    ).await?;
+    )
+    .await?;
 
     Ok(())
 }

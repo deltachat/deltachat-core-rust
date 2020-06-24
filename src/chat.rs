@@ -2172,7 +2172,7 @@ impl sqlx::encode::Encode<'_, sqlx::sqlite::Sqlite> for MuteDuration {
 impl<'de> sqlx::decode::Decode<'de, sqlx::sqlite::Sqlite> for MuteDuration {
     fn decode(
         value: sqlx::sqlite::SqliteValueRef,
-    ) -> std::result::Result<Self, sqlx::error::BoxDynError> {
+    ) -> std::result::Result<Self, Box<dyn std::error::Error + 'static + Send + Sync>> {
         // Negative values other than -1 should not be in the
         // database.  If found they'll be NotMuted.
         let raw: i32 = sqlx::decode::Decode::decode(value)?;
