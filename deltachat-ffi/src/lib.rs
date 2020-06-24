@@ -2049,16 +2049,6 @@ pub unsafe extern "C" fn dc_array_search_id(
     }
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn dc_array_get_raw(array: *const dc_array_t) -> *const u32 {
-    if array.is_null() {
-        eprintln!("ignoring careless call to dc_array_get_raw()");
-        return ptr::null_mut();
-    }
-
-    (*array).as_ptr()
-}
-
 // Return the independent-state of the location at the given index.
 // Independent locations do not belong to the track of the user.
 // Returns 1 if location belongs to the track of the user,

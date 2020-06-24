@@ -38,14 +38,6 @@ impl dc_array_t {
     pub(crate) fn search_id(&self, needle: u32) -> Option<usize> {
         (0..self.len()).find(|i| self.get_id(*i) == needle)
     }
-
-    pub(crate) fn as_ptr(&self) -> *const u32 {
-        if let dc_array_t::Uint(v) = self {
-            v.as_ptr()
-        } else {
-            panic!("Attempt to convert array of something other than uints to raw");
-        }
-    }
 }
 
 impl From<Vec<u32>> for dc_array_t {
