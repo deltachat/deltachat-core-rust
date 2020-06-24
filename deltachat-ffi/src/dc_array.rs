@@ -1,8 +1,10 @@
 use crate::location::Location;
+use crate::message::MsgId;
 
 /* * the structure behind dc_array_t */
 #[derive(Debug, Clone)]
 pub enum dc_array_t {
+    MsgIds(Vec<MsgId>),
     Locations(Vec<Location>),
     Uint(Vec<u32>),
 }
@@ -10,6 +12,7 @@ pub enum dc_array_t {
 impl dc_array_t {
     pub(crate) fn get_id(&self, index: usize) -> u32 {
         match self {
+            Self::MsgIds(array) => array[index].to_u32(),
             Self::Locations(array) => array[index].location_id,
             Self::Uint(array) => array[index],
         }
@@ -26,6 +29,7 @@ impl dc_array_t {
     /// Returns the number of elements in the array.
     pub(crate) fn len(&self) -> usize {
         match self {
+            Self::MsgIds(array) => array.len(),
             Self::Locations(array) => array.len(),
             Self::Uint(array) => array.len(),
         }
@@ -47,6 +51,12 @@ impl dc_array_t {
 impl From<Vec<u32>> for dc_array_t {
     fn from(array: Vec<u32>) -> Self {
         dc_array_t::Uint(array)
+    }
+}
+
+impl From<Vec<MsgId>> for dc_array_t {
+    fn from(array: Vec<MsgId>) -> Self {
+        dc_array_t::MsgIds(array)
     }
 }
 
