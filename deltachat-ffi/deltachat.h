@@ -2286,17 +2286,6 @@ int              dc_array_search_id          (const dc_array_t* array, uint32_t 
 
 
 /**
- * Get raw pointer to the data.
- *
- * @memberof dc_array_t
- * @param array The array object.
- * @return Raw pointer to the array. You MUST NOT free the data. You MUST NOT access the data beyond the current item count.
- *     It is not possible to enlarge the array this way.  Calling any other dc_array*()-function may discard the returned pointer.
- */
-const uint32_t*  dc_array_get_raw            (const dc_array_t* array);
-
-
-/**
  * @class dc_chatlist_t
  *
  * An object representing a single chatlist in memory.
