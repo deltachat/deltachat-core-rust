@@ -32,16 +32,7 @@ impl dc_array_t {
     }
 
     pub fn search_id(&self, needle: u32) -> Option<usize> {
-        if let Self::Uint(array) = self {
-            for (i, &u) in array.iter().enumerate() {
-                if u == needle {
-                    return Some(i);
-                }
-            }
-            None
-        } else {
-            panic!("Attempt to search for id in array of other type");
-        }
+        (0..self.len()).find(|i| self.get_id(*i) == needle)
     }
 
     pub fn as_ptr(&self) -> *const u32 {
@@ -82,6 +73,9 @@ mod tests {
         for i in 0..1000 {
             assert_eq!(arr.get_id(i), (i + 2) as u32);
         }
+
+        assert_eq!(arr.search_id(10), Some(8));
+        assert_eq!(arr.search_id(1), None);
     }
 
     #[test]
