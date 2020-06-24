@@ -11,7 +11,7 @@ impl dc_array_t {
     pub(crate) fn get_id(&self, index: usize) -> u32 {
         match self {
             Self::Locations(array) => array[index].location_id,
-            Self::Uint(array) => array[index] as u32,
+            Self::Uint(array) => array[index],
         }
     }
 
