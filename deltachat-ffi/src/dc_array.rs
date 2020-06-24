@@ -8,31 +8,6 @@ pub enum dc_array_t {
 }
 
 impl dc_array_t {
-    pub fn new(capacity: usize) -> Self {
-        dc_array_t::Uint(Vec::with_capacity(capacity))
-    }
-
-    /// Constructs a new, empty `dc_array_t` holding locations with specified `capacity`.
-    pub fn new_locations(capacity: usize) -> Self {
-        dc_array_t::Locations(Vec::with_capacity(capacity))
-    }
-
-    pub fn add_id(&mut self, item: u32) {
-        if let Self::Uint(array) = self {
-            array.push(item);
-        } else {
-            panic!("Attempt to add id to array of other type");
-        }
-    }
-
-    pub fn add_location(&mut self, location: Location) {
-        if let Self::Locations(array) = self {
-            array.push(location)
-        } else {
-            panic!("Attempt to add a location to array of other type");
-        }
-    }
-
     pub fn get_id(&self, index: usize) -> u32 {
         match self {
             Self::Locations(array) => array[index].location_id,
@@ -48,25 +23,11 @@ impl dc_array_t {
         }
     }
 
-    pub fn is_empty(&self) -> bool {
-        match self {
-            Self::Locations(array) => array.is_empty(),
-            Self::Uint(array) => array.is_empty(),
-        }
-    }
-
     /// Returns the number of elements in the array.
     pub fn len(&self) -> usize {
         match self {
             Self::Locations(array) => array.len(),
             Self::Uint(array) => array.len(),
-        }
-    }
-
-    pub fn clear(&mut self) {
-        match self {
-            Self::Locations(array) => array.clear(),
-            Self::Uint(array) => array.clear(),
         }
     }
 
@@ -80,14 +41,6 @@ impl dc_array_t {
             None
         } else {
             panic!("Attempt to search for id in array of other type");
-        }
-    }
-
-    pub fn sort_ids(&mut self) {
-        if let dc_array_t::Uint(v) = self {
-            v.sort();
-        } else {
-            panic!("Attempt to sort array of something other than uints");
         }
     }
 
@@ -118,44 +71,24 @@ mod tests {
 
     #[test]
     fn test_dc_array() {
-        let mut arr = dc_array_t::new(7);
-        assert!(arr.is_empty());
+        let arr: dc_array_t = Vec::<u32>::new().into();
+        assert!(arr.len() == 0);
 
-        for i in 0..1000 {
-            arr.add_id(i + 2);
-        }
+        let ids: Vec<u32> = (2..1002).collect();
+        let arr: dc_array_t = ids.into();
 
         assert_eq!(arr.len(), 1000);
 
         for i in 0..1000 {
             assert_eq!(arr.get_id(i), (i + 2) as u32);
         }
-
-        arr.clear();
-
-        assert!(arr.is_empty());
-
-        arr.add_id(13);
-        arr.add_id(7);
-        arr.add_id(666);
-        arr.add_id(0);
-        arr.add_id(5000);
-
-        arr.sort_ids();
-
-        assert_eq!(arr.get_id(0), 0);
-        assert_eq!(arr.get_id(1), 7);
-        assert_eq!(arr.get_id(2), 13);
-        assert_eq!(arr.get_id(3), 666);
     }
 
     #[test]
     #[should_panic]
     fn test_dc_array_out_of_bounds() {
-        let mut arr = dc_array_t::new(7);
-        for i in 0..1000 {
-            arr.add_id(i + 2);
-        }
+        let ids: Vec<u32> = (2..1002).collect();
+        let arr: dc_array_t = ids.into();
         arr.get_id(1000);
     }
 }
