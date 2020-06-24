@@ -848,7 +848,7 @@ async fn calc_sort_timestamp(
     // get newest non fresh message for this chat
     // update sort_timestamp if less than that
     if is_fresh_msg {
-        let last_msg_time: Result<i64, _> = context
+        let last_msg_time: Result<i32, _> = context
             .sql
             .query_value(
                 "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? AND state>?",
@@ -857,8 +857,8 @@ async fn calc_sort_timestamp(
             .await;
 
         if let Ok(last_msg_time) = last_msg_time {
-            if last_msg_time > sort_timestamp {
-                sort_timestamp = last_msg_time;
+            if last_msg_time as i64 > sort_timestamp {
+                sort_timestamp = last_msg_time as i64;
             }
         }
     }
@@ -1458,7 +1458,7 @@ async fn search_chat_ids_by_contact_ids(
             let mut mismatches = 0;
 
             while let Some(row) = rows.next().await {
-                let (chat_id, contact_id): (ChatId, i64) = row?;
+                let (chat_id, contact_id): (ChatId, i32) = row?;
                 let contact_id = contact_id as u32;
 
                 if chat_id != last_chat_id {

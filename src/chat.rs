@@ -2136,8 +2136,8 @@ SELECT c.selfavatar_sent
     .fetch(&pool);
 
     while let Some(row) = rows.next().await {
-        let (selfavatar_sent,): (i64,) = row?;
-        if selfavatar_sent < timestamp_some_days_ago {
+        let (selfavatar_sent,): (i32,) = row?;
+        if (selfavatar_sent as i64) < timestamp_some_days_ago {
             needs_attach = true;
         }
     }
