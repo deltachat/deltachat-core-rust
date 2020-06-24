@@ -8,14 +8,14 @@ pub enum dc_array_t {
 }
 
 impl dc_array_t {
-    pub fn get_id(&self, index: usize) -> u32 {
+    pub(crate) fn get_id(&self, index: usize) -> u32 {
         match self {
             Self::Locations(array) => array[index].location_id,
             Self::Uint(array) => array[index] as u32,
         }
     }
 
-    pub fn get_location(&self, index: usize) -> &Location {
+    pub(crate) fn get_location(&self, index: usize) -> &Location {
         if let Self::Locations(array) = self {
             &array[index]
         } else {
@@ -24,18 +24,18 @@ impl dc_array_t {
     }
 
     /// Returns the number of elements in the array.
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         match self {
             Self::Locations(array) => array.len(),
             Self::Uint(array) => array.len(),
         }
     }
 
-    pub fn search_id(&self, needle: u32) -> Option<usize> {
+    pub(crate) fn search_id(&self, needle: u32) -> Option<usize> {
         (0..self.len()).find(|i| self.get_id(*i) == needle)
     }
 
-    pub fn as_ptr(&self) -> *const u32 {
+    pub(crate) fn as_ptr(&self) -> *const u32 {
         if let dc_array_t::Uint(v) = self {
             v.as_ptr()
         } else {
