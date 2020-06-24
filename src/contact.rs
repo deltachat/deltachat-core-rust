@@ -1,12 +1,14 @@
 //! Contacts module
 
 #![forbid(clippy::indexing_slicing)]
+use std::convert::TryFrom;
 
 use async_std::path::PathBuf;
 use async_std::prelude::*;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
+use sqlx::Row;
 
 use crate::aheader::EncryptPreference;
 use crate::chat::ChatId;
@@ -135,10 +137,9 @@ impl Default for Origin {
 }
 impl<'a> sqlx::FromRow<'a, sqlx::sqlite::SqliteRow> for Contact {
     fn from_row(row: &sqlx::sqlite::SqliteRow) -> Result<Self, sqlx::Error> {
-        use sqlx::Row;
-
         let contact = Self {
-            id: row.try_get::<i64, _>("id")? as u32,
+            id: u32::try_from(row.try_get::<i32, _>("id")?)
+                .map_err(|err| sqlx::Error::Decode(err.into()))?,
             name: row
                 .try_get::<Option<String>, _>("name")?
                 .unwrap_or_default(),
@@ -674,7 +675,7 @@ SELECT c.id FROM contacts c
             .await
             .unwrap_or_default()
             .into_iter()
-            .map(|id: i64| id as u32)
+            .map(|id: i32| id as u32)
             .collect()
     }
 

@@ -47,10 +47,10 @@ impl<'a> sqlx::FromRow<'a, sqlx::sqlite::SqliteRow> for Peerstate {
 
         let mut res = Self::new(row.try_get("addr")?);
 
-        res.last_seen = row.try_get("last_seen")?;
-        res.last_seen_autocrypt = row.try_get("last_seen_autocrypt")?;
+        res.last_seen = row.try_get_unchecked("last_seen")?;
+        res.last_seen_autocrypt = row.try_get_unchecked("last_seen_autocrypt")?;
         res.prefer_encrypt = row.try_get("prefer_encrypted")?;
-        res.gossip_timestamp = row.try_get("gossip_timestamp")?;
+        res.gossip_timestamp = row.try_get_unchecked("gossip_timestamp")?;
 
         res.public_key_fingerprint = row
             .try_get::<Option<String>, _>("public_key_fingerprint")?

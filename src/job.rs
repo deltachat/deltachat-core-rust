@@ -148,7 +148,7 @@ impl fmt::Display for Job {
 impl<'a> sqlx::FromRow<'a, sqlx::sqlite::SqliteRow> for Job {
     fn from_row(row: &sqlx::sqlite::SqliteRow) -> Result<Self, sqlx::Error> {
         use sqlx::Row;
-        let foreign_id: i64 = row.try_get("foreign_id")?;
+        let foreign_id: i32 = row.try_get("foreign_id")?;
         if foreign_id < 0 {
             return Err(sqlx::Error::Decode(
                 anyhow::anyhow!("invalid foreign_id").into(),
@@ -156,12 +156,12 @@ impl<'a> sqlx::FromRow<'a, sqlx::sqlite::SqliteRow> for Job {
         }
 
         Ok(Job {
-            job_id: row.try_get::<i64, _>("id")? as u32,
+            job_id: row.try_get::<i32, _>("id")? as u32,
             action: row.try_get("action")?,
             foreign_id: foreign_id as u32,
-            desired_timestamp: row.try_get("desired_timestamp")?,
-            added_timestamp: row.try_get("added_timestamp")?,
-            tries: row.try_get::<i64, _>("tries")? as u32,
+            desired_timestamp: row.try_get_unchecked("desired_timestamp")?,
+            added_timestamp: row.try_get_unchecked("added_timestamp")?,
+            tries: row.try_get::<i32, _>("tries")? as u32,
             param: row
                 .try_get::<String, _>("param")?
                 .parse()

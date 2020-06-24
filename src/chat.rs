@@ -531,7 +531,7 @@ impl<'a> sqlx::FromRow<'a, sqlx::sqlite::SqliteRow> for Chat {
                 .unwrap_or_default(),
             visibility: row.try_get("archived")?,
             blocked: row.try_get::<Option<_>, _>("blocked")?.unwrap_or_default(),
-            is_sending_locations: row.try_get("locations_send_until")?,
+            is_sending_locations: row.try_get::<i32, _>("locations_send_until")? > 0,
             mute_duration: row.try_get("muted_until")?,
         };
 
@@ -2082,6 +2082,7 @@ pub async fn get_gossiped_timestamp(context: &Context, chat_id: ChatId) -> i64 {
             paramsx![chat_id],
         )
         .await
+        .map(|v: i32| v as i64)
         .unwrap_or_default()
 }
 

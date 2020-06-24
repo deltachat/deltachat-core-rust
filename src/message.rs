@@ -238,7 +238,7 @@ impl<'a> sqlx::FromRow<'a, sqlx::sqlite::SqliteRow> for Message {
         let id = row.try_get("id")?;
 
         let text;
-        if let Some(buf) = row.try_get::<Option<&[u8]>, _>("txt")? {
+        if let Some(buf) = row.try_get_unchecked::<Option<&[u8]>, _>("txt")? {
             if let Ok(t) = String::from_utf8(buf.to_vec()) {
                 text = t;
             } else {
@@ -257,13 +257,13 @@ impl<'a> sqlx::FromRow<'a, sqlx::sqlite::SqliteRow> for Message {
             rfc724_mid: row.try_get::<String, _>("rfc724mid")?,
             in_reply_to: row.try_get::<Option<String>, _>("mime_in_reply_to")?,
             server_folder: row.try_get::<Option<String>, _>("server_folder")?,
-            server_uid: row.try_get::<i64, _>("server_uid")? as u32,
+            server_uid: row.try_get_unchecked::<i64, _>("server_uid")? as u32,
             chat_id: row.try_get("chat_id")?,
-            from_id: row.try_get::<i64, _>("from_id")? as u32,
-            to_id: row.try_get::<i64, _>("to_id")? as u32,
-            timestamp_sort: row.try_get("timestamp")?,
-            timestamp_sent: row.try_get("timestamp_sent")?,
-            timestamp_rcvd: row.try_get("timestamp_rcvd")?,
+            from_id: row.try_get::<i32, _>("from_id")? as u32,
+            to_id: row.try_get::<i32, _>("to_id")? as u32,
+            timestamp_sort: row.try_get_unchecked("timestamp")?,
+            timestamp_sent: row.try_get_unchecked("timestamp_sent")?,
+            timestamp_rcvd: row.try_get_unchecked("timestamp_rcvd")?,
             viewtype: row.try_get("type")?,
             state: row.try_get("state")?,
             is_dc_message: row.try_get("msgrmsg")?,
@@ -272,9 +272,9 @@ impl<'a> sqlx::FromRow<'a, sqlx::sqlite::SqliteRow> for Message {
                 .try_get::<String, _>("param")?
                 .parse()
                 .unwrap_or_default(),
-            starred: row.try_get("starred")?,
-            hidden: row.try_get("hidden")?,
-            location_id: row.try_get::<i64, _>("location")? as u32,
+            starred: row.try_get::<i32, _>("starred")? > 0,
+            hidden: row.try_get::<i32, _>("hidden")? > 0,
+            location_id: row.try_get_unchecked::<i64, _>("location")? as u32,
             chat_blocked: row
                 .try_get::<Option<Blocked>, _>("blocked")?
                 .unwrap_or_default(),
@@ -864,9 +864,9 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String, Er
             .fetch(&pool);
 
     while let Some(row) = rows.next().await {
-        let (contact_id, ts): (i32, i64) = row?;
+        let (contact_id, ts): (i32, i32) = row?;
 
-        let fts = dc_timestamp_to_str(ts);
+        let fts = dc_timestamp_to_str(ts as i64);
         ret += &format!("Read: {}", fts);
 
         let name = Contact::load_from_db(context, contact_id as u32)

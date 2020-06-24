@@ -375,7 +375,7 @@ impl Sql {
             field.as_ref(),
         );
 
-        let res: i64 = self.query_value(&query, paramsx![value.as_ref()]).await?;
+        let res: i32 = self.query_value(&query, paramsx![value.as_ref()]).await?;
 
         Ok(res as u32)
     }
@@ -395,7 +395,7 @@ impl Sql {
             field2.as_ref(),
         );
 
-        let res: i64 = self
+        let res: i32 = self
             .query_value(query.as_ref(), paramsx![value, value2])
             .await?;
 
