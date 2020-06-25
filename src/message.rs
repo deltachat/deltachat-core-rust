@@ -1293,7 +1293,7 @@ pub async fn handle_mdn(
     rfc724_mid: &str,
     timestamp_sent: i64,
 ) -> Option<(ChatId, MsgId)> {
-    if from_id <= DC_MSG_ID_LAST_SPECIAL || rfc724_mid.is_empty() {
+    if from_id <= DC_CONTACT_ID_LAST_SPECIAL || rfc724_mid.is_empty() {
         return None;
     }
 
