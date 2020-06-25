@@ -24,6 +24,22 @@ use crate::param::*;
 use crate::sql;
 use crate::stock::StockMessage;
 
+/// An chat item, such as a message or a marker.
+#[derive(Debug, Copy, Clone)]
+pub enum ChatItem {
+    Message {
+        msg_id: MsgId,
+    },
+
+    /// A marker without inherent meaning. It is inserted before user
+    /// supplied MsgId.
+    Marker1,
+
+    /// Day marker, separating messages that correspond to different
+    /// days according to local time.
+    DayMarker,
+}
+
 /// Chat ID, including reserved IDs.
 ///
 /// Some chat IDs are reserved to identify special chat types.  This
@@ -1580,7 +1596,7 @@ pub async fn get_chat_msgs(
     chat_id: ChatId,
     flags: u32,
     marker1before: Option<MsgId>,
-) -> Vec<MsgId> {
+) -> Vec<ChatItem> {
     match delete_device_expired_messages(context).await {
         Err(err) => warn!(context, "Failed to delete expired messages: {}", err),
         Ok(messages_deleted) => {
@@ -1603,18 +1619,18 @@ pub async fn get_chat_msgs(
             let (curr_id, ts) = row?;
             if let Some(marker_id) = marker1before {
                 if curr_id == marker_id {
-                    ret.push(MsgId::new(DC_MSG_ID_MARKER1));
+                    ret.push(ChatItem::Marker1);
                 }
             }
             if (flags & DC_GCM_ADDDAYMARKER) != 0 {
                 let curr_local_timestamp = ts + cnv_to_local;
                 let curr_day = curr_local_timestamp / 86400;
                 if curr_day != last_day {
-                    ret.push(MsgId::new(DC_MSG_ID_DAYMARKER));
+                    ret.push(ChatItem::DayMarker);
                     last_day = curr_day;
                 }
             }
-            ret.push(curr_id);
+            ret.push(ChatItem::Message { msg_id: curr_id });
         }
         Ok(ret)
     };

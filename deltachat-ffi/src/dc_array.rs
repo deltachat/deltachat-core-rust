@@ -1,3 +1,5 @@
+use crate::chat::ChatItem;
+use crate::constants::{DC_MSG_ID_DAYMARKER, DC_MSG_ID_MARKER1};
 use crate::location::Location;
 use crate::message::MsgId;
 
@@ -5,6 +7,7 @@ use crate::message::MsgId;
 #[derive(Debug, Clone)]
 pub enum dc_array_t {
     MsgIds(Vec<MsgId>),
+    Chat(Vec<ChatItem>),
     Locations(Vec<Location>),
     Uint(Vec<u32>),
 }
@@ -13,6 +16,11 @@ impl dc_array_t {
     pub(crate) fn get_id(&self, index: usize) -> u32 {
         match self {
             Self::MsgIds(array) => array[index].to_u32(),
+            Self::Chat(array) => match array[index] {
+                ChatItem::Message { msg_id } => msg_id.to_u32(),
+                ChatItem::Marker1 => DC_MSG_ID_MARKER1,
+                ChatItem::DayMarker => DC_MSG_ID_DAYMARKER,
+            },
             Self::Locations(array) => array[index].location_id,
             Self::Uint(array) => array[index],
         }
@@ -30,6 +38,7 @@ impl dc_array_t {
     pub(crate) fn len(&self) -> usize {
         match self {
             Self::MsgIds(array) => array.len(),
+            Self::Chat(array) => array.len(),
             Self::Locations(array) => array.len(),
             Self::Uint(array) => array.len(),
         }
@@ -49,6 +58,12 @@ impl From<Vec<u32>> for dc_array_t {
 impl From<Vec<MsgId>> for dc_array_t {
     fn from(array: Vec<MsgId>) -> Self {
         dc_array_t::MsgIds(array)
+    }
+}
+
+impl From<Vec<ChatItem>> for dc_array_t {
+    fn from(array: Vec<ChatItem>) -> Self {
+        dc_array_t::Chat(array)
     }
 }
 
