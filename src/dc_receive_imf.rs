@@ -1793,7 +1793,7 @@ fn dc_create_incoming_rfc724_mid(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chat::ChatVisibility;
+    use crate::chat::{ChatItem, ChatVisibility};
     use crate::chatlist::Chatlist;
     use crate::message::Message;
     use crate::test_utils::*;
@@ -2118,7 +2118,11 @@ mod tests {
         .unwrap();
         let msgs = chat::get_chat_msgs(&t.ctx, group_id, 0, None).await;
         assert_eq!(msgs.len(), 1);
-        let msg_id = msgs.first().unwrap();
+        let msg_id = if let ChatItem::Message { msg_id } = msgs.first().unwrap() {
+            msg_id
+        } else {
+            panic!("Wrong item type");
+        };
         let msg = message::Message::load_from_db(&t.ctx, msg_id.clone())
             .await
             .unwrap();
@@ -2253,7 +2257,11 @@ mod tests {
         );
         let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0, None).await;
         assert_eq!(msgs.len(), 1);
-        let msg_id = msgs.first().unwrap();
+        let msg_id = if let ChatItem::Message { msg_id } = msgs.first().unwrap() {
+            msg_id
+        } else {
+            panic!("Wrong item type");
+        };
         let msg = message::Message::load_from_db(&t.ctx, msg_id.clone())
             .await
             .unwrap();
@@ -2516,9 +2524,12 @@ mod tests {
         assert_eq!(msg.state, MessageState::OutFailed);
 
         let msgs = chat::get_chat_msgs(&t.ctx, msg.chat_id, 0, None).await;
-        let last_msg = Message::load_from_db(&t.ctx, *msgs.last().unwrap())
-            .await
-            .unwrap();
+        let msg_id = if let ChatItem::Message { msg_id } = msgs.last().unwrap() {
+            msg_id
+        } else {
+            panic!("Wrong item type");
+        };
+        let last_msg = Message::load_from_db(&t.ctx, *msg_id).await.unwrap();
 
         assert_eq!(
             last_msg.text,

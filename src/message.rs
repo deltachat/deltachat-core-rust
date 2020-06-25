@@ -68,20 +68,6 @@ impl MsgId {
         self.0 == 0
     }
 
-    /// Whether the message ID is the special marker1 marker.
-    ///
-    /// See the docs of the `dc_get_chat_msgs` C API for details.
-    pub fn is_marker1(self) -> bool {
-        self.0 == DC_MSG_ID_MARKER1
-    }
-
-    /// Whether the message ID is the special day marker.
-    ///
-    /// See the docs of the `dc_get_chat_msgs` C API for details.
-    pub fn is_daymarker(self) -> bool {
-        self.0 == DC_MSG_ID_DAYMARKER
-    }
-
     /// Put message into trash chat and delete message text.
     ///
     /// It means the message is deleted locally, but not on the server
@@ -143,16 +129,7 @@ impl MsgId {
 
 impl std::fmt::Display for MsgId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Would be nice if we could use match here, but no computed values in ranges.
-        if self.0 == DC_MSG_ID_MARKER1 {
-            write!(f, "Msg#Marker1")
-        } else if self.0 == DC_MSG_ID_DAYMARKER {
-            write!(f, "Msg#DayMarker")
-        } else if self.0 <= DC_MSG_ID_LAST_SPECIAL {
-            write!(f, "Msg#UnknownSpecial")
-        } else {
-            write!(f, "Msg#{}", self.0)
-        }
+        write!(f, "Msg#{}", self.0)
     }
 }
 
