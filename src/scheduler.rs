@@ -60,13 +60,14 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
 
         // track number of continously executed jobs
         let mut jobs_loaded = 0;
-        let mut info = InterruptInfo::default();
+        let mut info = InterruptInfo::fetch(); // We just connected, will need to fetch
         loop {
             match job::load_next(&ctx, Thread::Imap, &info).await {
                 Some(job) if jobs_loaded <= 20 => {
                     jobs_loaded += 1;
                     job::perform_job(&ctx, job::Connection::Inbox(&mut connection), job).await;
-                    info = Default::default();
+                    info.probe_network = false;
+                    info.msg_id = None;
                 }
                 Some(job) => {
                     // Let the fetch run, but return back to the job afterwards.
@@ -77,7 +78,13 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
                 None => {
                     jobs_loaded = 0;
                     info = if ctx.get_config_bool(Config::InboxWatch).await {
-                        fetch_idle(&ctx, &mut connection, Config::ConfiguredInboxFolder).await
+                        fetch_idle(
+                            &ctx,
+                            &mut connection,
+                            Config::ConfiguredInboxFolder,
+                            info.fetch,
+                        )
+                        .await
                     } else {
                         connection.fake_idle(&ctx, None).await
                     };
@@ -117,7 +124,12 @@ async fn fetch(ctx: &Context, connection: &mut Imap) {
     }
 }
 
-async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> InterruptInfo {
+async fn fetch_idle(
+    ctx: &Context,
+    connection: &mut Imap,
+    folder: Config,
+    do_fetch: bool, // If this is false, we do not fetch but just idle
+) -> InterruptInfo {
     match ctx.get_config(folder).await {
         Some(watch_folder) => {
             // connect and fake idle if unable to connect
@@ -127,9 +139,11 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
             }
 
             // fetch
-            if let Err(err) = connection.fetch(&ctx, &watch_folder).await {
-                connection.trigger_reconnect();
-                warn!(ctx, "{}", err);
+            if do_fetch {
+                if let Err(err) = connection.fetch(&ctx, &watch_folder).await {
+                    connection.trigger_reconnect();
+                    warn!(ctx, "{}", err);
+                }
             }
 
             // idle
@@ -140,7 +154,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> Int
                     .unwrap_or_else(|err| {
                         connection.trigger_reconnect();
                         warn!(ctx, "{}", err);
-                        InterruptInfo::new(false, None)
+                        InterruptInfo::fetch()
                     })
             } else {
                 connection.fake_idle(&ctx, Some(watch_folder)).await
@@ -175,7 +189,7 @@ async fn simple_imap_loop(
         let ctx = ctx1;
 
         loop {
-            fetch_idle(&ctx, &mut connection, folder).await;
+            fetch_idle(&ctx, &mut connection, folder, true).await;
         }
     };
 
@@ -205,18 +219,21 @@ async fn smtp_loop(ctx: Context, started: Sender<()>, smtp_handlers: SmtpConnect
         started.send(()).await;
         let ctx = ctx1;
 
-        let mut interrupt_info = Default::default();
+        let mut interrupt_info = InterruptInfo::exec_due_jobs();
         loop {
             match job::load_next(&ctx, Thread::Smtp, &interrupt_info).await {
                 Some(job) => {
                     info!(ctx, "executing smtp job");
                     job::perform_job(&ctx, job::Connection::Smtp(&mut connection), job).await;
-                    interrupt_info = Default::default();
+                    interrupt_info = InterruptInfo::exec_due_jobs();
                 }
                 None => {
                     // Fake Idle
                     info!(ctx, "smtp fake idle - started");
-                    interrupt_info = idle_interrupt_receiver.recv().await.unwrap_or_default();
+                    interrupt_info = idle_interrupt_receiver
+                        .recv()
+                        .await
+                        .unwrap_or_else(|_| InterruptInfo::exec_due_jobs());
                     info!(ctx, "smtp fake idle - interrupted")
                 }
             }
@@ -318,10 +335,10 @@ impl Scheduler {
             return;
         }
 
-        self.interrupt_inbox(InterruptInfo::new(true, None))
-            .join(self.interrupt_mvbox(InterruptInfo::new(true, None)))
-            .join(self.interrupt_sentbox(InterruptInfo::new(true, None)))
-            .join(self.interrupt_smtp(InterruptInfo::new(true, None)))
+        self.interrupt_inbox(InterruptInfo::probe_network())
+            .join(self.interrupt_mvbox(InterruptInfo::probe_network()))
+            .join(self.interrupt_sentbox(InterruptInfo::probe_network()))
+            .join(self.interrupt_smtp(InterruptInfo::probe_network()))
             .await;
     }
 
@@ -534,17 +551,40 @@ struct ImapConnectionHandlers {
     shutdown_sender: Sender<()>,
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct InterruptInfo {
     pub probe_network: bool,
+    pub fetch: bool,
     pub msg_id: Option<MsgId>,
 }
 
 impl InterruptInfo {
-    pub fn new(probe_network: bool, msg_id: Option<MsgId>) -> Self {
+    pub fn probe_network() -> Self {
         Self {
-            probe_network,
-            msg_id,
+            probe_network: true,
+            fetch: true,
+            msg_id: None,
+        }
+    }
+    pub fn exec_due_jobs() -> Self {
+        Self {
+            probe_network: false,
+            fetch: false,
+            msg_id: None,
+        }
+    }
+    pub fn fetch() -> Self {
+        Self {
+            probe_network: false,
+            fetch: true,
+            msg_id: None,
+        }
+    }
+    pub fn exec_one_job(msg_id: MsgId) -> Self {
+        Self {
+            probe_network: false,
+            fetch: false,
+            msg_id: Some(msg_id),
         }
     }
 }

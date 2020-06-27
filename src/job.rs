@@ -1029,25 +1029,25 @@ pub async fn add(context: &Context, job: Job) {
     if delay_seconds == 0 {
         match action {
             Action::Unknown => unreachable!(),
-            Action::Housekeeping
-            | Action::EmptyServer
+            Action::Housekeeping | Action::MarkseenMsgOnImap => {
+                info!(context, "interrupt for exec jobs: imap");
+                context
+                    .interrupt_inbox(InterruptInfo::exec_due_jobs())
+                    .await;
+            }
+            Action::EmptyServer
             | Action::OldDeleteMsgOnImap
             | Action::DeleteMsgOnImap
-            | Action::MarkseenMsgOnImap
             | Action::MoveMsg => {
-                info!(context, "interrupt: imap");
-                context
-                    .interrupt_inbox(InterruptInfo::new(false, None))
-                    .await;
+                info!(context, "interrupt for exec jobs & fetch: imap");
+                context.interrupt_inbox(InterruptInfo::fetch()).await;
             }
             Action::MaybeSendLocations
             | Action::MaybeSendLocationsEnded
             | Action::SendMdn
             | Action::SendMsgToSmtp => {
                 info!(context, "interrupt: smtp");
-                context
-                    .interrupt_smtp(InterruptInfo::new(false, None))
-                    .await;
+                context.interrupt_smtp(InterruptInfo::exec_due_jobs()).await;
             }
         }
     }
@@ -1214,7 +1214,7 @@ mod tests {
         let jobs = load_next(
             &t.ctx,
             Thread::from(Action::MoveMsg),
-            &InterruptInfo::new(false, None),
+            &InterruptInfo::exec_due_jobs(),
         )
         .await;
         assert!(jobs.is_none());
@@ -1223,7 +1223,7 @@ mod tests {
         let jobs = load_next(
             &t.ctx,
             Thread::from(Action::MoveMsg),
-            &InterruptInfo::new(false, None),
+            &InterruptInfo::exec_due_jobs(),
         )
         .await;
         assert!(jobs.is_some());
@@ -1238,7 +1238,7 @@ mod tests {
         let jobs = load_next(
             &t.ctx,
             Thread::from(Action::MoveMsg),
-            &InterruptInfo::new(false, None),
+            &InterruptInfo::exec_due_jobs(),
         )
         .await;
         assert!(jobs.is_some());
