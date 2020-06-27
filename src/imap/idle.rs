@@ -44,6 +44,10 @@ impl Imap {
         if !self.can_idle() {
             return Err(Error::IdleAbilityMissing);
         }
+        if let Ok(info) = self.idle_interrupt.try_recv() {
+            return Ok(info); // We got an interrupt in the meantime, do not idle
+        }
+
         self.setup_handle_if_needed(context).await?;
 
         self.select_folder(context, watch_folder.clone()).await?;
