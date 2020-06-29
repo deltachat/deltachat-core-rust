@@ -956,7 +956,6 @@ impl Chat {
                     .await?;
             }
 
-            // get ephemeral message timer
             let ephemeral_timer = self.id.get_ephemeral_timer(context).await?;
             let ephemeral_timestamp = match ephemeral_timer {
                 EphemeralTimer::Disabled => 0,
