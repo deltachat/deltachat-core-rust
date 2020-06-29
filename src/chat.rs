@@ -38,7 +38,10 @@ pub enum ChatItem {
 
     /// Day marker, separating messages that correspond to different
     /// days according to local time.
-    DayMarker,
+    DayMarker {
+        /// Marker timestamp, for day markers
+        timestamp: i64,
+    },
 }
 
 /// Chat ID, including reserved IDs.
@@ -1645,7 +1648,9 @@ pub async fn get_chat_msgs(
                 let curr_local_timestamp = ts + cnv_to_local;
                 let curr_day = curr_local_timestamp / 86400;
                 if curr_day != last_day {
-                    ret.push(ChatItem::DayMarker);
+                    ret.push(ChatItem::DayMarker {
+                        timestamp: curr_day,
+                    });
                     last_day = curr_day;
                 }
             }

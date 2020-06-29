@@ -2021,7 +2021,7 @@ pub unsafe extern "C" fn dc_array_get_timestamp(
         return 0;
     }
 
-    (*array).get_location(index).timestamp
+    (*array).get_timestamp(index).unwrap_or_default()
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_chat_id(
