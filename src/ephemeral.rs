@@ -211,10 +211,7 @@ impl ChatId {
 
 impl MsgId {
     /// Returns ephemeral message timer value for the message.
-    pub(crate) async fn ephemeral_timer(
-        self,
-        context: &Context,
-    ) -> crate::sql::Result<Option<i64>> {
+    pub(crate) async fn ephemeral_timer(self, context: &Context) -> crate::sql::Result<Timer> {
         let res = match context
             .sql
             .query_get_value_result(
@@ -223,16 +220,16 @@ impl MsgId {
             )
             .await?
         {
-            None | Some(0) => None,
-            Some(timer) => Some(timer),
+            None | Some(0) => Timer::Disabled,
+            Some(duration) => Timer::Enabled { duration },
         };
         Ok(res)
     }
 
     /// Starts ephemeral message timer for the message if it is not started yet.
     pub(crate) async fn start_ephemeral_timer(self, context: &Context) -> crate::sql::Result<()> {
-        if let Some(ephemeral_timer) = self.ephemeral_timer(context).await? {
-            let ephemeral_timestamp = time() + ephemeral_timer;
+        if let Timer::Enabled { duration } = self.ephemeral_timer(context).await? {
+            let ephemeral_timestamp = time() + i64::from(duration);
 
             context
                 .sql
