@@ -2021,7 +2021,7 @@ pub unsafe extern "C" fn dc_array_get_marker(
         return std::ptr::null_mut(); // NULL explicitly defined as "no markers"
     }
 
-    if let Some(s) = &(*array).get_location(index).marker {
+    if let Some(s) = (*array).get_marker(index) {
         s.strdup()
     } else {
         std::ptr::null_mut()
