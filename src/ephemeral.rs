@@ -194,7 +194,7 @@ impl ChatId {
                     StockMessage::MsgEphemeralTimerChanged,
                     timer.to_string(),
                     "",
-                    0,
+                    DC_CONTACT_ID_SELF,
                 )
                 .await,
         );
