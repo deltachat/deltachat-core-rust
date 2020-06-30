@@ -337,10 +337,10 @@ impl Context {
         let action1 = action.trim_end_matches('.');
         match from_id {
             0 => action,
-            1 => {
+            DC_CONTACT_ID_SELF => {
                 self.stock_string_repl_str(StockMessage::MsgActionByMe, action1)
                     .await
-            } // DC_CONTACT_ID_SELF
+            }
             _ => {
                 let displayname = Contact::get_by_id(self, from_id)
                     .await
