@@ -1555,7 +1555,7 @@ class TestOnlineAccount:
         lp.sec("ac1: check that ephemeral timer is set for chat")
         assert chat1.get_ephemeral_timer() == 60
         chat1_summary = chat1.get_summary()
-        assert chat1_summary["ephemeral_timer"] == 60
+        assert chat1_summary["ephemeral_timer"] == {'Enabled': {'duration': 60}}
 
         lp.sec("ac2: receive system message about ephemeral timer modification")
         ac2._evtracker.get_matching("DC_EVENT_CHAT_EPHEMERAL_TIMER_MODIFIED")
