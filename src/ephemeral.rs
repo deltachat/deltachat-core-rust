@@ -321,9 +321,7 @@ pub(crate) async fn delete_expired_messages(context: &Context) -> Result<bool, E
         updated |= rows_modified > 0;
     }
 
-    if updated {
-        schedule_ephemeral_task(context).await;
-    }
+    schedule_ephemeral_task(context).await;
     Ok(updated)
 }
 
