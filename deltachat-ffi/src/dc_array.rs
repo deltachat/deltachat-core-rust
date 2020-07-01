@@ -42,7 +42,7 @@ impl dc_array_t {
     pub(crate) fn get_marker(&self, index: usize) -> Option<&str> {
         match self {
             Self::MsgIds(_) => None,
-            Self::Chat(array) => None,
+            Self::Chat(_) => None,
             Self::Locations(array) => array
                 .get(index)
                 .and_then(|location| location.marker.as_deref()),
