@@ -2777,9 +2777,16 @@ pub(crate) async fn delete_and_reset_all_device_msgs(context: &Context) -> Resul
 /// For example, it can be a message showing that a member was added to a group.
 pub(crate) async fn add_info_msg(context: &Context, chat_id: ChatId, text: impl AsRef<str>) {
     let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
+    let ephemeral_timer = match chat_id.get_ephemeral_timer(context).await {
+        Err(e) => {
+            warn!(context, "Could not get timer for info msg: {}", e);
+            return;
+        }
+        Ok(ephemeral_timer) => ephemeral_timer,
+    };
 
     if let Err(e) = context.sql.execute(
-        "INSERT INTO msgs (chat_id,from_id,to_id, timestamp,type,state, txt,rfc724_mid) VALUES (?,?,?, ?,?,?, ?,?);",
+        "INSERT INTO msgs (chat_id,from_id,to_id, timestamp,type,state, txt,rfc724_mid,ephemeral_timer) VALUES (?,?,?, ?,?,?, ?,?,?);",
         paramsv![
             chat_id,
             DC_CONTACT_ID_INFO,
@@ -2789,6 +2796,7 @@ pub(crate) async fn add_info_msg(context: &Context, chat_id: ChatId, text: impl 
             MessageState::InNoticed,
             text.as_ref().to_string(),
             rfc724_mid,
+            ephemeral_timer
         ]
     ).await {
         warn!(context, "Could not add info msg: {}", e);
