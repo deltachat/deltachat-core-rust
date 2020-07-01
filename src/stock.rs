@@ -186,8 +186,28 @@ pub enum StockMessage {
     #[strum(props(fallback = "Failed to send message to %1$s."))]
     FailedSendingTo = 74,
 
-    #[strum(props(fallback = "Ephemeral message timer changed to %1$s."))]
-    MsgEphemeralTimerChanged = 75,
+    #[strum(props(fallback = "Message deletion timer is disabled."))]
+    MsgEphemeralTimerDisabled = 75,
+
+    // A fallback message for unknown timer values.
+    // "s" stands for "second" SI unit here.
+    #[strum(props(fallback = "Message deletion timer is set to %1$s s."))]
+    MsgEphemeralTimerEnabled = 76,
+
+    #[strum(props(fallback = "Message deletion timer is set to 1 minute."))]
+    MsgEphemeralTimerMinute = 77,
+
+    #[strum(props(fallback = "Message deletion timer is set to 1 hour."))]
+    MsgEphemeralTimerHour = 78,
+
+    #[strum(props(fallback = "Message deletion timer is set to 1 day."))]
+    MsgEphemeralTimerDay = 79,
+
+    #[strum(props(fallback = "Message deletion timer is set to 1 week."))]
+    MsgEphemeralTimerWeek = 80,
+
+    #[strum(props(fallback = "Message deletion timer is set to 4 weeks."))]
+    MsgEphemeralTimerFourWeeks = 81,
 }
 
 /*

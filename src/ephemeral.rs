@@ -188,16 +188,7 @@ impl ChatId {
         }
         self.inner_set_ephemeral_timer(context, timer).await?;
         let mut msg = Message::new(Viewtype::Text);
-        msg.text = Some(
-            context
-                .stock_system_msg(
-                    StockMessage::MsgEphemeralTimerChanged,
-                    timer.to_string(),
-                    "",
-                    DC_CONTACT_ID_SELF,
-                )
-                .await,
-        );
+        msg.text = Some(stock_ephemeral_timer_changed(context, timer, DC_CONTACT_ID_SELF).await);
         msg.param.set_cmd(SystemMessage::EphemeralTimerChanged);
         if let Err(err) = send_msg(context, self, &mut msg).await {
             error!(
@@ -207,6 +198,29 @@ impl ChatId {
         }
         Ok(())
     }
+}
+
+/// Returns a stock message saying that ephemeral timer is changed to `timer` by `from_id`.
+pub(crate) async fn stock_ephemeral_timer_changed(
+    context: &Context,
+    timer: Timer,
+    from_id: u32,
+) -> String {
+    let stock_message = match timer {
+        Timer::Disabled => StockMessage::MsgEphemeralTimerDisabled,
+        Timer::Enabled { duration } => match duration {
+            60 => StockMessage::MsgEphemeralTimerMinute,
+            3600 => StockMessage::MsgEphemeralTimerHour,
+            86400 => StockMessage::MsgEphemeralTimerDay,
+            604_800 => StockMessage::MsgEphemeralTimerWeek,
+            2_419_200 => StockMessage::MsgEphemeralTimerFourWeeks,
+            _ => StockMessage::MsgEphemeralTimerEnabled,
+        },
+    };
+
+    context
+        .stock_system_msg(stock_message, timer.to_string(), "", from_id)
+        .await
 }
 
 impl MsgId {
@@ -407,4 +421,74 @@ pub(crate) async fn load_imap_deletion_msgid(context: &Context) -> sql::Result<O
             |row| row.get::<_, MsgId>(0),
         )
         .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::*;
+
+    #[async_std::test]
+    async fn test_stock_ephemeral_messages() {
+        let context = TestContext::new().await.ctx;
+
+        assert_eq!(
+            stock_ephemeral_timer_changed(&context, Timer::Disabled, DC_CONTACT_ID_SELF).await,
+            "Message deletion timer is disabled by me."
+        );
+
+        assert_eq!(
+            stock_ephemeral_timer_changed(&context, Timer::Disabled, 0).await,
+            "Message deletion timer is disabled."
+        );
+        assert_eq!(
+            stock_ephemeral_timer_changed(&context, Timer::Enabled { duration: 1 }, 0).await,
+            "Message deletion timer is set to 1 s."
+        );
+        assert_eq!(
+            stock_ephemeral_timer_changed(&context, Timer::Enabled { duration: 30 }, 0).await,
+            "Message deletion timer is set to 30 s."
+        );
+        assert_eq!(
+            stock_ephemeral_timer_changed(&context, Timer::Enabled { duration: 60 }, 0).await,
+            "Message deletion timer is set to 1 minute."
+        );
+        assert_eq!(
+            stock_ephemeral_timer_changed(&context, Timer::Enabled { duration: 60 * 60 }, 0).await,
+            "Message deletion timer is set to 1 hour."
+        );
+        assert_eq!(
+            stock_ephemeral_timer_changed(
+                &context,
+                Timer::Enabled {
+                    duration: 24 * 60 * 60
+                },
+                0
+            )
+            .await,
+            "Message deletion timer is set to 1 day."
+        );
+        assert_eq!(
+            stock_ephemeral_timer_changed(
+                &context,
+                Timer::Enabled {
+                    duration: 7 * 24 * 60 * 60
+                },
+                0
+            )
+            .await,
+            "Message deletion timer is set to 1 week."
+        );
+        assert_eq!(
+            stock_ephemeral_timer_changed(
+                &context,
+                Timer::Enabled {
+                    duration: 4 * 7 * 24 * 60 * 60
+                },
+                0
+            )
+            .await,
+            "Message deletion timer is set to 4 weeks."
+        );
+    }
 }

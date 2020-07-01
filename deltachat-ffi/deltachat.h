@@ -4480,8 +4480,15 @@ void dc_event_unref(dc_event_t* event);
 #define DC_STR_UNKNOWN_SENDER_FOR_CHAT    72
 #define DC_STR_SUBJECT_FOR_NEW_CONTACT    73
 #define DC_STR_FAILED_SENDING_TO          74
+#define DC_STR_EPHEMERAL_DISABLED         75
+#define DC_STR_EPHEMERAL_SECONDS          76
+#define DC_STR_EPHEMERAL_MINUTE           77
+#define DC_STR_EPHEMERAL_HOUR             78
+#define DC_STR_EPHEMERAL_DAY              79
+#define DC_STR_EPHEMERAL_WEEK             80
+#define DC_STR_EPHEMERAL_FOUR_WEEKS       81
 
-#define DC_STR_COUNT                      74
+#define DC_STR_COUNT                      81
 
 /*
  * @}

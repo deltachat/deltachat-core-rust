@@ -10,7 +10,7 @@ use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
 use crate::dc_tools::*;
-use crate::ephemeral::Timer as EphemeralTimer;
+use crate::ephemeral::{stock_ephemeral_timer_changed, Timer as EphemeralTimer};
 use crate::error::{bail, ensure, format_err, Result};
 use crate::events::Event;
 use crate::headerdef::HeaderDef;
@@ -653,15 +653,12 @@ async fn add_parts(
     {
         match (*chat_id).inner_set_ephemeral_timer(context, timer).await {
             Ok(()) => {
-                let stock_str = context
-                    .stock_system_msg(
-                        StockMessage::MsgEphemeralTimerChanged,
-                        timer.to_string(),
-                        "",
-                        from_id,
-                    )
-                    .await;
-                chat::add_info_msg(context, *chat_id, stock_str).await;
+                chat::add_info_msg(
+                    context,
+                    *chat_id,
+                    stock_ephemeral_timer_changed(context, timer, from_id).await,
+                )
+                .await;
                 context.emit_event(Event::ChatEphemeralTimerModified {
                     chat_id: *chat_id,
                     timer: timer.to_u32(),
