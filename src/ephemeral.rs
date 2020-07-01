@@ -365,8 +365,9 @@ pub async fn schedule_ephemeral_task(context: &Context) {
 
     if let Some(ephemeral_timestamp) = ephemeral_timestamp {
         let now = SystemTime::now();
-        let until =
-            UNIX_EPOCH + Duration::from_secs(ephemeral_timestamp.try_into().unwrap_or(u64::MAX));
+        let until = UNIX_EPOCH
+            + Duration::from_secs(ephemeral_timestamp.try_into().unwrap_or(u64::MAX))
+            + Duration::from_secs(1);
 
         if let Ok(duration) = until.duration_since(now) {
             // Schedule a task, ephemeral_timestamp is in the future
