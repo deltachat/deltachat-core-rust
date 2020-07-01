@@ -323,54 +323,6 @@ const DC_EVENT_FILE_COPIED: usize = 2055; // deprecated;
 const DC_EVENT_IS_OFFLINE: usize = 2081; // deprecated;
 const DC_ERROR_SEE_STRING: usize = 0; // deprecated;
 const DC_ERROR_SELF_NOT_IN_GROUP: usize = 1; // deprecated;
-const DC_STR_SELFNOTINGRP: usize = 21; // deprecated;
-
-// TODO: Strings need some doumentation about used placeholders.
-// These constants are used to set stock translation strings
-
-const DC_STR_NOMESSAGES: usize = 1;
-const DC_STR_SELF: usize = 2;
-const DC_STR_DRAFT: usize = 3;
-const DC_STR_VOICEMESSAGE: usize = 7;
-const DC_STR_DEADDROP: usize = 8;
-const DC_STR_IMAGE: usize = 9;
-const DC_STR_VIDEO: usize = 10;
-const DC_STR_AUDIO: usize = 11;
-const DC_STR_FILE: usize = 12;
-const DC_STR_STATUSLINE: usize = 13;
-const DC_STR_NEWGROUPDRAFT: usize = 14;
-const DC_STR_MSGGRPNAME: usize = 15;
-const DC_STR_MSGGRPIMGCHANGED: usize = 16;
-const DC_STR_MSGADDMEMBER: usize = 17;
-const DC_STR_MSGDELMEMBER: usize = 18;
-const DC_STR_MSGGROUPLEFT: usize = 19;
-const DC_STR_GIF: usize = 23;
-const DC_STR_ENCRYPTEDMSG: usize = 24;
-const DC_STR_E2E_AVAILABLE: usize = 25;
-const DC_STR_ENCR_TRANSP: usize = 27;
-const DC_STR_ENCR_NONE: usize = 28;
-const DC_STR_CANTDECRYPT_MSG_BODY: usize = 29;
-const DC_STR_FINGERPRINTS: usize = 30;
-const DC_STR_READRCPT: usize = 31;
-const DC_STR_READRCPT_MAILBODY: usize = 32;
-const DC_STR_MSGGRPIMGDELETED: usize = 33;
-const DC_STR_E2E_PREFERRED: usize = 34;
-const DC_STR_CONTACT_VERIFIED: usize = 35;
-const DC_STR_CONTACT_NOT_VERIFIED: usize = 36;
-const DC_STR_CONTACT_SETUP_CHANGED: usize = 37;
-const DC_STR_ARCHIVEDCHATS: usize = 40;
-const DC_STR_STARREDMSGS: usize = 41;
-const DC_STR_AC_SETUP_MSG_SUBJECT: usize = 42;
-const DC_STR_AC_SETUP_MSG_BODY: usize = 43;
-const DC_STR_CANNOT_LOGIN: usize = 60;
-const DC_STR_SERVER_RESPONSE: usize = 61;
-const DC_STR_MSGACTIONBYUSER: usize = 62;
-const DC_STR_MSGACTIONBYME: usize = 63;
-const DC_STR_MSGLOCATIONENABLED: usize = 64;
-const DC_STR_MSGLOCATIONDISABLED: usize = 65;
-const DC_STR_LOCATION: usize = 66;
-const DC_STR_STICKER: usize = 67;
-const DC_STR_COUNT: usize = 67;
 
 pub const DC_JOB_DELETE_MSG_ON_IMAP: i32 = 110;
 
