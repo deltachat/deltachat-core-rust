@@ -653,12 +653,20 @@ async fn add_parts(
     {
         match (*chat_id).inner_set_ephemeral_timer(context, timer).await {
             Ok(()) => {
-                chat::add_info_msg(
-                    context,
-                    *chat_id,
-                    stock_ephemeral_timer_changed(context, timer, from_id).await,
-                )
-                .await;
+                if mime_parser.is_system_message == SystemMessage::EphemeralTimerChanged {
+                    set_better_msg(
+                        mime_parser,
+                        stock_ephemeral_timer_changed(context, timer, from_id).await,
+                    );
+                } else {
+                    chat::add_info_msg(
+                        context,
+                        *chat_id,
+                        stock_ephemeral_timer_changed(context, timer, from_id).await,
+                    )
+                    .await;
+                }
+
                 context.emit_event(Event::ChatEphemeralTimerModified {
                     chat_id: *chat_id,
                     timer: timer.to_u32(),
