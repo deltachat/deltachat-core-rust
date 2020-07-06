@@ -977,6 +977,7 @@ dc_msg_t*       dc_get_draft                 (dc_context_t* context, uint32_t ch
  * @param chat_id The chat ID of which the messages IDs should be queried.
  * @param flags If set to DC_GCM_ADDDAYMARKER, the marker DC_MSG_ID_DAYMARKER will
  *     be added before each day (regarding the local timezone).  Set this to 0 if you do not want this behaviour.
+ *     To get the concrete time of the marker, use dc_array_get_timestamp().
  * @param marker1before An optional message ID.  If set, the id DC_MSG_ID_MARKER1 will be added just
  *   before the given ID in the returned array.  Set this to 0 if you do not want this behaviour.
  * @return Array of message IDs, must be dc_array_unref()'d when no longer used.
