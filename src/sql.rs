@@ -571,7 +571,7 @@ pub async fn housekeeping(context: &Context) {
     if let Err(err) = prune_tombstones(context).await {
         warn!(
             context,
-            "Houskeeping: Cannot prune message tombstones: {}", err
+            "Housekeeping: Cannot prune message tombstones: {}", err
         );
     }
 
