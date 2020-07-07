@@ -117,7 +117,6 @@ pub struct Imap {
     session: Option<Session>,
     connected: bool,
     interrupt: Option<stop_token::StopSource>,
-    skip_next_idle_wait: bool,
     should_reconnect: bool,
 }
 
@@ -191,7 +190,6 @@ impl Imap {
             session: Default::default(),
             connected: Default::default(),
             interrupt: Default::default(),
-            skip_next_idle_wait: Default::default(),
             should_reconnect: Default::default(),
         }
     }
