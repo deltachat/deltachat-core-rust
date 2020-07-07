@@ -13,19 +13,19 @@ type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("IMAP IDLE protocol failed to init/complete")]
+    #[error("IMAP IDLE protocol failed to init/complete: {0}")]
     IdleProtocolFailed(#[from] async_imap::error::Error),
 
-    #[error("IMAP IDLE protocol timed out")]
+    #[error("IMAP IDLE protocol timed out: {0}")]
     IdleTimeout(#[from] async_std::future::TimeoutError),
 
     #[error("IMAP server does not have IDLE capability")]
     IdleAbilityMissing,
 
-    #[error("IMAP select folder error")]
+    #[error("IMAP select folder error: {0}")]
     SelectFolderError(#[from] select_folder::Error),
 
-    #[error("Setup handle error")]
+    #[error("Setup handle error: {0}")]
     SetupHandleError(#[from] super::Error),
 }
 
