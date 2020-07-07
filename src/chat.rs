@@ -959,7 +959,11 @@ impl Chat {
                     .await?;
             }
 
-            let ephemeral_timer = self.id.get_ephemeral_timer(context).await?;
+            let ephemeral_timer = if msg.param.get_cmd() == SystemMessage::EphemeralTimerChanged {
+                EphemeralTimer::Disabled
+            } else {
+                self.id.get_ephemeral_timer(context).await?
+            };
             let ephemeral_timestamp = match ephemeral_timer {
                 EphemeralTimer::Disabled => 0,
                 EphemeralTimer::Enabled { duration } => timestamp + i64::from(duration),

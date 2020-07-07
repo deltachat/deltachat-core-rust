@@ -1562,7 +1562,9 @@ class TestOnlineAccount:
         system_message1 = ac2._evtracker.wait_next_incoming_message()
         assert chat2.get_ephemeral_timer() == 60
         assert system_message1.is_system_message()
-        assert "Ephemeral timer: 60\n" in system_message1.get_message_info()
+
+        # Disabled until markers are implemented
+        # assert "Ephemeral timer: 60\n" in system_message1.get_message_info()
 
         lp.sec("ac2: send message to ac1")
         sent_message = chat2.send_text("message")
