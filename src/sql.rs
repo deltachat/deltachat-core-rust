@@ -13,6 +13,7 @@ use crate::chat::{update_device_icon, update_saved_messages_icon};
 use crate::constants::{ShowEmails, DC_CHAT_ID_TRASH};
 use crate::context::Context;
 use crate::dc_tools::*;
+use crate::ephemeral::start_ephemeral_timers;
 use crate::param::*;
 use crate::peerstate::*;
 
@@ -566,6 +567,13 @@ pub async fn housekeeping(context: &Context) {
                 err
             );
         }
+    }
+
+    if let Err(err) = start_ephemeral_timers(context).await {
+        warn!(
+            context,
+            "Housekeeping: cannot start ephemeral timers: {}", err
+        );
     }
 
     if let Err(err) = prune_tombstones(context).await {

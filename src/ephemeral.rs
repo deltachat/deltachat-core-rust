@@ -64,7 +64,7 @@ use crate::context::Context;
 use crate::dc_tools::time;
 use crate::error::{ensure, Error};
 use crate::events::Event;
-use crate::message::{Message, MsgId};
+use crate::message::{Message, MessageState, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::sql;
 use crate::stock::StockMessage;
@@ -420,6 +420,36 @@ pub(crate) async fn load_imap_deletion_msgid(context: &Context) -> sql::Result<O
             |row| row.get::<_, MsgId>(0),
         )
         .await
+}
+
+/// Start ephemeral timers for seen messages if they are not started
+/// yet.
+///
+/// It is possible that timers are not started due to a missing or
+/// failed `MsgId.start_ephemeral_timer()` call, either in the current
+/// or previous version of Delta Chat.
+///
+/// This function is supposed to be called in the background,
+/// e.g. from housekeeping task.
+pub(crate) async fn start_ephemeral_timers(context: &Context) -> sql::Result<()> {
+    context
+        .sql
+        .execute(
+            "UPDATE msgs \
+    SET ephemeral_timestamp = ? + ephemeral_timer \
+    WHERE ephemeral_timer > 0 \
+    AND ephemeral_timestamp = 0 \
+    AND state NOT IN (?, ?, ?)",
+            paramsv![
+                time(),
+                MessageState::InFresh,
+                MessageState::InNoticed,
+                MessageState::OutDraft
+            ],
+        )
+        .await?;
+
+    Ok(())
 }
 
 #[cfg(test)]
