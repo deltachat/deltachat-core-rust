@@ -622,7 +622,7 @@ async fn add_parts(
     }
 
     // Extract ephemeral timer from the message.
-    let timer = if let Some(value) = mime_parser.get(HeaderDef::EphemeralTimer) {
+    let mut timer = if let Some(value) = mime_parser.get(HeaderDef::EphemeralTimer) {
         match value.parse::<EphemeralTimer>() {
             Ok(timer) => timer,
             Err(err) => {
@@ -658,6 +658,14 @@ async fn add_parts(
                         mime_parser,
                         stock_ephemeral_timer_changed(context, timer, from_id).await,
                     );
+
+                    // Do not delete the system message itself.
+                    //
+                    // This prevents confusion when timer is changed
+                    // to 1 week, and then changed to 1 hour: after 1
+                    // hour, only the message about the change to 1
+                    // week is left.
+                    timer = EphemeralTimer::Disabled;
                 } else {
                     chat::add_info_msg(
                         context,
