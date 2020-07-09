@@ -179,7 +179,7 @@ impl ChatId {
 
         context.emit_event(Event::ChatEphemeralTimerModified {
             chat_id: self,
-            timer: timer.to_u32(),
+            timer,
         });
         Ok(())
     }
