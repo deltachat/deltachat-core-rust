@@ -1,5 +1,18 @@
 # Changelog 
 
+## 1.40.0
+
+- introduce ephemeral messages #1540 #1680 #1683 #1684 #1691 #1692
+
+- `DC_MSG_ID_DAYMARKER` gets timestamp attached #1677 #1685
+
+- improve idle #1690 #1688
+
+- fix message processing issues by sequential processing #1694
+
+- refactorings #1670 #1673
+
+
 ## 1.39.0
 
 - fix handling of `mvbox_watch`, `sentbox_watch`, `inbox_watch` #1654 #1658
