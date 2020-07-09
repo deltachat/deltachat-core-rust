@@ -781,7 +781,6 @@ impl Imap {
         let mut last_uid = None;
         let mut count = 0;
 
-        let mut tasks = Vec::with_capacity(server_uids.len());
         while let Some(Ok(msg)) = msgs.next().await {
             let server_uid = msg.uid.unwrap_or_default();
 
@@ -801,31 +800,17 @@ impl Imap {
             let context = context.clone();
             let folder = folder.clone();
 
-            let task = async_std::task::spawn(async move {
-                // safe, as we checked above that there is a body.
-                let body = msg.body().unwrap();
-                let is_seen = msg.flags().any(|flag| flag == Flag::Seen);
+            // safe, as we checked above that there is a body.
+            let body = msg.body().unwrap();
+            let is_seen = msg.flags().any(|flag| flag == Flag::Seen);
 
-                match dc_receive_imf(&context, &body, &folder, server_uid, is_seen).await {
-                    Ok(_) => Some(server_uid),
-                    Err(err) => {
-                        warn!(context, "dc_receive_imf error: {}", err);
-                        None
-                    }
-                }
-            });
-            tasks.push(task);
-        }
-
-        for task in futures::future::join_all(tasks).await {
-            match task {
-                Some(uid) => {
-                    last_uid = Some(uid);
-                }
-                None => {
+            match dc_receive_imf(&context, &body, &folder, server_uid, is_seen).await {
+                Ok(_) => last_uid = Some(server_uid),
+                Err(err) => {
+                    warn!(context, "dc_receive_imf error: {}", err);
                     read_errors += 1;
                 }
-            }
+            };
         }
 
         if count != server_uids.len() {
