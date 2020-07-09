@@ -8,6 +8,8 @@
 
 - improve idle #1690 #1688
 
+- fix message processing issues by sequential processing #1694
+
 - refactorings #1670 #1673
 
 
