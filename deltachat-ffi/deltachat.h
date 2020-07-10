@@ -3027,6 +3027,32 @@ int             dc_msg_get_showpadlock        (const dc_msg_t* msg);
 
 
 /**
+ * Get ephemeral timer duration for message.
+ *
+ * To check if the timer is started and calculate remaining time,
+ * use dc_msg_get_ephemeral_timestamp().
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return Duration in seconds, or 0 if no timer is set.
+ */
+uint32_t        dc_msg_get_ephemeral_timer    (const dc_msg_t* msg);
+
+/**
+ * Get timestamp of ephemeral message removal.
+ *
+ * If returned value is non-zero, you can calculate the * fraction of
+ * time remaining by divinding the difference between the current timestamp
+ * and this timestamp by dc_msg_get_ephemeral_timer().
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return Time of message removal, 0 if the timer is not started.
+ */
+int64_t          dc_msg_get_ephemeral_timestamp (const dc_msg_t* msg);
+
+
+/**
  * Get a summary for a message.
  *
  * The summary is returned by a dc_lot_t object with the following fields:
