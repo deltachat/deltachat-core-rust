@@ -401,7 +401,7 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | Event::MsgRead { msg_id, .. } => msg_id.to_u32() as libc::c_int,
         Event::SecurejoinInviterProgress { progress, .. }
         | Event::SecurejoinJoinerProgress { progress, .. } => *progress as libc::c_int,
-        Event::ChatEphemeralTimerModified { timer, .. } => *timer as libc::c_int,
+        Event::ChatEphemeralTimerModified { timer, .. } => timer.to_u32() as libc::c_int,
     }
 }
 

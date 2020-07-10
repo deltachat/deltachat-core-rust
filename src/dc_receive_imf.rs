@@ -674,11 +674,6 @@ async fn add_parts(
                     )
                     .await;
                 }
-
-                context.emit_event(Event::ChatEphemeralTimerModified {
-                    chat_id: *chat_id,
-                    timer: timer.to_u32(),
-                });
             }
             Err(err) => {
                 warn!(

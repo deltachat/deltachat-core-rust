@@ -5,6 +5,7 @@ use async_std::sync::{channel, Receiver, Sender, TrySendError};
 use strum::EnumProperty;
 
 use crate::chat::ChatId;
+use crate::ephemeral::Timer as EphemeralTimer;
 use crate::message::MsgId;
 
 #[derive(Debug)]
@@ -197,7 +198,10 @@ pub enum Event {
 
     /// Chat ephemeral timer changed.
     #[strum(props(id = "2021"))]
-    ChatEphemeralTimerModified { chat_id: ChatId, timer: u32 },
+    ChatEphemeralTimerModified {
+        chat_id: ChatId,
+        timer: EphemeralTimer,
+    },
 
     /// Contact(s) created, renamed, blocked or deleted.
     ///
