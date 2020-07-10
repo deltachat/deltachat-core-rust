@@ -1154,7 +1154,7 @@ pub async fn star_msgs(context: &Context, msg_ids: Vec<MsgId>, star: bool) -> bo
         .is_ok()
 }
 
-/// Returns a summary test.
+/// Returns a summary text.
 pub async fn get_summarytext_by_raw(
     viewtype: Viewtype,
     text: Option<impl AsRef<str>>,
