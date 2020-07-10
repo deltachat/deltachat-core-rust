@@ -2676,6 +2676,26 @@ pub unsafe extern "C" fn dc_msg_get_showpadlock(msg: *mut dc_msg_t) -> libc::c_i
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_ephemeral_timer(msg: *mut dc_msg_t) -> u32 {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_get_ephemeral_timer()");
+        return 0;
+    }
+    let ffi_msg = &*msg;
+    ffi_msg.message.get_ephemeral_timer()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_ephemeral_timestamp(msg: *mut dc_msg_t) -> i64 {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_get_ephemeral_timer()");
+        return 0;
+    }
+    let ffi_msg = &*msg;
+    ffi_msg.message.get_ephemeral_timestamp()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_summary(
     msg: *mut dc_msg_t,
     chat: *mut dc_chat_t,

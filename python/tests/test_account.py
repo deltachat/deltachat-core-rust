@@ -1568,19 +1568,25 @@ class TestOnlineAccount:
 
         lp.sec("ac2: send message to ac1")
         sent_message = chat2.send_text("message")
+        assert sent_message.ephemeral_timer == 60
         assert "Ephemeral timer: 60\n" in sent_message.get_message_info()
 
         # Timer is started immediately for sent messages
+        assert sent_message.ephemeral_timestamp is not None
         assert "Expires: " in sent_message.get_message_info()
 
         lp.sec("ac1: waiting for message from ac2")
         text_message = ac1._evtracker.wait_next_incoming_message()
         assert text_message.text == "message"
+        assert text_message.ephemeral_timer == 60
         assert "Ephemeral timer: 60\n" in text_message.get_message_info()
 
         # Timer should not start until message is displayed
+        assert text_message.ephemeral_timestamp is None
         assert "Expires: " not in text_message.get_message_info()
         text_message.mark_seen()
+        text_message = ac1.get_message_by_id(text_message.id)
+        assert text_message.ephemeral_timestamp is not None
         assert "Expires: " in text_message.get_message_info()
 
         lp.sec("ac2: set ephemeral timer to 0")
@@ -1589,6 +1595,7 @@ class TestOnlineAccount:
         lp.sec("ac1: receive system message about ephemeral timer modification")
         ac1._evtracker.get_matching("DC_EVENT_CHAT_EPHEMERAL_TIMER_MODIFIED")
         system_message2 = ac1._evtracker.wait_next_incoming_message()
+        assert system_message2.ephemeral_timer is None
         assert "Ephemeral timer: " not in system_message2.get_message_info()
         assert chat1.get_ephemeral_timer() == 0
 

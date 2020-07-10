@@ -223,7 +223,7 @@ pub struct Message {
     pub(crate) timestamp_sort: i64,
     pub(crate) timestamp_sent: i64,
     pub(crate) timestamp_rcvd: i64,
-    pub(crate) ephemeral_timer: i64,
+    pub(crate) ephemeral_timer: u32,
     pub(crate) ephemeral_timestamp: i64,
     pub(crate) text: Option<String>,
     pub(crate) rfc724_mid: String,
@@ -491,6 +491,14 @@ impl Message {
 
     pub fn get_showpadlock(&self) -> bool {
         self.param.get_int(Param::GuaranteeE2ee).unwrap_or_default() != 0
+    }
+
+    pub fn get_ephemeral_timer(&self) -> u32 {
+        self.ephemeral_timer
+    }
+
+    pub fn get_ephemeral_timestamp(&self) -> i64 {
+        self.ephemeral_timestamp
     }
 
     pub async fn get_summary(&mut self, context: &Context, chat: Option<&Chat>) -> Lot {

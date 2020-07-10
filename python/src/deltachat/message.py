@@ -154,6 +154,26 @@ class Message(object):
         if ts:
             return datetime.utcfromtimestamp(ts)
 
+    @props.with_doc
+    def ephemeral_timer(self):
+        """Ephemeral timer in seconds
+
+        :returns: timer in seconds or None if there is no timer
+        """
+        timer = lib.dc_msg_get_ephemeral_timer(self._dc_msg)
+        if timer:
+            return timer
+
+    @props.with_doc
+    def ephemeral_timestamp(self):
+        """UTC time when the message will be deleted.
+
+        :returns: naive datetime.datetime() object or None if the timer is not started.
+        """
+        ts = lib.dc_msg_get_ephemeral_timestamp(self._dc_msg)
+        if ts:
+            return datetime.utcfromtimestamp(ts)
+
     def get_mime_headers(self):
         """ return mime-header object for an incoming message.
 
