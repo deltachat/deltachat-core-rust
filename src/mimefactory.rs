@@ -499,7 +499,16 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
         let e2ee_guaranteed = self.is_e2ee_guaranteed();
         let encrypt_helper = EncryptHelper::new(self.context).await?;
 
-        let subject = encode_words(&subject_str);
+        let subject = if subject_str
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == ' ')
+        // We do not use needs_encoding() here because needs_encoding() returns true if the string contains a space
+        // but we do not want to encode all subjects just because they contain a space.
+        {
+            subject_str
+        } else {
+            encode_words(&subject_str)
+        };
 
         let mut message = match self.loaded {
             Loaded::Message { .. } => {
