@@ -277,30 +277,30 @@ impl MimeMessage {
             return;
         }
 
-        if let Some(mut part_mut) = self.parts.pop() {
-            if part_mut.typ == Viewtype::Audio && self.get(HeaderDef::ChatVoiceMessage).is_some() {
-                part_mut.typ = Viewtype::Voice;
+        if let Some(mut part) = self.parts.pop() {
+            if part.typ == Viewtype::Audio && self.get(HeaderDef::ChatVoiceMessage).is_some() {
+                part.typ = Viewtype::Voice;
             }
-            if part_mut.typ == Viewtype::Image {
+            if part.typ == Viewtype::Image {
                 if let Some(value) = self.get(HeaderDef::ChatContent) {
                     if value == "sticker" {
-                        part_mut.typ = Viewtype::Sticker;
+                        part.typ = Viewtype::Sticker;
                     }
                 }
             }
-            if part_mut.typ == Viewtype::Audio
-                || part_mut.typ == Viewtype::Voice
-                || part_mut.typ == Viewtype::Video
+            if part.typ == Viewtype::Audio
+                || part.typ == Viewtype::Voice
+                || part.typ == Viewtype::Video
             {
                 if let Some(field_0) = self.get(HeaderDef::ChatDuration) {
                     let duration_ms = field_0.parse().unwrap_or_default();
                     if duration_ms > 0 && duration_ms < 24 * 60 * 60 * 1000 {
-                        part_mut.param.set_int(Param::Duration, duration_ms);
+                        part.param.set_int(Param::Duration, duration_ms);
                     }
                 }
             }
 
-            self.parts.push(part_mut);
+            self.parts.push(part);
         }
     }
 
