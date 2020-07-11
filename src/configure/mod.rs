@@ -558,7 +558,7 @@ async fn try_smtp_connections(
         return Ok(());
     }
     if was_autoconfig {
-        return Ok(());
+        bail!("No SMTP connection");
     }
     progress!(context, 850);
 

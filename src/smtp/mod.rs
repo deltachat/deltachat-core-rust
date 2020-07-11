@@ -181,7 +181,7 @@ impl Smtp {
                 .stock_string_repl_str2(
                     StockMessage::ServerResponse,
                     format!("SMTP {}:{}", domain, port),
-                    format!("{}, ({:?})", err.to_string(), err),
+                    err.to_string(),
                 )
                 .await;
 
