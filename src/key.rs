@@ -247,7 +247,7 @@ async fn generate_keypair(context: &Context) -> Result<KeyPair> {
             secret: SignedSecretKey::from_slice(&sec_bytes)?,
         }),
         Err(sql::Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => {
-            let start = std::time::Instant::now();
+            let start = std::time::SystemTime::now();
             let keytype = KeyGenType::from_i32(context.get_config_int(Config::KeyGenType).await)
                 .unwrap_or_default();
             info!(context, "Generating keypair with type {}", keytype);
@@ -258,7 +258,7 @@ async fn generate_keypair(context: &Context) -> Result<KeyPair> {
             info!(
                 context,
                 "Keypair generated in {:.3}s.",
-                start.elapsed().as_secs()
+                start.elapsed().unwrap_or_default().as_secs()
             );
             Ok(keypair)
         }

@@ -2,7 +2,7 @@
 
 pub mod send;
 
-use std::time::{Duration, Instant};
+use std::time::{Duration, SystemTime};
 
 use async_smtp::smtp::client::net::*;
 use async_smtp::*;
@@ -55,7 +55,7 @@ pub(crate) struct Smtp {
     /// Timestamp of last successful send/receive network interaction
     /// (eg connect or send succeeded). On initialization and disconnect
     /// it is set to None.
-    last_success: Option<Instant>,
+    last_success: Option<SystemTime>,
 }
 
 impl Smtp {
@@ -76,7 +76,11 @@ impl Smtp {
     /// have been successfully used the last 60 seconds
     pub async fn has_maybe_stale_connection(&self) -> bool {
         if let Some(last_success) = self.last_success {
-            Instant::now().duration_since(last_success).as_secs() > 60
+            SystemTime::now()
+                .duration_since(last_success)
+                .unwrap_or_default()
+                .as_secs()
+                > 60
         } else {
             false
         }
@@ -188,7 +192,7 @@ impl Smtp {
         }
 
         self.transport = Some(trans);
-        self.last_success = Some(Instant::now());
+        self.last_success = Some(SystemTime::now());
 
         context.emit_event(Event::SmtpConnected(format!(
             "SMTP-LOGIN as {} ok",
