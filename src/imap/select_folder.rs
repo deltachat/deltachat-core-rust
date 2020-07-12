@@ -51,6 +51,14 @@ impl Imap {
         Ok(())
     }
 
+    /// Issues a CLOSE command if selected folder needs expunge.
+    pub(crate) async fn maybe_close_folder(&mut self, context: &Context) -> Result<()> {
+        if self.config.selected_folder_needs_expunge {
+            self.close_folder(context).await?;
+        }
+        Ok(())
+    }
+
     /// select a folder, possibly update uid_validity and, if needed,
     /// expunge the folder to remove delete-marked messages.
     pub(super) async fn select_folder<S: AsRef<str>>(
@@ -76,10 +84,7 @@ impl Imap {
         }
 
         // deselect existing folder, if needed (it's also done implicitly by SELECT, however, without EXPUNGE then)
-        let needs_expunge = { self.config.selected_folder_needs_expunge };
-        if needs_expunge {
-            self.close_folder(context).await?;
-        }
+        self.maybe_close_folder(context).await?;
 
         // select new folder
         if let Some(ref folder) = folder {
