@@ -517,7 +517,7 @@ def test_basic_imap_api(acfactory, tmpdir):
 
     imap2 = ac2.direct_imap
 
-    ac2.direct_imap.idle_start()
+    imap2.idle_start()
     chat12.send_text("hello")
     ac2._evtracker.wait_next_incoming_message()
 
