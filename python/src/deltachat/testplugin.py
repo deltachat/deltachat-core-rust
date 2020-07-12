@@ -152,7 +152,7 @@ class SessionLiveConfigFromURL:
             assert index == len(self.configlist), index
             res = requests.post(self.url)
             if res.status_code != 200:
-                pytest.skip("creating newtmpuser failed {!r}".format(res))
+                pytest.skip("creating newtmpuser failed with code {}: '{}'".format(res.status_code, res.text))
             d = res.json()
             config = dict(addr=d["email"], mail_pw=d["password"])
             self.configlist.append(config)
