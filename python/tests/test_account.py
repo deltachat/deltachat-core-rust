@@ -1542,6 +1542,32 @@ class TestOnlineAccount:
         assert msg.is_encrypted(), "Message is not encrypted"
         assert msg.chat == ac2.create_chat(ac4)
 
+    @pytest.mark.xfail
+    def test_immediate_autodelete(self, acfactory, lp):
+        ac1 = acfactory.get_online_configuring_account()
+        ac2 = acfactory.get_online_configuring_account(mvbox=False, move=False, sentbox=False)
+
+        # "1" means delete immediately, while "0" means do not delete
+        ac2.set_config("delete_server_after", "1")
+
+        acfactory.wait_configure_and_start_io()
+
+        imap = ac2.direct_imap
+        imap.idle_start()
+
+        lp.sec("ac1: create chat with ac2")
+        chat1 = ac1.create_chat(ac2)
+        ac2.create_chat(ac1)
+
+        chat1.send_text("hello")
+        imap.idle_check(terminate=False)
+
+        msg = ac2._evtracker.wait_next_incoming_message()
+        assert msg.text == "hello"
+
+        imap.idle_check(terminate=True)
+        assert len(imap.get_all_messages()) == 0
+
     def test_ephemeral_timer(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
 
