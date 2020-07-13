@@ -837,6 +837,21 @@ mod tests {
         assert_eq!(bytes, key.to_asc(None).into_bytes());
     }
 
+    #[async_std::test]
+    async fn test_export_and_import_key() {
+        let context = TestContext::new().await;
+        context.configure_alice().await;
+        let blobdir = "$BLOBDIR";
+        assert!(imex(&context.ctx, ImexMode::ExportSelfKeys, Some(blobdir))
+            .await
+            .is_ok());
+
+        let blobdir = context.ctx.get_blobdir().to_str().unwrap();
+        assert!(imex(&context.ctx, ImexMode::ImportSelfKeys, Some(blobdir))
+            .await
+            .is_ok());
+    }
+
     #[test]
     fn test_normalize_setup_code() {
         let norm = normalize_setup_code("123422343234423452346234723482349234");
