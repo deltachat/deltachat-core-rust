@@ -46,7 +46,14 @@ pub struct MimeMessage {
     pub from: Vec<SingleInfo>,
     pub chat_disposition_notification_to: Option<SingleInfo>,
     pub decrypting_failed: bool,
+
+    /// Set of valid signature fingerprints if a message is an
+    /// Autocrypt encrypted and signed message.
+    ///
+    /// If a message is not encrypted or the signature is not valid,
+    /// this set is empty.
     pub signatures: HashSet<Fingerprint>,
+
     pub gossipped_addr: HashSet<String>,
     pub is_forwarded: bool,
     pub is_system_message: SystemMessage,
@@ -401,6 +408,11 @@ impl MimeMessage {
         }
     }
 
+    /// Returns true if the message was encrypted as defined in
+    /// Autocrypt standard.
+    ///
+    /// This means the message was both encrypted and signed with a
+    /// valid signature.
     pub fn was_encrypted(&self) -> bool {
         !self.signatures.is_empty()
     }

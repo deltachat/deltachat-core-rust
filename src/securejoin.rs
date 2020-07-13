@@ -1008,24 +1008,19 @@ fn encrypted_and_signed(
     if !mimeparser.was_encrypted() {
         warn!(context, "Message not encrypted.",);
         false
-    } else if mimeparser.signatures.is_empty() {
-        warn!(context, "Message not signed.",);
-        false
-    } else if expected_fingerprint.is_none() {
+    } else if let Some(expected_fingerprint) = expected_fingerprint {
+        if !mimeparser.signatures.contains(expected_fingerprint) {
+            warn!(
+                context,
+                "Message does not match expected fingerprint {}.", expected_fingerprint,
+            );
+            false
+        } else {
+            true
+        }
+    } else {
         warn!(context, "Fingerprint for comparison missing.");
         false
-    } else if !mimeparser
-        .signatures
-        .contains(expected_fingerprint.unwrap())
-    {
-        warn!(
-            context,
-            "Message does not match expected fingerprint {}.",
-            expected_fingerprint.unwrap(),
-        );
-        false
-    } else {
-        true
     }
 }
 
