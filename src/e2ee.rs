@@ -115,6 +115,12 @@ impl EncryptHelper {
     }
 }
 
+/// Tries to decrypt a message, but only if it is structured as an
+/// Autocrypt message, i.e.  encrypted and signed with a valid
+/// signature.
+///
+/// Returns decrypted body and a set of valid signature fingerprints
+/// if successful.
 pub async fn try_decrypt(
     context: &Context,
     mail: &ParsedMail<'_>,
