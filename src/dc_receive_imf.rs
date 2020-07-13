@@ -622,7 +622,7 @@ async fn add_parts(
     }
 
     // Extract ephemeral timer from the message.
-    let mut timer = if let Some(value) = mime_parser.get(HeaderDef::EphemeralTimer) {
+    let mut ephemeral_timer = if let Some(value) = mime_parser.get(HeaderDef::EphemeralTimer) {
         match value.parse::<EphemeralTimer>() {
             Ok(timer) => timer,
             Err(err) => {
@@ -649,14 +649,17 @@ async fn add_parts(
     if !*hidden
         && !location_kml_is
         && !is_mdn
-        && (*chat_id).get_ephemeral_timer(context).await? != timer
+        && (*chat_id).get_ephemeral_timer(context).await? != ephemeral_timer
     {
-        match (*chat_id).inner_set_ephemeral_timer(context, timer).await {
+        match (*chat_id)
+            .inner_set_ephemeral_timer(context, ephemeral_timer)
+            .await
+        {
             Ok(()) => {
                 if mime_parser.is_system_message == SystemMessage::EphemeralTimerChanged {
                     set_better_msg(
                         mime_parser,
-                        stock_ephemeral_timer_changed(context, timer, from_id).await,
+                        stock_ephemeral_timer_changed(context, ephemeral_timer, from_id).await,
                     );
 
                     // Do not delete the system message itself.
@@ -665,12 +668,12 @@ async fn add_parts(
                     // to 1 week, and then changed to 1 hour: after 1
                     // hour, only the message about the change to 1
                     // week is left.
-                    timer = EphemeralTimer::Disabled;
+                    ephemeral_timer = EphemeralTimer::Disabled;
                 } else {
                     chat::add_info_msg(
                         context,
                         *chat_id,
-                        stock_ephemeral_timer_changed(context, timer, from_id).await,
+                        stock_ephemeral_timer_changed(context, ephemeral_timer, from_id).await,
                     )
                     .await;
                 }
@@ -686,14 +689,9 @@ async fn add_parts(
 
     // correct message_timestamp, it should not be used before,
     // however, we cannot do this earlier as we need from_id to be set
+    let in_fresh = state == MessageState::InFresh;
     let rcvd_timestamp = time();
-    let sort_timestamp = calc_sort_timestamp(
-        context,
-        *sent_timestamp,
-        *chat_id,
-        state == MessageState::InFresh,
-    )
-    .await;
+    let sort_timestamp = calc_sort_timestamp(context, *sent_timestamp, *chat_id, in_fresh).await;
     *sent_timestamp = std::cmp::min(*sent_timestamp, rcvd_timestamp);
 
     // unarchive chat
@@ -745,8 +743,8 @@ async fn add_parts(
                     "INSERT INTO msgs \
          (rfc724_mid, server_folder, server_uid, chat_id, from_id, to_id, timestamp, \
          timestamp_sent, timestamp_rcvd, type, state, msgrmsg,  txt, txt_raw, param, \
-         bytes, hidden, mime_headers,  mime_in_reply_to, mime_references, error, ephemeral_timer) \
-         VALUES (?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?, ?,?);",
+         bytes, hidden, mime_headers,  mime_in_reply_to, mime_references, error, ephemeral_timer, ephemeral_timestamp) \
+         VALUES (?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?, ?,?,?);",
                 )?;
 
                 let is_location_kml = location_kml_is
@@ -767,6 +765,15 @@ async fn add_parts(
                 if is_system_message != SystemMessage::Unknown {
                     part.param.set_int(Param::Cmd, is_system_message as i32);
                 }
+
+                let ephemeral_timestamp = if in_fresh {
+                    0
+                } else {
+                    match ephemeral_timer {
+                        EphemeralTimer::Disabled => 0,
+                        EphemeralTimer::Enabled { duration } => rcvd_timestamp + i64::from(duration)
+                    }
+                };
 
                 stmt.execute(paramsv![
                     rfc724_mid,
@@ -791,7 +798,8 @@ async fn add_parts(
                     mime_in_reply_to,
                     mime_references,
                     part.error,
-                    timer
+                    ephemeral_timer,
+                    ephemeral_timestamp
                 ])?;
 
                 drop(stmt);
