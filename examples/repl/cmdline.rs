@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use anyhow::{bail, ensure};
 use async_std::path::Path;
-use deltachat::chat::{self, Chat, ChatId, ChatVisibility};
+use deltachat::chat::{self, Chat, ChatId, ChatItem, ChatVisibility};
 use deltachat::chatlist::*;
 use deltachat::constants::*;
 use deltachat::contact::*;
@@ -215,7 +215,7 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
 async fn log_msglist(context: &Context, msglist: &[MsgId]) -> Result<(), Error> {
     let mut lines_out = 0;
     for &msg_id in msglist {
-        if msg_id.is_daymarker() {
+        if msg_id == MsgId::new(DC_MSG_ID_DAYMARKER) {
             println!(
                 "--------------------------------------------------------------------------------"
             );
@@ -574,6 +574,15 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             let sel_chat = sel_chat.as_ref().unwrap();
 
             let msglist = chat::get_chat_msgs(&context, sel_chat.get_id(), 0x1, None).await;
+            let msglist: Vec<MsgId> = msglist
+                .into_iter()
+                .map(|x| match x {
+                    ChatItem::Message { msg_id } => msg_id,
+                    ChatItem::Marker1 => MsgId::new(DC_MSG_ID_MARKER1),
+                    ChatItem::DayMarker { .. } => MsgId::new(DC_MSG_ID_DAYMARKER),
+                })
+                .collect();
+
             let members = chat::get_chat_contacts(&context, sel_chat.id).await;
             let subtitle = if sel_chat.is_device_talk() {
                 "device-talk".to_string()
