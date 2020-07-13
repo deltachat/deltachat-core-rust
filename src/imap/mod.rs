@@ -28,7 +28,7 @@ use crate::mimeparser;
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::param::Params;
 use crate::provider::get_provider_info;
-use crate::{scheduler::InterruptInfo, stock::StockMessage};
+use crate::{chat, scheduler::InterruptInfo, stock::StockMessage};
 
 mod client;
 mod idle;
@@ -36,6 +36,7 @@ pub mod select_folder;
 mod session;
 
 use client::Client;
+use message::Message;
 use session::Session;
 
 type Result<T> = std::result::Result<T, Error>;
@@ -116,6 +117,7 @@ pub struct Imap {
     connected: bool,
     interrupt: Option<stop_token::StopSource>,
     should_reconnect: bool,
+    login_failed_once: bool,
 }
 
 #[derive(Debug)]
@@ -189,6 +191,7 @@ impl Imap {
             connected: Default::default(),
             interrupt: Default::default(),
             should_reconnect: Default::default(),
+            login_failed_once: Default::default(),
         }
     }
 
@@ -293,18 +296,40 @@ impl Imap {
                 // needs to be set here to ensure it is set on reconnects.
                 self.connected = true;
                 self.session = Some(session);
+                self.login_failed_once = false;
                 Ok(())
             }
+
             Err((err, _)) => {
                 let imap_user = self.config.imap_user.to_owned();
                 let message = context
                     .stock_string_repl_str(StockMessage::CannotLogin, &imap_user)
                     .await;
 
-                emit_event!(
-                    context,
-                    Event::ErrorNetwork(format!("{} ({})", message, err))
-                );
+                warn!(context, "{} ({})", message, err);
+                emit_event!(context, Event::ErrorNetwork(message.clone()));
+
+                let lock = context.wrong_pw_warning_mutex.lock().await;
+                if self.login_failed_once
+                    && context.get_config_bool(Config::NotifyAboutWrongPw).await
+                {
+                    if let Err(e) = context.set_config(Config::NotifyAboutWrongPw, None).await {
+                        warn!(context, "{}", e);
+                    }
+                    drop(lock);
+
+                    let mut msg = Message::new(Viewtype::Text);
+                    msg.text = Some(message);
+                    if let Err(e) =
+                        chat::add_device_msg_with_importance(context, None, Some(&mut msg), true)
+                            .await
+                    {
+                        warn!(context, "{}", e);
+                    }
+                } else {
+                    self.login_failed_once = true;
+                }
+
                 self.trigger_reconnect();
                 Err(Error::LoginFailed(format!("cannot login as {}", imap_user)))
             }

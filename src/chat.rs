@@ -2669,10 +2669,12 @@ pub(crate) async fn get_chat_id_by_grpid(
 /// Adds a message to device chat.
 ///
 /// Optional `label` can be provided to ensure that message is added only once.
-pub async fn add_device_msg(
+/// If `important` is true, a notification will be sent.
+pub async fn add_device_msg_with_importance(
     context: &Context,
     label: Option<&str>,
     msg: Option<&mut Message>,
+    important: bool,
 ) -> Result<MsgId, Error> {
     ensure!(
         label.is_some() || msg.is_some(),
@@ -2732,10 +2734,22 @@ pub async fn add_device_msg(
     }
 
     if !msg_id.is_unset() {
-        context.emit_event(Event::IncomingMsg { chat_id, msg_id });
+        if important {
+            context.emit_event(Event::IncomingMsg { chat_id, msg_id });
+        } else {
+            context.emit_event(Event::MsgsChanged { chat_id, msg_id });
+        }
     }
 
     Ok(msg_id)
+}
+
+pub async fn add_device_msg(
+    context: &Context,
+    label: Option<&str>,
+    msg: Option<&mut Message>,
+) -> Result<MsgId, Error> {
+    add_device_msg_with_importance(context, label, msg, false).await
 }
 
 pub async fn was_device_msg_ever_added(context: &Context, label: &str) -> Result<bool, Error> {

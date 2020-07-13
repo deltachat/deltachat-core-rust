@@ -70,6 +70,7 @@ impl Context {
 
         let mut param = LoginParam::from_database(self, "").await;
         let success = configure(self, &mut param).await;
+        self.set_config(Config::NotifyAboutWrongPw, None).await?;
 
         if let Some(provider) = provider::get_provider_info(&param.addr) {
             if let Some(config_defaults) = &provider.config_defaults {
@@ -100,11 +101,12 @@ impl Context {
 
         match success {
             Ok(_) => {
+                self.set_config(Config::NotifyAboutWrongPw, Some("1"))
+                    .await?;
                 progress!(self, 1000);
                 Ok(())
             }
             Err(err) => {
-                error!(self, "Configure Failed: {}", err);
                 progress!(self, 0);
                 Err(err)
             }
@@ -457,7 +459,10 @@ async fn try_imap_connections(
         .await
         .is_ok()
     {
-        return Ok(()); // we directly return here if it was autoconfig or the connection succeeded
+        return Ok(());
+    }
+    if was_autoconfig {
+        bail!("autoconfig did not succeed");
     }
 
     progress!(context, 670);
@@ -491,7 +496,7 @@ async fn try_imap_connection(
         return Ok(());
     }
     if was_autoconfig {
-        return Ok(());
+        bail!("autoconfig did not succeed");
     }
 
     progress!(context, 650 + variation * 30);
@@ -551,7 +556,7 @@ async fn try_smtp_connections(
         return Ok(());
     }
     if was_autoconfig {
-        return Ok(());
+        bail!("No SMTP connection");
     }
     progress!(context, 850);
 

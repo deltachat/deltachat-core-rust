@@ -130,7 +130,9 @@ pub enum StockMessage {
     ))]
     AcSetupMsgBody = 43,
 
-    #[strum(props(fallback = "Cannot login as %1$s."))]
+    #[strum(props(
+        fallback = "Cannot login as \"%1$s\". Please check if the email address and the password are correct."
+    ))]
     CannotLogin = 60,
 
     #[strum(props(fallback = "Could not connect to %1$s: %2$s"))]
