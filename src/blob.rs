@@ -168,6 +168,9 @@ impl<'a> BlobObject<'a> {
     /// subdirectory is used and [BlobObject::sanitise_name] does not
     /// modify the filename.
     ///
+    /// Paths into the blob directory may be either defined by an absolute path
+    /// or by the relative prefix `$BLOBDIR`.
+    ///
     /// # Errors
     ///
     /// This merely delegates to the [BlobObject::create_and_copy] and
@@ -179,6 +182,11 @@ impl<'a> BlobObject<'a> {
     ) -> std::result::Result<BlobObject<'_>, BlobError> {
         if src.as_ref().starts_with(context.get_blobdir()) {
             BlobObject::from_path(context, src)
+        } else if src.as_ref().starts_with("$BLOBDIR/") {
+            BlobObject::from_name(
+                context,
+                src.as_ref().to_str().unwrap_or_default().to_string(),
+            )
         } else {
             BlobObject::create_and_copy(context, src).await
         }
