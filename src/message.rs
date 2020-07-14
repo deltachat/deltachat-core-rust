@@ -6,6 +6,7 @@ use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 
 use crate::chat::{self, Chat, ChatId};
+use crate::config::Config;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::*;
@@ -66,6 +67,40 @@ impl MsgId {
     /// `true`.
     pub fn is_unset(self) -> bool {
         self.0 == 0
+    }
+
+    /// Returns message state.
+    pub async fn get_state(self, context: &Context) -> crate::sql::Result<MessageState> {
+        let result = context
+            .sql
+            .query_get_value_result("SELECT state FROM msgs WHERE id=?", paramsv![self])
+            .await?
+            .unwrap_or_default();
+        Ok(result)
+    }
+
+    /// Returns true if the message needs to be moved from `folder`.
+    pub async fn needs_move(self, context: &Context, folder: &str) -> Result<bool, Error> {
+        if !context.get_config_bool(Config::MvboxMove).await {
+            return Ok(false);
+        }
+
+        if context.is_mvbox(folder).await {
+            return Ok(false);
+        }
+
+        let msg = Message::load_from_db(context, self).await?;
+
+        if msg.is_setupmessage() {
+            // do not move setup messages;
+            // there may be a non-delta device that wants to handle it
+            return Ok(false);
+        }
+
+        match msg.is_dc_message {
+            MessengerMessage::No => Ok(false),
+            MessengerMessage::Yes | MessengerMessage::Reply => Ok(true),
+        }
     }
 
     /// Put message into trash chat and delete message text.

@@ -23,7 +23,7 @@ use crate::events::Event;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job::{self, Action};
 use crate::login_param::{CertificateChecks, LoginParam};
-use crate::message::{self, update_server_uid};
+use crate::message::{self, update_server_uid, MessageState};
 use crate::mimeparser;
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::param::Params;
@@ -1366,14 +1366,26 @@ async fn precheck_imf(
             let delete_server_after = context.get_config_delete_server_after().await;
 
             if delete_server_after != Some(0) {
-                context
-                    .do_heuristics_moves(server_folder.as_ref(), msg_id)
+                if msg_id
+                    .needs_move(context, server_folder)
+                    .await
+                    .unwrap_or_default()
+                {
+                    // If the bcc-self message is not moved, directly
+                    // add MarkSeen job, otherwise MarkSeen job is
+                    // added after the Move Job completed.
+                    job::add(
+                        context,
+                        job::Job::new(Action::MoveMsg, msg_id.to_u32(), Params::new(), 0),
+                    )
                     .await;
-                job::add(
-                    context,
-                    job::Job::new(Action::MarkseenMsgOnImap, msg_id.to_u32(), Params::new(), 0),
-                )
-                .await;
+                } else {
+                    job::add(
+                        context,
+                        job::Job::new(Action::MarkseenMsgOnImap, msg_id.to_u32(), Params::new(), 0),
+                    )
+                    .await;
+                }
             }
         } else if old_server_folder != server_folder {
             info!(
@@ -1408,6 +1420,13 @@ async fn precheck_imf(
 
         if old_server_folder != server_folder || old_server_uid != server_uid {
             update_server_uid(context, rfc724_mid, server_folder, server_uid).await;
+            if let Ok(MessageState::InSeen) = msg_id.get_state(context).await {
+                job::add(
+                    context,
+                    job::Job::new(Action::MarkseenMsgOnImap, msg_id.to_u32(), Params::new(), 0),
+                )
+                .await;
+            };
             context
                 .interrupt_inbox(InterruptInfo::new(false, Some(msg_id)))
                 .await;

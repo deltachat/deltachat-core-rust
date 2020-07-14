@@ -1542,7 +1542,6 @@ class TestOnlineAccount:
         assert msg.is_encrypted(), "Message is not encrypted"
         assert msg.chat == ac2.create_chat(ac4)
 
-    @pytest.mark.xfail
     def test_immediate_autodelete(self, acfactory, lp):
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.get_online_configuring_account(mvbox=False, move=False, sentbox=False)
