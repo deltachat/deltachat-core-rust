@@ -800,6 +800,20 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                     "ephemeral-timer-changed".to_string(),
                 ));
             }
+            SystemMessage::LocationOnly => {
+                // This should prevent automatic replies,
+                // such as non-delivery reports.
+                //
+                // See https://tools.ietf.org/html/rfc3834
+                //
+                // Adding this header without encryption leaks some
+                // information about the message contents, but it can
+                // already be easily guessed from message timing and size.
+                unprotected_headers.push(Header::new(
+                    "Auto-Submitted".to_string(),
+                    "auto-generated".to_string(),
+                ));
+            }
             SystemMessage::AutocryptSetupMessage => {
                 unprotected_headers
                     .push(Header::new("Autocrypt-Setup-Message".into(), "v1".into()));
