@@ -1089,21 +1089,36 @@ async fn set_block_contact(context: &Context, contact_id: u32, new_blocking: boo
     }
 }
 
+/// Set profile image for a contact.
+///
+/// The given profile image is expected to be already in the blob directory
+/// as profile images can be set only by receiving messages, this should be always the case, however.
+///
+/// For contact SELF, the image is not saved in the contact-database but as Config::Selfavatar;
+/// this typically happens if we see message with our own profile image, sent from another device.
 pub(crate) async fn set_profile_image(
     context: &Context,
     contact_id: u32,
     profile_image: &AvatarAction,
 ) -> Result<()> {
-    // the given profile image is expected to be already in the blob directory
-    // as profile images can be set only by receiving messages, this should be always the case, however.
     let mut contact = Contact::load_from_db(context, contact_id).await?;
     let changed = match profile_image {
         AvatarAction::Change(profile_image) => {
-            contact.param.set(Param::ProfileImage, profile_image);
+            if contact_id == DC_CONTACT_ID_SELF {
+                context
+                    .set_config(Config::Selfavatar, Some(profile_image))
+                    .await?;
+            } else {
+                contact.param.set(Param::ProfileImage, profile_image);
+            }
             true
         }
         AvatarAction::Delete => {
-            contact.param.remove(Param::ProfileImage);
+            if contact_id == DC_CONTACT_ID_SELF {
+                context.set_config(Config::Selfavatar, None).await?;
+            } else {
+                contact.param.remove(Param::ProfileImage);
+            }
             true
         }
     };
