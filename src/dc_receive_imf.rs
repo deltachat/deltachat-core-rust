@@ -224,24 +224,29 @@ pub async fn dc_receive_imf(
                 )
                 .await;
             }
-        } else {
+        } else if insert_msg_id
+            .needs_move(context, server_folder.as_ref())
+            .await
+            .unwrap_or_default()
+        {
             // Move message if we don't delete it immediately.
-            context
-                .do_heuristics_moves(server_folder.as_ref(), insert_msg_id)
-                .await;
-            if !mime_parser.mdn_reports.is_empty() && mime_parser.has_chat_version() {
-                // This is a Delta Chat MDN. Mark as read.
-                job::add(
-                    context,
-                    job::Job::new(
-                        Action::MarkseenMsgOnImap,
-                        insert_msg_id.to_u32(),
-                        Params::new(),
-                        0,
-                    ),
-                )
-                .await;
-            }
+            job::add(
+                context,
+                job::Job::new(Action::MoveMsg, insert_msg_id.to_u32(), Params::new(), 0),
+            )
+            .await;
+        } else if !mime_parser.mdn_reports.is_empty() && mime_parser.has_chat_version() {
+            // This is a Delta Chat MDN. Mark as read.
+            job::add(
+                context,
+                job::Job::new(
+                    Action::MarkseenMsgOnImap,
+                    insert_msg_id.to_u32(),
+                    Params::new(),
+                    0,
+                ),
+            )
+            .await;
         }
     }
 

@@ -639,7 +639,21 @@ impl Job {
         let msg = job_try!(Message::load_from_db(context, MsgId::new(self.foreign_id)).await);
 
         let folder = msg.server_folder.as_ref().unwrap();
-        match imap.set_seen(context, folder, msg.server_uid).await {
+
+        let result = if msg.server_uid == 0 {
+            // The message is moved or deleted by us.
+            //
+            // Do not call set_seen with zero UID, as it will return
+            // ImapActionResult::RetryLater, but we do not want to
+            // retry. If the message was moved, we will create another
+            // job to mark the message as seen later. If it was
+            // deleted, there is nothing to do.
+            ImapActionResult::Failed
+        } else {
+            imap.set_seen(context, folder, msg.server_uid).await
+        };
+
+        match result {
             ImapActionResult::RetryLater => Status::RetryLater,
             ImapActionResult::AlreadyDone => Status::Finished(Ok(())),
             ImapActionResult::Success | ImapActionResult::Failed => {

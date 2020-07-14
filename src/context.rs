@@ -15,12 +15,10 @@ use crate::contact::*;
 use crate::dc_tools::duration_to_str;
 use crate::error::*;
 use crate::events::{Event, EventEmitter, Events};
-use crate::job::{self, Action};
 use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;
 use crate::lot::Lot;
-use crate::message::{self, Message, MessengerMessage, MsgId};
-use crate::param::Params;
+use crate::message::{self, MsgId};
 use crate::scheduler::Scheduler;
 use crate::sql::Sql;
 use std::time::SystemTime;
@@ -459,34 +457,6 @@ impl Context {
     pub async fn is_mvbox(&self, folder_name: impl AsRef<str>) -> bool {
         self.get_config(Config::ConfiguredMvboxFolder).await
             == Some(folder_name.as_ref().to_string())
-    }
-
-    pub async fn do_heuristics_moves(&self, folder: &str, msg_id: MsgId) {
-        if !self.get_config_bool(Config::MvboxMove).await {
-            return;
-        }
-
-        if self.is_mvbox(folder).await {
-            return;
-        }
-        if let Ok(msg) = Message::load_from_db(self, msg_id).await {
-            if msg.is_setupmessage() {
-                // do not move setup messages;
-                // there may be a non-delta device that wants to handle it
-                return;
-            }
-
-            match msg.is_dc_message {
-                MessengerMessage::No => {}
-                MessengerMessage::Yes | MessengerMessage::Reply => {
-                    job::add(
-                        self,
-                        job::Job::new(Action::MoveMsg, msg.id.to_u32(), Params::new(), 0),
-                    )
-                    .await;
-                }
-            }
-        }
     }
 }
 
