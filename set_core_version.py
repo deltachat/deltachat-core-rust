@@ -5,19 +5,29 @@ import sys
 import re
 import pathlib
 import subprocess
+from argparse import ArgumentParser
 
 rex = re.compile(r'version = "(\S+)"')
 
-def read_toml_version(relpath):
+
+def regex_matches(relpath, regex=rex):
     p = pathlib.Path(relpath)
     assert p.exists()
     for line in open(str(p)):
-        m = rex.match(line)
+        m = regex.match(line)
         if m is not None:
-            return m.group(1)
+            return m
+
+
+def read_toml_version(relpath):
+    res = regex_matches(relpath, rex)
+    if res is not None:
+        return res.group(1)
     raise ValueError("no version found in {}".format(relpath))
 
-def replace_toml_version(relpath, newversion):
+
+def replace_toml_version_and_lto(relpath, newversion):
+    lto_rex = re.compile(r'#?\s*lto =.*')
     p = pathlib.Path(relpath)
     assert p.exists()
     tmp_path = str(p) + "_tmp"
@@ -25,18 +35,32 @@ def replace_toml_version(relpath, newversion):
         for line in open(str(p)):
             m = rex.match(line)
             if m is not None:
+                print("{}: set version={}".format(relpath, newversion))
                 f.write('version = "{}"\n'.format(newversion))
             else:
+                m = lto_rex.match(line)
+                if m:
+                    print("{}: setting lto = true".format(relpath))
+                    line = "lto = true\n"
                 f.write(line)
     os.rename(tmp_path, str(p))
 
-if __name__ == "__main__":
 
-    if len(sys.argv) < 2:
-        for x in ("Cargo.toml", "deltachat-ffi/Cargo.toml"):
+def main():
+    parser = ArgumentParser(prog="set_core_version")
+    parser.add_argument("newversion")
+
+    toml_list = ["Cargo.toml", "deltachat-ffi/Cargo.toml"]
+    try:
+        opts = parser.parse_args()
+    except SystemExit:
+        print()
+        for x in toml_list:
             print("{}: {}".format(x, read_toml_version(x)))
+        print()
         raise SystemExit("need argument: new version, example: 1.25.0")
-    newversion = sys.argv[1]
+
+    newversion = opts.newversion
     if newversion.count(".") < 2:
         raise SystemExit("need at least two dots in version")
 
@@ -52,10 +76,13 @@ if __name__ == "__main__":
     else:
         raise SystemExit("CHANGELOG.md contains no entry for version: {}".format(newversion))
 
-    replace_toml_version("Cargo.toml", newversion)
-    replace_toml_version("deltachat-ffi/Cargo.toml", newversion)
+    replace_toml_version_and_lto("Cargo.toml", newversion)
+    replace_toml_version_and_lto("deltachat-ffi/Cargo.toml", newversion)
 
+    print("running cargo check")
     subprocess.call(["cargo", "check"])
+
+    print("adding changes to git index")
     subprocess.call(["git", "add", "-u"])
     # subprocess.call(["cargo", "update", "-p", "deltachat"])
 
@@ -63,3 +90,8 @@ if __name__ == "__main__":
     print("")
     print("   git tag {}".format(newversion))
     print("")
+
+
+if __name__ == "__main__":
+    main()
+
