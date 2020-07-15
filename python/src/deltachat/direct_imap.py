@@ -159,9 +159,9 @@ class DirectImap:
             log("---------", imapfolder, len(messages), "messages ---------")
             # get message content without auto-marking it as seen
             # fetching 'RFC822' would mark it as seen.
-            requested = [b'BODY.PEEK[HEADER]', FLAGS]
+            requested = [b'BODY.PEEK[]', FLAGS]
             for uid, data in self.conn.fetch(messages, requested).items():
-                body_bytes = data[b'BODY[HEADER]']
+                body_bytes = data[b'BODY[]']
                 if not body_bytes:
                     log("Message", uid, "has empty body")
                     continue
