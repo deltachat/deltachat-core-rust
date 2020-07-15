@@ -69,11 +69,11 @@ def test_group_tracking_plugin(acfactory, lp):
 
     lp.sec("now looking at what the bot received")
     botproc.fnmatch_lines("""
-        *ac_member_added {}*
-    """.format(contact3.addr))
+        *ac_member_added {}*from*{}*
+    """.format(contact3.addr, ac1.get_config("addr")))
 
     lp.sec("contact successfully added, now removing")
     ch.remove_contact(contact3)
     botproc.fnmatch_lines("""
-        *ac_member_removed {}*
-    """.format(contact3.addr))
+        *ac_member_removed {}*from*{}*
+    """.format(contact3.addr, ac1.get_config("addr")))
