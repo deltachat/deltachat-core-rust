@@ -1100,14 +1100,19 @@ pub(crate) async fn set_profile_image(
     context: &Context,
     contact_id: u32,
     profile_image: &AvatarAction,
+    was_encrypted: bool,
 ) -> Result<()> {
     let mut contact = Contact::load_from_db(context, contact_id).await?;
     let changed = match profile_image {
         AvatarAction::Change(profile_image) => {
             if contact_id == DC_CONTACT_ID_SELF {
-                context
-                    .set_config(Config::Selfavatar, Some(profile_image))
-                    .await?;
+                if was_encrypted {
+                    context
+                        .set_config(Config::Selfavatar, Some(profile_image))
+                        .await?;
+                } else {
+                    info!(context, "Do not use unencrypted selfavatar.");
+                }
             } else {
                 contact.param.set(Param::ProfileImage, profile_image);
             }
@@ -1115,7 +1120,11 @@ pub(crate) async fn set_profile_image(
         }
         AvatarAction::Delete => {
             if contact_id == DC_CONTACT_ID_SELF {
-                context.set_config(Config::Selfavatar, None).await?;
+                if was_encrypted {
+                    context.set_config(Config::Selfavatar, None).await?;
+                } else {
+                    info!(context, "Do not use unencrypted selfavatar deletion.");
+                }
             } else {
                 contact.param.remove(Param::ProfileImage);
             }
