@@ -162,6 +162,10 @@ class DirectImap:
             requested = [b'BODY.PEEK[HEADER]', FLAGS]
             for uid, data in self.conn.fetch(messages, requested).items():
                 body_bytes = data[b'BODY[HEADER]']
+                if not body_bytes:
+                    log("Message", uid, "has empty body")
+                    continue
+
                 flags = data[FLAGS]
                 path = pathlib.Path(str(dir)).joinpath("IMAP", self.logid, imapfolder)
                 path.mkdir(parents=True, exist_ok=True)

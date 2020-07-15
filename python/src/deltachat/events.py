@@ -139,6 +139,7 @@ class EventThread(threading.Thread):
         self.account = account
         super(EventThread, self).__init__(name="events")
         self.setDaemon(True)
+        self._marked_for_shutdown = False
         self.start()
 
     @contextmanager
@@ -146,6 +147,9 @@ class EventThread(threading.Thread):
         self.account.log(message + " START")
         yield
         self.account.log(message + " FINISHED")
+
+    def mark_shutdown(self):
+        self._marked_for_shutdown = True
 
     def wait(self):
         if self == threading.current_thread():
@@ -164,9 +168,11 @@ class EventThread(threading.Thread):
             lib.dc_get_event_emitter(self.account._dc_context),
             lib.dc_event_emitter_unref,
         )
-        while 1:
+        while not self._marked_for_shutdown:
             event = lib.dc_get_next_event(event_emitter)
             if event == ffi.NULL:
+                break
+            if self._marked_for_shutdown:
                 break
             evt = lib.dc_event_get_id(event)
             data1 = lib.dc_event_get_data1_int(event)
