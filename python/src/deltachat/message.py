@@ -1,6 +1,7 @@
 """ The Message object. """
 
 import os
+import re
 from . import props
 from .cutil import from_dc_charpointer, as_dc_charpointer
 from .capi import lib, ffi
@@ -356,20 +357,37 @@ def get_viewtype_code_from_name(view_type_name):
 def map_system_message(msg):
     if msg.is_system_message():
         res = parse_system_add_remove(msg.text)
-        if res:
-            contact = msg.account.get_contact_by_addr(res[1])
-            if contact:
-                d = dict(chat=msg.chat, contact=contact, message=msg)
-                return "ac_member_" + res[0], d
+        if not res:
+            return
+        action, affected, actor = res
+        affected = msg.account.get_contact_by_addr(affected)
+        if actor == "me":
+            actor = None
+        else:
+            actor = msg.account.get_contact_by_addr(actor)
+        d = dict(chat=msg.chat, contact=affected, actor=actor, message=msg)
+        return "ac_member_" + res[0], d
+
+
+def extract_addr(text):
+    m = re.match(r'.*\((.+@.+)\)', text)
+    if m:
+        text = m.group(1)
+    text = text.rstrip(".")
+    return text
 
 
 def parse_system_add_remove(text):
+    """ return add/remove info from parsing the given system message text.
+
+    returns a (action, affected, actor) triple """
+
     # Member Me (x@y) removed by a@b.
-    # Member x@y removed by a@b
+    # Member x@y added by a@b
+    # Member With space (tmp1@x.org) removed by tmp2@x.org.
+    # Member With space (tmp1@x.org) removed by Another member (tmp2@x.org).",
     text = text.lower()
-    parts = text.split()
-    if parts[0] == "member":
-        if parts[2] in ("removed", "added"):
-            return parts[2], parts[1]
-        if parts[3] in ("removed", "added"):
-            return parts[3], parts[2].strip("()")
+    m = re.match(r'member (.+) (removed|added) by (.+)', text)
+    if m:
+        affected, action, actor = m.groups()
+        return action, extract_addr(affected), extract_addr(actor)
