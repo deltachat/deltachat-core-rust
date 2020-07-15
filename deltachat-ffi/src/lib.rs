@@ -2320,6 +2320,23 @@ pub unsafe extern "C" fn dc_chat_get_visibility(chat: *mut dc_chat_t) -> libc::c
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_chat_get_summary(
+    context: *mut dc_context_t,
+    chat: *mut dc_chat_t,
+) -> *mut dc_lot_t {
+    if chat.is_null() {
+        eprintln!("ignoring careless call to dc_chat_get_summary()");
+        return ptr::null_mut();
+    }
+    let ffi_chat = &*chat;
+    let ctx = &*context;
+    block_on(async move {
+        let lot = ffi_chat.chat.get_summary(&ctx).await;
+        Box::into_raw(Box::new(lot))
+    })
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_chat_is_unpromoted(chat: *mut dc_chat_t) -> libc::c_int {
     if chat.is_null() {
         eprintln!("ignoring careless call to dc_chat_is_unpromoted()");

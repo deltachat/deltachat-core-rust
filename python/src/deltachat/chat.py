@@ -5,7 +5,7 @@ import calendar
 import json
 from datetime import datetime
 import os
-from .cutil import as_dc_charpointer, from_dc_charpointer, iter_array
+from .cutil import as_dc_charpointer, from_dc_charpointer, iter_array, DCLot
 from .capi import lib, ffi
 from . import const
 from .message import Message
@@ -343,6 +343,11 @@ class Chat(object):
         dc_res = lib.dc_chat_get_info_json(self.account._dc_context, self.id)
         s = from_dc_charpointer(dc_res)
         return json.loads(s)
+
+    def get_summary_lot(self):
+        """ return summary lot of chat (used for displaying last message in a chatlist)"""
+        lot = lib.dc_chat_get_summary(self.account._dc_context, self._dc_chat)
+        return DCLot(lot)
 
     # ------  group management API ------------------------------
 

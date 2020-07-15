@@ -23,7 +23,7 @@ use crate::message::{self, InvalidMsgId, Message, MessageState, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::param::*;
 use crate::sql;
-use crate::stock::StockMessage;
+use crate::{lot::Lot, stock::StockMessage};
 
 /// An chat item, such as a message or a marker.
 #[derive(Debug, Copy, Clone)]
@@ -732,6 +732,65 @@ impl Chat {
             is_muted: self.is_muted(),
             ephemeral_timer: self.id.get_ephemeral_timer(context).await?,
         })
+    }
+
+    /// Version of get_summary that just needs the chat no chatlist required
+    pub async fn get_summary(&self, context: &Context) -> Lot {
+        // The summary is created by the chat, not by the last message.
+        // This is because we may want to display drafts here or stuff as
+        // "is typing".
+        // Also, sth. as "No messages" would not work if the summary comes from a message.
+        let mut ret = Lot::new();
+
+        let lastmsg_id = context
+            .sql
+            .query_row(
+                concat!(
+                    "SELECT id, chat_id",
+                    " FROM msgs",
+                    " WHERE chat_id = ?",
+                    " ORDER BY id DESC",
+                    " LIMIT 1"
+                ),
+                paramsv![self.id],
+                |row| {
+                    let msg_id: MsgId = row.get("id")?;
+                    Ok(msg_id)
+                },
+            )
+            .await
+            .unwrap_or_default();
+
+        let mut lastcontact = None;
+
+        let lastmsg = if let Ok(lastmsg) = Message::load_from_db(context, lastmsg_id).await {
+            if lastmsg.from_id != DC_CONTACT_ID_SELF
+                && (self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup)
+            {
+                lastcontact = Contact::load_from_db(context, lastmsg.from_id).await.ok();
+            }
+
+            Some(lastmsg)
+        } else {
+            None
+        };
+
+        if self.id.is_archived_link() {
+            ret.text2 = None;
+        } else if lastmsg.is_none() || lastmsg.as_ref().unwrap().from_id == DC_CONTACT_ID_UNDEFINED
+        {
+            ret.text2 = Some(
+                context
+                    .stock_str(StockMessage::NoMessages)
+                    .await
+                    .to_string(),
+            );
+        } else {
+            ret.fill(&mut lastmsg.unwrap(), self, lastcontact.as_ref(), context)
+                .await;
+        }
+
+        ret
     }
 
     pub fn get_visibility(&self) -> ChatVisibility {
@@ -3496,5 +3555,21 @@ mod tests {
         msg.set_text(Some("hello".to_string()));
         chat_id.set_draft(&t.ctx, Some(&mut msg)).await;
         assert!(!chat_id.parent_is_encrypted(&t.ctx).await.unwrap());
+    }
+
+    #[async_std::test]
+    async fn test_get_summary_unwrap() {
+        let t = TestContext::new().await;
+        let chat_id1 = create_group_chat(&t.ctx, VerifiedStatus::Unverified, "a chat")
+            .await
+            .unwrap();
+
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text(Some("foo:\nbar \r\n test".to_string()));
+        chat_id1.set_draft(&t.ctx, Some(&mut msg)).await;
+
+        let chat = Chat::load_from_db(&t.ctx, chat_id1).await.unwrap();
+        let summary = chat.get_summary(&t.ctx).await;
+        assert_eq!(summary.get_text2().unwrap(), "foo: bar test"); // the linebreak should be removed from summary
     }
 }

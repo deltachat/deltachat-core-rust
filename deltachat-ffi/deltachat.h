@@ -2440,6 +2440,32 @@ dc_context_t*    dc_chatlist_get_context     (dc_chatlist_t* chatlist);
 
 
 /**
+ * Get a summary for a chat (same as dc_chatlist_get_summary only without the chatlist).
+ *
+ * The summary is returned by a dc_lot_t object with the following fields:
+ *
+ * - dc_lot_t::text1: contains the username or the strings "Me", "Draft" and so on.
+ *   The string may be colored by having a look at text1_meaning.
+ *   If there is no such name or it should not be displayed, the element is NULL.
+ *
+ * - dc_lot_t::text1_meaning: one of DC_TEXT1_USERNAME, DC_TEXT1_SELF or DC_TEXT1_DRAFT.
+ *   Typically used to show dc_lot_t::text1 with different colors. 0 if not applicable.
+ *
+ * - dc_lot_t::text2: contains an excerpt of the message text or strings as
+ *   "No messages".  May be NULL of there is no such text (eg. for the archive link)
+ *
+ * - dc_lot_t::timestamp: the timestamp of the message.  0 if not applicable.
+ *
+ * - dc_lot_t::state: The state of the message as one of the DC_STATE_* constants (see #dc_msg_get_state()).  0 if not applicable.
+ *
+ * @memberof dc_chat_t
+ * @param context
+ * @param chat The chat object.
+ * @return The summary as an dc_lot_t object. Must be freed using dc_lot_unref().  NULL is never returned.
+ */
+dc_lot_t*        dc_chat_get_summary     (dc_context_t* context, dc_chat_t* chat);
+
+/**
  * Get info summary for a chat, in json format.
  *
  * The returned json string has the following key/values:
