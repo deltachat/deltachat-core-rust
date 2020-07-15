@@ -615,8 +615,14 @@ class Account(object):
         # the following wait is left out for now because it can fail if
         # a) python code holds an extra self._dc_context reference
         # b) the core does not manage to send a NULL through get_next_event()
-        # self.log("wait for event thread to finish")
-        # self._event_thread.wait()
+        self.log("wait for event thread to finish")
+        try:
+            self._event_thread.wait(timeout=2)
+        except RuntimeError as e:
+            self.log("Could not wait for thread: {}".format(e))
+
+        if self._event_thread.is_alive():
+            self.log("WARN: event thread did not terminate")
 
         self._shutdown_event.set()
 

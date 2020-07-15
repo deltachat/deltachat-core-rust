@@ -234,7 +234,9 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             ac.addr = ac.get_self_contact().addr
             ac.set_config("displayname", logid)
             if not quiet:
-                ac.add_account_plugin(FFIEventLogger(ac))
+                logger = FFIEventLogger(ac)
+                logger.init_time = self.init_time
+                ac.add_account_plugin(logger)
             self._accounts.append(ac)
             return ac
 
@@ -245,7 +247,6 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             self.offline_count += 1
             tmpdb = tmpdir.join("offlinedb%d" % self.offline_count)
             ac = self.make_account(tmpdb.strpath, logid="ac{}".format(self.offline_count))
-            ac._evtracker.init_time = self.init_time
             ac._evtracker.set_timeout(2)
             return ac
 

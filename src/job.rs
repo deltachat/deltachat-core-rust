@@ -978,7 +978,7 @@ async fn perform_job_action(
 
     info!(
         context,
-        "Inbox finished immediate try {} of job {}", tries, job
+        "Finished immediate try {} of job {}", tries, job
     );
 
     try_res
