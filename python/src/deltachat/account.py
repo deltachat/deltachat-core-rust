@@ -609,10 +609,14 @@ class Account(object):
         self.log("remove dc_context references")
         # the dc_context_unref triggers get_next_event to return ffi.NULL
         # which in turns makes the event thread finish execution
+        self._event_thread.mark_shutdown()
         self._dc_context = None
 
-        self.log("wait for event thread to finish")
-        self._event_thread.wait()
+        # the following wait is left out for now because it can fail if
+        # a) python code holds an extra self._dc_context reference
+        # b) the core does not manage to send a NULL through get_next_event()
+        # self.log("wait for event thread to finish")
+        # self._event_thread.wait()
 
         self._shutdown_event.set()
 
