@@ -197,7 +197,14 @@ pub async fn dc_receive_imf(
     }
 
     if let Some(avatar_action) = &mime_parser.user_avatar {
-        match contact::set_profile_image(&context, from_id, avatar_action).await {
+        match contact::set_profile_image(
+            &context,
+            from_id,
+            avatar_action,
+            mime_parser.was_encrypted(),
+        )
+        .await
+        {
             Ok(()) => {
                 context.emit_event(Event::ChatModified(chat_id));
             }
