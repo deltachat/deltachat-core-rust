@@ -449,27 +449,33 @@ async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) ->
         "***IMPORT-in-progress: total_files_cnt={:?}", total_files_cnt,
     );
 
-    let files = context
+    // Load IDs only for now, without the file contents, to avoid
+    // consuming too much memory.
+    let file_ids = context
         .sql
         .query_map(
-            "SELECT file_name, file_content FROM backup_blobs ORDER BY id;",
+            "SELECT id FROM backup_blobs ORDER BY id",
             paramsv![],
-            |row| {
-                let name: String = row.get(0)?;
-                let blob: Vec<u8> = row.get(1)?;
-
-                Ok((name, blob))
-            },
-            |files| {
-                files
-                    .collect::<std::result::Result<Vec<_>, _>>()
+            |row| row.get(0),
+            |ids| {
+                ids.collect::<std::result::Result<Vec<i64>, _>>()
                     .map_err(Into::into)
             },
         )
         .await?;
 
     let mut all_files_extracted = true;
-    for (processed_files_cnt, (file_name, file_blob)) in files.into_iter().enumerate() {
+    for (processed_files_cnt, file_id) in file_ids.into_iter().enumerate() {
+        // Load a single blob into memory
+        let (file_name, file_blob) = context
+            .sql
+            .query_row(
+                "SELECT file_name, file_content FROM backup_blobs WHERE id = ?",
+                paramsv![file_id],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)),
+            )
+            .await?;
+
         if context.shall_stop_ongoing().await {
             all_files_extracted = false;
             break;
