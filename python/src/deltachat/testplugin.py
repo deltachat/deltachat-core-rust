@@ -231,6 +231,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
         def make_account(self, path, logid, quiet=False):
             ac = Account(path, logging=self._logging)
             ac._evtracker = ac.add_account_plugin(FFIEventTracker(ac))
+            ac._evtracker.set_timeout(30)
             ac.addr = ac.get_self_contact().addr
             ac.set_config("displayname", logid)
             if not quiet:
@@ -246,9 +247,7 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
         def get_unconfigured_account(self):
             self.offline_count += 1
             tmpdb = tmpdir.join("offlinedb%d" % self.offline_count)
-            ac = self.make_account(tmpdb.strpath, logid="ac{}".format(self.offline_count))
-            ac._evtracker.set_timeout(2)
-            return ac
+            return self.make_account(tmpdb.strpath, logid="ac{}".format(self.offline_count))
 
         def _preconfigure_key(self, account, addr):
             # Only set a key if we haven't used it yet for another account.
@@ -291,8 +290,6 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             ac = self.make_account(tmpdb.strpath, logid="ac{}".format(self.live_count), quiet=quiet)
             if pre_generated_key:
                 self._preconfigure_key(ac, configdict['addr'])
-            ac._evtracker.init_time = self.init_time
-            ac._evtracker.set_timeout(30)
             return ac, dict(configdict)
 
         def get_online_configuring_account(self, mvbox=False, sentbox=False, move=False,
@@ -333,8 +330,6 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             ac = self.make_account(tmpdb.strpath, logid="ac{}".format(self.live_count))
             if pre_generated_key:
                 self._preconfigure_key(ac, account.get_config("addr"))
-            ac._evtracker.init_time = self.init_time
-            ac._evtracker.set_timeout(30)
             ac.update_config(dict(
                 addr=account.get_config("addr"),
                 mail_pw=account.get_config("mail_pw"),
