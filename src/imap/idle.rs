@@ -52,6 +52,14 @@ impl Imap {
         let mut info = Default::default();
 
         if let Some(session) = self.session.take() {
+            // if we have unsolicited responses we directly return
+            if let Ok(res) = session.unsolicited_responses.try_recv() {
+                warn!(context, "skip idle, got unsolicited response {:?}", res);
+                self.session = Some(session);
+                return Ok(info);
+            }
+
+
             let mut handle = session.idle();
             if let Err(err) = handle.init().await {
                 return Err(Error::IdleProtocolFailed(err));
@@ -75,8 +83,8 @@ impl Imap {
             });
 
             match fut.await {
-                Ok(Event::IdleResponse(IdleResponse::NewData(_))) => {
-                    info!(context, "Idle has NewData");
+                Ok(Event::IdleResponse(IdleResponse::NewData(x))) => {
+                    info!(context, "Idle has NewData {:?}", x);
                 }
                 Ok(Event::IdleResponse(IdleResponse::Timeout)) => {
                     info!(context, "Idle-wait timeout or interruption");
