@@ -5,7 +5,7 @@
     clippy::all,
     clippy::indexing_slicing
 )]
-#![allow(clippy::match_bool)]
+#![allow(clippy::match_bool, clippy::eval_order_dependence)]
 
 #[macro_use]
 extern crate num_derive;

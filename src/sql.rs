@@ -601,13 +601,10 @@ fn is_file_in_use(files_in_use: &HashSet<String>, namespc_opt: Option<&str>, nam
     files_in_use.contains(name_to_check)
 }
 
-#[allow(clippy::indexing_slicing)] // TODO: use str.strip_prefix once it is released in stable
 fn maybe_add_file(files_in_use: &mut HashSet<String>, file: impl AsRef<str>) {
-    if !file.as_ref().starts_with("$BLOBDIR/") {
-        return;
+    if let Some(file) = file.as_ref().strip_prefix("$BLOBDIR/") {
+        files_in_use.insert(file.to_string());
     }
-
-    files_in_use.insert(file.as_ref()[9..].into());
 }
 
 async fn maybe_add_from_param(
