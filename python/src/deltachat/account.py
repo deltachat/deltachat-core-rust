@@ -607,22 +607,24 @@ class Account(object):
         self.stop_io()
 
         self.log("remove dc_context references")
-        # the dc_context_unref triggers get_next_event to return ffi.NULL
-        # which in turns makes the event thread finish execution
+
+        # if _dc_context is unref'ed the event thread should quickly
+        # receive the termination signal. However, some python code might
+        # still hold a reference and so we use a secondary signal
+        # to make sure the even thread terminates if it receives any new
+        # event, indepedently from waiting for the core to send NULL to
+        # get_next_event().
         self._event_thread.mark_shutdown()
         self._dc_context = None
 
-        # the following wait is left out for now because it can fail if
-        # a) python code holds an extra self._dc_context reference
-        # b) the core does not manage to send a NULL through get_next_event()
         self.log("wait for event thread to finish")
         try:
             self._event_thread.wait(timeout=2)
         except RuntimeError as e:
-            self.log("Could not wait for thread: {}".format(e))
+            self.log("Waiting for event thread failed: {}".format(e))
 
         if self._event_thread.is_alive():
-            self.log("WARN: event thread did not terminate")
+            self.log("WARN: event thread did not terminate yet, ignoring.")
 
         self._shutdown_event.set()
 
