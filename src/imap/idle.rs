@@ -1,6 +1,7 @@
 use super::Imap;
 
 use async_imap::extensions::idle::IdleResponse;
+use async_imap::types::UnsolicitedResponse;
 use async_std::prelude::*;
 use std::time::{Duration, SystemTime};
 
@@ -53,12 +54,21 @@ impl Imap {
 
         if let Some(session) = self.session.take() {
             // if we have unsolicited responses we directly return
-            if let Ok(res) = session.unsolicited_responses.try_recv() {
-                warn!(context, "skip idle, got unsolicited response {:?}", res);
+            let mut unsolicited_exists = false;
+            while let Ok(response) = session.unsolicited_responses.try_recv() {
+                match response {
+                    UnsolicitedResponse::Exists(_) => {
+                        warn!(context, "skip idle, got unsolicited EXISTS {:?}", response);
+                        unsolicited_exists = true;
+                    }
+                    _ => info!(context, "ignoring unsolicited response {:?}", response),
+                }
+            }
+
+            if unsolicited_exists {
                 self.session = Some(session);
                 return Ok(info);
             }
-
 
             let mut handle = session.idle();
             if let Err(err) = handle.init().await {
