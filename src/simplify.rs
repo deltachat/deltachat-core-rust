@@ -6,10 +6,9 @@
 // this escapes a bit more than actually needed by delta (eg. also lines as "-- footer"),
 // but for non-delta-compatibility, that seems to be better.
 // (to be only compatible with delta, only "[\r\n|\n]-- {0,2}[\r\n|\n]" needs to be replaced)
-#[allow(clippy::indexing_slicing)]
 pub fn escape_message_footer_marks(text: &str) -> String {
-    if text.starts_with("--") {
-        "-\u{200B}-".to_string() + &text[2..].replace("\n--", "\n-\u{200B}-")
+    if let Some(text) = text.strip_prefix("--") {
+        "-\u{200B}-".to_string() + &text.replace("\n--", "\n-\u{200B}-")
     } else {
         text.replace("\n--", "\n-\u{200B}-")
     }
