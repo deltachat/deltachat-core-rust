@@ -86,11 +86,11 @@ class FFIEventTracker:
             if rex.match(ev.name):
                 return ev
 
-    def get_info_matching(self, regex):
-        rex = re.compile("(?:{}).*".format(regex))
+    def get_info_contains(self, regex):
+        rex = re.compile(regex)
         while 1:
             ev = self.get_matching("DC_EVENT_INFO")
-            if rex.match(ev.data2):
+            if rex.search(ev.data2):
                 return ev
 
     def ensure_event_not_queued(self, event_name_regex):

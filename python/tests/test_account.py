@@ -1551,21 +1551,23 @@ class TestOnlineAccount:
 
         acfactory.wait_configure_and_start_io()
 
-        imap = ac2.direct_imap
-        imap.idle_start()
+        imap2 = ac2.direct_imap
+        imap2.idle_start()
 
         lp.sec("ac1: create chat with ac2")
         chat1 = ac1.create_chat(ac2)
         ac2.create_chat(ac1)
 
         sent_msg = chat1.send_text("hello")
-        imap.idle_check(terminate=False)
+        imap2.idle_check(terminate=False)
 
         msg = ac2._evtracker.wait_next_incoming_message()
         assert msg.text == "hello"
 
-        imap.idle_check(terminate=True)
-        assert len(imap.get_all_messages()) == 0
+        imap2.idle_check(terminate=True)
+        ac2._evtracker.get_info_contains("close/expunge succeeded")
+
+        assert len(imap2.get_all_messages()) == 0
 
         # Mark deleted message as seen and check that read receipt arrives
         msg.mark_seen()

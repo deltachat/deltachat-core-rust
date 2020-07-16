@@ -196,6 +196,7 @@ class DirectImap:
             raise TimeoutError
         if terminate:
             self.idle_done()
+        self.account.log("imap-direct: idle_check returned {!r}".format(res))
         return res
 
     def idle_wait_for_seen(self):
