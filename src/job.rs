@@ -976,10 +976,7 @@ async fn perform_job_action(
         }
     };
 
-    info!(
-        context,
-        "Finished immediate try {} of job {}", tries, job
-    );
+    info!(context, "Finished immediate try {} of job {}", tries, job);
 
     try_res
 }
