@@ -1577,8 +1577,6 @@ class TestOnlineAccount:
 
     def test_ephemeral_timer(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
-        ac1.set_config("e2ee_enabled", "0")
-        ac2.set_config("e2ee_enabled", "0")
 
         lp.sec("ac1: create chat with ac2")
         chat1 = ac1.create_chat(ac2)
