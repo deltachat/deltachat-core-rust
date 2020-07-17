@@ -1,5 +1,7 @@
-0.900.0 (DRAFT)
+1.40.0
 ---------------
+
+- uses latest 1.40+ Delta Chat core
 
 - refactored internals to use plugin-approach 
 
@@ -9,6 +11,7 @@
 
 - introduced two documented examples for an echo and a group-membership
   tracking plugin. 
+
 
 0.800.0
 -------
