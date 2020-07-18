@@ -7,76 +7,14 @@ which implements IMAP/SMTP/MIME/PGP e-mail standards and offers
 a low-level Chat/Contact/Message API to user interfaces and bots.
 
 
-Installing bindings from source (Updated: 20-Jan-2020)
-=========================================================
-
-Install Rust and Cargo first.  Deltachat needs a specific nightly
-version, the easiest is probably to first install Rust stable from
-rustup and then use this to install the correct nightly version.
-
-Bootstrap Rust and Cargo by using rustup::
-
-   curl https://sh.rustup.rs -sSf | sh
-
-Then GIT clone the deltachat-core-rust repo and get the actual
-rust- and cargo-toolchain needed by deltachat::
-
-   git clone https://github.com/deltachat/deltachat-core-rust
-   cd deltachat-core-rust
-   rustup show
-
-To install the Delta Chat Python bindings make sure you have Python3 installed.
-E.g. on Debian-based systems `apt install python3 python3-pip
-python3-venv` should give you a usable python installation.
-
-Ensure you are in the deltachat-core-rust/python directory, create the
-virtual environment and activate it in your shell::
-
-   cd python
-   python3 -m venv venv  # or: virtualenv venv
-   source venv/bin/activate
-
-You should now be able to build the python bindings using the supplied script::
-
-   ./install_python_bindings.py
-
-The installation might take a while, depending on your machine.
-The bindings will be installed in release mode but with debug symbols.
-The release mode is currently necessary because some tests generate RSA keys
-which is prohibitively slow in non-release mode.
-
-After successful binding installation you can install a few more
-Python packages before running the tests::
-
-    python -m pip install pytest pytest-timeout pytest-rerunfailures requests
-    pytest -v tests
-
-
-running "live" tests with temporary accounts
----------------------------------------------
-
-If you want to run "liveconfig" functional tests you can set
-``DCC_NEW_TMP_EMAIL`` to:
-
-- a particular https-url that you can ask for from the delta
-  chat devs. This is implemented on the server side via
-  the [mailadm](https://github.com/deltachat/mailadm) command line tool.
-
-- or the path of a file that contains two lines, each describing
-  via "addr=... mail_pw=..." a test account login that will
-  be used for the live tests.
-
-With ``DCC_NEW_TMP_EMAIL`` set pytest invocations will use real
-e-mail accounts and run through all functional "liveconfig" tests.
-
-
 Installing pre-built packages (Linux-only)
 ========================================================
 
 If you have a Linux system you may try to install the ``deltachat`` binary "wheel" packages
-without any "build-from-source" steps.
+without any "build-from-source" steps. Otherwise you need to `compile the Delta Chat bindings
+yourself <sourceinstall>`_.
 
-We suggest to `Install virtualenv <https://virtualenv.pypa.io/en/stable/installation/>`_,
+We recommend to first `install virtualenv <https://virtualenv.pypa.io/en/stable/installation/>`_,
 then create a fresh Python virtual environment and activate it in your shell::
 
         virtualenv venv  # or: python -m venv
@@ -101,6 +39,79 @@ To verify it worked::
     If you can help to automate the building of wheels for Mac or Windows,
     that'd be much appreciated! please then get
     `in contact with us <https://delta.chat/en/contribute>`_.
+
+
+Running tests
+=============
+
+After successful binding installation you can install a few more
+Python packages before running the tests::
+
+    python -m pip install pytest pytest-xdist pytest-timeout pytest-rerunfailures requests
+    pytest -v tests
+
+This will run all "offline" tests and skip all functional
+end-to-end tests that require accounts on real e-mail servers.
+
+.. _livetests:
+
+running "live" tests with temporary accounts
+---------------------------------------------
+
+If you want to run live functional tests you can set ``DCC_NEW_TMP_EMAIL``::
+
+    export DCC_NEW_TMP_EMAIL=https://testrun.org/new_email?t=1h_4w4r8h7y9nmcdsy
+
+With this, pytest runs create ephemeral e-mail accounts on the http://testrun.org server.
+These accounts exists for one 1hour and then are removed completely.
+One hour is enough to invoke pytest and run all offline and online tests:
+
+    pytest
+
+    # or if you have installed pytest-xdist for parallel test execution
+    pytest -n6
+
+Each test run creates new accounts.
+
+
+.. _sourceinstall:
+
+Installing bindings from source (Updated: July 2020)
+=========================================================
+
+Install Rust and Cargo first.  Deltachat needs a specific nightly
+version, the easiest is probably to first install Rust stable from
+rustup and then use this to install the correct nightly version.
+
+Bootstrap Rust and Cargo by using rustup::
+
+   curl https://sh.rustup.rs -sSf | sh
+
+Then clone the deltachat-core-rust repo::
+
+   git clone https://github.com/deltachat/deltachat-core-rust
+   cd deltachat-core-rust
+
+To install the Delta Chat Python bindings make sure you have Python3 installed.
+E.g. on Debian-based systems `apt install python3 python3-pip
+python3-venv` should give you a usable python installation.
+
+Ensure you are in the deltachat-core-rust/python directory, create the
+virtual environment and activate it in your shell::
+
+   cd python
+   python3 -m venv venv  # or: virtualenv venv
+   source venv/bin/activate
+
+You should now be able to build the python bindings using the supplied script::
+
+   python install_python_bindings.py
+
+The core compilation and bindings building might take a while,
+depending on the speed of your machine.
+The bindings will be installed in release mode but with debug symbols.
+The release mode is currently necessary because some tests generate RSA keys
+which is prohibitively slow in non-release mode.
 
 
 Code examples
