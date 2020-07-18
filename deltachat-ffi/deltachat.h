@@ -318,10 +318,11 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    The library uses the `media_quality` setting to use different defaults
  *                    for recoding images sent with type DC_MSG_IMAGE.
  *                    If needed, recoding other file types is up to the UI.
- * - `basic_web_rtc_instance` = address and token to webrtc signaling server (https://github.com/cracker0dks/basicwebrtc)
- *                    that should be used for calls
- *                    Format: https://example.com/subdir?token=TOKEN
- *                    The other properties that are needed for a call such as the roomname will be set in the anchor part of the url.
+ * - `basic_web_rtc_instance` = address to webrtc signaling server (https://github.com/cracker0dks/basicwebrtc)
+ *                    that should be used for opening video hangouts.
+ *                    This property is only used in the UIs not by the core itself.
+ *                    Format: https://example.com/subdir
+ *                    The other properties that are needed for a call such as the roomname will be set by the client in the anchor part of the url.
  *
  * If you want to retrieve a value, use dc_get_config().
  *
