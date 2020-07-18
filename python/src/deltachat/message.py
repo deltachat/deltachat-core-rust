@@ -374,7 +374,7 @@ def extract_addr(text):
     if m:
         text = m.group(1)
     text = text.rstrip(".")
-    return text
+    return text.strip()
 
 
 def parse_system_add_remove(text):
@@ -386,8 +386,14 @@ def parse_system_add_remove(text):
     # Member x@y added by a@b
     # Member With space (tmp1@x.org) removed by tmp2@x.org.
     # Member With space (tmp1@x.org) removed by Another member (tmp2@x.org).",
+    # Group left by some one (tmp1@x.org).
+    # Group left by tmp1@x.org.
     text = text.lower()
     m = re.match(r'member (.+) (removed|added) by (.+)', text)
     if m:
         affected, action, actor = m.groups()
         return action, extract_addr(affected), extract_addr(actor)
+    if text.startswith("group left by "):
+        addr = extract_addr(text[13:])
+        if addr:
+            return "removed", addr, addr
