@@ -19,10 +19,10 @@ fn main() {
         include_str!("deltachat.pc.in"),
         name = "deltachat",
         description = env::var("CARGO_PKG_DESCRIPTION").unwrap(),
-        url = env::var("CARGO_PKG_HOMEPAGE").unwrap_or("".to_string()),
+        url = env::var("CARGO_PKG_HOMEPAGE").unwrap_or_else(|_| "".to_string()),
         version = env::var("CARGO_PKG_VERSION").unwrap(),
         libs_priv = libs_priv,
-        prefix = env::var("PREFIX").unwrap_or("/usr/local".to_string()),
+        prefix = env::var("PREFIX").unwrap_or_else(|_| "/usr/local".to_string()),
     );
 
     fs::create_dir_all(target_path.join("pkgconfig")).unwrap();
