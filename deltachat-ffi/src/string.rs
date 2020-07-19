@@ -105,8 +105,9 @@ impl<T: AsRef<std::ffi::OsStr>> OsStrExt for T {
     #[cfg(not(target_os = "windows"))]
     fn to_c_string(&self) -> Result<CString, CStringError> {
         use std::os::unix::ffi::OsStrExt;
-        CString::new(self.as_ref().as_bytes()).map_err(|err| match err {
-            std::ffi::NulError { .. } => CStringError::InteriorNullByte,
+        CString::new(self.as_ref().as_bytes()).map_err(|err| {
+            let std::ffi::NulError { .. } = err;
+            CStringError::InteriorNullByte
         })
     }
 
@@ -122,8 +123,9 @@ fn os_str_to_c_string_unicode(
     os_str: &dyn AsRef<std::ffi::OsStr>,
 ) -> Result<CString, CStringError> {
     match os_str.as_ref().to_str() {
-        Some(val) => CString::new(val.as_bytes()).map_err(|err| match err {
-            std::ffi::NulError { .. } => CStringError::InteriorNullByte,
+        Some(val) => CString::new(val.as_bytes()).map_err(|err| {
+            let std::ffi::NulError { .. } = err;
+            CStringError::InteriorNullByte
         }),
         None => Err(CStringError::NotUnicode),
     }
