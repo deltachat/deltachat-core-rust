@@ -128,7 +128,7 @@ pub enum Config {
     /// This property is only used in the UIs not by the core itself.
     /// Format: https://example.com/subdir
     /// The other properties that are needed for a call such as the roomname will be set by the client in the anchor part of the url.
-    BasicWebRTCInstance,
+    BasicWebrtcInstance,
 }
 
 impl Context {

@@ -318,7 +318,7 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    The library uses the `media_quality` setting to use different defaults
  *                    for recoding images sent with type DC_MSG_IMAGE.
  *                    If needed, recoding other file types is up to the UI.
- * - `basic_web_rtc_instance` = address to webrtc signaling server (https://github.com/cracker0dks/basicwebrtc)
+ * - `basic_webrtc_instance` = address to webrtc signaling server (https://github.com/cracker0dks/basicwebrtc)
  *                    that should be used for opening video hangouts.
  *                    This property is only used in the UIs not by the core itself.
  *                    Format: https://example.com/subdir
@@ -842,7 +842,7 @@ uint32_t        dc_send_text_msg             (dc_context_t* context, uint32_t ch
 /**
  * Send invitation to a videochat.
  *
- * This function reads the `basic_web_rtc_instance` config value,
+ * This function reads the `basic_webrtc_instance` config value,
  * may check that the server is working in some way
  * and creates a unique room for this chat, if needed doing a TOKEN roundtrip for that.
  *
