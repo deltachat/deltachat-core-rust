@@ -16,6 +16,6 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK 1
 ADD deps/build_python.sh /builder/build_python.sh
 RUN mkdir tmp1 && cd tmp1 && bash /builder/build_python.sh && cd .. && rm -r tmp1
 
-# Install Rust nightly
+# Install Rust
 ADD deps/build_rust.sh /builder/build_rust.sh
 RUN mkdir tmp1 && cd tmp1 && bash /builder/build_rust.sh && cd .. && rm -r tmp1

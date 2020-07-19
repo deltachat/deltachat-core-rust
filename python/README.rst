@@ -79,9 +79,8 @@ Each test run creates new accounts.
 Installing bindings from source (Updated: July 2020)
 =========================================================
 
-Install Rust and Cargo first.  Deltachat needs a specific nightly
-version, the easiest is probably to first install Rust stable from
-rustup and then use this to install the correct nightly version.
+Install Rust and Cargo first.
+The easiest is probably to use `rustup <https://rustup.rs/>`_.
 
 Bootstrap Rust and Cargo by using rustup::
 
