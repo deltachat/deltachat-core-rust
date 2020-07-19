@@ -854,7 +854,7 @@ uint32_t        dc_send_text_msg             (dc_context_t* context, uint32_t ch
  *
  * - delta-clients can get all information needed from
  *   the message object, using eg.
- *   dc_msg_is_videochat_invitation(), dc_msg_get_videochat_url()
+ *   dc_msg_get_videochat_url() and check dc_msg_get_viewtype() for DC_MSG_VIDEOCHAT_INVITATION
  *
  * dc_send_videochat_invitation() is blocking and may take a while,
  * so the UIs will typically call the function from within a thread.
@@ -864,8 +864,7 @@ uint32_t        dc_send_text_msg             (dc_context_t* context, uint32_t ch
  * As for other messages sent, this function
  * sends the event #DC_EVENT_MSGS_CHANGED on succcess, the message has a delivery state, and so on.
  * The recipient will get noticed by the call as usual by DC_EVENT_INCOMING_MSG or DC_EVENT_MSGS_CHANGED,
- * depending on dc_msg_is_videochat_invitation(), however, UIs might some things differently,
- * eg. play a different sound.
+ * However, UIs might some things differently, eg. play a different sound.
  *
  * @param context The context object.
  * @param chat_id The chat to start a videochat for.
@@ -3277,25 +3276,10 @@ char*           dc_msg_get_setupcodebegin     (const dc_msg_t* msg);
 
 
 /**
- * Check if the message is a videochat invitation.
- *
- * Typically, such messages are rendered differently by the UIs,
- * if so, they should contain a button to join the videochat.
- * The url for joining can be retrieved using dc_msg_get_videochat_url().
- *
- * @param msg The message object.
- * @return Tristate, 0=message is no videochat invitation,
- *     1=message is a videochat invitation that should be handled by a supported browser,
- *     2=message is a videochat invitation that can be handled internally or by a supported browser.
- */
-int dc_msg_is_videochat_invitation (const dc_msg_t* msg);
-
-
-/**
  * Get url of a videochat invitation.
  *
- * Videochat invitations are send out using dc_send_videochat_invitation()
- * and you can check the state of a message using dc_msg_is_videochat_invitation().
+ * Videochat invitations are sent out using dc_send_videochat_invitation()
+ * and dc_msg_get_viewtype() returns #DC_MSG_VIDEOCHAT_INVITATION for such invitations.
  *
  * @param msg The message object.
  * @return If the message contains a videochat invitation,
@@ -3304,6 +3288,23 @@ int dc_msg_is_videochat_invitation (const dc_msg_t* msg);
  *     Must be released using dc_str_unref() when done.
  */
 char* dc_msg_get_videochat_url (const dc_msg_t* msg);
+
+
+/**
+ * Check if the videochat can be handled internally.
+ * If "basic webrtc" as of https://github.com/cracker0dks/basicwebrtc is used to initiate the videochat,
+ * this is returned by dc_msg_is_basic_videochat().
+ * "basic webrtc" videochat may be processed natively by the app
+ * whereas for other urls just the browser is opened.
+ *
+ * The videochat-url can be retrieved using dc_msg_get_videochat_url().
+ * To check if a message is a videochat invitation at all, check the message type for #DC_MSG_VIDEOCHAT_INVITATION.
+ *
+ * @param msg The message object.
+ * @return 0=message is no videochat invitation or cannot be handled internally
+ *     1=message is a videochat invitation that can be handled internally or by a supported browser.
+ */
+int dc_msg_is_basic_videochat (const dc_msg_t* msg);
 
 
 /**
@@ -3840,6 +3841,18 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * and retrieved via dc_msg_get_file().
  */
 #define DC_MSG_FILE      60
+
+
+/**
+ * Message indicating an incoming or outgoing videochat.
+ * The message was created via dc_send_videochat_invitation() on this or a remote device.
+ *
+ * Typically, such messages are rendered differently by the UIs,
+ * eg. contain a button to join the videochat.
+ * The url for joining can be retrieved using dc_msg_get_videochat_url().
+ */
+#define DC_MSG_VIDEOCHAT_INVITATION 70
+
 
 /**
  * @}
