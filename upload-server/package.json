@@ -1,0 +1,13 @@
+{
+  "name": "deltachat-upload-server",
+  "version": "1.0.0",
+  "main": "server.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "base32": "^0.0.6",
+    "express": "^4.17.1"
+  }
+}

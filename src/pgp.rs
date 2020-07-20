@@ -10,6 +10,7 @@ use pgp::composed::{
     SignedPublicSubKey, SignedSecretKey, SubkeyParamsBuilder,
 };
 use pgp::crypto::{HashAlgorithm, SymmetricKeyAlgorithm};
+use pgp::ser::Serialize;
 use pgp::types::{
     CompressionAlgorithm, KeyTrait, Mpi, PublicKeyTrait, SecretKeyTrait, StringToKey,
 };
@@ -335,8 +336,22 @@ pub async fn pk_decrypt(
     }
 }
 
-/// Symmetric encryption.
+/// Symmetric encryption with armored base64 text output.
 pub async fn symm_encrypt(passphrase: &str, plain: &[u8]) -> Result<String> {
+    let message = symm_encrypt_to_message(passphrase, plain).await?;
+    let encoded_msg = message.to_armored_string(None)?;
+    Ok(encoded_msg)
+}
+
+/// Symmetric encryption with binary output.
+pub async fn symm_encrypt_bytes(passphrase: &str, plain: &[u8]) -> Result<Vec<u8>> {
+    let message = symm_encrypt_to_message(passphrase, plain).await?;
+    let mut buf = Vec::new();
+    message.to_writer(&mut buf)?;
+    Ok(buf)
+}
+
+async fn symm_encrypt_to_message(passphrase: &str, plain: &[u8]) -> Result<Message> {
     let lit_msg = Message::new_literal_bytes("", plain);
     let passphrase = passphrase.to_string();
 
@@ -345,24 +360,33 @@ pub async fn symm_encrypt(passphrase: &str, plain: &[u8]) -> Result<String> {
         let s2k = StringToKey::new_default(&mut rng);
         let msg =
             lit_msg.encrypt_with_password(&mut rng, s2k, Default::default(), || passphrase)?;
-
-        let encoded_msg = msg.to_armored_string(None)?;
-
-        Ok(encoded_msg)
+        Ok(msg)
     })
     .await
 }
 
-/// Symmetric decryption.
+/// Symmetric decryption from armored text.
 pub async fn symm_decrypt<T: std::io::Read + std::io::Seek>(
     passphrase: &str,
     ctext: T,
 ) -> Result<Vec<u8>> {
     let (enc_msg, _) = Message::from_armor_single(ctext)?;
+    symm_decrypt_from_message(enc_msg, passphrase).await
+}
 
+/// Symmetric decryption from bytes.
+pub async fn symm_decrypt_bytes<T: std::io::Read + std::io::Seek>(
+    passphrase: &str,
+    cbytes: T,
+) -> Result<Vec<u8>> {
+    let enc_msg = Message::from_bytes(cbytes)?;
+    symm_decrypt_from_message(enc_msg, passphrase).await
+}
+
+async fn symm_decrypt_from_message(message: Message, passphrase: &str) -> Result<Vec<u8>> {
     let passphrase = passphrase.to_string();
     async_std::task::spawn_blocking(move || {
-        let decryptor = enc_msg.decrypt_with_password(|| passphrase)?;
+        let decryptor = message.decrypt_with_password(|| passphrase)?;
 
         let msgs = decryptor.collect::<pgp::errors::Result<Vec<_>>>()?;
         if let Some(msg) = msgs.first() {

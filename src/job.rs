@@ -3,6 +3,7 @@
 //! This module implements a job queue maintained in the SQLite database
 //! and job types.
 
+use std::env;
 use std::fmt;
 use std::future::Future;
 
@@ -32,6 +33,7 @@ use crate::message::{self, Message, MessageState};
 use crate::mimefactory::MimeFactory;
 use crate::param::*;
 use crate::smtp::Smtp;
+use crate::upload::{download_message_file, generate_upload_url, upload_file};
 use crate::{scheduler::InterruptInfo, sql};
 
 // results in ~3 weeks for the last backoff timespan
@@ -108,6 +110,8 @@ pub enum Action {
     MaybeSendLocationsEnded = 5007,
     SendMdn = 5010,
     SendMsgToSmtp = 5901, // ... high priority
+
+    DownloadMessageFile = 7000,
 }
 
 impl Default for Action {
@@ -134,6 +138,9 @@ impl From<Action> for Thread {
             MaybeSendLocationsEnded => Thread::Smtp,
             SendMdn => Thread::Smtp,
             SendMsgToSmtp => Thread::Smtp,
+
+            // TODO: Where does downloading fit in the thread architecture?
+            DownloadMessageFile => Thread::Imap,
         }
     }
 }
@@ -331,6 +338,14 @@ impl Job {
     }
 
     pub(crate) async fn send_msg_to_smtp(&mut self, context: &Context, smtp: &mut Smtp) -> Status {
+        // Upload file to HTTP if set in params.
+        if let (Some(upload_url), Ok(Some(upload_path))) = (
+            self.param.get_upload_url(),
+            self.param.get_upload_path(context),
+        ) {
+            job_try!(upload_file(context, upload_url.to_string(), upload_path).await);
+        }
+
         //  SMTP server, if not yet done
         if !smtp.is_connected().await {
             let loginparam = LoginParam::from_database(context, "configured_").await;
@@ -673,6 +688,13 @@ impl Job {
             }
         }
     }
+
+    pub(crate) async fn download_message_file(&mut self, context: &Context) -> Status {
+        let msg_id = MsgId::new(self.foreign_id);
+        let download_path = job_try!(self.param.get_upload_path(context));
+        job_try!(download_message_file(context, msg_id, download_path).await);
+        Status::Finished(Ok(()))
+    }
 }
 
 /// Delete all pending jobs with the given action.
@@ -741,7 +763,23 @@ pub async fn send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<Job
         }
     };
 
-    let mimefactory = MimeFactory::from_msg(context, &msg, attach_selfavatar).await?;
+    let mut mimefactory = MimeFactory::from_msg(context, &msg, attach_selfavatar).await?;
+
+    // Prepare file upload if DCC_UPLOAD_URL env variable is set.
+    // See upload-server folder for an example server impl.
+    // Here a new URL is generated, which the mimefactory includes in the message instead of the
+    // actual attachement. The upload then happens in the smtp send job.
+    let upload = if let Some(file) = msg.get_file(context) {
+        if let Ok(endpoint) = env::var("DCC_UPLOAD_URL") {
+            let upload_url = generate_upload_url(context, endpoint);
+            mimefactory.set_upload_url(upload_url.clone());
+            Some((upload_url, file))
+        } else {
+            None
+        }
+    } else {
+        None
+    };
 
     let mut recipients = mimefactory.recipients();
 
@@ -832,6 +870,11 @@ pub async fn send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<Job
     let recipients = recipients.join("\x1e");
     param.set(Param::File, blob.as_name());
     param.set(Param::Recipients, &recipients);
+
+    if let Some((upload_url, upload_path)) = upload {
+        param.set_upload_url(upload_url);
+        param.set_upload_path(upload_path);
+    }
 
     let job = create(Action::SendMsgToSmtp, msg_id.to_u32() as i32, param, 0)?;
 
@@ -974,6 +1017,7 @@ async fn perform_job_action(
             sql::housekeeping(context).await;
             Status::Finished(Ok(()))
         }
+        Action::DownloadMessageFile => job.download_message_file(context).await,
     };
 
     info!(context, "Finished immediate try {} of job {}", tries, job);
@@ -1027,7 +1071,8 @@ pub async fn add(context: &Context, job: Job) {
             | Action::OldDeleteMsgOnImap
             | Action::DeleteMsgOnImap
             | Action::MarkseenMsgOnImap
-            | Action::MoveMsg => {
+            | Action::MoveMsg
+            | Action::DownloadMessageFile => {
                 info!(context, "interrupt: imap");
                 context
                     .interrupt_inbox(InterruptInfo::new(false, None))

@@ -51,6 +51,7 @@ pub struct MimeFactory<'a, 'b> {
     context: &'a Context,
     last_added_location_id: u32,
     attach_selfavatar: bool,
+    upload_url: Option<String>,
 }
 
 /// Result of rendering a message, ready to be submitted to a send job.
@@ -160,6 +161,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             last_added_location_id: 0,
             attach_selfavatar,
             context,
+            upload_url: None,
         };
         Ok(factory)
     }
@@ -207,6 +209,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             req_mdn: false,
             last_added_location_id: 0,
             attach_selfavatar: false,
+            upload_url: None,
         };
 
         Ok(res)
@@ -408,6 +411,10 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             .iter()
             .map(|(_, addr)| addr.clone())
             .collect()
+    }
+
+    pub fn set_upload_url(&mut self, upload_url: String) {
+        self.upload_url = Some(upload_url)
     }
 
     pub async fn render(mut self) -> Result<RenderedEmail, Error> {
@@ -917,11 +924,21 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             }
         };
 
+        // if upload url is present: add as header and to message text
+        // TODO: make text part translatable (or remove)
+        let upload_url_text = if let Some(ref upload_url) = self.upload_url {
+            protected_headers.push(Header::new("Chat-Upload-Url".into(), upload_url.clone()));
+            Some(format!("\n\nFile attachement: {}", upload_url.clone()))
+        } else {
+            None
+        };
+
         let footer = &self.selfstatus;
         let message_text = format!(
-            "{}{}{}{}{}",
+            "{}{}{}{}{}{}",
             fwdhint.unwrap_or_default(),
             escape_message_footer_marks(final_text),
+            upload_url_text.unwrap_or_default(),
             if !final_text.is_empty() && !footer.is_empty() {
                 "\r\n\r\n"
             } else {
@@ -937,8 +954,8 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             .body(message_text);
         let mut parts = Vec::new();
 
-        // add attachment part
-        if chat::msgtype_has_file(self.msg.viewtype) {
+        // add attachment part, skip if upload url was provided
+        if chat::msgtype_has_file(self.msg.viewtype) && self.upload_url.is_none() {
             if !is_file_size_okay(context, &self.msg).await {
                 bail!(
                     "Message exceeds the recommended {} MB.",
