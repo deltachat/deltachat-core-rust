@@ -35,6 +35,7 @@ pub enum HeaderDef {
     ChatContent,
     ChatDuration,
     ChatDispositionNotificationTo,
+    ChatVideochatUrl,
     Autocrypt,
     AutocryptSetupMessage,
     SecureJoin,
