@@ -42,6 +42,17 @@ macro_rules! error {
 }
 
 #[macro_export]
+macro_rules! error_network {
+    ($ctx:expr, $msg:expr) => {
+        error_network!($ctx, $msg,)
+    };
+    ($ctx:expr, $msg:expr, $($args:expr),* $(,)?) => {{
+        let formatted = format!($msg, $($args),*);
+        emit_event!($ctx, $crate::Event::ErrorNetwork(formatted));
+    }};
+}
+
+#[macro_export]
 macro_rules! emit_event {
     ($ctx:expr, $event:expr) => {
         $ctx.emit_event($event);
