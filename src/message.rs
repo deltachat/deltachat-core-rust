@@ -1249,6 +1249,13 @@ pub async fn get_summarytext_by_raw(
                 format!("{} – {}", label, file_name)
             }
         }
+        Viewtype::VideochatInvitation => {
+            append_text = false;
+            context
+                .stock_str(StockMessage::VideochatInvitation)
+                .await
+                .into_owned()
+        }
         _ => {
             if param.get_cmd() != SystemMessage::LocationOnly {
                 "".to_string()

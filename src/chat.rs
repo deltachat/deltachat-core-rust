@@ -1374,11 +1374,12 @@ pub(crate) fn msgtype_has_file(msgtype: Viewtype) -> bool {
         Viewtype::Voice => true,
         Viewtype::Video => true,
         Viewtype::File => true,
+        Viewtype::VideochatInvitation => false,
     }
 }
 
 async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<(), Error> {
-    if msg.viewtype == Viewtype::Text {
+    if msg.viewtype == Viewtype::Text || msg.viewtype == Viewtype::VideochatInvitation {
         // the caller should check if the message text is empty
     } else if msgtype_has_file(msg.viewtype) {
         let blob = msg
@@ -1634,7 +1635,7 @@ pub async fn send_videochat_invitation(context: &Context, chat_id: ChatId) -> Re
         format!("{}{}", url, room)
     };
 
-    let mut msg = Message::new(Viewtype::Text);
+    let mut msg = Message::new(Viewtype::VideochatInvitation);
     msg.text = Some(
         context
             .stock_string_repl_str(StockMessage::VideochatInviteMsgBody, url)

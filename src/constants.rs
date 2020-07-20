@@ -296,6 +296,9 @@ pub enum Viewtype {
     /// The file is set via dc_msg_set_file()
     /// and retrieved via dc_msg_get_file().
     File = 60,
+
+    /// Message is an invitation to a videochat.
+    VideochatInvitation = 70,
 }
 
 impl Default for Viewtype {
