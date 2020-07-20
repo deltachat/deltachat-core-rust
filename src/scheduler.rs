@@ -105,7 +105,7 @@ async fn fetch(ctx: &Context, connection: &mut Imap) {
     match ctx.get_config(Config::ConfiguredInboxFolder).await {
         Some(watch_folder) => {
             if let Err(err) = connection.connect_configured(&ctx).await {
-                error!(ctx, "{}", err);
+                error_network!(ctx, "{}", err);
                 return;
             }
 
