@@ -246,7 +246,6 @@ class Account(object):
         addr = as_dc_charpointer(addr)
         name = as_dc_charpointer(name)
         contact_id = lib.dc_create_contact(self._dc_context, name, addr)
-        assert contact_id > const.DC_CHAT_ID_LAST_SPECIAL, contact_id
         return Contact(self, contact_id)
 
     def delete_contact(self, contact):
