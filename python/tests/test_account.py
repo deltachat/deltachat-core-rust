@@ -129,6 +129,11 @@ class TestOfflineContact:
         assert not contact1.is_blocked()
         assert not contact1.is_verified()
 
+    def test_create_self_contact(self, acfactory):
+        ac1 = acfactory.get_configured_offline_account()
+        contact1 = ac1.create_contact(ac1.get_config("addr"))
+        assert contact1.id == 1
+
     def test_get_contacts_and_delete(self, acfactory):
         ac1 = acfactory.get_configured_offline_account()
         contact1 = ac1.create_contact("some1@example.org", name="some1")

@@ -1,8 +1,10 @@
-1.40.x
+1.40.1
 ---------------
 
 - emit "ac_member_removed" event (with 'actor' being the removed contact) 
   for when a user leaves a group.
+
+- fix create_contact(addr) when addr is the self-contact. 
 
 
 1.40.0
