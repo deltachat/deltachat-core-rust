@@ -4132,14 +4132,12 @@ void dc_event_unref(dc_event_t* event);
  * Network errors should be reported to users in a non-disturbing way,
  * however, as network errors may come in a sequence,
  * it is not useful to raise each an every error to the user.
- * For this purpose, data1 is set to 1 if the error is probably worth reporting.
  *
  * Moreover, if the UI detects that the device is offline,
  * it is probably more useful to report this to the user
  * instead of the string from data2.
  *
- * @param data1 (int) 1=first/new network error, should be reported the user;
- *     0=subsequent network error, should be logged only
+ * @param data1 0
  * @param data2 (char*) Error string, always set, never NULL.
  */
 #define DC_EVENT_ERROR_NETWORK            401
