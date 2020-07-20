@@ -359,6 +359,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  send-garbage\n\
                  sendimage <file> [<text>]\n\
                  sendfile <file> [<text>]\n\
+                 videochat\n\
                  draft [<text>]\n\
                  devicemsg <text>\n\
                  listmedia\n\
@@ -807,6 +808,10 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 msg.set_text(Some(arg2.to_string()));
             }
             chat::send_msg(&context, sel_chat.as_ref().unwrap().get_id(), &mut msg).await?;
+        }
+        "videochat" => {
+            ensure!(sel_chat.is_some(), "No chat selected.");
+            chat::send_videochat_invitation(&context, sel_chat.as_ref().unwrap().get_id()).await?;
         }
         "listmsgs" => {
             ensure!(!arg1.is_empty(), "Argument <query> missing.");
