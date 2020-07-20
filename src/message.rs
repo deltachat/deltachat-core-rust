@@ -638,6 +638,14 @@ impl Message {
         None
     }
 
+    pub async fn get_videochat_url(&self) -> Option<String> {
+        None
+    }
+
+    pub fn is_basic_videochat(&self) -> bool {
+        false
+    }
+
     pub fn set_text(&mut self, text: Option<String>) {
         self.text = text;
     }

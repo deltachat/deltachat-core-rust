@@ -711,6 +711,25 @@ pub unsafe extern "C" fn dc_send_text_msg(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_send_videochat_invitation(
+    context: *mut dc_context_t,
+    chat_id: u32,
+) -> u32 {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_send_videochat_invitation()");
+        return 0;
+    }
+    let ctx = &*context;
+
+    block_on(async move {
+        chat::send_videochat_invitation(&ctx, ChatId::new(chat_id))
+            .await
+            .map(|msg_id| msg_id.to_u32())
+            .unwrap_or_log_default(&ctx, "Failed to send videochat invitation")
+    })
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_set_draft(
     context: *mut dc_context_t,
     chat_id: u32,
@@ -2818,6 +2837,29 @@ pub unsafe extern "C" fn dc_msg_is_setupmessage(msg: *mut dc_msg_t) -> libc::c_i
     }
     let ffi_msg = &*msg;
     ffi_msg.message.is_setupmessage().into()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_videochat_url(msg: *mut dc_msg_t) -> *mut libc::c_char {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_get_videochat_url()");
+        return "".strdup();
+    }
+    let ffi_msg = &*msg;
+
+    block_on(ffi_msg.message.get_videochat_url())
+        .unwrap_or_default()
+        .strdup()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_is_basic_videochat(msg: *mut dc_msg_t) -> libc::c_int {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_is_basic_videochat()");
+        return 0;
+    }
+    let ffi_msg = &*msg;
+    ffi_msg.message.is_basic_videochat().into()
 }
 
 #[no_mangle]

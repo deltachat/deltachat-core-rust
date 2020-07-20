@@ -1611,6 +1611,38 @@ pub async fn send_text_msg(
     send_msg(context, chat_id, &mut msg).await
 }
 
+pub async fn send_videochat_invitation(context: &Context, chat_id: ChatId) -> Result<MsgId, Error> {
+    ensure!(
+        !chat_id.is_special(),
+        "videochat invitation cannot be sent to special chat: {}",
+        chat_id
+    );
+
+    let url = if let Some(basic_webrtc_instance) =
+        context.get_config(Config::BasicWebrtcInstance).await
+    {
+        basic_webrtc_instance
+    } else {
+        bail!("basic_webrtc_instance not set");
+    };
+
+    let room = dc_create_id();
+
+    let url = if url.contains("$ROOM") {
+        url.replace("$ROOM", &room)
+    } else {
+        format!("{}{}", url, room)
+    };
+
+    let mut msg = Message::new(Viewtype::Text);
+    msg.text = Some(
+        context
+            .stock_string_repl_str(StockMessage::VideochatInviteMsgBody, url)
+            .await,
+    );
+    send_msg(context, chat_id, &mut msg).await
+}
+
 pub async fn get_chat_msgs(
     context: &Context,
     chat_id: ChatId,
