@@ -183,7 +183,7 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
     let temp2 = dc_timestamp_to_str(msg.get_timestamp());
     let msgtext = msg.get_text();
     println!(
-        "{}{}{}{}: {} (Contact#{}): {} {}{}{}{}{} [{}]",
+        "{}{}{}{}: {} (Contact#{}): {} {}{}{}{}{}{} [{}]",
         prefix.as_ref(),
         msg.get_id(),
         if msg.get_showpadlock() { "🔒" } else { "" },
@@ -202,6 +202,15 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
             "[FRESH]"
         },
         if msg.is_info() { "[INFO]" } else { "" },
+        if msg.get_viewtype() == Viewtype::VideochatInvitation {
+            format!(
+                "[VIDEOCHAT-INVITATION: {}, basic={}]",
+                msg.get_videochat_url().await.unwrap_or_default(),
+                msg.is_basic_videochat()
+            )
+        } else {
+            "".to_string()
+        },
         if msg.is_forwarded() {
             "[FORWARDED]"
         } else {

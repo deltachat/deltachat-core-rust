@@ -639,11 +639,17 @@ impl Message {
     }
 
     pub async fn get_videochat_url(&self) -> Option<String> {
-        None
+        if self.viewtype == Viewtype::VideochatInvitation {
+            self.param.get(Param::VideochatUrl).map(|s| s.to_string())
+        } else {
+            None
+        }
     }
 
     pub fn is_basic_videochat(&self) -> bool {
-        false
+        // currently, all videochat-urls are of type basic-webrtc
+        self.viewtype == Viewtype::VideochatInvitation
+            && self.param.get(Param::VideochatUrl).is_some()
     }
 
     pub fn set_text(&mut self, text: Option<String>) {
