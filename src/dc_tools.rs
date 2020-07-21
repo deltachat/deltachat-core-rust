@@ -4,6 +4,7 @@
 use core::cmp::{max, min};
 use std::borrow::Cow;
 use std::fmt;
+use std::io::Cursor;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 
@@ -242,9 +243,9 @@ pub fn dc_get_filesuffix_lc(path_filename: impl AsRef<str>) -> Option<String> {
 
 /// Returns the `(width, height)` of the given image buffer.
 pub fn dc_get_filemeta(buf: &[u8]) -> Result<(u32, u32), Error> {
-    let meta = image_meta::load_from_buf(buf)?;
-
-    Ok((meta.dimensions.width, meta.dimensions.height))
+    let image = image::io::Reader::new(Cursor::new(buf));
+    let dimensions = image.into_dimensions()?;
+    Ok(dimensions)
 }
 
 /// Expand paths relative to $BLOBDIR into absolute paths.
