@@ -140,7 +140,6 @@ pub enum Event {
     /// Network errors should be reported to users in a non-disturbing way,
     /// however, as network errors may come in a sequence,
     /// it is not useful to raise each an every error to the user.
-    /// For this purpose, data1 is set to 1 if the error is probably worth reporting.
     ///
     /// Moreover, if the UI detects that the device is offline,
     /// it is probably more useful to report this to the user
