@@ -3291,9 +3291,11 @@ char* dc_msg_get_videochat_url (const dc_msg_t* msg);
 
 
 /**
- * Check if the videochat can be handled internally.
- * If "basic webrtc" as of https://github.com/cracker0dks/basicwebrtc is used to initiate the videochat,
- * this is returned by dc_msg_is_basic_videochat().
+ * Check if the videochat is a "basic webrtc" videochat.
+ *
+ * Calling this functions only makes sense for messages of type #DC_MSG_VIDEOCHAT_INVITATION,
+ * in this case, if "basic webrtc" as of https://github.com/cracker0dks/basicwebrtc was used to initiate the videochat,
+ * dc_msg_is_basic_videochat() returns true.
  * "basic webrtc" videochat may be processed natively by the app
  * whereas for other urls just the browser is opened.
  *
@@ -3301,8 +3303,21 @@ char* dc_msg_get_videochat_url (const dc_msg_t* msg);
  * To check if a message is a videochat invitation at all, check the message type for #DC_MSG_VIDEOCHAT_INVITATION.
  *
  * @param msg The message object.
- * @return 0=message is no videochat invitation or cannot be handled internally
- *     1=message is a videochat invitation that can be handled internally or by a supported browser.
+ * @return 0=message is no "basic webrtc" videochat invitation
+ *     1=message is a "basic webrtc" videochat invitation.
+ *
+ * Example:
+ * ~~~
+ * if (dc_msg_get_viewtype(msg) == DC_MSG_VIDEOCHAT_INVITATION) {
+ *   if (dc_msg_is_basic_videochat(msg)) {
+ *       // videochat invitation that we ship a client for
+ *   } else {
+ *       // use browser for videochat, just open the url
+ *   }
+ * } else {
+ *    // not a videochat invitation
+ * }
+ * ~~~
  */
 int dc_msg_is_basic_videochat (const dc_msg_t* msg);
 

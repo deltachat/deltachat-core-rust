@@ -6,7 +6,7 @@ X-Mailer: Delta Chat Core 1.40.0/CLI
 Chat-Version: 1.0
 Chat-Content: videochat-invitation
 Chat-Videochat-Url: https://example.org/p2p/?roomname=6HiduoAn4xN
-To: <tunis3@example>
+To: <tunis3@example.org>
 From: "=?utf-8?q??=" <tunis4@example.org>
 
 You are invited to an videochat, click https://example.org/p2p/?roomname=6HiduoAn4xN to join.
