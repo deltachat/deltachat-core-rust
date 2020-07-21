@@ -1619,12 +1619,10 @@ pub async fn send_videochat_invitation(context: &Context, chat_id: ChatId) -> Re
         chat_id
     );
 
-    let url = if let Some(basic_webrtc_instance) =
-        context.get_config(Config::BasicWebrtcInstance).await
-    {
-        basic_webrtc_instance
+    let url = if let Some(webrtc_instance) = context.get_config(Config::WebrtcInstance).await {
+        webrtc_instance
     } else {
-        bail!("basic_webrtc_instance not set");
+        bail!("webrtc_instance not set");
     };
 
     let room = dc_create_id();
