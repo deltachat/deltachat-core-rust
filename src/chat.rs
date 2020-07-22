@@ -1619,22 +1619,24 @@ pub async fn send_videochat_invitation(context: &Context, chat_id: ChatId) -> Re
         chat_id
     );
 
-    let url = if let Some(webrtc_instance) = context.get_config(Config::WebrtcInstance).await {
-        webrtc_instance
+    let instance = if let Some(instance) = context.get_config(Config::WebrtcInstance).await {
+        instance
     } else {
         bail!("webrtc_instance not set");
     };
 
     let room = dc_create_id();
 
-    let url = if url.contains("$ROOM") {
-        url.replace("$ROOM", &room)
+    let instance = if instance.contains("$ROOM") {
+        instance.replace("$ROOM", &room)
     } else {
-        format!("{}{}", url, room)
+        format!("{}{}", instance, room)
     };
 
+    let url = instance.replace("basicwebrtc:", "");
+
     let mut msg = Message::new(Viewtype::VideochatInvitation);
-    msg.param.set(Param::VideochatUrl, &url);
+    msg.param.set(Param::WebrtcInstance, &instance);
     msg.text = Some(
         context
             .stock_string_repl_str(StockMessage::VideochatInviteMsgBody, url)

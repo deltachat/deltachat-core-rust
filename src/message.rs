@@ -640,16 +640,20 @@ impl Message {
 
     pub async fn get_videochat_url(&self) -> Option<String> {
         if self.viewtype == Viewtype::VideochatInvitation {
-            self.param.get(Param::VideochatUrl).map(|s| s.to_string())
-        } else {
-            None
+            if let Some(instance) = self.param.get(Param::WebrtcInstance) {
+                return Some(instance.replace("basicwebrtc:", ""));
+            }
         }
+        None
     }
 
     pub fn is_basic_videochat(&self) -> bool {
-        // currently, all videochat-urls are of type basic-webrtc
-        self.viewtype == Viewtype::VideochatInvitation
-            && self.param.get(Param::VideochatUrl).is_some()
+        if self.viewtype == Viewtype::VideochatInvitation {
+            if let Some(instance) = self.param.get(Param::WebrtcInstance) {
+                return instance.starts_with("basicwebrtc:");
+            }
+        }
+        false
     }
 
     pub fn set_text(&mut self, text: Option<String>) {

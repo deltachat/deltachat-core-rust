@@ -318,9 +318,11 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    The library uses the `media_quality` setting to use different defaults
  *                    for recoding images sent with type DC_MSG_IMAGE.
  *                    If needed, recoding other file types is up to the UI.
- * - `webrtc_instance` = address to webrtc instance to use for videochats,
- *                    eg. a server as of https://github.com/cracker0dks/basicwebrtc.
- *                    Format: https://example.com/subdir#roomname=$ROOM
+ * - `webrtc_instance` = webrtc instance to use for videochats in the form
+ *                    `[basicwebrtc:]https://example.com/subdir#roomname=$ROOM`
+ *                    if the url is prefixed by `basicwebrtc`, the server is assumed to be of the type
+ *                    https://github.com/cracker0dks/basicwebrtc which some UIs have native support for.
+ *                    If no type is prefixed, the videochat is handled completely in a browser.
  *
  * If you want to retrieve a value, use dc_get_config().
  *
