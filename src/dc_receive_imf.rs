@@ -867,6 +867,7 @@ async fn add_parts(
         chat.update_param(context).await?;
         Ok(())
     }
+    if !is_mdn {
     update_last_subject(context, chat_id, mime_parser)
         .await
         .unwrap_or_else(|e| {
@@ -876,6 +877,7 @@ async fn add_parts(
                 e.to_string()
             )
         });
+    }
 
     Ok(())
 }
