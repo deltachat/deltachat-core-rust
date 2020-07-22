@@ -1620,7 +1620,11 @@ pub async fn send_videochat_invitation(context: &Context, chat_id: ChatId) -> Re
     );
 
     let instance = if let Some(instance) = context.get_config(Config::WebrtcInstance).await {
-        instance
+        if !instance.is_empty() {
+            instance
+        } else {
+            bail!("webrtc_instance is empty");
+        }
     } else {
         bail!("webrtc_instance not set");
     };
