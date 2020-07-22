@@ -3291,11 +3291,11 @@ char* dc_msg_get_videochat_url (const dc_msg_t* msg);
 
 
 /**
- * Check if the videochat is a "basic webrtc" videochat.
+ * Get type of videochat.
  *
  * Calling this functions only makes sense for messages of type #DC_MSG_VIDEOCHAT_INVITATION,
  * in this case, if "basic webrtc" as of https://github.com/cracker0dks/basicwebrtc was used to initiate the videochat,
- * dc_msg_is_basic_videochat() returns true.
+ * dc_msg_get_videochat_type() returns DC_VIDEOCHATTYPE_BASICWEBRTC.
  * "basic webrtc" videochat may be processed natively by the app
  * whereas for other urls just the browser is opened.
  *
@@ -3303,13 +3303,12 @@ char* dc_msg_get_videochat_url (const dc_msg_t* msg);
  * To check if a message is a videochat invitation at all, check the message type for #DC_MSG_VIDEOCHAT_INVITATION.
  *
  * @param msg The message object.
- * @return 0=message is no "basic webrtc" videochat invitation
- *     1=message is a "basic webrtc" videochat invitation.
+ * @return Type of the videochat as of DC_VIDEOCHATTYPE_BASICWEBRTC or DC_VIDEOCHATTYPE_UNKNOWN.
  *
  * Example:
  * ~~~
  * if (dc_msg_get_viewtype(msg) == DC_MSG_VIDEOCHAT_INVITATION) {
- *   if (dc_msg_is_basic_videochat(msg)) {
+ *   if (dc_msg_get_videochat_type(msg) == DC_VIDEOCHATTYPE_BASICWEBRTC) {
  *       // videochat invitation that we ship a client for
  *   } else {
  *       // use browser for videochat, just open the url
@@ -3319,7 +3318,10 @@ char* dc_msg_get_videochat_url (const dc_msg_t* msg);
  * }
  * ~~~
  */
-int dc_msg_is_basic_videochat (const dc_msg_t* msg);
+int dc_msg_get_videochat_type (const dc_msg_t* msg);
+
+#define DC_VIDEOCHATTYPE_UNKNOWN     0
+#define DC_VIDEOCHATTYPE_BASICWEBRTC 1
 
 
 /**

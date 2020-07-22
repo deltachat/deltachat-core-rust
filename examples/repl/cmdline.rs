@@ -204,9 +204,9 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
         if msg.is_info() { "[INFO]" } else { "" },
         if msg.get_viewtype() == Viewtype::VideochatInvitation {
             format!(
-                "[VIDEOCHAT-INVITATION: {}, basic={}]",
-                msg.get_videochat_url().await.unwrap_or_default(),
-                msg.is_basic_videochat()
+                "[VIDEOCHAT-INVITATION: {}, type={}]",
+                msg.get_videochat_url().unwrap_or_default(),
+                msg.get_videochat_type().unwrap_or_default()
             )
         } else {
             "".to_string()

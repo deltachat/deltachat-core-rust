@@ -2847,19 +2847,21 @@ pub unsafe extern "C" fn dc_msg_get_videochat_url(msg: *mut dc_msg_t) -> *mut li
     }
     let ffi_msg = &*msg;
 
-    block_on(ffi_msg.message.get_videochat_url())
+    ffi_msg
+        .message
+        .get_videochat_url()
         .unwrap_or_default()
         .strdup()
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_is_basic_videochat(msg: *mut dc_msg_t) -> libc::c_int {
+pub unsafe extern "C" fn dc_msg_get_videochat_type(msg: *mut dc_msg_t) -> libc::c_int {
     if msg.is_null() {
-        eprintln!("ignoring careless call to dc_msg_is_basic_videochat()");
+        eprintln!("ignoring careless call to dc_msg_get_videochat_type()");
         return 0;
     }
     let ffi_msg = &*msg;
-    ffi_msg.message.is_basic_videochat().into()
+    ffi_msg.message.get_videochat_type().unwrap_or_default() as i32
 }
 
 #[no_mangle]

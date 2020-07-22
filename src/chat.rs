@@ -1633,13 +1633,14 @@ pub async fn send_videochat_invitation(context: &Context, chat_id: ChatId) -> Re
         format!("{}{}", instance, room)
     };
 
-    let url = instance.replace("basicwebrtc:", "");
-
     let mut msg = Message::new(Viewtype::VideochatInvitation);
     msg.param.set(Param::WebrtcInstance, &instance);
     msg.text = Some(
         context
-            .stock_string_repl_str(StockMessage::VideochatInviteMsgBody, url)
+            .stock_string_repl_str(
+                StockMessage::VideochatInviteMsgBody,
+                Message::parse_webrtc_instance(&instance).1,
+            )
             .await,
     );
     send_msg(context, chat_id, &mut msg).await
