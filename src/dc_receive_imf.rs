@@ -868,15 +868,15 @@ async fn add_parts(
         Ok(())
     }
     if !is_mdn {
-    update_last_subject(context, chat_id, mime_parser)
-        .await
-        .unwrap_or_else(|e| {
-            warn!(
-                context,
-                "Could not update LastSubject of chat: {}",
-                e.to_string()
-            )
-        });
+        update_last_subject(context, chat_id, mime_parser)
+            .await
+            .unwrap_or_else(|e| {
+                warn!(
+                    context,
+                    "Could not update LastSubject of chat: {}",
+                    e.to_string()
+                )
+            });
     }
 
     Ok(())
