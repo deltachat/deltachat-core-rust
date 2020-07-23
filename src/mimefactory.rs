@@ -881,10 +881,10 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                 "videochat-invitation".into(),
             ));
             protected_headers.push(Header::new(
-                "Chat-Webrtc-Instance".into(),
+                "Chat-Webrtc-Room".into(),
                 self.msg
                     .param
-                    .get(Param::WebrtcInstance)
+                    .get(Param::WebrtcRoom)
                     .unwrap_or_default()
                     .into(),
             ));

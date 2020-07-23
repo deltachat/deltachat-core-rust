@@ -69,7 +69,7 @@ pub enum Param {
     AttachGroupImage = b'A',
 
     /// For Messages
-    WebrtcInstance = b'V',
+    WebrtcRoom = b'V',
 
     /// For Messages: space-separated list of messaged IDs of forwarded copies.
     ///

@@ -655,7 +655,7 @@ impl Message {
 
     pub fn get_videochat_url(&self) -> Option<String> {
         if self.viewtype == Viewtype::VideochatInvitation {
-            if let Some(instance) = self.param.get(Param::WebrtcInstance) {
+            if let Some(instance) = self.param.get(Param::WebrtcRoom) {
                 return Some(Message::parse_webrtc_instance(instance).1);
             }
         }
@@ -664,7 +664,7 @@ impl Message {
 
     pub fn get_videochat_type(&self) -> Option<VideochatType> {
         if self.viewtype == Viewtype::VideochatInvitation {
-            if let Some(instance) = self.param.get(Param::WebrtcInstance) {
+            if let Some(instance) = self.param.get(Param::WebrtcRoom) {
                 return Some(Message::parse_webrtc_instance(instance).0);
             }
         }

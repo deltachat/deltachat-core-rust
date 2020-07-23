@@ -1638,7 +1638,7 @@ pub async fn send_videochat_invitation(context: &Context, chat_id: ChatId) -> Re
     };
 
     let mut msg = Message::new(Viewtype::VideochatInvitation);
-    msg.param.set(Param::WebrtcInstance, &instance);
+    msg.param.set(Param::WebrtcRoom, &instance);
     msg.text = Some(
         context
             .stock_string_repl_str(

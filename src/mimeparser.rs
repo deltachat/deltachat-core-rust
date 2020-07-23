@@ -245,11 +245,11 @@ impl MimeMessage {
     fn parse_videochat_headers(&mut self) {
         if let Some(value) = self.get(HeaderDef::ChatContent).cloned() {
             if value == "videochat-invitation" {
-                let instance = self.get(HeaderDef::ChatWebrtcInstance).cloned();
+                let instance = self.get(HeaderDef::ChatWebrtcRoom).cloned();
                 if let Some(part) = self.parts.first_mut() {
                     part.typ = Viewtype::VideochatInvitation;
                     part.param
-                        .set(Param::WebrtcInstance, instance.unwrap_or_default());
+                        .set(Param::WebrtcRoom, instance.unwrap_or_default());
                 }
             }
         }
@@ -1474,7 +1474,7 @@ mod tests {
         assert_eq!(
             mimeparser.parts[0]
                 .param
-                .get(Param::WebrtcInstance)
+                .get(Param::WebrtcRoom)
                 .unwrap_or_default(),
             "https://example.org/p2p/?roomname=6HiduoAn4xN"
         );
