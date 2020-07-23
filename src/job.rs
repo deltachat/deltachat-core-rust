@@ -255,40 +255,48 @@ impl Job {
 
                 let res = match err {
                     async_smtp::smtp::error::Error::Permanent(ref response) => {
-                        match response.code {
+                        // Workaround for incorrectly configured servers returning permanent errors
+                        // instead of temporary ones.
+                        let maybe_transient = match response.code {
                             // Sometimes servers send a permanent error when actually it is a temporary error
                             // For documentation see https://tools.ietf.org/html/rfc3463
-
-                            // Code 5.5.0, see https://support.delta.chat/t/every-other-message-gets-stuck/877/2
                             Code {
                                 category: Category::MailSystem,
                                 detail: Detail::Zero,
                                 ..
-                            } => Status::RetryLater,
-
-                            _ => {
-                                // If we do not retry, add an info message to the chat
-                                // Error 5.7.1 should definitely go here: Yandex sends 5.7.1 with a link when it thinks that the email is SPAM.
-                                match Message::load_from_db(context, MsgId::new(self.foreign_id))
-                                    .await
-                                {
-                                    Ok(message) => {
-                                        chat::add_info_msg(
-                                            context,
-                                            message.chat_id,
-                                            err.to_string(),
-                                        )
-                                        .await
-                                    }
-                                    Err(e) => warn!(
-                                        context,
-                                        "couldn't load chat_id to inform user about SMTP error: {}",
-                                        e
-                                    ),
-                                };
-
-                                Status::Finished(Err(format_err!("Permanent SMTP error: {}", err)))
+                            } => {
+                                // Ignore status code 5.5.0, see https://support.delta.chat/t/every-other-message-gets-stuck/877/2
+                                // Maybe incorrectly configured Postfix milter with "reject" instead of "tempfail", which returns
+                                // "550 5.5.0 Service unavailable" instead of "451 4.7.1 Service unavailable - try again later".
+                                //
+                                // Other enhanced status codes, such as Postfix
+                                // "550 5.1.1 <foobar@example.org>: Recipient address rejected: User unknown in local recipient table"
+                                // are not ignored.
+                                response.message.get(0) == Some(&"5.5.0".to_string())
                             }
+                            _ => false,
+                        };
+
+                        if maybe_transient {
+                            Status::RetryLater
+                        } else {
+                            // If we do not retry, add an info message to the chat.
+                            // Yandex error "554 5.7.1 [2] Message rejected under suspicion of SPAM; https://ya.cc/..."
+                            // should definitely go here, because user has to open the link to
+                            // resume message sending.
+                            let msg_id = MsgId::new(self.foreign_id);
+                            message::set_msg_failed(context, msg_id, Some(err.to_string())).await;
+                            match Message::load_from_db(context, msg_id).await {
+                                Ok(message) => {
+                                    chat::add_info_msg(context, message.chat_id, err.to_string())
+                                        .await
+                                }
+                                Err(e) => error!(
+                                    context,
+                                    "couldn't load chat_id to inform user about SMTP error: {}", e
+                                ),
+                            };
+                            Status::Finished(Err(format_err!("Permanent SMTP error: {}", err)))
                         }
                     }
                     async_smtp::smtp::error::Error::Transient(_) => {
