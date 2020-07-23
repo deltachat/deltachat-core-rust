@@ -59,6 +59,7 @@ anyhow = "1.0.28"
 async-trait = "0.1.31"
 url = "2.1.1"
 async-std-resolver = "0.19.5"
+async-tar = "0.1.2"
 
 pretty_env_logger = { version = "0.4.0", optional = true }
 log = {version = "0.4.8", optional = true }
