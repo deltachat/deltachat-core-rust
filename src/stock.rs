@@ -211,10 +211,10 @@ pub enum StockMessage {
     #[strum(props(fallback = "Message deletion timer is set to 4 weeks."))]
     MsgEphemeralTimerFourWeeks = 81,
 
-    #[strum(props(fallback = "Videochat invitation"))]
+    #[strum(props(fallback = "Video chat invitation"))]
     VideochatInvitation = 82,
 
-    #[strum(props(fallback = "You are invited to an videochat, click %1$s to join."))]
+    #[strum(props(fallback = "You are invited to a video chat, click %1$s to join."))]
     VideochatInviteMsgBody = 83,
 }
 

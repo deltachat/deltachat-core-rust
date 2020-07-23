@@ -725,7 +725,7 @@ pub unsafe extern "C" fn dc_send_videochat_invitation(
         chat::send_videochat_invitation(&ctx, ChatId::new(chat_id))
             .await
             .map(|msg_id| msg_id.to_u32())
-            .unwrap_or_log_default(&ctx, "Failed to send videochat invitation")
+            .unwrap_or_log_default(&ctx, "Failed to send video chat invitation")
     })
 }
 

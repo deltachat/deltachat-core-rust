@@ -1615,7 +1615,7 @@ pub async fn send_text_msg(
 pub async fn send_videochat_invitation(context: &Context, chat_id: ChatId) -> Result<MsgId, Error> {
     ensure!(
         !chat_id.is_special(),
-        "videochat invitation cannot be sent to special chat: {}",
+        "video chat invitation cannot be sent to special chat: {}",
         chat_id
     );
 
