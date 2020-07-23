@@ -4,7 +4,7 @@ use std::any::Any;
 use std::cmp::{max, min};
 
 use async_std::path::{Path, PathBuf};
-use async_std::prelude::*;
+use async_std::{fs::File, prelude::*};
 use rand::{thread_rng, Rng};
 
 use crate::blob::BlobObject;
@@ -24,6 +24,9 @@ use crate::param::*;
 use crate::pgp;
 use crate::sql::{self, Sql};
 use crate::stock::StockMessage;
+
+const DBFILE_BACKUP_NAME: &str = "sql_database_backup";
+const BLOBS_BACKUP_NAME: &str = "blobs_backup";
 
 #[derive(Debug, Display, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive)]
 #[repr(i32)]
@@ -520,13 +523,16 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     // let dest_path_filename = dc_get_next_backup_file(context, dir, res);
     let now = time();
     let dest_path_filename = dc_get_next_backup_path(dir, now).await?;
-    let dest_path_string = dest_path_filename.to_string_lossy().to_string();
 
+    context
+        .sql
+        .set_raw_config_int(context, "backup_time", now as i32)
+        .await?;
     sql::housekeeping(context).await;
 
     context.sql.execute("VACUUM;", paramsv![]).await.ok();
 
-    // we close the database during the copy of the dbfile
+    // we close the database during the export
     context.sql.close().await;
     info!(
         context,
@@ -534,42 +540,24 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
         context.get_dbfile().display(),
         dest_path_filename.display(),
     );
-    let copied = dc_copy_file(context, context.get_dbfile(), &dest_path_filename).await;
+
+    let file = File::create(dest_path_filename).await.unwrap();
+    let mut builder = async_tar::Builder::new(file);
+
+    builder
+        .append_path_with_name(context.get_dbfile(), DBFILE_BACKUP_NAME)
+        .await?;
+    builder
+        .append_dir_all(BLOBS_BACKUP_NAME, context.get_blobdir())
+        .await?;
+    builder.finish().await?;
+
     context
         .sql
         .open(&context, &context.get_dbfile(), false)
         .await;
 
-    if !copied {
-        bail!(
-            "could not copy file from '{}' to '{}'",
-            context.get_dbfile().display(),
-            dest_path_string
-        );
-    }
-    let dest_sql = Sql::new();
-    ensure!(
-        dest_sql.open(context, &dest_path_filename, false).await,
-        "could not open exported database {}",
-        dest_path_string
-    );
-    let res = match add_files_to_export(context, &dest_sql).await {
-        Err(err) => {
-            dc_delete_file(context, &dest_path_filename).await;
-            error!(context, "backup failed: {}", err);
-            Err(err)
-        }
-        Ok(()) => {
-            dest_sql
-                .set_raw_config_int(context, "backup_time", now as i32)
-                .await?;
-            context.emit_event(Event::ImexFileWritten(dest_path_filename));
-            Ok(())
-        }
-    };
-    dest_sql.close().await;
-
-    Ok(res?)
+    Ok(())
 }
 
 async fn add_files_to_export(context: &Context, sql: &Sql) -> Result<()> {
