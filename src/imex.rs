@@ -383,10 +383,7 @@ async fn imex_inner(
 
     ensure!(context.sql.is_open().await, "Database not opened.");
 
-    let path = param.ok_or_else(|| {
-        warn!(context, "Imex: Param was None");
-        format_err!("Imex: Param was None")
-    })?;
+    let path = param.ok_or_else(|| format_err!("Imex: Param was None"))?;
     if what == ImexMode::ExportBackup || what == ImexMode::ExportSelfKeys {
         // before we export anything, make sure the private key exists
         if e2ee::ensure_secret_key_exists(context).await.is_err() {
@@ -399,7 +396,11 @@ async fn imex_inner(
     let success = match what {
         ImexMode::ExportSelfKeys => export_self_keys(context, path).await,
         ImexMode::ImportSelfKeys => import_self_keys(context, path).await,
-        ImexMode::ExportBackup => export_backup(context, path).await,
+
+        // import_backup() will call import_backup_old() if this is an old backup.
+        // TODO In some months we can change the export_backup_old() call to export_backup() and delete export_backup_old().
+        // (now is 07/2020)
+        ImexMode::ExportBackup => export_backup_old(context, path).await,
         ImexMode::ImportBackup => import_backup(context, path).await,
     };
 
@@ -418,6 +419,15 @@ async fn imex_inner(
 
 /// Import Backup
 async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) -> Result<()> {
+    if backup_to_import
+        .as_ref()
+        .to_string_lossy()
+        .ends_with(".bak")
+    {
+        // Backwards compability
+        return import_backup_old(context, backup_to_import).await;
+    }
+
     info!(
         context,
         "Import \"{}\" to \"{}\".",
@@ -465,6 +475,111 @@ async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) ->
     delete_and_reset_all_device_msgs(&context).await?;
 
     Ok(())
+}
+
+async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>) -> Result<()> {
+    info!(
+        context,
+        "Import \"{}\" to \"{}\".",
+        backup_to_import.as_ref().display(),
+        context.get_dbfile().display()
+    );
+
+    ensure!(
+        !context.is_configured().await,
+        "Cannot import backups to accounts in use."
+    );
+    context.sql.close().await;
+    dc_delete_file(context, context.get_dbfile()).await;
+    ensure!(
+        !context.get_dbfile().exists().await,
+        "Cannot delete old database."
+    );
+
+    ensure!(
+        dc_copy_file(context, backup_to_import.as_ref(), context.get_dbfile()).await,
+        "could not copy file"
+    );
+    /* error already logged */
+    /* re-open copied database file */
+    ensure!(
+        context
+            .sql
+            .open(&context, &context.get_dbfile(), false)
+            .await,
+        "could not re-open db"
+    );
+
+    delete_and_reset_all_device_msgs(&context).await?;
+
+    let total_files_cnt = context
+        .sql
+        .query_get_value::<isize>(context, "SELECT COUNT(*) FROM backup_blobs;", paramsv![])
+        .await
+        .unwrap_or_default() as usize;
+    info!(
+        context,
+        "***IMPORT-in-progress: total_files_cnt={:?}", total_files_cnt,
+    );
+
+    // Load IDs only for now, without the file contents, to avoid
+    // consuming too much memory.
+    let file_ids = context
+        .sql
+        .query_map(
+            "SELECT id FROM backup_blobs ORDER BY id",
+            paramsv![],
+            |row| row.get(0),
+            |ids| {
+                ids.collect::<std::result::Result<Vec<i64>, _>>()
+                    .map_err(Into::into)
+            },
+        )
+        .await?;
+
+    let mut all_files_extracted = true;
+    for (processed_files_cnt, file_id) in file_ids.into_iter().enumerate() {
+        // Load a single blob into memory
+        let (file_name, file_blob) = context
+            .sql
+            .query_row(
+                "SELECT file_name, file_content FROM backup_blobs WHERE id = ?",
+                paramsv![file_id],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)),
+            )
+            .await?;
+
+        if context.shall_stop_ongoing().await {
+            all_files_extracted = false;
+            break;
+        }
+        let mut permille = processed_files_cnt * 1000 / total_files_cnt;
+        if permille < 10 {
+            permille = 10
+        }
+        if permille > 990 {
+            permille = 990
+        }
+        context.emit_event(Event::ImexProgress(permille));
+        if file_blob.is_empty() {
+            continue;
+        }
+
+        let path_filename = context.get_blobdir().join(file_name);
+        dc_write_file(context, &path_filename, &file_blob).await?;
+    }
+
+    if all_files_extracted {
+        // only delete backup_blobs if all files were successfully extracted
+        context
+            .sql
+            .execute("DROP TABLE backup_blobs;", paramsv![])
+            .await?;
+        context.sql.execute("VACUUM;", paramsv![]).await.ok();
+        Ok(())
+    } else {
+        bail!("received stop signal");
+    }
 }
 
 /*******************************************************************************
@@ -530,6 +645,64 @@ async fn export_backup_inner(context: &Context, temp_path: &PathBuf) -> Result<(
         .await?;
     builder.finish().await?;
     Ok(())
+}
+
+async fn export_backup_old(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
+    // get a fine backup file name (the name includes the date so that multiple backup instances are possible)
+    // FIXME: we should write to a temporary file first and rename it on success. this would guarantee the backup is complete.
+    // let dest_path_filename = dc_get_next_backup_file(context, dir, res);
+    let now = time();
+    let dest_path_filename = dc_get_next_backup_path(dir, now).await?;
+    let dest_path_string = dest_path_filename.to_string_lossy().to_string();
+
+    sql::housekeeping(context).await;
+
+    context.sql.execute("VACUUM;", paramsv![]).await.ok();
+
+    // we close the database during the copy of the dbfile
+    context.sql.close().await;
+    info!(
+        context,
+        "Backup '{}' to '{}'.",
+        context.get_dbfile().display(),
+        dest_path_filename.display(),
+    );
+    let copied = dc_copy_file(context, context.get_dbfile(), &dest_path_filename).await;
+    context
+        .sql
+        .open(&context, &context.get_dbfile(), false)
+        .await;
+
+    if !copied {
+        bail!(
+            "could not copy file from '{}' to '{}'",
+            context.get_dbfile().display(),
+            dest_path_string
+        );
+    }
+    let dest_sql = Sql::new();
+    ensure!(
+        dest_sql.open(context, &dest_path_filename, false).await,
+        "could not open exported database {}",
+        dest_path_string
+    );
+    let res = match add_files_to_export(context, &dest_sql).await {
+        Err(err) => {
+            dc_delete_file(context, &dest_path_filename).await;
+            error!(context, "backup failed: {}", err);
+            Err(err)
+        }
+        Ok(()) => {
+            dest_sql
+                .set_raw_config_int(context, "backup_time", now as i32)
+                .await?;
+            context.emit_event(Event::ImexFileWritten(dest_path_filename));
+            Ok(())
+        }
+    };
+    dest_sql.close().await;
+
+    Ok(res?)
 }
 
 async fn add_files_to_export(context: &Context, sql: &Sql) -> Result<()> {
