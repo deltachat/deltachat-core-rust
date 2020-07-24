@@ -1,10 +1,16 @@
 //! # Import/export module
 
 use std::any::Any;
-use std::cmp::{max, min};
+use std::{
+    cmp::{max, min},
+    ffi::OsStr,
+};
 
 use async_std::path::{Path, PathBuf};
-use async_std::{fs::File, prelude::*};
+use async_std::{
+    fs::{self, File},
+    prelude::*,
+};
 use rand::{thread_rng, Rng};
 
 use crate::blob::BlobObject;
@@ -24,6 +30,7 @@ use crate::param::*;
 use crate::pgp;
 use crate::sql::{self, Sql};
 use crate::stock::StockMessage;
+use async_tar::Archive;
 
 const DBFILE_BACKUP_NAME: &str = "sql_database_backup";
 const BLOBS_BACKUP_NAME: &str = "blobs_backup";
@@ -426,12 +433,24 @@ async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) ->
         "Cannot delete old database."
     );
 
-    ensure!(
-        dc_copy_file(context, backup_to_import.as_ref(), context.get_dbfile()).await,
-        "could not copy file"
-    );
-    /* error already logged */
-    /* re-open copied database file */
+    let backup_file = File::open(backup_to_import).await?;
+    let mut archive = Archive::new(backup_file);
+    let mut entries = archive.entries()?;
+    while let Some(file) = entries.next().await {
+        let f = &mut file?;
+        if f.path()?.file_name() == Some(OsStr::new(DBFILE_BACKUP_NAME)) {
+            // async_tar can't unpack to a specified file name, so we just unpack to the blobdir and then move the unpacked file.
+            f.unpack_in(context.get_blobdir()).await?;
+            fs::rename(
+                context.get_blobdir().join(DBFILE_BACKUP_NAME),
+                context.get_dbfile(),
+            )
+            .await?;
+        } else {
+            f.unpack_in(context.get_blobdir()).await?;
+        }
+    }
+
     ensure!(
         context
             .sql
@@ -442,74 +461,7 @@ async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) ->
 
     delete_and_reset_all_device_msgs(&context).await?;
 
-    let total_files_cnt = context
-        .sql
-        .query_get_value::<isize>(context, "SELECT COUNT(*) FROM backup_blobs;", paramsv![])
-        .await
-        .unwrap_or_default() as usize;
-    info!(
-        context,
-        "***IMPORT-in-progress: total_files_cnt={:?}", total_files_cnt,
-    );
-
-    // Load IDs only for now, without the file contents, to avoid
-    // consuming too much memory.
-    let file_ids = context
-        .sql
-        .query_map(
-            "SELECT id FROM backup_blobs ORDER BY id",
-            paramsv![],
-            |row| row.get(0),
-            |ids| {
-                ids.collect::<std::result::Result<Vec<i64>, _>>()
-                    .map_err(Into::into)
-            },
-        )
-        .await?;
-
-    let mut all_files_extracted = true;
-    for (processed_files_cnt, file_id) in file_ids.into_iter().enumerate() {
-        // Load a single blob into memory
-        let (file_name, file_blob) = context
-            .sql
-            .query_row(
-                "SELECT file_name, file_content FROM backup_blobs WHERE id = ?",
-                paramsv![file_id],
-                |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)),
-            )
-            .await?;
-
-        if context.shall_stop_ongoing().await {
-            all_files_extracted = false;
-            break;
-        }
-        let mut permille = processed_files_cnt * 1000 / total_files_cnt;
-        if permille < 10 {
-            permille = 10
-        }
-        if permille > 990 {
-            permille = 990
-        }
-        context.emit_event(Event::ImexProgress(permille));
-        if file_blob.is_empty() {
-            continue;
-        }
-
-        let path_filename = context.get_blobdir().join(file_name);
-        dc_write_file(context, &path_filename, &file_blob).await?;
-    }
-
-    if all_files_extracted {
-        // only delete backup_blobs if all files were successfully extracted
-        context
-            .sql
-            .execute("DROP TABLE backup_blobs;", paramsv![])
-            .await?;
-        context.sql.execute("VACUUM;", paramsv![]).await.ok();
-        Ok(())
-    } else {
-        bail!("received stop signal");
-    }
+    Ok(())
 }
 
 /*******************************************************************************
@@ -522,7 +474,7 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     // FIXME: we should write to a temporary file first and rename it on success. this would guarantee the backup is complete.
     // let dest_path_filename = dc_get_next_backup_file(context, dir, res);
     let now = time();
-    let dest_path_filename = dc_get_next_backup_path(dir, now).await?;
+    let (temp_path, dest_path) = dc_get_next_backup_path_new(dir, now).await?;
 
     context
         .sql
@@ -538,12 +490,34 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
         context,
         "Backup '{}' to '{}'.",
         context.get_dbfile().display(),
-        dest_path_filename.display(),
+        dest_path.display(),
     );
 
-    let file = File::create(dest_path_filename).await.unwrap();
+    let res = export_backup_inner(context, &temp_path).await;
+
+    match res {
+        Ok(_) => fs::rename(temp_path, dest_path).await?,
+        Err(e) => {
+            error!(context, "backup failed: {}", e);
+            // Not using dc_delete_file() here because it would send a DeletedBlobFile event
+            fs::remove_file(temp_path).await?;
+        }
+    }
+
+    context
+        .sql
+        .open(&context, &context.get_dbfile(), false)
+        .await;
+
+    Ok(())
+}
+
+async fn export_backup_inner(context: &Context, temp_path: &PathBuf) -> Result<()> {
+    let file = File::create(temp_path).await?;
+
     let mut builder = async_tar::Builder::new(file);
 
+    // append_path_with_name() wants the source path as the first argument, append_dir_all() wants it as the second argument.
     builder
         .append_path_with_name(context.get_dbfile(), DBFILE_BACKUP_NAME)
         .await?;
@@ -551,12 +525,6 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
         .append_dir_all(BLOBS_BACKUP_NAME, context.get_blobdir())
         .await?;
     builder.finish().await?;
-
-    context
-        .sql
-        .open(&context, &context.get_dbfile(), false)
-        .await;
-
     Ok(())
 }
 
