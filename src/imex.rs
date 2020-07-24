@@ -95,6 +95,45 @@ pub async fn imex(
 
 /// Returns the filename of the backup found (otherwise an error)
 pub async fn has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result<String> {
+    error!(context, "dbg has_backup new");
+    let dir_name = dir_name.as_ref();
+    let mut dir_iter = async_std::fs::read_dir(dir_name).await?;
+    let mut newest_backup_name = "".to_string();
+    let mut newest_backup_path: Option<PathBuf> = None;
+
+    while let Some(dirent) = dir_iter.next().await {
+        if let Ok(dirent) = dirent {
+            let path = dirent.path();
+            let name = dirent.file_name();
+            let name: String = name.to_string_lossy().into();
+            if name.starts_with("delta-chat") && name.ends_with(".tar") {
+                error!(
+                    context,
+                    "dbg has_backup new name {}, newest_backup_name {}, name>newest_backup_name {}",
+                    name,
+                    newest_backup_name,
+                    name > newest_backup_name
+                );
+                if newest_backup_name.is_empty() || name > newest_backup_name {
+                    // We just use string comparison to determine which backup is newer.
+                    // This works fine because the filenames have the form ...delta-chat-backup-2020-07-24-00.tar
+                    newest_backup_path = Some(path);
+                    newest_backup_name = name;
+                }
+            }
+        }
+    }
+
+    match newest_backup_path {
+        Some(path) => Ok(path.to_string_lossy().into_owned()),
+        None => has_backup_old(context, dir_name).await,
+        // If we decide to remove support for .bak backups, we can replace this with `None => bail!("no backup found in {}", dir_name.display()),`.
+    }
+}
+
+/// Returns the filename of the backup found (otherwise an error)
+pub async fn has_backup_old(context: &Context, dir_name: impl AsRef<Path>) -> Result<String> {
+    error!(context, "dbg has_backup");
     let dir_name = dir_name.as_ref();
     let mut dir_iter = async_std::fs::read_dir(dir_name).await?;
     let mut newest_backup_time = 0;
@@ -400,7 +439,7 @@ async fn imex_inner(
         // import_backup() will call import_backup_old() if this is an old backup.
         // TODO In some months we can change the export_backup_old() call to export_backup() and delete export_backup_old().
         // (now is 07/2020)
-        ImexMode::ExportBackup => export_backup_old(context, path).await,
+        ImexMode::ExportBackup => export_backup(context, path).await,
         ImexMode::ImportBackup => import_backup(context, path).await,
     };
 
