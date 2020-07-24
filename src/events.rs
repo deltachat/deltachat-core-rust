@@ -107,7 +107,7 @@ pub enum Event {
     #[strum(props(id = "150"))]
     NewBlobFile(String),
 
-    /// Emitted when an new file in the $BLOBDIR was created
+    /// Emitted when an file in the $BLOBDIR was deleted
     #[strum(props(id = "151"))]
     DeletedBlobFile(String),
 

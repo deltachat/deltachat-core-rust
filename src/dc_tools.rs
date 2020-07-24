@@ -470,6 +470,30 @@ pub(crate) async fn dc_get_next_backup_path(
     bail!("could not create backup file, disk full?");
 }
 
+pub(crate) async fn dc_get_next_backup_path_new(
+    folder: impl AsRef<Path>,
+    backup_time: i64,
+) -> Result<(PathBuf, PathBuf), Error> {
+    let folder = PathBuf::from(folder.as_ref());
+    let stem = chrono::NaiveDateTime::from_timestamp(backup_time, 0)
+        .format("delta-chat-backup-%Y-%m-%d")
+        .to_string();
+
+    // 64 backup files per day should be enough for everyone
+    for i in 0..64 {
+        let mut tempfile = folder.clone();
+        tempfile.push(format!("{}-{}.tar.part", stem, i));
+
+        let mut destfile = folder.clone();
+        destfile.push(format!("{}-{}.tar", stem, i));
+
+        if !tempfile.exists().await && !destfile.exists().await {
+            return Ok((tempfile, destfile));
+        }
+    }
+    bail!("could not create backup file, disk full?");
+}
+
 pub(crate) fn time() -> i64 {
     SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
