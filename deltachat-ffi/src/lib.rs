@@ -21,7 +21,7 @@ use std::ptr;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 
-use async_std::task::{block_on, spawn, spawn_local};
+use async_std::task::{block_on, spawn};
 use num_traits::{FromPrimitive, ToPrimitive};
 
 use deltachat::chat::{ChatId, ChatVisibility, MuteDuration};

@@ -585,8 +585,7 @@ async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>
 /*******************************************************************************
  * Export backup
  ******************************************************************************/
-/* the FILE_PROGRESS macro calls the callback with the permille of files processed.
-The macro avoids weird values of 0% or 100% while still working. */
+#[allow(unused)]
 async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     // get a fine backup file name (the name includes the date so that multiple backup instances are possible)
     // FIXME: we should write to a temporary file first and rename it on success. this would guarantee the backup is complete.
