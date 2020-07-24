@@ -25,3 +25,7 @@ deltachat-ffi/html
 deltachat-ffi/xml
 
 .rsynclist
+
+# ignore backup files
+*.bak
+

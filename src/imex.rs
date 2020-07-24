@@ -29,6 +29,7 @@ use crate::message::{Message, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::param::*;
 use crate::pgp;
+use crate::rusqlite::types::ValueRef;
 use crate::sql::{self, Sql};
 use crate::stock::StockMessage;
 use async_tar::Archive;
@@ -607,7 +608,54 @@ async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>
             .query_row(
                 "SELECT file_name, file_content FROM backup_blobs WHERE id = ?",
                 paramsv![file_id],
-                |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)),
+                // cs: This is the affected line NOW for producing the error. But
+                // here get is awaiting for String or another type to come back?
+                // |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)),
+
+                // cs: this is the secure replacement code for |row| ...
+                |row| {
+                    // Statement  'let name: String = row.get(0)?;'  is an assumption!
+                    //
+                    // This assumption that data matches String type is only true with clean utf8!
+                    // This simple "row.get(0) only works when TEXT column is ok and String conversion
+                    // from clean utf8 encoding is possible.
+                    // Every bad utf8 encoded data in TEXT column crashes this assumption and
+                    // switches to Err(_) path.
+                    let name: String = match row.get(0) {
+                        Ok(name) => name, // good utf8 filename
+                        Err(_) => {
+                            // bad utf8 encoding in filename
+                            match row.get_raw(0) {
+                                ValueRef::Null => "Null Value".to_string(),
+                                ValueRef::Text(t) => {
+                                    // column type in db is TEXT
+                                    let name = String::from_utf8_lossy(t).to_string();
+                                    info!(
+                                        context,
+                                        "Err (_), ValueRef::Text(t), name: \"{}\"", name
+                                    );
+                                    name
+                                }
+                                ValueRef::Blob(b) => {
+                                    let name = String::from_utf8_lossy(b).to_string();
+                                    info!(
+                                        context,
+                                        "Err (_), ValueRef::Blob(b), name: \"{}\"", name
+                                    );
+                                    name
+                                }
+                                _ => "Other error determining type value".to_string(),
+                            }
+                        }
+                    };
+
+                    // this always works
+                    let blob: Vec<u8> = row.get(1)?;
+
+                    info!(context, "query_map |row| filename=\"{}\"", name);
+
+                    Ok((name, blob))
+                },
             )
             .await?;
 
