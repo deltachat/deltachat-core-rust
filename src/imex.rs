@@ -383,7 +383,10 @@ async fn imex_inner(
 
     ensure!(context.sql.is_open().await, "Database not opened.");
 
-    let path = param.unwrap();
+    let path = param.ok_or_else(|| {
+        warn!(context, "Imex: Param was None");
+        format_err!("Imex: Param was None")
+    })?;
     if what == ImexMode::ExportBackup || what == ImexMode::ExportSelfKeys {
         // before we export anything, make sure the private key exists
         if e2ee::ensure_secret_key_exists(context).await.is_err() {
@@ -486,6 +489,7 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
 
     // we close the database during the export
     context.sql.close().await;
+
     info!(
         context,
         "Backup '{}' to '{}'.",
@@ -495,7 +499,12 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
 
     let res = export_backup_inner(context, &temp_path).await;
 
-    match res {
+    context
+        .sql
+        .open(&context, &context.get_dbfile(), false)
+        .await;
+
+    match &res {
         Ok(_) => fs::rename(temp_path, dest_path).await?,
         Err(e) => {
             error!(context, "backup failed: {}", e);
@@ -504,12 +513,7 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
         }
     }
 
-    context
-        .sql
-        .open(&context, &context.get_dbfile(), false)
-        .await;
-
-    Ok(())
+    res
 }
 
 async fn export_backup_inner(context: &Context, temp_path: &PathBuf) -> Result<()> {
