@@ -16,6 +16,7 @@ use crate::dc_tools::*;
 use crate::ephemeral::start_ephemeral_timers;
 use crate::param::*;
 use crate::peerstate::*;
+use crate::rusqlite::types::ValueRef; //cs
 
 #[macro_export]
 macro_rules! paramsv {
@@ -618,7 +619,26 @@ async fn maybe_add_from_param(
         .query_map(
             query,
             paramsv![],
-            |row| row.get::<_, String>(0),
+            //|row| row.get::<_, String>(0), // <=== this crashes when non utf8 byte in column
+
+            // cs: maybe the following could be done even more simple than here?
+            |row| {
+                let value = match row.get_raw(0) {
+                    ValueRef::Text(t) => {
+                        // changed due to clippy complain
+                        //~let col_str = String::from_utf8_lossy(t).to_string();
+                        //~info!(context, "maybe_add_from_param() - col_str: \"{}\"", col_str);
+                        //~col_str
+                        String::from_utf8_lossy(t).to_string()
+                    }
+                    _ => {
+                        let s_err = "maybe_add_from_param() - error - get_raw(0)".to_string();
+                        info!(context, "{}", s_err);
+                        s_err
+                    }
+                };
+                Ok(value)
+            },
             |rows| {
                 for row in rows {
                     let param: Params = row?.parse().unwrap_or_default();
