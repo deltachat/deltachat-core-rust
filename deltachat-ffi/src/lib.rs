@@ -21,7 +21,7 @@ use std::ptr;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 
-use async_std::task::{block_on, spawn};
+use async_std::task::{block_on, spawn, spawn_local};
 use num_traits::{FromPrimitive, ToPrimitive};
 
 use deltachat::chat::{ChatId, ChatVisibility, MuteDuration};
@@ -1729,10 +1729,14 @@ pub unsafe extern "C" fn dc_imex(
 
     let param1 = to_opt_string_lossy(param1);
 
-    spawn(async move {
-        imex::imex(&ctx, what, param1)
-            .await
-            .log_err(ctx, "IMEX failed")
+    std::thread::spawn(move || {
+        if let Err(e) = block_on(async move {
+            imex::imex(&ctx, what, param1)
+                .await
+                .log_err(ctx, "IMEX failed")
+        }) {
+            warn!(ctx, "Could not start imex: {}", e);
+        }
     });
 }
 
