@@ -482,10 +482,10 @@ pub(crate) async fn dc_get_next_backup_path_new(
     // 64 backup files per day should be enough for everyone
     for i in 0..64 {
         let mut tempfile = folder.clone();
-        tempfile.push(format!("{}-{}.tar.part", stem, i));
+        tempfile.push(format!("{}-{:02}.tar.part", stem, i));
 
         let mut destfile = folder.clone();
-        destfile.push(format!("{}-{}.tar", stem, i));
+        destfile.push(format!("{}-{:02}.tar", stem, i));
 
         if !tempfile.exists().await && !destfile.exists().await {
             return Ok((tempfile, destfile));
