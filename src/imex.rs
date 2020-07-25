@@ -431,7 +431,7 @@ async fn imex_inner(
 
         // TODO In some months we can change the export_backup_old() call to export_backup() and delete export_backup_old().
         // (now is 07/2020)
-        ImexMode::ExportBackup => export_backup_old(context, path).await,
+        ImexMode::ExportBackup => export_backup(context, path).await,
         // import_backup() will call import_backup_old() if this is an old backup.
         ImexMode::ImportBackup => import_backup(context, path).await,
     };
