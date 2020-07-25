@@ -17,6 +17,7 @@ use crate::dehtml::dehtml;
 use crate::e2ee;
 use crate::error::{bail, Result};
 use crate::events::EventType;
+use crate::format_flowed::unformat_flowed;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::key::Fingerprint;
 use crate::location;
@@ -713,6 +714,27 @@ impl MimeMessage {
                                 decoded_data.clone()
                             };
                             simplify(out, self.has_chat_version())
+                        };
+
+                        let is_format_flowed = if let Some(format) = mail.ctype.params.get("format")
+                        {
+                            format.as_str().to_ascii_lowercase() == "flowed"
+                        } else {
+                            false
+                        };
+
+                        let simplified_txt = if mime_type.type_() == mime::TEXT
+                            && mime_type.subtype() == mime::PLAIN
+                            && is_format_flowed
+                        {
+                            let delsp = if let Some(delsp) = mail.ctype.params.get("delsp") {
+                                delsp.as_str().to_ascii_lowercase() == "yes"
+                            } else {
+                                false
+                            };
+                            unformat_flowed(&simplified_txt, delsp)
+                        } else {
+                            simplified_txt
                         };
 
                         if !simplified_txt.is_empty() {
@@ -2028,5 +2050,14 @@ CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
 
         let test = parse_message_ids("  < ").unwrap();
         assert!(test.is_empty());
+    }
+
+    #[test]
+    fn test_mime_parse_format_flowed() {
+        let mime_type = "text/plain; charset=utf-8; Format=Flowed; DelSp=No"
+            .parse::<mime::Mime>()
+            .unwrap();
+        let format_param = mime_type.get_param("format").unwrap();
+        assert_eq!(format_param.as_str().to_ascii_lowercase(), "flowed");
     }
 }
