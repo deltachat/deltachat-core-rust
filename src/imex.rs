@@ -106,13 +106,14 @@ pub async fn has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result
             let path = dirent.path();
             let name = dirent.file_name();
             let name: String = name.to_string_lossy().into();
-            if name.starts_with("delta-chat") && name.ends_with(".tar") {
-                if newest_backup_name.is_empty() || name > newest_backup_name {
-                    // We just use string comparison to determine which backup is newer.
-                    // This works fine because the filenames have the form ...delta-chat-backup-2020-07-24-00.tar
-                    newest_backup_path = Some(path);
-                    newest_backup_name = name;
-                }
+            if name.starts_with("delta-chat")
+                && name.ends_with(".tar")
+                && (newest_backup_name.is_empty() || name > newest_backup_name)
+            {
+                // We just use string comparison to determine which backup is newer.
+                // This works fine because the filenames have the form ...delta-chat-backup-2020-07-24-00.tar
+                newest_backup_path = Some(path);
+                newest_backup_name = name;
             }
         }
     }
