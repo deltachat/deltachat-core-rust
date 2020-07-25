@@ -1738,8 +1738,8 @@ dc_contact_t*   dc_get_contact               (dc_context_t* context, uint32_t co
  * - **DC_IMEX_EXPORT_BACKUP** (11) - Export a backup to the directory given as `param1`.
  *   The backup contains all contacts, chats, images and other data and device independent settings.
  *   The backup does not contain device dependent settings as ringtones or LED notification settings.
- *   The name of the backup is typically `delta-chat.<day>.bak`, if more than one backup is create on a day,
- *   the format is `delta-chat.<day>-<number>.bak`
+ *   The name of the backup is typically `delta-chat.<day>.tar`, if more than one backup is create on a day,
+ *   the format is `delta-chat.<day>-<number>.tar`
  *
  * - **DC_IMEX_IMPORT_BACKUP** (12) - `param1` is the file (not: directory) to import. The file is normally
  *   created by DC_IMEX_EXPORT_BACKUP and detected by dc_imex_has_backup(). Importing a backup

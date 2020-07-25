@@ -52,8 +52,8 @@ pub enum ImexMode {
     /// Export a backup to the directory given as `param1`.
     /// The backup contains all contacts, chats, images and other data and device independent settings.
     /// The backup does not contain device dependent settings as ringtones or LED notification settings.
-    /// The name of the backup is typically `delta-chat.<day>.bak`, if more than one backup is create on a day,
-    /// the format is `delta-chat.<day>-<number>.bak`
+    /// The name of the backup is typically `delta-chat.<day>.tar`, if more than one backup is create on a day,
+    /// the format is `delta-chat.<day>-<number>.tar`
     ExportBackup = 11,
 
     /// `param1` is the file (not: directory) to import. The file is normally
@@ -127,7 +127,7 @@ pub async fn has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result
     match newest_backup_path {
         Some(path) => Ok(path.to_string_lossy().into_owned()),
         None => has_backup_old(context, dir_name).await,
-        // If we decide to remove support for .bak backups, we can replace this with `None => bail!("no backup found in {}", dir_name.display()),`.
+        // When we decide to remove support for .bak backups, we can replace this with `None => bail!("no backup found in {}", dir_name.display()),`.
     }
 }
 
@@ -436,10 +436,10 @@ async fn imex_inner(
         ImexMode::ExportSelfKeys => export_self_keys(context, path).await,
         ImexMode::ImportSelfKeys => import_self_keys(context, path).await,
 
-        // import_backup() will call import_backup_old() if this is an old backup.
         // TODO In some months we can change the export_backup_old() call to export_backup() and delete export_backup_old().
         // (now is 07/2020)
-        ImexMode::ExportBackup => export_backup(context, path).await,
+        ImexMode::ExportBackup => export_backup_old(context, path).await,
+        // import_backup() will call import_backup_old() if this is an old backup.
         ImexMode::ImportBackup => import_backup(context, path).await,
     };
 
