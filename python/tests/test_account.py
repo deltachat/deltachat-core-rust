@@ -986,7 +986,10 @@ class TestOnlineAccount:
         chat = acfactory.get_accepted_chat(ac1, ac2)
 
         lp.sec("sending multi-line non-unicode message from ac1 to ac2")
-        text1 = "hello\nworld"
+        text1 = (
+            "hello\nworld\nthis is a very long message that should be"
+            + " wrapped using format=flowed and unwrapped on the receiver"
+        )
         msg_out = chat.send_text(text1)
         assert not msg_out.is_encrypted()
 

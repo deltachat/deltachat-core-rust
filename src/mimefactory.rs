@@ -11,6 +11,7 @@ use crate::dc_tools::*;
 use crate::e2ee::*;
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::error::{bail, ensure, format_err, Error};
+use crate::format_flowed::format_flowed;
 use crate::location;
 use crate::message::{self, Message};
 use crate::mimeparser::SystemMessage;
@@ -910,11 +911,13 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             }
         };
 
+        let flowed_text = format_flowed(final_text);
+
         let footer = &self.selfstatus;
         let message_text = format!(
             "{}{}{}{}{}",
             fwdhint.unwrap_or_default(),
-            escape_message_footer_marks(final_text),
+            escape_message_footer_marks(&flowed_text),
             if !final_text.is_empty() && !footer.is_empty() {
                 "\r\n\r\n"
             } else {
@@ -926,7 +929,10 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
 
         // Message is sent as text/plain, with charset = utf-8
         let main_part = PartBuilder::new()
-            .content_type(&mime::TEXT_PLAIN_UTF_8)
+            .header((
+                "Content-Type".to_string(),
+                "text/plain; charset=utf-8; format=flowed; delsp=no".to_string(),
+            ))
             .body(message_text);
         let mut parts = Vec::new();
 
