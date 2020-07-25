@@ -450,7 +450,7 @@ pub fn dc_open_file_std<P: AsRef<std::path::Path>>(
     }
 }
 
-pub(crate) async fn dc_get_next_backup_path(
+pub(crate) async fn dc_get_next_backup_path_old(
     folder: impl AsRef<Path>,
     backup_time: i64,
 ) -> Result<PathBuf, Error> {

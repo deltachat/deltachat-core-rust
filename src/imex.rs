@@ -658,7 +658,10 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
         .await;
 
     match &res {
-        Ok(_) => fs::rename(temp_path, dest_path).await?,
+        Ok(_) => {
+            fs::rename(temp_path, &dest_path).await?;
+            context.emit_event(Event::ImexFileWritten(dest_path));
+        }
         Err(e) => {
             error!(context, "backup failed: {}", e);
             // Not using dc_delete_file() here because it would send a DeletedBlobFile event
@@ -690,7 +693,7 @@ async fn export_backup_old(context: &Context, dir: impl AsRef<Path>) -> Result<(
     // FIXME: we should write to a temporary file first and rename it on success. this would guarantee the backup is complete.
     // let dest_path_filename = dc_get_next_backup_file(context, dir, res);
     let now = time();
-    let dest_path_filename = dc_get_next_backup_path(dir, now).await?;
+    let dest_path_filename = dc_get_next_backup_path_old(dir, now).await?;
     let dest_path_string = dest_path_filename.to_string_lossy().to_string();
 
     sql::housekeeping(context).await;
