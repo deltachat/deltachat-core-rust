@@ -560,7 +560,7 @@ impl MimeMessage {
                 contains exactly two body parts.  The first body
                 part is the body part over which the digital signature was created [...]
                 The second body part contains the control information necessary to
-                verify the digital signature." We simpliy take the first body part and
+                verify the digital signature." We simply take the first body part and
                 skip the rest.  (see
                 https://k9mail.github.io/2016/11/24/OpenPGP-Considerations-Part-I.html
                 for background information why we use encrypted+signed) */
