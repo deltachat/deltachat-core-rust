@@ -32,7 +32,8 @@ use crate::sql::{self, Sql};
 use crate::stock::StockMessage;
 use async_tar::Archive;
 
-const DBFILE_BACKUP_NAME: &str = "sql_database_backup";
+// Name of the database file in the backup.
+const DBFILE_BACKUP_NAME: &str = "dc_database_backup.sqlite";
 const BLOBS_BACKUP_NAME: &str = "blobs_backup";
 
 #[derive(Debug, Display, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive)]
@@ -95,7 +96,6 @@ pub async fn imex(
 
 /// Returns the filename of the backup found (otherwise an error)
 pub async fn has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result<String> {
-    error!(context, "dbg has_backup new");
     let dir_name = dir_name.as_ref();
     let mut dir_iter = async_std::fs::read_dir(dir_name).await?;
     let mut newest_backup_name = "".to_string();
@@ -107,13 +107,6 @@ pub async fn has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result
             let name = dirent.file_name();
             let name: String = name.to_string_lossy().into();
             if name.starts_with("delta-chat") && name.ends_with(".tar") {
-                error!(
-                    context,
-                    "dbg has_backup new name {}, newest_backup_name {}, name>newest_backup_name {}",
-                    name,
-                    newest_backup_name,
-                    name > newest_backup_name
-                );
                 if newest_backup_name.is_empty() || name > newest_backup_name {
                     // We just use string comparison to determine which backup is newer.
                     // This works fine because the filenames have the form ...delta-chat-backup-2020-07-24-00.tar
@@ -133,7 +126,6 @@ pub async fn has_backup(context: &Context, dir_name: impl AsRef<Path>) -> Result
 
 /// Returns the filename of the backup found (otherwise an error)
 pub async fn has_backup_old(context: &Context, dir_name: impl AsRef<Path>) -> Result<String> {
-    error!(context, "dbg has_backup");
     let dir_name = dir_name.as_ref();
     let mut dir_iter = async_std::fs::read_dir(dir_name).await?;
     let mut newest_backup_time = 0;
@@ -498,8 +490,18 @@ async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) ->
                 context.get_dbfile(),
             )
             .await?;
+            context.emit_event(Event::ImexProgress(400)); // Just guess the progress, we at least have the dbfile by now
         } else {
+            // async_tar will unpack to blobdir/BLOBS_BACKUP_NAME, so we move the file afterwards.
             f.unpack_in(context.get_blobdir()).await?;
+            let from_path = context.get_blobdir().join(f.path()?);
+            if from_path.is_file().await {
+                if let Some(name) = from_path.file_name() {
+                    fs::rename(&from_path, context.get_blobdir().join(name)).await?;
+                } else {
+                    warn!(context, "No file name");
+                }
+            }
         }
     }
 
@@ -681,9 +683,13 @@ async fn export_backup_inner(context: &Context, temp_path: &PathBuf) -> Result<(
     builder
         .append_path_with_name(context.get_dbfile(), DBFILE_BACKUP_NAME)
         .await?;
+
+    context.emit_event(Event::ImexProgress(500));
+
     builder
         .append_dir_all(BLOBS_BACKUP_NAME, context.get_blobdir())
         .await?;
+
     builder.finish().await?;
     Ok(())
 }
