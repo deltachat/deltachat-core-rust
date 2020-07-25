@@ -625,8 +625,6 @@ async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>
 #[allow(unused)]
 async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     // get a fine backup file name (the name includes the date so that multiple backup instances are possible)
-    // FIXME: we should write to a temporary file first and rename it on success. this would guarantee the backup is complete.
-    // let dest_path_filename = dc_get_next_backup_file(context, dir, res);
     let now = time();
     let (temp_path, dest_path) = dc_get_next_backup_path_new(dir, now).await?;
 
