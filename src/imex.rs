@@ -1,10 +1,7 @@
 //! # Import/export module
 
 use std::any::Any;
-use std::{
-    cmp::{max, min},
-    ffi::OsStr,
-};
+use std::ffi::OsStr;
 
 use async_std::path::{Path, PathBuf};
 use async_std::{
@@ -429,9 +426,7 @@ async fn imex_inner(
         ImexMode::ExportSelfKeys => export_self_keys(context, path).await,
         ImexMode::ImportSelfKeys => import_self_keys(context, path).await,
 
-        // TODO In some months we can change the export_backup_old() call to export_backup() and delete export_backup_old().
-        // (now is 07/2020)
-        ImexMode::ExportBackup => export_backup_old(context, path).await,
+        ImexMode::ExportBackup => export_backup(context, path).await,
         // import_backup() will call import_backup_old() if this is an old backup.
         ImexMode::ImportBackup => import_backup(context, path).await,
     };
@@ -692,121 +687,6 @@ async fn export_backup_inner(context: &Context, temp_path: &PathBuf) -> Result<(
         .await?;
 
     builder.finish().await?;
-    Ok(())
-}
-
-async fn export_backup_old(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
-    // get a fine backup file name (the name includes the date so that multiple backup instances are possible)
-    // FIXME: we should write to a temporary file first and rename it on success. this would guarantee the backup is complete.
-    // let dest_path_filename = dc_get_next_backup_file(context, dir, res);
-    let now = time();
-    let dest_path_filename = dc_get_next_backup_path_old(dir, now).await?;
-    let dest_path_string = dest_path_filename.to_string_lossy().to_string();
-
-    sql::housekeeping(context).await;
-
-    context.sql.execute("VACUUM;", paramsv![]).await.ok();
-
-    // we close the database during the copy of the dbfile
-    context.sql.close().await;
-    info!(
-        context,
-        "Backup '{}' to '{}'.",
-        context.get_dbfile().display(),
-        dest_path_filename.display(),
-    );
-    let copied = dc_copy_file(context, context.get_dbfile(), &dest_path_filename).await;
-    context
-        .sql
-        .open(&context, &context.get_dbfile(), false)
-        .await;
-
-    if !copied {
-        bail!(
-            "could not copy file from '{}' to '{}'",
-            context.get_dbfile().display(),
-            dest_path_string
-        );
-    }
-    let dest_sql = Sql::new();
-    ensure!(
-        dest_sql.open(context, &dest_path_filename, false).await,
-        "could not open exported database {}",
-        dest_path_string
-    );
-    let res = match add_files_to_export(context, &dest_sql).await {
-        Err(err) => {
-            dc_delete_file(context, &dest_path_filename).await;
-            error!(context, "backup failed: {}", err);
-            Err(err)
-        }
-        Ok(()) => {
-            dest_sql
-                .set_raw_config_int(context, "backup_time", now as i32)
-                .await?;
-            context.emit_event(Event::ImexFileWritten(dest_path_filename));
-            Ok(())
-        }
-    };
-    dest_sql.close().await;
-
-    Ok(res?)
-}
-
-async fn add_files_to_export(context: &Context, sql: &Sql) -> Result<()> {
-    // add all files as blobs to the database copy (this does not require
-    // the source to be locked, neigher the destination as it is used only here)
-    if !sql.table_exists("backup_blobs").await? {
-        sql.execute(
-            "CREATE TABLE backup_blobs (id INTEGER PRIMARY KEY, file_name, file_content);",
-            paramsv![],
-        )
-        .await?;
-    }
-    // copy all files from BLOBDIR into backup-db
-    let mut total_files_cnt = 0;
-    let dir = context.get_blobdir();
-    let dir_handle = async_std::fs::read_dir(&dir).await?;
-    total_files_cnt += dir_handle.filter(|r| r.is_ok()).count().await;
-
-    info!(context, "EXPORT: total_files_cnt={}", total_files_cnt);
-
-    sql.with_conn_async(|conn| async move {
-        // scan directory, pass 2: copy files
-        let mut dir_handle = async_std::fs::read_dir(&dir).await?;
-
-        let mut processed_files_cnt = 0;
-        while let Some(entry) = dir_handle.next().await {
-            let entry = entry?;
-            if context.shall_stop_ongoing().await {
-                return Ok(());
-            }
-            processed_files_cnt += 1;
-            let permille = max(min(processed_files_cnt * 1000 / total_files_cnt, 990), 10);
-            context.emit_event(Event::ImexProgress(permille));
-
-            let name_f = entry.file_name();
-            let name = name_f.to_string_lossy();
-            if name.starts_with("delta-chat") && name.ends_with(".bak") {
-                continue;
-            }
-            info!(context, "EXPORT: copying filename={}", name);
-            let curr_path_filename = context.get_blobdir().join(entry.file_name());
-            if let Ok(buf) = dc_read_file(context, &curr_path_filename).await {
-                if buf.is_empty() {
-                    continue;
-                }
-                // bail out if we can't insert
-                let mut stmt = conn.prepare_cached(
-                    "INSERT INTO backup_blobs (file_name, file_content) VALUES (?, ?);",
-                )?;
-                stmt.execute(paramsv![name, buf])?;
-            }
-        }
-        Ok(())
-    })
-    .await?;
-
     Ok(())
 }
 
