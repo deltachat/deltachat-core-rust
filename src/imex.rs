@@ -650,7 +650,7 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
 
     let res = export_backup_inner(context, &temp_path).await;
 
-// we re-open the database after export is finished
+    // we re-open the database after export is finished
     context
         .sql
         .open(&context, &context.get_dbfile(), false)
