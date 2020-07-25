@@ -65,6 +65,7 @@ pretty_env_logger = { version = "0.4.0", optional = true }
 log = {version = "0.4.8", optional = true }
 rustyline = { version = "4.1.0", optional = true }
 ansi_term = { version = "0.12.1", optional = true }
+dirs = { version = "3.0.1", optional=true }
 
 
 [dev-dependencies]
@@ -95,7 +96,7 @@ required-features = ["repl"]
 [features]
 default = []
 internals = []
-repl = ["internals", "rustyline", "log", "pretty_env_logger", "ansi_term"]
+repl = ["internals", "rustyline", "log", "pretty_env_logger", "ansi_term", "dirs"]
 vendored = ["async-native-tls/vendored", "async-smtp/native-tls-vendored"]
 nightly = ["pgp/nightly"]
 
