@@ -633,7 +633,9 @@ impl Job {
             }
         }
         if self.foreign_id & DC_EMPTY_INBOX > 0 {
-            imap.empty_folder(context, "INBOX").await;
+            if let Some(inbox_folder) = &context.get_config(Config::ConfiguredInboxFolder).await {
+                imap.empty_folder(context, &inbox_folder).await;
+            }
         }
         Status::Finished(Ok(()))
     }
