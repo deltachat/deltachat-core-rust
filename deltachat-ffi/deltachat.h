@@ -854,7 +854,7 @@ uint32_t        dc_send_text_msg             (dc_context_t* context, uint32_t ch
  *
  * - delta-clients can get all information needed from
  *   the message object, using eg.
- *   dc_msg_get_videochat_url() and check dc_msg_get_viewtype() for DC_MSG_VIDEOCHAT_INVITATION
+ *   dc_msg_get_videochat_url() and check dc_msg_get_viewtype() for #DC_MSG_VIDEOCHAT_INVITATION
  *
  * dc_send_videochat_invitation() is blocking and may take a while,
  * so the UIs will typically call the function from within a thread.
@@ -863,9 +863,10 @@ uint32_t        dc_send_text_msg             (dc_context_t* context, uint32_t ch
  *
  * As for other messages sent, this function
  * sends the event #DC_EVENT_MSGS_CHANGED on succcess, the message has a delivery state, and so on.
- * The recipient will get noticed by the call as usual by DC_EVENT_INCOMING_MSG or DC_EVENT_MSGS_CHANGED,
+ * The recipient will get noticed by the call as usual by #DC_EVENT_INCOMING_MSG or #DC_EVENT_MSGS_CHANGED,
  * However, UIs might some things differently, eg. play a different sound.
  *
+ * @memberof dc_context_t
  * @param context The context object.
  * @param chat_id The chat to start a videochat for.
  * @return The id if the message sent out
@@ -3281,6 +3282,7 @@ char*           dc_msg_get_setupcodebegin     (const dc_msg_t* msg);
  * Videochat invitations are sent out using dc_send_videochat_invitation()
  * and dc_msg_get_viewtype() returns #DC_MSG_VIDEOCHAT_INVITATION for such invitations.
  *
+ * @memberof dc_msg_t
  * @param msg The message object.
  * @return If the message contains a videochat invitation,
  *     the url of the invitation is returned.
@@ -3302,6 +3304,7 @@ char* dc_msg_get_videochat_url (const dc_msg_t* msg);
  * The videochat-url can be retrieved using dc_msg_get_videochat_url().
  * To check if a message is a videochat invitation at all, check the message type for #DC_MSG_VIDEOCHAT_INVITATION.
  *
+ * @memberof dc_msg_t
  * @param msg The message object.
  * @return Type of the videochat as of DC_VIDEOCHATTYPE_BASICWEBRTC or DC_VIDEOCHATTYPE_UNKNOWN.
  *
