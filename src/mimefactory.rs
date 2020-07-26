@@ -875,6 +875,19 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
 
         if self.msg.viewtype == Viewtype::Sticker {
             protected_headers.push(Header::new("Chat-Content".into(), "sticker".into()));
+        } else if self.msg.viewtype == Viewtype::VideochatInvitation {
+            protected_headers.push(Header::new(
+                "Chat-Content".into(),
+                "videochat-invitation".into(),
+            ));
+            protected_headers.push(Header::new(
+                "Chat-Webrtc-Room".into(),
+                self.msg
+                    .param
+                    .get(Param::WebrtcRoom)
+                    .unwrap_or_default()
+                    .into(),
+            ));
         }
 
         if self.msg.viewtype == Viewtype::Voice

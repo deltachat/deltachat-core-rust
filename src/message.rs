@@ -638,6 +638,39 @@ impl Message {
         None
     }
 
+    /// split a webrtc_instance as defined by the corresponding config-value into a type and a url
+    pub fn parse_webrtc_instance(instance: &str) -> (VideochatType, String) {
+        let mut split = instance.splitn(2, ':');
+        let type_str = split.next().unwrap_or_default().to_lowercase();
+        let url = split.next();
+        if type_str == "basicwebrtc" {
+            (
+                VideochatType::BasicWebrtc,
+                url.unwrap_or_default().to_string(),
+            )
+        } else {
+            (VideochatType::Unknown, instance.to_string())
+        }
+    }
+
+    pub fn get_videochat_url(&self) -> Option<String> {
+        if self.viewtype == Viewtype::VideochatInvitation {
+            if let Some(instance) = self.param.get(Param::WebrtcRoom) {
+                return Some(Message::parse_webrtc_instance(instance).1);
+            }
+        }
+        None
+    }
+
+    pub fn get_videochat_type(&self) -> Option<VideochatType> {
+        if self.viewtype == Viewtype::VideochatInvitation {
+            if let Some(instance) = self.param.get(Param::WebrtcRoom) {
+                return Some(Message::parse_webrtc_instance(instance).0);
+            }
+        }
+        None
+    }
+
     pub fn set_text(&mut self, text: Option<String>) {
         self.text = text;
     }
@@ -1241,6 +1274,13 @@ pub async fn get_summarytext_by_raw(
                 format!("{} – {}", label, file_name)
             }
         }
+        Viewtype::VideochatInvitation => {
+            append_text = false;
+            context
+                .stock_str(StockMessage::VideochatInvitation)
+                .await
+                .into_owned()
+        }
         _ => {
             if param.get_cmd() != SystemMessage::LocationOnly {
                 "".to_string()
@@ -1798,5 +1838,20 @@ mod tests {
             get_summarytext_by_raw(Viewtype::File, no_text.as_ref(), &mut asm_file, 50, &ctx).await,
             "Autocrypt Setup Message" // file name is not added for autocrypt setup messages
         );
+    }
+
+    #[async_std::test]
+    async fn test_parse_webrtc_instance() {
+        let (webrtc_type, url) = Message::parse_webrtc_instance("basicwebrtc:https://foo/bar");
+        assert_eq!(webrtc_type, VideochatType::BasicWebrtc);
+        assert_eq!(url, "https://foo/bar");
+
+        let (webrtc_type, url) = Message::parse_webrtc_instance("bAsIcwEbrTc:url");
+        assert_eq!(webrtc_type, VideochatType::BasicWebrtc);
+        assert_eq!(url, "url");
+
+        let (webrtc_type, url) = Message::parse_webrtc_instance("https://foo/bar?key=val#key=val");
+        assert_eq!(webrtc_type, VideochatType::Unknown);
+        assert_eq!(url, "https://foo/bar?key=val#key=val");
     }
 }

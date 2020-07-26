@@ -242,6 +242,19 @@ impl MimeMessage {
         }
     }
 
+    fn parse_videochat_headers(&mut self) {
+        if let Some(value) = self.get(HeaderDef::ChatContent).cloned() {
+            if value == "videochat-invitation" {
+                let instance = self.get(HeaderDef::ChatWebrtcRoom).cloned();
+                if let Some(part) = self.parts.first_mut() {
+                    part.typ = Viewtype::VideochatInvitation;
+                    part.param
+                        .set(Param::WebrtcRoom, instance.unwrap_or_default());
+                }
+            }
+        }
+    }
+
     /// Squashes mutlipart chat messages with attachment into single-part messages.
     ///
     /// Delta Chat sends attachments, such as images, in two-part messages, with the first message
@@ -314,6 +327,7 @@ impl MimeMessage {
     fn parse_headers(&mut self, context: &Context) -> Result<()> {
         self.parse_system_message_headers(context)?;
         self.parse_avatar_headers();
+        self.parse_videochat_headers();
         self.squash_attachment_parts();
 
         if let Some(ref subject) = self.get_subject() {
@@ -1447,6 +1461,28 @@ mod tests {
         assert_eq!(mimeparser.parts[0].typ, Viewtype::Image);
         assert_eq!(mimeparser.user_avatar, None);
         assert!(mimeparser.group_avatar.unwrap().is_change());
+    }
+
+    #[async_std::test]
+    async fn test_mimeparser_with_videochat() {
+        let t = TestContext::new().await;
+
+        let raw = include_bytes!("../test-data/message/videochat_invitation.eml");
+        let mimeparser = MimeMessage::from_bytes(&t.ctx, &raw[..]).await.unwrap();
+        assert_eq!(mimeparser.parts.len(), 1);
+        assert_eq!(mimeparser.parts[0].typ, Viewtype::VideochatInvitation);
+        assert_eq!(
+            mimeparser.parts[0]
+                .param
+                .get(Param::WebrtcRoom)
+                .unwrap_or_default(),
+            "https://example.org/p2p/?roomname=6HiduoAn4xN"
+        );
+        assert!(mimeparser.parts[0]
+            .msg
+            .contains("https://example.org/p2p/?roomname=6HiduoAn4xN"));
+        assert_eq!(mimeparser.user_avatar, None);
+        assert_eq!(mimeparser.group_avatar, None);
     }
 
     #[async_std::test]

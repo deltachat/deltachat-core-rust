@@ -1374,11 +1374,12 @@ pub(crate) fn msgtype_has_file(msgtype: Viewtype) -> bool {
         Viewtype::Voice => true,
         Viewtype::Video => true,
         Viewtype::File => true,
+        Viewtype::VideochatInvitation => false,
     }
 }
 
 async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<(), Error> {
-    if msg.viewtype == Viewtype::Text {
+    if msg.viewtype == Viewtype::Text || msg.viewtype == Viewtype::VideochatInvitation {
         // the caller should check if the message text is empty
     } else if msgtype_has_file(msg.viewtype) {
         let blob = msg
@@ -1608,6 +1609,44 @@ pub async fn send_text_msg(
 
     let mut msg = Message::new(Viewtype::Text);
     msg.text = Some(text_to_send);
+    send_msg(context, chat_id, &mut msg).await
+}
+
+pub async fn send_videochat_invitation(context: &Context, chat_id: ChatId) -> Result<MsgId, Error> {
+    ensure!(
+        !chat_id.is_special(),
+        "video chat invitation cannot be sent to special chat: {}",
+        chat_id
+    );
+
+    let instance = if let Some(instance) = context.get_config(Config::WebrtcInstance).await {
+        if !instance.is_empty() {
+            instance
+        } else {
+            bail!("webrtc_instance is empty");
+        }
+    } else {
+        bail!("webrtc_instance not set");
+    };
+
+    let room = dc_create_id();
+
+    let instance = if instance.contains("$ROOM") {
+        instance.replace("$ROOM", &room)
+    } else {
+        format!("{}{}", instance, room)
+    };
+
+    let mut msg = Message::new(Viewtype::VideochatInvitation);
+    msg.param.set(Param::WebrtcRoom, &instance);
+    msg.text = Some(
+        context
+            .stock_string_repl_str(
+                StockMessage::VideochatInviteMsgBody,
+                Message::parse_webrtc_instance(&instance).1,
+            )
+            .await,
+    );
     send_msg(context, chat_id, &mut msg).await
 }
 

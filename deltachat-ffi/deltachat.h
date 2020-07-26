@@ -318,11 +318,11 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    The library uses the `media_quality` setting to use different defaults
  *                    for recoding images sent with type DC_MSG_IMAGE.
  *                    If needed, recoding other file types is up to the UI.
- * - `basic_web_rtc_instance` = address to webrtc signaling server (https://github.com/cracker0dks/basicwebrtc)
- *                    that should be used for opening video hangouts.
- *                    This property is only used in the UIs not by the core itself.
- *                    Format: https://example.com/subdir
- *                    The other properties that are needed for a call such as the roomname will be set by the client in the anchor part of the url.
+ * - `webrtc_instance` = webrtc instance to use for videochats in the form
+ *                    `[basicwebrtc:]https://example.com/subdir#roomname=$ROOM`
+ *                    if the url is prefixed by `basicwebrtc`, the server is assumed to be of the type
+ *                    https://github.com/cracker0dks/basicwebrtc which some UIs have native support for.
+ *                    If no type is prefixed, the videochat is handled completely in a browser.
  *
  * If you want to retrieve a value, use dc_get_config().
  *
@@ -837,6 +837,41 @@ uint32_t        dc_send_msg_sync                  (dc_context_t* context, uint32
  * @return The ID of the message that is about being sent.
  */
 uint32_t        dc_send_text_msg             (dc_context_t* context, uint32_t chat_id, const char* text_to_send);
+
+
+/**
+ * Send invitation to a videochat.
+ *
+ * This function reads the `webrtc_instance` config value,
+ * may check that the server is working in some way
+ * and creates a unique room for this chat, if needed doing a TOKEN roundtrip for that.
+ *
+ * After that, the function sends out a message that contains information to join the room:
+ *
+ * - To allow non-delta-clients to join the chat,
+ *   the message contains a text-area with some descriptive text
+ *   and a url that can be opened in a supported browser to join the videochat
+ *
+ * - delta-clients can get all information needed from
+ *   the message object, using eg.
+ *   dc_msg_get_videochat_url() and check dc_msg_get_viewtype() for DC_MSG_VIDEOCHAT_INVITATION
+ *
+ * dc_send_videochat_invitation() is blocking and may take a while,
+ * so the UIs will typically call the function from within a thread.
+ * Moreover, UIs will typically enter the room directly without an additional click on the message,
+ * for this purpose, the function returns the message-id directly.
+ *
+ * As for other messages sent, this function
+ * sends the event #DC_EVENT_MSGS_CHANGED on succcess, the message has a delivery state, and so on.
+ * The recipient will get noticed by the call as usual by DC_EVENT_INCOMING_MSG or DC_EVENT_MSGS_CHANGED,
+ * However, UIs might some things differently, eg. play a different sound.
+ *
+ * @param context The context object.
+ * @param chat_id The chat to start a videochat for.
+ * @return The id if the message sent out
+ *     or 0 for errors.
+ */
+uint32_t dc_send_videochat_invitation (dc_context_t* context, uint32_t chat_id);
 
 
 /**
@@ -3241,6 +3276,55 @@ char*           dc_msg_get_setupcodebegin     (const dc_msg_t* msg);
 
 
 /**
+ * Get url of a videochat invitation.
+ *
+ * Videochat invitations are sent out using dc_send_videochat_invitation()
+ * and dc_msg_get_viewtype() returns #DC_MSG_VIDEOCHAT_INVITATION for such invitations.
+ *
+ * @param msg The message object.
+ * @return If the message contains a videochat invitation,
+ *     the url of the invitation is returned.
+ *     If the message is no videochat invitation, NULL is returned.
+ *     Must be released using dc_str_unref() when done.
+ */
+char* dc_msg_get_videochat_url (const dc_msg_t* msg);
+
+
+/**
+ * Get type of videochat.
+ *
+ * Calling this functions only makes sense for messages of type #DC_MSG_VIDEOCHAT_INVITATION,
+ * in this case, if "basic webrtc" as of https://github.com/cracker0dks/basicwebrtc was used to initiate the videochat,
+ * dc_msg_get_videochat_type() returns DC_VIDEOCHATTYPE_BASICWEBRTC.
+ * "basic webrtc" videochat may be processed natively by the app
+ * whereas for other urls just the browser is opened.
+ *
+ * The videochat-url can be retrieved using dc_msg_get_videochat_url().
+ * To check if a message is a videochat invitation at all, check the message type for #DC_MSG_VIDEOCHAT_INVITATION.
+ *
+ * @param msg The message object.
+ * @return Type of the videochat as of DC_VIDEOCHATTYPE_BASICWEBRTC or DC_VIDEOCHATTYPE_UNKNOWN.
+ *
+ * Example:
+ * ~~~
+ * if (dc_msg_get_viewtype(msg) == DC_MSG_VIDEOCHAT_INVITATION) {
+ *   if (dc_msg_get_videochat_type(msg) == DC_VIDEOCHATTYPE_BASICWEBRTC) {
+ *       // videochat invitation that we ship a client for
+ *   } else {
+ *       // use browser for videochat, just open the url
+ *   }
+ * } else {
+ *    // not a videochat invitation
+ * }
+ * ~~~
+ */
+int dc_msg_get_videochat_type (const dc_msg_t* msg);
+
+#define DC_VIDEOCHATTYPE_UNKNOWN     0
+#define DC_VIDEOCHATTYPE_BASICWEBRTC 1
+
+
+/**
  * Set the text of a message object.
  * This does not alter any information in the database; this may be done by dc_send_msg() later.
  *
@@ -3774,6 +3858,18 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * and retrieved via dc_msg_get_file().
  */
 #define DC_MSG_FILE      60
+
+
+/**
+ * Message indicating an incoming or outgoing videochat.
+ * The message was created via dc_send_videochat_invitation() on this or a remote device.
+ *
+ * Typically, such messages are rendered differently by the UIs,
+ * eg. contain a button to join the videochat.
+ * The url for joining can be retrieved using dc_msg_get_videochat_url().
+ */
+#define DC_MSG_VIDEOCHAT_INVITATION 70
+
 
 /**
  * @}
@@ -4517,8 +4613,10 @@ void dc_event_unref(dc_event_t* event);
 #define DC_STR_EPHEMERAL_DAY              79
 #define DC_STR_EPHEMERAL_WEEK             80
 #define DC_STR_EPHEMERAL_FOUR_WEEKS       81
+#define DC_STR_VIDEOCHAT_INVITATION       82
+#define DC_STR_VIDEOCHAT_INVITE_MSG_BODY  83
 
-#define DC_STR_COUNT                      81
+#define DC_STR_COUNT                      83
 
 /*
  * @}

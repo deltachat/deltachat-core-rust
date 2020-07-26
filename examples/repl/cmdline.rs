@@ -183,7 +183,7 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
     let temp2 = dc_timestamp_to_str(msg.get_timestamp());
     let msgtext = msg.get_text();
     println!(
-        "{}{}{}{}: {} (Contact#{}): {} {}{}{}{}{} [{}]",
+        "{}{}{}{}: {} (Contact#{}): {} {}{}{}{}{}{} [{}]",
         prefix.as_ref(),
         msg.get_id(),
         if msg.get_showpadlock() { "🔒" } else { "" },
@@ -202,6 +202,15 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
             "[FRESH]"
         },
         if msg.is_info() { "[INFO]" } else { "" },
+        if msg.get_viewtype() == Viewtype::VideochatInvitation {
+            format!(
+                "[VIDEOCHAT-INVITATION: {}, type={}]",
+                msg.get_videochat_url().unwrap_or_default(),
+                msg.get_videochat_type().unwrap_or_default()
+            )
+        } else {
+            "".to_string()
+        },
         if msg.is_forwarded() {
             "[FORWARDED]"
         } else {
@@ -359,6 +368,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  send-garbage\n\
                  sendimage <file> [<text>]\n\
                  sendfile <file> [<text>]\n\
+                 videochat\n\
                  draft [<text>]\n\
                  devicemsg <text>\n\
                  listmedia\n\
@@ -807,6 +817,10 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 msg.set_text(Some(arg2.to_string()));
             }
             chat::send_msg(&context, sel_chat.as_ref().unwrap().get_id(), &mut msg).await?;
+        }
+        "videochat" => {
+            ensure!(sel_chat.is_some(), "No chat selected.");
+            chat::send_videochat_invitation(&context, sel_chat.as_ref().unwrap().get_id()).await?;
         }
         "listmsgs" => {
             ensure!(!arg1.is_empty(), "Argument <query> missing.");

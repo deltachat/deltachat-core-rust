@@ -84,6 +84,19 @@ impl Default for KeyGenType {
     }
 }
 
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql)]
+#[repr(i8)]
+pub enum VideochatType {
+    Unknown = 0,
+    BasicWebrtc = 1,
+}
+
+impl Default for VideochatType {
+    fn default() -> Self {
+        VideochatType::Unknown
+    }
+}
+
 pub const DC_HANDSHAKE_CONTINUE_NORMAL_PROCESSING: i32 = 0x01;
 pub const DC_HANDSHAKE_STOP_NORMAL_PROCESSING: i32 = 0x02;
 pub const DC_HANDSHAKE_ADD_DELETE_JOB: i32 = 0x04;
@@ -296,6 +309,9 @@ pub enum Viewtype {
     /// The file is set via dc_msg_set_file()
     /// and retrieved via dc_msg_get_file().
     File = 60,
+
+    /// Message is an invitation to a videochat.
+    VideochatInvitation = 70,
 }
 
 impl Default for Viewtype {
