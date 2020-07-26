@@ -1199,23 +1199,19 @@ async fn create_or_lookup_group(
 
     // again, check chat_id
     if chat_id.is_special() {
-        return if group_explicitly_left {
-            Ok((ChatId::new(DC_CHAT_ID_TRASH), chat_id_blocked))
+        if mime_parser.decrypting_failed {
+            // It is possible that the message was sent to a valid,
+            // yet unknown group, which was rejected because
+            // Chat-Group-Name, which is in the encrypted part, was
+            // not found. We can't create a properly named group in
+            // this case, so assign error message to 1:1 chat with the
+            // sender instead.
+            return Ok((ChatId::new(0), Blocked::Not));
         } else {
-            create_or_lookup_adhoc_group(
-                context,
-                mime_parser,
-                allow_creation,
-                create_blocked,
-                from_id,
-                to_ids,
-            )
-            .await
-            .map_err(|err| {
-                warn!(context, "failed to create ad-hoc group: {:?}", err);
-                err
-            })
-        };
+            // The message was decrypted successfully, but contains a late "quit" or otherwise
+            // unwanted message.
+            return Ok((ChatId::new(DC_CHAT_ID_TRASH), chat_id_blocked));
+        }
     }
 
     // We have a valid chat_id > DC_CHAT_ID_LAST_SPECIAL.
@@ -1400,12 +1396,10 @@ async fn create_or_lookup_adhoc_group(
         // decrypted.
         //
         // The subject may be encrypted and contain a placeholder such
-        // as "...". Besides that, it is possible that the message was
-        // sent to a valid, yet unknown group, which was rejected
-        // because Chat-Group-Name, which is in the encrypted part,
-        // was not found. Generating a new ID in this case would
-        // result in creation of a twin group with a different group
-        // ID.
+        // as "...". It can also be a COI group, with encrypted
+        // Chat-Group-ID and incompatible Message-ID format.
+        //
+        // Instead, assign the message to 1:1 chat with the sender.
         warn!(
             context,
             "not creating ad-hoc group for message that cannot be decrypted"
