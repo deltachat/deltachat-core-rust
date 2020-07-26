@@ -600,6 +600,11 @@ impl Message {
             || cmd != SystemMessage::Unknown && cmd != SystemMessage::AutocryptSetupMessage
     }
 
+    pub fn is_system_message(&self) -> bool {
+        let cmd = self.param.get_cmd();
+        cmd != SystemMessage::Unknown
+    }
+
     /// Whether the message is still being created.
     ///
     /// Messages with attachments might be created before the

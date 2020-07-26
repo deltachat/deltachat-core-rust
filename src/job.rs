@@ -671,7 +671,18 @@ impl Job {
                 // we want to send out an MDN anyway
                 // The job will not be retried so locally
                 // there is no risk of double-sending MDNs.
+                //
+                // Read receipts for system messages are never
+                // sent. These messages have no place to display
+                // received read receipt anyway.  And since their text
+                // is locally generated, quoting them is dangerous as
+                // it may contain contact names. E.g., for original
+                // message "Group left by me", a read receipt will
+                // quote "Group left by <name>", and the name can be a
+                // display name stored in address book rather than
+                // the name sent in the From field by the user.
                 if msg.param.get_bool(Param::WantsMdn).unwrap_or_default()
+                    && !msg.is_system_message()
                     && context.get_config_bool(Config::MdnsEnabled).await
                 {
                     if let Err(err) = send_mdn(context, &msg).await {
