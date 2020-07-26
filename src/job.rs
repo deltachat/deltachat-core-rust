@@ -95,7 +95,6 @@ pub enum Action {
     // Jobs in the INBOX-thread, range from DC_IMAP_THREAD..DC_IMAP_THREAD+999
     Housekeeping = 105, // low priority ...
     EmptyServer = 107,
-    OldDeleteMsgOnImap = 110,
     MarkseenMsgOnImap = 130,
 
     // Moving message is prioritized lower than deletion so we don't
@@ -124,7 +123,6 @@ impl From<Action> for Thread {
             Unknown => Thread::Unknown,
 
             Housekeeping => Thread::Imap,
-            OldDeleteMsgOnImap => Thread::Imap,
             DeleteMsgOnImap => Thread::Imap,
             EmptyServer => Thread::Imap,
             MarkseenMsgOnImap => Thread::Imap,
@@ -974,7 +972,6 @@ async fn perform_job_action(
             location::job_maybe_send_locations_ended(context, job).await
         }
         Action::EmptyServer => job.empty_server(context, connection.inbox()).await,
-        Action::OldDeleteMsgOnImap => job.delete_msg_on_imap(context, connection.inbox()).await,
         Action::DeleteMsgOnImap => job.delete_msg_on_imap(context, connection.inbox()).await,
         Action::MarkseenMsgOnImap => job.markseen_msg_on_imap(context, connection.inbox()).await,
         Action::MoveMsg => job.move_msg(context, connection.inbox()).await,
@@ -1032,7 +1029,6 @@ pub async fn add(context: &Context, job: Job) {
             Action::Unknown => unreachable!(),
             Action::Housekeeping
             | Action::EmptyServer
-            | Action::OldDeleteMsgOnImap
             | Action::DeleteMsgOnImap
             | Action::MarkseenMsgOnImap
             | Action::MoveMsg => {
