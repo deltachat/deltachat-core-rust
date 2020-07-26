@@ -1,12 +1,12 @@
 [package]
 name = "deltachat"
-version = "1.40.0"
+version = "1.41.0"
 authors = ["Delta Chat Developers (ML) <delta@codespeak.net>"]
 edition = "2018"
 license = "MPL-2.0"
 
 [profile.release]
-#lto = true
+lto = true
 
 [dependencies]
 deltachat_derive = { path = "./deltachat_derive" }
