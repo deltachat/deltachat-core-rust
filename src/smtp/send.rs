@@ -5,6 +5,7 @@ use async_smtp::*;
 
 use crate::context::Context;
 use crate::events::Event;
+use std::time::Duration;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -30,7 +31,7 @@ impl Smtp {
         message: Vec<u8>,
         job_id: u32,
     ) -> Result<()> {
-        let message_len = message.len();
+        let message_len_bytes = message.len();
 
         let recipients_display = recipients
             .iter()
@@ -47,11 +48,16 @@ impl Smtp {
         );
 
         if let Some(ref mut transport) = self.transport {
-            transport.send(mail).await.map_err(Error::SendError)?;
+            // The timeout is 1min + 3min per MB.
+            let timeout = 60 + (180 * message_len_bytes / 1_000_000) as u64;
+            transport
+                .send_with_timeout(mail, Some(&Duration::from_secs(timeout)))
+                .await
+                .map_err(Error::SendError)?;
 
             context.emit_event(Event::SmtpMessageSent(format!(
                 "Message len={} was smtp-sent to {}",
-                message_len, recipients_display
+                message_len_bytes, recipients_display
             )));
             self.last_success = Some(std::time::SystemTime::now());
 
