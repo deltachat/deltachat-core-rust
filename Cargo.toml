@@ -72,7 +72,6 @@ pretty_assertions = "0.6.1"
 pretty_env_logger = "0.4.0"
 proptest = "0.10"
 async-std = { version = "1.6.0", features = ["unstable", "attributes"] }
-smol = "0.1.10"
 
 [workspace]
 members = [
@@ -98,3 +97,5 @@ repl = ["internals", "rustyline", "log", "pretty_env_logger", "ansi_term"]
 vendored = ["async-native-tls/vendored", "async-smtp/native-tls-vendored"]
 nightly = ["pgp/nightly"]
 
+[patch.crates-io]
+async-std = { git = "https://github.com/Keruspe/async-std", branch = "multitask"}

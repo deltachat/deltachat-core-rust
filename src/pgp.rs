@@ -458,7 +458,7 @@ mod tests {
             let mut keyring = Keyring::new();
             keyring.add(KEYS.alice_public.clone());
             keyring.add(KEYS.bob_public.clone());
-            smol::block_on(pk_encrypt(CLEARTEXT, keyring, Some(KEYS.alice_secret.clone()))).unwrap()
+            async_std::task::block_on(pk_encrypt(CLEARTEXT, keyring, Some(KEYS.alice_secret.clone()))).unwrap()
         };
 
         /// A cyphertext encrypted to Alice & Bob, not signed.
@@ -466,7 +466,7 @@ mod tests {
             let mut keyring = Keyring::new();
             keyring.add(KEYS.alice_public.clone());
             keyring.add(KEYS.bob_public.clone());
-            smol::block_on(pk_encrypt(CLEARTEXT, keyring, None)).unwrap()
+            async_std::task::block_on(pk_encrypt(CLEARTEXT, keyring, None)).unwrap()
         };
     }
 
