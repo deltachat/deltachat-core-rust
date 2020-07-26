@@ -634,7 +634,11 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
         .await?;
     sql::housekeeping(context).await;
 
-    context.sql.execute("VACUUM;", paramsv![]).await.ok();
+    context
+        .sql
+        .execute("VACUUM;", paramsv![])
+        .await
+        .map_err(|e| warn!(context, "Vacuum failed, exporting anyway {}", e));
 
     // we close the database during the export
     context.sql.close().await;
