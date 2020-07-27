@@ -232,7 +232,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     }
     if !dc_exactly_one_bit_set(param.server_flags & DC_LP_IMAP_SOCKET_FLAGS as i32) {
         param.server_flags &= !(DC_LP_IMAP_SOCKET_FLAGS as i32);
-        param.server_flags |= if param.send_port == 143 {
+        param.server_flags |= if param.mail_port == 143 {
             DC_LP_IMAP_SOCKET_STARTTLS as i32
         } else {
             DC_LP_IMAP_SOCKET_SSL as i32
