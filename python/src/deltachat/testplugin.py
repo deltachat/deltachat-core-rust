@@ -32,6 +32,10 @@ def pytest_addoption(parser):
         "--ignored", action="store_true",
         help="Also run tests marked with the ignored marker",
     )
+    parser.addoption(
+        "--strict-tls", action="store_true",
+        help="Never accept invalid TLS certificates for test accounts",
+    )
 
 
 def pytest_configure(config):
@@ -282,9 +286,10 @@ def acfactory(pytestconfig, tmpdir, request, session_liveconfig, data):
             if "e2ee_enabled" not in configdict:
                 configdict["e2ee_enabled"] = "1"
 
-            # Enable strict certificate checks for online accounts
-            configdict["imap_certificate_checks"] = str(const.DC_CERTCK_STRICT)
-            configdict["smtp_certificate_checks"] = str(const.DC_CERTCK_STRICT)
+            if pytestconfig.getoption("--strict-tls"):
+                # Enable strict certificate checks for online accounts
+                configdict["imap_certificate_checks"] = str(const.DC_CERTCK_STRICT)
+                configdict["smtp_certificate_checks"] = str(const.DC_CERTCK_STRICT)
 
             tmpdb = tmpdir.join("livedb%d" % self.live_count)
             ac = self.make_account(tmpdb.strpath, logid="ac{}".format(self.live_count), quiet=quiet)
