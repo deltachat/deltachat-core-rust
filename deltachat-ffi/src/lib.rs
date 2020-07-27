@@ -1729,14 +1729,10 @@ pub unsafe extern "C" fn dc_imex(
 
     let param1 = to_opt_string_lossy(param1);
 
-    std::thread::spawn(move || {
-        if let Err(e) = block_on(async move {
-            imex::imex(&ctx, what, param1)
-                .await
-                .log_err(ctx, "IMEX failed")
-        }) {
-            warn!(ctx, "Could not start imex: {}", e);
-        }
+    spawn(async move {
+        imex::imex(&ctx, what, param1)
+            .await
+            .log_err(ctx, "IMEX failed")
     });
 }
 
