@@ -638,7 +638,20 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
         .sql
         .execute("VACUUM;", paramsv![])
         .await
-        .map_err(|e| warn!(context, "Vacuum failed, exporting anyway {}", e));
+        .map_err(|e| async move {
+            info!(context, "Vacuum failed, trying different working dir {}", e);
+            std::env::set_current_dir(
+                context
+                    .get_dbfile()
+                    .parent()
+                    .unwrap_or(context.get_blobdir()),
+            );
+            context
+                .sql
+                .execute("VACUUM;", paramsv![])
+                .await
+                .map_err(|e| warn!(context, "Vacuum failed again, exporting anyway. {}", e))
+        });
 
     // we close the database during the export
     context.sql.close().await;
