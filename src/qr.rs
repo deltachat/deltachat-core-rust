@@ -195,7 +195,7 @@ fn decode_account(_context: &Context, qr: &str) -> Lot {
     let mut lot = Lot::new();
 
     if let Ok(url) = url::Url::parse(payload) {
-        if url.scheme() == "https" {
+        if url.scheme() == "http" || url.scheme() == "https" {
             lot.state = LotState::QrAccount;
             lot.text1 = url.host_str().map(|x| x.to_string());
         } else {
