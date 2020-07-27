@@ -1,7 +1,7 @@
 //! # Import/export module
 
 use std::any::Any;
-use std::ffi::OsStr;
+use std::{env, ffi::OsStr};
 
 use async_std::path::{Path, PathBuf};
 use async_std::{
@@ -626,7 +626,7 @@ async fn import_backup_old(context: &Context, backup_to_import: impl AsRef<Path>
 async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
     // get a fine backup file name (the name includes the date so that multiple backup instances are possible)
     let now = time();
-    let (temp_path, dest_path) = dc_get_next_backup_path_new(dir, now).await?;
+    let (temp_path, dest_path) = get_next_backup_path_new(dir, now).await?;
 
     context
         .sql
@@ -640,17 +640,19 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
         .await
         .map_err(|e| async move {
             info!(context, "Vacuum failed, trying different working dir {}", e);
-            std::env::set_current_dir(
+            let pwd = env::current_dir();
+            env::set_current_dir(
                 context
                     .get_dbfile()
                     .parent()
-                    .unwrap_or(context.get_blobdir()),
+                    .unwrap_or_else(|| context.get_blobdir()),
             );
             context
                 .sql
                 .execute("VACUUM;", paramsv![])
                 .await
-                .map_err(|e| warn!(context, "Vacuum failed again, exporting anyway. {}", e))
+                .map_err(|e| warn!(context, "Vacuum failed again, exporting anyway. {}", e));
+            env::set_current_dir(pwd.unwrap_or_default());
         });
 
     // we close the database during the export

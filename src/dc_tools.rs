@@ -450,7 +450,9 @@ pub fn dc_open_file_std<P: AsRef<std::path::Path>>(
     }
 }
 
-pub(crate) async fn dc_get_next_backup_path_new(
+/// Returns Ok((temp_path, dest_path)) on success. The backup can then be written to temp_path. If the backup succeeded,
+/// it can be renamed to dest_path. This guarantees that the backup is complete.
+pub(crate) async fn get_next_backup_path_new(
     folder: impl AsRef<Path>,
     backup_time: i64,
 ) -> Result<(PathBuf, PathBuf), Error> {
