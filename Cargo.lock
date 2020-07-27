@@ -259,9 +259,8 @@ dependencies = [
 
 [[package]]
 name = "async-tar"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c39a12c501213b9d535ab52f28211c2fbe7d5a57479b0cc445d0d29eb2b64907"
+version = "0.2.0"
+source = "git+https://github.com/link2xt/async-tar?branch=futimens#b333fa3ccd533031319a8672c8ef94ca3d9de9fd"
 dependencies = [
  "async-std",
  "filetime",
@@ -1215,8 +1214,7 @@ checksum = "36a9cb09840f81cd211e435d00a4e487edd263dc3c8ff815c32dd76ad668ebed"
 [[package]]
 name = "filetime"
 version = "0.2.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "affc17579b132fc2461adf7c575cc6e8b134ebca52c51f5411388965227dc695"
+source = "git+https://github.com/link2xt/filetime?branch=futimens#5e782fda3050231366407e68065a6eeaf7977e6b"
 dependencies = [
  "cfg-if",
  "libc",

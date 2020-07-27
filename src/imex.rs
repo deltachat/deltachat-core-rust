@@ -1,7 +1,7 @@
 //! # Import/export module
 
 use std::any::Any;
-use std::{env, ffi::OsStr};
+use std::ffi::OsStr;
 
 use async_std::path::{Path, PathBuf};
 use async_std::{
@@ -474,7 +474,7 @@ async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) ->
     );
 
     let backup_file = File::open(backup_to_import).await?;
-    let mut archive = Archive::new(backup_file);
+    let archive = Archive::new(backup_file);
     let mut entries = archive.entries()?;
     while let Some(file) = entries.next().await {
         let f = &mut file?;
