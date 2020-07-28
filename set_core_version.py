@@ -26,8 +26,7 @@ def read_toml_version(relpath):
     raise ValueError("no version found in {}".format(relpath))
 
 
-def replace_toml_version_and_lto(relpath, newversion):
-    lto_rex = re.compile(r'#?\s*lto =.*')
+def replace_toml_version(relpath, newversion):
     p = pathlib.Path(relpath)
     assert p.exists()
     tmp_path = str(p) + "_tmp"
@@ -38,10 +37,6 @@ def replace_toml_version_and_lto(relpath, newversion):
                 print("{}: set version={}".format(relpath, newversion))
                 f.write('version = "{}"\n'.format(newversion))
             else:
-                m = lto_rex.match(line)
-                if m:
-                    print("{}: setting lto = true".format(relpath))
-                    line = "lto = true\n"
                 f.write(line)
     os.rename(tmp_path, str(p))
 
@@ -76,8 +71,8 @@ def main():
     else:
         raise SystemExit("CHANGELOG.md contains no entry for version: {}".format(newversion))
 
-    replace_toml_version_and_lto("Cargo.toml", newversion)
-    replace_toml_version_and_lto("deltachat-ffi/Cargo.toml", newversion)
+    replace_toml_version("Cargo.toml", newversion)
+    replace_toml_version("deltachat-ffi/Cargo.toml", newversion)
 
     print("running cargo check")
     subprocess.call(["cargo", "check"])
