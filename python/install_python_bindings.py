@@ -17,8 +17,12 @@ if __name__ == "__main__":
         os.environ["DCC_RS_DEV"] = dn
 
     cmd = ["cargo", "build", "-p", "deltachat_ffi"]
+
     if target == 'release':
+        extra = " -C lto=on -C embed-bitcode=yes"
+        os.environ["RUSTFLAGS"] = os.environ.get("RUSTFLAGS", "") + extra
         cmd.append("--release")
+
     print("running:", " ".join(cmd))
     subprocess.check_call(cmd)
     subprocess.check_call("rm -rf build/ src/deltachat/*.so" , shell=True)
