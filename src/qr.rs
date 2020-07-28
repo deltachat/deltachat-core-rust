@@ -623,7 +623,7 @@ mod tests {
         let ctx = TestContext::new().await;
         let res = check_qr(
             &ctx.ctx,
-            "DCACCOUNT:http://example.org/new_email?t=1w_7wDjgjelxeX884x96v3",
+            "DCACCOUNT:ftp://example.org/new_email?t=1w_7wDjgjelxeX884x96v3",
         )
         .await;
         assert_eq!(res.get_state(), LotState::QrError);
@@ -632,7 +632,7 @@ mod tests {
         // Test it again with lowercased "dcaccount:" uri scheme
         let res = check_qr(
             &ctx.ctx,
-            "dcaccount:http://example.org/new_email?t=1w_7wDjgjelxeX884x96v3",
+            "dcaccount:ftp://example.org/new_email?t=1w_7wDjgjelxeX884x96v3",
         )
         .await;
         assert_eq!(res.get_state(), LotState::QrError);
