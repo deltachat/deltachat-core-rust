@@ -15,6 +15,7 @@ cargo build --release -p deltachat_ffi
 
 # Statically link against libdeltachat.a.
 export DCC_RS_DEV=$(pwd)
+export DCC_RS_TARGET=release
 
 # Configure access to a base python and to several python interpreters
 # needed by tox below.
