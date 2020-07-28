@@ -329,20 +329,30 @@ impl Chatlist {
         // This is because we may want to display drafts here or stuff as
         // "is typing".
         // Also, sth. as "No messages" would not work if the summary comes from a message.
-        let mut ret = Lot::new();
-
         let (chat_id, lastmsg_id) = match self.ids.get(index) {
             Some(ids) => ids,
             None => {
+                let mut ret = Lot::new();
                 ret.text2 = Some("ErrBadChatlistIndex".to_string());
-                return ret;
+                return Lot::new();
             }
         };
+
+        Chatlist::get_summary2(context, *chat_id, *lastmsg_id, chat).await
+    }
+
+    pub async fn get_summary2(
+        context: &Context,
+        chat_id: ChatId,
+        lastmsg_id: MsgId,
+        chat: Option<&Chat>,
+    ) -> Lot {
+        let mut ret = Lot::new();
 
         let chat_loaded: Chat;
         let chat = if let Some(chat) = chat {
             chat
-        } else if let Ok(chat) = Chat::load_from_db(context, *chat_id).await {
+        } else if let Ok(chat) = Chat::load_from_db(context, chat_id).await {
             chat_loaded = chat;
             &chat_loaded
         } else {
@@ -351,7 +361,7 @@ impl Chatlist {
 
         let mut lastcontact = None;
 
-        let lastmsg = if let Ok(lastmsg) = Message::load_from_db(context, *lastmsg_id).await {
+        let lastmsg = if let Ok(lastmsg) = Message::load_from_db(context, lastmsg_id).await {
             if lastmsg.from_id != DC_CONTACT_ID_SELF
                 && (chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup)
             {
