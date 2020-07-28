@@ -38,6 +38,7 @@ mod dc_array;
 
 mod string;
 use self::string::*;
+use deltachat::chatlist::Chatlist;
 
 // as C lacks a good and portable error handling,
 // in general, the C Interface is forgiving wrt to bad parameters.
@@ -2223,6 +2224,24 @@ pub unsafe extern "C" fn dc_chatlist_get_summary(
             .list
             .get_summary(&ctx, index as usize, maybe_chat)
             .await;
+        Box::into_raw(Box::new(lot))
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_chatlist_get_summary2(
+    context: *mut dc_context_t,
+    chat_id: u32,
+    msg_id: u32,
+) -> *mut dc_lot_t {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_chatlist_get_summary2()");
+        return ptr::null_mut();
+    }
+    let ctx = &*context;
+    block_on(async move {
+        let lot =
+            Chatlist::get_summary2(&ctx, ChatId::new(chat_id), MsgId::new(msg_id), None).await;
         Box::into_raw(Box::new(lot))
     })
 }
