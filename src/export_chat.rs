@@ -111,6 +111,7 @@ struct ChatJSON {
     profile_img: Option<String>,
     contacts: HashMap<u32, ContactJSON>,
     messages: Vec<MessageJSON>,
+    locations: Vec<Location>,
 }
 
 #[derive(Serialize)]
@@ -139,7 +140,7 @@ struct MessageJSON {
     timestamp_rcvd: i64,
     text: Option<String>,
     attachment: Option<FileReference>,
-    location: Option<Location>,
+    location_id: Option<u32>,
     is_info_message: bool,
     show_padlock: bool,
 }
@@ -170,8 +171,8 @@ impl MessageJSON {
                 }),
                 None => None,
             },
-            location: match message.has_location() {
-                true => None, // todo, location needs a function to get a single location from the db by id first
+            location_id: match message.has_location() {
+                true => Some(message.location_id),
                 false => None,
             },
             is_info_message: message.is_info(),
@@ -291,6 +292,8 @@ async fn export_chat_data(context: &Context, chat_id: ChatId) -> ExportChatResul
         profile_img: chat_avatar,
         contacts: chat_authors,
         messages: message_json,
+        locations: crate::location::get_range(&context, chat_id, 0, 0, crate::dc_tools::time())
+            .await,
     };
 
     blobs.sort();
