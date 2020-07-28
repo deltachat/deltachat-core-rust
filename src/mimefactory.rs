@@ -113,12 +113,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                 )
                 .await?;
 
-            let command = msg.param.get_cmd();
-
-            if command != SystemMessage::AutocryptSetupMessage
-                && command != SystemMessage::SecurejoinMessage
-                && context.get_config_bool(Config::MdnsEnabled).await
-            {
+            if !msg.is_system_message() && context.get_config_bool(Config::MdnsEnabled).await {
                 req_mdn = true;
             }
         }
