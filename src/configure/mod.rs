@@ -17,7 +17,7 @@ use crate::login_param::{CertificateChecks, LoginParam};
 use crate::message::Message;
 use crate::oauth2::*;
 use crate::smtp::Smtp;
-use crate::{chat, e2ee, provider};
+use crate::{chat, e2ee, provider, Event};
 
 use auto_mozilla::moz_autoconfigure;
 use auto_outlook::outlk_autodiscover;
@@ -69,8 +69,10 @@ impl Context {
         info!(self, "Configure ...");
 
         let mut param = LoginParam::from_database(self, "").await;
-        let success = configure(self, &mut param).await;
         self.set_config(Config::NotifyAboutWrongPw, None).await?;
+        let success = configure(self, &mut param).await;
+        self.set_config(Config::NotifyAboutWrongPw, Some("1"))
+            .await?;
 
         if let Some(provider) = provider::get_provider_info(&param.addr) {
             if let Some(config_defaults) = &provider.config_defaults {
@@ -100,10 +102,12 @@ impl Context {
         }
 
         match success {
-            Ok(_) => {
-                self.set_config(Config::NotifyAboutWrongPw, Some("1"))
-                    .await?;
-                progress!(self, 1000);
+            Ok(event) => {
+                if let Some(event) = event {
+                    self.emit_event(event);
+                } else {
+                    progress!(self, 1000);
+                }
                 Ok(())
             }
             Err(err) => {
@@ -114,9 +118,11 @@ impl Context {
     }
 }
 
-async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
+// Returns the event that shall be sent on success.
+async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<Option<Event>> {
     let mut param_autoconfig: Option<LoginParam> = None;
     let mut keep_flags = 0;
+    let mut event_to_send = None;
 
     // Read login parameters from the database
     progress!(ctx, 1);
@@ -284,6 +290,12 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         .await
         .context("could not read INBOX status")?;
 
+    let was_configured_before = ctx.sql.get_raw_config_bool(ctx, "configured").await;
+    if !was_configured_before && imap.was_dc_used_before(ctx).await? {
+        warn!(ctx, "dbg event_to_send");
+        event_to_send = Some(Event::SetupSecondDevice);
+    }
+
     drop(imap);
 
     progress!(ctx, 910);
@@ -300,7 +312,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     progress!(ctx, 940);
 
-    Ok(())
+    Ok(event_to_send)
 }
 
 #[derive(Debug, PartialEq, Eq)]

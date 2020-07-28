@@ -345,6 +345,7 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         | Event::Warning(_)
         | Event::Error(_)
         | Event::ErrorNetwork(_)
+        | Event::SetupSecondDevice
         | Event::ErrorSelfNotInGroup(_) => 0,
         Event::MsgsChanged { chat_id, .. }
         | Event::IncomingMsg { chat_id, .. }
@@ -394,6 +395,7 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | Event::ConfigureProgress(_)
         | Event::ImexProgress(_)
         | Event::ImexFileWritten(_)
+        | Event::SetupSecondDevice
         | Event::ChatModified(_) => 0,
         Event::MsgsChanged { msg_id, .. }
         | Event::IncomingMsg { msg_id, .. }
@@ -444,6 +446,7 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         | Event::ImexProgress(_)
         | Event::SecurejoinInviterProgress { .. }
         | Event::SecurejoinJoinerProgress { .. }
+        | Event::SetupSecondDevice
         | Event::ChatEphemeralTimerModified { .. } => ptr::null_mut(),
         Event::ImexFileWritten(file) => {
             let data2 = file.to_c_string().unwrap_or_default();
@@ -1728,10 +1731,14 @@ pub unsafe extern "C" fn dc_imex(
 
     let param1 = to_opt_string_lossy(param1);
 
-    spawn(async move {
-        imex::imex(&ctx, what, param1)
-            .await
-            .log_err(ctx, "IMEX failed")
+    std::thread::spawn(move || {
+        if let Err(e) = block_on(async move {
+            imex::imex(&ctx, what, param1)
+                .await
+                .log_err(ctx, "IMEX failed")
+        }) {
+            warn!(ctx, "Could not start imex: {}", e);
+        }
     });
 }
 

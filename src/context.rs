@@ -444,6 +444,8 @@ impl Context {
             .unwrap_or_default()
     }
 
+    pub async fn send_init_second_device_msg(&self) {}
+
     pub async fn is_inbox(&self, folder_name: impl AsRef<str>) -> bool {
         self.get_config(Config::ConfiguredInboxFolder).await
             == Some(folder_name.as_ref().to_string())

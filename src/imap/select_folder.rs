@@ -59,6 +59,52 @@ impl Imap {
         Ok(())
     }
 
+    pub(crate) async fn was_dc_used_before(&mut self, context: &Context) -> Result<bool> {
+        self.select_folder(context, Some("INBOX")).await?;
+        if let Some(ref mut session) = self.session {
+            if !session
+                .search(r#"HEADER Chat-Version """#)
+                .await?
+                .is_empty()
+            {
+                warn!(context, "dbg in inbox 0");
+                return Ok(true);
+            }
+        } else {
+            warn!(context, "dbg nosession");
+        }
+        self.select_folder(context, Some("DeltaChat")).await?;
+        if let Some(ref mut session) = self.session {
+            if !session
+                .search(r#"HEADER Chat-Version """#)
+                .await?
+                .is_empty()
+            {
+                warn!(context, "dbg in mvbox 0");
+                return Ok(true);
+            }
+        }
+
+        self.select_folder(context, Some("INBOX")).await?;
+        if let Some(ref mut session) = self.session {
+            if !session.search("HEADER Chat-Version 1.0").await?.is_empty() {
+                warn!(context, "dbg in inbox");
+                return Ok(true);
+            }
+        } else {
+            warn!(context, "dbg nosession");
+        }
+        self.select_folder(context, Some("DeltaChat")).await?;
+        if let Some(ref mut session) = self.session {
+            if !session.search("HEADER Chat-Version 1.0").await?.is_empty() {
+                warn!(context, "dbg in mvbox");
+                return Ok(true);
+            }
+        }
+        warn!(context, "dbg nowhere");
+        return Ok(false);
+    }
+
     /// select a folder, possibly update uid_validity and, if needed,
     /// expunge the folder to remove delete-marked messages.
     pub(super) async fn select_folder<S: AsRef<str>>(
@@ -90,7 +136,6 @@ impl Imap {
         if let Some(ref folder) = folder {
             if let Some(ref mut session) = &mut self.session {
                 let res = session.select(folder).await;
-
                 // https://tools.ietf.org/html/rfc3501#section-6.3.1
                 // says that if the server reports select failure we are in
                 // authenticated (not-select) state.
