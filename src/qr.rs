@@ -12,11 +12,13 @@ use crate::context::Context;
 use crate::error::{bail, ensure, format_err, Error};
 use crate::key::Fingerprint;
 use crate::lot::{Lot, LotState};
+use crate::message::Message;
 use crate::param::*;
 use crate::peerstate::*;
 
 const OPENPGP4FPR_SCHEME: &str = "OPENPGP4FPR:"; // yes: uppercase
 const DCACCOUNT_SCHEME: &str = "DCACCOUNT:";
+const DCWEBRTC_SCHEME: &str = "DCWEBRTC:";
 const MAILTO_SCHEME: &str = "mailto:";
 const MATMSG_SCHEME: &str = "MATMSG:";
 const VCARD_SCHEME: &str = "BEGIN:VCARD";
@@ -51,6 +53,8 @@ pub async fn check_qr(context: &Context, qr: impl AsRef<str>) -> Lot {
         decode_openpgp(context, qr).await
     } else if starts_with_ignore_case(qr, DCACCOUNT_SCHEME) {
         decode_account(context, qr)
+    } else if starts_with_ignore_case(qr, DCWEBRTC_SCHEME) {
+        decode_webrtc_instance(context, qr)
     } else if qr.starts_with(MAILTO_SCHEME) {
         decode_mailto(context, qr).await
     } else if qr.starts_with(SMTP_SCHEME) {
@@ -210,6 +214,31 @@ fn decode_account(_context: &Context, qr: &str) -> Lot {
     lot
 }
 
+/// scheme: `DCWEBRTC:https://meet.jit.si/$ROOM`
+#[allow(clippy::indexing_slicing)]
+fn decode_webrtc_instance(_context: &Context, qr: &str) -> Lot {
+    let payload = &qr[DCWEBRTC_SCHEME.len()..];
+
+    let mut lot = Lot::new();
+
+    let (_type, url) = Message::parse_webrtc_instance(payload);
+    if let Ok(url) = url::Url::parse(&url) {
+        if url.scheme() == "http" || url.scheme() == "https" {
+            lot.state = LotState::QrWebrtcInstance;
+            lot.text1 = url.host_str().map(|x| x.to_string());
+            lot.text2 = Some(payload.to_string())
+        } else {
+            lot.state = LotState::QrError;
+            lot.text1 = Some(format!("Bad scheme for webrtc instance: {}", payload));
+        }
+    } else {
+        lot.state = LotState::QrError;
+        lot.text1 = Some(format!("Invalid webrtc instance: {}", payload));
+    }
+
+    lot
+}
+
 #[derive(Debug, Deserialize)]
 struct CreateAccountResponse {
     email: String,
@@ -220,7 +249,7 @@ struct CreateAccountResponse {
 /// download additional information from the contained url and set the parameters.
 /// on success, a configure::configure() should be able to log in to the account
 #[allow(clippy::indexing_slicing)]
-pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<(), Error> {
+async fn set_account_from_qr(context: &Context, qr: &str) -> Result<(), Error> {
     let url_str = &qr[DCACCOUNT_SCHEME.len()..];
 
     let response: Result<CreateAccountResponse, surf::Error> =
@@ -238,6 +267,20 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<(), Error
         .await?;
 
     Ok(())
+}
+
+pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<(), Error> {
+    match check_qr(context, &qr).await.state {
+        LotState::QrAccount => set_account_from_qr(context, qr).await,
+        LotState::QrWebrtcInstance => {
+            let val = decode_webrtc_instance(context, qr).text2;
+            context
+                .set_config(Config::WebrtcInstance, val.as_ref().map(|x| x.as_str()))
+                .await?;
+            Ok(())
+        }
+        _ => bail!("qr code does not contain config: {}", qr),
+    }
 }
 
 /// Extract address for the mailto scheme.
@@ -619,6 +662,25 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_decode_webrtc_instance() {
+        let ctx = TestContext::new().await;
+
+        let res = check_qr(&ctx.ctx, "DCWEBRTC:basicwebrtc:https://basicurl.com/$ROOM").await;
+        assert_eq!(res.get_state(), LotState::QrWebrtcInstance);
+        assert_eq!(res.get_text1().unwrap(), "basicurl.com");
+        assert_eq!(
+            res.get_text2().unwrap(),
+            "basicwebrtc:https://basicurl.com/$ROOM"
+        );
+
+        // Test it again with mixcased "dcWebRTC:" uri scheme
+        let res = check_qr(&ctx.ctx, "dcWebRTC:https://example.org/").await;
+        assert_eq!(res.get_state(), LotState::QrWebrtcInstance);
+        assert_eq!(res.get_text1().unwrap(), "example.org");
+        assert_eq!(res.get_text2().unwrap(), "https://example.org/");
+    }
+
+    #[async_std::test]
     async fn test_decode_account_bad_scheme() {
         let ctx = TestContext::new().await;
         let res = check_qr(
@@ -637,5 +699,35 @@ mod tests {
         .await;
         assert_eq!(res.get_state(), LotState::QrError);
         assert!(res.get_text1().is_some());
+    }
+
+    #[async_std::test]
+    async fn test_set_config_from_qr() {
+        let ctx = TestContext::new().await;
+
+        assert!(ctx.ctx.get_config(Config::WebrtcInstance).await.is_none());
+
+        let res = set_config_from_qr(&ctx.ctx, "badqr:https://example.org/").await;
+        assert!(!res.is_ok());
+        assert!(ctx.ctx.get_config(Config::WebrtcInstance).await.is_none());
+
+        let res = set_config_from_qr(&ctx.ctx, "https://no.qr").await;
+        assert!(!res.is_ok());
+        assert!(ctx.ctx.get_config(Config::WebrtcInstance).await.is_none());
+
+        let res = set_config_from_qr(&ctx.ctx, "dcwebrtc:https://example.org/").await;
+        assert!(res.is_ok());
+        assert_eq!(
+            ctx.ctx.get_config(Config::WebrtcInstance).await.unwrap(),
+            "https://example.org/"
+        );
+
+        let res =
+            set_config_from_qr(&ctx.ctx, "DCWEBRTC:basicwebrtc:https://foo.bar/?$ROOM&test").await;
+        assert!(res.is_ok());
+        assert_eq!(
+            ctx.ctx.get_config(Config::WebrtcInstance).await.unwrap(),
+            "basicwebrtc:https://foo.bar/?$ROOM&test"
+        );
     }
 }
