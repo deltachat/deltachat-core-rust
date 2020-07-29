@@ -1214,7 +1214,7 @@ checksum = "36a9cb09840f81cd211e435d00a4e487edd263dc3c8ff815c32dd76ad668ebed"
 [[package]]
 name = "filetime"
 version = "0.2.10"
-source = "git+https://github.com/link2xt/filetime?branch=futimens#5e782fda3050231366407e68065a6eeaf7977e6b"
+source = "git+https://github.com/link2xt/filetime?branch=futimens#5ea05990fe7aa1783f2ae49dd0b36adabe84019c"
 dependencies = [
  "cfg-if",
  "libc",
