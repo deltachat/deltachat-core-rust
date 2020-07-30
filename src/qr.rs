@@ -275,7 +275,7 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<(), Error
         LotState::QrWebrtcInstance => {
             let val = decode_webrtc_instance(context, qr).text2;
             context
-                .set_config(Config::WebrtcInstance, val.as_ref().map(|x| x.as_str()))
+                .set_config(Config::WebrtcInstance, val.as_deref())
                 .await?;
             Ok(())
         }
