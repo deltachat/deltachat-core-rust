@@ -19,7 +19,7 @@ use crate::error::Result;
 pub struct Accounts {
     dir: PathBuf,
     config: Config,
-    accounts: Arc<RwLock<HashMap<u64, Context>>>,
+    accounts: Arc<RwLock<HashMap<u32, Context>>>,
 }
 
 impl Accounts {
@@ -68,7 +68,7 @@ impl Accounts {
     }
 
     /// Get an account by its `id`:
-    pub async fn get_account(&self, id: u64) -> Option<Context> {
+    pub async fn get_account(&self, id: u32) -> Option<Context> {
         self.accounts.read().await.get(&id).cloned()
     }
 
@@ -84,14 +84,14 @@ impl Accounts {
     }
 
     /// Select the given account.
-    pub async fn select_account(&self, id: u64) -> Result<()> {
+    pub async fn select_account(&self, id: u32) -> Result<()> {
         self.config.select_account(id).await?;
 
         Ok(())
     }
 
     /// Add a new account.
-    pub async fn add_account(&self) -> Result<u64> {
+    pub async fn add_account(&self) -> Result<u32> {
         let os_name = self.config.os_name().await;
         let account_config = self.config.new_account(&self.dir).await?;
 
@@ -102,7 +102,7 @@ impl Accounts {
     }
 
     /// Remove an account.
-    pub async fn remove_account(&self, id: u64) -> Result<()> {
+    pub async fn remove_account(&self, id: u32) -> Result<()> {
         let ctx = self.accounts.write().await.remove(&id);
         ensure!(ctx.is_some(), "no account with this id: {}", id);
         let ctx = ctx.unwrap();
@@ -120,7 +120,7 @@ impl Accounts {
     }
 
     /// Migrate an existing account into this structure.
-    pub async fn migrate_account(&self, dbfile: PathBuf) -> Result<u64> {
+    pub async fn migrate_account(&self, dbfile: PathBuf) -> Result<u32> {
         let blobdir = Context::derive_blobdir(&dbfile);
 
         ensure!(
@@ -174,12 +174,12 @@ impl Accounts {
     }
 
     /// Get a list of all account ids.
-    pub async fn get_all(&self) -> Vec<u64> {
+    pub async fn get_all(&self) -> Vec<u32> {
         self.accounts.read().await.keys().copied().collect()
     }
 
     /// Import a backup using a new account and selects it.
-    pub async fn import_account(&self, file: PathBuf) -> Result<u64> {
+    pub async fn import_account(&self, file: PathBuf) -> Result<u32> {
         let old_id = self.config.get_selected_account().await;
 
         let id = self.add_account().await?;
@@ -271,7 +271,7 @@ pub struct EventEmitter(Vec<EmitterWrapper>);
 
 #[derive(Debug)]
 struct EmitterWrapper {
-    id: u64,
+    id: u32,
     emitter: crate::events::EventEmitter,
     done: AtomicBool,
 }
@@ -279,7 +279,7 @@ struct EmitterWrapper {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Event {
     /// The id of the account that emitted the event.
-    pub id: u64,
+    pub id: u32,
     pub event: crate::events::Event,
 }
 
@@ -296,8 +296,8 @@ pub struct Config {
 struct InnerConfig {
     pub os_name: String,
     /// The currently selected account.
-    pub selected_account: u64,
-    pub next_id: u64,
+    pub selected_account: u32,
+    pub next_id: u32,
     pub accounts: Vec<AccountConfig>,
 }
 
@@ -309,7 +309,7 @@ impl Config {
                 os_name,
                 accounts: Vec::new(),
                 selected_account: 0,
-                next_id: 0,
+                next_id: 1,
             })),
         };
 
@@ -343,7 +343,7 @@ impl Config {
         })
     }
 
-    pub async fn load_accounts(&self) -> Result<HashMap<u64, Context>> {
+    pub async fn load_accounts(&self) -> Result<HashMap<u32, Context>> {
         let cfg = &*self.inner.read().await;
         let mut accounts = HashMap::with_capacity(cfg.accounts.len());
         for account_config in &cfg.accounts {
@@ -380,7 +380,7 @@ impl Config {
     }
 
     /// Removes an existing acccount entirely.
-    pub async fn remove_account(&self, id: u64) -> Result<()> {
+    pub async fn remove_account(&self, id: u32) -> Result<()> {
         {
             let inner = &mut *self.inner.write().await;
             if let Some(idx) = inner.accounts.iter().position(|e| e.id == id) {
@@ -396,7 +396,7 @@ impl Config {
         self.sync().await
     }
 
-    pub async fn get_account(&self, id: u64) -> Option<AccountConfig> {
+    pub async fn get_account(&self, id: u32) -> Option<AccountConfig> {
         self.inner
             .read()
             .await
@@ -406,11 +406,11 @@ impl Config {
             .cloned()
     }
 
-    pub async fn get_selected_account(&self) -> u64 {
+    pub async fn get_selected_account(&self) -> u32 {
         self.inner.read().await.selected_account
     }
 
-    pub async fn select_account(&self, id: u64) -> Result<()> {
+    pub async fn select_account(&self, id: u32) -> Result<()> {
         {
             let inner = &mut *self.inner.write().await;
             ensure!(
@@ -430,7 +430,7 @@ impl Config {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AccountConfig {
     /// Unique id.
-    pub id: u64,
+    pub id: u32,
     /// Display name
     pub name: String,
     /// Root directory for all data for this account.
@@ -458,7 +458,7 @@ mod tests {
         let accounts2 = Accounts::open(p).await.unwrap();
 
         assert_eq!(accounts1.accounts.read().await.len(), 1);
-        assert_eq!(accounts1.config.get_selected_account().await, 0);
+        assert_eq!(accounts1.config.get_selected_account().await, 1);
 
         assert_eq!(accounts1.dir, accounts2.dir);
         assert_eq!(
@@ -479,18 +479,18 @@ mod tests {
         let accounts = Accounts::new("my_os".into(), p.clone()).await.unwrap();
 
         assert_eq!(accounts.accounts.read().await.len(), 1);
-        assert_eq!(accounts.config.get_selected_account().await, 0);
+        assert_eq!(accounts.config.get_selected_account().await, 1);
 
         let id = accounts.add_account().await.unwrap();
-        assert_eq!(id, 1);
+        assert_eq!(id, 2);
         assert_eq!(accounts.config.get_selected_account().await, id);
         assert_eq!(accounts.accounts.read().await.len(), 2);
 
-        accounts.select_account(0).await.unwrap();
-        assert_eq!(accounts.config.get_selected_account().await, 0);
-
-        accounts.remove_account(0).await.unwrap();
+        accounts.select_account(1).await.unwrap();
         assert_eq!(accounts.config.get_selected_account().await, 1);
+
+        accounts.remove_account(1).await.unwrap();
+        assert_eq!(accounts.config.get_selected_account().await, 2);
         assert_eq!(accounts.accounts.read().await.len(), 1);
     }
 
@@ -501,7 +501,7 @@ mod tests {
 
         let accounts = Accounts::new("my_os".into(), p.clone()).await.unwrap();
         assert_eq!(accounts.accounts.read().await.len(), 1);
-        assert_eq!(accounts.config.get_selected_account().await, 0);
+        assert_eq!(accounts.config.get_selected_account().await, 1);
 
         let extern_dbfile: PathBuf = dir.path().join("other").into();
         let ctx = Context::new("my_os".into(), extern_dbfile.clone())
@@ -518,7 +518,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(accounts.accounts.read().await.len(), 2);
-        assert_eq!(accounts.config.get_selected_account().await, 1);
+        assert_eq!(accounts.config.get_selected_account().await, 2);
 
         let ctx = accounts.get_selected_account().await;
         assert_eq!(

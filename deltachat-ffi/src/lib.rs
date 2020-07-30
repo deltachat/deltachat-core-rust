@@ -24,6 +24,7 @@ use std::time::{Duration, SystemTime};
 use async_std::task::{block_on, spawn};
 use num_traits::{FromPrimitive, ToPrimitive};
 
+use deltachat::accounts::Accounts;
 use deltachat::chat::{ChatId, ChatVisibility, MuteDuration};
 use deltachat::constants::DC_MSG_ID_LAST_SPECIAL;
 use deltachat::contact::{Contact, Origin};
@@ -3334,4 +3335,306 @@ pub unsafe extern "C" fn dc_provider_unref(provider: *mut dc_provider_t) {
     }
     // currently, there is nothing to free, the provider info is a static object.
     // this may change once we start localizing string.
+}
+
+// -- Accounts
+
+/// Struct representing a list of deltachat accounts.
+pub type dc_accounts_t = Accounts;
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_new(
+    os_name: *const libc::c_char,
+    dbfile: *const libc::c_char,
+) -> *mut dc_accounts_t {
+    setup_panic!();
+
+    if dbfile.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_new()");
+        return ptr::null_mut();
+    }
+
+    let os_name = if os_name.is_null() {
+        String::from("DcFFI")
+    } else {
+        to_string_lossy(os_name)
+    };
+
+    let accs = block_on(Accounts::new(os_name, as_path(dbfile).to_path_buf().into()));
+
+    match accs {
+        Ok(accs) => Box::into_raw(Box::new(accs)),
+        Err(err) => {
+            eprintln!("failed to create accounts: {}", err);
+            ptr::null_mut()
+        }
+    }
+}
+
+/// Release the accounts structure.
+///
+/// This function releases the memory of the `dc_accounts_t` structure.
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_unref(accounts: *mut dc_accounts_t) {
+    if accounts.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_unref()");
+        return;
+    }
+    let _ = Box::from_raw(accounts);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_get_account(
+    accounts: *mut dc_accounts_t,
+    id: u32,
+) -> *mut dc_context_t {
+    if accounts.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_get_account()");
+        return ptr::null_mut();
+    }
+
+    let accounts = &*accounts;
+    block_on(accounts.get_account(id))
+        .map(|ctx| Box::into_raw(Box::new(ctx)))
+        .unwrap_or_else(std::ptr::null_mut)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_get_selected_account(
+    accounts: *mut dc_accounts_t,
+) -> *mut dc_context_t {
+    if accounts.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_get_selected_account()");
+        return ptr::null_mut();
+    }
+
+    let accounts = &*accounts;
+    let ctx = block_on(accounts.get_selected_account());
+    Box::into_raw(Box::new(ctx))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_select_account(
+    accounts: *mut dc_accounts_t,
+    id: u32,
+) -> libc::c_int {
+    if accounts.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_select_account()");
+        return 0;
+    }
+
+    let accounts = &*accounts;
+    block_on(accounts.select_account(id))
+        .map(|_| 1)
+        .unwrap_or_else(|_| 0)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_add_account(accounts: *mut dc_accounts_t) -> u32 {
+    if accounts.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_add_account()");
+        return 0;
+    }
+
+    let accounts = &*accounts;
+
+    block_on(accounts.add_account()).unwrap_or_else(|_| 0)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_remove_account(
+    accounts: *mut dc_accounts_t,
+    id: u32,
+) -> libc::c_int {
+    if accounts.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_remove_account()");
+        return 0;
+    }
+
+    let accounts = &*accounts;
+
+    block_on(accounts.remove_account(id))
+        .map(|_| 1)
+        .unwrap_or_else(|_| 0)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_migrate_account(
+    accounts: *mut dc_accounts_t,
+    dbfile: *const libc::c_char,
+) -> u32 {
+    if accounts.is_null() || dbfile.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_migrate_account()");
+        return 0;
+    }
+
+    let accounts = &*accounts;
+    let dbfile = to_string_lossy(dbfile);
+
+    block_on(accounts.migrate_account(async_std::path::PathBuf::from(dbfile)))
+        .map(|_| 1)
+        .unwrap_or_else(|_| 0)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_get_all(accounts: *mut dc_accounts_t) -> *mut dc_array_t {
+    if accounts.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_get_all()");
+        return ptr::null_mut();
+    }
+
+    let accounts = &*accounts;
+    let list = block_on(accounts.get_all());
+    let array: dc_array_t = list.into();
+
+    Box::into_raw(Box::new(array))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_import_account(
+    accounts: *mut dc_accounts_t,
+    file: *const libc::c_char,
+) -> u32 {
+    if accounts.is_null() || file.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_import_account()");
+        return 0;
+    }
+
+    let accounts = &*accounts;
+    let file = to_string_lossy(file);
+    block_on(accounts.import_account(async_std::path::PathBuf::from(file)))
+        .map(|_| 1)
+        .unwrap_or_else(|_| 0)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_start_io(accounts: *mut dc_accounts_t) {
+    if accounts.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_start_io()");
+        return;
+    }
+
+    let accounts = &*accounts;
+    block_on(accounts.start_io());
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_stop_io(accounts: *mut dc_accounts_t) {
+    if accounts.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_stop_io()");
+        return;
+    }
+
+    let accounts = &*accounts;
+    block_on(accounts.stop_io());
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_maybe_network(accounts: *mut dc_accounts_t) {
+    if accounts.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_mabye_network()");
+        return;
+    }
+
+    let accounts = &*accounts;
+    block_on(accounts.maybe_network());
+}
+
+#[no_mangle]
+pub type dc_accounts_event_emitter_t = deltachat::accounts::EventEmitter;
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_get_event_emitter(
+    accounts: *mut dc_accounts_t,
+) -> *mut dc_accounts_event_emitter_t {
+    if accounts.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_get_event_emitter()");
+        return ptr::null_mut();
+    }
+
+    let accounts = &*accounts;
+    let emitter = block_on(accounts.get_event_emitter());
+
+    Box::into_raw(Box::new(emitter))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_event_emitter_unref(
+    emitter: *mut dc_accounts_event_emitter_t,
+) {
+    if emitter.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_event_emitter_unref()");
+        return;
+    }
+    let _ = Box::from_raw(emitter);
+}
+
+#[no_mangle]
+pub type dc_accounts_event_t = deltachat::accounts::Event;
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_event_unref(a: *mut dc_accounts_event_t) {
+    if a.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_event_unref()");
+        return;
+    }
+
+    let _ = Box::from_raw(a);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_event_get_id(event: *mut dc_accounts_event_t) -> libc::c_int {
+    if event.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_event_get_id()");
+        return 0;
+    }
+
+    let event = &*event;
+    event.event.as_id()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_event_get_data1_int(
+    event: *mut dc_accounts_event_t,
+) -> libc::c_int {
+    if event.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_event_get_data1_int()");
+        return 0;
+    }
+
+    dc_event_get_data1_int(&mut (&mut *event).event)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_event_get_data2_int(
+    event: *mut dc_accounts_event_t,
+) -> libc::c_int {
+    if event.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_event_get_data2_int()");
+        return 0;
+    }
+
+    dc_event_get_data2_int(&mut (&mut *event).event)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_event_get_data2_str(
+    event: *mut dc_accounts_event_t,
+) -> *mut libc::c_char {
+    if event.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_event_get_data2_str()");
+        return ptr::null_mut();
+    }
+
+    dc_event_get_data2_str(&mut (&mut *event).event)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_accounts_event_get_account_id(event: *mut dc_accounts_event_t) -> u32 {
+    if event.is_null() {
+        eprintln!("ignoring careless call to dc_accounts_event_get_account_id()");
+        return 0;
+    }
+
+    (&*event).id
 }
