@@ -91,6 +91,9 @@ pub enum LotState {
     /// text1=domain
     QrAccount = 250,
 
+    /// text1=domain, text2=instance pattern
+    QrWebrtcInstance = 260,
+
     /// id=contact
     QrAddr = 320,
 

@@ -375,12 +375,13 @@ int             dc_set_stock_translation(dc_context_t* context, uint32_t stock_i
 
 
 /**
- * Set configuration values from a QR code containing an account.
+ * Set configuration values from a QR code.
  * Before this function is called, dc_check_qr() should confirm the type of the
- * QR code is DC_QR_ACCOUNT.
+ * QR code is DC_QR_ACCOUNT or DC_QR_WEBRTC_INSTANCE.
  *
- * Internally, the function will call dc_set_config()
- * at least with the keys `addr` and `mail_pw`.
+ * Internally, the function will call dc_set_config() with the appropriate keys,
+ * eg. `addr` and `mail_pw` for DC_QR_ACCOUNT
+ * or `webrtc_instance` for DC_QR_WEBRTC_INSTANCE.
  *
  * @memberof dc_context_t
  * @param context The context object
@@ -1927,6 +1928,7 @@ void            dc_stop_ongoing_process      (dc_context_t* context);
 #define         DC_QR_FPR_MISMATCH           220 // id=contact
 #define         DC_QR_FPR_WITHOUT_ADDR       230 // test1=formatted fingerprint
 #define         DC_QR_ACCOUNT                250 // text1=domain
+#define         DC_QR_WEBRTC_INSTANCE        260 // text1=domain
 #define         DC_QR_ADDR                   320 // id=contact
 #define         DC_QR_TEXT                   330 // text1=text
 #define         DC_QR_URL                    332 // text1=URL
@@ -1945,6 +1947,9 @@ void            dc_stop_ongoing_process      (dc_context_t* context);
  * - DC_QR_FPR_MISMATCH with dc_lot_t::id=Contact ID
  * - DC_QR_FPR_WITHOUT_ADDR with dc_lot_t::test1=Formatted fingerprint
  * - DC_QR_ACCOUNT allows creation of an account, dc_lot_t::text1=domain
+ * - DC_QR_WEBRTC_INSTANCE - a shared webrtc-instance
+ *   that will be set if dc_set_config_from_qr() is called with the qr-code,
+ *   dc_lot_t::text1=domain could be used to ask the user
  * - DC_QR_ADDR with dc_lot_t::id=Contact ID
  * - DC_QR_TEXT with dc_lot_t::text1=Text
  * - DC_QR_URL with dc_lot_t::text1=URL
