@@ -3602,7 +3602,7 @@ pub unsafe extern "C" fn dc_accounts_event_get_data1_int(
         return 0;
     }
 
-    dc_event_get_data1_int(&mut (&mut *event).event)
+    dc_event_get_data1_int(&mut (*event).event)
 }
 
 #[no_mangle]
@@ -3614,7 +3614,7 @@ pub unsafe extern "C" fn dc_accounts_event_get_data2_int(
         return 0;
     }
 
-    dc_event_get_data2_int(&mut (&mut *event).event)
+    dc_event_get_data2_int(&mut (*event).event)
 }
 
 #[no_mangle]
@@ -3626,7 +3626,7 @@ pub unsafe extern "C" fn dc_accounts_event_get_data2_str(
         return ptr::null_mut();
     }
 
-    dc_event_get_data2_str(&mut (&mut *event).event)
+    dc_event_get_data2_str(&mut (*event).event)
 }
 
 #[no_mangle]
@@ -3636,5 +3636,5 @@ pub unsafe extern "C" fn dc_accounts_event_get_account_id(event: *mut dc_account
         return 0;
     }
 
-    (&*event).id
+    (*event).id
 }
