@@ -6,7 +6,7 @@ edition = "2018"
 license = "MPL-2.0"
 
 [profile.release]
-#lto = true
+lto = true
 
 [dependencies]
 deltachat_derive = { path = "./deltachat_derive" }
