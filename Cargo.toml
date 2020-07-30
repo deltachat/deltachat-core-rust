@@ -20,7 +20,7 @@ smallvec = "1.0.0"
 surf = { version = "2.0.0-alpha.4", default-features = false, features = ["h1-client"] }
 num-derive = "0.3.0"
 num-traits = "0.2.6"
-async-smtp = { git = "https://github.com/async-email/async-smtp", branch = "smtptimeout" }
+async-smtp = "0.3"
 email = { git = "https://github.com/deltachat/rust-email", branch = "master" }
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
 async-imap = "0.3.1"
