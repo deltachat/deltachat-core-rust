@@ -120,8 +120,57 @@ impl Accounts {
     }
 
     /// Migrate an existing account into this structure.
-    pub fn migrate_account(source: PathBuf) -> Result<u64> {
-        todo!()
+    pub async fn migrate_account(&self, dbfile: PathBuf) -> Result<u64> {
+        let blobdir = Context::derive_blobdir(&dbfile);
+
+        ensure!(
+            dbfile.exists().await,
+            "no database found: {}",
+            dbfile.display()
+        );
+        ensure!(
+            blobdir.exists().await,
+            "no blobdir found: {}",
+            blobdir.display()
+        );
+
+        let old_id = self.config.get_selected_account().await;
+
+        // create new account
+        let account_config = self.config.new_account(&self.dir).await?;
+
+        let new_dbfile = account_config.dbfile().into();
+        let new_blobdir = Context::derive_blobdir(&new_dbfile);
+
+        let res = {
+            fs::create_dir_all(&account_config.dir).await?;
+            fs::rename(&dbfile, &new_dbfile).await?;
+            fs::rename(&blobdir, &new_blobdir).await?;
+            Ok(())
+        };
+
+        match res {
+            Ok(_) => {
+                let ctx =
+                    Context::with_blobdir(self.config.os_name().await, new_dbfile, new_blobdir)
+                        .await?;
+                self.accounts.write().await.insert(account_config.id, ctx);
+                Ok(account_config.id)
+            }
+            Err(err) => {
+                // remove temp account
+                fs::remove_dir_all(async_std::path::PathBuf::from(&account_config.dir))
+                    .await
+                    .context("failed to remove account data")?;
+
+                self.config.remove_account(account_config.id).await?;
+
+                // set selection back
+                self.select_account(old_id).await?;
+
+                Err(err)
+            }
+        }
     }
 
     /// Get a list of all account ids.
@@ -443,5 +492,38 @@ mod tests {
         accounts.remove_account(0).await.unwrap();
         assert_eq!(accounts.config.get_selected_account().await, 1);
         assert_eq!(accounts.accounts.read().await.len(), 1);
+    }
+
+    #[async_std::test]
+    async fn test_migrate_account() {
+        let dir = tempfile::tempdir().unwrap();
+        let p: PathBuf = dir.path().join("accounts").into();
+
+        let accounts = Accounts::new("my_os".into(), p.clone()).await.unwrap();
+        assert_eq!(accounts.accounts.read().await.len(), 1);
+        assert_eq!(accounts.config.get_selected_account().await, 0);
+
+        let extern_dbfile: PathBuf = dir.path().join("other").into();
+        let ctx = Context::new("my_os".into(), extern_dbfile.clone())
+            .await
+            .unwrap();
+        ctx.set_config(crate::config::Config::Addr, Some("me@mail.com"))
+            .await
+            .unwrap();
+
+        drop(ctx);
+
+        accounts
+            .migrate_account(extern_dbfile.clone())
+            .await
+            .unwrap();
+        assert_eq!(accounts.accounts.read().await.len(), 2);
+        assert_eq!(accounts.config.get_selected_account().await, 1);
+
+        let ctx = accounts.get_selected_account().await;
+        assert_eq!(
+            "me@mail.com",
+            ctx.get_config(crate::config::Config::Addr).await.unwrap()
+        );
     }
 }
