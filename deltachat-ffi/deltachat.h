@@ -319,9 +319,10 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    for recoding images sent with type DC_MSG_IMAGE.
  *                    If needed, recoding other file types is up to the UI.
  * - `webrtc_instance` = webrtc instance to use for videochats in the form
- *                    `[basicwebrtc:]https://example.com/subdir#roomname=$ROOM`
+ *                    `[basicwebrtc:|jitsi:]https://example.com/subdir#roomname=$ROOM`
  *                    if the url is prefixed by `basicwebrtc`, the server is assumed to be of the type
  *                    https://github.com/cracker0dks/basicwebrtc which some UIs have native support for.
+ *                    The type `jitsi:` may be handled by external apps.
  *                    If no type is prefixed, the videochat is handled completely in a browser.
  *
  * If you want to retrieve a value, use dc_get_config().
@@ -3323,17 +3324,16 @@ char* dc_msg_get_videochat_url (const dc_msg_t* msg);
  * Get type of videochat.
  *
  * Calling this functions only makes sense for messages of type #DC_MSG_VIDEOCHAT_INVITATION,
- * in this case, if "basic webrtc" as of https://github.com/cracker0dks/basicwebrtc was used to initiate the videochat,
- * dc_msg_get_videochat_type() returns DC_VIDEOCHATTYPE_BASICWEBRTC.
- * "basic webrtc" videochat may be processed natively by the app
- * whereas for other urls just the browser is opened.
+ * in this case, if `basicwebrtc:` as of https://github.com/cracker0dks/basicwebrtc or `jitsi`
+ * were used to initiate the videochat,
+ * dc_msg_get_videochat_type() returns the corresponding type.
  *
  * The videochat-url can be retrieved using dc_msg_get_videochat_url().
  * To check if a message is a videochat invitation at all, check the message type for #DC_MSG_VIDEOCHAT_INVITATION.
  *
  * @memberof dc_msg_t
  * @param msg The message object.
- * @return Type of the videochat as of DC_VIDEOCHATTYPE_BASICWEBRTC or DC_VIDEOCHATTYPE_UNKNOWN.
+ * @return Type of the videochat as of DC_VIDEOCHATTYPE_BASICWEBRTC, DC_VIDEOCHATTYPE_JITSI or DC_VIDEOCHATTYPE_UNKNOWN.
  *
  * Example:
  * ~~~
@@ -3341,7 +3341,7 @@ char* dc_msg_get_videochat_url (const dc_msg_t* msg);
  *   if (dc_msg_get_videochat_type(msg) == DC_VIDEOCHATTYPE_BASICWEBRTC) {
  *       // videochat invitation that we ship a client for
  *   } else {
- *       // use browser for videochat, just open the url
+ *       // use browser for videochat - or add an additional check for DC_VIDEOCHATTYPE_JITSI
  *   }
  * } else {
  *    // not a videochat invitation
@@ -3352,6 +3352,7 @@ int dc_msg_get_videochat_type (const dc_msg_t* msg);
 
 #define DC_VIDEOCHATTYPE_UNKNOWN     0
 #define DC_VIDEOCHATTYPE_BASICWEBRTC 1
+#define DC_VIDEOCHATTYPE_JITSI       2
 
 
 /**

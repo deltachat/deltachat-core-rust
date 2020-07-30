@@ -89,6 +89,7 @@ impl Default for KeyGenType {
 pub enum VideochatType {
     Unknown = 0,
     BasicWebrtc = 1,
+    Jitsi = 2,
 }
 
 impl Default for VideochatType {
