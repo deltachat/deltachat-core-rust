@@ -648,13 +648,13 @@ impl Message {
         let mut split = instance.splitn(2, ':');
         let type_str = split.next().unwrap_or_default().to_lowercase();
         let url = split.next();
-        if type_str == "basicwebrtc" {
-            (
+        match type_str.as_str() {
+            "basicwebrtc" => (
                 VideochatType::BasicWebrtc,
                 url.unwrap_or_default().to_string(),
-            )
-        } else {
-            (VideochatType::Unknown, instance.to_string())
+            ),
+            "jitsi" => (VideochatType::Jitsi, url.unwrap_or_default().to_string()),
+            _ => (VideochatType::Unknown, instance.to_string()),
         }
     }
 
@@ -1858,5 +1858,9 @@ mod tests {
         let (webrtc_type, url) = Message::parse_webrtc_instance("https://foo/bar?key=val#key=val");
         assert_eq!(webrtc_type, VideochatType::Unknown);
         assert_eq!(url, "https://foo/bar?key=val#key=val");
+
+        let (webrtc_type, url) = Message::parse_webrtc_instance("jitsi:https://j.si/foo");
+        assert_eq!(webrtc_type, VideochatType::Jitsi);
+        assert_eq!(url, "https://j.si/foo");
     }
 }
