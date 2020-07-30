@@ -54,10 +54,14 @@ impl EventEmitter {
         async_std::task::block_on(self.recv())
     }
 
-    /// Blocking async recv of an event. Return `None` if the `Sender` has been droped.
+    /// Async recv of an event. Return `None` if the `Sender` has been droped.
     pub async fn recv(&self) -> Option<Event> {
         // TODO: change once we can use async channels internally.
         self.0.recv().await.ok()
+    }
+
+    pub fn try_recv(&self) -> Result<Event, async_std::sync::TryRecvError> {
+        self.0.try_recv()
     }
 }
 

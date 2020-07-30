@@ -79,6 +79,8 @@ mod dehtml;
 pub mod dc_receive_imf;
 pub mod dc_tools;
 
+pub mod accounts;
+
 /// if set imap/incoming and smtp/outgoing MIME messages will be printed
 pub const DCC_MIME_DEBUG: &str = "DCC_MIME_DEBUG";
 
