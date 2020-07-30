@@ -1,5 +1,22 @@
 # Changelog 
 
+## 1.42.0
+
+- new qr-code type `DC_QR_WEBRTC` #1779
+
+- new `dc_chatlist_get_summary2()` api #1771
+
+- tweak smtp-timeout for larger mails #1782
+
+- optimize read-receipts #1756
+
+- Allow http scheme for DCACCOUNT URLs #1770
+
+- improve tests #1769
+
+- bug fixes #1766 #1772 #1773 #1775 #1776 #1777
+
+
 ## 1.41.0
 
 - new apis to initiate video chats #1718 #1735
