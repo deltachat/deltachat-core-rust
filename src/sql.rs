@@ -636,16 +636,10 @@ async fn maybe_add_from_param(
             // cs: maybe the following could be done even more simple than here?
             |row| {
                 let value = match row.get_raw(0) {
-                    ValueRef::Text(t) => {
-                        // changed due to clippy complain
-                        //~let col_str = String::from_utf8_lossy(t).to_string();
-                        //~info!(context, "maybe_add_from_param() - col_str: \"{}\"", col_str);
-                        //~col_str
-                        String::from_utf8_lossy(t).to_string()
-                    }
+                    ValueRef::Text(t) => String::from_utf8_lossy(t).to_string(),
                     _ => {
                         let s_err = "maybe_add_from_param() - error - get_raw(0)".to_string();
-                        info!(context, "{}", s_err);
+                        warn!(context, "{}", s_err);
                         s_err
                     }
                 };
