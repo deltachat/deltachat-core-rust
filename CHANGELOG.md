@@ -8,7 +8,7 @@
 
 - tweak smtp-timeout for larger mails #1782
 
-- optimize read-receipts #1756
+- optimize read-receipts #1765
 
 - Allow http scheme for DCACCOUNT URLs #1770
 
