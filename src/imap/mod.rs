@@ -1499,7 +1499,6 @@ pub(crate) async fn prefetch_should_download(
     let accepted_contact = origin.is_known();
 
     let show = is_autocrypt_setup_message
-        || maybe_ndn
         || match show_emails {
             ShowEmails::Off => is_chat_message || is_reply_to_chat_message,
             ShowEmails::AcceptedContacts => {
@@ -1507,8 +1506,8 @@ pub(crate) async fn prefetch_should_download(
             }
             ShowEmails::All => true,
         };
-    let show = show && !blocked_contact;
-    Ok(show)
+    let should_download = (show && !blocked_contact) || maybe_ndn;
+    Ok(should_download)
 }
 
 async fn message_needs_processing(
