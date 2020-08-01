@@ -1729,16 +1729,10 @@ pub unsafe extern "C" fn dc_imex(
 
     let param1 = to_opt_string_lossy(param1);
 
-    // It would be nice to replace this thread::spawn{block_on{...}} by async_std::spawn{...} one day but today it does not compile
-    // because async_tar does not support `Send`.
-    std::thread::spawn(move || {
-        if let Err(e) = block_on(async move {
-            imex::imex(&ctx, what, param1)
-                .await
-                .log_err(ctx, "IMEX failed")
-        }) {
-            warn!(ctx, "Could not start imex: {}", e);
-        }
+    spawn(async move {
+        imex::imex(&ctx, what, param1)
+            .await
+            .log_err(ctx, "IMEX failed")
     });
 }
 
