@@ -131,7 +131,10 @@ impl MimeMessage {
         let (mail, signatures) = match e2ee::try_decrypt(context, &mail, message_time).await {
             Ok((raw, signatures)) => {
                 if let Some(raw) = raw {
-                    // Valid autocrypt message, encrypted
+                    // Encrypted, but maybe unsigned message. Only if
+                    // `signatures` set is non-empty, it is a valid
+                    // autocrypt message.
+
                     mail_raw = raw;
                     let decrypted_mail = mailparse::parse_mail(&mail_raw)?;
                     if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
