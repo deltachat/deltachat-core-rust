@@ -116,11 +116,13 @@ impl EncryptHelper {
 }
 
 /// Tries to decrypt a message, but only if it is structured as an
-/// Autocrypt message, i.e.  encrypted and signed with a valid
-/// signature.
+/// Autocrypt message.
 ///
 /// Returns decrypted body and a set of valid signature fingerprints
 /// if successful.
+///
+/// If the message is wrongly signed, this will still return the decrypted
+/// message but the HashSet will be empty.
 pub async fn try_decrypt(
     context: &Context,
     mail: &ParsedMail<'_>,
@@ -219,13 +221,6 @@ async fn decrypt_if_autocrypt_message<'a>(
     public_keyring_for_validate: Keyring<SignedPublicKey>,
     ret_valid_signatures: &mut HashSet<Fingerprint>,
 ) -> Result<Option<Vec<u8>>> {
-    //  The returned bool is true if we detected an Autocrypt-encrypted
-    // message and successfully decrypted it. Decryption then modifies the
-    // passed in mime structure in place. The returned bool is false
-    // if it was not an Autocrypt message.
-    //
-    // Errors are returned for failures related to decryption of AC-messages.
-
     let encrypted_data_part = match get_autocrypt_mime(mail) {
         Err(_) => {
             // not an autocrypt mime message, abort and ignore
@@ -265,7 +260,9 @@ async fn decrypt_part(
         )
         .await?;
 
-        ensure!(!ret_valid_signatures.is_empty(), "no valid signatures");
+        // If the message was wrongly or not signed, still return the plain text.
+        // The caller has to check the signatures then.
+
         return Ok(Some(plain));
     }
 
