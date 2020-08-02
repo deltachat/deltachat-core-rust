@@ -102,6 +102,10 @@ pub enum Action {
     MoveMsg = 200,
     DeleteMsgOnImap = 210,
 
+    // UID synchronization is high-priority to make sure correct UIDs
+    // are used by message moving/deletion.
+    ResyncFolders = 300,
+
     // Jobs in the SMTP-thread, range from DC_SMTP_THREAD..DC_SMTP_THREAD+999
     MaybeSendLocations = 5005, // low priority ...
     MaybeSendLocationsEnded = 5007,
@@ -124,6 +128,7 @@ impl From<Action> for Thread {
 
             Housekeeping => Thread::Imap,
             DeleteMsgOnImap => Thread::Imap,
+            ResyncFolders => Thread::Imap,
             EmptyServer => Thread::Imap,
             MarkseenMsgOnImap => Thread::Imap,
             MoveMsg => Thread::Imap,
@@ -619,6 +624,44 @@ impl Job {
         }
     }
 
+    /// Synchronizes UIDs for sentbox, inbox and mvbox, in this order.
+    ///
+    /// If a copy of the message is present in multiple folders, mvbox
+    /// is preferred to inbox, which is in turn preferred to
+    /// sentbox. This is because in the database it is impossible to
+    /// store multiple UIDs for one message, so we prefer to
+    /// automatically delete messages in the folders managed by Delta
+    /// Chat in contrast to the Sent folder, which is normally managed
+    /// by the user via webmail or another email client.
+    async fn resync_folders(&mut self, context: &Context, imap: &mut Imap) -> Status {
+        if let Err(err) = imap.connect_configured(context).await {
+            warn!(context, "could not connect: {:?}", err);
+            return Status::RetryLater;
+        }
+
+        if let Some(sentbox_folder) = &context.get_config(Config::ConfiguredSentboxFolder).await {
+            job_try!(
+                imap.resync_folder_uids(context, sentbox_folder.to_string())
+                    .await
+            );
+        }
+
+        if let Some(inbox_folder) = &context.get_config(Config::ConfiguredInboxFolder).await {
+            job_try!(
+                imap.resync_folder_uids(context, inbox_folder.to_string())
+                    .await
+            );
+        }
+
+        if let Some(mvbox_folder) = &context.get_config(Config::ConfiguredMvboxFolder).await {
+            job_try!(
+                imap.resync_folder_uids(context, mvbox_folder.to_string())
+                    .await
+            );
+        }
+        Status::Finished(Ok(()))
+    }
+
     async fn empty_server(&mut self, context: &Context, imap: &mut Imap) -> Status {
         if let Err(err) = imap.connect_configured(context).await {
             warn!(context, "could not connect: {:?}", err);
@@ -986,6 +1029,7 @@ async fn perform_job_action(
         }
         Action::EmptyServer => job.empty_server(context, connection.inbox()).await,
         Action::DeleteMsgOnImap => job.delete_msg_on_imap(context, connection.inbox()).await,
+        Action::ResyncFolders => job.resync_folders(context, connection.inbox()).await,
         Action::MarkseenMsgOnImap => job.markseen_msg_on_imap(context, connection.inbox()).await,
         Action::MoveMsg => job.move_msg(context, connection.inbox()).await,
         Action::Housekeeping => {
@@ -1043,6 +1087,7 @@ pub async fn add(context: &Context, job: Job) {
             Action::Housekeeping
             | Action::EmptyServer
             | Action::DeleteMsgOnImap
+            | Action::ResyncFolders
             | Action::MarkseenMsgOnImap
             | Action::MoveMsg => {
                 info!(context, "interrupt: imap");

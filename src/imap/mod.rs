@@ -108,6 +108,7 @@ const PREFETCH_FLAGS: &str = "(UID BODY.PEEK[HEADER.FIELDS (\
                               AUTOCRYPT-SETUP-MESSAGE\
                               )])";
 const DELETE_CHECK_FLAGS: &str = "(UID BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])";
+const RFC724MID_UID: &str = "(UID BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])";
 const JUST_UID: &str = "(UID)";
 const BODY_FLAGS: &str = "(FLAGS BODY.PEEK[])";
 const SELECT_ALL: &str = "1:*";
@@ -515,6 +516,84 @@ impl Imap {
         } else {
             (0, 0)
         }
+    }
+
+    /// Synchronizes UIDs in the database with UIDs on the server.
+    ///
+    /// It is assumed that no operations are taking place on the same
+    /// folder at the moment. Make sure to run it in the same
+    /// thread/task as other network operations on this folder to
+    /// avoid race conditions.
+    pub(crate) async fn resync_folder_uids(
+        &mut self,
+        context: &Context,
+        folder: String,
+    ) -> Result<()> {
+        // Collect pairs of UID and Message-ID.
+        let mut msg_ids = BTreeMap::new();
+
+        self.select_folder(context, Some(&folder)).await?;
+
+        let session = if let Some(ref mut session) = &mut self.session {
+            session
+        } else {
+            return Err(Error::NoConnection);
+        };
+
+        match session.uid_fetch("1:*", RFC724MID_UID).await {
+            Ok(mut list) => {
+                while let Some(fetch) = list.next().await {
+                    let msg = fetch.map_err(|err| Error::Other(err.to_string()))?;
+
+                    // Get Message-ID
+                    let message_id = get_fetch_headers(&msg)
+                        .and_then(|headers| prefetch_get_message_id(&headers))
+                        .ok();
+
+                    if let (Some(uid), Some(rfc724_mid)) = (msg.uid, message_id) {
+                        msg_ids.insert(uid, rfc724_mid);
+                    }
+                }
+            }
+            Err(err) => {
+                return Err(Error::Other(format!(
+                    "Can't resync folder {}: {}",
+                    folder, err
+                )))
+            }
+        }
+
+        info!(
+            context,
+            "Resync: collected {} message IDs in folder {}",
+            msg_ids.len(),
+            &folder
+        );
+
+        // Write collected UIDs to SQLite database.
+        context
+            .sql
+            .with_conn(move |mut conn| {
+                let conn2 = &mut conn;
+                let tx = conn2.transaction()?;
+                tx.execute(
+                    "UPDATE msgs SET server_uid=0 WHERE server_folder=?",
+                    params![folder],
+                )?;
+                for (uid, rfc724_mid) in &msg_ids {
+                    // This may detect previously undetected moved
+                    // messages, so we update server_folder too.
+                    tx.execute(
+                        "UPDATE msgs \
+                         SET server_folder=?,server_uid=? WHERE rfc724_mid=?",
+                        params![folder, uid, rfc724_mid],
+                    )?;
+                }
+                tx.commit()?;
+                Ok(())
+            })
+            .await?;
+        Ok(())
     }
 
     /// return Result with (uid_validity, last_seen_uid) tuple.
