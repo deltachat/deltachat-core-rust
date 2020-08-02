@@ -155,11 +155,16 @@ impl MimeMessage {
 
                     // let known protected headers from the decrypted
                     // part override the unencrypted top-level
+
+                    // Signature was checked for original From, so we
+                    // do not allow overriding it.
+                    let mut throwaway_from = from.clone();
+
                     MimeMessage::merge_headers(
                         context,
                         &mut headers,
                         &mut recipients,
-                        &mut from,
+                        &mut throwaway_from,
                         &mut chat_disposition_notification_to,
                         &decrypted_mail.headers,
                     );
