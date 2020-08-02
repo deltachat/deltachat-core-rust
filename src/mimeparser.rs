@@ -141,10 +141,14 @@ impl MimeMessage {
 
                     // Handle any gossip headers if the mail was encrypted.  See section
                     // "3.6 Key Gossip" of https://autocrypt.org/autocrypt-spec-1.1.0.pdf
-                    let gossip_headers = decrypted_mail.headers.get_all_values("Autocrypt-Gossip");
-                    gossipped_addr =
-                        update_gossip_peerstates(context, message_time, &mail, gossip_headers)
-                            .await?;
+                    // but only if the mail was correctly signed:
+                    if !signatures.is_empty() {
+                        let gossip_headers =
+                            decrypted_mail.headers.get_all_values("Autocrypt-Gossip");
+                        gossipped_addr =
+                            update_gossip_peerstates(context, message_time, &mail, gossip_headers)
+                                .await?;
+                    }
 
                     // let known protected headers from the decrypted
                     // part override the unencrypted top-level
@@ -199,6 +203,12 @@ impl MimeMessage {
         parser.parse_mime_recursive(context, &mail).await?;
         parser.heuristically_parse_ndn(context).await;
         parser.parse_headers(context)?;
+
+        if parser.signatures.is_empty() {
+            for part in parser.parts.iter_mut() {
+                part.error = "No valid signature".to_string();
+            }
+        }
 
         Ok(parser)
     }
