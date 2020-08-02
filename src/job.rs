@@ -1063,6 +1063,15 @@ async fn send_mdn(context: &Context, msg: &Message) -> Result<()> {
     Ok(())
 }
 
+pub(crate) async fn schedule_resync(context: &Context) {
+    kill_action(context, Action::ResyncFolders).await;
+    add(
+        context,
+        Job::new(Action::ResyncFolders, 0, Params::new(), 0),
+    )
+    .await;
+}
+
 /// Creates a job.
 pub fn create(action: Action, foreign_id: i32, param: Params, delay_seconds: i64) -> Result<Job> {
     ensure!(
