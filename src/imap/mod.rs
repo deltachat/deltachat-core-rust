@@ -679,6 +679,7 @@ impl Imap {
 
         self.set_config_last_seen_uid(context, &folder, new_uid_validity, new_last_seen_uid)
             .await;
+        job::schedule_resync(context).await;
         info!(
             context,
             "uid/validity change: new {}/{} current {}/{}",
