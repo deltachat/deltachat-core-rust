@@ -518,6 +518,21 @@ lazy_static::lazy_static! {
         oauth2_authorizer: None,
     };
 
+    // vodafone.de.md: vodafone.de, vodafonemail.de
+    static ref P_VODAFONE_DE: Provider = Provider {
+        status: Status::OK,
+        before_login_hint: "",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/vodafone-de",
+        server: vec![
+            Server { protocol: IMAP, socket: SSL, hostname: "imap.vodafonemail.de", port: 993, username_pattern: EMAIL },
+            Server { protocol: SMTP, socket: STARTTLS, hostname: "smtp.vodafonemail.de", port: 587, username_pattern: EMAIL },
+        ],
+        config_defaults: None,
+        strict_tls: false,
+        oauth2_authorizer: None,
+    };
+
     // web.de.md: web.de, email.de, flirt.ms, hallo.ms, kuss.ms, love.ms, magic.ms, singles.ms, cool.ms, kanzler.ms, okay.ms, party.ms, pop.ms, stars.ms, techno.ms, clever.ms, deutschland.ms, genial.ms, ich.ms, online.ms, smart.ms, wichtig.ms, action.ms, fussball.ms, joker.ms, planet.ms, power.ms
     static ref P_WEB_DE: Provider = Provider {
         status: Status::PREPARATION,
@@ -684,6 +699,8 @@ lazy_static::lazy_static! {
         ("tiscali.it", &*P_TISCALI_IT),
         ("ukr.net", &*P_UKR_NET),
         ("vfemail.net", &*P_VFEMAIL),
+        ("vodafone.de", &*P_VODAFONE_DE),
+        ("vodafonemail.de", &*P_VODAFONE_DE),
         ("web.de", &*P_WEB_DE),
         ("email.de", &*P_WEB_DE),
         ("flirt.ms", &*P_WEB_DE),
