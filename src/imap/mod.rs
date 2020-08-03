@@ -573,8 +573,14 @@ impl Imap {
                     let set = format!("{}", mailbox.exists);
                     match session.fetch(set, JUST_UID).await {
                         Ok(mut list) => {
-                            if let Some(Ok(msg)) = list.next().await {
-                                msg.uid.unwrap_or_default()
+                            let mut new_last_seen_uid = None;
+                            while let Some(fetch) = list.next().await.transpose()? {
+                                if fetch.message == mailbox.exists && fetch.uid.is_some() {
+                                    new_last_seen_uid = fetch.uid;
+                                }
+                            }
+                            if let Some(new_last_seen_uid) = new_last_seen_uid {
+                                new_last_seen_uid
                             } else {
                                 return Err(Error::Other("failed to fetch".into()));
                             }
