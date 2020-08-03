@@ -970,7 +970,11 @@ impl Imap {
         if let Some(ref mut session) = &mut self.session {
             let query = format!("+FLAGS ({})", flag);
             match session.uid_store(uid_set, &query).await {
-                Ok(_) => {}
+                Ok(mut responses) => {
+                    while let Some(_response) = responses.next().await {
+                        // Read all the responses
+                    }
+                }
                 Err(err) => {
                     warn!(
                         context,
