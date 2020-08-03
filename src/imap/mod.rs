@@ -1085,6 +1085,22 @@ impl Imap {
                         return ImapActionResult::AlreadyDone;
                     };
 
+                    if let Some(fetched_uid) = fetch.uid {
+                        if fetched_uid != uid {
+                            warn!(
+                                context,
+                                "IMAP bug: fetched UID {} is not equal to requested UID {}",
+                                fetched_uid,
+                                uid
+                            );
+                        }
+                    } else {
+                        warn!(
+                            context,
+                            "IMAP bug: fetch result doesn't contain requested UID {}", uid
+                        );
+                    }
+
                     let remote_message_id = get_fetch_headers(&fetch)
                         .and_then(|headers| prefetch_get_message_id(&headers))
                         .unwrap_or_default();
