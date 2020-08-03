@@ -1073,8 +1073,35 @@ impl Imap {
         if let Some(ref mut session) = &mut self.session {
             match session.uid_fetch(set, DELETE_CHECK_FLAGS).await {
                 Ok(mut msgs) => {
-                    let fetch = if let Some(Ok(fetch)) = msgs.next().await {
-                        fetch
+                    let mut remote_message_id = None;
+
+                    while let Some(response) = msgs.next().await {
+                        match response {
+                            Ok(fetch) => {
+                                if fetch.uid == Some(uid) {
+                                    remote_message_id = get_fetch_headers(&fetch)
+                                        .and_then(|headers| prefetch_get_message_id(&headers))
+                                        .ok();
+                                }
+                            }
+                            Err(err) => {
+                                warn!(context, "IMAP fetch error {}", err);
+                                return ImapActionResult::RetryLater;
+                            }
+                        }
+                    }
+
+                    if let Some(remote_message_id) = remote_message_id {
+                        if remote_message_id != message_id {
+                            warn!(
+                                context,
+                                "Cannot delete on IMAP, {}: remote message-id '{}' != '{}'",
+                                display_imap_id,
+                                remote_message_id,
+                                message_id,
+                            );
+                            return ImapActionResult::Failed;
+                        }
                     } else {
                         warn!(
                             context,
@@ -1083,37 +1110,6 @@ impl Imap {
                             message_id,
                         );
                         return ImapActionResult::AlreadyDone;
-                    };
-
-                    if let Some(fetched_uid) = fetch.uid {
-                        if fetched_uid != uid {
-                            warn!(
-                                context,
-                                "IMAP bug: fetched UID {} is not equal to requested UID {}",
-                                fetched_uid,
-                                uid
-                            );
-                        }
-                    } else {
-                        warn!(
-                            context,
-                            "IMAP bug: fetch result doesn't contain requested UID {}", uid
-                        );
-                    }
-
-                    let remote_message_id = get_fetch_headers(&fetch)
-                        .and_then(|headers| prefetch_get_message_id(&headers))
-                        .unwrap_or_default();
-
-                    if remote_message_id != message_id {
-                        warn!(
-                            context,
-                            "Cannot delete on IMAP, {}: remote message-id '{}' != '{}'",
-                            display_imap_id,
-                            remote_message_id,
-                            message_id,
-                        );
-                        return ImapActionResult::Failed;
                     }
                 }
                 Err(err) => {
