@@ -143,22 +143,13 @@ impl<'a> Peerstate<'a> {
         res
     }
 
-    pub async fn from_addr(context: &'a Context, addr: &str) -> Option<Peerstate<'a>> {
+    pub async fn from_addr(context: &'a Context, addr: &str) -> Result<Option<Peerstate<'a>>> {
         let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, \
                      gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
                      verified_key, verified_key_fingerprint \
                      FROM acpeerstates \
                      WHERE addr=? COLLATE NOCASE;";
-        match Self::from_stmt(context, query, paramsv![addr]).await {
-            Ok(peerstate) => peerstate,
-            Err(err) => {
-                warn!(
-                    context,
-                    "Can't load peerstate for address {}: {}", addr, err
-                );
-                None
-            }
-        }
+        Self::from_stmt(context, query, paramsv![addr]).await
     }
 
     pub async fn from_fingerprint(
@@ -524,7 +515,8 @@ mod tests {
 
         let peerstate_new = Peerstate::from_addr(&ctx.ctx, addr)
             .await
-            .expect("failed to load peerstate from db");
+            .expect("failed to load peerstate from db")
+            .expect("no peerstate found in the database");
 
         // clear to_save, as that is not persissted
         peerstate.to_save = None;
@@ -604,7 +596,7 @@ mod tests {
 
         // clear to_save, as that is not persissted
         peerstate.to_save = None;
-        assert_eq!(peerstate, peerstate_new);
+        assert_eq!(Some(peerstate), peerstate_new);
     }
 
     // TODO: don't copy this from stress.rs
