@@ -591,6 +591,35 @@ mod tests {
         assert_eq!(Some(peerstate), peerstate_new);
     }
 
+    #[async_std::test]
+    async fn test_peerstate_load_db_defaults() {
+        let ctx = crate::test_utils::TestContext::new().await;
+        let addr = "hello@mail.com";
+
+        // Old code created peerstates with this code and updated
+        // other values later.  If UPDATE failed, other columns had
+        // default values, in particular fingerprints were set to
+        // empty strings instead of NULL. This should not be the case
+        // anymore, but the regression test still checks that defaults
+        // can be loaded without errors.
+        ctx.ctx
+            .sql
+            .execute("INSERT INTO acpeerstates (addr) VALUES(?)", paramsv![addr])
+            .await
+            .expect("Failed to write to the database");
+
+        let peerstate = Peerstate::from_addr(&ctx.ctx, addr)
+            .await
+            .expect("Failed to load peerstate from db")
+            .expect("Loaded peerstate is empty");
+
+        // Check that default values for fingerprints are treated like
+        // NULL.
+        assert_eq!(peerstate.public_key_fingerprint, None);
+        assert_eq!(peerstate.gossip_key_fingerprint, None);
+        assert_eq!(peerstate.verified_key_fingerprint, None);
+    }
+
     // TODO: don't copy this from stress.rs
     #[allow(dead_code)]
     struct TestContext {
