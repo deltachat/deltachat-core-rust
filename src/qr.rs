@@ -143,7 +143,10 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Lot {
     let mut lot = Lot::new();
 
     // retrieve known state for this fingerprint
-    let peerstate = Peerstate::from_fingerprint(context, &context.sql, &fingerprint).await;
+    let peerstate = match Peerstate::from_fingerprint(context, &context.sql, &fingerprint).await {
+        Ok(peerstate) => peerstate,
+        Err(err) => return format_err!("Can't load peerstate: {}", err).into(),
+    };
 
     if invitenumber.is_none() || auth.is_none() {
         if let Some(peerstate) = peerstate {
