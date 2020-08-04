@@ -186,15 +186,18 @@ impl<'a> Peerstate<'a> {
                 res.public_key_fingerprint = row
                     .get::<_, Option<String>>(7)?
                     .map(|s| s.parse::<Fingerprint>())
-                    .transpose()?;
+                    .transpose()
+                    .unwrap_or_default();
                 res.gossip_key_fingerprint = row
                     .get::<_, Option<String>>(8)?
                     .map(|s| s.parse::<Fingerprint>())
-                    .transpose()?;
+                    .transpose()
+                    .unwrap_or_default();
                 res.verified_key_fingerprint = row
                     .get::<_, Option<String>>(10)?
                     .map(|s| s.parse::<Fingerprint>())
-                    .transpose()?;
+                    .transpose()
+                    .unwrap_or_default();
                 res.public_key = row
                     .get(4)
                     .ok()
