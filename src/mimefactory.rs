@@ -221,7 +221,7 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             .filter(|(_, addr)| addr != &self_addr)
         {
             res.push((
-                Peerstate::from_addr(self.context, addr).await,
+                Peerstate::from_addr(self.context, addr).await?,
                 addr.as_str(),
             ));
         }

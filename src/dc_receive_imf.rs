@@ -1619,7 +1619,7 @@ async fn check_verified_properties(
     // this check is skipped for SELF as there is no proper SELF-peerstate
     // and results in group-splits otherwise.
     if from_id != DC_CONTACT_ID_SELF {
-        let peerstate = Peerstate::from_addr(context, contact.get_addr()).await;
+        let peerstate = Peerstate::from_addr(context, contact.get_addr()).await?;
 
         if peerstate.is_none()
             || contact.is_verified_ex(context, peerstate.as_ref()).await
@@ -1673,7 +1673,7 @@ async fn check_verified_properties(
             context.is_self_addr(&to_addr).await
         );
         let mut is_verified = _is_verified != 0;
-        let peerstate = Peerstate::from_addr(context, &to_addr).await;
+        let peerstate = Peerstate::from_addr(context, &to_addr).await?;
 
         // mark gossiped keys (if any) as verified
         if mimeparser.gossipped_addr.contains(&to_addr) {
