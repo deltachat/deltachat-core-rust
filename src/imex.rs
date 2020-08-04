@@ -50,8 +50,8 @@ pub enum ImexMode {
     /// Export a backup to the directory given as `param1`.
     /// The backup contains all contacts, chats, images and other data and device independent settings.
     /// The backup does not contain device dependent settings as ringtones or LED notification settings.
-    /// The name of the backup is typically `delta-chat.<day>.tar`, if more than one backup is create on a day,
-    /// the format is `delta-chat.<day>-<number>.tar`
+    /// The name of the backup is typically `delta-chat-<day>.tar`, if more than one backup is create on a day,
+    /// the format is `delta-chat-<day>-<number>.tar`
     ExportBackup = 11,
 
     /// `param1` is the file (not: directory) to import. The file is normally
