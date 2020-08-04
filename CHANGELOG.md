@@ -1,5 +1,14 @@
 # Changelog 
 
+## 1.43.0
+
+- improve using own jitsi-servers #1785
+
+- fix smtp-timeout tweaks for larger mails #1797
+
+- more bug fixes and updates #1794 #1792 #1789 #1787
+
+
 ## 1.42.0
 
 - new qr-code type `DC_QR_WEBRTC` #1779
