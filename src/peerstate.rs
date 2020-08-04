@@ -156,7 +156,7 @@ impl<'a> Peerstate<'a> {
         context: &'a Context,
         _sql: &Sql,
         fingerprint: &Fingerprint,
-    ) -> Option<Peerstate<'a>> {
+    ) -> Result<Option<Peerstate<'a>>> {
         let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, \
                      gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
                      verified_key, verified_key_fingerprint \
@@ -165,16 +165,7 @@ impl<'a> Peerstate<'a> {
                      OR gossip_key_fingerprint=? COLLATE NOCASE  \
                      ORDER BY public_key_fingerprint=? DESC;";
         let fp = fingerprint.hex();
-        match Self::from_stmt(context, query, paramsv![fp, fp, fp]).await {
-            Ok(peerstate) => peerstate,
-            Err(err) => {
-                warn!(
-                    context,
-                    "Can't load peerstate for fingerprint {}: {}", fingerprint, err
-                );
-                None
-            }
-        }
+        Self::from_stmt(context, query, paramsv![fp, fp, fp]).await
     }
 
     async fn from_stmt(
@@ -524,7 +515,8 @@ mod tests {
         let peerstate_new2 =
             Peerstate::from_fingerprint(&ctx.ctx, &ctx.ctx.sql, &pub_key.fingerprint())
                 .await
-                .expect("failed to load peerstate from db");
+                .expect("failed to load peerstate from db")
+                .expect("no peerstate found in the database");
         assert_eq!(peerstate, peerstate_new2);
     }
 
