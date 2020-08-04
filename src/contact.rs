@@ -678,7 +678,7 @@ impl Contact {
         let mut ret = String::new();
 
         if let Ok(contact) = Contact::load_from_db(context, contact_id).await {
-            let peerstate = Peerstate::from_addr(context, &contact.addr).await;
+            let peerstate = Peerstate::from_addr(context, &contact.addr).await?;
             let loginparam = LoginParam::from_database(context, "configured_").await;
 
             if peerstate.is_some()
@@ -939,7 +939,17 @@ impl Contact {
             }
         }
 
-        let peerstate = Peerstate::from_addr(context, &self.addr).await;
+        let peerstate = match Peerstate::from_addr(context, &self.addr).await {
+            Ok(peerstate) => peerstate,
+            Err(err) => {
+                warn!(
+                    context,
+                    "Failed to load peerstate for address {}: {}", self.addr, err
+                );
+                return VerifiedStatus::Unverified;
+            }
+        };
+
         if let Some(ps) = peerstate {
             if ps.verified_key.is_some() {
                 return VerifiedStatus::BidirectVerified;
