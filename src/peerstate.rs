@@ -6,6 +6,7 @@ use num_traits::FromPrimitive;
 
 use crate::aheader::*;
 use crate::context::Context;
+use crate::error::Result;
 use crate::key::{DcKey, Fingerprint, SignedPublicKey};
 use crate::sql::Sql;
 
@@ -143,8 +144,21 @@ impl<'a> Peerstate<'a> {
     }
 
     pub async fn from_addr(context: &'a Context, addr: &str) -> Option<Peerstate<'a>> {
-        let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, verified_key, verified_key_fingerprint FROM acpeerstates  WHERE addr=? COLLATE NOCASE;";
-        Self::from_stmt(context, query, paramsv![addr]).await
+        let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, \
+                     gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
+                     verified_key, verified_key_fingerprint \
+                     FROM acpeerstates \
+                     WHERE addr=? COLLATE NOCASE;";
+        match Self::from_stmt(context, query, paramsv![addr]).await {
+            Ok(peerstate) => peerstate,
+            Err(err) => {
+                warn!(
+                    context,
+                    "Can't load peerstate for address {}: {}", addr, err
+                );
+                None
+            }
+        }
     }
 
     pub async fn from_fingerprint(
@@ -160,17 +174,26 @@ impl<'a> Peerstate<'a> {
                      OR gossip_key_fingerprint=? COLLATE NOCASE  \
                      ORDER BY public_key_fingerprint=? DESC;";
         let fp = fingerprint.hex();
-        Self::from_stmt(context, query, paramsv![fp, fp, fp]).await
+        match Self::from_stmt(context, query, paramsv![fp, fp, fp]).await {
+            Ok(peerstate) => peerstate,
+            Err(err) => {
+                warn!(
+                    context,
+                    "Can't load peerstate for fingerprint {}: {}", fingerprint, err
+                );
+                None
+            }
+        }
     }
 
     async fn from_stmt(
         context: &'a Context,
         query: &str,
         params: Vec<&dyn crate::ToSql>,
-    ) -> Option<Peerstate<'a>> {
-        context
+    ) -> Result<Option<Peerstate<'a>>> {
+        let peerstate = context
             .sql
-            .query_row(query, params, |row| {
+            .query_row_optional(query, params, |row| {
                 /* all the above queries start with this: SELECT
                 addr, last_seen, last_seen_autocrypt, prefer_encrypted,
                 public_key, gossip_timestamp, gossip_key, public_key_fingerprint,
@@ -213,8 +236,8 @@ impl<'a> Peerstate<'a> {
 
                 Ok(res)
             })
-            .await
-            .ok()
+            .await?;
+        Ok(peerstate)
     }
 
     pub fn recalc_fingerprint(&mut self) {
