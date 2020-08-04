@@ -403,21 +403,20 @@ impl<'a> Peerstate<'a> {
     }
 
     pub async fn save_to_db(&self, sql: &Sql, create: bool) -> crate::sql::Result<()> {
-        if create {
-            sql.execute(
-                "INSERT INTO acpeerstates (addr) VALUES(?);",
-                paramsv![self.addr],
-            )
-            .await?;
-        }
-
         if self.to_save == Some(ToSave::All) || create {
             sql.execute(
+                if create {
+                "INSERT INTO acpeerstates (last_seen, last_seen_autocrypt, prefer_encrypted, \
+                 public_key, gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
+                 verified_key, verified_key_fingerprint, addr \
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?)"
+                } else {
                 "UPDATE acpeerstates \
                  SET last_seen=?, last_seen_autocrypt=?, prefer_encrypted=?, \
                  public_key=?, gossip_timestamp=?, gossip_key=?, public_key_fingerprint=?, gossip_key_fingerprint=?, \
                  verified_key=?, verified_key_fingerprint=? \
-                 WHERE addr=?;",
+                 WHERE addr=?"
+                },
                 paramsv![
                     self.last_seen,
                     self.last_seen_autocrypt,
