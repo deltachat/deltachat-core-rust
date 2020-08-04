@@ -570,6 +570,11 @@ impl Job {
                     context,
                     "The message is deleted from the server when all parts are deleted.",
                 );
+            } else if cnt == 0 {
+                warn!(
+                    context,
+                    "The message {} has no UID on the server to delete", &msg.rfc724_mid
+                );
             } else {
                 /* if this is the last existing part of the message,
                 we delete the message from the server */
