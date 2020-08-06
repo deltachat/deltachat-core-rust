@@ -276,12 +276,15 @@ class TestOfflineChat:
     def test_mute(self, ac1):
         chat = ac1.create_group_chat(name="title1")
         assert not chat.is_muted()
+        assert chat.get_mute_duration() == 0
         chat.mute()
         assert chat.is_muted()
+        assert chat.get_mute_duration() == -1
         chat.unmute()
         assert not chat.is_muted()
         chat.mute(50)
         assert chat.is_muted()
+        assert chat.get_mute_duration() <= 50
         with pytest.raises(ValueError):
             chat.mute(-51)
 
