@@ -2445,7 +2445,7 @@ pub unsafe extern "C" fn dc_chat_get_remaining_mute_duration(chat: *mut dc_chat_
         MuteDuration::NotMuted => 0,
         MuteDuration::Forever => -1,
         MuteDuration::Until(when) => when
-            .duration_since(SystemTime::UNIX_EPOCH)
+            .duration_since(SystemTime::now())
             .map(|d| d.as_secs() as i64)
             .unwrap_or(0),
     }
