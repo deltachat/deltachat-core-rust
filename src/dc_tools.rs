@@ -243,7 +243,7 @@ pub fn dc_get_filesuffix_lc(path_filename: impl AsRef<str>) -> Option<String> {
 
 /// Returns the `(width, height)` of the given image buffer.
 pub fn dc_get_filemeta(buf: &[u8]) -> Result<(u32, u32), Error> {
-    let image = image::io::Reader::new(Cursor::new(buf));
+    let image = image::io::Reader::new(Cursor::new(buf)).with_guessed_format()?;
     let dimensions = image.into_dimensions()?;
     Ok(dimensions)
 }
@@ -915,5 +915,23 @@ mod tests {
             duration_to_str(Duration::from_secs(3 * 60 * 60 + 60)),
             "3h 1m 0s"
         );
+    }
+
+    #[test]
+    fn test_get_filemeta() {
+        let data = include_bytes!("../test-data/image/avatar900x900.png");
+        let (w, h) = dc_get_filemeta(data).unwrap();
+        assert_eq!(w, 900);
+        assert_eq!(h, 900);
+
+        let data = include_bytes!("../test-data/image/avatar1000x1000.jpg");
+        let (w, h) = dc_get_filemeta(data).unwrap();
+        assert_eq!(w, 1000);
+        assert_eq!(h, 1000);
+
+        let data = include_bytes!("../test-data/image/image100x50.gif");
+        let (w, h) = dc_get_filemeta(data).unwrap();
+        assert_eq!(w, 100);
+        assert_eq!(h, 50);
     }
 }
