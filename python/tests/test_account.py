@@ -288,6 +288,11 @@ class TestOfflineChat:
         with pytest.raises(ValueError):
             chat.mute(-51)
 
+        # Regression test, this caused Rust panic previously
+        chat.mute(2**63 - 1)
+        assert chat.is_muted()
+        assert chat.get_mute_duration() == -1
+
     def test_delete_and_send_fails(self, ac1, chat1):
         chat1.delete()
         ac1._evtracker.wait_next_messages_changed()
