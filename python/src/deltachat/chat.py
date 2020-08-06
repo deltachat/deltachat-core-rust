@@ -137,7 +137,7 @@ class Chat(object):
         :param duration:
         :returns: Returns the number of seconds the chat is still muted for. (0 for not muted, -1 forever muted)
         """
-        return bool(lib.dc_chat_get_remaining_mute_duration(self.id))
+        return lib.dc_chat_get_remaining_mute_duration(self._dc_chat)
 
     def get_ephemeral_timer(self):
         """ get ephemeral timer.
