@@ -243,7 +243,7 @@ pub fn dc_get_filesuffix_lc(path_filename: impl AsRef<str>) -> Option<String> {
 
 /// Returns the `(width, height)` of the given image buffer.
 pub fn dc_get_filemeta(buf: &[u8]) -> Result<(u32, u32), Error> {
-    let image = image::io::Reader::new(Cursor::new(buf));
+    let image = image::io::Reader::new(Cursor::new(buf)).with_guessed_format()?;
     let dimensions = image.into_dimensions()?;
     Ok(dimensions)
 }
