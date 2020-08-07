@@ -1007,13 +1007,10 @@ impl MimeMessage {
         }
 
         if let Some(failure_report) = &self.failure_report {
-            let error = parts.iter().find(|p| p.typ == Viewtype::Text).map(|p| {
-                let msg = &p.msg;
-                msg.find("\n--- ")
-                    .and_then(|footer_start| msg.get(..footer_start))
-                    .unwrap_or(msg)
-                    .trim()
-            });
+            let error = parts
+                .iter()
+                .find(|p| p.typ == Viewtype::Text)
+                .map(|p| p.msg.clone());
             message::handle_ndn(context, failure_report, error).await
         }
     }
