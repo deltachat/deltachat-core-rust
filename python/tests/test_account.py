@@ -1652,6 +1652,45 @@ class TestOnlineAccount:
         assert "Ephemeral timer: " not in system_message2.get_message_info()
         assert chat1.get_ephemeral_timer() == 0
 
+    @pytest.mark.xfail
+    def test_delete_multiple_messages(self, acfactory, lp):
+        ac1, ac2 = acfactory.get_two_online_accounts()
+        chat12 = acfactory.get_accepted_chat(ac1, ac2)
+
+        lp.sec("ac1: sending seven messages")
+        texts = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh"]
+        for text in texts:
+            chat12.send_text(text)
+
+        lp.sec("ac2: waiting for all messages on the other side")
+        to_delete = []
+        for text in texts:
+            msg = ac2._evtracker.wait_next_incoming_message()
+            assert msg.text == text
+            if text != "third":
+                to_delete.append(msg)
+
+        lp.sec("ac2: deleting all messages except third")
+        assert len(to_delete) == len(texts) - 1
+        ac2.delete_messages(to_delete)
+        for msg in to_delete:
+            ac2._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED")
+
+        ac2._evtracker.get_info_contains("close/expunge succeeded")
+
+        lp.sec("imap2: test that only one message is left")
+        imap2 = ac2.direct_imap
+
+        # Flush unsolicited responses. IMAPClient has problems
+        # dealing with them: https://github.com/mjs/imapclient/issues/334
+        # When this NOOP was introduced, next FETCH returned empty
+        # result instead of a single message, even though IMAP server
+        # can only return more untagged responses than required, not
+        # less.
+        imap2.conn.noop()
+
+        assert len(imap2.get_all_messages()) == 1
+
 
 class TestGroupStressTests:
     def test_group_many_members_add_leave_remove(self, acfactory, lp):
