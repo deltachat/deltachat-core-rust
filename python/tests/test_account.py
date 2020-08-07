@@ -1652,7 +1652,6 @@ class TestOnlineAccount:
         assert "Ephemeral timer: " not in system_message2.get_message_info()
         assert chat1.get_ephemeral_timer() == 0
 
-    @pytest.mark.xfail
     def test_delete_multiple_messages(self, acfactory, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
         chat12 = acfactory.get_accepted_chat(ac1, ac2)
