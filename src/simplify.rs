@@ -46,9 +46,7 @@ fn remove_message_footer<'a>(lines: &'a [&str]) -> &'a [&'a str] {
 fn remove_nonstandard_footer<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
     for (ix, &line) in lines.iter().enumerate() {
         if line == "--"
-            || line == "---"
-            || line == "----"
-            || line.starts_with("-----")
+            || line.starts_with("---")
             || line.starts_with("_____")
             || line.starts_with("=====")
             || line.starts_with("*****")
@@ -336,9 +334,17 @@ mod tests {
         let (plain, _) = simplify(escaped, true);
         assert_eq!(plain, "text\n\n--\ntreated as footer when unescaped");
 
+        // Nonstandard footer sent by https://siju.es/
+        let input = "Message text here\n---Desde mi teléfono con SIJÚ\n\nQuote here".to_string();
+        let (plain, _) = simplify(input.clone(), false);
+        assert_eq!(plain, "Message text here [...]");
+        let (plain, _) = simplify(input.clone(), true);
+        assert_eq!(plain, input);
+
         let input = "--\ntreated as footer when unescaped".to_string();
         let (plain, _) = simplify(input.clone(), true);
         assert_eq!(plain, ""); // see remove_message_footer() for some explanations
+
         let escaped = escape_message_footer_marks(&input);
         let (plain, _) = simplify(escaped, true);
         assert_eq!(plain, "--\ntreated as footer when unescaped");
