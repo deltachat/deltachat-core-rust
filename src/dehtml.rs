@@ -46,6 +46,12 @@ pub fn dehtml(buf: &str) -> String {
             Ok(quick_xml::events::Event::End(ref e)) => dehtml_endtag_cb(e, &mut dehtml),
             Ok(quick_xml::events::Event::Text(ref e)) => dehtml_text_cb(e, &mut dehtml),
             Ok(quick_xml::events::Event::CData(ref e)) => dehtml_cdata_cb(e, &mut dehtml),
+            Ok(quick_xml::events::Event::Empty(ref e)) => {
+                // Handle empty tags as a start tag immediately followed by end tag.
+                // For example, `<p/>` is treated as `<p></p>`.
+                dehtml_starttag_cb(e, &mut dehtml, &reader);
+                dehtml_endtag_cb(&BytesEnd::borrowed(e.name()), &mut dehtml);
+            }
             Err(e) => {
                 eprintln!(
                     "Parse html error: Error at position {}: {:?}",
@@ -182,6 +188,10 @@ mod tests {
             ("&amp; bar", "& bar"),
             // Note missing '
             ("<a href='/foo.png>Hi</a> ", ""),
+            (
+                "<a href='https://get.delta.chat/'/>",
+                "[](https://get.delta.chat/)",
+            ),
             ("", ""),
         ];
         for (input, output) in cases {
@@ -191,10 +201,10 @@ mod tests {
 
     #[test]
     fn test_dehtml_parse_br() {
-        let html = "\r\r\nline1<br>\r\n\r\n\r\rline2\n\r";
+        let html = "\r\r\nline1<br>\r\n\r\n\r\rline2<br/>line3\n\r";
         let plain = dehtml(html);
 
-        assert_eq!(plain, "line1\n\r\r\rline2");
+        assert_eq!(plain, "line1\n\r\r\rline2\nline3");
     }
 
     #[test]
