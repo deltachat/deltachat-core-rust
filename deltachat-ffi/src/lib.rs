@@ -1286,7 +1286,9 @@ pub unsafe extern "C" fn dc_set_chat_mute_duration(
     let muteDuration = match duration {
         0 => MuteDuration::NotMuted,
         -1 => MuteDuration::Forever,
-        n if n > 0 => MuteDuration::Until(SystemTime::now() + Duration::from_secs(duration as u64)),
+        n if n > 0 => SystemTime::now()
+            .checked_add(Duration::from_secs(duration as u64))
+            .map_or(MuteDuration::Forever, MuteDuration::Until),
         _ => {
             warn!(
                 ctx,
