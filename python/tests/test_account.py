@@ -1661,6 +1661,10 @@ class TestOnlineAccount:
         for text in texts:
             chat12.send_text(text)
 
+            # Ensure messages are delivered in exactly this order.
+            ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
+            ac1._evtracker.get_matching("DC_EVENT_MSG_DELIVERED")
+
         lp.sec("ac2: waiting for all messages on the other side")
         to_delete = []
         for text in texts:
