@@ -4,7 +4,21 @@
 
 - fix peerstate issues #1800 #1805
 
-- more bug fixes #1802 #1803 #1806 #1807 #1810 #1813 #1812
+- fix a crash related to muted chats #1803
+
+- fix incorrect dimensions sometimes reported for images #1806
+
+- fixed `dc_chat_get_remaining_mute_duration` function #1807
+
+- handle empty tags (e.g. `<br/>`) in HTML mails #1810
+
+- always translate the message about disappearing messages timer change #1813
+
+- improve footer detection in plain text email #1812
+
+- update device chat icon to fix warnings in iOS logs #1802
+
+- fix deletion of multiple messages #1795
 
 
 ## 1.43.0
