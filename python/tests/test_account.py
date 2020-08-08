@@ -1688,14 +1688,6 @@ class TestOnlineAccount:
         lp.sec("imap2: test that only one message is left")
         imap2 = ac2.direct_imap
 
-        # Flush unsolicited responses. IMAPClient has problems
-        # dealing with them: https://github.com/mjs/imapclient/issues/334
-        # When this NOOP was introduced, next FETCH returned empty
-        # result instead of a single message, even though IMAP server
-        # can only return more untagged responses than required, not
-        # less.
-        imap2.conn.noop()
-
         assert len(imap2.get_all_messages()) == 1
 
 
