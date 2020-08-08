@@ -1,5 +1,12 @@
 # Changelog 
 
+## 1.44.0
+
+- fix peerstate issues #1800 #1805
+
+- more bug fixes #1802 #1803 #1806 #1807 #1810 #1813 #1812
+
+
 ## 1.43.0
 
 - improve using own jitsi-servers #1785
