@@ -1884,8 +1884,11 @@ mod tests {
                 if let Ok(msg) = Message::load_from_db(&t.ctx, msg_id.clone()).await {
                     if msg.get_viewtype() == Viewtype::Image {
                         has_image = true;
+                        // just check that width/height are inside some reasonable ranges
                         assert!(msg.get_width() > 100);
                         assert!(msg.get_height() > 100);
+                        assert!(msg.get_width() < 4000);
+                        assert!(msg.get_height() < 4000);
                     }
                 }
             }
