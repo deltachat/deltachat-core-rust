@@ -663,40 +663,37 @@ async fn add_parts(
         && !is_mdn
         && (*chat_id).get_ephemeral_timer(context).await? != ephemeral_timer
     {
-        match (*chat_id)
+        if let Err(err) = (*chat_id)
             .inner_set_ephemeral_timer(context, ephemeral_timer)
             .await
         {
-            Ok(()) => {
-                if mime_parser.is_system_message == SystemMessage::EphemeralTimerChanged {
-                    set_better_msg(
-                        mime_parser,
-                        stock_ephemeral_timer_changed(context, ephemeral_timer, from_id).await,
-                    );
-
-                    // Do not delete the system message itself.
-                    //
-                    // This prevents confusion when timer is changed
-                    // to 1 week, and then changed to 1 hour: after 1
-                    // hour, only the message about the change to 1
-                    // week is left.
-                    ephemeral_timer = EphemeralTimer::Disabled;
-                } else {
-                    chat::add_info_msg(
-                        context,
-                        *chat_id,
-                        stock_ephemeral_timer_changed(context, ephemeral_timer, from_id).await,
-                    )
-                    .await;
-                }
-            }
-            Err(err) => {
-                warn!(
-                    context,
-                    "failed to modify timer for chat {}: {}", chat_id, err
-                );
-            }
+            warn!(
+                context,
+                "failed to modify timer for chat {}: {}", chat_id, err
+            );
+        } else if mime_parser.is_system_message != SystemMessage::EphemeralTimerChanged {
+            chat::add_info_msg(
+                context,
+                *chat_id,
+                stock_ephemeral_timer_changed(context, ephemeral_timer, from_id).await,
+            )
+            .await;
         }
+    }
+
+    if mime_parser.is_system_message == SystemMessage::EphemeralTimerChanged {
+        set_better_msg(
+            mime_parser,
+            stock_ephemeral_timer_changed(context, ephemeral_timer, from_id).await,
+        );
+
+        // Do not delete the system message itself.
+        //
+        // This prevents confusion when timer is changed
+        // to 1 week, and then changed to 1 hour: after 1
+        // hour, only the message about the change to 1
+        // week is left.
+        ephemeral_timer = EphemeralTimer::Disabled;
     }
 
     // correct message_timestamp, it should not be used before,
