@@ -95,7 +95,8 @@ $ cargo build -p deltachat_ffi --release
 
 - `DCC_MIME_DEBUG`: if set outgoing and incoming message will be printed 
 
-
+- `RUST_LOG=info,async_imap=trace,async_smtp=trace`: enable IMAP and
+SMTP tracing in addition to info messages.
 
 ### Expensive tests
 
