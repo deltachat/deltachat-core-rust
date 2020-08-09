@@ -1059,18 +1059,29 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
 pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
     let extension: &str = &path.extension()?.to_str()?.to_lowercase();
     let info = match extension {
-        "mp3" => (Viewtype::Audio, "audio/mpeg"),
+        "3gp" => (Viewtype::Video, "video/3gpp"),
         "aac" => (Viewtype::Audio, "audio/aac"),
-        "mp4" => (Viewtype::Video, "video/mp4"),
-        "webm" => (Viewtype::Video, "video/webm"),
-        "jpg" => (Viewtype::Image, "image/jpeg"),
+        "avi" => (Viewtype::Video, "video/x-msvideo"),
+        "flac" => (Viewtype::Audio, "audio/flac"),
+        "gif" => (Viewtype::Gif, "image/gif"),
         "jpeg" => (Viewtype::Image, "image/jpeg"),
         "jpe" => (Viewtype::Image, "image/jpeg"),
+        "jpg" => (Viewtype::Image, "image/jpeg"),
+        "mov" => (Viewtype::Video, "video/quicktime"),
+        "mp3" => (Viewtype::Audio, "audio/mpeg"),
+        "mp4" => (Viewtype::Video, "video/mp4"),
+        "oga" => (Viewtype::Audio, "audio/ogg"),
+        "ogg" => (Viewtype::Audio, "audio/ogg"),
+        "ogv" => (Viewtype::Video, "video/ogg"),
+        "opus" => (Viewtype::Audio, "audio/ogg"),
         "png" => (Viewtype::Image, "image/png"),
-        "webp" => (Viewtype::Image, "image/webp"),
-        "gif" => (Viewtype::Gif, "image/gif"),
-        "vcf" => (Viewtype::File, "text/vcard"),
+        "spx" => (Viewtype::Audio, "audio/ogg"), // Ogg Speex Profile
+        "svg" => (Viewtype::Image, "image/svg+xml"),
         "vcard" => (Viewtype::File, "text/vcard"),
+        "vcf" => (Viewtype::File, "text/vcard"),
+        "webm" => (Viewtype::Video, "video/webm"),
+        "webp" => (Viewtype::Image, "image/webp"),
+        "wmv" => (Viewtype::Video, "video/x-ms-wmv"),
         _ => {
             return None;
         }
