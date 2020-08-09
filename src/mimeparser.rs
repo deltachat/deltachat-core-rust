@@ -160,6 +160,10 @@ impl MimeMessage {
                     // do not allow overriding it.
                     let mut throwaway_from = from.clone();
 
+                    // We do not want to allow unencrypted subject in encrypted emails because the user might falsely think that the subject is safe.
+                    // See https://github.com/deltachat/deltachat-core-rust/issues/1790.
+                    headers.remove("subject");
+
                     MimeMessage::merge_headers(
                         context,
                         &mut headers,
