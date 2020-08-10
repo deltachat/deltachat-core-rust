@@ -1509,7 +1509,7 @@ pub(crate) async fn prefetch_should_download(
             if let Ok((chat_id, _, _)) = get_chat_id_by_grpid(context, group_id).await {
                 if !chat_id.is_unset() {
                     // This might be a group command, like removing a group member.
-                    // We need to fetch this to avoid inconsistent group state.
+                    // We really need to fetch this to avoid inconsistent group state.
                     return Ok(true);
                 }
             }
