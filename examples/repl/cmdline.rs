@@ -17,7 +17,7 @@ use deltachat::message::{self, Message, MessageState, MsgId};
 use deltachat::peerstate::*;
 use deltachat::qr::*;
 use deltachat::sql;
-use deltachat::Event;
+use deltachat::EventType;
 use deltachat::{config, provider};
 
 /// Reset database tables.
@@ -86,7 +86,7 @@ async fn reset_tables(context: &Context, bits: i32) {
         println!("(8) Rest but server config reset.");
     }
 
-    context.emit_event(Event::MsgsChanged {
+    context.emit_event(EventType::MsgsChanged {
         chat_id: ChatId::new(0),
         msg_id: MsgId::new(0),
     });
@@ -157,7 +157,7 @@ async fn poke_spec(context: &Context, spec: Option<&str>) -> bool {
     }
     println!("Import: {} items read from \"{}\".", read_cnt, &real_spec);
     if read_cnt > 0 {
-        context.emit_event(Event::MsgsChanged {
+        context.emit_event(EventType::MsgsChanged {
             chat_id: ChatId::new(0),
             msg_id: MsgId::new(0),
         });
@@ -1059,7 +1059,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         // "event" => {
         //     ensure!(!arg1.is_empty(), "Argument <id> missing.");
         //     let event = arg1.parse()?;
-        //     let event = Event::from_u32(event).ok_or(format_err!("Event::from_u32({})", event))?;
+        //     let event = EventType::from_u32(event).ok_or(format_err!("EventType::from_u32({})", event))?;
         //     let r = context.emit_event(event, 0 as libc::uintptr_t, 0 as libc::uintptr_t);
         //     println!(
         //         "Sending event {:?}({}), received value {}.",
