@@ -205,6 +205,11 @@ impl Context {
         self.events.get_emitter()
     }
 
+    /// Get the ID of this context.
+    pub fn get_id(&self) -> u32 {
+        self.id
+    }
+
     // Ongoing process allocation/free/check
 
     pub async fn alloc_ongoing(&self) -> Result<Receiver<()>> {
@@ -525,7 +530,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         std::fs::write(&dbfile, b"123").unwrap();
-        let res = Context::new("FakeOs".into(), dbfile.into(), 0).await;
+        let res = Context::new("FakeOs".into(), dbfile.into(), 1).await;
         assert!(res.is_err());
     }
 
@@ -540,7 +545,7 @@ mod tests {
     async fn test_blobdir_exists() {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
-        Context::new("FakeOS".into(), dbfile.into(), 0)
+        Context::new("FakeOS".into(), dbfile.into(), 1)
             .await
             .unwrap();
         let blobdir = tmp.path().join("db.sqlite-blobs");
@@ -553,7 +558,7 @@ mod tests {
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = tmp.path().join("db.sqlite-blobs");
         std::fs::write(&blobdir, b"123").unwrap();
-        let res = Context::new("FakeOS".into(), dbfile.into(), 0).await;
+        let res = Context::new("FakeOS".into(), dbfile.into(), 1).await;
         assert!(res.is_err());
     }
 
@@ -563,7 +568,7 @@ mod tests {
         let subdir = tmp.path().join("subdir");
         let dbfile = subdir.join("db.sqlite");
         let dbfile2 = dbfile.clone();
-        Context::new("FakeOS".into(), dbfile.into(), 0)
+        Context::new("FakeOS".into(), dbfile.into(), 1)
             .await
             .unwrap();
         assert!(subdir.is_dir());
@@ -575,7 +580,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = PathBuf::new();
-        let res = Context::with_blobdir("FakeOS".into(), dbfile.into(), blobdir.into(), 0).await;
+        let res = Context::with_blobdir("FakeOS".into(), dbfile.into(), blobdir.into(), 1).await;
         assert!(res.is_err());
     }
 
@@ -584,7 +589,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = tmp.path().join("blobs");
-        let res = Context::with_blobdir("FakeOS".into(), dbfile.into(), blobdir.into(), 0).await;
+        let res = Context::with_blobdir("FakeOS".into(), dbfile.into(), blobdir.into(), 1).await;
         assert!(res.is_err());
     }
 

@@ -307,6 +307,16 @@ pub unsafe extern "C" fn dc_is_io_running(context: *mut dc_context_t) -> libc::c
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_get_id(context: *mut dc_context_t) -> libc::c_int {
+    if context.is_null() {
+        return 0;
+    }
+    let ctx = &*context;
+
+    ctx.get_id() as libc::c_int
+}
+
+#[no_mangle]
 pub type dc_event_t = Event;
 
 #[no_mangle]
