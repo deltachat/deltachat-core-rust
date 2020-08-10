@@ -28,13 +28,16 @@ use crate::mimeparser;
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::param::Params;
 use crate::provider::get_provider_info;
-use crate::{chat, scheduler::InterruptInfo, stock::StockMessage};
+use crate::{
+    chat, dc_tools::dc_extract_grpid_from_rfc724_mid, scheduler::InterruptInfo, stock::StockMessage,
+};
 
 mod client;
 mod idle;
 pub mod select_folder;
 mod session;
 
+use chat::get_chat_id_by_grpid;
 use client::Client;
 use message::Message;
 use session::Session;
@@ -1501,6 +1504,18 @@ pub(crate) async fn prefetch_should_download(
     headers: &[mailparse::MailHeader<'_>],
     show_emails: ShowEmails,
 ) -> Result<bool> {
+    if let Some(rfc724_mid) = headers.get_header_value(HeaderDef::MessageId) {
+        if let Some(group_id) = dc_extract_grpid_from_rfc724_mid(&rfc724_mid) {
+            if let Ok((chat_id, _, _)) = get_chat_id_by_grpid(context, group_id).await {
+                if !chat_id.is_unset() {
+                    // This might be a group command, like removing a group member.
+                    // We need to fetch this to avoid inconsistent group state.
+                    return Ok(true);
+                }
+            }
+        }
+    }
+
     let is_chat_message = headers.get_header_value(HeaderDef::ChatVersion).is_some();
     let is_reply_to_chat_message = prefetch_is_reply_to_chat_message(context, &headers).await;
 
