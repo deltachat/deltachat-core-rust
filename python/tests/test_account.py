@@ -1402,6 +1402,38 @@ class TestOnlineAccount:
         assert ev.action == "removed"
         assert ev.message.get_sender_contact().addr == ac1_addr
 
+    
+    def test_system_group_msg_from_blocked_user(self, acfactory, lp):
+        """
+        Tests that a blocked user removes you from a group.
+        The message has to be fetched even though the user is blocked 
+        to avoid inconsistent group state.
+        """
+        lp.sec("Create a group chat with ac1 and ac2")
+        (ac1, ac2) = acfactory.get_two_online_accounts()
+        acfactory.introduce_each_other((ac1, ac2))
+        chat_on_ac1 = ac1.create_group_chat("title", contacts=[ac2])
+        chat_on_ac1.send_text("hello")
+        grp_msg_on_ac2 = ac2._evtracker.wait_next_incoming_message()
+
+        lp.sec("ac1 blocks ac2")
+        contact = ac1.create_contact(ac2)
+        contact.set_blocked(True)
+        assert contact.is_blocked()
+
+        lp.sec("ac2 sends a message to ac1 that does not arrive because it is blocked")
+        ac2.create_chat(ac1).send_text("This will not arrive!")
+        with pytest.raises(queue.Empty):
+            ac1._evtracker.get_matching("DC_EVENT_INCOMING_MSG", timeout=10)
+        
+        lp.sec("ac2 removes ac1 from their group")
+        assert ac1.get_self_contact() in chat_on_ac1.get_contacts()
+        assert contact.is_blocked()
+        grp_msg_on_ac2.chat.remove_contact(ac1)
+        ac1._evtracker.get_matching("DC_EVENT_CHAT_MODIFIED")
+        assert not ac1.get_self_contact() in chat_on_ac1.get_contacts()
+
+
     def test_set_get_group_image(self, acfactory, data, lp):
         ac1, ac2 = acfactory.get_two_online_accounts()
 
