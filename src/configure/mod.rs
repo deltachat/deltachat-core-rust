@@ -495,14 +495,14 @@ async fn try_imap_usernames(
 ) -> Result<LoginParam> {
     if param.mail_user.is_empty() {
         param.mail_user = param.addr.clone();
-        if let Ok(()) = try_imap_one_param(context, &param, imap).await {
-            return Ok(param);
+        if let Err(e) = try_imap_one_param(context, &param, imap).await {
+            if let Some(at) = param.mail_user.find('@') {
+                param.mail_user = param.mail_user.split_at(at).0.to_string();
+                try_imap_one_param(context, &param, imap).await?;
+            } else {
+                return Err(e);
+            }
         }
-
-        if let Some(at) = param.mail_user.find('@') {
-            param.mail_user = param.mail_user.split_at(at).0.to_string();
-        }
-        try_imap_one_param(context, &param, imap).await?;
         Ok(param)
     } else {
         try_imap_one_param(context, &param, imap).await?;
@@ -619,14 +619,14 @@ async fn try_smtp_usernames(
 ) -> Result<LoginParam> {
     if param.send_user.is_empty() {
         param.send_user = param.addr.clone();
-        if let Ok(()) = try_smtp_one_param(context, &param, smtp).await {
-            return Ok(param);
+        if let Err(e) = try_smtp_one_param(context, &param, smtp).await {
+            if let Some(at) = param.send_user.find('@') {
+                param.send_user = param.send_user.split_at(at).0.to_string();
+                try_smtp_one_param(context, &param, smtp).await?;
+            } else {
+                return Err(e);
+            }
         }
-
-        if let Some(at) = param.send_user.find('@') {
-            param.send_user = param.send_user.split_at(at).0.to_string();
-        }
-        try_smtp_one_param(context, &param, smtp).await?;
         Ok(param)
     } else {
         try_smtp_one_param(context, &param, smtp).await?;
