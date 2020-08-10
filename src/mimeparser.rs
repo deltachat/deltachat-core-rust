@@ -16,7 +16,7 @@ use crate::dc_tools::*;
 use crate::dehtml::dehtml;
 use crate::e2ee;
 use crate::error::{bail, Result};
-use crate::events::Event;
+use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::key::Fingerprint;
 use crate::location;
@@ -1001,7 +1001,7 @@ impl MimeMessage {
                 if let Some((chat_id, msg_id)) =
                     message::handle_mdn(context, from_id, original_message_id, sent_timestamp).await
                 {
-                    context.emit_event(Event::MsgRead { chat_id, msg_id });
+                    context.emit_event(EventType::MsgRead { chat_id, msg_id });
                 }
             }
         }

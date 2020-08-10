@@ -12,7 +12,7 @@ use crate::contact::*;
 use crate::context::Context;
 use crate::e2ee::*;
 use crate::error::{bail, Error};
-use crate::events::Event;
+use crate::events::EventType;
 use crate::headerdef::HeaderDef;
 use crate::key::{DcKey, Fingerprint, SignedPublicKey};
 use crate::lot::LotState;
@@ -32,7 +32,7 @@ macro_rules! joiner_progress {
             $progress >= 0 && $progress <= 1000,
             "value in range 0..1000 expected with: 0=error, 1..999=progress, 1000=success"
         );
-        $context.emit_event($crate::events::Event::SecurejoinJoinerProgress {
+        $context.emit_event($crate::events::EventType::SecurejoinJoinerProgress {
             contact_id: $contact_id,
             progress: $progress,
         });
@@ -45,7 +45,7 @@ macro_rules! inviter_progress {
             $progress >= 0 && $progress <= 1000,
             "value in range 0..1000 expected with: 0=error, 1..999=progress, 1000=success"
         );
-        $context.emit_event($crate::events::Event::SecurejoinInviterProgress {
+        $context.emit_event($crate::events::EventType::SecurejoinInviterProgress {
             contact_id: $contact_id,
             progress: $progress,
         });
@@ -653,7 +653,7 @@ pub(crate) async fn handle_securejoin_handshake(
             Contact::scaleup_origin_by_id(context, contact_id, Origin::SecurejoinInvited).await;
             info!(context, "Auth verified.",);
             secure_connection_established(context, contact_chat_id).await;
-            emit_event!(context, Event::ContactsChanged(Some(contact_id)));
+            emit_event!(context, EventType::ContactsChanged(Some(contact_id)));
             inviter_progress!(context, contact_id, 600);
             if join_vg {
                 // the vg-member-added message is special:
@@ -773,7 +773,7 @@ pub(crate) async fn handle_securejoin_handshake(
                 return Ok(abort_retval);
             }
             Contact::scaleup_origin_by_id(context, contact_id, Origin::SecurejoinJoined).await;
-            emit_event!(context, Event::ContactsChanged(None));
+            emit_event!(context, EventType::ContactsChanged(None));
             let cg_member_added = mime_message
                 .get(HeaderDef::ChatGroupMemberAdded)
                 .map(|s| s.as_str())
@@ -960,7 +960,7 @@ async fn secure_connection_established(context: &Context, contact_chat_id: ChatI
         .stock_string_repl_str(StockMessage::ContactVerified, addr)
         .await;
     chat::add_info_msg(context, contact_chat_id, msg).await;
-    emit_event!(context, Event::ChatModified(contact_chat_id));
+    emit_event!(context, EventType::ChatModified(contact_chat_id));
 }
 
 async fn could_not_establish_secure_connection(
@@ -1073,7 +1073,7 @@ pub async fn handle_degrade_event(
                 .await;
 
             chat::add_info_msg(context, contact_chat_id, msg).await;
-            emit_event!(context, Event::ChatModified(contact_chat_id));
+            emit_event!(context, EventType::ChatModified(contact_chat_id));
         }
     }
     Ok(())

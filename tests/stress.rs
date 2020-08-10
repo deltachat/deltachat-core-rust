@@ -99,9 +99,14 @@ struct TestContext {
 }
 
 async fn create_test_context() -> TestContext {
+    use rand::Rng;
+
     let dir = tempdir().unwrap();
     let dbfile = dir.path().join("db.sqlite");
-    let ctx = Context::new("FakeOs".into(), dbfile.into()).await.unwrap();
+    let id = rand::thread_rng().gen();
+    let ctx = Context::new("FakeOs".into(), dbfile.into(), id)
+        .await
+        .unwrap();
     TestContext { ctx, dir }
 }
 

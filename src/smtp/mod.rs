@@ -9,7 +9,7 @@ use async_smtp::*;
 
 use crate::constants::*;
 use crate::context::Context;
-use crate::events::Event;
+use crate::events::EventType;
 use crate::login_param::{dc_build_tls, CertificateChecks, LoginParam};
 use crate::oauth2::*;
 use crate::provider::get_provider_info;
@@ -102,7 +102,7 @@ impl Smtp {
         }
 
         if lp.send_server.is_empty() || lp.send_port == 0 {
-            context.emit_event(Event::ErrorNetwork("SMTP bad parameters.".into()));
+            context.emit_event(EventType::ErrorNetwork("SMTP bad parameters.".into()));
             return Err(Error::BadParameters);
         }
 
@@ -187,14 +187,14 @@ impl Smtp {
                 )
                 .await;
 
-            emit_event!(context, Event::ErrorNetwork(message));
+            emit_event!(context, EventType::ErrorNetwork(message));
             return Err(Error::ConnectionFailure(err));
         }
 
         self.transport = Some(trans);
         self.last_success = Some(SystemTime::now());
 
-        context.emit_event(Event::SmtpConnected(format!(
+        context.emit_event(EventType::SmtpConnected(format!(
             "SMTP-LOGIN as {} ok",
             lp.send_user,
         )));

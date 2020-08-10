@@ -15,7 +15,7 @@ use rand::{thread_rng, Rng};
 
 use crate::context::Context;
 use crate::error::{bail, Error};
-use crate::events::Event;
+use crate::events::EventType;
 
 pub(crate) fn dc_exactly_one_bit_set(v: i32) -> bool {
     0 != v && 0 == v & (v - 1)
@@ -286,7 +286,7 @@ pub(crate) async fn dc_delete_file(context: &Context, path: impl AsRef<Path>) ->
     let dpath = format!("{}", path.as_ref().to_string_lossy());
     match fs::remove_file(path_abs).await {
         Ok(_) => {
-            context.emit_event(Event::DeletedBlobFile(dpath));
+            context.emit_event(EventType::DeletedBlobFile(dpath));
             true
         }
         Err(err) => {

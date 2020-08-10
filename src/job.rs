@@ -23,7 +23,7 @@ use crate::context::Context;
 use crate::dc_tools::*;
 use crate::ephemeral::load_imap_deletion_msgid;
 use crate::error::{bail, ensure, format_err, Error, Result};
-use crate::events::Event;
+use crate::events::EventType;
 use crate::imap::*;
 use crate::location;
 use crate::login_param::LoginParam;
@@ -737,7 +737,7 @@ async fn set_delivered(context: &Context, msg_id: MsgId) {
         )
         .await
         .unwrap_or_default();
-    context.emit_event(Event::MsgDelivered { chat_id, msg_id });
+    context.emit_event(EventType::MsgDelivered { chat_id, msg_id });
 }
 
 /// Constructs a job for sending a message.

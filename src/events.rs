@@ -1,5 +1,7 @@
 //! # Events specification
 
+use std::ops::Deref;
+
 use async_std::path::PathBuf;
 use async_std::sync::{channel, Receiver, Sender, TrySendError};
 use strum::EnumProperty;
@@ -65,7 +67,21 @@ impl EventEmitter {
     }
 }
 
-impl Event {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Event {
+    pub id: u32,
+    pub typ: EventType,
+}
+
+impl Deref for Event {
+    type Target = EventType;
+
+    fn deref(&self) -> &EventType {
+        &self.typ
+    }
+}
+
+impl EventType {
     /// Returns the corresponding Event id.
     pub fn as_id(&self) -> i32 {
         self.get_str("id")
@@ -76,7 +92,7 @@ impl Event {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, EnumProperty)]
-pub enum Event {
+pub enum EventType {
     /// The library-user may write an informational string to the log.
     /// Passed to the callback given to dc_context_new().
     /// This event should not be reported to the end-user using a popup or something like that.

@@ -63,7 +63,7 @@ use crate::constants::{
 use crate::context::Context;
 use crate::dc_tools::time;
 use crate::error::{ensure, Error};
-use crate::events::Event;
+use crate::events::EventType;
 use crate::message::{Message, MessageState, MsgId};
 use crate::mimeparser::SystemMessage;
 use crate::sql;
@@ -177,7 +177,7 @@ impl ChatId {
             )
             .await?;
 
-        context.emit_event(Event::ChatEphemeralTimerModified {
+        context.emit_event(EventType::ChatEphemeralTimerModified {
             chat_id: self,
             timer,
         });
@@ -379,7 +379,7 @@ pub async fn schedule_ephemeral_task(context: &Context) {
                 async_std::task::sleep(duration).await;
                 emit_event!(
                     context1,
-                    Event::MsgsChanged {
+                    EventType::MsgsChanged {
                         chat_id: ChatId::new(0),
                         msg_id: MsgId::new(0)
                     }
@@ -390,7 +390,7 @@ pub async fn schedule_ephemeral_task(context: &Context) {
             // Emit event immediately
             emit_event!(
                 context,
-                Event::MsgsChanged {
+                EventType::MsgsChanged {
                     chat_id: ChatId::new(0),
                     msg_id: MsgId::new(0)
                 }

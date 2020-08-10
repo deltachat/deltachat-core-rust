@@ -14,7 +14,7 @@ use crate::constants::*;
 use crate::contact::*;
 use crate::dc_tools::duration_to_str;
 use crate::error::*;
-use crate::events::{Event, EventEmitter, Events};
+use crate::events::{Event, EventEmitter, EventType, Events};
 use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;
 use crate::lot::Lot;
@@ -59,6 +59,9 @@ pub struct InnerContext {
     pub(crate) scheduler: RwLock<Scheduler>,
     pub(crate) ephemeral_task: RwLock<Option<task::JoinHandle<()>>>,
 
+    /// Id for this context on the current device.
+    pub(crate) id: u32,
+
     creation_time: SystemTime,
 }
 
@@ -86,7 +89,7 @@ pub fn get_info() -> BTreeMap<&'static str, String> {
 
 impl Context {
     /// Creates new context.
-    pub async fn new(os_name: String, dbfile: PathBuf) -> Result<Context> {
+    pub async fn new(os_name: String, dbfile: PathBuf, id: u32) -> Result<Context> {
         // pretty_env_logger::try_init_timed().ok();
 
         let mut blob_fname = OsString::new();
@@ -96,13 +99,14 @@ impl Context {
         if !blobdir.exists().await {
             async_std::fs::create_dir_all(&blobdir).await?;
         }
-        Context::with_blobdir(os_name, dbfile, blobdir).await
+        Context::with_blobdir(os_name, dbfile, blobdir, id).await
     }
 
-    pub async fn with_blobdir(
+    pub(crate) async fn with_blobdir(
         os_name: String,
         dbfile: PathBuf,
         blobdir: PathBuf,
+        id: u32,
     ) -> Result<Context> {
         ensure!(
             blobdir.is_dir().await,
@@ -111,6 +115,7 @@ impl Context {
         );
 
         let inner = InnerContext {
+            id,
             blobdir,
             dbfile,
             os_name: Some(os_name),
@@ -188,8 +193,11 @@ impl Context {
     }
 
     /// Emits a single event.
-    pub fn emit_event(&self, event: Event) {
-        self.events.emit(event);
+    pub fn emit_event(&self, event: EventType) {
+        self.events.emit(Event {
+            id: self.id,
+            typ: event,
+        });
     }
 
     /// Get the next queued event.
@@ -517,7 +525,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         std::fs::write(&dbfile, b"123").unwrap();
-        let res = Context::new("FakeOs".into(), dbfile.into()).await;
+        let res = Context::new("FakeOs".into(), dbfile.into(), 0).await;
         assert!(res.is_err());
     }
 
@@ -532,7 +540,9 @@ mod tests {
     async fn test_blobdir_exists() {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
-        Context::new("FakeOS".into(), dbfile.into()).await.unwrap();
+        Context::new("FakeOS".into(), dbfile.into(), 0)
+            .await
+            .unwrap();
         let blobdir = tmp.path().join("db.sqlite-blobs");
         assert!(blobdir.is_dir());
     }
@@ -543,7 +553,7 @@ mod tests {
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = tmp.path().join("db.sqlite-blobs");
         std::fs::write(&blobdir, b"123").unwrap();
-        let res = Context::new("FakeOS".into(), dbfile.into()).await;
+        let res = Context::new("FakeOS".into(), dbfile.into(), 0).await;
         assert!(res.is_err());
     }
 
@@ -553,7 +563,9 @@ mod tests {
         let subdir = tmp.path().join("subdir");
         let dbfile = subdir.join("db.sqlite");
         let dbfile2 = dbfile.clone();
-        Context::new("FakeOS".into(), dbfile.into()).await.unwrap();
+        Context::new("FakeOS".into(), dbfile.into(), 0)
+            .await
+            .unwrap();
         assert!(subdir.is_dir());
         assert!(dbfile2.is_file());
     }
@@ -563,7 +575,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = PathBuf::new();
-        let res = Context::with_blobdir("FakeOS".into(), dbfile.into(), blobdir.into()).await;
+        let res = Context::with_blobdir("FakeOS".into(), dbfile.into(), blobdir.into(), 0).await;
         assert!(res.is_err());
     }
 
@@ -572,7 +584,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = tmp.path().join("blobs");
-        let res = Context::with_blobdir("FakeOS".into(), dbfile.into(), blobdir.into()).await;
+        let res = Context::with_blobdir("FakeOS".into(), dbfile.into(), blobdir.into(), 0).await;
         assert!(res.is_err());
     }
 

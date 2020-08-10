@@ -8,7 +8,7 @@ use crate::chat::ChatId;
 use crate::constants::DC_VERSION_STR;
 use crate::context::Context;
 use crate::dc_tools::*;
-use crate::events::Event;
+use crate::events::EventType;
 use crate::message::MsgId;
 use crate::mimefactory::RECOMMENDED_FILE_SIZE;
 use crate::stock::StockMessage;
@@ -226,7 +226,7 @@ impl Context {
             Config::DeleteDeviceAfter => {
                 let ret = self.sql.set_raw_config(self, key, value).await;
                 // Force chatlist reload to delete old messages immediately.
-                self.emit_event(Event::MsgsChanged {
+                self.emit_event(EventType::MsgsChanged {
                     msg_id: MsgId::new(0),
                     chat_id: ChatId::new(0),
                 });

@@ -871,6 +871,7 @@ dependencies = [
  "human-panic",
  "libc",
  "num-traits",
+ "rand",
  "serde_json",
  "thiserror",
 ]

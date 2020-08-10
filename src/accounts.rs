@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::context::Context;
 use crate::error::Result;
+use crate::events::Event;
 
 /// Account manager, that can handle multiple accounts in a single place.
 #[derive(Debug, Clone)]
@@ -42,7 +43,7 @@ impl Accounts {
         let config = Config::new(os_name.clone(), dir).await?;
         let account_config = config.new_account(dir).await?;
 
-        Context::new(os_name, account_config.dbfile().into())
+        Context::new(os_name, account_config.dbfile().into(), account_config.id)
             .await
             .context("failed to create default account")?;
 
@@ -95,7 +96,7 @@ impl Accounts {
         let os_name = self.config.os_name().await;
         let account_config = self.config.new_account(&self.dir).await?;
 
-        let ctx = Context::new(os_name, account_config.dbfile().into()).await?;
+        let ctx = Context::new(os_name, account_config.dbfile().into(), account_config.id).await?;
         self.accounts.write().await.insert(account_config.id, ctx);
 
         Ok(account_config.id)
@@ -151,9 +152,13 @@ impl Accounts {
 
         match res {
             Ok(_) => {
-                let ctx =
-                    Context::with_blobdir(self.config.os_name().await, new_dbfile, new_blobdir)
-                        .await?;
+                let ctx = Context::with_blobdir(
+                    self.config.os_name().await,
+                    new_dbfile,
+                    new_blobdir,
+                    account_config.id,
+                )
+                .await?;
                 self.accounts.write().await.insert(account_config.id, ctx);
                 Ok(account_config.id)
             }
@@ -250,13 +255,14 @@ impl EventEmitter {
     fn recv_poll(self: Pin<&Self>, _cx: &mut TaskContext<'_>) -> Poll<Option<Event>> {
         for e in &*self.0 {
             if e.done.load(Ordering::Acquire) {
+                // skip emitters that are already done
                 continue;
             }
 
             match e.emitter.try_recv() {
-                Ok(event) => return Poll::Ready(Some(Event { event, id: e.id })),
+                Ok(event) => return Poll::Ready(Some(event)),
                 Err(async_std::sync::TryRecvError::Disconnected) => {
-                    e.done.store(false, Ordering::Release);
+                    e.done.store(true, Ordering::Release);
                 }
                 Err(async_std::sync::TryRecvError::Empty) => {}
             }
@@ -274,13 +280,6 @@ struct EmitterWrapper {
     id: u32,
     emitter: crate::events::EventEmitter,
     done: AtomicBool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Event {
-    /// The id of the account that emitted the event.
-    pub id: u32,
-    pub event: crate::events::Event,
 }
 
 pub const CONFIG_NAME: &str = "accounts.toml";
@@ -347,7 +346,12 @@ impl Config {
         let cfg = &*self.inner.read().await;
         let mut accounts = HashMap::with_capacity(cfg.accounts.len());
         for account_config in &cfg.accounts {
-            let ctx = Context::new(cfg.os_name.clone(), account_config.dbfile().into()).await?;
+            let ctx = Context::new(
+                cfg.os_name.clone(),
+                account_config.dbfile().into(),
+                account_config.id,
+            )
+            .await?;
             accounts.insert(account_config.id, ctx);
         }
 
@@ -504,7 +508,7 @@ mod tests {
         assert_eq!(accounts.config.get_selected_account().await, 1);
 
         let extern_dbfile: PathBuf = dir.path().join("other").into();
-        let ctx = Context::new("my_os".into(), extern_dbfile.clone())
+        let ctx = Context::new("my_os".into(), extern_dbfile.clone(), 0)
             .await
             .unwrap();
         ctx.set_config(crate::config::Config::Addr, Some("me@mail.com"))

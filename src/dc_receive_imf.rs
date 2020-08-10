@@ -12,7 +12,7 @@ use crate::context::Context;
 use crate::dc_tools::*;
 use crate::ephemeral::{stock_ephemeral_timer_changed, Timer as EphemeralTimer};
 use crate::error::{bail, ensure, format_err, Result};
-use crate::events::Event;
+use crate::events::EventType;
 use crate::headerdef::HeaderDef;
 use crate::job::{self, Action};
 use crate::message::{self, MessageState, MessengerMessage, MsgId};
@@ -93,8 +93,8 @@ pub async fn dc_receive_imf(
         if let Some(create_event_to_send) = create_event_to_send {
             for (chat_id, msg_id) in created_db_entries {
                 let event = match create_event_to_send {
-                    CreateEvent::MsgsChanged => Event::MsgsChanged { msg_id, chat_id },
-                    CreateEvent::IncomingMsg => Event::IncomingMsg { msg_id, chat_id },
+                    CreateEvent::MsgsChanged => EventType::MsgsChanged { msg_id, chat_id },
+                    CreateEvent::IncomingMsg => EventType::IncomingMsg { msg_id, chat_id },
                 };
                 context.emit_event(event);
             }
@@ -206,7 +206,7 @@ pub async fn dc_receive_imf(
         .await
         {
             Ok(()) => {
-                context.emit_event(Event::ChatModified(chat_id));
+                context.emit_event(EventType::ChatModified(chat_id));
             }
             Err(err) => {
                 warn!(context, "reveive_imf cannot update profile image: {}", err);
@@ -935,7 +935,7 @@ async fn save_locations(
         }
     }
     if send_event {
-        context.emit_event(Event::LocationChanged(Some(from_id)));
+        context.emit_event(EventType::LocationChanged(Some(from_id)));
     }
 }
 
@@ -1239,7 +1239,7 @@ async fn create_or_lookup_group(
                     .await
                     .is_ok()
                 {
-                    context.emit_event(Event::ChatModified(chat_id));
+                    context.emit_event(EventType::ChatModified(chat_id));
                 }
             }
         }
@@ -1298,7 +1298,7 @@ async fn create_or_lookup_group(
     }
 
     if send_EVENT_CHAT_MODIFIED {
-        context.emit_event(Event::ChatModified(chat_id));
+        context.emit_event(EventType::ChatModified(chat_id));
     }
     Ok((chat_id, chat_id_blocked))
 }
@@ -1435,7 +1435,7 @@ async fn create_or_lookup_adhoc_group(
         chat::add_to_chat_contacts_table(context, new_chat_id, member_id).await;
     }
 
-    context.emit_event(Event::ChatModified(new_chat_id));
+    context.emit_event(EventType::ChatModified(new_chat_id));
 
     Ok((new_chat_id, create_blocked))
 }
