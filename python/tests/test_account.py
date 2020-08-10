@@ -1431,7 +1431,7 @@ class TestOnlineAccount:
         chat_on_ac2.send_text("This will arrive")
         msg = ac1._evtracker.wait_next_incoming_message()
         assert msg.text == "This will arrive"
-        message_texts = list(map(lambda m: m.text, chat_on_ac1.get_messages()))
+        message_texts = [m.text for m in chat_on_ac1.get_messages()]
         assert len(message_texts) == 2
         assert "First group message" in message_texts
         assert "This will arrive" in message_texts
