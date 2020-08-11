@@ -1077,6 +1077,7 @@ pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
         "png" => (Viewtype::Image, "image/png"),
         "spx" => (Viewtype::Audio, "audio/ogg"), // Ogg Speex Profile
         "svg" => (Viewtype::Image, "image/svg+xml"),
+        "tgs" => (Viewtype::Sticker, "application/x-tgsticker"),
         "vcard" => (Viewtype::File, "text/vcard"),
         "vcf" => (Viewtype::File, "text/vcard"),
         "webm" => (Viewtype::Video, "video/webm"),
