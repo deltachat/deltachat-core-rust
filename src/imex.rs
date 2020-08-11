@@ -16,7 +16,7 @@ use crate::context::Context;
 use crate::dc_tools::*;
 use crate::e2ee;
 use crate::error::*;
-use crate::events::Event;
+use crate::events::EventType;
 use crate::key::{self, DcKey, DcSecretKey, SignedPublicKey, SignedSecretKey};
 use crate::message::{Message, MsgId};
 use crate::mimeparser::SystemMessage;
@@ -369,7 +369,7 @@ async fn imex_inner(
     ensure!(param.is_some(), "No Import/export dir/file given.");
 
     info!(context, "Import/export process started.");
-    context.emit_event(Event::ImexProgress(10));
+    context.emit_event(EventType::ImexProgress(10));
 
     ensure!(context.sql.is_open().await, "Database not opened.");
 
@@ -393,11 +393,11 @@ async fn imex_inner(
     match success {
         Ok(()) => {
             info!(context, "IMEX successfully completed");
-            context.emit_event(Event::ImexProgress(1000));
+            context.emit_event(EventType::ImexProgress(1000));
             Ok(())
         }
         Err(err) => {
-            context.emit_event(Event::ImexProgress(0));
+            context.emit_event(EventType::ImexProgress(0));
             bail!("IMEX FAILED to complete: {}", err);
         }
     }
@@ -487,7 +487,7 @@ async fn import_backup(context: &Context, backup_to_import: impl AsRef<Path>) ->
         if permille > 990 {
             permille = 990
         }
-        context.emit_event(Event::ImexProgress(permille));
+        context.emit_event(EventType::ImexProgress(permille));
         if file_blob.is_empty() {
             continue;
         }
@@ -563,7 +563,7 @@ async fn export_backup(context: &Context, dir: impl AsRef<Path>) -> Result<()> {
             dest_sql
                 .set_raw_config_int(context, "backup_time", now as i32)
                 .await?;
-            context.emit_event(Event::ImexFileWritten(dest_path_filename));
+            context.emit_event(EventType::ImexFileWritten(dest_path_filename));
             Ok(())
         }
     };
@@ -602,7 +602,7 @@ async fn add_files_to_export(context: &Context, sql: &Sql) -> Result<()> {
             }
             processed_files_cnt += 1;
             let permille = max(min(processed_files_cnt * 1000 / total_files_cnt, 990), 10);
-            context.emit_event(Event::ImexProgress(permille));
+            context.emit_event(EventType::ImexProgress(permille));
 
             let name_f = entry.file_name();
             let name = name_f.to_string_lossy();
@@ -769,7 +769,7 @@ where
     if res.is_err() {
         error!(context, "Cannot write key to {}", file_name.display());
     } else {
-        context.emit_event(Event::ImexFileWritten(file_name));
+        context.emit_event(EventType::ImexFileWritten(file_name));
     }
     res
 }

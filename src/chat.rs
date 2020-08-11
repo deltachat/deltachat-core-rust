@@ -17,7 +17,7 @@ use crate::context::Context;
 use crate::dc_tools::*;
 use crate::ephemeral::{delete_expired_messages, schedule_ephemeral_task, Timer as EphemeralTimer};
 use crate::error::{bail, ensure, format_err, Error};
-use crate::events::Event;
+use crate::events::EventType;
 use crate::job::{self, Action};
 use crate::message::{self, InvalidMsgId, Message, MessageState, MsgId};
 use crate::mimeparser::SystemMessage;
@@ -185,7 +185,7 @@ impl ChatId {
             )
             .await?;
 
-        context.emit_event(Event::MsgsChanged {
+        context.emit_event(EventType::MsgsChanged {
             msg_id: MsgId::new(0),
             chat_id: ChatId::new(0),
         });
@@ -242,7 +242,7 @@ impl ChatId {
             .execute("DELETE FROM chats WHERE id=?;", paramsv![self])
             .await?;
 
-        context.emit_event(Event::MsgsChanged {
+        context.emit_event(EventType::MsgsChanged {
             msg_id: MsgId::new(0),
             chat_id: ChatId::new(0),
         });
@@ -268,7 +268,7 @@ impl ChatId {
         };
 
         if changed {
-            context.emit_event(Event::MsgsChanged {
+            context.emit_event(EventType::MsgsChanged {
                 chat_id: self,
                 msg_id: MsgId::new(0),
             });
@@ -789,7 +789,7 @@ impl Chat {
         {
             emit_event!(
                 context,
-                Event::ErrorSelfNotInGroup("Cannot send message; self not in group.".into())
+                EventType::ErrorSelfNotInGroup("Cannot send message; self not in group.".into())
             );
             bail!("Cannot set message; self not in group.");
         }
@@ -1146,7 +1146,7 @@ pub async fn create_by_msg_id(context: &Context, msg_id: MsgId) -> Result<ChatId
         chat.id.unblock(context).await;
 
         // Sending with 0s as data since multiple messages may have changed.
-        context.emit_event(Event::MsgsChanged {
+        context.emit_event(EventType::MsgsChanged {
             chat_id: ChatId::new(0),
             msg_id: MsgId::new(0),
         });
@@ -1188,7 +1188,7 @@ pub async fn create_by_contact_id(context: &Context, contact_id: u32) -> Result<
         }
     };
 
-    context.emit_event(Event::MsgsChanged {
+    context.emit_event(EventType::MsgsChanged {
         chat_id: ChatId::new(0),
         msg_id: MsgId::new(0),
     });
@@ -1355,7 +1355,7 @@ pub async fn prepare_msg(
 
     msg.state = MessageState::OutPreparing;
     let msg_id = prepare_msg_common(context, chat_id, msg).await?;
-    context.emit_event(Event::MsgsChanged {
+    context.emit_event(EventType::MsgsChanged {
         chat_id: msg.chat_id,
         msg_id: msg.id,
     });
@@ -1530,7 +1530,7 @@ pub async fn send_msg_sync(
 
         match status {
             job::Status::Finished(Ok(_)) => {
-                context.emit_event(Event::MsgsChanged {
+                context.emit_event(EventType::MsgsChanged {
                     chat_id: msg.chat_id,
                     msg_id: msg.id,
                 });
@@ -1558,13 +1558,13 @@ async fn send_msg_inner(
     if let Some(send_job) = prepare_send_msg(context, chat_id, msg).await? {
         job::add(context, send_job).await;
 
-        context.emit_event(Event::MsgsChanged {
+        context.emit_event(EventType::MsgsChanged {
             chat_id: msg.chat_id,
             msg_id: msg.id,
         });
 
         if msg.param.exists(Param::SetLatitude) {
-            context.emit_event(Event::LocationChanged(Some(DC_CONTACT_ID_SELF)));
+            context.emit_event(EventType::LocationChanged(Some(DC_CONTACT_ID_SELF)));
         }
     }
 
@@ -1665,7 +1665,7 @@ pub async fn get_chat_msgs(
                 // On desktop chatlist is always shown on the side,
                 // and it is important to update the last message shown
                 // there.
-                context.emit_event(Event::MsgsChanged {
+                context.emit_event(EventType::MsgsChanged {
                     msg_id: MsgId::new(0),
                     chat_id: ChatId::new(0),
                 })
@@ -1788,7 +1788,7 @@ pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<(), 
         )
         .await?;
 
-    context.emit_event(Event::MsgsChanged {
+    context.emit_event(EventType::MsgsChanged {
         chat_id: ChatId::new(0),
         msg_id: MsgId::new(0),
     });
@@ -1820,7 +1820,7 @@ pub async fn marknoticed_all_chats(context: &Context) -> Result<(), Error> {
         )
         .await?;
 
-    context.emit_event(Event::MsgsChanged {
+    context.emit_event(EventType::MsgsChanged {
         msg_id: MsgId::new(0),
         chat_id: ChatId::new(0),
     });
@@ -1991,7 +1991,7 @@ pub async fn create_group_chat(
         chat_id.set_draft_raw(context, &mut draft_msg).await;
     }
 
-    context.emit_event(Event::MsgsChanged {
+    context.emit_event(EventType::MsgsChanged {
         msg_id: MsgId::new(0),
         chat_id: ChatId::new(0),
     });
@@ -2091,7 +2091,9 @@ pub(crate) async fn add_contact_to_chat_ex(
         /* we should respect this - whatever we send to the group, it gets discarded anyway! */
         emit_event!(
             context,
-            Event::ErrorSelfNotInGroup("Cannot add contact to group; self not in group.".into())
+            EventType::ErrorSelfNotInGroup(
+                "Cannot add contact to group; self not in group.".into()
+            )
         );
         bail!("can not add contact because our account is not part of it");
     }
@@ -2149,7 +2151,7 @@ pub(crate) async fn add_contact_to_chat_ex(
         msg.param.set_int(Param::Arg2, from_handshake.into());
         msg.id = send_msg(context, chat_id, &mut msg).await?;
     }
-    context.emit_event(Event::ChatModified(chat_id));
+    context.emit_event(EventType::ChatModified(chat_id));
     Ok(true)
 }
 
@@ -2311,7 +2313,7 @@ pub async fn set_muted(
         .await
         .is_ok()
     {
-        context.emit_event(Event::ChatModified(chat_id));
+        context.emit_event(EventType::ChatModified(chat_id));
     } else {
         bail!("Failed to set mute duration, chat might not exist -");
     }
@@ -2343,7 +2345,7 @@ pub async fn remove_contact_from_chat(
             if !is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF).await {
                 emit_event!(
                     context,
-                    Event::ErrorSelfNotInGroup(
+                    EventType::ErrorSelfNotInGroup(
                         "Cannot remove contact from chat; self not in group.".into()
                     )
                 );
@@ -2391,7 +2393,7 @@ pub async fn remove_contact_from_chat(
                 // removed it first, it would complicate the
                 // check/encryption logic.
                 success = remove_from_chat_contacts_table(context, chat_id, contact_id).await;
-                context.emit_event(Event::ChatModified(chat_id));
+                context.emit_event(EventType::ChatModified(chat_id));
             }
         }
     }
@@ -2451,7 +2453,7 @@ pub async fn set_chat_name(
         } else if !is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF).await {
             emit_event!(
                 context,
-                Event::ErrorSelfNotInGroup("Cannot set chat name; self not in group".into())
+                EventType::ErrorSelfNotInGroup("Cannot set chat name; self not in group".into())
             );
         } else {
             /* we should respect this - whatever we send to the group, it gets discarded anyway! */
@@ -2481,12 +2483,12 @@ pub async fn set_chat_name(
                         msg.param.set(Param::Arg, &chat.name);
                     }
                     msg.id = send_msg(context, chat_id, &mut msg).await?;
-                    context.emit_event(Event::MsgsChanged {
+                    context.emit_event(EventType::MsgsChanged {
                         chat_id,
                         msg_id: msg.id,
                     });
                 }
-                context.emit_event(Event::ChatModified(chat_id));
+                context.emit_event(EventType::ChatModified(chat_id));
                 success = true;
             }
         }
@@ -2519,7 +2521,9 @@ pub async fn set_chat_profile_image(
     if !is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF).await {
         emit_event!(
             context,
-            Event::ErrorSelfNotInGroup("Cannot set chat profile image; self not in group.".into())
+            EventType::ErrorSelfNotInGroup(
+                "Cannot set chat profile image; self not in group.".into()
+            )
         );
         bail!("Failed to set profile image");
     }
@@ -2558,13 +2562,13 @@ pub async fn set_chat_profile_image(
         msg.id = send_msg(context, chat_id, &mut msg).await?;
         emit_event!(
             context,
-            Event::MsgsChanged {
+            EventType::MsgsChanged {
                 chat_id,
                 msg_id: msg.id
             }
         );
     }
-    emit_event!(context, Event::ChatModified(chat_id));
+    emit_event!(context, EventType::ChatModified(chat_id));
     Ok(())
 }
 
@@ -2648,7 +2652,7 @@ pub async fn forward_msgs(
         }
     }
     for (chat_id, msg_id) in created_chats.iter().zip(created_msgs.iter()) {
-        context.emit_event(Event::MsgsChanged {
+        context.emit_event(EventType::MsgsChanged {
             chat_id: *chat_id,
             msg_id: *msg_id,
         });
@@ -2774,9 +2778,9 @@ pub async fn add_device_msg_with_importance(
 
     if !msg_id.is_unset() {
         if important {
-            context.emit_event(Event::IncomingMsg { chat_id, msg_id });
+            context.emit_event(EventType::IncomingMsg { chat_id, msg_id });
         } else {
-            context.emit_event(Event::MsgsChanged { chat_id, msg_id });
+            context.emit_event(EventType::MsgsChanged { chat_id, msg_id });
         }
     }
 
@@ -2864,7 +2868,7 @@ pub(crate) async fn add_info_msg(context: &Context, chat_id: ChatId, text: impl 
         .get_rowid(context, "msgs", "rfc724_mid", &rfc724_mid)
         .await
         .unwrap_or_default();
-    context.emit_event(Event::MsgsChanged {
+    context.emit_event(EventType::MsgsChanged {
         chat_id,
         msg_id: MsgId::new(row_id),
     });

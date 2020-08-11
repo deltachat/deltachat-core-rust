@@ -15,7 +15,7 @@ use crate::config::Config;
 use crate::constants::*;
 use crate::context::Context;
 use crate::error::Error;
-use crate::events::Event;
+use crate::events::EventType;
 use crate::message;
 
 /// Represents a file in the blob directory.
@@ -67,7 +67,7 @@ impl<'a> BlobObject<'a> {
             blobdir,
             name: format!("$BLOBDIR/{}", name),
         };
-        context.emit_event(Event::NewBlobFile(blob.as_name().to_string()));
+        context.emit_event(EventType::NewBlobFile(blob.as_name().to_string()));
         Ok(blob)
     }
 
@@ -155,7 +155,7 @@ impl<'a> BlobObject<'a> {
             blobdir: context.get_blobdir(),
             name: format!("$BLOBDIR/{}", name),
         };
-        context.emit_event(Event::NewBlobFile(blob.as_name().to_string()));
+        context.emit_event(EventType::NewBlobFile(blob.as_name().to_string()));
         Ok(blob)
     }
 

@@ -19,7 +19,7 @@ use crate::context::Context;
 use crate::dc_receive_imf::{
     dc_receive_imf, from_field_to_contact_id, is_msgrmsg_rfc724_mid_in_list,
 };
-use crate::events::Event;
+use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job::{self, Action};
 use crate::login_param::{CertificateChecks, LoginParam};
@@ -284,7 +284,7 @@ impl Imap {
                         .await
                 };
                 // IMAP connection failures are reported to users
-                emit_event!(context, Event::ErrorNetwork(message));
+                emit_event!(context, EventType::ErrorNetwork(message));
                 return Err(Error::ConnectionFailed(err.to_string()));
             }
         };
@@ -307,7 +307,7 @@ impl Imap {
                     .await;
 
                 warn!(context, "{} ({})", message, err);
-                emit_event!(context, Event::ErrorNetwork(message.clone()));
+                emit_event!(context, EventType::ErrorNetwork(message.clone()));
 
                 let lock = context.wrong_pw_warning_mutex.lock().await;
                 if self.login_failed_once
@@ -445,7 +445,7 @@ impl Imap {
                         self.connected = true;
                         emit_event!(
                             context,
-                            Event::ImapConnected(format!(
+                            EventType::ImapConnected(format!(
                                 "IMAP-LOGIN as {}, capabilities: {}",
                                 lp.mail_user, caps_list,
                             ))
@@ -888,7 +888,7 @@ impl Imap {
                     Ok(_) => {
                         emit_event!(
                             context,
-                            Event::ImapMessageMoved(format!(
+                            EventType::ImapMessageMoved(format!(
                                 "IMAP Message {} moved to {}",
                                 display_folder_id, dest_folder
                             ))
@@ -932,7 +932,7 @@ impl Imap {
             warn!(context, "Cannot mark {} as \"Deleted\" after copy.", uid);
             emit_event!(
                 context,
-                Event::ImapMessageMoved(format!(
+                EventType::ImapMessageMoved(format!(
                     "IMAP Message {} copied to {} (delete FAILED)",
                     display_folder_id, dest_folder
                 ))
@@ -942,7 +942,7 @@ impl Imap {
             self.config.selected_folder_needs_expunge = true;
             emit_event!(
                 context,
-                Event::ImapMessageMoved(format!(
+                EventType::ImapMessageMoved(format!(
                     "IMAP Message {} copied to {} (delete successfull)",
                     display_folder_id, dest_folder
                 ))
@@ -1142,7 +1142,7 @@ impl Imap {
         } else {
             emit_event!(
                 context,
-                Event::ImapMessageDeleted(format!(
+                EventType::ImapMessageDeleted(format!(
                     "IMAP Message {} marked as deleted [{}]",
                     display_imap_id, message_id
                 ))
@@ -1316,7 +1316,7 @@ impl Imap {
         self.config.selected_folder_needs_expunge = true;
         match self.select_folder::<String>(context, None).await {
             Ok(()) => {
-                emit_event!(context, Event::ImapFolderEmptied(folder.to_string()));
+                emit_event!(context, EventType::ImapFolderEmptied(folder.to_string()));
             }
             Err(err) => {
                 error!(context, "expunge failed {}: {:?}", folder, err);

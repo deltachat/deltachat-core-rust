@@ -12,7 +12,7 @@ use crate::contact::*;
 use crate::context::*;
 use crate::dc_tools::*;
 use crate::error::{ensure, Error};
-use crate::events::Event;
+use crate::events::EventType;
 use crate::job::{self, Action};
 use crate::lot::{Lot, LotState, Meaning};
 use crate::mimeparser::{FailureReport, SystemMessage};
@@ -1118,7 +1118,7 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) {
     }
 
     if !msg_ids.is_empty() {
-        context.emit_event(Event::MsgsChanged {
+        context.emit_event(EventType::MsgsChanged {
             chat_id: ChatId::new(0),
             msg_id: MsgId::new(0),
         });
@@ -1209,7 +1209,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
     }
 
     if send_event {
-        context.emit_event(Event::MsgsChanged {
+        context.emit_event(EventType::MsgsChanged {
             chat_id: ChatId::new(0),
             msg_id: MsgId::new(0),
         });
@@ -1376,7 +1376,7 @@ pub async fn set_msg_failed(context: &Context, msg_id: MsgId, error: Option<impl
             )
             .await
         {
-            Ok(_) => context.emit_event(Event::MsgFailed {
+            Ok(_) => context.emit_event(EventType::MsgFailed {
                 chat_id: msg.chat_id,
                 msg_id,
             }),
@@ -1551,7 +1551,7 @@ pub(crate) async fn handle_ndn(
                             .await,
                     )
                     .await;
-                    context.emit_event(Event::ChatModified(chat_id));
+                    context.emit_event(EventType::ChatModified(chat_id));
                 }
             }
         }

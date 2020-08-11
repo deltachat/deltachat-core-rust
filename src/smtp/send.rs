@@ -4,7 +4,7 @@ use super::Smtp;
 use async_smtp::*;
 
 use crate::context::Context;
-use crate::events::Event;
+use crate::events::EventType;
 use std::time::Duration;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -55,7 +55,7 @@ impl Smtp {
                 .await
                 .map_err(Error::SendError)?;
 
-            context.emit_event(Event::SmtpMessageSent(format!(
+            context.emit_event(EventType::SmtpMessageSent(format!(
                 "Message len={} was smtp-sent to {}",
                 message_len_bytes, recipients_display
             )));

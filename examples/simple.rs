@@ -6,20 +6,20 @@ use deltachat::config;
 use deltachat::contact::*;
 use deltachat::context::*;
 use deltachat::message::Message;
-use deltachat::Event;
+use deltachat::EventType;
 
-fn cb(event: Event) {
+fn cb(event: EventType) {
     match event {
-        Event::ConfigureProgress(progress) => {
+        EventType::ConfigureProgress(progress) => {
             log::info!("progress: {}", progress);
         }
-        Event::Info(msg) => {
+        EventType::Info(msg) => {
             log::info!("{}", msg);
         }
-        Event::Warning(msg) => {
+        EventType::Warning(msg) => {
             log::warn!("{}", msg);
         }
-        Event::Error(msg) | Event::ErrorNetwork(msg) => {
+        EventType::Error(msg) | EventType::ErrorNetwork(msg) => {
             log::error!("{}", msg);
         }
         event => {
@@ -36,7 +36,7 @@ async fn main() {
     let dir = tempdir().unwrap();
     let dbfile = dir.path().join("db.sqlite");
     log::info!("creating database {:?}", dbfile);
-    let ctx = Context::new("FakeOs".into(), dbfile.into())
+    let ctx = Context::new("FakeOs".into(), dbfile.into(), 0)
         .await
         .expect("Failed to create context");
     let info = ctx.get_info().await;
@@ -45,7 +45,7 @@ async fn main() {
     let events = ctx.get_event_emitter();
     let events_spawn = async_std::task::spawn(async move {
         while let Some(event) = events.recv().await {
-            cb(event);
+            cb(event.typ);
         }
     });
 
