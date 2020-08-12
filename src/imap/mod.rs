@@ -489,29 +489,25 @@ impl Imap {
     }
 
     async fn get_config_last_seen_uid<S: AsRef<str>>(
-        &self,
         context: &Context,
         folder: S,
-    ) -> (u32, u32) {
+    ) -> Option<(u32, u32)> {
         let key = format!("imap.mailbox.{}", folder.as_ref());
-        if let Some(entry) = context.sql.get_raw_config(context, &key).await {
-            // the entry has the format `imap.mailbox.<folder>=<uidvalidity>:<lastseenuid>`
-            let mut parts = entry.split(':');
-            (
-                parts
-                    .next()
-                    .unwrap_or_default()
-                    .parse()
-                    .unwrap_or_else(|_| 0),
-                parts
-                    .next()
-                    .unwrap_or_default()
-                    .parse()
-                    .unwrap_or_else(|_| 0),
-            )
-        } else {
-            (0, 0)
-        }
+        let entry = context.sql.get_raw_config(context, &key).await?;
+        // the entry has the format `imap.mailbox.<folder>=<uidvalidity>:<lastseenuid>`
+        let mut parts = entry.split(':');
+        Some((
+            parts
+                .next()
+                .unwrap_or_default()
+                .parse()
+                .unwrap_or_else(|_| 0),
+            parts
+                .next()
+                .unwrap_or_default()
+                .parse()
+                .unwrap_or_else(|_| 0),
+        ))
     }
 
     /// return Result with (uid_validity, last_seen_uid) tuple.
@@ -519,11 +515,10 @@ impl Imap {
         &mut self,
         context: &Context,
         folder: &str,
+        // If this is true and this is the first time init, lastseenuid will be set to 0 so that the next fetch also fetches all old messages:
+        allow_fetch_old_messages: bool,
     ) -> Result<(u32, u32)> {
         self.select_folder(context, Some(folder)).await?;
-
-        // compare last seen UIDVALIDITY against the current one
-        let (uid_validity, last_seen_uid) = self.get_config_last_seen_uid(context, &folder).await;
 
         let config = &mut self.config;
         let mailbox = config
@@ -538,6 +533,24 @@ impl Imap {
                 return Err(Error::Other(s));
             }
         };
+
+        let (uid_validity, last_seen_uid) =
+            match Imap::get_config_last_seen_uid(context, &folder).await {
+                Some(t) => t,
+                None => {
+                    // First time init
+                    if allow_fetch_old_messages {
+                        // Set lastseenuid to 0 so that older messages will be fetched as well,
+                        // but update new_uid_validity
+                        self.set_config_last_seen_uid(context, &folder, new_uid_validity, 0)
+                            .await;
+                        return Ok((new_uid_validity, 0));
+                    } else {
+                        // Further down, lastseenuid will be set to last seen uid within the new uid_validity scope.
+                        (0, 0)
+                    }
+                }
+            };
 
         if new_uid_validity == uid_validity {
             return Ok((uid_validity, last_seen_uid));
@@ -617,7 +630,7 @@ impl Imap {
             .unwrap_or_default();
 
         let (uid_validity, last_seen_uid) = self
-            .select_with_uidvalidity(context, folder.as_ref())
+            .select_with_uidvalidity(context, folder.as_ref(), true)
             .await?;
 
         let msgs = self.fetch_after(context, last_seen_uid).await?;
@@ -1269,6 +1282,7 @@ impl Imap {
                     .set_config(Config::ConfiguredMvboxFolder, Some(mvbox_folder))
                     .await?;
             }
+            info!(context, "dbg mvbox is {:?}", mvbox_folder);
             if let Some(ref sentbox_folder) = sentbox_folder {
                 context
                     .set_config(Config::ConfiguredSentboxFolder, Some(sentbox_folder))

@@ -50,8 +50,11 @@ impl Context {
             self.sql.is_open().await,
             "cannot configure, database not opened."
         );
-        let cancel_channel = self.alloc_ongoing().await?;
 
+        // TODO dbg remove
+        self.set_config(Config::ShowEmails, Some("2")).await?;
+
+        let cancel_channel = self.alloc_ongoing().await?;
         let res = self
             .inner_configure()
             .race(cancel_channel.recv().map(|_| {
@@ -245,12 +248,6 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     imap.configure_folders(ctx, create_mvbox).await?;
 
-    imap.select_with_uidvalidity(ctx, "INBOX")
-        .await
-        .context("could not read INBOX status")?;
-
-    drop(imap);
-
     progress!(ctx, 910);
     // configuration success - write back the configured parameters with the
     // "configured_" prefix; also write the "configured"-flag */
@@ -262,6 +259,20 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     e2ee::ensure_secret_key_exists(ctx).await?;
     info!(ctx, "key generation completed");
+
+    imap.select_with_uidvalidity(ctx, "INBOX", true)
+        .await
+        .context("could not read INBOX status")?;
+    imap.fetch(ctx, "INBOX", true).await?;
+
+    if let Some(mvbox) = ctx.get_config(Config::ConfiguredMvboxFolder).await {
+        imap.select_with_uidvalidity(ctx, &mvbox, true)
+            .await
+            .context("could not read INBOX status")?;
+        imap.fetch(ctx, &mvbox, true).await?;
+    }
+
+    drop(imap);
 
     progress!(ctx, 940);
 

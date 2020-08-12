@@ -717,6 +717,12 @@ async fn add_parts(
         mime_references = raw.clone();
     }
 
+    if !context.is_configured().await && mime_parser.decrypting_failed {
+        // The context is not even configured yet, i.e. we are only gathering old messages.
+        // We do not want to add loads of non-decryptable messages to the chats.
+        *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
+    }
+
     // fine, so far.  now, split the message into simple parts usable as "short messages"
     // and add them to the database (mails sent by other messenger clients should result
     // into only one message; mails sent by other clients may result in several messages
