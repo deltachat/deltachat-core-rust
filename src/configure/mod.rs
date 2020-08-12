@@ -253,7 +253,6 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     // "configured_" prefix; also write the "configured"-flag */
     // the trailing underscore is correct
     param.save_to_database(ctx, "configured_").await?;
-    ctx.sql.set_raw_config_bool(ctx, "configured", true).await?;
 
     progress!(ctx, 920);
 
@@ -263,16 +262,17 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     imap.select_with_uidvalidity(ctx, "INBOX", true)
         .await
         .context("could not read INBOX status")?;
-    imap.fetch(ctx, "INBOX", true).await?;
+    imap.fetch(ctx, "INBOX").await?;
 
     if let Some(mvbox) = ctx.get_config(Config::ConfiguredMvboxFolder).await {
         imap.select_with_uidvalidity(ctx, &mvbox, true)
             .await
             .context("could not read INBOX status")?;
-        imap.fetch(ctx, &mvbox, true).await?;
+        imap.fetch(ctx, &mvbox).await?;
     }
-
     drop(imap);
+
+    ctx.sql.set_raw_config_bool(ctx, "configured", true).await?;
 
     progress!(ctx, 940);
 
