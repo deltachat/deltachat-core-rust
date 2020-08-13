@@ -5,7 +5,11 @@ mod auto_outlook;
 mod read_url;
 
 use anyhow::{bail, ensure, Context as _, Result};
-use async_std::prelude::*;
+use async_std::{
+    prelude::*,
+    sync::Mutex,
+    task::{self, spawn},
+};
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use crate::config::Config;
@@ -17,19 +21,87 @@ use crate::login_param::{CertificateChecks, LoginParam};
 use crate::message::Message;
 use crate::oauth2::*;
 use crate::smtp::Smtp;
-use crate::{chat, e2ee, provider};
+use crate::{chat, e2ee, provider, EventType};
 
 use auto_mozilla::moz_autoconfigure;
 use auto_outlook::outlk_autodiscover;
+use std::{sync::Arc, time::Duration};
 
-macro_rules! progress {
-    ($context:tt, $progress:expr) => {
-        assert!(
-            $progress <= 1000,
-            "value in range 0..1000 expected with: 0=error, 1..999=progress, 1000=success"
-        );
-        $context.emit_event($crate::events::EventType::ConfigureProgress($progress));
-    };
+pub struct ProgressHandlerInner {
+    progress_limit: usize,
+    emitted_progress: f64,
+    context: Context,
+    step_fraction: f64,
+}
+
+pub struct ProgressHandler {
+    inner: Arc<Mutex<ProgressHandlerInner>>,
+}
+
+impl ProgressHandler {
+    /// If step_fraction is e.g. 10, then every 100ms we will step by 1/10th of the remaining interval.
+    /// The bigger this value, the slower the progress bar will move in the beginning.
+    pub fn new(context: &Context, step_fraction: f64) -> Self {
+        let ret = Arc::new(Mutex::new(ProgressHandlerInner {
+            progress_limit: 1,
+            emitted_progress: 0f64,
+            context: context.clone(),
+            step_fraction,
+        }));
+        let cloned = ret.clone();
+        spawn(async move {
+            loop {
+                task::sleep(Duration::from_millis(100)).await;
+                {
+                    let mut lock = cloned.lock().await;
+                    let limit = lock.progress_limit;
+                    if limit == 1000 || limit == 0 {
+                        warn!(&lock.context, "dbg returning {}", limit);
+                        return;
+                    }
+                    let last = lock.emitted_progress;
+
+                    let next = last + ((limit as f64 - last) / lock.step_fraction);
+                    warn!(
+                        &lock.context,
+                        "dbg step {}, last {}, next{}, limit {}",
+                        (limit as f64 - last),
+                        last,
+                        next,
+                        limit
+                    );
+
+                    if next.ceil() - last.ceil() > 0f64 {
+                        lock.context
+                            .emit_event(EventType::ConfigureProgress(next.ceil() as usize));
+                    }
+
+                    lock.emitted_progress = next;
+                    drop(lock);
+                };
+            }
+        });
+        Self { inner: ret }
+    }
+
+    pub fn p(&self, progress: usize) {
+        let inner = self.inner.clone();
+        spawn(async move {
+            assert!(
+                progress <= 1000,
+                "value in range 0..1000 expected with: 0=error, 1..999=progress, 1000=success"
+            );
+            if progress == 1000 || progress == 0 {
+                let context = &inner.lock().await.context;
+                context.emit_event(EventType::ConfigureProgress(progress));
+            }
+            warn!(
+                &inner.lock().await.context,
+                "dbg setting limit {}", progress
+            );
+            inner.lock().await.progress_limit = progress;
+        });
+    }
 }
 
 impl Context {
@@ -52,10 +124,11 @@ impl Context {
         );
 
         let cancel_channel = self.alloc_ongoing().await?;
+        let progress = ProgressHandler::new(self, 20.0);
         let res = self
-            .inner_configure()
+            .inner_configure(&progress)
             .race(cancel_channel.recv().map(|_| {
-                progress!(self, 0);
+                progress.p(0);
                 Ok(())
             }))
             .await;
@@ -65,11 +138,11 @@ impl Context {
         res
     }
 
-    async fn inner_configure(&self) -> Result<()> {
+    async fn inner_configure(&self, progress: &ProgressHandler) -> Result<()> {
         info!(self, "Configure ...");
 
         let mut param = LoginParam::from_database(self, "").await;
-        let success = configure(self, &mut param).await;
+        let success = configure(self, &mut param, &progress).await;
         self.set_config(Config::NotifyAboutWrongPw, None).await?;
 
         if let Some(provider) = provider::get_provider_info(&param.addr) {
@@ -103,23 +176,27 @@ impl Context {
             Ok(_) => {
                 self.set_config(Config::NotifyAboutWrongPw, Some("1"))
                     .await?;
-                progress!(self, 1000);
+                progress.p(1000);
                 Ok(())
             }
             Err(err) => {
-                progress!(self, 0);
+                progress.p(0);
                 Err(err)
             }
         }
     }
 }
 
-async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
+async fn configure(
+    ctx: &Context,
+    param: &mut LoginParam,
+    progress: &ProgressHandler,
+) -> Result<()> {
     let mut param_autoconfig: Option<LoginParam> = None;
     let mut keep_flags = 0;
 
     // Read login parameters from the database
-    progress!(ctx, 1);
+    progress.p(1);
     ensure!(!param.addr.is_empty(), "Please enter an email address.");
 
     // Step 1: Load the parameters and check email-address and password
@@ -127,7 +204,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     if 0 != param.server_flags & DC_LP_AUTH_OAUTH2 {
         // the used oauth2 addr may differ, check this.
         // if dc_get_oauth2_addr() is not available in the oauth2 implementation, just use the given one.
-        progress!(ctx, 10);
+        progress.p(10);
         if let Some(oauth2_addr) = dc_get_oauth2_addr(ctx, &param.addr, &param.mail_pw)
             .await
             .and_then(|e| e.parse().ok())
@@ -138,7 +215,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
                 .set_raw_config(ctx, "addr", Some(param.addr.as_str()))
                 .await?;
         }
-        progress!(ctx, 20);
+        progress.p(20);
     }
     // no oauth? - just continue it's no error
 
@@ -147,7 +224,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     let param_addr_urlencoded = utf8_percent_encode(&param.addr, NON_ALPHANUMERIC).to_string();
 
     // Step 2: Autoconfig
-    progress!(ctx, 200);
+    progress.p(200);
 
     // param.mail_user.is_empty() -- the user can enter a loginname which is used by autoconfig then
     // param.send_pw.is_empty()   -- the password cannot be auto-configured and is no criterion for
@@ -168,12 +245,12 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
         if param_autoconfig.is_none() {
             param_autoconfig =
-                get_autoconfig(ctx, param, &param_domain, &param_addr_urlencoded).await;
+                get_autoconfig(ctx, param, &param_domain, &param_addr_urlencoded, progress).await;
         }
     }
 
     // C.  Do we have any autoconfig result?
-    progress!(ctx, 500);
+    progress.p(500);
     if let Some(ref cfg) = param_autoconfig {
         info!(ctx, "Got autoconfig: {}", &cfg);
         if !cfg.mail_user.is_empty() {
@@ -215,7 +292,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         "Account settings incomplete."
     );
 
-    progress!(ctx, 600);
+    progress.p(600);
     // try to connect to IMAP - if we did not got an autoconfig,
     // do some further tries with different settings and username variations
     let (_s, r) = async_std::sync::channel(1);
@@ -226,9 +303,9 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
             bail!("IMAP autoconfig did not succeed");
         }
     } else {
-        *param = try_imap_hostnames(ctx, param.clone(), &mut imap).await?;
+        *param = try_imap_hostnames(ctx, param.clone(), &mut imap, progress).await?;
     }
-    progress!(ctx, 750);
+    progress.p(750);
 
     let mut smtp = Smtp::new();
     if param_autoconfig.is_some() {
@@ -236,27 +313,27 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
             bail!("SMTP autoconfig did not succeed");
         }
     } else {
-        *param = try_smtp_hostnames(ctx, param.clone(), &mut smtp).await?;
+        *param = try_smtp_hostnames(ctx, param.clone(), &mut smtp, progress).await?;
     }
-    progress!(ctx, 900);
+    progress.p(900);
 
     let create_mvbox = ctx.get_config_bool(Config::MvboxWatch).await
         || ctx.get_config_bool(Config::MvboxMove).await;
 
     imap.configure_folders(ctx, create_mvbox).await?;
 
-    progress!(ctx, 910);
+    progress.p(910);
     // configuration success - write back the configured parameters with the
     // "configured_" prefix; also write the "configured"-flag */
     // the trailing underscore is correct
     param.save_to_database(ctx, "configured_").await?;
 
-    progress!(ctx, 920);
+    progress.p(920);
 
     e2ee::ensure_secret_key_exists(ctx).await?;
     info!(ctx, "key generation completed");
 
-    progress!(ctx, 930);
+    progress.p(930);
 
     // Load old messages from the database
     imap.select_with_uidvalidity(ctx, "INBOX", true)
@@ -270,11 +347,12 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         imap.fetch(ctx, &mvbox).await?;
     }
     drop(imap);
+    task::sleep(Duration::from_secs(100)).await; //TODO dbg
 
     ctx.sql.set_raw_config_bool(ctx, "configured", true).await?;
     // We only set the configured key here so that we can use is_configured() in dc_receive_imf() to find out whether this is the first-time setup.
 
-    progress!(ctx, 940);
+    progress.p(940);
 
     Ok(())
 }
@@ -348,14 +426,15 @@ async fn get_autoconfig(
     param: &LoginParam,
     param_domain: &str,
     param_addr_urlencoded: &str,
+    progress: &ProgressHandler,
 ) -> Option<LoginParam> {
     let sources = AutoconfigSource::all(param_domain, param_addr_urlencoded);
 
-    let mut progress = 300;
+    let mut prog: usize = 300;
     for source in &sources {
         let res = source.fetch(ctx, param).await;
-        progress!(ctx, progress);
-        progress += 10;
+        progress.p(prog);
+        prog += 10;
         if let Ok(res) = res {
             return Some(res);
         }
@@ -423,6 +502,7 @@ async fn try_imap_hostnames(
     context: &Context,
     mut param: LoginParam,
     imap: &mut Imap,
+    progress: &ProgressHandler,
 ) -> Result<LoginParam> {
     if param.mail_server.is_empty() {
         let parsed: EmailAddress = param.addr.parse().context("Bad email-address")?;
@@ -433,17 +513,17 @@ async fn try_imap_hostnames(
             return Ok(param);
         }
 
-        progress!(context, 650);
+        progress.p(650);
         param.mail_server = "imap.".to_string() + &param_domain;
         if let Ok(param) = try_imap_ports(context, param.clone(), imap).await {
             return Ok(param);
         }
 
-        progress!(context, 700);
+        progress.p(700);
         param.mail_server = "mail.".to_string() + &param_domain;
         try_imap_ports(context, param, imap).await
     } else {
-        progress!(context, 700);
+        progress.p(700);
         try_imap_ports(context, param, imap).await
     }
 }
@@ -544,6 +624,7 @@ async fn try_smtp_hostnames(
     context: &Context,
     mut param: LoginParam,
     smtp: &mut Smtp,
+    progress: &ProgressHandler,
 ) -> Result<LoginParam> {
     if param.send_server.is_empty() {
         let parsed: EmailAddress = param.addr.parse().context("Bad email-address")?;
@@ -554,17 +635,17 @@ async fn try_smtp_hostnames(
             return Ok(param);
         }
 
-        progress!(context, 800);
+        progress.p(800);
         param.send_server = "smtp.".to_string() + &param_domain;
         if let Ok(param) = try_smtp_ports(context, param.clone(), smtp).await {
             return Ok(param);
         }
 
-        progress!(context, 850);
+        progress.p(850);
         param.mail_server = "mail.".to_string() + &param_domain;
         try_smtp_ports(context, param, smtp).await
     } else {
-        progress!(context, 850);
+        progress.p(850);
         try_smtp_ports(context, param, smtp).await
     }
 }
