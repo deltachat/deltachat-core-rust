@@ -1046,7 +1046,7 @@ async fn update_gossip_peerstates(
                     peerstate = Some(p);
                 }
                 if let Some(peerstate) = peerstate {
-                    peerstate.handle_degrade_event(context).await?;
+                    peerstate.handle_fingerprint_change(context).await?;
                 }
 
                 gossipped_addr.insert(header.addr.clone());

@@ -165,7 +165,7 @@ pub async fn try_decrypt(
         peerstate = Peerstate::from_addr(&context, &from).await?;
     }
     if let Some(peerstate) = peerstate {
-        peerstate.handle_degrade_event(context).await?;
+        peerstate.handle_fingerprint_change(context).await?;
         if let Some(key) = peerstate.gossip_key {
             public_keyring_for_validate.add(key);
         }
