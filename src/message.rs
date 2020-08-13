@@ -649,7 +649,18 @@ impl Message {
         if instance.contains("$ROOM") {
             instance.replace("$ROOM", &room)
         } else {
-            format!("{}{}", instance, room)
+            // if there nothing that would separate the room, add a slash as a separator
+            // this way, urls can be given as "https://meet.jit.si" as well as "https://meet.jit.si/"
+            let maybe_slash = if instance.ends_with("/")
+                || instance.ends_with("?")
+                || instance.ends_with("#")
+                || instance.ends_with("=")
+            {
+                ""
+            } else {
+                "/"
+            };
+            format!("{}{}{}", instance, maybe_slash, room)
         }
     }
 
