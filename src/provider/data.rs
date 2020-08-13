@@ -81,6 +81,21 @@ lazy_static::lazy_static! {
         oauth2_authorizer: None,
     };
 
+    // buzon.uy.md: buzon.uy
+    static ref P_BUZON_UY: Provider = Provider {
+        status: Status::OK,
+        before_login_hint: "",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/buzon-uy",
+        server: vec![
+            Server { protocol: IMAP, socket: STARTTLS, hostname: "buzon.uy", port: 143, username_pattern: EMAIL },
+            Server { protocol: SMTP, socket: STARTTLS, hostname: "buzon.uy", port: 587, username_pattern: EMAIL },
+        ],
+        config_defaults: None,
+        strict_tls: true,
+        oauth2_authorizer: None,
+    };
+
     // chello.at.md: chello.at
     static ref P_CHELLO_AT: Provider = Provider {
         status: Status::OK,
@@ -142,6 +157,9 @@ lazy_static::lazy_static! {
         after_login_hint: "",
         overview_page: "https://providers.delta.chat/dubby-org",
         server: vec![
+            Server { protocol: IMAP, socket: SSL, hostname: "dubby.org", port: 993, username_pattern: EMAIL },
+            Server { protocol: SMTP, socket: STARTTLS, hostname: "dubby.org", port: 587, username_pattern: EMAIL },
+            Server { protocol: SMTP, socket: SSL, hostname: "dubby.org", port: 465, username_pattern: EMAIL },
         ],
         config_defaults: Some(vec![
             ConfigDefault { key: Config::BccSelf, value: "1" },
@@ -181,6 +199,19 @@ lazy_static::lazy_static! {
         oauth2_authorizer: None,
     };
 
+    // firemail.de.md: firemail.at, firemail.de
+    static ref P_FIREMAIL_DE: Provider = Provider {
+        status: Status::PREPARATION,
+        before_login_hint: "Firemail erlaubt nur bei bezahlten Accounts den vollen Zugriff auf das E-Mail-Protokoll. Wenn Sie nicht für Firemail bezahlen, verwenden Sie bitte einen anderen E-Mail-Anbieter.",
+        after_login_hint: "Leider schränkt Firemail die maximale Gruppengröße ein. Je nach Bezahlmodell sind nur 5 bis 30 Gruppenmitglieder erlaubt.",
+        overview_page: "https://providers.delta.chat/firemail-de",
+        server: vec![
+        ],
+        config_defaults: None,
+        strict_tls: false,
+        oauth2_authorizer: None,
+    };
+
     // five.chat.md: five.chat
     static ref P_FIVE_CHAT: Provider = Provider {
         status: Status::OK,
@@ -188,6 +219,9 @@ lazy_static::lazy_static! {
         after_login_hint: "",
         overview_page: "https://providers.delta.chat/five-chat",
         server: vec![
+            Server { protocol: IMAP, socket: STARTTLS, hostname: "five.chat", port: 143, username_pattern: EMAIL },
+            Server { protocol: IMAP, socket: SSL, hostname: "five.chat", port: 993, username_pattern: EMAIL },
+            Server { protocol: SMTP, socket: STARTTLS, hostname: "five.chat", port: 587, username_pattern: EMAIL },
         ],
         config_defaults: Some(vec![
             ConfigDefault { key: Config::BccSelf, value: "1" },
@@ -505,6 +539,21 @@ lazy_static::lazy_static! {
         oauth2_authorizer: None,
     };
 
+    // undernet.uy.md: undernet.uy
+    static ref P_UNDERNET_UY: Provider = Provider {
+        status: Status::OK,
+        before_login_hint: "",
+        after_login_hint: "",
+        overview_page: "https://providers.delta.chat/undernet-uy",
+        server: vec![
+            Server { protocol: IMAP, socket: STARTTLS, hostname: "undernet.uy", port: 143, username_pattern: EMAIL },
+            Server { protocol: SMTP, socket: STARTTLS, hostname: "undernet.uy", port: 587, username_pattern: EMAIL },
+        ],
+        config_defaults: None,
+        strict_tls: true,
+        oauth2_authorizer: None,
+    };
+
     // vfemail.md: vfemail.net
     static ref P_VFEMAIL: Provider = Provider {
         status: Status::OK,
@@ -571,6 +620,8 @@ lazy_static::lazy_static! {
         after_login_hint: "",
         overview_page: "https://providers.delta.chat/yandex-ru",
         server: vec![
+            Server { protocol: IMAP, socket: SSL, hostname: "imap.yandex.com", port: 993, username_pattern: EMAIL },
+            Server { protocol: SMTP, socket: SSL, hostname: "smtp.yandex.com", port: 465, username_pattern: EMAIL },
         ],
         config_defaults: None,
         strict_tls: true,
@@ -598,6 +649,7 @@ lazy_static::lazy_static! {
         ("arcor.de", &*P_ARCOR_DE),
         ("autistici.org", &*P_AUTISTICI_ORG),
         ("bluewin.ch", &*P_BLUEWIN_CH),
+        ("buzon.uy", &*P_BUZON_UY),
         ("chello.at", &*P_CHELLO_AT),
         ("xfinity.com", &*P_COMCAST),
         ("comcast.net", &*P_COMCAST),
@@ -607,6 +659,8 @@ lazy_static::lazy_static! {
         ("example.com", &*P_EXAMPLE_COM),
         ("example.org", &*P_EXAMPLE_COM),
         ("fastmail.com", &*P_FASTMAIL),
+        ("firemail.at", &*P_FIREMAIL_DE),
+        ("firemail.de", &*P_FIREMAIL_DE),
         ("five.chat", &*P_FIVE_CHAT),
         ("freenet.de", &*P_FREENET_DE),
         ("gmail.com", &*P_GMAIL),
@@ -698,6 +752,7 @@ lazy_static::lazy_static! {
         ("testrun.org", &*P_TESTRUN),
         ("tiscali.it", &*P_TISCALI_IT),
         ("ukr.net", &*P_UKR_NET),
+        ("undernet.uy", &*P_UNDERNET_UY),
         ("vfemail.net", &*P_VFEMAIL),
         ("vodafone.de", &*P_VODAFONE_DE),
         ("vodafonemail.de", &*P_VODAFONE_DE),
