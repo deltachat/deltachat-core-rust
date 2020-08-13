@@ -166,10 +166,9 @@ pub async fn try_decrypt(
     }
     if let Some(peerstate) = peerstate {
         peerstate.handle_fingerprint_change(context).await?;
-        if let Some(key) = peerstate.gossip_key {
-            public_keyring_for_validate.add(key);
-        }
         if let Some(key) = peerstate.public_key {
+            public_keyring_for_validate.add(key);
+        } else if let Some(key) = peerstate.gossip_key {
             public_keyring_for_validate.add(key);
         }
     }
