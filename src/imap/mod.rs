@@ -546,7 +546,7 @@ impl Imap {
                             .await;
                         return Ok((new_uid_validity, 0));
                     } else {
-                        // Further down, lastseenuid will be set to last seen uid within the new uid_validity scope.
+                        // Further down, lastseenuid will be set to last uid within the new uid_validity scope.
                         (0, 0)
                     }
                 }
@@ -630,7 +630,7 @@ impl Imap {
             .unwrap_or_default();
 
         let (uid_validity, last_seen_uid) = self
-            .select_with_uidvalidity(context, folder.as_ref(), true)
+            .select_with_uidvalidity(context, folder.as_ref(), false)
             .await?;
 
         let msgs = self.fetch_after(context, last_seen_uid).await?;
@@ -1282,7 +1282,6 @@ impl Imap {
                     .set_config(Config::ConfiguredMvboxFolder, Some(mvbox_folder))
                     .await?;
             }
-            info!(context, "dbg mvbox is {:?}", mvbox_folder);
             if let Some(ref sentbox_folder) = sentbox_folder {
                 context
                     .set_config(Config::ConfiguredSentboxFolder, Some(sentbox_folder))

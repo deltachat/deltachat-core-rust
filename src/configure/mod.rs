@@ -51,9 +51,6 @@ impl Context {
             "cannot configure, database not opened."
         );
 
-        // TODO dbg remove
-        self.set_config(Config::ShowEmails, Some("2")).await?;
-
         let cancel_channel = self.alloc_ongoing().await?;
         let res = self
             .inner_configure()
@@ -259,11 +256,13 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     e2ee::ensure_secret_key_exists(ctx).await?;
     info!(ctx, "key generation completed");
 
+    progress!(ctx, 930);
+
+    // Load old messages from the database
     imap.select_with_uidvalidity(ctx, "INBOX", true)
         .await
         .context("could not read INBOX status")?;
     imap.fetch(ctx, "INBOX").await?;
-
     if let Some(mvbox) = ctx.get_config(Config::ConfiguredMvboxFolder).await {
         imap.select_with_uidvalidity(ctx, &mvbox, true)
             .await
@@ -273,6 +272,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     drop(imap);
 
     ctx.sql.set_raw_config_bool(ctx, "configured", true).await?;
+    // We only set the configured key here so that we can use is_configured() in dc_receive_imf() to find out whether this is the first-time setup.
 
     progress!(ctx, 940);
 
